@@ -58,6 +58,17 @@ class AutoMissionTests(unittest.TestCase):
         self.assertTrue(all(j["coverage"] == "full-pass-attempt" for j in outcome["scheduled"]))
         self.assertIsNone(self.station.device_lock)
 
+    def test_user_selected_duration_persists_and_is_bounded(self):
+        plan=self.station.auto_schedule(["meteor-m2-3"],duration_seconds=330)
+        self.assertEqual(plan["scheduled_count"],1)
+        job=plan["scheduled"][0]
+        self.assertEqual(job["capture_seconds"],330)
+        self.assertEqual(job["requested_seconds"],330)
+        self.assertEqual(job["coverage"],"partial-pass")
+        self.assertLess(job["estimated_bytes"],2_000_000_000)
+        with self.assertRaisesRegex(ValueError,"8–900"):
+            self.station.auto_schedule(["meteor-m2-3"],duration_seconds=901)
+
     def test_quick_meteor_sample_is_not_scheduled_as_complete_image(self):
         outcome = self.station.auto_schedule(["meteor-m2-3"], coverage_goal="sample")
         self.assertEqual(outcome["scheduled_count"], 1)

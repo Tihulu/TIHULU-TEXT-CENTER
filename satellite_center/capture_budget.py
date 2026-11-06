@@ -27,11 +27,17 @@ KINDS = {
 
 def plan_capture_budget(aos: datetime, los: datetime, mission_id: str,
                         *, free_bytes: int | None, goal: str = "full",
-                        start_at: datetime | None = None) -> dict:
+                        start_at: datetime | None = None,
+                        requested_seconds: int | None = None) -> dict:
     if mission_id not in MINIMUM_SECONDS:
         raise ValueError("Unknown public downlink planning target")
     if goal not in ("full", "sample"):
         raise ValueError("Coverage goal must be full or sample")
+    if requested_seconds is not None:
+        if type(requested_seconds) is not int or not 8 <= requested_seconds <= MAX_CAPTURE_SECONDS:
+            raise ValueError("Requested duration must be 8–900 whole seconds")
+        if goal == "sample" and requested_seconds > 60:
+            raise ValueError("Quick RF sample mode allows at most 60 seconds")
     if aos.tzinfo is None or los.tzinfo is None or los <= aos:
         raise ValueError("Geometric pass must have timezone-aware times")
     start = start_at if start_at is not None else aos-timedelta(seconds=LEAD_SECONDS)
@@ -41,6 +47,8 @@ def plan_capture_budget(aos: datetime, los: datetime, mission_id: str,
     limit = min(window, MAX_CAPTURE_SECONDS)
     if goal == "sample":
         limit = min(limit, 60)
+    if requested_seconds is not None:
+        limit = min(limit, requested_seconds)
     bytes_per_second = (SSTV_WAV_BYTES_PER_SECOND if mission_id in ("iss-sstv","iss-voice")
                         else 0 if KINDS[mission_id] == "text"
                         else IQ_BYTES_PER_SECOND)
@@ -60,6 +68,7 @@ def plan_capture_budget(aos: datetime, los: datetime, mission_id: str,
         "mission_id": mission_id, "data_kind": KINDS[mission_id],
         "pass_visible_seconds": max(0, math.floor((los-aos).total_seconds())),
         "target_seconds": window, "capture_seconds": seconds,
+        "requested_seconds": requested_seconds,
         "minimum_useful_seconds": minimum, "feasible": seconds >= minimum,
         "estimated_bytes": estimated, "coverage": coverage,
         "shortfall_seconds": max(0, window-seconds),

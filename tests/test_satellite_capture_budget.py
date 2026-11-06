@@ -34,6 +34,20 @@ class CaptureBudgetTests(unittest.TestCase):
         self.assertEqual(s["capture_seconds"],60)
         self.assertEqual(s["coverage"],"partial-pass")
 
+    def test_custom_recording_duration_and_type_limits(self):
+        plan=plan_capture_budget(self.aos,self.los,"meteor-m2-4",free_bytes=3_000_000_000,
+                                 requested_seconds=600)
+        self.assertEqual(plan["capture_seconds"],600)
+        self.assertEqual(plan["requested_seconds"],600)
+        self.assertEqual(plan["coverage"],"partial-pass")
+        self.assertGreater(plan["shortfall_seconds"],0)
+        with self.assertRaisesRegex(ValueError,"8–900"):
+            plan_capture_budget(self.aos,self.los,"meteor-m2-4",free_bytes=3_000_000_000,
+                                requested_seconds=901)
+        with self.assertRaisesRegex(ValueError,"at most 60"):
+            plan_capture_budget(self.aos,self.los,"iss-sstv",free_bytes=3_000_000_000,
+                                goal="sample",requested_seconds=90)
+
     def test_los_and_too_short_windows_rejected(self):
         with self.assertRaises(ValueError):
             plan_capture_budget(self.los,self.aos,"iss-sstv",free_bytes=3_000_000_000)

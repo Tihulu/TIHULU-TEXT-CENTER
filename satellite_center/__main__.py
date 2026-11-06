@@ -488,7 +488,8 @@ class Station:
             return job
 
     def auto_schedule(self, mission_ids, *, city="Cologne", lat=None, lon=None,
-                      hours=24, elevation=20, max_jobs=6, coverage_goal="full"):
+                      hours=24, elevation=20, max_jobs=6, coverage_goal="full",
+                      duration_seconds=None):
         """Explicit one-click receive-only mission planning with a single RTL-SDR.
 
         TLE passes are geometry, never proof of active transmitters. Mutating
@@ -505,6 +506,11 @@ class Station:
             raise ValueError("Choose at most 12 jobs per request")
         if coverage_goal not in ("full", "sample"):
             raise ValueError("Coverage goal must be full or sample")
+        if duration_seconds is not None:
+            if type(duration_seconds) is not int or not 8 <= duration_seconds <= MAX_CAPTURE_SECONDS:
+                raise ValueError("Native recording duration must be 8–900 seconds or auto")
+            if coverage_goal == "sample" and duration_seconds > 60:
+                raise ValueError("Quick RF sample must not exceed 60 seconds")
         chosen = dict.fromkeys(mission_ids)
         # Missing optional decoders must not block other user-approved media.
         requested_targets = list(chosen)
@@ -567,7 +573,8 @@ class Station:
             eligible = [mid for mid in chosen if event["norad"] == candidates[mid][0]]
             plans = {mid: plan_capture_budget(aos, los, mid,
                      free_bytes=max(0, free_on_disk-reserved_bytes),
-                     goal=coverage_goal) for mid in eligible}
+                     goal=coverage_goal, requested_seconds=duration_seconds)
+                     for mid in eligible}
             viable = [mid for mid in eligible if plans[mid]["feasible"]]
             if not viable:
                 if eligible:
@@ -583,7 +590,9 @@ class Station:
             except (ValueError, RuntimeError) as error:
                 skipped.append(event["name"]+": "+str(error)[:90])
                 continue
-            job.update(mission_id=mission, capture_seconds=plan["capture_seconds"],
+            job.update(run_at=stamp(aos-timedelta(seconds=10)),
+                       mission_id=mission, capture_seconds=plan["capture_seconds"],
+                       requested_seconds=duration_seconds,
                        estimated_bytes=plan["estimated_bytes"], coverage=plan["coverage"],
                        data_kind=plan["data_kind"], target_seconds=plan["target_seconds"],
                        shortfall_seconds=plan["shortfall_seconds"],
@@ -593,7 +602,8 @@ class Station:
                 for stored in self.jobs:
                     if stored["id"] == job["id"]:
                         stored.update({key: job[key] for key in (
-                            "mission_id", "capture_seconds", "estimated_bytes",
+                            "mission_id", "run_at", "capture_seconds",
+                            "requested_seconds", "estimated_bytes",
                             "coverage", "data_kind", "target_seconds",
                             "shortfall_seconds", "pass_visible_seconds",
                             "coverage_goal", "capture_note")})
@@ -614,7 +624,7 @@ class Station:
                     [k+": "+str(v.get("error")) for k,v in refresh_report.items() if v.get("error")],
                 "note": "Only geometry and an opt-in future recording schedule. The local companion must remain running, the single receiver must be free, and the spacecraft must actually transmit. No message or image is yet decoded."}
 
-    def edit_auto_schedule(self, job_id, run_at, mission_id):
+    def edit_auto_schedule(self, job_id, run_at, mission_id, duration_seconds=None):
         """Change an owned pending job inside its original geometric pass.
 
         Changes never move a task to another spacecraft, claim USB, affect
@@ -630,6 +640,9 @@ class Station:
             raise ValueError("Invalid ISO scheduled start") from exc
         if selected.tzinfo is None:
             raise ValueError("Scheduled start requires explicit UTC offset")
+        if duration_seconds is not None:
+            if type(duration_seconds) is not int or not 8 <= duration_seconds <= MAX_CAPTURE_SECONDS:
+                raise ValueError("Edited recording duration must be 8–900 seconds or auto")
         selected = selected.astimezone(UTC)
         if not isinstance(mission_id, str) or mission_id not in AUTO_DOWNLINK_PROFILES:
             raise ValueError("Unsupported or unverified satellite protocol")
@@ -669,12 +682,14 @@ class Station:
                          free_bytes=max(0, shutil.disk_usage(self.archive).free-
                                         reserved_by_others),
                          goal=job.get("coverage_goal", "full"),
-                         start_at=selected-timedelta(seconds=10))
+                         start_at=selected,
+                         requested_seconds=duration_seconds)
             if not plan["feasible"]:
                 raise ValueError("Edited pass has too little time or free disk for this data type")
             job.update(run_at=stamp(selected), mission_id=mission_id,
                        profile=target_profile, mode=target_mode,
                        capture_seconds=plan["capture_seconds"],
+                       requested_seconds=duration_seconds,
                        coverage=plan["coverage"], data_kind=plan["data_kind"],
                        target_seconds=plan["target_seconds"],
                        shortfall_seconds=plan["shortfall_seconds"],
@@ -731,7 +746,11 @@ class Station:
                     return
                 pending.sort(key=lambda j: j.get("run_at") or j["aos"])
                 nearest = pending[0]
-                delay = (datetime.fromisoformat(nearest.get("run_at") or nearest["aos"])-now()).total_seconds()-10
+                target = datetime.fromisoformat(nearest.get("run_at") or nearest["aos"])
+                # Explicit edits and auto jobs use their exact start time.
+                # Only old manual jobs without run_at start 10 s before AOS.
+                lead = 0 if nearest.get("run_at") else 10
+                delay = (target-now()).total_seconds()-lead
             if delay > 0:
                 self.wake.wait(min(delay, 60))
                 self.wake.clear()
@@ -1260,10 +1279,11 @@ class Handler(BaseHTTPRequestHandler):
                 result = app.auto_schedule(data.get("missions"), city=data.get("city", "Cologne"),
                     lat=data.get("lat"), lon=data.get("lon"),
                     hours=data.get("hours", 24), elevation=data.get("elevation", 20),
-                    max_jobs=data.get("max_jobs", 6), coverage_goal=data.get("coverage_goal", "full"))
+                    max_jobs=data.get("max_jobs", 6), coverage_goal=data.get("coverage_goal", "full"),
+                    duration_seconds=data.get("duration_seconds"))
             elif route == "/api/auto-edit":
                 result = app.edit_auto_schedule(data.get("job_id"), data.get("run_at"),
-                                                data.get("mission_id"))
+                                                data.get("mission_id"), data.get("duration_seconds"))
             elif route == "/api/auto-cancel":
                 result = app.cancel_auto_missions()
             elif route == "/api/cancel":
