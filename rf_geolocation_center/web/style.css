@@ -343,3 +343,17 @@
 .map-source-actions a{border:1px solid #48718b;border-radius:7px;text-decoration:none;color:#9cdde5}
 .map-source-actions [hidden]{display:none}
 .map-dot.tower{background:#8fb8c7}
+
+
+/* FM energy reference selector and RF-only blind-location readout */
+.fm-reference-panel{margin:13px 0 6px;padding:12px 14px;border:1px solid #3f6174;
+ border-radius:10px;background:#102b3a}
+.fm-reference-panel>strong{font-size:12px;color:#dcf3f0}
+.fm-reference-panel>p{font-size:11px;line-height:1.55;margin:7px 0;color:#b2cbd8}
+.fm-reference-panel label{display:flex;flex-direction:column;gap:7px;min-width:min(280px,100%);
+ font-size:11px;color:#bed7dc}
+.fm-reference-panel select{padding:8px 10px;min-height:37px;background:#0c2132;border:1px solid #496c80;
+ color:#e4f4f5;border-radius:7px;font-size:12px;width:100%}
+.fm-reference-panel a{color:#a1deea;font-size:11px}
+.rf-blind-status{padding:9px 12px;border-radius:8px;background:#112a3b;border:1px solid #41667b;
+ font-size:11px;line-height:1.65;color:#cce0e9;margin:9px 0}
