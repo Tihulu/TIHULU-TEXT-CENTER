@@ -789,7 +789,7 @@ class SatelliteWindow(QMainWindow):
         idx=self.capture_profile.findData(key)
         if idx>=0:
             self.capture_profile.setCurrentIndex(idx)
-            self.tabs.setCurrentIndex(self.tabs.indexOf(self.capture_profile.parentWidget()) if False else 5)
+            self.tabs.setCurrentIndex(5)
             self.statusBar().showMessage("Receiver preset selected. No USB scan started.",9000)
 
     def _auto_tab(self):
@@ -1358,7 +1358,11 @@ def main(argv=None):
         with TemporaryDirectory(prefix="tihulu-native-smoke-") as td:
             station=Station(Path(td))
             window=SatelliteWindow(station,auto_poll=False)
-            assert window.tabs.count()==6, "Native tabs not built"
+            assert window.tabs.count()==7, "Native tabs not built"
+            assert window.map_sky.mode=="sky"
+            assert window.map_earth.mode=="earth"
+            assert not window.map_osm.isChecked()
+            assert window.map_earth._land, "Offline Natural Earth is required"
             assert window.pass_seconds.maximum()==900
             assert window.capture_seconds.maximum()==900
             assert len(window._offline_cities)==8084
@@ -1385,7 +1389,24 @@ def main(argv=None):
             window.pass_media_filter.setCurrentIndex(
                 window.pass_media_filter.findData("Image"))
             assert window.pass_list.topLevelItemCount()==1
+            # Draw both maps with synthetic orbital points, no USB/network.
+            map_test={"observer":{"lat":50.87079,"lon":6.86761},
+              "satellites":[{
+                "name":"SYNTHETIC MAP TEST","norad":59051,"family":"meteor",
+                "lat":40.2,"lon":13.1,"alt_km":810.,"az":102.,
+                "el":36.,"range_km":1320.,"tle_age_days":0.,
+                "status":"ORBITAL_POSITION_ONLY"}],
+              "track_segments":[[
+                {"lat":39.,"lon":12.},{"lat":40.2,"lon":13.1},
+                {"lat":41.,"lon":14.}]],
+              "total_loaded":1,"warnings":[]}
+            window.map_sky.set_snapshot(map_test)
+            window.map_earth.set_snapshot(map_test)
+            window.map_sky.set_selected(59051)
+            window.map_earth.set_selected(59051)
             window.show()
+            assert not window.map_sky.grab().isNull()
+            assert not window.map_earth.grab().isNull()
             QTimer.singleShot(100,app.quit)
             result=app.exec_()
             window.active=False
