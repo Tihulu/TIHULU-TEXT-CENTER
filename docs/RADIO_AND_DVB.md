@@ -5,6 +5,7 @@ TIHULU TEXT CENTER v0.4 — English UI, offline-first, default background RF/net
 ## A. Known Pop!_OS hardware state (from user's November 6, 2026 check)
 
 - Nooelec NESDR SMArt v5 on Linux USB 0bda:2838: detected. Passive ID does not guarantee an exclusive tuner lease or real signal.
+- **Verified WebUSB recovery (6 November 2026):** After readsb was inactive, the Linux `dvb_usb_rtl28xxu` kernel driver still held Nooelec interface 0 and Brave rejected `claimInterface(0)`. Explicitly unbinding ONLY that confirmed device interface made browser access work. This is not a reason to blacklist the DVB module. See [common RTL-SDR USB ownership guide](RTL_SDR_WEBUSB_LINUX_OWNERSHIP.md); optional `bash scripts/rtl-sdr-usb-interface.sh status` checks identity before any explicit `release` / `restore`. Do not unplug/replug between release and WebUSB open or the driver can rebind.
 - rtl_fm, rtl_power and redsea: installed; actual live RDS/RT+ success still requires a real antenna capture and appropriate broadcasts.
 - rtl_433: installed. Other SDR services and readsb must be protected.
 - welle-cli: not found in last check (the separate welle.io GUI may work independently).
