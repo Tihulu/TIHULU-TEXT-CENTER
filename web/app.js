@@ -767,7 +767,7 @@ async function addAutomaticChannelScanners(){
   outer.append(el("p","full-body",
     "FM uses a complete 87.5–108 MHz spectrum sweep followed by sequential RDS "+
     "verification of possible carriers. DAB scans real FIC service metadata from "+
-    "the local welle-cli receiver. Unidentified energy is not labelled as a station. "+
+    "the local welle-cli receiver (start it in DAB Receiver first). Unidentified energy is not labelled as a station. "+
     "Full FM scans may take many minutes. FM broadcasts without decodable RDS cannot be automatically named. "+
     "Leaving the Radio Center stops its scan and frees the app-owned tuner."));
   const grid=el("div","auto-scan-grid");
@@ -1887,6 +1887,11 @@ async function addWelleDabBridge(){
         owner:state.clientId,owner_only:true
       });
       state.managedDabOwned=false;stopManagedDabPolling();
+      if(result.stopped && state.dabPlaying){
+        const playing=$("persistent-radio-player");
+        playing.pause();playing.removeAttribute("src");playing.onerror=null;playing.load();
+        state.dabPlaying=false;syncLiveMediaDock();
+      }
       const info=$("managed-dab-status");
       if(info)info.textContent=result.stopped
         ?"Owned DAB decoder stopped; tuner released."
@@ -2397,10 +2402,10 @@ async function showLiveRadioPage(){
     "FM & DAB+ / real broadcast only · receiver approval before retuning");
   try{await addChannelCenter("radio")}
   catch(e){empty("Channel library unavailable",e.message)}
+  try{await addWelleDabBridge()}catch(e){empty("DAB receiver and player unavailable",e.message)}
   try{await addAutomaticChannelScanners()}
   catch(e){empty("FM/DAB full scan unavailable",e.message)}
-  try{await addLiveRadio()}catch(e){empty("Live FM player unavailable",e.message)}
-  try{await addWelleDabBridge()}catch(e){empty("DAB player and decoder unavailable",e.message)}
+  try{await addLiveRadio()}catch(e){empty("Advanced FM player unavailable",e.message)}
   const parent=$("content"),known=new Set(parent.children);
   try{await addRdsControl()}catch(e){empty("RDS metadata unavailable",e.message)}
   try{await addOfflineRecordingControl()}
