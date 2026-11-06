@@ -216,7 +216,6 @@ class TVTeletextTap:
     def _store(self,cue):
         start,end,text=cue
         with self.lock:
-            offset=time.monotonic()-self.started_at-start
             # ffmpeg SRT timestamps are relative to its new input open; align
             # with time since original TV session start, including probe delay.
             estimated_start=max(0.0,time.monotonic()-self.started_at)
@@ -251,6 +250,19 @@ class TVTeletextTap:
             except (TranslatorUnavailable,ValueError,ImportError,RuntimeError) as exc:
                 with self.lock:self.error="Teletext translation unavailable: "+str(exc)[:180]
             finally:self.pending.task_done()
+
+    def set_translation_target(self,target):
+        if target is not None and target not in LANGUAGES:
+            raise ValueError("Unsupported Teletext translation language")
+        with self.lock:
+            self.target=target
+            if (target and self.language in LANGUAGES and target!=self.language
+                and self.process is not None
+                and (self.translate_thread is None or not self.translate_thread.is_alive())):
+                self.translate_thread=Thread(target=self._translate,daemon=True,
+                    name="tihulu-tv-teletext-translate")
+                self.translate_thread.start()
+        return self.target
 
     @staticmethod
     def _stop_process(proc):
