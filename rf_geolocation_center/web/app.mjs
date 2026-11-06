@@ -6,6 +6,7 @@ import {initAutoExplorer} from "./auto_explorer.mjs";
 import {initUsbSDR} from "./usb_sdr.mjs";
 import {initRFSurvey} from "./rf_survey.mjs";
 import {initCatalogDiscovery} from "./catalog_discovery.mjs";
+import {initSimpleUI} from "./simple_ui.mjs";
 import {exampleRings,ringPoints,validRangeSources} from "../core/evidence.mjs";
 import {LOCATION_LAYERS,layerReadiness,visibleLayerPreferences} from "../core/location_layers.mjs";
 import {positionProvenance,radioProvenance,orbitalProvenance,aircraftProvenance} from "../core/source_provenance.mjs";
@@ -86,6 +87,7 @@ function renderSourceProvenance(){
 
 function source(){
  if(state.rfOnly){
+  if($("simple-tv")?.checked&&!$("simple-sdr")?.checked)return {...DEFAULT_CENTER,kind:"TV ONLY / NO RECEIVER POSITION · REFERENCE MAP CENTER",validObserver:false};
   if(state.rfSolution)return {...state.rfSolution,kind:"RF-ONLY CALIBRATED RSSI HYPOTHESIS · NO GPS/OS",validObserver:false};
   return {...DEFAULT_CENTER,kind:"RF-ONLY / NO VALID RADIO FIX · REFERENCE MAP CENTER",validObserver:false};
  }
@@ -111,12 +113,13 @@ function renderPosition(recenter=false){
  setText("map-center-label",p.validObserver?"LOCATION / "+p.kind.toUpperCase():p.kind.toUpperCase());
  if(recenter){state.map.lat=p.lat;state.map.lon=p.lon;state.map.zoom=Math.max(state.map.zoom,11)}
  renderEarth();
+ window.dispatchEvent(new Event("tihulu:simple-refresh"));
 }
 
 function renderFixEvidence(p=source()){
  const pane=$("fix-evidence");if(!pane)return;
  if(state.rfOnly){
-  pane.textContent=state.rfSolution?"RF-ONLY HARDWARE-BASED PROPAGATION HYPOTHESIS · "+fmt(state.rfSolution.lat,6)+", "+fmt(state.rfSolution.lon,6)+" · "+state.rfRanges.length+" calibrated radio sources. Antenna IQ measured; transmitter identity/coordinates and calibration external; NO browser/GNSS/IP fallback and NO certified accuracy.":"RF-ONLY ACTIVE · NO RF POSITION FIX. Connect RTL-SDR, enter known fixed stations, capture actual RF, independently calibrate and solve. Device GPS, Wi-Fi, IP, cached coordinates excluded.";
+  pane.textContent=state.rfSolution&&(!($("simple-tv")?.checked&&!$("simple-sdr")?.checked))?"RF-ONLY HARDWARE-BASED PROPAGATION HYPOTHESIS · "+fmt(state.rfSolution.lat,6)+", "+fmt(state.rfSolution.lon,6)+" · "+state.rfRanges.length+" calibrated radio sources. Antenna IQ measured; transmitter identity/coordinates and calibration external; NO browser/GNSS/IP fallback and NO certified accuracy.":"RF-ONLY ACTIVE · NO RF POSITION FIX. Connect RTL-SDR, enter known fixed stations, capture actual RF, independently calibrate and solve. Device GPS, Wi-Fi, IP, cached coordinates excluded.";
   return;
  }
  const offline=navigator.onLine===false;
@@ -743,6 +746,9 @@ initAutoExplorer();
 initUsbSDR(msg);
 initRFSurvey();
 initCatalogDiscovery();
+initSimpleUI({state,source,setView,renderEarth,renderPosition,fitRfSurveyMap});
+setView("earth"); // Clean, map-first experience; original science workbench remains under Advanced Tools.
+
 setInterval(()=>{
  if(state.serialFix&&Date.now()-state.serialAt>90000){state.serialFix=null;renderPosition(false);renderDiagnostics();msg("Stale serial NMEA fix expired")}
  if(state.browser&&Date.now()-Date.parse(state.browser.acquiredAt||0)>=5*60*1000){

@@ -34,7 +34,7 @@ test("one-click position view explicitly separates device uncertainty from radio
  assert.match(html,/legend-demo/);
  assert.match(app,/function renderFixEvidence/);
  assert.match(app,/browser-reported uncertainty, not a radio station range/i);
- assert.match(app,/ringPoints\(p\.lat,p\.lon,p\.accuracy/);
+ assert.match(app,/ringPoints\(browserAccuracy\.lat,browserAccuracy\.lon,browserAccuracy\.accuracy/);
  assert.match(app,/5\*60\*1000/);
  assert.match(css,/\.fix-evidence/);
 });
