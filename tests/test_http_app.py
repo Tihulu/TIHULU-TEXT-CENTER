@@ -206,7 +206,7 @@ class HTTPTests(unittest.TestCase):
             {"frequency_mhz":98.6,"record":True},csrf)[0],409)
         self.assertEqual(self.request("POST","/api/live-radio/stop",{},csrf)[0],200)
         self.assertEqual(self.request("POST","/api/captions/translate",
-            {"session":"not-a-uuid","target_lang":"de"},csrf)[0],404)
+            {"session":"not-a-uuid","target_lang":"de"},csrf)[0],400)
 
     def test_tv_live_requires_verified_hardware_and_channels(self):
         code,_,raw=self.request("GET","/api/live-tv/channels")
