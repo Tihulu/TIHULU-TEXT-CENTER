@@ -316,3 +316,66 @@ control. No claim is made that TLE geometry proves a transmission.
 
 Code/regression: `browser/satellite_maps.mjs`,
 `tests/test_satellite_earth_overlays.mjs`, cross-platform Node CI.
+
+
+## v0.12 — Visible satellite overlays on OSM and in-browser CU8 analysis
+
+### Earth layers and camera
+
+- The street map opens on a world-scale view / fits the loaded orbital
+  catalog, **not** merely the station-centred Cologne viewport where all
+  satellite ground subpoints may be off-screen. The user can focus the
+  selected satellite, fit all tracked satellites, or return to the station.
+- Separate `sat-coverage`, `sat-tracks`, `sat-markers` and
+  `sat-station` Leaflet panes are stacked explicitly above OSM raster
+  tiles and the Natural Earth coastline layer.
+- **Orbit tracks** switch between All / Selected / Off (±45-minute
+  SGP4 propagation, 3-minute intervals) with date-line-safe segments.
+- **Geometric coverage** switches between Selected / All / Off. The
+  boundary is an approximate minimum-elevation footprint, not a
+  ground receiver's verified sensitivity or a signal-strength map.
+- The bundled global Canvas view now also draws selected/all
+  ground tracks and coverage outlines; no OSM service is required.
+- The status reports visible global satellite markers and drawn
+  track/coverage segment counts. Changing camera does not change
+  actual orbital positions. A below-horizon satellite can have a
+  subpoint on the world map but cannot be received overhead.
+
+### Analysis of a local .cu8 recording *inside the web app*
+
+After a successful raw-IQ recording, the browser continues to offer the
+original `.cu8` download and immediately analyzes the same in-memory
+Blob locally. Users can also select an earlier `.cu8` file in
+**6 · CU8 I/Q analysis** and choose **Analyze selected file** without
+any Python/local service or upload. Results include:
+
+- Complex **2048-point FFT** spectrum, window-averaged across
+  geographically irrelevant but temporally stratified samples
+- A time-frequency **waterfall** of sampled windows and a temporal
+  relative digital-level chart
+- Highest non-DC spectral-bin frequency/offset, peak-to-median
+  difference, sample power range, average I/Q DC offset, sample clip
+  fraction and sampled duration estimate
+- Local JSON analysis export with chart arrays and measurement metadata
+
+The analyzer reads up to **32 separated 4096-byte windows** from
+the Blob, not the entire potentially 128 MiB recording. The application
+keeps at most the latest raw IQ recording for automatic analysis; past
+recordings can be chosen again from disk. No CU8 data are sent to a
+server. Filename parsing can recover center frequency and sample rate
+from the app's own `TIHULU[-scheduled]-<Hz>-<rate>-*.cu8` format,
+but CU8 itself **has no embedded frequency, sample rate, date or
+timestamp metadata**. An unknown source defaults to relative baseband
+frequency until the user supplies correct metadata.
+
+**Interpretation:** All digital levels are uncalibrated relative
+statistics, not RF dBm, confirmed SNR or proof of a satellite.
+The frequency spectrum can show local interference, clock/DC artifacts
+and spurious peaks. The chart does not demodulate SSTV, APRS,
+Meteor LRPT, Iridium traffic or private conversations; external
+protocol decoders are still separate.
+
+The FFT and sampling API have synthetic unit tests for positive and
+negative known tones, correct CU8 filename metadata and bounded file
+access. Live capture / file-selection experience remains subject to
+actual on-device browser verification.
