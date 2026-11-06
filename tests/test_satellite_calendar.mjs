@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import {readFileSync} from "node:fs";
 import {PUBLIC_DOWNLINKS,noradFromPass,protocolsForPass,protocolCategories,
   passesFilteredByContent,protocolIsDecodableNow} from "../satellite_center/browser/pass_protocol_catalog.mjs";
 import {localDayKey,shiftCalendarDay,scheduleForDay,calendarHourBuckets,jobStart}
@@ -77,3 +78,12 @@ test("Midnight crossings appear on both local days, without cancelled entries",a
  const exact={when:new Date("2026-11-06T11:59:00").getTime(),durationSeconds:60,state:"armed"};
  assert.equal(calendarHourBuckets([exact],"2026-11-06")[12].jobs.length,0);
 });
+
+test("Calendar rows cannot shrink under tall capture cards and overlap other hours",()=>{
+ const fs=requireCss();
+ assert.match(fs,/\.sat-calendar-grid>\.sat-hour-row\s*\{[^}]*flex:0 0 auto/s);
+ assert.match(fs,/\.sat-calendar-grid \.sat-calendar-job\s*\{[^}]*height:auto/s);
+});
+function requireCss(){
+ return readFileSync(new URL("../satellite_center/browser/browser.css",import.meta.url),"utf8");
+}

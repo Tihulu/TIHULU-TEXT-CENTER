@@ -182,24 +182,70 @@ def parse_power(raw, profile):
             "warning": "Energy peaks are NOT proven satellite detections; Iridium bursts may be missed by a sweep."}
 
 
+def _linux_receiver_processes(proc=Path("/proc")):
+    """Passive, no root, no kill. Check executable NAME only to avoid false hits
+    from arguments (such as this module's own test script)."""
+    names = {"rtl_sdr", "rtl_fm", "rtl_power", "rtl_test", "readsb", "dump1090",
+             "rtl_433", "gqrx", "welle-io", "welle.io"}
+    hits = []
+    try:
+        for entry in proc.iterdir():
+            if not entry.name.isdecimal() or int(entry.name) == os.getpid():
+                continue
+            try:
+                cmd = (entry/"cmdline").read_bytes().split(b"\\0", 1)[0]
+                name = os.fsdecode(cmd).rsplit("/", 1)[-1].lower()
+                if name in names:
+                    hits.append({"process": name, "pid": int(entry.name)})
+            except (OSError, ValueError):
+                pass
+    except OSError:
+        pass
+    return hits[:20]
+
+
 def detect_busy():
-    """Defensive, best-effort cross-application check; not an OS-wide lease."""
+    """Best effort passive busy check; OS radio lock + rtl_test remain authoritative."""
     if platform.system() != "Linux":
-        return []  # Windows/macOS: no reliable passive OS-wide process check.
+        return []
     try:
         from textcenter.conflicts import find_receiver_conflicts
         return find_receiver_conflicts()
     except ImportError:
-        return [{"process": "textcenter_conflict_check_unavailable"}]
+        # Debian standalone .deb deliberately does NOT depend on Text Center.
+        # Missing optional app modules must never mean the SDR is 'busy'.
+        return _linux_receiver_processes()
+
+
+def _linux_rtl_usb_count(sysfs=Path("/sys/bus/usb/devices")):
+    """Read-only Linux sysfs enumeration; no USB reset or driver detach."""
+    count = 0
+    try:
+        for dev in sysfs.iterdir():
+            try:
+                vendor = (dev/"idVendor").read_text(encoding="ascii").strip().lower()
+                product = (dev/"idProduct").read_text(encoding="ascii").strip().lower()
+                if (vendor, product) == ("0bda", "2838"):
+                    count += 1
+            except (OSError, UnicodeError):
+                continue
+    except OSError:
+        pass
+    return count
 
 
 def tuner_present():
+    if platform.system() != "Linux":
+        return False
     try:
         from textcenter.receivers import receiver_inventory
-        inv = receiver_inventory()
-        return inv.get("platform") == "Linux" and inv.get("rtl_usb_count") == 1
+        inventory = receiver_inventory()
+        if inventory.get("platform") == "Linux" and inventory.get("rtl_usb_count") is not None:
+            return inventory["rtl_usb_count"] == 1
     except ImportError:
-        return False
+        pass
+    # No dependency on main Text Center: native Debian receiver works alone.
+    return _linux_rtl_usb_count() == 1
 
 
 def stop_process(process):

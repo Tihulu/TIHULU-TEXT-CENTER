@@ -6,7 +6,7 @@ import sys
 import tempfile
 import unittest
 
-from satellite_center.__main__ import Station
+from satellite_center.__main__ import Station, _linux_receiver_processes, _linux_rtl_usb_count, detect_busy, tuner_present
 
 
 class UsbDiagnosticsTests(unittest.TestCase):
@@ -63,6 +63,29 @@ class UsbDiagnosticsTests(unittest.TestCase):
                 self.assertEqual(len(station.owned_processes), 0)
             finally:
                 station.close()
+
+    def test_standalone_debian_sysfs_receiver_discovery_without_textcenter(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td)
+            dev=root/"1-1";dev.mkdir()
+            (dev/"idVendor").write_text("0bda\n")
+            (dev/"idProduct").write_text("2838\n")
+            (root/"1-2").mkdir()
+            self.assertEqual(_linux_rtl_usb_count(root),1)
+            (root/"1-3").mkdir()
+            (root/"1-3"/"idVendor").write_text("0bda\n")
+            (root/"1-3"/"idProduct").write_text("2838\n")
+            self.assertEqual(_linux_rtl_usb_count(root),2)
+
+    def test_standalone_linux_process_check_avoids_false_busy_for_python_scripts(self):
+        with tempfile.TemporaryDirectory() as td:
+            p=Path(td)
+            for pid,cmd in [("23401",b"/usr/bin/rtl_sdr\\0"),("23402",b"/usr/bin/python3\\0--name=readsb"),
+                            ("23403",b"/usr/bin/readsb\\0")]:
+                d=p/pid;d.mkdir();(d/"cmdline").write_bytes(cmd)
+            self.assertEqual([item["process"] for item in _linux_receiver_processes(p)],
+                             ["rtl_sdr","readsb"])
+
 
 
 if __name__ == "__main__":
