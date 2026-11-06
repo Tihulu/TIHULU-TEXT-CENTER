@@ -1,6 +1,6 @@
 "use strict";
-const CACHE="tihulu-text-center-pages-2026-11";
-const ASSETS=["./","./index.html","./pages.css","./pages.js","./pages-icon.svg","./manifest.webmanifest"];
+const CACHE="tihulu-text-center-pages-webusb-2026-11-06";
+const ASSETS=["./","./index.html","./pages.css","./pages.js","./webusb-radio.js","./pages-icon.svg","./manifest.webmanifest","./satellite/","./satellite/browser.js","./satellite/browser.css"];
 self.addEventListener("install",event=>{
   event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(ASSETS)));
   self.skipWaiting();
