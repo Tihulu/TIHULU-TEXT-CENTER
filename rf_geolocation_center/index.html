@@ -141,10 +141,16 @@
         <div id="osm-tiles" class="osm-tiles" hidden></div>
         <svg id="earth-overlay" class="earth-overlay" viewBox="0 0 900 520" preserveAspectRatio="none"><g id="earth-grid"></g><g id="earth-rings"></g><g id="earth-markers"></g></svg>
         <div class="map-cross">+</div>
-        <div id="map-source-popup" class="map-source-popup" hidden>
+        <div id="map-hover-tip" class="map-hover-tip" role="tooltip" hidden></div>
+        <div id="map-source-popup" class="map-source-popup" role="dialog" aria-label="Selected RF map source details" hidden>
          <button id="map-source-popup-close" aria-label="Close map source information" type="button">×</button>
          <strong id="map-source-popup-name">Source</strong>
          <p id="map-source-popup-description"></p>
+         <div id="map-source-facts" class="map-source-facts" aria-label="Signal and location provenance"></div>
+         <div class="map-source-actions">
+          <a id="map-source-catalog-link" target="_blank" rel="noopener noreferrer" hidden>Open original map record</a>
+          <button id="map-source-measure" type="button" class="secondary" hidden>Measure / calibrate RF source</button>
+         </div>
         </div>
        </div><div class="map-footer"><span>WGS84 · map pan by drag/touch · wheel or +/− zoom</span><span>© OpenStreetMap contributors, tiles only on request</span></div>
        <section class="map-discovery-results" aria-label="Receiver measurements and matching mapped transmitter candidates">
@@ -154,7 +160,8 @@
         </div>
         <div class="map-source-legend" aria-label="Source provenance">
          <span><i class="map-dot device"></i> Device position</span>
-         <span><i class="map-dot radio"></i> Mapped RF site / frequency candidate</span>
+         <span><i class="map-dot tower"></i> T = OSM catalog tower (not measured)</span>
+         <span><i class="map-dot radio"></i> F / RD = frequency / RDS overlap (not confirmed tower)</span>
          <span><i class="map-dot tv"></i> TV frequency candidate</span>
          <span><i class="map-dot aircraft"></i> Aircraft from antenna</span>
          <span><i class="map-dot internet"></i> Internet aircraft</span>
