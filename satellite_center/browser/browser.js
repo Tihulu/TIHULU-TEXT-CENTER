@@ -1,6 +1,8 @@
 import { platformFamily, webUsbHelp, permissionReport, usbInterfaceClaimProbe } from './usb_diagnostics.mjs?v=20261106-dvb-unbind-v09';
 import { createSatelliteMaps } from './satellite_maps.mjs?v=20261106-live-v14';
-import { initIqAnalysisUI } from './iq_analysis_ui.mjs?v=20261106-cuiq-v13';
+import { initIqAnalysisUI } from './iq_analysis_ui.mjs?v=20261106-images-v15';
+import { initSatelliteImageUI } from './satellite_images_ui.mjs?v=20261106-images-v15';
+import { recordingName } from './satellite_imagery.mjs?v=20261106-images-v15';
 import { initStationLocationUI } from './location_search.mjs';
 import { probeUsbSamples, sampleBytes } from './usb_live_probe.mjs?v=20261106-map-usb-v07';
 import { sortPassList } from './pass_sort.mjs';
@@ -38,6 +40,8 @@ let lastTleFetchAt = 0;
 let locationUI = null;
 let satelliteMaps = null;
 let iqAnalysisUI = null;
+let satelliteImageUI = null;
+let imageCandidateTarget=null;
 const notifyMaps = () => { if(satelliteMaps) void satelliteMaps.refresh().catch(e=>log('Map refresh: '+e.message)); };
 const maxRecordBytes = 128 * 1024 * 1024;
 const signalHistory = [];
@@ -297,6 +301,7 @@ function saveCapture(bytes,name,job=null,metadata=null) {
   }
   triggerRawDownload(blob,name);
   if(iqAnalysisUI&&metadata)iqAnalysisUI.record(blob,name,metadata);
+  if(satelliteImageUI&&metadata)satelliteImageUI.recordCapture(blob,name,metadata);
   return blob;
 }
 async function startCapture(job=null) {
@@ -307,6 +312,7 @@ async function startCapture(job=null) {
   const limit=job?job.durationSeconds:Number($('duration').value);
   const recording=job?job.saveRaw:$('record').checked;
   const session=++sessionCounter;
+  const captureStartTime=new Date();
   capturePromise=(async()=>{
     let bytesReceived=0,bytesRecorded=0,chunks=[],measured=null,peakCount=0;
     const measurements=[],startedAt=Date.now();
@@ -360,8 +366,15 @@ async function startCapture(job=null) {
         relativeDb:report.averageRelativeDb};
       notifyMaps();
       if(recording&&chunks.length>0){
-        const tag=new Date().toISOString().replaceAll(':','-').replace(/\..*/,'');
-        const name='TIHULU-'+(job?'scheduled-':'')+Math.round(freq)+'-'+rate+'-'+tag+'.cu8';
+        // Capture names identify a candidate *target*, never proven RF
+        // origin. A manual frequency survey without a selected target is
+        // explicitly UNATTRIBUTED to prevent false satellite identification.
+        const targetName=job?.name?job.name+"-CANDIDATE":
+          imageCandidateTarget&&imageCandidateTarget.frequencies.includes(freq)?
+            imageCandidateTarget.name+"-CANDIDATE":"RF-UNATTRIBUTED";
+        const name=recordingName({satellite:targetName,at:captureStartTime,
+          frequencyHz:freq,sampleRate:rate,format:"cu8",
+          kind:job?"SCHEDULED-IQ":"IQ"});
         saveCapture(chunks,name,job,{centerHz:freq,sampleRate:rate});
       }
       if(job){
@@ -867,6 +880,18 @@ window.addEventListener('appinstalled',()=>{
 });
 
 iqAnalysisUI=initIqAnalysisUI({log});
+satelliteImageUI=initSatelliteImageUI({
+ log,
+ onTargetChange:target=>{imageCandidateTarget=target;},
+ onTune:(hz,target)=>{
+   const preset=$("preset");
+   const option=Array.from(preset.options).find(o=>Number(o.value)===hz);
+   if(!option)throw Error("Receiver has no preset for "+(hz/1e6).toFixed(3)+" MHz.");
+   preset.value=option.value;
+   imageCandidateTarget=target;
+   preset.dispatchEvent(new Event("change",{bubbles:true}));
+ }
+});
 satelliteMaps = createSatelliteMaps({
  getTles:()=>tleEntries,
  getSatLib:getOrbitalLibrary,
