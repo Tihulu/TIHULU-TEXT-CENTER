@@ -257,6 +257,104 @@ class LiveTV:
                 self._shutdown("error","Unable to initialize TV relay")
                 raise
 
+    def _start_teletext_sidecar(self):
+        """Never double-open a tuner. Only opt-in multi-client local relays qualify."""
+        channel=self.subtitle_channel
+        if not channel or not channel.get("teletext_shared_safe"):
+            self.subtitle_error=(
+                "Teletext subtitle extraction needs an explicitly multi-client-safe "
+                "existing MPEG-TS relay. Existing TV Teletext and video remain untouched.")
+            return
+        if self.teletext_sidecar and self.teletext_sidecar.status()["active"]:
+            return
+        sidecar=TeletextSubtitleSidecar(on_cue=self._on_received_teletext,
+                                      lookup=self.lookup)
+        self.teletext_sidecar=sidecar
+        try:
+            status=sidecar.start(channel["url"],share_safe=True,
+                subtitle_index=channel["teletext_subtitle_index"],
+                page=channel["teletext_subtitle_page"])
+        except (ValueError,OSError,RuntimeError) as exc:
+            self.subtitle_error=str(exc)[:220]
+            return
+        if not status["active"]:
+            self.subtitle_error=status.get("error") or "Teletext decoder unavailable"
+
+    def _on_received_teletext(self,cue):
+        """Only FFmpeg-decoded timed subtitle text may reach this path."""
+        with self.mutex:
+            if not self.state["active"] or not self.caption_enabled or self.caption_source=="speech":
+                return
+            session=self.state["session"]
+            channel=self.subtitle_channel
+            if not channel or not self.transcripts:
+                return
+            self.teletext_last_seen=time.monotonic()
+            language=channel.get("teletext_language") or (
+                self.subtitle_language if self.subtitle_language in ("en","de","tr") else "und")
+            target=self.subtitle_target
+        translated=None
+        if target and language!="und" and language!=target:
+            try:translated=translate_offline(cue["text"],language,target)
+            except (TranslatorUnavailable,OSError,ValueError,RuntimeError) as exc:
+                with self.mutex:self.subtitle_error=(
+                    "Actual Teletext decoded; optional translation unavailable: "+str(exc)[:140])
+        try:
+            self.transcripts.add(
+                session=session,medium="dvb_tv",
+                source_id="configured_tv:"+channel["id"]+":teletext",
+                language=language,text=cue["text"],
+                backend="broadcast_teletext",start=cue["start"],end=cue["end"],
+                translated=translated,target=target if translated else None,
+                translation_engine="argos_offline_teletext" if translated else None)
+        except (ValueError,OSError) as exc:
+            with self.mutex:self.subtitle_error="Cannot save decoded Teletext cue: "+str(exc)[:140]
+
+    def _effective_subtitle_source(self):
+        if not self.caption_enabled:return "off"
+        if self.caption_source=="teletext":return (
+            "teletext" if self.teletext_last_seen is not None and
+            time.monotonic()-self.teletext_last_seen<15 else "teletext_waiting")
+        if self.caption_source=="speech":return "speech" if self.speech else "speech_unavailable"
+        if self.teletext_last_seen is not None and time.monotonic()-self.teletext_last_seen<15:
+            return "teletext"
+        return "speech" if self.speech else "unavailable"
+
+    def configure_captions(self,*,enabled=None,source=None,translate_to=None,
+                           original_visible=None,translated_visible=None):
+        """Update live subtitle preferences without retuning or stopping video.
+
+        The PCM tap for speech must have been provisioned at Play; it is never
+        silently added by re-opening the configured tuner stream.
+        """
+        if enabled is not None and type(enabled) is not bool:
+            raise ValueError("Invalid captions enabled flag")
+        if source is not None and source not in ("auto","teletext","speech"):
+            raise ValueError("Subtitle source must be auto/teletext/speech")
+        for value in (original_visible,translated_visible):
+            if value is not None and type(value) is not bool:
+                raise ValueError("Subtitle display options must be Boolean")
+        if translate_to is not None and translate_to not in ("off","en","de","tr"):
+            raise ValueError("Invalid live translation language")
+        with self.mutex:
+            if not self.state["active"]:raise LiveTVError("No active TV session")
+            if enabled is not None:self.caption_enabled=enabled
+            if source is not None:self.caption_source=source
+            if original_visible is not None:self.caption_show_original=original_visible
+            if translated_visible is not None:self.caption_show_translation=translated_visible
+            if translate_to is not None:
+                self.subtitle_target=None if translate_to=="off" else translate_to
+                if self.speech:self.speech.target=self.subtitle_target
+            should_run=self.caption_enabled and self.caption_source!="speech"
+            if self.teletext_sidecar and not should_run:
+                self.teletext_sidecar.stop(wait=False)
+                self.teletext_sidecar=None
+                self.teletext_last_seen=None
+            elif should_run and (not self.teletext_sidecar or
+                                 not self.teletext_sidecar.status()["active"]):
+                self._start_teletext_sidecar()
+            return self.status(heartbeat=True)
+
     def _audio_worker(self):
         with self.mutex:
             fd=self.audio_read
@@ -266,7 +364,16 @@ class LiveTV:
             while not self.stop_flag.is_set():
                 chunk=os.read(fd,32768)
                 if not chunk:break
-                worker.feed(chunk)
+                with self.mutex:
+                    preferred=self._effective_subtitle_source()
+                    enabled=self.caption_enabled
+                if enabled and preferred=="speech":
+                    worker.feed(chunk)
+                else:
+                    # Preserve the live-media time axis without launching ASR
+                    # while genuine Teletext subtitles are arriving.
+                    worker.buffer.clear()
+                    worker.samples+=len(chunk)//2
         except OSError:
             pass
 
@@ -303,6 +410,9 @@ class LiveTV:
             try:os.close(self.audio_read)
             except OSError:pass
             self.audio_read=None
+        if self.teletext_sidecar:
+            self.teletext_sidecar.stop(wait=False)
+            self.teletext_sidecar=None
         if self.speech:self.speech.stop()
         if self.record_file:
             try:self.record_file.close()
@@ -315,6 +425,17 @@ class LiveTV:
         with self.mutex:
             if heartbeat and self.state["active"]:self.last_seen=time.monotonic()
             result=dict(self.state)
+            result["captions_enabled"]=self.caption_enabled
+            result["caption_original_visible"]=self.caption_show_original
+            result["caption_translated_visible"]=self.caption_show_translation
+            result["subtitle_source_preference"]=self.caption_source
+            result["subtitle_effective_source"]=self._effective_subtitle_source()
+            result["teletext"]=(self.teletext_sidecar.status()
+                                if self.teletext_sidecar else
+                                {"active":False,"status":"not_connected","received":0})
+            result["teletext_error"]=self.subtitle_error
+            if self.caption_enabled and not self.speech and result["subtitle_effective_source"] in ("speech_unavailable","unavailable"):
+                result["asr_fallback_note"]="No compatible speech model/PCM tap; restart with subtitles enabled after installing compatible AI"
             result["speech"]=self.speech.status() if self.speech else {
                 "enabled":False,"reason":self.state.get("subtitle_unavailable_reason") or
                     "No user-requested TV transcription"}
