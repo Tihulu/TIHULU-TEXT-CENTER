@@ -109,6 +109,23 @@
         <label class="simple-option"><input type="checkbox" id="simple-satellites"><span><strong>Satellites</strong><small>Predicted orbits, not automatically RF-received</small></span></label>
        </fieldset>
       </div>
+      <details id="simple-hardware" class="simple-hardware-panel" open>
+       <summary>Hardware · Add and connect your receivers <span id="hardware-count" class="hardware-counter">0 permitted USB devices</span></summary>
+       <div class="hardware-actions">
+        <button id="hardware-add" class="primary" type="button">+ Add USB device</button>
+        <button id="hardware-refresh" class="secondary" type="button">Detect permitted devices</button>
+        <div id="hardware-rtl-slot" class="hardware-control-slot"></div>
+        <div id="hardware-test-slot" class="hardware-control-slot"></div>
+        <button id="hardware-release" class="secondary" type="button">Release RTL-SDR</button>
+       </div>
+       <div class="hardware-gnss-row">
+        <span>Optional dedicated GNSS serial receiver</span>
+        <div id="hardware-gnss-slot" class="hardware-control-slot"></div>
+       </div>
+       <div id="hardware-list" class="hardware-device-list" aria-label="Browser-permitted USB hardware"></div>
+       <div id="hardware-message" class="hardware-message" role="status" aria-live="polite">USB permissions are independent of receiver claims. Add device identifies hardware; Connect RTL-SDR actually opens its tuner.</div>
+       <p class="hardware-note"><strong>Nooelec RTL-SDR:</strong> WebUSB in desktop Chrome, Brave or Edge; release readsb/Gqrx first. <strong>Hauppauge WinTV-soloHD:</strong> may be listed by USB permission, but DVB-T/T2/C scanning uses the native Linux DVB driver, not the browser. Adding a TV USB permission does not enable a web DVB scan.</p>
+      </details>
       <div class="simple-actions">
        <button id="simple-find" class="primary" type="button">◎ Find My Location</button>
        <button id="simple-scan" type="button" class="secondary">⌁ Scan selected receivers</button>
@@ -196,7 +213,7 @@
     <article class="panel radio-quick-panel">
       <div class="radio-quick-grid">
         <div><h2>Radio · Nooelec RTL-SDR</h2><p>Automatic FM band energy scan, broadcast-station catalog and real ADS-B aircraft shared from Flight Radar.</p>
-         <div class="simple-actions" id="radio-usb-slot"></div>
+         <div class="simple-actions"><button id="radio-connect-rtl" class="primary" type="button">Connect RTL-SDR via WebUSB</button><button id="radio-manage-usb" class="secondary" type="button">Manage hardware</button></div>
          <div class="simple-actions"><button id="quick-radio-discover" class="primary" type="button">Discover sources</button><button id="quick-radio-scan" type="button">Scan FM band</button><button id="quick-radio-release" type="button">Hard Stop receiver</button><button id="quick-back-map" type="button">← Back to map</button></div>
          <div id="quick-radio-status" class="simple-result">Connect the RTL-SDR for antenna FM scans. Site lookup requires internet or a cached catalog.</div>
          <div class="radio-quick-results"><div><h3>Detected site candidates</h3><div id="quick-radio-towers" class="simple-channel-list"></div></div><div><h3>Strongest actual RF frequencies</h3><div id="quick-radio-peaks" class="simple-channel-list"></div></div></div>
