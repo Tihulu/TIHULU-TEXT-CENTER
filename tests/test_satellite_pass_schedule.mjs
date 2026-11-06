@@ -40,6 +40,8 @@ test("minute-precision capture scheduling validates real pass bounds",()=>{
  assert.equal(parseLocalScheduleTime(localDateInput(pass.aos)),pass.aos);
  assert.throws(()=>createScheduledPass(pass,{...options,when:now-60000},now),/past/);
  assert.throws(()=>createScheduledPass(pass,{...options,when:pass.los},now),/pass/);
+ assert.throws(()=>createScheduledPass(pass,{...options,when:pass.los-10000},now),/finish before/);
+ assert.equal(createScheduledPass(pass,{...options,when:pass.los-30000},now).durationSeconds,30);
  assert.throws(()=>createScheduledPass(pass,{...options,durationSeconds:400},now),/1–60/);
  assert.throws(()=>createScheduledPass(pass,{...options,frequency:5000000000},now),/range/);
 });

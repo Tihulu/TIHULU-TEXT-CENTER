@@ -26,6 +26,10 @@ export function createScheduledPass(pass,choices,now=Date.now()){
   throw Error("Scheduled minute must fall during this satellite pass (or up to 2 minutes before its start).");
  if(!Number.isInteger(duration)||duration<1||duration>MAX_SCHEDULE_SECONDS)
   throw Error("Choose 1–60 seconds of capture.");
+ // A legal start minute is not enough: the entire recording must still fit
+ // within the predicted pass. Never arm an overrun past line-of-sight loss.
+ if(when+duration*1000>until)
+  throw Error("Scheduled recording must finish before this satellite pass ends.");
  if(![1024000,2048000].includes(sampleRate))throw Error("Unsupported sample rate.");
  if(!Number.isFinite(frequency)||frequency<24000000||frequency>1750000000)
   throw Error("Receiver frequency is out of RTL-SDR range.");

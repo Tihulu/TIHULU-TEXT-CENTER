@@ -40,6 +40,16 @@ test("APRS UHF is separate from SSTV and no retired/unsupported satellites are a
  assert.throws(()=>selectAutomaticPasses([],{mode:"images",now,maxJobs:99}),/limits/);
 });
 
+test("Automatic 60-second recordings never overrun a predicted pass",()=>{
+ const tooShort=pass(25544,3600000,49000);
+ const valid=pass(59051,7200000,60000);
+ const result=selectAutomaticPasses([tooShort,valid],{mode:"images",now});
+ assert.equal(result.skipped.length,1);
+ assert.match(result.skipped[0].reason,/too short/);
+ assert.deepEqual(result.scheduled.map(x=>x.missionId),["meteor-m2-4"]);
+ assert.ok(result.scheduled.every(x=>x.when+x.durationSeconds*1000<=x.until));
+});
+
 test("All mode alternates ISS image and packet frequencies between passes",()=>{
  const twice=[pass(25544,3600000),pass(25544,5400000)];
  const r=selectAutomaticPasses(twice,{mode:"all",now,maxJobs:6});
