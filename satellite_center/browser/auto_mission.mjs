@@ -15,12 +15,14 @@ export const AUTO_PRESETS=Object.freeze({
   all:Object.freeze(["meteor-m2-3","meteor-m2-4","iss-sstv","iss-aprs","iss-voice"])
 });
 export function selectAutomaticPasses(passes,{mode="images",now=Date.now(),maxJobs=6,
-  existingJobs=[],goal="full"}={}){
+  existingJobs=[],goal="full",durationSeconds=60}={}){
   if(!Object.hasOwn(AUTO_PRESETS,mode))throw Error("Unknown automatic reception category");
   if(!Number.isFinite(now)||!Number.isInteger(maxJobs)||maxJobs<1||maxJobs>12)
     throw Error("Invalid automatic scheduling limits");
   if(!Array.isArray(passes)||!Array.isArray(existingJobs))throw Error("Invalid pass/job data");
   if(!["full","sample"].includes(goal))throw Error("Unknown reception coverage goal");
+  if(!Number.isInteger(durationSeconds)||durationSeconds<8||durationSeconds>60)
+    throw Error("Browser WebUSB recording must be 8–60 seconds");
   const chosen=AUTO_PRESETS[mode],scheduled=[],skipped=[],recommendations=[];
   // If both ISS APRS and SSTV are requested, alternate them across separate
   // passes; one receiver cannot sample two simultaneous downlinks.
@@ -37,7 +39,7 @@ export function selectAutomaticPasses(passes,{mode="images",now=Date.now(),maxJo
     // WebUSB stores a bounded 60 s / 128 MiB clip in memory. A Meteor LRPT
     // image normally needs >60 s; choosing FULL never treats such a clip as
     // a complete scene. An explicit SAMPLE request can still save RF evidence.
-    const viable=eligible.filter(key=>goal==="sample"||AUTO_TARGETS[key].minimumSeconds<=60);
+    const viable=eligible.filter(key=>goal==="sample"||AUTO_TARGETS[key].minimumSeconds<=durationSeconds);
     if(!viable.length){
       skipped.push({name:pass.name,reason:"Meteor LRPT image needs longer than browser 60 s; use native SatDump and full-pass disk recording"});
       recommendations.push({name:pass.name,kind:"image",recommended:"Native full-pass capture, not a 60-second browser sample"});
@@ -48,22 +50,22 @@ export function selectAutomaticPasses(passes,{mode="images",now=Date.now(),maxJo
     const until=Number(pass.los);
     // The browser capture itself lasts 60 s. A 45 s remaining pass is NOT
     // sufficient; never silently record beyond predicted line-of-sight loss.
-    if(start+60000>until){skipped.push({name:pass.name,reason:"Pass too short or begins too soon"});continue;}
+    if(start+durationSeconds*1000>until){skipped.push({name:pass.name,reason:"Pass too short or begins too soon"});continue;}
     if(blocked.some(([a,b])=>start<b+20000&&until>a-20000)){
       skipped.push({name:pass.name,reason:"Single receiver conflict with an armed pass"});continue;
     }
     const target=AUTO_TARGETS[matched];
     const windowSeconds=Math.floor((until-start)/1000);
-    const coverage=windowSeconds<=60?"full-pass-attempt":"partial-pass";
+    const coverage=windowSeconds<=durationSeconds?"full-pass-attempt":"partial-pass";
     const limitation=target.minimumSeconds>60?
       "RF sample only: a complete Meteor LRPT image cannot be claimed":
       target.dataKind==="text"?
       "Browser can capture packet RF but cannot validate APRS text without a native decoder":
       "Recording is only a downlink candidate; complete decoded media is not guaranteed";
     scheduled.push({pass,missionId:matched,when:start,until,
-      frequency:target.frequencyHz,sampleRate:1024000,durationSeconds:60,
-      estimatedBytes:60*1024000*2,targetSeconds:windowSeconds,
-      shortfallSeconds:Math.max(0,windowSeconds-60),coverage,
+      frequency:target.frequencyHz,sampleRate:1024000,durationSeconds,
+      estimatedBytes:durationSeconds*1024000*2,targetSeconds:windowSeconds,
+      shortfallSeconds:Math.max(0,windowSeconds-durationSeconds),coverage,
       dataKind:target.dataKind,limitation,
       saveRaw:true,description:target.kind});
     blocked.push([start,until]);

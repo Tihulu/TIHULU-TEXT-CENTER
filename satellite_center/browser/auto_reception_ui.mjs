@@ -9,6 +9,7 @@ import {parseRecordingName} from "./satellite_imagery.mjs";
 import {decodeRobot36Audio} from "./sstv_robot36.mjs";
 import {initStationLocationUI} from "./location_search.mjs";
 import {localDayKey,shiftCalendarDay,renderSatelliteCalendar} from "./satellite_calendar.mjs";
+import {createResultsZip} from "./results_zip.mjs";
 
 const $=id=>document.getElementById(id);
 const nativeHost=()=>window.location.protocol==="http:" && window.location.port==="8791" && ["127.0.0.1","localhost"].includes(window.location.hostname);
@@ -70,19 +71,25 @@ export function initAutoReceptionUI({getSelectedFile=()=>null,fileInput=$("local
   }
 
   const analyze=$("auto-mission-analyze"),extract=$("auto-mission-extract");
+  const zipButton=$("auto-mission-zip"),zipStatus=$("auto-mission-zip-status");
   const cancel=$("auto-mission-cancel");
 
   function begin(){
     if(busy)throw Error("Analysis already in progress");
     busy=true;controller=new AbortController();
-    analyze.disabled=true;extract.disabled=true;cancel.disabled=false;
+    analyze.disabled=true;extract.disabled=true;zipButton.disabled=true;cancel.disabled=false;
+    zipStatus.textContent="Analysis running; results archive is not ready.";
     jobs.hidden=false;output.replaceChildren();
     state.discovery=[];state.actualImages=[];state.packetText=[];state.audioFiles=[];state.warnings=[];
   }
   function finish(){
     busy=false;controller=null;
     analyze.disabled=false;cancel.disabled=true;
-    extract.disabled=!(state.discovery.length||state.actualImages.length||state.packetText.length||state.audioFiles.length);
+    extract.disabled=!(state.discovery.length||state.actualImages.length||state.packetText.length||state.audioFiles.length||state.warnings.length);
+    zipButton.disabled=extract.disabled;
+    zipStatus.textContent=zipButton.disabled?
+      "No extracted media/data yet; original recordings remain available separately.":
+      "Results ready to inspect in Step 3 and export together as ZIP (including source evidence).";
   }
   function station(){
     const lat=Number($("auto-lat").value),lon=Number($("auto-lon").value);
@@ -133,6 +140,10 @@ export function initAutoReceptionUI({getSelectedFile=()=>null,fileInput=$("local
     };
     lbl("Start time · local, inside original pass",when);
     lbl("Published receiver protocol",protocols);
+    const seconds=document.createElement("input");seconds.type="number";seconds.min="8";seconds.max="900";
+    seconds.step="1";seconds.inputMode="numeric";
+    seconds.placeholder="Auto: remaining pass";seconds.value=job.requested_seconds==null?"":String(job.requested_seconds);
+    lbl("Record duration · 8–900 seconds, empty = auto",seconds);
     const note=document.createElement("small");
     note.textContent="Original pass: "+new Date(job.aos).toLocaleTimeString()+"–"+
       new Date(job.los).toLocaleTimeString()+" (local). Changing satellite requires a new pass.";
@@ -144,8 +155,13 @@ export function initAutoReceptionUI({getSelectedFile=()=>null,fileInput=$("local
       try{
         const date=new Date(when.value);
         if(!Number.isFinite(date.getTime()))throw Error("Invalid local start time");
+        const raw=seconds.value.trim();
+        const duration_seconds=raw?Number(raw):null;
+        if(raw&&(!Number.isInteger(duration_seconds)||duration_seconds<8||duration_seconds>900))
+          throw Error("Choose 8–900 whole seconds or blank for auto.");
         await nativeApi("/api/auto-edit",{
-          job_id:job.id,run_at:date.toISOString(),mission_id:protocols.value
+          job_id:job.id,run_at:date.toISOString(),mission_id:protocols.value,
+          duration_seconds
         });
         message("Saved native automatic job changes without touching unrelated SDR processes.");
         await refreshNativeCalendar();
@@ -216,9 +232,16 @@ export function initAutoReceptionUI({getSelectedFile=()=>null,fileInput=$("local
         return;
       }
       message("Requesting fresh-or-cached TLE geometry and checking native decoder availability…");
+      const requested=$("auto-recording-seconds").value.trim();
+      const duration_seconds=requested?Number(requested):null;
+      if(requested&&(!Number.isInteger(duration_seconds)||duration_seconds<8||duration_seconds>900))
+        throw Error("Select 8–900 whole seconds or leave blank for automatic duration.");
+      if($("auto-coverage-goal").value==="sample"&&duration_seconds>60)
+        throw Error("Quick sample is limited to 60 s; use full coverage for longer captures.");
       const result=await nativeApi("/api/auto-schedule",{
         missions:[...AUTO_PRESETS[mode]],lat,lon,city:"Custom",hours,
-        elevation,max_jobs:6,coverage_goal:$("auto-coverage-goal").value
+        elevation,max_jobs:6,coverage_goal:$("auto-coverage-goal").value,
+        duration_seconds
       });
       jobs.replaceChildren();
       textNode("h3","Native receiver queue",jobs);
@@ -418,6 +441,113 @@ export function initAutoReceptionUI({getSelectedFile=()=>null,fileInput=$("local
     });
     frame.append(save);return frame;
   }
+  // The ZIP is produced entirely on this device after a real file has been
+  // analyzed. No raw gigabyte IQ capture, assumed spacecraft data or invented
+  // image/audio is included.
+  async function pngFromRgba(item){
+    if(!Number.isInteger(item.width)||!Number.isInteger(item.height)||
+       item.width<1||item.height<1||item.width*item.height>8_000_000)
+      throw Error("Decoded image dimensions exceed export safety limits");
+    const canvas=document.createElement("canvas");canvas.width=item.width;canvas.height=item.height;
+    const ctx=canvas.getContext("2d");if(!ctx)throw Error("PNG conversion canvas unavailable");
+    ctx.putImageData(new ImageData(item.rgba,item.width,item.height),0,0);
+    const blob=await new Promise(resolve=>canvas.toBlob(resolve,"image/png"));
+    if(!blob)throw Error("Could not encode actual decoded image pixels");
+    return blob;
+  }
+  async function imageResultBlob(item){
+    if(!item.nativePath)return pngFromRgba(item);
+    if(!nativeHost())throw Error("Native decoded image is unavailable on the hosted web origin");
+    const path="/api/image/"+item.nativePath.split("/").map(encodeURIComponent).join("/");
+    const response=await fetch(path,{cache:"no-store"});
+    if(!response.ok)throw Error("Cannot fetch actual native image (HTTP "+response.status+")");
+    const blob=await response.blob();
+    if(blob.size>15_000_000||!blob.size)throw Error("Native image exceeds size cap or is empty");
+    return blob;
+  }
+  zipButton.addEventListener("click",async()=>{
+    if(busy||zipButton.disabled)return;
+    zipButton.disabled=true;
+    const entries=[],index=[],warnings=[...state.warnings];
+    const save=(path,blob,kind,source,verification)=>{
+      entries.push({name:path,blob});
+      index.push({path,kind,bytes:blob.size,source,verification});
+    };
+    const asJson=obj=>new Blob([JSON.stringify(obj,null,2)],{type:"application/json"});
+    const asText=text=>new Blob([String(text)],{type:"text/plain;charset=utf-8"});
+    try{
+      zipStatus.textContent="Collecting genuine decoded outputs and provenance…";
+      for(let i=0;i<state.discovery.length;i++){
+        const {name,result}=state.discovery[i],k=i+1;
+        save("analysis/discovery_"+k+".json",asJson(discoveryReportJson(result)),
+          "analysis evidence",name,"RF candidate; satellite origin not independently confirmed");
+        for(let j=0;j<(result.images||[]).length;j++){
+          try{
+            const frame=result.images[j],blob=await pngFromRgba(frame);
+            save("images/robot36_candidate_"+k+"_"+(j+1)+".png",blob,"image",name,
+              "Real Robot36 line-sync candidate; spacecraft not confirmed");
+          }catch(err){warnings.push("Discovery image "+k+"/"+(j+1)+": "+err.message);}
+        }
+        for(let j=0;j<(result.audioProbes||[]).length&&j<8;j++){
+          const probe=result.audioProbes[j];
+          if(probe.audioBlob instanceof Blob)
+            save("audio/probe_"+k+"_"+(j+1)+".wav",probe.audioBlob,
+              "audio candidate",name,"Demodulated RF candidate; voice/content not established");
+        }
+      }
+      for(let i=0;i<state.actualImages.length;i++){
+        const item=state.actualImages[i];
+        try{
+          const blob=await imageResultBlob(item);
+          save("images/decoded_candidate_"+(i+1)+(blob.type==="image/jpeg"?".jpg":".png"),
+            blob,"image",item.source||item.name,"Decoder output; spacecraft origin not independently verified");
+        }catch(err){warnings.push("Image "+(i+1)+" omitted: "+err.message);}
+      }
+      for(let i=0;i<state.audioFiles.length;i++){
+        const file=state.audioFiles[i];
+        const ext=["wav","mp3","ogg"].includes(fileType(file.name))?fileType(file.name):"wav";
+        save("audio/recorded_"+(i+1)+"."+ext,file.blob,"original recorded audio",
+          file.source||file.name,"Real imported/native recording; contents/source not verified");
+      }
+      for(let i=0;i<state.packetText.length;i++){
+        const item=state.packetText[i];
+        save("text/data_"+(i+1)+".txt",asText(item.body),"text/data",
+          item.source||item.name,"Actual file contents; packet CRC/source not reverified");
+      }
+      const manifest={
+        format:"tihulu-satellite-analysis-results-v1",
+        createdUtc:new Date().toISOString(),
+        contentStatus:"Real locally analyzed/imported files. Decode candidates are NOT verified downlinks.",
+        rawIqIncluded:false,
+        dataCompleteness:"No claim that the complete satellite dataset was downlinked.",
+        files:index,
+        warnings
+      };
+      entries.unshift({name:"manifest.json",blob:asJson(manifest)});
+      entries.push({name:"README.txt",blob:asText(
+        "TIHULU Satellite Center\nReal decoded/imported results with provenance.\n"+
+        "Candidate signal, Robot36 sync or SatDump image does not prove a spacecraft ID.\n"+
+        "Full recorded pass is not all onboard data. Raw CU8 IQ is excluded for size.\n"
+      )});
+      if(warnings.length)entries.push({name:"warnings.txt",blob:asText(warnings.join("\n"))});
+      zipStatus.textContent="Packaging "+index.length+" output file(s) and provenance in ZIP…";
+      const archive=await createResultsZip(entries,{
+        onProgress:({done,total})=>{
+          if(done===total||done%10===0)zipStatus.textContent="Preparing ZIP "+done+"/"+total+" files";
+        }
+      });
+      const name="TIHULU_satellite_results_"+new Date().toISOString().replace(/[:.]/g,"-")+".zip";
+      postFile(archive,name);
+      zipStatus.textContent="ZIP download requested: "+name+" · "+index.length+
+        " output(s) · "+warnings.length+" warning(s). Check your browser Downloads; no source claims fabricated.";
+    }catch(error){
+      zipStatus.textContent="ZIP not generated: "+String(error?.message||error)+
+        ". Existing recordings and individual decoded output downloads remain available.";
+    }finally{
+      zipButton.disabled=busy||!(
+        state.discovery.length||state.actualImages.length||state.packetText.length||state.audioFiles.length||state.warnings.length);
+    }
+  });
   extract.addEventListener("click",()=>{
     if(busy)return;
     releasePreviews();

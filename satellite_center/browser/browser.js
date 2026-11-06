@@ -1109,7 +1109,12 @@ async function runAutoMission({mode=$('auto-mode').value,goal=$('auto-coverage')
     if(!tleEntries.length)await refreshOrbitalCatalog();
     if(!tleEntries.length)throw Error('Could not load TLEs. Import a TLE text file, then retry.');
     if(!passes.length)await calculateOrbitalPasses();
-    const proposal=selectAutomaticPasses(passes,{mode,goal,now:Date.now(),maxJobs:6,existingJobs:jobs});
+    const durationSeconds=Number($('auto-browser-seconds').value);
+    if(!Number.isInteger(durationSeconds)||durationSeconds<8||durationSeconds>60)
+      throw Error('Choose a browser capture length between 8 and 60 seconds.');
+    const proposal=selectAutomaticPasses(passes,{
+      mode,goal,durationSeconds,now:Date.now(),maxJobs:6,existingJobs:jobs
+    });
     let armed=0;
     for(const item of proposal.scheduled) {
       const job=createScheduledPass(item.pass,{

@@ -26,6 +26,7 @@
 <option value="voice">ISS FM voice / audio candidate</option>
 <option value="all">Images + text + voice (single receiver; no overlapping scans)</option>
 </select></label>
+<label>Browser recording seconds (8–60)<input id="auto-browser-seconds" type="number" min="8" max="60" step="1" value="60" inputmode="numeric"></label>
 <label>Recording goal<select id="auto-coverage">
 <option value="full" selected>Prefer useful complete data (long image passes require native receiver)</option>
 <option value="sample">Quick RF sample · up to 60 seconds (may be incomplete)</option>
@@ -362,4 +363,4 @@ These provider viewers offer maps/imagery independently of your RTL-SDR.</p>
 <details><summary>What requires more than a browser?</summary><p>Windows may require WinUSB driver setup; Linux may require releasing the kernel DVB driver or adjusting permissions. To record a pass while the browser is closed, the optional local companion must remain running. The companion still supports offline SatDump and multimon-ng where installed.</p></details>
 <h3>Activity log</h3><pre id="log" aria-live="polite">Ready. USB idle. No fabricated RF data.</pre></section>
 <footer>Receive-only. The page never transmits RF, uploads I/Q files or silently scans. Page closing releases browser-owned USB access; an unexpected OS/browser crash cannot be guaranteed to cleanly close every device state. Browser client uses <a href="https://www.npmjs.com/package/@jtarrio/webrtlsdr" rel="noopener noreferrer" target="_blank">@jtarrio/webrtlsdr</a> from a version-pinned module CDN (requires Internet to load initially).</footer>
-</main><script type="module" src="./browser.js?v=20261106-full-pass-budget-v1"></script></body></html>
+</main><script type="module" src="./browser.js?v=20261106-calendar-zip-v2"></script></body></html>
