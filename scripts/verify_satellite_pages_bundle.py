@@ -15,7 +15,6 @@ ASSETS = (
     "reception.html",
     "reception.css",
     "reception.mjs",
-    "reception_workflow.mjs",
     "reception_catalog.mjs",
     "auto_mission.mjs",
     "auto_reception_ui.mjs",
