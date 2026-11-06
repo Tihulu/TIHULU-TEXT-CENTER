@@ -34,3 +34,17 @@
 .mission-result button{margin:6px 6px 6px 0;min-height:38px}
 #auto-mission-center .reception-controls input{max-width:230px}
 #auto-mission-center button:disabled{opacity:.5}
+
+.receiver-readiness{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:0 0 12px}
+.receiver-readiness span{padding:6px 9px;border-radius:7px;border:1px solid #41678d;background:#172f4a;color:#c9ddec;font-size:.78rem;line-height:1.3}
+.user-protocol-manager{border:1px solid #355575;border-radius:10px;background:#0c2138;padding:12px;margin-top:13px}
+.user-protocol-manager>summary{font-weight:600;cursor:pointer;padding:5px 0}
+.user-protocol-manager .mission-detail{margin:9px 0}
+.user-protocol-manager input,.user-protocol-manager select{min-width:0;max-width:100%}
+.reception-advanced{border:1px solid #304b6b;border-radius:12px;padding:12px;background:#11263f}
+.reception-advanced>summary{cursor:pointer;font-weight:700;color:#d6e7ff;padding:4px 0}
+.reception-advanced>.reception-grid{margin-top:12px}
+.reception-station{margin-top:14px}
+.reception-station h3{margin:0 0 10px;font-size:1rem}
+.reception-station .location-results{z-index:10}
+.reception-station .location-picker{width:100%}
