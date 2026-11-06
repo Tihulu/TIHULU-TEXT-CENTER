@@ -28,11 +28,18 @@ class AutoMissionTests(unittest.TestCase):
                                 "family": family, "aos": a.isoformat(), "los": b.isoformat(),
                                 "profiles": ["meteor"] if family=="meteor" else ["iss_sstv", "iss_aprs_uhf"]})
         self.captured = []
-        def fake_schedule(pass_id, profile, mode):
+        def fake_schedule(pass_id, profile, mode, run_at=None, seconds=None, *, automatic=False):
+            # Synthetic interception mirrors native auto schedules with
+            # explicit full duration, actual start, and allowlisted flag.
+            self.assertTrue(automatic)
+            self.assertIsNotNone(run_at)
+            self.assertIsInstance(seconds, int)
+            self.assertTrue(8 <= seconds <= 900)
             record = next(r for r in self.events if r["id"] == pass_id)
             job = {"id": str(len(self.captured)+1), "pass_id": pass_id, "satellite": record["name"],
                    "aos": record["aos"], "los": record["los"], "profile": profile,
-                   "mode": mode, "state": "pending"}
+                   "mode": mode, "state": "pending", "run_at": run_at,
+                   "capture_seconds": seconds}
             self.station.jobs.append(job)
             self.captured.append(job)
             return job
@@ -45,6 +52,30 @@ class AutoMissionTests(unittest.TestCase):
         for p in self.patches:
             p.start()
             self.addCleanup(p.stop)
+
+
+    def test_native_approved_auto_audio_can_schedule_full_pass_without_web(self):
+        from datetime import timedelta
+        from satellite_center.__main__ import now, stamp
+        with tempfile.TemporaryDirectory() as td:
+            app=Station(Path(td))
+            aos=now()+timedelta(minutes=10)
+            los=aos+timedelta(minutes=6)
+            app.predicted={"25544:synthetic":{"id":"25544:synthetic","name":"ISS test candidate",
+                "family":"iss","norad":25544,"profiles":["iss_sstv","iss_aprs_uhf"],
+                "aos":stamp(aos),"los":stamp(los)}}
+            try:
+                with self.assertRaisesRegex(ValueError,"requires a named approved"):
+                    app.schedule("25544:synthetic","iss_sstv","sstv_audio",stamp(aos),120)
+                with patch("satellite_center.__main__.shutil.disk_usage") as disk:
+                    disk.return_value.free=8_000_000_000
+                    job=app.schedule("25544:synthetic","iss_sstv","sstv_audio",
+                                     stamp(aos-timedelta(seconds=10)),290,automatic=True)
+                self.assertEqual(job["capture_seconds"],290)
+                self.assertEqual(job["estimated_bytes"],290*96000)
+                self.assertEqual(job["profile"],"iss_sstv")
+                self.assertEqual(job["state"],"pending")
+            finally:app.close()
 
     def test_schedules_nonoverlapping_real_public_targets_without_claiming_receiver(self):
         outcome = self.station.auto_schedule(

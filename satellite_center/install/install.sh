@@ -20,12 +20,12 @@ fi
 if ! python3 -m venv "$APP_DIR/.venv-satellite"; then
   echo "Python venv missing. Debian/Raspberry Pi OS: sudo apt install python3-venv" >&2; exit 1
 fi
-"$APP_DIR/.venv-satellite/bin/python" -m pip install --disable-pip-version-check 'skyfield>=1.49,<2'
+"$APP_DIR/.venv-satellite/bin/python" -m pip install --disable-pip-version-check 'skyfield>=1.49,<2' 'PyQt5>=5.15,<6' 'numpy>=1.24,<3'
 mkdir -p "$BIN_DIR"
 cat > "$BIN_DIR/tihulu-satellite" <<EOF
 #!/bin/sh
 cd "$APP_DIR"
-exec "$APP_DIR/.venv-satellite/bin/python" -m satellite_center serve --port 8791 --open-browser
+exec "$APP_DIR/.venv-satellite/bin/python" -m satellite_center desktop
 EOF
 chmod 755 "$BIN_DIR/tihulu-satellite"
 
@@ -86,7 +86,7 @@ EOF
 [Desktop Entry]
 Type=Application
 Name=TIHULU Satellite Center
-Comment=Native Debian/Pop!_OS RTL-SDR recording, offline pass planning and long captures
+Comment=Real Qt Widgets program, no browser/localhost page required
 Exec=$BIN_DIR/tihulu-satellite
 Icon=tihulu-satellite
 Terminal=false
@@ -107,7 +107,7 @@ EOF
     ;;
   *) echo "Use Windows install.ps1 on Windows." >&2; exit 1;;
 esac
-echo "Native SDR application: $BIN_DIR/tihulu-satellite (works with Firefox; local backend)"
+echo "Native Qt SDR program: $BIN_DIR/tihulu-satellite (no browser required)"
 echo "Optional browser WebUSB: $WEB_LAUNCH (Chromium required for RF capture)"
-echo "Local dashboard: http://127.0.0.1:8791/"
+echo "Optional legacy HTTP service (not started by the Qt app): python3 -m satellite_center serve"
 echo "No USB driver, RF capture, remote listener or background daemon was silently activated."

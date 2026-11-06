@@ -4,7 +4,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/../../.."
 if ! command -v dpkg-deb >/dev/null; then echo "dpkg-deb is required" >&2; exit 1; fi
-VERSION="${TIHULU_DEB_VERSION:-0.2.4~preview2}"
+VERSION="${TIHULU_DEB_VERSION:-0.3.0~preview1}"
 case "$VERSION" in *[!a-zA-Z0-9.+:~-]*|"") echo "Invalid Debian package version" >&2; exit 1;; esac
 ROOT="$(mktemp -d)"
 trap 'rm -rf "$ROOT"' EXIT
@@ -27,20 +27,24 @@ Section: hamradio
 Priority: optional
 Architecture: all
 Maintainer: TIHULU Project <noreply@github.com>
-Depends: python3 (>= 3.11), python3-skyfield, rtl-sdr, xdg-utils
-Recommends: multimon-ng
-Description: TIHULU Satellite Center native RTL-SDR receiver for Debian
- Receive-only localhost desktop application with independent rtl_sdr USB
- acquisition, pass-aware capture scheduling, offline TLE cache, long IQ
- file saving and image/audio/data analysis. Opens the system browser at
- 127.0.0.1; no WebUSB, cloud server, or always-running daemon required.
+Depends: python3 (>= 3.11), python3-pyqt5, python3-numpy, python3-skyfield, rtl-sdr, xdg-utils
+Recommends: multimon-ng, qtwayland5
+Description: TIHULU Satellite Center real native Qt desktop for Debian
+ Independent Qt Widgets SDR desktop (no browser or embedded WebView),
+ receive-only rtl_sdr USB, pass schedules, long on-disk raw IQ recording,
+ local spectral FFT, saved images/audio and provenance ZIP exports.
+ HTTP companion is explicitly opt-in and not launched by the GUI.
 EOF
 cat > "$PKG/usr/bin/tihulu-satellite-center" <<'EOF'
 #!/bin/sh
 set -eu
 export PYTHONPATH="/usr/share/tihulu-satellite-center${PYTHONPATH:+:$PYTHONPATH}"
+# Prefer native Wayland in COSMIC/Pop!_OS, XWayland fallback as needed.
+if [ -n "${WAYLAND_DISPLAY:-}" ] && [ -z "${QT_QPA_PLATFORM:-}" ]; then
+ export QT_QPA_PLATFORM="wayland;xcb"
+fi
 if [ "$#" -eq 0 ]; then
- set -- serve --port 8791 --open-browser
+ set -- desktop
 fi
 exec /usr/bin/python3 -m satellite_center "$@"
 EOF
@@ -50,8 +54,8 @@ cat > "$PKG/usr/share/applications/tihulu-satellite-center.desktop" <<'EOF'
 Type=Application
 Name=TIHULU Satellite Center
 GenericName=Satellite SDR Receiver
-Comment=Native Debian long-duration radio capture and satellite analysis
-Exec=tihulu-satellite-center
+Comment=Native Qt Widgets SDR recording, planning and analysis
+Exec=tihulu-satellite-center desktop
 Icon=tihulu-satellite
 Terminal=false
 StartupNotify=true

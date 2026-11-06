@@ -5,7 +5,7 @@ started. Satellite RF uses the existing receive-only Station/rtl_sdr backend.
 """
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 import json
 import math
 import re
@@ -14,7 +14,7 @@ import sys
 import wave
 
 from PyQt5.QtCore import Qt, QDate, QDateTime, QPointF, QRectF, QObject, QRunnable, QThreadPool, QTimer, pyqtSignal, QUrl
-from PyQt5.QtGui import QColor, QFont, QPainter, QPen, QPolygonF, QPixmap, QDesktopServices, QImage
+from PyQt5.QtGui import QColor, QFont, QPainter, QPen, QPolygonF, QPixmap, QDesktopServices, QImage, QIcon
 from PyQt5.QtWidgets import (
     QApplication, QCheckBox, QComboBox, QDateEdit, QDateTimeEdit, QDoubleSpinBox,
     QFileDialog, QFormLayout, QGroupBox, QHBoxLayout, QLabel, QMainWindow,
@@ -138,6 +138,7 @@ class SatelliteWindow(QMainWindow):
         self.selected_path = None
         self.active = True
         self.setWindowTitle("TIHULU Satellite Center · Native SDR")
+        self.setWindowIcon(QIcon(str(Path(__file__).parent/"assets"/"tihulu-satellite.png")))
         self.resize(1200,820)
         self.setMinimumSize(900,650)
         self._build()
@@ -612,8 +613,8 @@ class SatelliteWindow(QMainWindow):
             for hour in range(24):
                 slot=datetime.fromisoformat(day+f"T{hour:02d}:00:00").astimezone()
                 finish=slot.replace(hour=(hour+1)%24) if hour<23 else slot.replace(
-                    hour=0)+__import__("datetime").timedelta(days=1)
-                end=start+__import__("datetime").timedelta(seconds=secs)
+                    hour=0)+timedelta(days=1)
+                end=start+timedelta(seconds=secs)
                 if start<finish and end>slot:
                     hours[hour].append(start.strftime("%H:%M")+"–"+end.strftime("%H:%M")+
                      " · "+job.get("satellite","Unknown")+" · "+job.get("state",""))
@@ -684,10 +685,17 @@ class SatelliteWindow(QMainWindow):
 
     def _capture_budget(self):
         mode=self.capture_mode.currentData()
+        if mode=="survey" and self.capture_seconds.maximum()!=180:
+            self.capture_seconds.setMaximum(180)
+        elif mode!="survey" and self.capture_seconds.maximum()!=900:
+            self.capture_seconds.setMaximum(900)
         secs=self.capture_seconds.value()
         self.capture_budget.setText(
             f"~{secs*2.048:.1f} MB raw CU8 on local disk · actual samples, no WebUSB"
-            if mode=="iq" else "Uses installed native receiver tools, not a browser")
+            if mode=="iq" else
+            "Native rtl_power records for exactly requested seconds (8–180)"
+            if mode=="survey" else
+            "Native receiver saves actual packet/audio output, no browser involved")
 
     def start_capture(self):
         key=self.capture_profile.currentData()
@@ -788,7 +796,11 @@ class SatelliteWindow(QMainWindow):
         def done(result):
             self.decoded_paths=[self.station.archive/p for p in result.get("images",[])]
             self.file_details.setPlainText(json.dumps(result,indent=2))
-            if self.decoded_paths:self._choose_path(str(self.decoded_paths[0]))
+            if self.decoded_paths:
+                image=QPixmap(str(self.decoded_paths[0]))
+                if not image.isNull():
+                    self.image.setPixmap(image.scaled(720,250,Qt.KeepAspectRatio,
+                                                      Qt.SmoothTransformation))
             self.refresh_status()
         self._task("SatDump Meteor "+variant,
                    lambda:self.station.decode_meteor(name,variant),done)
@@ -836,6 +848,9 @@ def main(argv=None):
     app=QApplication([sys.argv[0]]+args)
     app.setApplicationName("TIHULU Satellite Center")
     app.setOrganizationName("TIHULU")
+    app.setWindowIcon(QIcon(str(Path(__file__).parent/"assets"/"tihulu-satellite.png")))
+    if hasattr(app,"setDesktopFileName"):
+        app.setDesktopFileName("tihulu-satellite-center")
     if smoke:
         from tempfile import TemporaryDirectory
         with TemporaryDirectory(prefix="tihulu-native-smoke-") as td:
