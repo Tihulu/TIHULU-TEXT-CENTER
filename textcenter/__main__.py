@@ -8,6 +8,7 @@ import os
 
 from .core import Store
 from .receivers import receiver_inventory
+from .capabilities import capability_catalog
 from .http_app import run_server
 
 
@@ -82,7 +83,11 @@ def main():
             "local_web_url": "http://127.0.0.1:8787/",
             "counts": store.counts(),
             "network_polling": "off_by_default",
-            "rf_decoder": "not_bundled",
+            "rf_decoder": "manual_fm_rds_available_if_rtl_fm_and_redsea_installed",
+            "fm_spectrum_survey": "manual_if_rtl_power_installed_and_device_free",
+            "hardware_inventory": receiver_inventory(),
+            "capabilities_tracked": len(capability_catalog()),
+            "data_provenance_warning": "USB detected is not RF reception; spectrum peaks are not named stations",
             "how_to_start": "python3 -m textcenter serve",
         }, indent=2))
     elif args.command == "add-feed":

@@ -228,7 +228,7 @@ function showBroadcast(data){
   n.append(actions);$("content").append(n);
 }
 async function showIndex(){
-  section("START HERE","Explore the center","8 primary sections");
+  section("START HERE","Explore the center","All primary sections");
   const index=await api("/api/index");
   index.filter((x)=>x.page!==100).forEach((entry)=>{
     const n=el("button","tile");
@@ -671,7 +671,7 @@ async function showCapabilities(){
   $("section-count").textContent=catalog.length+" features tracked";
 }
 function showAbout(){
-  section("SYSTEM","How this terminal works","Build 0.1");
+  section("SYSTEM","How this terminal works","Build 0.3");
   const notes=[
     ["Offline first","All imported pages, notes and saved RSS text persist in a local SQLite database."],
     ["No silent network traffic","Feeds only refresh when you choose Refresh. No auto-scanning, tuner access, telemetry or AI."],

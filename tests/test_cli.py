@@ -40,7 +40,10 @@ class CLITests(unittest.TestCase):
             self.assertEqual(doctor.returncode, 0, doctor.stderr)
             report = json.loads(doctor.stdout)
             self.assertEqual(report["counts"]["pages"], 0)
-            self.assertEqual(report["rf_decoder"], "not_bundled")
+            self.assertEqual(report["rf_decoder"],"manual_fm_rds_available_if_rtl_fm_and_redsea_installed")
+            self.assertEqual(report["fm_spectrum_survey"],"manual_if_rtl_power_installed_and_device_free")
+            self.assertIn("hardware_inventory",report)
+            self.assertEqual(report["capabilities_tracked"],31)
 
 
 if __name__ == "__main__":

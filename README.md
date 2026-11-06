@@ -94,3 +94,7 @@ The old static sidebar placeholder was removed. After updating, **stop the old P
 Text Center v0.2 includes an optional local **FM RDS receiver session**. This only runs when manually started from Radio Data (400). It uses an actual USB RTL2832U receiver and two external executables: `rtl_fm` and `redsea`. Real JSON output is archived in SQLite, grouped by measured capture frequency, with UTC receive time and source labels. No actual RF session is claimed to have run in GitHub CI.
 
 See [Live FM RadioText setup](docs/FM_RDS_LIVE.md). This feature will claim the USB receiver, so **close Gqrx/welle.io/readsb and any other receiver job first**. A cooperative lock only prevents other instances using this same locking convention; it cannot protect a tuner from third-party applications.
+
+## Auto Discover (v0.3)
+
+Radio Data (400) now contains **Auto Discover** for passive local USB/DVB/decoder/source/archive inventory and **Scan FM Band** for explicit one-shot rtl_power spectral measurements. Spectrum peaks are not yet named stations. Manual RDS/RadioText+ confirmation requires redsea and a free RTL-SDR. Active readsb, dump1090, Gqrx or other known receiver programs block capture instead of being stopped. See [Auto Discovery](docs/AUTO_DISCOVERY.md) and [all Survival Kit integration requirements](docs/SURVIVAL_KIT_MASTER_PROMPT.md).

@@ -99,9 +99,15 @@ class Handler(BaseHTTPRequestHandler):
                     "version": __version__, "mode": "local_offline_first",
                     "csrf": self.server.csrf_token,
                     "counts": self.server.store.counts(),
-                    "background_refresh": False, "radio_receiver": "not_connected",
+                    "background_refresh": False,
+                    "radio_receiver": ("fm_rds_capture_running"
+                                       if self.server.rds.status(heartbeat=False)["active"]
+                                       else "not_connected"),
+                    "fm_spectrum_survey": ("running"
+                                           if self.server.survey.status(heartbeat=False)["active"]
+                                           else "inactive"),
                     "dvb_receiver": "not_connected",
-                    "warning": "No built-in RF decoder or authenticated emergency feed."
+                    "warning": "FM decoder and survey are opt-in only; no authenticated emergency feed is bundled."
                 })
             if route == "/api/receivers":
                 inventory = receiver_inventory()
