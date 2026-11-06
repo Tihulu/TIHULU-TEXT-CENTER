@@ -60,8 +60,8 @@ export function onlineCityMatches(payload,country="all"){
     provider:"open-meteo"
   }));
 }
-export function initStationLocationUI({onStationChanged,log}){
- const $=id=>document.getElementById(id);
+export function initStationLocationUI({onStationChanged,log=()=>{},ids={}}={}){
+ const $=id=>document.getElementById(ids[id]||id);
  const query=$("city-query"),suggestions=$("city-suggestions");
  const status=$("location-status"),country=$("city-country");
  const select=$("city"),lat=$("lat"),lon=$("lon");
