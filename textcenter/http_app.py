@@ -24,6 +24,7 @@ from .scan_catalog import scan_capabilities
 from .auto_scan import (
     FMAutoScanner, DABAutoScanner, AutoScanError, dab_channels_from_peaks,
 )
+from .channel_catalog import ChannelCatalog
 
 WEB_DIR = Path(__file__).resolve().parents[1] / "web"
 
@@ -56,6 +57,7 @@ class LocalServer(ThreadingHTTPServer):
     def __init__(self, address, store: Store):
         self.store = store
         self.media = MediaStore(store)
+        self.stations=ChannelCatalog(store)
         self.transcripts = TranscriptStore(store)
         self.dab = DABReader(store)
         self.dab_last = {"connected":False,"message":"No welle-cli web receiver checked yet"}
@@ -166,6 +168,9 @@ class Handler(BaseHTTPRequestHandler):
                     ],
                     "note":"No tuner accessed, no frequencies retuned, no internet fetched, no RF reception claimed",
                 })
+            if route == "/api/stations":
+                requested=q.get("medium",[None])[0]
+                return self._json(200,self.server.stations.list(medium=requested))
             if route == "/api/auto/fm/status":
                 return self._json(200,self.server.fm_auto.status())
             if route == "/api/auto/dab/status":
