@@ -84,16 +84,15 @@ function makeSteps(report){
  const candidates=report.signalCandidates.slice(0,8).filter(c=>
    Number.isFinite(c.peakOffsetHz)&&Math.abs(c.peakOffsetHz)<report.sampleRate*.43);
  const chosen=[];
+ // The actual tuned center is an important alternate hypothesis even when
+ // DC suppression hides a centered analog channel in the peak detector.
+ chosen.push({peakOffsetHz:0,peakFrequencyHz:report.centerFrequencyHz,
+   widthHz:null,prominenceDb:null,classification:"Operator-tuned center; unverified RF"});
  for(const c of candidates) {
-   if(chosen.every(a=>Math.abs(a-c.peakOffsetHz)>Math.max(4000,c.widthHz/2))){
+   if(chosen.every(a=>Math.abs(a.peakOffsetHz-c.peakOffsetHz)>Math.max(6000,c.widthHz/2))){
      chosen.push(c);
    }
    if(chosen.length>=NUM_AUDIO_PROBES)break;
- }
- if(!chosen.length){
-   chosen.push({peakOffsetHz:report.peakOffsetHz,peakFrequencyHz:report.peakFrequencyHz,
-     widthHz:null,prominenceDb:report.peakVsMedianDb,
-     classification:"Unclassified peak; no grouped energy candidate"});
  }
  return {known,chosen};
 }
