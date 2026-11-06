@@ -58,6 +58,7 @@ export function createSatelliteMaps({getTles,getSatLib,getPasses,getLastCapture,
  const ground=$("earth-map"),sky=$("sky-chart"),info=$("map-detail"),list=$("map-list");
  let leaflet=null,earthMap=null,markers=null,tracks=null,stationPin=null;
  let osmTiles=null,worldOutline=null,worldData=null,worldPromise=null;
+ let overviewDrawVersion=0,overviewHits=[];
  let worldAttributionAdded=false;
  let tileDeadline=null,tileFailures=0,tileSuccesses=0,basemapRevision=0;
  const basemapChoice=$("map-basemap");
@@ -95,7 +96,10 @@ export function createSatelliteMaps({getTles,getSatLib,getPasses,getLastCapture,
    b.setAttribute("aria-selected",name===kind?"true":"false");
   }
   if(view==="sky")drawSky();
-  else if(earthMap){setTimeout(()=>earthMap.invalidateSize(),25);drawEarth();}
+  else{
+    void drawWorldCanvas();
+    if(earthMap){setTimeout(()=>earthMap.invalidateSize(),25);drawEarth();}
+  }
  }
  function choose(id){
   selectedId=id;drawList();drawDetail();if(view==="sky")drawSky();else drawEarth();
@@ -202,7 +206,95 @@ export function createSatelliteMaps({getTles,getSatLib,getPasses,getLastCapture,
   const nearest=skyHit.map(item=>({...item,dist:Math.hypot(item.x-x,item.y-y)})).sort((a,b)=>a.dist-b.dist)[0];
   if(nearest&&nearest.dist<26)choose(nearest.id);
  });
+ function geoCanvasXY(lon,lat,W,H){
+   return [(lon+180)/360*W,(90-lat)/180*H];
+ }
+ async function drawWorldCanvas(){
+   const canvas=$("earth-world-canvas"),readout=$("earth-world-status");
+   if(!canvas)return;
+   const ctx=canvas.getContext("2d");
+   if(!ctx){readout.textContent="Canvas 2D unavailable. Use a compatible browser.";return;}
+   const version=++overviewDrawVersion,W=canvas.width,H=canvas.height;
+   ctx.fillStyle="#0a1f35";ctx.fillRect(0,0,W,H);
+   ctx.lineWidth=1;ctx.strokeStyle="#34516a";
+   for(let lon=-150;lon<=150;lon+=30){
+     const [x]=geoCanvasXY(lon,0,W,H);
+     ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke();
+   }
+   for(let lat=-60;lat<=60;lat+=30){
+     const [,y]=geoCanvasXY(0,lat,W,H);
+     ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();
+   }
+   let geo;
+   try{geo=await getWorldOutlineData();}
+   catch(e){
+     readout.textContent="Bundled Earth land data failed to load: "+e.message+
+       ". Satellite positions are still listed at right.";
+     log("World Canvas geography error: "+e.message);return;
+   }
+   if(version!==overviewDrawVersion||view!=="earth")return;
+   ctx.lineWidth=1.05;ctx.strokeStyle="#a2bfc9";
+   ctx.fillStyle="#286d83";
+   let polygons=0;
+   for(const feature of geo.features){
+     const g=feature?.geometry;
+     if(!g)continue;
+     const groups=g.type==="Polygon"?[g.coordinates]:g.type==="MultiPolygon"?g.coordinates:[];
+     for(const polygon of groups){
+       ctx.beginPath();let containsPath=false;
+       for(const ring of polygon){
+         let prior=null,hasFirst=false;
+         for(const vertex of ring){
+           if(!Array.isArray(vertex)||vertex.length<2)continue;
+           const [lon,lat]=vertex;
+           if(!mapValidCoordinates(Number(lat),Number(lon)))continue;
+           const [x,y]=geoCanvasXY(lon,lat,W,H);
+           if(!hasFirst || (prior!==null&&Math.abs(lon-prior)>180)){
+             if(hasFirst)ctx.closePath();
+             ctx.moveTo(x,y);hasFirst=true;
+           }else ctx.lineTo(x,y);
+           containsPath=true;prior=lon;
+         }
+         if(hasFirst)ctx.closePath();
+       }
+       if(containsPath){ctx.fill("evenodd");ctx.stroke();polygons++;}
+     }
+   }
+   // Ground station and orbit positions use the same locally calculated
+   // coordinates as the pass calendar (never fabricated receptions).
+   const o=observer(),[gx,gy]=geoCanvasXY(o.lon,o.lat,W,H);
+   ctx.beginPath();ctx.arc(gx,gy,8,0,2*Math.PI);ctx.fillStyle="#00d5ff";ctx.fill();
+   ctx.lineWidth=2;ctx.strokeStyle="#fff";ctx.stroke();
+   ctx.textAlign="left";ctx.font="13px system-ui";ctx.fillStyle="#d8f1fc";
+   ctx.fillText("Ground station",Math.min(W-120,gx+11),Math.max(14,gy-12));
+   overviewHits=[];
+   for(const sat of filtered().slice(0,40)){
+     const [x,y]=geoCanvasXY(sat.lon,sat.lat,W,H);
+     const chosen=String(sat.id)===String(selectedId);
+     ctx.beginPath();ctx.arc(x,y,chosen?9:5,0,2*Math.PI);
+     ctx.fillStyle=labelFor(sat.family);ctx.fill();
+     if(chosen){
+       ctx.lineWidth=2;ctx.strokeStyle="#fff";ctx.stroke();
+       ctx.fillStyle="#f4fbff";ctx.font="bold 13px system-ui";
+       ctx.fillText(sat.name.slice(0,28),Math.min(W-160,x+12),Math.max(16,y-12));
+     }
+     overviewHits.push({id:sat.id,x,y});
+   }
+   readout.textContent="Map drawn locally: "+geo.features.length+
+     " Natural Earth land features ("+polygons+" polygons), "+
+     overviewHits.length+" predicted satellite points. "+
+     "Click a satellite dot to select it. No OSM raster or USB permission needed.";
+ }
+ $("earth-world-canvas").addEventListener("click",event=>{
+   const canvas=$("earth-world-canvas"),rect=canvas.getBoundingClientRect();
+   const x=(event.clientX-rect.left)*canvas.width/rect.width,
+         y=(event.clientY-rect.top)*canvas.height/rect.height;
+   const nearest=overviewHits.map(p=>({...p,dist:Math.hypot(p.x-x,p.y-y)}))
+     .sort((a,b)=>a.dist-b.dist)[0];
+   if(nearest&&nearest.dist<20)choose(nearest.id);
+ });
  function drawEarth(){
+  void drawWorldCanvas();
   if(!earthMap)return;
   markers.clearLayers();tracks.clearLayers();
   const selectedSat=selected(),now=mapDate(),o=observer();
@@ -415,18 +507,16 @@ export function createSatelliteMaps({getTles,getSatLib,getPasses,getLastCapture,
   $("map-tab-"+kind).addEventListener("click",()=>{
    mapStarted=true;setView(kind);
    if(kind==="earth"&&!earthMap){
-     // Default background is bundled land outlines; no OSM tiles are fetched
-     // just by opening the Earth tab.
-     void openEarth().then(refresh).catch(e=>{
-       basemapStatus("Could not initialize Earth map: "+e.message+
-         ". Check browser console/network or use Sky view.");
-       log("Earth map load failed: "+e.message);
-     });
-   }else void refresh();
+     // The main view is self-contained Canvas; never block it on Leaflet/CDN.
+     void drawWorldCanvas();
+     status("Local world map drawing from bundled Natural Earth. Optional detailed Leaflet map can be opened separately.");
+   }
+   void refresh();
   });
  }
  $("map-load").addEventListener("click",()=>{
    mapStarted=true;
+   $("earth-street-details").open=true;
    const existed=!!earthMap;
    basemapChoice.value="osm";
    void openEarth().then(async()=>{
@@ -439,6 +529,7 @@ export function createSatelliteMaps({getTles,getSatLib,getPasses,getLastCapture,
  });
  basemapChoice.addEventListener("change",()=>{
   mapStarted=true;
+  $("earth-street-details").open=true;
   const existed=!!earthMap,choice=basemapChoice.value;
   void openEarth().then(async()=>{
     if(existed)await changeBasemap(choice);
@@ -447,14 +538,16 @@ export function createSatelliteMaps({getTles,getSatLib,getPasses,getLastCapture,
  });
  $("map-diagnose").addEventListener("click",async()=>{
    const checks=[];
-   checks.push("Map engine: "+(earthMap?"Leaflet initialized":"not initialized"));
+   await drawWorldCanvas();
+   checks.push($("earth-world-status").textContent);
+   checks.push("Optional Leaflet engine: "+(earthMap?"initialized":"not loaded (not required for world geography)"));
    try{
      const data=await getWorldOutlineData();
      checks.push("Bundled land data: "+data.features.length+" Natural Earth features loaded");
      if(earthMap){
        await changeBasemap("outline");
        checks.push("Vector land polygons mounted: "+(worldOutline?.getLayers().length||0));
-       checks.push("Actual SVG paths: "+document.querySelectorAll("#earth-map .leaflet-pane.world-outline svg path, #earth-map .leaflet-world-outline-pane svg path").length);
+       checks.push("Actual Leaflet land SVG paths: "+document.querySelectorAll("#earth-map .leaflet-world-outline-pane svg path").length);
        checks.push("Map size: "+earthMap.getSize().x+" × "+earthMap.getSize().y);
      }else checks.push("Choose Earth and then Load / retry OpenStreetMap to initialize Leaflet.");
    }catch(e){checks.push("Map error: "+e.message);}
