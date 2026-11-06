@@ -85,6 +85,8 @@ class CaptionStore:
         label=clean_text(source_label,140)
         if not label:raise ValueError("Source label required")
         session=uuid.uuid4().hex
+        if not store_original:
+            return session  # Live-only captions never create persistent session rows.
         with self.store.connect() as db:
             db.execute("""INSERT INTO caption_sessions
                 (id,media_kind,source_label,source_lang,target_lang,device,backend,
@@ -112,7 +114,8 @@ class CaptionStore:
             raise ValueError("Translated text requires language attribution")
         with self.store.connect() as db:
             meta=db.execute("SELECT * FROM caption_sessions WHERE id=?",(session_id,)).fetchone()
-            if meta is None:raise KeyError("Caption session missing")
+            if meta is None:
+                return {"stored":False}
             if not meta["store_original"]:
                 return {"stored":False}
             db.execute("""INSERT INTO caption_cues
