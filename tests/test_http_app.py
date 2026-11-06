@@ -1,5 +1,7 @@
 import http.client
+import io
 import json
+import wave
 from pathlib import Path
 import tempfile
 import threading
@@ -7,6 +9,7 @@ import unittest
 
 from textcenter.core import Store
 from textcenter.http_app import LocalServer, run_server
+from textcenter.fm_audio import pcm_to_wav
 
 
 class HTTPTests(unittest.TestCase):
@@ -48,6 +51,7 @@ class HTTPTests(unittest.TestCase):
         self.assertIn(b"USB status not checked",data)
         self.assertIn(b"RF text decoder inactive",data)
         self.assertEqual(headers["X-Content-Type-Options"],"nosniff")
+        self.assertIn("media-src 'self'",headers["Content-Security-Policy"])
         code,_,payload=self.request("GET","/api/page?number=100")
         result=json.loads(payload)
         self.assertEqual(result["kind"],"local_index")
@@ -155,6 +159,32 @@ class HTTPTests(unittest.TestCase):
         self.assertEqual(self.request("POST","/api/audio/start",
             {"frequency_mhz":98.6,"duration_seconds":12},csrf)[0],409)
         self.assertEqual(self.request("POST","/api/audio/stop",{},csrf)[0],200)
+
+    def test_completed_preview_wav_is_valid_and_session_scoped(self):
+        # Synthetic PCM fixture only; this does not establish off-air audio.
+        wav_bytes=pcm_to_wav(b"\x00\x00"*(32_000*2))
+        with self.server.audio._mutex:
+            self.server.audio._wav=wav_bytes
+            self.server.audio._state.update(
+                {"status":"completed","active":False,"clip_ready":True,
+                 "recorded_seconds":2.0,"frequency_hz":98_600_000,
+                 "session":"test-session"})
+        status,headers,data=self.request("GET","/api/audio/clip.wav?session=test-session")
+        self.assertEqual(status,200)
+        self.assertEqual(headers["Content-Type"],"audio/wav")
+        self.assertIn("media-src 'self'",headers["Content-Security-Policy"])
+        with wave.open(io.BytesIO(data)) as sound:
+            self.assertEqual(sound.getnchannels(),1)
+            self.assertEqual(sound.getframerate(),32_000)
+            self.assertEqual(sound.getnframes(),64_000)
+        self.assertEqual(
+            self.request("GET","/api/audio/clip.wav?session=stale-session")[0],404)
+        self.assertEqual(self.request("GET","/api/audio/clip.wav?session=test-session&session=other")[0],404)
+        self.assertEqual(self.request("GET","/api/audio/clip.wav")[0],200)
+        # A session token from one capture cannot retrieve a later clip.
+        with self.server.audio._mutex:
+            self.server.audio._state["session"]="second-session"
+        self.assertEqual(self.request("GET","/api/audio/clip.wav?session=test-session")[0],404)
 
     def test_media_and_dvb_inventory_are_honest(self):
         code,_,raw=self.request("GET","/api/dvb/status")
