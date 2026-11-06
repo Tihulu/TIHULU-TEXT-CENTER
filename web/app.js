@@ -217,6 +217,7 @@ async function openPage(number,source,subpage){
     if(state.page===700) return showLibrary();
     if(state.page===800) return showDirectory();
     if(state.page===860) return showCapabilities();
+    if(state.page===880) return showFlightRadar();
     return showAbout();
   } catch(err) {
     const message=String(err && err.message || err);
@@ -2183,6 +2184,200 @@ async function showCapabilities(){
     });
   });
   $("section-count").textContent=features.length+" protocols mapped to appropriate scanning or caching";
+}
+function drawRadarPlaneOverlay(data,stage,listing,flags){
+  stage.replaceChildren();
+  listing.replaceChildren();
+  const center=el("div","radar-grid-center","CENTRE · "+
+    data.area.lat.toFixed(3)+"° / "+data.area.lon.toFixed(3)+"°");
+  stage.append(center);
+  const km=data.area.radius_nm*1.852;
+  const latRange=km/111.0;
+  const lonRange=latRange/Math.max(0.15,Math.cos(data.area.lat*Math.PI/180));
+  const allowed=x=>{
+    if(x.stale&&!flags.cached)return false;
+    const ant=x.sources.includes("antenna"),net=x.sources.includes("internet");
+    return ant&&net?flags.hybrid:ant?flags.antenna:flags.internet;
+  };
+  let pins=0;
+  data.aircraft.filter(allowed).slice(0,150).forEach(p=>{
+    const meta=(p.sources.length===2?"RF + INTERNET":
+      p.sources[0]==="antenna"?"ANTENNA ADS-B":"INTERNET ADS-B")+
+      (p.stale?" · HISTORICAL CACHE":" · SOURCE-REPORTED FRESH");
+    if(p.positioned){
+      const x=50+((p.lon-data.area.lon)/(2*lonRange))*100;
+      const y=50-((p.lat-data.area.lat)/(2*latRange))*100;
+      if(x>=0&&x<=100&&y>=0&&y<=100){
+        const dot=el("button","radar-plane"+
+          (p.sources.length===2?" radar-hybrid":p.sources[0]==="antenna"?" radar-rf":" radar-web")+
+          (p.stale?" radar-stale":""),
+          "✈");
+        dot.type="button";
+        dot.style.left=x.toFixed(2)+"%";dot.style.top=y.toFixed(2)+"%";
+        dot.title=(p.flight||p.hex)+" · "+meta;
+        dot.setAttribute("aria-label",dot.title);
+        dot.addEventListener("click",()=>notice(dot.title));
+        stage.append(dot);pins++;
+      }
+    }
+    const row=el("article","radar-aircraft-row");
+    row.append(el("strong","",(p.flight||"Unknown flight")+" · "+p.hex.toUpperCase()));
+    row.append(el("span","",meta));
+    row.append(el("p","full-body",
+      (p.positioned?(p.lat.toFixed(4)+"°, "+p.lon.toFixed(4)+"°"):"Position not reported")+
+      " · age "+p.age_seconds+" s · altitude "+(p.alt_baro??"unknown")+
+      " ft · speed "+(p.gs??"unknown")+" kt"));
+    listing.append(row);
+  });
+  if(!pins)stage.append(el("p","radar-empty",
+    "No aircraft with usable fresh coordinates inside this selected area. "+
+    "The grid is a coordinate reference, not an Internet map tile."));
+  if(!listing.children.length)listing.append(el("p","full-body",
+    "No matching verified aircraft observations for the selected source filters."));
+}
+async function showFlightRadar(){
+  section("AIRCRAFT / SOURCE INTEGRITY","Flight Radar & tar1090",
+    "Real local ADS-B · optional Internet · independent source filters");
+  const panel=el("article","item-card radar-center");
+  panel.append(el("div","item-meta",
+    "FULL TAR1090 VIEWER / SEPARATE RECEIVER / NO IMPLICIT TUNING"));
+  panel.append(el("h3","","Existing tar1090 and Tihulu Flight Radar"));
+  panel.append(el("p","",
+    "The original full tar1090 viewer remains independent and keeps its "+
+    "detailed map, aircraft table, receiver controls and tracks. "+
+    "Choose a locally running viewer below. An embedded frame can be blocked "+
+    "by that viewer's security headers; Open Full Map works as an alternative. "+
+    "This screen never stops or retunes the Flight Radar receiver."));
+  const choices=el("select");
+  const maps=[
+    ["http://127.0.0.1:8080/tar1090/","Local tar1090 / port 8080"],
+    ["http://127.0.0.1/tar1090/","Local tar1090 / port 80"],
+    ["http://127.0.0.1:8505/","Tihulu Flight Radar built-in local map"]
+  ];
+  for(const [url,name] of maps){
+    const opt=el("option","",name);opt.value=url;choices.append(opt);
+  }
+  const mapActions=el("div","card-actions");
+  const open=el("a","action primary","OPEN FULL MAP");
+  open.href=choices.value;open.target="_blank";open.rel="noopener noreferrer";
+  const toggle=button("SHOW EMBEDDED MAP",()=>{
+    if(iframe.hidden){iframe.src=choices.value;iframe.hidden=false;toggle.textContent="HIDE EMBEDDED MAP";}
+    else{iframe.hidden=true;iframe.removeAttribute("src");toggle.textContent="SHOW EMBEDDED MAP";}
+  });
+  choices.addEventListener("change",()=>{open.href=choices.value;if(!iframe.hidden)iframe.src=choices.value});
+  mapActions.append(choices,toggle,open);
+  panel.append(mapActions);
+  const iframe=el("iframe","tar1090-frame");iframe.hidden=true;iframe.loading="lazy";
+  iframe.title="Local Tihulu Flight Radar or full tar1090 viewer";
+  iframe.setAttribute("sandbox","allow-scripts allow-same-origin allow-popups");
+  iframe.referrerPolicy="no-referrer";
+  panel.append(iframe);
+  $("content").append(panel);
+  const overlay=el("article","item-card radar-center");
+  overlay.append(el("div","item-meta","ON-DEMAND / ANTENNA + INTERNET / ODBL ATTRIBUTION"));
+  overlay.append(el("h3","","Aircraft overlay with source filters"));
+  overlay.append(el("p","",
+    "A separate lightweight positioning overlay complements full tar1090. "+
+    "Local aircraft come from the existing readsb/Tihulu Flight Radar JSON. "+
+    "Internet aircraft come from adsb.lol only when requested. "+
+    "Duplicate ICAO observations are merged without inventing positions. "+
+    "Offline cache is always labelled historical, never current traffic."));
+  const form=el("form","rds-form");
+  const source=el("select");
+  for(const [key,label] of [
+    ["antenna","Antenna only · local decoder"],
+    ["internet","Internet only · adsb.lol (ODbL)"],
+    ["hybrid","Hybrid · show both with provenance"]
+  ]){const opt=el("option","",label);opt.value=key;source.append(opt)}
+  const coords=el("div","radar-inputs");
+  const lat=field("Map latitude","number","51.1657",10);
+  const lon=field("Map longitude","number","10.4515",10);
+  const radius=field("Radius in nautical miles (1–250)","number","150",10);
+  lat.input.value="51.1657";lon.input.value="10.4515";radius.input.value="150";
+  lat.input.step="0.0001";lon.input.step="0.0001";radius.input.min="1";radius.input.max="250";
+  coords.append(lat.wrap,lon.wrap,radius.wrap);
+  const selector=el("div","field");
+  selector.append(el("label","","Data source and Internet access"),source);
+  form.append(selector,coords);
+  const consent=el("label","scan-consent");
+  const timer=el("input");timer.type="checkbox";
+  consent.append(timer,document.createTextNode(
+    " Refresh automatically every 30 seconds while this page is open "+
+    "(OFF by default; online API subject to provider rate limits)."));
+  form.append(consent);
+  const filters=el("div","radar-filter-box");
+  const switches={};
+  for(const [key,labelText] of [["antenna","RF-only"],["internet","Internet-only"],
+                                 ["hybrid","Seen by both"],["cached","Show historical cache"]]){
+    const wrap=el("label","scan-consent");
+    const input=el("input");input.type="checkbox";input.checked=key!=="cached";
+    wrap.append(input,document.createTextNode(" "+labelText));
+    filters.append(wrap);switches[key]=input;
+  }
+  form.append(filters);
+  const actions=el("div","card-actions");
+  const refresh=el("button","action primary","CHECK REAL AIRCRAFT NOW");refresh.type="submit";
+  const gps=button("USE BROWSER GPS",()=>{
+    if(!navigator.geolocation)return notice("Geolocation is unavailable");
+    navigator.geolocation.getCurrentPosition(pos=>{
+      lat.input.value=pos.coords.latitude.toFixed(4);
+      lon.input.value=pos.coords.longitude.toFixed(4);
+      notice("Map coordinates set from your permitted GPS position. "+
+        "No location is sent to an Internet provider until you request Internet mode.");
+    },err=>notice("Location unavailable: "+err.message),{timeout:8000});
+  });
+  actions.append(refresh,gps);form.append(actions);
+  const status=el("p","full-body",
+    "No Flight Radar refresh performed. Antenna/Internet data are independent.");
+  form.append(status);overlay.append(form);
+  const stage=el("div","radar-coordinate-grid");
+  stage.setAttribute("role","img");
+  stage.setAttribute("aria-label","Coordinate map of verified aircraft positions");
+  overlay.append(stage);
+  const list=el("div","radar-aircraft-list");
+  overlay.append(list);
+  overlay.append(el("p","full-body",
+    "Internet attribution: adsb.lol (ODbL 1.0) · https://www.adsb.lol/ · "+
+    "Not for navigation, emergency services or safety-critical decisions."));
+  $("content").append(overlay);
+  let latest=null,clock=null;
+  const filterValues=()=>Object.fromEntries(
+    Object.entries(switches).map(([key,input])=>[key,input.checked]));
+  for(const input of Object.values(switches)){
+    input.addEventListener("change",()=>{
+      if(latest)drawRadarPlaneOverlay(latest,stage,list,filterValues());
+    });
+  }
+  async function query(){
+    if(state.page!==880)return;
+    refresh.disabled=true;
+    try{
+      const answer=await api("/api/radar/refresh","POST",{
+        mode:source.value,lat:Number(lat.input.value),
+        lon:Number(lon.input.value),radius:Number(radius.input.value)});
+      latest=answer;
+      status.textContent=answer.checked_at+" · "+
+        answer.antenna_count+" antenna reports · "+
+        answer.internet_count+" Internet reports · "+
+        answer.with_position+" aircraft with coordinates · "+
+        Object.entries(answer.statuses).map(([k,v])=>k+": "+v.status).join(" | ");
+      drawRadarPlaneOverlay(answer,stage,list,filterValues());
+    }catch(error){
+      notice("Flight Radar request unavailable: "+error.message);
+      status.textContent="Data request failed; no new aircraft positions are claimed.";
+    }finally{
+      refresh.disabled=false;
+      if(state.page===880&&timer.checked)clock=setTimeout(query,30000);
+    }
+  }
+  timer.addEventListener("change",()=>{
+    if(clock)clearTimeout(clock);
+    if(timer.checked&&state.page===880)clock=setTimeout(query,30000);
+  });
+  form.addEventListener("submit",event=>{event.preventDefault();if(clock)clearTimeout(clock);query()});
+  stage.append(el("p","radar-empty",
+    "Select CHECK REAL AIRCRAFT NOW to query the existing local Flight Radar. "+
+    "Internet and automatic updates remain disabled until requested."));
 }
 function showAbout(){
   section("SYSTEM","How this terminal works","Build 0.3");
