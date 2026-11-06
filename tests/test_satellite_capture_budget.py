@@ -23,7 +23,8 @@ class CaptureBudgetTests(unittest.TestCase):
         self.assertGreater(p["shortfall_seconds"],300)
         q = plan_capture_budget(self.aos,self.los,"meteor-m2-3",free_bytes=210_000_000)
         self.assertFalse(q["feasible"])
-        self.assertEqual(q["estimated_bytes"],0)
+        self.assertEqual(q["estimated_bytes"],q["capture_seconds"]*IQ_BYTES_PER_SECOND)
+        self.assertLess(q["capture_seconds"],q["minimum_useful_seconds"])
 
     def test_light_packet_and_short_modes_are_explicit(self):
         q = plan_capture_budget(self.aos,self.los,"iss-aprs",free_bytes=0)

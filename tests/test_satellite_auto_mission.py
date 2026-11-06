@@ -54,7 +54,14 @@ class AutoMissionTests(unittest.TestCase):
         self.assertEqual([j["profile"] for j in outcome["scheduled"]], ["meteor", "iss_sstv"])
         self.assertEqual([j["mode"] for j in outcome["scheduled"]], ["iq", "iq"])
         self.assertEqual(outcome["receiver_claimed"], False)
+        self.assertTrue(all(j["capture_seconds"] > 60 for j in outcome["scheduled"]))
+        self.assertTrue(all(j["coverage"] == "full-pass-attempt" for j in outcome["scheduled"]))
         self.assertIsNone(self.station.device_lock)
+
+    def test_quick_meteor_sample_is_not_scheduled_as_complete_image(self):
+        outcome = self.station.auto_schedule(["meteor-m2-3"], coverage_goal="sample")
+        self.assertEqual(outcome["scheduled_count"], 0)
+        self.assertTrue(any("too little" in x for x in outcome["skipped"]))
 
     def test_aprs_uhf_profile_without_claiming_receiver(self):
         outcome = self.station.auto_schedule(["iss-aprs"], hours=24)
