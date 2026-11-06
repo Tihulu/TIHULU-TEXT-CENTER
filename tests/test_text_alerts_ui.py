@@ -25,6 +25,9 @@ class TestTextAlertsUI(unittest.TestCase):
         self.assertIn("if(state.page===500) return showTextAndAlerts();",app)
         self.assertIn("if(state.page===800) return showDirectory();",app)
         self.assertIn("if(state.page===420) return showLiveTVPage();",app)
+        self.assertIn('document.body.classList.toggle("text-alerts-mode"',app)
+        css=(ROOT/"web/styles.css").read_text(encoding="utf-8")
+        self.assertIn("body.text-alerts-mode #teletext-frame",css)
         self.assertIn("button(\"LEGACY WEATHER TEXT\"",app)
         self.assertIn("button(\"TEXT NETWORK DIRECTORY\"",app)
 
