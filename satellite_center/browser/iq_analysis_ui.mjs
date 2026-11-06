@@ -3,6 +3,7 @@
  */
 import { analyzeCu8Blob,parseCu8Filename } from "./iq_analysis.mjs?v=20261106-cuiq-v13";
 import { analyzeFullCu8Blob,demodulateCu8Preview } from "./iq_intelligence.mjs?v=20261106-signal-v1";
+import {discoverCu8Contents,discoveryReportJson} from "./signal_discovery.mjs?v=20261106-discovery-v1";
 const $=id=>document.getElementById(id);
 const clamp=(n,low,high)=>Math.max(low,Math.min(high,n));
 const fmt=n=>Number.isFinite(n)?Number(n).toLocaleString(undefined,{maximumFractionDigits:2}):"N/A";
@@ -152,6 +153,7 @@ function renderReport(report,name){
 export function initIqAnalysisUI({log=()=>{}}={}){
  let lastBlob=null,lastName=null,lastMetadata=null,activeRun=0;
  let lastReport=null,lastReportName=null,lastAnalyzedBlob=null,inProgress=false,activeController=null,previewUrl=null;
+ let lastDiscovery=null,discoveryObjectUrls=[];
  function reportStatus(message){$("iq-analysis-status").textContent=String(message);}
  function setControls(){
    $("iq-analyze-last").disabled=!lastBlob||inProgress;
@@ -161,6 +163,8 @@ export function initIqAnalysisUI({log=()=>{}}={}){
    $("iq-stop-analysis").disabled=!inProgress;
    $("iq-audio-preview").disabled=!lastAnalyzedBlob||inProgress;
    $("iq-export-metadata").disabled=!lastReport||inProgress;
+   $("iq-auto-discover").disabled=inProgress;
+   $("iq-discovery-export").disabled=!lastDiscovery||inProgress;
  }
  function updateMetadata(meta){
    if(!meta)return;
@@ -281,6 +285,118 @@ export function initIqAnalysisUI({log=()=>{}}={}){
    const url=URL.createObjectURL(blob),a=document.createElement("a");
    a.href=url;a.download=(lastReportName||"capture").replace(/\.cu8$/i,"")+".metadata.json";
    document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);
+ });
+
+ function clearDiscoveryArtifacts(){
+   for(const url of discoveryObjectUrls)URL.revokeObjectURL(url);
+   discoveryObjectUrls=[];
+   $("iq-discovery-results").replaceChildren();
+   lastDiscovery=null;
+ }
+ function discoveryText(value,container,tag="p"){
+   const el=document.createElement(tag);el.textContent=String(value);
+   container.append(el);return el;
+ }
+ function renderDiscovery(result){
+   clearDiscoveryArtifacts();
+   lastDiscovery=result;
+   const target=$("iq-discovery-results");
+   discoveryText(result.conclusion,target,"h3");
+   discoveryText("Measured: "+result.analysis.windows.toLocaleString()+
+     " complete FFT windows · "+result.analysis.coveragePercent+"% file coverage. "+
+     "No satellite identity, human speech, music or packet payload confirmed.",target);
+   const results=$("iq-discovery-stages");results.replaceChildren();
+   for(const stage of result.phases){
+     discoveryText(stage.phase.toUpperCase()+" · "+stage.state+" · "+stage.message,results);
+   }
+   const grid=document.createElement("div");grid.className="discovery-audio-grid";
+   target.append(grid);
+   for(const probe of result.audioProbes){
+     const card=document.createElement("div");card.className="discovery-audio-item";
+     const title=probe.mode.toUpperCase()+" · "+
+       (probe.frequencyHz==null?(probe.offsetHz/1000).toFixed(2)+" kHz offset":
+         (probe.frequencyHz/1e6).toFixed(5)+" MHz");
+     discoveryText(title,card,"strong");discoveryText(probe.state,card);
+     if(probe.audioBlob){
+       const url=URL.createObjectURL(probe.audioBlob);
+       discoveryObjectUrls.push(url);
+       const player=document.createElement("audio");player.controls=true;player.preload="none";
+       player.src=url;player.setAttribute("aria-label","Unverified "+title+" audio candidate");
+       card.append(player);
+       const a=document.createElement("a");a.href=url;
+       a.download="TIHULU_RF-CANDIDATE_"+probe.mode.toUpperCase()+"_"+
+         Math.round(probe.offsetHz)+"Hz.wav";a.textContent="Save experimental audio preview";
+       card.append(a);
+     }else discoveryText(probe.reason||"Unavailable",card);
+     grid.append(card);
+   }
+   for(const frame of result.images){
+     const item=document.createElement("div");item.className="discovery-image-item";
+     discoveryText("Robot36 SSTV candidate · "+frame.alignedLines+
+       "/240 aligned lines · NOT satellite-verified",item,"h3");
+     const canvas=document.createElement("canvas");canvas.width=frame.width;
+     canvas.height=frame.height;canvas.className="discovery-image";
+     const ctx=canvas.getContext("2d");
+     if(ctx){
+       ctx.putImageData(new ImageData(frame.rgba,frame.width,frame.height),0,0);
+       item.append(canvas);
+       const button=document.createElement("button");button.type="button";
+       button.className="secondary";button.textContent="Save unverified Robot36 candidate PNG";
+       button.addEventListener("click",()=>{
+         canvas.toBlob(blob=>{
+           if(!blob)return;
+           const url=URL.createObjectURL(blob),a=document.createElement("a");
+           a.href=url;a.download="TIHULU_UNATTRIBUTED_ROBOT36-CANDIDATE_"+
+             Math.round(frame.offsetHz)+"Hz_"+new Date().toISOString().replace(/[:.]/g,"-")+".png";
+           document.body.append(a);a.click();a.remove();
+           setTimeout(()=>URL.revokeObjectURL(url),60000);
+         },"image/png");
+       });item.append(button);
+     }
+     target.append(item);
+   }
+   const packet=document.createElement("div");
+   for(const p of result.packetResults)discoveryText(p.protocol+
+     " · "+p.status+" · "+p.reason,packet);
+   target.append(packet);
+   discoveryText("Analysis does not guarantee identification: unsupported formats, missing sample metadata, "+
+     "wrong modulation, low SNR, very short recordings and absent transmitters can leave contents Unknown.",target);
+ }
+ $("iq-auto-discover").addEventListener("click",async()=>{
+   if(inProgress)return;
+   const file=$("iq-file").files?.[0]||lastBlob;
+   if(!file){reportStatus("Select a CU8 recording or capture actual USB IQ first.");return;}
+   const name=$("iq-file").files?.[0]?.name||lastName||"capture.cu8";
+   const rate=Number($("iq-rate").value),freqText=$("iq-center").value.trim();
+   const centerHz=freqText?Number(freqText)*1e6:null;
+   if(freqText&&(!Number.isFinite(centerHz)||centerHz<24000000||centerHz>1750000000)){
+     reportStatus("Confirm valid center frequency, or clear the field when unknown.");return;
+   }
+   inProgress=true;activeController=new AbortController();setControls();
+   clearDiscoveryArtifacts();
+   const stagePanel=$("iq-discovery-stages");stagePanel.replaceChildren();
+   try{
+     reportStatus("Automatic discovery: spectrum → channels → analog audio → supported image sync → packet readiness.");
+     const result=await discoverCu8Contents(file,{sampleRate:rate,centerHz,
+       signal:activeController.signal,enableImage:true,maxCandidates:3,
+       onProgress:evt=>{
+         if(evt.state!=="running")discoveryText(evt.phase+" · "+evt.state+" · "+evt.message,stagePanel);
+         reportStatus("Automatic discovery · "+evt.phase+": "+evt.message);
+       }});
+     lastReport=result.analysis;lastReportName=name;lastAnalyzedBlob=file;
+     renderReport(result.analysis,name);
+     renderDiscovery(result);
+     reportStatus("Automatic discovery complete: "+result.conclusion+
+       ". All analysis and optional image/audio processing stayed on this device.");
+   }catch(error){
+     reportStatus("Automatic discovery failed or stopped: "+String(error?.message||error));
+   }finally{
+     inProgress=false;activeController=null;setControls();
+   }
+ });
+ $("iq-discovery-export").addEventListener("click",()=>{
+   if(!lastDiscovery)return;
+   downloadJson(discoveryReportJson(lastDiscovery),lastReportName||"CU8-discovery");
  });
  $("iq-analyze-last").addEventListener("click",()=>{
    if(!lastBlob)return;updateMetadata(lastMetadata);
