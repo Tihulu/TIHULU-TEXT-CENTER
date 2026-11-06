@@ -41,6 +41,9 @@ async function nativeApi(path,data=null){
 }
 export function initAutoReceptionUI({getSelectedFile=()=>null,fileInput=$("local-file")}={}){
   let controller=null,busy=false,waitingForSelection=false;
+  const audioPreviewUrls=[];
+  const releasePreviews=()=>{for(const url of audioPreviewUrls)URL.revokeObjectURL(url);audioPreviewUrls.length=0;};
+  window.addEventListener("pagehide",releasePreviews);
   const state={discovery:[],actualImages:[],packetText:[],warnings:[],name:""};
   const message=value=>{$("auto-mission-status").textContent=String(value);};
   const jobs=$("auto-mission-jobs"),output=$("auto-mission-output");
@@ -295,6 +298,7 @@ export function initAutoReceptionUI({getSelectedFile=()=>null,fileInput=$("local
   }
   extract.addEventListener("click",()=>{
     if(busy)return;
+    releasePreviews();
     output.replaceChildren();
     let any=false;
     for(const {name,result} of state.discovery){
@@ -310,6 +314,7 @@ export function initAutoReceptionUI({getSelectedFile=()=>null,fileInput=$("local
         textNode("p","Actual "+probe.mode.toUpperCase()+" audio candidate · "+
           probe.offsetHz+" Hz offset · human speech/content unverified",wrap);
         const uri=URL.createObjectURL(probe.audioBlob);
+        audioPreviewUrls.push(uri);
         const audio=document.createElement("audio");audio.controls=true;audio.src=uri;
         const save=document.createElement("button");save.type="button";save.textContent="Save audio WAV";
         save.addEventListener("click",()=>postFile(probe.audioBlob,"TIHULU_audio_candidate.wav"));
