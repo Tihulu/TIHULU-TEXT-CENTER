@@ -17,3 +17,19 @@
 .live-media-dock{position:fixed;z-index:130;right:18px;bottom:14px;width:min(460px,calc(100vw - 36px));border:1px solid #4b8581;background:#0c1a1f;box-shadow:0 12px 50px #0009;padding:12px 14px;border-radius:10px;color:#eff7f6;display:flex;flex-direction:column;gap:9px}.live-media-dock[hidden]{display:none}.live-dock-heading{display:flex;justify-content:space-between;gap:10px;align-items:center}.live-dock-heading strong{font:700 11px var(--code);color:var(--lime);letter-spacing:1px}.live-dock-actions{display:flex;gap:6px}.live-dock-actions button{border:1px solid #466a69;background:#1d393b;color:#e6ffff;padding:6px 9px;border-radius:6px;font:700 10px var(--code)}.live-media-dock audio{width:100%}.live-media-dock video{width:100%;max-height:250px;background:#020609;object-fit:contain}.live-media-dock audio[hidden],.live-media-dock video[hidden],.live-dock-actions button[hidden]{display:none}.live-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;width:100%}.live-choices{display:flex;flex-wrap:wrap;column-gap:15px;row-gap:6px}.live-caption-list{margin:14px 0;max-height:330px;overflow-y:auto;background:#071318;border:1px solid #304a4d;border-radius:7px}.live-caption-row{padding:12px;border-bottom:1px solid #2d3d42}.live-caption-row:last-child{border-bottom:0}.live-caption-row p{margin:6px 0}.caption-original{font-weight:600;color:#e4f4ef}.caption-translated{color:#91ded8}.live-caption-row .card-actions{margin-top:7px}@media(max-width:620px){.live-media-dock{left:7px;right:7px;width:calc(100vw - 14px);bottom:7px;padding:9px}.live-media-dock video{max-height:30vh}.live-grid{grid-template-columns:1fr}}
 
 .live-video-frame{position:relative;width:100%;min-width:0}.live-video-frame[hidden]{display:none}.live-video-frame video{display:block;width:100%;max-height:250px;background:#000}.live-tv-overlay{position:absolute;left:6%;right:6%;bottom:35px;pointer-events:none;text-align:center;font-size:clamp(11px,1.7vw,16px);line-height:1.3;text-shadow:0 2px 3px #000,0 1px 12px #000;background:linear-gradient(transparent,#0008);color:white}.live-dock-caption{font-size:12px;line-height:1.4;padding:5px 0;max-height:120px;overflow-y:auto}.live-dock-caption[hidden]{display:none}.dock-subtitle-original,.dock-subtitle-translated{margin:3px 0;overflow-wrap:anywhere}.dock-subtitle-original{color:#effbf9}.dock-subtitle-translated{color:#92e3d8;font-weight:700}@media(max-width:620px){.live-tv-overlay{bottom:29px;font-size:11px}}
+
+/* Distinct automatic FM RDS / real DAB FIC discovery; spectrum remains separate. */
+.auto-scan-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-top:15px}
+.auto-scan-section{min-width:0;border:1px solid #3c595b;background:#0c1a1e;border-radius:8px;padding:14px}
+.auto-scan-section>h3{margin:0 0 7px}
+.auto-mode,.auto-dwell select{background:#0c1a1e;color:var(--white);border:1px solid #4b6668;border-radius:6px;padding:10px;width:100%;margin-top:12px}
+.auto-dwell{display:block;font-size:12px;color:var(--muted);margin-top:10px}
+.auto-station{padding:11px 5px;border-bottom:1px solid #355054}
+.auto-station:last-child{border-bottom:0}
+.auto-station strong{display:block;color:var(--lime);font-size:13px}
+.auto-station .subtle{display:block;margin-top:3px}
+.auto-station summary{cursor:pointer;color:var(--lime);font-weight:700}
+.auto-service{padding:9px;border-top:1px solid #294043;margin-top:8px}
+.auto-service strong{color:var(--teal);font-size:12px}
+.auto-services{padding:8px}
+@media(max-width:950px){.auto-scan-grid{grid-template-columns:1fr}}
