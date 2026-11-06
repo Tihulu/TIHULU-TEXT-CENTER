@@ -1337,6 +1337,7 @@ async function pollLiveTV(){
     state.tvActive=current.active;
     state.tvSession=current.session||state.tvSession;
     state.tvRecording=Boolean(current.recording);
+    state.tvCaptionSourceActive=current.caption_source_active||"off";
     syncLiveMediaDock();
     const label=$("live-tv-status");
     if(label)label.textContent=current.status.toUpperCase()+
@@ -1356,11 +1357,21 @@ async function pollLiveTV(){
       const data=await api("/api/transcripts?session="+encodeURIComponent(state.tvSession));
       updateDockCaptionExport(state.tvSession,"tv");
       const note=$("live-dock-caption-status");
-      if(note&&state.tvActive)note.textContent=current.speech?.enabled?
-        "TV captions · "+current.speech.selected_backend+
-        " · "+current.speech.segments_completed+" real segments":
-        "TV captions unavailable: "+(current.subtitle_unavailable_reason||
-          current.speech?.reason||"Not enabled");
+      if(note&&state.tvActive){
+        const detail=current.teletext_subtitles;
+        note.textContent=current.caption_source_active==="broadcast_teletext"?
+          "TV captions · real DVB Teletext text · "+detail.segments_completed+" cues":
+          current.caption_source_active==="speech_transcription"?
+          "TV captions · real audio Whisper fallback · "+
+            current.speech.segments_completed+" segments":
+          "TV captions: "+(detail?.error||current.teletext_unavailable_reason||
+            current.subtitle_unavailable_reason||"Waiting for real broadcast subtitles or audio model");
+      }
+      const teletextStatus=$("live-tv-caption-source-status");
+      if(teletextStatus&&state.tvActive)
+        teletextStatus.textContent="Active source: "+current.caption_source_active+
+          " · Teletext "+(current.teletext_subtitles?.status||"not connected")+
+          (current.teletext_subtitles?.error?" · "+current.teletext_subtitles.error:"");
       liveRadioCaptionPanel(data,state.tvSession,"live-tv-captions");
       renderLiveDockCaptions(data,"tv");
       const links=$("live-tv-export");
@@ -1435,11 +1446,28 @@ async function addLiveTV(){
     const wrap=el("div","field");
     wrap.append(el("label","",label),control);settings.append(wrap);
   }
+  const subtitleSource=el("select");subtitleSource.id="live-tv-subtitle-source";
+  for(const [value,name] of [
+    ["auto","Auto · Teletext first, speech fallback"],
+    ["broadcast","Real DVB Teletext text only"],
+    ["speech","Speech transcription only"],
+    ["off","No captions"]
+  ]){
+    const item=el("option","",name);item.value=value;subtitleSource.append(item);
+  }
+  const subtitleSourceField=el("div","field");
+  subtitleSourceField.append(el("label","","Live subtitle source"),subtitleSource);
+  settings.append(subtitleSourceField);
   form.append(settings);
   const subtitles=el("input");subtitles.type="checkbox";
   const translate=el("input");translate.type="checkbox";
   const record=el("input");record.type="checkbox";
-  for(const [input,text] of [[subtitles,"Transcribe real TV audio into original-language captions"],
+  const teletextConsent=el("input");teletextConsent.type="checkbox";
+  const auxReaderLabel=el("label","scan-consent");
+  auxReaderLabel.append(teletextConsent,document.createTextNode(
+    " I authorize a second read-only libzvbi Teletext reader on this already-authorized TV relay, which supports multiple clients."));
+  form.append(auxReaderLabel);
+  for(const [input,text] of [[subtitles,"Use real DVB Teletext captions or TV audio fallback"],
                               [translate,"Also translate live subtitles (EN/DE/TR)"],
                               [record,"Record the TV stream locally"]]){
     const label=el("label","scan-consent");
@@ -1491,8 +1519,18 @@ async function addLiveTV(){
         subtitles:subtitles.checked,original_language:lang.value,
         translated_language:subtitles.checked&&translate.checked?target.value:null,
         backend:backend.value,translation_backend:tvTranslationBackend.value,
-        upstream_authorized:true});
+        upstream_authorized:true,subtitle_source:subtitleSource.value,
+        auxiliary_teletext_consent:teletextConsent.checked});
       state.tvActive=true;state.tvSession=newSession.session;
+      state.tvCaptionSourceActive=newSession.caption_source_active||"off";
+      const inDock=$("live-tv-caption-processing");
+      if(inDock)inDock.checked=subtitles.checked;
+      const sourceDock=$("live-tv-caption-source");
+      if(sourceDock)sourceDock.value=subtitleSource.value;
+      const targetDock=$("live-tv-caption-target");
+      if(targetDock)targetDock.value=target.value;
+      const translationDock=$("live-tv-caption-translation");
+      if(translationDock)translationDock.checked=translate.checked;
       video.src="/api/live/tv/stream?session="+encodeURIComponent(state.tvSession)+
         "&token="+encodeURIComponent(state.csrf);
       video.dataset.session=state.tvSession;syncLiveMediaDock();
