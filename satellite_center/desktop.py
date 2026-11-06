@@ -20,7 +20,7 @@ from PyQt5.QtWidgets import (
     QFileDialog, QFormLayout, QGroupBox, QHBoxLayout, QLabel, QMainWindow,
     QMessageBox, QPlainTextEdit, QPushButton, QSpinBox, QSplitter, QTabWidget,
     QTableWidget, QTableWidgetItem, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget,
-    QLineEdit, QFrame, QHeaderView, QSizePolicy, QCompleter
+    QLineEdit, QFrame, QHeaderView, QSizePolicy, QCompleter, QScrollArea
 )
 
 from .__main__ import Station, PROFILES, LOCATIONS, AUTO_DOWNLINK_PROFILES, allowed_mode
@@ -369,7 +369,16 @@ class SatelliteWindow(QMainWindow):
         return widget
 
     def _passes_tab(self):
-        body=self._new_tab("Passes & Data")
+        host=self._new_tab("Passes & Data")
+        scroll=QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.NoFrame)
+        page=QWidget()
+        body=QVBoxLayout(page)
+        body.setContentsMargins(8,8,8,8)
+        body.setSpacing(10)
+        scroll.setWidget(page)
+        host.addWidget(scroll)
         top=QHBoxLayout();body.addLayout(top)
         self._station_controls(top)
         group=QGroupBox("Satellite reception planner")
@@ -408,6 +417,7 @@ class SatelliteWindow(QMainWindow):
             "LOS · local","Peak","Family"])
         self.pass_list.setUniformRowHeights(False)
         self.pass_list.setRootIsDecorated(False)
+        self.pass_list.setMinimumHeight(225)
         self.pass_list.setAlternatingRowColors(False)
         self.pass_list.setSelectionMode(QTreeWidget.SingleSelection)
         self.pass_list.setSortingEnabled(False) # AOS order is preserved
