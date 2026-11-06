@@ -223,7 +223,7 @@ export function initCatalogDiscovery(){
 
  $("catalog-discover")?.addEventListener("click",()=>void discover());
  $("catalog-add-frequencies")?.addEventListener("click",()=>{
-   const entries=towers.filter(s=>Number.isFinite(s.frequencyMHz)&&s.frequencyMHz>=87.5&&s.frequencyMHz<=108);
+   const entries=towers.flatMap(s=>(s.frequenciesMHz||[]).filter(f=>f>=87.5&&f<=108).map(f=>({...s,frequencyMHz:f}))).slice(0,90);
    if(!entries.length){txt("catalog-status","No cached catalog sites with explicit FM frequencies to import. Run Discover first; missing station frequencies must not be invented.");return}
    window.dispatchEvent(new CustomEvent("tihulu:rf-autosources",{detail:entries}));
    txt("catalog-status","Sent "+entries.length+" frequency-tagged OSM site candidates to the RF survey. Tagged frequency does NOT verify RF reception or emitter identity.");
