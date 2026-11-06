@@ -52,6 +52,21 @@ class RdsSupervisorTests(unittest.TestCase):
         r=decode_rds_group({"ps":"STA\x1bTION"},98_600_000)
         self.assertEqual(r["body"],"STATION")
 
+    def test_actual_redsea_rtplus_fields_preserved_not_guessed(self):
+        group={
+            "pi":"0xD3C2","group":"12A",
+            "radiotext_plus":{"tags":[
+                {"content-type":"item.artist","data":"Silbermond"},
+                {"content-type":"item.title","data":"Das Leichteste der Welt"},
+                {"content-type":"unsupported","data":"UNTRUSTED EXTRA"}]}
+        }
+        event=decode_rds_group(group, 98_600_000, "2026-11-06T01:00:00Z")
+        self.assertEqual(event["title"],"FM RadioText+")
+        self.assertIn("Artist: Silbermond",event["body"])
+        self.assertIn("Title: Das Leichteste der Welt",event["body"])
+        self.assertNotIn("UNTRUSTED EXTRA",event["body"])
+        self.assertEqual(event["language"],"und")
+
     def test_missing_decoder_prevents_spawn(self):
         supervisor=FMRSDSupervisor(self.store,
                 inventory=self.inventory,

@@ -64,17 +64,33 @@ def decode_rds_group(group: object, hz: int, observed_at: str | None = None) -> 
     station = ps.strip()[:80] if isinstance(ps, str) and ps.strip() else f"FM {hz / 1e6:g} MHz"
     is_text = isinstance(rt, str) and bool(rt.strip())
     is_label = isinstance(ps, str) and bool(ps.strip())
-    if not is_text and not is_label:
+    # Official redsea JSON represents RT+ as radiotext_plus.tags with
+    # content-type item.title / item.artist and data delivered by the broadcaster.
+    plus = group.get("radiotext_plus")
+    tags = plus.get("tags") if isinstance(plus, dict) else None
+    rich: list[str] = []
+    if isinstance(tags, list):
+        for tag in tags[:12]:
+            if not isinstance(tag, dict):
+                continue
+            kind, value = tag.get("content-type"), tag.get("data")
+            if kind in ("item.artist", "item.title") and isinstance(value, str):
+                val = re.sub(r"[\x00-\x1f\x7f]", "", value).strip()[:250]
+                if val:
+                    rich.append(("Artist" if kind == "item.artist" else "Title") + ": " + val)
+    if not is_text and not is_label and not rich:
         return None
-    body = (rt if is_text else ps).strip()[:1000]
-    # Disallow nonprinting terminal escapes, including RX-supplied control bytes.
+    original = (rt if is_text else ps if is_label else "").strip()[:1000]
+    # Do not fabricate metadata or infer artists from free-text RadioText.
+    body = original + ("\n" if original and rich else "") + "\n".join(rich)
+    # Disallow nonprinting terminal escapes, retaining line breaks for RT+ tags.
     body = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]", "", body)
     pi = group.get("pi", "")
     valid_pi = pi if isinstance(pi, str) and re.fullmatch(r"0x[0-9a-fA-F]{4}", pi) else None
     stamp = observed_at or datetime.now(timezone.utc).isoformat(timespec="seconds")
     return {
         "source_id": f"fm_rds:{hz}" + (f":{valid_pi}" if valid_pi else ""),
-        "title": "FM RadioText" if is_text else "RDS station label",
+        "title": "FM RadioText+" if rich else "FM RadioText" if is_text else "RDS station label",
         "body": body,
         "language": "und",  # no invented language detection
         "station": station,

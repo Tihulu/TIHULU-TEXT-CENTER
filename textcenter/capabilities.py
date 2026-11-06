@@ -11,7 +11,7 @@ CAPABILITIES = (
      "manual_capture", "RTL2832U plus rtl_fm and redsea; exclusive SDR lease",
      "PS, station names and source-attributed RadioText"),
     ("fm_rtplus", "Broadcast radio", "FM RadioText+",
-     "decoder_import", "RT+ capable redsea output and structured tags",
+     "manual_capture", "RT+ capable redsea output and broadcaster-provided structured tags",
      "Artist, song, programme type and associated running metadata"),
     ("fm_tmc", "Broadcast radio", "FM TMC / traffic data",
      "planned", "Compatible licensed/authorized TMC decoder and local rules",
