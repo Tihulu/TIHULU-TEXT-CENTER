@@ -808,7 +808,7 @@ async function scheduledTick(){
    for(const job of jobs){
      if(job.state!=='armed')continue;
      const action=evaluateScheduledJob(job,now,{
-       visible:!document.hidden,receiverBusy:!!capturePromise
+       visible:!document.hidden,receiverBusy:!!capturePromise||usbTestRunning
      });
      if(action==='missed'){
        job.state='missed';job.message='The satellite pass ended before a foreground capture could start. No radio data collected.';
