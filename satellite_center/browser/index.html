@@ -36,7 +36,8 @@
 <label for="preset">Receive profile</label><select id="preset">
 <option value="137900000">Meteor-M LRPT primary · 137.900 MHz</option>
 <option value="137100000">Meteor-M LRPT alternate · 137.100 MHz</option>
-<option value="145800000">ISS VHF voice/SSTV vicinity · 145.800 MHz</option>
+<option value="437550000">ISS SSTV · 437.550 MHz (Robot36, event only; verify ARISS)</option>
+<option value="145800000">ISS VHF voice/SSTV vicinity · 145.800 MHz (verify active mode)</option>
 <option value="145825000">ISS APRS vicinity · 145.825 MHz</option>
 <option value="437800000">ISS UHF vicinity · 437.800 MHz</option>
 <option value="436000000">Amateur CubeSat UHF survey · 436.000 MHz</option>
@@ -46,7 +47,7 @@
 <label>Capture duration<select id="duration"><option value="5">5 seconds</option><option value="15" selected>15 seconds</option><option value="30">30 seconds</option><option value="60">60 seconds</option></select></label></div>
 <label class="check"><input type="checkbox" id="record" checked> Save raw interleaved uint8 I/Q (.cu8) locally</label>
 <div class="line"><button id="start" disabled>Start real USB capture</button><button id="stop" class="secondary" disabled>Stop &amp; release</button></div>
-<p class="hint">Shows <strong>relative digital sample level</strong>, not calibrated dBm or a named satellite. Saved CU8 can be decoded later in SatDump. A burst alone does not identify an Iridium satellite. Buffer limit: 128 MiB.</p>
+<p class="hint">Shows <strong>relative digital sample level</strong>, not calibrated dBm or a named satellite. Raw CU8 is saved under a <strong>satellite candidate / UTC date/time / frequency / sample rate</strong> filename; the candidate name is not RF proof. Meteor images require a decoder such as SatDump. Buffer limit: 128 MiB.</p>
 <canvas id="level-chart" width="760" height="180" aria-label="Measured relative raw SDR sample level history"></canvas>
 <p id="sample-state" class="status" role="status">No RF samples measured.</p>
 <a class="iq-jump-link" href="#iq-analysis">Analyze .cu8 recording inside Satellite Center · spectrum / waterfall / level over time</a>
