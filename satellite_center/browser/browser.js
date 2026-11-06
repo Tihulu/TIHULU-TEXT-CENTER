@@ -936,42 +936,61 @@ function showCalendarEdit(job,card){
    const o=document.createElement('option');o.value=String(hz);o.textContent=name;freq.append(o);
  }
  freq.value=String(job.frequency);addField('Known downlink frequency',freq);
- const seconds=document.createElement('input');seconds.type='number';seconds.min='1';seconds.max='60';
- seconds.value=String(job.durationSeconds);addField('Recording seconds (max 60)',seconds);
+ const seconds=document.createElement('input');seconds.type='number';
+ seconds.min='1';seconds.max='900';seconds.step='1';seconds.inputMode='numeric';
+ seconds.value=String(job.durationSeconds);
+ addField('RF sample length · seconds (1–900, disk file for longer IQ)',seconds);
  const rate=document.createElement('select');
  for(const value of [1024000,2048000]){
    const o=document.createElement('option');o.value=String(value);o.textContent=(value/1e6).toFixed(3)+' MS/s';rate.append(o);
  }
  rate.value=String(job.sampleRate);addField('Sample rate',rate);
  const note=document.createElement('p');note.className='hint';
- note.textContent='Edits must stay inside this geometric pass and cannot overlap another scheduled capture. No receiver is claimed by saving.';
+ note.textContent='Edits must fit inside the predicted pass and another SDR booking. Long IQ edits need a new local .cu8 file selected now, while the tab is visible.';
  form.append(note);
  const save=document.createElement('button');save.type='submit';save.textContent='Save job changes';form.append(save);
  const error=document.createElement('p');error.className='status';error.setAttribute('role','status');form.append(error);
- form.addEventListener('submit',event=>{
-   event.preventDefault();
+ form.addEventListener('submit',async event=>{
+   event.preventDefault();save.disabled=true;
+   let newPrepared=null;
    try{
-     const pass={id:job.passId,name:job.name,family:job.family,aos:job.passAos,los:job.passLos};
+     const durationSeconds=Number(seconds.value),sampleRate=Number(rate.value);
+     const plan=captureBudget(durationSeconds,sampleRate,job.saveRaw,
+       {fileStreaming:diskStreamingAvailable()});
+     const pass={id:job.passId,name:job.name,family:job.family,
+       aos:job.passAos,los:job.passLos};
      const next=createScheduledPass(pass,{
-       when:parseLocalScheduleTime(time.value),durationSeconds:Number(seconds.value),
-       sampleRate:Number(rate.value),frequency:Number(freq.value),saveRaw:job.saveRaw
+       when:parseLocalScheduleTime(time.value),durationSeconds,
+       sampleRate,frequency:Number(freq.value),saveRaw:job.saveRaw,
+       diskStreamPrepared:plan.mode==="disk-stream"
      });
      for(const other of jobs){
        if(other===job||!['armed','starting','running'].includes(other.state))continue;
-       if(next.when<other.passLos+20000&&next.until>other.passAos-20000){
-         throw Error('Single receiver conflict with another scheduled pass');
-       }
+       if(next.when<other.when+other.durationSeconds*1000+20000&&
+          next.when+next.durationSeconds*1000>other.when-20000)
+         throw Error('Single receiver conflict with another capture');
      }
-     const mission=Object.entries(AUTO_TARGETS).find(([_,x])=>x.frequencyHz===next.frequency&&x.norad===Number(job.passId));
+     if(plan.mode==="disk-stream")
+       newPrepared=await selectLongCaptureFile(durationSeconds,sampleRate,true,{
+         job:next,at:new Date(next.when),freq:next.frequency
+       });
+     const previousId=job.id;
+     releaseScheduledStream(job);
+     const mission=Object.entries(AUTO_TARGETS).find(([_,x])=>
+       x.frequencyHz===next.frequency&&x.norad===Number(job.passId));
      Object.assign(job,next,{
-       createdAt:job.createdAt,
-       missionId:mission?.[0]||undefined,
+       createdAt:job.createdAt,missionId:mission?.[0]||undefined,
        message:'Edited by operator. Browser must remain visible and awake.'
      });
+     if(newPrepared){preparedLongStreams.set(job.id,newPrepared);newPrepared=null;}
      jobs.sort((a,b)=>a.when-b.when);
      browserCalendarSignature='';renderJobs();
-     status('schedule-readiness','Scheduled job updated. Device remains released; no RF reception claimed.');
-   }catch(e){error.textContent='Changes not saved: '+e.message;}
+     status('schedule-readiness',"Updated "+previousId+" to "+durationSeconds+
+       " seconds; SDR remains released.");
+   }catch(error){
+     if(newPrepared?.writable)await abortLongCapture(newPrepared);
+     error.textContent='Changes not saved: '+String(error?.message||error);
+   }finally{save.disabled=false;}
  });
  card.append(form);
 }
