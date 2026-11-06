@@ -20,7 +20,7 @@ import time
 import urllib.request
 
 from .dab_bridge import DAB_HZ, DABReader, MUX_LIMIT, parse_mux, _local_get, _NoRedirect
-from .conflicts import find_receiver_conflicts
+from .channel_catalog import ChannelCatalog
 
 
 class AutoScanError(RuntimeError):
@@ -169,6 +169,7 @@ class FMAutoScanner(_WorkerState):
         super().__init__()
         self.survey=survey
         self.rds=rds
+        self.catalog=ChannelCatalog(rds.store) if hasattr(rds,"store") and hasattr(rds.store,"connect") else None
 
     def start(self,mode="quick"):
         if mode not in ("quick","extended"):
@@ -226,6 +227,13 @@ class FMAutoScanner(_WorkerState):
                     time.sleep(0.2)
                 station=_station_from_recent(rs.get("recent",[]))
                 if station and rs["received_groups"]>0:
+                    if self.catalog is not None:
+                        try:
+                            self.catalog.save_fm(
+                                frequency_hz=round(mhz*1_000_000),
+                                name=station,last_text=rs.get("last_text"))
+                        except (ValueError,OSError):
+                            pass
                     with self._mutex:
                         self._state["results"].append({
                             "frequency_mhz":mhz,"station":station,
@@ -259,6 +267,7 @@ class DABAutoScanner(_WorkerState):
     def __init__(self,reader:DABReader,*,fetcher=None,poster=None):
         super().__init__()
         self.reader=reader
+        self.catalog=ChannelCatalog(reader.store) if hasattr(reader.store,"connect") else None
         self.fetcher=fetcher or _local_get
         self.poster=poster or _post_channel
         self._original=None
@@ -365,6 +374,19 @@ class DABAutoScanner(_WorkerState):
                             "service_count":len(verified["services"]),
                             "verification":"welle_cli_decoded_fic"
                         })
+                    # Save actual FIC-decoded service metadata for the
+                    # persistent local channel directory, including data services.
+                    if self.catalog is not None:
+                        for svc in verified["services"][:48]:
+                            try:
+                                self.catalog.save_dab(
+                                    channel=channel,frequency_hz=DAB_HZ[channel],
+                                    service_id=svc["sid"],name=svc["name"],
+                                    ensemble=verified["ensemble"],
+                                    audio_advertised=svc["audio_advertised"],
+                                    last_text=svc["dls"])
+                            except (ValueError,OSError):
+                                pass
                     # Archive only actual broadcaster DLS with a decoder time.
                     for svc in verified["services"][:48]:
                         if svc["dls"] and svc["dls_received_at"]:
