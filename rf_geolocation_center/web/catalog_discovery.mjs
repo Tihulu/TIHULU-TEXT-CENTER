@@ -158,6 +158,13 @@ export function initCatalogDiscovery(){
  render();
  $("catalog-map-center")?.addEventListener("click",()=>window.dispatchEvent(new Event("tihulu:catalog-use-map-center")));
  $("catalog-discover")?.addEventListener("click",()=>void discover());
+ $("catalog-add-frequencies")?.addEventListener("click",()=>{
+   const entries=towers.filter(s=>Number.isFinite(s.frequencyMHz)&&s.frequencyMHz>=87.5&&s.frequencyMHz<=108);
+   if(!entries.length){txt("catalog-status","No cached catalog sites with explicit FM frequencies to import. Run Discover first; missing station frequencies must not be invented.");return}
+   window.dispatchEvent(new CustomEvent("tihulu:rf-autosources",{detail:entries}));
+   txt("catalog-status","Sent "+entries.length+" frequency-tagged OSM site candidates to the RF survey. Tagged frequency does NOT verify RF reception or emitter identity.");
+ });
+
  $("catalog-aircraft")?.addEventListener("click",()=>void discoverAircraft());
  $("catalog-fm-scan")?.addEventListener("click",()=>{
   txt("catalog-fm-status","FM SWEEP REQUESTED: real RTL-SDR 87.5–108 MHz frequency levels. Receiver must be connected. No RDS source ID or range will be decoded.");
