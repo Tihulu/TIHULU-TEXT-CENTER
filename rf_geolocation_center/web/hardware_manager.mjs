@@ -108,7 +108,7 @@ export function initHardwareManager({setView}){
  $("hardware-add").addEventListener("click",()=>{void addDevice()});
  $("hardware-refresh").addEventListener("click",()=>{void refresh({announce:true})});
  $("hardware-release")?.addEventListener("click",()=>$("live-release")?.click());
- $("radio-connect-rtl")?.addEventListener("click",()=>$("usb-select")?.click());
+ $("radio-connect-rtl")?.addEventListener("click",()=>window.dispatchEvent(new CustomEvent("tihulu:hardware-connect-rtl",{detail:{device:null}})));
  $("radio-manage-usb")?.addEventListener("click",()=>{
   setView("earth");const details=$("simple-hardware");
   if(details){details.open=true;details.scrollIntoView({behavior:"smooth",block:"center"})}
