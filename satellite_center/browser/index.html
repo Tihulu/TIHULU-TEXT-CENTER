@@ -49,12 +49,40 @@
 </div><div>
 <section><h2>3 · Satellite pass planner (web-only)</h2>
 <p class="hint">Uses downloaded CelesTrak TLEs and JavaScript orbital propagation. No local backend. If the remote catalog blocks browser CORS, import your own TLE text file below.</p>
-<div class="line"><label>Ground station<select id="city">
-<option value="Cologne">Cologne</option><option value="Izmir">İzmir</option><option value="Berlin">Berlin</option><option value="Istanbul">İstanbul</option><option value="Ankara">Ankara</option><option value="Brussels">Brussels</option><option value="Custom">Custom coordinates</option></select></label>
+<div class="line"><label>Ground station mode<select id="city">
+<option value="Custom" selected>Custom coordinates (anywhere)</option>
+<option value="city-search">Search city / town (offline + optional online)</option>
+<option value="gps">Device location (ask permission)</option>
+<option value="Cologne">Cologne</option><option value="Izmir">İzmir</option><option value="Berlin">Berlin</option>
+<option value="Istanbul">İstanbul</option><option value="Ankara">Ankara</option><option value="Brussels">Brussels</option>
+</select></label>
 <label>Lookahead<select id="hours"><option value="12">12 hours</option><option value="24" selected>24 hours</option><option value="48">48 hours</option></select></label></div>
-<div class="line"><label>Latitude (°)<input id="lat" type="number" value="50.938" step="0.001" min="-90" max="90"></label>
-<label>Longitude (°)<input id="lon" type="number" value="6.960" step="0.001" min="-180" max="180"></label>
+<div class="location-picker">
+<div class="location-search-row">
+<label class="location-query-label" for="city-query">Search city or town · 8,084 Germany &amp; Türkiye locations included offline
+<input id="city-query" type="search" role="combobox" aria-autocomplete="list"
+aria-expanded="false" aria-controls="city-suggestions" autocomplete="off" spellcheck="false"
+placeholder="e.g. Hürth, Köln, İzmir, Karaburun..." maxlength="100">
+</label>
+<label for="city-country">Country<select id="city-country">
+<option value="all">All countries</option><option value="DE">Germany</option><option value="TR">Türkiye</option>
+</select></label>
+</div>
+<div class="location-results" id="city-suggestions" role="listbox" aria-label="City and town suggestions" hidden></div>
+<div class="location-actions">
+<button id="location-gps" type="button">Use device location (GPS / Wi-Fi)</button>
+<button id="city-online-search" type="button" class="secondary">Search worldwide online</button>
+<label class="location-online-opt"><input id="city-online-toggle" type="checkbox"> Include online suggestions while typing (opt-in)</label>
+</div>
+<p id="location-status" class="location-status" role="status" aria-live="polite">
+All location methods are optional. City suggestions are offline by default; GPS asks permission only after you click.
+</p>
+<p class="hint location-credit">Offline city directory: <a href="https://github.com/srestre/world-countries-cities-db" target="_blank" rel="noopener noreferrer">country/state/city open data</a> (<a href="https://opendatacommons.org/licenses/odbl/1-0/" target="_blank" rel="noopener noreferrer">ODbL 1.0</a>, derivative of dr5hn). Online search uses <a href="https://open-meteo.com/en/docs/geocoding-api" target="_blank" rel="noopener noreferrer">Open-Meteo Geocoding / GeoNames</a> (non-commercial API), only if requested. Your GPS position remains in this tab and is not sent to city search.</p>
+</div>
+<div class="line"><label>Latitude (°) · editable<input id="lat" type="number" value="50.938" step="0.00001" min="-90" max="90"></label>
+<label>Longitude (°) · editable<input id="lon" type="number" value="6.960" step="0.00001" min="-180" max="180"></label>
 <label>Min elevation<select id="elev"><option value="5">5°</option><option value="15" selected>15°</option><option value="30">30°</option></select></label></div>
+<p class="hint">You can always enter fully custom latitude and longitude anywhere on Earth. Selecting a city or granting GPS permission updates both numbers, the pass planner and Earth/Sky tracking coordinates. Recalculate passes after changing ground station.</p>
 <div class="line"><button id="orbit-fetch">Refresh orbit data</button><button id="orbit-calc" class="secondary">Calculate passes</button></div>
 <label>Import local TLE file (fallback; remains in this tab)<input type="file" id="tle-file" accept=".txt,.tle,text/plain"></label>
 <p id="orbit-state" class="status">No orbit data loaded. Predictions are not RF detections.</p>
