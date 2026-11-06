@@ -4,8 +4,8 @@ export function platformFamily(ua = "") {
   const value=String(ua).toLowerCase();
   if(/windows|win32|win64/.test(value)) return "windows";
   if(/macintosh|mac os|darwin/.test(value)) return "mac";
-  if(/linux|x11/.test(value)) return "linux";
   if(/android/.test(value)) return "android";
+  if(/linux|x11/.test(value)) return "linux";
   return "unknown";
 }
 
