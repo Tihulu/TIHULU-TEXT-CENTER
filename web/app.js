@@ -1,7 +1,11 @@
 /* TIHULU TEXT CENTER — no external libraries, no background timers fetching data. */
 "use strict";
 
-const state = { tvActive:false, tvPollTimer:null, tvSession:null, liveActive:false, livePollTimer:null, liveSession:null, audioActive:false, audioPollTimer:null, csrf:"", page:100, subpage:0, source:"", entries:[], pages:[], receivers:null, rdsActive:false, rdsPollTimer:null, scanActive:false, scanPollTimer:null, selectedSurveyBand:"fm" };
+const state = {
+  managedDabOwned:false, managedDabPollTimer:null,
+  clientId:(window.crypto?.randomUUID?.()||
+    ("client-"+Date.now()+"-"+Math.random().toString(36).slice(2))),
+  tvActive:false, tvPollTimer:null, tvSession:null, liveActive:false, livePollTimer:null, liveSession:null, audioActive:false, audioPollTimer:null, csrf:"", page:100, subpage:0, source:"", entries:[], pages:[], receivers:null, rdsActive:false, rdsPollTimer:null, scanActive:false, scanPollTimer:null, selectedSurveyBand:"fm" };
 const $ = (id) => document.getElementById(id);
 
 function el(tag, cls, text) {
@@ -150,6 +154,22 @@ function receiverCard(data){
       "Tihulu will not stop or retune it automatically."));
   }
   const actions=el("div","card-actions");
+  actions.append(button("START FM RADIO",()=>openPage(410,"",0),"action primary"));
+  actions.append(button("STOP ALL TEXT CENTER RF",async()=>{
+    const response=await api("/api/receiver/stop-all","POST",{});
+    state.managedDabOwned=false;
+    if(state.managedDabPollTimer){
+      clearTimeout(state.managedDabPollTimer);state.managedDabPollTimer=null;
+    }
+    state.liveActive=false;state.tvActive=false;
+    state.audioActive=false;state.scanActive=false;state.rdsActive=false;
+    syncLiveMediaDock();
+    notice("Text Center's own radio, TV, FM/RDS, scans and managed DAB "+
+      "have been requested to stop. External readsb and welle-cli were NOT touched. "+
+      Object.entries(response.receivers).filter(([,v])=>v==="stop_failed")
+        .map(([k])=>k).join(", "));
+    await refreshReceiverStatus();
+  },"action ghost"));
   actions.append(button("REFRESH DEVICE STATUS",async()=>{
     try{
       await refreshReceiverStatus();
@@ -1304,6 +1324,29 @@ function showDabServices(result){
     box.append(item);
   });
 }
+function stopManagedDabPolling(){
+  if(state.managedDabPollTimer){
+    clearTimeout(state.managedDabPollTimer);
+    state.managedDabPollTimer=null;
+  }
+}
+async function pollManagedDab(){
+  if(!state.managedDabOwned){stopManagedDabPolling();return;}
+  try{
+    const status=await api("/api/dab/manage/status?owner="+
+      encodeURIComponent(state.clientId));
+    const info=$("managed-dab-status");
+    if(info)info.textContent=status.active
+      ?"APP-OWNED DAB "+status.channel+" · receiver PID "+status.pid+
+        " · auto-release after browser disconnect"
+      :"APP-OWNED DAB STOPPED · local SDR released";
+    if(!status.active){state.managedDabOwned=false;stopManagedDabPolling();return;}
+  }catch(e){
+    notice("Managed DAB receiver check: "+e.message);
+  }
+  stopManagedDabPolling();
+  if(state.managedDabOwned)state.managedDabPollTimer=setTimeout(pollManagedDab,4500);
+}
 async function addWelleDabBridge(){
   const last=await api("/api/dab/last");
   const panel=el("article","item-card");
@@ -1320,6 +1363,60 @@ async function addWelleDabBridge(){
   opt.append(img,document.createTextNode(" Save decoded MOT slideshow images offline "+
     "from this receiver (bounded PNG/JPEG, only if the broadcast actually provides them)."));
   panel.append(opt);
+  const managed=el("section","scan-summary");
+  managed.append(el("h4","","Manage local DAB receiver (explicit opt-in)"));
+  managed.append(el("p","full-body",
+    "START DAB opens welle-cli as a child of this Text Center only after checking "+
+    "the SDR is free. STOP DAB releases only this app-owned child. "+
+    "Independently started welle-cli and readsb are never terminated."));
+  const channel=el("select");
+  channel.id="managed-dab-channel";
+  for(const code of ["5C","8B","9D","11D"]){
+    const o=el("option","",code);o.value=code;
+    if(code==="11D")o.selected=true;
+    channel.append(o);
+  }
+  managed.append(channel);
+  const manageActions=el("div","card-actions");
+  const dabStart=button("START DAB RECEIVER",async()=>{
+    dabStart.disabled=true;
+    try{
+      const consent=confirm("Start the locally installed welle-cli and tune the "+
+        "Nooelec SDR to DAB "+channel.value+
+        "? All other SDR owners must first be stopped in their own applications.");
+      if(!consent)return;
+      const result=await api("/api/dab/manage/start","POST",{
+        channel:channel.value,owner:state.clientId,consent:true
+      });
+      state.managedDabOwned=true;
+      notice("Started app-owned DAB "+result.channel+
+        ". The browser connection will be monitored and the child freed on exit.");
+      await pollManagedDab();
+    }catch(error){notice("Could not start DAB: "+error.message)}
+    finally{dabStart.disabled=false}
+  },"action primary");
+  const dabStop=button("STOP DAB RECEIVER",async()=>{
+    dabStop.disabled=true;
+    try{
+      const result=await api("/api/dab/manage/stop","POST",{
+        owner:state.clientId,owner_only:true
+      });
+      state.managedDabOwned=false;stopManagedDabPolling();
+      const info=$("managed-dab-status");
+      if(info)info.textContent=result.stopped
+        ?"Owned DAB decoder stopped; tuner released."
+        :"No DAB receiver was started by this browser tab.";
+      notice("Only this tab's app-managed DAB receiver was stopped.");
+    }catch(error){notice(error.message)}
+    finally{dabStop.disabled=false}
+  },"action ghost");
+  manageActions.append(dabStart,dabStop);
+  managed.append(manageActions);
+  const managedStatus=el("p","full-body",
+    "External receivers remain externally managed.");
+  managedStatus.id="managed-dab-status";
+  managed.append(managedStatus);
+  panel.append(managed);
   const row=el("div","card-actions");
   const refresh=button("READ RUNNING DAB RECEIVER",async()=>{
     refresh.disabled=true;
@@ -1827,6 +1924,14 @@ function bindNavigation(){
   $("page-form").addEventListener("submit",(ev)=>{ev.preventDefault();openPage(Number($("page-number").value),$("source-select").value,Number($("subpage-number").value))});
   $("bookmark-page").addEventListener("click",()=>saveBookmark("Page "+state.page+(state.source?" · "+state.source:""),"page",state.page+":"+state.subpage+":"+state.source).catch((err)=>notice(err.message)));
   window.addEventListener("pagehide",()=>{
+    stopManagedDabPolling();
+    if(state.managedDabOwned){
+      fetch("/api/dab/manage/stop",{
+        method:"POST",keepalive:true,
+        headers:{"Content-Type":"application/json","X-Tihulu-CSRF":state.csrf},
+        body:JSON.stringify({owner:state.clientId,owner_only:true})
+      }).catch(()=>{});
+    }
     if(state.tvActive){
       fetch("/api/live/tv/stop",{
         method:"POST",headers:{"Content-Type":"application/json","X-Tihulu-CSRF":state.csrf},
