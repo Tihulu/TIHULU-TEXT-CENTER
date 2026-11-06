@@ -32,15 +32,19 @@ jobs:
           temp="$(mktemp -d)"
           dpkg-deb --extract dist/*.deb "$temp"
           test -x "$temp/usr/bin/tihulu-satellite-center"
+          test -s "$temp/usr/share/tihulu-satellite-center/satellite_center/desktop.py"
+          grep -q 'set -- desktop' "$temp/usr/bin/tihulu-satellite-center"
+          grep -q 'Exec=tihulu-satellite-center desktop' "$temp/usr/share/applications/tihulu-satellite-center.desktop"
           test -s "$temp/usr/share/tihulu-satellite-center/satellite_center/browser/index.html"
           test -s "$temp/usr/share/tihulu-satellite-center/satellite_center/browser/reception.html"
       - name: Debian 12 Bookworm apt install + localhost server smoke (NO USB)
         run: |
           docker run --rm -v "$PWD:/checkout:ro" debian:bookworm bash -euc '
             apt-get -qq update
-            DEBIAN_FRONTEND=noninteractive apt-get -qq install -y python3-skyfield rtl-sdr xdg-utils >/dev/null
+            DEBIAN_FRONTEND=noninteractive apt-get -qq install -y python3-pyqt5 python3-numpy python3-skyfield rtl-sdr xdg-utils >/dev/null
             dpkg -i /checkout/dist/*.deb
             tihulu-satellite-center doctor | grep -F "\"platform\": \"Linux\""
+            QT_QPA_PLATFORM=offscreen python3 -m satellite_center.desktop --smoke
             tihulu-satellite-center serve --port 8877 >/tmp/satellite.log 2>&1 &
             pid=$!
             trap "kill $pid 2>/dev/null || true" EXIT

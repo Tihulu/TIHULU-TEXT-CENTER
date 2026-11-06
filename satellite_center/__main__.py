@@ -1492,14 +1492,21 @@ class Server(ThreadingHTTPServer):
 
 
 def main():
-    ap = argparse.ArgumentParser(description="Receive-only satellite companion: independent local web app")
-    ap.add_argument("command", nargs="?", choices=("serve", "doctor"), default="serve")
+    ap = argparse.ArgumentParser(description="Native Qt Widgets SDR desktop (legacy HTTP service opt-in)")
+    ap.add_argument("command", nargs="?", choices=("desktop", "serve", "doctor"), default="desktop")
     ap.add_argument("--host", default="127.0.0.1")
     ap.add_argument("--port", type=int, default=8791)
     ap.add_argument("--open-browser", action="store_true", help="Open desktop browser after the local server starts")
     args = ap.parse_args()
     if args.host != "127.0.0.1" or not (1024 <= args.port <= 65535):
         ap.error("Loopback-only address 127.0.0.1 and port 1024–65535 required")
+    if args.command == "desktop":
+        # Native Qt Widgets only. No HTTP listener, browser, Chromium or WebView.
+        try:
+            from .desktop import main as launch_native
+        except ImportError as exc:
+            raise SystemExit("Native Qt GUI requires PyQt5. Debian/Pop!_OS: sudo apt install python3-pyqt5 python3-numpy") from exc
+        return launch_native()
     station = Station()
     if args.command == "doctor":
         print(json.dumps(station.status(), ensure_ascii=False, indent=2))
