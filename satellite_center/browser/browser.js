@@ -422,5 +422,25 @@ document.addEventListener('visibilitychange',()=>{
     void stopCapture();
   }
 });
+
+let deferredInstallPrompt=null;
+const installButton=$('install-app');
+window.addEventListener('beforeinstallprompt',event=>{
+  event.preventDefault();
+  deferredInstallPrompt=event;
+  installButton.hidden=false;
+});
+installButton.addEventListener('click',async()=>{
+  if(!deferredInstallPrompt)return;
+  const prompt=deferredInstallPrompt;
+  deferredInstallPrompt=null;
+  installButton.hidden=true;
+  try{await prompt.prompt();}catch(err){log('PWA install prompt: '+err.message);}
+});
+window.addEventListener('appinstalled',()=>{
+  installButton.hidden=true;
+  log('Satellite Center added to your browser applications. Pin it to the OS dock from Applications.');
+});
+
 renderSignal();
 log('Browser-only mode loaded. No local service or USB access attempted.');
