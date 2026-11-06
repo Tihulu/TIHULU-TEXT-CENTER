@@ -98,7 +98,17 @@ class Handler(BaseHTTPRequestHandler):
                     "warning": "No built-in RF decoder or authenticated emergency feed."
                 })
             if route == "/api/receivers":
-                return self._json(200, receiver_inventory())
+                inventory = receiver_inventory()
+                rds_state = self.server.rds.status(heartbeat=False)
+                inventory["rds_capture_active"] = rds_state["active"]
+                inventory["rds_groups_decoded"] = rds_state["received_groups"] if rds_state["active"] else 0
+                inventory["active_capture"] = rds_state["active"]
+                inventory["connected_decoder"] = bool(
+                    rds_state["active"] and rds_state["received_groups"] > 0
+                )
+                # RDS JSON decoding is not calibrated RF signal-strength measurement.
+                inventory["signal_verified"] = False
+                return self._json(200, inventory)
             if route == "/api/rds/status":
                 status = self.server.rds.status()
                 status["capability"] = self.server.rds.availability()

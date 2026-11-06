@@ -107,10 +107,10 @@ function renderReceiverStatus(data){
   statusLine("dvb-status",data.dvb_frontends.length
     ? "DVB frontend detected ("+data.dvb_frontends.length+")"
     : "No DVB frontend detected",data.dvb_frontends.length>0);
-  statusLine("decoder-status",data.connected_decoder
-    ? "Text decoder connected"
+  statusLine("decoder-status",data.rds_capture_active
+    ? "FM RDS capture running · "+data.rds_groups_decoded+" groups decoded"
     : data.rds_pipeline_available ? "RDS tools installed · decoder inactive"
-    : "RF text decoder inactive",Boolean(data.connected_decoder));
+    : "RF text decoder inactive",Boolean(data.rds_capture_active));
   if($("receiver-check-note")){
     $("receiver-check-note").textContent="Checked "+timeLabel(data.checked_at)+" · Passive inspection, no tuning";
   }
@@ -283,6 +283,9 @@ async function showWeather() {
 function setRdsText(data){
   const box=$("rds-live"),status=$("rds-progress");
   if(status){
+    statusLine("decoder-status",data.active
+      ? "FM RDS capture running · "+data.received_groups+" groups decoded"
+      : "RF text decoder inactive",Boolean(data.active));
     let line="Status: "+data.status.toUpperCase();
     if(data.frequency_hz)line+=" · "+(data.frequency_hz/1e6).toFixed(3)+" MHz";
     line+=" · "+data.received_groups+" decoded groups · "+data.saved_items+" saved text items";
