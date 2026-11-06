@@ -1,7 +1,7 @@
 import { platformFamily, webUsbHelp, permissionReport } from './usb_diagnostics.mjs';
 import { createSatelliteMaps } from './satellite_maps.mjs';
 import { initStationLocationUI } from './location_search.mjs';
-import { probeUsbSamples } from './usb_live_probe.mjs';
+import { probeUsbSamples, sampleBytes } from './usb_live_probe.mjs';
 import { sortPassList } from './pass_sort.mjs';
 import { localDateInput, parseLocalScheduleTime, createScheduledPass, evaluateScheduledJob, secondsToJob, captureLevelSummary } from './schedule_controller.mjs';
 // TIHULU Satellite Center — no-local-install receive-only browser mode.
@@ -293,9 +293,10 @@ async function startCapture(job=null) {
         (rate/1e6)+' MS/s. Sample levels are uncalibrated. No satellite is identified.');
       while(!stopRequested && Date.now()<deadline){
         const raw=await device.readSamples(65536);
-        const data=raw instanceof ArrayBuffer?new Uint8Array(raw):
-          ArrayBuffer.isView(raw)?new Uint8Array(raw.buffer,raw.byteOffset,raw.byteLength):null;
-        if(!data||data.length<2)throw Error('No usable I/Q bytes from RTL-SDR');
+        // @jtarrio/webrtlsdr v3 returns SampleBlock {frequency,data,...}.
+        // The previous ArrayBuffer-only code discarded every valid RF block.
+        const data=sampleBytes(raw);
+        if(data.length<2)throw Error('No usable I/Q bytes from RTL-SDR');
         bytesReceived+=data.length;
         measured=rmsLevel(data);
         if(Number.isFinite(measured)){

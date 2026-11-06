@@ -2,6 +2,11 @@
 // No fabricated samples, no RF identity claim, no external uploads.
 // The caller exclusively owns WebUSB open/close and performs cleanup.
 export function sampleBytes(raw){
+ // Web RTL-SDR v3 returns SampleBlock {frequency,directSampling,data}.
+ // Older tools may return an ArrayBuffer or TypedArray directly.
+ if(raw && typeof raw==="object" && "data" in raw){
+   return sampleBytes(raw.data);
+ }
  if(raw instanceof ArrayBuffer)return new Uint8Array(raw);
  if(ArrayBuffer.isView(raw))return new Uint8Array(raw.buffer,raw.byteOffset,raw.byteLength);
  throw Error("Driver returned no raw interleaved USB I/Q bytes.");
