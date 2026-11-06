@@ -38,6 +38,49 @@ class LiveRadioTests(unittest.TestCase):
             self.srv.start(frequency_mhz=98.6,record=True)
         self.assertEqual(self.srv.recordings(),[])
 
+    def test_mock_continuous_stream_and_optional_mp3_archive(self):
+        # Fixture uses fake PCM and fake encoded bytes, NOT RF reception.
+        import time
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td)
+            tuner=root/"mock_tuner"
+            transcoder=root/"mock_encoder"
+            tuner.write_text(
+                "#!/usr/bin/env python3\\n"
+                "import sys,time\\n"
+                "for i in range(80):\\n"
+                " sys.stdout.buffer.write(b'\\\\x00'*8192)\\n"
+                " sys.stdout.buffer.flush()\\n"
+                " time.sleep(.012)\\n")
+            transcoder.write_text(
+                "#!/usr/bin/env python3\\n"
+                "import sys\\n"
+                "while True:\\n"
+                " block=sys.stdin.buffer.read(8192)\\n"
+                " if not block:break\\n"
+                " sys.stdout.buffer.write(b'MOCKMP3'+block[:64])\\n"
+                " sys.stdout.buffer.flush()\\n")
+            tuner.chmod(0o700);transcoder.chmod(0o700)
+            srv=LiveRadio(Store(root/"app.sqlite"),
+                inventory=self.inv,conflicts=lambda:[],
+                lookup=lambda name:str(tuner if name=="rtl_fm" else transcoder),
+                lock_dir=root/"locks",record_dir=root/"recordings")
+            started=srv.start(frequency_mhz=98.6,record=True)
+            self.assertTrue(started["active"])
+            stream=srv.stream_chunks(started["session"])
+            first=next(stream)
+            self.assertTrue(first.startswith(b"MOCKMP3"),first[:100])
+            stream.close()
+            srv.stop(wait=True)
+            deadline=time.monotonic()+4
+            while srv.status()["active"] and time.monotonic()<deadline:
+                time.sleep(.03)
+            self.assertFalse(srv.status()["active"])
+            self.assertEqual(len(srv.recordings()),1)
+            recording=srv.recording(srv.recordings()[0]["id"])
+            self.assertIsNotNone(recording)
+            self.assertIn(b"MOCKMP3",recording)
+
     def test_settings_reject_unconsented_record_or_out_of_band(self):
         self.srv.lookup=lambda exe:"/usr/bin/"+exe
         with self.assertRaises(ValueError):
