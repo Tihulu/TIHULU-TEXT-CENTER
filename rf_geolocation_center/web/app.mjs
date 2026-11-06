@@ -8,7 +8,7 @@ import {initUsbSDR} from "./usb_sdr.mjs";
 const $=id=>document.getElementById(id), svgNS="http://www.w3.org/2000/svg";
 const state={
   browser:null,serialFix:null,serialAt:0,receiverHistory:[],gnssFile:null,sp3:null,
-  time:null,mask:5,visible:[],references:[],ranges:null,tdoa:[],
+  time:null,mask:5,visible:[],autoOrbits:[],references:[],ranges:null,tdoa:[],
   map:{lat:DEFAULT_CENTER.lat,lon:DEFAULT_CENTER.lon,zoom:7,osm:false},
   serialPort:null,serialReader:null,reading:false,usbSelection:null,activeView:"dashboard"
 };
@@ -87,7 +87,7 @@ function setView(name){
  const chosen=document.querySelector("#nav button[data-view='"+name+"']");
  setText("heading",chosen?chosen.textContent.trim():"Dashboard");
  document.querySelector(".sidebar")?.classList.remove("mobile-open");
- if(name==="earth")renderEarth();
+ if(name==="earth"){state.map.osm=true;renderEarth()}
  if(name==="sky")renderSky();
 }
 for(const btn of document.querySelectorAll("#nav button[data-view]"))btn.addEventListener("click",()=>setView(btn.dataset.view));
@@ -146,19 +146,19 @@ function renderSky(){
  for(const a of [0,90,180,270]){const rad=a*Math.PI/180;sky.append(svgel("line",{x1:300,y1:300,x2:300+250*Math.sin(rad),y2:300-250*Math.cos(rad),stroke:"#31566a"}))}
  for(const [txt,x,y] of [["N",300,36],["E",570,305],["S",300,581],["W",30,305]])sky.append(svgel("text",{x,y,fill:"#9ecee0","font-size":20,"text-anchor":"middle"},txt));
  state.visible=state.sp3?visibleSatellites(state.sp3,state.time,source(),state.mask):[];
- const above=state.visible.filter(p=>p.visible);
- setText("dash-visible",state.sp3?above.length:"—");
- setText("sky-timestamp",state.sp3?new Date(state.time).toISOString()+" · imported ephemeris geometry, not acquisition":"No SP3 epochs imported");
+ const above=state.sp3?state.visible.filter(p=>p.visible):state.autoOrbits.filter(p=>p.el>=state.mask);
+ setText("dash-visible",state.sp3||state.autoOrbits.length?above.length:"—");
+ setText("sky-timestamp",state.sp3?new Date(state.time).toISOString()+" · imported SP3 geometry only":state.autoOrbits.length?"CelesTrak SGP4 current orbital prediction, NOT received RF":"GNSS orbit download unavailable");
  const c=$("sky-list");c.replaceChildren();
- if(!state.sp3){c.append(make("p","muted","Import a real SP3 orbit file. No GNSS satellites are invented."));return}
- const colors={G:"#5cbbfc",E:"#70d8ad",R:"#ffbe8b",C:"#f3a6ed",J:"#ffe58e",I:"#ff809c",S:"#e2e2e2"};
+ if(!state.sp3&&!state.autoOrbits.length){c.append(make("p","muted","No GNSS orbit catalog loaded; automatic fetch may be unavailable."));return}
+ const colors={G:"#5cbbfc",E:"#70d8ad",R:"#ffbe8b",C:"#f3a6ed",J:"#ffe58e",I:"#ff809c",S:"#e2e2e2",GPS:"#5cbbfc",Galileo:"#70d8ad",GLONASS:"#ffbe8b",BeiDou:"#f3a6ed",QZSS:"#ffe58e",NavIC:"#ff809c",SBAS:"#e2e2e2"};
  for(const p of above){
    const theta=p.az*Math.PI/180,r=250*(90-p.el)/90;
-   sky.append(svgel("circle",{cx:300+r*Math.sin(theta),cy:300-r*Math.cos(theta),r:7,fill:colors[p.id[0]]||"#bde"}));
+   sky.append(svgel("circle",{cx:300+r*Math.sin(theta),cy:300-r*Math.cos(theta),r:7,fill:colors[p.system||p.group]||colors[p.id[0]]||"#bde"}));
    const text=svgel("text",{x:300+r*Math.sin(theta)+12,y:300-r*Math.cos(theta)-8,fill:"#d8e8f1","font-size":14},p.id);sky.append(text);
-   c.append(make("div","list-item",p.id+" · "+p.system+" · az "+fmt(p.az,1)+"° · el "+fmt(p.el,1)+"° · PREDICTED, NOT ACQUIRED"));
+   c.append(make("div","list-item",p.id+" · "+(p.system||p.group)+" · az "+fmt(p.az,1)+"° · el "+fmt(p.el,1)+"° · PREDICTED, NOT ACQUIRED"));
  }
- if(!above.length)c.append(make("p","muted","No satellites geometrically above the mask at this imported epoch/observer reference."));
+ if(!above.length)c.append(make("p","muted","No satellites geometrically above the selected elevation mask. Orbital predictions are not RF reception."));
 }
 function merc(lat,lon,z){
  const n=256*Math.pow(2,z),l=Math.max(-85.0511,Math.min(85.0511,lat))*Math.PI/180;
@@ -187,9 +187,10 @@ function renderEarth(){
    const tooltip=svgel("title",{},title);dot.append(tooltip);g.append(dot);
  };
  place(p.lat,p.lon,p.validObserver?"#70f0ca":"#f3d693",p.kind);
- for(const s of state.visible)place(s.lat,s.lon,"#55c7fc",s.id+" · orbit prediction");
+ const orbits=state.sp3?state.visible:state.autoOrbits;
+ for(const s of orbits)place(s.lat,s.lon,"#55c7fc",s.id+" · orbital prediction only");
  for(const s of state.references)place(s.lat,s.lon,s.type==="aircraft"?"#f2a8d0":"#d6c1fa",s.name+" · "+s.source);
- setText("earth-sat-count",state.visible.length+" orbit positions from imported SP3");
+ setText("earth-sat-count",(state.sp3?state.visible:state.autoOrbits).length+" "+(state.sp3?"SP3":"CelesTrak")+" predicted subpoints (not RF)");
  setText("earth-ref-count",state.references.length+" user-imported source points");
  if(state.map.osm)renderTiles();
 }
@@ -319,6 +320,13 @@ if("serviceWorker" in navigator&&location.protocol==="https:"){
  navigator.serviceWorker.register("./sw.js").catch(()=>{});
 }
 window.addEventListener("tihulu:find-request",()=>{ if(state.serialFix&&Date.now()-state.serialAt<90000){ window.dispatchEvent(new CustomEvent("tihulu:position",{detail:{lat:state.serialFix.lat,lon:state.serialFix.lon,alt:state.serialFix.altEllipsoidMeters??0,provider:"Dedicated GNSS serial NMEA"}})); msg("Using fresh receiver-provided NMEA position; browser location not requested."); }else{$("locate")?.click()}});
+window.addEventListener("tihulu:orbit",e=>{
+  if(!Array.isArray(e.detail?.satellites))return;
+  state.autoOrbits=e.detail.satellites.slice(0,450);
+  if(state.activeView==="sky"&&!state.sp3)renderSky();
+  if(state.activeView==="earth"&&!state.sp3)renderEarth();
+  if(!state.sp3){setText("dash-orbits",state.autoOrbits.length+" CelesTrak satellites");setText("orbit-tag","AUTO ORBITS / PREDICTED")}
+});
 renderCatalog();renderHistory();renderDiagnostics();renderPosition(true);renderSky();capabilities();
 initAutoExplorer();
 initUsbSDR(msg);
