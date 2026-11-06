@@ -18,6 +18,7 @@ from .media import MediaStore
 from .dvb_hardware import diagnose_dvb
 from .dab_bridge import DABReader,DABError
 from .live_fm import LiveFM,LiveError
+from .live_dab_captions import LiveDABCaptions,LiveDABCaptionError
 from .live_tv import LiveTV,LiveTVError
 from .transcripts import TranscriptStore,TranslatorUnavailable,installed_translation_pairs,translation_devices,translate_offline
 from .compute import detect_devices,choose_backend
@@ -77,6 +78,7 @@ class LocalServer(ThreadingHTTPServer):
         self.channel_center=ChannelCenter(store)
         self.dvb_scanner=DVBFullScanner(self.channel_center)
         self.transcripts = TranscriptStore(store)
+        self.live_dab_captions = LiveDABCaptions(self.transcripts)
         self.dab = DABReader(store)
         self.dab_managed = ManagedDABReceiver()
         self.dab_last = {"connected":False,"message":"No welle-cli web receiver checked yet"}
@@ -103,6 +105,7 @@ class LocalServer(ThreadingHTTPServer):
     def server_close(self):
         # Tests and alternate launchers can close the server directly.
         # Always release this server's own DAB child in that case.
+        self.live_dab_captions.stop(wait=True)
         self.dab_managed.close()
         self.dvb_scanner.stop(wait=True)
         super().server_close()
@@ -119,6 +122,7 @@ class LocalServer(ThreadingHTTPServer):
             ("dab_auto",self.dab_auto,True),
             ("dvb_scan",self.dvb_scanner,True),
             ("postprocess",self.postprocess,True),
+            ("dab_captions",self.live_dab_captions,True),
             ("dab",self.dab_managed,False),
             ("radio",self.live_fm,True),
             ("tv",self.live_tv,False),
@@ -151,7 +155,7 @@ class LocalServer(ThreadingHTTPServer):
         """
         stopped={}
         for name,worker in (
-            ("dab",self.dab_managed),("fm_auto",self.fm_auto),("dab_auto",self.dab_auto),("dvb_scan",self.dvb_scanner),("radio",self.live_fm),
+            ("dab_captions",self.live_dab_captions),("dab",self.dab_managed),("fm_auto",self.fm_auto),("dab_auto",self.dab_auto),("dvb_scan",self.dvb_scanner),("radio",self.live_fm),
             ("tv",self.live_tv),("audio",self.audio),
             ("spectrum",self.survey),("rds",self.rds)
         ):
@@ -330,12 +334,15 @@ class Handler(BaseHTTPRequestHandler):
                 return
             if route == "/api/dab/last":
                 return self._json(200,self.server.dab_last)
+            if route == "/api/dab/captions/status":
+                return self._json(200,self.server.live_dab_captions.status(heartbeat=True))
             if route == "/api/dab/manage/status":
                 owner=q.get("owner",[""])[0][:128]
                 return self._json(200,self.server.dab_managed.status(owner=owner))
             if route == "/api/receiver/owned-status":
                 return self._json(200,{
                     "dab":self.server.dab_managed.status(),
+                    "dab_captions":self.server.live_dab_captions.status(heartbeat=False),
                     "dvb_scan":self.server.dvb_scanner.status(),
                     "fm_auto":self.server.fm_auto.status(heartbeat=False),
                     "dab_auto":self.server.dab_auto.status(heartbeat=False),
@@ -561,7 +568,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         route = urlsplit(self.path).path
-        allowed = {"/api/feeds/add", "/api/feeds/refresh", "/api/bulletins", "/api/bookmarks", "/api/rds/start", "/api/rds/stop", "/api/fm-survey/start", "/api/fm-survey/stop", "/api/scans/start", "/api/scans/stop", "/api/audio/start", "/api/audio/stop", "/api/dab/refresh", "/api/live/radio/start", "/api/live/radio/stop", "/api/transcripts/translate", "/api/translation/text", "/api/live/tv/start", "/api/live/tv/stop", "/api/recordings/transcription/start", "/api/recordings/transcription/stop", "/api/radar/refresh", "/api/languages/refresh", "/api/languages/install", "/api/languages/translate", "/api/auto/fm/start", "/api/auto/fm/stop", "/api/auto/dab/start", "/api/auto/dab/stop", "/api/auto/dab/tune", "/api/receiver/stop-all", "/api/receiver/hard-stop", "/api/channel-center/update", "/api/dvb/scan/start", "/api/dvb/scan/stop", "/api/dab/select", "/api/dab/manage/start", "/api/dab/manage/stop"}
+        allowed = {"/api/feeds/add", "/api/feeds/refresh", "/api/bulletins", "/api/bookmarks", "/api/rds/start", "/api/rds/stop", "/api/fm-survey/start", "/api/fm-survey/stop", "/api/scans/start", "/api/scans/stop", "/api/audio/start", "/api/audio/stop", "/api/dab/refresh", "/api/live/radio/start", "/api/live/radio/stop", "/api/transcripts/translate", "/api/translation/text", "/api/live/tv/start", "/api/live/tv/stop", "/api/recordings/transcription/start", "/api/recordings/transcription/stop", "/api/radar/refresh", "/api/languages/refresh", "/api/languages/install", "/api/languages/translate", "/api/auto/fm/start", "/api/auto/fm/stop", "/api/auto/dab/start", "/api/auto/dab/stop", "/api/auto/dab/tune", "/api/receiver/stop-all", "/api/receiver/hard-stop", "/api/channel-center/update", "/api/dvb/scan/start", "/api/dvb/scan/stop", "/api/dab/select", "/api/dab/captions/start", "/api/dab/captions/stop", "/api/dab/manage/start", "/api/dab/manage/stop"}
         if route not in allowed:
             return self._json(404, {"error": "Not found"})
         if self.headers.get("X-Tihulu-CSRF") != self.server.csrf_token:
@@ -678,9 +685,24 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(202,self.server.dab_managed.start(
                     payload.get("channel"),owner=payload.get("owner")))
             if route == "/api/dab/manage/stop":
+                self.server.live_dab_captions.stop(wait=True)
                 return self._json(200,self.server.dab_managed.stop(
                     owner=payload.get("owner"),
                     owner_only=payload.get("owner_only") is True))
+            if route == "/api/dab/captions/start":
+                if self.server.live_fm.status(heartbeat=False)["active"]:
+                    raise LiveDABCaptionError("FM is using the shared RTL-SDR")
+                if self.server.dab_auto.status(heartbeat=False)["active"]:
+                    raise LiveDABCaptionError("Cannot transcribe while DAB full scan retunes")
+                return self._json(202,self.server.live_dab_captions.start(
+                    channel=payload.get("channel"),
+                    service_id=payload.get("service_id"),
+                    language=payload.get("original_language","en"),
+                    translate_to=payload.get("translated_language"),
+                    backend=payload.get("backend","auto"),
+                    translation_backend=payload.get("translation_backend","auto")))
+            if route == "/api/dab/captions/stop":
+                return self._json(200,self.server.live_dab_captions.stop(wait=True))
             if route == "/api/dab/refresh":
                 if self.server.dab_auto.status(heartbeat=False)["active"]:
                     raise AutoScanError("DAB channel scan is retuning; read decoder data after it finishes")
@@ -786,7 +808,7 @@ class Handler(BaseHTTPRequestHandler):
             if route == "/api/bookmarks":
                 self.server.store.add_bookmark(payload.get("label"),payload.get("target_type"),payload.get("target"))
                 return self._json(201, {"saved": True})
-        except (CaptureError, SurveyError, AudioError, DABError, LiveError, LiveTVError, SpeechError, TranslatorUnavailable, PostProcessError, AutoScanError, DVBScanError, RadarError, LanguagePackError, ReceiverServiceError, LanguageDetectionUnavailable) as exc:
+        except (CaptureError, SurveyError, AudioError, DABError, LiveError, LiveTVError, LiveDABCaptionError, SpeechError, TranslatorUnavailable, PostProcessError, AutoScanError, DVBScanError, RadarError, LanguagePackError, ReceiverServiceError, LanguageDetectionUnavailable) as exc:
             self._json(409, {"error": str(exc)})
         except KeyError as exc:
             self._json(404, {"error": str(exc)})
@@ -817,6 +839,7 @@ def run_server(store: Store, *, host: str = "127.0.0.1", port: int = 8787):
     finally:
         if original_sigterm is not None:
             signal.signal(signal.SIGTERM,original_sigterm)
+        server.live_dab_captions.stop(wait=True)
         server.dab_managed.close()
         server.dvb_scanner.stop(wait=True)
         server.postprocess.stop(wait=True)
