@@ -81,6 +81,9 @@ jobs:
           node --check satellite_center/browser/reception.mjs
           node --check satellite_center/browser/auto_mission.mjs
           node --check satellite_center/browser/auto_reception_ui.mjs
+          node --check satellite_center/browser/pass_protocol_catalog.mjs
+          node --check satellite_center/browser/satellite_calendar.mjs
+          node --test tests/test_satellite_calendar.mjs
           node --test tests/test_satellite_auto_mission.mjs
           node --test tests/test_satellite_reception.mjs
           node --check satellite_center/browser/satellite_imagery.mjs
