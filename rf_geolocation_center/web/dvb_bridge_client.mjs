@@ -54,7 +54,8 @@ function pair(action="tv"){
  const rand=new Uint8Array(24);crypto.getRandomValues(rand);
  pairNonce=Array.from(rand,b=>b.toString(16).padStart(2,"0")).join("");
  pairAction=action;
- const url=ENDPOINT+"/pair?origin="+choosePairingMode()+"&nonce="+encodeURIComponent(pairNonce);
+ const url=ENDPOINT+"/pair?origin="+choosePairingMode()+"&nonce="+encodeURIComponent(pairNonce)+
+   (choosePairingMode()==="local"?"&from="+encodeURIComponent(location.hostname==="localhost"?"localhost":"127.0.0.1"):"");
  // Must open synchronously in direct click handler to avoid popup blockers.
  pairPopup=window.open(url,"tihulu_tv_pair","width=620,height=490");
  if(!pairPopup){
