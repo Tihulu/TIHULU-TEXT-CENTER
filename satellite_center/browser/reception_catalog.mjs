@@ -49,6 +49,15 @@ export const MISSIONS = Object.freeze([
     imageTarget:"iss"
   },
   {
+    id:"iss-hamtv", name:"ISS · HamTV digital video (advanced)", group:"Video", satellite:"ISS",
+    frequencyHz:2395000000, mode:"S-band 2.395 GHz DVB-S digital TV (check ARISS status)",
+    input:"Specialized S-band antenna/receiver and true captured DVB-S transport stream", decoder:"External compatible S-band DVB-S/SatDump tools; NOT available from current two USB receivers",
+    description:"HamTV usually sends a blank test signal unless a camera/educational event is active. No continuous live Earth-camera feed is promised. NESDR SMArt v5 tops out at 1750 MHz; Hauppauge WinTV-soloHD is DVB-T/T2/C, not a 2.395 GHz satellite DVB-S receiver.",
+    official:"https://www.ariss.org/hamtv-on-the-iss.html",
+    availability:"hardware-upgrade", receiver:"new-sband-hardware", route:"index.html#satellite-tracking-maps",
+    imageTarget:null
+  },
+  {
     id:"satnogs", name:"Other amateur satellites · open catalog", group:"Text / data", satellite:"User-selected verified satellite",
     frequencyHz:null, mode:"Depends on published transmitter/protocol",
     input:"Recorded samples or protocol-specific decoded data", decoder:"Only if a matching validated decoder is available",
