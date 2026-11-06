@@ -1,7 +1,7 @@
 /* TIHULU TEXT CENTER — no external libraries, no background timers fetching data. */
 "use strict";
 
-const state = { liveActive:false, livePollTimer:null, liveSession:null, audioActive:false, audioPollTimer:null, csrf:"", page:100, subpage:0, source:"", entries:[], pages:[], receivers:null, rdsActive:false, rdsPollTimer:null, scanActive:false, scanPollTimer:null, selectedSurveyBand:"fm" };
+const state = { tvActive:false, tvPollTimer:null, tvSession:null, liveActive:false, livePollTimer:null, liveSession:null, audioActive:false, audioPollTimer:null, csrf:"", page:100, subpage:0, source:"", entries:[], pages:[], receivers:null, rdsActive:false, rdsPollTimer:null, scanActive:false, scanPollTimer:null, selectedSurveyBand:"fm" };
 const $ = (id) => document.getElementById(id);
 
 function el(tag, cls, text) {
@@ -174,6 +174,11 @@ async function refreshSourceChoices(){
   select.value=sources.some(([id])=>id===selected)?selected:"";
 }
 async function openPage(number,source,subpage){
+  if(state.page===400 && Number(number)!==400 && state.tvActive){
+    state.tvActive=false;
+    if(state.tvPollTimer){clearTimeout(state.tvPollTimer);state.tvPollTimer=null;}
+    api("/api/live/tv/stop","POST",{}).catch(()=>{});
+  }
   if(state.page===400 && Number(number)!==400 && state.liveActive){
     state.liveActive=false;
     if(state.livePollTimer){clearTimeout(state.livePollTimer);state.livePollTimer=null;}
@@ -720,8 +725,8 @@ async function pollAudioPreview(){
     notice("FM audio preview status failed: "+error.message);
   }
 }
-function liveRadioCaptionPanel(captions,session){
-  const container=$("live-radio-captions");
+function liveRadioCaptionPanel(captions,session,targetId="live-radio-captions"){
+  const container=$(targetId);
   if(!container)return;
   container.replaceChildren();
   if(!captions.length){
@@ -742,13 +747,13 @@ function liveRadioCaptionPanel(captions,session){
     const actions=el("div","card-actions");
     if(!item.translated_text){
       actions.append(button("TRANSLATE THIS CAPTION",async()=>{
-        const target=$("live-later-language")?.value||"tr";
+        const target=$(targetId==="live-tv-captions"?"live-tv-later-language":"live-later-language")?.value||"tr";
         try{
           const result=await api("/api/transcripts/translate","POST",{
             id:item.id,target_language:target});
           item.translated_text=result.translated_text;
           item.translated_language=result.translated_language;
-          liveRadioCaptionPanel(captions,session);
+          liveRadioCaptionPanel(captions,session,targetId);
           notice("Caption translated offline; original preserved.");
         }catch(err){notice("Translation unavailable: "+err.message)}
       }));
@@ -804,6 +809,191 @@ async function pollLiveRadio(){
       await refreshReceiverStatus();
     }
   }catch(e){notice("Live receiver status unavailable: "+e.message);}
+}
+async function pollLiveTV(){
+  if(state.page!==400)return;
+  try{
+    const current=await api("/api/live/tv/status");
+    state.tvActive=current.active;
+    state.tvSession=current.session||state.tvSession;
+    const label=$("live-tv-status");
+    if(label)label.textContent=current.status.toUpperCase()+
+      " · "+(current.channel_name||"No TV channel selected")+
+      " · recording "+(current.recording?"ON":"OFF")+
+      (current.speech?.enabled?" · ASR "+current.speech.selected_backend+
+        " · "+current.speech.segments_completed+" segments":" · subtitles off")+
+      (current.speech?.error?" · "+current.speech.error:"")+
+      (current.error?" · "+current.error:"");
+    const start=$("live-tv-start"),stop=$("live-tv-stop");
+    const approved=$("live-tv-consent");
+    const configured=$("live-tv-channel");
+    if(start)start.disabled=current.active||!approved?.checked||
+      !configured?.value||!current.capability?.ready;
+    if(stop)stop.disabled=!current.active;
+    if(state.tvSession){
+      const data=await api("/api/transcripts?session="+encodeURIComponent(state.tvSession));
+      liveRadioCaptionPanel(data,state.tvSession,"live-tv-captions");
+      const links=$("live-tv-export");
+      if(links){
+        links.replaceChildren();
+        for(const fmt of ["srt","vtt"])for(const translated of [false,true]){
+          const link=el("a","action ghost","SAVE "+(translated?"TRANSLATED":"ORIGINAL")+" "+fmt.toUpperCase());
+          link.href="/api/transcripts/export?session="+encodeURIComponent(state.tvSession)+
+            "&format="+fmt+"&translated="+(translated?"1":"0");
+          link.download="tihulu-tv-"+state.tvSession.slice(0,8)+
+            (translated?"-translated":"-original")+"."+fmt;
+          links.append(link);
+        }
+      }
+    }
+    if(current.active&&state.page===400){
+      state.tvPollTimer=setTimeout(pollLiveTV,1800);
+    }
+  }catch(e){notice("TV playback status unavailable: "+e.message)}
+}
+async function addLiveTV(){
+  const listing=await api("/api/live/tv/channels");
+  const snapshot=await api("/api/live/tv/status");
+  const compute=await api("/api/compute");
+  const panel=el("article","item-card");panel.id="live-tv-center";
+  panel.append(el("div","item-meta","LIVE TV / AUTHORIZED UPSTREAM SOURCE / REAL VIDEO ONLY"));
+  panel.append(el("h3","","Live TV, Recording & Bilingual Subtitles"));
+  panel.append(el("p","",
+    "Continuous video from a pre-authorized local MPEG transport stream supplied "+
+    "by Radio/TV Center; ffmpeg converts to browser-compatible fragmented MP4. "+
+    "Does not scan, tune or commandeer a DVB device. No TV stream is configured "+
+    "until a channel source is supplied and independently granted a tuner lease."));
+  const form=el("form","rds-form");
+  const channel=el("select");channel.id="live-tv-channel";
+  if(!listing.channels.length){
+    const empty=el("option","","No verified local TV channel source configured");
+    empty.value="";channel.append(empty);
+  }else{
+    listing.channels.forEach(c=>{
+      const option=el("option","",c.name+" · operator-configured / not RF-verified");
+      option.value=c.id;channel.append(option);
+    });
+  }
+  const ch=el("div","field");ch.append(el("label","","TV channel / upstream source"),channel);form.append(ch);
+  const settings=el("div","live-grid");
+  const lang=el("select"),target=el("select"),backend=el("select");
+  for(const [value,name] of [["en","English"],["de","Deutsch"],["tr","Türkçe"]]){
+    const l=el("option","",name);l.value=value;lang.append(l);
+    const t=el("option","",name);t.value=value;target.append(t);
+  }
+  lang.value="de";target.value="tr";
+  for(const key of ["auto","cpu","gpu","npu"]){
+    const option=el("option","",key.toUpperCase()+" · "+
+      compute.selection[key].detected_device+
+      (compute.selection[key].ready?" · ready":" · unavailable"));
+    option.value=key;backend.append(option);
+  }
+  for(const [label,control] of [["Original TV audio language",lang],
+                                  ["Translate captions to",target],
+                                  ["Speech compute backend",backend]]){
+    const wrap=el("div","field");
+    wrap.append(el("label","",label),control);settings.append(wrap);
+  }
+  form.append(settings);
+  const subtitles=el("input");subtitles.type="checkbox";
+  const translate=el("input");translate.type="checkbox";
+  const record=el("input");record.type="checkbox";
+  for(const [input,text] of [[subtitles,"Transcribe real TV audio into original-language captions"],
+                              [translate,"Also translate live subtitles (EN/DE/TR)"],
+                              [record,"Record the TV stream locally"]]){
+    const label=el("label","scan-consent");
+    label.append(input,document.createTextNode(" "+text));form.append(label);
+  }
+  const consent=el("input");consent.type="checkbox";consent.id="live-tv-consent";
+  const label=el("label","scan-consent");
+  label.append(consent,document.createTextNode(
+    " I confirm the upstream TV source is dedicated to this session "+
+    "and does not interrupt protected recordings or Flight Radar."));
+  form.append(label);
+  const start=el("button","action primary","START LIVE TV");
+  start.id="live-tv-start";start.type="submit";
+  const stop=el("button","action ghost","STOP TV");
+  stop.id="live-tv-stop";stop.type="button";
+  form.append(start,stop);panel.append(form);
+  const status=el("p","full-body",listing.capability.reason);
+  status.id="live-tv-status";panel.append(status);
+  const video=el("video","live-tv-player");
+  video.id="live-tv-video";video.controls=true;video.playsInline=true;
+  video.preload="none";
+  video.setAttribute("aria-label","Local live television");
+  panel.append(video);
+  panel.append(el("h4","","Real original / translated TV captions"));
+  const captionList=el("div","live-caption-list");captionList.id="live-tv-captions";panel.append(captionList);
+  const later=el("div","field");later.append(el("label","","Translate saved captions later to"));
+  const laterLang=el("select");laterLang.id="live-tv-later-language";
+  for(const [code,name] of [["en","English"],["de","Deutsch"],["tr","Türkçe"]]){
+    const option=el("option","",name);option.value=code;laterLang.append(option);
+  }
+  laterLang.value="tr";later.append(laterLang);panel.append(later);
+  const links=el("div","card-actions");links.id="live-tv-export";panel.append(links);
+  panel.append(el("p","full-body",
+    "TV and radio share the same transcript/translation archive. Actual "+
+    "live TV subtitles depend on installed Whisper-compatible models, a "+
+    "working upstream MPEG-TS audio track and available compute. "+
+    "No dummy captions or artificial broadcasts are generated."));
+  if(!listing.channels.length){
+    panel.append(el("p","discover-warn",
+      "Hauppauge DVB-T2 input is not yet connected. Configure an owned local "+
+      "MPEG-TS channel feed via TIHULU_TV_CHANNELS_FILE after DVB service "+
+      "and receiver-leasing setup; see docs/LIVE_MEDIA_TRANSLATION.md."));
+  }
+  $("content").append(panel);
+  form.addEventListener("submit",async e=>{
+    e.preventDefault();if(!consent.checked||!channel.value)return;
+    start.disabled=true;
+    try{
+      const newSession=await api("/api/live/tv/start","POST",{
+        channel_id:channel.value,record:record.checked,
+        subtitles:subtitles.checked,original_language:lang.value,
+        translated_language:subtitles.checked&&translate.checked?target.value:null,
+        backend:backend.value,upstream_authorized:true});
+      state.tvActive=true;state.tvSession=newSession.session;
+      video.src="/api/live/tv/stream?session="+encodeURIComponent(state.tvSession)+
+        "&token="+encodeURIComponent(state.csrf);
+      try{await video.play()}
+      catch(_){notice("TV source started. Press Play on the TV player if autoplay is blocked.")}
+      if(state.tvPollTimer)clearTimeout(state.tvPollTimer);
+      state.tvPollTimer=setTimeout(pollLiveTV,250);
+    }catch(err){notice("TV unavailable: "+err.message);start.disabled=false}
+  });
+  stop.addEventListener("click",async()=>{
+    try{
+      video.pause();video.removeAttribute("src");video.load();
+      await api("/api/live/tv/stop","POST",{});
+      state.tvActive=false;
+      if(state.tvPollTimer)clearTimeout(state.tvPollTimer);
+      state.tvPollTimer=setTimeout(pollLiveTV,250);
+    }catch(err){notice(err.message)}
+  });
+  consent.addEventListener("change",()=>{
+    start.disabled=!consent.checked||!channel.value||state.tvActive||!listing.capability.ready;
+  });
+  state.tvActive=snapshot.active;
+  if(snapshot.session)state.tvSession=snapshot.session;
+  if(snapshot.active&&snapshot.session){
+    video.src="/api/live/tv/stream?session="+encodeURIComponent(snapshot.session)+
+      "&token="+encodeURIComponent(state.csrf);
+  }
+  start.disabled=!listing.capability.ready||!listing.channels.length;
+  stop.disabled=!snapshot.active;
+  if(state.tvPollTimer)clearTimeout(state.tvPollTimer);
+  state.tvPollTimer=setTimeout(pollLiveTV,500);
+  const records=await api("/api/live/tv/recordings");
+  if(records.length){
+    const archive=el("div","scan-summary");
+    archive.append(el("h4","","Local TV recordings"));
+    records.forEach(item=>{
+      const link=el("a","","DOWNLOAD "+item.name+" · "+(item.bytes/1048576).toFixed(1)+" MiB");
+      link.href="/api/live/tv/recording/"+encodeURIComponent(item.name);
+      link.download=item.name;archive.append(link);
+    });
+    panel.append(archive);
+  }
 }
 async function addLiveRadio(){
   const snapshot=await api("/api/live/radio/status");
@@ -1173,6 +1363,8 @@ async function showRadioData(){
   catch(error){empty("FM capture control unavailable","Unable to load RDS status: "+error.message)}
   try {await addLiveRadio()}
   catch(error){empty("Live FM & subtitles unavailable",error.message)}
+  try {await addLiveTV()}
+  catch(error){empty("Live TV & subtitles unavailable",error.message)}
   try {await addAudioPreview()}
   catch(error){empty("FM audio preview unavailable",error.message)}
   try {await addWelleDabBridge()}
@@ -1374,6 +1566,12 @@ function bindNavigation(){
   $("page-form").addEventListener("submit",(ev)=>{ev.preventDefault();openPage(Number($("page-number").value),$("source-select").value,Number($("subpage-number").value))});
   $("bookmark-page").addEventListener("click",()=>saveBookmark("Page "+state.page+(state.source?" · "+state.source:""),"page",state.page+":"+state.subpage+":"+state.source).catch((err)=>notice(err.message)));
   window.addEventListener("pagehide",()=>{
+    if(state.tvActive){
+      fetch("/api/live/tv/stop",{
+        method:"POST",headers:{"Content-Type":"application/json","X-Tihulu-CSRF":state.csrf},
+        body:"{}",keepalive:true
+      }).catch(()=>{});
+    }
     if(state.liveActive){
       fetch("/api/live/radio/stop",{
         method:"POST",headers:{"Content-Type":"application/json","X-Tihulu-CSRF":state.csrf},
