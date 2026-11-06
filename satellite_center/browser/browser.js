@@ -373,13 +373,16 @@ function saveCapture(bytes,name,job=null,metadata=null) {
   if(satelliteImageUI&&metadata)satelliteImageUI.recordCapture(blob,name,metadata);
   return blob;
 }
-async function startCapture(job=null) {
+async function startCapture(job=null,prepared=null) {
   if(capturePromise || usbTestRunning || !device)throw Error('Choose the RTL-SDR and finish any hardware test before capturing.');
-  stopRequested=false;
   const freq=job?job.frequency:Number($('preset').value);
   const rate=job?job.sampleRate:Number($('rate').value);
   const limit=job?job.durationSeconds:Number($('duration').value);
   const recording=job?job.saveRaw:$('record').checked;
+  const budget=captureBudget(limit,rate,recording,{fileStreaming:Boolean(prepared?.writable)});
+  if(budget.mode==="disk-stream"&&!prepared?.writable)
+    throw Error("No user-selected local CU8 disk stream for this extended capture.");
+  stopRequested=false;
   const session=++sessionCounter;
   const captureStartTime=new Date();
   capturePromise=(async()=>{
@@ -413,10 +416,13 @@ async function startCapture(job=null) {
           renderSignal();
         }
         if(recording){
-          if(bytesRecorded+data.length>maxRecordBytes){
-            stopRequested=true;
-            log('128 MiB IQ memory limit reached; finishing capture safely.');
-            if(job)job.message='Stopped at the 128 MiB in-browser IQ limit.';
+          if(prepared?.writable){
+            if(bytesRecorded+data.length>STREAM_IQ_BYTES)
+              throw Error("2 GB stream safety limit exceeded before recording completed");
+            await prepared.writable.write(new Uint8Array(data));
+            bytesRecorded+=data.length;
+          }else if(bytesRecorded+data.length>maxRecordBytes){
+            throw Error("128 MiB buffer exceeded. Use streamed disk capture or lower the duration/sample rate.");
           }else{
             chunks.push(new Uint8Array(data));
             bytesRecorded+=data.length;
@@ -434,33 +440,31 @@ async function startCapture(job=null) {
       lastCaptured={bytesReceived,bytesRecorded,frequency_hz:freq,observedAt:report.time,
         relativeDb:report.averageRelativeDb};
       notifyMaps();
-      if(recording&&chunks.length>0){
-        // Capture names identify a candidate *target*, never proven RF
-        // origin. A manual frequency survey without a selected target is
-        // explicitly UNATTRIBUTED to prevent false satellite identification.
-        const targetName=job?.name?job.name+"-CANDIDATE":
-          imageCandidateTarget&&imageCandidateTarget.frequencies.includes(freq)?
-            imageCandidateTarget.name+"-CANDIDATE":"RF-UNATTRIBUTED";
-        const name=recordingName({satellite:targetName,at:captureStartTime,
-          frequencyHz:freq,sampleRate:rate,format:"cu8",
-          kind:job?"SCHEDULED-IQ":"IQ"});
-        saveCapture(chunks,name,job,{
-           centerHz:freq,sampleRate:rate,format:"cu8",
-           captureStartedUtc:captureStartTime.toISOString(),
-           captureEndedUtc:new Date().toISOString(),
-           complexSamples:Math.floor(bytesRecorded/2),
-           receiverType:"RTL2832U-family / WebUSB",
-           acquisition:"actual USB readSamples",
-           gainMode:"automatic",
-           targetCandidate:targetName,
-           rfSourceVerified:false
-         });
+      if(recording&&(chunks.length>0||prepared?.writable)){
+        const name=prepared?.name||captureFileName(job,freq,rate,captureStartTime);
+        if(prepared?.writable){
+          await prepared.writable.close();
+          prepared.writable=null;
+          if(job){job.fileName=name;job.downloadAvailable=false;}
+          log("Saved "+(bytesRecorded/1e6).toFixed(1)+" MB of real CU8 IQ to chosen local disk file "+
+            name+". Reopen the file explicitly for decoding/analysis.");
+          status('sample-state',"Long RF sample saved to "+name+
+            " · "+(bytesRecorded/1e6).toFixed(1)+" MB. Open from disk to analyze with suitable decoders.");
+        }else saveCapture(chunks,name,job,{
+          centerHz:freq,sampleRate:rate,format:"cu8",
+          captureStartedUtc:captureStartTime.toISOString(),
+          captureEndedUtc:new Date().toISOString(),
+          complexSamples:Math.floor(bytesRecorded/2),
+          receiverType:"RTL2832U-family / WebUSB",
+          acquisition:"actual USB readSamples",gainMode:"automatic",rfSourceVerified:false
+        });
       }
       if(job){
         job.state=stopRequested?'stopped':'finished';
         job.report=report;
         job.message=(stopRequested?'Capture stopped early. ':'Capture completed. ')+
-          (recording?'Browser IQ download was requested; verify it in Downloads. ':'Raw IQ saving was disabled. ')+
+          (prepared?'IQ saved to user-selected disk file; reopen from disk to analyze. ':recording?
+           'Browser IQ download was requested; verify it in Downloads. ':'Raw IQ saving was disabled. ')+
           'Uncalibrated RF power analysis only; no downlink or satellite identity confirmed.';
         status('scheduled-report',
           job.name+' · '+(freq/1e6).toFixed(3)+' MHz\n'+
@@ -473,6 +477,7 @@ async function startCapture(job=null) {
       }
       log('Session '+session+' captured '+bytesReceived+' real raw USB bytes; receiver released.');
     }catch(e){
+      if(prepared?.writable)await abortLongCapture(prepared);
       log('Capture error: '+e.message);
       status('sample-state','Capture stopped/failed: '+e.message+'. No satellite decoding is claimed.');
       if(job){job.state=stopRequested?'stopped':'blocked';job.message=String(e.message);job.report=null;
@@ -500,7 +505,20 @@ async function stopCapture() {
 $('connect').addEventListener('click',()=>{void connectDevice();});
 $('disconnect').addEventListener('click',()=>{void stopCapture();});
 $('stop').addEventListener('click',()=>{void stopCapture();});
-$('start').addEventListener('click',()=>{void startCapture().catch(e=>log(e.message));});
+$('start').addEventListener('click',()=>{
+ void (async()=>{
+   let prepared=null;
+   try{
+     prepared=await selectLongCaptureFile(Number($('duration').value),Number($('rate').value),
+       $('record').checked,{at:new Date(),freq:Number($('preset').value)});
+     await startCapture(null,prepared);
+   }catch(error){
+     if(prepared?.writable)await abortLongCapture(prepared);
+     status('sample-state',"Capture not started: "+String(error?.message||error));
+     log("Capture preflight: "+String(error?.message||error));
+   }
+ })();
+});
 navigator.usb?.addEventListener('disconnect',e=>{
   stopRequested=true;
   if(device)log('USB disconnection detected; receiving session is stopping.');
