@@ -23,6 +23,7 @@
         <button class="nav" data-view="usb"><b>⌁</b> Direct USB <small>415</small></button>
         <button class="nav" data-view="tv"><b>▣</b> TV Center <small>420</small></button>
         <button class="nav" data-view="translate"><b>文</b> Translation <small>450</small></button>
+        <button class="nav" data-view="text"><b>▤</b> Text &amp; Alerts <small>500</small></button>
         <button class="nav" data-view="radar"><b>✈</b> Flight Radar <small>880</small></button>
         <button class="nav" data-view="notes"><b>▤</b> Offline notes <small>600</small></button>
         <button class="nav" data-view="setup"><b>⬡</b> Setup <small>850</small></button>
@@ -59,6 +60,7 @@
             <article><small>P415 / ZERO INSTALL</small><h3>Direct browser USB</h3><p>Experimental FM mono, optional audio recording and raw IQ capture — no companion installation.</p><button data-view="usb">CONNECT USB</button></article>
             <article><small>P420 / DVB</small><h3>TV Center</h3><p>Regional DVB scan and editable channels with separately authorized TV playback relay in the local app.</p><button data-view="tv">OPEN TV</button></article>
             <article><small>P450 / AI</small><h3>Translator</h3><p>English, German, Turkish plus explicitly installed extra Argos language packs.</p><button data-view="translate">OPEN TRANSLATOR</button></article>
+            <article><small>P500 / TEXT</small><h3>Text &amp; Alerts</h3><p>Read source-attributed RDS, DAB DLS, Teletext, Journaline, NAVTEX and cached text. Official alerts are never inferred from broadcast text.</p><button data-view="text">OPEN TEXT CENTER</button></article>
             <article><small>P880 / ADS-B</small><h3>Flight Radar</h3><p>Original full tar1090 viewer plus optional antenna / Internet / hybrid filters.</p><button data-view="radar">OPEN FLIGHT RADAR</button></article>
             <article><small>P600 / OFFLINE</small><h3>Browser notebook</h3><p>Local browser-only notes available offline, distinct from received RF text.</p><button data-view="notes">OPEN NOTES</button></article>
             <article><small>ORBIT / WEBUSB</small><h3>Satellite browser</h3><p>Direct raw satellite-band IQ capture and orbit estimates without local installation.</p><a href="./satellite/">OPEN SATELLITE MODE</a></article>
@@ -112,6 +114,24 @@
             <p>Keep the original detailed tar1090 viewer. When the local companion is available, a separate ADS-B overlay can show receiver-only, adsb.lol Internet-only or hybrid observations, with stale cache visibly distinguished.</p>
             <div class="actions"><a class="primary" href="http://127.0.0.1:8787/#page=880" target="_blank" rel="noopener">OPEN IN TEXT CENTER</a><a href="http://127.0.0.1/tar1090/" target="_blank" rel="noopener">OPEN FULL LOCAL TAR1090</a><a href="https://globe.adsb.lol/" target="_blank" rel="noopener noreferrer">OPEN PUBLIC INTERNET MAP</a></div>
             <p class="hint">Online data source: adsb.lol, ODbL 1.0. Aircraft data are not safety-critical navigation information. GitHub Pages cannot scan ADS-B hardware without the local receiver.</p></article>
+        </section>
+        <section id="view-text" class="view" hidden>
+          <article class="feature">
+            <small>P500 / BROADCAST TEXT / SAFETY</small>
+            <h2>Text &amp; Alerts</h2>
+            <p>The local Text Center archive reader groups real received FM RDS, DAB+ DLS, DRM, DVB Teletext, Journaline, NAVTEX, HF weather and decoder text, plus separately labeled cached RSS/Atom articles.</p>
+            <p>GitHub Pages alone does not have access to the local SQLite archive or live DVB/DAB decoder. Direct WebUSB raw IQ capture is not decoded Text or an emergency warning. Connect an authorized local companion to read your saved data.</p>
+            <div class="actions">
+              <a class="primary" href="http://127.0.0.1:8787/#page=500" target="_blank" rel="noopener noreferrer">OPEN LOCAL TEXT READER</a>
+            </div>
+            <p class="hint">127.0.0.1 refers to this device. On a phone it cannot reach the computer's receiver without a configured, authenticated local-network gateway. The TV application's own Teletext view is unchanged.</p>
+            <h3>Emergency information is not automatically authenticated</h3>
+            <p>No official alert service is connected in this Pages view. A broadcast message or a cached news article must never be mislabeled as an active official warning.</p>
+            <div class="actions">
+              <a href="https://warnung.bund.de/" target="_blank" rel="noopener noreferrer">Germany · Official warnings</a>
+              <a href="https://www.afad.gov.tr/" target="_blank" rel="noopener noreferrer">Türkiye · AFAD</a>
+            </div>
+          </article>
         </section>
         <section id="view-notes" class="view" hidden>
           <article class="feature"><small>BROWSER-ONLY / OFFLINE</small><h2>Personal text notebook</h2>
