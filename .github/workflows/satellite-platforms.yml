@@ -1,0 +1,34 @@
+name: Satellite Center portable tests
+
+on:
+  pull_request:
+    paths:
+      - 'satellite_center/**'
+      - 'docs/satellite/**'
+      - 'tests/test_satellite_*.py'
+      - '.github/workflows/satellite-platforms.yml'
+  push:
+    paths:
+      - 'satellite_center/**'
+      - 'docs/satellite/**'
+      - 'tests/test_satellite_*.py'
+      - '.github/workflows/satellite-platforms.yml'
+
+jobs:
+  portable-runtime:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, ubuntu-24.04-arm, windows-2022, macos-15]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Portable pairing / loopback HTTP tests (no hardware)
+        run: python -m unittest discover -s tests -p test_satellite_bridge.py -v
+      - name: Python import and bytecode sanity
+        run: python -m compileall -q satellite_center
+      - name: Local receiver doctor (no radio opened)
+        run: python -m satellite_center doctor
