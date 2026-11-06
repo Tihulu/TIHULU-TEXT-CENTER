@@ -1,7 +1,7 @@
 /* TIHULU TEXT CENTER — no external libraries, no background timers fetching data. */
 "use strict";
 
-const state = { audioActive:false, audioPollTimer:null, csrf:"", page:100, subpage:0, source:"", entries:[], pages:[], receivers:null, rdsActive:false, rdsPollTimer:null, scanActive:false, scanPollTimer:null, selectedSurveyBand:"fm" };
+const state = { liveActive:false, livePollTimer:null, liveSession:null, audioActive:false, audioPollTimer:null, csrf:"", page:100, subpage:0, source:"", entries:[], pages:[], receivers:null, rdsActive:false, rdsPollTimer:null, scanActive:false, scanPollTimer:null, selectedSurveyBand:"fm" };
 const $ = (id) => document.getElementById(id);
 
 function el(tag, cls, text) {
@@ -174,6 +174,11 @@ async function refreshSourceChoices(){
   select.value=sources.some(([id])=>id===selected)?selected:"";
 }
 async function openPage(number,source,subpage){
+  if(state.page===400 && Number(number)!==400 && state.liveActive){
+    state.liveActive=false;
+    if(state.livePollTimer){clearTimeout(state.livePollTimer);state.livePollTimer=null;}
+    api("/api/live/radio/stop","POST",{}).catch(()=>{});
+  }
   if(state.page===400 && Number(number)!==400 && state.audioActive){
     state.audioActive=false;
     if(state.audioPollTimer){clearTimeout(state.audioPollTimer);state.audioPollTimer=null;}
@@ -715,6 +720,237 @@ async function pollAudioPreview(){
     notice("FM audio preview status failed: "+error.message);
   }
 }
+function liveRadioCaptionPanel(captions,session){
+  const container=$("live-radio-captions");
+  if(!container)return;
+  container.replaceChildren();
+  if(!captions.length){
+    container.append(el("p","full-body",
+      "No real speech segments decoded yet. A configured local speech model is required; "+
+      "background noise and music may not produce any caption."));
+    return;
+  }
+  for(const item of captions.slice(-12)){
+    const card=el("article","live-caption-row");
+    card.append(el("span","item-meta",
+      "["+item.started_seconds.toFixed(0)+"–"+item.ended_seconds.toFixed(0)+"s] "+
+      item.original_language.toUpperCase()+" · "+item.compute_backend+
+      " · "+item.captured_at));
+    card.append(el("p","caption-original",item.original_text));
+    if(item.translated_text)card.append(el("p","caption-translated",
+      item.translated_language.toUpperCase()+": "+item.translated_text));
+    const actions=el("div","card-actions");
+    if(!item.translated_text){
+      actions.append(button("TRANSLATE THIS CAPTION",async()=>{
+        const target=$("live-later-language")?.value||"tr";
+        try{
+          const result=await api("/api/transcripts/translate","POST",{
+            id:item.id,target_language:target});
+          item.translated_text=result.translated_text;
+          item.translated_language=result.translated_language;
+          liveRadioCaptionPanel(captions,session);
+          notice("Caption translated offline; original preserved.");
+        }catch(err){notice("Translation unavailable: "+err.message)}
+      }));
+    }
+    card.append(actions);
+    container.append(card);
+  }
+}
+async function pollLiveRadio(){
+  if(state.page!==400)return;
+  try{
+    const current=await api("/api/live/radio/status");
+    state.liveActive=current.active;
+    state.liveSession=current.session||state.liveSession;
+    const label=$("live-radio-status");
+    if(label){
+      label.textContent=current.status.toUpperCase()+
+        " · "+(current.frequency_hz?current.frequency_hz/1e6+" MHz":"no tuned station")+
+        " · recording: "+(current.recording?"ON":"OFF")+
+        (current.speech?.enabled?
+          " · ASR "+current.speech.selected_backend+" · "+
+          current.speech.segments_completed+" segments":" · subtitles off")+
+        (current.speech?.error?" · "+current.speech.error:"")+
+        (current.error?" · "+current.error:"");
+    }
+    const start=$("live-radio-start"),stop=$("live-radio-stop");
+    const permission=$("live-radio-consent");
+    if(start)start.disabled=current.active||!permission?.checked||!current.capability?.ready;
+    if(stop)stop.disabled=!current.active;
+    if(state.liveSession){
+      const data=await api("/api/transcripts?session="+encodeURIComponent(state.liveSession));
+      liveRadioCaptionPanel(data,state.liveSession);
+      const links=$("live-export-links");
+      if(links){
+        links.replaceChildren();
+        for(const fmt of ["srt","vtt"]){
+          for(const translated of [false,true]){
+            const link=el("a","action ghost",
+              "SAVE "+(translated?"TRANSLATED":"ORIGINAL")+" "+fmt.toUpperCase());
+            link.href="/api/transcripts/export?session="+
+              encodeURIComponent(state.liveSession)+"&format="+fmt+
+              "&translated="+(translated?"1":"0");
+            link.download="tihulu-"+state.liveSession.slice(0,8)+
+              (translated?"-translated":"-original")+"."+fmt;
+            links.append(link);
+          }
+        }
+      }
+    }
+    if(current.active&&state.page===400){
+      state.livePollTimer=setTimeout(pollLiveRadio,1800);
+    }else{
+      await refreshReceiverStatus();
+    }
+  }catch(e){notice("Live receiver status unavailable: "+e.message);}
+}
+async function addLiveRadio(){
+  const snapshot=await api("/api/live/radio/status");
+  const compute=await api("/api/compute");
+  const panel=el("article","item-card");panel.id="live-radio-center";
+  panel.append(el("div","item-meta","LIVE RF / INDEFINITE RADIO PLAYBACK / OPTIONAL RECORDING"));
+  panel.append(el("h3","","Live FM Radio & Subtitles"));
+  panel.append(el("p","",
+    "Listen continuously over local RTL-SDR → rtl_fm → ffmpeg audio/mpeg. "+
+    "Stop playback at any time. Optional local recording captures the same "+
+    "stream until Stop; no Internet radio is substituted."));
+  const form=el("form","rds-form");
+  const frequency=field("Station frequency (MHz)","number","98.6",10);
+  frequency.input.value="98.6";frequency.input.min="87.5";
+  frequency.input.max="108";frequency.input.step="0.001";
+  const options=el("div","live-grid");
+  const source=el("select"),target=el("select"),backend=el("select");
+  for(const [value,label] of [["en","English"],["de","Deutsch"],["tr","Türkçe"]]){
+    const op=el("option","",label);op.value=value;source.append(op);
+    const ot=el("option","",label);ot.value=value;target.append(ot);
+  }
+  source.value="de";target.value="tr";
+  for(const name of ["auto","cpu","gpu","npu"]){
+    const status=compute.selection[name];
+    const op=el("option","",name.toUpperCase()+" — "+status.detected_device+
+      (status.ready?" · ready":" · not ready"));
+    op.value=name;backend.append(op);
+  }
+  for(const [label,select] of [["Original speech language",source],
+                              ["Translation target",target],
+                              ["Compute (auto or manual)",backend]]){
+    const wrap=el("div","field");
+    wrap.append(el("label","",label),select);options.append(wrap);
+  }
+  form.append(frequency.wrap,options);
+  const flags=el("div","live-choices");
+  const captions=el("input");captions.type="checkbox";captions.id="live-enable-captions";
+  const autoTranslate=el("input");autoTranslate.type="checkbox";autoTranslate.id="live-auto-translate";
+  const record=el("input");record.type="checkbox";record.id="live-record";
+  for(const [input,label] of [[captions,"Enable live original-language transcription"],
+                              [autoTranslate,"Also translate speech live to the target language"],
+                              [record,"Record actual radio audio to local storage"]]){
+    const row=el("label","scan-consent");
+    row.append(input,document.createTextNode(" "+label));flags.append(row);
+  }
+  form.append(flags);
+  const agree=el("input");agree.type="checkbox";agree.id="live-radio-consent";
+  const permission=el("label","scan-consent");
+  permission.append(agree,document.createTextNode(
+    " I approve continuous receiver tuning. Flight Radar, Gqrx, welle.io or "+
+    "other protected recordings must not use this same RTL-SDR."));
+  form.append(permission);
+  const start=el("button","action primary","START LIVE RADIO");
+  start.type="submit";start.id="live-radio-start";
+  const stop=el("button","action ghost","STOP RADIO");
+  stop.type="button";stop.id="live-radio-stop";
+  const actions=el("div","card-actions");
+  actions.append(start,stop);form.append(actions);
+  panel.append(form);
+  const status=el("p","full-body","Not started");status.id="live-radio-status";
+  panel.append(status);
+  const audio=el("audio","local-audio-player");
+  audio.controls=true;audio.preload="none";audio.id="live-radio-player";
+  audio.setAttribute("aria-label","Real live FM radio stream");
+  panel.append(audio);
+  const computeInfo=el("div","scan-summary");
+  computeInfo.append(el("h4","","Detected local compute and offline models"));
+  compute.devices.forEach(d=>computeInfo.append(el("p","full-body",
+    d.id.toUpperCase()+": "+d.name+" · "+
+    (d.detected?"hardware detected":"not detected")+" · "+
+    (compute.selection[d.id].ready?"speech runtime ready":"speech runtime unavailable"))));
+  computeInfo.append(el("p","full-body",
+    "Speech: "+(compute.speech.ready_cpu?"CPU model ready":"CPU model missing")+
+    " · GPU compatible model: "+(compute.speech.ready_gpu?"ready":"not confirmed")+
+    " · NPU compatible model: "+(compute.speech.ready_npu?"ready":"not configured")+
+    " · Argos package: "+(compute.translation.python_package_installed?"installed":"missing")+
+    " · offline language pairs: "+compute.translation.available_pairs.map(p=>p.source+"→"+p.target).join(", ")));
+  panel.append(computeInfo);
+  panel.append(el("h4","","Live / saved transcript (original & translated)"));
+  const captionList=el("div","live-caption-list");captionList.id="live-radio-captions";
+  panel.append(captionList);
+  const later=el("div","field");
+  later.append(el("label","","Translate stored captions later to"));
+  const laterLanguage=el("select");laterLanguage.id="live-later-language";
+  for(const [value,label] of [["en","English"],["de","Deutsch"],["tr","Türkçe"]]){
+    const opt=el("option","",label);opt.value=value;laterLanguage.append(opt);
+  }
+  laterLanguage.value="tr";later.append(laterLanguage);panel.append(later);
+  const exportLinks=el("div","card-actions");exportLinks.id="live-export-links";
+  panel.append(exportLinks);
+  panel.append(el("p","full-body",
+    "Speech/translation runs only with installed compatible local models. "+
+    "When a model or language pair is missing, no artificial caption/translation is shown. "+
+    "Original transcripts remain available for later translation."));
+  $("content").append(panel);
+  agree.addEventListener("change",()=>{start.disabled=!agree.checked||state.liveActive||!snapshot.capability?.ready});
+  form.addEventListener("submit",async e=>{
+    e.preventDefault();if(!agree.checked)return;
+    start.disabled=true;
+    try{
+      const created=await api("/api/live/radio/start","POST",{
+        frequency_mhz:Number(frequency.input.value),record:record.checked,
+        subtitles:captions.checked,
+        original_language:source.value,
+        translated_language:captions.checked&&autoTranslate.checked?target.value:null,
+        backend:backend.value});
+      state.liveActive=created.active;state.liveSession=created.session;
+      const url="/api/live/radio/stream?session="+
+        encodeURIComponent(created.session)+"&token="+encodeURIComponent(state.csrf);
+      audio.src=url;
+      try{await audio.play()}catch(_){
+        notice("Stream started. Press Play on the radio player if browser autoplay was blocked.");
+      }
+      if(state.livePollTimer)clearTimeout(state.livePollTimer);
+      state.livePollTimer=setTimeout(pollLiveRadio,300);
+    }catch(err){notice("Cannot start live radio: "+err.message);start.disabled=false;}
+  });
+  stop.addEventListener("click",async()=>{
+    try{
+      audio.pause();audio.removeAttribute("src");audio.load();
+      await api("/api/live/radio/stop","POST",{});
+      state.liveActive=false;
+      if(state.livePollTimer)clearTimeout(state.livePollTimer);
+      state.livePollTimer=setTimeout(pollLiveRadio,250);
+      notice("Live receiver stopped. Saved audio/captions remain in archive.");
+    }catch(e){notice(e.message)}
+  });
+  state.liveActive=snapshot.active;
+  if(snapshot.session)state.liveSession=snapshot.session;
+  if(snapshot.active&&snapshot.session){
+    audio.src="/api/live/radio/stream?session="+encodeURIComponent(snapshot.session)+
+      "&token="+encodeURIComponent(state.csrf);
+  }
+  if(state.livePollTimer)clearTimeout(state.livePollTimer);
+  state.livePollTimer=setTimeout(pollLiveRadio,500);
+  const recordings=await api("/api/live/radio/recordings");
+  if(recordings.length){
+    const archive=el("div","scan-summary");
+    archive.append(el("h4","","Local radio recordings"));
+    recordings.forEach(r=>{
+      const link=el("a","","SAVE "+r.name+" ("+(r.bytes/1024/1024).toFixed(1)+" MiB)");
+      link.href="/api/live/radio/recording/"+encodeURIComponent(r.name);
+      link.download=r.name;archive.append(link);
+    });
+    panel.append(archive);
+  }
+}
 async function addAudioPreview(){
   const snapshot=await api("/api/audio/status");
   const outer=el("article","item-card");outer.id="fm-audio-panel";
@@ -935,6 +1171,8 @@ async function showRadioData(){
   catch(error){empty("FM spectrum survey unavailable","Could not inspect rtl_power: "+error.message)}
   try {await addRdsControl()}
   catch(error){empty("FM capture control unavailable","Unable to load RDS status: "+error.message)}
+  try {await addLiveRadio()}
+  catch(error){empty("Live FM & subtitles unavailable",error.message)}
   try {await addAudioPreview()}
   catch(error){empty("FM audio preview unavailable",error.message)}
   try {await addWelleDabBridge()}
@@ -1136,6 +1374,12 @@ function bindNavigation(){
   $("page-form").addEventListener("submit",(ev)=>{ev.preventDefault();openPage(Number($("page-number").value),$("source-select").value,Number($("subpage-number").value))});
   $("bookmark-page").addEventListener("click",()=>saveBookmark("Page "+state.page+(state.source?" · "+state.source:""),"page",state.page+":"+state.subpage+":"+state.source).catch((err)=>notice(err.message)));
   window.addEventListener("pagehide",()=>{
+    if(state.liveActive){
+      fetch("/api/live/radio/stop",{
+        method:"POST",headers:{"Content-Type":"application/json","X-Tihulu-CSRF":state.csrf},
+        body:"{}",keepalive:true
+      }).catch(()=>{});
+    }
     if(state.audioActive){
       fetch("/api/audio/stop",{
         method:"POST",headers:{"Content-Type":"application/json","X-Tihulu-CSRF":state.csrf},
