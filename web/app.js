@@ -1140,6 +1140,72 @@ function syncLiveMediaDock(){
     recording.classList.toggle("recording-active",state.fmRecording||state.tvRecording);
   }
 }
+function initCaptionUiForPlay(options,medium){
+  const enabled=$("live-captions-enabled"),original=$("live-caption-original");
+  const translated=$("live-caption-translation"),source=$("live-caption-source");
+  const target=$("live-caption-target");
+  if(enabled)enabled.checked=Boolean(options.enabled);
+  if(original)original.checked=true;
+  if(translated)translated.checked=Boolean(options.translate);
+  if(source)source.value=medium==="tv"?(options.tvSource||"auto"):"auto";
+  if(target)target.value=options.translate?(options.target||"en"):"off";
+  state.tvEffectiveSubtitleSource=null;
+}
+async function applyLiveCaptionControl(){
+  const enabled=$("live-captions-enabled")?.checked===true;
+  const source=$("live-caption-source")?.value||"auto";
+  const original=$("live-caption-original")?.checked!==false;
+  const translated=$("live-caption-translation")?.checked!==false;
+  const target=translated?($("live-caption-target")?.value||"off"):"off";
+  const note=$("live-dock-caption-status");
+  if(state.tvActive){
+    const current=await api("/api/live/tv/captions/configure","POST",{
+      enabled,source,translate_to:target,
+      original_visible:original,translated_visible:translated
+    });
+    state.tvEffectiveSubtitleSource=current.subtitle_effective_source;
+    if(note)note.textContent="TV captions: "+current.subtitle_effective_source+
+      (current.teletext_error?" · "+current.teletext_error:"");
+  }else if(state.liveActive){
+    const current=await api("/api/live/radio/captions/configure","POST",{
+      enabled,translate_to:target
+    });
+    if(note)note.textContent=current.subtitles_active?
+      "FM speech captions active":("FM audio only: "+
+      (current.subtitle_unavailable_reason||"captions off"));
+  }else if(state.dabPlaying){
+    if(!enabled){
+      await stopDabCaptionTap();
+      if(note)note.textContent="DAB audio continues · captions off";
+    }else if(!state.dabCaptionSession){
+      if(!state.dabChannel||!state.dabServiceId){
+        if(note)note.textContent="Select a DAB service first";return;
+      }
+      const prefs=state.channelCaptionPrefs||{};
+      const result=await api("/api/dab/captions/start","POST",{
+        channel:state.dabChannel,service_id:state.dabServiceId,
+        original_language:prefs.source||"en",
+        translated_language:target==="off"?null:target,
+        backend:prefs.backend||"auto",translation_backend:"auto"
+      });
+      if(result.active){
+        state.dabCaptionSession=result.session;
+        if(state.dabCaptionTimer)clearTimeout(state.dabCaptionTimer);
+        state.dabCaptionTimer=setTimeout(pollLiveDabCaptions,400);
+      }
+      if(note)note.textContent=result.active?"DAB captions started":
+        "DAB audio only: "+(result.unavailable_reason||"compatible speech model missing");
+    }else{
+      const result=await api("/api/dab/captions/translate","POST",{
+        translate_to:target
+      });
+      if(note)note.textContent=result.active?
+        "DAB captions · translation "+(target==="off"?"off":"to "+target):
+        "DAB caption decoder inactive";
+    }
+  }
+  renderLiveDockCaptions(state.lastDockCaptions||[],state.tvActive?"tv":"radio");
+}
 function bindMediaDock(){
   const radio=$("live-dock-stop-radio"),tv=$("live-dock-stop-tv");
   if(radio)radio.addEventListener("click",async()=>{
@@ -1162,6 +1228,14 @@ function bindMediaDock(){
       state.tvActive=false;syncLiveMediaDock();
     }catch(e){notice(e.message)}
   });
+  for(const id of ["live-captions-enabled","live-caption-original",
+                   "live-caption-translation","live-caption-source","live-caption-target"]){
+    $(id)?.addEventListener("change",()=>{
+      void applyLiveCaptionControl().catch(error=>{
+        notice("Could not update live captions: "+error.message);
+      });
+    });
+  }
   const volume=$("live-dock-volume"),mute=$("live-dock-mute");
   const players=[$("persistent-radio-player"),$("persistent-tv-player")].filter(Boolean);
   function setVolume(){
