@@ -341,6 +341,35 @@ function renderEarth(){
    }
  }
 
+ // RF-source layers are independently sourced from antenna observations and user-entered transmitter metadata.
+ // Orange circles = UNVALIDATED RSSI-derived range HYPOTHESES; they are not measured propagation time.
+ if(showReal){
+  for(const s of state.rfRanges){
+   if(s.type!=="station"||!showGround)continue;
+   for(const [radius,alpha,dash] of [[s.rangeMeters,".9","8 4"],
+     [s.lowerMeters,".34","3 5"],[s.upperMeters,".34","3 5"]]){
+    const perimeter=ringPoints(s.lat,s.lon,radius,96).map((v,i)=>{const q=pt(v.lat,v.lon);return (i?"L":"M")+q.x.toFixed(1)+" "+q.y.toFixed(1)}).join(" ")+" Z";
+    rings.append(svgel("path",{d:perimeter,fill:"none",stroke:"#ff9472",
+      "stroke-opacity":alpha,"stroke-width":radius===s.rangeMeters?2.5:1.3,"stroke-dasharray":dash}));
+   }
+   place(s,"station","#ff9472",s.name+" · SOURCE COORDINATES USER-SUPPLIED · antenna I/Q captured · "+
+      s.rangeMeters.toFixed(0)+" m modeled distance (UNVALIDATED, not measured range). Antenna origin RTL2832U; source identity NOT decoded.","R");
+  }
+  if(state.rfSolution)place(state.rfSolution,"solution","#ff9472",
+     "RF-ONLY ESTIMATED POSITION · "+state.rfRanges.length+" calibrated antenna source hypotheses · NOT A CERTIFIED FIX","F");
+ }
+ for(const s of state.rfSources){
+   if(s.type==="station"&&showGround&&!state.rfRanges.some(x=>x.id===s.id))
+     place(s,"station","#92adb9",s.name+" · USER-SUPPLIED TRANSMITTER COORDINATES; "+
+       (s.hasActualRF?"actual RTL-SDR I/Q at chosen frequency (source identity not verified)":"NO RF CAPTURE"),"R");
+   if(s.type==="aircraft"&&showAir)
+     place(s,"aircraft","#efafd0",s.name+" · USER-SUPPLIED MOVING AIRCRAFT REFERENCE; "+
+       (s.hasActualRF?"RF energy observed, identity unverified":"NO RF capture")+" · NOT IN 2D RSSI SOLVER","A");
+   if(s.type==="satellite"&&showOrbits)
+     place(s,"orbit","#8baee8",s.name+" · USER-SUPPLIED SATELLITE COORDINATES; "+
+       (s.hasActualRF?"RF energy observed, source identity unverified":"NO RF capture")+" · NOT GNSS TRACKING","S");
+ }
+
  const liveGnss=!state.rfOnly&&!!(state.serialFix&&Date.now()-state.serialAt<90000);
  const liveDevice=!state.rfOnly&&!!(state.browser&&Date.now()-Date.parse(state.browser.acquiredAt||0)<300000);
  // The browser-provided uncertainty radius is a different constraint from radio ranges.
@@ -374,8 +403,10 @@ function renderEarth(){
  }
  renderMethodReadiness(orbits);
  setText("earth-sat-count",orbits.length+" orbit positions PREDICTED; "+(showOrbits?"shown":"hidden by default"));
- setText("earth-ref-count",state.references.length+" reference points; "+state.rangeInputs.length+" user-imported measured range sources");
- if(state.rangeInputs.length){
+ setText("earth-ref-count",(state.references.length+state.rfSources.length)+" external reference coordinates · "+state.rangeInputs.length+" imported measured range sources · "+state.rfRanges.length+" modeled RTL-SDR RSSI hypotheses");
+ if(state.rfOnly){
+   setText("evidence-report",state.rfSolution?"RF-ONLY / RTL-SDR IQ MEASURED · "+state.rfRanges.length+" CALIBRATED RSSI RANGE HYPOTHESES, unverified. Orange dashed distance circles and faded bounds are propagation-model sensitivity NOT accuracy. No browser or device location was used.":"RF-ONLY / NO FIX · "+state.rfSources.filter(s=>s.hasActualRF).length+" real antenna frequency captures · "+state.rfRanges.length+" calibrated range hypotheses. Transmitter coordinates come from external user input; antenna energy alone is NOT transmitter distance.");
+ }else if(state.rangeInputs.length){
    setText("evidence-report",state.rangeInputs.length+" USER-IMPORTED UNVERIFIED RANGES · "+
      "Experimental estimate "+fmt(state.ranges.lat,5)+", "+fmt(state.ranges.lon,5)+
      " · range RMS residual "+state.ranges.rmsResidualMeters.toFixed(1)+" m (NOT location accuracy). "+
@@ -388,6 +419,15 @@ function renderEarth(){
      "Enable 'Show ring explanation' for a clearly labeled simulated demonstration.");
  }
  const evidenceList=$("evidence-sources");evidenceList.replaceChildren();
+ for(const s of state.rfSources){
+   const item=make("div","evidence-source");
+   item.append(make("strong",null,"RTL-SDR / "+s.name+" · "+s.type+" · "+s.frequencyMHz.toFixed(3)+" MHz"));
+   item.append(make("span",null,(s.hasActualRF?"REAL ANTENNA I/Q":"NO ANTENNA OBSERVATION")+
+      (s.calibration?" · user-supplied range calibration":" · no calibration")+
+      " · transmitter identity/coordinates EXTERNAL"));
+   evidenceList.append(item);
+ }
+
  if(active&&(active.simulated||showReal)){
    for(const [i,s] of active.stations.entries()){
      const item=make("div","evidence-source");
