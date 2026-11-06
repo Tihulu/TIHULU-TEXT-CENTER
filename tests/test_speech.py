@@ -42,7 +42,7 @@ class SpeechTests(unittest.TestCase):
                 profile=profile,medium="dvb_tv",
                 transcriber=lambda pcm,lang,backend,prof:"Merhaba dünya",
                 translator=lambda text,src,tgt:"Hallo Welt")
-            engine.feed(b"\\x00"*WINDOW_BYTES)
+            engine.feed(b"\x00"*WINDOW_BYTES)
             end=time.monotonic()+3
             while time.monotonic()<end and not archive.list("a"*32):
                 time.sleep(.02)
