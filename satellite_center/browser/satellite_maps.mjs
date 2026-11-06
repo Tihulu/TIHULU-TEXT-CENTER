@@ -20,6 +20,9 @@ export function mapFootprintKm(altKm,el){
  const R=6371,angle=Math.min(90,Math.max(0,el))*RAD;
  return R*Math.max(0,Math.acos(Math.max(-1,Math.min(1,R/(R+altKm)*Math.cos(angle))))-angle);
 }
+export function mapShouldFallback(successfulTiles,failedTiles,elapsedMs=0){
+ return successfulTiles===0&&(failedTiles>=3||elapsedMs>=9000);
+}
 export function mapSplitDateline(points){
  const result=[];let segment=[];
  for(const point of points){
@@ -54,6 +57,7 @@ export function createSatelliteMaps({getTles,getSatLib,getPasses,getLastCapture,
  const ground=$("earth-map"),sky=$("sky-chart"),info=$("map-detail"),list=$("map-list");
  let leaflet=null,earthMap=null,markers=null,tracks=null,stationPin=null;
  let osmTiles=null,worldOutline=null,worldData=null,worldPromise=null;
+ let worldAttributionAdded=false;
  let tileDeadline=null,tileFailures=0,tileSuccesses=0,basemapRevision=0;
  const basemapChoice=$("map-basemap");
  const basemapStatus=message=>{$("map-basemap-state").textContent=String(message);};
@@ -261,9 +265,12 @@ export function createSatelliteMaps({getTles,getSatLib,getPasses,getLastCapture,
      }
      removeOsm();
      if(!earthMap.hasLayer(worldOutline))worldOutline.addTo(earthMap);
-     earthMap.attributionControl.addAttribution(
-       'World outlines: <a href="https://www.naturalearthdata.com/" target="_blank" rel="noopener noreferrer">Natural Earth (public domain)</a>'
-     );
+     if(!worldAttributionAdded){
+       earthMap.attributionControl.addAttribution(
+         'World outlines: <a href="https://www.naturalearthdata.com/" target="_blank" rel="noopener noreferrer">Natural Earth (public domain)</a>'
+       );
+       worldAttributionAdded=true;
+     }
      basemapStatus(reason ? "OpenStreetMap tiles did not load ("+reason+"). Showing bundled Natural Earth land outlines instead. Satellites, orbit tracks and station marker remain available." :
        "World outlines loaded locally from this GitHub Pages app. Detailed OSM streets are not shown; try Load / retry OpenStreetMap.");
      log("Earth map: bundled Natural Earth fallback active; no external map tile download needed.");
@@ -301,14 +308,16 @@ export function createSatelliteMaps({getTles,getSatLib,getPasses,getLastCapture,
    layer.on("tileerror",()=>{
      if(revision!==basemapRevision)return;
      tileFailures++;
-     if(tileFailures>=3&&tileSuccesses===0)fallBack("multiple tile request errors");
+     if(mapShouldFallback(tileSuccesses,tileFailures))fallBack("multiple tile request errors");
      else if(tileSuccesses>0)basemapStatus("OpenStreetMap partially loaded: "+tileFailures+
        " tile request error(s). Check Brave Shields/network or choose World outlines.");
    });
    layer.addTo(earthMap);
    // Some privacy extensions prevent tile events entirely. Never report success
    // until at least one real tileload; switch to a usable local map after 9s.
-   tileDeadline=setTimeout(()=>fallBack("no tiles loaded within 9 seconds"),9000);
+   tileDeadline=setTimeout(()=>{
+     if(mapShouldFallback(tileSuccesses,tileFailures,9000))fallBack("no tiles loaded within 9 seconds");
+   },9000);
  }
  async function changeBasemap(mode,why=""){
    if(!earthMap)return;
@@ -388,10 +397,10 @@ export function createSatelliteMaps({getTles,getSatLib,getPasses,getLastCapture,
  }
  $("map-load").addEventListener("click",()=>{
   mapStarted=true;
+  const existed=!!earthMap;
   basemapChoice.value="osm";
   void openEarth().then(async()=>{
-    if(earthMap&&osmTiles===null)await changeBasemap("osm");
-    else if(earthMap)await changeBasemap("osm"); // deliberate Retry rechecks tiles
+    if(existed)await changeBasemap("osm"); // explicit retry; first open already starts tiles
     await refresh();
   }).catch(e=>{
    basemapStatus("Earth map unavailable: "+e.message+"; sky chart still works.");
@@ -400,8 +409,11 @@ export function createSatelliteMaps({getTles,getSatLib,getPasses,getLastCapture,
  });
  basemapChoice.addEventListener("change",()=>{
   mapStarted=true;
-  void openEarth().then(async()=>{await changeBasemap(basemapChoice.value);await refresh();})
-    .catch(e=>basemapStatus("Basemap unavailable: "+e.message));
+  const existed=!!earthMap,choice=basemapChoice.value;
+  void openEarth().then(async()=>{
+    if(existed)await changeBasemap(choice);
+    await refresh();
+  }).catch(e=>basemapStatus("Basemap unavailable: "+e.message));
  });
  $("map-recenter").addEventListener("click",()=>{
   if(!earthMap)return;try{const o=observer();earthMap.setView([o.lat,o.lon],Math.max(3,earthMap.getZoom()));}catch(e){status(e.message);}
