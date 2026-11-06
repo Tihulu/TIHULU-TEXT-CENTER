@@ -85,6 +85,9 @@ function headingMeta(data) {
 async function refreshCounts(){
   const d=await api("/api/bootstrap");
   state.csrf=d.csrf;
+  // Display the version reported by the running Python backend, never a stale HTML constant.
+  const version=$("app-version");
+  if(version) version.textContent=d.version || "unknown";
   [["articles","stat-articles"],["pages","stat-pages"],["events","stat-events"],["bulletins","stat-posts"]].forEach(([key,id])=>{$(id).textContent=d.counts[key]});
 }
 function receiverSummary(data){
