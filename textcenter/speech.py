@@ -218,6 +218,18 @@ class SpeechPipeline:
         self.thread=Thread(target=self._worker,daemon=True,name="tihulu-speech-asr")
         self.thread.start()
 
+    def skip(self,pcm:bytes):
+        """Advance real PCM timeline while broadcaster text has priority.
+
+        No audio, synthetic caption, or recognition job is created.
+        Clear an incomplete ASR window to avoid mixing subtitle modes.
+        """
+        if self.stopping.is_set():return
+        if not isinstance(pcm,(bytes,bytearray)):
+            raise ValueError("PCM must contain real bytes")
+        self.samples+=(len(self.buffer)+len(pcm))//2
+        self.buffer.clear()
+
     def feed(self,pcm:bytes):
         if self.stopping.is_set():return
         self.buffer.extend(pcm)
