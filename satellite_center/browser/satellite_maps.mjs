@@ -259,25 +259,38 @@ export function createSatelliteMaps({getTles,getSatLib,getPasses,getLastCapture,
  async function useWorldOutline(reason,revision){
    try{
      const features=await getWorldOutlineData();
-     if(revision!==basemapRevision||!earthMap||basemapChoice.value!=="outline")return;
+     if(revision!==basemapRevision||!earthMap)return;
      if(!worldOutline){
+       // A dedicated SVG renderer prevents Leaflet's preferCanvas setting
+       // from placing the land polygons under its tile/canvas layers.
        worldOutline=leaflet.geoJSON(features,{
+         renderer:leaflet.svg({pane:"world-outline",padding:0.3}),
          pane:"world-outline",
          interactive:false,
-         style:{stroke:true,color:"#709caa",weight:0.9,opacity:0.85,
-                fillColor:"#22566f",fillOpacity:0.82}
+         style:{stroke:true,color:"#a3c9d8",weight:1.25,opacity:0.96,
+                fillColor:"#266a83",fillOpacity:0.88}
        });
      }
-     removeOsm();
+     if(basemapChoice.value==="outline")removeOsm();
      if(!earthMap.hasLayer(worldOutline))worldOutline.addTo(earthMap);
+     worldOutline.setStyle({
+       fillOpacity:basemapChoice.value==="osm"?0.28:0.88,
+       opacity:basemapChoice.value==="osm"?0.65:0.96,
+       color:basemapChoice.value==="osm"?"#bce7f2":"#a3c9d8"
+     });
+     earthMap.invalidateSize();
      if(!worldAttributionAdded){
        earthMap.attributionControl.addAttribution(
          'World outlines: <a href="https://www.naturalearthdata.com/" target="_blank" rel="noopener noreferrer">Natural Earth (public domain)</a>'
        );
        worldAttributionAdded=true;
      }
-     basemapStatus(reason ? "OpenStreetMap tiles did not load ("+reason+"). Showing bundled Natural Earth land outlines instead. Satellites, orbit tracks and station marker remain available." :
-       "World outlines loaded locally from this GitHub Pages app. Detailed OSM streets are not shown; try Load / retry OpenStreetMap.");
+     const numFeatures=worldOutline.getLayers().length;
+     basemapStatus(reason ? "OSM failed ("+reason+"). Showing "+numFeatures+
+       " land shapes from the bundled Natural Earth map. Satellite overlays are retained." :
+       (basemapChoice.value==="outline"?"World map OK: ":"World background ready: ")+
+       numFeatures+" real land polygons loaded from GitHub Pages. "+(basemapChoice.value==="osm"?
+       "OSM raster tiles are optional and may still be blocked.":"No third-party tile server required."));
      log("Earth map: bundled Natural Earth fallback active; no external map tile download needed.");
    }catch(error){
      basemapStatus("Both map backgrounds failed: "+error.message+". Satellite positions may still appear over a plain background.");
@@ -286,7 +299,8 @@ export function createSatelliteMaps({getTles,getSatLib,getPasses,getLastCapture,
  }
  function useOSMTiles(revision){
    removeOsm();
-   if(worldOutline&&earthMap.hasLayer(worldOutline))earthMap.removeLayer(worldOutline);
+   // Keep world coastlines even if the raster server returns blank/blocked tiles.
+   // OSM tiles appear behind the country/continent outlines.
    if(revision!==basemapRevision||basemapChoice.value!=="osm")return;
    tileFailures=0;tileSuccesses=0;
    basemapStatus("Requesting OpenStreetMap tiles for the visible viewport… This is not confirmation that tiles loaded.");
@@ -331,14 +345,16 @@ export function createSatelliteMaps({getTles,getSatLib,getPasses,getLastCapture,
    basemapChoice.value=mode;
    const revision=++basemapRevision;
    clearTileDeadline();
-   if(mode==="outline")await useWorldOutline(why,revision);
-   else useOSMTiles(revision);
+   // Always have a functioning map first, before external tile requests.
+   await useWorldOutline(why,revision);
+   if(revision!==basemapRevision)return;
+   if(mode==="osm")useOSMTiles(revision);
  }
  async function openEarth(){
   if(earthMap){setView("earth");return;}
   if(loading)return loading;
   loading=(async()=>{
-   status("Loading OpenStreetMap only for the visible viewport (no bulk or offline tile download)...");
+   status("Loading built-in land geography; OSM tiles are optional.");
    const css=document.createElement("link");css.rel="stylesheet";
    css.href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css";
    css.crossOrigin="anonymous";css.integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=";
@@ -356,7 +372,7 @@ export function createSatelliteMaps({getTles,getSatLib,getPasses,getLastCapture,
    setView("earth"); // Show container before Leaflet measures its dimensions.
    earthMap=L.map("earth-map",{worldCopyJump:true,preferCanvas:true}).setView([o.lat,o.lon],3);
    const worldPane=earthMap.createPane("world-outline");
-   worldPane.style.zIndex="225"; // above raster tiles, below satellite overlays
+   worldPane.style.zIndex="350"; // above raster tiles (200), below satellite overlays (400)
    markers=L.layerGroup().addTo(earthMap);tracks=L.layerGroup().addTo(earthMap);
    stationPin=L.circleMarker([o.lat,o.lon],{radius:8,color:"#fff",weight:2,
       fillColor:"#27ddff",fillOpacity:0.9}).bindTooltip("Ground station (manual coordinates)").addTo(earthMap);
@@ -403,16 +419,16 @@ export function createSatelliteMaps({getTles,getSatLib,getPasses,getLastCapture,
   });
  }
  $("map-load").addEventListener("click",()=>{
-  mapStarted=true;
-  const existed=!!earthMap;
-  basemapChoice.value="osm";
-  void openEarth().then(async()=>{
-    if(existed)await changeBasemap("osm"); // explicit retry; first open already starts tiles
-    await refresh();
-  }).catch(e=>{
-   basemapStatus("Earth map unavailable: "+e.message+"; sky chart still works.");
-   status("Earth map unavailable: "+e.message);log("OSM map: "+e.message);
-  });
+   mapStarted=true;
+   const existed=!!earthMap;
+   basemapChoice.value="osm";
+   void openEarth().then(async()=>{
+     if(existed)await changeBasemap("osm");
+     await refresh();
+   }).catch(e=>{
+     basemapStatus("Earth map unavailable: "+e.message+". Try bundled outlines in the Base map menu.");
+     log("OSM map: "+e.message);
+   });
  });
  basemapChoice.addEventListener("change",()=>{
   mapStarted=true;
@@ -421,6 +437,22 @@ export function createSatelliteMaps({getTles,getSatLib,getPasses,getLastCapture,
     if(existed)await changeBasemap(choice);
     await refresh();
   }).catch(e=>basemapStatus("Basemap unavailable: "+e.message));
+ });
+ $("map-diagnose").addEventListener("click",async()=>{
+   const checks=[];
+   checks.push("Map engine: "+(earthMap?"Leaflet initialized":"not initialized"));
+   try{
+     const data=await getWorldOutlineData();
+     checks.push("Bundled land data: "+data.features.length+" Natural Earth features loaded");
+     if(earthMap){
+       await changeBasemap("outline");
+       checks.push("Vector land polygons mounted: "+(worldOutline?.getLayers().length||0));
+       checks.push("Actual SVG paths: "+document.querySelectorAll("#earth-map .leaflet-pane.world-outline svg path, #earth-map .leaflet-world-outline-pane svg path").length);
+       checks.push("Map size: "+earthMap.getSize().x+" × "+earthMap.getSize().y);
+     }else checks.push("Choose Earth and then Load / retry OpenStreetMap to initialize Leaflet.");
+   }catch(e){checks.push("Map error: "+e.message);}
+   basemapStatus(checks.join("\n"));
+   log("Map background diagnostic run; no USB activity.");
  });
  $("map-recenter").addEventListener("click",()=>{
   if(!earthMap)return;try{const o=observer();earthMap.setView([o.lat,o.lon],Math.max(3,earthMap.getZoom()));}catch(e){status(e.message);}
