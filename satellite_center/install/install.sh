@@ -28,19 +28,64 @@ cd "$APP_DIR"
 exec "$APP_DIR/.venv-satellite/bin/python" -m satellite_center serve --port 8791 --open-browser
 EOF
 chmod 755 "$BIN_DIR/tihulu-satellite"
+
+# Standalone WebUSB window is the primary desktop shortcut; no local backend
+# is launched by it. Kept separate from the optional local companion command.
+WEB_URL="https://tihulu.github.io/TIHULU-TEXT-CENTER/satellite_center/browser/"
+WEB_LAUNCH="$BIN_DIR/tihulu-satellite-web"
+cat > "$WEB_LAUNCH" <<'EOF'
+#!/bin/sh
+set -eu
+url="https://tihulu.github.io/TIHULU-TEXT-CENTER/satellite_center/browser/"
+for app in brave-browser brave-browser-stable chromium chromium-browser google-chrome google-chrome-stable microsoft-edge; do
+  if command -v "$app" >/dev/null 2>&1; then
+    exec "$app" --app="$url" --class=tihulu-satellite-web
+  fi
+done
+echo "For WebUSB install a supported Chromium-based browser (Brave, Chromium, Chrome or Edge)." >&2
+if command -v firefox >/dev/null 2>&1; then
+  echo "Opening the satellite orbit planner in Firefox. Direct RTL-SDR USB access is NOT available in Firefox." >&2
+  exec firefox --new-window "$url"
+fi
+if command -v xdg-open >/dev/null 2>&1; then exec xdg-open "$url"; fi
+exit 1
+EOF
+chmod 755 "$WEB_LAUNCH"
+
 case "$(uname -s)" in
   Linux)
-    mkdir -p "$HOME/.local/share/applications"
-    cat > "$HOME/.local/share/applications/tihulu-satellite.desktop" <<EOF
+    icon_dir="$HOME/.local/share/icons/hicolor/scalable/apps"
+    mkdir -p "$HOME/.local/share/applications" "$icon_dir"
+    cp "$APP_DIR/satellite_center/assets/tihulu-satellite.svg" "$icon_dir/tihulu-satellite.svg"
+    cat > "$HOME/.local/share/applications/tihulu-satellite-web.desktop" <<EOF
 [Desktop Entry]
 Type=Application
 Name=TIHULU Satellite Center
-Comment=Receive-only satellite dashboard and scheduled captures
-Exec=$BIN_DIR/tihulu-satellite
+Comment=WebUSB satellite receiver in a standalone Chromium window
+Exec=$WEB_LAUNCH
+Icon=tihulu-satellite
 Terminal=false
-Categories=Education;Science;
+StartupNotify=true
+StartupWMClass=tihulu-satellite-web
+Categories=Education;Science;HamRadio;
+Keywords=RTL-SDR;Satellite;ISS;Meteor;WebUSB;
 EOF
-    echo "Optional SDR tools: sudo apt install rtl-sdr multimon-ng"
+    cat > "$HOME/.local/share/applications/tihulu-satellite.desktop" <<EOF
+[Desktop Entry]
+Type=Application
+Name=TIHULU Satellite Center (Local Companion)
+Comment=Optional localhost radio decoding and scheduled satellite captures
+Exec=$BIN_DIR/tihulu-satellite
+Icon=tihulu-satellite
+Terminal=false
+StartupNotify=true
+Categories=Education;Science;HamRadio;
+EOF
+    command -v gtk-update-icon-cache >/dev/null 2>&1 && gtk-update-icon-cache -f "$HOME/.local/share/icons/hicolor" >/dev/null 2>&1 || true
+    echo "App icons registered: TIHULU Satellite Center (browser) and Local Companion."
+    echo "Pin the TIHULU Satellite Center launcher to the COSMIC dock from the Applications menu."
+    echo "If Chromium isn't installed, Firefox can show the planner, but cannot directly open WebUSB."
+    echo "Optional RTL-SDR CLI tools for the local companion: sudo apt install rtl-sdr multimon-ng"
     ;;
   Darwin)
     mkdir -p "$HOME/Applications"
@@ -50,6 +95,7 @@ EOF
     ;;
   *) echo "Use Windows install.ps1 on Windows." >&2; exit 1;;
 esac
-echo "Installed. Start: $BIN_DIR/tihulu-satellite"
+echo "WebUSB browser application: $WEB_LAUNCH (no local SDR service)"
+echo "Optional local decoder companion: $BIN_DIR/tihulu-satellite"
 echo "Local dashboard: http://127.0.0.1:8791/"
 echo "No USB driver, RF capture, remote listener or background daemon was silently activated."
