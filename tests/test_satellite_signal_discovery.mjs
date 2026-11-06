@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import {discoverCu8Contents, discoveryReportJson, cu8ToTunedFmAudio}
+import {discoverCu8Contents, discoveryReportJson, cu8ToTunedFmAudio, sstvCaptureDiagnostic}
  from "../satellite_center/browser/signal_discovery.mjs";
 import {readFileSync} from "node:fs";
 const RATE=1024000,N=2048;
@@ -84,4 +84,15 @@ test("DOM has real progressive controls and downloads remain entirely browser-lo
  assert.ok(ui.includes("audioBlob"));
  assert.ok(ui.includes("ImageData(frame.rgba"));
  assert.ok(!ui.includes("fetch("));
+});
+
+test("Series 35 RF error messages distinguish wrong VHF band, short WAV and pre-event timestamp",()=>{
+ const message=sstvCaptureDiagnostic({centerHz:145800000,recordingSeconds:29.92,
+   fileModifiedMs:Date.UTC(2026,10,6,21,49)});
+ assert.match(message,/437.550 MHz/);
+ assert.match(message,/29.92 s/);
+ assert.match(message,/predates/);
+ const future=sstvCaptureDiagnostic({centerHz:437550000,recordingSeconds:59.84,
+   fileModifiedMs:Date.UTC(2026,10,10,0,0)});
+ assert.equal(future,"");
 });
