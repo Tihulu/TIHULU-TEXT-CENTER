@@ -73,6 +73,7 @@ PROFILES = {
     "cubesat_vhf": {"label": "Amateur VHF survey", "range": "145.0M:146.0M:12.5k", "freq": None, "family": "cubesat"},
     "cubesat_uhf": {"label": "Amateur UHF survey", "range": "435.0M:438.0M:25k", "freq": None, "family": "cubesat"},
     "iridium": {"label": "Iridium L-band RF survey", "range": "1616M:1626.5M:50k", "freq": None, "family": "iridium"},
+    "iridium_rf_iq": {"label": "Iridium L-band 1620 MHz raw IQ candidate only; no message decode", "range": "1616M:1626.5M:50k", "freq": 1620000000, "family": "iridium"},
 }
 MODES = ("survey", "iq", "aprs", "sstv_audio", "fm_audio")
 
@@ -506,32 +507,77 @@ class Station:
     def save_jobs(self):
         safe_write(self.directory/"schedule.json", self.jobs[-150:])
 
-    def schedule(self, pass_id, profile, mode):
+    def schedule(self, pass_id, profile, mode, run_at=None, seconds=None):
+        """Explicit native RF pass schedule (Firefox-compatible, no WebUSB/FSA).
+
+        Enforces server-predicted public TLE event/profile and local disk
+        budget. The client may not supply arbitrary USB commands or pass
+        geometry. Iridium IQ is RF only, with no private message decoder.
+        """
+        if type(seconds) is not int and seconds is not None:
+            raise ValueError("Capture seconds must be a whole number")
         with self.lock:
             event = self.predicted.get(pass_id)
             if not event:
-                raise ValueError("Pass not in current prediction results; recalculate")
+                raise ValueError("Pass not in native prediction results; refresh local TLE and recalculate")
             if profile not in event["profiles"] or mode not in MODES or not allowed_mode(profile, mode):
                 raise ValueError("Unsupported pass/profile/mode combination")
-            aos = datetime.fromisoformat(event["aos"])
-            los = datetime.fromisoformat(event["los"])
+            if mode not in ("iq", "survey"):
+                raise ValueError("Use a named automatic mission for packet/audio decoding")
+            aos = datetime.fromisoformat(event["aos"]).astimezone(UTC)
+            los = datetime.fromisoformat(event["los"]).astimezone(UTC)
             if aos < now()+timedelta(seconds=12) or aos > now()+timedelta(days=3):
-                raise ValueError("Schedule passes starting 12 seconds–3 days from now")
+                raise ValueError("Schedule passes beginning 12 seconds–3 days from now")
             if (los-aos).total_seconds() > 1500:
                 raise ValueError("Predicted pass duration out of range")
-            if sum(j["state"] == "pending" for j in self.jobs) >= 24:
+            if run_at is None:
+                chosen = aos
+            else:
+                if not isinstance(run_at, str) or len(run_at)>70:
+                    raise ValueError("UTC ISO start required")
+                try:
+                    chosen = datetime.fromisoformat(run_at)
+                except ValueError as exc:
+                    raise ValueError("Invalid native scheduled start") from exc
+                if chosen.tzinfo is None:
+                    raise ValueError("Scheduled start must include UTC offset")
+                chosen = chosen.astimezone(UTC)
+            duration = 60 if seconds is None else seconds
+            if type(duration) is not int or not 8 <= duration <= MAX_CAPTURE_SECONDS:
+                raise ValueError("Native recording must be 8–900 whole seconds")
+            if chosen < max(aos, now()+timedelta(seconds=8)):
+                raise ValueError("Native start must be in the future and inside predicted pass")
+            if chosen+timedelta(seconds=duration+END_MARGIN_SECONDS)>los:
+                raise ValueError("Insufficient predicted LOS time for the full requested native recording")
+            free = shutil.disk_usage(self.archive).free
+            reserve = sum(int(other.get("estimated_bytes") or 0) for other in self.jobs
+                          if other.get("state") in ("pending","running"))
+            estimate = 2*1024000*duration if mode == "iq" else 1_000_000
+            if estimate>MAX_IQ_BYTES or free-reserve<estimate+200_000_000:
+                raise ValueError("Insufficient local disk space for raw IQ and safety reserve")
+            if sum(j.get("state")=="pending" for j in self.jobs)>=24:
                 raise ValueError("At most 24 pending captures")
-            if any(j.get("pass_id") == pass_id and j["state"] == "pending" for j in self.jobs):
-                raise ValueError("This pass already has a pending capture")
-            job = {"id": uuid.uuid4().hex[:12], "pass_id": pass_id, "satellite": event["name"],
-                   "family": event["family"], "profile": profile, "mode": mode,
-                   "aos": event["aos"], "los": event["los"], "state": "pending",
-                   "created_at": stamp(), "result": None}
+            for other in self.jobs:
+                if other.get("state") not in ("pending","running"):
+                    continue
+                a=datetime.fromisoformat(other.get("run_at") or other["aos"]).astimezone(UTC)
+                b=a+timedelta(seconds=int(other.get("capture_seconds") or 900))
+                if chosen<b+timedelta(seconds=20) and chosen+timedelta(seconds=duration)>a-timedelta(seconds=20):
+                    raise ValueError("Single RTL-SDR already reserved for overlapping capture")
+            job = {"id": uuid.uuid4().hex[:12], "pass_id": pass_id,
+                   "satellite": event["name"], "family": event["family"],
+                   "profile": profile, "mode": mode,
+                   "aos": event["aos"], "los": event["los"],
+                   "run_at": stamp(chosen), "capture_seconds": duration,
+                   "estimated_bytes": estimate,
+                   "data_kind": "raw RF energy" if event["family"]=="iridium" else "unclassified IQ",
+                   "coverage": "full-pass-attempt" if chosen+timedelta(seconds=duration)>=los-timedelta(seconds=END_MARGIN_SECONDS+5) else "partial-pass",
+                   "state": "pending", "created_at": stamp(), "result": None}
             self.jobs.append(job)
             self.save_jobs()
             self.start_scheduler()
             self.wake.set()
-            return job
+            return dict(job)
 
     def auto_schedule(self, mission_ids, *, city="Cologne", lat=None, lon=None,
                       hours=24, elevation=20, max_jobs=6, coverage_goal="full",
@@ -1320,7 +1366,8 @@ class Handler(BaseHTTPRequestHandler):
             elif route == "/api/refresh":
                 result = app.refresh()
             elif route == "/api/schedule":
-                result = app.schedule(data.get("pass_id"), data.get("profile"), data.get("mode"))
+                result = app.schedule(data.get("pass_id"), data.get("profile"), data.get("mode"),
+                                      data.get("run_at"), data.get("duration_seconds"))
             elif route == "/api/auto-schedule":
                 result = app.auto_schedule(data.get("missions"), city=data.get("city", "Cologne"),
                     lat=data.get("lat"), lon=data.get("lon"),
