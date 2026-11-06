@@ -44,3 +44,30 @@ background:#142a44;border:1px solid #355271;border-left:4px solid #8ad9ff;border
 @media(max-width:980px){.sat-map-layout{grid-template-columns:1fr}.sat-list{max-height:240px}}
 @media(max-width:580px){.map-toolbar{gap:8px}.map-tabs button{flex:1 1 140px}
 .sat-earth{height:350px}.map-sidebar{padding:11px}}
+
+
+/* GPS + country-aware offline city suggestion picker. */
+.location-picker{position:relative;border:1px solid #355674;border-radius:11px;background:#112943;padding:12px;margin:14px 0}
+.location-search-row{display:grid;grid-template-columns:minmax(0,2fr) minmax(115px,1fr);gap:10px;align-items:end}
+.location-search-row>label{min-width:0}
+#city-query{font-size:16px}
+.location-results{display:flex;flex-direction:column;gap:2px;margin:0 0 10px;
+ background:#091c32;border:1px solid #4a6687;border-radius:10px;
+ max-height:270px;overflow-y:auto;box-shadow:0 14px 30px #0005;position:relative;z-index:2}
+.location-results[hidden]{display:none}
+.city-option{background:#102744;border:0;border-bottom:1px solid #294460;
+ font:13px/1.35 system-ui;text-align:left;color:#e5f3ff;padding:10px 12px;
+ min-height:38px;width:100%;border-radius:0}
+.city-option:last-child{border-bottom:0}
+.city-option.active,.city-option:focus,.city-option:hover{background:#235384;outline:2px solid #63b6fb;outline-offset:-2px}
+.location-actions{display:flex;gap:9px;flex-wrap:wrap;align-items:center;margin:7px 0}
+.location-actions>button{flex:1 1 190px}
+.location-actions .location-online-opt{flex:1 1 215px;display:flex;align-items:center;gap:8px;
+font-size:12px;line-height:1.35;margin:0}
+.location-online-opt input{width:16px;height:16px;accent-color:#48baff}
+.location-status{background:#10243a;border-left:3px solid #53adf5;
+padding:9px 11px;color:#d4e7f6;font-size:13px;line-height:1.5;border-radius:7px;
+overflow-wrap:anywhere}
+.location-credit{font-size:11px}
+@media(max-width:580px){.location-search-row{grid-template-columns:1fr}
+.location-actions>button{flex:1 1 100%}}
