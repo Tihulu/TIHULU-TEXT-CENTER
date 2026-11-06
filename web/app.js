@@ -750,7 +750,7 @@ async function addAutomaticChannelScanners(){
     const start=button("START "+kind.toUpperCase()+" AUTO SCAN",async()=>{
       start.disabled=true;
       try{
-        const payload=kind==="fm"?{mode:select.value}:{
+        const payload=kind==="fm"?{mode:select.value,consent:cb.checked}:{
           mode:select.value,consent:cb.checked,
           dwell_seconds:Number($("dab-auto-dwell").value)};
         const data=await api("/api/auto/"+kind+"/start","POST",payload);
