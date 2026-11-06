@@ -57,7 +57,7 @@ export function scheduleForDay(jobs,day){
  return (jobs||[]).filter(j=>{
   if(cancelled(j))return false;
   const a=jobStart(j),b=jobEnd(j);
-  return a&&b&&a<end&&b>=start&&(b>a||a>=start);
+  return a&&b&&a<end&&((b>a&&b>start)||(b.getTime()===a.getTime()&&a>=start));
  }).sort((a,b)=>jobStart(a)-jobStart(b));
 }
 export function calendarHourBuckets(jobs,day){
@@ -68,7 +68,7 @@ export function calendarHourBuckets(jobs,day){
   const b=new Date(a);b.setHours(hour+1,0,0,0);
   return {hour,start:a,end:b,jobs:entries.filter(j=>{
    const first=jobStart(j),last=jobEnd(j);
-   return first<b&&last>=a&&(last>a||first>=a);
+   return first<b&&((last>first&&last>a)||(last.getTime()===first.getTime()&&first>=a));
   })};
  });
 }
