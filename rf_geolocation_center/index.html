@@ -85,20 +85,29 @@
    <section id="view-earth" class="view"><div class="section-head"><div><div class="eyebrow">EARTH MAP</div><h1>Ground tracks and references</h1></div><button id="osm-load" class="secondary">Load OpenStreetMap online (opt-in)</button></div>
      <div class="two-col">
       <article class="panel map-panel">
-       <div class="map-top"><span id="map-center-label">COLONGE REFERENCE · NOT YOUR LOCATION</span><div><button id="map-zoom-out" aria-label="Zoom out">−</button><button id="map-zoom-in" aria-label="Zoom in">+</button></div></div>
+       <div class="map-top"><span id="map-center-label">COLOGNE REFERENCE · NOT YOUR LOCATION</span><div><button id="map-zoom-out" aria-label="Zoom out">−</button><button id="map-zoom-in" aria-label="Zoom in">+</button></div></div>
        <div id="earth-map" class="earth-map" role="img" aria-label="Coordinate map with real location and imported satellite positions">
         <div id="osm-tiles" class="osm-tiles" hidden></div>
-        <svg id="earth-overlay" class="earth-overlay" viewBox="0 0 900 520" preserveAspectRatio="none"><g id="earth-grid"></g><g id="earth-markers"></g></svg>
+        <svg id="earth-overlay" class="earth-overlay" viewBox="0 0 900 520" preserveAspectRatio="none"><g id="earth-grid"></g><g id="earth-rings"></g><g id="earth-markers"></g></svg>
         <div class="map-cross">+</div>
        </div><div class="map-footer"><span>WGS84 · map pan by drag/touch · wheel or +/− zoom</span><span>© OpenStreetMap contributors, tiles only on request</span></div>
       </article>
-      <article class="panel"><h2>Layers and centering</h2>
+      <article class="panel"><h2>Layers and positioning evidence</h2>
+       <div class="earth-layer-controls" aria-label="Map layers">
+         <label><input id="layer-ranges" type="checkbox" checked> Measured radio distance rings</label>
+         <label><input id="layer-stations" type="checkbox" checked> Ground stations and aircraft</label>
+         <label><input id="layer-orbits" type="checkbox"> Predicted satellite ground points (not RF)</label>
+         <label><input id="layer-demo" type="checkbox" checked> Show ring explanation (SIMULATED)</label>
+       </div>
+       <div id="evidence-report" class="evidence-report" role="status">SIMULATED EXAMPLE: three fictional stations demonstrate circle intersections. No real radio ranges have been measured.</div>
+       <button id="earth-fit-evidence" class="secondary" type="button">Fit rings / evidence to map</button>
+       <button id="evidence-clear" class="secondary" type="button">Clear measured ranges</button>
        <div class="field"><label>Current center</label><div id="earth-center">Cologne, Germany (default)</div></div>
        <div class="field"><label>Geolocation source</label><div id="earth-source">Reference center is not a location fix</div></div>
        <div class="field"><label>Predicted orbit markers</label><div id="earth-sat-count">0 — import SP3</div></div>
        <div class="field"><label>Ground transmitters / aircraft</label><div id="earth-ref-count">0 — import your own verified references</div></div>
        <button id="earth-reset" class="secondary">Center on location / reference</button>
-       <p class="muted fine">OpenStreetMap tiles need Internet and are not cached for offline use. The coordinate grid and imported points remain usable without tiles.</p>
+       <p class="muted fine" id="earth-offline-status">Offline fallback: locally rendered coordinate grid, reference markers and range rings remain visible without OpenStreetMap tiles. GNSS-based offline coordinates require a capable receiver, or a previously saved location labeled CACHED.</p>
       </article>
      </div>
    </section>
@@ -118,8 +127,8 @@
       <article class="panel"><h2>Web Serial NMEA (optional)</h2><p>On supported Chromium desktop browsers, request explicit permission to a GNSS serial receiver. This is not an RTL-SDR decoder.</p>
        <button id="serial-connect" class="primary">Connect GNSS serial (9600 baud)</button><button id="serial-disconnect" class="secondary">Disconnect</button>
        <div id="serial-state" class="fine muted">UNAVAILABLE / NOT CONNECTED</div></article>
-      <article class="panel"><h2>WebUSB RTL-SDR permission</h2><p>Select a compatible local receiver in WebUSB-capable browsers. **RF sampling and GNSS acquisition are not implemented.** Device selection never counts as a satellite lock.</p>
-       <button id="usb-select" class="secondary">Select compatible RTL-SDR (no RF open)</button><div id="usb-state" class="fine muted">No USB device selected.</div></article>
+      <article class="panel"><h2>WebUSB RTL-SDR receiver</h2><p>Connect a compatible local RTL-SDR using supported HTTPS Chromium browsers. Bounded uncalibrated IQ sampling is available; actual GNSS acquisition, pseudorange measurements and satellite position fixing are NOT implemented.</p>
+       <button id="usb-select" class="secondary">Connect RTL-SDR via WebUSB</button><div id="usb-state" class="fine muted">No USB device selected.</div></article>
       <article class="panel"><h2>Last valid received coordinates</h2><pre id="receiver-fix" class="result">No valid NMEA messages observed.</pre></article>
       <article class="panel"><h2>GNSS stages</h2><div class="stage-list"><span>DEVICE PRESENT <b id="stage-device">UNAVAILABLE</b></span><span>SIGNAL ACQUIRED <b>UNAVAILABLE</b></span><span>TRACKING / C/N₀ <b>UNAVAILABLE</b></span><span>NAVIGATION DATA <b>UNAVAILABLE</b></span><span>PVT FIX <b id="stage-fix">UNAVAILABLE</b></span></div></article>
      </div>
