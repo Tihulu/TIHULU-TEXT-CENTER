@@ -226,6 +226,35 @@ export function initSimpleUI({state,source,setView,renderEarth,renderPosition,fi
      .map(freq=>({...x,frequencyMHz:freq}))).slice(0,60);
    if(candidates.length)window.dispatchEvent(new CustomEvent("tihulu:rf-autosources",{detail:candidates}));
   }
+  const candidates=$("fm-calibration-source-list");
+  if(candidates){
+   candidates.replaceChildren();
+   const explicit=towerCandidates.flatMap(site=>(site.frequenciesMHz||[])
+     .filter(freq=>Number.isFinite(freq)&&freq>=87.5&&freq<=108)
+     .map(freq=>({site,freq}))).slice(0,50);
+   if(!explicit.length){
+    const empty=document.createElement("p");
+    empty.textContent="No nearby OSM stations contain verified FM-frequency tags. Try a different catalog area or use a published broadcaster/authority list with confirmed site coordinates; do not infer missing frequencies from channel names.";
+    candidates.append(empty);
+   }
+   for(const {site,freq} of explicit){
+    const row=document.createElement("div");row.className="simple-channel fm-calibration-row";
+    const heading=document.createElement("strong");heading.textContent=site.name+" · "+freq.toFixed(3)+" MHz";
+    const note=document.createElement("small");note.textContent="Public OSM frequency tag only. Identity NOT decoded, RF distance NOT measured.";
+    const choose=document.createElement("button");choose.type="button";choose.className="secondary";
+    choose.textContent="Select for RF measurement";
+    choose.addEventListener("click",()=>{
+      window.dispatchEvent(new CustomEvent("tihulu:rf-autosource",{detail:{...site,type:"station",frequencyMHz:freq}}));
+      window.dispatchEvent(new CustomEvent("tihulu:rf-select-source",{detail:{catalogId:site.id,frequencyMHz:freq}}));
+      setView("radio");
+      const advanced=$("radio-advanced-tools");if(advanced)advanced.open=true;
+      $("rf-source-select")?.scrollIntoView({behavior:"smooth",block:"center"});
+      status("quick-radio-status","Selected "+site.name+" · "+freq.toFixed(3)+
+        " MHz as an EXTERNAL calibration candidate. Connect RTL-SDR, capture real I/Q and enter an independently known reference distance. No RF-only fix yet.");
+    });
+    row.append(heading,note,choose);candidates.append(row);
+   }
+  }
   const summary=$("quick-radio-towers");
   if(summary){
    summary.replaceChildren();
