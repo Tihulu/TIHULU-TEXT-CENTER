@@ -150,7 +150,9 @@ class LiveTV:
             raise ValueError("TV flags must be Boolean")
         if subtitle_source not in ("auto","broadcast","speech","off"):
             raise ValueError("TV caption source must be auto, broadcast, speech or off")
-        if not subtitles:subtitle_source="off"
+        if not subtitles or subtitle_source=="off":
+            subtitles=False
+            subtitle_source="off"
         if not upstream_authorized:
             raise LiveTVError("User must confirm dedicated upstream TV tuner lease")
         with self.mutex:
