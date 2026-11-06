@@ -128,7 +128,11 @@
       </div>
     </div>
     <audio id="persistent-radio-player" controls preload="none" aria-label="Continuous local FM radio" hidden></audio>
-    <video id="persistent-tv-player" controls playsinline preload="none" aria-label="Continuous local TV video" hidden></video>
+    <div id="live-dock-radio-captions" class="live-dock-caption" hidden aria-live="polite"></div>
+    <div id="persistent-tv-frame" class="live-video-frame" hidden>
+      <video id="persistent-tv-player" controls playsinline preload="none" aria-label="Continuous local TV video"></video>
+      <div id="live-dock-tv-captions" class="live-tv-overlay" aria-live="polite"></div>
+    </div>
   </section>
 </body>
 </html>

@@ -715,12 +715,28 @@ async function pollAudioPreview(){
     notice("FM audio preview status failed: "+error.message);
   }
 }
+function renderLiveDockCaptions(items,kind){
+  const container=$(kind==="tv"?"live-dock-tv-captions":"live-dock-radio-captions");
+  if(!container)return;
+  container.replaceChildren();
+  if(kind==="radio")container.hidden=!state.liveActive;
+  if(!items.length)return;
+  const last=items[items.length-1];
+  const original=el("p","dock-subtitle-original",
+    "["+last.original_language.toUpperCase()+"] "+last.original_text);
+  container.append(original);
+  if(last.translated_text){
+    container.append(el("p","dock-subtitle-translated",
+      "["+last.translated_language.toUpperCase()+"] "+last.translated_text));
+  }
+}
 function syncLiveMediaDock(){
   const dock=$("live-media-dock");if(!dock)return;
   dock.hidden=!(state.liveActive||state.tvActive);
   const a=$("persistent-radio-player"),v=$("persistent-tv-player");
   if(a)a.hidden=!state.liveActive;
-  if(v)v.hidden=!state.tvActive;
+  const tvFrame=$("persistent-tv-frame");
+  if(tvFrame)tvFrame.hidden=!state.tvActive;
   const label=$("live-dock-title");
   if(label)label.textContent=(state.tvActive?"LIVE TV  ":"")+
     (state.liveActive?"LIVE FM RADIO  ":"")+
@@ -810,6 +826,7 @@ async function pollLiveRadio(){
     if(state.liveSession){
       const data=await api("/api/transcripts?session="+encodeURIComponent(state.liveSession));
       liveRadioCaptionPanel(data,state.liveSession);
+      renderLiveDockCaptions(data,"radio");
       const links=$("live-export-links");
       if(links){
         links.replaceChildren();
@@ -858,6 +875,7 @@ async function pollLiveTV(){
     if(state.tvSession){
       const data=await api("/api/transcripts?session="+encodeURIComponent(state.tvSession));
       liveRadioCaptionPanel(data,state.tvSession,"live-tv-captions");
+      renderLiveDockCaptions(data,"tv");
       const links=$("live-tv-export");
       if(links){
         links.replaceChildren();
