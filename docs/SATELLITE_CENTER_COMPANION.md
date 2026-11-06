@@ -8,6 +8,35 @@ The public web UI is published separately on the repository's `gh-pages` branch.
 
 **Local USB service/dashboard:** http://127.0.0.1:8791/
 
+## Choose your ground station: GPS, offline city search or custom coordinates
+
+In the browser-only Satellite Center under **3 · Satellite pass planner**:
+
+- **Search as you type:** a bundled offline database includes 7,104
+  German and 980 Turkish cities/towns (8,084 records). Suggestions show
+  region and country, so you can distinguish similarly named places.
+  Accents are optional: `koln` can find Köln, and `izmir` can find İzmir.
+  The static city database does not require an external API or key.
+- **Use device location (GPS / Wi-Fi):** asks for browser location permission
+  *only when pressed*. Firefox can use this Geolocation API too, even
+  though its browser does not support WebUSB radio reception. Browser
+  locations can be coarse and have an estimated accuracy radius.
+- **Search worldwide online:** explicitly consults Open-Meteo's
+  GeoNames-backed Geocoding API, and shows candidate results for user
+  confirmation. Online suggestions *while typing* are separately opt-in
+  and disabled by default; only search text is sent, not your GPS
+  coordinates. Free API usage is non-commercial.
+- **Custom coordinates:** directly enter any latitude/longitude in
+  world bounds. No city, browser location permission or Internet
+  connection is required.
+
+Changing station invalidates old predicted pass results. Press
+**Calculate passes** again to recalculate for the new observer; Earth/Sky
+maps also use the same station location. Nothing triggers an SDR capture
+automatically. Data: [GeoNames-derived DE/TR directory](https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/feature/satellite-center-standalone-2026-11-06/satellite_center/browser/CITY_DATA_LICENSE.md)
+under ODbL 1.0, and [Open-Meteo](https://open-meteo.com/en/docs/geocoding-api)
+for optional worldwide lookup.
+
 ## Earth and sky tracking maps (new)
 
 The public [Satellite Center browser app](https://tihulu.github.io/TIHULU-TEXT-CENTER/satellite_center/browser/)
