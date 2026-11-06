@@ -122,7 +122,11 @@ def combine_aircraft(local,remote):
         else:
             existing=result[key]
             # Prefer real nearby antenna observations for equal/fresher age.
-            if row["positioned"] and (not existing["positioned"] or
+            if row.get("stale") and not existing.get("stale"):
+                winner=dict(existing)
+            elif existing.get("stale") and not row.get("stale"):
+                winner=dict(row)
+            elif row["positioned"] and (not existing["positioned"] or
                 row["age_seconds"]<=existing["age_seconds"]+5):
                 winner=dict(row)
             else:
