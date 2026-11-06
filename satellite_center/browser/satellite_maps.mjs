@@ -58,7 +58,7 @@ export function createSatelliteMaps({getTles,getSatLib,getPasses,getLastCapture,
  const status=text=>$("map-state").textContent=String(text);
  const observer=()=>{
   const lat=Number($("lat").value),lon=Number($("lon").value);
-  if(!mapValidCoordinates(lat,lon))throw Error("Invalid ground station coordinates");
+  if(!$("lat").value.trim()||!$("lon").value.trim()||!mapValidCoordinates(lat,lon))throw Error("Enter valid ground station latitude and longitude");
   return {lat,lon,station:{longitude:lon*RAD,latitude:lat*RAD,height:0}};
  };
  const mapDate=()=>new Date(Date.now()+Number(time.value)*60000);
