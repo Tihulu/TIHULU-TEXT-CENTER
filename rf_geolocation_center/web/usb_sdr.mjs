@@ -240,14 +240,17 @@ export function initUsbSDR(report){
    busy=true;sampling=true;stopping=false;sweepCancel=false;beginSample();
    const oldHz=configuredFrequencyHz,oldGain=configuredGain;
    const readings=[],total=Math.min(220,Math.floor((stopMHz-startMHz)/stepMHz+1.001));
+   let scanStage="FM initialization",hardwareControlFailed=false;
    try{
-     if(configuredGain!==20){await receiver.setGain(20);configuredGain=20}
+     if(configuredGain!==20){scanStage="set fixed tuner gain";await receiver.setGain(20);configuredGain=20}
      for(let i=0;i<total&&!stopping&&!sweepCancel;i++){
        const mhz=Math.round((startMHz+i*stepMHz)*1000)/1000;
        const hz=Math.round(mhz*1000000);
-       if(configuredFrequencyHz!==hz){await receiver.setCenterFrequency(hz);configuredFrequencyHz=hz}
+       if(configuredFrequencyHz!==hz){scanStage="tune "+mhz.toFixed(1)+" MHz";await receiver.setCenterFrequency(hz);configuredFrequencyHz=hz}
+       scanStage="flush samples at "+mhz.toFixed(1)+" MHz";
        await receiver.resetBuffer(); // Flush old frequency's samples
        if(stopping||sweepCancel)break;
+       scanStage="read I/Q at "+mhz.toFixed(1)+" MHz";
        const sample=await receiver.readSamples(8192);
        const raw=sample?.data;
        if(!(raw instanceof ArrayBuffer)&&!ArrayBuffer.isView(raw))throw Error("No actual SampleBlock.data from RTL-SDR");
@@ -267,11 +270,15 @@ export function initUsbSDR(report){
    }catch(error){
      if(!stopping){
        const message=String(error?.message||error);
-       notify("FM SWEEP ERROR",message+" · no invented RF results. Try Recover SDR after checking USB ownership; no automatic driver reset.");
-       window.dispatchEvent(new CustomEvent("tihulu:rf-fm-sweep-failed",{detail:{message}}));
+       hardwareControlFailed=/setRegBuffer|control|transfer|reg=/i.test(message);
+       if(hardwareControlFailed)await release(); // no more register writes on a failed tuner session
+       const diagnostic="Step: "+scanStage+" · "+message+
+         " · no invented RF results."+ (hardwareControlFailed?" Receiver released; reconnect using Recover SDR after checking USB ownership, power and driver.":"");
+       notify("FM SWEEP ERROR",diagnostic);
+       window.dispatchEvent(new CustomEvent("tihulu:rf-fm-sweep-failed",{detail:{message:diagnostic,stage:scanStage,completed:readings.length,hardwareControlFailed}}));
      }
    }finally{
-     if(!stopping&&receiver){
+     if(!stopping&&!hardwareControlFailed&&receiver){
        try{
          if(configuredFrequencyHz!==oldHz&&oldHz>0){
            await receiver.setCenterFrequency(oldHz);configuredFrequencyHz=oldHz;
