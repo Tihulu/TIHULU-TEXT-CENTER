@@ -1,4 +1,5 @@
 import { sortSatelliteList, nextPassForSatellite } from './pass_sort.mjs';
+import { createOrbitClock, shouldRefreshLive, trackCacheSlot, LIVE_REFRESH_MS } from './orbit_clock.mjs';
 /* TIHULU satellite tracking maps: browser-only TLE geometry, never RF identity.
  * OSM tiles requested only when the operator opens the Earth map. */
 const $ = id => document.getElementById(id);
@@ -67,6 +68,9 @@ export function createSatelliteMaps({getTles,getSatLib,getPasses,getLastCapture,
    if(tileDeadline!==null){clearTimeout(tileDeadline);tileDeadline=null;}
  }
  let current=[],satrecMap=new Map(),selectedId=null,skyHit=[],run=0,lastUpdate=0;
+ const clock=createOrbitClock();
+ let trackSlot=null;
+ const trackCache=new Map();
  let mapStarted=false,view="sky",loading=null;
  let lastVisibleMarkerCount=0,initialCatalogFitDone=false;
  const status=text=>$("map-state").textContent=String(text);
@@ -75,7 +79,18 @@ export function createSatelliteMaps({getTles,getSatLib,getPasses,getLastCapture,
   if(!$("lat").value.trim()||!$("lon").value.trim()||!mapValidCoordinates(lat,lon))throw Error("Enter valid ground station latitude and longitude");
   return {lat,lon,station:{longitude:lon*RAD,latitude:lat*RAD,height:0}};
  };
- const mapDate=()=>new Date(Date.now()+Number(time.value)*60000);
+ const mapDate=()=>new Date(clock.time());
+ function updateLiveControls(){
+   const live=clock.isLive,button=$("map-now");
+   button.classList.toggle("active",live);
+   button.setAttribute("aria-pressed",String(live));
+   $("map-pause").disabled=!live;
+   const indicator=$("map-live-state");
+   const message=live?"LIVE · updates every second while this tab is visible":
+     "PAUSED / simulated snapshot · press Now / live to resume";
+   // Do not re-announce an aria-live message every second.
+   if(indicator.textContent!==message)indicator.textContent=message;
+ }
  const selected=()=>current.find(x=>String(x.id)===String(selectedId));
  const bandMatch=(x)=>{
   if(!$("map-band").checked)return true;
@@ -381,12 +396,21 @@ export function createSatelliteMaps({getTles,getSatLib,getPasses,getLastCapture,
    if(nearest&&nearest.dist<20)choose(nearest.id);
  });
  function trackCoordinates(s,when,station){
-   const coords=[];
+   // Orbital ground paths change smoothly. Re-evaluate the expensive ±45min
+   // propagation only once per 15 seconds, while marker positions and the
+   // coverage footprint update every second in live mode.
+   const slot=trackCacheSlot(when,station.latitude/RAD,station.longitude/RAD);
+   if(slot!==trackSlot){trackCache.clear();trackSlot=slot;}
+   const key=String(s.id);
+   const old=trackCache.get(key);
+   if(old&&old.line1===s.l1&&old.line2===s.l2)return old.coordinates;
+   const coordinates=[];
    for(let m=-45;m<=45;m+=3){
      const pos=propagate(s.lib,s.rec,new Date(when+m*60000),station);
-     if(pos)coords.push([pos.lat,pos.lon]);
+     if(pos)coordinates.push([pos.lat,pos.lon]);
    }
-   return coords;
+   trackCache.set(key,{line1:s.l1,line2:s.l2,coordinates});
+   return coordinates;
  }
  function coverageBounds(s){
    const radius=mapFootprintKm(s.altKm,Number($("elev").value))/6371;
@@ -416,6 +440,11 @@ export function createSatelliteMaps({getTles,getSatLib,getPasses,getLastCapture,
    const rows=filtered().slice(0,40);
    stationPin.setLatLng([o.lat,o.lon]);
    const target=selected();
+   if(clock.isLive&&$("map-follow-selected").checked&&target){
+     // Camera following is opt-in; otherwise the map never pans away from
+     // the observer's chosen zoom while points move.
+     earthMap.panTo([target.lat,target.lon],{animate:false});
+   }
    const scope=$("map-track-scope").value,coverage=$("map-coverage-scope").value;
    let trackCount=0,coverageCount=0;
    for(const s of rows){
@@ -639,9 +668,15 @@ export function createSatelliteMaps({getTles,getSatLib,getPasses,getLastCapture,
   let lib;try{lib=await getSatLib();}catch(e){status("Orbital library unavailable: "+e.message);return;}
   if(token!==run)return;
   const dt=mapDate(),rows=[];
+  // Reuse parsed TLE records across successive 1-second live frames.
+  // Replace cached records immediately when refreshed orbit lines change.
   for(const item of catalog.slice(0,30)){
    try{
-    const rec=lib.twoline2satrec(item.l1,item.l2);
+    const id=String(item.id);
+    const saved=satrecMap.get(id);
+    const rec=saved&&saved.l1===item.l1&&saved.l2===item.l2?
+      saved.rec:lib.twoline2satrec(item.l1,item.l2);
+    if(rec!==saved?.rec)satrecMap.set(id,{l1:item.l1,l2:item.l2,rec});
     const pos=propagate(lib,rec,dt,o.station);if(!pos)continue;
     const age=Number.isFinite(rec.jdsatepoch)?Math.abs(Date.now()-(rec.jdsatepoch-2440587.5)*86400000)/86400000:null;
     rows.push({...item,...pos,rec,lib,ageDays:age});
@@ -649,8 +684,12 @@ export function createSatelliteMaps({getTles,getSatLib,getPasses,getLastCapture,
   }
   current=rows;
   if(!rows.some(x=>String(x.id)===String(selectedId)))selectedId=rows[0]?.id??null;
-  $("map-time-label").textContent=(Number(time.value)===0?"LIVE / now":(Number(time.value)>0?"+":"")+time.value+" min simulated")+" · "+fmtDate(dt);
-  drawList();drawDetail();drawSky();drawEarth();lastUpdate=Date.now();
+  $("map-time-label").textContent=(clock.isLive?"LIVE / now":"SIMULATION / paused at")+
+    " · "+fmtDate(dt)+" · "+dt.toLocaleTimeString();
+  updateLiveControls();
+  drawList();drawDetail();
+  if(view==="sky")drawSky();else drawEarth();
+  lastUpdate=Date.now();
   if(earthMap && view==="earth" && !initialCatalogFitDone && rows.length)fitTrackedEarth();
   status(rows.length+" TLE-derived satellites · "+rows.filter(s=>s.el>=0).length+" above local horizon"+
    (rows.some(s=>s.ageDays>7)?" · WARNING: stale orbital elements":"")+
@@ -735,24 +774,6 @@ export function createSatelliteMaps({getTles,getSatLib,getPasses,getLastCapture,
    status(report); // visible even when optional Leaflet details are collapsed
    log("Map background diagnostic run; no USB activity.");
  });
- $("map-focus-selected").addEventListener("click",async()=>{
-   if(!earthMap){
-     $("earth-street-details").open=true;
-     try{await openEarth();}catch(e){basemapStatus(e.message);return;}
-   }
-   const s=selected();
-   if(s){earthMap.setView([s.lat,s.lon],Math.max(4,earthMap.getZoom()),{animate:false});}
-   else basemapStatus("Select a satellite first to focus its predicted ground position.");
- });
- $("map-fit-all").addEventListener("click",async()=>{
-   if(!earthMap){
-     $("earth-street-details").open=true;
-     try{await openEarth();}catch(e){basemapStatus(e.message);return;}
-   }
-   // Avoid fitting a nearby-only cluster: show all Earth locations, not
-   // merely the station where no satellite subpoint happens to be overhead.
-   earthMap.setView([15,0],2,{animate:false});drawEarth();
- });
  $("map-focus-selected").addEventListener("click",()=>{
    if(earthMap){focusSelectedEarth();return;}
    $("earth-street-details").open=true;
@@ -765,6 +786,9 @@ export function createSatelliteMaps({getTles,getSatLib,getPasses,getLastCapture,
    void openEarth().then(()=>{drawEarth();fitTrackedEarth();})
      .catch(e=>status("Could not open map to fit satellites: "+e.message));
  });
+ $("map-follow-selected").addEventListener("change",()=>{
+   if($("map-follow-selected").checked&&clock.isLive&&earthMap)focusSelectedEarth();
+ });
  $("map-recenter").addEventListener("click",()=>{
   if(!earthMap)return;try{const o=observer();earthMap.setView([o.lat,o.lon],Math.max(3,earthMap.getZoom()));}catch(e){status(e.message);}
  });
@@ -775,17 +799,44 @@ export function createSatelliteMaps({getTles,getSatLib,getPasses,getLastCapture,
   $(id).addEventListener("change",()=>{if(mapStarted)void refresh();});
  }
  $("preset").addEventListener("change",()=>{drawList();drawDetail();drawSky();drawEarth();});
- time.addEventListener("input",()=>{void refresh();});
- $("map-now").addEventListener("click",()=>{time.value="0";void refresh();});
- $("map-reset-selection").addEventListener("click",()=>{selectedId=null;drawList();drawDetail();drawSky();drawEarth();});
+ time.addEventListener("input",()=>{
+   // Moving the slider freezes a specific simulated timestamp, rather than
+   // silently continuing to advance its offset against wall-clock time.
+   clock.seek(Number(time.value));updateLiveControls();void refresh();
+ });
+ $("map-pause").addEventListener("click",()=>{
+   clock.pause();updateLiveControls();void refresh();
+ });
+ $("map-now").addEventListener("click",()=>{
+   time.value="0";clock.resume();lastUpdate=0;
+   updateLiveControls();void refresh();
+ });
+ $("map-reset-selection").addEventListener("click",()=>{
+   selectedId=null;drawList();drawDetail();
+   if(view==="sky")drawSky();else drawEarth();
+ });
  const tick=setInterval(()=>{
-  if(mapStarted&&!document.hidden&&Number(time.value)===0&&Date.now()-lastUpdate>15000)void refresh();
- },18000);
+   if(shouldRefreshLive({
+     live:clock.isLive,visible:!document.hidden,started:mapStarted,
+     elapsedMs:Date.now()-lastUpdate
+   }))void refresh();
+ },LIVE_REFRESH_MS);
+ const onVisibility=()=>{
+   if(!document.hidden&&mapStarted&&clock.isLive){
+     // Browser tabs throttle timers in the background; jump back to the
+     // real wall clock immediately on return rather than catching up
+     // old animation frames or keeping a resident receiver running.
+     lastUpdate=0;void refresh();
+   }
+ };
+ document.addEventListener("visibilitychange",onVisibility);
  window.addEventListener("pagehide",()=>{
-  clearInterval(tick);clearTileDeadline();removeOsm();
+  clearInterval(tick);
+  document.removeEventListener("visibilitychange",onVisibility);
+  clearTileDeadline();removeOsm();
   if(earthMap){earthMap.remove();earthMap=null;}
  });
- mapStarted=true;setView("sky");drawList();
- status("Load TLE data, then use Sky or Earth. Tracking is geometric; USB permission alone does not prove reception.");
+ mapStarted=true;setView("sky");drawList();updateLiveControls();
+ status("LIVE orbital geometry updates every second when TLEs are loaded and this tab is visible. USB reception remains opt-in.");
  return {refresh,choose};
 }
