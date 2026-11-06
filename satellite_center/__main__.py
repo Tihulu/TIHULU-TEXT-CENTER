@@ -652,8 +652,20 @@ class Station:
                     continue
                 if selected < end+timedelta(seconds=20) and los > start-timedelta(seconds=20):
                     raise ValueError("An existing job needs the same receiver during this pass")
+            plan = plan_capture_budget(aos, los, mission_id,
+                         free_bytes=shutil.disk_usage(self.archive).free+
+                                    int(job.get("estimated_bytes") or 0),
+                         goal=job.get("coverage_goal", "full"),
+                         start_at=selected-timedelta(seconds=10))
+            if not plan["feasible"]:
+                raise ValueError("Edited pass has too little time or free disk for this data type")
             job.update(run_at=stamp(selected), mission_id=mission_id,
                        profile=target_profile, mode=target_mode,
+                       capture_seconds=plan["capture_seconds"],
+                       coverage=plan["coverage"], data_kind=plan["data_kind"],
+                       target_seconds=plan["target_seconds"],
+                       shortfall_seconds=plan["shortfall_seconds"],
+                       estimated_bytes=plan["estimated_bytes"],
                        edited_at=stamp(), result=None)
             self.save_jobs()
             self.wake.set()
