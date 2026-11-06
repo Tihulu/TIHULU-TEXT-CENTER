@@ -46,12 +46,21 @@ test('map always defaults to bundled land geography and offers a real diagnostic
  const app=fs.readFileSync(new URL('../satellite_center/browser/browser.js',import.meta.url),'utf8');
  assert.ok(html.includes('<option value="outline" selected>'));
  assert.ok(html.includes('id="map-diagnose"'));
+ assert.ok(html.includes('id="earth-world-canvas"'));
+ assert.ok(html.includes('id="earth-world-status"'));
+ assert.ok(html.includes('id="earth-street-details"'));
+
  assert.ok(html.includes('id="usb-live-test"'));
  assert.ok(html.includes('id="usb-live-test-report"'));
  assert.ok(script.includes('renderer:leaflet.svg({pane:"world-outline"'));
  assert.ok(script.includes('await useWorldOutline(why,revision)'));
  assert.ok(script.includes('openEarth().then(refresh)'));
  assert.ok(script.includes('earthMap.createPane("world-outline")'));
+ assert.ok(script.includes('async function drawWorldCanvas()'));
+ assert.ok(script.includes('ctx.fill("evenodd")'));
+ assert.ok(script.includes('getWorldOutlineData()'));
+ assert.ok(script.includes('mapStarted=true;setView(kind)'));
+
  assert.ok(app.includes('await probeUsbSamples(device'));
  assert.ok(app.includes('await connectDevice({silent:true})'));
  assert.ok(app.includes('await closeDevice()'));
