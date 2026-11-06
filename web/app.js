@@ -2362,10 +2362,22 @@ async function playTvChannel(channel, record){
     subtitles:captionOptions.enabled,original_language:captionOptions.source,
     translated_language:captionOptions.enabled&&captionOptions.translate?captionOptions.target:null,
     backend:captionOptions.backend,translation_backend:"auto",
-    upstream_authorized:true});
+    upstream_authorized:true,
+    subtitle_source:captionOptions.tvSource||"auto",
+    auxiliary_teletext_consent:Boolean(captionOptions.teletextConsent)});
   state.tvActive=true;
   state.tvRecording=!!record;
   state.tvSession=session.session;
+  state.tvCaptionSourceActive=session.caption_source_active||"off";
+  state.tvCaptionDisplayMode=state.tvCaptionDisplayMode||"both";
+  const tvCaptionProcessing=$("live-tv-caption-processing");
+  if(tvCaptionProcessing)tvCaptionProcessing.checked=Boolean(captionOptions.enabled);
+  const tvCaptionTranslation=$("live-tv-caption-translation");
+  if(tvCaptionTranslation)tvCaptionTranslation.checked=Boolean(captionOptions.translate);
+  const tvCaptionSource=$("live-tv-caption-source");
+  if(tvCaptionSource)tvCaptionSource.value=captionOptions.tvSource||"auto";
+  const tvCaptionTarget=$("live-tv-caption-target");
+  if(tvCaptionTarget)tvCaptionTarget.value=captionOptions.target||"en";
   const note=$("live-dock-caption-status");
   if(note)note.textContent=captionOptions.enabled?
     (session.subtitles_active?"TV live transcription enabled":
@@ -2445,21 +2457,46 @@ async function addChannelCenter(kind){
     "Choose options before Play. Missing AI never stops broadcast playback.");
   speechBox.append(captionControls,hint);
   captionControls.append(transcribe,translateLabel,languageControl,targetControl,backendControl);
-  state.channelCaptionPrefs={enabled:false,translate:false,source:"en",target:"en",backend:"auto"};
+  let tvSource=null,auxReader=null;
+  if(!radio){
+    const sourceSelect=el("label","channel-caption-field");
+    sourceSelect.append(el("span","","TV caption source"));
+    tvSource=el("select");tvSource.id="channel-tv-subtitle-source";
+    for(const [value,label] of [
+      ["auto","Auto · DVB Teletext first → Speech if missing"],
+      ["broadcast","Broadcast Teletext text only"],
+      ["speech","Speech transcription only"],
+      ["off","Captions disabled"]
+    ]){
+      const option=el("option","",label);option.value=value;tvSource.append(option);
+    }
+    sourceSelect.append(tvSource);
+    const consent=el("label","channel-filter-check");
+    auxReader=el("input");auxReader.type="checkbox";
+    auxReader.id="channel-tv-secondary-teletext-reader";
+    consent.append(auxReader,document.createTextNode(
+      " Allow one additional read-only Teletext decoder client on this already-authorized TV relay"));
+    captionControls.append(sourceSelect,consent);
+  }
+  state.channelCaptionPrefs={enabled:false,translate:false,source:"en",
+    target:"en",backend:"auto",tvSource:"auto",teletextConsent:false};
   function syncCaptionOptions(){
     translation.disabled=!captions.checked;
     if(!captions.checked)translation.checked=false;
     const options={enabled:captions.checked,translate:translation.checked,
-      source:source.value,target:target.value,backend:backend.value};
+      source:source.value,target:target.value,backend:backend.value,
+      tvSource:tvSource?.value||"auto",
+      teletextConsent:Boolean(auxReader?.checked)};
     state.channelCaptionPrefs=options;
     hint.textContent=options.enabled?
-      "Live captions requested for the NEXT playback. Only real decoded audio is "+
-      "transcribed; results appear in the persistent player, with SRT/VTT export. "+
-      "Missing AI models leave audio/video unaffected.":
+      (radio?"Live transcription uses actual received audio. ":
+      "Auto prefers real DVB Teletext subtitle cues, falling back to TV audio ASR after a grace period. "+
+      "A second decoder reader needs explicit safe multi-client consent. ")+
+      "Only actual broadcaster/ASR captions are saved; no model or subtitle decoder never interrupts playback.":
       "Live captions off. Turn on before Play to start real-time ASR; "+
       "existing recordings remain available for later translation.";
   }
-  for(const field of [captions,translation,source,target,backend])
+  for(const field of [captions,translation,source,target,backend,tvSource,auxReader].filter(Boolean))
     field.addEventListener("change",syncCaptionOptions);
   try{
     const compute=await api("/api/compute");
