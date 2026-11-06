@@ -8,6 +8,7 @@ without loading the entire RF pass or installing Pillow/Numpy.
 from __future__ import annotations
 
 from .compute_backends import resolve_compute_backend, vectorized_frequency_trace
+from .npu_sstv import scan_real_npu_tones
 from array import array
 from bisect import bisect_left
 from pathlib import Path
@@ -212,6 +213,12 @@ def extract_robot36_wav(path: str | Path, *, max_images: int = MAX_IMAGES,
         result["recorded_seconds"] = round(duration, 3)
         compute = resolve_compute_backend(compute_mode, compute_targets, seconds=duration)
         result["compute"] = compute
+        if "npu" in compute["selected_targets"]:
+            result["npu_analysis"] = {
+                "status": "pending", "provider": "openvino-npu",
+                "windows_processed": 0, "sync_tone_1200_window_count": 0,
+                "image_or_iss_verified": False,
+            }
         for offset in range(0, max(1, int(duration)-31), STEP_SECONDS):
             wav.setpos(offset*rate)
             raw = wav.readframes(min(WINDOW_SECONDS*rate, frames-offset*rate))
