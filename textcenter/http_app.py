@@ -25,6 +25,7 @@ from .capabilities import capability_catalog
 from .fm_survey import FMSurveySupervisor, SurveyError
 from .scan_catalog import scan_capabilities
 from .radar_bridge import RadarOverlay, RadarError
+from .language_packs import LanguagePacks, LanguagePackError
 from .auto_scan import FMAutoScanner,DABAutoScanner,AutoScanError,dab_channels_from_peaks
 from .channel_catalog import ChannelCatalog
 
@@ -63,6 +64,7 @@ class LocalServer(ThreadingHTTPServer):
     def __init__(self, address, store: Store):
         self.store = store
         self.radar = RadarOverlay(store)
+        self.languages = LanguagePacks()
         self.media = MediaStore(store)
         self.stations=ChannelCatalog(store)
         self.transcripts = TranscriptStore(store)
@@ -223,6 +225,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(200,self.server.postprocess.status())
             if route == "/api/translation/status":
                 return self._json(200,translation_devices())
+            if route == "/api/languages/status":
+                return self._json(200,self.server.languages.status())
             if route == "/api/radar/status":
                 return self._json(200,self.server.radar.status())
             if route == "/api/compute":
@@ -416,7 +420,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         route = urlsplit(self.path).path
-        allowed = {"/api/feeds/add", "/api/feeds/refresh", "/api/bulletins", "/api/bookmarks", "/api/rds/start", "/api/rds/stop", "/api/fm-survey/start", "/api/fm-survey/stop", "/api/scans/start", "/api/scans/stop", "/api/audio/start", "/api/audio/stop", "/api/dab/refresh", "/api/live/radio/start", "/api/live/radio/stop", "/api/transcripts/translate", "/api/translation/text", "/api/live/tv/start", "/api/live/tv/stop", "/api/recordings/transcription/start", "/api/recordings/transcription/stop", "/api/radar/refresh", "/api/auto/fm/start", "/api/auto/fm/stop", "/api/auto/dab/start", "/api/auto/dab/stop", "/api/auto/dab/tune"}
+        allowed = {"/api/feeds/add", "/api/feeds/refresh", "/api/bulletins", "/api/bookmarks", "/api/rds/start", "/api/rds/stop", "/api/fm-survey/start", "/api/fm-survey/stop", "/api/scans/start", "/api/scans/stop", "/api/audio/start", "/api/audio/stop", "/api/dab/refresh", "/api/live/radio/start", "/api/live/radio/stop", "/api/transcripts/translate", "/api/translation/text", "/api/live/tv/start", "/api/live/tv/stop", "/api/recordings/transcription/start", "/api/recordings/transcription/stop", "/api/radar/refresh", "/api/languages/refresh", "/api/languages/install", "/api/languages/translate", "/api/auto/fm/start", "/api/auto/fm/stop", "/api/auto/dab/start", "/api/auto/dab/stop", "/api/auto/dab/tune"}
         if route not in allowed:
             return self._json(404, {"error": "Not found"})
         if self.headers.get("X-Tihulu-CSRF") != self.server.csrf_token:
@@ -501,6 +505,16 @@ class Handler(BaseHTTPRequestHandler):
                     upstream_authorized=payload.get("upstream_authorized",False)))
             if route == "/api/live/tv/stop":
                 return self._json(200,self.server.live_tv.stop())
+            if route == "/api/languages/refresh":
+                return self._json(200,self.server.languages.refresh_index(
+                    consent=payload.get("consent",False)))
+            if route == "/api/languages/install":
+                return self._json(202,self.server.languages.install(
+                    payload.get("source"),payload.get("target"),
+                    consent=payload.get("consent",False)))
+            if route == "/api/languages/translate":
+                return self._json(200,self.server.languages.translate(
+                    payload.get("text"),payload.get("source"),payload.get("target")))
             if route == "/api/radar/refresh":
                 return self._json(200,self.server.radar.refresh(
                     mode=payload.get("mode","antenna"),
@@ -571,7 +585,7 @@ class Handler(BaseHTTPRequestHandler):
             if route == "/api/bookmarks":
                 self.server.store.add_bookmark(payload.get("label"),payload.get("target_type"),payload.get("target"))
                 return self._json(201, {"saved": True})
-        except (CaptureError, SurveyError, AudioError, DABError, LiveError, LiveTVError, SpeechError, TranslatorUnavailable, PostProcessError, AutoScanError, RadarError) as exc:
+        except (CaptureError, SurveyError, AudioError, DABError, LiveError, LiveTVError, SpeechError, TranslatorUnavailable, PostProcessError, AutoScanError, RadarError, LanguagePackError) as exc:
             self._json(409, {"error": str(exc)})
         except KeyError as exc:
             self._json(404, {"error": str(exc)})
