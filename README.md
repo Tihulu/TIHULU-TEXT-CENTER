@@ -5,6 +5,7 @@ A lightweight, offline-first, English-language information and text-network cent
 ## Satellite Center — standalone companion 🛰️
 
 **[Open Satellite Center on GitHub Pages](https://tihulu.github.io/TIHULU-TEXT-CENTER/satellite_center/)** ·
+[Earth & Sky maps](https://tihulu.github.io/TIHULU-TEXT-CENTER/satellite_center/browser/#satellite-tracking-maps) ·
 [One-line installation / USB pairing guide](docs/SATELLITE_CENTER_COMPANION.md) ·
 [Satellite Center source and review (PR #9)](https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/9)
 
