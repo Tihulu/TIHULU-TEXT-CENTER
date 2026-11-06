@@ -33,7 +33,7 @@ function sourceById(){return sources.find(s=>s.id===selected)||null}
 function broadcast(){
  window.dispatchEvent(new CustomEvent("tihulu:rf-survey-updated",{
   detail:{rfOnly,sources:sources.map(s=>({id:s.id,name:s.name,type:s.type,lat:s.lat,lon:s.lon,
-   frequencyMHz:s.frequencyMHz,hasActualRF:!!s.lastObservation,catalog:s.catalog||null,metadataOrigin:s.metadataOrigin||"USER SUPPLIED",
+   frequencyMHz:s.frequencyMHz,hasActualRF:!!s.lastObservation,catalogId:s.catalogId||null,catalog:s.catalog||null,metadataOrigin:s.metadataOrigin||"USER SUPPLIED",
    calibration:!!s.calibration})),
    ranges:rangeEstimates.map(s=>({...s})),solution:solution?{...solution}:null}
  }));
@@ -120,7 +120,7 @@ function addCatalogCandidate(candidate){
   return false;
  if(sources.some(s=>s.catalogId===candidate.id&&Math.abs(s.frequencyMHz-candidate.frequencyMHz)<.001))return false;
  if(sources.length>=60)return false;
- const id="catalog-"+String(candidate.id).slice(0,85);
+ const id="catalog-"+String(candidate.id).slice(0,74)+"-"+String(Math.round(candidate.frequencyMHz*1000));
  if(sources.some(s=>s.id===id))return false;
  sources.push({id,catalogId:candidate.id,name:String(candidate.name||"OSM transmitter").slice(0,100),
   lat:candidate.lat,lon:candidate.lon,type:"station",frequencyMHz:candidate.frequencyMHz,
