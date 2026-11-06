@@ -39,3 +39,10 @@ test("APRS UHF is separate from SSTV and no retired/unsupported satellites are a
  assert.throws(()=>selectAutomaticPasses([],{mode:"noaa",now}),/Unknown/);
  assert.throws(()=>selectAutomaticPasses([],{mode:"images",now,maxJobs:99}),/limits/);
 });
+
+test("All mode alternates ISS image and packet frequencies between passes",()=>{
+ const twice=[pass(25544,3600000),pass(25544,5400000)];
+ const r=selectAutomaticPasses(twice,{mode:"all",now,maxJobs:6});
+ assert.deepEqual(r.scheduled.map(x=>x.missionId),["iss-sstv","iss-aprs"]);
+ assert.deepEqual(r.scheduled.map(x=>x.frequency),[437550000,437825000]);
+});
