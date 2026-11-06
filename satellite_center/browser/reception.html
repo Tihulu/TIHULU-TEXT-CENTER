@@ -24,9 +24,11 @@
 <section id="auto-mission-center" aria-labelledby="auto-mission-title">
 <div class="receiver-readiness" role="status" aria-live="polite"><span id="auto-runtime">Checking platform…</span><span id="auto-receiver">No receiver activated</span><span id="auto-decoders">Decoder availability depends on this device</span></div>
 <h2 id="auto-mission-title">Automatic satellite reception — three buttons</h2>
+<p class="hint"><strong>ARISS Series 35 / Space Memories · 9–16 November 2026:</strong> 437.550 MHz FM (±10 kHz Doppler), Robot36, nominal 36 s/image + 120 s silent. Exact start/end times are still TBD. ARISS web text has a Robot 35/36 discrepancy; <a href="https://www.ariss.org/upcoming-sstv-events.html" rel="noopener noreferrer" target="_blank">verify before receiving</a>. Choose <strong>ISS SSTV ONLY</strong> and <strong>Full pass</strong> with local companion for automatic WAV-to-PNG extraction of multiple genuine synchronization candidates. This is not live ISS video or confirmation of origin.</p>
 <p class="hint">Select supported public downlinks, then arm the nearest non-overlapping passes. It never activates a transmitter, claims the SDR in the background or pretends every predicted pass contains data. Native companion schedules persist while its service runs; browser-only WebUSB requires an open visible tab.</p>
 <div class="reception-controls">
 <label>Receive<select id="auto-mission-group">
+<option value="iss-images">ISS SSTV ONLY · 9–16 Nov Series 35 · Robot36</option>
 <option value="images">Earth weather images + ISS SSTV (event-dependent)</option>
 <option value="messages">ISS public APRS messages (station mode dependent)</option>
 <option value="voice">ISS FM voice / audio (station mode dependent)</option>
@@ -64,7 +66,7 @@
 </div>
 <div class="reception-actions">
 <button type="button" id="auto-mission-arm">1 · Auto Schedule &amp; Capture</button>
-<button type="button" id="auto-mission-analyze" class="secondary">2 · Analyze Recordings</button>
+<button type="button" id="auto-mission-analyze" class="secondary">2 · Preview Auto-Decoded PNGs / Analyze WAV</button>
 <button type="button" id="auto-mission-extract" class="secondary" disabled>3 · Extract Results</button>
 <button type="button" id="auto-mission-cancel" class="secondary" disabled>Stop analysis</button>
 <button type="button" id="auto-mission-stop" class="secondary">Cancel Auto Missions</button>
@@ -233,5 +235,5 @@
 </section>
 <footer>Same bundled page on GitHub Pages, installed PWA, Linux, Raspberry Pi OS, Windows and macOS native companion. This tab never opens USB, uploads RF samples or fabricates satellite pictures; use the existing verified capture/decoder controls when available.</footer>
 </main>
-<script type="module" src="./reception.mjs?v=20261106-calendar-zip-v2"></script>
+<script type="module" src="./reception.mjs?v=20261106-series35-v1"></script>
 </body></html>
