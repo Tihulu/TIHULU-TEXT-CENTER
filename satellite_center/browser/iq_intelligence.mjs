@@ -138,12 +138,15 @@ function wavPcm16(samples,sampleRate){
  return new Blob([buffer],{type:"audio/wav"});
 }
 export async function demodulateCu8Preview(blob,{sampleRate,offsetHz=0,mode="nfm",
- durationSec=6,signal=null,onProgress=()=>{}}={}){
+ durationSec=6,startSeconds=0,signal=null,onProgress=()=>{}}={}){
  const rate=Number(sampleRate);validate(blob,rate,null);
  if(!["am","nfm"].includes(mode))throw Error("Select AM or NFM.");
  if(!Number.isFinite(offsetHz)||Math.abs(offsetHz)>rate/2)throw Error("Tune offset lies outside captured IQ bandwidth.");
  const decimation=Math.max(1,Math.floor(rate/48000)),outRate=rate/decimation;
- const maxSamples=Math.min(Math.floor(blob.size/2),Math.floor(Math.max(1,Math.min(durationSec,10))*rate));
+ if(!Number.isFinite(startSeconds)||startSeconds<0)throw Error("Invalid preview start time.");
+ const firstSample=Math.floor(startSeconds*rate);
+ const maxSamples=Math.min(Math.max(0,Math.floor(blob.size/2)-firstSample),
+   Math.floor(Math.max(1,Math.min(durationSec,10))*rate));
  const length=Math.floor(maxSamples/decimation);
  if(length<100)throw Error("Not enough I/Q samples to preview.");
  const audio=new Float32Array(length);
@@ -153,7 +156,7 @@ export async function demodulateCu8Preview(blob,{sampleRate,offsetHz=0,mode="nfm
  while(pos<maxSamples){
    if(signal?.aborted)throw Error("Audio processing stopped.");
    const n=Math.min(65536,maxSamples-pos);
-   const data=new Uint8Array(await blob.slice(pos*2,(pos+n)*2).arrayBuffer());
+   const data=new Uint8Array(await blob.slice((firstSample+pos)*2,(firstSample+pos+n)*2).arrayBuffer());
    for(let k=0;k<n;k++){
      const i=(data[k*2]-127.5)/128,q=(data[k*2+1]-127.5)/128;
      const cs=Math.cos(phase),sn=Math.sin(phase);
@@ -179,6 +182,6 @@ export async function demodulateCu8Preview(blob,{sampleRate,offsetHz=0,mode="nfm
  const gain=Math.min(8,0.22/rms);
  for(let i=0;i<out;i++)audio[i]=Math.tanh(audio[i]*gain);
  return {blob:wavPcm16(audio.subarray(0,out),Math.round(outRate)),
-  outputSampleRate:Math.round(outRate),seconds:out/outRate,mode,offsetHz,
+  outputSampleRate:Math.round(outRate),seconds:out/outRate,mode,offsetHz,startSeconds:firstSample/rate,
   warning:"Experimental analog AM/NFM audio only. Demodulation does not identify a transmitter, decode a satellite protocol, or verify RF source position."};
 }
