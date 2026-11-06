@@ -44,6 +44,35 @@ installed SatDump/multimon-ng and for scheduling while the browser tab is
 closed but the companion runs. It is not the required path for the
 browser-only capture mode. A physical Nooelec test is still pending.
 
+## Earth & Sky Maps (v0.4, browser-only)
+
+The direct GitHub Pages application includes an **interactive OpenStreetMap
+Earth tracker** and an original **Heavens-Above-style azimuth/elevation sky
+plot**. Both use the same local/browser-refreshed TLEs as the pass planner:
+
+- Predicted ground subpoints, real-time sky angles and range for ISS, Meteor-M,
+  amateur CubeSat candidates and Iridium NEXT; filter by type, local horizon
+  and selected *candidate* SDR band.
+- Select a satellite on the map, in the list or on the sky plot to inspect
+  azimuth/elevation, pass details, TLE age and candidate receiver frequency.
+  Selecting MHz **never** starts a capture.
+- Chosen orbit segment (±45 minutes), estimated contact footprint, and a
+  ±45/+90 minute simulation slider that never labels past/future positions
+  as live radio detections.
+- **OSM tiles load only after clicking Load OpenStreetMap**, follow the
+  OSMF attribution, Referer, and no-prefetch/no-offline policies. Sky-chart
+  drawing needs no map tile service.
+- Official Heavens-Above comparisons and SatNOGS transmitter database
+  links are optional external references, not embedded feeds or evidence of
+  an active transmitter.
+- Firefox can display the Earth/sky maps even though its WebUSB reception
+  mode is unavailable. Chromium browsers can show maps and direct USB capture.
+
+See [MAPS.md](MAPS.md) for functionality, map/privacy policies,
+geometry-only indicators, and hardware limitations. These maps do not
+decode spacecraft traffic, and current reception is **not proven** merely
+because a satellite is above the horizon.
+
 ## What works (subject to installed tools and actual RF)
 
 - Local, mobile-responsive browser UI at **`http://127.0.0.1:8791/`** (independent from Text Center's `8787`).
