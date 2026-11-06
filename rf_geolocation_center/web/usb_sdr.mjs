@@ -221,11 +221,11 @@ export function initUsbSDR(report){
          "This browser driver/device session is no longer trusted; release it, then use Recover SDR for ONE reinitialization attempt. "+ 
          "Check other SDR owners, Linux USB driver, power and browser compatibility.":
          "Hardware sampling failed; no RF measurement was accepted.";
+       if(transfer)await release(); // clean up the exact device we own; no implicit reattempt.
        notify("RF CAPTURE ERROR","Stage: "+rfStage+" · "+detail+" · "+explanation);
        window.dispatchEvent(new CustomEvent("tihulu:rf-capture-failed",{
          detail:{stage:rfStage,message:detail,frequencyMHz,sourceId:String(sourceId||""),recoverable:transfer}
        }));
-       if(transfer)await release(); // clean up the exact device we own; no implicit reattempt.
      }
    }
    finally{sampling=false;busy=false;endSample()}
