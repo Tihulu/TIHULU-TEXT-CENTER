@@ -76,10 +76,6 @@ class Handler(BaseHTTPRequestHandler):
         q = parse_qs(parsed.query, keep_blank_values=True)
         try:
             if route in ("/", "/index.html", "/assets/app.js", "/assets/styles.css"):
-                name = {" / ": ""}.get(route)  # No dynamic path joining.
-                del name
-                filename = {" / ": ""}  # Keep asset route mapping explicit.
-                del filename
                 mapping = {"/": "index.html", "/index.html": "index.html",
                            "/assets/app.js": "app.js", "/assets/styles.css": "styles.css"}
                 data = (WEB_DIR / mapping[route]).read_bytes()
