@@ -168,6 +168,21 @@ class HTTPTests(unittest.TestCase):
         self.assertEqual(json.loads(raw),[])
         self.assertEqual(self.request("GET","/api/media/file/garbage")[0],404)
 
+    def test_dab_connector_never_starts_radio_without_explicit_request(self):
+        code,_,raw=self.request("GET","/api/dab/last")
+        self.assertEqual(code,200)
+        self.assertFalse(json.loads(raw)["connected"])
+        self.assertEqual(self.request("POST","/api/dab/refresh",{})[0],403)
+        _,_,bootstrap=self.request("GET","/api/bootstrap")
+        csrf=json.loads(bootstrap)["csrf"]
+        self.assertEqual(self.request("POST","/api/dab/refresh",
+             {"include_images":"yes"},csrf)[0],400)
+        # A fake non-welle endpoint is refused; never claim a broadcast.
+        self.server.dab.fetcher=lambda path,limit: b"11D" if path=="/channel" else b'{"services":[]}'
+        self.assertEqual(self.request("POST","/api/dab/refresh",
+             {"include_images":False},csrf)[0],409)
+        self.assertFalse(self.server.dab_last["connected"])
+
     def test_no_forged_source(self):
         code,_,raw=self.request("GET","/api/page?source_id=ard_text&number=100")
         self.assertEqual(code,404)

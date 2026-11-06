@@ -14,6 +14,7 @@ from .fm_rds import FMRSDSupervisor, CaptureError
 from .fm_audio import FMPreview, AudioError
 from .media import MediaStore
 from .dvb_hardware import diagnose_dvb
+from .dab_bridge import DABReader,DABError
 from .capabilities import capability_catalog
 from .fm_survey import FMSurveySupervisor, SurveyError
 from .scan_catalog import scan_capabilities
@@ -49,6 +50,8 @@ class LocalServer(ThreadingHTTPServer):
     def __init__(self, address, store: Store):
         self.store = store
         self.media = MediaStore(store)
+        self.dab = DABReader(store)
+        self.dab_last = {"connected":False,"message":"No welle-cli web receiver checked yet"}
         self.csrf_token = secrets.token_urlsafe(32)
         self.rds = FMRSDSupervisor(store)
         self.survey = FMSurveySupervisor(
@@ -165,6 +168,8 @@ class Handler(BaseHTTPRequestHandler):
                 status = self.server.survey.status()
                 status["capability"] = self.server.survey.availability()
                 return self._json(200, status)
+            if route == "/api/dab/last":
+                return self._json(200,self.server.dab_last)
             if route == "/api/dvb/status":
                 return self._json(200,diagnose_dvb())
             if route == "/api/media":
@@ -233,7 +238,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         route = urlsplit(self.path).path
-        allowed = {"/api/feeds/add", "/api/feeds/refresh", "/api/bulletins", "/api/bookmarks", "/api/rds/start", "/api/rds/stop", "/api/fm-survey/start", "/api/fm-survey/stop", "/api/scans/start", "/api/scans/stop", "/api/audio/start", "/api/audio/stop"}
+        allowed = {"/api/feeds/add", "/api/feeds/refresh", "/api/bulletins", "/api/bookmarks", "/api/rds/start", "/api/rds/stop", "/api/fm-survey/start", "/api/fm-survey/stop", "/api/scans/start", "/api/scans/stop", "/api/audio/start", "/api/audio/stop", "/api/dab/refresh"}
         if route not in allowed:
             return self._json(404, {"error": "Not found"})
         if self.headers.get("X-Tihulu-CSRF") != self.server.csrf_token:
@@ -260,6 +265,12 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(202, self.server.survey.start())
             if route == "/api/fm-survey/stop":
                 return self._json(200, self.server.survey.stop())
+            if route == "/api/dab/refresh":
+                if type(payload.get("include_images",True)) is not bool:
+                    raise ValueError("Invalid DAB image option")
+                result=self.server.dab.refresh(include_images=payload.get("include_images",True))
+                self.server.dab_last={"connected":True,**result}
+                return self._json(200,self.server.dab_last)
             if route == "/api/audio/start":
                 return self._json(202,self.server.audio.start(
                     payload.get("frequency_mhz"),payload.get("duration_seconds",12)))
@@ -288,7 +299,7 @@ class Handler(BaseHTTPRequestHandler):
             if route == "/api/bookmarks":
                 self.server.store.add_bookmark(payload.get("label"),payload.get("target_type"),payload.get("target"))
                 return self._json(201, {"saved": True})
-        except (CaptureError, SurveyError, AudioError) as exc:
+        except (CaptureError, SurveyError, AudioError, DABError) as exc:
             self._json(409, {"error": str(exc)})
         except KeyError as exc:
             self._json(404, {"error": str(exc)})
