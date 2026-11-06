@@ -59,6 +59,6 @@ test('dateline split and contact radius remain geometric and bounded',()=>{
 });
 
 test('map display cannot be confused with detected RF signal',()=>{
- assert.match(map,/Predictions, not radio reception/);
+ assert.match(map,/Predicted satellite positions are not RF detections/);
  assert.match(html,/not received RF detections/);
 });
