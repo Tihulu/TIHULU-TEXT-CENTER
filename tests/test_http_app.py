@@ -40,6 +40,35 @@ class HTTPTests(unittest.TestCase):
         conn.close()
         return result
 
+    def test_owned_rf_service_controls_are_same_origin_and_safe(self):
+        status,_,data=self.request("GET","/api/dab/manage/status")
+        self.assertEqual(status,200)
+        self.assertFalse(json.loads(data)["active"])
+        self.assertEqual(self.request("POST","/api/receiver/stop-all",{})[0],403)
+        self.assertEqual(self.request("POST","/api/dab/manage/start",{
+            "channel":"11D","owner":"browser-client-123",
+            "consent":True})[0],403)
+        _,_,raw=self.request("GET","/api/bootstrap")
+        csrf=json.loads(raw)["csrf"]
+        self.assertEqual(self.request("POST","/api/dab/manage/start",{
+            "channel":"11D","owner":"browser-client-123",
+            "consent":False},csrf)[0],409)
+        self.assertEqual(self.request("POST","/api/dab/manage/start",{
+            "channel":"11D;rm -rf /","owner":"browser-client-123",
+            "consent":True},csrf)[0],409)
+        state=self.request("GET","/api/receiver/owned-status")
+        self.assertEqual(state[0],200)
+        self.assertTrue(json.loads(state[2])["external_receivers_not_managed"])
+        out=self.request("POST","/api/receiver/stop-all",{},csrf)
+        self.assertEqual(out[0],200)
+        body=json.loads(out[2])
+        self.assertTrue(body["external_processes_untouched"])
+        self.assertIn("dab",body["receivers"])
+        stop=self.request("POST","/api/dab/manage/stop",{
+            "owner":"browser-client-123","owner_only":True},csrf)
+        self.assertEqual(stop[0],200)
+        self.assertFalse(json.loads(stop[2])["stopped"])
+
     def test_ui_and_local_navigation(self):
         code,headers,data=self.request("GET","/")
         self.assertEqual(code,200)
