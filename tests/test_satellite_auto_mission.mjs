@@ -10,25 +10,34 @@ const pass=(id,aos,span=540000,maximum=65)=>({
 test("Single-click image mission selection only chooses supported real frequencies",()=>{
  const p=[pass(57166,3600000),pass(59051,7000000),pass(25544,10000000),pass(99999,15000000)];
  const result=selectAutomaticPasses(p,{mode:"images",now,maxJobs:6});
- assert.equal(result.scheduled.length,3);
- assert.deepEqual(result.scheduled.map(x=>x.missionId),["meteor-m2-3","meteor-m2-4","iss-sstv"]);
- assert.deepEqual(result.scheduled.map(x=>x.frequency),[137900000,137900000,437550000]);
+ assert.equal(result.scheduled.length,1);
+ assert.deepEqual(result.scheduled.map(x=>x.missionId),["iss-sstv"]);
+ assert.deepEqual(result.scheduled.map(x=>x.frequency),[437550000]);
+ assert.equal(result.skipped.length,2);
+ assert.ok(result.skipped.every(x=>/native SatDump/.test(x.reason)));
  assert.ok(result.scheduled.every(x=>x.sampleRate===1024000&&x.saveRaw&&x.durationSeconds===60));
 });
-test("One radio never auto-schedules overlapping missions",()=>{
- const passes=[pass(25544,3600000),pass(57166,3650000),pass(59051,6000000)];
+test("Single receiver still rejects overlap between two ISS passes",()=>{
+ const passes=[pass(25544,3600000),pass(25544,3650000),pass(25544,6000000)];
  const result=selectAutomaticPasses(passes,{mode:"all",now,maxJobs:6});
  assert.equal(result.scheduled.length,2);
  assert.equal(result.skipped.length,1);
  assert.match(result.skipped[0].reason,/receiver conflict/);
 });
+test("Explicit short-sample mode can record Meteor RF but never promise an Earth picture",()=>{
+ const result=selectAutomaticPasses([pass(57166,3600000)],{mode:"images",goal:"sample",now});
+ assert.equal(result.scheduled.length,1);
+ assert.equal(result.scheduled[0].coverage,"partial-pass");
+ assert.match(result.scheduled[0].limitation,/RF sample only/);
+ assert.equal(result.scheduled[0].estimatedBytes,122880000);
+});
 test("Manual pending pass takes priority and all entries remain geometry-only",()=>{
- const result=selectAutomaticPasses([pass(57166,3600000)],{
+ const result=selectAutomaticPasses([pass(25544,3600000)],{
   now,existingJobs:[{state:"armed",passAos:now+3500000,passLos:now+4000000}]
  });
  assert.equal(result.scheduled.length,0);
  assert.equal(result.skipped.length,1);
- assert.match(result.note,/not.*complete LRPT/);
+ assert.match(result.note,/full Meteor imagery needs native/);
 });
 test("APRS UHF is separate from SSTV and no retired/unsupported satellites are armed",()=>{
  const r=selectAutomaticPasses([pass(25544,3600000),pass(57166,4200000)],{now,mode:"messages"});
@@ -42,11 +51,11 @@ test("APRS UHF is separate from SSTV and no retired/unsupported satellites are a
 
 test("Automatic 60-second recordings never overrun a predicted pass",()=>{
  const tooShort=pass(25544,3600000,49000);
- const valid=pass(59051,7200000,60000);
+ const valid=pass(25544,7200000,60000);
  const result=selectAutomaticPasses([tooShort,valid],{mode:"images",now});
  assert.equal(result.skipped.length,1);
  assert.match(result.skipped[0].reason,/too short/);
- assert.deepEqual(result.scheduled.map(x=>x.missionId),["meteor-m2-4"]);
+ assert.deepEqual(result.scheduled.map(x=>x.missionId),["iss-sstv"]);
  assert.ok(result.scheduled.every(x=>x.when+x.durationSeconds*1000<=x.until));
 });
 
