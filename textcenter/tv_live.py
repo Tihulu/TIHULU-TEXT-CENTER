@@ -77,7 +77,7 @@ def zap_command(executable:str, channels_file:str, service:str)->list[str]:
     if not service or len(service)>160 or any(c in "\x00\r\n" for c in service):
         raise ValueError("Invalid DVB service")
     return [executable,"-a","0","-f","0","-c",channels_file,
-            "-r","-P",service]
+            "-r","-p",service]
 
 
 def tv_ffmpeg_command(exe:str,*,audio_fd:int|None=None)->list[str]:
@@ -337,7 +337,7 @@ class LiveTV(LiveRadio):
                                 failure="Video player cannot keep up; stream stopped instead of dropping MP4 fragments"
                                 self._stop.set()
                                 break
-            if self._state["bytes_encoded"]==0 and failure is None and not self._stop.is_set():
+            if self._state["bytes_encoded"]==0 and failure is None:
                 failure="No real DVB video decoded"
         except (OSError,LiveRadioError,ValueError) as exc:
             failure=str(exc)[:230]
