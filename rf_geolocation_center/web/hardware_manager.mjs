@@ -106,6 +106,18 @@ export function initHardwareManager({setView}){
  mount("serial-connect","hardware-gnss-slot");
  mount("serial-disconnect","hardware-gnss-slot");
  $("hardware-add").addEventListener("click",()=>{void addDevice()});
+ $("home-tv-identify")?.addEventListener("click",async()=>{
+  if(!supported()){
+   set("home-tv-state","TV USB WebUSB listing unavailable. Use local DVB adapter discovery: Connect TV tuner and Approve.");
+   return;
+  }
+  set("home-tv-state","Opening generic browser USB permission selector for TV device identification only. Linux DVB driver remains in control.");
+  await addDevice();
+  const devices=await refresh();
+  const tv=devices.filter(device=>classify(device).type==="dvb");
+  if(tv.length)set("home-tv-state",tv.length+" permitted Hauppauge USB device(s) listed; physical channel scan still requires the local Linux DVB frontend. Click Connect TV tuner.");
+  else set("home-tv-state","No browser-permitted Hauppauge USB device listed. This does not prove the TV tuner is missing: Linux DVB may own its protected USB interface. Connect TV tuner to detect /dev/dvb natively.");
+ });
  $("hardware-refresh").addEventListener("click",()=>{void refresh({announce:true})});
  $("hardware-release")?.addEventListener("click",()=>$("live-release")?.click());
  $("radio-connect-rtl")?.addEventListener("click",()=>window.dispatchEvent(new CustomEvent("tihulu:hardware-connect-rtl",{detail:{device:null}})));
