@@ -21,7 +21,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: Tihulu/tihulu-flight-radar
-          ref: 4237d9811d2bf99e775d1f84ccf8ed103ea5387a
+          ref: a5d41badab6d4d6345bb49bca4196d7b6d5ff8f9
           path: flight-radar-source
           persist-credentials: false
       - uses: actions/setup-node@v4
@@ -34,7 +34,7 @@ jobs:
           node --check tihulu_flight_radar/web/app.js
           node --check tihulu_flight_radar/web/browser_usb.mjs
           node --check tihulu_flight_radar/web/adsb_worker.mjs
-          node --test tests/web_bridge.test.cjs tests/pages_tar.test.cjs tests/browser_adsb.test.cjs tests/browser_source.test.cjs tests/aircraft_visuals.test.cjs tests/webusb_sampleblock.test.cjs
+          node --test tests/web_bridge.test.cjs tests/pages_tar.test.cjs tests/browser_adsb.test.cjs tests/browser_source.test.cjs tests/aircraft_visuals.test.cjs tests/webusb_sampleblock.test.cjs tests/internet_sources.test.cjs
       - name: Checkout existing live GitHub Pages branch
         uses: actions/checkout@v4
         with:
