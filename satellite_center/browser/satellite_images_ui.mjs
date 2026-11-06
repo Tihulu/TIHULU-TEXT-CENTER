@@ -244,7 +244,7 @@ export function initSatelliteImageUI({onTune=()=>{},onTargetChange=()=>{},log=()
    },
    recordAudioCapture(blob,name){
      if(!blob||typeof blob.slice!=="function"||blob.size<44||!String(name).endsWith(".wav"))return;
-     lastWavBlob=blob;lastWavName=name;
+     lastWavBlob=new File([blob],name,{type:"audio/wav",lastModified:Date.now()});lastWavName=name;
      if($("image-decode-last-wav"))$("image-decode-last-wav").disabled=false;
      errorText("image-decode-status","Real browser FM-demodulated WAV available: "+name+
        ". Choose Decode last captured FM WAV to check 1200 Hz Robot36 synchronization. Audio does not prove ISS reception.");
