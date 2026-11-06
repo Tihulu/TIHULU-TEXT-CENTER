@@ -541,6 +541,7 @@ function invalidatePasses(){
  let cancelled=0;
  for(const job of jobs){
    if(job.state==='armed'){
+     releaseScheduledStream(job);
      job.state='cancelled';
      job.message='Ground station changed. Recalculate passes for the new location and schedule again.';
      cancelled++;
@@ -1003,7 +1004,8 @@ function paintBrowserCalendar(force=false){
    onEdit:showCalendarEdit,
    onCancel:job=>{
      if(job.state==='armed'){
-       job.state='cancelled';job.message='Cancelled explicitly by operator. No RF capture started.';
+       releaseScheduledStream(job);
+     job.state='cancelled';job.message='Cancelled explicitly by operator. No RF capture started.';
        browserCalendarSignature='';renderJobs();
      }
    }
@@ -1045,7 +1047,8 @@ function renderJobs(){
      const cancel=document.createElement('button');cancel.type='button';
      cancel.className='secondary';cancel.textContent='Cancel scheduled scan';
      cancel.addEventListener('click',()=>{
-       job.state='cancelled';job.message='Cancelled by user. No RF capture started.';
+       releaseScheduledStream(job);
+     job.state='cancelled';job.message='Cancelled by user. No RF capture started.';
        renderJobs();
      });controls.append(cancel);
    }
@@ -1128,6 +1131,7 @@ async function scheduledTick(){
        visible:!document.hidden,receiverBusy:!!capturePromise||usbTestRunning
      });
      if(action==='missed'){
+        releaseScheduledStream(job);
        job.state='missed';job.message='Pass ended or insufficient time remained for a complete recording. No radio data collected.';
        log('Missed '+job.name+': pass window expired.');
        continue;
@@ -1150,10 +1154,16 @@ async function scheduledTick(){
        if(!device)throw Error('WebUSB did not open the selected RTL-SDR.');
        if(document.hidden)throw Error('Browser became hidden; scheduled RF operation cancelled.');
        const remaining=Math.floor((job.until-Date.now())/1000);
-       if(remaining<1){job.state='missed';job.message='Pass ended before the SDR could be opened.';
-         await closeDevice();continue;}
-       job.durationSeconds=Math.min(job.durationSeconds,remaining);
-       await startCapture(job);
+       if(remaining<job.durationSeconds){
+         releaseScheduledStream(job);
+         job.state='missed';job.message='Insufficient predicted LOS time for full requested recording.';
+         await closeDevice();continue;
+       }
+       const prepared=preparedLongStreams.get(job.id)||null;
+       if(job.diskStreamPrepared&&!prepared?.writable)
+         throw Error('Preauthorized CU8 file writer unavailable; re-plan explicitly.');
+       preparedLongStreams.delete(job.id);
+       await startCapture(job,prepared);
      }catch(e){
        job.state='blocked';job.message='Could not start real USB reception: '+e.message+
          '. Check readsb/Gqrx conflicts, OS drivers, RTL-SDR permission and page visibility.';
@@ -1181,6 +1191,10 @@ window.addEventListener('pagehide',()=>{
   stopRequested=true;
   if(wakeLock){void wakeLock.release().catch(()=>{});wakeLock=null;}
   if(device)void device.close().catch(()=>{});
+  for(const [id,prepared] of preparedLongStreams){
+    preparedLongStreams.delete(id);
+    void abortLongCapture(prepared);
+  }
 });
 document.addEventListener('visibilitychange',()=>{
   if(document.hidden && (capturePromise || device)){
@@ -1269,7 +1283,8 @@ $('auto-stop').addEventListener('click',async()=>{
   let cancelled=0;
   for(const job of jobs){
     if(job.missionId&&job.state==='armed'){
-      job.state='cancelled';job.message='Operator cancelled automatic reception before the pass.';
+      releaseScheduledStream(job);
+     job.state='cancelled';job.message='Operator cancelled automatic reception before the pass.';
       cancelled++;
     }
   }
