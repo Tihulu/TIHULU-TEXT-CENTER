@@ -15,6 +15,9 @@ from .fm_audio import FMPreview, AudioError
 from .media import MediaStore
 from .dvb_hardware import diagnose_dvb
 from .dab_bridge import DABReader,DABError
+from .live_fm import LiveFM,LiveError
+from .transcripts import TranscriptStore,TranslatorUnavailable,installed_translation_pairs
+from .compute import detect_devices,choose_backend
 from .capabilities import capability_catalog
 from .fm_survey import FMSurveySupervisor, SurveyError
 from .scan_catalog import scan_capabilities
@@ -50,6 +53,7 @@ class LocalServer(ThreadingHTTPServer):
     def __init__(self, address, store: Store):
         self.store = store
         self.media = MediaStore(store)
+        self.transcripts = TranscriptStore(store)
         self.dab = DABReader(store)
         self.dab_last = {"connected":False,"message":"No welle-cli web receiver checked yet"}
         self.csrf_token = secrets.token_urlsafe(32)
@@ -61,6 +65,9 @@ class LocalServer(ThreadingHTTPServer):
             rds=self.rds, survey=self.survey,
             lock_dir=store.filename.parent / ".receiver-locks"
         )
+        self.live_fm=LiveFM(archive_dir=store.filename.parent/"recordings",
+                            lock_dir=store.filename.parent/".receiver-locks",
+                            transcripts=self.transcripts)
         super().__init__(address, Handler)
 
 
@@ -181,6 +188,80 @@ class Handler(BaseHTTPRequestHandler):
                     return self._json(404, {"error":"No such decoded broadcast image"})
                 mime, raw=file
                 return self._send(200,raw,mime)
+            if route == "/api/compute":
+                profile=detect_devices()
+                profile["selection"]={key:choose_backend(profile,key)
+                                      for key in ("auto","cpu","gpu","npu")}
+                profile["translation"]["available_pairs"]=installed_translation_pairs()
+                return self._json(200,profile)
+            if route == "/api/live/radio/status":
+                state=self.server.live_fm.status(heartbeat=True)
+                state["capability"]=self.server.live_fm.availability()
+                return self._json(200,state)
+            if route == "/api/live/radio/recordings":
+                return self._json(200,self.server.live_fm.recordings())
+            if route.startswith("/api/live/radio/recording/"):
+                filename=route[len("/api/live/radio/recording/"):]
+                file=self.server.live_fm.recording(filename)
+                if not file:
+                    return self._json(404,{"error":"Recording not found"})
+                self.send_response(200)
+                self.send_header("Content-Type","audio/mpeg")
+                self.send_header("Content-Length",str(file.stat().st_size))
+                self.send_header("Content-Disposition",'attachment; filename="'+filename+'"')
+                self.send_header("Cache-Control","no-store")
+                self.send_header("X-Content-Type-Options","nosniff")
+                self.send_header("Connection","close")
+                self.end_headers()
+                try:
+                    with file.open("rb") as recorded:
+                        while True:
+                            chunk=recorded.read(65536)
+                            if not chunk:break
+                            self.wfile.write(chunk)
+                except (BrokenPipeError,ConnectionResetError):
+                    pass
+                self.close_connection=True
+                return
+            if route == "/api/live/radio/stream":
+                # The GET itself opens no tuner; an explicit CSRF-protected POST
+                # must already have allocated the session. Single listener only.
+                session=q.get("session",[""])[0]
+                token=q.get("token",[""])[0]
+                state=self.server.live_fm.status(heartbeat=False)
+                if token!=self.server.csrf_token or not state["active"] or session!=state["session"]:
+                    return self._json(403,{"error":"Invalid or inactive radio session"})
+                self.send_response(200)
+                self.send_header("Content-Type","audio/mpeg")
+                self.send_header("Transfer-Encoding","chunked")
+                self.send_header("Cache-Control","no-store")
+                self.send_header("X-Content-Type-Options","nosniff")
+                self.send_header("Connection","close")
+                self.end_headers()
+                try:
+                    for chunk in self.server.live_fm.stream(session):
+                        self.wfile.write(("%X\r\n"%len(chunk)).encode("ascii"))
+                        self.wfile.write(chunk)
+                        self.wfile.write(b"\r\n")
+                        self.wfile.flush()
+                    self.wfile.write(b"0\r\n\r\n")
+                except (BrokenPipeError,ConnectionResetError,OSError,LiveError):
+                    self.server.live_fm.stop()
+                self.close_connection=True
+                return
+            if route == "/api/transcripts":
+                return self._json(200,self.server.transcripts.list(
+                    q.get("session",[""])[0][:100] or None,limit=2000))
+            if route == "/api/transcripts/export":
+                session=q.get("session",[""])[0]
+                if len(session)!=32 or any(x not in "0123456789abcdef" for x in session):
+                    raise ValueError("Expected original 32-character recording session")
+                fmt=q.get("format",["srt"])[0]
+                translated=q.get("translated",["0"])[0]=="1"
+                content=self.server.transcripts.export(session,fmt=fmt,translated=translated)
+                return self._send(200,content.encode("utf-8"),
+                    "text/vtt; charset=utf-8" if fmt=="vtt" else
+                    "application/x-subrip; charset=utf-8")
             if route == "/api/audio/status":
                 state=self.server.audio.status()
                 state["capability"]=self.server.audio.availability()
@@ -238,7 +319,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         route = urlsplit(self.path).path
-        allowed = {"/api/feeds/add", "/api/feeds/refresh", "/api/bulletins", "/api/bookmarks", "/api/rds/start", "/api/rds/stop", "/api/fm-survey/start", "/api/fm-survey/stop", "/api/scans/start", "/api/scans/stop", "/api/audio/start", "/api/audio/stop", "/api/dab/refresh"}
+        allowed = {"/api/feeds/add", "/api/feeds/refresh", "/api/bulletins", "/api/bookmarks", "/api/rds/start", "/api/rds/stop", "/api/fm-survey/start", "/api/fm-survey/stop", "/api/scans/start", "/api/scans/stop", "/api/audio/start", "/api/audio/stop", "/api/dab/refresh", "/api/live/radio/start", "/api/live/radio/stop", "/api/transcripts/translate"}
         if route not in allowed:
             return self._json(404, {"error": "Not found"})
         if self.headers.get("X-Tihulu-CSRF") != self.server.csrf_token:
@@ -271,6 +352,19 @@ class Handler(BaseHTTPRequestHandler):
                 result=self.server.dab.refresh(include_images=payload.get("include_images",True))
                 self.server.dab_last={"connected":True,**result}
                 return self._json(200,self.server.dab_last)
+            if route == "/api/live/radio/start":
+                return self._json(202,self.server.live_fm.start(
+                    payload.get("frequency_mhz"),record=payload.get("record",False),
+                    subtitles=payload.get("subtitles",False),
+                    language=payload.get("original_language","en"),
+                    translate_to=payload.get("translated_language"),
+                    backend=payload.get("backend","auto")))
+            if route == "/api/live/radio/stop":
+                return self._json(200,self.server.live_fm.stop())
+            if route == "/api/transcripts/translate":
+                item=self.server.transcripts.translate_later(
+                    payload.get("id"),payload.get("target_language"))
+                return self._json(200,item)
             if route == "/api/audio/start":
                 return self._json(202,self.server.audio.start(
                     payload.get("frequency_mhz"),payload.get("duration_seconds",12)))
@@ -299,7 +393,7 @@ class Handler(BaseHTTPRequestHandler):
             if route == "/api/bookmarks":
                 self.server.store.add_bookmark(payload.get("label"),payload.get("target_type"),payload.get("target"))
                 return self._json(201, {"saved": True})
-        except (CaptureError, SurveyError, AudioError, DABError) as exc:
+        except (CaptureError, SurveyError, AudioError, DABError, LiveError, TranslatorUnavailable) as exc:
             self._json(409, {"error": str(exc)})
         except KeyError as exc:
             self._json(404, {"error": str(exc)})
@@ -320,6 +414,7 @@ def run_server(store: Store, *, host: str = "127.0.0.1", port: int = 8787):
     except KeyboardInterrupt:
         pass
     finally:
+        server.live_fm.stop(wait=True)
         server.audio.stop(wait=True)
         server.survey.stop(wait=True)
         server.rds.stop(wait=True)

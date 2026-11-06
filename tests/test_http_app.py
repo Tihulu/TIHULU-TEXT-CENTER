@@ -183,6 +183,27 @@ class HTTPTests(unittest.TestCase):
              {"include_images":False},csrf)[0],409)
         self.assertFalse(self.server.dab_last["connected"])
 
+    def test_live_radio_transcript_and_compute_routes(self):
+        status,_,raw=self.request("GET","/api/compute")
+        self.assertEqual(status,200)
+        self.assertIn("npu",json.loads(raw)["selection"])
+        status,_,raw=self.request("GET","/api/live/radio/status")
+        self.assertEqual(status,200)
+        self.assertFalse(json.loads(raw)["active"])
+        self.assertEqual(self.request("GET",
+            "/api/live/radio/stream?session=none&token=bad")[0],403)
+        self.assertEqual(self.request("POST","/api/live/radio/start",{})[0],403)
+        _,_,raw=self.request("GET","/api/bootstrap")
+        csrf=json.loads(raw)["csrf"]
+        self.assertEqual(self.request("POST","/api/live/radio/start",
+            {"frequency_mhz":440},csrf)[0],400)
+        self.server.live_fm.conflicts=lambda:[{"process":"readsb"}]
+        self.assertEqual(self.request("POST","/api/live/radio/start",
+            {"frequency_mhz":98.6},csrf)[0],409)
+        self.assertEqual(self.request("POST","/api/live/radio/stop",{},csrf)[0],200)
+        self.assertEqual(json.loads(self.request("GET","/api/transcripts")[2]),[])
+        self.assertEqual(self.request("GET","/api/transcripts/export?session=bad")[0],400)
+
     def test_no_forged_source(self):
         code,_,raw=self.request("GET","/api/page?source_id=ard_text&number=100")
         self.assertEqual(code,404)
