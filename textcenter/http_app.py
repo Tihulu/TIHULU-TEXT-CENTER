@@ -11,6 +11,7 @@ from . import __version__
 from .core import Store, safe_https_url
 from .receivers import receiver_inventory
 from .fm_rds import FMRSDSupervisor, CaptureError
+from .capabilities import capability_catalog
 
 WEB_DIR = Path(__file__).resolve().parents[1] / "web"
 
@@ -33,6 +34,7 @@ INDEX_PAGES = {
     700: ("LIBRARY", "Stored articles, bookmarks and previously imported pages remain on this device."),
     800: ("NETWORKS", "Web directories for Teletext, blogs, BBS, Gemini and Gopher."),
     850: ("ABOUT", "Standalone service with on-demand workers and no default polling or RF receiver."),
+    860: ("PROTOCOLS", "See the complete requested protocol and service coverage, dependencies and readiness."),
 }
 
 class LocalServer(ThreadingHTTPServer):
@@ -113,6 +115,8 @@ class Handler(BaseHTTPRequestHandler):
                 status = self.server.rds.status()
                 status["capability"] = self.server.rds.availability()
                 return self._json(200, status)
+            if route == "/api/capabilities":
+                return self._json(200, capability_catalog(receiver_inventory()))
             if route == "/api/index":
                 return self._json(200, [{"page": k, "title": v[0], "description": v[1]} for k,v in INDEX_PAGES.items()])
             if route == "/api/page":

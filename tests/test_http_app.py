@@ -89,6 +89,14 @@ class HTTPTests(unittest.TestCase):
             {"frequency_mhz":98.6,"duration_seconds":20},csrf)[0],409)
         self.assertEqual(self.request("POST","/api/rds/stop",{},csrf)[0],200)
 
+    def test_capability_catalog_route(self):
+        code,_,raw=self.request("GET","/api/capabilities")
+        self.assertEqual(code,200)
+        parsed=json.loads(raw)
+        self.assertTrue(any(x["id"]=="dab_journaline" for x in parsed))
+        self.assertTrue(any(x["id"]=="meshtastic" for x in parsed))
+        self.assertEqual(self.request("GET","/api/page?number=860")[0],200)
+
     def test_no_forged_source(self):
         code,_,raw=self.request("GET","/api/page?source_id=ard_text&number=100")
         self.assertEqual(code,404)

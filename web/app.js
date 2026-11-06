@@ -197,6 +197,7 @@ async function openPage(number,source,subpage){
     if(state.page===600) return showBulletins();
     if(state.page===700) return showLibrary();
     if(state.page===800) return showDirectory();
+    if(state.page===860) return showCapabilities();
     return showAbout();
   } catch(err) {
     const message=String(err && err.message || err);
@@ -485,6 +486,29 @@ async function showDirectory(){
     const link=el("a","","OPEN EXTERNAL SITE ↗");link.href=d.url;link.target="_blank";link.rel="noopener noreferrer";
     const actions=el("div","card-actions");actions.append(link);n.append(actions);$("content").append(n);
   });
+}
+async function showCapabilities(){
+  section("PROTOCOL COVERAGE","Full text & data service catalog","Verified / import / planned");
+  const catalog=await api("/api/capabilities");
+  const groups=[...new Set(catalog.map(x=>x.group))];
+  const intro=el("article","notice-card");
+  append(intro,el("h3","","Capabilities are not active reception"),
+        el("p","","Installed decoders, a USB ID and a local archive do not prove a live broadcast. "+
+          "All planned modules remain visible; no feature silently disappears, and official alerts require trusted verification."));
+  $("content").append(intro);
+  groups.forEach(group=>{
+    const title=el("h3","protocol-group",group);$("content").append(title);
+    catalog.filter(x=>x.group===group).forEach(feature=>{
+      const display=feature.state.replaceAll("_"," ").toUpperCase();
+      const item=card(feature.title,feature.purpose,display);
+      item.append(el("p","full-body","Requires: "+feature.requirements));
+      const status=feature.dependency_status||null;
+      if(status) item.append(el("p","full-body",Object.entries(status).map(([k,v])=>
+        k.replaceAll("_"," ")+": "+(v?"yes":"no")).join(" · ")));
+      $("content").append(item);
+    });
+  });
+  $("section-count").textContent=catalog.length+" features tracked";
 }
 function showAbout(){
   section("SYSTEM","How this terminal works","Build 0.1");

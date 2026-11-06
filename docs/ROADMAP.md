@@ -46,3 +46,8 @@
 ## Release evidence rule
 
 Do not mark Stage B–D complete on the basis of API mocks, advertised receiver specs, published frequencies, example decoder JSON, or a directory URL. Record source, tested equipment, exact decoder and version, measured output, resource cost, authorization and failure behavior.
+
+
+## Complete required feature inventory (implementation states in API)
+
+`GET /api/capabilities` and page **860 — Protocols** enumerate every requested mode: FM RDS, RadioText+, traffic, DAB DLS/DLS+/Journaline/MOT/EPG/TPEG, DVB Teletext/HbbTV, DRM EWF, RTTY, NAVTEX, WeatherFAX, APRS/AX.25, RSS, Atom, JSON Feed, DE/TR News Center sources, Gemini, Gopher, external/local BBS, Meshtastic, CAP, offline Wiki, translation/AI, region presets and shared hardware broker. All unfinished modes explicitly show their dependency and readiness status. **Catalog presence is not decoder implementation.** Hardware/process conflicts refuse manual capture and do not shut down or retune Flight Radar.
