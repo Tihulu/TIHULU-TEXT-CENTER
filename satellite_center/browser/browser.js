@@ -152,8 +152,35 @@ function releaseScheduledStream(job){
  preparedLongStreams.delete(job.id);
  void abortLongCapture(prepared);
 }
+function outputSelectionText(raw,wav){
+ if(raw&&wav)return 'CU8 + WAV selected · 2 separate files from the same RF recording';
+ if(wav)return 'WAV selected · 1 demodulated FM audio file';
+ if(raw)return 'CU8 selected · 1 original raw RF/IQ file';
+ return 'No file selected · RF level measurements only';
+}
+function refreshAutoOutputSummary(){
+ const raw=$('auto-save-raw').checked,wav=$('auto-save-wav').checked;
+ $('auto-format-summary').textContent=outputSelectionText(raw,wav)+
+   '. These choices apply to ISS SSTV WebUSB automatic jobs. Other downlink formats keep their own defaults.';
+}
+function setManualOutputSelection(raw,wav){
+ $('record').checked=Boolean(raw);
+ $('wav-record').checked=Boolean(wav);
+ updateManualCaptureBudget();
+}
+$('record-both').addEventListener('click',()=>setManualOutputSelection(true,true));
+$('record-wav-only').addEventListener('click',()=>setManualOutputSelection(false,true));
+$('record-cu8-only').addEventListener('click',()=>setManualOutputSelection(true,false));
+for(const id of ['auto-save-raw','auto-save-wav']){
+ $(id).addEventListener('change',refreshAutoOutputSummary);
+ $(id).addEventListener('input',refreshAutoOutputSummary);
+}
+refreshAutoOutputSummary();
 function updateManualCaptureBudget(){
  const label=$('capture-budget');
+ const summary=$('capture-format-summary');
+ summary.textContent=outputSelectionText($('record').checked,$('wav-record').checked)+
+   '. Checking both boxes saves both formats independently; unchecking both records levels only.';
  try{
    const seconds=Number($('duration').value),rate=Number($('rate').value);
    const opts=inspectCaptureStorage(seconds,rate,$('record').checked,$('wav-record').checked);
@@ -170,9 +197,7 @@ function updateManualCaptureBudget(){
 $('preset').addEventListener('change',()=>{
  // SSTV defaults to real FM WAV, but users may check CU8 as well.
  const iss=Number($('preset').value)===437550000;
- $('wav-record').checked=iss;
- $('record').checked=!iss;
- updateManualCaptureBudget();
+ setManualOutputSelection(!iss,iss);
 });
 for(const id of ['duration','rate','record','wav-record']){
  $(id).addEventListener('input',updateManualCaptureBudget);
@@ -554,6 +579,7 @@ async function startCapture(job=null,prepared=null) {
       }
       if(!bytesReceived)throw Error('Zero actual USB sample bytes received; no successful scan.');
       const report=captureLevelSummary(measurements,bytesReceived,Date.now()-startedAt);
+      report.selectedOutputs={cu8:Boolean(recording),wav:Boolean(recordingWav)};
       report.wav=await finalizeWav();
       report.frequencyHz=freq;report.sampleRate=rate;report.rawBytes=bytesRecorded;
       report.recordedRaw=Boolean(recording&&bytesRecorded>0);
@@ -561,8 +587,10 @@ async function startCapture(job=null,prepared=null) {
       lastCaptured={bytesReceived,bytesRecorded,frequency_hz:freq,observedAt:report.time,
         relativeDb:report.averageRelativeDb};
       notifyMaps();
+      let rawFileName=null,rawFileSavedToDisk=false;
       if(recording&&(chunks.length>0||prepared?.writable)){
         const name=prepared?.name||captureFileName(job,freq,rate,captureStartTime);
+        rawFileName=name;rawFileSavedToDisk=Boolean(prepared?.writable);
         if(prepared?.writable){
           await prepared.writable.close();
           prepared.writable=null;
@@ -580,6 +608,15 @@ async function startCapture(job=null,prepared=null) {
           acquisition:"actual USB readSamples",gainMode:"automatic",rfSourceVerified:false
         });
       }
+      const savedNames=[];
+      if(rawFileName)savedNames.push('CU8: '+rawFileName+
+        (rawFileSavedToDisk?' · saved on disk':' · browser download requested'));
+      if(report.wav)savedNames.push('WAV: '+report.wav.name+
+        (wavBudget.mode==='disk-stream'?' · saved on disk':' · browser download requested'));
+      report.outputFiles=savedNames;
+      status('sample-state','RF capture completed · '+outputSelectionText(recording,recordingWav)+
+        '\n'+(savedNames.length?savedNames.join('\n'):'No output file selected.')+
+        '\nA recorded WAV does not prove ISS/Robot36 synchronization. Check downloads or your chosen folder.');
       if(job){
         job.state=stopRequested?'stopped':'finished';
         job.report=report;
