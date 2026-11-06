@@ -40,11 +40,17 @@ Once `welle-cli` has been separately installed (not bundled by Text Center) and 
 
 ```bash
 command -v welle-cli
+# If not found on Pop!_OS 24.04, inspect first:
+apt-cache policy welle.io
+# With your approval, install the distribution package:
+sudo apt update
+sudo apt install welle.io
+command -v welle-cli
 # Only if the device is free; using this command WILL open/retune your SDR:
-welle-cli -c 11D -C 1 -w 7979
+welle-cli -c 11D -PC 1 -w 7979
 ```
 
-The local receiver's page is then http://127.0.0.1:7979/ on that same machine. A first-party Kit portal on phones must use a properly authenticated TLS proxy, NOT a hard-coded 127.0.0.1 URL. The welle-cli service requires a broadcaster actually using DLS/MOT and a sufficiently strong signal. The owner must check hardware availability and explicitly launch it; never use this example while Flight Radar is acquiring the same dongle.
+The `-P` option lets the carousel wait for DLS and a slide (up to 80 seconds per service), rather than moving on every 10 seconds; it still cannot guarantee any broadcaster transmits a valid MOT image. Check the installed CLI's `welle-cli -h` for supported flags. The local receiver's page is then http://127.0.0.1:7979/ on that same machine. A first-party Kit portal on phones must use a properly authenticated TLS proxy, NOT a hard-coded 127.0.0.1 URL. The welle-cli service requires a broadcaster actually using DLS/MOT and a sufficiently strong signal. The owner must check hardware availability and explicitly launch it; never use this example while Flight Radar is acquiring the same dongle.
 
 **Journaline is not provided by this DAB bridge.** Interactive Journaline menus, TPEG and some other data applications need their own decoder/service/licensing assessment. The MOT slideshow is a broadcast image, not a download of Internet album art. A real station may broadcast no picture at all.
 
