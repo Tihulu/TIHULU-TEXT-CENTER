@@ -2,6 +2,7 @@
    Unavailable RF features must never be reported as acquired signals. */
 import {GNSS,DEFAULT_CENTER,parseSP3,visibleSatellites,rtlSignalClass,validateLLA} from "../core/gnss.mjs";
 import {parseNMEA,trilaterate2D,tdoaConstraints} from "../core/positioning.mjs";
+import {initAutoExplorer} from "./auto_explorer.mjs";
 
 const $=id=>document.getElementById(id), svgNS="http://www.w3.org/2000/svg";
 const state={
@@ -46,6 +47,7 @@ function recordFix(p,provider){
  state.receiverHistory.push(item);
  if(state.receiverHistory.length>500)state.receiverHistory.shift();
  renderHistory();
+ window.dispatchEvent(new CustomEvent("tihulu:position",{detail:{lat:p.lat,lon:p.lon,alt:p.altEllipsoidMeters??p.alt??0,provider,accuracy:p.accuracy??null}}));
 }
 function renderCatalog(){
  const c=$("gnss-catalog");c.replaceChildren();
@@ -323,4 +325,5 @@ if("serviceWorker" in navigator&&location.protocol==="https:"){
  navigator.serviceWorker.register("./sw.js").catch(()=>{});
 }
 renderCatalog();renderHistory();renderDiagnostics();renderPosition(true);renderSky();capabilities();
+initAutoExplorer();
 setInterval(()=>{if(state.serialFix&&Date.now()-state.serialAt>90000){state.serialFix=null;renderPosition(true);renderDiagnostics();msg("Stale serial NMEA fix expired")}},10000);
