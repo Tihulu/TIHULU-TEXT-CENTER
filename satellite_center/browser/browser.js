@@ -152,8 +152,35 @@ function releaseScheduledStream(job){
  preparedLongStreams.delete(job.id);
  void abortLongCapture(prepared);
 }
+function outputSelectionText(raw,wav){
+ if(raw&&wav)return 'CU8 + WAV selected · 2 separate files from the same RF recording';
+ if(wav)return 'WAV selected · 1 demodulated FM audio file';
+ if(raw)return 'CU8 selected · 1 original raw RF/IQ file';
+ return 'No file selected · RF level measurements only';
+}
+function refreshAutoOutputSummary(){
+ const raw=$('auto-save-raw').checked,wav=$('auto-save-wav').checked;
+ $('auto-format-summary').textContent=outputSelectionText(raw,wav)+
+   '. These choices apply to ISS SSTV WebUSB automatic jobs. Other downlink formats keep their own defaults.';
+}
+function setManualOutputSelection(raw,wav){
+ $('record').checked=Boolean(raw);
+ $('wav-record').checked=Boolean(wav);
+ updateManualCaptureBudget();
+}
+$('record-both').addEventListener('click',()=>setManualOutputSelection(true,true));
+$('record-wav-only').addEventListener('click',()=>setManualOutputSelection(false,true));
+$('record-cu8-only').addEventListener('click',()=>setManualOutputSelection(true,false));
+for(const id of ['auto-save-raw','auto-save-wav']){
+ $(id).addEventListener('change',refreshAutoOutputSummary);
+ $(id).addEventListener('input',refreshAutoOutputSummary);
+}
+refreshAutoOutputSummary();
 function updateManualCaptureBudget(){
  const label=$('capture-budget');
+ const summary=$('capture-format-summary');
+ summary.textContent=outputSelectionText($('record').checked,$('wav-record').checked)+
+   '. Checking both boxes saves both formats independently; unchecking both records levels only.';
  try{
    const seconds=Number($('duration').value),rate=Number($('rate').value);
    const opts=inspectCaptureStorage(seconds,rate,$('record').checked,$('wav-record').checked);
@@ -170,9 +197,7 @@ function updateManualCaptureBudget(){
 $('preset').addEventListener('change',()=>{
  // SSTV defaults to real FM WAV, but users may check CU8 as well.
  const iss=Number($('preset').value)===437550000;
- $('wav-record').checked=iss;
- $('record').checked=!iss;
- updateManualCaptureBudget();
+ setManualOutputSelection(!iss,iss);
 });
 for(const id of ['duration','rate','record','wav-record']){
  $(id).addEventListener('input',updateManualCaptureBudget);
@@ -554,6 +579,7 @@ async function startCapture(job=null,prepared=null) {
       }
       if(!bytesReceived)throw Error('Zero actual USB sample bytes received; no successful scan.');
       const report=captureLevelSummary(measurements,bytesReceived,Date.now()-startedAt);
+      report.selectedOutputs={cu8:Boolean(recording),wav:Boolean(recordingWav)};
       report.wav=await finalizeWav();
       report.frequencyHz=freq;report.sampleRate=rate;report.rawBytes=bytesRecorded;
       report.recordedRaw=Boolean(recording&&bytesRecorded>0);
@@ -561,8 +587,10 @@ async function startCapture(job=null,prepared=null) {
       lastCaptured={bytesReceived,bytesRecorded,frequency_hz:freq,observedAt:report.time,
         relativeDb:report.averageRelativeDb};
       notifyMaps();
+      let rawFileName=null,rawFileSavedToDisk=false;
       if(recording&&(chunks.length>0||prepared?.writable)){
         const name=prepared?.name||captureFileName(job,freq,rate,captureStartTime);
+        rawFileName=name;rawFileSavedToDisk=Boolean(prepared?.writable);
         if(prepared?.writable){
           await prepared.writable.close();
           prepared.writable=null;
@@ -580,6 +608,15 @@ async function startCapture(job=null,prepared=null) {
           acquisition:"actual USB readSamples",gainMode:"automatic",rfSourceVerified:false
         });
       }
+      const savedNames=[];
+      if(rawFileName)savedNames.push('CU8: '+rawFileName+
+        (rawFileSavedToDisk?' · saved on disk':' · browser download requested'));
+      if(report.wav)savedNames.push('WAV: '+report.wav.name+
+        (wavBudget.mode==='disk-stream'?' · saved on disk':' · browser download requested'));
+      report.outputFiles=savedNames;
+      status('sample-state','RF capture completed · '+outputSelectionText(recording,recordingWav)+
+        '\n'+(savedNames.length?savedNames.join('\n'):'No output file selected.')+
+        '\nA recorded WAV does not prove ISS/Robot36 synchronization. Check downloads or your chosen folder.');
       if(job){
         job.state=stopRequested?'stopped':'finished';
         job.report=report;
@@ -1468,6 +1505,9 @@ async function runAutoMission({mode=$('auto-mode').value,goal=$('auto-coverage')
     const durationSeconds=Number($('auto-browser-seconds').value);
     if(!Number.isInteger(durationSeconds)||durationSeconds<8||durationSeconds>60)
       throw Error('Choose a browser capture length between 8 and 60 seconds.');
+    const autoRaw=$('auto-save-raw').checked,autoWav=$('auto-save-wav').checked;
+    if(['iss-images','images','all'].includes(mode)&&!autoRaw&&!autoWav)
+      throw Error('Choose at least CU8 or WAV for automatic ISS SSTV image capture. Both are allowed.');
     const proposal=selectAutomaticPasses(passes,{
       mode,goal,durationSeconds,now:Date.now(),maxJobs:6,existingJobs:jobs
     });
@@ -1476,24 +1516,29 @@ async function runAutoMission({mode=$('auto-mode').value,goal=$('auto-coverage')
       const job=createScheduledPass(item.pass,{
         when:item.when,durationSeconds:item.durationSeconds,
         sampleRate:item.sampleRate,frequency:item.frequency,
-       saveRaw:item.missionId==='iss-sstv'?false:item.saveRaw,
-       saveWav:item.missionId==='iss-sstv'
+       saveRaw:item.missionId==='iss-sstv'?autoRaw:item.saveRaw,
+       saveWav:item.missionId==='iss-sstv'?autoWav:false
       });
       if(jobs.some(j=>j.id===job.id&&['armed','starting','running'].includes(j.state)))continue;
       job.missionId=item.missionId;
       job.coverage=item.coverage;
       job.dataKind=item.dataKind;
-      job.estimatedBytes=job.saveWav&&!job.saveRaw?
-        wavOutputPlan(item.durationSeconds,true).estimatedBytes:item.estimatedBytes;
+      job.estimatedBytes=(item.missionId==='iss-sstv')?
+        (job.saveRaw?item.durationSeconds*item.sampleRate*2:0)+
+        (job.saveWav?wavOutputPlan(item.durationSeconds,true).estimatedBytes:0):
+        item.estimatedBytes;
       job.shortfallSeconds=item.shortfallSeconds;
       job.message='Plan: '+item.durationSeconds+' s · ~'+Math.round(job.estimatedBytes/1e6)+
-        ' MB · '+item.dataKind+' · '+item.coverage+'; '+item.limitation;
+        ' MB · '+item.dataKind+' · '+
+        (item.missionId==='iss-sstv'?outputSelectionText(job.saveRaw,job.saveWav)+' · ':'')+
+        item.coverage+'; '+item.limitation;
       jobs.push(job);armed++;
     }
     jobs.sort((a,b)=>a.when-b.when);
     renderJobs();
     statusBox.textContent=armed?
-      'Armed '+armed+' non-overlapping RF candidate pass(es). USB is released while waiting. Browser clips max out at 60 s / 128 MiB; Meteor full imagery requires a native disk capture. '+proposal.skipped.length+' skipped; '+proposal.skipped.map(x=>x.reason).slice(0,2).join(' · ')+' Keep this tab VISIBLE and AWAKE.':
+      'Armed '+armed+' non-overlapping RF candidate pass(es). ISS selected outputs: '+
+      outputSelectionText(autoRaw,autoWav)+'. USB is released while waiting. Browser clips max out at 60 s / 128 MiB; Meteor full imagery requires a native disk capture. '+proposal.skipped.length+' skipped; '+proposal.skipped.map(x=>x.reason).slice(0,2).join(' · ')+' Keep this tab VISIBLE and AWAKE.':
       'No feasible passes for this data goal. '+proposal.skipped.map(x=>x.reason).slice(0,3).join(' · ')+' You can choose Quick RF sample or use the optional local receiver for full-pass imaging.';
     log('Automatic mission plan: '+armed+' RF recording jobs armed, '+proposal.skipped.length+' skipped; no device is currently in use.');
     if(armed)document.getElementById('schedule-center')?.scrollIntoView({behavior:'smooth',block:'nearest'});
@@ -1548,6 +1593,23 @@ try {
      Number(transferredSeconds)>=8&&Number(transferredSeconds)<=60)
     $('auto-browser-seconds').value=transferredSeconds;
 } catch(_error) { /* Storage unavailable: keep safe full-data default. */ }
+// Same-tab transfer from the Images & Data recording-formats picker.
+try {
+ const raw=sessionStorage.getItem('tihulu-auto-formats');
+ if(raw){
+   sessionStorage.removeItem('tihulu-auto-formats');
+   const choice=JSON.parse(raw);
+   if(typeof choice.raw==='boolean'&&typeof choice.wav==='boolean'&&
+      Number.isFinite(choice.createdAt)&&Date.now()-choice.createdAt<5*60000){
+     $('auto-save-raw').checked=choice.raw;
+     $('auto-save-wav').checked=choice.wav;
+     refreshAutoOutputSummary();
+     $('auto-plan-status').textContent=
+       'Recording formats transferred from Satellite Images & Data: '+
+       outputSelectionText(choice.raw,choice.wav)+'. Review before arming.';
+   }
+ }
+}catch(e){log('Recording format transfer not available: '+String(e?.message||e));}
 const requestedAutoMission=new URLSearchParams(location.search).get('auto-mission');
 if(['iss-images','images','messages','voice','all'].includes(requestedAutoMission)){
   $('auto-mode').value=requestedAutoMission;

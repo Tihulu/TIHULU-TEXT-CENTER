@@ -282,3 +282,15 @@ border:1px solid #375471;border-radius:8px;margin:0;background:#081727}
  .sat-hour-events{padding:5px}
  .sat-calendar-job{width:100%;min-width:0}
 }
+
+
+/* Explicit independent RF-output selection, including simultaneous CU8+WAV. */
+.capture-format-picker{margin:13px 0;padding:13px 15px;border:1px solid #597a9f;border-radius:10px;background:#101e33;min-width:0}
+.capture-format-picker legend{padding:0 8px;color:#e6f2ff;font-size:14px;font-weight:750}
+.capture-format-options{display:flex;gap:10px 24px;flex-wrap:wrap;align-items:center}
+.capture-format-options .check{flex:1 1 230px;min-width:0;line-height:1.4;cursor:pointer}
+.capture-format-options input[type="checkbox"]{width:18px;height:18px;flex-shrink:0;accent-color:#56b9ff}
+.capture-format-actions{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0}
+.capture-format-actions button{font-size:12px;min-height:36px;padding:8px 11px}
+.capture-format-summary{margin:9px 0 4px;color:#dcf0ff;background:#18344f;border-left:3px solid #72c5ff;border-radius:5px;padding:9px 12px;font-size:13px;line-height:1.45;overflow-wrap:anywhere}
+@media(max-width:560px){.capture-format-options{display:block}.capture-format-actions button{flex:1 1 100%}}
