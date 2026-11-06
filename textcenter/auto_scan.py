@@ -294,6 +294,27 @@ class DABAutoScanner(_WorkerState):
             self._thread.start()
             return self._snapshot()
 
+    def tune(self,channel,*,consent=False):
+        """Explicit user action: tune a previously decoded block for listening."""
+        if consent is not True:
+            raise AutoScanError("Explicit consent to retune DAB for listening is required")
+        if channel not in DAB_HZ:
+            raise ValueError("Unknown DAB block")
+        with self._mutex:
+            if self._state["active"]:
+                raise AutoScanError("Cannot tune while DAB auto scanning is running")
+            if not any(row["channel"]==channel for row in self._state["results"]):
+                raise AutoScanError("Only a block actually decoded by this scan can be tuned")
+        current=self.fetcher("/channel",64).decode("ascii","replace").strip().upper()
+        parse_mux(self.fetcher("/mux.json",MUX_LIMIT),current)
+        self.poster(channel)
+        return {
+            "channel":channel,"frequency_hz":DAB_HZ[channel],
+            "receiver":"already_running_welle_cli","retuned_by_explicit_user":True,
+            "player_url":"http://127.0.0.1:7979/",
+            "note":"Allow DAB lock, then select Play in welle-cli for the chosen service"
+        }
+
     def _worker(self,channels,dwell):
         status="completed"
         error=None
