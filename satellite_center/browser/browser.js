@@ -1,3 +1,4 @@
+import { platformFamily, webUsbHelp, permissionReport } from './usb_diagnostics.mjs';
 // TIHULU Satellite Center — no-local-install receive-only browser mode.
 // The RTL-SDR device is opened only after a direct user gesture.
 // CelesTrak / CDN downloads are for client-side orbital prediction + JS only;
@@ -30,6 +31,22 @@ const maxRecordBytes = 128 * 1024 * 1024;
 const signalHistory = [];
 const hardwareSupported = !!(window.isSecureContext && navigator.usb);
 const connectButton = $('connect');
+const platform = platformFamily(navigator.userAgent || "");
+let lastUsbReport = "No USB diagnostics run.";
+$('usb-check').addEventListener('click', async () => {
+  const report = await permissionReport(navigator.usb, platform);
+  lastUsbReport = report;
+  $('usb-report').textContent = report;
+  log('Read-only USB permission diagnostic completed. No device was opened.');
+});
+$('usb-copy').addEventListener('click', async () => {
+  try {
+    await navigator.clipboard.writeText(lastUsbReport);
+    log('USB troubleshooting report copied to clipboard (no device serials or secrets).');
+  } catch (error) {
+    log('Clipboard not available: ' + error.message);
+  }
+});
 if (!hardwareSupported) {
   connectButton.disabled = true;
   status('device-status', 'Direct USB unavailable in this browser. Use desktop Chrome/Edge/Brave over HTTPS. Firefox and Safari do not implement WebUSB.');
@@ -72,6 +89,10 @@ async function connectDevice() {
     // Keep this directly associated with the click; no arbitrary USB filters.
     const provider = new driver();
     device = await provider.get();
+    if (document.hidden) {
+      await closeDevice();
+      throw Error('Browser tab became hidden during USB permission; reopen this tab and retry.');
+    }
     await device.setSampleRate(Number($('rate').value));
     await device.setCenterFrequency(Number($('preset').value));
     await device.setGain(null);
@@ -83,8 +104,12 @@ async function connectDevice() {
     log('RTL2832U WebUSB tuner opened. Device held only while this page is open.');
   } catch (e) {
     log('WebUSB permission/open error: ' + e.message);
-    status('device-status', 'Could not claim USB: ' + e.message +
-      '. Check OS drivers/permissions; close readsb/Gqrx/welle.io manually if they own this dongle.');
+    const report = webUsbHelp(e, platform);
+    lastUsbReport = report;
+    $('usb-report').textContent = report;
+    $('usb-help').open = true;
+    status('device-status', 'WebUSB could not open this RTL-SDR. Open the USB diagnostic panel below for platform-specific steps.\n' + String(e.message || e));
+    log('USB diagnostics: ' + report.split('\n')[0]);
     await closeDevice();
   } finally { refreshControls(); }
 }
