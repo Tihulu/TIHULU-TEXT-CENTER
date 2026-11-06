@@ -1,9 +1,9 @@
 /* User-initiated photo sources, experimental Robot36 audio decoding and
  * honest local files. Nothing downloads on page load or acquires the SDR.
  */
-import { IMAGE_TARGETS, recordingName, parseRecordingName, epicEntries, nasaIssEntries } from "./satellite_imagery.mjs";
-import { cu8ToFmAudio } from "./fm_iq_demod.mjs";
-import { decodeRobot36Audio } from "./sstv_robot36.mjs";
+import { IMAGE_TARGETS, recordingName, parseRecordingName, epicEntries, nasaIssEntries } from "./satellite_imagery.mjs?v=20261106-images-v15";
+import { cu8ToFmAudio } from "./fm_iq_demod.mjs?v=20261106-images-v15";
+import { decodeRobot36Audio } from "./sstv_robot36.mjs?v=20261106-images-v15";
 const $=id=>document.getElementById(id);
 function imgCard({source,satellite,timestamp,caption,imageUrl,archiveUrl},cleanup){
  const card=document.createElement("article");card.className="photo-card";
