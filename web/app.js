@@ -1069,11 +1069,23 @@ async function showCaptionArchives(){
       if(code===s.target_lang)option.selected=true;
       targetLang.append(option);
     });
+    const computeInfo=state.computeInfo;
+    const savedDevice=el("select");
+    const savedAuto=el("option","","Auto CPU/GPU");savedAuto.value="auto";
+    savedDevice.append(savedAuto);
+    (computeInfo?.devices||[]).forEach(device=>{
+      const option=el("option","",device.name+" · "+device.id);
+      option.value=device.id;
+      if(device.kind==="npu")option.disabled=true;
+      savedDevice.append(option);
+    });
+    translate.append(savedDevice);
     const translateBtn=button("TRANSLATE SAVED ORIGINAL",async()=>{
       translateBtn.disabled=true;
       try{
         const result=await api("/api/captions/translate","POST",{
-          session:s.id,target_lang:targetLang.value});
+          session:s.id,target_lang:targetLang.value,
+          device:savedDevice.value});
         notice("Translated "+result.translated+" saved captions offline.");
       }catch(error){notice("Offline translation unavailable: "+error.message)}
       finally{translateBtn.disabled=false}
@@ -1209,6 +1221,7 @@ async function showStudio(){
   const [radio,compute,dvb]=await Promise.all([
     api("/api/live-radio/status"),api("/api/compute"),api("/api/dvb/status")
   ]);
+  state.computeInfo=compute;
   state.liveRadioActive=radio.active;
   state.liveRadioRecord=radio.active&&radio.record;
   const computePanel=el("article","item-card studio-wide");
@@ -1281,6 +1294,19 @@ async function showStudio(){
   });
   const deviceLabel=el("label","","ASR compute device");deviceLabel.append(deviceSelect);
   languages.append(deviceLabel);
+  const translationDevice=el("select");translationDevice.id="radio-translation-device";
+  const automaticTranslate=el("option","","Translation: automatic CPU/GPU");
+  automaticTranslate.value="auto";translationDevice.append(automaticTranslate);
+  compute.devices.forEach(device=>{
+    const option=el("option","",device.name+" · "+device.id+
+      (device.kind==="npu"?" (no Argos NPU adapter)":""));
+    option.value=device.id;
+    if(device.kind==="npu")option.disabled=true;
+    translationDevice.append(option);
+  });
+  const translateDeviceLabel=el("label","","Offline translator device (independent of ASR)");
+  translateDeviceLabel.append(translationDevice);
+  languages.append(translateDeviceLabel);
   const translateLabel=el("label","scan-consent");
   const translate=el("input");translate.type="checkbox";translate.checked=true;
   translateLabel.append(translate,document.createTextNode(
@@ -1344,8 +1370,8 @@ async function showStudio(){
     start.disabled=true;
     const options={enabled:captions.checked,
         source_lang:source.value,target_lang:target.value,
-        device:deviceSelect.value,translate_live:translate.checked,
-        save_original:saveOriginal.checked,
+        device:deviceSelect.value,translation_device:translationDevice.value,
+        translate_live:translate.checked,save_original:saveOriginal.checked,
         save_translation:saveTranslation.checked};
     try{
       const started=await api("/api/live-radio/start","POST",{
@@ -1430,6 +1456,19 @@ async function showStudio(){
   });
   const tvDevLabel=el("label","","TV ASR compute device");tvDevLabel.append(tvDevice);
   tvLang.append(tvDevLabel);
+  const tvTranslationDevice=el("select");
+  const tvTranslationAuto=el("option","","Translation: automatic CPU/GPU");
+  tvTranslationAuto.value="auto";tvTranslationDevice.append(tvTranslationAuto);
+  compute.devices.forEach(device=>{
+    const option=el("option","",device.name+" · "+device.id+
+      (device.kind==="npu"?" (no Argos NPU adapter)":""));
+    option.value=device.id;
+    if(device.kind==="npu")option.disabled=true;
+    tvTranslationDevice.append(option);
+  });
+  const tvTranslationLabel=el("label","","TV translator compute device");
+  tvTranslationLabel.append(tvTranslationDevice);
+  tvLang.append(tvTranslationLabel);
   const tvTranslateLabel=el("label","scan-consent");
   const tvTranslate=el("input");tvTranslate.type="checkbox";tvTranslate.checked=true;
   tvTranslateLabel.append(tvTranslate,document.createTextNode(
@@ -1493,6 +1532,7 @@ async function showStudio(){
     const settings={
       enabled:tvCaptions.checked,source_lang:tvSrc.value,
       target_lang:tvTarget.value,device:tvDevice.value,
+      translation_device:tvTranslationDevice.value,
       translate_live:tvTranslate.checked,
       save_original:tvSaveOriginal.checked,
       save_translation:tvSaveTranslated.checked
