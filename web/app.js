@@ -630,6 +630,48 @@ function renderAutomaticScan(kind,report){
     });
   }
 }
+async function refreshSavedStationDirectory(){
+  const records=await api("/api/stations");
+  const old=$("station-directory");
+  const panel=el("article","item-card");panel.id="station-directory";
+  panel.append(el("div","item-meta","ACTUAL DECODER OBSERVATIONS · LOCAL SQLITE / OFFLINE"));
+  panel.append(el("h3","","Saved, verified station directory"));
+  panel.append(el("p","full-body",
+    "These are stations previously identified by a real FM RDS or DAB FIC decoder. "+
+    "A saved entry does not prove the station is currently on air or tuned."));
+  if(records.length){
+    const groups=el("div","auto-scan-grid");
+    for(const medium of ["fm","dab"]){
+      const pane=el("section","auto-scan-section");
+      pane.append(el("h3","",medium==="fm"?"FM / RDS":"DAB+ / FIC"));
+      const items=records.filter(r=>r.medium===medium);
+      if(!items.length)pane.append(el("p","full-body","No confirmed "+medium.toUpperCase()+" stations archived yet."));
+      items.forEach(st=>{
+        const row=el("article","auto-service");
+        row.append(el("strong","",st.name),
+          el("span","subtle",(st.frequency_hz/1e6).toFixed(3)+" MHz"+
+            (st.channel?" · block "+st.channel:"")+
+            (st.ensemble?" · "+st.ensemble:"")+
+            " · last verified "+timeLabel(st.observed_at)));
+        if(st.last_text)row.append(el("p","full-body",st.last_text));
+        if(medium==="fm"){
+          row.append(button("SET FM FREQUENCY",()=>{
+            const input=$("fm-audio-frequency");
+            if(input){input.value=(st.frequency_hz/1e6).toFixed(3);
+              input.scrollIntoView({behavior:"smooth",block:"center"});}
+          }));
+        }
+        pane.append(row);
+      });
+      groups.append(pane);
+    }
+    panel.append(groups);
+  }else{
+    panel.append(el("p","full-body","No stations verified yet. Begin an explicit FM RDS or DAB FIC automatic scan."));
+  }
+  if(old)old.replaceWith(panel);
+  else $("content").append(panel);
+}
 async function pollAutomaticScan(kind){
   if(state.page!==400)return;
   const prefix=kind==="fm"?"fm-auto":"dab-auto";
@@ -639,10 +681,14 @@ async function pollAutomaticScan(kind){
     if(report.active&&state.page===400){
       state[kind==="fm"?"fmAutoTimer":"dabAutoTimer"]=
         setTimeout(()=>pollAutomaticScan(kind),900);
+    }else if(state.page===400){
+      await refreshSavedStationDirectory();
     }
   }catch(e){notice(kind.toUpperCase()+" auto scan status: "+e.message)}
 }
 async function addAutomaticChannelScanners(){
+  if(state.fmAutoTimer){clearTimeout(state.fmAutoTimer);state.fmAutoTimer=null;}
+  if(state.dabAutoTimer){clearTimeout(state.dabAutoTimer);state.dabAutoTimer=null;}
   const [fmStatus,dabStatus]=await Promise.all([
     api("/api/auto/fm/status"),api("/api/auto/dab/status")]);
   const outer=el("article","item-card auto-scan-panel");
@@ -715,6 +761,7 @@ async function addAutomaticChannelScanners(){
   }
   outer.append(grid);$("content").append(outer);
   renderAutomaticScan("fm",fmStatus);renderAutomaticScan("dab",dabStatus);
+  await refreshSavedStationDirectory();
   if(fmStatus.active)state.fmAutoTimer=setTimeout(()=>pollAutomaticScan("fm"),700);
   if(dabStatus.active)state.dabAutoTimer=setTimeout(()=>pollAutomaticScan("dab"),700);
 }
