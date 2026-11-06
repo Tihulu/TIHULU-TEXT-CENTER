@@ -2481,11 +2481,13 @@ async function addChannelCenter(kind){
   const captionControls=el("div","channel-caption-controls");
   const captions=el("input");captions.type="checkbox";captions.id="channel-live-captions";
   const transcribe=el("label","channel-filter-check");
-  transcribe.append(captions,document.createTextNode(" Live transcription"));
+  transcribe.append(captions,document.createTextNode(
+    radio?" Live speech captions":" Live subtitles (Teletext preferred; ASR fallback)"));
   const translation=el("input");translation.type="checkbox";
   translation.id="channel-live-translation";translation.disabled=true;
   const translateLabel=el("label","channel-filter-check");
-  translateLabel.append(translation,document.createTextNode(" Translate speech live"));
+  translateLabel.append(translation,document.createTextNode(
+    radio?" Translate speech live":" Translate available TV subtitles"));
   const source=el("select");source.id="channel-speech-language";
   source.setAttribute("aria-label","Broadcast speech language");
   const target=el("select");target.id="channel-translate-language";
@@ -2505,6 +2507,17 @@ async function addChannelCenter(kind){
   languageControl.append(el("span","","Spoken language"),source);
   const targetControl=el("label","channel-caption-field");
   targetControl.append(el("span","","Translate into"),target);
+  const tvSource=el("select");tvSource.id="channel-tv-subtitle-source";
+  if(!radio){
+    for(const [value,label] of [
+      ["auto","Auto · Teletext first, speech fallback"],
+      ["teletext","Teletext subtitles only"],
+      ["speech","Speech recognition only"]]){
+      const option=el("option","",label);option.value=value;tvSource.append(option);
+    }
+  }
+  const tvSourceLabel=el("label","channel-caption-field");
+  tvSourceLabel.append(el("span","","TV subtitle source"),tvSource);
   const backendControl=el("label","channel-caption-field channel-caption-advanced");
   backendControl.append(el("span","","AI compute"),backend);
   const hint=el("p","channel-caption-hint",
@@ -2512,22 +2525,27 @@ async function addChannelCenter(kind){
     "other languages require installed compatible Whisper and Argos models. "+
     "Choose options before Play. Missing AI never stops broadcast playback.");
   speechBox.append(captionControls,hint);
-  captionControls.append(transcribe,translateLabel,languageControl,targetControl,backendControl);
-  state.channelCaptionPrefs={enabled:false,translate:false,source:"en",target:"en",backend:"auto"};
+  captionControls.append(transcribe,translateLabel,languageControl,targetControl);
+  if(!radio)captionControls.append(tvSourceLabel);
+  captionControls.append(backendControl);
+  state.channelCaptionPrefs={enabled:false,translate:false,source:"en",target:"en",backend:"auto",tvSource:"auto"};
   function syncCaptionOptions(){
     translation.disabled=!captions.checked;
     if(!captions.checked)translation.checked=false;
     const options={enabled:captions.checked,translate:translation.checked,
-      source:source.value,target:target.value,backend:backend.value};
+      source:source.value,target:target.value,backend:backend.value,
+      tvSource:radio?"auto":tvSource.value};
     state.channelCaptionPrefs=options;
     hint.textContent=options.enabled?
-      "Live captions requested for the NEXT playback. Only real decoded audio is "+
-      "transcribed; results appear in the persistent player, with SRT/VTT export. "+
+      (radio?"Live radio captions use genuine audio. ":
+        "TV uses real Teletext subtitles where a safe shared relay and libzvbi permit, "+
+        "otherwise enabled ASR falls back to the authorized TV audio. ")+
+      "Results appear in the player with SRT/VTT export. "+
       "Missing AI models leave audio/video unaffected.":
       "Live captions off. Turn on before Play to start real-time ASR; "+
       "existing recordings remain available for later translation.";
   }
-  for(const field of [captions,translation,source,target,backend])
+  for(const field of [captions,translation,source,target,backend,tvSource])
     field.addEventListener("change",syncCaptionOptions);
   try{
     const compute=await api("/api/compute");
