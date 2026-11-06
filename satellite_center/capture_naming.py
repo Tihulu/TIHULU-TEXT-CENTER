@@ -36,11 +36,11 @@ def recording_name(*, satellite: str, timestamp: datetime,
             f"{rate}_{safe_satellite(kind)}{extension}")
 
 def meteor_capture(name: str) -> bool:
-    if not isinstance(name, str) or not re.fullmatch(r"[A-Za-z0-9_.-]{1,180}\\.cu8", name):
+    if not isinstance(name, str) or not re.fullmatch(r"[A-Za-z0-9_.-]{1,180}\.cu8", name):
         return False
     # New naming format includes source/candidate; legacy archives retain their
     # old *_meteor.cu8 format for backward-compatible SatDump decoding.
-    return (bool(re.fullmatch(r"[A-Za-z0-9_-]+_meteor(?:_backup)?\\.cu8",name))
+    return (bool(re.fullmatch(r"[A-Za-z0-9_-]+_meteor(?:_backup)?\.cu8",name))
             or bool(re.fullmatch(
-                r"TIHULU_METEOR-[A-Z0-9-]+_\\d{8}T\\d{6}Z_137\\d{6}Hz"
-                r"(?:_\\d{6,8}SPS)?_[A-Z0-9-]+\\.cu8",name)))
+                r"TIHULU_METEOR-[A-Z0-9-]+_\d{8}T\d{6}Z_137\d{6}Hz"
+                r"(?:_\d{6,8}SPS)?_[A-Z0-9-]+\.cu8",name)))
