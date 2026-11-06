@@ -158,8 +158,13 @@ All location methods are optional. City suggestions are offline by default; GPS 
 </select></label>
 <button id="map-recenter" class="secondary" type="button">Center on ground station</button>
 <button id="map-diagnose" class="secondary" type="button">Test map background</button>
-<label class="map-check"><input id="map-tracks" type="checkbox" checked> ±45 min orbit path</label>
-<label class="map-check"><input id="map-footprint" type="checkbox"> Geometric coverage footprint</label>
+<label class="map-check">Orbit tracks<select id="map-track-scope" aria-label="Ground-track visibility"><option value="all" selected>All tracked satellites (±45 min)</option><option value="selected">Selected only</option><option value="off">Off</option></select></label>
+<label class="map-check">Coverage circles<select id="map-coverage-scope" aria-label="Coverage overlay visibility"><option value="selected" selected>Selected satellite</option><option value="all">All tracked satellites</option><option value="off">Off</option></select></label>
+<button id="map-focus-selected" class="secondary" type="button">Focus selected satellite</button>
+<button id="map-fit-all" class="secondary" type="button">Show all satellites</button>
+<span class="hint" id="map-overlay-count" role="status">All geographic positions, including satellites below your horizon, can be shown.</span>
+<input type="checkbox" id="map-tracks" checked hidden aria-hidden="true">
+<input type="checkbox" id="map-footprint" checked hidden aria-hidden="true">
 </div>
 <div class="world-overview">
 <h3>Earth overview — bundled world geography</h3>
@@ -171,6 +176,7 @@ All location methods are optional. City suggestions are offline by default; GPS 
 <p id="map-basemap-state" class="map-basemap-status" role="status" aria-live="polite">Optional Leaflet view has not been opened. The world map above works without it.</p>
 <div id="earth-map" class="sat-earth" role="region" aria-label="Optional Leaflet map with predicted satellite positions over OpenStreetMap or public-domain land outlines"></div>
 </details>
+<p class="map-caption">The OpenStreetMap view starts zoomed out so all current satellite ground positions can be seen. Zoom into your station with <strong>Center on ground station</strong>, or focus any satellite using <strong>Focus selected satellite</strong>. A satellite below your horizon can still appear at its global ground subpoint. Tracks and coverage circles are geometric TLE estimates, not received RF detections.</p>
 <p class="map-caption">If OpenStreetMap tiles are blocked or unavailable, the app automatically switches to bundled Natural Earth world outlines. You can switch the base map manually. The outlines are coarse at city level, but satellite ground positions remain plotted. <a href="https://tile.openstreetmap.org/3/4/2.png" rel="noopener noreferrer" target="_blank">Check an OSM tile in a new tab</a> for network/Brave Shields troubleshooting.</p>
 <p class="map-caption">© <a href="https://www.openstreetmap.org/copyright" rel="noopener noreferrer" target="_blank">OpenStreetMap contributors</a>. Tiles load only for the view you open; no prefetch/offline tile download. Only the viewport is requested from OSM when selected. Coarse fallback outlines are public-domain Natural Earth data bundled in this website. Optional shaded coverage is approximate for the minimum elevation selected above.</p>
 </div>
