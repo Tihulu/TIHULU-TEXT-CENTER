@@ -1,5 +1,49 @@
 # TIHULU Satellite Center — standalone companion v0.2.3
 
+## Satellite Images & Data — common cross-platform tab (2026-11-06)
+
+The separate **[Satellite Images & Data tab](browser/reception.html)** is now part
+of the canonical browser/PWA bundle. The same exact HTML/JS/CSS is served by
+GitHub Pages at `/satellite_center/browser/reception.html` and by the optional
+native companion at `http://127.0.0.1:8791/browser/reception.html` on Linux,
+Raspberry Pi OS, Windows, and macOS. The native dashboard also links to the tab.
+
+- The mission picker distinguishes **ISS Robot36 SSTV pictures** (currently
+  event-dependent, check [ARISS](https://www.ariss.org/upcoming-sstv-events.html)),
+  **Meteor-M2-3/M2-4 LRPT Earth-weather imagery** (requires native SatDump for
+  decoding), **ISS voice/APRS public messages**, **SatNOGS public transmitter
+  references**, **NASA's online EPIC and ISS archives**, and **retired NOAA APT
+  recording archives**. Frequencies are candidate receive-only targets, not
+  proof of an active transmitter.
+- Inside the tab, the same existing experimental `satellite_images_ui.mjs`
+  decoder can open real user WAV/CU8 samples and **attempt** actual Robot36
+  sync-validated reconstruction. Users can save only images produced from real
+  decoded audio. The NASA gallery fetches images explicitly on click and
+  credits the source; these are **online**, not SDR-received images.
+- A local-only file viewer supports image, audio, video, text/JSON/TLE and CU8
+  evidence files. Optional frequency and sample-rate inputs remain manual;
+  export is metadata only, with **user-imported/unverified** provenance. CU8
+  requires separate analysis and is not a JPEG/WAV.
+- **Hauppauge WinTV-soloHD 01589:** DVB-T/T2/C TV tuner, **not** a raw satellite
+  SDR or a Meteo/ISS digital decoder. Keep it in the TV module. The separate
+  portable TV antenna may not be adequate at 137 MHz; a properly designed
+  V-dipole/QFH/weather satellite antenna is preferred. The Nooelec NESDR
+  SMArt v5 is the intended VHF/UHF SDR.
+- **NOAA-15, NOAA-18, NOAA-19** were decommissioned in 2025; archived
+  recordings only. No scheduled capture from those inactive transmitters.
+- **No background scan, RF transmit, auto USB claim, fabricated decoded image,
+  RF upload, guaranteed reception or unsupported cross-browser WebUSB claim.**
+  Direct USB requires a compatible Chromium browser; native local tools must
+  be installed for SatDump/APRS and unattended receiver jobs.
+
+Pending: full single-screen native receiver controls within this separate
+tab; optional SatDump LRPT output attachment to the browser gallery; live
+SatNOGS transmitter catalog filtering, per-satellite capabilities and
+hardware acceptance on real Windows/macOS/ARM devices. Follow
+[the delivery issue](https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/21)
+before claiming these capabilities as complete.
+
+
 > **v0.2 cross-platform / GitHub Pages bridge:** This module now also has a
 > static Pages client with local pairing, portable Windows/macOS/Raspberry Pi
 > runtime, and one-line installers. Read [WEB_AND_INSTALL.md](WEB_AND_INSTALL.md).
