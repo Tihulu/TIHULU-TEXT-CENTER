@@ -2373,6 +2373,75 @@ async function addChannelCenter(kind){
   const recordBox=el("input");recordBox.type="checkbox";
   record.append(recordBox,document.createTextNode(radio?" Record FM when playing":" Record configured TV when playing"));
   controls.append(search,medium,favorites,showHidden,record);
+  const speechBox=el("div","channel-caption-config");
+  speechBox.append(el("h4","","Live Captions & Translate"));
+  const captionControls=el("div","channel-caption-controls");
+  const captions=el("input");captions.type="checkbox";captions.id="channel-live-captions";
+  const transcribe=el("label","channel-filter-check");
+  transcribe.append(captions,document.createTextNode(" Live transcription"));
+  const translation=el("input");translation.type="checkbox";
+  translation.id="channel-live-translation";translation.disabled=true;
+  const translateLabel=el("label","channel-filter-check");
+  translateLabel.append(translation,document.createTextNode(" Translate speech live"));
+  const source=el("select");source.id="channel-speech-language";
+  source.setAttribute("aria-label","Broadcast speech language");
+  const target=el("select");target.id="channel-translate-language";
+  target.setAttribute("aria-label","Translate captions into");
+  for(const [code,name] of [["en","English"],["de","Deutsch"],["tr","Türkçe"]]){
+    const from=el("option","",name);from.value=code;source.append(from);
+    const to=el("option","",name);to.value=code;target.append(to);
+  }
+  source.value="en";target.value="en";
+  const backend=el("select");backend.id="channel-speech-backend";
+  backend.setAttribute("aria-label","Speech computation");
+  for(const [key,label] of [
+    ["auto","Automatic compute"],["cpu","CPU"],["gpu","GPU"],["npu","NPU"]]){
+    const option=el("option","",label);option.value=key;backend.append(option);
+  }
+  const languageControl=el("label","channel-caption-field");
+  languageControl.append(el("span","","Spoken language"),source);
+  const targetControl=el("label","channel-caption-field");
+  targetControl.append(el("span","","Translate into"),target);
+  const backendControl=el("label","channel-caption-field channel-caption-advanced");
+  backendControl.append(el("span","","AI compute"),backend);
+  const hint=el("p","channel-caption-hint",
+    "Captions run on actual received audio only. English is the default; "+
+    "other languages require installed compatible Whisper and Argos models. "+
+    "Choose options before Play. Missing AI never stops broadcast playback.");
+  speechBox.append(captionControls,hint);
+  captionControls.append(transcribe,translateLabel,languageControl,targetControl,backendControl);
+  state.channelCaptionPrefs={enabled:false,translate:false,source:"en",target:"en",backend:"auto"};
+  function syncCaptionOptions(){
+    translation.disabled=!captions.checked;
+    if(!captions.checked)translation.checked=false;
+    const options={enabled:captions.checked,translate:translation.checked,
+      source:source.value,target:target.value,backend:backend.value};
+    state.channelCaptionPrefs=options;
+    hint.textContent=options.enabled?
+      "Live captions requested for the NEXT playback. Only real decoded audio is "+
+      "transcribed; results appear in the persistent player, with SRT/VTT export. "+
+      "Missing AI models leave audio/video unaffected.":
+      "Live captions off. Turn on before Play to start real-time ASR; "+
+      "existing recordings remain available for later translation.";
+  }
+  for(const field of [captions,translation,source,target,backend])
+    field.addEventListener("change",syncCaptionOptions);
+  try{
+    const compute=await api("/api/compute");
+    const detect=el("option","","Detect language (Whisper CPU/GPU)");
+    detect.value="auto";
+    detect.disabled=!(compute.speech.auto_detect_backends||[]).length;
+    if(detect.disabled)detect.textContent+=" · compatible model missing";
+    source.prepend(detect);
+    if(!compute.speech.ready_cpu&&!compute.speech.ready_gpu&&!compute.speech.ready_npu){
+      hint.textContent="No compatible local Whisper model detected. Radio/TV playback "+
+        "remains available; subtitles require model installation.";
+    }
+  }catch(error){
+    hint.textContent="Local speech availability could not be checked. "+
+      "Broadcast playback is independent of AI: "+error.message;
+  }
+  syncCaptionOptions();
   const scan=button("FULL SCAN →",()=>{
     const id=radio?"automatic-channel-scanners":"dvb-full-scan";
     document.getElementById(id)?.scrollIntoView({behavior:"smooth",block:"start"});
@@ -2392,7 +2461,7 @@ async function addChannelCenter(kind){
   if(importDab)actions.append(importDab);
   const info=el("p","full-body");info.id="channel-hub-info";
   const list=el("div","channel-hub-list");list.id="channel-hub-list";
-  outer.append(controls,actions,info,list);
+  outer.append(controls,speechBox,actions,info,list);
   $("content").append(outer);
   let all=[];
   function render(){
