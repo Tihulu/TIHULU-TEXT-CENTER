@@ -13,20 +13,21 @@ from pathlib import Path
 import sys
 import wave
 
-from PyQt5.QtCore import Qt, QDate, QDateTime, QPointF, QRectF, QObject, QRunnable, QThreadPool, QTimer, pyqtSignal, QUrl, QSize
+from PyQt5.QtCore import Qt, QDate, QDateTime, QPointF, QRectF, QObject, QRunnable, QThreadPool, QTimer, pyqtSignal, QUrl, QSize, QStringListModel
 from PyQt5.QtGui import QColor, QFont, QPainter, QPen, QPolygonF, QPixmap, QDesktopServices, QImage, QIcon
 from PyQt5.QtWidgets import (
     QApplication, QCheckBox, QComboBox, QDateEdit, QDateTimeEdit, QDoubleSpinBox,
     QFileDialog, QFormLayout, QGroupBox, QHBoxLayout, QLabel, QMainWindow,
     QMessageBox, QPlainTextEdit, QPushButton, QSpinBox, QSplitter, QTabWidget,
     QTableWidget, QTableWidgetItem, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget,
-    QLineEdit, QFrame, QHeaderView, QSizePolicy
+    QLineEdit, QFrame, QHeaderView, QSizePolicy, QCompleter
 )
 
 from .__main__ import Station, PROFILES, LOCATIONS, AUTO_DOWNLINK_PROFILES, allowed_mode
 from .native_analysis import analyze_cu8, save_spectrum_report, export_results_zip
 from .media_catalog import (MEDIA_COLORS, MEDIA_SYMBOLS, kinds_for_pass, filter_passes,
                             media_summary, capabilities_for_pass)
+from .native_locations import load_locations, search_locations, city_label
 
 
 def local_time(value):
@@ -258,16 +259,42 @@ class SatelliteWindow(QMainWindow):
         body.addStretch(1)
 
     def _station_controls(self,parent):
-        group=QGroupBox("Ground station and pass window")
+        group=QGroupBox("Ground station · offline Germany / Türkiye")
         controls=QFormLayout(group)
         self.city=QComboBox()
         self.city.addItems(list(LOCATIONS)+["Custom coordinates"])
         self.city.currentTextChanged.connect(self._preset_location)
-        self.lat=QDoubleSpinBox();self.lat.setRange(-90,90);self.lat.setDecimals(4)
-        self.lon=QDoubleSpinBox();self.lon.setRange(-180,180);self.lon.setDecimals(4)
+        self.lat=QDoubleSpinBox();self.lat.setRange(-90,90);self.lat.setDecimals(5)
+        self.lon=QDoubleSpinBox();self.lon.setRange(-180,180);self.lon.setDecimals(5)
         self.hours=QSpinBox();self.hours.setRange(1,72);self.hours.setValue(24)
         self.elev=QDoubleSpinBox();self.elev.setRange(5,75);self.elev.setValue(15)
-        controls.addRow("Preset city",self.city)
+
+        self._offline_cities=load_locations()
+        self._current_city_suggestions={}
+        self.city_country=QComboBox()
+        for text,country in [("Germany + Türkiye","all"),("Germany","DE"),("Türkiye","TR")]:
+            self.city_country.addItem(text,country)
+        self.city_country.currentIndexChanged.connect(self._refresh_city_search)
+        self.city_search=QLineEdit()
+        self.city_search.setPlaceholderText(
+            "Search 8,084 cities · Hürth, Aachen, İzmir, Karaburun…")
+        self.city_search.setClearButtonEnabled(True)
+        self.city_search.textEdited.connect(self._search_offline_city)
+        self.city_search.returnPressed.connect(self._apply_exact_city)
+        self.city_model=QStringListModel([],self.city_search)
+        self.city_completer=QCompleter(self.city_model,self.city_search)
+        self.city_completer.setCaseSensitivity(Qt.CaseInsensitive)
+        self.city_completer.setCompletionMode(QCompleter.UnfilteredPopupCompletion)
+        self.city_completer.activated[str].connect(self._choose_offline_city)
+        self.city_search.setCompleter(self.city_completer)
+        self.city_info=QLabel("8,084 offline cities: Germany 7,104 · Türkiye 980. No network request.")
+        self.city_info.setObjectName("dataHint")
+        self.city_info.setWordWrap(True)
+
+        controls.addRow("Quick preset",self.city)
+        controls.addRow("Country",self.city_country)
+        controls.addRow("Offline city search",self.city_search)
+        controls.addRow("",self.city_info)
         controls.addRow("Latitude",self.lat)
         controls.addRow("Longitude",self.lon)
         controls.addRow("Look ahead · hours",self.hours)
@@ -275,10 +302,52 @@ class SatelliteWindow(QMainWindow):
         self._preset_location()
         parent.addWidget(group)
 
-    def _preset_location(self):
-        point=LOCATIONS.get(self.city.currentText())
-        if point:
-            self.lat.setValue(point[0]);self.lon.setValue(point[1])
+    def _preset_location(self, *_):
+        place=LOCATIONS.get(self.city.currentText())
+        if place:
+            self.lat.setValue(place[0]);self.lon.setValue(place[1])
+            if hasattr(self,"city_info"):
+                self.city_info.setText(
+                    "Preset station: "+self.city.currentText()+
+                    " · coordinates editable. Recalculate passes after changing station.")
+
+    def _refresh_city_search(self, *_):
+        if hasattr(self,"city_search"):
+            self._search_offline_city(self.city_search.text())
+
+    def _search_offline_city(self, value):
+        country=self.city_country.currentData() or "all"
+        rows=search_locations(self._offline_cities,value,country,limit=12)
+        self._current_city_suggestions={city_label(row):row for row in rows}
+        self.city_model.setStringList(list(self._current_city_suggestions))
+        if rows and self.city_search.hasFocus():
+            self.city_completer.complete()
+            self.city_info.setText(
+                str(len(rows))+" matching offline places. Select one to set coordinates.")
+        elif len(value.strip())<2:
+            self.city_info.setText("Type at least two letters. City search is entirely offline.")
+        else:
+            self.city_info.setText("No local city match. Use manual latitude/longitude.")
+
+    def _choose_offline_city(self, label):
+        row=self._current_city_suggestions.get(label)
+        if row is None:return
+        self.city.setCurrentText("Custom coordinates")
+        self.lat.setValue(row[3]);self.lon.setValue(row[4])
+        self.city_search.setText(label)
+        self.city_info.setText(
+            "Station set: "+label+" · "+f"{row[3]:.5f}°, {row[4]:.5f}°."+
+            " Recalculate satellite passes for this ground station.")
+
+    def _apply_exact_city(self):
+        label=self.city_search.text()
+        if label in self._current_city_suggestions:
+            self._choose_offline_city(label)
+        elif len(self._current_city_suggestions)==1:
+            self._choose_offline_city(next(iter(self._current_city_suggestions)))
+        else:
+            self.city_info.setText(
+                "Select a city from the matching choices, or enter coordinates manually.")
 
     def _media_badges(self, kinds, *, compact=False):
         """Real Qt QLabel chips: never HTML/WebView or browser content."""
