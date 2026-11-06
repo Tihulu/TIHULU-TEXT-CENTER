@@ -16,12 +16,16 @@ image decoding through SatDump. It releases its own SDR processes on stop;
 it never preempts Flight Radar/readsb. **Iridium is orbital/spectrum
 survey only**, not a private communications decoder.
 
-The public GitHub Pages UI cannot directly access USB: install and launch
-the **local Satellite Center companion** first, then pair with its token.
-This module is under development in an independent **draft PR**; it is
-not merged into the main Text Center backend.
+**Browser-only WebUSB is now the preferred mode:** on supported desktop Chromium
+browsers, open the hosted Satellite Center, grant permission to the Nooelec
+RTL2832U, and capture raw IQ directly without installing the Python companion.
+Firefox/Safari cannot use WebUSB; Windows/Linux may still need OS driver or
+permission configuration. In-browser APRS/Meteor image decoding and closed-tab
+scheduling are not implemented. The local companion remains **optional** for
+external decoders and longer-lived jobs. The standalone companion is still
+in an independent **draft PR**, not merged into the main backend.
 
-**Linux / Pop!_OS / Debian / Ubuntu / Raspberry Pi OS / macOS** (Git,
+**Optional companion install — Linux / Pop!_OS / Debian / Ubuntu / Raspberry Pi OS / macOS** (Git,
 Python 3.11+ and venv required):
 
 ```bash
