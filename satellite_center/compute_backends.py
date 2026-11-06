@@ -8,6 +8,7 @@ No OpenVINO/AI-HAT NPU SSTV kernels exist; never claim they run this DSP.
 from __future__ import annotations
 
 from functools import lru_cache
+from .npu_sstv import probe_real_sstv_npu
 from typing import Iterable
 
 VALID_TARGETS = ("cpu", "gpu", "npu")
@@ -42,9 +43,7 @@ def compute_capabilities() -> dict:
 
     return {
         "cpu": cpu, "gpu": gpu,
-        "npu": {"available": False, "name": "NPU (not supported for Robot36 DSP)",
-                "role": "No compatible SSTV DSP kernel or NPU inference model",
-                "reason": "An AI HAT or NPU cannot accelerate Robot36 until a verified compatible kernel/model is implemented."},
+        "npu": probe_real_sstv_npu(),
         "auto": {"available": True, "name": "Optimized for this device",
                  "role": "Choose a tested backend for this WAV's length; keep CPU fallback"},
     }
@@ -71,7 +70,12 @@ def resolve_compute_backend(mode="auto", targets=None, *, seconds=0, capabilitie
     else:
         # For short segments/short captures CUDA transfer and compile overhead
         # can dominate. GPU is selected for long WAVs if a real kernel works.
-        selected = ["cpu", "gpu"] if seconds >= 120 and caps["gpu"]["available"] else ["cpu"]
+        selected = ["cpu"]
+        if seconds >= 120 and caps["gpu"]["available"]:
+            selected.append("gpu")
+        if (seconds >= 120 and caps.get("npu", {}).get("available") and
+                caps["npu"].get("auto_beneficial")):
+            selected.append("npu")
     use_gpu = "gpu" in selected
     return {
         "mode": mode,
@@ -79,9 +83,12 @@ def resolve_compute_backend(mode="auto", targets=None, *, seconds=0, capabilitie
         "selected_targets": selected,
         "trace_backend": "cupy-cuda" if use_gpu else
                          "numpy-cpu" if caps["cpu"]["implementation"].startswith("NumPy vectorization") else "python-cpu",
+        "npu_stages": (["real OpenVINO NPU 8-bin audio DFT synchronization-tone screening"]
+                       if "npu" in selected else []),
         "cpu_mandatory_stages": ["WAV I/O", "Robot36 alignment", "pixel assembly", "PNG output"],
-        "note": ("CuPy computes zero-crossing tones on the GPU; CPU still performs alignment and image writing."
-                 if use_gpu else "CPU-only real signal processing; no NPU/virtual acceleration claimed."),
+        "note": ("NPU computes actual 8-bin audio DFT to screen synchronization tones; " if "npu" in selected else "") +
+            ("CuPy computes real tone traces on GPU; CPU aligns and renders pixels." if use_gpu else
+             "CPU computes accurate Robot36 trace, validates sync and assembles images."),
     }
 
 
