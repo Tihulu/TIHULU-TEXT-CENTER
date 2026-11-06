@@ -86,11 +86,34 @@ All location methods are optional. City suggestions are offline by default; GPS 
 <div class="line"><button id="orbit-fetch">Refresh orbit data</button><button id="orbit-calc" class="secondary">Calculate passes</button></div>
 <label>Import local TLE file (fallback; remains in this tab)<input type="file" id="tle-file" accept=".txt,.tle,text/plain"></label>
 <p id="orbit-state" class="status">No orbit data loaded. Predictions are not RF detections.</p>
+<div class="pass-sort-toolbar" aria-label="Filter and sort satellite passes">
+<label>Sort potential passes<select id="pass-sort">
+<option value="soonest">Soonest date/time first</option>
+<option value="latest">Latest / farthest date first</option>
+<option value="elevation-high">Highest elevation first</option>
+<option value="elevation-low">Lowest elevation first</option>
+<option value="duration-long">Longest duration first</option>
+<option value="duration-short">Shortest duration first</option>
+<option value="name">Satellite name A–Z</option>
+</select></label>
+<label>Group<select id="pass-family"><option value="all">All satellites</option>
+<option value="iss">ISS</option><option value="meteor">Meteor-M</option>
+<option value="cubesat">CubeSat</option><option value="iridium">Iridium</option></select></label>
+<span id="pass-list-count" class="hint">No calculated passes yet.</span>
+</div>
 <div id="passes" class="pass-list"></div>
+<div class="line"><button id="pass-show-more" class="secondary" type="button" hidden>Show more passes</button></div>
 </section>
-<section><h2>4 · Optional browser-open schedule</h2>
-<p class="hint">Choose Schedule on a predicted pass. The capture only starts while <strong>this tab remains open and this USB device is connected</strong>. No background activity after tab closure, laptop sleep or browser suspension. Pending jobs are session-only.</p>
-<div id="jobs">No scheduled browser captures.</div>
+<section id="schedule-center"><h2>4 · Scheduled reception &amp; RF sample analysis</h2>
+<p class="hint">To schedule: <strong>1.</strong> Calculate passes → <strong>2.</strong> select <em>Schedule / configure</em> on a pass → <strong>3.</strong> choose the exact local date/minute, seconds, frequency and recording → <strong>4.</strong> confirm → <strong>5.</strong> grant USB access once and keep this browser tab <strong>open, visible and awake</strong> until the scheduled time.</p>
+<p class="hint">At the selected time the browser will attempt to reopen a <em>previously permitted</em> RTL-SDR, sample raw I/Q and calculate genuine relative power statistics. An optional IQ file download is attempted. This is <strong>not</strong> Meteor image decoding, APRS text decoding or identification of an individual satellite. An antenna and an active transmission are needed for real reception.</p>
+<div class="line"><button id="schedule-check" class="secondary" type="button">Check scheduled-scan readiness</button>
+<button id="schedule-wake" class="secondary" type="button">Request screen wake lock</button></div>
+<p id="schedule-readiness" class="status" role="status">No scan armed. WebUSB permission, tab visibility and receiver availability have not been checked.</p>
+<p class="hint">No closed-tab/background scheduling: suspended browsers and sleeping computers cannot guarantee a minute-accurate scan. Future jobs are saved <strong>in this tab only</strong> and are lost when it closes. Use the optional local companion for attended scheduling while the browser is closed.</p>
+<h3>Armed jobs and results</h3>
+<div id="jobs" class="scheduled-jobs" aria-live="polite">No scheduled browser captures.</div>
+<p id="scheduled-report" class="status" role="status">After a real capture, the sample-level report appears here. Only measured USB bytes are reported.</p>
 </section>
 </div></div>
 <section id="satellite-tracking-maps" class="tracking">
@@ -124,13 +147,19 @@ All location methods are optional. City suggestions are offline by default; GPS 
 <p class="map-caption">Horizon = outside circle · zenith = center · north at top, east at right. Click a colored satellite dot to inspect the pass. This is an estimated sky position, not optical visibility or RF reception.</p>
 </div>
 <div id="map-earth-pane" role="tabpanel" aria-labelledby="map-tab-earth" hidden>
-<div class="map-toolbar"><button id="map-load" type="button">Load OpenStreetMap (on demand)</button>
+<div class="map-toolbar"><button id="map-load" type="button">Load / retry OpenStreetMap</button>
+<label class="basemap-choice">Base map<select id="map-basemap" aria-label="Earth map background">
+<option value="osm">OpenStreetMap street tiles</option>
+<option value="outline">World outlines (bundled, no tile service)</option>
+</select></label>
 <button id="map-recenter" class="secondary" type="button">Center on ground station</button>
 <label class="map-check"><input id="map-tracks" type="checkbox" checked> ±45 min orbit path</label>
 <label class="map-check"><input id="map-footprint" type="checkbox"> Geometric coverage footprint</label>
 </div>
-<div id="earth-map" class="sat-earth" role="region" aria-label="Interactive OpenStreetMap with predicted satellite ground positions"></div>
-<p class="map-caption">© <a href="https://www.openstreetmap.org/copyright" rel="noopener noreferrer" target="_blank">OpenStreetMap contributors</a>. Tiles load only for the view you open; no prefetch/offline tile download. The viewport is requested from the OSM tile provider. Optional shaded coverage is approximate for the minimum elevation selected above.</p>
+<p id="map-basemap-state" class="map-basemap-status" role="status" aria-live="polite">Earth map not loaded. Choose Load OpenStreetMap or World outlines.</p>
+<div id="earth-map" class="sat-earth" role="region" aria-label="Interactive Earth map showing predicted satellite positions over OpenStreetMap or public domain world outlines"></div>
+<p class="map-caption">If OpenStreetMap tiles are blocked or unavailable, the app automatically switches to bundled Natural Earth world outlines. You can switch the base map manually. The outlines are coarse at city level, but satellite ground positions remain plotted. <a href="https://tile.openstreetmap.org/3/4/2.png" rel="noopener noreferrer" target="_blank">Check an OSM tile in a new tab</a> for network/Brave Shields troubleshooting.</p>
+<p class="map-caption">© <a href="https://www.openstreetmap.org/copyright" rel="noopener noreferrer" target="_blank">OpenStreetMap contributors</a>. Tiles load only for the view you open; no prefetch/offline tile download. Only the viewport is requested from OSM when selected. Coarse fallback outlines are public-domain Natural Earth data bundled in this website. Optional shaded coverage is approximate for the minimum elevation selected above.</p>
 </div>
 <div class="map-legend" aria-label="Satellite types">
 <span><i style="background:#61e5fa"></i>ISS</span><span><i style="background:#72eea3"></i>Meteor-M</span><span><i style="background:#f9c679"></i>CubeSat</span><span><i style="background:#c29aff"></i>Iridium</span>
@@ -138,6 +167,15 @@ All location methods are optional. City suggestions are offline by default; GPS 
 </div>
 <aside class="map-sidebar">
 <div class="map-side-head"><h3>Predicted satellites</h3><button id="map-reset-selection" class="secondary" type="button">Clear selection</button></div>
+<label for="map-sat-sort" class="map-sort-label">Sort satellites<select id="map-sat-sort">
+<option value="elevation-high">Elevation · highest first</option>
+<option value="elevation-low">Elevation · lowest first</option>
+<option value="next-soonest">Next pass · soonest first</option>
+<option value="next-latest">Next pass · farthest date first</option>
+<option value="range-near">Distance · nearest first</option>
+<option value="range-far">Distance · farthest first</option>
+<option value="name">Name · A–Z</option>
+</select></label>
 <div id="map-list" class="sat-list" aria-label="Satellite candidates"></div>
 <div id="map-detail" class="map-detail"><p class="hint">Choose a satellite to view pointing angles and a candidate SDR band.</p></div>
 <p class="hint">Nooelec NESDR SMArt v5: ISS 145 MHz and Meteor 137 MHz need suitable VHF antennas; Iridium 1.6 GHz needs an L-band antenna and often filtered LNA. TLEs cannot confirm whether a transmitter is active. CubeSat downlinks vary by satellite.</p>
