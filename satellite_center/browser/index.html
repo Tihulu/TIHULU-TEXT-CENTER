@@ -236,6 +236,49 @@ All location methods are optional. City suggestions are offline by default; GPS 
 </div>
 <p class="hint">Analysis samples up to 48 short windows across the file instead of reading the entire recording into memory. Values are <strong>uncalibrated digital quantities, not dBm</strong>. Peaks may be noise, spurs, DC artifacts or other transmitters; a peak does not prove any specific satellite. Estimated duration assumes continuous CU8 samples with no USB dropouts. To reconstruct Meteor imagery or decode packets, a separate decoder remains necessary.</p>
 </section>
+<section id="satellite-images" class="image-center">
+<h2>7 · Satellite Images — real RF decoding &amp; online archives</h2>
+<p class="hint">Two clearly separate sources: <strong>RECEIVED via antenna</strong> requires an actual RF recording and protocol decoder; <strong>ONLINE NASA imagery</strong> is downloaded from NASA, not from your RTL-SDR. Neither orbit passes nor RF energy peaks prove a picture was transmitted.</p>
+<div class="image-sources">
+<div class="image-source-panel">
+<h3><icon aria-hidden="true">◉</icon> Radio image reception</h3>
+<label>Satellite image target<select id="image-target">
+<option value="iss">ISS · SSTV (event-only)</option>
+<option value="meteor3">METEOR-M2-3 · LRPT</option>
+<option value="meteor4">METEOR-M2-4 · LRPT</option></select></label>
+<p id="image-reception-guide" class="hint">ISS SSTV is intermittent. The current ARISS event's frequency/mode takes precedence over generic presets.</p>
+<div class="line">
+<button type="button" id="image-tune">Set recommended receiver frequency</button>
+<button type="button" class="secondary" id="image-reception-open">Open event / decoder guide</button>
+</div>
+<p class="hint"><strong>ISS Robot36:</strong> record demodulated narrowband FM audio WAV, then decode it here. Raw CU8 is not WAV. <strong>Meteor LRPT:</strong> record raw CU8 during a pass and decode with SatDump (available through the optional desktop companion). A standard browser spectrum is not an LRPT decoder.</p>
+<label>Local SSTV audio file (WAV/Audio; experimental Robot36 decoding)
+<input id="image-sstv-file" type="file" accept=".wav,audio/wav,audio/x-wav,audio/*"></label>
+<div class="line"><button type="button" id="image-decode-sstv">Decode Robot36 SSTV audio</button>
+<button type="button" class="secondary" id="image-download-sstv" disabled>Save decoded PNG</button></div>
+<p id="image-decode-status" role="status" class="status">No SSTV audio decoded. Real SSTV requires an active satellite transmission; never upload raw I/Q as WAV.</p>
+<canvas id="image-sstv-canvas" width="320" height="240" aria-label="SSTV decoded image; blank until real audio passes synchronization checks"></canvas>
+<label>Import an image previously decoded with SatDump / another receiver
+<input id="image-import" type="file" accept="image/png,image/jpeg,.png,.jpg,.jpeg"></label>
+<p class="hint">Imported decoded images are labeled <em>user-supplied</em>; their transmitter identity cannot be verified from a filename.</p>
+</div>
+<div class="image-source-panel">
+<h3>Online NASA Earth imagery (no SDR needed)</h3>
+<label>Official NASA catalog<select id="image-online-source">
+<option value="epic">DSCOVR / EPIC · latest available full-Earth images</option>
+<option value="iss">ISS Earth photos · NASA archive search (not live)</option></select></label>
+<div class="line"><button type="button" id="image-fetch-online">Fetch genuine images (Internet)</button>
+<button type="button" id="image-clear-online" class="secondary">Clear online gallery</button></div>
+<p id="image-online-status" class="status" role="status">Online image requests are on-demand only. NASA metadata includes the original image date/source. No false live-camera claims.</p>
+<div id="image-gallery" class="image-gallery" aria-live="polite"></div>
+<p class="hint">Sources: <a href="https://epic.gsfc.nasa.gov/about/api" target="_blank" rel="noopener noreferrer">NASA EPIC API</a> · <a href="https://images.nasa.gov/" target="_blank" rel="noopener noreferrer">NASA Images archive</a>. Image URLs and timestamps come from provider metadata, not TLE positions.</p>
+</div>
+</div>
+<h3>Local images &amp; capture attribution</h3>
+<div id="image-local-gallery" class="image-gallery" aria-live="polite"></div>
+<p class="hint">New recording filenames use <code>TIHULU_SATELLITE-OR-UNATTRIBUTED_YYYYMMDDTHHMMSSZ_frequencyHz_IQ.cu8</code>. TLE association means <em>candidate target</em>, not a verified transmitter. Decoded or imported photographs receive matching satellite/date UTC names; provenance remains visible in the gallery.</p>
+</section>
+
 <section><h2>Decoder availability and truthful status</h2>
 <p>Browser-only v0.3 provides genuine USB IQ collection and geometric pass estimates; <strong>in-page APRS/SSTV/Meteor image decoding is not connected yet</strong>. Use SatDump or another decoder with the saved CU8 file where legal. Iridium remains RF-energy research only; no private communications decoding.</p>
 <details><summary>What requires more than a browser?</summary><p>Windows may require WinUSB driver setup; Linux may require releasing the kernel DVB driver or adjusting permissions. To record a pass while the browser is closed, the optional local companion must remain running. The companion still supports offline SatDump and multimon-ng where installed.</p></details>
