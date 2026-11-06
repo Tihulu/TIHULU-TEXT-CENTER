@@ -538,6 +538,21 @@ async function connect(){
   connection(true,state.connectionKind==="bridge"?"Paired with local bridge":"Internet source configured · check individual provider statuses");
   $("token").value="";
   state.timer=setInterval(()=>{if(!document.hidden)refresh()},15000);
+  if(state.connectionKind==="bridge"){
+   // Native Qt changes its loopback port each time. Synchronize only the
+   // explicitly selected place, never a receiver/GPS site coordinate.
+   try{
+    const locationModule=await import("./flight_location_ui.mjs");
+    const tabPlace=locationModule.readSavedPlace();
+    if(state.moved && tabPlace){
+     await api("/api/search-location",{method:"POST",
+      headers:{"Content-Type":"application/json"},body:JSON.stringify(tabPlace)});
+    }else if(!state.moved){
+     const stored=await api("/api/search-location");
+     if(stored?.place&&!state.moved)applyPlaceToFlightRadar(stored.place,false);
+    }
+   }catch(error){notice("Native location preference unavailable: "+error.message);}
+  }
  }catch(e){
   if(state.connectionKind==="usb"){
    // A bad optional network key/URL must not disconnect healthy WebUSB
@@ -1161,12 +1176,18 @@ $("germany").onclick=()=>chooseRegion(GERMANY,"Germany",7);
 
 // The Satellite Center's offline place directory and the radar share one
 // location model. A saved place is a SEARCH center, never receiver GPS.
-function applyPlaceToFlightRadar(place){
+function applyPlaceToFlightRadar(place,persistBridge=true){
  if(!place||!Number.isFinite(place.lat)||!Number.isFinite(place.lon))return;
  if(Math.abs(place.lat)>90||Math.abs(place.lon)>180)return;
  const radius=Number(place.radius);
  if(![25,50,100,150,250].includes(radius))return;
  state.queryRadius=radius;
+ if(persistBridge && state.connectionKind==="bridge" && state.token){
+  void api("/api/search-location",{method:"POST",
+   headers:{"Content-Type":"application/json"},
+   body:JSON.stringify(place)
+  }).catch(err=>notice("Map selected, but local preference could not be saved: "+err.message));
+ }
  state.tracks.clear(); // avoid carrying visible trails from an old area
  state.selected=null;
  chooseRegion({lat:place.lat,lon:place.lon},
