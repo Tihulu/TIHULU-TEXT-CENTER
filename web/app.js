@@ -1,7 +1,7 @@
 /* TIHULU TEXT CENTER — no external libraries, no background timers fetching data. */
 "use strict";
 
-const state = { csrf:"", page:100, subpage:0, source:"", entries:[], pages:[] };
+const state = { csrf:"", page:100, subpage:0, source:"", entries:[], pages:[], receivers:null };
 const $ = (id) => document.getElementById(id);
 
 function el(tag, cls, text) {
@@ -86,6 +86,46 @@ async function refreshCounts(){
   const d=await api("/api/bootstrap");
   state.csrf=d.csrf;
   [["articles","stat-articles"],["pages","stat-pages"],["events","stat-events"],["bulletins","stat-posts"]].forEach(([key,id])=>{$(id).textContent=d.counts[key]});
+}
+function receiverSummary(data){
+  if(!data) return "Receiver status not checked";
+  if(data.rtl_usb_count>0) return "RTL-SDR USB detected · decoder inactive";
+  if(data.status==="sysfs_unavailable") return "USB inventory not supported on this OS";
+  return "No RTL2832U USB device detected";
+}
+async function refreshReceiverStatus(){
+  const data=await api("/api/receivers");
+  state.receivers=data;
+  const line=document.querySelector(".side-footer .status-line");
+  if(line){
+    const dot=el("span","status-dot "+(data.rtl_usb_count>0?"green":"muted"));
+    line.replaceChildren(dot,document.createTextNode(" "+receiverSummary(data)));
+  }
+  return data;
+}
+function receiverCard(data){
+  const n=el("article","item-card");
+  n.append(el("div","item-meta","PASSIVE HARDWARE INVENTORY / NOT LIVE RADIO"));
+  n.append(el("h3","","Receiver & decoder readiness"));
+  n.append(el("p","",receiverSummary(data)));
+  n.append(el("p","full-body","RTL2832U USB candidates: "+data.rtl_usb_count+
+    " · DVB frontend paths: "+data.dvb_frontends.length+
+    " · Decoding active: NO · RF signal verified: NO"));
+  if(data.rtl_usb_devices.length){
+    data.rtl_usb_devices.forEach(d=>n.append(el("p","full-body",d.product+" / USB "+d.usb_id+" / "+d.usb_path)));
+  }
+  n.append(el("p","full-body","Executables: "+Object.entries(data.decoders).map(([k,v])=>k+" "+(v?"installed":"missing")).join(" · ")));
+  const actions=el("div","card-actions");
+  actions.append(button("REFRESH DEVICE STATUS",async()=>{
+    try{
+      const fresh=await refreshReceiverStatus();
+      await showRadioData();
+      notice("Passive USB inventory refreshed. No radio tuning or decoder started.");
+    }catch(e){notice(e.message)}
+  }));
+  n.append(actions);
+  n.append(el("p","full-body","USB detection is not active reception. To display actual FM/DAB text, a compatible decoder must supply real source-attributed data. No tuner was opened."));
+  return n;
 }
 function setActivePage(number){
   document.querySelectorAll("[data-page]").forEach((n)=>n.classList.toggle("active",n.classList.contains("nav-item") && Number(n.dataset.page)===number));
@@ -211,6 +251,8 @@ async function showWeather() {
 }
 async function showRadioData(){
   section("RECEIVER / INPUT","Radio & TV text archive","Receive-only imports");
+  try { $("content").append(receiverCard(state.receivers || await refreshReceiverStatus())); }
+  catch(error){empty("Receiver detection unavailable","The local USB inventory could not be read: "+error.message)}
   const events=await api("/api/events");
   events.forEach((e)=>{
     const n=card(e.title,e.body,e.medium.toUpperCase()+" · "+e.station+" · "+timeLabel(e.received_at));
@@ -310,7 +352,7 @@ async function start(){
   bindNavigation();
   const now=new Date();
   $("clock").textContent=now.toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"});
-  try{await refreshCounts();await refreshSourceChoices();await openPage(100,"",0)}
+  try{await refreshCounts();await refreshSourceChoices();await refreshReceiverStatus();await openPage(100,"",0)}
   catch(err){notice("Local service unavailable: "+err.message);$("teletext-body").textContent="Unable to reach the local application server."}
 }
 start();

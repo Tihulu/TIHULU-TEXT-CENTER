@@ -7,6 +7,7 @@ from pathlib import Path
 import os
 
 from .core import Store
+from .receivers import receiver_inventory
 from .http_app import run_server
 
 
@@ -32,6 +33,7 @@ def main():
     template.add_argument("--file", type=Path, default=Path("decoded-pages.json"))
     doctor = sub.add_parser("doctor", help="Show current local installation and archive status")
     doctor.add_argument("--db", type=Path, default=default_db())
+    sub.add_parser("receivers", help="Passively inspect local RTL USB, DVB and decoder tools; no RF tuning")
     args = parser.parse_args()
     if args.command is None:
         args.command = "serve"
@@ -70,6 +72,8 @@ def main():
         )
         print(f"Created EMPTY import template: {args.file} (0 RF records).")
         print("Fill it ONLY with genuine attributed output from an external decoder.")
+    elif args.command == "receivers":
+        print(json.dumps(receiver_inventory(), indent=2))
     elif args.command == "doctor":
         store = Store(args.db)
         print(json.dumps({

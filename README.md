@@ -5,6 +5,7 @@ A lightweight, offline-first, English-language information and text-network cent
 ## Scope
 
 - Teletext-style numbered navigation and a modern responsive interface.
+- Passive local RTL2832U USB / DVB frontend inventory and installed decoder tool checks (does not access or tune radios).
 - Read-only, source-attributed **broadcast text imports**, with page/subpage support (no fabricated reception).
 - On-demand RSS/Atom ingestion, searchable local article cache, and external text-community directories.
 - Local, offline bulletin-board notes and bookmarks.
@@ -16,6 +17,7 @@ A lightweight, offline-first, English-language information and text-network cent
 Requires Python **3.11+**, no third-party Python packages:
 
 ```bash
+python3 -m textcenter receivers  # hardware/tool inventory, never tunes the SDR
 python3 -m textcenter serve --host 127.0.0.1 --port 8787
 ```
 
@@ -78,3 +80,7 @@ If `python3 -m textcenter` is launched from a different directory without instal
 - `docs/`: integration and provenance notes.
 
 Development is additive and intentionally keeps the standalone project independent of existing Survival Kit stages.
+
+## Receiver detection
+
+The Radio Data (400) page now shows passive USB candidates and available decoder tools. See [Receiver status and connection notes](docs/RECEIVER_STATUS.md). A detected device does **not** mean its RF signal was decoded or its USB interface is free.

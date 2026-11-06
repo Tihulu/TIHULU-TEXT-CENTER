@@ -9,6 +9,7 @@ from urllib.parse import parse_qs, urlsplit
 
 from . import __version__
 from .core import Store, safe_https_url
+from .receivers import receiver_inventory
 
 WEB_DIR = Path(__file__).resolve().parents[1] / "web"
 
@@ -94,6 +95,8 @@ class Handler(BaseHTTPRequestHandler):
                     "dvb_receiver": "not_connected",
                     "warning": "No built-in RF decoder or authenticated emergency feed."
                 })
+            if route == "/api/receivers":
+                return self._json(200, receiver_inventory())
             if route == "/api/index":
                 return self._json(200, [{"page": k, "title": v[0], "description": v[1]} for k,v in INDEX_PAGES.items()])
             if route == "/api/page":

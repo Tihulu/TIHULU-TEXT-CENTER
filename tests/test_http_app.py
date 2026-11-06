@@ -59,6 +59,16 @@ class HTTPTests(unittest.TestCase):
         self.assertEqual(headers["Content-Type"],"image/svg+xml; charset=utf-8")
         self.assertIn(b"<svg",payload)
 
+    def test_receivers_endpoint_is_passive_and_honest(self):
+        code,headers,raw=self.request("GET","/api/receivers")
+        self.assertEqual(code,200)
+        status=json.loads(raw)
+        self.assertIn("rtl_usb_count",status)
+        self.assertIn("decoders",status)
+        self.assertFalse(status["active_capture"])
+        self.assertFalse(status["signal_verified"])
+        self.assertFalse(status["connected_decoder"])
+
     def test_no_forged_source(self):
         code,_,raw=self.request("GET","/api/page?source_id=ard_text&number=100")
         self.assertEqual(code,404)
