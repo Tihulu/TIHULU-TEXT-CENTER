@@ -558,42 +558,178 @@ $('orbit-calc').addEventListener('click',async()=>{
     status('orbit-state','Calculated '+found.length+' geometric passes from '+tleEntries.length+' TLE candidates at '+lat.toFixed(3)+', '+lon.toFixed(3)+'. Approximate 30-second resolution; no satellite signals identified.');
   }catch(err){status('orbit-state','Orbit computation failed: '+err.message+'. Check browser connectivity to the JS library CDN.');}
 });
+function readableJobState(job,now=Date.now()){
+ if(job.state!=='armed')return job.state;
+ const action=evaluateScheduledJob(job,now,{visible:!document.hidden,receiverBusy:!!capturePromise});
+ if(action==='waiting-foreground')return 'due / waiting for visible tab';
+ if(action==='waiting-receiver')return 'due / waiting for free receiver';
+ if(action==='start')return 'due now';
+ if(action==='missed')return 'expired';
+ return 'armed / '+secondsToJob(job,now)+' s remaining';
+}
 function renderJobs(){
-  $('jobs').replaceChildren();
-  if(!jobs.length){status('jobs','No scheduled browser captures.');return;}
-  for(const job of jobs){
-    const row=document.createElement('div');row.className='pass';
-    const line=document.createElement('span');
-    line.textContent=job.name+' · '+fmtTime(job.when)+' · '+job.state+' · '+(job.frequency/1e6).toFixed(3)+' MHz';
-    row.append(line);
-    if(job.state==='armed'){
-      const cancel=document.createElement('button');cancel.className='secondary';cancel.textContent='Cancel';
-      cancel.addEventListener('click',()=>{job.state='cancelled';renderJobs();});
-      row.append(' ',cancel);
-    }
-    $('jobs').append(row);
-  }
+ const container=$('jobs');container.replaceChildren();
+ if(!jobs.length){
+   const empty=document.createElement('p');empty.className='hint';
+   empty.textContent='No scheduled captures. Calculate passes and select Schedule / configure to create one.';
+   container.append(empty);
+   return;
+ }
+ const now=Date.now();
+ for(const job of [...jobs].sort((a,b)=>a.when-b.when)){
+   const panel=document.createElement('div');panel.className='scheduled-job';
+   panel.dataset.state=job.state;
+   const title=document.createElement('h4');title.textContent=job.name+' · '+(job.frequency/1e6).toFixed(3)+' MHz';
+   const statusLine=document.createElement('p');statusLine.className='job-state';
+   statusLine.textContent=readableJobState(job,now);
+   const timings=document.createElement('p');
+   timings.textContent='Scheduled start (local): '+fmtTime(job.when)+
+     ' · pass ends '+fmtTime(job.until)+
+     ' · '+job.durationSeconds+' s · '+(job.sampleRate/1e6)+' MS/s'+
+     ' · '+(job.saveRaw?'Raw IQ + power analysis':'Power analysis only');
+   const message=document.createElement('p');
+   message.textContent=job.message||'Waiting for browser scheduler.';
+   const controls=document.createElement('div');controls.className='line';
+   if(job.state==='armed'){
+     const cancel=document.createElement('button');cancel.type='button';
+     cancel.className='secondary';cancel.textContent='Cancel scheduled scan';
+     cancel.addEventListener('click',()=>{
+       job.state='cancelled';job.message='Cancelled by user. No RF capture started.';
+       renderJobs();
+     });controls.append(cancel);
+   }
+   if(job.state==='blocked'&&Date.now()+1500<job.until){
+     const retry=document.createElement('button');retry.type='button';
+     retry.textContent='Retry while pass is active';
+     retry.addEventListener('click',()=>{
+       job.when=Date.now()+1000;job.state='armed';
+       job.message='Retry armed. Keep browser visible and ensure RTL-SDR permission.';
+       renderJobs();
+     });
+     controls.append(retry);
+   }
+   if(job.downloadAvailable&&lastScheduledFile?.jobId===job.id){
+     const download=document.createElement('button');download.type='button';
+     download.className='secondary';download.textContent='Download raw IQ again';
+     download.addEventListener('click',()=>triggerRawDownload(lastScheduledFile.blob,lastScheduledFile.name));
+     controls.append(download);
+   }
+   if(job.report){
+     const report=document.createElement('p');
+     report.textContent='Measured '+(job.report.bytesReceived/1048576).toFixed(2)+
+       ' MiB · '+job.report.blocksMeasured+' power blocks · average digital level '+
+       job.report.averageRelativeDb+' dBFS-like · '+job.report.elapsedSeconds+
+       ' s. No satellite message decoded or identified.';
+     panel.append(title,statusLine,timings,report,message,controls);
+   }else panel.append(title,statusLine,timings,message,controls);
+   container.append(panel);
+ }
+}
+async function checkScheduledReadiness(){
+ const lines=[];
+ lines.push('Tab: '+(document.hidden?'HIDDEN — cannot reliably receive':"visible"));
+ lines.push('WebUSB: '+(hardwareSupported?'available':'not supported in this browser'));
+ lines.push('RTL-SDR JavaScript driver: '+(driver?'loaded':'unavailable / loading'));
+ lines.push('Device open now: '+(device?'yes':'no (release while waiting is recommended)'));
+ if(hardwareSupported){
+   try{
+     const grants=await navigator.usb.getDevices();
+     const rtl=grants.filter(d=>d.vendorId===0x0bda&&d.productId===0x2838);
+     lines.push('Previously granted Nooelec/RTL2832U: '+rtl.length+
+       (rtl.length?' (can attempt silent reopen at scheduled minute)':' (click Choose RTL-SDR first)'));
+   }catch(e){lines.push('USB permissions could not be inspected: '+e.message);}
+ }
+ lines.push('Screen wake lock: '+(wakeLock?'active':'off / not guaranteed'));
+ lines.push('Armed passes: '+jobs.filter(j=>j.state==='armed').length);
+ lines.push('Your browser must stay OPEN, visible and not suspended. This test does NOT claim or test the USB tuner.');
+ status('schedule-readiness',lines.join('\n'));
+}
+$('schedule-check').addEventListener('click',()=>{void checkScheduledReadiness();});
+$('schedule-wake').addEventListener('click',async()=>{
+ if(wakeLock){try{await wakeLock.release();}catch(_){ }wakeLock=null;
+   $('schedule-wake').textContent='Request screen wake lock';
+   status('schedule-readiness','Screen wake lock released. The scheduler may stop if your computer sleeps.');
+   return;
+ }
+ if(!navigator.wakeLock){
+   status('schedule-readiness','Screen Wake Lock API is unavailable. Keep screen awake using your computer power settings.');
+   return;
+ }
+ try{
+   wakeLock=await navigator.wakeLock.request('screen');
+   wakeLock.addEventListener('release',()=>{
+     wakeLock=null;
+     $('schedule-wake').textContent='Request screen wake lock';
+   });
+   $('schedule-wake').textContent='Release screen wake lock';
+   status('schedule-readiness','Screen wake lock requested successfully. Browser and operating system can still suspend background tabs; keep the tab visible.');
+ }catch(e){status('schedule-readiness','Wake lock not permitted: '+e.message+'. Keep this browser tab awake manually.');}
+});
+async function scheduledTick(){
+ if(schedulerTickBusy||!jobs.length)return;
+ schedulerTickBusy=true;
+ try{
+   const now=Date.now();
+   for(const job of jobs){
+     if(job.state!=='armed')continue;
+     const action=evaluateScheduledJob(job,now,{
+       visible:!document.hidden,receiverBusy:!!capturePromise
+     });
+     if(action==='missed'){
+       job.state='missed';job.message='The satellite pass ended before a foreground capture could start. No radio data collected.';
+       log('Missed '+job.name+': pass window expired.');
+       continue;
+     }
+     if(action==='waiting-foreground'){
+       job.message='Scheduled minute reached, but tab is hidden/suspended. Return before the pass ends to try an RF sample.';
+       continue;
+     }
+     if(action==='waiting-receiver'){
+       job.message='Scheduled minute reached; waiting for current RTL-SDR capture to release.';
+       continue;
+     }
+     if(action!=='start')continue;
+     job.state='starting';
+     job.message='At scheduled minute. Attempting to reopen previously permitted USB receiver (no new permission prompt).';
+     log('Scheduled capture starting: '+job.name+' at '+new Date().toLocaleTimeString());
+     renderJobs();
+     try{
+       if(!device)await connectDevice({silent:true});
+       if(!device)throw Error('WebUSB did not open the selected RTL-SDR.');
+       if(document.hidden)throw Error('Browser became hidden; scheduled RF operation cancelled.');
+       const remaining=Math.floor((job.until-Date.now())/1000);
+       if(remaining<1){job.state='missed';job.message='Pass ended before the SDR could be opened.';
+         await closeDevice();continue;}
+       job.durationSeconds=Math.min(job.durationSeconds,remaining);
+       await startCapture(job);
+     }catch(e){
+       job.state='blocked';job.message='Could not start real USB reception: '+e.message+
+         '. Check readsb/Gqrx conflicts, OS drivers, RTL-SDR permission and page visibility.';
+       status('scheduled-report',job.name+' — BLOCKED. '+e.message+
+         '. No RF data was captured. You can retry while the pass is active.');
+       log('Scheduled scan blocked: '+e.message);
+       await closeDevice();
+     }
+     break; // process only one RF capture at a time
+   }
+ }finally{
+   schedulerTickBusy=false;
+   renderJobs();
+ }
 }
 setInterval(()=>{
-  if(!jobs.length)return;
-  const now=Date.now();
-  for(const job of jobs){
-    if(job.state!=='armed')continue;
-    if(now>job.until){job.state='missed';renderJobs();continue;}
-    if(now>=job.when){
-      if(document.hidden || !device || capturePromise){
-        job.state='blocked';log('Scheduled pass blocked: page hidden, no USB device, or another capture active.');
-      } else {
-        job.state='running';
-        void startCapture(job).catch(err=>{job.state='blocked';log('Scheduled capture: '+err.message);renderJobs();});
-      }
-      renderJobs();
-    }
-  }
+ // Interval checks the actual wall clock; browser timer throttling cannot be
+ // defeated, therefore missed/late jobs remain explicitly labelled.
+ void scheduledTick();
+ if(!schedulerTickBusy&&jobs.length)renderJobs();
 },1000);
 // Closing a page destroys the WebUSB session; no service worker keeps hardware open.
 // Promise resolution is not guaranteed during pagehide, but browser ownership ends.
-window.addEventListener('pagehide',()=>{stopRequested=true; if(device)void device.close().catch(()=>{});});
+window.addEventListener('pagehide',()=>{
+  stopRequested=true;
+  if(wakeLock){void wakeLock.release().catch(()=>{});wakeLock=null;}
+  if(device)void device.close().catch(()=>{});
+});
 document.addEventListener('visibilitychange',()=>{
   if(document.hidden && (capturePromise || device)){
     stopRequested=true;
