@@ -76,11 +76,14 @@ class Handler(BaseHTTPRequestHandler):
         route = parsed.path
         q = parse_qs(parsed.query, keep_blank_values=True)
         try:
-            if route in ("/", "/index.html", "/assets/app.js", "/assets/styles.css"):
+            if route in ("/", "/index.html", "/assets/app.js", "/assets/styles.css", "/favicon.svg"):
                 mapping = {"/": "index.html", "/index.html": "index.html",
-                           "/assets/app.js": "app.js", "/assets/styles.css": "styles.css"}
+                           "/assets/app.js": "app.js", "/assets/styles.css": "styles.css",
+                           "/favicon.svg": "favicon.svg"}
                 data = (WEB_DIR / mapping[route]).read_bytes()
-                kind = "text/html" if route in ("/", "/index.html") else ("text/javascript" if route.endswith(".js") else "text/css")
+                kind = ("image/svg+xml" if route == "/favicon.svg"
+                        else "text/html" if route in ("/", "/index.html")
+                        else "text/javascript" if route.endswith(".js") else "text/css")
                 return self._send(200, data, kind + "; charset=utf-8", cache="no-cache")
             if route == "/api/bootstrap":
                 return self._json(200, {

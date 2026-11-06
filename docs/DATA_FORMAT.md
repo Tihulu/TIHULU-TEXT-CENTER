@@ -4,7 +4,7 @@ This JSON is consumed only through the **explicit** local CLI import command; th
 
 Example (replace with data **actually received** from a decoder; this document is only a schema example and is NOT reception evidence):
 
-\`\`\`json
+```json
 {
   "schema_version": 1,
   "pages": [
@@ -36,13 +36,13 @@ Example (replace with data **actually received** from a decoder; this document i
     }
   ]
 }
-\`\`\`
+```
 
-Run: \`python3 -m textcenter import-text --file decoded-pages.json --db ./text-center.db\`.
+Run: `python3 -m textcenter import-text --file decoded-pages.json` using the default persistent database. Use `python3 -m textcenter make-template` to generate an **empty** local template (0 RF records). There is no bundled decoder capture file.
 
-Accepted numbered page media: \`dvb_teletext\`, \`journaline\`; pages 100–899, subpages 0–99.
+Accepted numbered page media: `dvb_teletext`, `journaline`; pages 100–899, subpages 0–99.
 
-Accepted event media: \`dvb_teletext\`, \`dab_dls\`, \`journaline\`, \`fm_rds\`, \`drm\`, \`navtex\`, \`hf_weather\`, \`aprs\`, \`other_receiver\`. Event timestamps must include a UTC offset.
+Accepted event media: `dvb_teletext`, `dab_dls`, `journaline`, `fm_rds`, `drm`, `navtex`, `hf_weather`, `aprs`, `other_receiver`. Event timestamps must include a UTC offset.
 
 The input is **never automatically an authenticated alert**, even if it contains warning-like words. Preserve the original text and timestamp; do not label tuner candidates as decoded.
 

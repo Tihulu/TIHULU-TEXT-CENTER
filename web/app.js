@@ -20,9 +20,19 @@ async function api(path, method, payload){
     options.headers["X-Tihulu-CSRF"]=state.csrf;
     options.body=JSON.stringify(payload);
   }
-  const response=await fetch(path,options);
-  const data=await response.json();
-  if(!response.ok) throw new Error(data.error || "Request failed ("+response.status+")");
+  let response;
+  try { response=await fetch(path,options); }
+  catch (cause) {
+    throw new Error("Cannot reach the local Text Center server. Start it with 'python3 -m textcenter serve', then reload this tab.");
+  }
+  let data;
+  try { data=await response.json(); }
+  catch (_) { throw new Error("The local server returned an unreadable response (HTTP "+response.status+"). Try reloading the page."); }
+  if(!response.ok) {
+    const message=data.error || "Request failed (HTTP "+response.status+")";
+    if(response.status===403 && method==="POST") throw new Error(message+" Reload the browser tab after restarting the server.");
+    throw new Error(message);
+  }
   return data;
 }
 function timeLabel(value) {
@@ -95,9 +105,15 @@ async function openPage(number,source,subpage){
     if(state.page===800) return showDirectory();
     return showAbout();
   } catch(err) {
-    section("NOT FOUND","No page available");
-    empty("Page unavailable",err.message+" — No content will be invented.");
-    notice(err.message);
+    const message=String(err && err.message || err);
+    const disconnected=message.startsWith("Cannot reach the local Text Center server");
+    const missing=message.includes("No imported page") || message.includes("Page not present in local index");
+    section(disconnected ? "CONNECTION LOST" : missing ? "NOT FOUND" : "LOAD ERROR",
+            disconnected ? "Local service disconnected" : missing ? "No page imported" : "Unable to load page content");
+    empty(disconnected ? "Cannot contact the running server" : missing ? "No received data for this page" : "Request unsuccessful",
+          message + (disconnected ? " Previously displayed data may be out of date." : ""));
+    $("content").append(button("RETRY PAGE",()=>openPage(state.page,state.source,state.subpage)));
+    notice(message);
   }
 }
 function showBroadcast(data){

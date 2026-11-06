@@ -28,6 +28,10 @@ def main():
     feed.add_argument("--db", type=Path, default=default_db())
     feed.add_argument("--title", required=True)
     feed.add_argument("--url", required=True)
+    template = sub.add_parser("make-template", help="Create an EMPTY decoder import JSON file (no simulated RF data)")
+    template.add_argument("--file", type=Path, default=Path("decoded-pages.json"))
+    doctor = sub.add_parser("doctor", help="Show current local installation and archive status")
+    doctor.add_argument("--db", type=Path, default=default_db())
     args = parser.parse_args()
     if args.command is None:
         args.command = "serve"
@@ -39,11 +43,44 @@ def main():
             parser.error("Port must be 1–65535")
         run_server(Store(args.db), host=args.host, port=args.port)
     elif args.command == "import-text":
-        content = args.file.read_bytes()
+        try:
+            content = args.file.read_bytes()
+        except FileNotFoundError:
+            parser.error(
+                f"Import file not found: {args.file}. This is not an included live-data file. "
+                "Use an actual decoder export, or run 'python3 -m textcenter make-template' "
+                "for an EMPTY JSON template (no radio data)."
+            )
+        except OSError as exc:
+            parser.error(f"Cannot read import file: {exc}")
         if len(content) > 4_000_000:
             parser.error("Import file exceeds four-megabyte limit")
-        data = json.loads(content)
-        print(json.dumps(Store(args.db).import_data(data), indent=2))
+        try:
+            data = json.loads(content)
+            imported = Store(args.db).import_data(data)
+        except (ValueError, TypeError, KeyError) as exc:
+            parser.error(f"Invalid decoder import: {exc}")
+        print(json.dumps(imported, indent=2))
+    elif args.command == "make-template":
+        if args.file.exists():
+            parser.error(f"Refusing to overwrite existing file: {args.file}")
+        args.file.write_text(
+            json.dumps({"schema_version": 1, "pages": [], "events": []}, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        print(f"Created EMPTY import template: {args.file} (0 RF records).")
+        print("Fill it ONLY with genuine attributed output from an external decoder.")
+    elif args.command == "doctor":
+        store = Store(args.db)
+        print(json.dumps({
+            "application": "TIHULU TEXT CENTER",
+            "database": str(store.filename.resolve()),
+            "local_web_url": "http://127.0.0.1:8787/",
+            "counts": store.counts(),
+            "network_polling": "off_by_default",
+            "rf_decoder": "not_bundled",
+            "how_to_start": "python3 -m textcenter serve",
+        }, indent=2))
     elif args.command == "add-feed":
         print("Registered feed:", Store(args.db).add_feed(args.title, args.url))
 

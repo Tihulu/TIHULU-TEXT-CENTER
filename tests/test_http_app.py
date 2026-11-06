@@ -53,6 +53,12 @@ class HTTPTests(unittest.TestCase):
         self.assertEqual(self.request("GET","/api/page?number=102")[0],404)
         self.assertEqual(self.request("GET","/../README.md")[0],404)
 
+    def test_favicon_is_local_and_served(self):
+        code,headers,payload=self.request("GET","/favicon.svg")
+        self.assertEqual(code,200)
+        self.assertEqual(headers["Content-Type"],"image/svg+xml; charset=utf-8")
+        self.assertIn(b"<svg",payload)
+
     def test_no_forged_source(self):
         code,_,raw=self.request("GET","/api/page?source_id=ard_text&number=100")
         self.assertEqual(code,404)

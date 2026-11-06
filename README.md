@@ -34,10 +34,33 @@ The web server binds to loopback by default. **Do not expose it directly to the 
 The interface starts with a clearly labeled offline index and empty incoming feeds. It does not pretend that ARD Teletext, FM RDS, emergency signals, or any tuner is active. You can import genuine text from your own authorized decoders:
 
 ```bash
-python3 -m textcenter import-text --db ./text-center.db --file ./decoded-pages.json
+python3 -m textcenter import-text --file ./decoded-pages.json
 ```
 
-The input schema is in [docs/DATA_FORMAT.md](docs/DATA_FORMAT.md). Imported page timestamps and attribution must originate from the decoder or source; simulated contents must be labeled as demo.
+The `decoded-pages.json` filename is **not bundled receiver data**. It must be produced from a real decoder output; see [docs/DATA_FORMAT.md](docs/DATA_FORMAT.md). Imported timestamps and attribution must originate from the decoder/source. **Never treat sample text as received signals.**
+
+To create a correctly formatted but **completely empty** import file:
+
+```bash
+python3 -m textcenter make-template
+python3 -m textcenter import-text --file decoded-pages.json
+```
+
+This imports **0 records**, as expected: no physical receiver is integrated yet. Run `python3 -m textcenter doctor` to check your SQLite record counts and installation state.
+
+### Troubleshooting (Pop!_OS / Linux)
+
+Keep `python3 -m textcenter serve` running in a terminal while the browser is open. If you press **Ctrl+C**, browser API calls fail because the local server has stopped. Start it again and reload the tab. A lost API connection must not be interpreted as a missing Teletext page.
+
+Run commands from the repository directory (or install the package in a suitable environment):
+
+```bash
+cd ~/TIHULU-TEXT-CENTER
+python3 -m textcenter doctor
+python3 -m textcenter serve
+```
+
+If `python3 -m textcenter` is launched from a different directory without installing the package, Python will not find it. The default database remains in `~/.local/share/tihulu-text-center/` across restarts.
 
 ## Privacy and resource policy
 
