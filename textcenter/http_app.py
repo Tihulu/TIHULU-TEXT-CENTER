@@ -31,6 +31,9 @@ from .radar_bridge import RadarOverlay, RadarError
 from .language_packs import LanguagePacks, LanguagePackError
 from .auto_scan import FMAutoScanner,DABAutoScanner,AutoScanError,dab_channels_from_peaks
 from .channel_catalog import ChannelCatalog
+from .channel_center import ChannelCenter
+from .dvb_full_scan import DVBFullScanner,DVBScanError
+from .dab_bridge import open_dab_audio
 from .language_detection import text_detection_status,detect_text_language,LanguageDetectionUnavailable
 
 WEB_DIR = Path(__file__).resolve().parents[1] / "web"
@@ -71,6 +74,8 @@ class LocalServer(ThreadingHTTPServer):
         self.languages = LanguagePacks()
         self.media = MediaStore(store)
         self.stations=ChannelCatalog(store)
+        self.channel_center=ChannelCenter(store)
+        self.dvb_scanner=DVBFullScanner(self.channel_center)
         self.transcripts = TranscriptStore(store)
         self.dab = DABReader(store)
         self.dab_managed = ManagedDABReceiver()
@@ -99,6 +104,7 @@ class LocalServer(ThreadingHTTPServer):
         # Tests and alternate launchers can close the server directly.
         # Always release this server's own DAB child in that case.
         self.dab_managed.close()
+        self.dvb_scanner.stop(wait=True)
         super().server_close()
 
     def hard_stop_owned(self):
@@ -111,6 +117,7 @@ class LocalServer(ThreadingHTTPServer):
         workers=(
             ("fm_auto",self.fm_auto,True),
             ("dab_auto",self.dab_auto,True),
+            ("dvb_scan",self.dvb_scanner,True),
             ("postprocess",self.postprocess,True),
             ("dab",self.dab_managed,False),
             ("radio",self.live_fm,True),
@@ -144,7 +151,7 @@ class LocalServer(ThreadingHTTPServer):
         """
         stopped={}
         for name,worker in (
-            ("dab",self.dab_managed),("fm_auto",self.fm_auto),("dab_auto",self.dab_auto),("radio",self.live_fm),
+            ("dab",self.dab_managed),("fm_auto",self.fm_auto),("dab_auto",self.dab_auto),("dvb_scan",self.dvb_scanner),("radio",self.live_fm),
             ("tv",self.live_tv),("audio",self.audio),
             ("spectrum",self.survey),("rds",self.rds)
         ):
@@ -256,6 +263,17 @@ class Handler(BaseHTTPRequestHandler):
                     ],
                     "note":"No tuner accessed, no frequencies retuned, no internet fetched, no RF reception claimed",
                 })
+            if route == "/api/channel-center":
+                requested=q.get("medium",[None])[0]
+                show_hidden=q.get("include_hidden",["0"])[0]=="1"
+                channels=self.server.channel_center.list(medium=requested,
+                    include_hidden=show_hidden,tv_channels=self.server.live_tv.channels())
+                return self._json(200,{"channels":channels,
+                    "total":len(channels),"source":"verified RF and operator configured only",
+                    "note":"Historical discovery is not current signal lock. TV scanned services need an authorized transport-stream relay."})
+            if route == "/api/dvb/scan/status":
+                return self._json(200,{"scan":self.server.dvb_scanner.status(),
+                    "capability":self.server.dvb_scanner.available()})
             if route == "/api/stations":
                 requested=q.get("medium",[None])[0]
                 return self._json(200,self.server.stations.list(medium=requested))
@@ -277,6 +295,39 @@ class Handler(BaseHTTPRequestHandler):
                 status = self.server.survey.status()
                 status["capability"] = self.server.survey.availability()
                 return self._json(200, status)
+            if route.startswith("/api/dab/audio/"):
+                # Serve only an actively decoded audio service of the fixed
+                # local welle-cli receiver. A GET does not start or retune RF.
+                sid=route[len("/api/dab/audio/"):]
+                token=q.get("token",[""])[0]
+                if token!=self.server.csrf_token:
+                    return self._json(403,{"error":"DAB stream requires an active local session"})
+                if self.server.dab_auto.status(heartbeat=False)["active"]:
+                    return self._json(409,{"error":"DAB full scan currently retunes the receiver"})
+                if self.server.live_fm.status(heartbeat=False)["active"]:
+                    return self._json(409,{"error":"Stop FM before opening DAB on the shared RTL-SDR"})
+                stream=open_dab_audio(sid)
+                self.send_response(200)
+                self.send_header("Content-Type","audio/mpeg")
+                self.send_header("Transfer-Encoding","chunked")
+                self.send_header("Cache-Control","no-store")
+                self.send_header("X-Content-Type-Options","nosniff")
+                self.send_header("Connection","close")
+                self.end_headers()
+                try:
+                    with stream:
+                        while True:
+                            data=stream.read(16384)
+                            if not data:break
+                            self.wfile.write(("%X\r\n"%len(data)).encode("ascii"))
+                            self.wfile.write(data)
+                            self.wfile.write(b"\r\n")
+                            self.wfile.flush()
+                    self.wfile.write(b"0\r\n\r\n")
+                except (BrokenPipeError,ConnectionResetError,OSError):
+                    pass
+                self.close_connection=True
+                return
             if route == "/api/dab/last":
                 return self._json(200,self.server.dab_last)
             if route == "/api/dab/manage/status":
@@ -285,6 +336,7 @@ class Handler(BaseHTTPRequestHandler):
             if route == "/api/receiver/owned-status":
                 return self._json(200,{
                     "dab":self.server.dab_managed.status(),
+                    "dvb_scan":self.server.dvb_scanner.status(),
                     "fm_auto":self.server.fm_auto.status(heartbeat=False),
                     "dab_auto":self.server.dab_auto.status(heartbeat=False),
                     "radio":self.server.live_fm.status(heartbeat=False),
@@ -500,6 +552,8 @@ class Handler(BaseHTTPRequestHandler):
             if route == "/api/directory":
                 return self._json(200, DIRECTORY)
             return self._json(404, {"error": "Not found"})
+        except DABError as exc:
+            self._json(409, {"error": str(exc)})
         except (ValueError, TypeError) as exc:
             self._json(400, {"error": str(exc)})
         except Exception:
@@ -507,7 +561,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         route = urlsplit(self.path).path
-        allowed = {"/api/feeds/add", "/api/feeds/refresh", "/api/bulletins", "/api/bookmarks", "/api/rds/start", "/api/rds/stop", "/api/fm-survey/start", "/api/fm-survey/stop", "/api/scans/start", "/api/scans/stop", "/api/audio/start", "/api/audio/stop", "/api/dab/refresh", "/api/live/radio/start", "/api/live/radio/stop", "/api/transcripts/translate", "/api/translation/text", "/api/live/tv/start", "/api/live/tv/stop", "/api/recordings/transcription/start", "/api/recordings/transcription/stop", "/api/radar/refresh", "/api/languages/refresh", "/api/languages/install", "/api/languages/translate", "/api/auto/fm/start", "/api/auto/fm/stop", "/api/auto/dab/start", "/api/auto/dab/stop", "/api/auto/dab/tune", "/api/receiver/stop-all", "/api/receiver/hard-stop", "/api/dab/manage/start", "/api/dab/manage/stop"}
+        allowed = {"/api/feeds/add", "/api/feeds/refresh", "/api/bulletins", "/api/bookmarks", "/api/rds/start", "/api/rds/stop", "/api/fm-survey/start", "/api/fm-survey/stop", "/api/scans/start", "/api/scans/stop", "/api/audio/start", "/api/audio/stop", "/api/dab/refresh", "/api/live/radio/start", "/api/live/radio/stop", "/api/transcripts/translate", "/api/translation/text", "/api/live/tv/start", "/api/live/tv/stop", "/api/recordings/transcription/start", "/api/recordings/transcription/stop", "/api/radar/refresh", "/api/languages/refresh", "/api/languages/install", "/api/languages/translate", "/api/auto/fm/start", "/api/auto/fm/stop", "/api/auto/dab/start", "/api/auto/dab/stop", "/api/auto/dab/tune", "/api/receiver/stop-all", "/api/receiver/hard-stop", "/api/channel-center/update", "/api/dvb/scan/start", "/api/dvb/scan/stop", "/api/dab/select", "/api/dab/manage/start", "/api/dab/manage/stop"}
         if route not in allowed:
             return self._json(404, {"error": "Not found"})
         if self.headers.get("X-Tihulu-CSRF") != self.server.csrf_token:
@@ -526,6 +580,39 @@ class Handler(BaseHTTPRequestHandler):
             payload = json.loads(self.rfile.read(length))
             if not isinstance(payload, dict):
                 raise ValueError("Expected JSON object")
+            if route == "/api/channel-center/update":
+                return self._json(200,self.server.channel_center.update(
+                    id=payload.get("id"),display_name=payload.get("display_name"),
+                    favorite=payload.get("favorite"),hidden=payload.get("hidden"),
+                    position=payload.get("position"),
+                    tv_channels=self.server.live_tv.channels()))
+            if route == "/api/dvb/scan/start":
+                if self.server.live_tv.status(heartbeat=False)["active"]:
+                    raise DVBScanError("Stop the active TV stream/recording before DVB retuning")
+                return self._json(202,self.server.dvb_scanner.start(
+                    plan=payload.get("plan"),adapter=payload.get("adapter"),
+                    frontend=payload.get("frontend"),consent=payload.get("consent")))
+            if route == "/api/dvb/scan/stop":
+                return self._json(200,self.server.dvb_scanner.stop(wait=True))
+            if route == "/api/dab/select":
+                channel=payload.get("channel")
+                sid=payload.get("service_id")
+                if payload.get("consent") is not True:
+                    raise AutoScanError("DAB station tuning requires explicit consent")
+                if self.server.live_fm.status(heartbeat=False)["active"]:
+                    raise AutoScanError("Stop FM before selecting a DAB station on the shared RTL-SDR")
+                if not isinstance(sid,str):
+                    raise ValueError("Invalid DAB service ID")
+                valid=any(r["channel"]==channel and r["service_id"]==sid.lower()
+                          and r["audio_advertised"]
+                          for r in self.server.stations.list(medium="dab"))
+                if not valid:
+                    raise AutoScanError("Only a decoder-verified audio service can be selected")
+                tune=self.server.dab_auto.tune(channel,consent=True)
+                tune.update({"selected_service_id":sid.lower(),
+                             "audio_confirmed":False,
+                             "note":"Retune requested. The in-app audio stream still requires an actual current decoder lock."})
+                return self._json(200,tune)
             if route == "/api/auto/fm/start":
                 if self.server.dab_auto.status(heartbeat=False)["active"]:
                     raise AutoScanError("DAB auto scan is already in progress")
@@ -699,7 +786,7 @@ class Handler(BaseHTTPRequestHandler):
             if route == "/api/bookmarks":
                 self.server.store.add_bookmark(payload.get("label"),payload.get("target_type"),payload.get("target"))
                 return self._json(201, {"saved": True})
-        except (CaptureError, SurveyError, AudioError, DABError, LiveError, LiveTVError, SpeechError, TranslatorUnavailable, PostProcessError, AutoScanError, RadarError, LanguagePackError, ReceiverServiceError, LanguageDetectionUnavailable) as exc:
+        except (CaptureError, SurveyError, AudioError, DABError, LiveError, LiveTVError, SpeechError, TranslatorUnavailable, PostProcessError, AutoScanError, DVBScanError, RadarError, LanguagePackError, ReceiverServiceError, LanguageDetectionUnavailable) as exc:
             self._json(409, {"error": str(exc)})
         except KeyError as exc:
             self._json(404, {"error": str(exc)})
@@ -731,6 +818,7 @@ def run_server(store: Store, *, host: str = "127.0.0.1", port: int = 8787):
         if original_sigterm is not None:
             signal.signal(signal.SIGTERM,original_sigterm)
         server.dab_managed.close()
+        server.dvb_scanner.stop(wait=True)
         server.postprocess.stop(wait=True)
         server.live_tv.stop()
         server.fm_auto.stop(wait=True)
