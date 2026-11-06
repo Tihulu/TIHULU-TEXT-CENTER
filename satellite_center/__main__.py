@@ -328,15 +328,20 @@ class Station:
                 "predictions": events, "warnings": warnings,
                 "as_of": stamp(), "note": "Potential passes only. TLE geometry cannot establish any active transmission."}
 
-    def sky(self, city="Cologne"):
+    def sky(self, city="Cologne", lat=None, lon=None):
         """Observed sky positions calculated from cached orbits, not RF identification."""
         try:
             from skyfield.api import EarthSatellite, load, wgs84
         except ImportError as exc:
             raise ValueError("Install skyfield for satellite sky positions") from exc
-        if city not in LOCATIONS:
-            raise ValueError("Unknown location preset")
-        lat, lon = LOCATIONS[city]
+        if lat is None or lon is None:
+            if city not in LOCATIONS:
+                raise ValueError("Unknown location preset")
+            lat, lon = LOCATIONS[city]
+        else:
+            lat, lon = float(lat), float(lon)
+            if not -90 <= lat <= 90 or not -180 <= lon <= 180:
+                raise ValueError("Invalid latitude or longitude")
         clock = load.timescale()
         t = clock.from_datetime(now())
         observer = wgs84.latlon(lat, lon)
@@ -673,13 +678,15 @@ class Handler(BaseHTTPRequestHandler):
             if route == "/api/sky":
                 from urllib.parse import parse_qs
                 q = parse_qs(urlsplit(self.path).query)
-                return self.reply(200, self.server.station.sky(city=q.get("city", ["Cologne"])[0]))
+                return self.reply(200, self.server.station.sky(city=q.get("city", ["Cologne"])[0],
+                    lat=q.get("lat", [None])[0], lon=q.get("lon", [None])[0]))
             if route == "/api/passes":
                 from urllib.parse import parse_qs
                 q = parse_qs(urlsplit(self.path).query)
                 city = q.get("city", ["Cologne"])[0]
                 return self.reply(200, self.server.station.passes(city=city, hours=int(q.get("hours", ["24"])[0]),
-                                                                   elevation=float(q.get("elev", ["15"])[0])))
+                    elevation=float(q.get("elev", ["15"])[0]),
+                    lat=q.get("lat", [None])[0], lon=q.get("lon", [None])[0]))
             if route.startswith("/api/image/"):
                 sub = route.removeprefix("/api/image/")
                 if not re.fullmatch(r"[A-Za-z0-9_-]+_meteor(?:_backup)?_decoded/[A-Za-z0-9_./-]+\.(png|jpg)", sub) or ".." in sub:
