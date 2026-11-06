@@ -31,7 +31,7 @@ const restore=key=>{try{return JSON.parse(localStorage.getItem(key)||"null")}cat
 function source(){
  if(state.serialFix&&Date.now()-state.serialAt<90000)
   return {...state.serialFix,kind:"NMEA receiver — live",validObserver:true};
- if(state.browser)return {...state.browser,kind:"Browser / device location",validObserver:true};
+ if(state.browser&&Date.now()-Date.parse(state.browser.acquiredAt||0)<5*60*1000)return {...state.browser,kind:"Browser / device location",validObserver:true};
  if(state.ranges)return {...state.ranges,kind:"EXPERIMENTAL 2D RANGE ESTIMATE (UNVERIFIED)",validObserver:false};
  if(state.cachedPosition)return {...state.cachedPosition,kind:"LAST KNOWN (CACHED, NOT LIVE) · "+state.cachedPosition.provider,validObserver:false};
  // Imported aircraft JSON is an untrusted reference, NOT authenticated
@@ -63,7 +63,7 @@ function renderFixEvidence(p=source()){
      " · "+(s.usedSatellites??"unknown")+" satellites used (receiver reported)"+
      " · HDOP "+(s.hdop??"not available")+
      " · device/receiver measurement; not obtained by RTL-SDR GNSS demodulation.";
- }else if(state.browser){
+ }else if(p.validObserver&&state.browser){
    const a=state.browser.accuracy;
    pane.textContent=connection+"BROWSER / DEVICE LOCATION · "+fmt(p.lat,6)+", "+fmt(p.lon,6)+
      (Number.isFinite(a)?" · reported horizontal accuracy radius ±"+Math.round(a)+" m":" · accuracy not reported")+
@@ -523,4 +523,11 @@ if(Array.isArray(savedRefs)&&savedRefs.length<=200){
 renderCatalog();renderHistory();renderDiagnostics();renderPosition(true);renderSky();capabilities();
 initAutoExplorer();
 initUsbSDR(msg);
-setInterval(()=>{if(state.serialFix&&Date.now()-state.serialAt>90000){state.serialFix=null;renderPosition(true);renderDiagnostics();msg("Stale serial NMEA fix expired")}},10000);
+setInterval(()=>{
+ if(state.serialFix&&Date.now()-state.serialAt>90000){state.serialFix=null;renderPosition(false);renderDiagnostics();msg("Stale serial NMEA fix expired")}
+ if(state.browser&&Date.now()-Date.parse(state.browser.acquiredAt||0)>=5*60*1000){
+   state.browser=null;renderPosition(false);renderDiagnostics();
+   const p=source();window.dispatchEvent(new CustomEvent("tihulu:reference-position",{detail:{lat:p.lat,lon:p.lon,kind:p.kind}}));
+   msg("Browser location older than 5 minutes. Last-known position now labeled CACHED, NOT LIVE.");
+ }
+},10000);
