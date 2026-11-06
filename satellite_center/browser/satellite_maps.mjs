@@ -102,7 +102,12 @@ export function createSatelliteMaps({getTles,getSatLib,getPasses,getLastCapture,
   }
  }
  function choose(id){
-  selectedId=id;drawList();drawDetail();if(view==="sky")drawSky();else drawEarth();
+  selectedId=id;drawList();drawDetail();
+  if(view==="sky")drawSky();else{
+    drawEarth();
+    const chosen=selected();
+    if(earthMap&&chosen)earthMap.setView([chosen.lat,chosen.lon],Math.max(earthMap.getZoom(),4),{animate:false});
+  }
  }
  function drawList(){
   list.replaceChildren();
@@ -293,38 +298,85 @@ export function createSatelliteMaps({getTles,getSatLib,getPasses,getLastCapture,
      .sort((a,b)=>a.dist-b.dist)[0];
    if(nearest&&nearest.dist<20)choose(nearest.id);
  });
+ function trackCoordinates(s,when,station){
+   const coords=[];
+   for(let m=-45;m<=45;m+=3){
+     const pos=propagate(s.lib,s.rec,new Date(when+m*60000),station);
+     if(pos)coords.push([pos.lat,pos.lon]);
+   }
+   return coords;
+ }
+ function coverageBounds(s){
+   const radius=mapFootprintKm(s.altKm,Number($("elev").value))/6371;
+   if(!Number.isFinite(radius)||radius<=0)return [];
+   const lat=s.lat*RAD,lon=s.lon*RAD,points=[];
+   for(let a=0;a<=360;a+=8){
+     const bearing=a*RAD;
+     const newLat=Math.asin(Math.sin(lat)*Math.cos(radius)+
+       Math.cos(lat)*Math.sin(radius)*Math.cos(bearing));
+     const newLon=lon+Math.atan2(Math.sin(bearing)*Math.sin(radius)*Math.cos(lat),
+       Math.cos(radius)-Math.sin(lat)*Math.sin(newLat));
+     const wrapped=((newLon*DEG+540)%360)-180;
+     points.push([newLat*DEG,wrapped]);
+   }
+   return points;
+ }
+ function layerCounts(){
+   const tracked=filtered();
+   return {displayed:tracked.length,total:current.length,
+     visible:tracked.filter(s=>s.el>=0).length};
+ }
  function drawEarth(){
-  void drawWorldCanvas();
-  if(!earthMap)return;
-  markers.clearLayers();tracks.clearLayers();
-  const selectedSat=selected(),now=mapDate(),o=observer();
-  stationPin.setLatLng([o.lat,o.lon]);
-  for(const s of filtered().slice(0,28)){
-   const active=selectedSat&&String(s.id)===String(selectedSat.id);
-   const pin=leaflet.circleMarker([s.lat,s.lon],{radius:active?10:7,
-      color:active?"#fff":labelFor(s.family),weight:active?3:2,
-      fillColor:labelFor(s.family),fillOpacity:0.84});
-   const tooltip=document.createElement("span");
-   tooltip.textContent=s.name+" · "+elFormat(s.el)+" el · TLE estimate";
-   pin.bindTooltip(tooltip);
-   pin.addTo(markers);pin.on("click",()=>choose(s.id));
-   if(active&&$("map-tracks").checked){
-    const pts=[];
-    for(let m=-45;m<=45;m+=3){
-     const p=propagate(s.lib,s.rec,new Date(now.getTime()+m*60000),o.station);
-     if(p)pts.push([p.lat,p.lon]);
-    }
-    mapSplitDateline(pts).forEach(segment=>{
-     leaflet.polyline(segment,{color:labelFor(s.family),weight:3,opacity:0.84,
-      dashArray:"5 5"}).addTo(tracks);
-    });
+   void drawWorldCanvas();
+   if(!earthMap)return;
+   markers.clearLayers();tracks.clearLayers();
+   const now=mapDate().getTime(),o=observer();
+   const rows=filtered().slice(0,40);
+   stationPin.setLatLng([o.lat,o.lon]);
+   const target=selected();
+   const scope=$("map-track-scope").value,coverage=$("map-coverage-scope").value;
+   let trackCount=0,coverageCount=0;
+   for(const s of rows){
+     const active=target&&String(target.id)===String(s.id);
+     const showTrack=scope==="all"||(scope==="selected"&&active);
+     const showCoverage=coverage==="all"||(coverage==="selected"&&active);
+     if(showCoverage){
+       const bounds=coverageBounds(s);
+       for(const segment of mapSplitDateline(bounds)){
+         // Geographic footprint of a circular horizon region; do not join
+         // across the antimeridian into a giant false polygon.
+         leaflet.polygon(segment,{color:labelFor(s.family),weight:1.5,
+           opacity:active?0.85:0.45,fillColor:labelFor(s.family),
+           fillOpacity:active?0.13:0.035,interactive:false}).addTo(tracks);
+         coverageCount++;
+       }
+     }
+     if(showTrack){
+       for(const segment of mapSplitDateline(trackCoordinates(s,now,o.station))){
+         leaflet.polyline(segment,{color:labelFor(s.family),weight:active?3.4:1.9,
+           opacity:active?0.96:0.60,dashArray:active?null:"5 5",
+           interactive:false}).addTo(tracks);
+         trackCount++;
+       }
+     }
    }
-   if(active&&$("map-footprint").checked){
-    leaflet.circle([s.lat,s.lon],{radius:mapFootprintKm(s.altKm,Number($("elev").value))*1000,
-     color:labelFor(s.family),weight:1,opacity:.6,dashArray:"4 6",
-     fillColor:labelFor(s.family),fillOpacity:0.05}).addTo(tracks);
+   // Draw markers last, on top of every trajectory and coverage circle.
+   for(const s of rows){
+     const active=target&&String(target.id)===String(s.id);
+     const marker=leaflet.circleMarker([s.lat,s.lon],{radius:active?10:6,
+       color:active?"#fff":labelFor(s.family),weight:active?3:1.5,
+       fillColor:labelFor(s.family),fillOpacity:0.95});
+     const tooltip=document.createElement("span");
+     tooltip.textContent=s.name+" · "+elFormat(s.el)+" el · orbital position only";
+     marker.bindTooltip(tooltip);
+     marker.on("click",()=>choose(s.id));
+     marker.addTo(markers);
    }
-  }
+   const counts=layerCounts();
+   $("map-overlay-count").textContent="Plotted "+rows.length+" of "+counts.total+
+     " satellite positions ("+counts.visible+" above your horizon), "+
+     trackCount+" trajectory segments and "+coverageCount+
+     " coverage segments. Predictions, not radio reception.";
  }
  // A page-hosted public-domain Natural Earth outline is a real, usable map
  // background even when Brave Shields or network policy rejects OSM tiles.
@@ -469,7 +521,7 @@ export function createSatelliteMaps({getTles,getSatLib,getPasses,getLastCapture,
    // Two animation frames let Chromium/Brave and Firefox lay out an expanded
    // <details> before Leaflet reads dimensions and calculates tile positions.
    await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
-   earthMap=L.map("earth-map",{worldCopyJump:true,preferCanvas:false}).setView([o.lat,o.lon],3);
+   earthMap=L.map("earth-map",{worldCopyJump:true,preferCanvas:false}).setView([15,0],2);
    const worldPane=earthMap.createPane("world-outline");
    worldPane.style.zIndex="350"; // above raster tiles (200), below satellite overlays (400)
    markers=L.layerGroup().addTo(earthMap);tracks=L.layerGroup().addTo(earthMap);
@@ -591,10 +643,28 @@ export function createSatelliteMaps({getTles,getSatLib,getPasses,getLastCapture,
    status(report); // visible even when optional Leaflet details are collapsed
    log("Map background diagnostic run; no USB activity.");
  });
+ $("map-focus-selected").addEventListener("click",async()=>{
+   if(!earthMap){
+     $("earth-street-details").open=true;
+     try{await openEarth();}catch(e){basemapStatus(e.message);return;}
+   }
+   const s=selected();
+   if(s){earthMap.setView([s.lat,s.lon],Math.max(4,earthMap.getZoom()),{animate:false});}
+   else basemapStatus("Select a satellite first to focus its predicted ground position.");
+ });
+ $("map-fit-all").addEventListener("click",async()=>{
+   if(!earthMap){
+     $("earth-street-details").open=true;
+     try{await openEarth();}catch(e){basemapStatus(e.message);return;}
+   }
+   // Avoid fitting a nearby-only cluster: show all Earth locations, not
+   // merely the station where no satellite subpoint happens to be overhead.
+   earthMap.setView([15,0],2,{animate:false});drawEarth();
+ });
  $("map-recenter").addEventListener("click",()=>{
   if(!earthMap)return;try{const o=observer();earthMap.setView([o.lat,o.lon],Math.max(3,earthMap.getZoom()));}catch(e){status(e.message);}
  });
- for(const id of ["map-family","map-above","map-band","map-sat-sort","map-tracks","map-footprint"]){
+ for(const id of ["map-family","map-above","map-band","map-sat-sort","map-track-scope","map-coverage-scope"]){
   $(id).addEventListener("change",()=>{drawList();drawDetail();drawSky();drawEarth();});
  }
  for(const id of ["city","lat","lon","elev"]){
