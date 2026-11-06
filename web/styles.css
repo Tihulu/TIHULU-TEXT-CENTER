@@ -194,3 +194,16 @@
  .text-alerts-center{padding:11px}
  .text-alerts-reader{padding:12px}
 }
+
+/* The archive reader is a task-focused view rather than a duplicate Teletext
+   receiver/player. The pre-existing numbered page and TV Teletext views remain
+   unchanged when leaving P500. */
+body.text-alerts-mode .hero,
+body.text-alerts-mode .toolbar,
+body.text-alerts-mode .panel-heading,
+body.text-alerts-mode #teletext-frame,
+body.text-alerts-mode .right-rail{display:none}
+body.text-alerts-mode .content-layout{grid-template-columns:minmax(0,1fr)}
+body.text-alerts-mode .primary-column{width:100%}
+body.text-alerts-mode .feed-section{margin-top:4px}
+body.text-alerts-mode .content-grid{grid-template-columns:minmax(0,1fr)}
