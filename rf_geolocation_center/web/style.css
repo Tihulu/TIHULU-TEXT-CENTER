@@ -362,3 +362,22 @@
 #earth-markers [data-marker-hitbox]{fill:transparent;stroke:none;pointer-events:all;cursor:pointer}
 #earth-markers g[data-map-marker]:focus-visible{outline:none}
 #earth-map:has(#map-source-popup:not([hidden])){cursor:default}
+
+
+/* Native DVB approved pairing, visible hardware cards and smooth pan support. */
+.hardware-tv-row{display:flex;align-items:center;flex-wrap:wrap;gap:10px;padding:12px 10px;margin:12px 0;border:1px solid #416b72;border-radius:10px;background:#12303c}
+.hardware-tv-row>div{display:flex;flex:1;min-width:200px;flex-direction:column;gap:5px}
+.hardware-tv-row strong{font-size:12px;color:#e0f5ef}
+.hardware-tv-row small{font-size:10px;color:#a9cad6}
+.hardware-tv-row button{font-size:11px;min-height:38px}
+#home-tv-state{flex-basis:100%;font-size:11px;color:#adcad7;line-height:1.55}
+.tv-pair-intro{display:flex;flex-direction:column;gap:5px;padding:6px 0}
+.tv-pair-intro strong{font-size:12px;color:#e0f7ed}
+.tv-pair-intro small{font-size:10px;color:#acd5da}
+.bridge-manual-token{grid-column:1 / -1;align-self:start}
+.bridge-manual-token summary{font-size:11px;color:#a7c4d4;cursor:pointer}
+.bridge-manual-token label{padding:9px 0}
+#earth-map.dragging{cursor:grabbing}
+#osm-tiles{overflow:visible}
+#osm-tiles,#earth-overlay{transform-origin:0 0;backface-visibility:hidden}
+@media(max-width:670px){.hardware-tv-row button{flex:1}.hardware-tv-row>div{flex-basis:100%}}
