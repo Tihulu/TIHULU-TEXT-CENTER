@@ -41,6 +41,7 @@ function updateMission(){
     "verify-current-downlink":"CHECK LIVE DOWNLINK — frequency and modulation may change.",
     "station-mode-dependent":"CHECK CURRENT STATION MODE — not continuously active.",
     "catalog-only":"CATALOG ONLY — no satellite transmission or protocol assumed.",
+    "hardware-upgrade":"NEW S-BAND RECEIVER REQUIRED — current NESDR/WinTV cannot tune or decode HamTV.",
     "online-on-demand":"INTERNET IMAGE ARCHIVE — not SDR reception.",
     "retired":"RETIRED — offline archive, do not schedule reception."
   };
