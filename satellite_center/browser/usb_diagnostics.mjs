@@ -12,7 +12,9 @@ export function platformFamily(ua = "") {
 export function webUsbHelp(error, platform = "unknown") {
   const name=String(error?.name || "Error");
   const message=String(error?.message || error || "Unknown USB error");
-  const text=(name+" "+message).toLowerCase();
+  const causeName=String(error?.cause?.name||"");
+  const causeMessage=String(error?.cause?.message||"");
+  const text=(name+" "+message+" "+causeName+" "+causeMessage).toLowerCase();
   let reason = "The browser could not initialize this RTL-SDR. The USB permission prompt is not proof that the operating system granted exclusive access.";
   if(/notfounderror|no device selected|user cancelled|user canceled/.test(text)) {
     reason = "The USB chooser was cancelled or no suitable RTL2832U receiver was selected. Nothing was opened.";
@@ -48,7 +50,56 @@ export function webUsbHelp(error, platform = "unknown") {
     lines.push("Check whether another USB owner or device permissions prevent the claim. OS-specific setup may be necessary.");
   }
   lines.push("Original browser-driver error: "+name+": "+message);
+  if(causeName||causeMessage)lines.push("Underlying WebUSB error: "+causeName+": "+causeMessage+
+    " (from USB interface claim; distinct from tuner or RF sampling).");
   return lines.join("\n");
+}
+
+/**
+ * On-demand WebUSB interface 0 check. Unlike getDevices, this REALLY asks
+ * Chromium to open & claim the selected, previously permitted USB receiver.
+ * It never tunes RF, starts reads, detaches a kernel driver or stops services.
+ * Every resource opened here is released, whether claim succeeds or fails.
+ */
+export async function usbInterfaceClaimProbe(usb) {
+  if(!usb||typeof usb.getDevices!=="function")
+    return {ok:false,stage:"capability",errorName:"NotSupportedError",
+      errorMessage:"This browser does not expose WebUSB."};
+  let selected=null,ownedOpen=false,claimed=false,stage="enumerate",failure=null;
+  const cleanup=[];
+  try {
+    const devices=await usb.getDevices();
+    selected=devices.find(d=>d.vendorId===0x0bda&&[0x2838,0x2832].includes(d.productId));
+    if(!selected)throw Error("No previously permitted RTL2832U. Choose RTL-SDR from this page first.");
+    if(selected.opened)throw Error("This browser already has the USB device open; stop its capture before the low-level test.");
+    stage="open";
+    await selected.open();
+    ownedOpen=true;
+    if(selected.configuration===null){
+      stage="selectConfiguration(1)";
+      await selected.selectConfiguration(1);
+    }
+    stage="claimInterface(0)";
+    await selected.claimInterface(0);
+    claimed=true;
+  }catch(error){
+    failure={ok:false,stage,errorName:String(error?.name||"Error"),
+      errorMessage:String(error?.message||error)};
+  }finally{
+    if(claimed){
+      try{await selected.releaseInterface(0);}
+      catch(e){cleanup.push("releaseInterface: "+String(e?.message||e));}
+    }
+    if(ownedOpen){
+      try{await selected.close();}
+      catch(e){cleanup.push("USB close: "+String(e?.message||e));}
+    }
+  }
+  if(failure)return {...failure,cleanupErrors:cleanup};
+  if(cleanup.length)return {ok:false,stage:"cleanup",errorName:"USBReleaseError",
+    errorMessage:"Claim succeeded, but device release failed.",cleanupErrors:cleanup};
+  return {ok:true,stage:"claimInterface(0)",errorName:null,errorMessage:null,
+    cleanupErrors:[],summary:"The browser successfully opened, claimed and released USB interface 0. This does not test RF sampling."};
 }
 
 export async function permissionReport(usb, platform = "unknown") {

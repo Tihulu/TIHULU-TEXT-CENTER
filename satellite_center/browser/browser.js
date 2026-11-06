@@ -1,4 +1,4 @@
-import { platformFamily, webUsbHelp, permissionReport } from './usb_diagnostics.mjs';
+import { platformFamily, webUsbHelp, permissionReport, usbInterfaceClaimProbe } from './usb_diagnostics.mjs?v=20261106-usb-claim-v08';
 import { createSatelliteMaps } from './satellite_maps.mjs?v=20261106-map-usb-v07';
 import { initStationLocationUI } from './location_search.mjs';
 import { probeUsbSamples, sampleBytes } from './usb_live_probe.mjs?v=20261106-map-usb-v07';
@@ -49,6 +49,35 @@ $('usb-check').addEventListener('click', async () => {
   lastUsbReport = report;
   $('usb-report').textContent = report;
   log('Read-only USB permission diagnostic completed. No device was opened.');
+});
+$('usb-claim-test').addEventListener('click',async()=>{
+  if(usbTestRunning||capturePromise||device){
+    $('usb-claim-result').textContent='Stop the current receiver/test and release USB before trying the interface-only diagnostic.';
+    return;
+  }
+  usbTestRunning=true;
+  refreshControls();
+  const button=$('usb-claim-test');
+  button.disabled=true;
+  $('usb-claim-result').textContent='Opening permitted RTL2832U and trying claimInterface(0)… No RF is being sampled.';
+  try{
+    const res=await usbInterfaceClaimProbe(navigator.usb);
+    const output=res.ok?
+      'USB INTERFACE TEST PASSED. '+res.summary+'\nThe device was released. To test actual RF bytes, use Test real USB + RF samples.' :
+      'USB INTERFACE TEST FAILED at '+res.stage+'.\n'+res.errorName+': '+res.errorMessage+
+      (res.cleanupErrors?.length?'\nCleanup warnings: '+res.cleanupErrors.join('; '):'')+
+      '\nIf stage is claimInterface(0), another SDR process, kernel DVB driver or OS USB policy is blocking the claim. Browser permission alone cannot override this.';
+    $('usb-claim-result').textContent=output;
+    lastUsbReport=output+'\n\n'+lastUsbReport;
+    log('WebUSB interface-only test: '+(res.ok?'claim succeeded and released':'failed at '+res.stage));
+  }catch(e){
+    $('usb-claim-result').textContent='USB diagnostic failed: '+String(e?.message||e);
+    log('USB claim test unexpected error: '+String(e?.message||e));
+  }finally{
+    usbTestRunning=false;
+    button.disabled=false;
+    refreshControls();
+  }
 });
 $('usb-copy').addEventListener('click', async () => {
   try {
