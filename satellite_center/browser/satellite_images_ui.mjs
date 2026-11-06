@@ -21,6 +21,29 @@ function imgCard({source,satellite,timestamp,caption,imageUrl,archiveUrl},cleanu
    const link=document.createElement("a");
    link.href=archiveUrl;link.target="_blank";link.rel="noopener noreferrer";
    link.textContent="Open original at source";meta.append(link);
+   const save=document.createElement("button");save.type="button";
+   save.className="secondary";save.textContent="Save image (satellite + UTC)";
+   save.addEventListener("click",async()=>{
+     save.disabled=true;
+     try{
+       const observed=new Date(String(timestamp).replace(" UTC","Z").replace(" ","T"));
+       if(!Number.isFinite(observed.getTime()))throw Error("Provider timestamp invalid; cannot attribute image date.");
+       const response=await fetch(imageUrl,{mode:"cors",cache:"no-cache"});
+       if(!response.ok)throw Error("Provider image HTTP "+response.status);
+       const blob=await response.blob();
+       if(!["image/png","image/jpeg"].includes(blob.type)||blob.size>30_000_000)
+         throw Error("Provider did not return a supported PNG/JPEG under 30 MB.");
+       const name=recordingName({satellite,at:observed,frequencyHz:0,
+         kind:"NASA-ONLINE",format:blob.type==="image/png"?"png":"jpg"});
+       const uri=URL.createObjectURL(blob),a=document.createElement("a");
+       a.href=uri;a.download=name;document.body.append(a);a.click();a.remove();
+       setTimeout(()=>URL.revokeObjectURL(uri),60000);
+     }catch(error){
+       save.textContent="Download unavailable; open original";
+       save.title=String(error?.message||error)+". NASA may restrict cross-origin downloads.";
+     }finally{save.disabled=false;}
+   });
+   meta.append(save);
  }
  card.append(image,meta);if(cleanup)card.addEventListener("remove",cleanup,{once:true});
  return card;
