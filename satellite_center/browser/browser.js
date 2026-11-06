@@ -61,12 +61,13 @@ async function nativeRequest(route,payload=null,csrf=null){
  if(!response.ok)throw Error(String(result.error||response.status));
  return result;
 }
-async function nativeScheduledPass(pass,{when,durationSeconds,frequency,sampleRate,saveRaw}){
+async function nativeScheduledPass(pass,{when,durationSeconds,frequency,sampleRate,saveRaw,saveWav=false}){
  if(!nativeLocal())throw Error("Start the Debian app and open http://127.0.0.1:8791/browser/index.html");
  if(sampleRate!==1024000)throw Error("Native rtl_sdr uses 1.024 MS/s; select that sample rate.");
  if(!Number.isInteger(durationSeconds)||durationSeconds<8||durationSeconds>900)
    throw Error("Native capture must be 8–900 whole seconds.");
- if(!saveRaw&&durationSeconds>180)throw Error("Native spectrum-only survey is limited to 180 s; choose raw IQ for longer recordings.");
+ if(saveRaw&&saveWav)throw Error("One native scheduled receiver mode can write either CU8 or WAV; for both choose browser dual-format recording.");
+ if(!saveRaw&&!saveWav&&durationSeconds>180)throw Error("Native spectrum-only survey is limited to 180 s; choose CU8/WAV for longer recordings.");
  const state=await nativeRequest("/api/status");
  if(!state.csrf||!state.profiles)throw Error("Local SDR server not available");
  const profile=Object.entries(state.profiles).find(([,p])=>p.family===pass.family&&Number(p.freq)===frequency)?.[0];
@@ -86,7 +87,7 @@ async function nativeScheduledPass(pass,{when,durationSeconds,frequency,sampleRa
    events=await predict();target=matched();
  }
  if(!target)throw Error("Native TLE pass differs from browser estimate. Refresh catalog and recalculate.");
- return nativeRequest("/api/schedule",{pass_id:target.id,profile,mode:saveRaw?"iq":"survey",
+ return nativeRequest("/api/schedule",{pass_id:target.id,profile,mode:saveRaw?"iq":saveWav?"sstv_audio":"survey",
    run_at:new Date(when).toISOString(),duration_seconds:durationSeconds},state.csrf);
 }
 
@@ -152,15 +153,28 @@ function releaseScheduledStream(job){
  void abortLongCapture(prepared);
 }
 function updateManualCaptureBudget(){
- const estimate=formatCaptureBudget(Number($('duration').value),Number($('rate').value),
-   $('record').checked,diskStreamingAvailable());
  const label=$('capture-budget');
- label.dataset.feasible=String(estimate.ok);
- label.textContent=estimate.ok?estimate.detail+" Requested "+estimate.seconds+
-   " seconds. "+(estimate.mode==="disk-stream"?"Select a local CU8 file before capture. Browser tab must remain visible.":""):
-   estimate.detail;
+ try{
+   const seconds=Number($('duration').value),rate=Number($('rate').value);
+   const opts=inspectCaptureStorage(seconds,rate,$('record').checked,$('wav-record').checked);
+   label.dataset.feasible="true";
+   label.textContent=(opts.iq.mode==='levels-only'?'No raw CU8. ':
+     'CU8: '+(opts.iq.estimatedBytes/1e6).toFixed(0)+' MB ('+opts.iq.mode+'). ')+
+     (opts.audio.enabled?'WAV: '+(opts.audio.estimatedBytes/1e6).toFixed(1)+' MB ('+
+       opts.audio.mode+', 48 kHz mono PCM). ':'')+
+     ((opts.rawDisk&&opts.wavDisk)?'Choose one folder for both files. ':
+       (opts.rawDisk||opts.wavDisk)?'Choose a local file before recording. ':'')+
+     'Browser must remain visible during WebUSB capture.';
+ }catch(error){label.dataset.feasible="false";label.textContent=String(error?.message||error);}
 }
-for(const id of ['duration','rate','record']){
+$('preset').addEventListener('change',()=>{
+ // SSTV defaults to real FM WAV, but users may check CU8 as well.
+ const iss=Number($('preset').value)===437550000;
+ $('wav-record').checked=iss;
+ $('record').checked=!iss;
+ updateManualCaptureBudget();
+});
+for(const id of ['duration','rate','record','wav-record']){
  $(id).addEventListener('input',updateManualCaptureBudget);
  $(id).addEventListener('change',updateManualCaptureBudget);
 }
@@ -570,9 +584,9 @@ async function startCapture(job=null,prepared=null) {
         job.state=stopRequested?'stopped':'finished';
         job.report=report;
         job.message=(stopRequested?'Capture stopped early. ':'Capture completed. ')+
-          (recording?(prepared?.writable?'IQ saved to chosen disk. ':'Raw CU8 download requested. '):
+          (recording?(budget.mode==='disk-stream'?'CU8 saved to chosen disk. ':'Raw CU8 download requested. '):
              'Raw CU8 was not selected. ')+
-          (recordingWav?(prepared?.wavWritable?'WAV saved to chosen disk. ':'FM WAV saved/download requested. '):'')+
+          (recordingWav?(wavBudget.mode==='disk-stream'?'WAV saved to chosen disk. ':'FM WAV download requested. '):'')+
           'Uncalibrated RF power analysis only; no downlink or satellite identity confirmed.';
         status('scheduled-report',
           job.name+' · '+(freq/1e6).toFixed(3)+' MHz\n'+
@@ -645,11 +659,12 @@ $('start').addEventListener('click',()=>{
  void (async()=>{
    let prepared=null;
    try{
-     prepared=await selectLongCaptureFile(Number($('duration').value),Number($('rate').value),
-       $('record').checked,{at:new Date(),freq:Number($('preset').value)});
+     prepared=await selectRecordingFiles(Number($('duration').value),Number($('rate').value),
+       $('record').checked,$('wav-record').checked,
+       {at:new Date(),freq:Number($('preset').value)});
      await startCapture(null,prepared);
    }catch(error){
-     if(prepared?.writable)await abortLongCapture(prepared);
+     if(prepared?.writable||prepared?.wavWritable)await abortLongCapture(prepared);
      status('sample-state',"Capture not started: "+String(error?.message||error));
      log("Capture preflight: "+String(error?.message||error));
    }
