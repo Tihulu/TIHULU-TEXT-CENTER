@@ -575,6 +575,27 @@ class Station:
                     [k+": "+str(v.get("error")) for k,v in refresh_report.items() if v.get("error")],
                 "note": "Only geometry and an opt-in future recording schedule. The local companion must remain running, the single receiver must be free, and the spacecraft must actually transmit. No message or image is yet decoded."}
 
+    def cancel_auto_missions(self):
+        """Cancel only this app's explicitly auto-armed pending/running jobs."""
+        with self.lock:
+            active_auto = any(j.get("state") == "running" and j.get("mission_id")
+                              for j in self.jobs)
+            cancelled = 0
+            for job in self.jobs:
+                if job.get("mission_id") and job.get("state") == "pending":
+                    job.update(state="cancelled", result="Cancelled via Auto Mission stop")
+                    cancelled += 1
+            if cancelled:
+                self.save_jobs()
+                self.wake.set()
+        if active_auto:
+            # Stops only Satellite Center's currently owned receiver process;
+            # unrelated readsb, Gqrx, welle.io and manual sessions survive.
+            self.request_stop()
+        return {"auto_jobs_cancelled": cancelled, "owned_auto_capture_stop_requested": active_auto,
+                "other_programs_stopped": False,
+                "note": "No non-auto schedules or third-party SDR processes were changed."}
+
     def cancel(self, job_id):
         with self.lock:
             for j in self.jobs:
@@ -1129,6 +1150,8 @@ class Handler(BaseHTTPRequestHandler):
                     lat=data.get("lat"), lon=data.get("lon"),
                     hours=data.get("hours", 24), elevation=data.get("elevation", 20),
                     max_jobs=data.get("max_jobs", 6))
+            elif route == "/api/auto-cancel":
+                result = app.cancel_auto_missions()
             elif route == "/api/cancel":
                 result = app.cancel(data.get("job_id"))
             elif route == "/api/capture":
