@@ -109,7 +109,18 @@ if (!hardwareSupported) {
     // automatic plan. It may ONLY reuse a previously granted USB device,
     // never trigger a permission chooser on page load.
     const requested=new URLSearchParams(location.search).get('auto-mission');
-    if(['images','messages','all'].includes(requested)){
+    // Only the user's explicit one-click request in the sibling Images & Data tab
+    // can arm this cross-page auto mission. External deep links never schedule RF.
+    let permittedAutoIntent=false;
+    try {
+      const saved=sessionStorage.getItem('tihulu-auto-start-intent');
+      sessionStorage.removeItem('tihulu-auto-start-intent');
+      const intent=saved?JSON.parse(saved):null;
+      permittedAutoIntent=!!(intent && intent.mode===requested &&
+        Number.isFinite(intent.createdAt) && Date.now()-intent.createdAt>=0 &&
+        Date.now()-intent.createdAt<=5*60000);
+    } catch(error){ log('Auto mission intent rejected: '+error.message); }
+    if(permittedAutoIntent&&['images','messages','all'].includes(requested)){
       void runAutoMission({mode:requested,fromNavigation:true});
     }
   }).catch(err => {
