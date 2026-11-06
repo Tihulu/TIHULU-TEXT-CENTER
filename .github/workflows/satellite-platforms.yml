@@ -68,6 +68,8 @@ jobs:
           node --check satellite_center/browser/location_search.mjs
           node --test tests/test_satellite_location.mjs
           node --check satellite_center/browser/pass_sort.mjs
+          node --check satellite_center/browser/capture_duration.mjs
+          node --test tests/test_satellite_capture_duration.mjs
           node --check satellite_center/browser/schedule_controller.mjs
           node --test tests/test_satellite_pass_schedule.mjs
           node --check satellite_center/browser/usb_live_probe.mjs

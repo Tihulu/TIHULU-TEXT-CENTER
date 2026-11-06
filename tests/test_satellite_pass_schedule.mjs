@@ -42,7 +42,12 @@ test("minute-precision capture scheduling validates real pass bounds",()=>{
  assert.throws(()=>createScheduledPass(pass,{...options,when:pass.los},now),/pass/);
  assert.throws(()=>createScheduledPass(pass,{...options,when:pass.los-10000},now),/finish before/);
  assert.equal(createScheduledPass(pass,{...options,when:pass.los-30000},now).durationSeconds,30);
- assert.throws(()=>createScheduledPass(pass,{...options,durationSeconds:400},now),/1–60/);
+ assert.throws(()=>createScheduledPass(pass,{...options,durationSeconds:400},now),/finish before/);
+ const longPass={...pass,los:pass.aos+900000};
+ assert.throws(()=>createScheduledPass(longPass,{...options,durationSeconds:600},now),/native receiver|disk saving|local disk|Long RF samples/);
+ const diskJob=createScheduledPass(longPass,{...options,durationSeconds:600,diskStreamPrepared:true},now);
+ assert.equal(diskJob.diskStreamPrepared,true);
+ assert.equal(diskJob.durationSeconds,600);
  assert.throws(()=>createScheduledPass(pass,{...options,frequency:5000000000},now),/range/);
 });
 test("browser foreground, receiver conflicts and missed passes are explicit statuses",()=>{

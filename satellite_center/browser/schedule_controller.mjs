@@ -1,5 +1,6 @@
 // Browser-only opt-in RF capture schedules. No closed-tab execution promises.
-export const MAX_SCHEDULE_SECONDS = 60;
+import {captureBudget,MAX_BROWSER_CAPTURE_SECONDS} from './capture_duration.mjs';
+export const MAX_SCHEDULE_SECONDS = MAX_BROWSER_CAPTURE_SECONDS;
 export const DEFAULT_SAMPLE_RATE = 1024000;
 export function localDateInput(time){
  const d=new Date(time);
@@ -24,8 +25,8 @@ export function createScheduledPass(pass,choices,now=Date.now()){
  if(!Number.isFinite(when)||when<now-15000)throw Error("Scheduled start is in the past. Choose a future minute.");
  if(when<Number(pass.aos)-120000 || when>=until)
   throw Error("Scheduled minute must fall during this satellite pass (or up to 2 minutes before its start).");
- if(!Number.isInteger(duration)||duration<1||duration>MAX_SCHEDULE_SECONDS)
-  throw Error("Choose 1–60 seconds of capture.");
+ const {mode}=captureBudget(duration,sampleRate,Boolean(choices.saveRaw),
+   {fileStreaming:Boolean(choices.diskStreamPrepared)});
  // A legal start minute is not enough: the entire recording must still fit
  // within the predicted pass. Never arm an overrun past line-of-sight loss.
  if(when+duration*1000>until)
@@ -39,7 +40,7 @@ export function createScheduledPass(pass,choices,now=Date.now()){
   family:pass.family, when,until,
   passAos:Number(pass.aos),passLos:until,
   frequency,sampleRate,durationSeconds:duration,
-  saveRaw:Boolean(choices.saveRaw),state:"armed",
+  saveRaw:Boolean(choices.saveRaw),diskStreamPrepared:mode==="disk-stream",state:"armed",
   createdAt:now,report:null,message:"Waiting for scheduled minute; browser must remain open and foreground."
  };
 }
