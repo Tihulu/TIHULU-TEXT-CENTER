@@ -397,7 +397,7 @@ $("tdoa-file")?.addEventListener("change",e=>importFile(e.target,100_000,async t
  msg("Synchronized TDOA constraints computed; no position fix inferred.");
 }));
 $("clear-local")?.addEventListener("click",async()=>{
- try{for(const key of await caches.keys())if(key.startsWith("tihulu-rfgeo-"))await caches.delete(key)}catch{}
+ // Keep the PWA application shell installed for offline startup; clear user data only.
  for(const key of [STORAGE_LOCATION,STORAGE_RANGES,STORAGE_REFS,"tihulu.rfgeo.gnss-orbits.v1"])try{localStorage.removeItem(key)}catch{}
  state.sp3=null;state.time=null;state.visible=[];state.references=[];state.ranges=null;state.rangeInputs=[];state.cachedPosition=null;state.tdoa=[];
  state.browser=null;state.gnssFile=null;state.receiverHistory=[];await disconnect();
