@@ -6,7 +6,7 @@
 <meta name="referrer" content="strict-origin-when-cross-origin">
 <title>Satellite Images &amp; Data | TIHULU Satellite Center</title>
 <link rel="icon" href="./icon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="./browser.css?v=20261106-debian-calendar-fixed-v2">
+<link rel="stylesheet" href="./browser.css?v=20261107-cu8-wav-multiselect-v1">
 <link rel="stylesheet" href="./reception.css?v=20261106-calendar-protocol-v2">
 </head>
 <body>
@@ -43,6 +43,16 @@
 <label>Next passes<select id="auto-hours"><option value="12">12 h</option><option value="24" selected>24 h</option><option value="48">48 h</option></select></label>
 <label>Minimum elevation<select id="auto-elev"><option value="5">5°</option><option value="15">15°</option><option value="20" selected>20°</option><option value="30">30°</option></select></label>
 </div>
+<fieldset class="capture-format-picker" id="reception-browser-formats">
+ <legend>ISS SSTV browser recording files · choose one or BOTH</legend>
+ <div class="capture-format-options">
+  <label class="check"><input type="checkbox" id="reception-auto-wav" checked> WAV · real FM audio for Robot36</label>
+  <label class="check"><input type="checkbox" id="reception-auto-raw"> CU8 · original raw RF / IQ</label>
+ </div>
+ <p id="reception-format-summary" class="capture-format-summary" role="status" aria-live="polite">Selected: WAV only · 1 file. Tick CU8 for simultaneous CU8 + WAV recording.</p>
+ <p class="hint">These two independent options are transferred to the WebUSB pass planner when you click Auto Schedule &amp; Capture. Both selected = two files recorded from the same signal. Native unattended ISS auto mode currently records WAV only.</p>
+</fieldset>
+<p class="hint" id="reception-native-format-note" hidden>Native ISS auto capture records WAV. To save WAV and CU8 simultaneously from WebUSB, open the Receiver &amp; planner in a compatible Chromium browser and select both recording formats.</p>
 <section class="notice" aria-label="Satellite decoding compute hardware">
  <label>Processing hardware
   <select id="auto-compute-mode"><option value="auto" selected>Auto — optimized for this device (recommended)</option><option value="custom">Custom CPU / GPU / NPU multi-select</option></select>
@@ -247,5 +257,5 @@
 </section>
 <footer>Same bundled page on GitHub Pages, installed PWA, Linux, Raspberry Pi OS, Windows and macOS native companion. This tab never opens USB, uploads RF samples or fabricates satellite pictures; use the existing verified capture/decoder controls when available.</footer>
 </main>
-<script type="module" src="./reception.mjs?v=20261106-direct-fm-wav-v1"></script>
+<script type="module" src="./reception.mjs?v=20261107-cu8-wav-multiselect-v1"></script>
 </body></html>
