@@ -379,3 +379,37 @@ The FFT and sampling API have synthetic unit tests for positive and
 negative known tones, correct CU8 filename metadata and bounded file
 access. Live capture / file-selection experience remains subject to
 actual on-device browser verification.
+
+
+## v0.14 — continuous live orbital motion
+
+**Now / live** immediately resumes real wall-clock SGP4 propagation and
+updates the current satellite ground coordinates, azimuth/elevation, map
+markers and selected satellite information **once every second** while
+the browser tab is visible. Leaflet marker positions and vector overlays
+are updated in place instead of destroying/recreating all map objects
+every frame, reducing visible flicker. The `±45 min` prediction traces
+use a 15-second cache (they are not recomputed 25×31 times per second);
+coverage geometry and satellite positions update per live tick. Both
+OpenStreetMap and the bundled Earth overview, as well as the polar sky
+map, use the same wall-clock time.
+
+- **Pause** stops the moving orbital simulation and freezes its timestamp.
+- Moving the **Time relative to now** slider enters a stationary simulation
+  snapshot at the chosen offset; its clock no longer drifts while paused.
+- **Now / live** clears the slider offset and re-enables the running clock.
+- **Follow selected satellite while LIVE** is optional and disabled by
+  default, so the Earth map will not pan itself without consent.
+- Live rendering pauses while a tab is hidden and jumps to the correct
+  wall clock on return. Page closure clears its update interval.
+- The TLE catalog and parsed satellite records are reused and not fetched
+  from the Internet on each tick. TLE freshness remains a separate concern
+  and can be updated using the existing refresh action.
+- This animation is geometric propagation, never a radio scan, WebUSB
+  capture or verified active satellite transmission. No SDR resource is
+  acquired by the live map.
+
+Clock and UI regression tests are in
+`tests/test_satellite_live_clock.mjs`, including 1 s live updates,
+paused timeline, future/past seek, hidden-tab behaviour and 15-second
+track cache slots.
