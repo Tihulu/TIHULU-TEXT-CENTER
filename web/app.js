@@ -1396,6 +1396,83 @@ async function addDvbDevicePanel(){
   panel.append(actions);
   $("content").append(panel);
 }
+
+async function addOfflineRecordingControl(){
+  const [radio,tv,hardware,job]=await Promise.all([
+    api("/api/live/radio/recordings"),api("/api/live/tv/recordings"),
+    api("/api/compute"),api("/api/recordings/transcription/status")
+  ]);
+  const recordings=radio.map(x=>({medium:"fm",name:x.name})).concat(tv.map(x=>({medium:"dvb_tv",name:x.name})));
+  const panel=card("Transcribe an earlier FM or TV recording",
+    "Offline EN / DE / TR speech-to-text. Optional translation, original text and SRT/VTT exports. Does not tune any receiver.",
+    "SAVED MEDIA / MANUAL POST-PROCESSING");
+  const form=el("form","rds-form");
+  const selector=el("select");
+  for(let i=0;i<recordings.length;i++){
+    const r=recordings[i],o=el("option","",(r.medium==="fm"?"FM":"TV")+" · "+r.name);
+    o.value=i;selector.append(o);
+  }
+  if(!recordings.length)selector.append(el("option","","No recorded streams yet"));
+  const language=el("select"),target=el("select"),backend=el("select");
+  for(const k of ["en","de","tr"]){
+    const a=el("option","",k.toUpperCase()),b=el("option","",k.toUpperCase());
+    a.value=k;b.value=k;language.append(a);target.append(b);
+  }
+  language.value="de";target.value="tr";
+  for(const k of ["auto","cpu","gpu","npu"]){
+    const v=hardware.selection[k];
+    const o=el("option","",k.toUpperCase()+" · "+v.detected_device+
+      (v.ready?" · ready":" · unavailable"));
+    o.value=k;backend.append(o);
+  }
+  for(const pair of [["Recording",selector],["Original language",language],
+    ["Translation language",target],["ASR compute device",backend]]){
+    const p=el("div","field");
+    p.append(el("label","",pair[0]),pair[1]);form.append(p);
+  }
+  const translation=el("input");translation.type="checkbox";
+  const label=el("label","scan-consent");
+  label.append(translation,document.createTextNode(" Also translate with installed offline language model"));
+  form.append(label);
+  const go=el("button","action primary","TRANSCRIBE SAVED RECORDING");go.type="submit";
+  const stop=button("CANCEL",()=>api("/api/recordings/transcription/stop","POST",{})
+    .catch(e=>notice(e.message)),"action ghost");
+  form.append(go,stop);panel.append(form);
+  const stateLabel=el("p","full-body","");panel.append(stateLabel);
+  const output=el("div","live-caption-list");panel.append(output);
+  $("content").append(panel);
+  async function refresh(){
+    if(state.page!==400)return;
+    const status=await api("/api/recordings/transcription/status");
+    stateLabel.textContent=status.status.toUpperCase()+" · "+status.segments+
+      " segments · "+status.seconds_processed+" s · "+(status.device||"no ASR")+
+      (status.error?" · "+status.error:"");
+    go.disabled=status.active||!recordings.length;
+    stop.disabled=!status.active;
+    if(status.session){
+      const items=await api("/api/transcripts?session="+encodeURIComponent(status.session));
+      output.replaceChildren();
+      for(const item of items.slice(-10)){
+        output.append(el("p","full-body",item.original_text+
+          (item.translated_text?" / "+item.translated_text:"")));
+      }
+    }
+    if(status.active)setTimeout(refresh,1200);
+  }
+  form.addEventListener("submit",async event=>{
+    event.preventDefault();
+    const source=recordings[Number(selector.value)];
+    if(!source)return;
+    try{
+      await api("/api/recordings/transcription/start","POST",{
+        medium:source.medium,filename:source.name,original_language:language.value,
+        translated_language:translation.checked?target.value:null,backend:backend.value
+      });
+      await refresh();
+    }catch(error){notice(error.message)}
+  });
+  await refresh();
+}
 async function showRadioData(){
   section("RF / BROADCAST SOURCES","Antenna scanning & actual decoder imports","User-approved tuning only");
   try { $("content").append(receiverCard(await refreshReceiverStatus())); }
@@ -1410,6 +1487,8 @@ async function showRadioData(){
   catch(error){empty("Live FM & subtitles unavailable",error.message)}
   try {await addLiveTV()}
   catch(error){empty("Live TV & subtitles unavailable",error.message)}
+  try {await addOfflineRecordingControl()}
+  catch(error){empty("Saved recording ASR unavailable",error.message)}
   try {await addAudioPreview()}
   catch(error){empty("FM audio preview unavailable",error.message)}
   try {await addWelleDabBridge()}
