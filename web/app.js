@@ -1,7 +1,7 @@
 /* TIHULU TEXT CENTER — no external libraries, no background timers fetching data. */
 "use strict";
 
-const state = { csrf:"", page:100, subpage:0, source:"", entries:[], pages:[], receivers:null, rdsActive:false, rdsPollTimer:null, scanActive:false, scanPollTimer:null };
+const state = { csrf:"", page:100, subpage:0, source:"", entries:[], pages:[], receivers:null, rdsActive:false, rdsPollTimer:null, scanActive:false, scanPollTimer:null, selectedSurveyBand:"fm" };
 const $ = (id) => document.getElementById(id);
 
 function el(tag, cls, text) {
@@ -177,7 +177,7 @@ async function openPage(number,source,subpage){
   if(state.page===400 && Number(number)!==400 && state.scanActive){
     state.scanActive=false;
     if(state.scanPollTimer){clearTimeout(state.scanPollTimer);state.scanPollTimer=null;}
-    api("/api/fm-survey/stop","POST",{}).catch(error=>notice("Survey stop request failed: "+error.message));
+    api("/api/scans/stop","POST",{}).catch(error=>notice("Survey stop request failed: "+error.message));
   }
   if(state.page===400 && Number(number)!==400 && state.rdsActive){
     state.rdsActive=false;
@@ -538,40 +538,45 @@ async function addAutoDiscovery(){
 function displaySurvey(status){
   const label=$("fm-survey-progress"),results=$("fm-survey-results");
   if(label){
-    label.textContent="Status: "+status.status.toUpperCase()+
-      " · "+status.candidates.length+" unidentified FM energy peaks"+
+    label.textContent="Band: "+String(status.band||"fm").toUpperCase()+
+      " · "+status.status.toUpperCase()+
+      " · "+status.candidates.length+" unidentified energy peaks"+
       (status.error?" · "+status.error:"");
   }
   const start=$("fm-survey-start"),stop=$("fm-survey-stop");
-  if(start)start.disabled=Boolean(status.active)||!status.capability?.ready||!$("fm-survey-confirm")?.checked;
+  const selected=$("fm-survey-band");
+  const selectedReady=selected&&selected.options[selected.selectedIndex]?.dataset.ready==="true";
+  if(start)start.disabled=Boolean(status.active)||!selectedReady||!$("fm-survey-confirm")?.checked;
   if(stop)stop.disabled=!status.active;
+  if(selected)selected.disabled=Boolean(status.active);
   if(!results)return;
   results.replaceChildren();
   if(!status.candidates.length){
     results.append(el("p","full-body",status.active
-      ?"Survey in progress. This does not decode station identities."
-      :status.note||"No spectrum candidates saved."));
+      ?"Measuring RF energy. No channel or programme is decoded by this survey."
+      :status.note||"No signal candidates saved."));
     return;
   }
   results.append(el("p","full-body",
-    "Spectrum candidates only; none is yet a confirmed station. "+
-    "Choose a frequency for separate RDS verification if the receiver is free."));
+    "These are unidentified spectrum peaks, NOT decoded radio/TV stations, services, messages or official alerts."));
   status.candidates.forEach(candidate=>{
     const row=el("div","scan-row");
     row.append(el("strong","",candidate.frequency_mhz.toFixed(3)+" MHz"));
-    row.append(el("span","",candidate.above_median_db.toFixed(1)+" dB over median"));
-    row.append(button("USE FOR RDS",()=>{
-      const field=$("rds-frequency");
-      if(field){field.value=String(candidate.frequency_mhz);field.focus()}
-      notice("Unverified spectral peak. RDS reception must be tested separately.");
-    }));
+    row.append(el("span","",candidate.above_median_db.toFixed(1)+" dB above local median"));
+    if(status.band==="fm"){
+      row.append(button("TRY RDS",()=>{
+        const input=$("rds-frequency");
+        if(input){input.value=String(candidate.frequency_mhz);input.focus()}
+        notice("Unidentified FM spectral peak; RDS decoding must verify the station.");
+      }));
+    }
     results.append(row);
   });
 }
 async function pollFMSurvey(){
   if(state.page!==400)return;
   try{
-    const report=await api("/api/fm-survey/status");
+    const report=await api("/api/scans/status");
     state.scanActive=report.active;
     displaySurvey(report);
     if(report.active && state.page===400){
@@ -581,55 +586,83 @@ async function pollFMSurvey(){
     }
   }catch(error){
     state.scanActive=false;
-    notice("Spectrum survey status unavailable: "+error.message);
+    notice("RF survey status unavailable: "+error.message);
   }
 }
 async function addFMSurveyControl(){
-  const report=await api("/api/fm-survey/status");
+  const discovery=await api("/api/scans");
+  const report=await api("/api/scans/status");
+  const available=discovery.features.filter(f=>f.scan_type==="rf_spectrum");
+  const bands=new Map();
+  available.forEach(f=>{
+    if(!bands.has(f.band))bands.set(f.band,{label:f.band_label,features:[],ready:f.can_survey_now,reason:f.reason});
+    bands.get(f.band).features.push(f.title);
+  });
   const outer=el("article","item-card");outer.id="fm-survey-control";
-  outer.append(el("div","item-meta","STEP 2 / USER-APPROVED RF SCAN / FM ONLY"));
-  outer.append(el("h3","","Scan the FM broadcast spectrum"));
+  outer.append(el("div","item-meta","STEP 2 / MANUAL RF SPECTRUM SURVEY / NO AUTOMATIC RETUNING"));
+  outer.append(el("h3","","Scan each receivable RF band"));
   outer.append(el("p","",
-    "One single-shot rtl_power sweep of 87.5–108 MHz. No RDS decoder required; "+
-    "rtl_power must be installed. Energy peaks are NOT station names."));
-  outer.append(el("p","full-body",report.capability?.reason||"Survey readiness unknown"));
+    "Select FM, DAB, APRS or a low-frequency/HF service band. A one-shot rtl_power sweep "+
+    "detects possible RF energy only. Actual programme text needs a compatible decoder. "+
+    "No device is used until you explicitly approve the survey."));
+  const selectGroup=el("div","field"),selectLabel=el("label","","RF band / technology");
+  const selected=el("select");selected.id="fm-survey-band";
+  bands.forEach((value,key)=>{
+    const option=el("option","",value.label+" — "+value.features.join(", "));
+    option.value=key;option.dataset.ready=String(value.ready);
+    selected.append(option);
+  });
+  selected.value=bands.has(state.selectedSurveyBand)?state.selectedSurveyBand:"fm";
+  if(report.active&&bands.has(report.band))selected.value=report.band;
+  selectGroup.append(selectLabel,selected);outer.append(selectGroup);
+  const reason=el("p","full-body","");outer.append(reason);
+  const updateReason=()=>{
+    const entry=bands.get(selected.value);
+    state.selectedSurveyBand=selected.value;
+    reason.textContent=entry?.reason||"No compatible survey profile found";
+    const start=$("fm-survey-start");
+    if(start) start.disabled=state.scanActive||!entry?.ready||!$("fm-survey-confirm")?.checked;
+  };
+  selected.addEventListener("change",updateReason);
   const consent=el("label","scan-consent");
   const cb=el("input");cb.type="checkbox";cb.id="fm-survey-confirm";
   consent.append(cb,document.createTextNode(
-    " I understand this scan temporarily claims and retunes the RTL-SDR. "+
-    "Any Flight Radar/readsb or protected recording using this device must be stopped or isolated first."));
+    " I understand that this explicitly opens and retunes the Nooelec SDR for a short spectrum scan. "+
+    "Flight Radar/readsb, Gqrx, welle.io and protected recordings must not be using this device. "+
+    "LF/HF reception also requires suitable Q-branch configuration and antenna."));
   outer.append(consent);
   const controls=el("div","card-actions");
-  const start=button("SCAN FM BAND",async()=>{
+  const start=button("SCAN SELECTED RF BAND",async()=>{
     start.disabled=true;
     try{
-      const response=await api("/api/fm-survey/start","POST",{});
+      const response=await api("/api/scans/start","POST",{band:selected.value});
       state.scanActive=response.active;
-      notice("FM spectrum sweep started. Station identities are unverified.");
+      notice("Measuring "+selected.value.toUpperCase()+" band; no services identified yet.");
       await refreshReceiverStatus();
       if(state.scanPollTimer)clearTimeout(state.scanPollTimer);
       state.scanPollTimer=setTimeout(pollFMSurvey,350);
     }catch(error){
-      notice(error.message);
-      start.disabled=!report.capability?.ready||!cb.checked;
+      notice("Scan refused: "+error.message);
+      updateReason();
     }
   },"action primary");
   start.id="fm-survey-start";start.disabled=true;
-  const stop=button("STOP SCAN",async()=>{
+  const stop=button("STOP RF SCAN",async()=>{
     try{
-      await api("/api/fm-survey/stop","POST",{});
+      await api("/api/scans/stop","POST",{});
       if(state.scanPollTimer)clearTimeout(state.scanPollTimer);
       state.scanPollTimer=setTimeout(pollFMSurvey,300);
     }catch(error){notice(error.message)}
   },"action ghost");
   stop.id="fm-survey-stop";
   controls.append(start,stop);outer.append(controls);
-  cb.addEventListener("change",()=>{start.disabled=!cb.checked||!report.capability?.ready||state.scanActive});
-  const label=el("p","full-body","No survey attempted");label.id="fm-survey-progress";outer.append(label);
+  cb.addEventListener("change",updateReason);
+  const label=el("p","full-body","No scan attempted");label.id="fm-survey-progress";outer.append(label);
   const data=el("div","scan-candidates");data.id="fm-survey-results";outer.append(data);
   $("content").append(outer);
-  displaySurvey(report);
   state.scanActive=report.active;
+  updateReason();
+  displaySurvey(report);
   if(report.active){
     if(state.scanPollTimer)clearTimeout(state.scanPollTimer);
     state.scanPollTimer=setTimeout(pollFMSurvey,750);
@@ -771,7 +804,7 @@ function bindNavigation(){
   $("bookmark-page").addEventListener("click",()=>saveBookmark("Page "+state.page+(state.source?" · "+state.source:""),"page",state.page+":"+state.subpage+":"+state.source).catch((err)=>notice(err.message)));
   window.addEventListener("pagehide",()=>{
     if(state.scanActive){
-      fetch("/api/fm-survey/stop",{
+      fetch("/api/scans/stop",{
         method:"POST",headers:{"Content-Type":"application/json","X-Tihulu-CSRF":state.csrf},
         body:"{}",keepalive:true
       }).catch(()=>{});
