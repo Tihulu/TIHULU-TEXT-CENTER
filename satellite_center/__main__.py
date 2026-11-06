@@ -31,6 +31,7 @@ from .capture_naming import recording_name, PROFILE_TARGETS, meteor_capture
 from .capture_budget import (MAX_IQ_BYTES, MAX_CAPTURE_SECONDS,
                              plan_capture_budget, END_MARGIN_SECONDS)
 from .sstv_series35 import extract_robot36_wav
+from .compute_backends import compute_capabilities, resolve_compute_backend
 from .bridge import (app_data_dir, lock_receiver, unlock_receiver, start_receiver_process,
                      stop_receiver_process, pairing_secret, allowed_origin,
                      local_host_allowed, request_is_remote)
@@ -249,6 +250,7 @@ class Station:
                                            else "not_passively_verified_on_this_os"),
                     "busy": detect_busy(), "tools": {n: bool(shutil.which(n)) for n in
                     ("rtl_test", "rtl_power", "rtl_sdr", "rtl_fm", "multimon-ng", "satdump", "qsstv")},
+                    "compute": compute_capabilities(),
                     "orbit_cache": cached, "location_presets": LOCATIONS,
                     "profiles": PROFILES, "session": dict(self.session),
                     "jobs": [dict(j) for j in self.jobs[-100:]],
@@ -490,7 +492,7 @@ class Station:
 
     def auto_schedule(self, mission_ids, *, city="Cologne", lat=None, lon=None,
                       hours=24, elevation=20, max_jobs=6, coverage_goal="full",
-                      duration_seconds=None):
+                      duration_seconds=None, compute_mode="auto", compute_targets=None):
         """Explicit one-click receive-only mission planning with a single RTL-SDR.
 
         TLE passes are geometry, never proof of active transmitters. Mutating
@@ -512,6 +514,8 @@ class Station:
                 raise ValueError("Native recording duration must be 8–900 seconds or auto")
             if coverage_goal == "sample" and duration_seconds > 60:
                 raise ValueError("Quick RF sample must not exceed 60 seconds")
+        # Validate hardware choices before arming any RF job.
+        compute_plan = resolve_compute_backend(compute_mode, compute_targets)
         chosen = dict.fromkeys(mission_ids)
         # Missing optional decoders must not block other user-approved media.
         requested_targets = list(chosen)
@@ -598,7 +602,8 @@ class Station:
                        data_kind=plan["data_kind"], target_seconds=plan["target_seconds"],
                        shortfall_seconds=plan["shortfall_seconds"],
                        pass_visible_seconds=plan["pass_visible_seconds"],
-                       coverage_goal=coverage_goal, capture_note=plan["note"])
+                       coverage_goal=coverage_goal, capture_note=plan["note"],
+                       compute_mode=compute_mode, compute_targets=compute_plan["requested_targets"])
             with self.lock:
                 for stored in self.jobs:
                     if stored["id"] == job["id"]:
@@ -607,7 +612,7 @@ class Station:
                             "requested_seconds", "estimated_bytes",
                             "coverage", "data_kind", "target_seconds",
                             "shortfall_seconds", "pass_visible_seconds",
-                            "coverage_goal", "capture_note")})
+                            "coverage_goal", "capture_note", "compute_mode", "compute_targets")})
                 self.save_jobs()
             new_jobs.append(dict(job))
             if plan["coverage"] != "full-pass-attempt":
@@ -781,7 +786,9 @@ class Station:
                         and result.get("file", "").endswith(".wav")):
                     try:
                         result["sstv"] = extract_robot36_wav(
-                            self.archive / result["file"])
+                            self.archive / result["file"],
+                            compute_mode=nearest.get("compute_mode", "auto"),
+                            compute_targets=nearest.get("compute_targets"))
                     except (ValueError, OSError, EOFError, wave.Error) as exc:
                         result["sstv"] = {
                             "status": "decoder_failed_original_wav_preserved",
@@ -1302,7 +1309,9 @@ class Handler(BaseHTTPRequestHandler):
                     lat=data.get("lat"), lon=data.get("lon"),
                     hours=data.get("hours", 24), elevation=data.get("elevation", 20),
                     max_jobs=data.get("max_jobs", 6), coverage_goal=data.get("coverage_goal", "full"),
-                    duration_seconds=data.get("duration_seconds"))
+                    duration_seconds=data.get("duration_seconds"),
+                    compute_mode=data.get("compute_mode", "auto"),
+                    compute_targets=data.get("compute_targets"))
             elif route == "/api/auto-edit":
                 result = app.edit_auto_schedule(data.get("job_id"), data.get("run_at"),
                                                 data.get("mission_id"), data.get("duration_seconds"))
