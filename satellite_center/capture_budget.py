@@ -41,7 +41,7 @@ def plan_capture_budget(aos: datetime, los: datetime, mission_id: str,
     limit = min(window, MAX_CAPTURE_SECONDS)
     if goal == "sample":
         limit = min(limit, 60)
-    bytes_per_second = (SSTV_WAV_BYTES_PER_SECOND if mission_id == "iss-sstv"
+    bytes_per_second = (SSTV_WAV_BYTES_PER_SECOND if mission_id in ("iss-sstv","iss-voice")
                         else 0 if KINDS[mission_id] == "text"
                         else IQ_BYTES_PER_SECOND)
     if bytes_per_second:

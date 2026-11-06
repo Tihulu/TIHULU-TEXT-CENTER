@@ -48,7 +48,7 @@ SOURCE_URLS = {
 AUTO_DOWNLINK_PROFILES = {
     "iss-sstv": (25544, "iss_sstv", "sstv_audio"),
     "iss-aprs": (25544, "iss_aprs_uhf", "aprs"),
-    "iss-voice": (25544, "iss_uhf", "iq"),
+    "iss-voice": (25544, "iss_uhf", "fm_audio"),
     "meteor-m2-3": (57166, "meteor", "iq"),
     "meteor-m2-4": (59051, "meteor", "iq"),
 }
@@ -74,7 +74,7 @@ PROFILES = {
     "cubesat_uhf": {"label": "Amateur UHF survey", "range": "435.0M:438.0M:25k", "freq": None, "family": "cubesat"},
     "iridium": {"label": "Iridium L-band RF survey", "range": "1616M:1626.5M:50k", "freq": None, "family": "iridium"},
 }
-MODES = ("survey", "iq", "aprs", "sstv_audio")
+MODES = ("survey", "iq", "aprs", "sstv_audio", "fm_audio")
 
 
 def now():
@@ -147,7 +147,7 @@ def profiles_for(fam):
 def allowed_mode(profile, mode):
     return mode == "survey" or (mode == "iq" and PROFILES[profile]["freq"] is not None) or (
         profile in ("iss_aprs", "iss_aprs_uhf") and mode == "aprs"
-    ) or (profile in ("iss_voice", "iss_sstv") and mode == "sstv_audio")
+    ) or (profile in ("iss_voice", "iss_sstv") and mode == "sstv_audio") or (profile in ("iss_voice", "iss_uhf") and mode == "fm_audio")
 
 
 def topocentric_elevation_deg(observed_position):
@@ -624,7 +624,7 @@ class Station:
         if not isinstance(mission_id, str) or mission_id not in AUTO_DOWNLINK_PROFILES:
             raise ValueError("Unsupported or unverified satellite protocol")
         target_norad, target_profile, target_mode = AUTO_DOWNLINK_PROFILES[mission_id]
-        tools = {"iq": ["rtl_sdr"], "aprs": ["rtl_fm", "multimon-ng"], "sstv_audio": ["rtl_fm"]}[target_mode]
+        tools = {"iq": ["rtl_sdr"], "aprs": ["rtl_fm", "multimon-ng"], "sstv_audio": ["rtl_fm"], "fm_audio": ["rtl_fm"]}[target_mode]
         missing = [tool for tool in tools if not shutil.which(tool)]
         if missing:
             raise RuntimeError("Required receiver/decoder not installed: " + ", ".join(missing))
@@ -834,7 +834,7 @@ class Station:
             raise ValueError("Capture duration must be 8–900 seconds")
         if not scheduled and seconds > 240:
             raise ValueError("Manual capture maximum is 240 seconds")
-        needed = {"survey": "rtl_power", "iq": "rtl_sdr", "aprs": "rtl_fm", "sstv_audio": "rtl_fm"}[mode]
+        needed = {"survey": "rtl_power", "iq": "rtl_sdr", "aprs": "rtl_fm", "sstv_audio": "rtl_fm", "fm_audio": "rtl_fm"}[mode]
         if not shutil.which(needed) or (mode == "aprs" and not shutil.which("multimon-ng")):
             raise RuntimeError("Required installed RF decoder missing: " + ("multimon-ng" if mode == "aprs" else needed))
         if owner is not None and (not isinstance(owner, str) or
@@ -850,15 +850,15 @@ class Station:
             self.active_worker = threading.current_thread()
             self.manual_owner = None if scheduled else owner
             self.last_manual_heartbeat = time.monotonic()
-            suffix = {"survey": ".json", "iq": ".cu8", "aprs": ".txt", "sstv_audio": ".wav"}[mode]
+            suffix = {"survey": ".json", "iq": ".cu8", "aprs": ".txt", "sstv_audio": ".wav", "fm_audio": ".wav"}[mode]
             candidate = str(satellite or PROFILE_TARGETS.get(profile, "RF-UNATTRIBUTED"))
             if not candidate.upper().endswith(("CANDIDATE", "UNATTRIBUTED")):
                 candidate += "-CANDIDATE"
             frequency = int(PROFILES[profile]["freq"] or 0)
             target = self.archive/recording_name(
                 satellite=candidate, timestamp=now(), frequency_hz=frequency,
-                sample_rate=1024000 if mode == "iq" else 48000 if mode == "sstv_audio" else None,
-                kind={"survey":"SURVEY","iq":"IQ","aprs":"APRS","sstv_audio":"SSTV-AUDIO"}[mode],
+                sample_rate=1024000 if mode == "iq" else 48000 if mode in ("sstv_audio", "fm_audio") else None,
+                kind={"survey":"SURVEY","iq":"IQ","aprs":"APRS","sstv_audio":"SSTV-AUDIO","fm_audio":"VOICE-AUDIO"}[mode],
                 extension=suffix)
             if target.exists():
                 raise RuntimeError("Capture for this satellite already exists at this UTC second")

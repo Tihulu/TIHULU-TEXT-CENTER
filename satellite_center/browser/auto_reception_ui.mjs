@@ -46,7 +46,7 @@ export function initAutoReceptionUI({getSelectedFile=()=>null,fileInput=$("local
   const audioPreviewUrls=[];
   const releasePreviews=()=>{for(const url of audioPreviewUrls)URL.revokeObjectURL(url);audioPreviewUrls.length=0;};
   window.addEventListener("pagehide",releasePreviews);
-  const state={discovery:[],actualImages:[],packetText:[],warnings:[],name:""};
+  const state={discovery:[],actualImages:[],packetText:[],audioFiles:[],warnings:[],name:""};
   const message=value=>{$("auto-mission-status").textContent=String(value);};
   const jobs=$("auto-mission-jobs"),output=$("auto-mission-output");
 
@@ -77,12 +77,12 @@ export function initAutoReceptionUI({getSelectedFile=()=>null,fileInput=$("local
     busy=true;controller=new AbortController();
     analyze.disabled=true;extract.disabled=true;cancel.disabled=false;
     jobs.hidden=false;output.replaceChildren();
-    state.discovery=[];state.actualImages=[];state.packetText=[];state.warnings=[];
+    state.discovery=[];state.actualImages=[];state.packetText=[];state.audioFiles=[];state.warnings=[];
   }
   function finish(){
     busy=false;controller=null;
     analyze.disabled=false;cancel.disabled=true;
-    extract.disabled=!(state.discovery.length||state.actualImages.length||state.packetText.length);
+    extract.disabled=!(state.discovery.length||state.actualImages.length||state.packetText.length||state.audioFiles.length);
   }
   function station(){
     const lat=Number($("auto-lat").value),lon=Number($("auto-lon").value);
@@ -327,7 +327,8 @@ export function initAutoReceptionUI({getSelectedFile=()=>null,fileInput=$("local
       state.packetText.push({name,body:await blob.text(),
         source:"Actual recorded or imported text. Packet CRC/source identity not reverified here."});
     }else if(["wav","mp3","ogg"].includes(ext)){
-      await analyzeAudio(blob,name);
+      state.audioFiles.push({name,blob,source:"Actual recorded/imported audio; speech or satellite origin NOT verified"});
+      if(/SSTV/i.test(name))await analyzeAudio(blob,name);
     }else if(["png","jpg","jpeg"].includes(ext)){
       state.warnings.push(name+": image already exists; import/preview below. Source is not verified from the filename.");
     }else state.warnings.push(name+": protocol not supported by available decoders.");
@@ -366,7 +367,7 @@ export function initAutoReceptionUI({getSelectedFile=()=>null,fileInput=$("local
       }else{
         throw Error("Select your downloaded .cu8/.wav/.txt file using the file chooser. Browsers cannot silently read your Downloads folder.");
       }
-      const count=state.discovery.length+state.actualImages.length+state.packetText.length;
+      const count=state.discovery.length+state.actualImages.length+state.packetText.length+state.audioFiles.length;
       message(count+" real file/result group(s) analyzed. "+state.warnings.length+
         " unsupported/failed decoding notice(s). Press 3 · Extract Results to inspect and save verified outputs.");
     }catch(e){message("Analysis incomplete: "+String(e?.message||e));}
@@ -447,6 +448,17 @@ export function initAutoReceptionUI({getSelectedFile=()=>null,fileInput=$("local
       save.textContent="Save analysis evidence JSON";
       save.addEventListener("click",()=>postFile(new Blob([JSON.stringify(discoveryReportJson(result),null,2)],{type:"application/json"}),"TIHULU_satellite_analysis.json"));
       section.append(save);output.append(section);
+    }
+    for(const recording of state.audioFiles){
+      any=true;const card=document.createElement("article");card.className="mission-result";
+      textNode("h3",recording.name+" · Recorded audio",card);
+      textNode("p",recording.source,card);
+      const url=URL.createObjectURL(recording.blob);audioPreviewUrls.push(url);
+      const player=document.createElement("audio");player.controls=true;player.src=url;
+      const save=document.createElement("button");save.type="button";
+      save.textContent="Save original recorded audio";
+      save.addEventListener("click",()=>postFile(recording.blob,recording.name));
+      card.append(player,save);output.append(card);
     }
     for(const frame of state.actualImages){any=true;output.append(makeNativeImg(frame));}
     for(const item of state.packetText){

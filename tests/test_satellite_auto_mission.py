@@ -71,6 +71,14 @@ class AutoMissionTests(unittest.TestCase):
         self.assertEqual(job["estimated_bytes"], job["capture_seconds"]*96000)
         self.assertEqual(job["data_kind"], "image")
 
+    def test_native_voice_uses_real_audio_file_instead_of_gigabyte_iq(self):
+        outcome = self.station.auto_schedule(["iss-voice"])
+        self.assertEqual(outcome["scheduled_count"],1)
+        job = outcome["scheduled"][0]
+        self.assertEqual(job["mode"],"fm_audio")
+        self.assertEqual(job["estimated_bytes"],job["capture_seconds"]*96000)
+        self.assertEqual(job["data_kind"],"audio")
+
     def test_aprs_uhf_profile_without_claiming_receiver(self):
         outcome = self.station.auto_schedule(["iss-aprs"], hours=24)
         self.assertEqual(outcome["scheduled_count"], 1)

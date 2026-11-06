@@ -68,7 +68,7 @@ captures alive after the tab closes or run native SatDump.
 | PD120 and other SSTV formats | Not yet supported by built-in Robot36 decoder | External compatible SSTV decoder, not automatic here |
 | Meteor LRPT | No browser LRPT protocol decoder | SatDump 72k/80k attempt on actual captures, if installed |
 | ISS APRS / AX.25 | Not yet CRC-verified in browser | multimon-ng raw text; CRC and spacecraft origin not reverified by app |
-| FM analog voice | Candidate audio demodulation, not speech recognition | FM capture/decoder as installed |
+| FM analog voice | Candidate audio demodulation, not speech recognition | Native ISS voice auto mission writes real FM WAV (48 kHz PCM) for playback/export; speech or source is not independently verified |
 | HamTV 2395 MHz | Requires new S-band hardware | Current NESDR v5 and WinTV-soloHD **not capable** |
 | User-defined downlink | Metadata only until an actual decoder adapter exists | Metadata + explicit manual capture; no invented format support |
 
