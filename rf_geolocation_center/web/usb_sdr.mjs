@@ -209,7 +209,7 @@ export function initUsbSDR(report){
      notify("RF IQ CAPTURED",frequencyMHz.toFixed(3)+" MHz · "+samples+" bytes of REAL RTL-SDR I/Q · "+
        levelDbFS.toFixed(2)+" dBFS-like · fixed gain "+gainDb+" dB. Total receiver energy, not an identified station or distance.");
    }catch(error){if(!stopping)notify("RF CAPTURE ERROR",(error?.message||String(error))+
-     ". No unverified RF capture has been recorded; if USB transfer fails, release and reconnect.")}
+     ". No unverified RF capture has been recorded. For setRegBuffer/control-transfer errors, use Recover SDR to release/reconnect once and check Linux DVB ownership or USB power.")}
    finally{sampling=false;busy=false;endSample()}
  }
  async function fmSweep(startMHz=87.5,stopMHz=108,stepMHz=.1){
@@ -249,7 +249,7 @@ export function initUsbSDR(report){
    }catch(error){
      if(!stopping){
        const message=String(error?.message||error);
-       notify("FM SWEEP ERROR",message+" · no invented RF results.");
+       notify("FM SWEEP ERROR",message+" · no invented RF results. Try Recover SDR after checking USB ownership; no automatic driver reset.");
        window.dispatchEvent(new CustomEvent("tihulu:rf-fm-sweep-failed",{detail:{message}}));
      }
    }finally{
@@ -265,6 +265,31 @@ export function initUsbSDR(report){
    }
  }
 
+ async function recover(){
+   if(sampling||busy){
+     notify("RECOVERY BLOCKED","An RF operation is still running. Stop it or use Hard Stop before reconnecting.");
+     return;
+   }
+   if(!navigator.usb?.getDevices||!window.isSecureContext){
+     notify("RECOVERY UNAVAILABLE","Use a Chromium-based HTTPS browser with WebUSB.");
+     return;
+   }
+   // Explicit user click: free only this app's handle, then reconnect an
+   // already-authorized stick. No driver unload, systemctl or USB reset.
+   notify("USB RECOVERY","Releasing this app's SDR control handle before one explicit reconnection. No OS services touched.");
+   await release();
+   await new Promise(resolve=>setTimeout(resolve,200));
+   let devices=[];
+   try{devices=(await navigator.usb.getDevices()).filter(d=>d.vendorId===0x0bda&&d.productId===0x2838)}
+   catch(e){notify("RECOVERY BLOCKED","Cannot enumerate permitted RTL-SDR: "+String(e.message||e));return}
+   if(devices.length!==1){
+     notify("RECOVERY NEEDS DEVICE",devices.length===0?
+       "No permitted RTL-SDR. Use Connect RTL-SDR and the browser picker.":
+       "Multiple RTL-SDR permissions exist. Choose your intended device in Hardware.");
+     return;
+   }
+   await connect(devices[0]); // One attempt, no retry loop or invented RF samples.
+ }
  async function selfTest(){
    if(busy||receiver){notify("USB TEST BUSY","Release this app's receiver or finish the current USB operation before testing.");return}
    if(!navigator.usb||!window.isSecureContext){
@@ -313,11 +338,13 @@ export function initUsbSDR(report){
  window.addEventListener("tihulu:hardware-connect-rtl",e=>{void connect(e.detail?.device||null)});
  $("usb-select")?.addEventListener("click",()=>{void connect()});
  $("usb-selftest")?.addEventListener("click",()=>{void selfTest()});
+ $("hardware-recover")?.addEventListener("click",()=>{void recover()});
+ $("quick-radio-recover")?.addEventListener("click",()=>{void recover()});
  $("live-usb-check")?.addEventListener("click",()=>{void selfTest()});
  $("live-release")?.addEventListener("click",()=>{void release()});
  $("live-scan")?.addEventListener("click",()=>{void scan()});
  $("hard-stop")?.addEventListener("click",()=>{void release()});
  window.addEventListener("pagehide",()=>{void release()});
  document.addEventListener("visibilitychange",()=>{if(document.hidden&&receiver)void release()});
- return {connect,scan,release,selfTest,captureRF,fmSweep};
+ return {connect,scan,release,selfTest,captureRF,fmSweep,recover};
 }
