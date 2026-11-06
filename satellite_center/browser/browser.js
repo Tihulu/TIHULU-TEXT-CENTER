@@ -182,77 +182,134 @@ function renderSignal() {
     if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);
   });ctx.stroke();
 }
-function saveCapture(bytes,name) {
-  if (!bytes.length) return;
-  const blob = new Blob(bytes,{type:'application/octet-stream'});
-  const url = URL.createObjectURL(blob);
-  const link=document.createElement('a'); link.href=url;link.download=name;
+function triggerRawDownload(blob,name) {
+  const url=URL.createObjectURL(blob);
+  const link=document.createElement('a');link.href=url;link.download=name;
   document.body.append(link);link.click();link.remove();
   setTimeout(()=>URL.revokeObjectURL(url),60000);
-  log('Saved ' + name + ' · ' + (blob.size/1048576).toFixed(1) + ' MiB, real raw IQ only.');
+  log('Requested browser download: '+name+' · '+(blob.size/1048576).toFixed(2)+
+    ' MiB of real IQ bytes. Browser settings may block automatic downloads; scheduled reports retain the latest file for manual retry.');
+}
+function saveCapture(bytes,name,job=null) {
+  if (!bytes.length) return null;
+  const blob=new Blob(bytes,{type:'application/octet-stream'});
+  if(job){
+    // Avoid retaining hundreds of large recordings in memory. Only the
+    // latest completed scheduled capture can be manually re-downloaded.
+    if(lastScheduledFile){
+      const previous=jobs.find(j=>j.id===lastScheduledFile.jobId);
+      if(previous)previous.downloadAvailable=false;
+    }
+    lastScheduledFile={blob,name,jobId:job.id};
+    job.downloadAvailable=true;
+    job.fileName=name;
+  }
+  triggerRawDownload(blob,name);
+  return blob;
 }
 async function startCapture(job=null) {
-  if (capturePromise || !device) throw Error('Choose the USB device first, or finish the previous capture.');
+  if(capturePromise || !device)throw Error('Choose or auto-open the USB device first.');
   stopRequested=false;
-  const freq=job ? job.frequency : Number($('preset').value);
-  const rate=Number($('rate').value), limit=Number($('duration').value);
-  const recording=$('record').checked;
+  const freq=job?job.frequency:Number($('preset').value);
+  const rate=job?job.sampleRate:Number($('rate').value);
+  const limit=job?job.durationSeconds:Number($('duration').value);
+  const recording=job?job.saveRaw:$('record').checked;
   const session=++sessionCounter;
   capturePromise=(async()=>{
-    let bytesReceived=0, bytesRecorded=0, chunks=[], measured=null;
-    const deadline=Date.now()+limit*1000;
+    let bytesReceived=0,bytesRecorded=0,chunks=[],measured=null,peakCount=0;
+    const measurements=[],startedAt=Date.now();
+    const deadline=startedAt+limit*1000;
     try {
+      if(job){
+        job.state='running';
+        job.message='USB opened. Tuning '+(freq/1e6).toFixed(3)+' MHz, measuring actual I/Q samples...';
+        renderJobs();
+      }
       await device.setSampleRate(rate);
       await device.setCenterFrequency(freq);
       await device.setGain(null);
       await device.resetBuffer();
-      status('sample-state','Receiving raw I/Q at '+(freq/1e6).toFixed(3)+' MHz · '+(rate/1e6)+' MS/s. This is not a satellite identification.');
-      while(!stopRequested && Date.now()<deadline) {
+      status('sample-state','Receiving real USB I/Q at '+(freq/1e6).toFixed(3)+' MHz · '+
+        (rate/1e6)+' MS/s. Sample levels are uncalibrated. No satellite is identified.');
+      while(!stopRequested && Date.now()<deadline){
         const raw=await device.readSamples(65536);
-        // Library returns raw CU8 bytes (ArrayBuffer or typed array).
-        const data=raw instanceof ArrayBuffer ? new Uint8Array(raw) :
-          ArrayBuffer.isView(raw) ? new Uint8Array(raw.buffer,raw.byteOffset,raw.byteLength) : null;
-        if(!data || data.length<2) throw Error('No usable I/Q bytes returned by SDR driver');
-        bytesReceived+=data.length; measured=rmsLevel(data);
-        signalHistory.push(measured);
-        if(signalHistory.length>150) signalHistory.shift();
-        renderSignal();
-        if(recording) {
-          if(bytesRecorded+data.length>maxRecordBytes) {
-            log('Recording size cap 128 MiB reached; ending receiver session');
-            stopRequested=true;
-          } else {chunks.push(new Uint8Array(data));bytesRecorded+=data.length;}
+        const data=raw instanceof ArrayBuffer?new Uint8Array(raw):
+          ArrayBuffer.isView(raw)?new Uint8Array(raw.buffer,raw.byteOffset,raw.byteLength):null;
+        if(!data||data.length<2)throw Error('No usable I/Q bytes from RTL-SDR');
+        bytesReceived+=data.length;
+        measured=rmsLevel(data);
+        if(Number.isFinite(measured)){
+          measurements.push(measured);
+          signalHistory.push(measured);
+          if(signalHistory.length>150)signalHistory.shift();
+          renderSignal();
         }
-        status('sample-state','Real USB samples: '+(bytesReceived/1048576).toFixed(2)+
-          ' MiB · relative digital level '+measured+' dBFS-like · '+(freq/1e6).toFixed(3)+' MHz');
+        if(recording){
+          if(bytesRecorded+data.length>maxRecordBytes){
+            stopRequested=true;
+            log('128 MiB IQ memory limit reached; finishing capture safely.');
+            if(job)job.message='Stopped at the 128 MiB in-browser IQ limit.';
+          }else{
+            chunks.push(new Uint8Array(data));
+            bytesRecorded+=data.length;
+          }
+        }
+        status('sample-state','Measured USB bytes: '+(bytesReceived/1048576).toFixed(2)+
+          ' MiB · relative sample level '+measured+
+          ' dBFS-like · '+(freq/1e6).toFixed(3)+' MHz');
       }
-      if(recording && chunks.length>0) {
-        const tag=new Date().toISOString().replaceAll(':','-').replace(/\..*/, '');
-        saveCapture(chunks,'TIHULU-'+Math.round(freq)+'-'+rate+'-'+tag+'.cu8');
-      }
-      lastCaptured={bytesReceived,bytesRecorded,frequency_hz:freq,observedAt:new Date().toISOString()};
+      if(!bytesReceived)throw Error('Zero actual USB sample bytes received; no successful scan.');
+      const report=captureLevelSummary(measurements,bytesReceived,Date.now()-startedAt);
+      report.frequencyHz=freq;report.sampleRate=rate;report.rawBytes=bytesRecorded;
+      report.recordedRaw=Boolean(recording&&bytesRecorded>0);
+      report.time=new Date().toISOString();
+      lastCaptured={bytesReceived,bytesRecorded,frequency_hz:freq,observedAt:report.time,
+        relativeDb:report.averageRelativeDb};
       notifyMaps();
-      if(job) job.state='finished';
-      log('Capture ended. USB bytes: '+bytesReceived+'. Device released on exit.');
-    } catch(e) {
-      log('Capture stopped with driver error: '+e.message);
-      status('sample-state','Capture failed: '+e.message+'. Any partial recording was not labelled as a successful decode.');
-      if(job) job.state='blocked';
-    } finally {
+      if(recording&&chunks.length>0){
+        const tag=new Date().toISOString().replaceAll(':','-').replace(/\..*/,'');
+        const name='TIHULU-'+(job?'scheduled-':'')+Math.round(freq)+'-'+rate+'-'+tag+'.cu8';
+        saveCapture(chunks,name,job);
+      }
+      if(job){
+        job.state=stopRequested?'stopped':'finished';
+        job.report=report;
+        job.message=(stopRequested?'Capture stopped early. ':'Capture completed. ')+
+          (recording?'Browser IQ download was requested; verify it in Downloads. ':'Raw IQ saving was disabled. ')+
+          'Uncalibrated RF power analysis only; no downlink or satellite identity confirmed.';
+        status('scheduled-report',
+          job.name+' · '+(freq/1e6).toFixed(3)+' MHz\n'+
+          'Measured: '+report.bytesReceived.toLocaleString()+' real USB bytes in '+
+          report.elapsedSeconds+' seconds. Sample blocks: '+report.blocksMeasured+
+          '\nRelative digital level: min '+report.minRelativeDb+
+          ', average '+report.averageRelativeDb+', max '+report.maxRelativeDb+
+          ' dBFS-like; variation '+report.levelVariationDb+' dB.'+
+          '\nThis is NOT a decoded satellite message/image or proof of which spacecraft transmitted.');
+      }
+      log('Session '+session+' captured '+bytesReceived+' real raw USB bytes; receiver released.');
+    }catch(e){
+      log('Capture error: '+e.message);
+      status('sample-state','Capture stopped/failed: '+e.message+'. No satellite decoding is claimed.');
+      if(job){job.state=stopRequested?'stopped':'blocked';job.message=String(e.message);job.report=null;
+        status('scheduled-report','Scheduled capture '+job.state+': '+e.message);}
+    }finally{
       await closeDevice();
     }
   })();
   refreshControls();
-  try { await capturePromise; }
-  finally { capturePromise=null;refreshControls();renderJobs(); }
+  try{await capturePromise;}
+  finally{capturePromise=null;refreshControls();renderJobs();}
 }
 async function stopCapture() {
   stopRequested=true;
-  if(capturePromise) {
-    try{await capturePromise;}catch(e){log('Receiver stop: '+e.message);}
-  }
+  // Closing our own USB handle helps interrupt a stuck readSamples() transfer.
   await closeDevice();
-  status('device-status','RTL-SDR released. Choose USB again for a new scan. No third-party SDR process was touched.');
+  if(capturePromise){
+    try{
+      await Promise.race([capturePromise,new Promise(resolve=>setTimeout(resolve,2500))]);
+    }catch(e){log('Receiver stop: '+e.message);}
+  }
+  status('device-status','RTL-SDR release requested. Only this tab-owned USB receiver was closed; unrelated readsb/Gqrx processes untouched.');
   refreshControls();
 }
 $('connect').addEventListener('click',()=>{void connectDevice();});
