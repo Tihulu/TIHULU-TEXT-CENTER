@@ -217,7 +217,15 @@ def extract_robot36_wav(path: str | Path, *, max_images: int = MAX_IMAGES,
             raw = wav.readframes(min(WINDOW_SECONDS*rate, frames-offset*rate))
             if len(raw) < 32*rate*2:
                 continue
-            candidate = _decode_window(raw, rate, compute["trace_backend"])
+            try:
+                candidate = _decode_window(raw, rate, compute["trace_backend"])
+            except Exception as exc:
+                if compute_mode != "auto" or compute["trace_backend"] != "cupy-cuda":
+                    raise
+                # A disappearing GPU must not destroy a successfully saved WAV.
+                compute["fallback_reason"] = "Real GPU execution failed: " + str(exc)[:180]
+                compute["trace_backend"] = resolve_compute_backend("auto", [], seconds=0)["trace_backend"]
+                candidate = _decode_window(raw, rate, compute["trace_backend"])
             if candidate is None:
                 continue
             candidate["recording_offset_seconds"] = round(offset+candidate["start"], 3)
