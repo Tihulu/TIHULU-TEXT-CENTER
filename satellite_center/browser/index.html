@@ -7,7 +7,7 @@
 <link rel="apple-touch-icon" href="./icon-192.png">
 <link rel="manifest" href="./manifest.webmanifest">
 <meta name="theme-color" content="#091a30">
-<link rel="stylesheet" href="./browser.css?v=20261106-map-usb-v07">
+<link rel="stylesheet" href="./browser.css?v=20261106-usb-claim-v08">
 </head><body>
 <header><div class="wrap"><p class="eyebrow">TIHULU SATELLITE CENTER · DIRECT USB EXPERIMENTAL</p>
 <h1><img src="./icon-192.png" width="54" height="54" alt="" style="vertical-align:middle;border-radius:14px;margin-right:8px">Satellite Center <span class="pill">No local app</span></h1>
@@ -201,4 +201,4 @@ All location methods are optional. City suggestions are offline by default; GPS 
 <details><summary>What requires more than a browser?</summary><p>Windows may require WinUSB driver setup; Linux may require releasing the kernel DVB driver or adjusting permissions. To record a pass while the browser is closed, the optional local companion must remain running. The companion still supports offline SatDump and multimon-ng where installed.</p></details>
 <h3>Activity log</h3><pre id="log" aria-live="polite">Ready. USB idle. No fabricated RF data.</pre></section>
 <footer>Receive-only. The page never transmits RF, uploads I/Q files or silently scans. Page closing releases browser-owned USB access; an unexpected OS/browser crash cannot be guaranteed to cleanly close every device state. Browser client uses <a href="https://www.npmjs.com/package/@jtarrio/webrtlsdr" rel="noopener noreferrer" target="_blank">@jtarrio/webrtlsdr</a> from a version-pinned module CDN (requires Internet to load initially).</footer>
-</main><script type="module" src="./browser.js?v=20261106-map-usb-v07"></script></body></html>
+</main><script type="module" src="./browser.js?v=20261106-usb-claim-v08"></script></body></html>
