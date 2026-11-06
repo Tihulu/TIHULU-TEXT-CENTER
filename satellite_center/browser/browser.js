@@ -1,7 +1,7 @@
 import { platformFamily, webUsbHelp, permissionReport } from './usb_diagnostics.mjs';
-import { createSatelliteMaps } from './satellite_maps.mjs';
+import { createSatelliteMaps } from './satellite_maps.mjs?v=20261106-map-usb-v07';
 import { initStationLocationUI } from './location_search.mjs';
-import { probeUsbSamples, sampleBytes } from './usb_live_probe.mjs';
+import { probeUsbSamples, sampleBytes } from './usb_live_probe.mjs?v=20261106-map-usb-v07';
 import { sortPassList } from './pass_sort.mjs';
 import { localDateInput, parseLocalScheduleTime, createScheduledPass, evaluateScheduledJob, secondsToJob, captureLevelSummary } from './schedule_controller.mjs';
 // TIHULU Satellite Center — no-local-install receive-only browser mode.
