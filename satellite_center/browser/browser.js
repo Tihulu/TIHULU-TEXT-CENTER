@@ -12,6 +12,7 @@ import { selectAutomaticPasses, AUTO_TARGETS } from './auto_mission.mjs?v=202611
 import {localDayKey,shiftCalendarDay,renderSatelliteCalendar} from './satellite_calendar.mjs?v=20261106-calendar-zip-v2';
 import { localDateInput, parseLocalScheduleTime, createScheduledPass, evaluateScheduledJob, secondsToJob, captureLevelSummary } from './schedule_controller.mjs?v=20261106-stream-iq-v1';
 import {captureBudget,formatCaptureBudget,STREAM_IQ_BYTES} from './capture_duration.mjs?v=20261106-stream-v1';
+import {createStreamingFmWavEncoder,createPcmWavHeader,wavOutputPlan} from './fm_wav_record.mjs?v=20261106-web-fm-wav-v1';
 // TIHULU Satellite Center — no-local-install receive-only browser mode.
 // The RTL-SDR device is opened only after a direct user gesture.
 // CelesTrak / CDN downloads are for client-side orbital prediction + JS only;
@@ -89,6 +90,46 @@ async function nativeScheduledPass(pass,{when,durationSeconds,frequency,sampleRa
    run_at:new Date(when).toISOString(),duration_seconds:durationSeconds},state.csrf);
 }
 
+function captureWavName(job,frequency,at=new Date()){
+ const target=job?.name?job.name+"-CANDIDATE":
+   imageCandidateTarget&&imageCandidateTarget.frequencies.includes(frequency)?
+     imageCandidateTarget.name+"-CANDIDATE":"RF-UNATTRIBUTED";
+ return recordingName({satellite:target,at,frequencyHz:frequency,
+   sampleRate:48000,format:"wav",kind:"SSTV-AUDIO"});
+}
+function inspectCaptureStorage(seconds,rate,raw,wav){
+ const iq=captureBudget(seconds,rate,raw,{fileStreaming:diskStreamingAvailable()});
+ const audio=wavOutputPlan(seconds,wav,{fileStreaming:diskStreamingAvailable()});
+ return {iq,audio,rawDisk:iq.mode==="disk-stream",wavDisk:audio.mode==="disk-stream"};
+}
+async function selectRecordingFiles(seconds,rate,raw,wav,{job=null,at=new Date(),freq=null}={}){
+ const plan=inspectCaptureStorage(seconds,rate,raw,wav);
+ if(!plan.rawDisk&&!plan.wavDisk)return null;
+ const frequency=freq??Number($('preset').value);
+ const rawName=captureFileName(job,frequency,rate,at);
+ const wavName=captureWavName(job,frequency,at);
+ const prepared={name:rawName,wavName,writable:null,wavWritable:null};
+ try{
+   if(plan.rawDisk&&plan.wavDisk){
+     if(typeof window.showDirectoryPicker!=="function")
+       throw Error("Saving long CU8 and WAV together requires a Chromium directory picker. Record WAV-only, lower duration, or use the native app.");
+     const directory=await window.showDirectoryPicker({mode:"readwrite"});
+     const rawHandle=await directory.getFileHandle(rawName,{create:true});
+     const wavHandle=await directory.getFileHandle(wavName,{create:true});
+     prepared.writable=await rawHandle.createWritable();
+     prepared.wavWritable=await wavHandle.createWritable();
+   }else if(plan.rawDisk){
+     const handle=await window.showSaveFilePicker({suggestedName:rawName,
+       types:[{description:"TIHULU unsigned IQ CU8",accept:{"application/octet-stream":[".cu8"]}}]});
+     prepared.writable=await handle.createWritable();
+   }else{
+     const handle=await window.showSaveFilePicker({suggestedName:wavName,
+       types:[{description:"TIHULU demodulated FM WAV",accept:{"audio/wav":[".wav"]}}]});
+     prepared.wavWritable=await handle.createWritable();
+   }
+   return prepared;
+ }catch(error){await abortLongCapture(prepared);throw error;}
+}
 function captureFileName(job,frequency,rate,at=new Date()){
  const target=job?.name?job.name+"-CANDIDATE":
    imageCandidateTarget&&imageCandidateTarget.frequencies.includes(frequency)?
@@ -96,22 +137,13 @@ function captureFileName(job,frequency,rate,at=new Date()){
  return recordingName({satellite:target,at,frequencyHz:frequency,
    sampleRate:rate,format:"cu8",kind:job?"SCHEDULED-IQ":"IQ"});
 }
-async function selectLongCaptureFile(seconds,rate,saveRaw,{job=null,at=new Date(),freq=null}={}){
- const budget=captureBudget(seconds,rate,saveRaw,{fileStreaming:diskStreamingAvailable()});
- if(budget.mode!=="disk-stream")return null;
- const name=captureFileName(job,freq??Number($('preset').value),rate,at);
- const handle=await window.showSaveFilePicker({
-   suggestedName:name,
-   types:[{description:"TIHULU raw unsigned IQ (.cu8)",
-     accept:{"application/octet-stream":[".cu8"]}}]
- });
- const writable=await handle.createWritable();
- return {writable,handle,name,budget};
-}
 async function abortLongCapture(prepared){
- if(!prepared?.writable)return;
- const writable=prepared.writable;prepared.writable=null;
- try{await writable.abort();}catch(error){log("Disk stream cleanup: "+error.message);}
+ if(!prepared)return;
+ for(const key of ["writable","wavWritable"]){
+   if(!prepared[key])continue;
+   const stream=prepared[key];prepared[key]=null;
+   try{await stream.abort();}catch(error){log("Disk stream cleanup: "+error.message);}
+ }
 }
 function releaseScheduledStream(job){
  const prepared=preparedLongStreams.get(job.id);
