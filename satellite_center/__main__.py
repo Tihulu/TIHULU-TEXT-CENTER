@@ -46,7 +46,7 @@ SOURCE_URLS = {
     "iridium": "https://celestrak.org/NORAD/elements/gp.php?GROUP=iridium-NEXT&FORMAT=TLE",
 }
 AUTO_DOWNLINK_PROFILES = {
-    "iss-sstv": (25544, "iss_sstv", "iq"),
+    "iss-sstv": (25544, "iss_sstv", "sstv_audio"),
     "iss-aprs": (25544, "iss_aprs_uhf", "aprs"),
     "iss-voice": (25544, "iss_uhf", "iq"),
     "meteor-m2-3": (57166, "meteor", "iq"),
@@ -624,7 +624,7 @@ class Station:
         if not isinstance(mission_id, str) or mission_id not in AUTO_DOWNLINK_PROFILES:
             raise ValueError("Unsupported or unverified satellite protocol")
         target_norad, target_profile, target_mode = AUTO_DOWNLINK_PROFILES[mission_id]
-        tools = {"iq": ["rtl_sdr"], "aprs": ["rtl_fm", "multimon-ng"]}[target_mode]
+        tools = {"iq": ["rtl_sdr"], "aprs": ["rtl_fm", "multimon-ng"], "sstv_audio": ["rtl_fm"]}[target_mode]
         missing = [tool for tool in tools if not shutil.which(tool)]
         if missing:
             raise RuntimeError("Required receiver/decoder not installed: " + ", ".join(missing))

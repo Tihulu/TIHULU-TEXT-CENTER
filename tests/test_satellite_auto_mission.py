@@ -52,7 +52,7 @@ class AutoMissionTests(unittest.TestCase):
         )
         self.assertEqual(outcome["scheduled_count"], 2)
         self.assertEqual([j["profile"] for j in outcome["scheduled"]], ["meteor", "iss_sstv"])
-        self.assertEqual([j["mode"] for j in outcome["scheduled"]], ["iq", "iq"])
+        self.assertEqual([j["mode"] for j in outcome["scheduled"]], ["iq", "sstv_audio"])
         self.assertEqual(outcome["receiver_claimed"], False)
         self.assertTrue(all(j["capture_seconds"] > 60 for j in outcome["scheduled"]))
         self.assertTrue(all(j["coverage"] == "full-pass-attempt" for j in outcome["scheduled"]))
@@ -62,6 +62,14 @@ class AutoMissionTests(unittest.TestCase):
         outcome = self.station.auto_schedule(["meteor-m2-3"], coverage_goal="sample")
         self.assertEqual(outcome["scheduled_count"], 0)
         self.assertTrue(any("too little" in x for x in outcome["skipped"]))
+
+    def test_native_sstv_uses_small_real_wav_instead_of_huge_iq(self):
+        outcome = self.station.auto_schedule(["iss-sstv"])
+        self.assertEqual(outcome["scheduled_count"], 1)
+        job = outcome["scheduled"][0]
+        self.assertEqual(job["mode"], "sstv_audio")
+        self.assertEqual(job["estimated_bytes"], job["capture_seconds"]*96000)
+        self.assertEqual(job["data_kind"], "image")
 
     def test_aprs_uhf_profile_without_claiming_receiver(self):
         outcome = self.station.auto_schedule(["iss-aprs"], hours=24)

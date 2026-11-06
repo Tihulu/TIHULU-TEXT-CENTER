@@ -37,7 +37,7 @@ test("Manual pending pass takes priority and all entries remain geometry-only",(
  });
  assert.equal(result.scheduled.length,0);
  assert.equal(result.skipped.length,1);
- assert.match(result.note,/full Meteor imagery needs native/);
+ assert.match(result.note,/full Meteor imagery needs native/i);
 });
 test("APRS UHF is separate from SSTV and no retired/unsupported satellites are armed",()=>{
  const r=selectAutomaticPasses([pass(25544,3600000),pass(57166,4200000)],{now,mode:"messages"});

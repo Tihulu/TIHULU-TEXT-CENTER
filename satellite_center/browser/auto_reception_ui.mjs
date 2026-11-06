@@ -306,7 +306,7 @@ export function initAutoReceptionUI({getSelectedFile=()=>null,fileInput=$("local
     return results.length;
   }
   async function analyzeAudio(blob,name){
-    if(blob.size>60*1024*1024){state.warnings.push(name+": audio file over 60 MiB decoder limit");return;}
+    if(blob.size>100*1024*1024){state.warnings.push(name+": audio file over 100 MiB decoder limit");return;}
     const AudioContext=window.AudioContext||window.webkitAudioContext;
     if(!AudioContext){state.warnings.push("WebAudio not supported");return;}
     const ctx=new AudioContext();

@@ -64,7 +64,7 @@ captures alive after the tab closes or run native SatDump.
 ### Decoder support (honest runtime status)
 | Public protocol | In-browser | Optional native companion |
 |---|---|---|
-| Robot36 SSTV | Experimental, requires actual full WAV/CU8 and sync | Same engine and real files |
+| Robot36 SSTV | Experimental, requires actual full WAV/CU8 and sync | Native ISS SSTV auto jobs record real FM WAV (48 kHz PCM, ~96 KB/s) for image decoding; optional alternative IQ capture remains manual |
 | PD120 and other SSTV formats | Not yet supported by built-in Robot36 decoder | External compatible SSTV decoder, not automatic here |
 | Meteor LRPT | No browser LRPT protocol decoder | SatDump 72k/80k attempt on actual captures, if installed |
 | ISS APRS / AX.25 | Not yet CRC-verified in browser | multimon-ng raw text; CRC and spacecraft origin not reverified by app |

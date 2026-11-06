@@ -9,6 +9,7 @@ import math
 
 IQ_RATE = 1_024_000
 IQ_BYTES_PER_SECOND = 2 * IQ_RATE
+SSTV_WAV_BYTES_PER_SECOND = 48_000 * 2  # mono signed PCM via rtl_fm
 MAX_IQ_BYTES = 2_000_000_000  # 2 GB streamed to disk, not to browser RAM
 MAX_CAPTURE_SECONDS = 900
 DISK_RESERVE_BYTES = 200_000_000
@@ -40,15 +41,20 @@ def plan_capture_budget(aos: datetime, los: datetime, mission_id: str,
     limit = min(window, MAX_CAPTURE_SECONDS)
     if goal == "sample":
         limit = min(limit, 60)
-    if KINDS[mission_id] != "text":
-        limit = min(limit, MAX_IQ_BYTES//IQ_BYTES_PER_SECOND)
+    bytes_per_second = (SSTV_WAV_BYTES_PER_SECOND if mission_id == "iss-sstv"
+                        else 0 if KINDS[mission_id] == "text"
+                        else IQ_BYTES_PER_SECOND)
+    if bytes_per_second:
+        if bytes_per_second == IQ_BYTES_PER_SECOND:
+            limit = min(limit, MAX_IQ_BYTES//IQ_BYTES_PER_SECOND)
         if free_bytes is not None:
             if not isinstance(free_bytes, int) or free_bytes < 0:
                 raise ValueError("Invalid disk availability")
-            limit = min(limit, max(0, (free_bytes-DISK_RESERVE_BYTES)//IQ_BYTES_PER_SECOND))
+            limit = min(limit, max(0, (free_bytes-DISK_RESERVE_BYTES)//bytes_per_second))
     seconds = max(0, int(limit))
-    estimated = seconds*IQ_BYTES_PER_SECOND if KINDS[mission_id] != "text" else 0
-    minimum = MINIMUM_SECONDS[mission_id]
+    estimated = seconds*bytes_per_second
+    minimum = (20 if goal == "sample" and mission_id.startswith("meteor-")
+               else MINIMUM_SECONDS[mission_id])
     coverage = "full-pass-attempt" if seconds >= window and seconds >= minimum else "partial-pass"
     return {
         "mission_id": mission_id, "data_kind": KINDS[mission_id],
@@ -57,5 +63,7 @@ def plan_capture_budget(aos: datetime, los: datetime, mission_id: str,
         "minimum_useful_seconds": minimum, "feasible": seconds >= minimum,
         "estimated_bytes": estimated, "coverage": coverage,
         "shortfall_seconds": max(0, window-seconds),
-        "note": "Unverified downlink candidate. Full window cannot guarantee complete satellite data or image."
+        "note": ("Short Meteor RF evidence only; do not infer a complete LRPT image."
+                 if goal == "sample" and mission_id.startswith("meteor-")
+                 else "Unverified downlink candidate. Full window cannot guarantee complete satellite data or image.")
     }
