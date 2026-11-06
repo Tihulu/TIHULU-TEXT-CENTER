@@ -5,6 +5,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 from pathlib import Path
 import secrets
+import signal
+import threading
 from urllib.parse import parse_qs, urlsplit
 
 from . import __version__
@@ -81,6 +83,12 @@ class LocalServer(ThreadingHTTPServer):
         self.postprocess=RecordingTranscriber(
             transcripts=self.transcripts,radio=self.live_fm,tv=self.live_tv)
         super().__init__(address, Handler)
+
+    def server_close(self):
+        # Tests and alternate launchers can close the server directly.
+        # Always release this server's own DAB child in that case.
+        self.dab_managed.close()
+        super().server_close()
 
     def release_owned_rf(self):
         """User-initiated full stop: ONLY this server's own RF subprocesses.
@@ -578,11 +586,21 @@ def run_server(store: Store, *, host: str = "127.0.0.1", port: int = 8787):
     server = LocalServer((host, port), store)
     print(f"TIHULU TEXT CENTER v{__version__}: http://{host}:{server.server_port}/")
     print("Local mode. Background polling OFF. No receiver capture active at startup.")
+    original_sigterm=None
+    if threading.current_thread() is threading.main_thread():
+        def graceful_exit(_signum,_frame):
+            # Raise into serve_forever so the normal finally teardown
+            # releases app-owned USB children before Python terminates.
+            raise KeyboardInterrupt
+        original_sigterm=signal.getsignal(signal.SIGTERM)
+        signal.signal(signal.SIGTERM,graceful_exit)
     try:
         server.serve_forever(poll_interval=0.25)
     except KeyboardInterrupt:
         pass
     finally:
+        if original_sigterm is not None:
+            signal.signal(signal.SIGTERM,original_sigterm)
         server.dab_managed.close()
         server.postprocess.stop(wait=True)
         server.live_tv.stop()
