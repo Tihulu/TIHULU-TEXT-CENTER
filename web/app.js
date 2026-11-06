@@ -792,7 +792,7 @@ function liveRadioCaptionPanel(captions,session,targetId="live-radio-captions"){
         const target=$(targetId==="live-tv-captions"?"live-tv-later-language":"live-later-language")?.value||"tr";
         try{
           const result=await api("/api/transcripts/translate","POST",{
-            id:item.id,target_language:target});
+            id:item.id,target_language:target,backend:"auto"});
           item.translated_text=result.translated_text;
           item.translated_language=result.translated_language;
           liveRadioCaptionPanel(captions,session,targetId);
@@ -923,6 +923,11 @@ async function addLiveTV(){
   const ch=el("div","field");ch.append(el("label","","TV channel / upstream source"),channel);form.append(ch);
   const settings=el("div","live-grid");
   const lang=el("select"),target=el("select"),backend=el("select");
+  const tvTranslationBackend=el("select");
+  for(const name of ["auto","cpu","gpu","npu"]){
+    const option=el("option","",name.toUpperCase()+" (subtitle translator)");
+    option.value=name;tvTranslationBackend.append(option);
+  }
   for(const [value,name] of [["en","English"],["de","Deutsch"],["tr","Türkçe"]]){
     const l=el("option","",name);l.value=value;lang.append(l);
     const t=el("option","",name);t.value=value;target.append(t);
@@ -936,7 +941,8 @@ async function addLiveTV(){
   }
   for(const [label,control] of [["Original TV audio language",lang],
                                   ["Translate captions to",target],
-                                  ["Speech compute backend",backend]]){
+                                  ["Speech compute backend",backend],
+                                  ["Translation backend",tvTranslationBackend]]){
     const wrap=el("div","field");
     wrap.append(el("label","",label),control);settings.append(wrap);
   }
@@ -995,7 +1001,8 @@ async function addLiveTV(){
         channel_id:channel.value,record:record.checked,
         subtitles:subtitles.checked,original_language:lang.value,
         translated_language:subtitles.checked&&translate.checked?target.value:null,
-        backend:backend.value,upstream_authorized:true});
+        backend:backend.value,translation_backend:tvTranslationBackend.value,
+        upstream_authorized:true});
       state.tvActive=true;state.tvSession=newSession.session;
       video.src="/api/live/tv/stream?session="+encodeURIComponent(state.tvSession)+
         "&token="+encodeURIComponent(state.csrf);
@@ -1058,6 +1065,11 @@ async function addLiveRadio(){
   frequency.input.max="108";frequency.input.step="0.001";
   const options=el("div","live-grid");
   const source=el("select"),target=el("select"),backend=el("select");
+  const translationBackend=el("select");
+  for(const name of ["auto","cpu","gpu","npu"]){
+    const option=el("option","",name.toUpperCase()+" (subtitle translator)");
+    option.value=name;translationBackend.append(option);
+  }
   for(const [value,label] of [["en","English"],["de","Deutsch"],["tr","Türkçe"]]){
     const op=el("option","",label);op.value=value;source.append(op);
     const ot=el("option","",label);ot.value=value;target.append(ot);
@@ -1071,7 +1083,8 @@ async function addLiveRadio(){
   }
   for(const [label,select] of [["Original speech language",source],
                               ["Translation target",target],
-                              ["Compute (auto or manual)",backend]]){
+                              ["Compute (auto or manual)",backend],
+                              ["Translation backend",translationBackend]]){
     const wrap=el("div","field");
     wrap.append(el("label","",label),select);options.append(wrap);
   }
@@ -1145,7 +1158,7 @@ async function addLiveRadio(){
         subtitles:captions.checked,
         original_language:source.value,
         translated_language:captions.checked&&autoTranslate.checked?target.value:null,
-        backend:backend.value});
+        backend:backend.value,translation_backend:translationBackend.value});
       state.liveActive=created.active;state.liveSession=created.session;
       const url="/api/live/radio/stream?session="+
         encodeURIComponent(created.session)+"&token="+encodeURIComponent(state.csrf);
