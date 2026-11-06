@@ -47,7 +47,7 @@ export function initAutoReceptionUI({getSelectedFile=()=>null,fileInput=$("local
   const audioPreviewUrls=[];
   const releasePreviews=()=>{for(const url of audioPreviewUrls)URL.revokeObjectURL(url);audioPreviewUrls.length=0;};
   window.addEventListener("pagehide",releasePreviews);
-  const state={discovery:[],actualImages:[],packetText:[],audioFiles:[],warnings:[],name:""};
+  const state={discovery:[],actualImages:[],nativeDecodeReports:[],packetText:[],audioFiles:[],warnings:[],name:""};
   const message=value=>{$("auto-mission-status").textContent=String(value);};
   const jobs=$("auto-mission-jobs"),output=$("auto-mission-output");
 
@@ -80,12 +80,12 @@ export function initAutoReceptionUI({getSelectedFile=()=>null,fileInput=$("local
     analyze.disabled=true;extract.disabled=true;zipButton.disabled=true;cancel.disabled=false;
     zipStatus.textContent="Analysis running; results archive is not ready.";
     jobs.hidden=false;output.replaceChildren();
-    state.discovery=[];state.actualImages=[];state.packetText=[];state.audioFiles=[];state.warnings=[];
+    state.discovery=[];state.actualImages=[];state.nativeDecodeReports=[];state.packetText=[];state.audioFiles=[];state.warnings=[];
   }
   function finish(){
     busy=false;controller=null;
     analyze.disabled=false;cancel.disabled=true;
-    extract.disabled=!(state.discovery.length||state.actualImages.length||state.packetText.length||state.audioFiles.length||state.warnings.length);
+    extract.disabled=!(state.discovery.length||state.actualImages.length||state.nativeDecodeReports.length||state.packetText.length||state.audioFiles.length||state.warnings.length);
     zipButton.disabled=extract.disabled;
     zipStatus.textContent=zipButton.disabled?
       "No extracted media/data yet; original recordings remain available separately.":
@@ -369,6 +369,27 @@ export function initAutoReceptionUI({getSelectedFile=()=>null,fileInput=$("local
         await analyzeFile(file,file.name||"user-file");
       }else if(nativeHost()){
         const info=await nativeApi("/api/status");
+        // The local scheduler has already analyzed its REAL full-pass WAV, even
+        // if the browser was closed. Show those images first without
+        // rerunning a 240-second-limited browser decoder on a 900 s file.
+        const decodedWavs=new Set();
+        const imageNames=new Set();
+        for(const job of info.jobs||[]){
+          const actual=job?.result?.sstv;
+          if(job?.state!=="completed"||!actual)continue;
+          state.nativeDecodeReports.push({jobId:job.id,report:actual,source:job.result.file});
+          if(actual.images?.length)decodedWavs.add(job.result.file);
+          for(const frame of actual.images||[]){
+            if(!/^[A-Za-z0-9_-]+_ROBOT36_[0-9]{2}\.png$/.test(frame.file)||imageNames.has(frame.file))continue;
+            imageNames.add(frame.file);
+            state.actualImages.push({
+              nativePath:frame.file,name:frame.file,
+              alignedLines:frame.aligned_lines,
+              source:"Actual local WAV → Robot36 line-sync candidate ("+frame.aligned_lines+
+                "/240 aligned lines); ISS source NOT independently authenticated"
+            });
+          }
+        }
         const records=(info.archive||[]).filter(r=>/\.(cu8|wav|txt)$/i.test(r.file))
           .sort((a,b)=>String(b.modified).localeCompare(String(a.modified))).slice(0,6);
         if(!records.length)throw Error("Native companion has no received recordings yet; schedule/complete a pass first.");
@@ -385,7 +406,11 @@ export function initAutoReceptionUI({getSelectedFile=()=>null,fileInput=$("local
           }
           message("Reading archived real capture "+r.file+" …");
           const blob=await readCompanionArchive(r);
-          await analyzeFile(blob,r.file);
+          // Native decoder output is the authoritative candidate for this
+          // captured long WAV; retain playback/original export only.
+          if(ext==="wav"&&decodedWavs.has(r.file)){
+            state.audioFiles.push({name:r.file,blob,source:"Original native full-pass ISS SSTV WAV; transmitter unverified"});
+          }else await analyzeFile(blob,r.file);
         }
       }else{
         throw Error("Select your downloaded .cu8/.wav/.txt file using the file chooser. Browsers cannot silently read your Downloads folder.");
@@ -418,7 +443,7 @@ export function initAutoReceptionUI({getSelectedFile=()=>null,fileInput=$("local
     if(item.nativePath){
       url="/api/image/"+item.nativePath.split("/").map(encodeURIComponent).join("/");
       const img=document.createElement("img");img.src=url;
-      img.alt="Image produced by real native SatDump from a satellite target candidate";
+      img.alt="Image actually extracted by native decoder from an RF capture; source candidate, not authenticated";
       frame.append(img);
     }else{
       const canvas=document.createElement("canvas");canvas.width=item.width;canvas.height=item.height;
@@ -503,9 +528,18 @@ export function initAutoReceptionUI({getSelectedFile=()=>null,fileInput=$("local
             blob,"image",item.source||item.name,"Decoder output; spacecraft origin not independently verified");
         }catch(err){warnings.push("Image "+(i+1)+" omitted: "+err.message);}
       }
+      for(let i=0;i<state.nativeDecodeReports.length;i++){
+        const item=state.nativeDecodeReports[i];
+        save("analysis/native_robot36_"+(i+1)+".json",asJson(item),
+          "decoder evidence",item.source,"Real WAV sync analysis; satellite identity unverified");
+      }
       for(let i=0;i<state.audioFiles.length;i++){
         const file=state.audioFiles[i];
         const ext=["wav","mp3","ogg"].includes(fileType(file.name))?fileType(file.name):"wav";
+        if(file.blob.size>24*1024*1024){
+          warnings.push(file.name+": long original WAV omitted from bounded ZIP; download it separately from the native archive.");
+          continue;
+        }
         save("audio/recorded_"+(i+1)+"."+ext,file.blob,"original recorded audio",
           file.source||file.name,"Real imported/native recording; contents/source not verified");
       }
@@ -545,7 +579,7 @@ export function initAutoReceptionUI({getSelectedFile=()=>null,fileInput=$("local
         ". Existing recordings and individual decoded output downloads remain available.";
     }finally{
       zipButton.disabled=busy||!(
-        state.discovery.length||state.actualImages.length||state.packetText.length||state.audioFiles.length||state.warnings.length);
+        state.discovery.length||state.actualImages.length||state.nativeDecodeReports.length||state.packetText.length||state.audioFiles.length||state.warnings.length);
     }
   });
   extract.addEventListener("click",()=>{
