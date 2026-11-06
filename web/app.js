@@ -1357,6 +1357,7 @@ async function pollLiveTV(){
     state.tvActive=current.active;
     state.tvSession=current.session||state.tvSession;
     state.tvRecording=Boolean(current.recording);
+    state.tvEffectiveSubtitleSource=current.subtitle_effective_source;
     syncLiveMediaDock();
     const label=$("live-tv-status");
     if(label)label.textContent=current.status.toUpperCase()+
@@ -1376,11 +1377,11 @@ async function pollLiveTV(){
       const data=await api("/api/transcripts?session="+encodeURIComponent(state.tvSession));
       updateDockCaptionExport(state.tvSession,"tv");
       const note=$("live-dock-caption-status");
-      if(note&&state.tvActive)note.textContent=current.speech?.enabled?
-        "TV captions · "+current.speech.selected_backend+
-        " · "+current.speech.segments_completed+" real segments":
-        "TV captions unavailable: "+(current.subtitle_unavailable_reason||
-          current.speech?.reason||"Not enabled");
+      if(note&&state.tvActive)note.textContent=
+        "TV captions · "+(current.subtitle_effective_source||"off")+
+        " · real Teletext cues: "+(current.teletext?.received||0)+
+        (current.teletext_error?" · "+current.teletext_error:"")+
+        (current.speech?.error?" · ASR: "+current.speech.error:"");
       liveRadioCaptionPanel(data,state.tvSession,"live-tv-captions");
       renderLiveDockCaptions(data,"tv");
       const links=$("live-tv-export");
@@ -2306,6 +2307,7 @@ async function playFmChannel(channel, record){
     backend:captionOptions.backend,translation_backend:"auto"});
   state.liveActive=Boolean(result.active);
   state.liveSession=result.session;
+  initCaptionUiForPlay(captionOptions,"fm");
   state.liveFrequency=channel.frequency_hz;
   state.fmRecording=!!record;
   const captionStatus=$("live-dock-caption-status");
@@ -2367,6 +2369,9 @@ async function playDabChannel(channel){
   audio.dataset.session="dab:"+channel.channel+":"+channel.service_id;
   state.dabPlaying=true;
   state.dabStation=channel.display_name;
+  state.dabChannel=channel.channel;
+  state.dabServiceId=channel.service_id;
+  initCaptionUiForPlay(captionOptions,"dab");
   syncLiveMediaDock();
   audio.onerror=()=>{
     state.dabPlaying=false;
@@ -2412,7 +2417,7 @@ async function playDabChannel(channel){
   }
 }
 async function playTvChannel(channel, record){
-  const captionOptions=state.channelCaptionPrefs||{enabled:false,translate:false,source:"en",target:"en",backend:"auto"};
+  const captionOptions=state.channelCaptionPrefs||{enabled:false,translate:false,source:"en",target:"en",backend:"auto",tvSource:"auto"};
   if(!channel.playable||!channel.tv_channel_id)
     throw Error("This real DVB service was discovered but no authorized MPEG-TS stream is configured for playback.");
   if(state.tvActive)throw Error("Stop the current TV session before switching channels.");
@@ -2423,10 +2428,12 @@ async function playTvChannel(channel, record){
     subtitles:captionOptions.enabled,original_language:captionOptions.source,
     translated_language:captionOptions.enabled&&captionOptions.translate?captionOptions.target:null,
     backend:captionOptions.backend,translation_backend:"auto",
+    subtitle_source:captionOptions.tvSource||"auto",
     upstream_authorized:true});
   state.tvActive=true;
   state.tvRecording=!!record;
   state.tvSession=session.session;
+  initCaptionUiForPlay(captionOptions,"tv");
   const note=$("live-dock-caption-status");
   if(note)note.textContent=captionOptions.enabled?
     (session.subtitles_active?"TV live transcription enabled":
