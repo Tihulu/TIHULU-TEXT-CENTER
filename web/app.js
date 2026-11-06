@@ -13,6 +13,15 @@ function el(tag, cls, text) {
 function append(parent, ...children) { children.forEach((n) => parent.appendChild(n)); return parent; }
 function notice(msg) { const n=$("notification"); n.textContent=msg; n.hidden=false; }
 function clearNotice(){ $("notification").hidden=true; }
+function connectionState(connected){
+  const badge=document.querySelector(".indicator");
+  if (badge){
+    badge.textContent=connected ? "● LOCAL" : "● DISCONNECTED";
+    badge.setAttribute("aria-label", connected ? "Local API reachable on last request" : "Local API disconnected");
+  }
+  const rail=document.querySelector(".rail-heading .lime");
+  if (rail) rail.textContent=connected ? "● LAST REQUEST OK" : "● OFFLINE";
+}
 async function api(path, method, payload){
   const options = {method:method || "GET", headers:{"Accept":"application/json"}};
   if(method === "POST") {
@@ -23,8 +32,10 @@ async function api(path, method, payload){
   let response;
   try { response=await fetch(path,options); }
   catch (cause) {
+    connectionState(false);
     throw new Error("Cannot reach the local Text Center server. Start it with 'python3 -m textcenter serve', then reload this tab.");
   }
+  connectionState(true);
   let data;
   try { data=await response.json(); }
   catch (_) { throw new Error("The local server returned an unreadable response (HTTP "+response.status+"). Try reloading the page."); }
@@ -66,6 +77,10 @@ function headingMeta(data) {
   $("teletext-kicker").textContent=data.kind==="broadcast" ? data.station+" • "+data.language+" • "+data.frequency_hz+" Hz" : "LOCAL INFORMATION SYSTEM";
   $("teletext-title").textContent=data.title;
   $("teletext-body").textContent=data.body;
+  const integrity=document.querySelector(".teletext-bottom span:first-child");
+  if (integrity) integrity.textContent=data.kind==="broadcast"
+      ? "● DECODER IMPORT / AUTHORITY UNVERIFIED"
+      : "● LOCAL INDEX / NOT RF RECEPTION";
 }
 async function refreshCounts(){
   const d=await api("/api/bootstrap");
