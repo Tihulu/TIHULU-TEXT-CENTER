@@ -38,6 +38,54 @@ under ODbL 1.0, and [Open-Meteo](https://open-meteo.com/en/docs/geocoding-api)
 for optional worldwide lookup.
 
 
+## Satellite Images on GitHub Pages and all installed platforms (v15)
+
+**In GitHub Pages:** open **7 · Satellite Images**. You can explicitly
+request official **NASA DSCOVR EPIC** full-disk Earth images or NASA's
+historical **ISS Earth photography**. The page labels source/observation
+time and is not pretending to receive these images over USB. NASA's
+CORS/rate-limit policies may prevent image downloads; an official
+source link remains available. Official **EUMETSAT**, **NOAA GOES**
+and **NASA Worldview** satellite-imagery viewers are linked for
+Germany, Türkiye and worldwide interest.
+
+**Images actually decoded from your antenna:** during an active
+ARISS SSTV transmission, an antenna and compatible receiver can record
+a 36-second Robot36 session. After suitable narrowband-FM demodulation,
+the browser has an experimental Robot36 audio/WAV image decoder. It can
+also attempt to convert actual CU8 SDR samples to FM audio first,
+then decode Robot36 on a user click; no image is fabricated without
+a detected repeating synchronization train. Current ARISS SSTV
+frequency and mode must always be checked against the dated event:
+some 2026 events used **437.550 MHz Robot36**, while **145.800 MHz**
+is not an always-on SSTV image channel.
+
+For **Meteor-M2-3/M2-4**, collect valid 137 MHz LRPT baseband IQ and
+choose **Decode Meteor LRPT 72k / 80k with SatDump** in the native
+companion (requires SatDump installed separately). Only real SatDump
+output PNG/JPEG is saved and displayed. This is not decoded inside
+a standalone Pages-only WebUSB tab. Photos from other tools can be
+imported as **user-supplied** and are not implicitly verified.
+
+**Saved capture filename:** e.g.,
+`TIHULU_ISS-SSTV-CANDIDATE_20261106T101500Z_437550000Hz_1024000SPS_IQ.cu8`
+or actual decoder output
+`TIHULU_METEOR-M2-4-CANDIDATE_20261106T101500Z_137900000Hz_LRPT-IMAGE-01.png`.
+`CANDIDATE` is intentional: TLE pass and tuning are not proof of a
+spacecraft's transmitted signal.
+
+**Same code across platforms:** the source-branch native companion
+on Debian, Ubuntu, Pop!_OS, Raspberry Pi OS, macOS Apple Silicon and
+Windows x64 now provides **Open live map and Satellite Images**,
+embedding the same `/browser/index.html` JS source as GitHub Pages.
+That includes the 1-second LIVE clock, Pause, Sky, Earth, photo gallery
+and local CU8 FFT tools. The iframe starts on user request, not at
+companion startup, and it must not open an RTL-SDR simultaneously with
+the native receive process. Existing local installations need to be
+updated from the source branch. Cross-platform CI is synthetic; real
+radio SSTV/LRPT reception and platform-specific hardware compatibility
+are not guaranteed until physically tested.
+
 ## Continuous live satellite animation (browser v14)
 
 Press **Now / live** in the Earth/Sky tracking view to propagate the
