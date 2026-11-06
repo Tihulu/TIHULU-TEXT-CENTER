@@ -64,7 +64,7 @@ class LiveCaptionRunner:
                 source_lang=config["source_lang"],
                 device_info=config["device"],
                 model_dir=config["local_model_path"]))
-        self.translator=translator or local_translate
+        self.translator=translator
         self._stop=Event()
         self._lock=Lock()
         self._input:queue.Queue[tuple[int,bytes]] = queue.Queue(maxsize=3)
