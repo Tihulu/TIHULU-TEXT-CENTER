@@ -519,10 +519,13 @@ class Station:
         refresh_report = self.refresh() if missing_tle else {}
         prediction = self.passes(city=city, lat=lat, lon=lon, hours=hours, elevation=elevation)
         existing = []
+        mission_counts = {mid: 0 for mid in chosen}
         with self.lock:
             for job in self.jobs:
                 if job.get("state") not in ("pending", "running"):
                     continue
+                if job.get("mission_id") in mission_counts:
+                    mission_counts[job["mission_id"]] += 1
                 try:
                     existing.append((datetime.fromisoformat(job["aos"]),
                                      datetime.fromisoformat(job["los"])))
@@ -543,7 +546,10 @@ class Station:
                    for a, b in existing):
                 skipped.append(event["name"]+": shared receiver time conflict")
                 continue
-            mission = next((mid for mid in chosen if event["norad"] == candidates[mid][0]), None)
+            # Rotate public ISS SSTV/APRS options across distinct passes when
+            # the operator selects All. Never run two receivers simultaneously.
+            eligible = [mid for mid in chosen if event["norad"] == candidates[mid][0]]
+            mission = min(eligible, key=lambda mid: mission_counts[mid]) if eligible else None
             if not mission:
                 continue
             _, profile, mode = candidates[mission]
@@ -559,6 +565,7 @@ class Station:
                         stored["mission_id"] = mission
                 self.save_jobs()
             new_jobs.append(dict(job))
+            mission_counts[mission] += 1
             existing.append((aos, los))
         return {"scheduled": new_jobs, "scheduled_count": len(new_jobs),
                 "skipped": skipped[:20], "requested_targets": list(chosen),
