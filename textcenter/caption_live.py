@@ -40,7 +40,7 @@ def prepare_caption_options(options:dict,compute_info:dict|None=None,
         raise ValueError("Saving translations requires also saving originals")
     translation_device=(
         select_translation_device(options.get("translation_device","auto"),
-            compute_info or inventory_compute(),validate_cuda=validate_cuda)
+            compute_info or inventory_compute(),check_cuda=validate_cuda)
         if translate_live and source!=target else None
     )
     return {
