@@ -4,9 +4,49 @@
 lives in the [Satellite Center draft feature branch](https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/9).
 The public web UI is published separately on the repository's `gh-pages` branch.
 
-**Web:** https://tihulu.github.io/TIHULU-TEXT-CENTER/satellite_center/
+**Web (primary browser-only):** https://tihulu.github.io/TIHULU-TEXT-CENTER/satellite_center/
 
 **Local USB service/dashboard:** http://127.0.0.1:8791/
+
+## Browser-only mode — no local app required (experimental)
+
+**[Open Satellite Center in the browser](https://tihulu.github.io/TIHULU-TEXT-CENTER/satellite_center/)**.
+The primary Pages link now redirects to its native
+[Browser-only WebUSB view](https://tihulu.github.io/TIHULU-TEXT-CENTER/satellite_center/browser/).
+The previous local-companion view remains available as an
+[optional advanced mode](https://tihulu.github.io/TIHULU-TEXT-CENTER/satellite_center/companion/).
+
+On **desktop Chrome, Edge, Brave and compatible Chromium browsers**, plug in the
+Nooelec NESDR SMArt v5 RTL2832U dongle and attach a suitable antenna, open
+the HTTPS page, then click **Choose RTL-SDR (WebUSB)**. Approve the USB device
+permission. No Python, localhost bridge or pairing token is involved.
+
+Current implemented browser capabilities:
+- Request WebUSB permission and tune an RTL2832U/R820T-family receiver
+  via a version-pinned open-source JavaScript driver when the OS permits it.
+- Select an ISS, Meteor-M, CubeSat survey or Iridium L-band preset;
+  collect actual raw USB IQ sample bytes, plot **relative digital sample level**
+  (not dBm) and optionally save a bounded CU8 file locally (128 MiB max).
+- Import TLE text or request CelesTrak HTTPS source lists and calculate
+  geometric pass windows using version-pinned satellite.js in the browser.
+  Internet sources may block CORS, so a local TLE file import is supported.
+- Optionally arm one tab-open, user-approved pass capture while the page stays
+  in the foreground and the device remains connected. Closing or hiding the
+  browser ends receiver capture; Stop explicitly calls the WebUSB close method.
+
+**Not yet available browser-only:** in-page Meteor/SSTV images or APRS text
+decoding; closed-tab/passive background reception, scheduled execution after
+browser exit, and automatic system-level USB driver/permission changes.
+The old companion still offers optional external decoder integration and
+longer-lived scheduled operation while its service runs.
+
+**Important:** WebUSB cannot make all OS and browser combinations equally
+capable. Firefox/Safari have no WebUSB; Windows may require WinUSB (Zadig)
+set up for the RTL-SDR (do not change Hauppauge drivers); Linux can require
+kernel-DVB driver release or udev permissions. Browser JS dependencies are
+downloaded over HTTPS when the app loads. Hardware acceptance remains pending.
+WebUSB driver documentation:
+https://github.com/jtarrio/webrtlsdr
 
 ## What the satellite app does
 
@@ -26,7 +66,7 @@ The public web UI is published separately on the repository's `gh-pages` branch.
 - Release Satellite Center's own SDR subprocesses when stopped or closed.
   It never kills `readsb`, Gqrx or other independent SDR applications.
 
-## Install / update — ONE LINE
+## Optional companion install / update — ONE LINE
 
 Run the installer as your **normal user**, after reviewing its source. The
 installer clones/updates the feature branch under your home directory,
