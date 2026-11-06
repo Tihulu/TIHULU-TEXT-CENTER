@@ -1,6 +1,18 @@
 // One-click receive-only selection for the shared browser frontend.
 // Forecast geometry is not a downlink activity check. A single RTL-SDR can
 // service at most one RF capture at once; never use unnamed CubeSat frequencies.
+// Series 35 event date envelope only: exact UTC activation/deactivation
+// times are still TBD. Passing this gate never proves ISS is transmitting.
+export const ISS_SSTV_WINDOW=Object.freeze({
+ start:Date.parse("2026-11-09T00:00:00Z"),
+ end:Date.parse("2026-11-17T00:00:00Z"),
+ source:"https://www.ariss.org/upcoming-sstv-events.html",
+ frequencyHz:437550000,
+});
+export function issSstvDateEligible(time){
+ const t=Number(time);
+ return Number.isFinite(t)&&t>=ISS_SSTV_WINDOW.start&&t<ISS_SSTV_WINDOW.end;
+}
 export const AUTO_TARGETS=Object.freeze({
   "meteor-m2-3":Object.freeze({norad:57166,frequencyHz:137900000,kind:"Earth image candidate",dataKind:"image",minimumSeconds:120}),
   "meteor-m2-4":Object.freeze({norad:59051,frequencyHz:137900000,kind:"Earth image candidate",dataKind:"image",minimumSeconds:120}),
@@ -35,7 +47,11 @@ export function selectAutomaticPasses(passes,{mode="images",now=Date.now(),maxJo
   for(const pass of [...passes].sort((a,b)=>a.aos-b.aos)){
     if(scheduled.length>=maxJobs)break;
     if(!pass||!Number.isFinite(pass.aos)||!Number.isFinite(pass.los)||pass.los<=pass.aos)continue;
-    const eligible=chosen.filter(key=>AUTO_TARGETS[key].norad===Number(pass.id));
+    const targets=chosen.filter(key=>AUTO_TARGETS[key].norad===Number(pass.id));
+    const eligible=targets.filter(key=>key!=="iss-sstv"||issSstvDateEligible(pass.aos));
+    if(targets.includes("iss-sstv")&&!issSstvDateEligible(pass.aos)){
+      skipped.push({name:pass.name,reason:"ISS Series 35 SSTV is scheduled only for 9–16 November 2026; exact activation times still TBD"});
+    }
     if(!eligible.length)continue;
     // WebUSB stores a bounded 60 s / 128 MiB clip in memory. A Meteor LRPT
     // image normally needs >60 s; choosing FULL never treats such a clip as
