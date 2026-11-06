@@ -257,6 +257,13 @@ All location methods are optional. City suggestions are offline by default; GPS 
 <input id="image-sstv-file" type="file" accept=".wav,audio/wav,audio/x-wav,audio/*"></label>
 <div class="line"><button type="button" id="image-decode-sstv">Decode Robot36 SSTV audio</button>
 <button type="button" class="secondary" id="image-download-sstv" disabled>Save decoded PNG</button></div>
+<label>Or direct RF capture (.cu8); requires a full ~36-second ISS SSTV event
+<input id="image-cuiq-file" type="file" accept=".cu8,.iq,.u8,application/octet-stream"></label>
+<div class="line">
+<button type="button" id="image-decode-cuiq">Decode selected CU8 → FM → Robot36</button>
+<button type="button" id="image-decode-last" disabled>Decode last USB capture as SSTV</button>
+</div>
+<p class="hint">Direct browser RF decoding is experimental. For Robot36, record at least 36–40 seconds of ISS SSTV at the frequency announced by ARISS, with suitable antenna, during an actual SSTV event. 1.024 or 2.048 MS/s CU8 only. This will not decode Meteor LRPT, other SSTV modes, or random energy peaks.</p>
 <p id="image-decode-status" role="status" class="status">No SSTV audio decoded. Real SSTV requires an active satellite transmission; never upload raw I/Q as WAV.</p>
 <canvas id="image-sstv-canvas" width="320" height="240" aria-label="SSTV decoded image; blank until real audio passes synchronization checks"></canvas>
 <label>Import an image previously decoded with SatDump / another receiver
