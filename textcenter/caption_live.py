@@ -47,7 +47,7 @@ def prepare_caption_options(options:dict,compute_info:dict|None=None,
 
 class LiveCaptionRunner:
     def __init__(self, archive:CaptionStore, config:dict,
-                 *,source_label:str,asr_factory=None,translator=None):
+                 *,source_label:str,media_kind:str="fm_radio",asr_factory=None,translator=None):
         if not config.get("enabled"):
             raise ValueError("Cannot start captions without explicit consent")
         self.archive=archive
@@ -74,7 +74,7 @@ class LiveCaptionRunner:
             "save_translation":config["save_translation"],
         }
         self.session=archive.new_session(
-            media_kind="fm_radio",source_label=source_label,
+            media_kind=media_kind,source_label=source_label,
             source_lang=config["source_lang"],target_lang=config["target_lang"],
             device=config["device"]["device_name"],backend="faster-whisper",
             store_original=config["save_original"],
