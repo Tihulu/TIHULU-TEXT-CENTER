@@ -1,6 +1,6 @@
 import { platformFamily, webUsbHelp, permissionReport, usbInterfaceClaimProbe } from './usb_diagnostics.mjs?v=20261106-dvb-unbind-v09';
 import { createSatelliteMaps } from './satellite_maps.mjs?v=20261106-live-v14';
-import { initIqAnalysisUI } from './iq_analysis_ui.mjs?v=20261106-cuiq-v13';
+import { initIqAnalysisUI } from './iq_analysis_ui.mjs?v=20261106-signal-v1';
 import { initSatelliteImageUI } from './satellite_images_ui.mjs';
 import { recordingName } from './satellite_imagery.mjs';
 import { initStationLocationUI } from './location_search.mjs';
