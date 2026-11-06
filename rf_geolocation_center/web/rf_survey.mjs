@@ -120,7 +120,8 @@ function capture(){
  window.dispatchEvent(new CustomEvent("tihulu:rf-capture-request",{detail:{frequencyMHz:s.frequencyMHz,sourceId:s.id}}));
 }
 function acceptCapture(event){
- const observation=event.detail,s=sourceById();
+ const observation=event.detail;
+ const s=sources.find(source=>source.id===observation?.sourceId);
  if(!s||!observation||observation.hardwareId!=="RTL2832U WebUSB 0bda:2838"||
    Math.abs(observation.frequencyMHz-s.frequencyMHz)>.001)return;
  if(!Number.isFinite(observation.levelDbFS)||observation.sampleBytes<1024||observation.gainDb!==20)return;
