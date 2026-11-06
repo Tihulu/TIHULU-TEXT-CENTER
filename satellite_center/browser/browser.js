@@ -1058,6 +1058,7 @@ function showCalendarEdit(job,card){
      });
      if(newPrepared){preparedLongStreams.set(job.id,newPrepared);newPrepared=null;}
      jobs.sort((a,b)=>a.when-b.when);
+     form.remove();
      browserCalendarSignature='';renderJobs();
      status('schedule-readiness',"Updated "+previousId+" to "+durationSeconds+
        " seconds; SDR remains released.");
@@ -1071,6 +1072,9 @@ function showCalendarEdit(job,card){
 function paintBrowserCalendar(force=false){
  const day=browserCalendarDay.value;
  const signature=day+'|'+jobs.map(j=>[j.id,j.when,j.state,j.frequency,j.durationSeconds].join(':')).join('|');
+ const editingCard=$('browser-calendar-grid').querySelector('.calendar-edit')?.closest('.sat-calendar-job');
+ const editedJob=jobs.find(j=>j.id===editingCard?.dataset.jobId);
+ if(!force&&editingCard&&editedJob?.state==='armed')return;
  if(!force&&signature===browserCalendarSignature)return;
  browserCalendarSignature=signature;
  renderSatelliteCalendar($('browser-calendar-grid'),jobs,day,{
@@ -1092,8 +1096,26 @@ $('browser-calendar-next').addEventListener('click',()=>{
  browserCalendarDay.value=shiftCalendarDay(browserCalendarDay.value,1);paintBrowserCalendar(true);
 });
 
+let lastRenderedJobCardsSignature='';
+function jobCardsSignature(){
+ return JSON.stringify(jobs.map(j=>[j.id,j.state,j.when,j.until,j.frequency,
+   j.durationSeconds,j.sampleRate,j.saveRaw,j.message,j.downloadAvailable,
+   j.report,lastScheduledFile?.jobId===j.id]));
+}
 function renderJobs(){
- const container=$('jobs');container.replaceChildren();
+ const container=$('jobs');
+ const signature=jobCardsSignature();
+ if(signature===lastRenderedJobCardsSignature){
+   // Preserve native dropdown menus and focus while refreshing countdowns.
+   for(const panel of container.querySelectorAll('.scheduled-job[data-job-id]')){
+     const job=jobs.find(j=>j.id===panel.dataset.jobId);
+     const line=panel.querySelector('.job-state');
+     if(job&&line)line.textContent=readableJobState(job);
+   }
+   paintBrowserCalendar();return;
+ }
+ lastRenderedJobCardsSignature=signature;
+ container.replaceChildren();
  if(!jobs.length){
    const empty=document.createElement('p');empty.className='hint';
    empty.textContent='No scheduled captures. Calculate passes and select Schedule / configure to create one.';
@@ -1104,7 +1126,7 @@ function renderJobs(){
  const now=Date.now();
  for(const job of [...jobs].sort((a,b)=>a.when-b.when)){
    const panel=document.createElement('div');panel.className='scheduled-job';
-   panel.dataset.state=job.state;
+   panel.dataset.state=job.state;panel.dataset.jobId=job.id;
    const title=document.createElement('h4');title.textContent=job.name+' · '+(job.frequency/1e6).toFixed(3)+' MHz';
    const statusLine=document.createElement('p');statusLine.className='job-state';
    statusLine.textContent=readableJobState(job,now);
