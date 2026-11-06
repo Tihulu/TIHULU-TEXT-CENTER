@@ -141,6 +141,47 @@ class HTTPTests(unittest.TestCase):
         self.assertEqual(self.request("POST","/api/scans/start",{"band":"dab"},csrf)[0],409)
         self.assertEqual(self.request("POST","/api/scans/stop",{},csrf)[0],200)
 
+    def test_local_verified_station_directory_is_source_attributed(self):
+        self.assertEqual(self.request("GET","/api/stations")[0],200)
+        self.assertEqual(json.loads(self.request("GET","/api/stations")[2]),[])
+        self.server.stations.save_fm(
+            frequency_hz=98_600_000,name="WDR 2",last_text="RDS fixture")
+        status,_,raw=self.request("GET","/api/stations?medium=fm")
+        self.assertEqual(status,200)
+        records=json.loads(raw)
+        self.assertEqual(len(records),1)
+        self.assertEqual(records[0]["name"],"WDR 2")
+        self.assertEqual(records[0]["decoder"],"rtl_fm_redsea")
+        self.assertEqual(self.request("GET","/api/stations?medium=invalid")[0],400)
+
+    def test_automatic_fm_and_dab_scans_require_explicit_permission(self):
+        for kind in ("fm","dab"):
+            code,_,raw=self.request("GET","/api/auto/"+kind+"/status")
+            self.assertEqual(code,200)
+            data=json.loads(raw)
+            self.assertEqual(data["status"],"idle")
+            self.assertFalse(data["active"])
+            self.assertEqual(self.request("POST","/api/auto/"+kind+"/start",
+                {"mode":"full"})[0],403)
+        _,_,bootstrap=self.request("GET","/api/bootstrap")
+        csrf=json.loads(bootstrap)["csrf"]
+        self.assertEqual(self.request("POST","/api/auto/fm/start",
+            {"mode":"quick","consent":False},csrf)[0],409)
+        self.assertEqual(self.request("POST","/api/auto/fm/start",
+            {"mode":"invalid","consent":True},csrf)[0],400)
+        self.assertEqual(self.request("POST","/api/auto/dab/start",
+            {"mode":"full","consent":False},csrf)[0],400)
+        self.assertEqual(self.request("POST","/api/auto/dab/start",
+            {"mode":"full","consent":"yes"},csrf)[0],400)
+        self.server.dab_auto.fetcher=lambda path,limit: (
+            b"11D" if path=="/channel" else b'{"services":[]}')
+        self.assertEqual(self.request("POST","/api/auto/dab/start",
+            {"mode":"full","consent":True},csrf)[0],409)
+        self.assertEqual(self.request("POST","/api/auto/dab/tune",
+            {"channel":"11D","consent":True},csrf)[0],409)
+        self.assertEqual(self.request("POST","/api/auto/fm/stop",{},csrf)[0],200)
+        self.assertEqual(self.request("POST","/api/auto/dab/stop",{},csrf)[0],200)
+
     def test_audio_preview_routes_require_auth_and_fail_closed_when_busy(self):
         code,_,raw=self.request("GET","/api/audio/status")
         self.assertEqual(code,200)
@@ -255,6 +296,46 @@ class HTTPTests(unittest.TestCase):
             {"text":"Hello","source":"en","target":"de","backend":"npu"},csrf)[0],409)
         self.assertEqual(self.request("POST","/api/translation/text",
             {"text":"Hello","source":"en","target":"en"},csrf)[0],200)
+
+    def test_radar_filters_are_manual_csrf_protected_and_source_attributed(self):
+        code,_,raw=self.request("GET","/api/radar/status")
+        self.assertEqual(code,200)
+        self.assertFalse(json.loads(raw)["automatic_polling"])
+        self.assertIn("ODbL",json.loads(raw)["attribution"])
+        payload={"mode":"antenna","lat":51,"lon":7,"radius":100}
+        self.assertEqual(self.request("POST","/api/radar/refresh",payload)[0],403)
+        _,_,boot=self.request("GET","/api/bootstrap")
+        csrf=json.loads(boot)["csrf"]
+        self.assertEqual(self.request("POST","/api/radar/refresh",
+            {**payload,"mode":"invalid"},csrf)[0],400)
+        self.assertEqual(self.request("POST","/api/radar/refresh",
+            {**payload,"lat":900},csrf)[0],400)
+        self.server.radar.fetcher=lambda url:{
+            "aircraft":[{"hex":"abcdef","seen":2,"lat":51.2,"lon":7.2}]
+        }
+        code,_,raw=self.request("POST","/api/radar/refresh",payload,csrf)
+        self.assertEqual(code,200)
+        records=json.loads(raw)
+        self.assertEqual(records["antenna_count"],1)
+        self.assertEqual(records["statuses"]["antenna"]["status"],"live")
+        self.assertEqual(records["aircraft"][0]["sources"],["antenna"])
+        self.assertFalse(records["aircraft"][0]["stale"])
+
+    def test_optional_language_models_require_explicit_install_approval(self):
+        code,_,raw=self.request("GET","/api/languages/status")
+        self.assertEqual(code,200)
+        self.assertFalse(json.loads(raw)["auto_download"])
+        self.assertFalse(json.loads(raw)["live_asr_extra_languages"])
+        self.assertEqual(self.request("POST","/api/languages/refresh",
+            {"consent":True})[0],403)
+        _,_,boot=self.request("GET","/api/bootstrap")
+        csrf=json.loads(boot)["csrf"]
+        self.assertEqual(self.request("POST","/api/languages/refresh",
+            {"consent":False},csrf)[0],409)
+        self.assertEqual(self.request("POST","/api/languages/install",
+            {"source":"../../etc","target":"es","consent":True},csrf)[0],400)
+        self.assertEqual(self.request("POST","/api/languages/translate",
+            {"source":"en","target":"es","text":"Hello"},csrf)[0],409)
 
     def test_no_forged_source(self):
         code,_,raw=self.request("GET","/api/page?source_id=ard_text&number=100")
