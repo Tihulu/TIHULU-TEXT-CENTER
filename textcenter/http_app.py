@@ -12,6 +12,7 @@ from .core import Store, safe_https_url
 from .receivers import receiver_inventory
 from .fm_rds import FMRSDSupervisor, CaptureError
 from .fm_audio import FMPreview, AudioError
+from .media import MediaStore
 from .capabilities import capability_catalog
 from .fm_survey import FMSurveySupervisor, SurveyError
 from .scan_catalog import scan_capabilities
@@ -46,6 +47,7 @@ class LocalServer(ThreadingHTTPServer):
 
     def __init__(self, address, store: Store):
         self.store = store
+        self.media = MediaStore(store)
         self.csrf_token = secrets.token_urlsafe(32)
         self.rds = FMRSDSupervisor(store)
         self.survey = FMSurveySupervisor(
@@ -162,6 +164,15 @@ class Handler(BaseHTTPRequestHandler):
                 status = self.server.survey.status()
                 status["capability"] = self.server.survey.availability()
                 return self._json(200, status)
+            if route == "/api/media":
+                return self._json(200,self.server.media.list())
+            if route.startswith("/api/media/file/"):
+                identity=route[len("/api/media/file/"):]
+                file=self.server.media.get(identity)
+                if not file:
+                    return self._json(404, {"error":"No such decoded broadcast image"})
+                mime, raw=file
+                return self._send(200,raw,mime)
             if route == "/api/audio/status":
                 state=self.server.audio.status()
                 state["capability"]=self.server.audio.availability()
@@ -255,6 +266,7 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(202, self.server.rds.start(
                     frequency_mhz=payload.get("frequency_mhz"),
                     duration=payload.get("duration_seconds"),
+                    rds2_images=payload.get("rds2_images",False),
                 ))
             if route == "/api/rds/stop":
                 return self._json(200, self.server.rds.stop())

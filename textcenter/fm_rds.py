@@ -27,9 +27,10 @@ import uuid
 from .core import Store
 from .receivers import receiver_inventory
 from .conflicts import find_receiver_conflicts
+from .media import MediaStore, rds2_image_group
 
 MAX_DURATION = 90
-MAX_JSON_LINE = 8192
+MAX_JSON_LINE = 500_000  # only accepted for source-supplied RDS2 image groups
 MAX_EVENT_ITEMS = 100
 IDLE_SECONDS = 12.0
 
@@ -45,14 +46,14 @@ def validate_request(frequency_mhz: object, duration: object) -> tuple[int, int]
     return hz, duration
 
 
-def build_commands(rtl_fm: str, redsea: str, hz: int) -> tuple[list[str], list[str]]:
+def build_commands(rtl_fm: str, redsea: str, hz: int, rds2_images: bool = False) -> tuple[list[str], list[str]]:
     if type(hz) is not int or not 87_500_000 <= hz <= 108_000_000:
         raise ValueError("Unsupported FM frequency")
     # redsea's own documented 171-kHz multiplex format. No shell interpolation.
     return (
         [rtl_fm, "-d", "0", "-M", "fm", "-l", "0", "-A", "std",
          "-p", "0", "-s", "171k", "-g", "20", "-F", "9", "-f", str(hz)],
-        [redsea, "--input", "mpx", "-r", "171k"],
+        [redsea, "--input", "mpx", "-r", "171k"] + (["--streams"] if rds2_images else []),
     )
 
 
@@ -112,6 +113,7 @@ class FMRSDSupervisor:
                  conflicts=None, lock_dir: Path | None = None,
                  idle_seconds: float = IDLE_SECONDS):
         self.store = store
+        self.media = MediaStore(store)
         self.inventory = inventory or receiver_inventory
         self.conflicts = conflicts or find_receiver_conflicts
         self.lookup = lookup or shutil.which
@@ -131,6 +133,7 @@ class FMRSDSupervisor:
             "duration_seconds": None, "received_groups": 0,
             "saved_items": 0, "started_at": None, "ended_at": None,
             "session": None, "error": None, "last_text": None,
+            "rds2_images": False, "saved_images": 0,
         }
 
     def availability(self) -> dict:
@@ -166,8 +169,10 @@ class FMRSDSupervisor:
             raise CaptureError("Another cooperating Text Center capture owns the SDR lock")
         return fd
 
-    def start(self, *, frequency_mhz: object, duration: object) -> dict:
+    def start(self, *, frequency_mhz: object, duration: object, rds2_images: bool = False) -> dict:
         hz, seconds = validate_request(frequency_mhz, duration)
+        if type(rds2_images) is not bool:
+            raise ValueError("RDS2 image option must be a Boolean")
         with self._mutex:
             if self._state["active"]:
                 raise CaptureError("An FM RDS capture is already running")
@@ -200,8 +205,9 @@ class FMRSDSupervisor:
                 "saved_items": 0, "started_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
                 "ended_at": None, "session": uuid.uuid4().hex,
                 "error": None, "last_text": None,
+                "rds2_images":rds2_images, "saved_images":0,
             }
-            self._thread = Thread(target=self._worker, args=(hz, seconds),
+            self._thread = Thread(target=self._worker, args=(hz, seconds, rds2_images),
                                   name="tihulu-fm-rds", daemon=True)
             try:
                 self._thread.start()
@@ -252,6 +258,26 @@ class FMRSDSupervisor:
             return
         with self._mutex:
             self._state["received_groups"] += 1
+            image_enabled=self._state.get("rds2_images",False)
+        if image_enabled:
+            embedded=rds2_image_group(obj)
+            if embedded:
+                pi=obj.get("pi") if isinstance(obj.get("pi"),str) else ""
+                station=obj.get("ps") if isinstance(obj.get("ps"),str) else ""
+                station=(station.strip()[:80] if station.strip() else f"FM {hz/1e6:g} MHz")
+                source_id=f"fm_rds2:{hz}"+(":"+pi if pi.startswith("0x") and len(pi)==6 else "")
+                try:
+                    self.media.save(
+                        medium="fm_rds2_logo",source_id=source_id,station=station,
+                        frequency_hz=hz,
+                        received_at=datetime.now(timezone.utc).isoformat(timespec="seconds"),
+                        provenance="redsea RDS2 RFT image via local RTL-SDR; source not authenticated",
+                        image_base64=embedded)
+                except (ValueError,OSError):
+                    pass
+                else:
+                    with self._mutex:
+                        self._state["saved_images"]+=1
         event = decode_rds_group(obj, hz)
         if not event:
             return
@@ -297,7 +323,7 @@ class FMRSDSupervisor:
             except subprocess.TimeoutExpired:
                 pass
 
-    def _worker(self, hz: int, seconds: int) -> None:
+    def _worker(self, hz: int, seconds: int, rds2_images: bool = False) -> None:
         rtl: subprocess.Popen | None = None
         redsea: subprocess.Popen | None = None
         selector = selectors.DefaultSelector()
@@ -313,7 +339,7 @@ class FMRSDSupervisor:
                 raise CaptureError("Decoder executable disappeared before launch")
             if self.conflicts():
                 raise CaptureError("Another SDR or plane-tracker process appeared before the tuner opened")
-            rtl_argv, red_argv = build_commands(rtl_bin, red_bin, hz)
+            rtl_argv, red_argv = build_commands(rtl_bin, red_bin, hz, rds2_images)
             rtl = subprocess.Popen(rtl_argv, stdout=subprocess.PIPE,
                                    stderr=subprocess.PIPE, stdin=subprocess.DEVNULL,
                                    start_new_session=True, close_fds=True)
@@ -357,12 +383,12 @@ class FMRSDSupervisor:
                         continue
                     buf = buffers[stream.fileno()]
                     buf.extend(data)
-                    if len(buf) > MAX_JSON_LINE * 3:
-                        del buf[:len(buf) - MAX_JSON_LINE]
+                    if len(buf) > (MAX_JSON_LINE if rds2_images else 8192) * 3:
+                        del buf[:len(buf) - (MAX_JSON_LINE if rds2_images else 8192)]
                     while b"\n" in buf:
                         raw, _, remaining = buf.partition(b"\n")
                         buffers[stream.fileno()] = buf = bytearray(remaining)
-                        if tag == "json" and len(raw) <= MAX_JSON_LINE:
+                        if tag == "json" and len(raw) <= (MAX_JSON_LINE if rds2_images else 8192):
                             self._save_group(raw, hz)
                         elif tag != "json":
                             stderr_tail.append(raw.decode("utf-8", errors="replace")[:240])
@@ -377,7 +403,7 @@ class FMRSDSupervisor:
                                 while b"\n" in buf:
                                     raw, _, remaining = buf.partition(b"\n")
                                     buffers[redsea.stdout.fileno()] = buf = bytearray(remaining)
-                                    if len(raw) <= MAX_JSON_LINE:
+                                    if len(raw) <= (MAX_JSON_LINE if rds2_images else 8192):
                                         self._save_group(raw, hz)
                         except (OSError, BlockingIOError):
                             pass

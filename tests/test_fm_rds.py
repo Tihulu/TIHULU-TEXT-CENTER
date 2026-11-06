@@ -67,6 +67,24 @@ class RdsSupervisorTests(unittest.TestCase):
         self.assertNotIn("UNTRUSTED EXTRA",event["body"])
         self.assertEqual(event["language"],"und")
 
+    def test_RDS2_logo_option_default_off_and_verified_file_persisted(self):
+        import base64
+        rtl,decoder=build_commands("/usr/bin/rtl_fm","/usr/bin/redsea",98_600_000)
+        self.assertNotIn("--streams",decoder)
+        rtl,decoder=build_commands("/usr/bin/rtl_fm","/usr/bin/redsea",98_600_000,True)
+        self.assertIn("--streams",decoder)
+        from textcenter.media import MediaStore
+        png=(b"\\x89PNG\\r\\n\\x1a\\n"+b"\\x00\\x00\\x00\\x0dIHDR"+
+             b"\\x00\\x00\\x00\\x01\\x00\\x00\\x00\\x01"+b"\\x08\\x02\\x00\\x00\\x00"+
+             b"\\x90\\x77\\x53\\xde"+b"\\x00\\x00\\x00\\x00IEND\\xae\\x42\\x60\\x82")
+        image=base64.b64encode(png).decode()
+        supervisor=FMRSDSupervisor(self.store,inventory=self.inventory,
+            lookup=lambda _:None,lock_dir=self.path/"locks")
+        supervisor._state["rds2_images"]=True
+        supervisor._save_group(json.dumps({"rft":{"data":{"file_contents":image}}}).encode(),98_600_000)
+        self.assertEqual(supervisor.status()["saved_images"],1)
+        self.assertEqual(len(MediaStore(self.store).list()),1)
+
     def test_missing_decoder_prevents_spawn(self):
         supervisor=FMRSDSupervisor(self.store,
                 inventory=self.inventory,

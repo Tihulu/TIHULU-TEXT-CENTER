@@ -7,6 +7,7 @@ from pathlib import Path
 import os
 
 from .core import Store
+from .media import MediaStore
 from .receivers import receiver_inventory
 from .capabilities import capability_catalog
 from .http_app import run_server
@@ -26,6 +27,9 @@ def main():
     importer = sub.add_parser("import-text", help="Import attributed decoder-produced JSON")
     importer.add_argument("--db", type=Path, default=default_db())
     importer.add_argument("--file", type=Path, required=True)
+    image_import = sub.add_parser("import-media", help="Import real decoder-exported PNG/JPEG DAB MOT or RDS2 images")
+    image_import.add_argument("--db",type=Path,default=default_db())
+    image_import.add_argument("--file",type=Path,required=True)
     feed = sub.add_parser("add-feed", help="Register a trusted HTTPS RSS/Atom feed")
     feed.add_argument("--db", type=Path, default=default_db())
     feed.add_argument("--title", required=True)
@@ -45,6 +49,15 @@ def main():
         if not 1 <= args.port <= 65535:
             parser.error("Port must be 1–65535")
         run_server(Store(args.db), host=args.host, port=args.port)
+    elif args.command == "import-media":
+        try:
+            raw=args.file.read_bytes()
+            if len(raw)>14_000_000:
+                parser.error("Decoder-media import file exceeds 14 MB")
+            results=MediaStore(Store(args.db)).import_images(json.loads(raw))
+        except (OSError,ValueError,TypeError) as exc:
+            parser.error(f"Cannot import broadcast decoder images: {exc}")
+        print(json.dumps(results,indent=2))
     elif args.command == "import-text":
         try:
             content = args.file.read_bytes()
