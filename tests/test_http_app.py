@@ -44,6 +44,7 @@ class HTTPTests(unittest.TestCase):
         code,headers,data=self.request("GET","/")
         self.assertEqual(code,200)
         self.assertIn(b"TIHULU TEXT CENTER",data)
+        self.assertIn(b'id="app-version"',data)
         self.assertNotIn(b"RF adapters not connected",data)
         self.assertIn(b"USB status not checked",data)
         self.assertIn(b"RF text decoder inactive",data)
@@ -52,6 +53,9 @@ class HTTPTests(unittest.TestCase):
         result=json.loads(payload)
         self.assertEqual(result["kind"],"local_index")
         self.assertEqual(result["title"],"INDEX")
+        _,_,bootstrap=self.request("GET","/api/bootstrap")
+        from textcenter import __version__
+        self.assertEqual(json.loads(bootstrap)["version"],__version__)
         self.assertEqual(self.request("GET","/api/page?number=999")[0],400)
         self.assertEqual(self.request("GET","/api/page?number=102")[0],404)
         self.assertEqual(self.request("GET","/../README.md")[0],404)
