@@ -158,7 +158,10 @@ class TranscriptStore:
         for i,row in enumerate(items,1):
             original=row["original_text"]
             translated_text=row["translated_text"] if translated else None
-            content=translated_text or original
+            content=translated_text if translated_text else (
+                f"[UNTRANSLATED {row['original_language'].upper()}] {original}"
+                if translated else original
+            )
             # Make untrusted source text a single plain subtitle line.
             content=re.sub(r"[\x00-\x1f\x7f]"," ",content).strip()
             if fmt=="srt":lines.append(str(i))

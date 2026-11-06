@@ -25,6 +25,7 @@ class TranscriptTests(unittest.TestCase):
         srt=self.db.export(self.session)
         self.assertIn("00:00:00,000 --> 00:00:08,000",srt)
         self.assertIn("Guten Morgen",srt)
+        self.assertNotIn("[UNTRANSLATED",self.db.export(self.session,translated=True))
         vtt=self.db.export(self.session,fmt="vtt",translated=True)
         self.assertIn("WEBVTT",vtt)
         self.assertIn("Günaydın",vtt)

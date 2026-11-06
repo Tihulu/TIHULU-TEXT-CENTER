@@ -174,16 +174,6 @@ async function refreshSourceChoices(){
   select.value=sources.some(([id])=>id===selected)?selected:"";
 }
 async function openPage(number,source,subpage){
-  if(state.page===400 && Number(number)!==400 && state.tvActive){
-    state.tvActive=false;
-    if(state.tvPollTimer){clearTimeout(state.tvPollTimer);state.tvPollTimer=null;}
-    api("/api/live/tv/stop","POST",{}).catch(()=>{});
-  }
-  if(state.page===400 && Number(number)!==400 && state.liveActive){
-    state.liveActive=false;
-    if(state.livePollTimer){clearTimeout(state.livePollTimer);state.livePollTimer=null;}
-    api("/api/live/radio/stop","POST",{}).catch(()=>{});
-  }
   if(state.page===400 && Number(number)!==400 && state.audioActive){
     state.audioActive=false;
     if(state.audioPollTimer){clearTimeout(state.audioPollTimer);state.audioPollTimer=null;}
@@ -725,6 +715,39 @@ async function pollAudioPreview(){
     notice("FM audio preview status failed: "+error.message);
   }
 }
+function syncLiveMediaDock(){
+  const dock=$("live-media-dock");if(!dock)return;
+  dock.hidden=!(state.liveActive||state.tvActive);
+  const a=$("persistent-radio-player"),v=$("persistent-tv-player");
+  if(a)a.hidden=!state.liveActive;
+  if(v)v.hidden=!state.tvActive;
+  const label=$("live-dock-title");
+  if(label)label.textContent=(state.tvActive?"LIVE TV  ":"")+
+    (state.liveActive?"LIVE FM RADIO  ":"")+
+    "· user-started receive-only stream";
+  const r=$("live-dock-stop-radio"),t=$("live-dock-stop-tv");
+  if(r)r.hidden=!state.liveActive;
+  if(t)t.hidden=!state.tvActive;
+}
+function bindMediaDock(){
+  const radio=$("live-dock-stop-radio"),tv=$("live-dock-stop-tv");
+  if(radio)radio.addEventListener("click",async()=>{
+    try{
+      const player=$("persistent-radio-player");
+      player.pause();player.removeAttribute("src");player.dataset.session="";player.load();
+      await api("/api/live/radio/stop","POST",{});
+      state.liveActive=false;syncLiveMediaDock();
+    }catch(e){notice(e.message)}
+  });
+  if(tv)tv.addEventListener("click",async()=>{
+    try{
+      const player=$("persistent-tv-player");
+      player.pause();player.removeAttribute("src");player.dataset.session="";player.load();
+      await api("/api/live/tv/stop","POST",{});
+      state.tvActive=false;syncLiveMediaDock();
+    }catch(e){notice(e.message)}
+  });
+}
 function liveRadioCaptionPanel(captions,session,targetId="live-radio-captions"){
   const container=$(targetId);
   if(!container)return;
@@ -763,11 +786,12 @@ function liveRadioCaptionPanel(captions,session,targetId="live-radio-captions"){
   }
 }
 async function pollLiveRadio(){
-  if(state.page!==400)return;
+  if(state.page!==400&&!state.liveActive)return;
   try{
     const current=await api("/api/live/radio/status");
     state.liveActive=current.active;
     state.liveSession=current.session||state.liveSession;
+    syncLiveMediaDock();
     const label=$("live-radio-status");
     if(label){
       label.textContent=current.status.toUpperCase()+
@@ -803,7 +827,7 @@ async function pollLiveRadio(){
         }
       }
     }
-    if(current.active&&state.page===400){
+    if(current.active){
       state.livePollTimer=setTimeout(pollLiveRadio,1800);
     }else{
       await refreshReceiverStatus();
@@ -811,11 +835,12 @@ async function pollLiveRadio(){
   }catch(e){notice("Live receiver status unavailable: "+e.message);}
 }
 async function pollLiveTV(){
-  if(state.page!==400)return;
+  if(state.page!==400&&!state.tvActive)return;
   try{
     const current=await api("/api/live/tv/status");
     state.tvActive=current.active;
     state.tvSession=current.session||state.tvSession;
+    syncLiveMediaDock();
     const label=$("live-tv-status");
     if(label)label.textContent=current.status.toUpperCase()+
       " · "+(current.channel_name||"No TV channel selected")+
@@ -846,7 +871,7 @@ async function pollLiveTV(){
         }
       }
     }
-    if(current.active&&state.page===400){
+    if(current.active){
       state.tvPollTimer=setTimeout(pollLiveTV,1800);
     }
   }catch(e){notice("TV playback status unavailable: "+e.message)}
@@ -917,11 +942,9 @@ async function addLiveTV(){
   form.append(start,stop);panel.append(form);
   const status=el("p","full-body",listing.capability.reason);
   status.id="live-tv-status";panel.append(status);
-  const video=el("video","live-tv-player");
-  video.id="live-tv-video";video.controls=true;video.playsInline=true;
-  video.preload="none";
-  video.setAttribute("aria-label","Local live television");
-  panel.append(video);
+  const video=$("persistent-tv-player");
+  panel.append(el("p","full-body",
+    "Your live TV playback stays in the media dock while you browse other pages."));
   panel.append(el("h4","","Real original / translated TV captions"));
   const captionList=el("div","live-caption-list");captionList.id="live-tv-captions";panel.append(captionList);
   const later=el("div","field");later.append(el("label","","Translate saved captions later to"));
@@ -955,6 +978,7 @@ async function addLiveTV(){
       state.tvActive=true;state.tvSession=newSession.session;
       video.src="/api/live/tv/stream?session="+encodeURIComponent(state.tvSession)+
         "&token="+encodeURIComponent(state.csrf);
+      video.dataset.session=state.tvSession;syncLiveMediaDock();
       try{await video.play()}
       catch(_){notice("TV source started. Press Play on the TV player if autoplay is blocked.")}
       if(state.tvPollTimer)clearTimeout(state.tvPollTimer);
@@ -963,7 +987,7 @@ async function addLiveTV(){
   });
   stop.addEventListener("click",async()=>{
     try{
-      video.pause();video.removeAttribute("src");video.load();
+      video.pause();video.removeAttribute("src");video.dataset.session="";video.load();syncLiveMediaDock();
       await api("/api/live/tv/stop","POST",{});
       state.tvActive=false;
       if(state.tvPollTimer)clearTimeout(state.tvPollTimer);
@@ -975,10 +999,12 @@ async function addLiveTV(){
   });
   state.tvActive=snapshot.active;
   if(snapshot.session)state.tvSession=snapshot.session;
-  if(snapshot.active&&snapshot.session){
+  if(snapshot.active&&snapshot.session&&video.dataset.session!==snapshot.session){
     video.src="/api/live/tv/stream?session="+encodeURIComponent(snapshot.session)+
       "&token="+encodeURIComponent(state.csrf);
+    video.dataset.session=snapshot.session;
   }
+  syncLiveMediaDock();
   start.disabled=!listing.capability.ready||!listing.channels.length;
   stop.disabled=!snapshot.active;
   if(state.tvPollTimer)clearTimeout(state.tvPollTimer);
@@ -1055,10 +1081,9 @@ async function addLiveRadio(){
   panel.append(form);
   const status=el("p","full-body","Not started");status.id="live-radio-status";
   panel.append(status);
-  const audio=el("audio","local-audio-player");
-  audio.controls=true;audio.preload="none";audio.id="live-radio-player";
-  audio.setAttribute("aria-label","Real live FM radio stream");
-  panel.append(audio);
+  const audio=$("persistent-radio-player");
+  panel.append(el("p","full-body",
+    "Your live FM playback stays in the media dock while you browse other pages."));
   const computeInfo=el("div","scan-summary");
   computeInfo.append(el("h4","","Detected local compute and offline models"));
   compute.devices.forEach(d=>computeInfo.append(el("p","full-body",
@@ -1103,7 +1128,7 @@ async function addLiveRadio(){
       state.liveActive=created.active;state.liveSession=created.session;
       const url="/api/live/radio/stream?session="+
         encodeURIComponent(created.session)+"&token="+encodeURIComponent(state.csrf);
-      audio.src=url;
+      audio.src=url;audio.dataset.session=created.session;syncLiveMediaDock();
       try{await audio.play()}catch(_){
         notice("Stream started. Press Play on the radio player if browser autoplay was blocked.");
       }
@@ -1113,7 +1138,7 @@ async function addLiveRadio(){
   });
   stop.addEventListener("click",async()=>{
     try{
-      audio.pause();audio.removeAttribute("src");audio.load();
+      audio.pause();audio.removeAttribute("src");audio.dataset.session="";audio.load();syncLiveMediaDock();
       await api("/api/live/radio/stop","POST",{});
       state.liveActive=false;
       if(state.livePollTimer)clearTimeout(state.livePollTimer);
@@ -1123,10 +1148,12 @@ async function addLiveRadio(){
   });
   state.liveActive=snapshot.active;
   if(snapshot.session)state.liveSession=snapshot.session;
-  if(snapshot.active&&snapshot.session){
+  if(snapshot.active&&snapshot.session&&audio.dataset.session!==snapshot.session){
     audio.src="/api/live/radio/stream?session="+encodeURIComponent(snapshot.session)+
       "&token="+encodeURIComponent(state.csrf);
+    audio.dataset.session=snapshot.session;
   }
+  syncLiveMediaDock();
   if(state.livePollTimer)clearTimeout(state.livePollTimer);
   state.livePollTimer=setTimeout(pollLiveRadio,500);
   const recordings=await api("/api/live/radio/recordings");
@@ -1605,6 +1632,7 @@ function bindNavigation(){
 }
 async function start(){
   bindNavigation();
+  bindMediaDock();
   const now=new Date();
   $("clock").textContent=now.toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"});
   try{await refreshCounts();await refreshSourceChoices();await openPage(100,"",0)}

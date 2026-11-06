@@ -115,9 +115,20 @@
             </section>
           </aside>
         </div>
-        <footer class="footer"><span>TIHULU TEXT CENTER <b>0.4</b></span><span>STANDALONE MODE • 127.0.0.1 • NO BACKGROUND POLLING</span><span>OPEN FORMAT / LOCAL ARCHIVE</span></footer>
+        <footer class="footer"><span>TIHULU TEXT CENTER <b>0.6</b></span><span>STANDALONE MODE • 127.0.0.1 • NO BACKGROUND POLLING</span><span>OPEN FORMAT / LOCAL ARCHIVE</span></footer>
       </main>
     </div>
   </div>
+  <section id="live-media-dock" class="live-media-dock" hidden aria-label="Persistent live radio and TV playback">
+    <div class="live-dock-heading">
+      <strong id="live-dock-title">LIVE BROADCAST</strong>
+      <div class="live-dock-actions">
+        <button type="button" id="live-dock-stop-radio" hidden>STOP RADIO</button>
+        <button type="button" id="live-dock-stop-tv" hidden>STOP TV</button>
+      </div>
+    </div>
+    <audio id="persistent-radio-player" controls preload="none" aria-label="Continuous local FM radio" hidden></audio>
+    <video id="persistent-tv-player" controls playsinline preload="none" aria-label="Continuous local TV video" hidden></video>
+  </section>
 </body>
 </html>
