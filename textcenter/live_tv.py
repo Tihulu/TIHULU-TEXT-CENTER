@@ -28,7 +28,8 @@ import uuid
 from .live_fm import MAX_RECORD_BYTES,SESSION_TIMEOUT
 from .compute import detect_devices
 from .speech import SpeechPipeline, SpeechError
-from .transcripts import TranscriptStore
+from .transcripts import TranscriptStore, TranslatorUnavailable, translate_offline
+from .tv_teletext_subtitles import TeletextSubtitleSidecar
 
 MAX_CHANNELS=64
 
@@ -79,8 +80,19 @@ def load_channels(path:str|Path|None=None)->list[dict]:
         if not isinstance(name,str) or not name.strip():
             continue
         ids.add(key)
+        stream_index=item.get("teletext_subtitle_index",0)
+        if type(stream_index) is not int or not 0<=stream_index<=15:stream_index=0
+        page=item.get("teletext_subtitle_page","subtitle")
+        if page!="subtitle" and (type(page) is not int or not 100<=page<=899):
+            page="subtitle"
+        channel_lang=item.get("teletext_language")
+        if channel_lang not in ("en","de","tr"):channel_lang=None
         channels.append({"id":key,"name":name.strip()[:100],"url":url,
-                         "source_status":"operator_configured_not_rf_verified"})
+                         "source_status":"operator_configured_not_rf_verified",
+                         "teletext_shared_safe":item.get("teletext_shared_safe") is True,
+                         "teletext_subtitle_index":stream_index,
+                         "teletext_subtitle_page":page,
+                         "teletext_language":channel_lang})
     return channels
 
 
@@ -114,6 +126,16 @@ class LiveTV:
         self.thread=None
         self.watchdog=None
         self.speech=None
+        self.teletext_sidecar=None
+        self.teletext_last_seen=None
+        self.caption_source="auto"
+        self.caption_enabled=False
+        self.caption_show_original=True
+        self.caption_show_translation=True
+        self.subtitle_language="en"
+        self.subtitle_target=None
+        self.subtitle_channel=None
+        self.subtitle_error=None
         self.audio_read=None
         self.listener=False
         self.record_file=None
@@ -138,9 +160,12 @@ class LiveTV:
                 "reason":"Configured upstream MPEG-TS relay available (not a DVB tuner lock)"}
 
     def start(self,channel_id,*,record=False,subtitles=False,language="en",
-              translate_to=None,backend="auto",translation_backend="auto",upstream_authorized=False):
+              translate_to=None,backend="auto",translation_backend="auto",
+              subtitle_source="auto",upstream_authorized=False):
         if type(record) is not bool or type(subtitles) is not bool or type(upstream_authorized) is not bool:
             raise ValueError("TV flags must be Boolean")
+        if subtitle_source not in ("auto","teletext","speech"):
+            raise ValueError("TV subtitle source must be auto/teletext/speech")
         if not upstream_authorized:
             raise LiveTVError("User must confirm dedicated upstream TV tuner lease")
         with self.mutex:
@@ -153,6 +178,16 @@ class LiveTV:
             self.stop_flag.clear()
             self.audio_read=None
             self.speech=None
+            self.teletext_sidecar=None
+            self.teletext_last_seen=None
+            self.caption_source=subtitle_source
+            self.caption_enabled=subtitles
+            self.subtitle_target=translate_to
+            self.caption_show_original=True
+            self.caption_show_translation=True
+            self.subtitle_language=language
+            self.subtitle_channel=channel
+            self.subtitle_error=None
             session=uuid.uuid4().hex
             now=datetime.now(timezone.utc)
             name=now.strftime("%Y%m%dT%H%M%SZ")+"-TV-"+channel_id+"-"+session[:10]+".mp4" if record else None
@@ -164,7 +199,7 @@ class LiveTV:
                 subtitle_reason=None
                 # Caption models are optional. Never kill actual TV playback
                 # merely because a requested Whisper/Argos backend is missing.
-                if subtitles:
+                if subtitles and subtitle_source!="teletext":
                     try:
                         if self.transcripts is None:
                             raise SpeechError("TV transcript archive unavailable")
@@ -201,6 +236,9 @@ class LiveTV:
                     "error":None,"format":"video/mp4",
                     "subtitles_requested":subtitles,
                     "subtitles_active":self.speech is not None,
+                    "subtitle_source_preference":subtitle_source,
+                    "teletext_shared_read_safe":channel["teletext_shared_safe"],
+                    "teletext_archive_pages_only":not channel["teletext_shared_safe"],
                     "subtitle_unavailable_reason":subtitle_reason,
                 }
                 self.last_seen=time.monotonic()
@@ -209,6 +247,8 @@ class LiveTV:
                     self.thread=threading.Thread(target=self._audio_worker,daemon=True,
                                                  name="tihulu-tv-speech")
                     self.thread.start()
+                if subtitles and subtitle_source!="speech":
+                    self._start_teletext_sidecar()
                 self.watchdog=threading.Thread(target=self._watch,daemon=True,
                                                name="tihulu-tv-watchdog")
                 self.watchdog.start()
