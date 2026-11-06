@@ -18,6 +18,8 @@ from .dab_bridge import DABReader,DABError
 from .capabilities import capability_catalog
 from .fm_survey import FMSurveySupervisor, SurveyError
 from .scan_catalog import scan_capabilities
+from .compute import inventory_compute
+from .radio_live import LiveRadio,LiveRadioError
 
 WEB_DIR = Path(__file__).resolve().parents[1] / "web"
 
@@ -59,6 +61,10 @@ class LocalServer(ThreadingHTTPServer):
         )
         self.audio = FMPreview(
             rds=self.rds, survey=self.survey,
+            lock_dir=store.filename.parent / ".receiver-locks"
+        )
+        self.live_radio=LiveRadio(
+            store,rds=self.rds,survey=self.survey,preview=self.audio,
             lock_dir=store.filename.parent / ".receiver-locks"
         )
         super().__init__(address, Handler)
@@ -130,7 +136,8 @@ class Handler(BaseHTTPRequestHandler):
                 inventory["rds_capture_active"] = rds_state["active"]
                 inventory["rds_groups_decoded"] = rds_state["received_groups"] if rds_state["active"] else 0
                 inventory["fm_audio_active"] = self.server.audio.status()["active"]
-                inventory["active_capture"] = rds_state["active"] or survey_state["active"] or inventory["fm_audio_active"]
+                inventory["fm_live_active"]=self.server.live_radio.status()["active"]
+                inventory["active_capture"] = rds_state["active"] or survey_state["active"] or inventory["fm_audio_active"] or inventory["fm_live_active"]
                 inventory["connected_decoder"] = bool(
                     rds_state["active"] and rds_state["received_groups"] > 0
                 )
@@ -168,6 +175,56 @@ class Handler(BaseHTTPRequestHandler):
                 status = self.server.survey.status()
                 status["capability"] = self.server.survey.availability()
                 return self._json(200, status)
+            if route == "/api/compute":
+                return self._json(200,inventory_compute())
+            if route == "/api/live-radio/status":
+                state=self.server.live_radio.status()
+                state["capability"]=self.server.live_radio.availability()
+                return self._json(200,state)
+            if route == "/api/live-radio/recordings":
+                return self._json(200,self.server.live_radio.recordings())
+            if route.startswith("/api/live-radio/recording/"):
+                ident=route[len("/api/live-radio/recording/"):]
+                content=self.server.live_radio.recording(ident)
+                if content is None:
+                    return self._json(404,{"error":"Recording missing or exceeds small-download limit"})
+                return self._send(200,content,"audio/mpeg")
+            if route == "/api/live-radio/stream":
+                session=q.get("session",[""])[0]
+                state=self.server.live_radio.status()
+                if not state["active"] or session!=state["session"]:
+                    return self._json(404,{"error":"No matching active radio stream"})
+                self.send_response(200)
+                self.send_header("Content-Type","audio/mpeg")
+                self.send_header("Transfer-Encoding","chunked")
+                self.send_header("Cache-Control","no-store")
+                self.send_header("X-Content-Type-Options","nosniff")
+                self.send_header("Referrer-Policy","no-referrer")
+                self.send_header("Connection","close")
+                self.end_headers()
+                self.close_connection=True
+                try:
+                    for block in self.server.live_radio.stream_chunks(session):
+                        if not block:continue
+                        self.wfile.write(f"{len(block):x}\r\n".encode("ascii")+block+b"\r\n")
+                        self.wfile.flush()
+                    self.wfile.write(b"0\r\n\r\n")
+                except (BrokenPipeError,ConnectionResetError,LiveRadioError,OSError):
+                    self.server.live_radio.stop()
+                return
+            if route == "/api/captions/sessions":
+                return self._json(200,self.server.live_radio.archive.sessions())
+            if route == "/api/captions/cues":
+                session=q.get("session",[""])[0]
+                return self._json(200,self.server.live_radio.archive.cues(session))
+            if route == "/api/captions/file":
+                session=q.get("session",[""])[0]
+                language=q.get("layer",["original"])[0]
+                format=q.get("format",["srt"])[0]
+                raw=self.server.live_radio.archive.subtitle_file(
+                    session,language=language,format=format)
+                kind="text/vtt" if format=="vtt" else "application/x-subrip"
+                return self._send(200,raw,kind+"; charset=utf-8")
             if route == "/api/dab/last":
                 return self._json(200,self.server.dab_last)
             if route == "/api/dvb/status":
@@ -238,7 +295,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         route = urlsplit(self.path).path
-        allowed = {"/api/feeds/add", "/api/feeds/refresh", "/api/bulletins", "/api/bookmarks", "/api/rds/start", "/api/rds/stop", "/api/fm-survey/start", "/api/fm-survey/stop", "/api/scans/start", "/api/scans/stop", "/api/audio/start", "/api/audio/stop", "/api/dab/refresh"}
+        allowed = {"/api/feeds/add", "/api/feeds/refresh", "/api/bulletins", "/api/bookmarks", "/api/rds/start", "/api/rds/stop", "/api/fm-survey/start", "/api/fm-survey/stop", "/api/scans/start", "/api/scans/stop", "/api/audio/start", "/api/audio/stop", "/api/dab/refresh", "/api/live-radio/start", "/api/live-radio/stop", "/api/captions/translate"}
         if route not in allowed:
             return self._json(404, {"error": "Not found"})
         if self.headers.get("X-Tihulu-CSRF") != self.server.csrf_token:
@@ -265,6 +322,16 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(202, self.server.survey.start())
             if route == "/api/fm-survey/stop":
                 return self._json(200, self.server.survey.stop())
+            if route == "/api/live-radio/start":
+                return self._json(202,self.server.live_radio.start(
+                    frequency_mhz=payload.get("frequency_mhz"),
+                    record=payload.get("record",False),
+                    captions=payload.get("captions",{})))
+            if route == "/api/live-radio/stop":
+                return self._json(200,self.server.live_radio.stop())
+            if route == "/api/captions/translate":
+                return self._json(200,self.server.live_radio.archive.translate_saved(
+                    payload.get("session"),payload.get("target_lang")))
             if route == "/api/dab/refresh":
                 if type(payload.get("include_images",True)) is not bool:
                     raise ValueError("Invalid DAB image option")
@@ -299,7 +366,7 @@ class Handler(BaseHTTPRequestHandler):
             if route == "/api/bookmarks":
                 self.server.store.add_bookmark(payload.get("label"),payload.get("target_type"),payload.get("target"))
                 return self._json(201, {"saved": True})
-        except (CaptureError, SurveyError, AudioError, DABError) as exc:
+        except (CaptureError, SurveyError, AudioError, DABError, LiveRadioError) as exc:
             self._json(409, {"error": str(exc)})
         except KeyError as exc:
             self._json(404, {"error": str(exc)})
@@ -320,6 +387,7 @@ def run_server(store: Store, *, host: str = "127.0.0.1", port: int = 8787):
     except KeyboardInterrupt:
         pass
     finally:
+        server.live_radio.stop(wait=True)
         server.audio.stop(wait=True)
         server.survey.stop(wait=True)
         server.rds.stop(wait=True)

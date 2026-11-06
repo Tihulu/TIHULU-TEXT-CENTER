@@ -84,9 +84,10 @@ class LiveRadio:
         if not self.lookup("rtl_fm") or not self.lookup("ffmpeg"):
             return {"ready":False,"reason":"Live FM needs both rtl_fm and ffmpeg (MP3 encoder)"}
         for controller in (self.rds,self.survey,self.preview):
-            if controller is not None and controller.status(heartbeat=False)["active"] if (
-                controller is not None and controller is not self.preview
-            ) else (controller is not None and controller.status()["active"]):
+            if controller is None:continue
+            status=(controller.status() if controller is self.preview
+                    else controller.status(heartbeat=False))
+            if status["active"]:
                 return {"ready":False,"reason":"Receiver already used by another Text Center session"}
         busy=self.conflicts()
         if busy:
@@ -221,8 +222,9 @@ class LiveRadio:
         # This basic read endpoint is intentionally capped; large recordings
         # should eventually be streamed by offset / linked external SSD.
         if not isinstance(ident,str) or not (
-            len(ident)==49 and ident[15]=="_" and all(c in "0123456789abcdef" for c in ident[16:])
-            and ident[:8].isdigit() and ident[9:15].isdigit()
+            len(ident)==49 and ident[8]=="T" and ident[15]=="Z" and ident[16]=="_" and
+            all(c in "0123456789abcdef" for c in ident[17:]) and
+            ident[:8].isdigit() and ident[9:15].isdigit()
         ):
             return None
         path=self.record_dir/(ident+".mp3")

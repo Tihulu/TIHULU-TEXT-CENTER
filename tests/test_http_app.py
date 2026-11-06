@@ -183,6 +183,31 @@ class HTTPTests(unittest.TestCase):
              {"include_images":False},csrf)[0],409)
         self.assertFalse(self.server.dab_last["connected"])
 
+    def test_live_radio_devices_and_captions_routes_fail_closed(self):
+        code,_,raw=self.request("GET","/api/compute")
+        self.assertEqual(code,200)
+        compute=json.loads(raw)
+        self.assertIn("devices",compute)
+        self.assertEqual(len(compute["translation_pairs"]),6)
+        code,_,raw=self.request("GET","/api/live-radio/status")
+        self.assertEqual(code,200)
+        self.assertFalse(json.loads(raw)["active"])
+        self.assertEqual(self.request("GET","/api/live-radio/stream?session=bogus")[0],404)
+        self.assertEqual(self.request("GET","/api/captions/sessions")[0],200)
+        self.assertEqual(self.request("GET","/api/live-radio/recordings")[0],200)
+        self.assertEqual(self.request("POST","/api/live-radio/start",
+            {"frequency_mhz":98.6})[0],403)
+        _,_,boot=self.request("GET","/api/bootstrap")
+        csrf=json.loads(boot)["csrf"]
+        self.assertEqual(self.request("POST","/api/live-radio/start",
+            {"frequency_mhz":109.0},csrf)[0],400)
+        self.server.live_radio.conflicts=lambda:[{"process":"readsb"}]
+        self.assertEqual(self.request("POST","/api/live-radio/start",
+            {"frequency_mhz":98.6,"record":True},csrf)[0],409)
+        self.assertEqual(self.request("POST","/api/live-radio/stop",{},csrf)[0],200)
+        self.assertEqual(self.request("POST","/api/captions/translate",
+            {"session":"not-a-uuid","target_lang":"de"},csrf)[0],404)
+
     def test_no_forged_source(self):
         code,_,raw=self.request("GET","/api/page?source_id=ard_text&number=100")
         self.assertEqual(code,404)
