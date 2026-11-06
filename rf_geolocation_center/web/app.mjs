@@ -5,10 +5,11 @@ import {parseNMEA,trilaterate2D,tdoaConstraints} from "../core/positioning.mjs";
 import {initAutoExplorer} from "./auto_explorer.mjs";
 import {initUsbSDR} from "./usb_sdr.mjs";
 import {exampleRings,ringPoints,validRangeSources} from "../core/evidence.mjs";
+import {LOCATION_LAYERS,layerReadiness,visibleLayerPreferences} from "../core/location_layers.mjs";
 
 const $=id=>document.getElementById(id), svgNS="http://www.w3.org/2000/svg";
 const state={
-  browser:null,serialFix:null,serialAt:0,receiverHistory:[],gnssFile:null,sp3:null,
+  browser:null,networkFix:null,serialFix:null,serialAt:0,receiverHistory:[],gnssFile:null,sp3:null,layerPrefs:null,
   time:null,mask:5,visible:[],autoOrbits:[],references:[],ranges:null,rangeInputs:[],tdoa:[],cachedPosition:null,
   map:{lat:DEFAULT_CENTER.lat,lon:DEFAULT_CENTER.lon,zoom:11,osm:false},
   serialPort:null,serialReader:null,reading:false,usbSelection:null,activeView:"dashboard"
@@ -26,8 +27,26 @@ function svgel(tag,attrs={},label){
 const STORAGE_LOCATION="tihulu.rfgeo.last-known-position.v1";
 const STORAGE_RANGES="tihulu.rfgeo.measured-ranges.v1";
 const STORAGE_REFS="tihulu.rfgeo.reference-points.v1";
+const STORAGE_LAYERS="tihulu.rfgeo.location-method-layers.v1";
 const store=(key,value)=>{try{localStorage.setItem(key,JSON.stringify(value))}catch{}};
 const restore=key=>{try{return JSON.parse(localStorage.getItem(key)||"null")}catch{return null}};
+const layerToggle=id=>document.getElementById(({gnss:"layer-gnss",device:"layer-device",gpsfree:"layer-gpsfree",radio:"layer-ranges",aircraft:"layer-aircraft",ground:"layer-stations",satellites:"layer-orbits",cached:"layer-cached",demo:"layer-demo"})[id]);
+const layerShown=id=>layerToggle(id)?.checked===true;
+const saveLayerPreferences=()=>{state.layerPrefs=Object.fromEntries(LOCATION_LAYERS.map(l=>[l.id,layerShown(l.id)]));store(STORAGE_LAYERS,state.layerPrefs)};
+function showOnlyLayers(ids){for(const l of LOCATION_LAYERS){const e=layerToggle(l.id);if(e)e.checked=ids.includes(l.id)}saveLayerPreferences();renderEarth()}
+function renderMethodReadiness(orbits){
+ const r=layerReadiness({...state,orbits},Date.now());
+ for(const layer of LOCATION_LAYERS){const d=r[layer.id],label=$("layer-status-"+layer.id);
+   if(label){label.textContent=d.state+(d.count&&d.count>1?" · "+d.count:"");label.title=d.detail;
+     label.dataset.available=String(!["UNAVAILABLE","NO FIX","NO DATA","NO MEASUREMENT"].includes(d.state));}
+ }
+ const lines=[r.gnss.state==="FIX"?"Dedicated GNSS fix available":"Dedicated GNSS: no current fix",
+ r.device.state==="FIX"?"Browser device fix (GPS/network method unknown)":"Browser/device: no current fix",
+ r.radio.state==="ESTIMATED"?"Radio: experimental measured-range estimate":"Radio: no measured ranges",
+ "GPS-free provider: "+r.gpsfree.state.toLowerCase(),
+ r.aircraft.count+" aircraft references, "+r.ground.count+" ground stations, "+r.satellites.count+" predicted satellite subpoints"];
+ setText("layer-explanation",lines.join(" · "));
+}
 function source(){
  if(state.serialFix&&Date.now()-state.serialAt<90000)
   return {...state.serialFix,kind:"NMEA receiver — live",validObserver:true};
