@@ -486,7 +486,7 @@ class Handler(BaseHTTPRequestHandler):
             if route == "/api/bookmarks":
                 self.server.store.add_bookmark(payload.get("label"),payload.get("target_type"),payload.get("target"))
                 return self._json(201, {"saved": True})
-        except (CaptureError, SurveyError, AudioError, DABError, LiveError, LiveTVError, SpeechError, TranslatorUnavailable) as exc:
+        except (CaptureError, SurveyError, AudioError, DABError, LiveError, LiveTVError, SpeechError, TranslatorUnavailable, PostProcessError) as exc:
             self._json(409, {"error": str(exc)})
         except KeyError as exc:
             self._json(404, {"error": str(exc)})
