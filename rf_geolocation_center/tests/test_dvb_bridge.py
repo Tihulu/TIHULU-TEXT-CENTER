@@ -52,6 +52,44 @@ class DVBBridgeTests(unittest.TestCase):
                 bridge.start("../root", DEFAULT_PROFILE)
         self.assertEqual(bridge.status()["state"], "IDLE")
 
+    def test_pairing_requires_explicit_local_approval_and_pages_opt_in(self):
+        server = ThreadingHTTPServer(("127.0.0.1", 0), LocalAppHandler)
+        thread = Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        self.addCleanup(thread.join, 2)
+        self.addCleanup(server.server_close)
+        self.addCleanup(server.shutdown)
+        from urllib.parse import urlencode
+        root = "http://127.0.0.1:" + str(server.server_address[1])
+        nonce = "a" * 48
+        def request(origin, challenge=nonce):
+            query = urlencode({"origin": origin, "nonce": challenge})
+            return urlopen(root + "/pair?" + query, timeout=3)
+        with self.assertRaises(HTTPError) as err:
+            request("pages")
+        self.assertEqual(err.exception.code, 403)
+        with self.assertRaises(HTTPError) as err:
+            request("pages", "invalid")
+        self.assertEqual(err.exception.code, 400)
+        with self.assertRaises(HTTPError) as err:
+            request("untrusted")
+        self.assertEqual(err.exception.code, 403)
+        with patch("rf_geolocation_center.native.PAGES_BRIDGE_ENABLED", True):
+            with contextlib.closing(request("pages")) as response:
+                body = response.read().decode()
+                self.assertIn("Approve this tab", body)
+                self.assertIn("window.opener.postMessage", body)
+                self.assertIn("https://tihulu.github.io", body)
+                self.assertIn(nonce, body)
+                self.assertIn("frame-ancestors 'none'", response.headers["Content-Security-Policy"])
+                self.assertEqual(response.headers["Cache-Control"], "no-store")
+            with contextlib.closing(request("local")) as response:
+                body = response.read().decode()
+                self.assertIn(root, body)
+            with self.assertRaises(HTTPError) as err:
+                request("evil.example")
+            self.assertEqual(err.exception.code, 403)
+
     def test_api_token_origin_and_cors_guards(self):
         server = ThreadingHTTPServer(("127.0.0.1", 0), LocalAppHandler)
         thread = Thread(target=server.serve_forever, daemon=True)
