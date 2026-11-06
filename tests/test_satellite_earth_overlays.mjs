@@ -24,9 +24,9 @@ test('satellite and orbit overlays have explicit correct Leaflet z-order',()=>{
    assert.ok(map.includes('pane:"'+name+'"'));
  }
  assert.ok(map.includes('worldPane.style.zIndex="350"'));
- assert.ok(map.includes('leaflet.circleMarker([s.lat,s.lon]'));
- assert.ok(map.includes('leaflet.polyline(segment'));
- assert.ok(map.includes('leaflet.polygon(segment'));
+ assert.ok(map.includes('leaflet.circleMarker([sat.lat,sat.lon]'));
+ assert.ok(map.includes('leaflet.polyline(data[i]'));
+ assert.ok(map.includes('leaflet.polygon(data[i]'));
 });
 
 test('both all-satellite tracks and selected coverage are actually rendered',()=>{
