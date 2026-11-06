@@ -134,12 +134,37 @@ def parse_power_csv(payload: str, *, limit: int = 24, band: str = "fm") -> dict:
                 "verification": "unidentified_rf_energy",
             })
     peaks.sort(key=lambda x: x["above_median_db"], reverse=True)
+    # A separate, more sensitive candidate set is consumed ONLY by the
+    # explicit FM Auto Scan. It remains spectral evidence, never a station.
+    # Nearby maxima are grouped to avoid rechecking one wide FM carrier.
+    auto_peaks = []
+    if band == "fm":
+        soft_threshold = baseline + max(4.0, deviation * 1.8)
+        for index,hz in enumerate(frequencies):
+            power=merged[hz]
+            before=merged.get(frequencies[index-1],float("-inf")) if index else float("-inf")
+            after=merged.get(frequencies[index+1],float("-inf")) if index+1<len(frequencies) else float("-inf")
+            if power >= soft_threshold and power >= before and power > after:
+                auto_peaks.append({
+                    "frequency_hz":hz,
+                    "above_median_db":round(power-baseline,1),
+                    "verification":"unidentified_rf_energy",
+                })
+        auto_peaks.sort(key=lambda row:row["above_median_db"],reverse=True)
+        distinct=[]
+        for row in auto_peaks:
+            if all(abs(row["frequency_hz"]-p["frequency_hz"])>=180_000 for p in distinct):
+                distinct.append(row)
+            if len(distinct)==60:
+                break
+        auto_peaks=distinct
     return {
         "sweeps":sweeps,
         "bins_analyzed":len(readings),
         "relative_baseline_db":round(baseline,1),
         "threshold_above_median_db":round(threshold-baseline,1),
         "candidates":peaks[:min(limit, 24)],
+        "fm_auto_candidates":auto_peaks,
         "note":"Candidate RF energy only; no broadcast service, RDS, DAB, NAVTEX or APRS decode is verified.",
     }
 
