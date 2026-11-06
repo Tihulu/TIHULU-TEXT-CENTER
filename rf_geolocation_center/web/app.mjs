@@ -552,6 +552,7 @@ window.addEventListener("tihulu:find-request",()=>{ if(state.serialFix&&Date.now
 window.addEventListener("tihulu:orbit",e=>{
   if(!Array.isArray(e.detail?.satellites))return;
   state.autoOrbits=e.detail.satellites.slice(0,450);
+  renderMethodReadiness(state.sp3?state.visible:state.autoOrbits);
   if(state.activeView==="sky"&&!state.sp3)renderSky();
   if(state.activeView==="earth"&&!state.sp3)renderEarth();
   if(!state.sp3){setText("dash-orbits",state.autoOrbits.length+" CelesTrak satellites");setText("orbit-tag","AUTO ORBITS / PREDICTED")}
