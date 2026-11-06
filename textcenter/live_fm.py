@@ -152,6 +152,10 @@ class LiveFM:
                     "recorded_bytes":0,"listener_connected":False,"format":"audio/mpeg",
                     "backend":"rtl_fm → ffmpeg libmp3lame",
                     "subtitles_requested":subtitles,
+                    "caption_language":language,
+                    "caption_target":translate_to,
+                    "caption_compute":backend,
+                    "caption_translation_backend":translation_backend,
                     "subtitles_active":False,
                     "subtitle_unavailable_reason":None,
                 }
@@ -278,6 +282,42 @@ class LiveFM:
                 "reason":self.state.get("subtitle_unavailable_reason") or
                     "Speech transcription not requested or unavailable"}
             return snapshot
+
+    def configure_captions(self,*,enabled=None,translate_to=None):
+        """Turn real opt-in FM speech on/off without restarting rtl_fm or audio.
+
+        Turning captions on after playback starts uses the *existing* PCM tee.
+        Missing models do not terminate the FM receiver or audio encoder.
+        """
+        if enabled is not None and type(enabled) is not bool:
+            raise ValueError("Captions setting must be Boolean")
+        if translate_to is not None and translate_to not in ("off","en","de","tr"):
+            raise ValueError("Invalid target language")
+        with self.mutex:
+            if not self.state["active"]:
+                raise LiveError("No active FM session")
+            if translate_to is not None:
+                target=None if translate_to=="off" else translate_to
+                self.state["caption_target"]=target
+                if self.speech:self.speech.target=target
+            if enabled is False:
+                if self.speech:
+                    self.speech.stop()
+                    self.speech=None
+                self.state["subtitles_requested"]=False
+                self.state["subtitles_active"]=False
+                self.state["subtitle_unavailable_reason"]=None
+            elif enabled is True:
+                self.state["subtitles_requested"]=True
+                if self.speech is None:
+                    self._configure_optional_speech(
+                        session=self.state["session"],
+                        hz=self.state["frequency_hz"],
+                        language=self.state["caption_language"],
+                        translate_to=self.state["caption_target"],
+                        backend=self.state["caption_compute"],
+                        translation_backend=self.state["caption_translation_backend"])
+            return self.status(heartbeat=True)
 
     def stop(self,*,wait=False):
         with self.mutex:

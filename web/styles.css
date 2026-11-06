@@ -219,3 +219,20 @@ body.text-alerts-mode .content-grid{grid-template-columns:minmax(0,1fr)}
 .live-dock-caption-exports{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}
 .live-dock-caption-exports a{font:10px/1.45 var(--code);padding:6px 9px;border-radius:5px}
 @media(max-width:640px){.channel-caption-controls{display:grid;grid-template-columns:1fr 1fr;gap:10px}.channel-caption-field{min-width:0}.channel-caption-field select{min-width:0;width:100%}}
+
+/* Real subtitle-source controls shared by the persistent TV/radio player. */
+.live-caption-switches{display:flex;align-items:center;flex-wrap:wrap;gap:9px 14px;margin:8px 0;padding:8px;border:1px solid #3c5552;border-radius:7px;background:#102025}
+.live-caption-switches label{font:11px/1.4 var(--code);color:#d8eee0;display:inline-flex;align-items:center;gap:6px}
+.live-caption-switches label[hidden]{display:none}
+.live-caption-switches input[type=checkbox]{accent-color:var(--lime)}
+.live-caption-switches select{background:#101b22;color:#e8efea;border:1px solid #47635b;border-radius:5px;padding:7px;max-width:230px;font:11px var(--code)}
+.tv-teletext-browser{grid-column:1/-1;margin:14px 0;min-width:0}
+.tv-teletext-controls{display:flex;flex-wrap:wrap;gap:10px;margin:13px 0}
+.tv-teletext-controls input,.tv-teletext-controls select{min-width:170px;flex:1 1 190px;background:#0b1920;color:#e9efe8;border:1px solid #44615b;padding:10px;border-radius:7px}
+.tv-teletext-layout{display:grid;grid-template-columns:minmax(160px,.7fr) minmax(0,1.3fr);gap:12px}
+.tv-teletext-index{display:grid;align-content:start;gap:6px;max-height:380px;overflow:auto;border:1px solid #304f49;border-radius:7px;padding:9px}
+.tv-teletext-page{display:block;text-align:left;white-space:normal;font-size:12px;background:#14272a;color:#e2efe1;border:1px solid #395950;border-radius:5px;padding:10px}
+.tv-teletext-page:hover{border-color:#93ba9d}
+.tv-teletext-reader{min-height:220px;border:1px solid #355950;background:#0c1c20;border-radius:7px;padding:15px;min-width:0}
+.tv-teletext-body{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.4;font:13px/1.45 var(--code);color:#d4e9d7;margin:15px 0}
+@media(max-width:700px){.tv-teletext-layout{grid-template-columns:1fr}.tv-teletext-index{max-height:240px}.live-caption-switches select{width:100%}}

@@ -225,6 +225,17 @@ class LiveDABCaptions:
                             self.state.get("unavailable_reason"),
                           error=reason if status not in ("unavailable","idle") else None)
 
+    def configure_translation(self,*,translate_to):
+        """Update future *actual* DAB speech segments, never RF/MP3 playback."""
+        if translate_to not in ("off","en","de","tr"):
+            raise ValueError("Invalid translation target")
+        with self.lock:
+            if not self.state["active"] or not self.speech:
+                raise LiveDABCaptionError("No active DAB transcription")
+            self.speech.target=None if translate_to=="off" else translate_to
+            self.state["translation_target"]=self.speech.target
+            return self.status(heartbeat=True)
+
     def stop(self,*,wait=False):
         with self.lock:
             if self.state["active"] or self.decoder or self.speech:
