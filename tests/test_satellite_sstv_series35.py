@@ -35,7 +35,7 @@ class Robot36Series35Test(unittest.TestCase):
         encoded = _png(2, 1, bytes([1,2,3,4,5,6]))
         self.assertTrue(encoded.startswith(b"\x89PNG\r\n\x1a\n"))
         self.assertEqual(struct.unpack(">II", encoded[16:24]), (2,1))
-        with self.assertRaises(ValueError):
+        with self.assertRaises(zlib.error):
             zlib.decompress(b"not zlib")
 
     def test_full_36_second_synthetic_tone_can_reconstruct_candidate(self):
