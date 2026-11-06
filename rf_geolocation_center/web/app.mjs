@@ -46,6 +46,7 @@ function renderMethodReadiness(orbits){
  "GPS-free provider: "+r.gpsfree.state.toLowerCase(),
  r.aircraft.count+" aircraft references, "+r.ground.count+" ground stations, "+r.satellites.count+" predicted satellite subpoints"];
  setText("layer-explanation",lines.join(" · "));
+ setText("live-method-summary","GPS/GNSS: "+r.gnss.state+" · Device: "+r.device.state+" (method unknown) · GPS-free: "+r.gpsfree.state+" · Radio: "+r.radio.state+" · Aircraft: "+r.aircraft.count+" refs · Satellites: "+r.satellites.count+" predicted");
 }
 function source(){
  if(state.serialFix&&Date.now()-state.serialAt<90000)
