@@ -83,6 +83,10 @@
 </div>
 <div id="auto-calendar-grid" class="sat-calendar-grid" aria-live="polite">No scheduled jobs loaded.</div>
 </section>
+<div class="reception-actions">
+<button type="button" id="auto-mission-zip" class="secondary" disabled>Save analyzed results as ZIP · PNG / WAV / text / JSON</button>
+</div>
+<p id="auto-mission-zip-status" class="hint" role="status" aria-live="polite">Analyze real recorded files first, then preview results with Step 3. ZIP contains extracted outputs and provenance manifest, not huge raw IQ files.</p>
 <div id="auto-mission-output" class="mission-extraction" aria-live="polite"></div>
 <p class="hint">For actual full-pass Meteor LRPT image reconstruction, the native companion needs SatDump and a free RTL-SDR. A 60-second browser CU8 sample may not contain a full Earth scan. Raw I/Q cannot be interpreted as human messages without a protocol decoder and validated packet frames.</p>
 </section>
