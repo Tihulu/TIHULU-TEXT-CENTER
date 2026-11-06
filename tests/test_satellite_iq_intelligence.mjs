@@ -80,6 +80,6 @@ test("browser UI has explicit full scan, abort, candidate selection, metadata an
  }
  assert.match(ui,/analyzeFullCu8Blob/);
  assert.match(ui,/demodulateCu8Preview/);
- assert.match(ui,/activeController\.abort/);
+ assert.ok(ui.includes("activeController?.abort()"));
  assert.ok(!ui.includes("fetch(")); // data stay on the device
 });
