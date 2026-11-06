@@ -27,6 +27,7 @@ import uuid
 import wave
 
 from . import __version__
+from .capture_naming import recording_name, PROFILE_TARGETS, meteor_capture
 from .bridge import (app_data_dir, lock_receiver, unlock_receiver, start_receiver_process,
                      stop_receiver_process, pairing_secret, allowed_origin,
                      local_host_allowed, request_is_remote)
@@ -55,6 +56,7 @@ LOCATIONS = {
 # Frequency presets are receive-only targets, not promises of an active downlink.
 PROFILES = {
     "iss_voice": {"label": "ISS voice / SSTV vicinity", "range": "145.76M:145.85M:5k", "freq": 145800000, "family": "iss"},
+    "iss_sstv": {"label": "ISS SSTV · event-only 437.550 MHz Robot36 (confirm ARISS)", "range": "437.50M:437.60M:5k", "freq": 437550000, "family": "iss"},
     "iss_aprs": {"label": "ISS AX.25/APRS vicinity", "range": "145.78M:145.87M:5k", "freq": 145825000, "family": "iss"},
     "iss_uhf": {"label": "ISS repeater vicinity", "range": "437.76M:437.86M:5k", "freq": 437800000, "family": "iss"},
     "meteor": {"label": "Meteor-M LRPT primary (137.900 MHz)", "range": "137.0M:138.0M:12.5k", "freq": 137900000, "family": "meteor"},
@@ -136,7 +138,7 @@ def profiles_for(fam):
 def allowed_mode(profile, mode):
     return mode == "survey" or (mode == "iq" and PROFILES[profile]["freq"] is not None) or (
         profile == "iss_aprs" and mode == "aprs"
-    ) or (profile == "iss_voice" and mode == "sstv_audio")
+    ) or (profile in ("iss_voice", "iss_sstv") and mode == "sstv_audio")
 
 
 def topocentric_elevation_deg(observed_position):
@@ -520,7 +522,8 @@ class Station:
                 self.save_jobs()
             try:
                 duration = max(12, min(MAX_CAPTURE_SECONDS, int((datetime.fromisoformat(nearest["los"])-now()).total_seconds())))
-                result = self.capture(nearest["profile"], nearest["mode"], duration, scheduled=True)
+                result = self.capture(nearest["profile"], nearest["mode"], duration,
+                        scheduled=True, satellite=nearest.get("satellite"))
                 with self.lock:
                     nearest.update(state="completed", result=result)
                     self.save_jobs()
@@ -608,7 +611,7 @@ class Station:
                 thread.join(timeout=4)
         self.request_stop()
 
-    def capture(self, profile, mode="survey", seconds=18, scheduled=False, owner=None):
+    def capture(self, profile, mode="survey", seconds=18, scheduled=False, owner=None, satellite=None):
         if profile not in PROFILES or mode not in MODES or not allowed_mode(profile, mode):
             raise ValueError("Unsupported capture preset")
         if type(seconds) is not int or not 8 <= seconds <= MAX_CAPTURE_SECONDS:
@@ -631,9 +634,18 @@ class Station:
             self.active_worker = threading.current_thread()
             self.manual_owner = None if scheduled else owner
             self.last_manual_heartbeat = time.monotonic()
-            identifier = now().strftime("%Y%m%dT%H%M%SZ") + "_" + uuid.uuid4().hex[:7]
             suffix = {"survey": ".json", "iq": ".cu8", "aprs": ".txt", "sstv_audio": ".wav"}[mode]
-            target = self.archive/(identifier + "_" + profile + suffix)
+            candidate = str(satellite or PROFILE_TARGETS.get(profile, "RF-UNATTRIBUTED"))
+            if not candidate.upper().endswith(("CANDIDATE", "UNATTRIBUTED")):
+                candidate += "-CANDIDATE"
+            frequency = int(PROFILES[profile]["freq"] or 0)
+            target = self.archive/recording_name(
+                satellite=candidate, timestamp=now(), frequency_hz=frequency,
+                sample_rate=1024000 if mode == "iq" else 48000 if mode == "sstv_audio" else None,
+                kind={"survey":"SURVEY","iq":"IQ","aprs":"APRS","sstv_audio":"SSTV-AUDIO"}[mode],
+                extension=suffix)
+            if target.exists():
+                raise RuntimeError("Capture for this satellite already exists at this UTC second")
             self.session = {"state": "running", "active": True, "profile": profile, "mode": mode,
                             "started_at": stamp(), "path": target.name, "message": "Physical receiver requested; acquisition pending",
                             "scheduled": scheduled}
@@ -692,7 +704,8 @@ class Station:
                         stop_process(rx)
                         if "decode" in locals(): stop_process(decode)
             else:
-                cmd = [shutil.which("rtl_fm"), "-d", "0", "-f", "145800000", "-M", "fm", "-s", "48000", "-g", "30"]
+                cmd = [shutil.which("rtl_fm"), "-d", "0", "-f", str(PROFILES[profile]["freq"]),
+                       "-M", "fm", "-s", "48000", "-g", "30"]
                 rx = self._launch_receiver(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
                 try:
                     with wave.open(str(target), "wb") as wav:
@@ -776,7 +789,7 @@ class Station:
         return result
 
     def decode_meteor(self, name):
-        if not isinstance(name, str) or not re.fullmatch(r"[A-Za-z0-9_-]+_meteor(?:_backup)?\.cu8", name):
+        if not meteor_capture(name):
             raise ValueError("Select an archived Meteor IQ recording")
         if self.session.get("active"):
             raise RuntimeError("Stop RF acquisition before decoding")
