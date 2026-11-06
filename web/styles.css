@@ -71,3 +71,10 @@
 .live-dock-controls #live-dock-recording{color:#9eb8b5;white-space:nowrap}
 .live-dock-controls #live-dock-recording.recording-active{color:#fc8d8d}
 .live-dock-metadata{font:11px/1.5 var(--code);color:#b5d4cf;background:#12272a;border:1px solid #365558;border-radius:5px;padding:7px 9px;margin:0}
+
+/* Always-visible application-owned hardware stop, not an OS-wide process killer. */
+.topbar{position:sticky;top:0;z-index:35;background:#0d151a}
+.hard-stop,.pages-hard-stop{border:1px solid #ce6868;border-radius:6px;padding:9px 12px;background:#5a2226;color:#fff0f0;font:700 11px var(--code);letter-spacing:.6px}
+.hard-stop:hover,.pages-hard-stop:hover{background:#813037}
+.hard-stop:disabled,.pages-hard-stop:disabled{opacity:.55;cursor:wait}
+@media(max-width:660px){.top-actions{gap:6px}.hard-stop{padding:7px 8px;font-size:10px}.topbar .top-left{display:none}}

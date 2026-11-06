@@ -43,12 +43,34 @@ def _whisper_model(profile):
     return str(p) if p else None
 
 
-def transcribe_pcm(pcm:bytes,language:str,backend:str,profile:dict)->str:
+def select_speech_backend(profile:dict,backend:str,language:str)->dict:
+    if language!="auto":
+        validate_language(language)
+        return choose_backend(profile,backend)
+    if backend=="npu":
+        raise SpeechError("Auto Detect is not verified for NPU speech models")
+    if backend not in ("auto","cpu","gpu"):
+        raise ValueError("Invalid speech backend")
+    for option in (("gpu","cpu") if backend=="auto" else (backend,)):
+        selection=choose_backend(profile,option)
+        if selection["ready"]:
+            return selection
+    raise SpeechError("Detect language requires a ready Whisper CPU or faster-whisper GPU model")
+
+
+def detected_speech_language(value)->str:
+    code=str(value or "").strip().lower()
+    return code if code in ("en","de","tr") else "und"
+
+
+def transcribe_pcm(pcm:bytes,language:str,backend:str,profile:dict):
+
     if not pcm:
         raise SpeechError("Empty received audio")
     if backend not in ("cpu","gpu","npu"):
         raise ValueError("Invalid compute backend")
-    validate_language(language)
+    if language!="auto":validate_language(language)
+    elif backend=="npu":raise SpeechError("NPU automatic language detection is not implemented")
     model=(_whisper_model(profile) if backend=="cpu" else
            profile["speech"].get("gpu_model_path") if backend=="gpu" else
            profile["speech"].get("npu_model_path"))
@@ -124,9 +146,15 @@ def transcribe_pcm(pcm:bytes,language:str,backend:str,profile:dict)->str:
                 path.write_bytes(_wav_bytes(pcm))
                 decoder=WhisperModel(model,device="cuda",compute_type="float16",
                                      local_files_only=True)
-                segments,_=decoder.transcribe(str(path),language=language,beam_size=3,
-                                             vad_filter=True)
-                return " ".join(s.text.strip() for s in segments).strip()[:3000]
+                segments,info=decoder.transcribe(str(path),
+                    language=None if language=="auto" else language,beam_size=3,vad_filter=True)
+                text=" ".join(s.text.strip() for s in segments).strip()[:3000]
+                if language=="auto":
+                    detected=detected_speech_language(getattr(info,"language",None))
+                    confidence=getattr(info,"language_probability",None)
+                    if confidence is None or confidence<0.60:detected="und"
+                    return text,detected
+                return text
         except (ImportError,OSError,RuntimeError) as exc:
             raise SpeechError("CUDA speech backend failed: "+str(exc)[:150]) from exc
     executable=profile["speech"]["executable"]
@@ -141,14 +169,20 @@ def transcribe_pcm(pcm:bytes,language:str,backend:str,profile:dict)->str:
               "-nt","-otxt","-of",str(out)]
         try:
             result=subprocess.run(argv,stdin=subprocess.DEVNULL,
-                                  stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,
+                                  stdout=subprocess.DEVNULL,
+                                  stderr=subprocess.PIPE if language=="auto" else subprocess.DEVNULL,
                                   timeout=65,check=False)
         except (OSError,subprocess.TimeoutExpired) as exc:
             raise SpeechError("Local speech inference timed out or failed") from exc
         if result.returncode!=0 or not (root/"transcript.txt").is_file():
             raise SpeechError("whisper.cpp returned no successful transcript file")
-        return re.sub(r"\s+"," ",(root/"transcript.txt").read_text(
+        text=re.sub(r"\\s+"," ",(root/"transcript.txt").read_text(
             encoding="utf-8",errors="replace")[:5000]).strip()[:3000]
+        if language=="auto":
+            diagnostics=(result.stderr or b"")[:200000].decode("utf-8",errors="replace")
+            found=re.search(r"auto[- ]detected language:\s*([a-z]{2,3})",diagnostics,re.I)
+            return text,detected_speech_language(found.group(1) if found else None)
+        return text
 
 
 class SpeechPipeline:
@@ -163,10 +197,10 @@ class SpeechPipeline:
         if medium not in ("fm","dab","dvb_tv"):
             raise ValueError("Unsupported audio medium")
         self.medium=medium
-        self.lang=validate_language(source_language)
-        self.target=validate_language(target_language) if target_language else None
         self.profile=profile or detect_devices()
-        self.selection=choose_backend(self.profile,backend)
+        self.lang=source_language if source_language=="auto" else validate_language(source_language)
+        self.target=validate_language(target_language) if target_language else None
+        self.selection=select_speech_backend(self.profile,backend,self.lang)
         if not self.selection["ready"]:
             raise SpeechError(self.selection.get("reason") or "No configured local speech backend")
         self.backend=self.selection["selected"]
@@ -200,16 +234,27 @@ class SpeechPipeline:
             try:pcm,start,end=self.queue.get(timeout=0.3)
             except queue.Empty:continue
             try:
-                text=self.transcriber(pcm,self.lang,self.backend,self.profile)
+                result=self.transcriber(pcm,self.lang,self.backend,self.profile)
+                detected=self.lang
+                if self.lang=="auto":
+                    if not isinstance(result,tuple) or len(result)!=2:
+                        self.last_error="ASR detector did not report a language; caption skipped"
+                        continue
+                    text,detected=result
+                    detected=detected_speech_language(detected)
+                else:
+                    text=result
                 if not isinstance(text,str) or not text.strip():
                     continue
                 translated=None
-                if self.target:
-                    try:translated=self.translator(text,self.lang,self.target)
+                if self.target and detected!="und" and detected!=self.target:
+                    try:translated=self.translator(text,detected,self.target)
                     except (TranslatorUnavailable,ImportError,ValueError,RuntimeError) as exc:
                         self.last_error="Live translation unavailable: "+str(exc)[:200]
+                elif self.target and detected=="und":
+                    self.last_error="Speech language unverified; translation skipped"
                 self.store.add(session=self.session,medium=self.medium,source_id=self.source_id,
-                    language=self.lang,text=text,backend=self.backend,start=start,end=end,
+                    language=detected,text=text,backend=self.backend,start=start,end=end,
                     translated=translated,target=self.target if translated else None,
                     translation_engine="argos_"+self.translation_backend if translated else None)
                 self.completed+=1

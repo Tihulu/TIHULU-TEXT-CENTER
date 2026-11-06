@@ -4,6 +4,33 @@
 const state = { managedDabOwned:false, managedDabPollTimer:null, clientId:(window.crypto?.randomUUID?.()||("client-"+Date.now()+"-"+Math.random().toString(36).slice(2))), liveFrequency:null, fmRecording:false, tvRecording:false, lastDockMetaAt:0, tvActive:false, tvPollTimer:null, tvSession:null, liveActive:false, livePollTimer:null, liveSession:null, audioActive:false, audioPollTimer:null, csrf:"", page:100, subpage:0, source:"", entries:[], pages:[], receivers:null, rdsActive:false, rdsPollTimer:null, scanActive:false, scanPollTimer:null, selectedSurveyBand:"fm" , fmAutoTimer:null, dabAutoTimer:null};
 const $ = (id) => document.getElementById(id);
 
+async function globalHardStop(){
+  if(!window.confirm("HARD STOP: stop all receivers, scans, live TV/radio and saved-recording jobs OWNED BY THIS TEXT CENTER? External readsb, other Tihulu apps and separate browser tabs are NOT controlled."))return;
+  const control=$("global-hard-stop");
+  control.disabled=true;control.textContent="STOPPING…";
+  try{
+    const result=await api("/api/receiver/hard-stop","POST",{confirm:true});
+    for(const id of ["persistent-radio-player","persistent-tv-player"]){
+      const player=$(id);
+      if(player){player.pause();player.removeAttribute("src");player.dataset.session="";player.load();}
+    }
+    for(const key of ["livePollTimer","tvPollTimer","audioPollTimer","rdsPollTimer","scanPollTimer","fmAutoTimer","dabAutoTimer","managedDabPollTimer"]){
+      if(state[key])clearTimeout(state[key]);
+      state[key]=null;
+    }
+    state.liveActive=false;state.tvActive=false;state.audioActive=false;
+    state.rdsActive=false;state.scanActive=false;state.managedDabOwned=false;
+    state.fmRecording=false;state.tvRecording=false;
+    syncLiveMediaDock();
+    const pending=Object.entries(result.results||{}).filter(([,v])=>v.state!=="confirmed_stopped").map(([k,v])=>k+": "+v.state);
+    notice(result.all_confirmed
+      ? "HARD STOP confirmed: all Text Center-owned jobs are inactive. External applications and their devices are untouched."
+      : "HARD STOP requested; resources not yet confirmed released: "+pending.join("; ")+". Check receiver status. External apps were not touched.");
+    try{await refreshReceiverStatus()}catch(_){}
+  }catch(e){notice("HARD STOP failed: "+e.message+"; receiver release is NOT confirmed.");}
+  finally{control.disabled=false;control.textContent="■ HARD STOP";}
+}
+
 function el(tag, cls, text) {
   const node = document.createElement(tag);
   if (cls) node.className = cls;
@@ -1088,7 +1115,7 @@ function liveRadioCaptionPanel(captions,session,targetId="live-radio-captions"){
     const actions=el("div","card-actions");
     if(!item.translated_text){
       actions.append(button("TRANSLATE THIS CAPTION",async()=>{
-        const target=$(targetId==="live-tv-captions"?"live-tv-later-language":"live-later-language")?.value||"tr";
+        const target=$(targetId==="live-tv-captions"?"live-tv-later-language":"live-later-language")?.value||"en";
         try{
           const result=await api("/api/transcripts/translate","POST",{
             id:item.id,target_language:target,backend:"auto"});
@@ -1237,7 +1264,12 @@ async function addLiveTV(){
     const l=el("option","",name);l.value=value;lang.append(l);
     const t=el("option","",name);t.value=value;target.append(t);
   }
-  lang.value="de";target.value="tr";
+  lang.value="en";target.value="en";
+  const autoDetect=el("option","","Detect language (Whisper CPU/GPU)");
+  autoDetect.value="auto";
+  autoDetect.disabled=!(compute.speech.auto_detect_backends||[]).length;
+  if(autoDetect.disabled)autoDetect.textContent+=" · model unavailable";
+  lang.prepend(autoDetect);
   for(const key of ["auto","cpu","gpu","npu"]){
     const option=el("option","",key.toUpperCase()+" · "+
       compute.selection[key].detected_device+
@@ -1284,7 +1316,7 @@ async function addLiveTV(){
   for(const [code,name] of [["en","English"],["de","Deutsch"],["tr","Türkçe"]]){
     const option=el("option","",name);option.value=code;laterLang.append(option);
   }
-  laterLang.value="tr";later.append(laterLang);panel.append(later);
+  laterLang.value="en";later.append(laterLang);panel.append(later);
   const links=el("div","card-actions");links.id="live-tv-export";panel.append(links);
   panel.append(el("p","full-body",
     "TV and radio share the same transcript/translation archive. Actual "+
@@ -1379,7 +1411,12 @@ async function addLiveRadio(){
     const op=el("option","",label);op.value=value;source.append(op);
     const ot=el("option","",label);ot.value=value;target.append(ot);
   }
-  source.value="de";target.value="tr";
+  source.value="en";target.value="en";
+  const autoDetect=el("option","","Detect language (Whisper CPU/GPU)");
+  autoDetect.value="auto";
+  autoDetect.disabled=!(compute.speech.auto_detect_backends||[]).length;
+  if(autoDetect.disabled)autoDetect.textContent+=" · model unavailable";
+  source.prepend(autoDetect);
   for(const name of ["auto","cpu","gpu","npu"]){
     const status=compute.selection[name];
     const op=el("option","",name.toUpperCase()+" — "+status.detected_device+
@@ -1474,7 +1511,7 @@ async function addLiveRadio(){
   for(const [value,label] of [["en","English"],["de","Deutsch"],["tr","Türkçe"]]){
     const opt=el("option","",label);opt.value=value;laterLanguage.append(opt);
   }
-  laterLanguage.value="tr";later.append(laterLanguage);panel.append(later);
+  laterLanguage.value="en";later.append(laterLanguage);panel.append(later);
   const exportLinks=el("div","card-actions");exportLinks.id="live-export-links";
   panel.append(exportLinks);
   panel.append(el("p","full-body",
@@ -1961,7 +1998,12 @@ async function addOfflineRecordingControl(){
     const a=el("option","",k.toUpperCase()),b=el("option","",k.toUpperCase());
     a.value=k;b.value=k;language.append(a);target.append(b);
   }
-  language.value="de";target.value="tr";
+  language.value="en";target.value="en";
+  const autoDetect=el("option","","Detect language (Whisper CPU/GPU)");
+  autoDetect.value="auto";
+  autoDetect.disabled=!(hardware.speech.auto_detect_backends||[]).length;
+  if(autoDetect.disabled)autoDetect.textContent+=" · model unavailable";
+  language.prepend(autoDetect);
   for(const k of ["auto","cpu","gpu","npu"]){
     const v=hardware.selection[k];
     const o=el("option","",k.toUpperCase()+" · "+v.detected_device+
@@ -2174,6 +2216,7 @@ async function showTranslatorPage(){
     "Original language preserved · Local models only");
   const translation=await api("/api/translation/status");
   const compute=await api("/api/compute");
+  const detection=await api("/api/language-detection/status");
   const box=el("article","item-card");
   box.append(el("div","item-meta","OFFLINE / NO AUTOMATIC MODEL DOWNLOAD"));
   box.append(el("h3","","Translate between English, German and Turkish"));
@@ -2189,7 +2232,11 @@ async function showTranslatorPage(){
     const a=el("option","",title);a.value=code;source.append(a);
     const b=el("option","",title);b.value=code;target.append(b);
   });
-  source.value="de";target.value="tr";
+  source.value="en";target.value="en";
+  const autoDetect=el("option","","Detect language (local langdetect)");
+  autoDetect.value="auto";autoDetect.disabled=!detection.ready;
+  if(autoDetect.disabled)autoDetect.textContent+=" · not installed";
+  source.prepend(autoDetect);
   for(const [key,label,ready] of [
       ["auto","AUTO — verified GPU or CPU",true],
       ["cpu","CPU — offline Argos",translation.cpu_available],
@@ -2229,7 +2276,12 @@ async function showTranslatorPage(){
         source:source.value,target:target.value,
         backend:backend.value,text:original.value});
       output.textContent=response.translated;
-      notice("Translated locally; original text remains untouched.");
+      notice(response.status==="original_unchanged_same_language"
+        ? "Source and target are both "+(response.source||"en").toUpperCase()+
+          ". Original text is unchanged; no translation was performed."
+        : "Translated locally from "+(response.source||source.value).toUpperCase()+
+          (response.source_requested==="auto"?" (automatically detected)":"")+
+          "; original text remains untouched.");
     }catch(e){
       output.textContent="Translation unavailable: "+e.message;
       notice(e.message);
@@ -2653,6 +2705,7 @@ function showAbout(){
   notes.forEach(([t,d])=>$("content").append(card(t,d,"DESIGN RULE")));
 }
 function bindNavigation(){
+  $("global-hard-stop")?.addEventListener("click",()=>{void globalHardStop()});
   const recheck=$("receiver-recheck");
   if(recheck) recheck.addEventListener("click",async()=>{
     recheck.disabled=true;

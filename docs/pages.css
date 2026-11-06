@@ -80,3 +80,8 @@ footer{border-top:1px solid #2a4047;margin-top:38px;padding:25px 0;color:#78939c
 .feature .usb-check{display:flex;align-items:center;gap:10px;margin-top:18px}
 .feature .usb-check input{width:auto;display:inline;margin:0}
 @media(max-width:600px){.usb-controls{grid-template-columns:1fr}}
+
+.top{position:sticky;top:0;z-index:30;background:#0b1318}
+.pages-hard-stop{border:1px solid #c96363;border-radius:6px;padding:8px 11px;background:#512328;color:#fff1f1;font:700 10px var(--mono);letter-spacing:.5px}
+.pages-hard-stop:disabled{opacity:.5}
+@media(max-width:620px){.top{flex-wrap:wrap}.pages-hard-stop{margin-left:auto}}

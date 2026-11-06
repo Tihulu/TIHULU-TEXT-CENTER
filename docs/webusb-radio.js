@@ -181,12 +181,48 @@ async function receive(){
   try{await capture;}finally{capture=null;refreshUsb();}
 }
 usbEl("usb-start").addEventListener("click",()=>{void receive()});
-async function stop(){
+async function stop(hard=false){
   stopRequested=true;
-  if(capture){try{await capture;}catch(_){}}
-  else await releaseUsb();
+  if(hard && receiver){
+    // Try to break an in-flight WebUSB read immediately, rather than
+    // waiting for an unresponsive readSamples() promise.
+    const owned=receiver;
+    try{
+      await owned.close();
+      receiver=null;
+    }catch(error){
+      setUsb("HARD STOP could not close USB: "+error.message+"; release unconfirmed.");
+      throw error;
+    }
+    refreshUsb();
+  }
+  if(capture){
+    if(hard){
+      let settled=false;
+      await Promise.race([
+        capture.then(()=>{settled=true;}),
+        new Promise(resolve=>setTimeout(resolve,1800))
+      ]);
+      if(!settled)throw Error("Driver has not confirmed capture shutdown; USB release unconfirmed.");
+    }else{
+      try{await capture;}catch(_){}
+    }
+  }else if(!hard){
+    await releaseUsb();
+  }
 }
 usbEl("usb-stop").addEventListener("click",()=>{void stop()});
+usbEl("pages-hard-stop")?.addEventListener("click",async()=>{
+  // This can only release THIS TAB's WebUSB claim, never readsb or another origin.
+  const button=usbEl("pages-hard-stop");
+  button.disabled=true;
+  try{
+    await stop(true);
+    setUsb("HARD STOP requested for this Pages tab's own WebUSB receiver; other processes and tabs were not touched.");
+    setCapture("No browser-owned RF capture requested. If a driver failed to close, verify OS USB status.");
+  }catch(error){setUsb("HARD STOP could not confirm release: "+error.message);}
+  finally{button.disabled=false;}
+});
 navigator.usb?.addEventListener("disconnect",()=>{stopRequested=true;setUsb("USB disconnected; browser capture ending.");});
 window.addEventListener("pagehide",()=>{
   stopRequested=true;

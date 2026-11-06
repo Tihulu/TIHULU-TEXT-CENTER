@@ -18,7 +18,7 @@ import time
 import uuid
 
 from .compute import choose_backend,detect_devices,validate_language
-from .speech import transcribe_pcm,SpeechError,SAMPLE_RATE,WINDOW_BYTES,WINDOW_SECONDS
+from .speech import transcribe_pcm,SpeechError,SAMPLE_RATE,WINDOW_BYTES,WINDOW_SECONDS,select_speech_backend,detected_speech_language
 from .transcripts import TranscriptStore,translate_offline,TranslatorUnavailable
 
 MAX_OFFLINE_SECONDS=600
@@ -73,7 +73,7 @@ class RecordingTranscriber:
 
     def start(self,*,medium:str,filename:str,language:str,
               target_language:str|None=None,backend:str="auto"):
-        lang=validate_language(language)
+        lang=language if language=="auto" else validate_language(language)
         target=validate_language(target_language) if target_language else None
         if medium not in ("fm","dvb_tv"):
             raise ValueError("Only local FM/TV recordings are supported")
@@ -88,7 +88,7 @@ class RecordingTranscriber:
         if not ffmpeg:
             raise PostProcessError("ffmpeg is not installed")
         profile=self.detect()
-        selection=choose_backend(profile,backend)
+        selection=select_speech_backend(profile,backend,lang)
         if not selection["ready"]:
             raise PostProcessError(selection.get("reason") or "ASR model not ready")
         with self._lock:
@@ -130,17 +130,27 @@ class RecordingTranscriber:
                 duration=len(pcm)/(SAMPLE_RATE*2)
                 if duration<0.4:
                     break
-                text=self.transcriber(pcm,language,backend,profile)
+                result=self.transcriber(pcm,language,backend,profile)
+                detected=language
+                if language=="auto":
+                    if not isinstance(result,tuple) or len(result)!=2:
+                        raise SpeechError("ASR language detector returned no verifiable language result")
+                    text,detected=result
+                    detected=detected_speech_language(detected)
+                else:
+                    text=result
                 if isinstance(text,str) and text.strip():
                     translated=None
-                    if target:
-                        try: translated=self.translator(text,language,target)
+                    if target and detected!="und" and detected!=target:
+                        try: translated=self.translator(text,detected,target)
                         except (TranslatorUnavailable,ValueError,RuntimeError,ImportError) as exc:
                             with self._lock:self._state["error"]="Translation unavailable: "+str(exc)[:170]
+                    elif target and detected=="und":
+                        with self._lock:self._state["error"]="Undetected speech language; translation skipped"
                     self.transcripts.add(
                         session=session,medium=medium,
                         source_id="saved_recording:"+file.name,
-                        language=language,text=text,backend=backend,
+                        language=detected,text=text,backend=backend,
                         start=elapsed,end=min(self.max_seconds,elapsed+duration),
                         target=target if translated else None,
                         translated=translated)
