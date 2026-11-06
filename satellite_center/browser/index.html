@@ -16,6 +16,23 @@
 <a href="http://127.0.0.1:8791/" target="_blank" rel="noopener noreferrer">Local receiver &amp; decoder (optional)</a> · <a href="../../">Application center</a></div></header>
 <nav class="reception-nav wrap" aria-label="Satellite Center sections"><a href="./index.html" aria-current="page">Receiver &amp; planner</a><a href="./reception.html">Satellite Images &amp; Data</a><a href="./index.html#satellite-tracking-maps">Earth / Sky</a><a href="./index.html#iq-analysis">Signal analysis</a></nav>
 <main class="wrap">
+<section id="auto-workflow" class="notice" aria-label="Satellite automatic reception workflow">
+<h2>Satellite Auto-Capture &amp; Decode — three steps</h2>
+<p class="hint">One click predicts and arms real ISS/Meteor passes; later analyze actual recordings and open verified extraction results. Browser auto capture requires previously granted RTL-SDR access and a visible, awake tab. An optional native companion can record while the browser is closed.</p>
+<div class="line">
+<label>Auto-target group<select id="auto-mode">
+<option value="images">Weather Earth images + ISS SSTV (event-only)</option>
+<option value="messages">ISS APRS packet candidates</option>
+<option value="all">Images + messages (single receiver; no overlapping scans)</option>
+</select></label>
+<button id="auto-plan" type="button">1 · Auto Schedule &amp; Capture</button>
+<button id="auto-analyze" type="button" class="secondary">2 · Analyze Recordings</button>
+<button id="auto-results" type="button" class="secondary">3 · Extract Results</button>
+</div>
+<p id="auto-plan-status" class="status" role="status" aria-live="polite">No automatic passes armed. Nothing is scanning.</p>
+<p class="hint">Browser capture limits: 60 s / 128 MiB per pass, potentially insufficient for an entire Meteor LRPT Earth image. The native service can schedule longer recordings, but SatDump/APRS decoders must actually be installed. No device is claimed until authorized, and images/messages are never inferred from a TLE pass alone.</p>
+</section>
+
 <section class="notice" id="desktop-install"><strong>Show Satellite Center in Applications / Dock:</strong> in Chrome, Edge or Brave choose <em>Install this site as an app</em> from the browser menu or address bar, then pin it in your operating system's dock. The installed app uses the new radio V-dipole icon and opens its own window. <button id="install-app" hidden>Install web app</button>
 <p class="hint">Firefox on Linux does not natively install PWAs and cannot open RTL-SDR via WebUSB. The pass planner still works in Firefox. For real SDR reception with Firefox, start the optional local companion and open <a href="http://127.0.0.1:8791/" target="_blank" rel="noopener noreferrer">the local receiver page</a>. That requires installed helper software; a browser permission alone cannot replace WebUSB.</p></section>
 <section class="notice"><strong>Browser compatibility:</strong> Chromium (Chrome/Edge/Brave/Opera), HTTPS and a free RTL-SDR are required. Firefox and Safari do not support WebUSB. Windows can still require a WinUSB driver, and Linux may need USB access permissions / the DVB kernel driver released. No website can bypass OS permissions. <a href="https://github.com/jtarrio/webrtlsdr" rel="noopener noreferrer" target="_blank">Web RTL-SDR library</a></section>
