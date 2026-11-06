@@ -12,3 +12,20 @@
 
 
 .local-audio-player{display:block;width:100%;max-width:580px;margin:14px 0 8px}.local-audio-player[hidden]{display:none}.radio-media-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:13px;margin-top:14px}.radio-media-card{background:#0a161b;border:1px solid #29454a;border-radius:8px;padding:10px;overflow-wrap:anywhere}.radio-media-card strong{display:block;margin-top:8px;font-size:12px;color:var(--lime)}.radio-media-card p{margin-top:4px}.radio-image{display:block;width:100%;height:140px;object-fit:contain;background:#040809;border:1px solid #223c42;border-radius:4px}.radio-media-card p{font-size:11px}
+
+/* Accessible, genuinely interactive DAB raster candidate details.
+   These are measured RF peaks, never identified station rows. */
+.dab-block{border-bottom:1px solid #2b4144;padding:0 2px}
+.dab-block:last-child{border-bottom:0}
+.dab-block-title{cursor:pointer;list-style:revert;padding:13px 8px;color:var(--lime);font:700 12px/1.5 var(--code)}
+.dab-block-title:hover{background:#17292d}
+.dab-block[open]>.dab-block-title{background:#152528;border-bottom:1px solid #29464a}
+.dab-block-body{padding:10px 13px 16px}
+.dab-block-body .full-body{margin:9px 0}
+.dab-inspection{margin-top:10px}
+.dab-archive-item{padding:10px;margin:8px 0;border:1px solid #33535a;border-radius:6px;background:#0c1a1e}
+.dab-archive-item strong{color:var(--teal);font-size:12px}
+.scan-inline-details summary{cursor:pointer;color:var(--teal);font:700 11px var(--code)}
+.scan-inline-details[open]{flex-basis:100%}
+.scan-inline-details p{padding:8px}
+@media(max-width:660px){.dab-block-title{padding:12px 4px}.dab-block-body{padding:9px 6px}}
