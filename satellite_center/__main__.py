@@ -45,6 +45,14 @@ SOURCE_URLS = {
     "amateur": "https://celestrak.org/NORAD/elements/gp.php?GROUP=amateur&FORMAT=TLE",
     "iridium": "https://celestrak.org/NORAD/elements/gp.php?GROUP=iridium-NEXT&FORMAT=TLE",
 }
+AUTO_DOWNLINK_PROFILES = {
+    "iss-sstv": (25544, "iss_sstv", "iq"),
+    "iss-aprs": (25544, "iss_aprs_uhf", "aprs"),
+    "iss-voice": (25544, "iss_uhf", "iq"),
+    "meteor-m2-3": (57166, "meteor", "iq"),
+    "meteor-m2-4": (59051, "meteor", "iq"),
+}
+
 LOCATIONS = {
     "Cologne": (50.938, 6.960), "Berlin": (52.520, 13.405),
     "Hamburg": (53.551, 9.993), "Munich": (48.137, 11.576),
@@ -486,13 +494,7 @@ class Station:
         TLE passes are geometry, never proof of active transmitters. Mutating
         schedules is opt-in and uses the same persisted scheduler as manual jobs.
         """
-        candidates = {
-            "iss-sstv": (25544, "iss_sstv", "iq"),
-            "iss-aprs": (25544, "iss_aprs_uhf", "aprs"),
-            "iss-voice": (25544, "iss_voice", "sstv_audio"),
-            "meteor-m2-3": (57166, "meteor", "iq"),
-            "meteor-m2-4": (59051, "meteor", "iq"),
-        }
+        candidates = AUTO_DOWNLINK_PROFILES
         if not isinstance(mission_ids, list) or not mission_ids or len(mission_ids) > len(candidates):
             raise ValueError("Select one to five supported public downlink targets")
         if any(not isinstance(mid, str) or mid not in candidates for mid in mission_ids):
@@ -575,6 +577,61 @@ class Station:
                     [k+": "+str(v.get("error")) for k,v in refresh_report.items() if v.get("error")],
                 "note": "Only geometry and an opt-in future recording schedule. The local companion must remain running, the single receiver must be free, and the spacecraft must actually transmit. No message or image is yet decoded."}
 
+    def edit_auto_schedule(self, job_id, run_at, mission_id):
+        """Change an owned pending job inside its original geometric pass.
+
+        Changes never move a task to another spacecraft, claim USB, affect
+        manual schedules, or create an overlapping single-receiver conflict.
+        """
+        if not isinstance(job_id, str) or not re.fullmatch(r"[a-f0-9]{12}", job_id):
+            raise ValueError("Invalid auto schedule identifier")
+        if not isinstance(run_at, str) or len(run_at) > 60:
+            raise ValueError("Provide a local-time converted ISO UTC scheduled start")
+        try:
+            selected = datetime.fromisoformat(run_at)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("Invalid ISO scheduled start") from exc
+        if selected.tzinfo is None:
+            raise ValueError("Scheduled start requires explicit UTC offset")
+        selected = selected.astimezone(UTC)
+        if mission_id not in AUTO_DOWNLINK_PROFILES:
+            raise ValueError("Unsupported or unverified satellite protocol")
+        target_norad, target_profile, target_mode = AUTO_DOWNLINK_PROFILES[mission_id]
+        tools = {"iq": ["rtl_sdr"], "aprs": ["rtl_fm", "multimon-ng"]}[target_mode]
+        missing = [tool for tool in tools if not shutil.which(tool)]
+        if missing:
+            raise RuntimeError("Required receiver/decoder not installed: " + ", ".join(missing))
+        with self.lock:
+            job = next((j for j in self.jobs if j.get("id") == job_id
+                        and j.get("mission_id") and j.get("state") == "pending"), None)
+            if not job:
+                raise ValueError("Editable pending automatic task not found")
+            pass_norad = int(str(job["pass_id"]).split(":")[0])
+            if target_norad != pass_norad:
+                raise ValueError("Protocol belongs to another spacecraft; recalculate its pass first")
+            if not allowed_mode(target_profile, target_mode):
+                raise ValueError("Receiver does not support requested protocol")
+            aos = datetime.fromisoformat(job["aos"]).astimezone(UTC)
+            los = datetime.fromisoformat(job["los"]).astimezone(UTC)
+            if not (max(aos, now()+timedelta(seconds=20)) <= selected <= los-timedelta(seconds=12)):
+                raise ValueError("Start must remain inside the future predicted pass with time left to record")
+            for other in self.jobs:
+                if other is job or other.get("state") not in ("pending", "running"):
+                    continue
+                try:
+                    start = datetime.fromisoformat(other.get("run_at") or other["aos"]).astimezone(UTC)
+                    end = datetime.fromisoformat(other["los"]).astimezone(UTC)
+                except (KeyError, TypeError, ValueError):
+                    continue
+                if selected < end+timedelta(seconds=20) and los > start-timedelta(seconds=20):
+                    raise ValueError("An existing job needs the same receiver during this pass")
+            job.update(run_at=stamp(selected), mission_id=mission_id,
+                       profile=target_profile, mode=target_mode,
+                       edited_at=stamp(), result=None)
+            self.save_jobs()
+            self.wake.set()
+            return dict(job)
+
     def cancel_auto_missions(self):
         """Cancel only this app's explicitly auto-armed pending/running jobs."""
         with self.lock:
@@ -620,9 +677,9 @@ class Station:
                 pending = [j for j in self.jobs if j["state"] == "pending"]
                 if not pending:
                     return
-                pending.sort(key=lambda j: j["aos"])
+                pending.sort(key=lambda j: j.get("run_at") or j["aos"])
                 nearest = pending[0]
-                delay = (datetime.fromisoformat(nearest["aos"])-now()).total_seconds()-10
+                delay = (datetime.fromisoformat(nearest.get("run_at") or nearest["aos"])-now()).total_seconds()-10
             if delay > 0:
                 self.wake.wait(min(delay, 60))
                 self.wake.clear()
@@ -1150,6 +1207,9 @@ class Handler(BaseHTTPRequestHandler):
                     lat=data.get("lat"), lon=data.get("lon"),
                     hours=data.get("hours", 24), elevation=data.get("elevation", 20),
                     max_jobs=data.get("max_jobs", 6))
+            elif route == "/api/auto-edit":
+                result = app.edit_auto_schedule(data.get("job_id"), data.get("run_at"),
+                                                data.get("mission_id"))
             elif route == "/api/auto-cancel":
                 result = app.cancel_auto_missions()
             elif route == "/api/cancel":
