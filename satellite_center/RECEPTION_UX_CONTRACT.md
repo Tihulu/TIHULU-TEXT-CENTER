@@ -18,6 +18,16 @@ captures alive after the tab closes or run native SatDump.
    geometric passes. No SDR is grabbed while waiting; one receiver = one job at
    a time. Native companion persists tasks while its service runs. Browser
    schedules require a visible, awake Chromium WebUSB tab and permission.
+   The **full coverage** goal plans the predicted pass window and disk budget
+   for the approved image/audio/text format; local native captures can run up
+   to 900 seconds/2 GB per raw IQ file with a 200 MB free-disk reserve.
+   A 10-minute raw IQ recording at 1.024 MS/s needs about 1.23 GB.
+   Quick-sample mode is explicitly capped at 60 seconds. Browser-only
+   WebUSB is limited to 60 seconds / 128 MiB, and does not assert a complete
+   Meteor LRPT image. When multiple requested formats are eligible, native
+   planning prefers a feasible complete visible-window attempt over a partial
+   image; image-only requests never silently change media category.
+   All estimates refer to received time windows, not every spacecraft dataset.
 3. **Calendar**: editable local-date day picker, actual 00:00–23:00 time slots,
    state/target/format labels, per-job cancellation. For a pending native task,
    edit local start time and target's **known protocol** only inside the original

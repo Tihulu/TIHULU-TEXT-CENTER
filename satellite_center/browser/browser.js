@@ -1089,7 +1089,7 @@ window.addEventListener('appinstalled',()=>{
   log('Satellite Center added to your browser applications. Pin it to the OS dock from Applications.');
 });
 
-async function runAutoMission({mode=$('auto-mode').value,fromNavigation=false}={}) {
+async function runAutoMission({mode=$('auto-mode').value,goal=$('auto-coverage').value,fromNavigation=false}={}) {
   const button=$('auto-plan'),statusBox=$('auto-plan-status');
   if(button.disabled)return;
   button.disabled=true;
@@ -1109,7 +1109,7 @@ async function runAutoMission({mode=$('auto-mode').value,fromNavigation=false}={
     if(!tleEntries.length)await refreshOrbitalCatalog();
     if(!tleEntries.length)throw Error('Could not load TLEs. Import a TLE text file, then retry.');
     if(!passes.length)await calculateOrbitalPasses();
-    const proposal=selectAutomaticPasses(passes,{mode,now:Date.now(),maxJobs:6,existingJobs:jobs});
+    const proposal=selectAutomaticPasses(passes,{mode,goal,now:Date.now(),maxJobs:6,existingJobs:jobs});
     let armed=0;
     for(const item of proposal.scheduled) {
       const job=createScheduledPass(item.pass,{
@@ -1118,14 +1118,19 @@ async function runAutoMission({mode=$('auto-mode').value,fromNavigation=false}={
       });
       if(jobs.some(j=>j.id===job.id&&['armed','starting','running'].includes(j.state)))continue;
       job.missionId=item.missionId;
-      job.message='Auto-armed for one short real WebUSB CU8 recording; no RF signal confirmed.';
+      job.coverage=item.coverage;
+      job.dataKind=item.dataKind;
+      job.estimatedBytes=item.estimatedBytes;
+      job.shortfallSeconds=item.shortfallSeconds;
+      job.message='Plan: '+item.durationSeconds+' s · ~'+Math.round(item.estimatedBytes/1e6)+
+        ' MB · '+item.dataKind+' · '+item.coverage+'; '+item.limitation;
       jobs.push(job);armed++;
     }
     jobs.sort((a,b)=>a.when-b.when);
     renderJobs();
     statusBox.textContent=armed?
-      'Armed '+armed+' non-overlapping candidate pass(es). USB released while waiting. Keep this browser tab OPEN, VISIBLE and AWAKE; grant permissions before every browser-origin change. '+proposal.skipped.length+' conflicts/short windows skipped. Each I/Q record is at most 60 s / 128 MiB, not a guaranteed Earth image.':
-      'No new eligible non-overlapping passes in this window. '+proposal.skipped.map(x=>x.reason).slice(0,2).join(' · ');
+      'Armed '+armed+' non-overlapping RF candidate pass(es). USB is released while waiting. Browser clips max out at 60 s / 128 MiB; Meteor full imagery requires a native disk capture. '+proposal.skipped.length+' skipped; '+proposal.skipped.map(x=>x.reason).slice(0,2).join(' · ')+' Keep this tab VISIBLE and AWAKE.':
+      'No feasible passes for this data goal. '+proposal.skipped.map(x=>x.reason).slice(0,3).join(' · ')+' You can choose Quick RF sample or use the optional local receiver for full-pass imaging.';
     log('Automatic mission plan: '+armed+' RF recording jobs armed, '+proposal.skipped.length+' skipped; no device is currently in use.');
     if(armed)document.getElementById('schedule-center')?.scrollIntoView({behavior:'smooth',block:'nearest'});
   }catch(error){
@@ -1167,6 +1172,13 @@ $('auto-results').addEventListener('click',()=>{
     $('auto-plan-status').textContent='Exported discovery evidence JSON. Below you can save individually validated Robot36 PNGs and audio candidate WAVs; no unsupported APRS/LRPT messages are invented.';
   }else $('auto-plan-status').textContent='No completed discovery results yet. Use Analyze Recordings after an actual RF capture.';
 });
+// Carry the operator's coverage preference from Images & Data without URL
+// coordinates or background USB permission prompts.
+try {
+  const goal=sessionStorage.getItem('tihulu-auto-coverage-goal');
+  sessionStorage.removeItem('tihulu-auto-coverage-goal');
+  if(['full','sample'].includes(goal))$('auto-coverage').value=goal;
+} catch(_error) { /* Storage unavailable: keep safe full-data default. */ }
 const requestedAutoMission=new URLSearchParams(location.search).get('auto-mission');
 if(['images','messages','voice','all'].includes(requestedAutoMission)){
   $('auto-mode').value=requestedAutoMission;

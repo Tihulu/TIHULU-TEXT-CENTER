@@ -32,6 +32,10 @@
 <option value="voice">ISS FM voice / audio (station mode dependent)</option>
 <option value="all">Images + text + voice (one receiver, no overlaps)</option>
 </select></label>
+<label>Recording goal<select id="auto-coverage-goal">
+<option value="full" selected>Capture as much of each visible pass as possible · prefer complete results</option>
+<option value="sample">Quick 60-second RF evidence samples · may omit images</option>
+</select></label>
 <label>Next passes<select id="auto-hours"><option value="12">12 h</option><option value="24" selected>24 h</option><option value="48">48 h</option></select></label>
 <label>Minimum elevation<select id="auto-elev"><option value="5">5°</option><option value="15">15°</option><option value="20" selected>20°</option><option value="30">30°</option></select></label>
 </div>
@@ -64,6 +68,7 @@
 <button type="button" id="auto-mission-stop" class="secondary">Cancel Auto Missions</button>
 </div>
 <p id="auto-mission-status" class="status" role="status" aria-live="polite">No pass scheduled; no recording selected or analyzed.</p>
+<p id="auto-budget-status" class="hint" role="status">Full capture estimate: 1.024 MS/s I/Q ≈ 2.048 MB per second; 10 minutes ≈ 1.23 GB. Native records up to 900 s / 2 GB on disk if enough storage; browser-only clips are capped at 60 s / 128 MiB. A full visibility window does not guarantee all satellite data or successful decoding.</p>
 <div id="auto-mission-jobs" class="mission-job-list" aria-live="polite"></div>
 <section id="auto-calendar" class="sat-calendar-panel" aria-labelledby="auto-calendar-title">
 <h3 id="auto-calendar-title">Reception calendar · hour by hour</h3>

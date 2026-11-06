@@ -208,6 +208,7 @@ export function initAutoReceptionUI({getSelectedFile=()=>null,fileInput=$("local
           sessionStorage.setItem("tihulu-auto-start-intent",JSON.stringify({
             mode,createdAt:Date.now()
           }));
+          sessionStorage.setItem("tihulu-auto-coverage-goal",$("auto-coverage-goal").value);
         }catch(error){
           throw Error("Browser blocked same-tab station transfer. Open the receiver page and set your coordinates there before scheduling.");
         }
@@ -217,19 +218,24 @@ export function initAutoReceptionUI({getSelectedFile=()=>null,fileInput=$("local
       message("Requesting fresh-or-cached TLE geometry and checking native decoder availability…");
       const result=await nativeApi("/api/auto-schedule",{
         missions:[...AUTO_PRESETS[mode]],lat,lon,city:"Custom",hours,
-        elevation,max_jobs:6
+        elevation,max_jobs:6,coverage_goal:$("auto-coverage-goal").value
       });
       jobs.replaceChildren();
       textNode("h3","Native receiver queue",jobs);
       if(!result.scheduled_count)textNode("p","No eligible non-overlapping satellite passes in the selected window. Check TLE cache, transmitter status and minimum elevation.",jobs);
       for(const job of result.scheduled){
-        const item=textNode("p",job.satellite+" · "+job.profile+"/"+job.mode+" · "+
-          new Date(job.aos).toLocaleString()+" · ARMED (not received)",jobs,"mission-job");
+        const size=job.estimated_bytes?
+          " · ~"+(job.estimated_bytes/1e9).toFixed(2)+" GB of raw IQ":" · packet/text output";
+        textNode("p",job.satellite+" · "+job.data_kind+" · "+
+          new Date(job.aos).toLocaleString()+" · planned "+job.capture_seconds+
+          " s"+size+" · "+job.coverage+
+          (job.shortfall_seconds?" · "+job.shortfall_seconds+" s outside planned capture":"")+
+          " · ARMED (not received)",jobs,"mission-job");
       }
       await refreshNativeCalendar();
       if(result.skipped?.length)textNode("p",result.skipped.length+
         " pass(es) skipped due to conflict, unsupported mode or timing.",jobs);
-      message(result.scheduled_count+" unattended native capture(s) queued. The companion must remain RUNNING and the single RTL-SDR free. A predicted pass does not guarantee a transmission. "+
+      message(result.scheduled_count+" native duration-aware capture(s) queued. Disk estimates and incomplete passes are listed above. The companion must remain RUNNING and the single RTL-SDR free. A predicted pass does not guarantee complete data, a transmission or a decoded image. "+
         (result.warnings?.length?"Warnings: "+result.warnings.slice(0,2).join("; "):""));
     }catch(e){message("Auto schedule not armed: "+String(e?.message||e));}
     finally{btn.disabled=false;}
