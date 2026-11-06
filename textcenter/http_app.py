@@ -328,7 +328,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         route = urlsplit(self.path).path
-        allowed = {"/api/feeds/add", "/api/feeds/refresh", "/api/bulletins", "/api/bookmarks", "/api/rds/start", "/api/rds/stop", "/api/fm-survey/start", "/api/fm-survey/stop", "/api/scans/start", "/api/scans/stop", "/api/audio/start", "/api/audio/stop", "/api/dab/refresh", "/api/live/radio/start", "/api/live/radio/stop", "/api/transcripts/translate", "/api/auto/fm/start", "/api/auto/fm/stop", "/api/auto/dab/start", "/api/auto/dab/stop"}
+        allowed = {"/api/feeds/add", "/api/feeds/refresh", "/api/bulletins", "/api/bookmarks", "/api/rds/start", "/api/rds/stop", "/api/fm-survey/start", "/api/fm-survey/stop", "/api/scans/start", "/api/scans/stop", "/api/audio/start", "/api/audio/stop", "/api/dab/refresh", "/api/live/radio/start", "/api/live/radio/stop", "/api/transcripts/translate", "/api/auto/fm/start", "/api/auto/fm/stop", "/api/auto/dab/start", "/api/auto/dab/stop", "/api/auto/dab/tune"}
         if route not in allowed:
             return self._json(404, {"error": "Not found"})
         if self.headers.get("X-Tihulu-CSRF") != self.server.csrf_token:
@@ -373,6 +373,11 @@ class Handler(BaseHTTPRequestHandler):
                     candidates=hints))
             if route == "/api/auto/dab/stop":
                 return self._json(200,self.server.dab_auto.stop())
+            if route == "/api/auto/dab/tune":
+                if self.server.fm_auto.status(heartbeat=False)["active"]:
+                    raise AutoScanError("FM auto scan is using the receiver")
+                return self._json(200,self.server.dab_auto.tune(
+                    payload.get("channel"),consent=payload.get("consent")))
             if route in ("/api/scans/start", "/api/fm-survey/start",
                          "/api/audio/start", "/api/rds/start",
                          "/api/live/radio/start"):
