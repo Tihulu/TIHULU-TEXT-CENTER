@@ -12,6 +12,62 @@ A lightweight, offline-first, English-language information and text-network cent
 - FM RDS/RadioText+ is an opt-in real rtl_fm/redsea decoder session; a separate optional read-only welle-cli bridge can import DAB+ DLS and MOT images. Journaline, off-air DVB Teletext, HF weather text and APRS still require dedicated decoder integrations.
 - No transmitter, DVB tuner control, automatic background polling, AI runner or live emergency-warning receiver. **FM RDS requires an explicit, bounded capture and installed rtl_fm/redsea**.
 
+## One-command local install and safe updates (Python 3.11+)
+
+A user-local installer is provided at the repository root. From an existing
+checkout, run \`bash install.sh\` to create
+\`~/.local/bin/tihulu-text-center\` and
+\`~/.local/bin/tihulu-text-center-update\`. The installer requires Git,
+Python 3.11+, and Bash; does **not** require sudo, create services, tune an
+antenna, download AI models, or overwrite your SQLite media archive. It
+only checks that optional RTL-SDR, welle-cli and ffmpeg utilities exist.
+Those real receiver executables must be installed separately when used.
+
+For a new **feature-branch test checkout**, run this single command (if
+the repository is private, Git may require your existing GitHub credentials):
+
+\`\`\`bash
+bash -c 'set -e; p="$HOME/TIHULU-TEXT-CENTER-media-fix"; if [ -e "$p/.git" ]; then bash "$p/install.sh" --update; else git clone --branch fix/live-fm-audio-dab-mot-one-line-install-2026-11-06 https://github.com/Tihulu/TIHULU-TEXT-CENTER.git "$p"; bash "$p/install.sh"; fi'
+\`\`\`
+
+Launch the standalone loopback server without touching other checkouts:
+
+\`\`\`bash
+"$HOME/.local/bin/tihulu-text-center" serve --port 8791
+\`\`\`
+
+After review/merge, the same installer will track **the selected local
+branch** on user-requested update only:
+
+\`\`\`bash
+"$HOME/.local/bin/tihulu-text-center-update"
+\`\`\`
+
+The updater insists on a clean checkout and a fast-forward. It **never**
+resets, force-pushes, switches branches, merges another agent's work, or
+removes local recordings. Restart the Python server and hard-refresh the
+browser after an update; a running process is not hot-reloaded. Use the
+latest integrated main checkout once the draft PR is reviewed and merged.
+
+### Receiver/audio/subtitle and DAB MOT behavior
+
+- Missing Whisper/speech/translation models no longer abort an otherwise
+  available **continuous FM audio** stream. UI reports *audio only*
+  without inventing original or translated captions. Installing a real
+  local model is a separate opted-in process.
+- The **DAB MOT Slideshow** on Radio Data (400) and Live Radio (410)
+  rotates locally archived genuine JPEG/PNG slides on an explicit click.
+  **SYNC CURRENT DAB MOT** reads an already-running welle-cli receiver
+  on localhost:7979; it does not start or retune a tuner.
+- One RTL-SDR cannot receive FM and a different DAB block simultaneously:
+  stop FM, launch welle-cli and tune a genuine DAB ensemble before requesting
+  fresh MOT slides. If a station sends no slideshow, show the unavailable
+  state (not a stock image). Previously archived MOT may be viewed offline.
+- DAB images are limited to bounded decoder-provided image bytes with
+  actual source, timestamp and frequency. All standard Band III block
+  centres may be attributed, but the frequency roster itself does not
+  establish reception or a lock.
+
 ## Run
 
 Requires Python **3.11+**, no third-party Python packages:
