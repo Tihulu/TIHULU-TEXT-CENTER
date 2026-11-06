@@ -112,6 +112,35 @@ async function scan(){
   },2600);
  }catch(error){scanning=false;toggle();say("TV scan was not started: "+String(error.message||error))}
 }
+async function readRadioMetadata(){
+ const field=$("radio-bridge-token")?.value?.trim()||$("tv-bridge-token")?.value?.trim()||"";
+ const output=$("radio-rds-results"),info=$("radio-rds-status");
+ if(field.length<20||field.length>200){if(info)info.textContent="Start the optional local bridge and enter its session token here. RDS/DAB data are read from an already-running local Text Center on port 8787.";return}
+ token=field;
+ try{
+  const response=await rpc("/api/radio/decoded");
+  if(output)output.replaceChildren();
+  const records=Array.isArray(response.events)?response.events.slice(0,60):[];
+  if(info)info.textContent=(response.available?"LOCAL TEXT CENTER CONNECTED · ":"LOCAL TEXT CENTER UNAVAILABLE · ")+
+    records.length+" stored, broadcaster-supplied FM RDS / DAB metadata record(s). "+
+    String(response.message||"")+" No receiver position implied.";
+  for(const item of records.slice(0,40)){
+   const row=document.createElement("div");row.className="simple-channel";
+   const label=document.createElement("strong");
+   label.textContent=String(item.station||item.title||"Broadcast metadata").slice(0,140)+
+     (Number.isFinite(item.frequencyMHz)?" · "+item.frequencyMHz.toFixed(3)+" MHz":"");
+   const detail=document.createElement("small");
+   detail.textContent=String(item.title||"")+" · "+String(item.body||"").slice(0,220)+
+     " · "+String(item.observedAt||"TIME UNKNOWN")+
+     " · BROADCASTER-SUPPLIED / UNAUTHENTICATED / NOT POSITION";
+   row.append(label,detail);if(output)output.append(row);
+  }
+  window.dispatchEvent(new CustomEvent("tihulu:radio-metadata",{detail:{events:records,source:"LOCAL TEXT CENTER / EXISTING FM RDS & DAB RECEIVER"}}));
+ }catch(error){
+  if(info)info.textContent="Radio metadata bridge unavailable: "+String(error.message||error)+
+    ". No WebUSB claim was attempted. Run local Text Center capture separately after releasing the RTL-SDR from this tab.";
+ }
+}
 async function stop(){
  if(!connected)return;
  try{
@@ -126,6 +155,7 @@ export function initDVBBridge(){
  $("tv-start-scan").addEventListener("click",()=>{void scan()});
  $("tv-stop-scan").addEventListener("click",()=>{void stop()});
  $("tv-show-map").addEventListener("click",()=>window.dispatchEvent(new Event("tihulu:show-tv-on-map")));
+ $("radio-read-rds")?.addEventListener("click",()=>{void readRadioMetadata()});
  // Token intentionally remains in page memory only. No localStorage, cookies,
  // cross-tab messages, background scanning or automatic credential submission.
  window.addEventListener("pagehide",()=>{if(refreshHandle)clearInterval(refreshHandle)});
