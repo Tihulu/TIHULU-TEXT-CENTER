@@ -131,6 +131,8 @@
         <button type="button" id="live-dock-stop-tv" hidden>STOP TV</button>
       </div>
     </div>
+    <div class="live-dock-controls"><button type="button" id="live-dock-mute">MUTE</button><label for="live-dock-volume">VOLUME</label><input type="range" id="live-dock-volume" min="0" max="100" value="80" aria-label="Radio and TV player volume"><span id="live-dock-recording">RECORD OFF</span></div>
+    <p id="live-dock-station-meta" class="live-dock-metadata">No current live station metadata. Previously received RDS is labelled historical.</p>
     <audio id="persistent-radio-player" controls preload="none" aria-label="Continuous local FM radio" hidden></audio>
     <div id="live-dock-radio-captions" class="live-dock-caption" hidden aria-live="polite"></div>
     <div id="persistent-tv-frame" class="live-video-frame" hidden>
