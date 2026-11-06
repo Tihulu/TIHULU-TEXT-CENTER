@@ -291,7 +291,7 @@ export function initAutoReceptionUI({getSelectedFile=()=>null,fileInput=$("local
     return {sampleRate:Number(sampleRate),centerHz};
   }
   async function analyzeCu8(blob,name){
-    if(blob.size>1024*1024*1024)throw Error("Recording exceeds the 1 GiB per-file safety cap.");
+    if(blob.size>2_000_000_000)throw Error("Recording exceeds the 2 GB supported IQ safety cap. Keep raw IQ separate and use offline SatDump for larger files.");
     const {sampleRate,centerHz}=currentMetadata(name);
     message("Scanning the REAL "+(blob.size/1048576).toFixed(1)+" MiB CU8: FFT → audio → Robot36 sync → packet decoder availability…");
     const result=await discoverCu8Contents(blob,{

@@ -477,7 +477,25 @@ async function startCapture(job=null,prepared=null) {
       }
       log('Session '+session+' captured '+bytesReceived+' real raw USB bytes; receiver released.');
     }catch(e){
-      if(prepared?.writable)await abortLongCapture(prepared);
+      // A deliberate Stop should preserve already received real RF bytes.
+      // Unexpected driver/disk errors abort the uncommitted stream instead.
+      if(prepared?.writable){
+        if(stopRequested&&bytesRecorded>0){
+          try{
+            await prepared.writable.close();
+            prepared.writable=null;
+            log("Stopped early: saved partial real IQ ("+(bytesRecorded/1e6).toFixed(1)+
+              " MB) to "+prepared.name+". The recording is incomplete.");
+            status('sample-state',"Stopped early, but saved "+
+              (bytesRecorded/1e6).toFixed(1)+" MB of partial CU8 data to "+prepared.name+
+              ". Analyze only as partial RF evidence.");
+            if(job){job.fileName=prepared.name;job.downloadAvailable=false;}
+          }catch(saveError){
+            log("Partial disk capture could not be finalized: "+saveError.message);
+            await abortLongCapture(prepared);
+          }
+        }else await abortLongCapture(prepared);
+      }
       log('Capture error: '+e.message);
       status('sample-state','Capture stopped/failed: '+e.message+'. No satellite decoding is claimed.');
       if(job){job.state=stopRequested?'stopped':'blocked';job.message=String(e.message);job.report=null;
