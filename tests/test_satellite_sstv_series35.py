@@ -60,7 +60,7 @@ class Robot36Series35Test(unittest.TestCase):
             self.assertEqual(result["status"], "robot36_sync_candidates_decoded")
             self.assertGreaterEqual(len(result["images"]), 1)
             self.assertFalse(result["images"][0]["satellite_identity_verified"])
-            self.assertTrue((Path(directory)/result["images"][0]["file"]).read_bytes().startswith(b"\\x89PNG"))
+            self.assertTrue((Path(directory)/result["images"][0]["file"]).read_bytes().startswith(b"\x89PNG"))
 
     def test_invalid_wav_rejected_without_fabrication(self):
         with tempfile.TemporaryDirectory() as directory:
