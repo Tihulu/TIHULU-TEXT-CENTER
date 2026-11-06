@@ -37,6 +37,32 @@ automatically. Data: [GeoNames-derived DE/TR directory](https://github.com/Tihul
 under ODbL 1.0, and [Open-Meteo](https://open-meteo.com/en/docs/geocoding-api)
 for optional worldwide lookup.
 
+
+## Satellite overlay maps and CU8 analysis (browser-only v13)
+
+From the Earth map use **Orbit tracks → All tracked satellites** to see
+each loaded satellite's predicted ±45-minute ground path. Switch
+**Coverage circles → Selected satellite** to view the approximate
+minimum-elevation region, or choose All / Off. Use **Show all satellites**
+to fit the orbit catalog or **Focus selected satellite** to zoom to
+its ground subpoint. A satellite can appear on a global map while below
+the observer's horizon, and none of these traces implies reception.
+
+The new **6 · CU8 I/Q analysis** section performs local-only complex
+FFT (2048 points), sampled waterfall, relative digital-level time
+history and file statistics. It can automatically inspect the latest
+browser raw capture or import a prior `.cu8` from your computer and
+export the report as JSON, all without local software or uploading
+IQ data. To avoid large RAM usage it reads up to 32 scattered 4096-byte
+blocks rather than the entire file. Raw CU8 does not embed rate or
+center-frequency metadata. The user must confirm them unless they are
+available from the TIHULU filename format.
+
+This is an uncalibrated RF sample-level analysis, not Meteor LRPT image
+decoding, SSTV/APRS packet decoding, Iridium private communications or
+evidence that any named satellite was received. An external decoder
+remains necessary for those separately supported protocols.
+
 ## Updated Earth map, sorting and scheduled RF analysis (browser-only)
 
 - If the OSM street tiles remain blank in Brave/Chromium, select
