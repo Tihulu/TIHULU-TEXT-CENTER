@@ -5,10 +5,24 @@ from pathlib import Path
 import unittest
 from unittest.mock import patch
 from satellite_center.__main__ import (Station, allowed_mode, parse_power,
-                                       parse_tle, PROFILES)
+                                       parse_tle, PROFILES, topocentric_elevation_deg)
 
 
 class SatelliteTests(unittest.TestCase):
+    def test_altaz_ordering_is_elevation_not_azimuth(self):
+        class Angle:
+            def __init__(self, degrees):
+                self.degrees = degrees
+        class Position:
+            def altaz(self):
+                return (Angle(42.7), Angle(268.4), object())
+        self.assertEqual(topocentric_elevation_deg(Position()), 42.7)
+        class InvalidPosition:
+            def altaz(self):
+                return (Angle(268.4), Angle(42.7), object())
+        with self.assertRaisesRegex(ValueError, 'Invalid topocentric elevation'):
+            topocentric_elevation_deg(InvalidPosition())
+
     def test_allowed_modes_and_iridium_privacy(self):
         self.assertTrue(allowed_mode('meteor', 'iq'))
         self.assertTrue(allowed_mode('meteor_backup', 'iq'))
