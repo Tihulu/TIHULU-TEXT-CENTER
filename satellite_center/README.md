@@ -1,10 +1,11 @@
-# TIHULU Satellite Center — standalone companion v0.2
+# TIHULU Satellite Center — standalone companion v0.2.3
 
 > **v0.2 cross-platform / GitHub Pages bridge:** This module now also has a
 > static Pages client with local pairing, portable Windows/macOS/Raspberry Pi
 > runtime, and one-line installers. Read [WEB_AND_INSTALL.md](WEB_AND_INSTALL.md).
-> This draft PR is **not yet published on Pages**; Windows/macOS/Raspberry Pi
-> hardware reception remains unverified.
+> The static UI is staged on the same repository's dedicated **gh-pages** branch;
+> a live website still depends on GitHub Pages deployment settings. Windows,
+> macOS and Raspberry Pi hardware reception remains unverified.
 
 
 This is the **new `satellite_center/` directory** intended to be placed at the root of `Tihulu/TIHULU-TEXT-CENTER`. It does **not** alter Text Center routes, UI, recordings or the Survival Kit. Integration can be decided later.
@@ -17,6 +18,30 @@ This is the **new `satellite_center/` directory** intended to be placed at the r
 - Safe fixed-band `rtl_power` RF surveys, `rtl_sdr` IQ recordings (`.cu8`), optional `rtl_fm`/`multimon-ng` ISS APRS text, and ISS SSTV WAV that can be decoded by an external tool such as QSSTV. Meteor-M IQ can be processed by installed SatDump with the selected LRPT pipeline; it reports the **actual** output files only. Iridium mode is **spectrum-only** and does **not** decode private satellite communications.
 - No RF transmission, no fabricated satellite detections or images, no all-band hidden background scans, no auto-deletion of raw recordings. Limits: 1 GiB per IQ file; max scheduled capture 480 sec; max manual capture 240 sec; 24 pending passes.
 - Uses Text Center's **cooperative RTL-SDR lock** at `~/.local/share/tihulu-text-center/.receiver-locks/rtl_fm_rds.lock`, plus existing `/proc` receiver-conflict checks. Third-party apps which ignore locks can still interfere; never run welle.io/readsb concurrently with the single RTL-SDR. A dedicated second receiver is preferable for simultaneous operation.
+
+## One-line GitHub install or update
+
+**Linux / Pop!_OS / Ubuntu / Debian / Raspberry Pi OS / macOS Apple Silicon**
+(Requires Git, Python 3.11+ and venv; additional SDR binaries as needed):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Tihulu/TIHULU-TEXT-CENTER/feature/satellite-center-standalone-2026-11-06/satellite_center/install/install.sh | bash
+```
+
+**Windows x64 PowerShell** (Python 3.11+; RTL-SDR drivers/tools separately):
+
+```powershell
+irm https://raw.githubusercontent.com/Tihulu/TIHULU-TEXT-CENTER/feature/satellite-center-standalone-2026-11-06/satellite_center/install/install.ps1 | iex
+```
+
+The local dashboard is `http://127.0.0.1:8791/`. The hosted view is
+`https://tihulu.github.io/TIHULU-TEXT-CENTER/satellite_center/`.
+Copy the **local** 64-character pairing token into the hosted view;
+never use your RTL-SDR USB serial or GitHub credentials. A physical USB dongle,
+its antenna and installed RTL-SDR command-line tools are still needed for
+real reception. See the
+[main repository's setup guide](../docs/SATELLITE_CENTER_COMPANION.md) or
+the feature-specific [WEB_AND_INSTALL.md](WEB_AND_INSTALL.md).
 
 ## Install / run (Pop!_OS / Ubuntu / Debian)
 
