@@ -44,7 +44,7 @@ class FMSurveyTests(unittest.TestCase):
             build_survey_command("/usr/bin/rtl_power","ssh")
         # A fake low-frequency peak is still RF energy, not NAVTEX text.
         data=parse_power_csv(
-            "2026-11-06, 01:00:00, 490000, 510000, 2000, 1, -40, -42, -43, -44, -45, -46, -47, -48, -49, -50\\n",
+            "2026-11-06, 01:00:00, 490000, 510000, 2000, 1, -40, -42, -43, -44, -45, -46, -47, -48, -49, -50\n",
             band="navtex")
         self.assertEqual(data["sweeps"],1)
         self.assertNotIn("station",data["candidates"][0] if data["candidates"] else {})
