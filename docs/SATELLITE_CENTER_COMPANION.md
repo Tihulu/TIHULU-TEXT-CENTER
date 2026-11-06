@@ -38,6 +38,31 @@ under ODbL 1.0, and [Open-Meteo](https://open-meteo.com/en/docs/geocoding-api)
 for optional worldwide lookup.
 
 
+## Continuous live satellite animation (browser v14)
+
+Press **Now / live** in the Earth/Sky tracking view to propagate the
+loaded satellite TLE orbital geometry against the real wall clock once
+per second. Both OpenStreetMap ground markers and the local world/sky
+plots update while the tab is visible. Orbital tracks spanning ±45 minutes
+are recalculated about every 15 seconds, but the satellite markers and
+coverage positions move each second. This animation uses cached TLEs,
+does not poll CelesTrak every second, and does **not** access WebUSB
+or capture RF.
+
+**Pause** freezes the displayed time. Dragging the time slider shows
+a frozen predicted snapshot at the selected relative time. Press
+**Now / live** again to return immediately to actual time and resume.
+**Follow selected satellite while LIVE** optionally pans the map to
+the chosen spacecraft; it is off by default. When the browser tab
+is hidden, live drawing stops; when the tab becomes visible again,
+the display jumps to the current wall clock (no replay/backlog).
+Closing the page clears the clock timer. TLE positions, tracks,
+and coverage remain predicted geometry rather than observed RF signals.
+
+Regression tests for this mode and incremental Leaflet map updates
+are in `tests/test_satellite_live_clock.mjs`; changes are developed
+in [PR #9](https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/9).
+
 ## Satellite overlay maps and CU8 analysis (browser-only v13)
 
 From the Earth map use **Orbit tracks → All tracked satellites** to see
