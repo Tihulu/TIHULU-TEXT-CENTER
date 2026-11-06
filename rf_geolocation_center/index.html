@@ -46,7 +46,7 @@
     <section class="live-explorer" aria-label="Live GNSS geolocation explorer">
       <div class="live-head">
         <div><div class="eyebrow">LIVE EXPLORER · EARTH + SKY</div><h2>Find your position and see the satellites</h2><p>Automatic navigation-satellite predictions. One button for real device positioning. Orbit positions and RF receptions are different measurements.</p></div>
-        <div class="live-controls"><button id="live-find" class="primary" type="button">◎ Find My Location</button><button id="live-connect" class="secondary" type="button">⌁ Connect USB SDR</button><button id="live-usb-check" class="secondary" type="button">USB Self-Test</button><button id="live-scan" class="secondary" type="button">Scan GNSS L1 · 2 s</button><button id="live-release" class="secondary" type="button">Release USB</button><button id="live-rings" class="secondary" type="button">◎ Location Layers &amp; Rings</button><button id="live-refresh" class="secondary" type="button">↻ Refresh Satellites</button></div>
+        <div class="live-controls"><button id="live-find" class="primary" type="button">◎ Find My Location</button><button id="live-connect" class="secondary" type="button">⌁ Connect USB SDR</button><button id="live-usb-check" class="secondary" type="button">USB Self-Test</button><button id="live-scan" class="secondary" type="button">Scan GNSS L1 · 2 s</button><button id="live-release" class="secondary" type="button">Release USB</button><button id="live-rings" class="secondary" type="button">◎ Location Layers &amp; Rings</button><button id="live-rf-only" class="secondary" type="button">⌁ Antenna-only RF positioning</button><button id="live-refresh" class="secondary" type="button">↻ Refresh Satellites</button></div>
       </div>
       <div class="live-stats">
         <div><span>POSITION SOURCE</span><strong id="live-pos-type">REFERENCE ONLY</strong><small id="live-pos-label">Cologne fallback · permission not requested</small></div>
@@ -169,6 +169,7 @@
     <article class="panel rf-survey-panel">
       <h2>RF-only positioning session</h2>
       <label class="rf-check"><input id="rf-only" type="checkbox"> RF-ONLY — never use OS location for this session</label>
+      <div id="rf-source-provenance" class="rf-measurement-status" role="status">RECEIVER: Nooelec RTL2832U (WebUSB, when connected). RF sample power originates in antenna hardware; transmitter identity and position originate from user-entered external references. An RSSI model is not a measured range.</div>
       <div id="rf-session-status" class="rf-session-status" role="status">RF-only mode is OFF. Browser/device location sources remain separate.</div>
       <div class="rf-entry-grid">
         <div class="field"><label for="rf-name">Transmitter / source ID</label><input id="rf-name" value="" placeholder="Known transmitter name (user supplied)" maxlength="100"></div>
