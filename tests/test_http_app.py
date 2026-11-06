@@ -166,7 +166,9 @@ class HTTPTests(unittest.TestCase):
         _,_,bootstrap=self.request("GET","/api/bootstrap")
         csrf=json.loads(bootstrap)["csrf"]
         self.assertEqual(self.request("POST","/api/auto/fm/start",
-            {"mode":"invalid"},csrf)[0],400)
+            {"mode":"quick","consent":False},csrf)[0],409)
+        self.assertEqual(self.request("POST","/api/auto/fm/start",
+            {"mode":"invalid","consent":True},csrf)[0],400)
         self.assertEqual(self.request("POST","/api/auto/dab/start",
             {"mode":"full","consent":False},csrf)[0],400)
         self.assertEqual(self.request("POST","/api/auto/dab/start",
