@@ -19,6 +19,7 @@ from .live_fm import LiveFM,LiveError
 from .live_tv import LiveTV,LiveTVError
 from .transcripts import TranscriptStore,TranslatorUnavailable,installed_translation_pairs
 from .compute import detect_devices,choose_backend
+from .speech import SpeechError
 from .capabilities import capability_catalog
 from .fm_survey import FMSurveySupervisor, SurveyError
 from .scan_catalog import scan_capabilities
@@ -79,8 +80,14 @@ class Handler(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
 
     def log_message(self, format, *args):
-        # Local diagnostic only; do not log bulletin contents or feed payloads.
-        super().log_message(format, *args)
+        # Never log bearer token embedded in a video/audio stream URL.
+        # Avoid contents of private text, feed payloads and recordings.
+        fields=list(args)
+        if fields and isinstance(fields[0],str) and "/api/live/" in fields[0]:
+            requestline=fields[0]
+            if "?" in requestline:
+                fields[0]=requestline.split("?",1)[0]+"?parameters-redacted HTTP/1.1"
+        super().log_message(format,*fields)
 
     def _send(self, status: int, body: bytes, content_type: str, *, cache: str = "no-store"):
         self.send_response(status)
@@ -94,7 +101,7 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("X-Frame-Options", "DENY")
         self.send_header("Content-Security-Policy",
                          "default-src 'none'; script-src 'self'; style-src 'self'; "
-                         "img-src 'self' data:; connect-src 'self'; form-action 'self'; "
+                         "img-src 'self' data:; media-src 'self'; connect-src 'self'; form-action 'self'; "
                          "base-uri 'none'; frame-ancestors 'none'")
         self.end_headers()
         self.wfile.write(body)
@@ -466,7 +473,7 @@ class Handler(BaseHTTPRequestHandler):
             if route == "/api/bookmarks":
                 self.server.store.add_bookmark(payload.get("label"),payload.get("target_type"),payload.get("target"))
                 return self._json(201, {"saved": True})
-        except (CaptureError, SurveyError, AudioError, DABError, LiveError, LiveTVError, TranslatorUnavailable) as exc:
+        except (CaptureError, SurveyError, AudioError, DABError, LiveError, LiveTVError, SpeechError, TranslatorUnavailable) as exc:
             self._json(409, {"error": str(exc)})
         except KeyError as exc:
             self._json(404, {"error": str(exc)})

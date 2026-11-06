@@ -220,6 +220,14 @@ class HTTPTests(unittest.TestCase):
             {"channel_id":"none","upstream_authorized":False},csrf)[0],409)
         self.assertEqual(self.request("POST","/api/live/tv/stop",{},csrf)[0],200)
 
+    def test_local_media_permissions_allow_video_audio_but_not_cross_origin(self):
+        code, headers, body=self.request("GET","/")
+        self.assertEqual(code,200)
+        policy=dict(headers).get("Content-Security-Policy","")
+        self.assertIn("media-src 'self'",policy)
+        self.assertIn("connect-src 'self'",policy)
+        self.assertIn("default-src 'none'",policy)
+
     def test_no_forged_source(self):
         code,_,raw=self.request("GET","/api/page?source_id=ard_text&number=100")
         self.assertEqual(code,404)

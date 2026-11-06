@@ -14,6 +14,7 @@ from .conflicts import find_receiver_conflicts
 RTL2832U_ID = ("0bda", "2838")
 DECODER_BINARIES = (
     "rtl_test", "rtl_fm", "rtl_power", "redsea", "welle-cli", "rtl_433",
+    "ffmpeg", "whisper-cli", "nvidia-smi",
     "dvbv5-scan", "dvbv5-zap", "direwolf", "multimon-ng", "fldigi", "dream",
 )
 
