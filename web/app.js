@@ -1915,6 +1915,8 @@ async function addWelleDabBridge(){
         include_images:img.checked
       });
       showDabServices(result);
+      const details=$("dab-service-details");
+      if(details)details.open=true;
       if(state.channelHubRefresh)await state.channelHubRefresh();
       await refreshCounts();
       const slideshow=$("dab-mot-slideshow");
@@ -1933,13 +1935,16 @@ async function addWelleDabBridge(){
   external.title="Opens existing local welle-cli web interface; requires running welle-cli";
   row.append(refresh,external);
   panel.append(row);
+  const details=el("details","advanced-section");details.id="dab-service-details";
+  details.append(el("summary","","Decoder service details · DLS, MOT, technical diagnostics"));
   const results=el("div","scan-summary");results.id="dab-service-results";
-  panel.append(results);
+  details.append(results);
+  details.append(el("p","full-body",
+    "Journaline, TPEG and other advanced services require separate decoders. "+
+    "Only actual received broadcast MOT images are shown."));
+  panel.append(details);
   $("content").append(panel);
   showDabServices(last);
-  panel.append(el("p","full-body",
-    "Journaline interactive menus, TPEG and other advanced services still require "+
-    "their own decoders and licensing. A DAB image is NOT automatically an Internet cover image."));
 }
 async function addRadioImageGallery(){
   const images=await api("/api/media");
