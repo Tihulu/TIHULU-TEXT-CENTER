@@ -318,6 +318,13 @@ function renderScanMapPanel(matches){
  panel.replaceChildren();
  const counts={fm:matches.filter(x=>x.kind==="fm").length,tv:matches.filter(x=>x.kind==="tv").length,rds:matches.filter(x=>x.kind==="rds").length};
  const channels=(state.dvbChannels||[]).length;
+ const hypothesisCount=state.rfRanges.filter(r=>r.type==="station"&&Number.isFinite(r.rangeMeters)).length;
+ setText("rf-blind-status",state.rfSolution?
+   "RF-ONLY · EXPERIMENTAL RSSI MODEL: "+state.rfSolution.lat.toFixed(5)+", "+state.rfSolution.lon.toFixed(5)+
+   " derived from "+hypothesisCount+" user-calibrated source-range HYPOTHESES, not verified geolocation.":
+   "RF-ONLY · NO FIX: "+hypothesisCount+" current calibrated RF range hypotheses. "+
+   "Blind radio positioning needs at least 3 independent identified fixed transmitters with known coordinates and validated ranging/bearing/timing constraints. "+
+   "Catalog towers, FM power peaks, TV services or ADS-B aircraft positions alone cannot determine the receiver location.");
  setText("map-scan-status",counts.fm+" FM energy overlap · "+counts.rds+" decoded local FM RDS overlaps · "+counts.tv+
    " TV frequency-overlap candidates · "+channels+" native/imported DVB services · "+
    state.catalogAntennaAircraft.length+" real antenna ADS-B aircraft · "+state.catalogAircraft.length+
