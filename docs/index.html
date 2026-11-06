@@ -19,9 +19,9 @@
       <p class="eyebrow">INFORMATION NETWORK</p>
       <nav aria-label="Web sections">
         <button class="nav active" data-view="home"><b>⌂</b> Overview <small>100</small></button>
-        <button class="nav" data-view="radio"><b>◉</b> Live radio <small>410</small></button>
+        <button class="nav" data-view="radio"><b>◉</b> Radio Center <small>410</small></button>
         <button class="nav" data-view="usb"><b>⌁</b> Direct USB <small>415</small></button>
-        <button class="nav" data-view="tv"><b>▣</b> Live TV <small>420</small></button>
+        <button class="nav" data-view="tv"><b>▣</b> TV Center <small>420</small></button>
         <button class="nav" data-view="translate"><b>文</b> Translation <small>450</small></button>
         <button class="nav" data-view="radar"><b>✈</b> Flight Radar <small>880</small></button>
         <button class="nav" data-view="notes"><b>▤</b> Offline notes <small>600</small></button>
@@ -55,9 +55,9 @@
             <div class="hero-symbol">T <span>/</span> C</div>
           </div>
           <div class="cards">
-            <article><small>P410 / RF</small><h3>Live Radio</h3><p>Real SDR audio, optional recording, RadioText, DLS and MOT slideshow.</p><button data-view="radio">OPEN RADIO</button></article>
+            <article><small>P410 / RF</small><h3>Radio Center</h3><p>Full-band FM/DAB scan, verified editable station library and built-in radio selection in optional local app.</p><button data-view="radio">OPEN RADIO</button></article>
             <article><small>P415 / ZERO INSTALL</small><h3>Direct browser USB</h3><p>Experimental FM mono, optional audio recording and raw IQ capture — no companion installation.</p><button data-view="usb">CONNECT USB</button></article>
-            <article><small>P420 / DVB</small><h3>Live TV</h3><p>Authorized local TV stream, captions and original/translated recording archive.</p><button data-view="tv">OPEN TV</button></article>
+            <article><small>P420 / DVB</small><h3>TV Center</h3><p>Regional DVB scan and editable channels with separately authorized TV playback relay in the local app.</p><button data-view="tv">OPEN TV</button></article>
             <article><small>P450 / AI</small><h3>Translator</h3><p>English, German, Turkish plus explicitly installed extra Argos language packs.</p><button data-view="translate">OPEN TRANSLATOR</button></article>
             <article><small>P880 / ADS-B</small><h3>Flight Radar</h3><p>Original full tar1090 viewer plus optional antenna / Internet / hybrid filters.</p><button data-view="radar">OPEN FLIGHT RADAR</button></article>
             <article><small>P600 / OFFLINE</small><h3>Browser notebook</h3><p>Local browser-only notes available offline, distinct from received RF text.</p><button data-view="notes">OPEN NOTES</button></article>
@@ -95,7 +95,7 @@
         <section id="view-radio" class="view" hidden>
           <article class="feature"><small>ANTENNA / RECEIVER REQUIRED</small><h2>Live radio and DAB+</h2>
             <p>Use your connected RTL-SDR or an already-running welle-cli service from the local application. Radio streaming and optional MP3 recording are independent from optional speech models. Real RDS, DLS and MOT only appear if transmitted and decoded.</p>
-            <div class="actions"><button data-view="usb" type="button" class="primary">TRY WEBUSB FM</button><a class="primary" href="http://127.0.0.1:8787/#page=410" target="_blank" rel="noopener">OPEN RADIO PLAYER</a><a href="http://127.0.0.1:8787/#page=400" target="_blank" rel="noopener">AUTOMATIC FM/DAB SCANS</a></div></article>
+            <div class="actions"><button data-view="usb" type="button" class="primary">TRY WEBUSB FM</button><a class="primary" href="http://127.0.0.1:8787/#page=410" target="_blank" rel="noopener">OPEN RADIO CENTER & FULL SCAN</a><a href="http://127.0.0.1:8787/#page=400" target="_blank" rel="noopener">ADVANCED RF TOOLS</a></div></article>
         </section>
         <section id="view-tv" class="view" hidden>
           <article class="feature"><small>TRUSTED LOCAL MPEG-TS SOURCE</small><h2>TV, recording and subtitles</h2>

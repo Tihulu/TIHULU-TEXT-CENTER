@@ -169,6 +169,31 @@ class AutoScanTests(unittest.TestCase):
         self.assertEqual(receiver["channel"],"5C")
         self.assertTrue(tuned["retuned_by_explicit_user"])
 
+    def test_tune_same_verified_dab_block_does_not_reboot_decoder(self):
+        from textcenter.core import Store
+        from textcenter.channel_catalog import ChannelCatalog
+        with tempfile.TemporaryDirectory() as td:
+            real_store=Store(Path(td)/"db.sqlite")
+            catalog=ChannelCatalog(real_store)
+            catalog.save_dab(channel="11D",frequency_hz=222_064_000,
+                service_id="0x1234",name="WDR 5",ensemble="WDR NRW",
+                audio_advertised=True)
+            reader=type("Reader",(),{"store":real_store})()
+            posted=[]
+            def fetch(path,limit):
+                if path=="/channel":return b"11D"
+                if path=="/mux.json":
+                    return json.dumps({"receiver":{"software":{"name":"welle-cli"}},
+                        "ensemble":{"label":"WDR NRW"},"services":[
+                            {"sid":"0x1234","label":"WDR 5",
+                             "url_mp3":"/mp3/0x1234"}]}).encode()
+                raise AssertionError(path)
+            scanner=DABAutoScanner(reader,fetcher=fetch,poster=posted.append)
+            result=scanner.tune("11D",consent=True)
+            self.assertFalse(result["retuned_by_explicit_user"])
+            self.assertEqual(posted,[],"Same ensemble must not be reset")
+            self.assertIn("Already on",result["note"])
+
     def test_dab_requires_real_welle_identity_and_hints(self):
         def fake_fetch(path,limit):
             if path=="/channel":return b"11D"

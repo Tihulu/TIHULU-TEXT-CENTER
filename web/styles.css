@@ -78,3 +78,57 @@
 .hard-stop:hover,.pages-hard-stop:hover{background:#813037}
 .hard-stop:disabled,.pages-hard-stop:disabled{opacity:.55;cursor:wait}
 @media(max-width:660px){.top-actions{gap:6px}.hard-stop{padding:7px 8px;font-size:10px}.topbar .top-left{display:none}}
+
+/* Radio / TV Center: an accessible Scan → Choose → Play / Edit hierarchy.
+   Legacy protocol tools remain available inside an Advanced details section. */
+.hero-shortcuts{display:flex;flex-wrap:wrap;gap:9px;margin-top:20px}
+.hero-shortcuts button{border:1px solid #45645b;background:#1a3533;color:#c6e88a;padding:10px 13px;font:700 10px var(--code);border-radius:6px}
+.hero-shortcuts button:hover{border-color:var(--lime);background:#23423c}
+.channel-center{border-color:#46675a;background:#14241f}
+.channel-center>h3{font-size:22px;margin:6px 0 10px}
+.channel-hub-toolbar{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-top:18px}
+.channel-hub-toolbar input[type=search]{flex:1 1 220px;min-width:160px;max-width:500px;border:1px solid #54716a;background:#0d1b1d;color:var(--white);padding:11px;border-radius:7px}
+.channel-hub-toolbar select{padding:11px;background:#0d1b1d;border:1px solid #54716a;color:var(--white);border-radius:7px;min-width:100px}
+.channel-filter-check{display:inline-flex;align-items:center;gap:6px;color:#c0d3cf;font-size:11px;white-space:normal;cursor:pointer}
+.channel-filter-check input{accent-color:var(--lime)}
+.channel-hub-list{display:grid;gap:8px;margin-top:14px;max-height:750px;overflow:auto;scrollbar-gutter:stable}
+.channel-row{border:1px solid #30483f;background:#0e1b1e;border-radius:8px;padding:12px 14px;display:flex;gap:16px;align-items:center;justify-content:space-between;min-width:0}
+.channel-row:hover{border-color:#508070}
+.channel-main{display:grid;gap:5px;min-width:0;flex:1}
+.channel-main strong{font-size:15px;color:#e2eddc;overflow-wrap:anywhere}
+.channel-main small{font:10px/1.5 var(--code);color:#8fb4af;overflow-wrap:anywhere}
+.channel-main .channel-subtext{font-size:11px;color:#a3bbbb;white-space:normal}
+.channel-actions{display:flex;align-items:center;justify-content:flex-end;gap:7px;flex-wrap:wrap;max-width:320px}
+.channel-actions .action{padding:9px 12px}
+.channel-star{border:1px solid #47625d;background:#1c302d;color:#d7e9a9;border-radius:6px;padding:8px 10px;font-size:21px;line-height:1}
+.channel-edit{position:relative;font-size:12px;color:#b9d8d1}
+.channel-edit>summary{list-style:none;cursor:pointer;padding:9px 12px;border:1px solid #47625d;border-radius:6px}
+.channel-edit>summary::-webkit-details-marker{display:none}
+.channel-edit[open]>summary{background:#193934}
+.channel-edit-fields{margin-top:9px;display:grid;gap:7px;min-width:190px}
+.channel-edit-fields input:not([type=checkbox]){min-width:130px;width:100%;border:1px solid #42605a;background:#0a171b;color:var(--white);padding:8px;border-radius:5px}
+.channel-edit-fields .action{white-space:normal;text-align:center}
+.advanced-section{border:1px solid #334c53;border-radius:9px;background:#0e171e;padding:12px;margin:14px 0;grid-column:1/-1}
+.advanced-section>summary{cursor:pointer;color:var(--teal);font:700 12px var(--code);padding:8px}
+.advanced-section>.item-card,.advanced-section>.notice-card{margin-top:12px}
+.dvb-scan-controls{display:grid;gap:13px;grid-template-columns:repeat(2,minmax(0,1fr));margin-top:16px}
+.dvb-scan-controls select{width:100%;border:1px solid #415f61;background:#0f1b20;color:var(--white);border-radius:6px;padding:10px}
+.dvb-scan-controls .scan-consent,.dvb-scan-controls .card-actions{grid-column:1/-1}
+#dvb-scan-progress{font:11px/1.7 var(--code);color:#d0e5c5;margin-top:14px}
+#dab-service-results{display:grid;gap:4px;max-height:490px;overflow-y:auto;border:1px solid #2e4b4b;border-radius:7px;padding:10px;margin-top:12px}
+#dab-service-results>.rds-row{padding:12px 8px;border-bottom:1px solid #2e4844;display:grid;gap:6px}
+#dab-service-results>.rds-row strong{font-size:14px;color:var(--lime)}
+#dab-service-results .card-actions{margin-top:4px}
+#dab-service-results .rds-row p{margin:0}
+#dab-service-results>.rds-row:last-child{border-bottom:0}
+#automatic-channel-scanners{scroll-margin-top:90px}
+#dvb-full-scan{scroll-margin-top:90px}
+@media(max-width:780px){
+  .channel-row{align-items:flex-start;flex-direction:column}
+  .channel-actions{max-width:none;width:100%;justify-content:flex-start}
+  .channel-edit-fields{min-width:150px}
+  .channel-hub-toolbar{align-items:stretch}
+  .dvb-scan-controls{grid-template-columns:1fr}
+  .dvb-scan-controls .scan-consent,.dvb-scan-controls .card-actions{grid-column:1}
+}
+@media(prefers-reduced-motion:reduce){.hero-shortcuts button,.channel-row{transition:none}}

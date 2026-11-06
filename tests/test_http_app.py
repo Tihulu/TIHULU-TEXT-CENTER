@@ -93,6 +93,42 @@ class HTTPTests(unittest.TestCase):
         self.assertIs(type(data["ready"]),bool)
         self.assertEqual(data["supported"],["en","de","tr"])
 
+    def test_unified_channels_and_tuner_scans_fail_closed(self):
+        code,_,raw=self.request("GET","/api/channel-center")
+        self.assertEqual(code,200)
+        channels=json.loads(raw)
+        self.assertIn("channels",channels)
+        self.assertEqual(channels["source"],"verified RF and operator configured only")
+        status,_,raw=self.request("GET","/api/dvb/scan/status")
+        self.assertEqual(status,200)
+        info=json.loads(raw)
+        self.assertIn("capability",info)
+        self.assertFalse(info["scan"]["active"])
+        self.assertEqual(self.request("POST","/api/channel-center/update",
+            {"id":"fm:98600000","favorite":True})[0],403)
+        self.assertEqual(self.request("GET","/api/dab/audio/0x1234?token=wrong")[0],403)
+        _,_,raw=self.request("GET","/api/bootstrap")
+        csrf=json.loads(raw)["csrf"]
+        self.assertEqual(self.request("POST","/api/channel-center/update",
+            {"id":"fm:98600000","favorite":True},csrf)[0],404)
+        self.assertEqual(self.request("POST","/api/dvb/scan/start",
+            {"plan":"de-NRW","adapter":0,"frontend":0,"consent":False},csrf)[0],409)
+        self.assertEqual(self.request("POST","/api/dab/select",
+            {"channel":"11D","service_id":"0x1234","consent":False},csrf)[0],409)
+        self.assertEqual(self.request("POST","/api/dvb/scan/stop",{},csrf)[0],200)
+
+    def test_navigation_separates_radio_tv_and_advanced_rf(self):
+        code,_,page=self.request("GET","/")
+        self.assertEqual(code,200)
+        self.assertIn(b"Radio Center",page)
+        self.assertIn(b"TV Center",page)
+        self.assertIn(b"Advanced RF",page)
+        code,_,script=self.request("GET","/assets/app.js")
+        self.assertEqual(code,200)
+        self.assertIn(b"function addChannelCenter",script)
+        self.assertIn(b"function addDvbFullScan",script)
+        self.assertIn(b"PLAY THIS DAB STATION",script)
+
     def test_ui_and_local_navigation(self):
         code,headers,data=self.request("GET","/")
         self.assertEqual(code,200)

@@ -15,6 +15,7 @@ import urllib.request
 
 from .core import Store, clean_text, utc_now
 from .media import MediaStore,MAX_IMAGE
+from .channel_catalog import ChannelCatalog
 
 # Verified channel presets used by this initial bridge; other channels can be
 # viewed, but are NOT archived with a fabricated receive frequency.
@@ -85,6 +86,37 @@ def _real_timestamp(epoch):
         return None
 
 
+def dab_audio_url(service_id:str,*,fetcher=None)->str:
+    """Return a fixed-loopback MP3 endpoint for a *currently decoded* audio service."""
+    if not _safe_sid(service_id):
+        raise DABError("Invalid DAB service identifier")
+    get=fetcher or _local_get
+    channel=get("/channel",64).decode("ascii",errors="ignore").strip().upper()
+    mux=parse_mux(get("/mux.json",MUX_LIMIT),channel)
+    if channel not in DAB_HZ:
+        raise DABError("DAB receiver has no identified tuned block")
+    if not any(s["sid"].lower()==service_id.lower() and s["audio_advertised"]
+               for s in mux["services"]):
+        raise DABError("Selected DAB service is not currently decoded as playable audio")
+    return BASE+"/mp3/"+service_id.lower()
+
+
+def open_dab_audio(service_id:str,*,fetcher=None,opener=None):
+    """No redirects, no user-supplied URL, no proxy or background RF retune."""
+    url=dab_audio_url(service_id,fetcher=fetcher)
+    open_fn=opener or urllib.request.build_opener(
+        urllib.request.ProxyHandler({}),_NoRedirect()).open
+    try:
+        response=open_fn(urllib.request.Request(
+            url,method="GET",headers={"Accept":"audio/mpeg"}),timeout=5)
+        if response.status!=200:
+            response.close()
+            raise DABError("DAB MP3 service stream is not available")
+        return response
+    except (OSError,ValueError) as exc:
+        raise DABError("Current welle-cli DAB audio stream is unavailable") from exc
+
+
 def parse_mux(payload:bytes,channel:str)->dict:
     if len(payload)>MUX_LIMIT:
         raise DABError("DAB service JSON too large")
@@ -131,6 +163,7 @@ class DABReader:
     def __init__(self,store:Store,*,fetcher=None):
         self.store=store
         self.media=MediaStore(store)
+        self.catalog=ChannelCatalog(store)
         self.fetcher=fetcher or _local_get
 
     def refresh(self,*,include_images:bool=True)->dict:
@@ -144,6 +177,16 @@ class DABReader:
         mux=parse_mux(self.fetcher("/mux.json",MUX_LIMIT),channel)
         imported,saved,missing,failed,skipped=0,0,0,0,0
         freq=mux["frequency_hz"]
+        if freq and mux["ensemble"]:
+            for station in mux["services"][:48]:
+                try:
+                    self.catalog.save_dab(channel=channel,frequency_hz=freq,
+                        service_id=station["sid"],name=station["name"],
+                        ensemble=mux["ensemble"],
+                        audio_advertised=station["audio_advertised"],
+                        last_text=station["dls"])
+                except (ValueError,OSError):
+                    pass
         for service in mux["services"][:48]:
             service["mot_image_status"]="not_broadcast"
             service["mot_media_id"]=None

@@ -38,11 +38,11 @@ def fm_tuning_candidates(peaks: list[dict], maximum: int = 16) -> list[float]:
     check both neighboring 100-kHz grid points. Strict bounds, dedup and
     per-request cap keep the operation finite and cancellable.
     """
-    if not 1 <= maximum <= 80:
+    if not 1 <= maximum <= 128:
         raise ValueError("FM scan trial limit out of range")
     chosen: list[float] = []
     seen: set[int] = set()
-    for peak in peaks[:80]:
+    for peak in peaks[:128]:
         if not isinstance(peak, dict):
             continue
         hz=peak.get("frequency_hz")
@@ -174,7 +174,7 @@ class FMAutoScanner(_WorkerState):
     def start(self,mode="quick",*,consent=False):
         if consent is not True:
             raise AutoScanError("Explicit FM tuner consent required")
-        if mode not in ("quick","extended"):
+        if mode not in ("quick","extended","full"):
             raise ValueError("Choose quick or extended FM scan")
         with self._mutex:
             if self._state["active"]:
@@ -211,7 +211,7 @@ class FMAutoScanner(_WorkerState):
             # Expanded candidate list comes from the same genuine rtl_power
             # sweep. Never invent absent RDS names or use an Internet directory.
             peaks=status.get("fm_auto_candidates") or status["candidates"]
-            candidates=fm_tuning_candidates(peaks,16 if mode=="quick" else 48)
+            candidates=fm_tuning_candidates(peaks,16 if mode=="quick" else 48 if mode=="extended" else 128)
             self._update(phase="rds_verification",total=len(candidates),
                          note=f"{len(candidates)} FM tuning trials selected from real RF measurements")
             for index, mhz in enumerate(candidates):
@@ -316,16 +316,23 @@ class DABAutoScanner(_WorkerState):
         with self._mutex:
             if self._state["active"]:
                 raise AutoScanError("Cannot tune while DAB auto scanning is running")
-            if not any(row["channel"]==channel for row in self._state["results"]):
-                raise AutoScanError("Only a block actually decoded by this scan can be tuned")
+            seen=any(row["channel"]==channel for row in self._state["results"])
+            saved=bool(self.catalog and any(r["channel"]==channel
+                for r in self.catalog.list(medium="dab")))
+            if not seen and not saved:
+                raise AutoScanError("Only a previously FIC-decoded block may be tuned")
         current=self.fetcher("/channel",64).decode("ascii","replace").strip().upper()
         parse_mux(self.fetcher("/mux.json",MUX_LIMIT),current)
-        self.poster(channel)
+        # The common "11D -> WDR 5" use case is already tuned. POSTing
+        # /channel unnecessarily resets the live ensemble and interrupts audio.
+        retuned=current!=channel
+        if retuned:self.poster(channel)
         return {
             "channel":channel,"frequency_hz":DAB_HZ[channel],
-            "receiver":"already_running_welle_cli","retuned_by_explicit_user":True,
+            "receiver":"already_running_welle_cli","retuned_by_explicit_user":retuned,
             "player_url":"http://127.0.0.1:7979/",
-            "note":"Allow DAB lock, then select Play in welle-cli for the chosen service"
+            "note":("DAB channel change requested; wait for a verified decoder lock"
+                    if retuned else "Already on this verified block; existing decoder playback preserved")
         }
 
     def _worker(self,channels,dwell):

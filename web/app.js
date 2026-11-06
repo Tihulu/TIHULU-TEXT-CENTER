@@ -18,7 +18,7 @@ async function globalHardStop(){
       if(state[key])clearTimeout(state[key]);
       state[key]=null;
     }
-    state.liveActive=false;state.tvActive=false;state.audioActive=false;
+    state.liveActive=false;state.tvActive=false;state.dabPlaying=false;state.audioActive=false;
     state.rdsActive=false;state.scanActive=false;state.managedDabOwned=false;
     state.fmRecording=false;state.tvRecording=false;
     syncLiveMediaDock();
@@ -217,6 +217,11 @@ async function refreshSourceChoices(){
   select.value=sources.some(([id])=>id===selected)?selected:"";
 }
 async function openPage(number,source,subpage){
+  state.channelHubRefresh=null;
+  if(state.page===420 && Number(number)!==420){
+    if(state.dvbScanTimer){clearTimeout(state.dvbScanTimer);state.dvbScanTimer=null;}
+    api("/api/dvb/scan/stop","POST",{}).catch(()=>{});
+  }
   if(state.page===400 && Number(number)!==400 && state.audioActive){
     state.audioActive=false;
     if(state.audioPollTimer){clearTimeout(state.audioPollTimer);state.audioPollTimer=null;}
@@ -227,12 +232,12 @@ async function openPage(number,source,subpage){
     if(state.scanPollTimer){clearTimeout(state.scanPollTimer);state.scanPollTimer=null;}
     api("/api/scans/stop","POST",{}).catch(error=>notice("Survey stop request failed: "+error.message));
   }
-  if(state.page===400 && Number(number)!==400 && state.rdsActive){
+  if([400,410].includes(state.page) && ![400,410].includes(Number(number)) && state.rdsActive){
     state.rdsActive=false;
     if(state.rdsPollTimer){clearTimeout(state.rdsPollTimer);state.rdsPollTimer=null;}
     api("/api/rds/stop","POST",{}).catch((error)=>notice("Could not stop capture: "+error.message));
   }
-  if(state.page===400 && Number(number)!==400){
+  if([400,410].includes(state.page) && ![400,410].includes(Number(number))){
     for(const [kind,key] of [["fm","fmAutoTimer"],["dab","dabAutoTimer"]]){
       if(state[key]){clearTimeout(state[key]);state[key]=null;}
       api("/api/auto/"+kind+"/stop","POST",{}).catch(()=>{});
@@ -457,14 +462,14 @@ function setRdsText(data){
   if(stop)stop.disabled=!data.active;
 }
 async function pollRds(){
-  if(state.page!==400)return;
+  if(![400,410].includes(state.page))return;
   try{
     const status=await api("/api/rds/status");
     state.rdsActive=status.active;
     setRdsText(status);
-    if(status.active && state.page===400){
+    if(status.active && [400,410].includes(state.page)){
       state.rdsPollTimer=setTimeout(pollRds,1500);
-    }else if(state.page===400 && (status.status==="completed" || status.status==="cancelled" || status.status==="error")){
+    }else if([400,410].includes(state.page) && (status.status==="completed" || status.status==="cancelled" || status.status==="error")){
       // Reload source-attributed stored text after an actual capture ends.
       if(!$("rds-finished-"+status.session)){
         const marker=el("span"); marker.id="rds-finished-"+status.session;
@@ -736,16 +741,17 @@ async function refreshSavedStationDirectory(){
   else $("content").append(panel);
 }
 async function pollAutomaticScan(kind){
-  if(state.page!==400)return;
+  if(![400,410].includes(state.page))return;
   const prefix=kind==="fm"?"fm-auto":"dab-auto";
   try{
     const report=await api("/api/auto/"+kind+"/status");
     renderAutomaticScan(kind,report);
-    if(report.active&&state.page===400){
+    if(report.active&&[400,410].includes(state.page)){
       state[kind==="fm"?"fmAutoTimer":"dabAutoTimer"]=
         setTimeout(()=>pollAutomaticScan(kind),900);
-    }else if(state.page===400){
-      await refreshSavedStationDirectory();
+    }else if([400,410].includes(state.page)){
+      if(state.page===400)await refreshSavedStationDirectory();
+      if(state.channelHubRefresh)await state.channelHubRefresh();
     }
   }catch(e){notice(kind.toUpperCase()+" auto scan status: "+e.message)}
 }
@@ -761,8 +767,9 @@ async function addAutomaticChannelScanners(){
   outer.append(el("p","full-body",
     "FM uses a complete 87.5–108 MHz spectrum sweep followed by sequential RDS "+
     "verification of possible carriers. DAB scans real FIC service metadata from "+
-    "the local welle-cli receiver. Unidentified energy is not labelled as a station. "+
-    "Both scans can take several minutes and stop when you leave this page."));
+    "the local welle-cli receiver (start it in DAB Receiver first). Unidentified energy is not labelled as a station. "+
+    "Full FM scans may take many minutes. FM broadcasts without decodable RDS cannot be automatically named. "+
+    "Leaving the Radio Center stops its scan and frees the app-owned tuner."));
   const grid=el("div","auto-scan-grid");
   for(const [kind,title,desc,status] of [
     ["fm","FM Auto Scan","Full-band energy discovery, then confirmed RDS station names. Non-RDS or weak stations may be missed.",fmStatus],
@@ -774,7 +781,7 @@ async function addAutomaticChannelScanners(){
     const select=el("select","auto-mode");
     select.id=id+"-mode";
     for(const [value,label] of (kind==="fm"?
-      [["quick","Quick: up to 16 RDS tuning trials"],["extended","Extended: up to 48 RDS tuning trials"]]:
+      [["quick","Quick: up to 16 RDS tuning trials"],["extended","Extended: up to 48 RDS tuning trials"],["full","Full FM band: up to 128 RDS trials"]]:
       [["full","Full DAB raster (5A–13F)"],["detected","Likely blocks from last spectrum survey"]])){
       const opt=el("option","",label);opt.value=value;select.append(opt);
     }
@@ -824,7 +831,7 @@ async function addAutomaticChannelScanners(){
   }
   outer.append(grid);$("content").append(outer);
   renderAutomaticScan("fm",fmStatus);renderAutomaticScan("dab",dabStatus);
-  await refreshSavedStationDirectory();
+  if(state.page===400)await refreshSavedStationDirectory();
   if(fmStatus.active)state.fmAutoTimer=setTimeout(()=>pollAutomaticScan("fm"),700);
   if(dabStatus.active)state.dabAutoTimer=setTimeout(()=>pollAutomaticScan("dab"),700);
 }
@@ -1042,17 +1049,18 @@ async function updateDockStationMetadata(){
 }
 function syncLiveMediaDock(){
   const dock=$("live-media-dock");if(!dock)return;
-  dock.hidden=!(state.liveActive||state.tvActive);
+  dock.hidden=!(state.liveActive||state.tvActive||state.dabPlaying);
   const a=$("persistent-radio-player"),v=$("persistent-tv-player");
-  if(a)a.hidden=!state.liveActive;
+  if(a)a.hidden=!(state.liveActive||state.dabPlaying);
   const tvFrame=$("persistent-tv-frame");
   if(tvFrame)tvFrame.hidden=!state.tvActive;
   const label=$("live-dock-title");
   if(label)label.textContent=(state.tvActive?"LIVE TV  ":"")+
     (state.liveActive?"LIVE FM RADIO  ":"")+
+    (state.dabPlaying?"DAB+ RADIO  ":"")+
     "· user-started receive-only stream";
   const r=$("live-dock-stop-radio"),t=$("live-dock-stop-tv");
-  if(r)r.hidden=!state.liveActive;
+  if(r)r.hidden=!(state.liveActive||state.dabPlaying);
   if(t)t.hidden=!state.tvActive;
   const recording=$("live-dock-recording");
   if(recording){
@@ -1066,8 +1074,8 @@ function bindMediaDock(){
     try{
       const player=$("persistent-radio-player");
       player.pause();player.removeAttribute("src");player.dataset.session="";player.load();
-      await api("/api/live/radio/stop","POST",{});
-      state.liveActive=false;syncLiveMediaDock();
+      if(state.liveActive)await api("/api/live/radio/stop","POST",{});
+      state.liveActive=false;state.dabPlaying=false;syncLiveMediaDock();
     }catch(e){notice(e.message)}
   });
   if(tv)tv.addEventListener("click",async()=>{
@@ -1771,6 +1779,19 @@ function showDabServices(result){
       "MOT: "+(s.mot_image_status||
         (s.mot_received_at?"reported by decoder, not yet saved":"not broadcast"))+
       (s.mot_received_at?" · decoder timestamp "+s.mot_received_at:"")));
+    const buttons=el("div","card-actions");
+    if(s.audio_advertised){
+      buttons.append(button("▶ PLAY THIS DAB STATION",async()=>{
+        try{await playDabChannel({
+          medium:"dab",id:"dab:"+result.channel+":"+s.sid.toLowerCase(),
+          display_name:s.name,channel:result.channel,service_id:s.sid,
+          audio_advertised:true,ensemble:result.ensemble
+        })}catch(error){notice("DAB playback: "+error.message)}
+      },"action primary"));
+    }else{
+      buttons.append(el("span","subtle","DATA / NO AUDIO STREAM"));
+    }
+    item.append(buttons);
     if(s.mot_media_id){
       const photo=el("img","radio-image");
       photo.src="/api/media/file/"+encodeURIComponent(s.mot_media_id);
@@ -1829,7 +1850,13 @@ async function addWelleDabBridge(){
     "Independently started welle-cli and readsb are never terminated."));
   const channel=el("select");
   channel.id="managed-dab-channel";
-  for(const code of ["5C","8B","9D","11D"]){
+  const dabBlocks=[];
+  for(let n=5;n<=13;n++){
+    for(const letter of (n===13?["A","B","C","D","E","F"]:["A","B","C","D"])){
+      dabBlocks.push(String(n)+letter);
+    }
+  }
+  for(const code of dabBlocks){
     const o=el("option","",code);o.value=code;
     if(code==="11D")o.selected=true;
     channel.append(o);
@@ -1860,6 +1887,11 @@ async function addWelleDabBridge(){
         owner:state.clientId,owner_only:true
       });
       state.managedDabOwned=false;stopManagedDabPolling();
+      if(result.stopped && state.dabPlaying){
+        const playing=$("persistent-radio-player");
+        playing.pause();playing.removeAttribute("src");playing.onerror=null;playing.load();
+        state.dabPlaying=false;syncLiveMediaDock();
+      }
       const info=$("managed-dab-status");
       if(info)info.textContent=result.stopped
         ?"Owned DAB decoder stopped; tuner released."
@@ -1883,6 +1915,9 @@ async function addWelleDabBridge(){
         include_images:img.checked
       });
       showDabServices(result);
+      const details=$("dab-service-details");
+      if(details)details.open=true;
+      if(state.channelHubRefresh)await state.channelHubRefresh();
       await refreshCounts();
       const slideshow=$("dab-mot-slideshow");
       if(slideshow?.refreshSavedMOT)await slideshow.refreshSavedMOT();
@@ -1900,13 +1935,16 @@ async function addWelleDabBridge(){
   external.title="Opens existing local welle-cli web interface; requires running welle-cli";
   row.append(refresh,external);
   panel.append(row);
+  const details=el("details","advanced-section");details.id="dab-service-details";
+  details.append(el("summary","","Decoder service details · DLS, MOT, technical diagnostics"));
   const results=el("div","scan-summary");results.id="dab-service-results";
-  panel.append(results);
+  details.append(results);
+  details.append(el("p","full-body",
+    "Journaline, TPEG and other advanced services require separate decoders. "+
+    "Only actual received broadcast MOT images are shown."));
+  panel.append(details);
   $("content").append(panel);
   showDabServices(last);
-  panel.append(el("p","full-body",
-    "Journaline interactive menus, TPEG and other advanced services still require "+
-    "their own decoders and licensing. A DAB image is NOT automatically an Internet cover image."));
 }
 async function addRadioImageGallery(){
   const images=await api("/api/media");
@@ -2028,7 +2066,7 @@ async function addOfflineRecordingControl(){
   const exports=el("div","card-actions");panel.append(exports);
   $("content").append(panel);
   async function refresh(){
-    if(state.page!==400)return;
+    if(![400,410].includes(state.page))return;
     const status=await api("/api/recordings/transcription/status");
     stateLabel.textContent=status.status.toUpperCase()+" · "+status.segments+
       " segments · "+status.seconds_processed+" s · "+(status.device||"no ASR")+
@@ -2086,19 +2124,339 @@ async function addOfflineRecordingControl(){
   });
   await refresh();
 }
+/* UNIFIED CHANNEL CENTER: browse verified tuner discoveries, not a guessed lineup.
+   Records are editable presentation preferences; original decoder facts remain. */
+async function playFmChannel(channel, record){
+  if(state.liveActive||state.dabPlaying)
+    throw Error("Stop the current FM/DAB playback before tuning the shared RTL-SDR.");
+  if(!confirm("Tune the shared RTL-SDR to "+(channel.frequency_hz/1e6).toFixed(3)+
+    " MHz and "+(record?"record actual FM audio":"play actual FM audio")+"? Any other SDR owner must be stopped first."))return;
+  const result=await api("/api/live/radio/start","POST",{
+    frequency_mhz:channel.frequency_hz/1e6,record:!!record,subtitles:false,
+    original_language:"en",translated_language:null,backend:"auto"});
+  state.liveActive=Boolean(result.active);
+  state.liveSession=result.session;
+  state.liveFrequency=channel.frequency_hz;
+  state.fmRecording=!!record;
+  const player=$("persistent-radio-player");
+  player.onerror=null;
+  player.src="/api/live/radio/stream?session="+encodeURIComponent(result.session)+
+    "&token="+encodeURIComponent(state.csrf);
+  player.dataset.session=result.session;
+  syncLiveMediaDock();
+  try{await player.play()}catch(error){
+    notice("FM receiver started but browser audio was blocked: "+error.message+
+      ". Use the persistent audio player's Play control.");
+  }
+  notice("FM tuned on real receiver: "+channel.display_name+
+    ". Playback is not proof of RDS metadata or current audio quality.");
+}
+async function playDabChannel(channel){
+  if(!channel.audio_advertised)throw Error("This DAB entry is a data service, not decoded audio.");
+  if(state.liveActive)throw Error("Stop FM first: FM and DAB cannot share one Nooelec SDR.");
+  if(state.dabPlaying){
+    const old=$("persistent-radio-player");
+    old.pause();old.removeAttribute("src");old.load();
+    state.dabPlaying=false;
+  }
+  if(!confirm("Select DAB+ "+channel.display_name+" · block "+channel.channel+
+    " using the already-running welle-cli receiver? This may interrupt listening to another service."))return;
+  const selected=await api("/api/dab/select","POST",{
+    channel:channel.channel,service_id:channel.service_id,consent:true});
+  if(selected.retuned_by_explicit_user){
+    // Tuning another multiplex is asynchronous. Only play after the
+    // actual welle-cli FIC parser confirms this exact audio service.
+    let locked=false,lastError="";
+    for(let attempt=0;attempt<10;attempt++){
+      await new Promise(resolve=>setTimeout(resolve,750));
+      try{
+        const mux=await api("/api/dab/refresh","POST",{include_images:false});
+        locked=mux.channel===channel.channel&&
+          mux.services.some(s=>s.sid.toLowerCase()===channel.service_id.toLowerCase()
+            &&s.audio_advertised);
+        if(locked)break;
+      }catch(error){lastError=error.message;}
+    }
+    if(!locked)throw Error("No verified DAB audio lock for "+channel.display_name+
+      " on "+channel.channel+" after retuning."+(lastError?" "+lastError:""));
+  }
+  const audio=$("persistent-radio-player");
+  audio.src="/api/dab/audio/"+encodeURIComponent(channel.service_id)+
+    "?token="+encodeURIComponent(state.csrf);
+  audio.dataset.session="dab:"+channel.channel+":"+channel.service_id;
+  state.dabPlaying=true;
+  state.dabStation=channel.display_name;
+  syncLiveMediaDock();
+  audio.onerror=()=>{
+    state.dabPlaying=false;
+    syncLiveMediaDock();
+    notice("The local welle-cli decoder did not deliver playable DAB MP3 audio. "+
+      "Check lock and service audio availability; no Internet substitute was used.");
+  };
+  try{await audio.play();
+    const meta=$("live-dock-station-meta");
+    if(meta)meta.textContent=channel.display_name+" · DAB "+channel.channel+
+      " · local welle-cli audio; broadcaster DLS is shown only if received.";
+  }catch(error){
+    notice("DAB stream could not play: "+error.message+
+      ". Check that the physical receiver has a DAB lock.");
+  }
+}
+async function playTvChannel(channel, record){
+  if(!channel.playable||!channel.tv_channel_id)
+    throw Error("This real DVB service was discovered but no authorized MPEG-TS stream is configured for playback.");
+  if(state.tvActive)throw Error("Stop the current TV session before switching channels.");
+  if(!confirm("Open configured TV source "+channel.display_name+
+    (record?" and record actual video":"")+"? The local MPEG-TS relay must already be authorized."))return;
+  const session=await api("/api/live/tv/start","POST",{
+    channel_id:channel.tv_channel_id,record:!!record,subtitles:false,
+    original_language:"en",translated_language:null,backend:"auto",upstream_authorized:true});
+  state.tvActive=true;
+  state.tvRecording=!!record;
+  state.tvSession=session.session;
+  const player=$("persistent-tv-player");
+  player.src="/api/live/tv/stream?session="+encodeURIComponent(session.session)+
+    "&token="+encodeURIComponent(state.csrf);
+  player.dataset.session=session.session;
+  syncLiveMediaDock();
+  try{await player.play()}catch(e){
+    notice("TV relay opened; press Play in the video dock if autoplay is blocked: "+e.message);
+  }
+}
+async function addChannelCenter(kind){
+  const radio=kind==="radio";
+  const outer=el("article","item-card channel-center");outer.id="channel-center";
+  outer.append(el("div","item-meta","STEP 1 · CHANNEL LIBRARY / REAL SOURCES ONLY"));
+  outer.append(el("h3","",radio?"Radio stations · FM & DAB+":"Television channels · DVB-T/T2 & configured streams"));
+  outer.append(el("p","full-body",radio
+    ?"Pick a decoded station, play it, mark favorites, rename it or hide it. Editing does not change broadcaster metadata. Scan all supported blocks from the section below."
+    :"See real DVB-discovered services and separately authorized local TV streams. A DVB scan alone cannot create a playable TS relay."));
+  const controls=el("div","channel-hub-toolbar");
+  const search=el("input");search.type="search";search.id="channel-hub-search";
+  search.placeholder="Search name, frequency, ensemble or ID…";search.setAttribute("aria-label","Search verified channels");
+  const medium=el("select");medium.id="channel-hub-medium";
+  const choices=radio?[["all","FM + DAB+"],["fm","FM"],["dab","DAB+"]]:[["tv","TV channels"]];
+  for(const [value,label] of choices){const opt=el("option","",label);opt.value=value;medium.append(opt);}
+  const favorites=el("label","channel-filter-check");
+  const favoritesBox=el("input");favoritesBox.type="checkbox";
+  favorites.append(favoritesBox,document.createTextNode(" Favorites only"));
+  const showHidden=el("label","channel-filter-check");
+  const hiddenBox=el("input");hiddenBox.type="checkbox";
+  showHidden.append(hiddenBox,document.createTextNode(" Show hidden"));
+  const record=el("label","channel-filter-check");
+  const recordBox=el("input");recordBox.type="checkbox";
+  record.append(recordBox,document.createTextNode(radio?" Record FM when playing":" Record configured TV when playing"));
+  controls.append(search,medium,favorites,showHidden,record);
+  const scan=button("FULL SCAN →",()=>{
+    const id=radio?"automatic-channel-scanners":"dvb-full-scan";
+    document.getElementById(id)?.scrollIntoView({behavior:"smooth",block:"start"});
+  },"action primary");
+  const importDab=radio?button("IMPORT CURRENT DAB",async()=>{
+    importDab.disabled=true;
+    try{
+      const data=await api("/api/dab/refresh","POST",{include_images:true});
+      showDabServices(data);await refresh();
+      notice("Imported "+data.services.length+" real decoder service entries from DAB "+
+        data.channel+". Non-audio services are labelled as such.");
+    }catch(e){notice("DAB import failed: "+e.message);}
+    finally{importDab.disabled=false;}
+  },"action ghost"):null;
+  const actions=el("div","card-actions");
+  actions.append(scan);
+  if(importDab)actions.append(importDab);
+  const info=el("p","full-body");info.id="channel-hub-info";
+  const list=el("div","channel-hub-list");list.id="channel-hub-list";
+  outer.append(controls,actions,info,list);
+  $("content").append(outer);
+  let all=[];
+  function render(){
+    const filter=search.value.toLocaleLowerCase().trim();
+    const type=medium.value;
+    const visible=all.filter(ch=>{
+      if(radio?ch.medium==="tv":ch.medium!=="tv")return false;
+      if(type!=="all"&&ch.medium!==type)return false;
+      if(ch.hidden&&!hiddenBox.checked)return false;
+      if(favoritesBox.checked&&!ch.favorite)return false;
+      const haystack=[ch.display_name,ch.name,ch.channel,ch.service_id,ch.ensemble,
+        ch.frequency_hz?String(ch.frequency_hz/1e6):"",ch.source].join(" ").toLocaleLowerCase();
+      return !filter||haystack.includes(filter);
+    });
+    info.textContent=visible.length+" shown · "+all.filter(x=>radio?x.medium!=="tv":x.medium==="tv").length+
+      " stored/defined · favorites first · names from verified broadcasts or user-edited labels";
+    list.replaceChildren();
+    if(!visible.length){
+      list.append(el("p","full-body",radio
+        ?"No channels match. Run FM or DAB full scan, or import current decoder services."
+        :"No channels match. Configure a local TV relay or run a supported regional DVB scan."));
+      return;
+    }
+    for(const ch of visible.slice(0,600)){
+      const row=el("article","channel-row");
+      const name=el("div","channel-main");
+      name.append(el("strong","",ch.display_name));
+      const source=ch.medium==="fm"?"FM · "+(ch.frequency_hz/1e6).toFixed(3)+" MHz · RDS verified":
+        ch.medium==="dab"?"DAB "+ch.channel+" · "+(ch.ensemble||"ensemble unknown")+" · "+ch.service_id:
+        ch.source==="verified_dvb_scan"?"DVB "+ch.delivery_system+" · "+(ch.frequency_hz/1e6).toFixed(3)+" MHz · SERVICE "+ch.service_id:
+        "Configured local MPEG-TS relay · RF lock not verified";
+      name.append(el("small","",source));
+      if(ch.last_text)name.append(el("p","channel-subtext",ch.last_text));
+      const buttons=el("div","channel-actions");
+      const star=button(ch.favorite?"★":"☆",async()=>{
+        try{await api("/api/channel-center/update","POST",{id:ch.id,favorite:!ch.favorite});await refresh();}
+        catch(error){notice(error.message);}
+      },"channel-star");
+      star.title=ch.favorite?"Remove favorite":"Add favorite";
+      const play=button(ch.medium==="tv"?"▶ WATCH":"▶ PLAY",async()=>{
+        play.disabled=true;
+        try{
+          if(ch.medium==="fm")await playFmChannel(ch,recordBox.checked);
+          else if(ch.medium==="dab")await playDabChannel(ch);
+          else await playTvChannel(ch,recordBox.checked);
+        }catch(error){notice(error.message)}
+        finally{play.disabled=false}
+      },"action primary");
+      play.disabled=!ch.playable;
+      if(!ch.playable)play.title=ch.playback_note;
+      buttons.append(star,play);
+      const edit=el("details","channel-edit");
+      const toggle=el("summary","","Edit");
+      const form=el("form","channel-edit-fields");
+      const label=el("input");label.value=ch.display_name;label.maxLength=100;
+      label.setAttribute("aria-label","Custom station name");
+      const order=el("input");order.type="number";order.value=ch.position;
+      order.min="0";order.max="9999";order.setAttribute("aria-label","Sort order");
+      const hide=el("label","channel-filter-check");
+      const hideBox=el("input");hideBox.type="checkbox";hideBox.checked=ch.hidden;
+      hide.append(hideBox,document.createTextNode(" Hidden"));
+      const save=el("button","action ghost","SAVE CHANGES");save.type="submit";
+      form.append(label,order,hide,save);
+      form.addEventListener("submit",async e=>{
+        e.preventDefault();save.disabled=true;
+        try{
+          await api("/api/channel-center/update","POST",{
+            id:ch.id,display_name:label.value.trim(),
+            position:Number(order.value),hidden:hideBox.checked});
+          await refresh();
+          notice("Saved local station preferences. Original RF observation is unchanged.");
+        }catch(err){notice(err.message);save.disabled=false;}
+      });
+      edit.append(toggle,form);
+      buttons.append(edit);
+      row.append(name,buttons);list.append(row);
+    }
+  }
+  async function refresh(){
+    const response=await api("/api/channel-center?include_hidden=1");
+    all=response.channels;
+    render();
+  }
+  state.channelHubRefresh=refresh;
+  for(const element of [search,medium,favoritesBox,hiddenBox])element.addEventListener("input",render);
+  await refresh();
+}
+async function addDvbFullScan(){
+  const current=await api("/api/dvb/scan/status");
+  const cap=current.capability;
+  const panel=el("article","item-card scan-primary");panel.id="dvb-full-scan";
+  panel.append(el("div","item-meta","STEP 2 · REAL DVB-T/T2 MULTIPLEX SCAN"));
+  panel.append(el("h3","","Full regional TV scan"));
+  panel.append(el("p","full-body",
+    "Scans all multiplex frequencies in the chosen installed region table, "+
+    "using a separate Linux DVB frontend. Only decoded service records become TV channels. "+
+    "This cannot create a TV video stream or bypass a missing tuner driver."));
+  const form=el("div","dvb-scan-controls");
+  const plan=el("select");plan.id="dvb-scan-plan";
+  for(const value of cap.plans){
+    const opt=el("option","",value);opt.value=value;plan.append(opt);
+  }
+  const frontend=el("select");frontend.id="dvb-scan-device";
+  for(const f of cap.frontends){
+    const opt=el("option","",f.name);opt.value=f.adapter+":"+f.frontend;frontend.append(opt);
+  }
+  const consent=el("label","scan-consent"),cb=el("input");cb.type="checkbox";
+  consent.append(cb,document.createTextNode(
+    " I authorize tuning the selected DVB tuner. It is not used by TV recording or another application."));
+  form.append(plan,frontend,consent);
+  const actions=el("div","card-actions");
+  const start=button("FULL DVB-T/T2 SCAN",async()=>{
+    const [adapter,fe]=frontend.value.split(":").map(Number);
+    if(!confirm("Start real DVB scan for "+plan.value+"? Current reception on this tuner will be interrupted."))return;
+    start.disabled=true;
+    try{
+      await api("/api/dvb/scan/start","POST",{
+        plan:plan.value,adapter,frontend:fe,consent:cb.checked});
+      notice("Full DVB scan started. No TV channels are invented from signal strength.");
+      await poll();
+    }catch(error){notice("TV scan refused: "+error.message);start.disabled=false;}
+  },"action primary");
+  start.disabled=!cap.ready;
+  const stop=button("STOP DVB SCAN",async()=>{
+    try{await api("/api/dvb/scan/stop","POST",{});await poll()}
+    catch(error){notice(error.message)}
+  },"action ghost");
+  actions.append(start,stop);form.append(actions);
+  panel.append(form);
+  const status=el("p","full-body");status.id="dvb-scan-progress";panel.append(status);
+  panel.append(el("p","full-body",cap.note+(cap.ready?"":" · Scan currently unavailable: check DVB frontend, dvbv5-scan and region tables.")));
+  $("content").append(panel);
+  let wasActive=current.scan.active;
+  async function poll(){
+    if(state.page!==420)return;
+    const data=await api("/api/dvb/scan/status");
+    const x=data.scan;
+    status.textContent=x.status.toUpperCase()+" · "+(x.plan||"no plan")+
+      " · "+x.added+" verified TV services"+(x.error?" · "+x.error:"");
+    start.disabled=!data.capability.ready||x.active||!cb.checked;
+    stop.disabled=!x.active;
+    if(wasActive&&!x.active&&state.channelHubRefresh)await state.channelHubRefresh();
+    wasActive=x.active;
+    if(state.dvbScanTimer)clearTimeout(state.dvbScanTimer);
+    if(x.active)state.dvbScanTimer=setTimeout(()=>poll().catch(e=>notice(e.message)),1400);
+  }
+  cb.addEventListener("change",()=>{start.disabled=!cap.ready||!cb.checked||wasActive;});
+  await poll();
+}
+
 async function showLiveRadioPage(){
-  section("LIVE RADIO","Continuous FM radio, recording & captions",
-    "Only when one available RTL-SDR is explicitly allocated");
-  try{await addLiveRadio()}catch(e){empty("Live radio unavailable",e.message)}
+  section("RADIO CENTER","Choose a station · Listen · Record · Subtitles",
+    "FM & DAB+ / real broadcast only · receiver approval before retuning");
+  try{await addChannelCenter("radio")}
+  catch(e){empty("Channel library unavailable",e.message)}
+  try{await addWelleDabBridge()}catch(e){empty("DAB receiver and player unavailable",e.message)}
+  try{await addAutomaticChannelScanners()}
+  catch(e){empty("FM/DAB full scan unavailable",e.message)}
+  try{await addLiveRadio()}catch(e){empty("Advanced FM player unavailable",e.message)}
+  const parent=$("content"),known=new Set(parent.children);
   try{await addRdsControl()}catch(e){empty("RDS metadata unavailable",e.message)}
+  try{await addOfflineRecordingControl()}
+  catch(e){empty("Saved audio transcription unavailable",e.message)}
   try{await addRadioImageGallery()}catch(e){empty("Station artwork unavailable",e.message)}
-  try{await addDabMotSlideshowPanel()}catch(e){empty("DAB MOT slideshow unavailable",e.message)}
+  try{await addDabMotSlideshowPanel()}catch(e){empty("DAB MOT unavailable",e.message)}
+  const extra=[...parent.children].filter(node=>!known.has(node));
+  if(extra.length){
+    const more=el("details","advanced-section");
+    more.append(el("summary","","Advanced radio tools · RDS and broadcast artwork"));
+    for(const node of extra)more.append(node);
+    parent.append(more);
+  }
 }
 async function showLiveTVPage(){
-  section("LIVE TV","Live television, recording & bilingual subtitles",
-    "Requires a separately leased authorized MPEG-TS source");
-  try{await addLiveTV()}catch(e){empty("TV source unavailable",e.message)}
+  section("TV CENTER","Scan channels · Choose · Watch · Record",
+    "DVB-T/T2 scan is hardware-dependent · MPEG-TS relay needed for playback");
+  try{await addChannelCenter("tv")}
+  catch(e){empty("TV channel library unavailable",e.message)}
+  try{await addDvbFullScan()}
+  catch(e){empty("TV full scan unavailable",e.message)}
+  try{await addLiveTV()}catch(e){empty("Live TV player unavailable",e.message)}
+  const parent=$("content"),known=new Set(parent.children);
   try{await addDvbDevicePanel()}catch(e){empty("DVB diagnostics unavailable",e.message)}
+  const extra=[...parent.children].filter(node=>!known.has(node));
+  if(extra.length){
+    const more=el("details","advanced-section");
+    more.append(el("summary","","Advanced TV tuner diagnostics"));
+    for(const node of extra)more.append(node);
+    parent.append(more);
+  }
 }
 async function addLanguagePacksPanel(){
   const initial=await api("/api/languages/status");
@@ -2304,31 +2662,24 @@ async function showTranslatorPage(){
   catch(error){empty("Additional language model manager unavailable",error.message)}
 }
 async function showRadioData(){
-  section("RF / BROADCAST SOURCES","Antenna scanning & actual decoder imports","User-approved tuning only");
+  section("ADVANCED RF TOOLS","Receiver diagnostics & manual RF tools","For station selection and full scan, open Radio Center or TV Center");
   try { $("content").append(receiverCard(await refreshReceiverStatus())); }
   catch(error){empty("Receiver detection unavailable","The local USB inventory could not be read: "+error.message)}
   try {await addAutoDiscovery()}
   catch(error){empty("Auto discovery unavailable","Could not inspect local sources: "+error.message)}
-  try {await addAutomaticChannelScanners()}
-  catch(error){empty("Automatic channel discovery unavailable",error.message)}
+  const entry=el("article","notice-card");
+  entry.append(el("h3","","Choose the right workspace"));
+  const entryActions=el("div","card-actions");
+  entryActions.append(button("RADIO CENTER · FM & DAB+",()=>openPage(410,"",0),"action primary"));
+  entryActions.append(button("TV CENTER · DVB-T/T2",()=>openPage(420,"",0),"action ghost"));
+  entry.append(entryActions);$("content").append(entry);
+  const advancedParent=$("content"),advancedAlready=new Set(advancedParent.children);
   try {await addFMSurveyControl()}
   catch(error){empty("FM spectrum survey unavailable","Could not inspect rtl_power: "+error.message)}
-  try {await addRdsControl()}
-  catch(error){empty("FM capture control unavailable","Unable to load RDS status: "+error.message)}
-  try {await addLiveRadio()}
-  catch(error){empty("Live FM & subtitles unavailable",error.message)}
-  try {await addLiveTV()}
-  catch(error){empty("Live TV & subtitles unavailable",error.message)}
   try {await addOfflineRecordingControl()}
   catch(error){empty("Saved recording ASR unavailable",error.message)}
   try {await addAudioPreview()}
   catch(error){empty("FM audio preview unavailable",error.message)}
-  try {await addWelleDabBridge()}
-  catch(error){empty("DAB receiver bridge unavailable",error.message)}
-  try {await addDabMotSlideshowPanel()}
-  catch(error){empty("DAB MOT slideshow unavailable",error.message)}
-  try {await addRadioImageGallery()}
-  catch(error){empty("Radio image archive unavailable",error.message)}
   try {await addDvbDevicePanel()}
   catch(error){empty("DVB device diagnostics unavailable",error.message)}
   const info=el("article","notice-card");
@@ -2340,6 +2691,13 @@ async function showRadioData(){
   const more=el("div","card-actions");
   more.append(button("VIEW ALL PROTOCOLS & SCAN OPTIONS",()=>openPage(860,"",0)));
   info.append(more);$("content").append(info);
+  const advancedNodes=[...advancedParent.children].filter(node=>!advancedAlready.has(node));
+  if(advancedNodes.length){
+    const extra=el("details","advanced-section");
+    extra.append(el("summary","","Manual RF spectrum, preview and DVB hardware diagnostics"));
+    for(const node of advancedNodes)extra.append(node);
+    advancedParent.append(extra);
+  }
   const events=await api("/api/events");
   events.forEach((e)=>{
     const n=card(e.title,e.body,e.medium.toUpperCase()+" · "+e.station+" · "+timeLabel(e.received_at));
@@ -2723,6 +3081,17 @@ function bindNavigation(){
   $("bookmark-page").addEventListener("click",()=>saveBookmark("Page "+state.page+(state.source?" · "+state.source:""),"page",state.page+":"+state.subpage+":"+state.source).catch((err)=>notice(err.message)));
   window.addEventListener("pagehide",()=>{
     stopManagedDabPolling();
+    if(state.dvbScanTimer){clearTimeout(state.dvbScanTimer);state.dvbScanTimer=null;}
+    fetch("/api/dvb/scan/stop",{
+      method:"POST",keepalive:true,
+      headers:{"Content-Type":"application/json","X-Tihulu-CSRF":state.csrf},
+      body:"{}"
+    }).catch(()=>{});
+    if(state.dabPlaying){
+      const player=$("persistent-radio-player");
+      if(player){player.pause();player.removeAttribute("src");player.load();}
+      state.dabPlaying=false;
+    }
     if(state.managedDabOwned){
       fetch("/api/dab/manage/stop",{
         method:"POST",keepalive:true,
