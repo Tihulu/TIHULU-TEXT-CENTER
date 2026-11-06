@@ -116,6 +116,7 @@
         <button id="hardware-refresh" class="secondary" type="button">Detect permitted devices</button>
         <div id="hardware-rtl-slot" class="hardware-control-slot"></div>
         <div id="hardware-test-slot" class="hardware-control-slot"></div>
+        <button id="hardware-recover" class="secondary" type="button">Recover SDR (USB error)</button>
         <button id="hardware-release" class="secondary" type="button">Release RTL-SDR</button>
        </div>
        <div class="hardware-tv-row">
@@ -158,7 +159,7 @@
           <button id="map-source-measure" type="button" class="secondary" hidden>Measure / calibrate RF source</button>
          </div>
         </div>
-       </div><div class="map-footer"><span>WGS84 · map pan by drag/touch · wheel or +/− zoom</span><span>© OpenStreetMap contributors, tiles only on request</span></div>
+       </div><div class="map-footer"><span>WGS84 · drag to pan · wheel/pinch or +/− zoom · click pins for source evidence</span><span>© OpenStreetMap contributors, tiles only on request</span></div>
        <section class="map-discovery-results" aria-label="Receiver measurements and matching mapped transmitter candidates">
         <div class="map-discovery-top">
          <div><strong>Signals &amp; sources on this map</strong><p id="map-scan-status">No antenna scan linked to this map yet. Catalog towers are external references, not received stations.</p></div>
@@ -248,7 +249,7 @@
       <div class="radio-quick-grid">
         <div><h2>Radio · Nooelec RTL-SDR</h2><p>Automatic FM band energy scan, broadcast-station catalog and real ADS-B aircraft shared from Flight Radar.</p>
          <div class="simple-actions"><button id="radio-connect-rtl" class="primary" type="button">Connect RTL-SDR via WebUSB</button><button id="radio-manage-usb" class="secondary" type="button">Manage hardware</button></div>
-         <div class="simple-actions"><button id="quick-radio-discover" class="primary" type="button">Discover sources</button><button id="quick-radio-scan" type="button">Scan FM band</button><button id="quick-radio-release" type="button">Hard Stop receiver</button><button id="quick-back-map" type="button">← Back to map</button></div>
+         <div class="simple-actions"><button id="quick-radio-discover" class="primary" type="button">Discover sources</button><button id="quick-radio-scan" type="button">Scan FM band</button><button id="quick-radio-recover" type="button">Recover USB</button><button id="quick-radio-release" type="button">Hard Stop receiver</button><button id="quick-back-map" type="button">← Back to map</button></div>
          <div id="quick-radio-status" class="simple-result">Connect the RTL-SDR for antenna FM scans. Site lookup requires internet or a cached catalog.</div>
          <div class="fm-reference-panel">
           <strong>FM reference channel energy test</strong>
