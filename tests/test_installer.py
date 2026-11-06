@@ -21,7 +21,7 @@ class InstallerSafetyTests(unittest.TestCase):
         self.assertIn("No RF scan, model download",data)
         self.assertIn("--update",data)
         self.assertNotIn("git reset --hard",data)
-        self.assertNotIn("sudo ",data.split("if [[ \"$mode\" == --update ]]")[1])
+        self.assertNotRegex(data,r"(?m)^\\s*sudo\\s")
         if shutil.which("bash"):
             result=subprocess.run(["bash","-n",str(script)],
                                   capture_output=True,text=True,timeout=5)
