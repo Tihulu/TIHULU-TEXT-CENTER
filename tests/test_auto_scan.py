@@ -87,10 +87,18 @@ class AutoScanTests(unittest.TestCase):
             {"frequency_hz":197_805_000}]),["8B","11D"])
         self.assertEqual(DAB_HZ["11D"],222_064_000)
 
+    def test_explicit_consent_gates_all_tuner_auto_scan_actions(self):
+        with self.assertRaises(AutoScanError):
+            FMAutoScanner(FakeSurvey(),FakeRDS()).start("quick")
+        dab=DABAutoScanner(FakeDABReader(),fetcher=lambda path,limit:b"11D")
+        with self.assertRaises(AutoScanError):
+            dab.start("full")
+        self.assertFalse(dab.status()["active"])
+
     def test_fm_sequential_real_decoder_label_only(self):
         fake_survey,fake_rds=FakeSurvey(),FakeRDS()
         scan=FMAutoScanner(fake_survey,fake_rds)
-        first=scan.start("quick")
+        first=scan.start("quick",consent=True)
         self.assertTrue(first["active"])
         for _ in range(150):
             result=scan.status()
@@ -108,7 +116,7 @@ class AutoScanTests(unittest.TestCase):
         self.assertEqual(result["results"][0]["frequency_mhz"],98.6)
         self.assertTrue(result["results"][0]["rds_verified"])
         with self.assertRaises(ValueError):
-            scan.start("unbounded")
+            scan.start("unbounded",consent=True)
 
     def test_dab_real_mux_services_and_original_channel_restoration(self):
         receiver={"channel":"11D","post_history":[]}
@@ -136,7 +144,7 @@ class AutoScanTests(unittest.TestCase):
 
         reader=FakeDABReader()
         scanner=DABAutoScanner(reader,fetcher=fetcher,poster=poster)
-        initial=scanner.start("detected",dwell_seconds=4,candidates=["5C"])
+        initial=scanner.start("detected",dwell_seconds=4,candidates=["5C"],consent=True)
         self.assertTrue(initial["active"])
         for _ in range(250):
             state=scanner.status()
@@ -169,10 +177,10 @@ class AutoScanTests(unittest.TestCase):
                 "services":[]}).encode()
         scan=DABAutoScanner(FakeDABReader(),fetcher=fake_fetch)
         with self.assertRaisesRegex(RuntimeError,"welle"):
-            scan.start("full")
+            scan.start("full",consent=True)
         self.assertFalse(scan.status()["active"])
         with self.assertRaises(ValueError):
-            scan.start("unknown")
+            scan.start("unknown",consent=True)
 
 
 if __name__=="__main__":
