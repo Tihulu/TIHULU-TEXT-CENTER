@@ -139,6 +139,38 @@
     <div id="persistent-tv-frame" class="live-video-frame" hidden>
       <video id="persistent-tv-player" controls playsinline preload="none" aria-label="Continuous local TV video"></video>
       <div id="live-dock-tv-captions" class="live-tv-overlay" aria-live="polite"></div>
+      <details id="live-tv-caption-menu" class="tv-caption-menu">
+        <summary><span>CC</span> Subtitles &amp; Translation</summary>
+        <div class="tv-caption-menu-content">
+          <label for="live-tv-caption-display">Show subtitles</label>
+          <select id="live-tv-caption-display">
+            <option value="both" selected>Original + translation</option>
+            <option value="original">Original only</option>
+            <option value="translated">Translation only</option>
+            <option value="off">Hide all subtitles</option>
+          </select>
+          <label for="live-tv-caption-source">Preferred caption source</label>
+          <select id="live-tv-caption-source">
+            <option value="auto" selected>Auto: Teletext → Speech fallback</option>
+            <option value="broadcast">Broadcast Teletext text only</option>
+            <option value="speech">Audio transcription only</option>
+            <option value="off">No caption processing</option>
+          </select>
+          <label class="tv-caption-checkbox"><input type="checkbox" id="live-tv-caption-processing"> Enable caption processing</label>
+          <label class="tv-caption-checkbox"><input type="checkbox" id="live-tv-caption-translation"> Translate actual captions</label>
+          <label for="live-tv-caption-target">Translate into</label>
+          <select id="live-tv-caption-target">
+            <option value="en" selected>English</option>
+            <option value="de">Deutsch</option>
+            <option value="tr">Türkçe</option>
+          </select>
+          <div class="tv-caption-actions">
+            <button id="live-tv-caption-apply" type="button">APPLY LIVE SETTINGS</button>
+            <button id="live-tv-open-teletext" type="button">TELETEXT PAGES</button>
+          </div>
+          <p id="live-tv-caption-source-status" role="status">Only real text subtitles or audio speech may be used. No source confirmed yet.</p>
+        </div>
+      </details>
     </div>
   </section>
 </body>
