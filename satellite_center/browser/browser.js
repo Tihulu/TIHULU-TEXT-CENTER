@@ -25,6 +25,7 @@ const TLE_SOURCES = Object.freeze({
 let driver = null, device = null, capturePromise = null, stopRequested = false;
 let lastCaptured = null, rtlLibraryError = null;
 let orbitalLibrary = null, tleEntries = [], passes = [], jobs = [], sessionCounter = 0;
+let lastTleFetchAt = 0;
 const maxRecordBytes = 128 * 1024 * 1024;
 const signalHistory = [];
 const hardwareSupported = !!(window.isSecureContext && navigator.usb);
@@ -234,6 +235,10 @@ $('tle-file').addEventListener('change',async e=>{
   }catch(err){status('orbit-state','TLE import failed: '+err.message);}
 });
 $('orbit-fetch').addEventListener('click',async()=>{
+  if(tleEntries.length && lastTleFetchAt && Date.now()-lastTleFetchAt < 2*3600000) {
+    status('orbit-state','Keeping '+tleEntries.length+' TLE candidates from this tab\'s recent download. CelesTrak GP data is not refreshed more often than every two hours.');
+    return;
+  }
   status('orbit-state','Requesting whitelisted CelesTrak TLEs…');
   const results=[];
   const errors=[];
@@ -251,7 +256,7 @@ $('orbit-fetch').addEventListener('click',async()=>{
     }catch(err){errors.push(name+': '+err.message);}
     finally{clearTimeout(timer);}
   }
-  if(results.length)tleEntries=boundedCatalog(results);
+  if(results.length){tleEntries=boundedCatalog(results);lastTleFetchAt=Date.now();}
   status('orbit-state',results.length ? 'Cached '+tleEntries.length+' client-side TLE candidates. '+(errors.join(' · ')||'All sources read') :
      'Browser could not read CelesTrak (possibly CORS/network). Import a .tle/.txt file manually. '+errors.join(' · '));
 });
@@ -365,7 +370,11 @@ setInterval(()=>{
 // Promise resolution is not guaranteed during pagehide, but browser ownership ends.
 window.addEventListener('pagehide',()=>{stopRequested=true; if(device)void device.close().catch(()=>{});});
 document.addEventListener('visibilitychange',()=>{
-  if(document.hidden && capturePromise){stopRequested=true;log('Tab hidden: stopping USB capture for safety.');}
+  if(document.hidden && (capturePromise || device)){
+    stopRequested=true;
+    log('Tab hidden: releasing browser-owned RTL-SDR. Scheduled passes require the tab to stay in foreground.');
+    void stopCapture();
+  }
 });
 renderSignal();
 log('Browser-only mode loaded. No local service or USB access attempted.');
