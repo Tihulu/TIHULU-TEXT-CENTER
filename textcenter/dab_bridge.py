@@ -18,7 +18,18 @@ from .media import MediaStore,MAX_IMAGE
 
 # Verified channel presets used by this initial bridge; other channels can be
 # viewed, but are NOT archived with a fabricated receive frequency.
-DAB_HZ={"5C":178_352_000,"11D":222_064_000}
+DAB_HZ = dict((
+    ("5A",174_928_000),("5B",176_640_000),("5C",178_352_000),("5D",180_064_000),
+    ("6A",181_936_000),("6B",183_648_000),("6C",185_360_000),("6D",187_072_000),
+    ("7A",188_928_000),("7B",190_640_000),("7C",192_352_000),("7D",194_064_000),
+    ("8A",195_936_000),("8B",197_648_000),("8C",199_360_000),("8D",201_072_000),
+    ("9A",202_928_000),("9B",204_640_000),("9C",206_352_000),("9D",208_064_000),
+    ("10A",209_936_000),("10B",211_648_000),("10C",213_360_000),("10D",215_072_000),
+    ("11A",216_928_000),("11B",218_640_000),("11C",220_352_000),("11D",222_064_000),
+    ("12A",223_936_000),("12B",225_648_000),("12C",227_360_000),("12D",229_072_000),
+    ("13A",230_784_000),("13B",232_496_000),("13C",234_208_000),
+    ("13D",235_776_000),("13E",237_488_000),("13F",239_200_000),
+))
 BASE="http://127.0.0.1:7979"
 MUX_LIMIT=350_000
 
@@ -89,7 +100,7 @@ def parse_mux(payload:bytes,channel:str)->dict:
     services=obj.get("services")
     if not isinstance(services,list) or len(services)>128:
         raise DABError("Invalid or excessive DAB service records")
-    if not re.fullmatch(r"(?:[5-9]|1[0-3])[A-F]",channel):
+    if channel not in DAB_HZ:
         channel="UNKNOWN"
     ensemble=_label((obj.get("ensemble") or {}).get("label") if isinstance(obj.get("ensemble"),dict) else None)
     items=[]
@@ -123,13 +134,23 @@ class DABReader:
         self.fetcher=fetcher or _local_get
 
     def refresh(self,*,include_images:bool=True)->dict:
+        """Read only an already-running decoder and save genuine MOT images.
+
+        An observed MOT timestamp is a decoder report, not proof that a
+        valid picture has actually been fetched or saved. Distinguish those
+        outcomes so the UI can tell users why artwork is absent.
+        """
         channel=self.fetcher("/channel",64).decode("ascii",errors="ignore").strip().upper()
         mux=parse_mux(self.fetcher("/mux.json",MUX_LIMIT),channel)
-        imported=0
-        saved=0
+        imported,saved,missing,failed,skipped=0,0,0,0,0
         freq=mux["frequency_hz"]
         for service in mux["services"][:48]:
-            if not freq:continue
+            service["mot_image_status"]="not_broadcast"
+            service["mot_media_id"]=None
+            if not freq:
+                service["mot_image_status"]="frequency_unattributed"
+                skipped+=1
+                continue
             sid=service["sid"]
             source=f"welle:{channel}:{sid}"
             if service["dls"] and service["dls_received_at"]:
@@ -142,20 +163,39 @@ class DABReader:
                 }
                 self.store.import_data({"schema_version":1,"events":[event]})
                 imported+=1
-            if include_images and service["mot_received_at"]:
-                try:
-                    raw=self.fetcher("/slide/"+sid,MAX_IMAGE)
-                    if len(raw)<40:continue
-                    self.media.save(
-                        medium="dab_mot",station=service["name"],source_id=source,
-                        frequency_hz=freq,received_at=service["mot_received_at"],
-                        provenance="welle-cli MOT slideshow; read-only local receiver",
-                        image_base64=base64.b64encode(raw).decode())
-                    saved+=1
-                except (DABError,OSError,ValueError):
+            if not include_images:
+                service["mot_image_status"]="not_requested"
+                skipped+=1
+                continue
+            if not service["mot_received_at"]:
+                missing+=1
+                continue
+            try:
+                raw=self.fetcher("/slide/"+sid,MAX_IMAGE)
+                if len(raw)<40:
+                    service["mot_image_status"]="empty_slide"
+                    missing+=1
                     continue
+                row=self.media.save(
+                    medium="dab_mot",station=service["name"],source_id=source,
+                    frequency_hz=freq,received_at=service["mot_received_at"],
+                    provenance="welle-cli MOT slideshow; read-only local receiver",
+                    image_base64=base64.b64encode(raw).decode())
+                service["mot_image_status"]="saved"
+                service["mot_media_id"]=row["id"]
+                saved+=1
+            except (DABError,OSError,ValueError):
+                service["mot_image_status"]="decode_or_save_failed"
+                failed+=1
         mux["imported_dls"]=imported
         mux["saved_mot_images"]=saved
+        mux["mot_images_missing"]=missing
+        mux["mot_images_failed"]=failed
+        mux["mot_images_skipped"]=skipped
         if not freq:
             mux["archive_notice"]="Unknown channel frequency; displayed data not archived"
+        elif not mux["services"]:
+            mux["archive_notice"]="No DAB service decoded on current channel"
+        elif not saved:
+            mux["archive_notice"]="No valid broadcast MOT image saved; see per-service status"
         return mux
