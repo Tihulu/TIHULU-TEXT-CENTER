@@ -1505,6 +1505,9 @@ async function runAutoMission({mode=$('auto-mode').value,goal=$('auto-coverage')
     const durationSeconds=Number($('auto-browser-seconds').value);
     if(!Number.isInteger(durationSeconds)||durationSeconds<8||durationSeconds>60)
       throw Error('Choose a browser capture length between 8 and 60 seconds.');
+    const autoRaw=$('auto-save-raw').checked,autoWav=$('auto-save-wav').checked;
+    if(['iss-images','images','all'].includes(mode)&&!autoRaw&&!autoWav)
+      throw Error('Choose at least CU8 or WAV for automatic ISS SSTV image capture. Both are allowed.');
     const proposal=selectAutomaticPasses(passes,{
       mode,goal,durationSeconds,now:Date.now(),maxJobs:6,existingJobs:jobs
     });
@@ -1513,24 +1516,29 @@ async function runAutoMission({mode=$('auto-mode').value,goal=$('auto-coverage')
       const job=createScheduledPass(item.pass,{
         when:item.when,durationSeconds:item.durationSeconds,
         sampleRate:item.sampleRate,frequency:item.frequency,
-       saveRaw:item.missionId==='iss-sstv'?false:item.saveRaw,
-       saveWav:item.missionId==='iss-sstv'
+       saveRaw:item.missionId==='iss-sstv'?autoRaw:item.saveRaw,
+       saveWav:item.missionId==='iss-sstv'?autoWav:false
       });
       if(jobs.some(j=>j.id===job.id&&['armed','starting','running'].includes(j.state)))continue;
       job.missionId=item.missionId;
       job.coverage=item.coverage;
       job.dataKind=item.dataKind;
-      job.estimatedBytes=job.saveWav&&!job.saveRaw?
-        wavOutputPlan(item.durationSeconds,true).estimatedBytes:item.estimatedBytes;
+      job.estimatedBytes=(item.missionId==='iss-sstv')?
+        (job.saveRaw?item.durationSeconds*item.sampleRate*2:0)+
+        (job.saveWav?wavOutputPlan(item.durationSeconds,true).estimatedBytes:0):
+        item.estimatedBytes;
       job.shortfallSeconds=item.shortfallSeconds;
       job.message='Plan: '+item.durationSeconds+' s · ~'+Math.round(job.estimatedBytes/1e6)+
-        ' MB · '+item.dataKind+' · '+item.coverage+'; '+item.limitation;
+        ' MB · '+item.dataKind+' · '+
+        (item.missionId==='iss-sstv'?outputSelectionText(job.saveRaw,job.saveWav)+' · ':'')+
+        item.coverage+'; '+item.limitation;
       jobs.push(job);armed++;
     }
     jobs.sort((a,b)=>a.when-b.when);
     renderJobs();
     statusBox.textContent=armed?
-      'Armed '+armed+' non-overlapping RF candidate pass(es). USB is released while waiting. Browser clips max out at 60 s / 128 MiB; Meteor full imagery requires a native disk capture. '+proposal.skipped.length+' skipped; '+proposal.skipped.map(x=>x.reason).slice(0,2).join(' · ')+' Keep this tab VISIBLE and AWAKE.':
+      'Armed '+armed+' non-overlapping RF candidate pass(es). ISS selected outputs: '+
+      outputSelectionText(autoRaw,autoWav)+'. USB is released while waiting. Browser clips max out at 60 s / 128 MiB; Meteor full imagery requires a native disk capture. '+proposal.skipped.length+' skipped; '+proposal.skipped.map(x=>x.reason).slice(0,2).join(' · ')+' Keep this tab VISIBLE and AWAKE.':
       'No feasible passes for this data goal. '+proposal.skipped.map(x=>x.reason).slice(0,3).join(' · ')+' You can choose Quick RF sample or use the optional local receiver for full-pass imaging.';
     log('Automatic mission plan: '+armed+' RF recording jobs armed, '+proposal.skipped.length+' skipped; no device is currently in use.');
     if(armed)document.getElementById('schedule-center')?.scrollIntoView({behavior:'smooth',block:'nearest'});
