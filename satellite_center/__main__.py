@@ -1504,13 +1504,18 @@ class Server(ThreadingHTTPServer):
 
 def main():
     ap = argparse.ArgumentParser(description="Native Qt Widgets SDR desktop (legacy HTTP service opt-in)")
-    ap.add_argument("command", nargs="?", choices=("desktop", "serve", "doctor"), default="desktop")
+    ap.add_argument("command", nargs="?", choices=("desktop", "serve", "doctor", "cleanup-shortcuts"), default="desktop")
     ap.add_argument("--host", default="127.0.0.1")
     ap.add_argument("--port", type=int, default=8791)
     ap.add_argument("--open-browser", action="store_true", help="Open desktop browser after the local server starts")
+    ap.add_argument("--apply", action="store_true",
+                    help="With cleanup-shortcuts, archive old user-local Satellite Center icons")
     args = ap.parse_args()
     if args.host != "127.0.0.1" or not (1024 <= args.port <= 65535):
         ap.error("Loopback-only address 127.0.0.1 and port 1024–65535 required")
+    if args.command == "cleanup-shortcuts":
+        from .desktop_shortcuts import cleanup
+        return cleanup(apply=args.apply)
     if args.command == "desktop":
         # Native Qt Widgets only. No HTTP listener, browser, Chromium or WebView.
         try:

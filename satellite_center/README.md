@@ -1,3 +1,31 @@
+
+### Desktop launcher cleanup — duplicate Local/PWA entries
+
+Only the **TIHULU Satellite Center (System)** entry (the installed
+Debian `.deb` Qt Widgets application) is needed. Older **Local** or
+Chromium/PWA entries are obsolete for the desktop workflow. The user-local
+installer no longer creates a browser desktop shortcut unless
+`TIHULU_INSTALL_WEB_SHORTCUT=1` is explicitly set, and avoids creating
+another Local launcher when the system `.deb` is installed.
+
+After updating the `.deb`, preview the menu cleanup without altering any file:
+
+```bash
+tihulu-satellite-center cleanup-shortcuts
+```
+
+If the list contains only the unwanted TIHULU Satellite Center entries:
+
+```bash
+tihulu-satellite-center cleanup-shortcuts --apply
+```
+
+The cleanup archives matching user-level `.desktop` files into
+`~/.local/share/tihulu-satellite-center/shortcut-backups/`; it does not
+uninstall apps or delete browser profiles, recordings, saved RF jobs,
+other TIHULU apps or the system Qt launcher. Existing COSMIC menu caches
+may require a logout/login before duplicate icons disappear.
+
 ## Browser-only direct FM SSTV WAV recording (2026-11-06)
 
 The [public Satellite Center browser receiver](browser/index.html) now records **real FM-demodulated SSTV audio in WAV during actual RTL2832U WebUSB sampling**; no native companion is necessary on supported secure-origin Chromium/Brave/Chrome/Edge. Select the `ISS SSTV 437.550 MHz` receiver preset: the UI defaults to `Record FM-demodulated SSTV audio (.wav)` while keeping a separate `Record raw RF (.cu8)` option. Check both to retain the original RF for later reprocessing; uncheck both for level measurements only.
