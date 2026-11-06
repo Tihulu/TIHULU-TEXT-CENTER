@@ -120,3 +120,16 @@ python3 -m compileall -q satellite_center
 The project code is testable without a connected RTL-SDR; neither radio reception nor live satellite decoding has been hardware-validated by this build environment. **One original file/recording must survive a failed decode.** Device locking is cooperative, not a complete interprocess SDR lease broker. Future survival-kit integration should use its central receiver broker, authenticated portal, storage quota controls and external SSD locations.
 
 Up-to-date radio operation should be checked against [ARISS status](https://www.ariss.org/current-status-of-iss-stations.html), [CelesTrak GP documentation](https://celestrak.org/NORAD/documentation/gp-data-formats.php) and [SatDump documentation](https://docs.satdump.org/).
+
+## Applications / Dock icon and Firefox on Linux
+
+Satellite Center includes a custom **radio V-dipole / RTL-SDR / satellite** icon in SVG plus 192×192 and 512×512 PNG sizes. The browser-only page now links a web manifest with `display: standalone`; on Chromium-based desktop browsers choose **Install this site as an app** from the address bar/browser menu, then pin the installed application in the COSMIC dock. This is the no-Python-helper path, but direct USB still requires a browser with WebUSB and appropriate OS USB permissions. PWA install availability/appearance depends on the browser and OS.
+
+On **Firefox for Linux**, orbital predictions and manual TLE import work in the hosted page but **direct USB access does not**: Firefox does not expose `navigator.usb`. There is no `about:config` switch that makes native WebUSB work. To receive RF in Firefox, use the **optional** local companion at `http://127.0.0.1:8791/`, which requires the Python helper and `rtl-sdr` utilities. Third-party experimental extensions relying on locally installed Native Messaging hosts do not satisfy zero-install requirements.
+
+The Linux one-line installer installs/updates two separate Applications entries with the custom icon:
+
+- **TIHULU Satellite Center:** standalone Chromium WebUSB browser window (opens only the web frontend, no Python receiver).
+- **TIHULU Satellite Center (Local Companion):** optional local decoding/scheduled recording server; opens localhost in the default browser, including Firefox.
+
+On Pop!_OS/COSMIC, open Applications, right-click the Satellite Center entry and **Pin to Dock**. If an old generic gear icon remains pinned, unpin it and pin the new browser entry. A COSMIC/Chromium window-class issue can affect live dock grouping; the static Applications icon is explicitly installed to `~/.local/share/icons/hicolor/` and can be refreshed by running the installer again. Firefox's normal windows may still appear under the Firefox dock icon.
