@@ -175,7 +175,7 @@ class Handler(BaseHTTPRequestHandler):
         # Never log bearer token embedded in a video/audio stream URL.
         # Avoid contents of private text, feed payloads and recordings.
         fields=list(args)
-        if fields and isinstance(fields[0],str) and "/api/live/" in fields[0]:
+        if fields and isinstance(fields[0],str) and ("/api/live/" in fields[0] or "/api/dab/audio/" in fields[0]):
             requestline=fields[0]
             if "?" in requestline:
                 fields[0]=requestline.split("?",1)[0]+"?parameters-redacted HTTP/1.1"
