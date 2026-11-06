@@ -1,0 +1,13 @@
+:root{font-family:system-ui,-apple-system,Segoe UI,sans-serif;color-scheme:dark;background:#080f1b;color:#e7effa}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at 86% 0%,#143253 0%,#080f1b 43%);min-height:100vh}
+.wrap{max-width:1340px;margin:auto;padding:0 22px}header{padding:32px 0;border-bottom:1px solid #2b4261;background:#0c1929b8}
+.eyebrow{font-size:12px;letter-spacing:.14em;color:#87bdef;font-weight:700}h1{margin:.25em 0;font-size:clamp(1.65rem,3.5vw,2.7rem)}header p{color:#b9cde5;max-width:890px;line-height:1.55}
+a{color:#a3caff}.pill{display:inline-block;vertical-align:middle;border:1px solid #5376a5;border-radius:100px;padding:4px 10px;font-size:12px;color:#d0e5ff}
+main.wrap{padding-top:24px;padding-bottom:46px}section,.notice{border-radius:14px;border:1px solid #324966;background:#112038;padding:22px;margin-bottom:16px}
+.notice{line-height:1.65;background:#1b2a43}h2{font-size:1.13rem;margin:0 0 14px}h3{font-size:1rem}.columns{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:18px}
+.line{display:flex;flex-wrap:wrap;gap:10px;align-items:end}.line>*{flex:1 1 135px}button{background:#2873cf;color:white;border:1px solid #3b84dc;font:600 14px system-ui;padding:11px 15px;border-radius:9px;min-height:42px;cursor:pointer}button.secondary{background:#253b57;border-color:#54749d}button:hover:not(:disabled){filter:brightness(1.13)}button:disabled{opacity:.48;cursor:not-allowed}
+label{display:block;color:#c2d6f0;font-size:13px;margin:10px 0}select,input:not([type=checkbox]){display:block;width:100%;border:1px solid #436080;background:#162d49;color:#f3f7ff;border-radius:8px;padding:9px;min-height:40px;font:inherit;margin-top:5px}
+.check{display:flex;align-items:center;gap:9px}.check input{width:16px;height:16px}.status{padding:11px 12px;border:1px solid #3b5476;border-radius:9px;background:#0c182a;color:#e0edff;white-space:pre-wrap;overflow-wrap:anywhere}
+.hint,footer{font-size:13px;line-height:1.6;color:#aebfda}canvas{width:100%;border:1px solid #304866;border-radius:8px;background:#091523;margin:13px 0}pre{font-size:12px;white-space:pre-wrap;word-break:break-word;max-height:310px;overflow:auto;background:#07111d;padding:13px;border-radius:10px;color:#cfe4fb}
+.pass-list{max-height:360px;overflow:auto}.pass{padding:12px;border:1px solid #355271;border-radius:10px;background:#142840;margin:8px 0}.pass small{display:block;color:#aac0dc;margin:5px 0}.pass button{font-size:12px;padding:7px 10px;min-height:32px}#jobs{white-space:pre-wrap;font-size:13px;line-height:1.7}footer{margin:24px 0;padding:15px 0}
+@media(max-width:900px){.columns{grid-template-columns:1fr}section{padding:16px}}
