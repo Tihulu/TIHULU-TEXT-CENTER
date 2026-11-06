@@ -27,6 +27,8 @@ jobs:
       - name: Check browser scripts
         run: |
           node --check satellite_center/browser/browser.js
+          node --check satellite_center/browser/fm_wav_record.mjs
+          node --test tests/test_satellite_fm_wav_record.mjs
           node --check satellite_center/browser/usb_diagnostics.mjs
       - name: Unit-test permission-only diagnosis
         run: node --test satellite_center/browser/usb_diagnostics.test.mjs
