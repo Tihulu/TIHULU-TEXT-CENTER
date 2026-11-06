@@ -323,12 +323,16 @@ class DABAutoScanner(_WorkerState):
                 raise AutoScanError("Only a previously FIC-decoded block may be tuned")
         current=self.fetcher("/channel",64).decode("ascii","replace").strip().upper()
         parse_mux(self.fetcher("/mux.json",MUX_LIMIT),current)
-        self.poster(channel)
+        # The common "11D -> WDR 5" use case is already tuned. POSTing
+        # /channel unnecessarily resets the live ensemble and interrupts audio.
+        retuned=current!=channel
+        if retuned:self.poster(channel)
         return {
             "channel":channel,"frequency_hz":DAB_HZ[channel],
-            "receiver":"already_running_welle_cli","retuned_by_explicit_user":True,
+            "receiver":"already_running_welle_cli","retuned_by_explicit_user":retuned,
             "player_url":"http://127.0.0.1:7979/",
-            "note":"Allow DAB lock, then select Play in welle-cli for the chosen service"
+            "note":("DAB channel change requested; wait for a verified decoder lock"
+                    if retuned else "Already on this verified block; existing decoder playback preserved")
         }
 
     def _worker(self,channels,dwell):
