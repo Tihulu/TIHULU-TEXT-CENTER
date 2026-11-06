@@ -1,4 +1,5 @@
 import { platformFamily, webUsbHelp, permissionReport } from './usb_diagnostics.mjs';
+import { createSatelliteMaps } from './satellite_maps.mjs';
 // TIHULU Satellite Center — no-local-install receive-only browser mode.
 // The RTL-SDR device is opened only after a direct user gesture.
 // CelesTrak / CDN downloads are for client-side orbital prediction + JS only;
@@ -27,6 +28,8 @@ let driver = null, device = null, capturePromise = null, stopRequested = false;
 let lastCaptured = null, rtlLibraryError = null;
 let orbitalLibrary = null, tleEntries = [], passes = [], jobs = [], sessionCounter = 0;
 let lastTleFetchAt = 0;
+let satelliteMaps = null;
+const notifyMaps = () => { if(satelliteMaps) void satelliteMaps.refresh().catch(e=>log('Map refresh: '+e.message)); };
 const maxRecordBytes = 128 * 1024 * 1024;
 const signalHistory = [];
 const hardwareSupported = !!(window.isSecureContext && navigator.usb);
@@ -207,6 +210,7 @@ async function startCapture(job=null) {
         saveCapture(chunks,'TIHULU-'+Math.round(freq)+'-'+rate+'-'+tag+'.cu8');
       }
       lastCaptured={bytesReceived,bytesRecorded,frequency_hz:freq,observedAt:new Date().toISOString()};
+      notifyMaps();
       if(job) job.state='finished';
       log('Capture ended. USB bytes: '+bytesReceived+'. Device released on exit.');
     } catch(e) {
@@ -277,6 +281,7 @@ $('tle-file').addEventListener('change',async e=>{
     const rows=parseTle(await file.text(),'uploaded');
     if(!rows.length)throw Error('No valid two-line elements (TLE) found');
     tleEntries=boundedCatalog([...tleEntries,...rows]);
+    notifyMaps();
     status('orbit-state','Imported '+rows.length+' valid TLE records locally; '+tleEntries.length+' candidates selected. These are ephemerides, not live radio signals.');
   }catch(err){status('orbit-state','TLE import failed: '+err.message);}
 });
@@ -302,7 +307,7 @@ $('orbit-fetch').addEventListener('click',async()=>{
     }catch(err){errors.push(name+': '+err.message);}
     finally{clearTimeout(timer);}
   }
-  if(results.length){tleEntries=boundedCatalog(results);lastTleFetchAt=Date.now();}
+  if(results.length){tleEntries=boundedCatalog(results);lastTleFetchAt=Date.now();notifyMaps();}
   status('orbit-state',results.length ? 'Cached '+tleEntries.length+' client-side TLE candidates. '+(errors.join(' · ')||'All sources read') :
      'Browser could not read CelesTrak (possibly CORS/network). Import a .tle/.txt file manually. '+errors.join(' · '));
 });
@@ -376,6 +381,7 @@ $('orbit-calc').addEventListener('click',async()=>{
     found.sort((a,b)=>a.aos-b.aos);
     passes=found.slice(0,100);
     renderPasses();
+    notifyMaps();
     status('orbit-state','Calculated '+found.length+' geometric passes from '+tleEntries.length+' TLE candidates at '+lat.toFixed(3)+', '+lon.toFixed(3)+'. Approximate 30-second resolution; no satellite signals identified.');
   }catch(err){status('orbit-state','Orbit computation failed: '+err.message+'. Check browser connectivity to the JS library CDN.');}
 });
@@ -442,5 +448,17 @@ window.addEventListener('appinstalled',()=>{
   log('Satellite Center added to your browser applications. Pin it to the OS dock from Applications.');
 });
 
+satelliteMaps = createSatelliteMaps({
+ getTles:()=>tleEntries,
+ getSatLib:getOrbitalLibrary,
+ getPasses:()=>passes,
+ getLastCapture:()=>lastCaptured,
+ onTune:(frequency)=>{
+   const preset=$('preset');
+   const option=Array.from(preset.options).find(o=>Number(o.value)===frequency);
+   if(option) preset.value=option.value;
+ },
+ log
+});
 renderSignal();
-log('Browser-only mode loaded. No local service or USB access attempted.');
+log('Browser-only mode loaded with Earth/sky TLE tracking. No local service or USB access attempted.');
