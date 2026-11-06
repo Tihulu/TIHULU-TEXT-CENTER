@@ -46,7 +46,7 @@
     <section class="live-explorer" aria-label="Live GNSS geolocation explorer">
       <div class="live-head">
         <div><div class="eyebrow">LIVE EXPLORER · EARTH + SKY</div><h2>Find your position and see the satellites</h2><p>Automatic navigation-satellite predictions. One button for real device positioning. Orbit positions and RF receptions are different measurements.</p></div>
-        <div class="live-controls"><button id="live-find" class="primary" type="button">◎ Find My Location</button><button id="live-connect" class="secondary" type="button">⌁ Connect USB SDR</button><button id="live-scan" class="secondary" type="button">Scan GNSS L1 · 2 s</button><button id="live-release" class="secondary" type="button">Release USB</button><button id="live-rings" class="secondary" type="button">◎ View Range Rings</button><button id="live-refresh" class="secondary" type="button">↻ Refresh Satellites</button></div>
+        <div class="live-controls"><button id="live-find" class="primary" type="button">◎ Find My Location</button><button id="live-connect" class="secondary" type="button">⌁ Connect USB SDR</button><button id="live-usb-check" class="secondary" type="button">USB Self-Test</button><button id="live-scan" class="secondary" type="button">Scan GNSS L1 · 2 s</button><button id="live-release" class="secondary" type="button">Release USB</button><button id="live-rings" class="secondary" type="button">◎ View Range Rings</button><button id="live-refresh" class="secondary" type="button">↻ Refresh Satellites</button></div>
       </div>
       <div class="live-stats">
         <div><span>POSITION SOURCE</span><strong id="live-pos-type">REFERENCE ONLY</strong><small id="live-pos-label">Cologne fallback · permission not requested</small></div>
@@ -141,7 +141,7 @@
        <button id="serial-connect" class="primary">Connect GNSS serial (9600 baud)</button><button id="serial-disconnect" class="secondary">Disconnect</button>
        <div id="serial-state" class="fine muted">UNAVAILABLE / NOT CONNECTED</div></article>
       <article class="panel"><h2>WebUSB RTL-SDR receiver</h2><p>Connect a compatible local RTL-SDR using supported HTTPS Chromium browsers. Bounded uncalibrated IQ sampling is available; actual GNSS acquisition, pseudorange measurements and satellite position fixing are NOT implemented.</p>
-       <button id="usb-select" class="secondary">Connect RTL-SDR via WebUSB</button><div id="usb-state" class="fine muted">No USB device selected.</div>
+       <button id="usb-select" class="secondary">Connect RTL-SDR via WebUSB</button><button id="usb-selftest" class="secondary" type="button">Test USB access (no Console)</button><div id="usb-state" class="fine muted">No USB device selected.</div>
        <div id="usb-diagnostics" class="usb-diagnostics" role="status" aria-live="polite">WebUSB diagnostics appear here after a connection attempt.</div>
        <details class="usb-troubleshoot"><summary>USB connection failed? Linux / Raspberry Pi setup</summary>
          <p>Chrome/Brave/Edge on HTTPS are required. If your stick is occupied by <code>readsb</code> or another SDR app, close or release it first. The application never stops unrelated processes.</p>
