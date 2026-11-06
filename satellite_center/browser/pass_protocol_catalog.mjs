@@ -2,6 +2,7 @@
  * Identity by NORAD number, never by substring name, RF peak or orbit alone.
  * Mission configuration is historical or status-dependent. Verify before RF.
  */
+import {readUserProfiles} from "./saved_satellite_protocols.mjs";
 export const PUBLIC_DOWNLINKS=Object.freeze([
  Object.freeze({id:"iss-sstv-robot36",norad:25544,kind:"image",label:"SSTV image",
   protocol:"SSTV Robot36",frequencyHz:437550000,activity:"event-only",
@@ -42,7 +43,7 @@ export function noradFromPass(pass){
 }
 export function protocolsForPass(pass){
  const id=noradFromPass(pass);
- return id===null?[]:PUBLIC_DOWNLINKS.filter(d=>d.norad===id);
+ return id===null?[]:[...PUBLIC_DOWNLINKS,...readUserProfiles()].filter(d=>d.norad===id);
 }
 export function protocolCategories(pass){
  return [...new Set(protocolsForPass(pass).map(d=>d.kind))].sort((a,b)=>CONTENT_KINDS.indexOf(a)-CONTENT_KINDS.indexOf(b));
