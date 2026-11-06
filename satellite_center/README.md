@@ -6,7 +6,7 @@ This is the **new `satellite_center/` directory** intended to be placed at the r
 
 - Local, mobile-responsive browser UI at **`http://127.0.0.1:8791/`** (independent from Text Center's `8787`).
 - Explicit-only HTTPS downloads of current CelesTrak TLE sets for ISS (NORAD 25544), Meteor M2-3 (57166), Meteor M2-4 (59051), a bounded amateur/CubeSat selection and **Iridium NEXT**. TLE data is cached for offline use. The app never silently fetches data in the background.
-- Skyfield-propagated predicted rise/peak/set (AOS/LOS), maximum elevation and opt-in recording **scheduler**. Region independent; presets for Köln, other German locations, İzmir, İstanbul, Ankara, Brussels, Paris, Rome and Stockholm. The schedule persists in the local data directory; it executes **only while this independent server remains running**. A pass is not a radio transmission guarantee.
+- Skyfield-propagated predicted rise/peak/set (AOS/LOS), live-on-request geometric overhead positions (azimuth/elevation), maximum elevation and opt-in recording **scheduler**. Region independent; presets for Köln, other German locations, İzmir, İstanbul, Ankara, Brussels, Paris, Rome and Stockholm. The schedule persists in the local data directory; it executes **only while this independent server remains running**. A pass is not a radio transmission guarantee.
 - Safe fixed-band `rtl_power` RF surveys, `rtl_sdr` IQ recordings (`.cu8`), optional `rtl_fm`/`multimon-ng` ISS APRS text, and ISS SSTV WAV that can be decoded by an external tool such as QSSTV. Meteor-M IQ can be processed by installed SatDump with the selected LRPT pipeline; it reports the **actual** output files only. Iridium mode is **spectrum-only** and does **not** decode private satellite communications.
 - No RF transmission, no fabricated satellite detections or images, no all-band hidden background scans, no auto-deletion of raw recordings. Limits: 1 GiB per IQ file; max scheduled capture 480 sec; max manual capture 240 sec; 24 pending passes.
 - Uses Text Center's **cooperative RTL-SDR lock** at `~/.local/share/tihulu-text-center/.receiver-locks/rtl_fm_rds.lock`, plus existing `/proc` receiver-conflict checks. Third-party apps which ignore locks can still interfere; never run welle.io/readsb concurrently with the single RTL-SDR. A dedicated second receiver is preferable for simultaneous operation.
@@ -36,7 +36,7 @@ The application listens **only on loopback**. Do not expose port 8791 to LAN, In
 | ISS 145.800 MHz (voice or scheduled SSTV) | FM / WAV / external SSTV decoder | VHF antenna; SSTV is *not always transmitting* |
 | ISS 145.825 MHz (APRS) | FM 1200-baud AX.25 via `multimon-ng` | VHF antenna; frequency and operational mode subject to current ARISS status |
 | ISS 437.800 MHz repeater | UHF energy survey | UHF antenna; intermittent; 437.825 MHz APRS tests may also occur |
-| Meteor-M2-3/M2-4 | 137.900 MHz or current published backup 137.100 MHz, LRPT / SatDump | 137 MHz V-dipole / QFH, clear sky; downlink availability changes |
+| Meteor-M2-3/M2-4 | 137.900 MHz primary or 137.100 MHz alternate selectable for IQ; LRPT / SatDump | 137 MHz V-dipole / QFH, clear sky; downlink availability changes |
 | Amateur/CubeSat candidates | published satellite-specific VHF/UHF channels | Frequency catalog is **not** automatically resolved; generic scans do not identify satellites |
 | Iridium NEXT | 1616–1626.5 MHz relative RF spectrum **only** | L-band patch/helix and suitable LNA/filter; the bundled VHF whip is usually unsuitable |
 

@@ -52,7 +52,8 @@ PROFILES = {
     "iss_voice": {"label": "ISS voice / SSTV vicinity", "range": "145.76M:145.85M:5k", "freq": 145800000, "family": "iss"},
     "iss_aprs": {"label": "ISS AX.25/APRS vicinity", "range": "145.78M:145.87M:5k", "freq": 145825000, "family": "iss"},
     "iss_uhf": {"label": "ISS repeater vicinity", "range": "437.76M:437.86M:5k", "freq": 437800000, "family": "iss"},
-    "meteor": {"label": "Meteor-M LRPT 137 MHz", "range": "137.0M:138.0M:12.5k", "freq": 137900000, "family": "meteor"},
+    "meteor": {"label": "Meteor-M LRPT primary (137.900 MHz)", "range": "137.0M:138.0M:12.5k", "freq": 137900000, "family": "meteor"},
+    "meteor_backup": {"label": "Meteor-M LRPT alternate (137.100 MHz)", "range": "137.0M:138.0M:12.5k", "freq": 137100000, "family": "meteor"},
     "cubesat_vhf": {"label": "Amateur VHF survey", "range": "145.0M:146.0M:12.5k", "freq": None, "family": "cubesat"},
     "cubesat_uhf": {"label": "Amateur UHF survey", "range": "435.0M:438.0M:25k", "freq": None, "family": "cubesat"},
     "iridium": {"label": "Iridium L-band RF survey", "range": "1616M:1626.5M:50k", "freq": None, "family": "iridium"},
@@ -327,6 +328,48 @@ class Station:
                 "predictions": events, "warnings": warnings,
                 "as_of": stamp(), "note": "Potential passes only. TLE geometry cannot establish any active transmission."}
 
+    def sky(self, city="Cologne"):
+        """Observed sky positions calculated from cached orbits, not RF identification."""
+        try:
+            from skyfield.api import EarthSatellite, load, wgs84
+        except ImportError as exc:
+            raise ValueError("Install skyfield for satellite sky positions") from exc
+        if city not in LOCATIONS:
+            raise ValueError("Unknown location preset")
+        lat, lon = LOCATIONS[city]
+        clock = load.timescale()
+        t = clock.from_datetime(now())
+        observer = wgs84.latlon(lat, lon)
+        visible = []
+        warnings = []
+        for source in SOURCE_URLS:
+            file = self.directory/(source+".tle")
+            if not file.is_file() or time.time()-file.stat().st_mtime > 7*86400:
+                warnings.append(source+": no usable fresh cache")
+                continue
+            entries = parse_tle(file.read_text(encoding="ascii", errors="ignore"))
+            if source == "amateur":
+                entries = [it for it in entries if selectable(source, it)][:15]
+            for item in entries:
+                if not selectable(source, item): continue
+                try:
+                    sat = EarthSatellite(item["l1"], item["l2"], item["name"], clock)
+                    az, el, distance = None, None, None
+                    el, az, distance = (sat-observer).at(t).altaz()
+                    if el.degrees >= 5:
+                        visible.append({"name":item["name"], "norad":item["id"],
+                                        "family":family(source,item),
+                                        "azimuth_deg":round(az.degrees,1),
+                                        "elevation_deg":round(el.degrees,1),
+                                        "range_km":round(distance.km),
+                                        "status":"ORBITAL_POSITION_ONLY"})
+                except (ValueError, OverflowError, RuntimeError):
+                    continue
+        visible.sort(key=lambda x: -x["elevation_deg"])
+        return {"observed_at":stamp(), "observer":{"city":city,"lat":lat,"lon":lon},
+                "above_5_degrees":visible[:160], "warnings":warnings,
+                "note":"Geometric position only; RF presence, antenna visibility and transmissions are unverified"}
+
     def save_jobs(self):
         safe_write(self.directory/"schedule.json", self.jobs[-150:])
 
@@ -574,7 +617,7 @@ class Station:
         return result
 
     def decode_meteor(self, name):
-        if not isinstance(name, str) or not re.fullmatch(r"[A-Za-z0-9_-]+_meteor\.cu8", name):
+        if not isinstance(name, str) or not re.fullmatch(r"[A-Za-z0-9_-]+_meteor(?:_backup)?\.cu8", name):
             raise ValueError("Select an archived Meteor IQ recording")
         if self.session.get("active"):
             raise RuntimeError("Stop RF acquisition before decoding")
@@ -627,6 +670,10 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send_bytes(200, PAGE.read_bytes(), "text/html; charset=utf-8")
             if route == "/api/status":
                 return self.reply(200, {**self.server.station.status(), "csrf": self.server.csrf})
+            if route == "/api/sky":
+                from urllib.parse import parse_qs
+                q = parse_qs(urlsplit(self.path).query)
+                return self.reply(200, self.server.station.sky(city=q.get("city", ["Cologne"])[0]))
             if route == "/api/passes":
                 from urllib.parse import parse_qs
                 q = parse_qs(urlsplit(self.path).query)
@@ -635,7 +682,7 @@ class Handler(BaseHTTPRequestHandler):
                                                                    elevation=float(q.get("elev", ["15"])[0])))
             if route.startswith("/api/image/"):
                 sub = route.removeprefix("/api/image/")
-                if not re.fullmatch(r"[A-Za-z0-9_-]+_meteor_decoded/[A-Za-z0-9_./-]+\.(png|jpg)", sub) or ".." in sub:
+                if not re.fullmatch(r"[A-Za-z0-9_-]+_meteor(?:_backup)?_decoded/[A-Za-z0-9_./-]+\.(png|jpg)", sub) or ".." in sub:
                     return self.reply(400, {"error": "Invalid image path"})
                 path = (self.server.station.archive/sub).resolve()
                 if not path.is_relative_to(self.server.station.archive.resolve()) or not path.is_file() or path.stat().st_size > 15_000_000:

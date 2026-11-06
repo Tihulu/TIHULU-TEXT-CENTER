@@ -11,6 +11,7 @@ from satellite_center.__main__ import (Station, allowed_mode, parse_power,
 class SatelliteTests(unittest.TestCase):
     def test_allowed_modes_and_iridium_privacy(self):
         self.assertTrue(allowed_mode('meteor', 'iq'))
+        self.assertTrue(allowed_mode('meteor_backup', 'iq'))
         self.assertTrue(allowed_mode('iss_aprs', 'aprs'))
         self.assertFalse(allowed_mode('iridium', 'iq'))
         self.assertFalse(allowed_mode('cubesat_vhf', 'sstv_audio'))
