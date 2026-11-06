@@ -129,7 +129,12 @@ class LocalAppHandler(BaseHTTPRequestHandler):
         if destination == "pages" and PAGES_BRIDGE_ENABLED:
             target = PAGES_ORIGIN
         elif destination == "local":
-            target = "http://" + host + ":" + str(port)
+            # Local UI may have been opened at localhost instead of 127.0.0.1.
+            opener_host = params.get("from", ["127.0.0.1"])[0]
+            if opener_host not in ("localhost", "127.0.0.1"):
+                self.send_error(403, "Unapproved local UI hostname")
+                return
+            target = "http://" + opener_host + ":" + str(port)
         else:
             self.send_error(403, "This origin is not enabled for local pairing")
             return
@@ -272,6 +277,9 @@ Approve only if you started this local service and wish to connect your own TV t
         self.send_header("Access-Control-Allow-Origin", origin)
         self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
         self.send_header("Access-Control-Allow-Headers", "Content-Type, X-Tihulu-Bridge-Token")
+        if self.headers.get("Access-Control-Request-Private-Network", "").lower() == "true":
+            # Only allowed Pages/local origin may request local private-network access.
+            self.send_header("Access-Control-Allow-Private-Network", "true")
         self.send_header("Access-Control-Max-Age", "600")
         self.send_header("Cache-Control", "no-store")
         self.send_header("Vary", "Origin")
