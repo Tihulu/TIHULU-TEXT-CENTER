@@ -68,8 +68,6 @@ def fm_to_wav(cu8_path,output_dir,sample_rate=1024000,center_hz=0,
     recording with the correct user-specified sample-rate/frequency metadata.
     Output is an unverified analog demodulation, not decoded SSTV/voice.
     """
-    try:import numpy as np
-    except ImportError as exc:raise RuntimeError("Requires python3-numpy") from exc
     source=_file(cu8_path)
     if source.suffix.lower()!=".cu8":
         raise ValueError("Select a real unsigned interleaved .cu8 recording")
@@ -82,6 +80,8 @@ def fm_to_wav(cu8_path,output_dir,sample_rate=1024000,center_hz=0,
         raise ValueError("FM channel outside IQ bandwidth or invalid gain")
     if source.stat().st_size<4096 or source.stat().st_size>MAX_IQ_BYTES:
         raise ValueError("CU8 missing or larger than safe 2GB input limit")
+    try:import numpy as np
+    except ImportError as exc:raise RuntimeError("Requires python3-numpy") from exc
     decimation=sample_rate//32000
     root=Path(output_dir).expanduser()
     root.mkdir(parents=True,exist_ok=True)

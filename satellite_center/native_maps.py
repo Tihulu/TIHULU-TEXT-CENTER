@@ -78,8 +78,13 @@ class OrbitCanvas(QWidget):
                                 self.width(),self.height(),
                                 self._street and self.isVisible())
     def _project(self,lat,lon):
+        # Natural Earth polygons legitimately contain 180.00000000000014
+        # or out-of-range pole vertices from floating point rounding.
+        # Normalize map DRAWING only; observer/SDR coordinates stay strict.
+        latitude=max(-90.,min(90.,float(lat)))
+        longitude=(float(lon)+180.)%360.-180.
         cx,cy=mercator_xy(self.center_lat,self.center_lon,self.zoom)
-        x,y=mercator_xy(lat,lon,self.zoom)
+        x,y=mercator_xy(latitude,longitude,self.zoom)
         world=256*2**self.zoom
         return QPointF(self.width()/2+(x-cx+world/2)%world-world/2,
                        self.height()/2+y-cy)
