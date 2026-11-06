@@ -226,12 +226,20 @@ All location methods are optional. City suggestions are offline by default; GPS 
 <button type="button" id="iq-analyze-last" disabled>Analyze last recording</button>
 <button type="button" id="iq-analyze-file">Quick analysis of selected file</button>
 <button type="button" id="iq-analyze-full">Analyze full file (all I/Q)</button>
+<button type="button" id="iq-auto-discover">Automatic discovery · sound / image / data</button>
 <button type="button" id="iq-stop-analysis" class="secondary" disabled>Stop processing</button>
 <button type="button" id="iq-export-json" class="secondary" disabled>Export analysis JSON</button>
 <button type="button" id="iq-export-metadata" class="secondary" disabled>Export capture metadata JSON</button>
 </div>
 <p id="iq-last-info" class="hint">No local recording retained in this tab. Use a USB capture with Save raw I/Q enabled, or select a previously downloaded .cu8 file.</p>
 <p id="iq-analysis-status" class="status" role="status" aria-live="polite">No file analyzed. CU8 contains no metadata: verify sample rate and center frequency.</p>
+<section class="iq-discovery-panel" aria-labelledby="iq-discovery-title">
+<h3 id="iq-discovery-title">Automatic signal discovery · progressive local analysis</h3>
+<p class="hint">Choose <strong>Automatic discovery</strong> above. The app examines the complete FFT, isolates the strongest unclassified RF regions, tries AM / narrowband FM audio, and checks long enough recordings for real Robot36 SSTV line synchronization. It does not upload RF data, identify speech/music from sound alone, or invent images, packet data or a satellite source. Other image/data protocols such as Meteor LRPT and APRS remain explicitly unsupported until their decoders verify the result. Processing can be cancelled with Stop processing.</p>
+<div class="line"><button type="button" id="iq-discovery-export" class="secondary" disabled>Export discovery evidence JSON</button></div>
+<div id="iq-discovery-stages" class="iq-discovery-stages" aria-live="polite"></div>
+<div id="iq-discovery-results" aria-live="polite" aria-label="Discovered audio and image candidates"></div>
+</section>
 <div id="iq-analysis-summary" class="iq-metrics" aria-label="Measured I/Q statistics"></div>
 <h3>Unclassified RF energy candidates — full scan only</h3>
 <div id="iq-candidates" class="iq-candidates" aria-label="Selectable spectral candidates"><p>Perform a full scan to find strong RF energy concentrations. These are NOT identified transmissions or satellite positions.</p></div>
@@ -295,4 +303,4 @@ All location methods are optional. City suggestions are offline by default; GPS 
 <details><summary>What requires more than a browser?</summary><p>Windows may require WinUSB driver setup; Linux may require releasing the kernel DVB driver or adjusting permissions. To record a pass while the browser is closed, the optional local companion must remain running. The companion still supports offline SatDump and multimon-ng where installed.</p></details>
 <h3>Activity log</h3><pre id="log" aria-live="polite">Ready. USB idle. No fabricated RF data.</pre></section>
 <footer>Receive-only. The page never transmits RF, uploads I/Q files or silently scans. Page closing releases browser-owned USB access; an unexpected OS/browser crash cannot be guaranteed to cleanly close every device state. Browser client uses <a href="https://www.npmjs.com/package/@jtarrio/webrtlsdr" rel="noopener noreferrer" target="_blank">@jtarrio/webrtlsdr</a> from a version-pinned module CDN (requires Internet to load initially).</footer>
-</main><script type="module" src="./browser.js?v=20261106-signal-v1"></script></body></html>
+</main><script type="module" src="./browser.js?v=20261106-discovery-v1"></script></body></html>
