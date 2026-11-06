@@ -78,7 +78,8 @@
 <option value="meteor">Meteor-M weather</option><option value="cubesat">Amateur CubeSat</option>
 <option value="iridium">Iridium NEXT · RF spectrum only</option>
 </select></label>
-<label class="map-check"><input type="checkbox" id="map-above" checked> Only above local horizon</label>
+<label class="map-check"><input type="checkbox" id="map-above"> Only above local horizon</label>
+<label class="map-check"><input type="checkbox" id="map-band"> Match current SDR band (candidate, not confirmed)</label>
 </div>
 <div class="map-toolbar">
 <label class="map-time-field">Time relative to now (minutes)
@@ -112,7 +113,7 @@
 <div id="map-list" class="sat-list" aria-label="Satellite candidates"></div>
 <div id="map-detail" class="map-detail"><p class="hint">Choose a satellite to view pointing angles and a candidate SDR band.</p></div>
 <p class="hint">Nooelec NESDR SMArt v5: ISS 145 MHz and Meteor 137 MHz need suitable VHF antennas; Iridium 1.6 GHz needs an L-band antenna and often filtered LNA. TLEs cannot confirm whether a transmitter is active. CubeSat downlinks vary by satellite.</p>
-<a href="https://www.heavens-above.com/" target="_blank" rel="noopener noreferrer">Heavens-Above (external predictions)</a>
+<a href="https://www.heavens-above.com/" target="_blank" rel="noopener noreferrer">Heavens-Above (external predictions)</a> · <a href="https://db.satnogs.org/transmitters/" rel="noopener noreferrer" target="_blank">SatNOGS transmitter frequency catalog</a>
 </aside>
 </div>
 </section>
