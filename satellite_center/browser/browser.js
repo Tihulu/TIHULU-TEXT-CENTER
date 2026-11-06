@@ -1,5 +1,6 @@
 import { platformFamily, webUsbHelp, permissionReport } from './usb_diagnostics.mjs';
 import { createSatelliteMaps } from './satellite_maps.mjs';
+import { initStationLocationUI } from './location_search.mjs';
 // TIHULU Satellite Center — no-local-install receive-only browser mode.
 // The RTL-SDR device is opened only after a direct user gesture.
 // CelesTrak / CDN downloads are for client-side orbital prediction + JS only;
@@ -28,6 +29,7 @@ let driver = null, device = null, capturePromise = null, stopRequested = false;
 let lastCaptured = null, rtlLibraryError = null;
 let orbitalLibrary = null, tleEntries = [], passes = [], jobs = [], sessionCounter = 0;
 let lastTleFetchAt = 0;
+let locationUI = null;
 let satelliteMaps = null;
 const notifyMaps = () => { if(satelliteMaps) void satelliteMaps.refresh().catch(e=>log('Map refresh: '+e.message)); };
 const maxRecordBytes = 128 * 1024 * 1024;
@@ -245,8 +247,18 @@ navigator.usb?.addEventListener('disconnect',e=>{
 for (const [city,coords] of Object.entries(LOCATIONS)) void coords;
 $('city').addEventListener('change',()=>{
   const pair=LOCATIONS[$('city').value];
-  if(pair){$('lat').value=pair[0];$('lon').value=pair[1];}
+  if(pair){
+    const beforeLat=Number($('lat').value),beforeLon=Number($('lon').value);
+    $('lat').value=pair[0];$('lon').value=pair[1];
+    $('location-status').textContent='Preset: '+$('city').value+' · '+pair[0].toFixed(3)+'°, '+pair[1].toFixed(3)+'°. Recalculate passes for this location.';
+    if(beforeLat!==pair[0]||beforeLon!==pair[1])$('lat').dispatchEvent(new Event('change',{bubbles:true}));
+    invalidatePasses();
+  }
 });
+function invalidatePasses(){
+ if(passes.length){passes=[];renderPasses();}
+ notifyMaps();
+}
 function parseTle(text,source='uploaded') {
   const lines=String(text).replace(/\r/g,'').split('\n').map(l=>l.trim()).filter(Boolean);
   const matches=[];
@@ -458,6 +470,10 @@ satelliteMaps = createSatelliteMaps({
    const option=Array.from(preset.options).find(o=>Number(o.value)===frequency);
    if(option) preset.value=option.value;
  },
+ log
+});
+locationUI=initStationLocationUI({
+ onStationChanged:invalidatePasses,
  log
 });
 renderSignal();
