@@ -1,0 +1,26 @@
+name: RF Geolocation Center
+on:
+  push:
+    paths:
+      - 'rf_geolocation_center/**'
+      - '.github/workflows/rf-geolocation.yml'
+  pull_request:
+    paths:
+      - 'rf_geolocation_center/**'
+      - '.github/workflows/rf-geolocation.yml'
+jobs:
+  web-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: GNSS and positioning tests
+        run: node --test rf_geolocation_center/tests/*.test.mjs
+      - name: Check browser code syntax
+        run: |
+          node --check rf_geolocation_center/web/app.mjs
+          node --check rf_geolocation_center/core/gnss.mjs
+          node --check rf_geolocation_center/core/positioning.mjs
+          node --check rf_geolocation_center/sw.js
