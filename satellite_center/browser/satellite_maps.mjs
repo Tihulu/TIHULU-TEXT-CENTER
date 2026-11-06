@@ -523,6 +523,16 @@ export function createSatelliteMaps({getTles,getSatLib,getPasses,getLastCapture,
    void refresh();
   });
  }
+ $("earth-street-details").addEventListener("toggle",()=>{
+   if(!earthMap||!$("earth-street-details").open)return;
+   // The optional map's dimensions change when a <details> element expands.
+   // Leaflet does not always detect this itself, particularly in Brave.
+   requestAnimationFrame(()=>requestAnimationFrame(()=>{
+     if(!earthMap||!$("earth-street-details").open)return;
+     earthMap.invalidateSize({pan:false,debounceMoveend:true});
+     drawEarth();
+   }));
+ });
  $("map-load").addEventListener("click",()=>{
    mapStarted=true;
    $("earth-street-details").open=true;
