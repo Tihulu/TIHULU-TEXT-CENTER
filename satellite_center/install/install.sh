@@ -69,37 +69,15 @@ case "$(uname -s)" in
     mkdir -p "$HOME/.local/share/applications" "$icon_dir" "$png_dir"
     cp "$APP_DIR/satellite_center/assets/tihulu-satellite.svg" "$icon_dir/tihulu-satellite.svg"
     cp "$APP_DIR/satellite_center/assets/tihulu-satellite.png" "$png_dir/tihulu-satellite.png"
-    # Desktop: produce exactly one Satellite Center icon by default.
-    # If installed system .deb is present, do not create a duplicate user icon.
-    if dpkg -s tihulu-satellite-center 2>/dev/null | grep -q '^Status: install ok installed
-    command -v gtk-update-icon-cache >/dev/null 2>&1 && gtk-update-icon-cache -f "$HOME/.local/share/icons/hicolor" >/dev/null 2>&1 || true
-    echo "Only the native Qt desktop launcher is installed by default."
-    echo "To preview old duplicate shortcuts without changing files:"
-    echo "  $APP_DIR/.venv-satellite/bin/python -m satellite_center cleanup-shortcuts"
-    echo "To archive those old Local/PWA icons with a backup, append --apply."
-    echo "Opt-in browser shortcut only: TIHULU_INSTALL_WEB_SHORTCUT=1 bash install.sh"
-    echo "Optional RTL-SDR CLI tools for the local companion: sudo apt install rtl-sdr multimon-ng"
-    ;;
-  Darwin)
-    mkdir -p "$HOME/Applications"
-    cp "$BIN_DIR/tihulu-satellite" "$HOME/Applications/TIHULU Satellite Center.command"
-    chmod 755 "$HOME/Applications/TIHULU Satellite Center.command"
-    echo "Install SDR tools separately: brew install librtlsdr (Apple Silicon supported)."
-    ;;
-  *) echo "Use Windows install.ps1 on Windows." >&2; exit 1;;
-esac
-echo "Native Qt SDR program: $BIN_DIR/tihulu-satellite (no browser required)"
-echo "Optional browser WebUSB: $WEB_LAUNCH (Chromium required for RF capture)"
-echo "Optional legacy HTTP service (not started by the Qt app): python3 -m satellite_center serve"
-echo "No USB driver, RF capture, remote listener or background daemon was silently activated."
-; then
-      echo "Native Qt .deb installed: using the existing System launcher; no duplicate Local icon."
+    # The native Qt system .deb owns the single default menu icon.
+    if dpkg -s tihulu-satellite-center 2>/dev/null | grep -q "^Status: install ok installed"; then
+      echo "Qt system package installed: keep its System icon, skip user-local duplicate."
     else
       cat > "$HOME/.local/share/applications/tihulu-satellite.desktop" <<EOF
 [Desktop Entry]
 Type=Application
 Name=TIHULU Satellite Center
-Comment=Real Qt Widgets program, no browser/localhost page required
+Comment=Native Qt Widgets SDR desktop, no browser needed
 Exec=$BIN_DIR/tihulu-satellite
 Icon=tihulu-satellite
 Terminal=false
@@ -107,13 +85,13 @@ StartupNotify=true
 Categories=Education;Science;HamRadio;
 EOF
     fi
-    # Keep browser/PWA workflow available only if user OPTS IN.
+    # Browser/PWA icon is opt-in and never added by the normal installer.
     if [ "${TIHULU_INSTALL_WEB_SHORTCUT:-0}" = "1" ]; then
       cat > "$HOME/.local/share/applications/tihulu-satellite-web.desktop" <<EOF
 [Desktop Entry]
 Type=Application
 Name=TIHULU Satellite Center (Browser WebUSB)
-Comment=Opt-in Chromium WebUSB satellite planner
+Comment=Optional separate Chromium WebUSB planner
 Exec=$WEB_LAUNCH
 Icon=tihulu-satellite
 Terminal=false
@@ -124,10 +102,10 @@ Keywords=RTL-SDR;Satellite;ISS;Meteor;WebUSB;
 EOF
     fi
     command -v gtk-update-icon-cache >/dev/null 2>&1 && gtk-update-icon-cache -f "$HOME/.local/share/icons/hicolor" >/dev/null 2>&1 || true
-    echo "Desktop launchers registered: TIHULU Satellite Center (native default) and optional Browser WebUSB."
-    echo "Pin the TIHULU Satellite Center launcher to the COSMIC dock from the Applications menu."
-    echo "If Chromium isn't installed, Firefox can show the planner, but cannot directly open WebUSB."
-    echo "Optional RTL-SDR CLI tools for the local companion: sudo apt install rtl-sdr multimon-ng"
+    echo "Qt desktop launcher kept/installed; duplicate WebUSB icon is not created by default."
+    echo "Preview old shortcuts: $APP_DIR/.venv-satellite/bin/python -m satellite_center cleanup-shortcuts"
+    echo "Archive unwanted Local/PWA shortcuts after review: append --apply"
+    echo "Opt-in browser shortcut: TIHULU_INSTALL_WEB_SHORTCUT=1 bash install.sh"
     ;;
   Darwin)
     mkdir -p "$HOME/Applications"
@@ -137,7 +115,7 @@ EOF
     ;;
   *) echo "Use Windows install.ps1 on Windows." >&2; exit 1;;
 esac
-echo "Native Qt SDR program: $BIN_DIR/tihulu-satellite (no browser required)"
-echo "Optional browser WebUSB: $WEB_LAUNCH (Chromium required for RF capture)"
-echo "Optional legacy HTTP service (not started by the Qt app): python3 -m satellite_center serve"
-echo "No USB driver, RF capture, remote listener or background daemon was silently activated."
+echo "Native Qt SDR app: $BIN_DIR/tihulu-satellite (no browser required)"
+echo "Optional browser WebUSB: $WEB_LAUNCH (separate Chromium workflow)"
+echo "Optional legacy HTTP service: python3 -m satellite_center serve"
+echo "No USB capture or background daemon was silently activated."
