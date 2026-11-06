@@ -36,13 +36,13 @@ ul{padding-left:22px;line-height:1.8}
 <body><main>
 <small>TIHULU · OFFLINE-FIRST SDR TOOLING</small>
 <h1>Application center</h1>
-<p class="muted">Public dashboards hosted by GitHub Pages. Actual SDR hardware operation and local recordings stay on your own device and require a separately installed local companion.</p>
+<p class="muted">Choose <strong>Browser-only WebUSB</strong> to use a compatible RTL-SDR directly from Chrome/Edge, with no local server. A separate optional companion provides features that cannot run once a browser tab closes.</p>
 <section class="card">
-<h2>🛰 Satellite Center <span class="badge">Independent companion · v0.2.3</span></h2>
+<h2>🛰 Satellite Center <span class="badge">Direct browser WebUSB · experimental</span></h2>
 <p>Receive-only satellite tracking and SDR reception companion for <strong>ISS, Meteor-M, CubeSat and Iridium NEXT</strong>, with CelesTrak TLE pass calendar, planned scans, scheduled recordings, APRS text and optional Meteor imagery via SatDump. Iridium is <strong>orbital/spectrum survey only</strong>, not private communications decoding.</p>
 <ul><li>Works with your compatible RTL-SDR via the <strong>local companion</strong>; GitHub Pages alone cannot access USB.</li><li>Supports Debian/Ubuntu/Pop!_OS, Raspberry Pi OS, macOS Apple Silicon/Intel and Windows x64 with separately installed SDR utilities and drivers.</li><li>Receiver is released after Stop/Quit and on abandoned manual sessions. A single RTL-SDR is not available to Flight Radar and Satellite Center simultaneously.</li></ul>
-<div class="actions"><a class="action" href="./satellite_center/">Open Satellite Center</a><a class="action" href="https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/main/docs/SATELLITE_CENTER_COMPANION.md">Install &amp; connect USB guide</a></div>
-<div class="detail"><h3>One-line install or update</h3>
+<div class="actions"><a class="action" href="./satellite_center/browser/">Open Browser-only Satellite Center (no installation)</a><a class="action" href="./satellite_center/">Optional Local Companion</a><a class="action" href="https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/main/docs/SATELLITE_CENTER_COMPANION.md">Compatibility guide</a></div>
+<div class="detail"><h3>Optional local companion — for closed-browser scheduling and external decoders</h3>
 <p class="note">Run as your normal account after reviewing the remote installer. Requires Git and Python 3.11+ with venv (Windows needs Python 3.11+). These installers update the Satellite Center companion, not the Text Center itself.</p>
 <p><strong>Linux / Pop!_OS / Debian / Ubuntu / Raspberry Pi OS / macOS M-series</strong></p>
 <div class="codebar"><code id="sat-install-unix">curl -fsSL https://raw.githubusercontent.com/Tihulu/TIHULU-TEXT-CENTER/feature/satellite-center-standalone-2026-11-06/satellite_center/install/install.sh | bash</code><button type="button" data-copy="sat-install-unix">Copy command</button></div>
@@ -50,7 +50,7 @@ ul{padding-left:22px;line-height:1.8}
 <div class="codebar"><code id="sat-install-win">irm https://raw.githubusercontent.com/Tihulu/TIHULU-TEXT-CENTER/feature/satellite-center-standalone-2026-11-06/satellite_center/install/install.ps1 | iex</code><button type="button" data-copy="sat-install-win">Copy command</button></div>
 <p class="note" id="copy-feedback" role="status">Standalone receiver starts at <code>http://127.0.0.1:8791/</code>. Copy the local pairing token from that page into the hosted Satellite Center dashboard. On Safari, prefer the local dashboard if loopback requests are restricted.</p>
 </div>
-<p class="muted">To access USB receivers, run the local companion at <code>http://127.0.0.1:8791/</code>, reveal its pairing token locally and enter the token in the hosted dashboard.</p>
+<p class="muted">Direct WebUSB mode asks for USB permission and keeps recordings on your computer. It currently collects raw IQ and calculates orbital passes; in-browser satellite image and APRS decoding are not yet connected. Firefox/Safari are unsupported. Only the optional companion requires <code>http://127.0.0.1:8791/</code> and pairing.</p>
 </section>
 <footer><p>This website does not itself connect to USB, track you, or collect private reception data. It is not an emergency alert service.</p>
 <p>Source repository: <a href="https://github.com/Tihulu/TIHULU-TEXT-CENTER">TIHULU-TEXT-CENTER</a>. The main Text Center and future Survival Kit integration are developed separately.</p></footer>
