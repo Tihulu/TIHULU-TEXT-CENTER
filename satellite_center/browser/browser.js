@@ -922,7 +922,16 @@ function appendPass(pass){
   rateLabel.append(rate);
   const saveLabel=document.createElement('label');saveLabel.className='schedule-wide check';
   const raw=document.createElement('input');raw.type='checkbox';raw.checked=true;
-  saveLabel.append(raw,' Save actual raw I/Q (.cu8). Long samples stream to a user-selected local disk file when supported.');
+  saveLabel.append(raw,' Record original unsigned I/Q (.cu8).');
+  const wavLabel=document.createElement('label');wavLabel.className='schedule-wide check';
+  const wav=document.createElement('input');wav.type='checkbox';
+  wav.checked=Number(frequency.value)===437550000;
+  if(wav.checked)raw.checked=false;
+  wavLabel.append(wav,' Record real FM-demodulated audio (.wav, mono PCM 48 kHz), suitable for Robot36 analysis.');
+  frequency.addEventListener('change',()=>{
+    const iss=Number(frequency.value)===437550000;
+    wav.checked=iss;raw.checked=!iss;refreshBudget();
+  });
   const localLink=document.createElement('a');
   localLink.className="iq-jump-link schedule-wide";
   localLink.href="http://127.0.0.1:8791/browser/index.html";
@@ -936,15 +945,20 @@ function appendPass(pass){
   budgetLabel.className='schedule-capture-budget schedule-wide';
   budgetLabel.setAttribute('role','status');
   const refreshBudget=()=>{
-    const check=formatCaptureBudget(Number(duration.value),Number(rate.value),raw.checked,diskStreamingAvailable());
-    budgetLabel.textContent=check.ok?check.detail+" "+duration.value+" s requested; "+
-      (check.mode==="disk-stream"?"disk file must be authorized before arming.":"memory buffered or levels only."):
-      check.detail;
+    try{
+      const plan=inspectCaptureStorage(Number(duration.value),Number(rate.value),raw.checked,wav.checked);
+      budgetLabel.textContent=(plan.rawDisk||plan.wavDisk?
+        "Select local "+(plan.rawDisk&&plan.wavDisk?"folder":"file")+" NOW for scheduled recording. ":
+        "Short outputs saved in memory/downloads. ")+
+        (raw.checked?"CU8 "+(plan.iq.estimatedBytes/1e6).toFixed(0)+" MB. ":"")+
+        (wav.checked?"Real FM WAV "+(plan.audio.estimatedBytes/1e6).toFixed(1)+" MB. ":"")+
+        "Browser tab must remain visible and awake.";
+    }catch(error){budgetLabel.textContent=String(error?.message||error);}
   };
-  for(const element of [duration,rate,raw])element.addEventListener('change',refreshBudget);
+  for(const element of [duration,rate,raw,wav])element.addEventListener('change',refreshBudget);
   duration.addEventListener('input',refreshBudget);rate.addEventListener('input',refreshBudget);
   refreshBudget();
-  form.append(timeLabel,frequencyLabel,durationLabel,rateLabel,saveLabel,budgetLabel,localLink,explanation,alert,confirm);
+  form.append(timeLabel,frequencyLabel,durationLabel,rateLabel,saveLabel,wavLabel,budgetLabel,localLink,explanation,alert,confirm);
   form.addEventListener('submit',async event=>{
     event.preventDefault();
     let prepared=null;
@@ -955,7 +969,7 @@ function appendPass(pass){
       if(nativeLocal()){
         const job=await nativeScheduledPass(pass,{
           when:selectedTime,durationSeconds:seconds,frequency:Number(frequency.value),
-          sampleRate:chosenRate,saveRaw:raw.checked
+          sampleRate:chosenRate,saveRaw:raw.checked,saveWav:wav.checked
         });
         alert.textContent="Debian local SDR scheduled "+job.satellite+" · "+
           new Date(job.run_at).toLocaleString()+" · "+job.capture_seconds+" seconds · "+
@@ -963,12 +977,12 @@ function appendPass(pass){
         log("Native job "+job.id+" armed; RTL-SDR stays idle until start time.");
         return;
       }
-      const plan=captureBudget(seconds,chosenRate,raw.checked,
-        {fileStreaming:diskStreamingAvailable()});
+      const plan=inspectCaptureStorage(seconds,chosenRate,raw.checked,wav.checked);
       const newJob=createScheduledPass(pass,{
         when:selectedTime,durationSeconds:seconds,
         sampleRate:chosenRate,frequency:Number(frequency.value),
-        saveRaw:raw.checked,diskStreamPrepared:plan.mode==="disk-stream"
+        saveRaw:raw.checked,saveWav:wav.checked,
+        diskStreamPrepared:plan.rawDisk,wavDiskPrepared:plan.wavDisk
       });
       if(jobs.some(j=>j.id===newJob.id&&j.state==='armed'))
         throw Error('This satellite/date/frequency is already scheduled.');
@@ -980,8 +994,8 @@ function appendPass(pass){
       }
       // Pick the disk file NOW, during the form-submit gesture, never at a
       // later unattended scheduled start when a new chooser is impossible.
-      if(plan.mode==="disk-stream"){
-        prepared=await selectLongCaptureFile(seconds,chosenRate,true,{
+      if(plan.rawDisk||plan.wavDisk){
+        prepared=await selectRecordingFiles(seconds,chosenRate,raw.checked,wav.checked,{
           job:newJob,at:new Date(newJob.when),freq:newJob.frequency
         });
       }
@@ -991,10 +1005,10 @@ function appendPass(pass){
       jobs.sort((a,b)=>a.when-b.when);
       alert.textContent='Scheduled '+fmtTime(newJob.when)+' for '+seconds+
         ' s · '+(newJob.frequency/1e6).toFixed(3)+' MHz'+
-        (plan.mode==="disk-stream"?'. Local disk CU8 file selected; do not close this tab.':'.')+
+        ((plan.rawDisk||plan.wavDisk)?'. Local disk output selected; do not close this tab.':'.')+
         ' See calendar for exact end time.';
       log('User armed '+newJob.name+' for '+fmtTime(newJob.when)+
-        ' · '+seconds+' s · '+plan.mode+'. No RF capture started yet.');
+        ' · '+seconds+' s · CU8 '+plan.iq.mode+' / WAV '+plan.audio.mode+'. No RF capture started yet.');
       renderJobs();
       if(device&&!capturePromise){
         await closeDevice(); // do not monopolize USB while waiting
