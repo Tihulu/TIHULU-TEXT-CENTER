@@ -801,7 +801,10 @@ function showDabServices(result){
     " · "+result.services.length+" decoded service entries"));
   box.append(el("p","full-body",
     "DLS labels archived: "+result.imported_dls+
-    " · MOT slides archived: "+result.saved_mot_images+
+    " · MOT slides saved: "+result.saved_mot_images+
+    " · No broadcast slide: "+(result.mot_images_missing??0)+
+    " · Slide read/format errors: "+(result.mot_images_failed??0)+
+    " · Skipped: "+(result.mot_images_skipped??0)+
     (result.archive_notice?" · "+result.archive_notice:"")));
   result.services.forEach(s=>{
     const item=el("div","rds-row");
@@ -812,8 +815,19 @@ function showDabServices(result){
       s.dls ? "DLS: "+s.dls+" · received "+(s.dls_received_at||"time unknown")
             : "No decoded DLS from this station"));
     item.append(el("p","full-body",
-      s.mot_received_at?"MOT slide timestamp: "+s.mot_received_at:
-      "No decoded slideshow timestamp"));
+      "MOT image: "+(s.mot_image_status||"unknown")+
+      " — "+(s.mot_image_note||"No image status received")));
+    if(s.mot_media_id){
+      const picture=el("img","radio-image");
+      picture.src="/api/media/file/"+encodeURIComponent(s.mot_media_id);
+      picture.loading="lazy";
+      picture.alt="Broadcast MOT slide decoded from "+s.name;
+      picture.addEventListener("error",()=>{
+        picture.replaceWith(el("p","full-body",
+          "Image was saved, but browser preview failed. Check the local media endpoint."));
+      });
+      item.append(picture);
+    }
     box.append(item);
   });
 }
@@ -842,7 +856,12 @@ async function addWelleDabBridge(){
       });
       showDabServices(result);
       await refreshCounts();
-      notice("Read actual welle-cli metadata; no tuner retuned. Refresh page 400 to view archived images.");
+      await addRadioImageGallery();
+      notice("DAB decoder read completed. "+
+        result.saved_mot_images+" real MOT image(s) saved; "+
+        (result.mot_images_failed??0)+" failed; "+
+        (result.mot_images_missing??0)+" unavailable. "+
+        "No receiver retuned by Text Center.");
     }catch(e){notice("DAB receiver unavailable: "+e.message)}
     finally{refresh.disabled=false}
   },"action primary");
@@ -862,7 +881,9 @@ async function addWelleDabBridge(){
 }
 async function addRadioImageGallery(){
   const images=await api("/api/media");
+  const previous=$("radio-image-gallery");
   const outer=el("article","item-card");
+  outer.id="radio-image-gallery";
   outer.append(el("div","item-meta","REAL BROADCAST IMAGE ARCHIVE · OFFLINE"));
   outer.append(el("h3","","Station logos & DAB slideshow images"));
   outer.append(el("p","",
@@ -888,7 +909,8 @@ async function addRadioImageGallery(){
     });
     outer.append(gallery);
   }
-  $("content").append(outer);
+  if(previous)previous.replaceWith(outer);
+  else $("content").append(outer);
 }
 async function addDvbDevicePanel(){
   const dvb=await api("/api/dvb/status");
