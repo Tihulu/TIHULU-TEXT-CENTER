@@ -46,6 +46,49 @@ if [[ "$mode" != --check ]]; then
         printf 'set -euo pipefail\nexec bash %q --update\n' "$repo/install.sh"
     } > "$bin/tihulu-text-center-update"
     chmod 755 "$bin/tihulu-text-center" "$bin/tihulu-text-center-update"
+    case "$(uname -s)" in
+      Linux)
+        xdg="$HOME/.local/share"
+        entry="$xdg/applications/tihulu-text-center.desktop"
+        mkdir -p "$(dirname "$entry")"
+        if [[ -e "$entry" ]] && ! grep -Fq "X-Tihulu-Managed=true" "$entry"; then
+            fail "Unrelated desktop entry exists at $entry; not overwriting"
+        fi
+        {
+            printf '%s\n' '[Desktop Entry]' 'Type=Application' 'Name=TIHULU Text Center'
+            printf '%s\n' 'Comment=Offline-first SDR radio, TV and text center'
+            printf 'Exec="%s/tihulu-text-center" desktop\n' "$bin"
+            printf 'Icon=%s/web/favicon.svg\n' "$repo"
+            printf '%s\n' 'Terminal=false' 'Categories=AudioVideo;Network;Utility;'
+            printf '%s\n' 'StartupNotify=true' 'X-Tihulu-Managed=true'
+        } > "$entry"
+        chmod 644 "$entry"
+        ;;
+      Darwin)
+        app="$HOME/Applications/Tihulu Text Center.app"
+        script="$app/Contents/MacOS/TihuluTextCenter"
+        mkdir -p "$app/Contents/MacOS"
+        if [[ -e "$script" ]] && ! grep -Fq 'TIHULU Text Center managed app' "$script"; then
+            fail "An unrelated macOS app launcher already exists: $script"
+        fi
+        {
+            printf '%s\n' '#!/usr/bin/env bash' '# TIHULU Text Center managed app'
+            printf 'cd %q\n' "$repo"
+            printf '%s\n' 'exec python3 -m textcenter desktop'
+        } > "$script"
+        chmod 755 "$script"
+        cat > "$app/Contents/Info.plist" <<'PLIST'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+  <key>CFBundleName</key><string>TIHULU Text Center</string>
+  <key>CFBundleExecutable</key><string>TihuluTextCenter</string>
+  <key>CFBundleIdentifier</key><string>dev.tihulu.textcenter</string>
+  <key>CFBundlePackageType</key><string>APPL</string>
+</dict></plist>
+PLIST
+        ;;
+    esac
 fi
 
 (
