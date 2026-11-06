@@ -43,6 +43,17 @@
 <label>Next passes<select id="auto-hours"><option value="12">12 h</option><option value="24" selected>24 h</option><option value="48">48 h</option></select></label>
 <label>Minimum elevation<select id="auto-elev"><option value="5">5°</option><option value="15">15°</option><option value="20" selected>20°</option><option value="30">30°</option></select></label>
 </div>
+<section class="notice" aria-label="Satellite decoding compute hardware">
+ <label>Processing hardware
+  <select id="auto-compute-mode"><option value="auto" selected>Auto — optimized for this device (recommended)</option><option value="custom">Custom CPU / GPU / NPU multi-select</option></select>
+ </label>
+ <fieldset class="line"><legend>Choose multiple devices when compatible</legend>
+  <label><input type="checkbox" id="auto-compute-cpu" checked> CPU</label>
+  <label><input type="checkbox" id="auto-compute-gpu"> GPU</label>
+  <label><input type="checkbox" id="auto-compute-npu"> NPU</label>
+ </fieldset>
+ <p id="auto-compute-status" class="hint" role="status">Probing available, compatible acceleration backends…</p>
+</section>
 <div class="location-picker reception-station">
 <h3>Ground station · Search / GPS / Manual coordinates</h3>
 <div class="location-search-row">
