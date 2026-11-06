@@ -121,8 +121,17 @@ class LiveCaptionRunner:
                 except queue.Empty:continue
                 # faster-whisper expects 16 kHz float32 audio. Avoid FFmpeg
                 # subprocess and downsample mono 32 kHz PCM by exactly 2.
-                import numpy as np
-                audio=np.frombuffer(pcm,dtype="<i2").astype("float32")[::2]/32768.0
+                try:
+                    import numpy as np
+                except ImportError:
+                    # For independent lightweight unit tests; an actual
+                    # faster-whisper installation includes NumPy itself.
+                    from array import array
+                    samples=array("h")
+                    samples.frombytes(pcm)
+                    audio=[x/32768.0 for x in samples[::2]]
+                else:
+                    audio=np.frombuffer(pcm,dtype="<i2").astype("float32")[::2]/32768.0
                 output=infer(audio)
                 with self._lock:self._state["processed_segments"]+=1
                 for begin,end,text in output:
