@@ -6,6 +6,7 @@ on:
       - 'satellite_center/**'
       - 'docs/satellite/**'
       - 'tests/test_satellite_*.py'
+      - 'tests/test_satellite_*.mjs'
       - '.github/workflows/satellite-platforms.yml'
   push:
     paths:
@@ -57,3 +58,8 @@ jobs:
       - name: Static browser-only JS syntax (no hardware)
         shell: bash
         run: node --input-type=module --check < satellite_center/browser/browser.js
+      - name: Earth and sky tracker tests (no hardware)
+        shell: bash
+        run: |
+          node --check satellite_center/browser/satellite_maps.mjs
+          node --test tests/test_satellite_maps.mjs
