@@ -1107,7 +1107,30 @@ def main(argv=None):
             assert window.tabs.count()==6, "Native tabs not built"
             assert window.pass_seconds.maximum()==900
             assert window.capture_seconds.maximum()==900
-            assert window.web_view if False else True  # no WebEngine imported
+            assert len(window._offline_cities)==8084
+            # Native city search and station selection without geocoding.
+            window.city_search.setText("huerth")
+            window._search_offline_city("huerth")
+            matches=list(window._current_city_suggestions)
+            assert any("Hürth" in label for label in matches)
+            window._choose_offline_city(next(label for label in matches if "Hürth" in label))
+            assert abs(window.lat.value()-50.87079)<0.0001
+            # Render a clearly synthetic orbital pass in real Qt widgets.
+            aos=datetime.now(timezone.utc)+timedelta(minutes=15)
+            window._apply_passes({"predictions":[{
+                "id":"59051:synthetic","norad":59051,"name":"METEOR test only",
+                "family":"meteor","aos":aos.isoformat(),
+                "los":(aos+timedelta(minutes=9)).isoformat(),
+                "max_elevation_deg":44.0,"profiles":["meteor"]}]})
+            assert window.pass_list.topLevelItemCount()==1
+            assert "image" in window.pass_overview.text().lower()
+            assert "LRPT" in window.pass_requirements.text()
+            window.pass_media_filter.setCurrentIndex(
+                window.pass_media_filter.findData("Text"))
+            assert window.pass_list.topLevelItemCount()==0
+            window.pass_media_filter.setCurrentIndex(
+                window.pass_media_filter.findData("Image"))
+            assert window.pass_list.topLevelItemCount()==1
             window.show()
             QTimer.singleShot(100,app.quit)
             result=app.exec_()
