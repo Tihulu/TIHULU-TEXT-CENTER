@@ -1440,6 +1440,7 @@ async function addOfflineRecordingControl(){
   form.append(go,stop);panel.append(form);
   const stateLabel=el("p","full-body","");panel.append(stateLabel);
   const output=el("div","live-caption-list");panel.append(output);
+  const exports=el("div","card-actions");panel.append(exports);
   $("content").append(panel);
   async function refresh(){
     if(state.page!==400)return;
@@ -1453,8 +1454,35 @@ async function addOfflineRecordingControl(){
       const items=await api("/api/transcripts?session="+encodeURIComponent(status.session));
       output.replaceChildren();
       for(const item of items.slice(-10)){
-        output.append(el("p","full-body",item.original_text+
-          (item.translated_text?" / "+item.translated_text:"")));
+        const row=el("div","live-caption-row");
+        row.append(el("p","full-body",item.original_language.toUpperCase()+
+          " [ "+item.started_seconds.toFixed(1)+"–"+item.ended_seconds.toFixed(1)+
+          " s ]: "+item.original_text));
+        row.append(el("p","full-body",item.translated_text
+          ? item.translated_language.toUpperCase()+": "+item.translated_text
+          : "No translated text stored"));
+        if(!item.translated_text){
+          row.append(button("TRANSLATE THIS SEGMENT LATER",async()=>{
+            try{
+              await api("/api/transcripts/translate","POST",{
+                id:item.id,target_language:target.value,backend:"auto"});
+              notice("Original and translated caption saved separately.");
+              await refresh();
+            }catch(error){notice("Translation unavailable: "+error.message)}
+          }));
+        }
+        output.append(row);
+      }
+      exports.replaceChildren();
+      for(const format of ["srt","vtt"]){
+        for(const translated of [false,true]){
+          const link=el("a","action ghost","EXPORT "+
+            (translated?"TRANSLATED ":"ORIGINAL ")+format.toUpperCase());
+          link.href="/api/transcripts/export?session="+encodeURIComponent(status.session)+
+            "&format="+format+"&translated="+(translated?"1":"0");
+          link.target="_blank";link.rel="noopener";
+          exports.append(link);
+        }
       }
     }
     if(status.active)setTimeout(refresh,1200);
