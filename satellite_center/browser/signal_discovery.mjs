@@ -3,7 +3,7 @@
  * validates structure. Offline, receive-only; never uploads samples.
  */
 import {analyzeFullCu8Blob, demodulateCu8Preview} from "./iq_intelligence.mjs";
-import {decodeRobot36Audio} from "./sstv_robot36.mjs";
+import {decodeRobot36WithCompute} from "./compute_backends.mjs";
 
 const NUM_AUDIO_PROBES=3, MS=1_000_000;
 const checkAbort=(signal)=>{if(signal?.aborted)throw Error("Automatic discovery stopped by user.");};
@@ -120,7 +120,7 @@ function bestWindowStart(report,offsetHz,lengthSeconds){
 function summaryError(e){return String(e?.message||e).slice(0,300);}
 export async function discoverCu8Contents(file,{
  sampleRate,centerHz=null,onProgress=()=>{},signal=null,
- maxCandidates=NUM_AUDIO_PROBES,probeSeconds=3,enableImage=true
+ maxCandidates=NUM_AUDIO_PROBES,probeSeconds=3,enableImage=true,computePolicy=null
 }={}){
  const startedAt=new Date().toISOString();
  const phases=[];
@@ -181,11 +181,12 @@ export async function discoverCu8Contents(file,{
          const startSeconds=bestWindowStart(report,offset,durationSeconds);
          const audio=await cu8ToTunedFmAudio(file,{sampleRate:Number(sampleRate),
            offsetHz:offset,signal,durationSeconds,startSeconds});
-         const frame=decodeRobot36Audio(audio.samples,audio.rate);
+         const frame=await decodeRobot36WithCompute(audio.samples,audio.rate,
+           {...(computePolicy||{}),signal});
          images.push({kind:"Robot36 SSTV candidate",offsetHz:offset,startSeconds,
            frequencyHz:centerHz===null?null:centerHz+offset,
            alignedLines:frame.alignedLines,width:frame.width,height:frame.height,
-           status:frame.status,rgba:frame.rgba,
+           status:frame.status,rgba:frame.rgba,compute:frame.compute,
            evidence:"Repeated 1200 Hz lines synchronized across Robot36 scan geometry. Satellite and image content unverified."});
          update("image","decoded candidate","Robot36 sync detected: "+
            frame.alignedLines+"/240 aligned lines; verify image visually");
