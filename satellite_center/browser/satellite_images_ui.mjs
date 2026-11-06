@@ -71,7 +71,11 @@ export function initSatelliteImageUI({onTune=()=>{},onTargetChange=()=>{},log=()
  });
  $("image-tune").addEventListener("click",()=>{
    const t=getTarget(),hz=t.frequencies[0];
-   onTune(hz,t);
+   const tuned=onTune(hz,t);
+   if(tuned===false){
+     errorText("image-decode-status","Opening receiver controls for "+t.name+"; no SDR was tuned in this tab.");
+     return;
+   }
    errorText("image-decode-status","Tuned the RF candidate preset to "+(hz/1e6).toFixed(3)+
      " MHz for "+t.name+". This does not start a receiver or prove the satellite is transmitting.");
  });
