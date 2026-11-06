@@ -90,5 +90,47 @@ class AutoMissionTests(unittest.TestCase):
             self.station.auto_schedule(["iss-hamtv"])
         self.assertFalse(self.captured)
 
+
+    def test_edit_native_auto_job_time_and_protocol_inside_pass_only(self):
+        aos = self.now + timedelta(hours=2)
+        los = aos + timedelta(minutes=8)
+        job = {"id":"abcdef012345", "pass_id":"25544:1234567890",
+               "satellite":"ISS TEST", "family":"iss", "mission_id":"iss-sstv",
+               "profile":"iss_sstv", "mode":"iq", "aos":aos.isoformat(),
+               "los":los.isoformat(), "state":"pending"}
+        self.station.jobs[:] = [job]
+        edited=self.station.edit_auto_schedule(
+            job["id"], (aos+timedelta(seconds=70)).isoformat(), "iss-aprs"
+        )
+        self.assertEqual(edited["mission_id"],"iss-aprs")
+        self.assertEqual(edited["profile"],"iss_aprs_uhf")
+        self.assertEqual(edited["mode"],"aprs")
+        self.assertIsNone(self.station.device_lock)
+        self.assertEqual(job["state"],"pending")
+        with self.assertRaisesRegex(ValueError, "another spacecraft"):
+            self.station.edit_auto_schedule(
+                job["id"], (aos+timedelta(seconds=80)).isoformat(),"meteor-m2-3")
+        with self.assertRaisesRegex(ValueError, "inside the future"):
+            self.station.edit_auto_schedule(
+                job["id"], (los+timedelta(seconds=30)).isoformat(),"iss-aprs")
+        with self.assertRaisesRegex(ValueError, "requires explicit UTC offset"):
+            self.station.edit_auto_schedule(job["id"],"2026-11-08T14:00:00","iss-aprs")
+
+    def test_edit_native_auto_job_rejects_single_receiver_conflict(self):
+        aos = self.now + timedelta(hours=3)
+        los = aos + timedelta(minutes=8)
+        self.station.jobs[:] = [
+            {"id":"abcdef012345","pass_id":"25544:111","mission_id":"iss-sstv",
+             "aos":aos.isoformat(),"los":los.isoformat(),"state":"pending",
+             "profile":"iss_sstv","mode":"iq"},
+            {"id":"abcdef012346","pass_id":"59051:222","mission_id":"meteor-m2-4",
+             "aos":(aos+timedelta(minutes=2)).isoformat(),
+             "los":(los+timedelta(minutes=2)).isoformat(),"state":"pending",
+             "profile":"meteor","mode":"iq"}
+        ]
+        with self.assertRaisesRegex(ValueError, "same receiver"):
+            self.station.edit_auto_schedule("abcdef012345",
+                (aos+timedelta(seconds=30)).isoformat(),"iss-sstv")
+
 if __name__=="__main__":
     unittest.main()
