@@ -1,7 +1,7 @@
 {
   "name": "TIHULU TEXT CENTER",
   "short_name": "TIHULU Text",
-  "description": "Offline-first companion web app for real radio, TV, text and radar data",
+  "description": "Offline-first radio, text and radar web app with experimental browser-only WebUSB FM/IQ",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
