@@ -85,6 +85,17 @@ class RdsSupervisorTests(unittest.TestCase):
         self.assertEqual(supervisor.status()["saved_images"],1)
         self.assertEqual(len(MediaStore(self.store).list()),1)
 
+    def test_rds_program_traffic_and_music_flags_are_source_attributed(self):
+        group={"pi":"0xD3C2","group":"0A","ps":"TEST",
+               "prog_type":"Pop music","tp":True,"ta":False,"is_music":True}
+        event=decode_rds_group(group,98_600_000)
+        self.assertIn("Programme type: Pop music",event["body"])
+        self.assertIn("Traffic programme: yes",event["body"])
+        self.assertIn("Traffic announcement: no",event["body"])
+        self.assertIn("Music flag: yes",event["body"])
+        self.assertEqual(event["station"],"TEST")
+        self.assertNotIn("OFFICIAL",event["body"])
+
     def test_missing_decoder_prevents_spawn(self):
         supervisor=FMRSDSupervisor(self.store,
                 inventory=self.inventory,

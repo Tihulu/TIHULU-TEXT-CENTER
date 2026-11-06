@@ -82,8 +82,19 @@ def decode_rds_group(group: object, hz: int, observed_at: str | None = None) -> 
     if not is_text and not is_label and not rich:
         return None
     original = (rt if is_text else ps if is_label else "").strip()[:1000]
+    # Preserve only RDS metadata explicitly decoded by redsea, without
+    # guessing traffic alerts or converting station data into official alerts.
+    metadata=[]
+    if isinstance(group.get("prog_type"),str) and group["prog_type"].strip():
+        metadata.append("Programme type: "+group["prog_type"].strip()[:80])
+    if type(group.get("tp")) is bool:
+        metadata.append("Traffic programme: "+("yes" if group["tp"] else "no"))
+    if type(group.get("ta")) is bool:
+        metadata.append("Traffic announcement: "+("yes" if group["ta"] else "no"))
+    if type(group.get("is_music")) is bool:
+        metadata.append("Music flag: "+("yes" if group["is_music"] else "no"))
     # Do not fabricate metadata or infer artists from free-text RadioText.
-    body = original + ("\n" if original and rich else "") + "\n".join(rich)
+    body = "\n".join(part for part in (original,*rich,*metadata) if part)
     # Disallow nonprinting terminal escapes, retaining line breaks for RT+ tags.
     body = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]", "", body)
     pi = group.get("pi", "")
