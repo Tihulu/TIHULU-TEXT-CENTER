@@ -2,7 +2,7 @@
   "id": "/TIHULU-TEXT-CENTER/satellite_center/browser/",
   "name": "TIHULU Satellite Center",
   "short_name": "Satellite Center",
-  "description": "Satellite pass planner and direct WebUSB SDR receiver",
+  "description": "Browser-based satellite pass planner and direct USB RTL-SDR",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
@@ -13,7 +13,20 @@
     "utilities",
     "education"
   ],
+  "prefer_related_applications": false,
   "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
     {
       "src": "icon.svg",
       "sizes": "any",
