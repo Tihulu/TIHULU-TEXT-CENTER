@@ -19,6 +19,7 @@ from .capabilities import capability_catalog
 from .fm_survey import FMSurveySupervisor, SurveyError
 from .scan_catalog import scan_capabilities
 from .compute import inventory_compute
+from .translation_runtime import select_translation_device,OfflineArgosProcess
 from .radio_live import LiveRadio,LiveRadioError
 from .tv_live import LiveTV
 
@@ -375,8 +376,16 @@ class Handler(BaseHTTPRequestHandler):
             if route == "/api/live-radio/stop":
                 return self._json(200,self.server.live_radio.stop())
             if route == "/api/captions/translate":
-                return self._json(200,self.server.live_radio.archive.translate_saved(
-                    payload.get("session"),payload.get("target_lang")))
+                backend=select_translation_device(payload.get("device","auto"),inventory_compute())
+                engine=OfflineArgosProcess(backend)
+                try:
+                    result=self.server.live_radio.archive.translate_saved(
+                        payload.get("session"),payload.get("target_lang"),
+                        translator=engine.translate)
+                finally:
+                    engine.close()
+                result["processor"]=backend
+                return self._json(200,result)
             if route == "/api/dab/refresh":
                 if type(payload.get("include_images",True)) is not bool:
                     raise ValueError("Invalid DAB image option")

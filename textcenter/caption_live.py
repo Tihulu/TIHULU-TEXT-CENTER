@@ -12,6 +12,7 @@ from threading import Event, Lock, Thread
 
 from .compute import inventory_compute,resolve_device,LANGUAGES
 from .subtitles import CaptionStore,language_pair,offline_whisper,local_translate
+from .translation_runtime import select_translation_device,OfflineArgosProcess
 from .core import clean_text
 
 CAPTURE_CHUNK_SECONDS=8
@@ -37,8 +38,14 @@ def prepare_caption_options(options:dict,compute_info:dict|None=None,
         if type(value) is not bool:raise ValueError("Caption switches must be booleans")
     if save_translation and not save_original:
         raise ValueError("Saving translations requires also saving originals")
+    translation_device=(
+        select_translation_device(options.get("translation_device","auto"),
+            compute_info or inventory_compute(),validate_cuda=validate_cuda)
+        if translate_live and source!=target else None
+    )
     return {
         "enabled":True,"source_lang":source,"target_lang":target,
+        "translation_device":translation_device,
         "device":selected,"translate_live":translate_live,
         "save_original":save_original,"save_translation":save_translation,
         "local_model_path":os.environ.get("TIHULU_WHISPER_MODEL",""),
@@ -113,7 +120,11 @@ class LiveCaptionRunner:
                 self._state["status"]="stopping"
 
     def _work(self):
+        argos=None
         try:
+            if self.options["translate_live"] and self.options["source_lang"]!=self.options["target_lang"] and not self.translator:
+                argos=OfflineArgosProcess(self.options["translation_device"])
+                self.translator=argos.translate
             infer=self.asr_factory()
             with self._lock:self._state["status"]="running"
             while not self._stop.is_set():
@@ -172,6 +183,7 @@ class LiveCaptionRunner:
                 self._state["status"]="error"
                 self._state["error"]="ASR runtime failed: "+str(exc)[:180]
         finally:
+            if argos is not None:argos.close()
             self.archive.finish(self.session)
             with self._lock:
                 self._state["active"]=False

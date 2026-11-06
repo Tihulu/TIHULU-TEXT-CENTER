@@ -18,7 +18,7 @@ class CaptionWorkerTests(unittest.TestCase):
         self.info={
             "devices":[{"id":"cpu","kind":"cpu","name":"Test CPU"}],
             "whisper_model_local_ready":True,
-            "runtimes":{"faster_whisper":True},
+            "runtimes":{"faster_whisper":True,"argostranslate":True},
         }
     def tearDown(self):self.tmp.cleanup()
 
