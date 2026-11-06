@@ -29,6 +29,8 @@ jobs:
           node --check rf_geolocation_center/core/rf_ranging.mjs
           node --check rf_geolocation_center/core/source_catalog.mjs
           node --check rf_geolocation_center/web/catalog_discovery.mjs
+          node --check rf_geolocation_center/web/simple_ui.mjs
+          node --check rf_geolocation_center/core/dvb_scan.mjs
           node --check rf_geolocation_center/core/gnss.mjs
           node --check rf_geolocation_center/core/positioning.mjs
           node --check rf_geolocation_center/sw.js
