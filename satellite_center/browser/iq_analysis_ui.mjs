@@ -5,6 +5,7 @@ import { analyzeCu8Blob,parseCu8Filename } from "./iq_analysis.mjs?v=20261106-cu
 import { analyzeFullCu8Blob,demodulateCu8Preview } from "./iq_intelligence.mjs?v=20261106-signal-v1";
 import {discoverCu8Contents,discoveryReportJson} from "./signal_discovery.mjs?v=20261106-discovery-v1";
 import {createResultsZip} from "./results_zip.mjs";
+import {initComputeSelector} from "./compute_selector.mjs";
 const $=id=>document.getElementById(id);
 const clamp=(n,low,high)=>Math.max(low,Math.min(high,n));
 const fmt=n=>Number.isFinite(n)?Number(n).toLocaleString(undefined,{maximumFractionDigits:2}):"N/A";
@@ -152,6 +153,7 @@ function renderReport(report,name){
  }
 }
 export function initIqAnalysisUI({log=()=>{}}={}){
+ const computeSelector=initComputeSelector("iq");
  let lastBlob=null,lastName=null,lastMetadata=null,activeRun=0;
  let lastReport=null,lastReportName=null,lastAnalyzedBlob=null,inProgress=false,activeController=null,previewUrl=null;
  let lastDiscovery=null,discoveryObjectUrls=[];
@@ -188,7 +190,10 @@ export function initIqAnalysisUI({log=()=>{}}={}){
    }
    inProgress=true;lastReport=null;lastReportName=null;activeController=new AbortController();setControls();
    try{
-     reportStatus((full?"Processing all complete I/Q FFT windows of ":"Reading scattered I/Q windows from ")+name+" locally… No upload.");
+     await computeSelector.ready;
+     await computeSelector.plan(blob.size/(2*rate));
+     reportStatus((full?"Processing all complete I/Q FFT windows of ":"Reading scattered I/Q windows from ")+name+
+       " locally… FFT runs on CPU; selectable WebGPU accelerates the Robot36 audio-trace step when decoding. No upload.");
      const result=full
        ?await analyzeFullCu8Blob(blob,{sampleRate:rate,centerHz,signal:activeController.signal,
          onProgress:(n,total)=>reportStatus("Full file scan · "+n.toLocaleString()+" / "+
@@ -379,7 +384,9 @@ export function initIqAnalysisUI({log=()=>{}}={}){
    const stagePanel=$("iq-discovery-stages");stagePanel.replaceChildren();
    try{
      reportStatus("Automatic discovery: spectrum → channels → analog audio → supported image sync → packet readiness.");
+     await computeSelector.ready;
      const result=await discoverCu8Contents(file,{sampleRate:rate,centerHz,
+       computePolicy:computeSelector.getSelection(),
        signal:activeController.signal,enableImage:true,maxCandidates:3,
        onProgress:evt=>{
          if(evt.state!=="running")discoveryText(evt.phase+" · "+evt.state+" · "+evt.message,stagePanel);
