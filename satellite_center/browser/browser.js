@@ -902,6 +902,13 @@ satelliteImageUI=initSatelliteImageUI({
    preset.dispatchEvent(new Event("change",{bubbles:true}));
  }
 });
+// Deep-link from the shared Satellite Images & Data mission catalog.
+const receptionTarget = new URLSearchParams(window.location.search).get("image-target");
+if (["iss","meteor3","meteor4"].includes(receptionTarget)) {
+  const selection = $("image-target");
+  selection.value = receptionTarget;
+  selection.dispatchEvent(new Event("change", {bubbles:true}));
+}
 satelliteMaps = createSatelliteMaps({
  getTles:()=>tleEntries,
  getSatLib:getOrbitalLibrary,
