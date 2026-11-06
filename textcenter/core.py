@@ -64,6 +64,14 @@ def text_only(value: str, limit: int = 20000) -> str:
     return clean_text(" ".join(p.fragments), limit)
 
 
+def multiline_text(value: object, limit: int = 30000) -> str:
+    """Retain meaningful decoder line layout without terminal control bytes."""
+    if not isinstance(value, str):
+        return ""
+    value = value.replace("\r\n", "\n").replace("\r", "\n")
+    return re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]", "", value).strip()[:limit]
+
+
 def validate_timestamp(value: object) -> str:
     if not isinstance(value, str) or len(value) > 40:
         raise ValueError("Received timestamp must be an ISO-8601 string")
@@ -189,6 +197,13 @@ def parse_feed(payload: bytes, *, feed_id: str, feed_title: str, source_url: str
     return result
 
 
+def _required_body(obj: dict, key: str, limit: int) -> str:
+    s = multiline_text(obj.get(key), limit)
+    if not s:
+        raise ValueError(f"Missing {key}")
+    return s
+
+
 def _required_string(obj: dict, key: str, limit: int) -> str:
     s = clean_text(obj.get(key), limit)
     if not s or len(s) > limit:
@@ -289,9 +304,9 @@ class Store:
     def articles(self, query: str = "") -> list[dict]:
         with self.connect() as db:
             if query:
-                term = "%" + query[:100].replace("%", r"\%").replace("_", r"\_") + "%"
+                term = "%" + query[:100].replace("~", "~~").replace("%", "~%").replace("_", "~_") + "%"
                 return self._rows(db, """SELECT * FROM articles
-                    WHERE title LIKE ? ESCAPE '\' OR body LIKE ? ESCAPE '\'
+                    WHERE title LIKE ? ESCAPE '~' OR body LIKE ? ESCAPE '~'
                     ORDER BY observed_at DESC LIMIT 100""", (term, term))
             return self._rows(db, "SELECT * FROM articles ORDER BY observed_at DESC LIMIT 100")
 
@@ -332,7 +347,7 @@ class Store:
                 raise ValueError("Real receiver frequency required")
             valid_pages.append({
                 "source_id": _required_string(raw, "source_id", 90), "page": page, "subpage": subpage,
-                "title": _required_string(raw, "title", 180), "body": _required_string(raw, "body", 30000),
+                "title": _required_string(raw, "title", 180), "body": _required_body(raw, "body", 30000),
                 "language": _required_string(raw, "language", 20),
                 "received_at": validate_timestamp(raw.get("received_at")),
                 "station": _required_string(raw, "station", 120),
@@ -348,7 +363,7 @@ class Store:
             event = {
                 "source_id": _required_string(raw, "source_id", 90),
                 "title": _required_string(raw, "title", 180),
-                "body": _required_string(raw, "body", 30000),
+                "body": _required_body(raw, "body", 30000),
                 "received_at": validate_timestamp(raw.get("received_at")),
                 "station": _required_string(raw, "station", 120),
                 "language": _required_string(raw, "language", 20),
@@ -373,11 +388,11 @@ class Store:
             return self._rows(db, "SELECT * FROM bulletins ORDER BY id DESC LIMIT 100")
 
     def add_bulletin(self, title: str, body: str, author: str) -> int:
-        if not all([clean_text(title, 140), clean_text(body, 4000), clean_text(author, 60)]):
+        if not all([clean_text(title, 140), multiline_text(body, 4000), clean_text(author, 60)]):
             raise ValueError("Title, message and author required")
         with self.connect() as db:
             return db.execute("INSERT INTO bulletins(title,body,author,created_at) VALUES(?,?,?,?)",
-                              (clean_text(title, 140),clean_text(body, 4000),clean_text(author, 60),utc_now())).lastrowid
+                              (clean_text(title, 140),multiline_text(body, 4000),clean_text(author, 60),utc_now())).lastrowid
 
     def bookmarks(self) -> list[dict]:
         with self.connect() as db:
