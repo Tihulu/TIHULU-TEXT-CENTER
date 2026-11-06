@@ -774,6 +774,15 @@ window.addEventListener("tihulu:rf-survey-updated",e=>{
 });
 window.addEventListener("tihulu:rf-fit-map",fitRfSurveyMap);
 $("map-source-popup-close")?.addEventListener("click",()=>{$("map-source-popup").hidden=true});
+window.addEventListener("tihulu:show-tv-on-map",()=>{
+ const matches=mapMatches().filter(m=>m.kind==="tv");
+ if(matches.length)focusMappedSources(matches,"TV channels with frequency-matched public broadcasting sites");
+ else if((state.dvbChannels||[]).length){
+  setView("earth");
+  msg(state.dvbChannels.length+" actual DVB channels are available, but no broadcast site's exact MHz is catalogued. No tower or receiver position can be assigned from service metadata alone.");
+ }else focusMappedSources(state.catalogTowers.filter(s=>s.broadcastType?.includes("television")),
+   "Mapped OSM television sites only; no actual TV scan result exists");
+});
 $("map-focus-scan")?.addEventListener("click",()=>{
  const matches=mapMatches();
  if(matches.length)focusMappedSources(matches,"Actual scanned FM/TV frequencies matched to published transmitter candidates");
