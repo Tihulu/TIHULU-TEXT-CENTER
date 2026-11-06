@@ -10,9 +10,21 @@ class SatelliteBrowserStaticTests(unittest.TestCase):
     def test_page_has_direct_webusb_controls_and_clear_limits(self):
         html = (ROOT / "index.html").read_text(encoding="utf-8")
         for phrase in ("Choose RTL-SDR (WebUSB)", "Release USB", "Start real USB capture",
-                       "browser.js", "Browser-only", "No local app",
+                       "browser.js", "Browser-only", "Shared Web + Desktop UI",
                        "in-page APRS/SSTV/Meteor image decoding is not connected yet"):
             self.assertIn(phrase, html)
+        # The pass planner is shared by the installed companion and Pages/PWA.
+        self.assertIn("3 · Satellite pass planner</h2>", html)
+        self.assertNotIn("Satellite pass planner (web-only)", html)
+        self.assertIn('href="http://127.0.0.1:8791/"', html)
+        self.assertNotIn("../companion/", html)
+        for required in ('id="orbit-fetch"', 'id="orbit-calc"', 'id="tle-file"',
+                         'id="location-gps"', 'id="earth-world-canvas"',
+                         'id="iq-analysis"'):
+            self.assertIn(required, html)
+        companion_source = (ROOT.parent / "__main__.py").read_text(encoding="utf-8")
+        self.assertIn('WEB_ASSETS = PAGE.parent/"browser"', companion_source)
+        self.assertIn('if route.startswith("/browser/"):', companion_source)
         self.assertNotIn("pair-token", html)
         self.assertNotIn("localhost:8791", html)
         # The page may document the OPTIONAL companion URL, but its
