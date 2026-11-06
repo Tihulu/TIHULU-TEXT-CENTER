@@ -37,7 +37,8 @@ function buildRow(target,entry,kind){
   (entry.frequencyMHz?" · "+entry.frequencyMHz.toFixed(3)+" MHz":"");
  const desc=document.createElement("small");
  desc.textContent=kind==="aircraft"?
-  "INTERNET aircraft position · "+entry.icao+" · "+entry.observedAt+" · NOT received via RTL-SDR":
+  (Date.now()-Date.parse(entry.observedAt)>120000?"HISTORICAL/CACHED INTERNET aircraft":"RECENT INTERNET aircraft")+
+  " position · "+entry.icao+" · "+entry.observedAt+" · NOT received via RTL-SDR":
   "OSM mapped broadcast site · "+entry.lat.toFixed(5)+", "+entry.lon.toFixed(5)+
   " · "+Math.round(entry.distanceFromSearchCenterMeters/1000)+" km from search CENTER (not your location) · "+
   (entry.frequenciesMHz?.length?"FM tag "+entry.frequenciesMHz.join(", ")+" MHz · SIGNAL UNVERIFIED":"NO FREQUENCY IN CATALOG");
