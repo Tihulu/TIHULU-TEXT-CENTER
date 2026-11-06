@@ -71,3 +71,8 @@ overflow-wrap:anywhere}
 .location-credit{font-size:11px}
 @media(max-width:580px){.location-search-row{grid-template-columns:1fr}
 .location-actions>button{flex:1 1 100%}}
+
+
+.basemap-choice{flex:0 1 235px!important}
+#map-basemap-state{padding:10px 12px;border-left:3px solid #6ebfff;background:#132944;
+ border-radius:6px;margin:10px 0 12px;color:#dbeafd;font-size:12px;line-height:1.5;overflow-wrap:anywhere}
