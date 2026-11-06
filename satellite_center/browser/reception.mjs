@@ -145,6 +145,7 @@ initSatelliteImageUI({
   onTune:(hz,target)=>{
     const key=["iss","meteor3","meteor4"].includes(target.key)?target.key:"iss";
     window.location.assign("./index.html?image-target="+encodeURIComponent(key)+"#satellite-images");
+    return false; // Navigation only; do not claim radio hardware was tuned.
   },
   log:(message)=>{fileStatus.textContent=String(message);}
 });
