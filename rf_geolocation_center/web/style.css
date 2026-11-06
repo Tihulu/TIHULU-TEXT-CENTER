@@ -310,3 +310,13 @@
 .map-source-bullet.tv{color:#f6d58e;background:#3d3525}.map-source-bullet.aircraft{color:#a2ebcf;background:#173c31}
 .map-scan-empty{font-size:11px;color:#a9c5d2;margin:4px 0}
 @media(max-width:820px){.tv-bridge-grid{grid-template-columns:1fr}.map-discovery-top{align-items:flex-start}}
+
+
+.radio-rds-panel{display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:12px 13px;border:1px solid #355b69;border-radius:10px;background:#122a37;margin:14px 0}
+.radio-rds-panel>div:first-child{flex:1;min-width:160px}
+.radio-rds-panel strong{font-size:12px;color:#d7eae6}
+.radio-rds-panel p{font-size:11px;margin:5px 0;color:#a9c8d4}
+.radio-rds-panel>input{min-width:150px;max-width:280px;flex:1;padding:9px;border:1px solid #496b81;border-radius:7px;background:#0d2030;color:#e5fbfb;font-size:11px}
+.radio-rds-panel>a{font-size:11px;color:#9bddc6}
+.radio-rds-panel>#radio-rds-status,.radio-rds-panel>#radio-rds-results{flex-basis:100%}
+.map-source-bullet.rds{background:#214934;color:#9eeabb}
