@@ -1,11 +1,12 @@
 "use strict";
-const views=["home","radio","usb","tv","translate","radar","notes","setup"];
+const views=["home","radio","usb","tv","translate","text","radar","notes","setup"];
 const title={
   home:["Information, without the noise.","Offline-first radio, television, text and aircraft information"],
   radio:["Radio Center · channels & full scan","Real FM/DAB decoding, editable station list and live playback require compatible local receiver backend"],
   usb:["Direct browser USB","Experimental FM mono and raw IQ, with permission and real hardware"],
   tv:["Live digital television","A genuine authorized local DVB stream is required"],
   translate:["Translation & captions","Original audio, source language and installed offline models"],
+  text:["Text & Alerts · broadcast text reader","Real decoder-imported text is available in the optional local archive; no official alerts are inferred"],
   radar:["Flight Radar & tar1090","Real antenna, Internet and hybrid observations kept distinct"],
   notes:["Offline notebook","This browser profile only — never claimed as received broadcast data"],
   setup:["Optional local companion","Try browser-only USB where supported; advanced decoders stay optional"]
