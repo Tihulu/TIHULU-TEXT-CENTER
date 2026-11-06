@@ -804,6 +804,18 @@ class Station:
 
 
 PAGE = Path(__file__).with_name("index.html")
+# The installed Windows/macOS/Linux/Raspberry Pi app serves the SAME
+# browser-only live map and imagery modules that GitHub Pages serves.
+# Static serving never takes ownership of a USB device or launches a service.
+WEB_ASSETS = PAGE.parent/"browser"
+WEB_TYPES = {
+    ".html":"text/html; charset=utf-8", ".js":"text/javascript; charset=utf-8",
+    ".mjs":"text/javascript; charset=utf-8", ".css":"text/css; charset=utf-8",
+    ".json":"application/json", ".geojson":"application/geo+json",
+    ".webmanifest":"application/manifest+json", ".svg":"image/svg+xml",
+    ".png":"image/png", ".jpg":"image/jpeg", ".ico":"image/x-icon"
+}
+
 
 class Handler(BaseHTTPRequestHandler):
     server: "Server"
@@ -863,6 +875,34 @@ class Handler(BaseHTTPRequestHandler):
     def reply(self, code, data):
         self.send_bytes(code, json.dumps(data, ensure_ascii=False).encode(), "application/json; charset=utf-8")
 
+    def browser_static(self, route):
+        """Same-origin, path-confined read-only browser modules shared with Pages."""
+        name = route.removeprefix("/browser/")
+        if not re.fullmatch(r"[A-Za-z0-9_.-]{1,100}", name) or name.startswith("."):
+            return self.reply(400, {"error": "Invalid bundled browser resource"})
+        path = WEB_ASSETS/name
+        if path.suffix not in WEB_TYPES or not path.is_file() or path.stat().st_size > 2_000_000:
+            return self.reply(404, {"error": "Browser resource not found"})
+        raw = path.read_bytes()
+        self.send_response(200)
+        self.send_header("Content-Type", WEB_TYPES[path.suffix])
+        self.send_header("Content-Length", str(len(raw)))
+        self.send_header("Cache-Control", "no-cache")
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("X-Frame-Options", "SAMEORIGIN")
+        self.send_header("Referrer-Policy", "strict-origin-when-cross-origin")
+        self.send_header("Permissions-Policy", "usb=(self), geolocation=(self)")
+        self.send_header("Content-Security-Policy",
+            "default-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'self'; "
+            "script-src 'self' https://cdn.jsdelivr.net https://esm.sh; "
+            "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
+            "img-src 'self' https: blob: data:; "
+            "connect-src 'self' https://api.nasa.gov https://images-api.nasa.gov "
+            "https://geocoding-api.open-meteo.com https://celestrak.org https://esm.sh; "
+            "media-src 'self' blob:; worker-src 'self' blob:")
+        self.end_headers()
+        self.wfile.write(raw)
+
     def do_GET(self):
         if not self.guard():
             return
@@ -870,6 +910,8 @@ class Handler(BaseHTTPRequestHandler):
         try:
             if route == "/":
                 return self.send_bytes(200, PAGE.read_bytes(), "text/html; charset=utf-8")
+            if route.startswith("/browser/"):
+                return self.browser_static(route)
             if route == "/api/status":
                 from urllib.parse import parse_qs
                 client = parse_qs(urlsplit(self.path).query).get("client", [None])[0]
