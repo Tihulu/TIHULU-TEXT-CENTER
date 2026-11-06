@@ -1,5 +1,6 @@
 name: Publish Browser-only Flight Radar inside TIHULU Applications
 # Re-sync Flight Radar 0.3.2.dev2 full tar1090-first browser assets (2026-11-06).
+# Preserve exact canonical source revision for both web deployment endpoints.
 on:
   push:
     branches: [main]
