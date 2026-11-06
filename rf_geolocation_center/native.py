@@ -23,13 +23,29 @@ ASSETS = {
     "/web/app.mjs": ("web/app.mjs", "text/javascript"),
     "/web/maps.mjs": ("web/maps.mjs", "text/javascript"),
     "/web/receivers.mjs": ("web/receivers.mjs", "text/javascript"),
+    "/web/auto_explorer.mjs": ("web/auto_explorer.mjs", "text/javascript"),
+    "/web/usb_sdr.mjs": ("web/usb_sdr.mjs", "text/javascript"),
+    "/web/rf_survey.mjs": ("web/rf_survey.mjs", "text/javascript"),
+    "/web/catalog_discovery.mjs": ("web/catalog_discovery.mjs", "text/javascript"),
+    "/web/simple_ui.mjs": ("web/simple_ui.mjs", "text/javascript"),
     "/web/style.css": ("web/style.css", "text/css"),
     "/web/icon.svg": ("web/icon.svg", "image/svg+xml"),
     "/core/gnss.mjs": ("core/gnss.mjs", "text/javascript"),
     "/core/positioning.mjs": ("core/positioning.mjs", "text/javascript"),
+    "/core/evidence.mjs": ("core/evidence.mjs", "text/javascript"),
+    "/core/location_layers.mjs": ("core/location_layers.mjs", "text/javascript"),
+    "/core/source_provenance.mjs": ("core/source_provenance.mjs", "text/javascript"),
+    "/core/rf_ranging.mjs": ("core/rf_ranging.mjs", "text/javascript"),
+    "/core/source_catalog.mjs": ("core/source_catalog.mjs", "text/javascript"),
+    "/core/dvb_scan.mjs": ("core/dvb_scan.mjs", "text/javascript"),
+    "/scripts/dvb_scan_linux.sh": ("scripts/dvb_scan_linux.sh", "text/plain"),
+    "/scripts/usb_prepare_linux.sh": ("scripts/usb_prepare_linux.sh", "text/plain"),
 }
-CSP = ("default-src 'self'; script-src 'self'; style-src 'self'; "
-       "connect-src 'self'; img-src 'self' data: https://tile.openstreetmap.org; "
+CSP = ("default-src 'self'; script-src 'self' https://esm.sh; style-src 'self'; "
+       "connect-src 'self' https://esm.sh https://celestrak.org https://celestrak.com "
+       "https://overpass-api.de https://opensky-network.org; "
+       "img-src 'self' data: https://tile.openstreetmap.org; "
+       "frame-src https://www.openstreetmap.org; "
        "worker-src 'self'; manifest-src 'self'; object-src 'none'; "
        "base-uri 'none'; form-action 'none'; frame-ancestors 'none'")
 
