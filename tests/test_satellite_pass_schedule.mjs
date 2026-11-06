@@ -52,6 +52,8 @@ test("browser foreground, receiver conflicts and missed passes are explicit stat
  assert.equal(evaluateScheduledJob(job,job.when,{visible:false,receiverBusy:false}),"waiting-foreground");
  assert.equal(evaluateScheduledJob(job,job.when,{visible:true,receiverBusy:true}),"waiting-receiver");
  assert.equal(evaluateScheduledJob(job,job.when,{visible:true,receiverBusy:false}),"start");
+ assert.equal(evaluateScheduledJob(job,job.until-job.durationSeconds*1000,{visible:true,receiverBusy:false}),"start");
+ assert.equal(evaluateScheduledJob(job,job.until-job.durationSeconds*1000+1,{visible:true,receiverBusy:false}),"missed");
  assert.equal(evaluateScheduledJob(job,job.until,{visible:true,receiverBusy:false}),"missed");
 });
 test("measured I/Q summary is uncalibrated and never fabricates decoded satellites",()=>{
