@@ -25,15 +25,34 @@
 <h2 id="auto-mission-title">Automatic satellite reception — three buttons</h2>
 <p class="hint">Select supported public downlinks, then arm the nearest non-overlapping passes. It never activates a transmitter, claims the SDR in the background or pretends every predicted pass contains data. Native companion schedules persist while its service runs; browser-only WebUSB requires an open visible tab.</p>
 <div class="reception-controls">
-<label>What to receive<select id="auto-mission-group">
+<label>Receive<select id="auto-mission-group">
 <option value="images">Earth weather images + ISS SSTV (event-dependent)</option>
-<option value="messages">ISS APRS messages (437.825 MHz candidate)</option>
+<option value="messages">ISS public APRS messages (current station mode dependent)</option>
 <option value="all">Images + messages (one receiver, no overlaps)</option>
 </select></label>
-<label>Latitude (ground station)<input type="number" id="auto-lat" step="0.00001" min="-90" max="90" value="50.938"></label>
-<label>Longitude<input type="number" id="auto-lon" step="0.00001" min="-180" max="180" value="6.960"></label>
 <label>Next passes<select id="auto-hours"><option value="12">12 h</option><option value="24" selected>24 h</option><option value="48">48 h</option></select></label>
-<button type="button" id="auto-gps" class="secondary">Use my location</button>
+<label>Minimum elevation<select id="auto-elev"><option value="5">5°</option><option value="15">15°</option><option value="20" selected>20°</option><option value="30">30°</option></select></label>
+</div>
+<div class="location-picker reception-station">
+<h3>Ground station · Search / GPS / Manual coordinates</h3>
+<div class="location-search-row">
+<label class="location-query-label" for="city-query">Search city/town — 8,084 Germany &amp; Türkiye places available offline
+<input id="city-query" type="search" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="city-suggestions" autocomplete="off" spellcheck="false" placeholder="e.g. Hürth, Köln, İzmir, Karaburun…" maxlength="100"></label>
+<label for="city-country">Country<select id="city-country"><option value="all">All countries</option><option value="DE">Germany</option><option value="TR">Türkiye</option></select></label>
+</div>
+<div class="location-results" id="city-suggestions" role="listbox" aria-label="Location search suggestions" hidden></div>
+<div class="location-actions">
+<button id="location-gps" type="button">Use device location (GPS / Wi-Fi)</button>
+<button id="city-online-search" type="button" class="secondary">Search worldwide online</button>
+<label class="location-online-opt"><input id="city-online-toggle" type="checkbox"> Include online suggestions while typing (opt-in)</label>
+</div>
+<p id="location-status" class="location-status" role="status" aria-live="polite">Search offline, ask GPS permission, or enter coordinates. No location lookup is sent online without opt-in.</p>
+<div class="reception-controls">
+<label>Station mode<select id="auto-city-mode"><option value="Custom" selected>Manual coordinates</option><option value="city-search">Search city / town</option><option value="gps">Device GPS / Wi-Fi</option></select></label>
+<label>Latitude (°)<input type="number" id="auto-lat" step="0.00001" min="-90" max="90" value="50.938"></label>
+<label>Longitude (°)<input type="number" id="auto-lon" step="0.00001" min="-180" max="180" value="6.960"></label>
+</div>
+<p class="hint">Offline city names are bundled; worldwide search uses Open-Meteo only after your request. Station coordinates remain editable. Changing station does not silently change already armed capture jobs.</p>
 </div>
 <div class="reception-actions">
 <button type="button" id="auto-mission-arm">1 · Auto Schedule &amp; Capture</button>
