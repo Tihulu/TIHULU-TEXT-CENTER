@@ -93,13 +93,12 @@ def vectorized_frequency_trace(raw: bytes, rate: int, *, gpu=False) -> list[floa
     """
     if gpu:
         import cupy as xp
+        import numpy as np
+        # Host WAV bytes are copied to actual CUDA VRAM. No simulated GPU.
+        samples = xp.asarray(np.frombuffer(raw, dtype="<i2"), dtype=xp.float32)
     else:
         import numpy as xp
-
-    samples = xp.frombuffer(raw, dtype="<i2").astype(xp.float32)
-    if gpu:
-        # GPU-owned buffer; CuPy may not directly view arbitrary Python bytes.
-        samples = xp.asarray(samples)
+        samples = xp.frombuffer(raw, dtype="<i2").astype(xp.float32)
     crosses_idx = xp.nonzero((samples[:-1] < 0) & (samples[1:] >= 0))[0]
     left = samples[crosses_idx]
     right = samples[crosses_idx + 1]
