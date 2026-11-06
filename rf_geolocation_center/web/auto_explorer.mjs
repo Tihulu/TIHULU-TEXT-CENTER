@@ -57,16 +57,50 @@ function cached(){
 }
 export function initAutoExplorer(){
  if(!$("live-find"))return;
- const state={pos:{lat:DEFAULT_CENTER.lat,lon:DEFAULT_CENTER.lon,measured:false,source:"Cologne reference (not your position)"},
+ let lastKnown=null;
+ try{
+   const saved=JSON.parse(localStorage.getItem("tihulu.rfgeo.last-known-position.v1")||"null");
+   if(saved&&Number.isFinite(saved.lat)&&Number.isFinite(saved.lon)&&Math.abs(saved.lat)<=90&&Math.abs(saved.lon)<=180&&saved.recordedAt)
+     lastKnown={lat:saved.lat,lon:saved.lon,measured:false,source:"LAST KNOWN CACHED ("+saved.recordedAt+") · NOT LIVE"};
+ }catch{}
+ const state={pos:lastKnown||{lat:DEFAULT_CENTER.lat,lon:DEFAULT_CENTER.lon,measured:false,source:"Cologne reference (not your position)"},
  raw:null,lib:null,satellites:[],visible:[],loading:false};
  let mapSrc="";
+ function drawOfflineMap(){
+   const grid=$("live-offline-grid");if(!grid)return;
+   grid.replaceChildren();
+   grid.append(circle("rect",{width:800,height:460,fill:"#10263a"}));
+   const lat=state.pos.lat,lon=state.pos.lon;
+   const longitudeSpan=.4/Math.max(.3,Math.cos(lat*RAD)),latitudeSpan=.26;
+   for(let i=-4;i<=4;i++){
+     const x=400+i*88,y=230+i*51;
+     grid.append(circle("line",{x1:x,y1:0,x2:x,y2:460,stroke:"#50768d","stroke-opacity":".55"}));
+     grid.append(circle("line",{x1:0,y1:y,x2:800,y2:y,stroke:"#50768d","stroke-opacity":".55"}));
+     if(i>=-3&&i<=3){
+       grid.append(circle("text",{x:x+5,y:20,fill:"#91b9cc","font-size":13},(lon+i*longitudeSpan/8).toFixed(4)+"°"));
+       grid.append(circle("text",{x:8,y:y-6,fill:"#91b9cc","font-size":13},(lat-i*latitudeSpan/8).toFixed(4)+"°"));
+     }
+   }
+   grid.append(circle("circle",{cx:400,cy:230,r:14,stroke:state.pos.measured?"#5ce0bb":"#f1b976","stroke-width":3,fill:"#162a3f"}));
+   grid.append(circle("circle",{cx:400,cy:230,r:5,fill:state.pos.measured?"#5ce0bb":"#f1b976"}));
+   grid.append(circle("text",{x:400,y:266,fill:"#edf2f7","text-anchor":"middle","font-size":17},state.pos.measured?"DEVICE POSITION":"REFERENCE / CACHED · NOT LIVE"));
+   grid.append(circle("text",{x:400,y:296,fill:"#c3d8e6","text-anchor":"middle","font-size":13},lat.toFixed(5)+"°, "+lon.toFixed(5)+"°"));
+   grid.append(circle("text",{x:400,y:430,fill:"#ffe2a1","text-anchor":"middle","font-size":15},"OFFLINE COORDINATE GRID · NO MAP TILES"));
+ }
  function updateMap(){
   const p=state.pos,span=Math.min(1.8,.30/Math.max(.25,Math.cos(p.lat*RAD)));
   const bbox=[p.lon-span,p.lat-.21,p.lon+span,p.lat+.21].join(",");
   const marker=p.measured?"&marker="+encodeURIComponent(p.lat+","+p.lon):"";
   const url="https://www.openstreetmap.org/export/embed.html?bbox="+encodeURIComponent(bbox)+"&layer=mapnik"+marker;
-  if(mapSrc!==url){$("live-osm").src=url;mapSrc=url}
-  $("live-pos-type").textContent=p.measured?"DEVICE POSITION":"REFERENCE ONLY";
+  const offline=navigator.onLine===false;
+  const grid=$("live-offline-grid"),frame=$("live-osm");
+  if(offline){
+    grid.hidden=false;frame.hidden=true;drawOfflineMap();
+  }else{
+    grid.hidden=true;frame.hidden=false;
+    if(mapSrc!==url){frame.src=url;mapSrc=url}
+  }
+  $("live-pos-type").textContent=p.measured?"DEVICE POSITION":p.source.startsWith("LAST KNOWN")?"CACHED / NOT LIVE":"REFERENCE / NOT A FIX";
   $("live-pos-label").textContent=p.source+" · "+p.lat.toFixed(5)+"°, "+p.lon.toFixed(5)+"°";
   $("live-earth-source").textContent=p.measured?"MEASURED LOCATION":"COLOGNE REFERENCE";
   $("live-open-osm").href="https://www.openstreetmap.org/#map=11/"+p.lat+"/"+p.lon;
@@ -160,6 +194,18 @@ export function initAutoExplorer(){
    window.dispatchEvent(new Event("tihulu:find-request"));
  });
  $("live-connect").addEventListener("click",()=>{$("usb-select")?.click()});
+ $("live-rings")?.addEventListener("click",()=>{
+   document.querySelector('#nav button[data-view="earth"]')?.click();
+   $("earth-fit-evidence")?.click();
+ });
+ window.addEventListener("offline",()=>{updateMap();$("live-position-status").textContent="Offline map mode: cached/device coordinates with local grid. Device GNSS may still work without Internet."});
+ window.addEventListener("online",()=>{updateMap()});
+ window.addEventListener("tihulu:reference-position",e=>{
+   const p=e.detail;
+   if(!p||![p.lat,p.lon].every(Number.isFinite))return;
+   state.pos={lat:p.lat,lon:p.lon,source:p.kind||"Offline reference (NOT A FIX)",measured:false};
+   updateMap();recalc();
+ });
  window.addEventListener("tihulu:position",e=>{
    const p=e.detail;if(!p||![p.lat,p.lon].every(Number.isFinite)||Math.abs(p.lat)>90||Math.abs(p.lon)>180)return;
    state.pos={lat:p.lat,lon:p.lon,alt:p.alt||0,source:p.provider||"Device location",measured:true};

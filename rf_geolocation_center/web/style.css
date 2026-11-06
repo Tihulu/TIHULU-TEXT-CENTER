@@ -42,3 +42,31 @@
 .live-advanced summary{font-weight:650;font-size:12px;color:#9edfd4;cursor:pointer;list-style-position:inside}
 .live-advanced>.metrics{margin-top:18px}
 .live-advanced>.panel-grid{margin:10px 0 0}
+
+
+/* Offline coordinate-grid positioning evidence, separate real and demo source styles */
+.earth-layer-controls{display:grid;grid-template-columns:1fr;gap:8px;margin:12px 0}
+.earth-layer-controls label{display:flex;align-items:center;gap:10px;border:1px solid #2a465c;border-radius:9px;background:#101f30;padding:10px 11px;color:#c3e0eb;font-size:12px;line-height:1.4;cursor:pointer}
+.earth-layer-controls label:has(input:checked){border-color:#427a80;background:#142d34}
+.earth-layer-controls input{width:16px;height:16px;accent-color:#60ddbd;flex:none}
+.evidence-report{font-size:12px;line-height:1.65;white-space:normal;overflow-wrap:anywhere;border:1px solid #ae814c;background:#2b291f;color:#ffe0a6;border-radius:9px;padding:14px;margin:12px 0}
+#earth-fit-evidence,#evidence-clear{margin:3px 6px 8px 0}
+#earth-map{background:radial-gradient(ellipse at center,#1a344b 0%,#15293c 68%,#0d1c2b 100%)}
+#earth-overlay{z-index:2}
+#osm-tiles{z-index:0}
+#earth-grid{opacity:.96}
+#earth-rings{pointer-events:none}
+#earth-offline-status{color:#acd3e1}
+@media(max-width:680px){.earth-layer-controls label{font-size:11px;padding:9px}.evidence-report{font-size:11px}}
+
+
+.live-map-wrap{position:relative}
+#live-offline-grid{position:absolute;inset:0;width:100%;height:100%;background:#10263a}
+#live-osm[hidden],#live-offline-grid[hidden]{display:none}
+
+
+.evidence-sources{display:grid;gap:7px;margin:8px 0 16px}
+.evidence-source{border:1px solid #36546a;border-radius:8px;padding:9px 10px;background:#102338;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+.evidence-source strong{font-size:12px;color:#d4f1e8}
+.evidence-source span{font-size:11px;color:#a4cad8}
+.evidence-sources>p{margin:4px 0;font-size:11px}
