@@ -235,6 +235,7 @@ export function createSatelliteMaps({getTles,getSatLib,getPasses,getLastCapture,
    });
    if(!L)throw Error("Leaflet did not initialize");
    leaflet=L;const o=observer();
+   setView("earth"); // Show container before Leaflet measures its dimensions.
    earthMap=L.map("earth-map",{worldCopyJump:true,preferCanvas:true}).setView([o.lat,o.lon],3);
    L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png",{
     minZoom:2,maxZoom:12,updateWhenIdle:true,keepBuffer:1,detectRetina:false,
