@@ -53,8 +53,8 @@ class TVTests(unittest.TestCase):
             fake=MagicMock()
             fake.poll.return_value=0
             with patch("textcenter.live_tv.SpeechPipeline",
-                       side_effect=SpeechError("Compatible Whisper model missing")),\\
-                 patch("textcenter.live_tv.subprocess.Popen",return_value=fake),\\
+                       side_effect=SpeechError("Compatible Whisper model missing")),\
+                 patch("textcenter.live_tv.subprocess.Popen",return_value=fake),\
                  patch("textcenter.live_tv.threading.Thread") as thread:
                 started=tv.start("safe-tv",subtitles=True,
                     language="en",translate_to="tr",upstream_authorized=True)
