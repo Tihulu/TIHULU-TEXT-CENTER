@@ -19,13 +19,18 @@ export function selectAutomaticPasses(passes,{mode="images",now=Date.now(),maxJo
     throw Error("Invalid automatic scheduling limits");
   if(!Array.isArray(passes)||!Array.isArray(existingJobs))throw Error("Invalid pass/job data");
   const chosen=AUTO_PRESETS[mode],scheduled=[],skipped=[];
+  // If both ISS APRS and SSTV are requested, alternate them across separate
+  // passes; one receiver cannot sample two simultaneous downlinks.
+  const counts=Object.fromEntries(chosen.map(key=>[key,
+    existingJobs.filter(j=>j.missionId===key&&["armed","starting","running"].includes(j.state)).length]));
   const blocked=existingJobs.filter(job=>["armed","starting","running"].includes(job.state))
     .map(job=>[Number(job.passAos),Number(job.passLos)])
     .filter(([a,b])=>Number.isFinite(a)&&Number.isFinite(b)&&b>a);
   for(const pass of [...passes].sort((a,b)=>a.aos-b.aos)){
     if(scheduled.length>=maxJobs)break;
     if(!pass||!Number.isFinite(pass.aos)||!Number.isFinite(pass.los)||pass.los<=pass.aos)continue;
-    const matched=chosen.find(key=>AUTO_TARGETS[key].norad===Number(pass.id));
+    const eligible=chosen.filter(key=>AUTO_TARGETS[key].norad===Number(pass.id));
+    const matched=eligible.sort((a,b)=>counts[a]-counts[b])[0];
     if(!matched)continue;
     const start=Math.max(pass.aos-10000,now+30000);
     const until=Number(pass.los);
@@ -38,6 +43,7 @@ export function selectAutomaticPasses(passes,{mode="images",now=Date.now(),maxJo
       frequency:target.frequencyHz,sampleRate:1024000,durationSeconds:60,
       saveRaw:true,description:target.kind});
     blocked.push([start,until]);
+    counts[matched]++;
   }
   return {scheduled,skipped,requestedTargets:[...chosen],
     note:"TLE geometry only. Active transmission is unverified. Browser WebUSB capture is limited to 60 seconds and may not contain a complete LRPT image; the tab must remain open and visible."};
