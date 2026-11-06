@@ -7,7 +7,7 @@
 <link rel="apple-touch-icon" href="./icon-192.png">
 <link rel="manifest" href="./manifest.webmanifest">
 <meta name="theme-color" content="#091a30">
-<link rel="stylesheet" href="./browser.css?v=20261106-stream-iq-v1">
+<link rel="stylesheet" href="./browser.css?v=20261106-debian-calendar-fixed-v2">
 <link rel="stylesheet" href="./reception.css">
 </head><body>
 <header><div class="wrap"><p class="eyebrow">TIHULU SATELLITE CENTER · DIRECT USB EXPERIMENTAL</p>
@@ -156,7 +156,7 @@ All location methods are optional. City suggestions are offline by default; GPS 
 <div class="line"><button id="schedule-check" class="secondary" type="button">Check scheduled-scan readiness</button>
 <button id="schedule-wake" class="secondary" type="button">Request screen wake lock</button></div>
 <p id="schedule-readiness" class="status" role="status">No scan armed. WebUSB permission, tab visibility and receiver availability have not been checked.</p>
-<p class="hint">No closed-tab/background scheduling: suspended browsers and sleeping computers cannot guarantee a minute-accurate scan. Future jobs are saved <strong>in this tab only</strong> and are lost when it closes. Use the optional local companion for attended scheduling while the browser is closed.</p>
+<p class="hint">Browser-only WebUSB jobs need a visible Chromium tab. On Debian/Pop!_OS open the <a href="http://127.0.0.1:8791/" rel="noopener noreferrer" target="_blank">native Satellite Center receiver</a> for long recordings in Firefox. Native rtl_sdr captures stream directly to disk and keep scheduled jobs while the local app runs; the website cannot start a local service remotely.</p>
 <h3>Armed jobs and results</h3>
 <div id="jobs" class="scheduled-jobs" aria-live="polite">No scheduled browser captures.</div>
 <section id="browser-schedule-calendar" class="sat-calendar-panel" aria-labelledby="browser-calendar-title">
@@ -366,4 +366,4 @@ These provider viewers offer maps/imagery independently of your RTL-SDR.</p>
 <details><summary>What requires more than a browser?</summary><p>Windows may require WinUSB driver setup; Linux may require releasing the kernel DVB driver or adjusting permissions. To record a pass while the browser is closed, the optional local companion must remain running. The companion still supports offline SatDump and multimon-ng where installed.</p></details>
 <h3>Activity log</h3><pre id="log" aria-live="polite">Ready. USB idle. No fabricated RF data.</pre></section>
 <footer>Receive-only. The page never transmits RF, uploads I/Q files or silently scans. Page closing releases browser-owned USB access; an unexpected OS/browser crash cannot be guaranteed to cleanly close every device state. Browser client uses <a href="https://www.npmjs.com/package/@jtarrio/webrtlsdr" rel="noopener noreferrer" target="_blank">@jtarrio/webrtlsdr</a> from a version-pinned module CDN (requires Internet to load initially).</footer>
-</main><script type="module" src="./browser.js?v=20261106-stream-iq-v1"></script></body></html>
+</main><script type="module" src="./browser.js?v=20261106-debian-native-pass-v3"></script></body></html>

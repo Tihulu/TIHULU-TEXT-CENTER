@@ -258,10 +258,17 @@ border:1px solid #375471;border-radius:8px;margin:0;background:#081727}
 @media(max-width:680px){.sat-calendar-panel{padding:9px}.sat-hour-row{grid-template-columns:53px minmax(0,1fr)}.sat-hour-label{padding:9px 5px}.sat-hour-events{padding:4px}.sat-calendar-job{min-width:0;width:100%}}
 
 /* Proportional reception segments, shared by Pages/PWA and native companion. */
-.sat-hour-row{grid-template-columns:112px minmax(0,1fr);align-items:stretch}
+.sat-calendar-grid>.sat-hour-row{
+  flex:0 0 auto; /* Critical: flex children otherwise shrink to 36px, overlapping tall job cards */
+  width:100%;min-height:44px;height:auto;align-self:stretch;
+  grid-template-columns:112px minmax(0,1fr);align-items:stretch;
+  box-sizing:border-box;overflow:visible
+}
 .sat-hour-label{font-variant-numeric:tabular-nums;white-space:nowrap;font-weight:600}
-.sat-hour-events{display:flex;flex-direction:column;align-items:stretch;padding:6px 10px;gap:6px}
-.sat-calendar-job{width:100%;min-width:0;max-width:none;gap:7px}
+.sat-calendar-grid .sat-hour-events{display:flex;flex-direction:column;align-items:stretch;
+  padding:6px 10px;gap:6px;min-height:0;min-width:0;box-sizing:border-box}
+.sat-calendar-grid .sat-calendar-job{position:relative;flex:0 0 auto;box-sizing:border-box;
+  width:100%;min-width:0;max-width:100%;height:auto;gap:7px;overflow-wrap:anywhere}
 .sat-calendar-job strong{font-size:.9rem;line-height:1.3}
 .sat-calendar-job .sat-job-range{font-variant-numeric:tabular-nums;letter-spacing:.02em;color:#dcecff;font-size:.88rem;font-weight:700}
 .sat-time-track{position:relative;width:100%;height:9px;border-radius:99px;background:#0b1b2d;overflow:hidden;border:1px solid #3b5677}
