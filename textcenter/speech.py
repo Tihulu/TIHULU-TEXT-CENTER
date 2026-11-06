@@ -52,11 +52,49 @@ def transcribe_pcm(pcm:bytes,language:str,backend:str,profile:dict)->str:
     model=(_whisper_model(profile) if backend=="cpu" else
            profile["speech"].get("gpu_model_path") if backend=="gpu" else
            profile["speech"].get("npu_model_path"))
-    if not model:
+    npu_engine=profile["speech"].get("npu_engine") if backend=="npu" else None
+    if not model and npu_engine!="hailo_whisper":
         raise SpeechError("Offline Whisper model for selected backend not installed")
+    if backend=="npu" and npu_engine=="hailo_whisper":
+        if not profile["speech"].get("ready_npu"):
+            raise SpeechError("Hailo model files or device runtime not available")
+        try:
+            import numpy as np
+            from array import array
+            from hailo_apps.python.standalone_apps.speech_recognition.whisper_pipeline import WhisperPipeline
+            from hailo_apps.python.standalone_apps.speech_recognition.audio_utils import (
+                preprocess_audio,improve_audio)
+            from hailo_apps.python.standalone_apps.speech_recognition.postprocessing import clean_transcription
+            xs=array("h")
+            xs.frombytes(pcm[:len(pcm)-(len(pcm)%2)])
+            audio=np.array([(xs[i]+xs[i+1])/65536.0
+                            for i in range(0,len(xs)-1,2)],dtype=np.float32)
+            pipeline=WhisperPipeline(
+                profile["speech"]["hailo_encoder_hef"],
+                profile["speech"]["hailo_decoder_hef"],
+                variant="base",npy_dir=profile["speech"]["hailo_npy_dir"],
+                add_embed=False)
+            try:
+                processed,start=improve_audio(audio)
+                if start is None:
+                    return ""
+                start_offset=max(start-0.2,0)
+                mels=preprocess_audio(processed,chunk_length=pipeline.get_chunk_length(),
+                                      chunk_offset=start_offset)
+                outputs=[]
+                for mel in mels:
+                    pipeline.send_data(mel)
+                    import time
+                    time.sleep(.1)
+                    outputs.append(pipeline.get_transcription())
+                return clean_transcription(" ".join(outputs)).strip()[:3000]
+            finally:
+                pipeline.stop()
+        except (ImportError,OSError,RuntimeError,ValueError,TypeError) as exc:
+            raise SpeechError("Hailo-10H ASR inference unavailable: "+str(exc)[:200]) from exc
     if backend=="npu":
-        if profile["speech"].get("npu_engine")!="openvino_genai" or not profile["speech"].get("ready_npu"):
-            raise SpeechError("No verified local OpenVINO NPU Whisper model/runtime")
+        if npu_engine!="openvino_genai" or not profile["speech"].get("ready_npu"):
+            raise SpeechError("No verified local NPU Whisper model/runtime")
         try:
             import openvino_genai
             from array import array
