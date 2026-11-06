@@ -170,6 +170,7 @@ function showScan(result){
  txt("catalog-fm-status",fmReadings.length+" REAL tuner-frequency samples · strongest relative levels:\n"+
    lines.join("\n")+"\nNo RDS/PI or signal identity decoded. Level peaks alone do not locate the observer.");
  sync();
+ if(fmReadings.length)window.dispatchEvent(new CustomEvent("tihulu:rf-scan-finished",{detail:{count:fmReadings.length,method:"LIVE RTL-SDR TUNER ENERGY"}}));
 }
 function acceptAntennaAircraft(message){
  if(!message||message.app!=="tihulu-flight-radar"||
