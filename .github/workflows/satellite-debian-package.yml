@@ -1,0 +1,65 @@
+name: Satellite Center native Debian package
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - 'feature/satellite-auto-discovery-integrated-2026-11-06'
+    paths:
+      - 'satellite_center/**'
+      - 'tests/test_satellite_*.py'
+      - '.github/workflows/satellite-debian-package.yml'
+  pull_request:
+    paths:
+      - 'satellite_center/**'
+      - '.github/workflows/satellite-debian-package.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  debian-native:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build independent Debian native app
+        run: bash satellite_center/packaging/debian/build.sh
+      - name: Inspect package integrity and desktop entry
+        run: |
+          dpkg-deb --info dist/*.deb
+          dpkg-deb --contents dist/*.deb | grep -E 'tihulu-satellite-center.desktop|satellite_center/browser/reception.html|satellite_center/__main__.py'
+          temp="$(mktemp -d)"
+          dpkg-deb --extract dist/*.deb "$temp"
+          test -x "$temp/usr/bin/tihulu-satellite-center"
+          test -s "$temp/usr/share/tihulu-satellite-center/satellite_center/browser/index.html"
+          test -s "$temp/usr/share/tihulu-satellite-center/satellite_center/browser/reception.html"
+      - name: Debian 12 Bookworm install + real localhost server smoke (NO USB)
+        run: |
+          docker run --rm -v "$PWD:/checkout:ro" debian:bookworm bash -euc '
+            apt-get -qq update
+            DEBIAN_FRONTEND=noninteractive apt-get -qq install -y python3-skyfield rtl-sdr xdg-utils >/dev/null
+            dpkg -i /checkout/dist/*.deb
+            tihulu-satellite-center doctor | grep -F "\"platform\": \"Linux\""
+            tihulu-satellite-center serve --port 8877 > /tmp/satellite.log 2>&1 &
+            pid=$!
+            trap "kill $pid 2>/dev/null || true" EXIT
+            python3 - <<PY
+import time, urllib.request
+for attempt in range(50):
+ try:
+  with urllib.request.urlopen("http://127.0.0.1:8877/", timeout=1) as res:
+   html=res.read()
+  assert b"Satellite" in html and b"auto-mission" in html
+  break
+ except Exception:
+  if attempt==49: raise
+  time.sleep(0.1)
+PY
+          '
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tihulu-satellite-center-debian-native
+          path: dist/*.deb
+          if-no-files-found: error
+          retention-days: 30
