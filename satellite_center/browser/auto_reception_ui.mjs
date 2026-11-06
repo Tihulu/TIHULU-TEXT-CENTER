@@ -109,6 +109,19 @@ export function initAutoReceptionUI({getSelectedFile=()=>null,fileInput=$("local
     finally{btn.disabled=false;}
   });
   cancel.addEventListener("click",()=>{controller?.abort();message("Cancellation requested; running local FFT/decoder will stop at its next safe checkpoint. Native SatDump jobs are not killed by this button.");});
+  $("auto-mission-stop").addEventListener("click",async()=>{
+    if(!nativeHost()){
+      message("Open the WebUSB receiver page (Receiver & pass planner) and click Cancel Auto Missions there. A different tab cannot take over its USB device.");
+      return;
+    }
+    try{
+      const result=await nativeApi("/api/auto-cancel",{});
+      message(result.auto_jobs_cancelled+" native automatic jobs cancelled. "+
+        (result.owned_auto_capture_stop_requested?"Stopped the currently owned automatic capture. ":"")+
+        "Other applications and manual jobs remain untouched.");
+      jobs.replaceChildren();
+    }catch(e){message("Cancel failed: "+String(e?.message||e));}
+  });
   function currentMetadata(name){
     const parsed=parseRecordingName(name)||{};
     const rateValue=$("recorded-rate").value.trim();
