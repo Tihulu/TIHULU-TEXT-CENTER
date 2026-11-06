@@ -84,10 +84,20 @@ async function connectDevice() {
     return;
   }
   if (device || capturePromise) return;
+  let selectedWebUsbDevice = null;
   try {
-    // provider.get() itself invokes the browser's WebUSB chooser.
-    // Keep this directly associated with the click; no arbitrary USB filters.
-    const provider = new driver();
+    // The pinned driver calls requestDevice on this WebUSB adapter.
+    // Track *only* the device granted by this click, so a failed post-open
+    // claim cannot leave that device open behind the driver's exception.
+    // Do not enumerate or close other tabs' or programs' USB sessions.
+    const webusb = {
+      requestDevice: async options => {
+        const chosen = await navigator.usb.requestDevice(options);
+        selectedWebUsbDevice = chosen;
+        return chosen;
+      }
+    };
+    const provider = new driver({webusb});
     device = await provider.get();
     if (document.hidden) {
       await closeDevice();
@@ -103,6 +113,17 @@ async function connectDevice() {
       '. No RF data measured yet; antenna and signal unverified.');
     log('RTL2832U WebUSB tuner opened. Device held only while this page is open.');
   } catch (e) {
+    // provider.get() can open USBDevice, then fail to claim the interface.
+    // It rejects before assigning our 'device' variable, so close the
+    // particular USBDevice we just requested to release the browser handle.
+    if (!device && selectedWebUsbDevice?.opened) {
+      try {
+        await selectedWebUsbDevice.close();
+        log('Failed WebUSB claim: released the device opened in this tab.');
+      } catch (cleanupError) {
+        log('Failed WebUSB claim cleanup warning: ' + cleanupError.message);
+      }
+    }
     log('WebUSB permission/open error: ' + e.message);
     const report = webUsbHelp(e, platform);
     lastUsbReport = report;
