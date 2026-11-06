@@ -1,7 +1,7 @@
 /* UI for browser-only, read-only, local CU8 analysis.
  * Does not upload RF samples or claim demodulation of satellite traffic.
  */
-import { analyzeCu8Blob,parseCu8Filename } from "./iq_analysis.mjs?v=20261106-cuiq-v13";
+import { analyzeCu8Blob,parseCu8Filename } from "./iq_analysis.mjs?v=20261106-images-v15";
 const $=id=>document.getElementById(id);
 const clamp=(n,low,high)=>Math.max(low,Math.min(high,n));
 const fmt=n=>Number.isFinite(n)?Number(n).toLocaleString(undefined,{maximumFractionDigits:2}):"N/A";
