@@ -1,4 +1,5 @@
 import {MISSIONS, missionById, localFileKind, fileEvidence} from "./reception_catalog.mjs";
+import {initSatelliteImageUI} from "./satellite_images_ui.mjs";
 
 const byId=id=>document.getElementById(id);
 const missionSelect=byId("mission"), categorySelect=byId("category");
@@ -49,7 +50,14 @@ function updateMission(){
   if(mission.imageTarget) {
     openLink.href="./index.html?image-target="+encodeURIComponent(mission.imageTarget)+"#satellite-images";
   }
-  if(selectedFile)updateFilePreview();
+  if(mission.imageTarget) {
+    const target=byId("image-target");
+    if(target && target.value!==mission.imageTarget) {
+      target.value=mission.imageTarget;
+      target.dispatchEvent(new Event("change",{bubbles:true}));
+    }
+  }
+  if(selectedFile)void updateFilePreview().catch(e=>{fileStatus.textContent="Metadata error: "+e.message;});
 }
 function clearPreview(){
   if(activeObjectUrl){URL.revokeObjectURL(activeObjectUrl);activeObjectUrl=null;}
@@ -130,4 +138,14 @@ byId("export-evidence").addEventListener("click",()=>{
   }catch(e){fileStatus.textContent="Export blocked: "+e.message;}
 });
 window.addEventListener("pagehide",clearPreview);
+// Reuse the production Robot36 decoder and official NASA image downloader
+// instead of a second incompatible browser-only decoder implementation.
+// Tuning is performed only from the real receiver page on explicit click.
+initSatelliteImageUI({
+  onTune:(hz,target)=>{
+    const key=["iss","meteor3","meteor4"].includes(target.key)?target.key:"iss";
+    window.location.assign("./index.html?image-target="+encodeURIComponent(key)+"#satellite-images");
+  },
+  log:(message)=>{fileStatus.textContent=String(message);}
+});
 updateOptions();
