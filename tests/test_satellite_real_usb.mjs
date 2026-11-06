@@ -67,3 +67,56 @@ test('map always defaults to bundled land geography and offers a real diagnostic
  assert.ok(app.includes('await connectDevice({silent:true})'));
  assert.ok(app.includes('await closeDevice()'));
 });
+
+
+import { usbInterfaceClaimProbe, webUsbHelp } from '../satellite_center/browser/usb_diagnostics.mjs';
+
+test('low-level USB claim test opens and always releases precisely its own RTL2832U',async()=>{
+ const calls=[];
+ const d={
+   vendorId:0x0bda,productId:0x2838,opened:false,configuration:null,
+   async open(){calls.push('open');this.opened=true;},
+   async selectConfiguration(n){calls.push('configuration'+n);this.configuration={configurationValue:n};},
+   async claimInterface(i){calls.push('claim'+i);},
+   async releaseInterface(i){calls.push('release'+i);},
+   async close(){calls.push('close');this.opened=false;}
+ };
+ const result=await usbInterfaceClaimProbe({getDevices:async()=>[d]});
+ assert.equal(result.ok,true);
+ assert.deepEqual(calls,['open','configuration1','claim0','release0','close']);
+ assert.equal(d.opened,false);
+});
+
+test('failed claim preserves native browser error and closes its owned handle',async()=>{
+ const calls=[];
+ const d={
+   vendorId:0x0bda,productId:0x2838,opened:false,configuration:{configurationValue:1},
+   async open(){this.opened=true;calls.push('open');},
+   async claimInterface(i){calls.push('claim'+i);throw Object.assign(new Error('Unable to claim interface.'),{name:'NetworkError'});},
+   async releaseInterface(){calls.push('release');},
+   async close(){this.opened=false;calls.push('close');}
+ };
+ const result=await usbInterfaceClaimProbe({getDevices:async()=>[d]});
+ assert.equal(result.ok,false);
+ assert.equal(result.stage,'claimInterface(0)');
+ assert.equal(result.errorName,'NetworkError');
+ assert.deepEqual(calls,['open','claim0','close']);
+ assert.equal(d.opened,false);
+});
+
+test('USB probe never opens an unrelated device without a matching grant',async()=>{
+ let opened=false;
+ const d={vendorId:0x0abc,productId:0x1234,async open(){opened=true;}};
+ const result=await usbInterfaceClaimProbe({getDevices:async()=>[d]});
+ assert.equal(result.ok,false);
+ assert.equal(opened,false);
+});
+
+test('wrapped RTL-SDR claim error exposes browser DOMException cause',()=>{
+ const error=new Error('Could not connect to the RTL-SDR stick.');
+ error.name='RadioError.UsbTransferError';
+ error.cause=Object.assign(new Error('Unable to claim interface.'),{name:'NetworkError'});
+ const guidance=webUsbHelp(error,'linux');
+ assert.match(guidance,/Underlying WebUSB error: NetworkError/);
+ assert.match(guidance,/sudo systemctl stop readsb/);
+});
