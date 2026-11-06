@@ -14,16 +14,21 @@
   <div class="brand"><div class="brand-icon" aria-hidden="true">◎</div><div><strong>TIHULU</strong><span>RF GEOLOCATION CENTER</span></div></div>
   <div class="side-caption">SCIENCE WORKBENCH · v0.1 DRAFT</div>
   <nav id="nav" aria-label="Workspace sections">
-   <button data-view="dashboard" class="selected">◈ Dashboard</button>
-   <button data-view="earth">◉ Earth Map</button>
+   <button data-view="earth" class="selected">◉ Find My Location</button>
+   <button data-view="radio">⌁ Radio / TV Scan</button>
+   <button id="show-advanced-nav" type="button" aria-expanded="false">⚙ Advanced Tools</button>
+   <div id="advanced-nav" hidden>
+   <button data-view="dashboard">◈ Original Dashboard</button>
+   <button data-view="earth" class="legacy-earth-nav" hidden>◉ Earth Map</button>
    <button data-view="sky">✳ Sky Map</button>
    <button data-view="receiver">⌁ GNSS Receiver</button>
    <button data-view="catalog">▤ Satellite Catalog</button>
-   <button data-view="radio">≋ Radio Positioning</button>
+   <button data-view="radio" class="legacy-radio-nav" hidden>≋ Radio Positioning</button>
    <button data-view="references">✈ Aircraft & Stations</button>
    <button data-view="measurements">▦ Measurements</button>
    <button data-view="history">⇩ History & Export</button>
    <button data-view="settings">⚙ Settings & Hardware</button>
+   </div>
   </nav>
   <div class="sidebar-bottom">
    <div class="dotline"><span class="dot off"></span><span id="rf-state">NO RF RECEIVER OPEN</span></div>
@@ -90,7 +95,28 @@
      <article class="panel"><h2>Cross-platform status</h2><p id="dashboard-platform">Checking device and browser capabilities…</p><button data-jump="settings" class="secondary">Hardware & permissions</button></article>
     </div>
    </section>
-   <section id="view-earth" class="view"><div class="section-head"><div><div class="eyebrow">EARTH MAP</div><h1>Ground tracks and references</h1></div><button id="osm-load" class="secondary">Load OpenStreetMap online (opt-in)</button></div>
+   <section id="view-earth" class="view active"><div class="section-head simple-title"><div><div class="eyebrow">TIHULU GEOLOCATION</div><h1>Find my location</h1><p class="lead">Choose your hardware and the sources to display. The map shows a real device fix, experimental radio estimate, or clearly labeled reference — never a fabricated position.</p></div><button id="osm-load" class="secondary">Load map tiles</button></div>
+     <article class="panel simple-position-panel" aria-label="Geolocation input and radio source options">
+      <div class="simple-choice-grid">
+       <fieldset class="simple-fieldset"><legend>Position methods · select any</legend>
+        <label class="simple-option"><input type="checkbox" id="simple-gps" checked><span><strong>GPS / Device</strong><small>Phone or computer location; offline GPS if available</small></span></label>
+        <label class="simple-option"><input type="checkbox" id="simple-sdr"><span><strong>Nooelec RTL-SDR radio</strong><small>Measured radio signals · experimental positioning</small></span></label>
+        <label class="simple-option"><input type="checkbox" id="simple-tv"><span><strong>Hauppauge WinTV-soloHD TV</strong><small>DVB-T/T2/C channels · native tuner metadata</small></span></label>
+       </fieldset>
+       <fieldset class="simple-fieldset"><legend>RF source layers · select any</legend>
+        <label class="simple-option"><input type="checkbox" id="simple-ground" checked><span><strong>Ground transmitters</strong><small>FM, TV sites and reference locations</small></span></label>
+        <label class="simple-option"><input type="checkbox" id="simple-aircraft" checked><span><strong>Aircraft</strong><small>Local ADS-B and internet contacts, kept separate</small></span></label>
+        <label class="simple-option"><input type="checkbox" id="simple-satellites"><span><strong>Satellites</strong><small>Predicted orbits, not automatically RF-received</small></span></label>
+       </fieldset>
+      </div>
+      <div class="simple-actions">
+       <button id="simple-find" class="primary" type="button">◎ Find My Location</button>
+       <button id="simple-scan" type="button" class="secondary">⌁ Scan selected receivers</button>
+       <button id="simple-fit" type="button" class="secondary">Show measured rings</button>
+      </div>
+      <div class="simple-result" id="simple-result" role="status" aria-live="polite">Select a method above and press Find My Location. GPS/device is available through browser permission; radio/TV discovery requires the corresponding receiver.</div>
+      <div class="simple-summary" id="simple-sources" role="status">Receiver: none · Radio references: 0 · Actual ranging: none</div>
+     </article>
      <div class="two-col">
       <article class="panel map-panel">
        <div class="map-top"><span id="map-center-label">COLOGNE REFERENCE · NOT YOUR LOCATION</span><div><button id="map-zoom-out" aria-label="Zoom out">−</button><button id="map-zoom-in" aria-label="Zoom in">+</button></div></div>
@@ -100,7 +126,7 @@
         <div class="map-cross">+</div>
        </div><div class="map-footer"><span>WGS84 · map pan by drag/touch · wheel or +/− zoom</span><span>© OpenStreetMap contributors, tiles only on request</span></div>
       </article>
-      <article class="panel"><h2>Live location and evidence</h2>
+      <details id="geo-advanced-tools" class="panel geo-advanced-tools"><summary>Advanced layers, evidence and calibration</summary><div class="geo-advanced-body"><h2>Live location and evidence</h2>
        <button id="earth-find" class="primary" type="button">◎ Find My Location — online or offline</button>
        <div id="fix-evidence" class="fix-evidence" role="status" aria-live="polite">No confirmed live fix. Browser/device geolocation or a connected NMEA GNSS receiver may provide one. Last known location is never a new fix.</div>
        <div id="source-proof" class="source-proof" role="status">Source: none · Device service: not measured · RTL-SDR antenna: no location fix.</div>
@@ -130,7 +156,7 @@
        <div class="field"><label>Ground transmitters / aircraft</label><div id="earth-ref-count">0 — import your own verified references</div></div>
        <button id="earth-reset" class="secondary">Center on location / reference</button>
        <p class="muted fine" id="earth-offline-status">Offline fallback: locally rendered coordinate grid, reference markers and range rings remain visible without OpenStreetMap tiles. GNSS-based offline coordinates require a capable receiver, or a previously saved location labeled CACHED.</p>
-      </article>
+      </div></details>
      </div>
    </section>
    <section id="view-sky" class="view"><div class="section-head"><div><div class="eyebrow">SKY GEOMETRY</div><h1>Azimuth and elevation</h1></div><span class="status-tag">PREDICTED ORBIT, NOT ACQUIRED</span></div>
