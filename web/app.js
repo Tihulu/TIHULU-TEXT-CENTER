@@ -245,6 +245,7 @@ async function openPage(number,source,subpage){
   }
   clearNotice();
   if(!Number.isInteger(Number(number)) || Number(number)<100 || Number(number)>899) return notice("Select a page from 100 to 899.");
+  document.body.classList.toggle("text-alerts-mode",Number(number)===500&&!source);
   state.page=Number(number);state.source=source||"";state.subpage=Number(subpage)||0;
   $("page-number").value=state.page;$("subpage-number").value=state.subpage;$("source-select").value=state.source;
   const query=new URLSearchParams({number:String(state.page),subpage:String(state.subpage)});
@@ -260,7 +261,7 @@ async function openPage(number,source,subpage){
     if(state.page===410) return showLiveRadioPage();
     if(state.page===420) return showLiveTVPage();
     if(state.page===450) return showTranslatorPage();
-    if(state.page===500) return showEmergency();
+    if(state.page===500) return showTextAndAlerts();
     if(state.page===600) return showBulletins();
     if(state.page===700) return showLibrary();
     if(state.page===800) return showDirectory();
@@ -2714,16 +2715,290 @@ async function showRadioData(){
   if(!(events.length+pages.length)) empty("Nothing received yet","Use an authorized external decoder and import its actual JSON output. No fake Journaline, RDS or Teletext pages are supplied.");
   $("section-count").textContent=(events.length+pages.length)+" imported records";
 }
-function showEmergency(){
-  section("TRUST & SAFETY","Emergency text integrity","Not an official alert feed");
-  const n=el("article","notice-card");
-  append(n,el("h3","","Broadcast information is not an authenticated warning"),el("p","","A received radio message, Teletext headline or community bulletin does not prove an official emergency. This standalone version does not receive BBK/NINA, AFAD, CAP or other verified alert feeds. For urgent risk, consult official channels and local authorities."));
-  $("content").append(n);
-  const a=el("article","item-card");
-  append(a,el("h3","","Official reference sites"),el("p","","These links require internet access and are informational, not live alerts in this app."));
-  const links=el("div","card-actions");
-  [["Germany: warnung.bund.de","https://warnung.bund.de/"],["Türkiye: AFAD","https://www.afad.gov.tr/"]].forEach(([t,u])=>{const n=el("a","",t+" ↗");n.href=u;n.rel="noopener noreferrer";n.target="_blank";links.append(n)});
-  a.append(links);$("content").append(a);
+/* Text & Alerts: one read-only reader for existing, provenance-bearing archive data.
+   This UI adds no tuner access, driver changes, TV Teletext changes or automatic polling.
+   No received text is represented as an authenticated emergency alert. */
+const TEXT_MEDIA_NAMES={
+  fm_rds:"FM RadioText / RDS",dab_dls:"DAB+ Dynamic Label",drm:"DRM broadcast text",
+  dvb_teletext:"DVB Teletext",journaline:"Journaline",
+  navtex:"NAVTEX maritime",hf_weather:"HF weather text",
+  aprs:"APRS data",other_receiver:"Other decoder text",
+  internet:"Cached web / RSS article"
+};
+const TEXT_READER_GROUPS=[
+  ["all","All text"],["radio","Radio text"],["pages","Teletext & Journaline"],
+  ["weather","Weather & maritime"],["other","Other data"],["internet","Feeds & blogs"],
+  ["emergency","Emergency guidance"]
+];
+function textReaderCategory(entry){
+  if(entry.kind==="article")return "internet";
+  if(["fm_rds","dab_dls","drm"].includes(entry.medium))return "radio";
+  if(["dvb_teletext","journaline"].includes(entry.medium))return "pages";
+  if(["navtex","hf_weather"].includes(entry.medium))return "weather";
+  return "other";
+}
+function textReaderEntries(events,pages,articles){
+  const all=[];
+  for(const value of events){
+    if(!value||typeof value!=="object")continue;
+    all.push({
+      kind:"event",medium:String(value.medium||"other_receiver"),
+      name:String(value.title||"Untitled received text"),body:String(value.body||""),
+      station:String(value.station||"Unknown decoder source"),
+      timestamp:String(value.received_at||""),source_id:String(value.source_id||""),
+      provenance:String(value.provenance||"Decoder attribution not supplied"),
+      language:String(value.language||"und"),
+      frequency_hz:value.frequency_hz,id:String(value.id||"")
+    });
+  }
+  for(const value of pages){
+    if(!value||typeof value!=="object")continue;
+    if(!["dvb_teletext","journaline"].includes(value.medium))continue;
+    all.push({
+      kind:"page",medium:value.medium,name:String(value.title||"Received page"),
+      station:String(value.station||"Unknown decoder source"),
+      timestamp:String(value.received_at||""),source_id:String(value.source_id||""),
+      page:Number(value.page),subpage:Number(value.subpage||0),
+      language:String(value.language||"und")
+    });
+  }
+  for(const value of articles){
+    if(!value||typeof value!=="object")continue;
+    all.push({
+      kind:"article",medium:"internet",name:String(value.title||"Cached article"),
+      body:String(value.body||""),station:String(value.source_name||"Cached feed"),
+      timestamp:String(value.published_at||value.observed_at||""),
+      source_id:String(value.feed_id||""),url:String(value.url||""),
+      language:"und"
+    });
+  }
+  return all.sort((a,b)=>(Date.parse(b.timestamp)||0)-(Date.parse(a.timestamp)||0));
+}
+function textReaderOfficialLinks(){
+  const links=el("div","text-alerts-official-links");
+  for(const [name,url] of [
+    ["Germany · warnung.bund.de","https://warnung.bund.de/"],
+    ["Germany · DWD warnings","https://www.dwd.de/"],
+    ["Türkiye · AFAD","https://www.afad.gov.tr/"],
+    ["Türkiye · MGM warnings","https://www.mgm.gov.tr/"]
+  ]){
+    const link=el("a","action ghost",name);
+    link.href=url;link.target="_blank";link.rel="noopener noreferrer";
+    links.append(link);
+  }
+  return links;
+}
+async function showTextAndAlerts(){
+  section("BROADCAST TEXT / SAFETY","Text & Alerts",
+    "Read received pages and messages · no live alerts implied");
+  const content=$("content");
+  const overview=el("article","notice-card text-alerts-intro");
+  overview.append(el("h3","","One place for readable broadcast text"));
+  overview.append(el("p","full-body",
+    "Read archived FM RDS, DAB+ DLS, DRM, DVB Teletext, Journaline, NAVTEX, "+
+    "HF weather, APRS and other actual decoder messages. Internet feeds are "+
+    "separate from antenna reception. No receiver scan or background polling starts here."));
+  overview.append(el("p","full-body",
+    "This is an independent archive reader. The TV application's live Teletext "+
+    "interface, tuner drivers, service scan and playback remain unchanged."));
+  content.append(overview);
+  const shell=el("article","item-card text-alerts-center");
+  const toolbar=el("div","text-alerts-toolbar");
+  const group=el("select","text-alerts-select");
+  group.id="text-alerts-group";
+  group.setAttribute("aria-label","Text category");
+  for(const [value,name] of TEXT_READER_GROUPS){
+    const opt=el("option","",name);opt.value=value;group.append(opt);
+  }
+  const search=el("input","text-alerts-search");
+  search.type="search";search.placeholder="Search pages, channel, message or source…";
+  search.id="text-alerts-search";search.setAttribute("aria-label","Search received text");
+  const onlyReceived=el("label","text-alerts-only");
+  const antenna=el("input");antenna.type="checkbox";antenna.id="text-alerts-antenna";
+  onlyReceived.append(antenna,document.createTextNode(" Antenna only"));
+  const refresh=button("RELOAD SAVED TEXT",()=>{void load();},"action ghost");
+  toolbar.append(group,search,onlyReceived,refresh);
+  const summary=el("p","text-alerts-summary");
+  summary.setAttribute("role","status");
+  const layout=el("div","text-alerts-layout");
+  const list=el("div","text-alerts-results");
+  list.id="text-alerts-results";
+  list.setAttribute("aria-label","Received text and pages");
+  const reader=el("section","text-alerts-reader");
+  reader.id="text-alerts-reader";
+  reader.setAttribute("aria-label","Selected text content");
+  reader.append(el("h3","","Select something to read"),
+    el("p","full-body","Choose an imported text or page from the list. No sample or simulated transmission is displayed."));
+  layout.append(list,reader);
+  shell.append(toolbar,summary,layout);
+  content.append(shell);
+  const footer=el("article","notice-card text-alerts-source-note");
+  footer.append(el("h3","","Emergency warnings: source matters"),
+    el("p","full-body","An imported broadcast message is not a verified official alert. "+
+      "The local Text Center currently has no authenticated, live CAP/BBK/NINA/AFAD alert feed. "+
+      "For an actual emergency, consult official authorities. Received text can be delayed or incomplete."));
+  footer.append(textReaderOfficialLinks());
+  const shortcuts=el("div","card-actions");
+  shortcuts.append(
+    button("LEGACY WEATHER TEXT",()=>openPage(300,"",0),"action ghost"),
+    button("TEXT NETWORK DIRECTORY",()=>openPage(800,"",0),"action ghost"),
+    button("SAVED LIBRARY",()=>openPage(700,"",0),"action ghost")
+  );
+  footer.append(shortcuts);
+  content.append(footer);
+  let entries=[],loadIssue="",selection=0,chosen=null;
+  function filtered(){
+    const term=search.value.trim().toLocaleLowerCase();
+    const selected=group.value;
+    return entries.filter(entry=>{
+      if(selected!=="all"&&selected!==textReaderCategory(entry))return false;
+      if(antenna.checked&&entry.kind==="article")return false;
+      const haystack=[entry.name,entry.station,entry.medium,entry.body,
+        entry.source_id,entry.page!=null?String(entry.page):""]
+        .join(" ").toLocaleLowerCase();
+      return !term||haystack.includes(term);
+    });
+  }
+  function metadata(entry){
+    const source=entry.kind==="article"?"CACHED INTERNET / NOT RF":
+      "DECODER IMPORT / NOT AUTHORITY VERIFIED";
+    const meta=el("div","text-alerts-meta");
+    meta.append(el("span","",source),
+      el("span","",TEXT_MEDIA_NAMES[entry.medium]||entry.medium),
+      el("span","",entry.station),
+      el("span","",timeLabel(entry.timestamp)));
+    return meta;
+  }
+  function renderEmergencyGuidance(){
+    list.replaceChildren();
+    const info=el("div","text-alerts-empty");
+    info.append(el("h3","","No authenticated alert feed is connected"),
+      el("p","full-body","Received radio/TV text, local notes and online articles are not "+
+        "promoted to emergency warnings. Official CAP feeds need explicit source validation, "+
+        "alert status, affected area, effective time and expiry."));
+    list.append(info);
+    reader.replaceChildren();
+    reader.append(el("h3","","Official emergency information"),
+      el("p","full-body","Use the official authority sites below to check current "+
+        "warnings. This app is not a replacement for an emergency warning system."));
+    reader.append(textReaderOfficialLinks());
+  }
+  async function display(entry){
+    chosen=entry;
+    render();
+    const current=++selection;
+    reader.replaceChildren(el("p","full-body","Loading selected archived text…"));
+    let full=entry;
+    if(entry.kind==="page"){
+      try{
+        const query=new URLSearchParams({number:String(entry.page),
+          subpage:String(entry.subpage),source_id:entry.source_id});
+        const received=await api("/api/page?"+query.toString());
+        if(current!==selection||state.page!==500)return;
+        if(received.kind!=="broadcast"||
+           received.source_id!==entry.source_id||
+           received.page!==entry.page||
+           received.subpage!==entry.subpage){
+          throw Error("Archive response does not match the selected received page");
+        }
+        full={...entry,...received,kind:"page",name:entry.name};
+      }catch(error){
+        if(current!==selection)return;
+        reader.replaceChildren(el("h3","","Could not open archived page"),
+          el("p","full-body",error.message));
+        return;
+      }
+    }
+    if(current!==selection||state.page!==500)return;
+    reader.replaceChildren();
+    reader.append(metadata(full));
+    reader.append(el("h3","",full.name||full.title||"Received text"));
+    if(full.kind==="page"){
+      reader.append(el("p","text-alerts-page-number",
+        "PAGE "+full.page+"/"+String(full.subpage).padStart(2,"0")));
+    }
+    reader.append(el("div","text-alerts-body",full.body||"No decoded body was saved."));
+    const evidence=el("p","text-alerts-evidence",
+      "Source: "+(full.source_id||"not supplied")+
+      (full.frequency_hz?" · "+(full.frequency_hz/1e6).toFixed(3)+" MHz":"")+
+      " · Language: "+(full.language||"und")+
+      " · Evidence: "+(full.provenance||(
+        full.kind==="article"?"RSS/Atom/feed cache (not radio reception)":
+        "Decoder metadata stored with the received page")));
+    reader.append(evidence);
+    if(full.kind==="page"){
+      const siblings=entries.filter(x=>x.kind==="page"&&x.source_id===full.source_id)
+        .sort((a,b)=>(a.page-b.page)||(a.subpage-b.subpage));
+      const index=siblings.findIndex(x=>x.page===full.page&&x.subpage===full.subpage);
+      const actions=el("div","card-actions");
+      for(const [label,other] of [["← PREVIOUS",siblings[index-1]],
+                                   ["NEXT →",siblings[index+1]]]){
+        const control=button(label,()=>{void display(other);},"action ghost");
+        control.disabled=!other;
+        actions.append(control);
+      }
+      actions.append(button("OPEN NUMBERED PAGE",()=>openPage(full.page,full.source_id,full.subpage),"action ghost"));
+      reader.append(actions);
+    }
+    if(full.kind==="article"&&/^https:\/\//i.test(full.url||"")){
+      const link=el("a","action ghost","OPEN ORIGINAL WEBSITE");
+      link.href=full.url;link.target="_blank";link.rel="noopener noreferrer";
+      reader.append(link);
+    }
+    const copy=button("COPY RECEIVED TEXT",()=>{
+      if(!navigator.clipboard?.writeText){notice("Browser clipboard permission unavailable");return;}
+      navigator.clipboard.writeText(full.body||"").then(()=>notice("Copied saved text"))
+        .catch(()=>notice("Browser clipboard permission unavailable"));
+    },"action ghost");
+    reader.append(copy);
+  }
+  function render(){
+    if(state.page!==500)return;
+    if(group.value==="emergency"){
+      summary.textContent="Emergency guidance · no verified real-time alert service connected";
+      renderEmergencyGuidance();return;
+    }
+    const items=filtered();
+    summary.textContent=items.length+" matching saved text items · "+
+      entries.length+" total"+(loadIssue?" · Some archives could not be loaded":"");
+    list.replaceChildren();
+    if(!items.length){
+      list.append(el("p","text-alerts-empty",
+        entries.length?"No saved messages match these filters.":"No decoded text or cached articles yet. Import a real decoder result or open a saved feed."));
+      reader.replaceChildren(el("h3","","No selected text"),
+        el("p","full-body","This view does not generate example transmissions. Open Radio Center or TV Center to capture data using an available decoder."));
+      return;
+    }
+    for(const entry of items.slice(0,650)){
+      const item=button("",()=>{void display(entry);},"text-alerts-item");
+      const title=el("strong","",entry.name);
+      const sub=el("span","",entry.station+" · "+(TEXT_MEDIA_NAMES[entry.medium]||entry.medium)+
+        (entry.kind==="page"?" · P"+entry.page+"/"+entry.subpage:""));
+      const timestamp=el("small","",timeLabel(entry.timestamp));
+      item.append(title,sub,timestamp);
+      if(chosen===entry)item.classList.add("selected");
+      list.append(item);
+    }
+  }
+  async function load(){
+    refresh.disabled=true;
+    const datasets=await Promise.allSettled([
+      api("/api/events"),api("/api/pages"),api("/api/articles")
+    ]);
+    if(state.page!==500)return;
+    const results=datasets.map((x)=>x.status==="fulfilled"&&Array.isArray(x.value)?x.value:[]);
+    const faults=datasets.filter(x=>x.status!=="fulfilled");
+    loadIssue=faults.length?faults.map(x=>String(x.reason||"Unable to load source")).join("; "):"";
+    entries=textReaderEntries(results[0],results[1],results[2]);
+    chosen=null;
+    render();
+    if(loadIssue)notice("Some archived text sources could not be loaded: "+loadIssue);
+    refresh.disabled=false;
+  }
+  group.addEventListener("change",render);
+  search.addEventListener("input",render);
+  antenna.addEventListener("change",render);
+  await load();
 }
 async function showBulletins(){
   section("LOCAL / OFFLINE","Your local bulletin board","Stored on this device");
