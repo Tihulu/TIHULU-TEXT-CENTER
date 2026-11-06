@@ -121,7 +121,7 @@ export function initUsbSDR(report){
    }catch(error){notify("SAMPLE ERROR",error.message||String(error))}
    finally{sampling=false}
  }
- async function captureRF(frequencyMHz){
+ async function captureRF(frequencyMHz,sourceId){
    if(!receiver){notify("RF NOT CONNECTED","Connect RTL-SDR via WebUSB first. No simulated RF readings.");return}
    if(busy||sampling){notify("RF BUSY","Another USB receive operation is in progress.");return}
    if(!Number.isFinite(frequencyMHz)||frequencyMHz<24||frequencyMHz>1766){
@@ -147,7 +147,7 @@ export function initUsbSDR(report){
      if(samples===0)throw Error("No actual radio bytes received");
      const levelDbFS=10*Math.log10(power/samples);
      const record={levelDbFS,frequencyMHz,gainDb,sampleRate,sampleBytes:samples,
-       measuredAt:new Date().toISOString(),hardwareId:"RTL2832U WebUSB 0bda:2838",
+       measuredAt:new Date().toISOString(),sourceId:String(sourceId||""),hardwareId:"RTL2832U WebUSB 0bda:2838",
        observation:"REAL HARDWARE I/Q POWER LEVEL · NOT A DISTANCE",
        sourceIdentityVerified:false,decodedSignal:false};
      window.dispatchEvent(new CustomEvent("tihulu:rf-observation",{detail:record}));
@@ -198,7 +198,7 @@ export function initUsbSDR(report){
    }
  }
  // Select and claim receiver only when the user chooses it.
- window.addEventListener("tihulu:rf-capture-request",event=>{void captureRF(event.detail?.frequencyMHz)});
+ window.addEventListener("tihulu:rf-capture-request",event=>{void captureRF(event.detail?.frequencyMHz,event.detail?.sourceId)});
  $("usb-select")?.addEventListener("click",()=>{void connect()});
  $("usb-selftest")?.addEventListener("click",()=>{void selfTest()});
  $("live-usb-check")?.addEventListener("click",()=>{void selfTest()});
