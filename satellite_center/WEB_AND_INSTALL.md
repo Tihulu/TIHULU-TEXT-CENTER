@@ -4,6 +4,33 @@ This additive companion is not merged into Text Center or Survival Kit yet.
 It uses port **8791** only on **127.0.0.1**, without starting a receiver or
 fetching TLE data in the background. It cannot control USB directly from Pages.
 
+## GitHub Pages publishing (separate branch, main stays unchanged)
+
+A dedicated **`gh-pages`** branch now exists in the same repository, containing
+only static public pages: `index.html`, `satellite_center/index.html`,
+`satellite/index.html`, `404.html`, and `.nojekyll`. The source application
+and draft PR remain unchanged until independently reviewed.
+
+**Required one-time repository-owner action:** visit
+`https://github.com/Tihulu/TIHULU-TEXT-CENTER/settings/pages`, then
+**Build and deployment → Source: Deploy from a branch → Branch: gh-pages →
+Folder: /(root) → Save**. The companion cannot enable repository Pages
+settings through the current GitHub connection. Once GitHub finishes deploying,
+the expected static entry points are:
+
+- `https://tihulu.github.io/TIHULU-TEXT-CENTER/`
+- `https://tihulu.github.io/TIHULU-TEXT-CENTER/satellite_center/`
+- `https://tihulu.github.io/TIHULU-TEXT-CENTER/satellite/`
+
+These URLs should **not** be called live until GitHub Pages reports a successful
+deployment. The account homepage `https://tihulu.github.io/` may still return
+404: this is a **project** site under the repository path.
+
+The `gh-pages` branch is a snapshot of the Satellite Center UI; further
+changes to the draft feature branch are **not automatically deployed** until
+the static HTML is copied to the Pages branch. Never put the Python backend,
+recordings, credentials, or pairing tokens on Pages.
+
 ## Hosted UI using the existing repository
 
 No second repository and no Pages workflow replacing the current site is
