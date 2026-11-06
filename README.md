@@ -16,7 +16,7 @@ A lightweight, offline-first, English-language information and text-network cent
 Requires Python **3.11+**, no third-party Python packages:
 
 ```bash
-python3 -m textcenter --host 127.0.0.1 --port 8787
+python3 -m textcenter serve --host 127.0.0.1 --port 8787
 ```
 
 Open **http://127.0.0.1:8787/**. The app creates its SQLite database in `~/.local/share/tihulu-text-center/` unless `--db` is set.
