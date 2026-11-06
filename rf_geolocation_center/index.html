@@ -243,6 +243,24 @@
          <div class="simple-actions"><button id="radio-connect-rtl" class="primary" type="button">Connect RTL-SDR via WebUSB</button><button id="radio-manage-usb" class="secondary" type="button">Manage hardware</button></div>
          <div class="simple-actions"><button id="quick-radio-discover" class="primary" type="button">Discover sources</button><button id="quick-radio-scan" type="button">Scan FM band</button><button id="quick-radio-release" type="button">Hard Stop receiver</button><button id="quick-back-map" type="button">← Back to map</button></div>
          <div id="quick-radio-status" class="simple-result">Connect the RTL-SDR for antenna FM scans. Site lookup requires internet or a cached catalog.</div>
+         <div class="fm-reference-panel">
+          <strong>FM reference channel energy test</strong>
+          <p>Known published frequencies are useful for testing the receiver and a calibrated reference workflow. Their names are NOT verified by RF energy alone; their transmitter coordinates and actual range are not assumed.</p>
+          <div class="simple-actions">
+           <label for="fm-reference-channel">Known FM broadcast frequency
+            <select id="fm-reference-channel">
+             <option value="98.6">WDR 2 · Köln · 98.6 MHz</option>
+             <option value="87.6">1LIVE · Köln · 87.6 MHz</option>
+             <option value="99.2">WDR 2 · Langenberg · 99.2 MHz</option>
+             <option value="100.4">WDR 2 · Bonn · 100.4 MHz</option>
+             <option value="95.1">WDR 3 · Langenberg · 95.1 MHz</option>
+            </select>
+           </label>
+           <button id="fm-reference-probe" class="secondary" type="button">Measure this FM frequency</button>
+           <a href="https://www1.wdr.de/radio/wdr2/ueber-uns/frequenzen-100.html" target="_blank" rel="noopener noreferrer">WDR published frequency list</a>
+          </div>
+          <div id="fm-reference-status" class="simple-result">No FM reference sample yet. Choose a frequency and connect your actual RTL-SDR.</div>
+         </div>
          <div class="radio-adsb-link">
           <div><strong>Aircraft · real 1090 MHz ADS-B</strong><p>Use the existing Flight Radar decoder for actual ICAO, callsign and transmitted aircraft positions. One RTL-SDR cannot run FM and ADS-B simultaneously; release it here before opening the radar receiver.</p></div>
           <a href="../flight_radar/" id="quick-open-adsb" target="_blank" rel="noopener noreferrer">Open antenna Flight Radar</a>
