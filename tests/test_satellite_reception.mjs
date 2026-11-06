@@ -17,6 +17,8 @@ test("Receive-only catalog includes real and online data sources with explicit l
   assert.equal(missionById("meteor-m2-4").receiver,"rtlsdr-native-decode");
   assert.equal(missionById("nasa-online").receiver,"internet");
   assert.equal(missionById("legacy-noaa").availability,"retired");
+  assert.equal(missionById("iss-hamtv").availability,"hardware-upgrade");
+  assert.equal(missionById("iss-hamtv").frequencyHz,2395000000);
   assert.equal(missionById("no-such-satellite"),null);
 });
 
