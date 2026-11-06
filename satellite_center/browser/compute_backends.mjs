@@ -13,13 +13,17 @@ export function chooseComputePlan({mode="auto",targets=["cpu"],capabilities,seco
  if(mode==="custom"&&!targets.length)throw Error("Select at least one compute backend");
  let selected=mode==="auto"?
    (seconds>=50&&capabilities.gpu?.available?["cpu","gpu"]:["cpu"]):[...targets];
+ if(mode==="auto"&&seconds>=120&&capabilities.npu?.available&&capabilities.npu?.auto_beneficial)
+   selected.push("npu");
  const missing=selected.filter(x=>!capabilities[x]?.available);
  if(missing.length)throw Error("Unsupported decoder backend: "+missing.map(x=>
    x.toUpperCase()+" — "+(capabilities[x]?.reason||"No working decoder")).join("; "));
  return {mode,selectedTargets:selected,traceBackend:selected.includes("gpu")?"webgpu":"cpu",
    cpuStages:["file I/O","Robot36 synchronization","pixel decoding","PNG generation"],
-   note:selected.includes("gpu")?"WebGPU accelerates tone tracing; CPU still validates scanlines and builds pixels.":
-     "All decoded samples are processed by the CPU; no GPU/NPU use is claimed."};
+   npuStages:selected.includes("npu")?["Real native OpenVINO NPU 8-channel SSTV DFT; CPU verifies pixels"]:[],
+   note:(selected.includes("npu")?"Native NPU executes actual tone-screening DFT; ":"")+
+     (selected.includes("gpu")?"A compatible GPU accelerates tone tracing; CPU verifies pixels.":
+      "CPU performs Robot36 tone trace and image reconstruction.")};
 }
 let cachedProbe=null;
 export async function probeBrowserCompute({refresh=false}={}){
