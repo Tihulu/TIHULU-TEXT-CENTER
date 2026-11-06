@@ -7,6 +7,7 @@ import {initUsbSDR} from "./usb_sdr.mjs";
 import {initRFSurvey} from "./rf_survey.mjs";
 import {initCatalogDiscovery} from "./catalog_discovery.mjs";
 import {initSimpleUI} from "./simple_ui.mjs";
+import {initHardwareManager} from "./hardware_manager.mjs";
 import {exampleRings,ringPoints,validRangeSources} from "../core/evidence.mjs";
 import {LOCATION_LAYERS,layerReadiness,visibleLayerPreferences} from "../core/location_layers.mjs";
 import {positionProvenance,radioProvenance,orbitalProvenance,aircraftProvenance} from "../core/source_provenance.mjs";
@@ -293,12 +294,16 @@ function renderEarth(){
  renderSourceProvenance();
  const box=$("earth-map");if(!box)return;
  const p=source(),rect=box.getBoundingClientRect();
- const sx=900/Math.max(1,rect.width),sy=520/Math.max(1,rect.height);
+ const mapWidth=Math.max(1,rect.width),mapHeight=Math.max(1,rect.height);
+ // Keep SVG units equal to map CSS pixels. A fixed 900x520 SVG viewBox with
+ // preserveAspectRatio=none squeezed circular transmitter icons into ellipses.
+ // Tile and marker positions now use the exact same pixel coordinate system.
+ $("earth-overlay").setAttribute("viewBox","0 0 "+mapWidth+" "+mapHeight);
  setText("earth-center",fmt(state.map.lat,5)+"° · "+fmt(state.map.lon,5)+"° · map zoom "+state.map.zoom);
  setText("map-center-label",p.validObserver?"MEASURED LOCATION: "+p.kind:p.kind.toUpperCase());
  const grid=$("earth-grid"),rings=$("earth-rings"),markers=$("earth-markers");
  grid.replaceChildren();rings.replaceChildren();markers.replaceChildren();
- const pt=(lat,lon)=>{const v=project(lat,lon);return {x:v.x*sx,y:v.y*sy,inside:v.x>=0&&v.x<=rect.width&&v.y>=0&&v.y<=rect.height}};
+ const pt=(lat,lon)=>{const v=project(lat,lon);return {x:v.x,y:v.y,inside:v.x>=0&&v.x<=mapWidth&&v.y>=0&&v.y<=mapHeight}};
  // Coordinate grid is built locally, without any online map tiles.
  const center=merc(state.map.lat,state.map.lon,state.map.zoom),w=rect.width,h=rect.height;
  const nw=unmerc(center.x-w/2,center.y-h/2,state.map.zoom);
@@ -312,11 +317,11 @@ function renderEarth(){
  }
  let count=0;
  for(let lon=Math.ceil(nw.lon/stepLon)*stepLon;lon<=se.lon&&count++<24;lon+=stepLon){
-   const a=pt(state.map.lat,lon);if(a.x>=0&&a.x<=900)line({x:a.x,y:0},{x:a.x,y:520},lon.toFixed(stepLon<1?2:0)+"°");
+   const a=pt(state.map.lat,lon);if(a.x>=0&&a.x<=mapWidth)line({x:a.x,y:0},{x:a.x,y:mapHeight},lon.toFixed(stepLon<1?2:0)+"°");
  }
  count=0;
  for(let lat=Math.ceil(se.lat/stepLat)*stepLat;lat<=nw.lat&&count++<24;lat+=stepLat){
-   const a=pt(lat,state.map.lon);if(a.y>=0&&a.y<=520)line({x:0,y:a.y},{x:900,y:a.y},lat.toFixed(stepLat<1?2:0)+"°");
+   const a=pt(lat,state.map.lon);if(a.y>=0&&a.y<=mapHeight)line({x:0,y:a.y},{x:mapWidth,y:a.y},lat.toFixed(stepLat<1?2:0)+"°");
  }
  const place=(loc,kind,fill,title,prefix)=>{
    const v=pt(loc.lat,loc.lon);if(!v.inside)return;
@@ -385,8 +390,13 @@ function renderEarth(){
  }
 
  // Mapped broadcast TOWER references are not actual antenna-identified transmitters.
+ // Avoid stacking dozens of overlapping "T" glyphs at low zoom.
+ const drawnTowers=[];
  for(const site of state.catalogTowers){
    if(!showGround||state.rfSources.some(x=>x.catalogId===site.id))continue;
+   const pos=pt(site.lat,site.lon);
+   if(!pos.inside||drawnTowers.some(p=>Math.hypot(p.x-pos.x,p.y-pos.y)<18))continue;
+   drawnTowers.push(pos);
    place(site,"station","#8fb8c7",site.name+" · OSM PUBLIC CATALOG TOWER · "+
      (site.frequencyMHz?site.frequencyMHz.toFixed(3)+" MHz FM tag, RF NOT VERIFIED":site.televisionFrequenciesMHz?.length?"TV MHz tag "+site.televisionFrequenciesMHz.join(", ")+" · DVB SOURCE NOT VERIFIED":site.broadcastType?.includes("television")?"TV BROADCAST TOWER · CHANNEL NOT IDENTIFIED":"NO FREQUENCY TAG")+
      " · distance from SEARCH CENTER "+(site.distanceFromSearchCenterMeters/1000).toFixed(1)+
@@ -747,6 +757,20 @@ initUsbSDR(msg);
 initRFSurvey();
 initCatalogDiscovery();
 initSimpleUI({state,source,setView,renderEarth,renderPosition,fitRfSurveyMap});
+initHardwareManager({setView});
+if(typeof ResizeObserver==="function"){
+ const mapElement=$("earth-map");
+ if(mapElement){
+  let pending=false;
+  const observer=new ResizeObserver(()=>{
+   if(pending||state.activeView!=="earth")return;
+   pending=true;
+   requestAnimationFrame(()=>{pending=false;if(state.activeView==="earth")renderEarth()});
+  });
+  observer.observe(mapElement);
+ }
+}
+
 setView("earth"); // Clean, map-first experience; original science workbench remains under Advanced Tools.
 
 setInterval(()=>{

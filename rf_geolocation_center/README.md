@@ -206,3 +206,15 @@ The script makes a timestamped local DVBv5 .conf channel file by scanning your p
 
 ### Known technical limits
 GPS-free autonomous radio positioning is not guaranteed by station frequencies, received signal levels or DVB service IDs alone. A reliable new RF receiver position requires defensible physical constraints such as independently calibrated ranges, synchronized time difference or directional measurements, or actual GNSS navigation decoding with compatible hardware. Native tuner scan-from-browser needs an explicitly authorized local backend; static GitHub Pages cannot launch Linux commands.
+
+
+## USB hardware manager and round map markers (Nov 2026)
+The compact Earth Map now includes a visible **Hardware · Add and connect your receivers** panel:
+- **+ Add USB device** invokes the browser's real WebUSB permission picker on a direct user click. No device is opened or claimed by registration. Generic devices may be restricted by browser protected-interface rules.
+- **Detect permitted devices** lists only previously authorized devices returned by the browser's getDevices method (never covertly enumerates USB hardware). Vendor/product IDs and browser-supplied manufacturer/product names are shown.
+- A known Nooelec/RTL2832U radio dongle (0bda:2838) can be connected from its own **Connect this RTL-SDR** row without repeating the permission picker, provided permission is still active; only this supported VID:PID is accepted by the RTL2832U receiver.
+- **Connect RTL-SDR via WebUSB**, **Test USB access**, **Release RTL-SDR** and an optional dedicated **GNSS Web Serial** receiver control are displayed on the map page instead of hidden in advanced screens. Radio / TV Scan keeps a direct Connect action linked to the same receiver handler; it does not claim a second dongle.
+- Hauppauge vendor devices, when browser permission is available, are labeled as permission-only. A generic WebUSB grant **does not enable DVB-T/T2/C tuning**; use Linux DVB frontend and the native scan helper/real channel metadata import. Do not detach the TV device's DVB driver just to register it in the web UI.
+- Browser USB permission is not evidence of an open interface, successful tuner, captured RF signal, a station ID or a position fix. USB may be busy in readsb/Gqrx/other tabs. The application never stops unrelated processes.
+
+Map markers and all geometry/range circles are now drawn in an SVG whose coordinate space dynamically matches the actual rendered map width/height in CSS pixels. The old fixed 900x520 SVG had been stretched independently in x/y, causing circular station pins to appear elliptical and range radii to distort on wide screens. A ResizeObserver redraws the geometry when the map dimensions change; dense overlapping catalog tower pins are also suppressed without deleting the underlying catalog entries. OpenStreetMap tiles remain a separable background. The offline coordinate grid and real range constraints share the same coordinate transform.

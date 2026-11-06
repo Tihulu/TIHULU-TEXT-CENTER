@@ -98,8 +98,7 @@ export function initSimpleUI({state,source,setView,renderEarth,renderPosition,fi
  });
  // Hidden demo rings should not appear on the default simplified locator.
  const demo=$("layer-demo");if(demo?.checked){demo.checked=false;demo.dispatchEvent(new Event("change"))}
- const targetSlot=$("radio-usb-slot"),usb=$("usb-select");
- if(targetSlot&&usb)targetSlot.append(usb); // Move EXISTING authorized receiver button, do not fake-click USB permission.
+ // Actual WebUSB and optional GNSS controls are mounted on the map by hardware_manager.mjs.
  for(const id of [...METHODS,...SOURCES.map(x=>x[0])]){
   $(id)?.addEventListener("change",()=>{bindHardwareAndSources(state);renderEarth();explain(state,source)});
  }
