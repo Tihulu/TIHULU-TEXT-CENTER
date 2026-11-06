@@ -95,6 +95,9 @@ export function initAutoReceptionUI({getSelectedFile=()=>null,fileInput=$("local
           sessionStorage.setItem("tihulu-auto-station",JSON.stringify({
             lat,lon,hours,createdAt:Date.now()
           }));
+          sessionStorage.setItem("tihulu-auto-start-intent",JSON.stringify({
+            mode,createdAt:Date.now()
+          }));
         }catch(error){
           throw Error("Browser blocked same-tab station transfer. Open the receiver page and set your coordinates there before scheduling.");
         }
