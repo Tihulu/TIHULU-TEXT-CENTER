@@ -31,7 +31,7 @@ function updateMission(){
   if(!mission)return;
   detail.replaceChildren();
   appendText("h3",mission.name);
-  appendText("p",mission.group+" · "+mission.mode,"mission-meta");
+  appendText("p",mission.group+" · "+mission.mode,detail,"mission-meta");
   appendText("p",mission.frequencyHz ? "Candidate downlink: "+(mission.frequencyHz/1e6).toFixed(3)+" MHz" : "No RF center frequency; this entry is an online/archive/catalog item.",detail,"mission-meta");
   appendText("p",mission.description);
   appendText("p","Local input: "+mission.input+" · Decoder: "+mission.decoder,detail,"mission-meta");
@@ -45,7 +45,7 @@ function updateMission(){
   };
   appendText("p",status[mission.availability]||"No activity verified.",detail,"mission-state");
   sourceLink.href=mission.official;
-  openLink.href="./"+mission.route+(mission.imageTarget&&mission.route.includes("#satellite-images")?"?": "");
+  openLink.href="./"+mission.route;
   if(mission.imageTarget) {
     openLink.href="./index.html?image-target="+encodeURIComponent(mission.imageTarget)+"#satellite-images";
   }
