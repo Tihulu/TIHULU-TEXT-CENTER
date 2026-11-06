@@ -1172,10 +1172,9 @@ $('auto-analyze').addEventListener('click',()=>{
 });
 $('auto-results').addEventListener('click',()=>{
   $('iq-discovery-results').scrollIntoView({behavior:'smooth',block:'start'});
-  if(!$('iq-discovery-export').disabled){
-    $('iq-discovery-export').click();
-    $('auto-plan-status').textContent='Exported discovery evidence JSON. Below you can save individually validated Robot36 PNGs and audio candidate WAVs; no unsupported APRS/LRPT messages are invented.';
-  }else $('auto-plan-status').textContent='No completed discovery results yet. Use Analyze Recordings after an actual RF capture.';
+  $('auto-plan-status').textContent=!$('iq-discovery-zip').disabled?
+    'Inspect the actual measured spectrum, Robot36 image candidates and audio previews below. Save everything as ZIP or download individual files. No satellite origin is presumed.':
+    'No completed analysis results yet. Analyze a real CU8 recording first.';
 });
 // Carry the operator's coverage preference from Images & Data without URL
 // coordinates or background USB permission prompts.
