@@ -11,6 +11,7 @@ from . import __version__
 from .core import Store, safe_https_url
 from .receivers import receiver_inventory
 from .fm_rds import FMRSDSupervisor, CaptureError
+from .fm_audio import FMPreview, AudioError
 from .capabilities import capability_catalog
 from .fm_survey import FMSurveySupervisor, SurveyError
 from .scan_catalog import scan_capabilities
@@ -49,6 +50,10 @@ class LocalServer(ThreadingHTTPServer):
         self.rds = FMRSDSupervisor(store)
         self.survey = FMSurveySupervisor(
             rds=self.rds, lock_dir=store.filename.parent / ".receiver-locks"
+        )
+        self.audio = FMPreview(
+            rds=self.rds, survey=self.survey,
+            lock_dir=store.filename.parent / ".receiver-locks"
         )
         super().__init__(address, Handler)
 
@@ -118,7 +123,8 @@ class Handler(BaseHTTPRequestHandler):
                 inventory["fm_candidate_count"] = len(survey_state["candidates"])
                 inventory["rds_capture_active"] = rds_state["active"]
                 inventory["rds_groups_decoded"] = rds_state["received_groups"] if rds_state["active"] else 0
-                inventory["active_capture"] = rds_state["active"] or survey_state["active"]
+                inventory["fm_audio_active"] = self.server.audio.status()["active"]
+                inventory["active_capture"] = rds_state["active"] or survey_state["active"] or inventory["fm_audio_active"]
                 inventory["connected_decoder"] = bool(
                     rds_state["active"] and rds_state["received_groups"] > 0
                 )
@@ -156,6 +162,15 @@ class Handler(BaseHTTPRequestHandler):
                 status = self.server.survey.status()
                 status["capability"] = self.server.survey.availability()
                 return self._json(200, status)
+            if route == "/api/audio/status":
+                state=self.server.audio.status()
+                state["capability"]=self.server.audio.availability()
+                return self._json(200,state)
+            if route == "/api/audio/clip.wav":
+                data=self.server.audio.wav_clip()
+                if data is None:
+                    return self._json(404, {"error":"No completed FM audio preview"})
+                return self._send(200, data, "audio/wav")
             if route == "/api/rds/status":
                 status = self.server.rds.status()
                 status["capability"] = self.server.rds.availability()
@@ -204,7 +219,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         route = urlsplit(self.path).path
-        allowed = {"/api/feeds/add", "/api/feeds/refresh", "/api/bulletins", "/api/bookmarks", "/api/rds/start", "/api/rds/stop", "/api/fm-survey/start", "/api/fm-survey/stop", "/api/scans/start", "/api/scans/stop"}
+        allowed = {"/api/feeds/add", "/api/feeds/refresh", "/api/bulletins", "/api/bookmarks", "/api/rds/start", "/api/rds/stop", "/api/fm-survey/start", "/api/fm-survey/stop", "/api/scans/start", "/api/scans/stop", "/api/audio/start", "/api/audio/stop"}
         if route not in allowed:
             return self._json(404, {"error": "Not found"})
         if self.headers.get("X-Tihulu-CSRF") != self.server.csrf_token:
@@ -231,6 +246,11 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(202, self.server.survey.start())
             if route == "/api/fm-survey/stop":
                 return self._json(200, self.server.survey.stop())
+            if route == "/api/audio/start":
+                return self._json(202,self.server.audio.start(
+                    payload.get("frequency_mhz"),payload.get("duration_seconds",12)))
+            if route == "/api/audio/stop":
+                return self._json(200,self.server.audio.stop())
             if route == "/api/rds/start":
                 return self._json(202, self.server.rds.start(
                     frequency_mhz=payload.get("frequency_mhz"),
@@ -253,7 +273,7 @@ class Handler(BaseHTTPRequestHandler):
             if route == "/api/bookmarks":
                 self.server.store.add_bookmark(payload.get("label"),payload.get("target_type"),payload.get("target"))
                 return self._json(201, {"saved": True})
-        except (CaptureError, SurveyError) as exc:
+        except (CaptureError, SurveyError, AudioError) as exc:
             self._json(409, {"error": str(exc)})
         except KeyError as exc:
             self._json(404, {"error": str(exc)})
@@ -274,6 +294,7 @@ def run_server(store: Store, *, host: str = "127.0.0.1", port: int = 8787):
     except KeyboardInterrupt:
         pass
     finally:
+        server.audio.stop(wait=True)
         server.survey.stop(wait=True)
         server.rds.stop(wait=True)
         server.server_close()

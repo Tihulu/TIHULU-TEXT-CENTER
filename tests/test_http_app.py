@@ -141,6 +141,21 @@ class HTTPTests(unittest.TestCase):
         self.assertEqual(self.request("POST","/api/scans/start",{"band":"dab"},csrf)[0],409)
         self.assertEqual(self.request("POST","/api/scans/stop",{},csrf)[0],200)
 
+    def test_audio_preview_routes_require_auth_and_fail_closed_when_busy(self):
+        code,_,raw=self.request("GET","/api/audio/status")
+        self.assertEqual(code,200)
+        self.assertFalse(json.loads(raw)["clip_ready"])
+        self.assertEqual(self.request("GET","/api/audio/clip.wav")[0],404)
+        self.assertEqual(self.request("POST","/api/audio/start",{"frequency_mhz":98.6})[0],403)
+        _,_,bootstrap=self.request("GET","/api/bootstrap")
+        csrf=json.loads(bootstrap)["csrf"]
+        self.assertEqual(self.request("POST","/api/audio/start",
+            {"frequency_mhz":200.0,"duration_seconds":12},csrf)[0],400)
+        self.server.audio.conflicts=lambda: [{"process":"readsb"}]
+        self.assertEqual(self.request("POST","/api/audio/start",
+            {"frequency_mhz":98.6,"duration_seconds":12},csrf)[0],409)
+        self.assertEqual(self.request("POST","/api/audio/stop",{},csrf)[0],200)
+
     def test_no_forged_source(self):
         code,_,raw=self.request("GET","/api/page?source_id=ard_text&number=100")
         self.assertEqual(code,404)
