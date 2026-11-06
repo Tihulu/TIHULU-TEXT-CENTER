@@ -32,6 +32,7 @@ ASSETS = {
     "/web/simple_ui.mjs": ("web/simple_ui.mjs", "text/javascript"),
     "/web/hardware_manager.mjs": ("web/hardware_manager.mjs", "text/javascript"),
     "/web/dvb_bridge_client.mjs": ("web/dvb_bridge_client.mjs", "text/javascript"),
+    "/web/dvb_bridge_client.mjs": ("web/dvb_bridge_client.mjs", "text/javascript"),
     "/web/style.css": ("web/style.css", "text/css"),
     "/web/icon.svg": ("web/icon.svg", "image/svg+xml"),
     "/core/gnss.mjs": ("core/gnss.mjs", "text/javascript"),
