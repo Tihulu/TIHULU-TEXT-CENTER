@@ -61,7 +61,7 @@ function paintAircraft(ctx,a,x,y){
 }
 const canvas = $("map"), ctx = canvas.getContext("2d");
 const state = {
-  base:"", token:"", onlineFeed:"", connectionKind:"none", connected:false, data:[], mode:"auto", selected:null, 
+  base:"", token:"", onlineFeed:"", onlineProvider:"intelsky", internetBackoffUntil:0, airlabsLastFetch:0, connectionKind:"none", connected:false, data:[], mode:"auto", selected:null, 
   lat:initialCenter.lat, lon:initialCenter.lon, zoom:9, moved:false, autoFocused:false,
   startupLocationPending:true, startupGeo:null, startupRank:1, startupSource:"cologne",
   startupQueryDirty:false,
@@ -161,40 +161,129 @@ function getFeedURL(raw){
    throw Error("Internet feed must be a trusted HTTPS /api/aircraft endpoint without embedded keys.");
  return url.origin+url.pathname;
 }
+// A keyless browser-compatible limited network source; not the full ADS-B
+// population. Public general ADS-B APIs commonly require a CORS-enabled relay.
+const INTELSKY_URL="https://intelsky.org/api/";
+function configuredOnlineFeed(){
+ const provider=$("onlinePreset")?.value||"intelsky";
+ let url="";
+ if(provider==="intelsky")url=INTELSKY_URL;
+ else if(provider==="airlabs"){
+  if(!String($("airlabsKey")?.value||"").trim())
+   throw Error("AirLabs needs your personal API key (session only).");
+  url="https://airlabs.co/api/v9/flights";
+ }else if(provider==="custom")url=getFeedURL($("onlineFeedUrl").value);
+ else if(provider!=="off")throw Error("Unknown Internet provider choice.");
+ // Atomic config: invalid key/URL must not change a working source.
+ state.onlineProvider=provider;
+ return url;
+}
+function greatCircleNM(lat1,lon1,lat2,lon2){
+ const r=Math.PI/180,p=(lat2-lat1)*r,q=(lon2-lon1)*r;
+ return 3440.065*2*Math.asin(Math.min(1,Math.sqrt(Math.max(0,
+  Math.sin(p/2)**2+Math.cos(lat1*r)*Math.cos(lat2*r)*Math.sin(q/2)**2))));
+}
+function normalizeInternetPayload(raw,provider,lat,lon,radius,now=Date.now()/1000){
+ const limited=provider==="intelsky";
+ if(provider==="airlabs"){
+  if(raw?.error)throw Error("AirLabs: "+String(raw.error.message||raw.error.code||"API error").slice(0,150));
+  if(!Array.isArray(raw?.response))throw Error("AirLabs response has no aircraft array.");
+  const rows=raw.response.slice(0,10000).map(a=>{
+   if(!a||typeof a!=="object")return null;
+   const updateAge=Number.isFinite(a.updated)?now-a.updated:0;
+   return {
+    hex:a.hex,flight:a.flight_icao||a.flight_iata||a.flight_number||null,
+    lat:a.lat,lon:a.lng,
+    alt_baro:Number.isFinite(a.alt)?a.alt*3.280839895:null,
+    gs:Number.isFinite(a.speed)?a.speed/1.852:null,
+    track:Number.isFinite(a.dir)?a.dir:null,
+    seen:updateAge,seen_pos:updateAge,
+    observation_age_unknown:!Number.isFinite(a.updated),
+    flight_source_fields:{aircraft_icao:a.aircraft_icao,registration:a.reg_number}
+   };
+  }).filter(Boolean);
+  raw={generated_at:now,aircraft:rows,provider:"AirLabs",
+    attribution:"AirLabs.co · API-key-based live flight data (plan coverage and quotas apply)"};
+ }
+ const stamp=Number(limited?raw?.now:raw?.generated_at);
+ const age=now-stamp;
+ if(!Number.isFinite(stamp)||age < -10||age > 90)
+  throw Error("Missing or stale Internet snapshot timestamp.");
+ const records=limited?raw?.ac:raw?.aircraft;
+ if(!Array.isArray(records))throw Error("Invalid Internet aircraft schema.");
+ const seenIds=new Set(),planes=[];
+ for(const a of records.slice(0,10000)){
+  if(!a||typeof a!=="object")continue;
+  const hex=String(a.hex||"").toLowerCase();
+  if(!/^[0-9a-f]{6}$/.test(hex)||seenIds.has(hex)||
+     !Number.isFinite(a.lat)||!Number.isFinite(a.lon)||
+     a.lat < -90||a.lat > 90||a.lon < -180||a.lon > 180||
+     greatCircleNM(lat,lon,a.lat,a.lon)>radius)continue;
+  // IntelSky supplies snapshot timestamp but not per-aircraft age.
+  // This is a network snapshot, NOT RF reception by the user's antenna.
+  const seen=limited?0:a.seen,seenPos=limited?0:a.seen_pos;
+  if(!Number.isFinite(seen)||seen<0||seen>60||
+     !Number.isFinite(seenPos)||seenPos<0||seenPos>60)continue;
+  seenIds.add(hex);
+  planes.push({...a,hex,seen,seen_pos:seenPos,
+   sources:["internet"],position_source:"internet",
+   observations:{internet:{...a,provider,timestamp:stamp}}});
+ }
+ const attribution=limited
+  ?"IntelSky.org · limited military/government network coverage"
+  :raw.attribution||"Check provider's attribution and usage terms";
+ return {generated_at:stamp,active_sources:["internet"],aircraft:planes,
+  counts:{antenna:0,internet:planes.length,combined:planes.length},
+  sources:{antenna:{state:"unavailable",error:"No local receiver selected"},
+   internet:{state:"available",provider:limited?"IntelSky":raw.provider||"Custom CORS feed",
+     attribution,updated_at:stamp,limited_coverage:limited}}};
+}
 async function fetchInternetFeed(){
+ if(!state.onlineFeed)throw Error("No Internet source is configured.");
+ if(Date.now()<state.internetBackoffUntil)
+  throw Error("Internet feed cooling down after rate limit or outage; retry later.");
+ const limited=state.onlineProvider==="intelsky",airlabs=state.onlineProvider==="airlabs";
+ // User-owned free API keys have quotas; avoid spending one every 15 seconds.
+ // Old provider snapshots age out naturally in browserSourceResult.
+ if(airlabs && state.internetSnapshot && Date.now()-state.airlabsLastFetch<60000)
+  return state.internetSnapshot;
  const u=new URL(state.onlineFeed);
- u.searchParams.set("lat",state.queryLat.toFixed(3));
- u.searchParams.set("lon",state.queryLon.toFixed(3));
- u.searchParams.set("radius",String(state.queryRadius));
- const abort=new AbortController(), timeout=setTimeout(()=>abort.abort(),10000);
+ if(airlabs){
+  u.searchParams.set("api_key",String($("airlabsKey").value).trim());
+  const radius=Math.min(250,state.queryRadius),latD=radius/60;
+  const lonD=latD/Math.max(0.15,Math.cos(state.queryLat*Math.PI/180));
+  u.searchParams.set("bbox",[
+    Math.max(-90,state.queryLat-latD),Math.max(-180,state.queryLon-lonD),
+    Math.min(90,state.queryLat+latD),Math.min(180,state.queryLon+lonD)
+  ].map(x=>x.toFixed(3)).join(","));
+  u.searchParams.set("_fields","hex,flight_icao,flight_iata,flight_number,lat,lng,alt,dir,speed,updated,aircraft_icao,reg_number");
+ }else if(!limited){
+  u.searchParams.set("lat",state.queryLat.toFixed(3));
+  u.searchParams.set("lon",state.queryLon.toFixed(3));
+  u.searchParams.set("radius",String(state.queryRadius));
+ }
+ const abort=new AbortController(),timeout=setTimeout(()=>abort.abort(),10000);
  try{
   const response=await fetch(u.href,{mode:"cors",credentials:"omit",cache:"no-store",signal:abort.signal});
-  if(!response.ok)throw Error("Internet feed returned HTTP "+response.status);
+  if(!response.ok){
+   if(response.status===429){
+    const retry=Number(response.headers.get("Retry-After"));
+    state.internetBackoffUntil=Date.now()+1000*
+      (Number.isFinite(retry)&&retry>0?Math.min(3600,retry):90);
+   }else if(response.status>=500)state.internetBackoffUntil=Date.now()+60000;
+   throw Error("Internet provider HTTP "+response.status+(response.status===429?" (rate limited)":""));
+  }
   const text=await response.text();
-  if(text.length>4*1024*1024)throw Error("Internet feed exceeds size limit.");
-  const result=JSON.parse(text);
-  if(!Array.isArray(result.aircraft))throw Error("Internet feed did not return aircraft.");
-  const receivedAt=Number(result.generated_at);
-  const age=Date.now()/1000-receivedAt;
-  if(!Number.isFinite(age) || age< -10 || age>90)
-   throw Error("Internet snapshot is stale or missing an observation timestamp.");
-  const safe=result.aircraft.slice(0,10000).filter(a=>a&&typeof a==="object").map(a=>{
-   const own={...a};
-   if(typeof own.seen==="number")own.seen+=Math.max(0,age);
-   if(typeof own.seen_pos==="number")own.seen_pos+=Math.max(0,age);
-   own.sources=["internet"];
-   own.position_source=isPositioned(own)?"internet":null;
-   own.observations={internet:a};
-   return own;
-  }).filter(a=>Number.isFinite(a.seen)&&a.seen>=0&&a.seen<=60);
-  return {
-    generated_at:receivedAt,active_sources:["internet"],aircraft:safe,
-    counts:{antenna:0,internet:safe.length,combined:safe.length},
-    sources:{antenna:{state:"unavailable",error:"Requires paired local bridge"},
-             internet:{state:"available",provider:result.provider||"Configured Internet feed",
-                       attribution:result.attribution||"See Internet feed provider terms",
-                       updated_at:receivedAt}}
-  };
+  if(text.length>4*1024*1024)throw Error("Internet response exceeds 4 MiB.");
+  const normalized=normalizeInternetPayload(JSON.parse(text),limited?"intelsky":airlabs?"airlabs":"custom",
+    state.queryLat,state.queryLon,state.queryRadius);
+  if(airlabs)state.airlabsLastFetch=Date.now();
+  return normalized;
+ }catch(error){
+  if(error?.name==="AbortError")throw Error("Internet feed timeout (10 seconds).");
+  if(error instanceof TypeError)
+   throw Error("Network or CORS blocked this feed. General ADS-B providers may need an HTTPS/CORS relay.");
+  throw error;
  }finally{clearTimeout(timeout)}
 }
 // Browser-direct RF (from adsb_worker.mjs) is a distinct proven observation
@@ -282,13 +371,15 @@ window.tihuluUsbCanStart=()=>state.connectionKind!=="bridge";
 window.tihuluUsbStarted=()=>{
  state.usbSnapshot={aircraft:[],messages:0,updatedAt:Date.now()};
  state.usbMessageCount=0;state.connectionKind="usb";state.connected=true;
- state.onlineFeed=getFeedURL($("onlineFeedUrl").value);
+ state.onlineFeed=configuredOnlineFeed();
+   state.internetBackoffUntil=0;state.airlabsLastFetch=0;
  $("mode").value=state.onlineFeed?"hybrid":"antenna";
  connection(true,"Direct browser WebUSB · 1090 MHz");
  for(const id of ["start","stop","restart"])$(id).disabled=true;
  if(!state.timer)state.timer=setInterval(()=>{if(!document.hidden)refresh()},15000);
  displayUsbSnapshot();
- notice("Browser SDR connected. Only CRC-verified RF messages and real positions will appear.");
+ void refresh();
+ notice("Browser SDR connected. Loading the selected Internet network alongside real RF.");
 };
 window.tihuluUsbSnapshot=packet=>{
  if(state.connectionKind!=="usb")return;
@@ -357,14 +448,16 @@ async function connect(){
   if(state.connectionKind==="usb"){
    // The Connect button is for optional Internet feed configuration when the
    // USB receiver is already running — never launch a second RF process.
-   state.onlineFeed=getFeedURL($("onlineFeedUrl").value);
+   state.onlineFeed=configuredOnlineFeed();
+   state.internetBackoffUntil=0;state.airlabsLastFetch=0;
    state.internetSnapshot=null;
    $("mode").value=state.onlineFeed?"hybrid":"antenna";
    await refresh(true);
    state.timer=setInterval(()=>{if(!document.hidden)refresh()},15000);
    return;
   }
-  state.onlineFeed=getFeedURL($("onlineFeedUrl").value);
+  state.onlineFeed=configuredOnlineFeed();
+   state.internetBackoffUntil=0;state.airlabsLastFetch=0;
   const token=$("token").value.trim();
   if(token){
    state.base=getBase($("bridgeUrl").value.trim());
@@ -384,9 +477,11 @@ async function connect(){
   state.timer=setInterval(()=>{if(!document.hidden)refresh()},15000);
  }catch(e){
   if(state.connectionKind==="usb"){
-   // A failed network feed cannot disconnect a healthy in-browser RTL-SDR.
+   // A bad optional network key/URL must not disconnect healthy WebUSB
+   // or permanently cancel the already-running RF refresh timer.
    state.connected=true;displayUsbSnapshot();
-   notice("Optional Internet feed failed, but direct USB remains connected: "+e.message);
+   if(!state.timer)state.timer=setInterval(()=>{if(!document.hidden)refresh()},15000);
+   notice("Optional Internet feed failed; direct WebUSB remains connected: "+e.message);
   }else{
    state.connected=false;state.token="";state.connectionKind="none";
    connection(false,"Not connected");
@@ -460,7 +555,8 @@ function feedSummary(feed){
   "Internet: "+(i.state||"unknown")+(i.error?" ("+i.error+")":"")+
   (i.updated_at?" · observed "+formatTime(i.updated_at):"")+
   (i.provider?" · "+i.provider:"")+
-  (i.attribution?" · "+i.attribution:"")
+  (i.attribution?" · "+i.attribution:"")+
+  (i.limited_coverage?" · Limited network coverage; 0 nearby does not mean the antenna failed.":"")
  ];
  $("feedStatus").textContent=details.join("\n");
  $("feedStatus").style.whiteSpace="pre-line";
@@ -710,9 +806,32 @@ canvas.addEventListener("pointerup",e=>{
 canvas.addEventListener("wheel",e=>{
  e.preventDefault();state.moved=true;state.zoom=Math.max(2,Math.min(12,state.zoom+(e.deltaY<0?1:-1)));paint();
 },{passive:false});
+// Provider selection is explicit and never creates a hidden proxy/key.
+const preset=$("onlinePreset");
+const customFeed=$("onlineFeedUrl");
+function showProviderChoice(){
+ customFeed.disabled=preset.value!=="custom";
+ $("airlabsKeyField").hidden=preset.value!=="airlabs";
+ customFeed.title=customFeed.disabled
+  ?"Select Custom HTTPS/CORS ADS-B feed to enter a URL."
+  :"Only trusted /api/aircraft endpoints with documented CORS and source attribution.";
+}
+preset.onchange=()=>{
+ showProviderChoice();
+ if(state.connectionKind==="usb"||state.connectionKind==="internet"){
+  state.internetSnapshot=null;state.internetBackoffUntil=0;state.airlabsLastFetch=0;
+  if(preset.value==="off"&&state.connectionKind==="internet")disconnect();
+  else void connect();
+ }
+};
+showProviderChoice();
 $("connect").onclick=connect;
 $("disconnect").onclick=disconnect;
-$("refresh").onclick=refresh;
+$("refresh").onclick=()=>{
+ // Explicit refresh may spend one more call from a personal AirLabs quota.
+ state.airlabsLastFetch=0;
+ void refresh(true);
+};
 function tarFocusURL(raw){
  const url=new URL(raw);
  if(!["http:","https:"].includes(url.protocol) || url.username || url.password)
@@ -744,12 +863,45 @@ function tarFocusURL(raw){
  }
  return url.href;
 }
-$("fullMap").onclick=()=>{
- const raw=prompt("Full tar1090 URL (receiver must host tar1090):","http://127.0.0.1/tar1090/");
+function setRadarExpanded(force){
+ const enabled=typeof force==="boolean"?force:!document.body.classList.contains("radar-expanded");
+ document.body.classList.toggle("radar-expanded",enabled);
+ $("expandMap").textContent=enabled?"Exit full radar":"Full radar map";
+ $("expandMap").setAttribute("aria-pressed",String(enabled));
+ resize();paint();
+ if(enabled)notice("Full browser radar is using this tab's real RF and configured network sources; no readsb backend required.");
+}
+$("expandMap").onclick=()=>setRadarExpanded();
+window.addEventListener("keydown",event=>{
+ if(event.key==="Escape"&&document.body.classList.contains("radar-expanded"))
+  setRadarExpanded(false);
+});
+$("legacyTar").onclick=async()=>{
+ if(state.connectionKind==="usb"){
+  // Do not direct a user with one USB dongle to a dead readsb JSON server.
+  setRadarExpanded(true);
+  notice("tar1090 needs a separate live readsb JSON backend. Your SDR is owned by this WebUSB tab, so use this full browser map. Stop WebUSB before switching the same antenna to readsb.");
+  return;
+ }
+ if(state.connectionKind==="bridge"){
+  try{
+   const status=await api("/api/status");
+   if(!status.active){
+    setRadarExpanded(true);
+    notice("Local readsb decoder inactive: tar1090 has no live aircraft.json. Showing the integrated radar instead.");
+    return;
+   }
+  }catch(error){
+   setRadarExpanded(true);
+   notice("Cannot verify readsb backend: "+String(error.message||error)+". Using the in-app map.");
+   return;
+  }
+ }
+ const raw=prompt("External tar1090 URL (requires separately running readsb/data/aircraft.json):",
+  "http://127.0.0.1/tar1090/");
  if(raw===null)return;
- try{
-  window.open(tarFocusURL(raw),"_blank","noopener,noreferrer");
- }catch(e){notice("Cannot open tar1090: "+e.message)}
+ try{window.open(tarFocusURL(raw),"_blank","noopener,noreferrer");}
+ catch(error){notice("Invalid tar1090 URL: "+error.message);}
 };
 $("start").onclick=()=>control("start");
 $("stop").onclick=()=>control("stop");
