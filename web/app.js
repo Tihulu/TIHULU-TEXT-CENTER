@@ -2365,8 +2365,11 @@ function drawRadarPlaneOverlay(data,stage,listing,flags){
   };
   let pins=0;
   data.aircraft.filter(allowed).slice(0,150).forEach(p=>{
-    const meta=(p.sources.length===2?"RF + INTERNET":
-      p.sources[0]==="antenna"?"ANTENNA ADS-B":"INTERNET ADS-B")+
+    const each=p.source_freshness;
+    const meta=(each
+      ? "RF "+each.antenna.toUpperCase()+" + INTERNET "+each.internet.toUpperCase()
+      : (p.sources.length===2?"RF + INTERNET":
+        p.sources[0]==="antenna"?"ANTENNA ADS-B":"INTERNET ADS-B"))+
       (p.stale?" · HISTORICAL CACHE":" · SOURCE-REPORTED FRESH");
     if(p.positioned){
       const x=50+((p.lon-data.area.lon)/(2*lonRange))*100;
