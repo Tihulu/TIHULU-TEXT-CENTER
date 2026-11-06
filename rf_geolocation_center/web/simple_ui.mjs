@@ -147,6 +147,7 @@ export function initSimpleUI({state,source,setView,renderEarth,renderPosition,fi
   $("catalog-discover")?.click();
   status("quick-radio-status","Searching nearby mapped broadcast transmitters. Catalog data is a reference only, not antenna evidence.");
  });
+ $("quick-online-aircraft")?.addEventListener("click",()=>$("catalog-aircraft")?.click());
  $("quick-radio-scan")?.addEventListener("click",()=>{
   $("catalog-fm-scan")?.click();
   status("quick-radio-status","Requested a real FM sweep through the connected RTL-SDR. Consult the scan result below; tuner-level energy does not identify a transmitter.");
