@@ -2,7 +2,7 @@
 const views=["home","radio","usb","tv","translate","radar","notes","setup"];
 const title={
   home:["Information, without the noise.","Offline-first radio, television, text and aircraft information"],
-  radio:["Live radio & metadata","Real RF only, using your local receiver"],
+  radio:["Radio Center · channels & full scan","Real FM/DAB decoding, editable station list and live playback require compatible local receiver backend"],
   usb:["Direct browser USB","Experimental FM mono and raw IQ, with permission and real hardware"],
   tv:["Live digital television","A genuine authorized local DVB stream is required"],
   translate:["Translation & captions","Original audio, source language and installed offline models"],
