@@ -422,7 +422,7 @@ function triggerRawDownload(blob,name) {
   document.body.append(link);link.click();link.remove();
   setTimeout(()=>URL.revokeObjectURL(url),60000);
   log('Requested browser download: '+name+' · '+(blob.size/1048576).toFixed(2)+
-    ' MiB of real IQ bytes. Browser settings may block automatic downloads; scheduled reports retain the latest file for manual retry.');
+    ' MiB of real recorded RF-derived data. Browser settings may block automatic downloads.');
 }
 function saveCapture(bytes,name,job=null,metadata=null) {
   if (!bytes.length) return null;
@@ -449,7 +449,11 @@ async function startCapture(job=null,prepared=null) {
   const rate=job?job.sampleRate:Number($('rate').value);
   const limit=job?job.durationSeconds:Number($('duration').value);
   const recording=job?job.saveRaw:$('record').checked;
+  const recordingWav=job?Boolean(job.saveWav):$('wav-record').checked;
   const budget=captureBudget(limit,rate,recording,{fileStreaming:Boolean(prepared?.writable)});
+  const wavBudget=wavOutputPlan(limit,recordingWav,{fileStreaming:Boolean(prepared?.wavWritable)});
+  if(recordingWav&&wavBudget.mode==='disk-stream'&&!prepared?.wavWritable)
+    throw Error("Long WAV recording requires an explicitly selected local disk file.");
   if(budget.mode==="disk-stream"&&!prepared?.writable)
     throw Error("No user-selected local CU8 disk stream for this extended capture.");
   stopRequested=false;
@@ -457,6 +461,28 @@ async function startCapture(job=null,prepared=null) {
   const captureStartTime=new Date();
   capturePromise=(async()=>{
     let bytesReceived=0,bytesRecorded=0,chunks=[],measured=null,peakCount=0;
+    const fmWav=recordingWav?createStreamingFmWavEncoder(rate):null;
+    const wavChunks=[];
+    let wavWritten=false;
+    async function finalizeWav(){
+      if(!fmWav||wavWritten||fmWav.pcmBytes<2)return null;
+      const name=prepared?.wavName||captureWavName(job,freq,captureStartTime);
+      const header=fmWav.makeHeader();
+      if(prepared?.wavWritable){
+        await prepared.wavWritable.write({type:"write",position:0,data:header});
+        await prepared.wavWritable.close();
+        prepared.wavWritable=null;
+        log("Saved real demodulated FM audio to "+name+" ("+
+          (fmWav.pcmBytes/1048576).toFixed(2)+" MiB PCM). Open WAV in the Robot36 decoder.");
+      }else{
+        const blob=new Blob([header,...wavChunks],{type:"audio/wav"});
+        triggerRawDownload(blob,name);
+        satelliteImageUI?.recordAudioCapture(blob,name);
+      }
+      wavWritten=true;
+      if(job)job.wavFileName=name;
+      return {name,...fmWav.report()};
+    }
     const measurements=[],startedAt=Date.now();
     const deadline=startedAt+limit*1000;
     try {
@@ -469,6 +495,9 @@ async function startCapture(job=null,prepared=null) {
       await device.setCenterFrequency(freq);
       await device.setGain(null);
       await device.resetBuffer();
+      // RIFF/WAV headers are rewritten with the actual captured sample count
+      // before closing the streamed local file. Never save fabricated audio.
+      if(prepared?.wavWritable)await prepared.wavWritable.write(createPcmWavHeader(0));
       status('sample-state','Receiving real USB I/Q at '+(freq/1e6).toFixed(3)+' MHz · '+
         (rate/1e6)+' MS/s. Sample levels are uncalibrated. No satellite is identified.');
       while(!stopRequested && Date.now()<deadline){
@@ -484,6 +513,13 @@ async function startCapture(job=null,prepared=null) {
           signalHistory.push(measured);
           if(signalHistory.length>150)signalHistory.shift();
           renderSignal();
+        }
+        if(fmWav){
+          const pcm=fmWav.push(data);
+          if(pcm.length){
+            if(prepared?.wavWritable)await prepared.wavWritable.write(pcm);
+            else wavChunks.push(pcm);
+          }
         }
         if(recording){
           if(prepared?.writable){
@@ -504,6 +540,7 @@ async function startCapture(job=null,prepared=null) {
       }
       if(!bytesReceived)throw Error('Zero actual USB sample bytes received; no successful scan.');
       const report=captureLevelSummary(measurements,bytesReceived,Date.now()-startedAt);
+      report.wav=await finalizeWav();
       report.frequencyHz=freq;report.sampleRate=rate;report.rawBytes=bytesRecorded;
       report.recordedRaw=Boolean(recording&&bytesRecorded>0);
       report.time=new Date().toISOString();
@@ -533,8 +570,9 @@ async function startCapture(job=null,prepared=null) {
         job.state=stopRequested?'stopped':'finished';
         job.report=report;
         job.message=(stopRequested?'Capture stopped early. ':'Capture completed. ')+
-          (prepared?'IQ saved to user-selected disk file; reopen from disk to analyze. ':recording?
-           'Browser IQ download was requested; verify it in Downloads. ':'Raw IQ saving was disabled. ')+
+          (recording?(prepared?.writable?'IQ saved to chosen disk. ':'Raw CU8 download requested. '):
+             'Raw CU8 was not selected. ')+
+          (recordingWav?(prepared?.wavWritable?'WAV saved to chosen disk. ':'FM WAV saved/download requested. '):'')+
           'Uncalibrated RF power analysis only; no downlink or satellite identity confirmed.';
         status('scheduled-report',
           job.name+' · '+(freq/1e6).toFixed(3)+' MHz\n'+
@@ -547,6 +585,16 @@ async function startCapture(job=null,prepared=null) {
       }
       log('Session '+session+' captured '+bytesReceived+' real raw USB bytes; receiver released.');
     }catch(e){
+      if(stopRequested&&fmWav?.pcmBytes>0&&!wavWritten){
+        try{
+          const partial=await finalizeWav();
+          if(partial)log("Stopped early: partial real FM WAV preserved ("+partial.durationSeconds+" s).");
+        }catch(error){log("Partial FM WAV save failed: "+error.message);}
+      }
+      if(prepared?.wavWritable){
+        const stream=prepared.wavWritable;prepared.wavWritable=null;
+        try{await stream.abort();}catch{}
+      }
       // A deliberate Stop should preserve already received real RF bytes.
       // Unexpected driver/disk errors abort the uncommitted stream instead.
       if(prepared?.writable){
