@@ -6,11 +6,13 @@ export const AUTO_TARGETS=Object.freeze({
   "meteor-m2-4":Object.freeze({norad:59051,frequencyHz:137900000,kind:"Earth image candidate"}),
   "iss-sstv":Object.freeze({norad:25544,frequencyHz:437550000,kind:"Robot36 event candidate"}),
   "iss-aprs":Object.freeze({norad:25544,frequencyHz:437825000,kind:"AX.25/APRS packet candidate"}),
+  "iss-voice":Object.freeze({norad:25544,frequencyHz:437800000,kind:"ISS FM voice candidate"}),
 });
 export const AUTO_PRESETS=Object.freeze({
   images:Object.freeze(["meteor-m2-3","meteor-m2-4","iss-sstv"]),
   messages:Object.freeze(["iss-aprs"]),
-  all:Object.freeze(["meteor-m2-3","meteor-m2-4","iss-sstv","iss-aprs"])
+  voice:Object.freeze(["iss-voice"]),
+  all:Object.freeze(["meteor-m2-3","meteor-m2-4","iss-sstv","iss-aprs","iss-voice"])
 });
 export function selectAutomaticPasses(passes,{mode="images",now=Date.now(),maxJobs=6,
   existingJobs=[]}={}){
