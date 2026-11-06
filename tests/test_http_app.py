@@ -297,6 +297,30 @@ class HTTPTests(unittest.TestCase):
         self.assertEqual(self.request("POST","/api/translation/text",
             {"text":"Hello","source":"en","target":"en"},csrf)[0],200)
 
+    def test_radar_filters_are_manual_csrf_protected_and_source_attributed(self):
+        code,_,raw=self.request("GET","/api/radar/status")
+        self.assertEqual(code,200)
+        self.assertFalse(json.loads(raw)["automatic_polling"])
+        self.assertIn("ODbL",json.loads(raw)["attribution"])
+        payload={"mode":"antenna","lat":51,"lon":7,"radius":100}
+        self.assertEqual(self.request("POST","/api/radar/refresh",payload)[0],403)
+        _,_,boot=self.request("GET","/api/bootstrap")
+        csrf=json.loads(boot)["csrf"]
+        self.assertEqual(self.request("POST","/api/radar/refresh",
+            {**payload,"mode":"invalid"},csrf)[0],400)
+        self.assertEqual(self.request("POST","/api/radar/refresh",
+            {**payload,"lat":900},csrf)[0],400)
+        self.server.radar.fetcher=lambda url:{
+            "aircraft":[{"hex":"abcdef","seen":2,"lat":51.2,"lon":7.2}]
+        }
+        code,_,raw=self.request("POST","/api/radar/refresh",payload,csrf)
+        self.assertEqual(code,200)
+        records=json.loads(raw)
+        self.assertEqual(records["antenna_count"],1)
+        self.assertEqual(records["statuses"]["antenna"]["status"],"live")
+        self.assertEqual(records["aircraft"][0]["sources"],["antenna"])
+        self.assertFalse(records["aircraft"][0]["stale"])
+
     def test_no_forged_source(self):
         code,_,raw=self.request("GET","/api/page?source_id=ard_text&number=100")
         self.assertEqual(code,404)
