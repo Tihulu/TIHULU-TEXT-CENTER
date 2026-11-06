@@ -36,9 +36,8 @@ class FMSurveyTests(unittest.TestCase):
         self.assertEqual(set(SURVEY_BANDS),{
             "fm","dab","aprs","drm","rtty","navtex","weatherfax"
         })
-        args=build_survey_command("/usr/bin/rtl_power","navtex")
-        self.assertIn("-D",args)
-        self.assertIn("450k:560k:2k",args)
+        with self.assertRaisesRegex(SurveyError, "Q-branch"):
+            build_survey_command("/usr/bin/rtl_power","navtex")
         self.assertNotIn("-D",build_survey_command("/usr/bin/rtl_power","dab"))
         with self.assertRaises(ValueError):
             build_survey_command("/usr/bin/rtl_power","ssh")
@@ -48,6 +47,25 @@ class FMSurveyTests(unittest.TestCase):
             band="navtex")
         self.assertEqual(data["sweeps"],1)
         self.assertNotIn("station",data["candidates"][0] if data["candidates"] else {})
+
+    def test_hf_q_branch_is_blocked_until_compatible_backend_is_verified(self):
+        with tempfile.TemporaryDirectory() as td:
+            sup=FMSurveySupervisor(
+                inventory=lambda:{"platform":"Linux","rtl_usb_count":1},
+                conflicts=lambda:[],
+                lookup=lambda _:"/usr/bin/rtl_power",
+                lock_dir=Path(td)/"lock")
+            for band in ("drm","rtty","navtex","weatherfax"):
+                with self.subTest(band=band):
+                    readiness=sup.availability(band)
+                    self.assertFalse(readiness["ready"])
+                    self.assertIn("Q-branch",readiness["reason"])
+                    with self.assertRaisesRegex(SurveyError, "Q-branch"):
+                        sup.start(band)
+            self.assertEqual(sup.status()["status"],"idle")
+            self.assertTrue(sup.availability("fm")["ready"])
+            self.assertTrue(sup.availability("dab")["ready"])
+            self.assertTrue(sup.availability("aprs")["ready"])
 
     def test_conflict_and_missing_binary_are_denied(self):
         with tempfile.TemporaryDirectory() as td:
