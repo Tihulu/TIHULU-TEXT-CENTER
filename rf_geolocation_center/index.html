@@ -137,11 +137,31 @@
      <div class="two-col">
       <article class="panel map-panel">
        <div class="map-top"><span id="map-center-label">COLOGNE REFERENCE · NOT YOUR LOCATION</span><div><button id="map-zoom-out" aria-label="Zoom out">−</button><button id="map-zoom-in" aria-label="Zoom in">+</button></div></div>
-       <div id="earth-map" class="earth-map" role="img" aria-label="Coordinate map with real location and imported satellite positions">
+       <div id="earth-map" class="earth-map" role="region" aria-label="Interactive map: device position, measured signal rings, transmitter candidates, aircraft and satellites">
         <div id="osm-tiles" class="osm-tiles" hidden></div>
         <svg id="earth-overlay" class="earth-overlay" viewBox="0 0 900 520" preserveAspectRatio="none"><g id="earth-grid"></g><g id="earth-rings"></g><g id="earth-markers"></g></svg>
         <div class="map-cross">+</div>
+        <div id="map-source-popup" class="map-source-popup" hidden>
+         <button id="map-source-popup-close" aria-label="Close map source information" type="button">×</button>
+         <strong id="map-source-popup-name">Source</strong>
+         <p id="map-source-popup-description"></p>
+        </div>
        </div><div class="map-footer"><span>WGS84 · map pan by drag/touch · wheel or +/− zoom</span><span>© OpenStreetMap contributors, tiles only on request</span></div>
+       <section class="map-discovery-results" aria-label="Receiver measurements and matching mapped transmitter candidates">
+        <div class="map-discovery-top">
+         <div><strong>Signals &amp; sources on this map</strong><p id="map-scan-status">No antenna scan linked to this map yet. Catalog towers are external references, not received stations.</p></div>
+         <button id="map-focus-scan" class="secondary" type="button">Fit discovered sources</button>
+        </div>
+        <div class="map-source-legend" aria-label="Source provenance">
+         <span><i class="map-dot device"></i> Device position</span>
+         <span><i class="map-dot radio"></i> Mapped RF site / frequency candidate</span>
+         <span><i class="map-dot tv"></i> TV frequency candidate</span>
+         <span><i class="map-dot aircraft"></i> Aircraft from antenna</span>
+         <span><i class="map-dot internet"></i> Internet aircraft</span>
+         <span><i class="map-dot orbit"></i> Predicted satellite</span>
+        </div>
+        <div id="map-scan-results" class="map-scan-results" aria-live="polite"></div>
+       </section>
       </article>
       <details id="geo-advanced-tools" class="panel geo-advanced-tools"><summary>Advanced layers, evidence and calibration</summary><div class="geo-advanced-body"><h2>Live location and evidence</h2>
        <button id="earth-find" class="primary" type="button">◎ Find My Location — online or offline</button>
@@ -216,12 +236,42 @@
          <div class="simple-actions"><button id="radio-connect-rtl" class="primary" type="button">Connect RTL-SDR via WebUSB</button><button id="radio-manage-usb" class="secondary" type="button">Manage hardware</button></div>
          <div class="simple-actions"><button id="quick-radio-discover" class="primary" type="button">Discover sources</button><button id="quick-radio-scan" type="button">Scan FM band</button><button id="quick-radio-release" type="button">Hard Stop receiver</button><button id="quick-back-map" type="button">← Back to map</button></div>
          <div id="quick-radio-status" class="simple-result">Connect the RTL-SDR for antenna FM scans. Site lookup requires internet or a cached catalog.</div>
+         <div class="radio-adsb-link">
+          <div><strong>Aircraft · real 1090 MHz ADS-B</strong><p>Use the existing Flight Radar decoder for actual ICAO, callsign and transmitted aircraft positions. One RTL-SDR cannot run FM and ADS-B simultaneously; release it here before opening the radar receiver.</p></div>
+          <a href="../flight_radar/" id="quick-open-adsb" target="_blank" rel="noopener noreferrer">Open antenna Flight Radar</a>
+          <button id="quick-online-aircraft" class="secondary" type="button">Find internet aircraft</button>
+         </div>
+         <div class="radio-rds-panel">
+          <div><strong>Decoded FM RDS / DAB+ metadata</strong><p>Read real PS, RadioText, programme metadata and DAB service records from an existing local TIHULU TEXT CENTER receiver. No extra RTL-SDR claim or automatic tuning.</p></div>
+          <input id="radio-bridge-token" type="password" autocomplete="off" spellcheck="false" placeholder="Local bridge token (same as TV)" aria-label="Local radio and TV bridge session token">
+          <button id="radio-read-rds" class="secondary" type="button">Read local RDS / DAB</button>
+          <a href="http://127.0.0.1:8787/" target="_blank" rel="noopener noreferrer">Open local Text Center</a>
+          <div id="radio-rds-status" class="simple-result">No local decoder metadata received in this session.</div>
+          <div id="radio-rds-results" class="simple-channel-list" aria-label="Actual decoded local radio metadata"></div>
+         </div>
          <div class="radio-quick-results"><div><h3>Detected site candidates</h3><div id="quick-radio-towers" class="simple-channel-list"></div></div><div><h3>Strongest actual RF frequencies</h3><div id="quick-radio-peaks" class="simple-channel-list"></div></div></div>
         </div>
-        <div><h2>TV · Hauppauge WinTV-soloHD (01589)</h2><p>DVB-T, DVB-T2 and DVB-C. On Linux, the native DVB driver scans channels; browser-only GitHub Pages cannot directly control this DVB tuner.</p>
+        <div><h2>TV · Hauppauge WinTV-soloHD (01589)</h2><p>Connect your real Linux DVB tuner through the optional secure local bridge. Scan DVB-T2 from here, then compare actually detected channels with published TV transmitter sites on the map. Static Pages alone cannot access /dev/dvb.</p>
+         <div class="tv-bridge-card">
+          <h3>Connect native TV tuner</h3>
+          <div class="tv-bridge-grid">
+           <label for="tv-bridge-token">Local bridge session token <input id="tv-bridge-token" type="password" autocomplete="off" spellcheck="false" placeholder="Paste token printed by local TV bridge"></label>
+           <button id="tv-bridge-connect" class="primary" type="button">Connect local TV hardware</button>
+           <label for="tv-adapter">Detected DVB adapter<select id="tv-adapter" aria-label="Detected Linux DVB adapter"><option value="">Connect bridge first</option></select></label>
+           <label for="tv-profile">Scan profile<select id="tv-profile"><option value="eu-uhf-t2">EU UHF DVB-T2 (channels 21–48)</option></select></label>
+          </div>
+          <div class="simple-actions">
+           <button id="tv-start-scan" class="primary" type="button" disabled>Scan TV channels</button>
+           <button id="tv-stop-scan" class="secondary" type="button" disabled>Stop TV scan</button>
+           <button id="tv-show-map" class="secondary" type="button">Show channels &amp; towers on map</button>
+          </div>
+          <div id="tv-bridge-status" class="simple-result" role="status" aria-live="polite">No local DVB bridge. No TV channels have been scanned by this web page.</div>
+         </div>
          <label class="file-button" for="simple-dvb-file">Import real DVB scan metadata</label>
          <input id="simple-dvb-file" type="file" accept=".conf,.txt,.ini,text/plain">
-         <details id="simple-tv-guide"><summary>Native Linux TV scan instructions</summary>
+         <details id="simple-tv-guide"><summary>How to enable secure local TV scanning (Pop!_OS / Linux)</summary>
+          <p>Run from the existing repository checkout: <code>python3 -m rf_geolocation_center.native serve --enable-pages-bridge</code>. Copy only the session token printed in your terminal into the field above. Install <code>dvb-tools</code> to provide <code>dvbv5-scan</code>, and make sure the TV tuner has a working <code>/dev/dvb/adapterN/frontend0</code> driver. The browser may ask permission for loopback network access; allow only for your trusted TIHULU page.</p>
+          <p>This bridge listens on <code>127.0.0.1:8794</code>, accepts the token only from local UI or the official Pages origin, never scans automatically, and never controls your Nooelec RTL-SDR. The token is kept in this browser session's memory, not saved to local storage. No internet connection is needed to scan after setup.</p>
           <p>Check that <code>/dev/dvb/adapter0/frontend0</code> exists and that <code>dvbv5-scan</code> is installed. Run a DVB-T/T2 scan using a regional initial-tuning file, then import its DVBv5 channel list here. <a href="./scripts/dvb_scan_linux.sh" target="_blank" rel="noopener noreferrer">Linux scanning helper</a>.</p>
           <p>TV network/service IDs and channel frequencies are real broadcast metadata but normally do not contain your position or identify one unique transmitter in a single-frequency network.</p>
          </details>

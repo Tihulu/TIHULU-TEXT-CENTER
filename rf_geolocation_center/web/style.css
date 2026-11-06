@@ -269,3 +269,54 @@
 .hardware-message{padding:10px 12px;background:#102f3b;border:1px solid #376477;border-radius:8px;font-size:11px;line-height:1.6;color:#cfecf0;overflow-wrap:anywhere}
 .hardware-note{font-size:10px;color:#a8bece;line-height:1.65;margin:10px 0 0}
 @media(max-width:640px){.hardware-actions button,.hardware-control-slot button{flex:1}.simple-hardware-panel{padding:11px}.hardware-counter{display:block;margin:6px 0 0}.hardware-device-list{grid-template-columns:1fr}}
+
+
+/* v18 — distinct live native DVB scan and scientific source-to-map evidence */
+.tv-bridge-card{padding:13px 14px;margin:12px 0;border:1px solid #45697e;border-radius:11px;background:#0b2735}
+.tv-bridge-card h3{margin:2px 0 12px;font-size:13px;color:#d8f5ec}
+.tv-bridge-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:11px;align-items:end}
+.tv-bridge-grid label{min-width:0;display:flex;flex-direction:column;gap:6px;font-size:11px;color:#b7d5df}
+.tv-bridge-grid input,.tv-bridge-grid select{display:block;width:100%;min-height:38px;border-radius:7px;padding:8px 10px;background:#0c1d2e;border:1px solid #487089;color:#e3f7fb;font:inherit;min-width:0}
+.tv-bridge-card .simple-actions{margin-top:13px}
+.tv-bridge-card button:disabled{opacity:.52;cursor:not-allowed}
+.radio-adsb-link{padding:11px 12px;display:flex;align-items:center;gap:11px;flex-wrap:wrap;border:1px solid #305b6e;background:#102635;border-radius:10px;margin-top:14px}
+.radio-adsb-link>div{flex:1;min-width:180px}
+.radio-adsb-link strong{font-size:12px;color:#cfedee}
+.radio-adsb-link p{margin:4px 0 0;font-size:10px;color:#b5d0dc}
+.radio-adsb-link a{font-size:11px;font-weight:750;border-radius:8px;padding:10px;background:#205c61;color:#eafbf3;text-decoration:none}
+.radio-adsb-link button{font-size:11px;padding:10px}
+#earth-map{position:relative}
+.map-source-popup{position:absolute;z-index:28;max-width:min(360px,calc(100% - 14px));max-height:200px;overflow:auto;padding:13px 33px 12px 13px;pointer-events:auto;background:#0b2534;color:#e2f1f2;border:1px solid #73babc;border-radius:10px;box-shadow:0 6px 25px #0008;font-size:12px;line-height:1.5}
+.map-source-popup[hidden]{display:none}
+.map-source-popup strong{display:block;font-size:12px;margin-bottom:7px}
+.map-source-popup p{font-size:11px;line-height:1.6;margin:0;overflow-wrap:anywhere}
+#map-source-popup-close{position:absolute;top:5px;right:6px;background:transparent;color:#d0edf0;border:0;cursor:pointer;padding:4px 7px}
+.map-discovery-results{padding:13px 12px 15px;border-top:1px solid #304c62;background:#102031}
+.map-discovery-top{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.map-discovery-top strong{font-size:13px;color:#dbf0ef}
+.map-discovery-top p{font-size:11px;color:#b4ced8;line-height:1.5;margin:5px 0}
+.map-discovery-top button{font-size:11px}
+.map-source-legend{display:flex;gap:8px 14px;flex-wrap:wrap;margin:13px 0;font-size:10px;color:#abc9d6}
+.map-source-legend>span{display:flex;align-items:center;gap:6px}
+.map-dot{display:inline-block;width:9px;height:9px;border-radius:50%;background:#7eabc4;border:1px solid #081826}
+.map-dot.device{background:#bd91f3}.map-dot.radio{background:#50d0d9}.map-dot.tv{background:#efc069}
+.map-dot.aircraft{background:#5be1b2}.map-dot.internet{background:#b17eb5}.map-dot.orbit{background:#57bdf4}
+.map-scan-results{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,230px),1fr));gap:8px}
+.map-source-result{display:flex;flex-direction:column;align-items:flex-start;gap:5px;text-align:left;padding:10px;background:#183349;border:1px solid #36596c;color:#e5f5f1;border-radius:9px;cursor:pointer;min-width:0}
+.map-source-result:hover,.map-source-result:focus-visible{outline:2px solid #78c5cc;background:#1b4152}
+.map-source-result strong{font-size:11px}
+.map-source-result small{font-size:10px;color:#b5cfd7;line-height:1.5}
+.map-source-bullet{display:inline-block;background:#174354;border-radius:5px;font-size:10px;font-weight:800;padding:2px 7px;color:#8ce5e8}
+.map-source-bullet.tv{color:#f6d58e;background:#3d3525}.map-source-bullet.aircraft{color:#a2ebcf;background:#173c31}
+.map-scan-empty{font-size:11px;color:#a9c5d2;margin:4px 0}
+@media(max-width:820px){.tv-bridge-grid{grid-template-columns:1fr}.map-discovery-top{align-items:flex-start}}
+
+
+.radio-rds-panel{display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:12px 13px;border:1px solid #355b69;border-radius:10px;background:#122a37;margin:14px 0}
+.radio-rds-panel>div:first-child{flex:1;min-width:160px}
+.radio-rds-panel strong{font-size:12px;color:#d7eae6}
+.radio-rds-panel p{font-size:11px;margin:5px 0;color:#a9c8d4}
+.radio-rds-panel>input{min-width:150px;max-width:280px;flex:1;padding:9px;border:1px solid #496b81;border-radius:7px;background:#0d2030;color:#e5fbfb;font-size:11px}
+.radio-rds-panel>a{font-size:11px;color:#9bddc6}
+.radio-rds-panel>#radio-rds-status,.radio-rds-panel>#radio-rds-results{flex-basis:100%}
+.map-source-bullet.rds{background:#214934;color:#9eeabb}

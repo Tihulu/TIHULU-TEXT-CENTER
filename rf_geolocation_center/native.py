@@ -10,6 +10,9 @@ import argparse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 import json
+import hmac
+from .dvb_bridge import DVBScanBridge
+from .radio_metadata import read_local_radio_metadata
 import platform
 import sys
 from urllib.parse import unquote, urlsplit
@@ -29,6 +32,8 @@ ASSETS = {
     "/web/catalog_discovery.mjs": ("web/catalog_discovery.mjs", "text/javascript"),
     "/web/simple_ui.mjs": ("web/simple_ui.mjs", "text/javascript"),
     "/web/hardware_manager.mjs": ("web/hardware_manager.mjs", "text/javascript"),
+    "/web/dvb_bridge_client.mjs": ("web/dvb_bridge_client.mjs", "text/javascript"),
+    "/web/dvb_bridge_client.mjs": ("web/dvb_bridge_client.mjs", "text/javascript"),
     "/web/style.css": ("web/style.css", "text/css"),
     "/web/icon.svg": ("web/icon.svg", "image/svg+xml"),
     "/core/gnss.mjs": ("core/gnss.mjs", "text/javascript"),
@@ -39,16 +44,22 @@ ASSETS = {
     "/core/rf_ranging.mjs": ("core/rf_ranging.mjs", "text/javascript"),
     "/core/source_catalog.mjs": ("core/source_catalog.mjs", "text/javascript"),
     "/core/dvb_scan.mjs": ("core/dvb_scan.mjs", "text/javascript"),
+    "/core/scan_map.mjs": ("core/scan_map.mjs", "text/javascript"),
     "/scripts/dvb_scan_linux.sh": ("scripts/dvb_scan_linux.sh", "text/plain"),
     "/scripts/usb_prepare_linux.sh": ("scripts/usb_prepare_linux.sh", "text/plain"),
 }
 CSP = ("default-src 'self'; script-src 'self' https://esm.sh; style-src 'self'; "
        "connect-src 'self' https://esm.sh https://celestrak.org https://celestrak.com "
-       "https://overpass-api.de https://opensky-network.org; "
+       "https://overpass-api.de https://opensky-network.org http://127.0.0.1:8794; "
        "img-src 'self' data: https://tile.openstreetmap.org; "
        "frame-src https://www.openstreetmap.org; "
        "worker-src 'self'; manifest-src 'self'; object-src 'none'; "
        "base-uri 'none'; form-action 'none'; frame-ancestors 'none'")
+
+
+DVB = DVBScanBridge()
+PAGES_BRIDGE_ENABLED = False
+PAGES_ORIGIN = "https://tihulu.github.io"
 
 
 def safe_asset(url_path: str):
@@ -100,14 +111,124 @@ class LocalAppHandler(BaseHTTPRequestHandler):
         if not head_only:
             self.wfile.write(raw)
 
+    def _bridge_origin(self):
+        """Authorize only same-origin local UI or opt-in official Pages origin."""
+        origin = self.headers.get("Origin")
+        port = self.server.server_address[1]
+        valid = {"http://127.0.0.1:" + str(port), "http://localhost:" + str(port)}
+        if PAGES_BRIDGE_ENABLED:
+            valid.add(PAGES_ORIGIN)
+        if origin is None:
+            return None  # token still required for non-browser clients
+        if origin not in valid:
+            raise PermissionError("Origin is not approved for local DVB scanner")
+        return origin
+
+    def _bridge_headers(self, origin):
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("Referrer-Policy", "no-referrer")
+        if origin:
+            self.send_header("Access-Control-Allow-Origin", origin)
+            self.send_header("Vary", "Origin")
+
+    def _json(self, status, payload, origin=None):
+        raw = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+        self.send_response(status)
+        self._bridge_headers(origin)
+        self.send_header("Content-Length", str(len(raw)))
+        self.end_headers()
+        self.wfile.write(raw)
+
+    def _authorize_bridge(self):
+        host = self.headers.get("Host", "").split(":")[0].lower()
+        if host not in ("127.0.0.1", "localhost"):
+            raise PermissionError("Loopback Host required")
+        origin = self._bridge_origin()
+        token = self.headers.get("X-Tihulu-Bridge-Token", "")
+        if not hmac.compare_digest(token, DVB.token):
+            raise PermissionError("Invalid local DVB bridge session token")
+        return origin
+
+    def _api_get(self):
+        try:
+            origin = self._authorize_bridge()
+        except PermissionError as error:
+            self._json(403, {"error": str(error)})
+            return
+        route = urlsplit(self.path).path
+        if route == "/api/dvb/capabilities":
+            self._json(200, DVB.capabilities(), origin)
+        elif route == "/api/dvb/status":
+            self._json(200, DVB.status(), origin)
+        elif route == "/api/radio/decoded":
+            self._json(200, read_local_radio_metadata(), origin)
+        else:
+            self._json(404, {"error": "Unknown DVB API endpoint"}, origin)
+
+    def _api_post(self):
+        try:
+            origin = self._authorize_bridge()
+        except PermissionError as error:
+            self._json(403, {"error": str(error)})
+            return
+        route = urlsplit(self.path).path
+        if route not in ("/api/dvb/scan", "/api/dvb/stop"):
+            self._json(404, {"error": "Unknown DVB API endpoint"}, origin)
+            return
+        try:
+            length = int(self.headers.get("Content-Length", "0"))
+            if not 0 <= length <= 2048:
+                raise ValueError("Body must be at most 2048 bytes")
+            body = self.rfile.read(length) if length else b"{}"
+            data = json.loads(body)
+            if not isinstance(data, dict):
+                raise ValueError("Expected object with adapter and listed profile")
+            if route == "/api/dvb/scan":
+                result = DVB.start(data.get("adapter"), data.get("profile"))
+            else:
+                result = DVB.stop()
+            self._json(200, result, origin)
+        except (ValueError, RuntimeError, TypeError) as error:
+            self._json(400, {"error": str(error)}, origin)
+
+    def do_OPTIONS(self):
+        if urlsplit(self.path).path not in ("/api/radio/decoded", "/api/dvb/capabilities", "/api/dvb/status",
+                                           "/api/dvb/scan", "/api/dvb/stop"):
+            self.send_error(404)
+            return
+        try:
+            origin = self._bridge_origin()
+        except PermissionError:
+            self.send_error(403, "CORS origin denied")
+            return
+        if origin is None:
+            self.send_error(403, "CORS origin required")
+            return
+        self.send_response(204)
+        self.send_header("Access-Control-Allow-Origin", origin)
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type, X-Tihulu-Bridge-Token")
+        self.send_header("Access-Control-Max-Age", "600")
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("Vary", "Origin")
+        self.end_headers()
+
     def do_GET(self):
-        self._respond(False)
+        if urlsplit(self.path).path.startswith(("/api/dvb/", "/api/radio/")):
+            self._api_get()
+        else:
+            self._respond(False)
 
     def do_HEAD(self):
         self._respond(True)
 
     def do_POST(self):
-        self.send_error(405, "Read-only offline app; POST unavailable")
+        if urlsplit(self.path).path.startswith("/api/dvb/"):
+            self._api_post()
+        else:
+            self.send_error(405, "Only specific authorized DVB scan endpoints permit POST")
 
     def log_message(self, format_string, *args):
         # Only route metadata, no coordinates/receiver data are received.
@@ -124,6 +245,8 @@ def doctor():
         "static_assets": len(ASSETS),
         "binding": "loopback-only when running serve",
         "rf_receiver": "NOT IMPLEMENTED",
+        "dvb_bridge": "REAL LINUX DVBv5 VIA OPT-IN LOOPBACK SCAN; TOKEN REQUIRED",
+        "dvb_backend_status": DVB.capabilities(),
         "native_gnss_decoder": "NOT IMPLEMENTED",
         "gnss_positional_provider": "browser geolocation / imported or Web Serial NMEA only",
         "github_pages_deployed": "NOT VERIFIED",
@@ -135,16 +258,22 @@ def main(argv=None):
     sub = parser.add_subparsers(dest="command", required=True)
     srv = sub.add_parser("serve", help="serve locally, never expose a LAN RF API")
     srv.add_argument("--port", type=int, default=8794)
+    srv.add_argument("--enable-pages-bridge", action="store_true", help="explicitly allow token-protected cross-origin access from official https://tihulu.github.io Pages only")
     sub.add_parser("doctor", help="print verified local application capabilities")
     args = parser.parse_args(argv)
     if args.command == "doctor":
         print(json.dumps(doctor(), indent=2))
         return 0
+    global PAGES_BRIDGE_ENABLED
+    PAGES_BRIDGE_ENABLED = bool(args.enable_pages_bridge)
     if args.port < 1024 or args.port > 65535:
         parser.error("Port must be 1024–65535")
     with ThreadingHTTPServer(("127.0.0.1", args.port), LocalAppHandler) as server:
         print("TIHULU RF Geolocation Center: http://127.0.0.1:" + str(args.port) + "/")
-        print("Loopback-only browser app; no SDR capture, no background GNSS.")
+        print("Loopback-only: no LAN binding or automatic RF scan. Native DVB scanner requires explicit consent.")
+        print("DVB browser bridge: " + ("official Pages allowed with token" if PAGES_BRIDGE_ENABLED else "localhost-only (use --enable-pages-bridge for official Pages)"))
+        print("DVB BRIDGE TOKEN (paste only into TIHULU's TV Scan panel): " + DVB.token)
+        print("No TV scanning starts until you press Scan TV in the browser.")
         try:
             server.serve_forever(poll_interval=0.3)
         except KeyboardInterrupt:
