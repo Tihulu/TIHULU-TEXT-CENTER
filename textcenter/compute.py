@@ -56,9 +56,48 @@ def detect_devices(*, executable_lookup=None, device_root=None,
         npus=sorted(x.name for x in dev.glob("hailo*"))[:5]
     except OSError:
         npus=[]
-    devices.append({"id":"npu","name":"Hailo NPU ("+", ".join(npus)+")" if npus else "No Hailo NPU detected",
-                    "detected":bool(npus),"runtime_ready":False,
-                    "detail":"NPU device node != working speech/translation model runtime. Explicit compatible adapter required."})
+    # OpenVINO GenAI can run exported Whisper models on supported Intel NPUs.
+    # Hailo is a separate accelerator family and needs its own tested adapter.
+    ov_model_dir=os.environ.get("TIHULU_OPENVINO_WHISPER_MODEL","")
+    ov_model=Path(ov_model_dir).expanduser() if ov_model_dir else None
+    ov_installed=(importlib.util.find_spec("openvino") is not None and
+                  importlib.util.find_spec("openvino_genai") is not None)
+    intel_npu=None
+    if ov_installed:
+        try:
+            import openvino as ov
+            intel_npu=next((d for d in ov.Core().available_devices
+                            if d.split(".")[0]=="NPU"),None)
+        except (ImportError,RuntimeError,OSError):
+            intel_npu=None
+    ov_ready=bool(intel_npu and ov_model and ov_model.is_dir() and
+                  (ov_model/"config.json").is_file() and
+                  any(ov_model.glob("*.xml")))
+    # Hailo-10H can run the vendor's local low-level WhisperPipeline.
+    # Require explicit local HEF + NPY files. We NEVER invoke the vendor
+    # 'resolve_hef_paths' helper since it auto-downloads missing files.
+    hailo_encoder=os.environ.get("TIHULU_HAILO_ENCODER_HEF","")
+    hailo_decoder=os.environ.get("TIHULU_HAILO_DECODER_HEF","")
+    hailo_npy=os.environ.get("TIHULU_HAILO_WHISPER_NPY_DIR","")
+    henc=Path(hailo_encoder).expanduser() if hailo_encoder else None
+    hdec=Path(hailo_decoder).expanduser() if hailo_decoder else None
+    hnpy=Path(hailo_npy).expanduser() if hailo_npy else None
+    hailo_ready=bool(
+        npus and
+        importlib.util.find_spec("hailo_apps") is not None and
+        importlib.util.find_spec("hailo_platform") is not None and
+        henc and henc.is_file() and
+        hdec and hdec.is_file() and
+        hnpy and hnpy.is_dir() and any(hnpy.glob("*.npy"))
+    )
+    detected_npu=bool(npus or intel_npu)
+    npu_label=("Intel OpenVINO "+intel_npu if intel_npu else
+               "Hailo NPU ("+", ".join(npus)+")" if npus else "No NPU detected")
+    devices.append({"id":"npu","name":npu_label,
+                    "detected":detected_npu,"runtime_ready":ov_ready or hailo_ready,
+                    "detail":("Hailo local HEF/NPY Whisper model configured" if hailo_ready else
+                              "OpenVINO NPU Whisper model locally configured" if ov_ready
+                              else "NPU device alone is insufficient; compatible model/runtime missing.")})
     executable=lookup("whisper-cli") or lookup("main")
     gpu_model_dir=os.environ.get("TIHULU_FASTER_WHISPER_MODEL","")
     gpu_model=Path(gpu_model_dir).expanduser() if gpu_model_dir else None
@@ -79,7 +118,13 @@ def detect_devices(*, executable_lookup=None, device_root=None,
             "engine":"whisper.cpp CLI","executable":executable,
             "model_path":str(model) if model else None,
             "model_installed":bool(model and model.is_file()),
-            "ready_cpu":speech_ready,"ready_gpu":gpu_ready,"ready_npu":False,
+            "ready_cpu":speech_ready,"ready_gpu":gpu_ready,"ready_npu":ov_ready or hailo_ready,
+            "npu_engine":"hailo_whisper" if hailo_ready else
+                          "openvino_genai" if ov_ready else None,
+            "hailo_encoder_hef":str(henc) if henc else None,
+            "hailo_decoder_hef":str(hdec) if hdec else None,
+            "hailo_npy_dir":str(hnpy) if hnpy else None,
+            "npu_model_path":str(ov_model) if ov_model else None,
             "gpu_model_path":str(gpu_model) if gpu_model else None,
             "note":"whisper.cpp model must already be installed; configured with TIHULU_WHISPER_MODEL. No inference can be claimed without real capture and model."
         },

@@ -7,6 +7,10 @@ can be exported as SRT/VTT, including later off-line translation.
 from __future__ import annotations
 from datetime import datetime,timezone
 import importlib.util
+import json
+import os
+import subprocess
+import sys
 import re
 import sqlite3
 import uuid
@@ -42,12 +46,75 @@ def installed_translation_pairs() -> list[dict]:
         return []
 
 
-def translate_offline(text:str,source:str,target:str)->str:
+def translation_devices() -> dict:
+    """Real Argos package/pair availability, separate from speech readiness."""
+    pairs=installed_translation_pairs()
+    cuda=False
+    try:
+        import ctranslate2
+        cuda=ctranslate2.get_cuda_device_count()>0
+    except (ImportError,OSError,RuntimeError,ValueError):
+        pass
+    return {
+        "pairs":pairs,
+        "cpu_available":bool(pairs),
+        "gpu_available":bool(pairs) and cuda,
+        "npu_available":False,
+        "npu_note":"No verified NPU translator backend; ASR NPU support is separate",
+        "engines":["argos_cpu","argos_cuda" if cuda else "argos_cuda_unavailable"],
+        "no_automatic_download":True,
+    }
+
+
+# Run CTranslate2 CUDA in its own Python process: its device choice is
+# initialized on import, and never changes the main server process's CPU
+# Argos translation setting. Source text is sent over stdin, NOT argv.
+_GPU_WORKER = """
+import json,sys
+import argostranslate.translate as argos
+r=json.load(sys.stdin)
+langs={x.code:x for x in argos.get_installed_languages()}
+src,dst=langs[r['source']],langs[r['target']]
+result=src.get_translation(dst).translate(r['text'])
+json.dump({'translated':result},sys.stdout)
+"""
+
+
+def translate_offline(text:str,source:str,target:str,backend:str="auto")->str:
     source,target=validate_language(source),validate_language(target)
+    if backend not in ("auto","cpu","gpu","npu"):
+        raise ValueError("Translator backend must be auto, cpu, gpu or npu")
+    if not isinstance(text,str) or not text.strip() or len(text)>12000:
+        raise ValueError("Translation text must be 1–12000 characters")
     if source==target:
         return text
-    if not isinstance(text,str) or not text.strip():
-        raise ValueError("No source text to translate")
+    devices=translation_devices()
+    if backend=="npu":
+        raise TranslatorUnavailable("No tested NPU translation engine/model installed")
+    if backend=="auto":
+        backend="gpu" if devices["gpu_available"] else "cpu"
+    if backend=="gpu":
+        if not devices["gpu_available"]:
+            raise TranslatorUnavailable("CUDA CTranslate2 GPU translation unavailable or models missing")
+        env=os.environ.copy()
+        env["ARGOS_DEVICE_TYPE"]="cuda"
+        env["TRANSFORMERS_OFFLINE"]="1"
+        env["HF_HUB_OFFLINE"]="1"
+        try:
+            output=subprocess.run([sys.executable,"-c",_GPU_WORKER],
+                input=json.dumps({"text":text,"source":source,"target":target}).encode("utf-8"),
+                stdout=subprocess.PIPE,stderr=subprocess.DEVNULL,
+                timeout=55,env=env,check=False)
+        except (OSError,subprocess.TimeoutExpired) as exc:
+            raise TranslatorUnavailable("CUDA translation subprocess unavailable") from exc
+        if output.returncode!=0 or len(output.stdout)>64000:
+            raise TranslatorUnavailable("Local CUDA translation failed")
+        try:translated=json.loads(output.stdout)["translated"]
+        except (ValueError,KeyError,TypeError) as exc:
+            raise TranslatorUnavailable("Invalid local CUDA translation result") from exc
+        if not isinstance(translated,str) or not translated.strip():
+            raise TranslatorUnavailable("CUDA translation produced no text")
+        return translated[:12000]
     try:
         import argostranslate.translate as translate
         languages={x.code:x for x in translate.get_installed_languages()}
@@ -82,7 +149,7 @@ class TranscriptStore:
 
     def add(self,*,session:str,medium:str,source_id:str,language:str,
             text:str,backend:str,start:float,end:float,
-            translated=None,target=None)->str:
+            translated=None,target=None,translation_engine=None)->str:
         if not isinstance(session,str) or not re.fullmatch(r"[0-9a-f]{32}",session):
             raise ValueError("Invalid session")
         if medium not in ("fm","dab","dvb_tv"):
@@ -100,7 +167,7 @@ class TranscriptStore:
             "original_text":original,
             "translated_language":target if isinstance(translated,str) and translated.strip() else None,
             "translated_text":clean_text(translated,12000) if isinstance(translated,str) and translated.strip() else None,
-            "translator_engine":"argos_offline" if translated else None,
+            "translator_engine":(translation_engine or "argos_offline") if translated else None,
             "compute_backend":clean_text(backend,80),"started_seconds":float(start),
             "ended_seconds":float(end),"captured_at":utc_now(),
         }
@@ -126,7 +193,7 @@ class TranscriptStore:
                 (limit,)).fetchall()]
 
     def translate_later(self,caption_id:str,target_language:str,
-                        translator=translate_offline)->dict:
+                        translator=None,backend:str="auto")->dict:
         target=validate_language(target_language)
         with self.store.connect() as db:
             row=db.execute("SELECT * FROM captions WHERE id=?",(caption_id,)).fetchone()
@@ -135,11 +202,15 @@ class TranscriptStore:
         original=row["original_language"]
         if original not in LANGUAGES:
             raise TranslatorUnavailable("Original speech language unknown; select language before translating")
-        result=translator(row["original_text"],original,target)
+        if translator is None:
+            result=translate_offline(row["original_text"],original,target,backend=backend)
+        else:
+            result=translator(row["original_text"],original,target)
         with self.store.connect() as db:
             db.execute("""UPDATE captions SET translated_language=?,translated_text=?,
                  translator_engine=? WHERE id=?""",
-                       (target,result,"argos_offline" if target!=original else "identity",caption_id))
+                       (target,result,("argos_"+backend if backend!="auto" else "argos_auto")
+                        if target!=original else "identity",caption_id))
             updated=db.execute("SELECT * FROM captions WHERE id=?",(caption_id,)).fetchone()
             return dict(updated)
 
@@ -158,7 +229,10 @@ class TranscriptStore:
         for i,row in enumerate(items,1):
             original=row["original_text"]
             translated_text=row["translated_text"] if translated else None
-            content=translated_text or original
+            content=translated_text if translated_text else (
+                f"[UNTRANSLATED {row['original_language'].upper()}] {original}"
+                if translated else original
+            )
             # Make untrusted source text a single plain subtitle line.
             content=re.sub(r"[\x00-\x1f\x7f]"," ",content).strip()
             if fmt=="srt":lines.append(str(i))

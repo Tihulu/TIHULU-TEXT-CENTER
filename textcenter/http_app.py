@@ -16,14 +16,15 @@ from .media import MediaStore
 from .dvb_hardware import diagnose_dvb
 from .dab_bridge import DABReader,DABError
 from .live_fm import LiveFM,LiveError
-from .transcripts import TranscriptStore,TranslatorUnavailable,installed_translation_pairs
+from .live_tv import LiveTV,LiveTVError
+from .transcripts import TranscriptStore,TranslatorUnavailable,installed_translation_pairs,translation_devices,translate_offline
 from .compute import detect_devices,choose_backend
+from .postprocess import RecordingTranscriber,PostProcessError
+from .speech import SpeechError
 from .capabilities import capability_catalog
 from .fm_survey import FMSurveySupervisor, SurveyError
 from .scan_catalog import scan_capabilities
-from .auto_scan import (
-    FMAutoScanner, DABAutoScanner, AutoScanError, dab_channels_from_peaks,
-)
+from .auto_scan import FMAutoScanner,DABAutoScanner,AutoScanError,dab_channels_from_peaks
 from .channel_catalog import ChannelCatalog
 
 WEB_DIR = Path(__file__).resolve().parents[1] / "web"
@@ -75,6 +76,10 @@ class LocalServer(ThreadingHTTPServer):
         self.live_fm=LiveFM(archive_dir=store.filename.parent/"recordings",
                             lock_dir=store.filename.parent/".receiver-locks",
                             transcripts=self.transcripts)
+        self.live_tv=LiveTV(archive_dir=store.filename.parent/"recordings",
+                            transcripts=self.transcripts)
+        self.postprocess=RecordingTranscriber(
+            transcripts=self.transcripts,radio=self.live_fm,tv=self.live_tv)
         super().__init__(address, Handler)
 
 
@@ -83,8 +88,14 @@ class Handler(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
 
     def log_message(self, format, *args):
-        # Local diagnostic only; do not log bulletin contents or feed payloads.
-        super().log_message(format, *args)
+        # Never log bearer token embedded in a video/audio stream URL.
+        # Avoid contents of private text, feed payloads and recordings.
+        fields=list(args)
+        if fields and isinstance(fields[0],str) and "/api/live/" in fields[0]:
+            requestline=fields[0]
+            if "?" in requestline:
+                fields[0]=requestline.split("?",1)[0]+"?parameters-redacted HTTP/1.1"
+        super().log_message(format,*fields)
 
     def _send(self, status: int, body: bytes, content_type: str, *, cache: str = "no-store"):
         self.send_response(status)
@@ -98,7 +109,7 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("X-Frame-Options", "DENY")
         self.send_header("Content-Security-Policy",
                          "default-src 'none'; script-src 'self'; style-src 'self'; "
-                         "img-src 'self' data:; connect-src 'self'; form-action 'self'; "
+                         "img-src 'self' data:; media-src 'self'; connect-src 'self'; form-action 'self'; "
                          "base-uri 'none'; frame-ancestors 'none'")
         self.end_headers()
         self.wfile.write(body)
@@ -202,12 +213,76 @@ class Handler(BaseHTTPRequestHandler):
                     return self._json(404, {"error":"No such decoded broadcast image"})
                 mime, raw=file
                 return self._send(200,raw,mime)
+            if route == "/api/recordings/transcription/status":
+                return self._json(200,self.server.postprocess.status())
+            if route == "/api/translation/status":
+                return self._json(200,translation_devices())
             if route == "/api/compute":
                 profile=detect_devices()
                 profile["selection"]={key:choose_backend(profile,key)
                                       for key in ("auto","cpu","gpu","npu")}
                 profile["translation"]["available_pairs"]=installed_translation_pairs()
                 return self._json(200,profile)
+            if route == "/api/live/tv/channels":
+                return self._json(200,{
+                    "channels":[{"id":x["id"],"name":x["name"],
+                                 "source_status":x["source_status"]}
+                                for x in self.server.live_tv.channels()],
+                    "capability":self.server.live_tv.availability(),
+                    "note":"Only dedicated upstream MPEG-TS sources configured by the owner; this app never tunes DVB."
+                })
+            if route == "/api/live/tv/status":
+                data=self.server.live_tv.status(heartbeat=True)
+                data["capability"]=self.server.live_tv.availability()
+                return self._json(200,data)
+            if route == "/api/live/tv/recordings":
+                return self._json(200,self.server.live_tv.recordings())
+            if route.startswith("/api/live/tv/recording/"):
+                filename=route[len("/api/live/tv/recording/"):]
+                file=self.server.live_tv.recording(filename)
+                if not file:return self._json(404,{"error":"TV recording not found"})
+                self.send_response(200)
+                self.send_header("Content-Type","video/mp4")
+                self.send_header("Content-Length",str(file.stat().st_size))
+                self.send_header("Content-Disposition",'attachment; filename="'+filename+'"')
+                self.send_header("Cache-Control","no-store")
+                self.send_header("X-Content-Type-Options","nosniff")
+                self.send_header("Connection","close")
+                self.end_headers()
+                try:
+                    with file.open("rb") as saved:
+                        while True:
+                            b=saved.read(65536)
+                            if not b:break
+                            self.wfile.write(b)
+                except (BrokenPipeError,ConnectionResetError):
+                    pass
+                self.close_connection=True
+                return
+            if route == "/api/live/tv/stream":
+                session=q.get("session",[""])[0]
+                token=q.get("token",[""])[0]
+                status=self.server.live_tv.status()
+                if token!=self.server.csrf_token or not status["active"] or status["session"]!=session:
+                    return self._json(403,{"error":"TV session not authorized or running"})
+                self.send_response(200)
+                self.send_header("Content-Type","video/mp4")
+                self.send_header("Transfer-Encoding","chunked")
+                self.send_header("Cache-Control","no-store")
+                self.send_header("X-Content-Type-Options","nosniff")
+                self.send_header("Connection","close")
+                self.end_headers()
+                try:
+                    for chunk in self.server.live_tv.stream(session):
+                        self.wfile.write(("%X\r\n"%len(chunk)).encode("ascii"))
+                        self.wfile.write(chunk)
+                        self.wfile.write(b"\r\n")
+                        self.wfile.flush()
+                    self.wfile.write(b"0\r\n\r\n")
+                except (BrokenPipeError,ConnectionResetError,OSError,LiveTVError):
+                    self.server.live_tv.stop()
+                self.close_connection=True
+                return
             if route == "/api/live/radio/status":
                 state=self.server.live_fm.status(heartbeat=True)
                 state["capability"]=self.server.live_fm.availability()
@@ -333,7 +408,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         route = urlsplit(self.path).path
-        allowed = {"/api/feeds/add", "/api/feeds/refresh", "/api/bulletins", "/api/bookmarks", "/api/rds/start", "/api/rds/stop", "/api/fm-survey/start", "/api/fm-survey/stop", "/api/scans/start", "/api/scans/stop", "/api/audio/start", "/api/audio/stop", "/api/dab/refresh", "/api/live/radio/start", "/api/live/radio/stop", "/api/transcripts/translate", "/api/auto/fm/start", "/api/auto/fm/stop", "/api/auto/dab/start", "/api/auto/dab/stop", "/api/auto/dab/tune"}
+        allowed = {"/api/feeds/add", "/api/feeds/refresh", "/api/bulletins", "/api/bookmarks", "/api/rds/start", "/api/rds/stop", "/api/fm-survey/start", "/api/fm-survey/stop", "/api/scans/start", "/api/scans/stop", "/api/audio/start", "/api/audio/stop", "/api/dab/refresh", "/api/live/radio/start", "/api/live/radio/stop", "/api/transcripts/translate", "/api/translation/text", "/api/live/tv/start", "/api/live/tv/stop", "/api/recordings/transcription/start", "/api/recordings/transcription/stop", "/api/auto/fm/start", "/api/auto/fm/stop", "/api/auto/dab/start", "/api/auto/dab/stop", "/api/auto/dab/tune"}
         if route not in allowed:
             return self._json(404, {"error": "Not found"})
         if self.headers.get("X-Tihulu-CSRF") != self.server.csrf_token:
@@ -407,18 +482,52 @@ class Handler(BaseHTTPRequestHandler):
                 result=self.server.dab.refresh(include_images=payload.get("include_images",True))
                 self.server.dab_last={"connected":True,**result}
                 return self._json(200,self.server.dab_last)
+            if route == "/api/live/tv/start":
+                return self._json(202,self.server.live_tv.start(
+                    payload.get("channel_id"),record=payload.get("record",False),
+                    subtitles=payload.get("subtitles",False),
+                    language=payload.get("original_language","en"),
+                    translate_to=payload.get("translated_language"),
+                    backend=payload.get("backend","auto"),
+                    translation_backend=payload.get("translation_backend","auto"),
+                    upstream_authorized=payload.get("upstream_authorized",False)))
+            if route == "/api/live/tv/stop":
+                return self._json(200,self.server.live_tv.stop())
+            if route == "/api/recordings/transcription/start":
+                return self._json(202,self.server.postprocess.start(
+                    medium=payload.get("medium"),filename=payload.get("filename"),
+                    language=payload.get("original_language"),
+                    target_language=payload.get("translated_language"),
+                    backend=payload.get("backend","auto")))
+            if route == "/api/recordings/transcription/stop":
+                return self._json(200,self.server.postprocess.stop())
             if route == "/api/live/radio/start":
                 return self._json(202,self.server.live_fm.start(
                     payload.get("frequency_mhz"),record=payload.get("record",False),
                     subtitles=payload.get("subtitles",False),
                     language=payload.get("original_language","en"),
                     translate_to=payload.get("translated_language"),
-                    backend=payload.get("backend","auto")))
+                    backend=payload.get("backend","auto"),
+                    translation_backend=payload.get("translation_backend","auto")))
+
             if route == "/api/live/radio/stop":
                 return self._json(200,self.server.live_fm.stop())
+            if route == "/api/translation/text":
+                original=payload.get("text")
+                translated=translate_offline(
+                    original,payload.get("source"),payload.get("target"),
+                    backend=payload.get("backend","auto"))
+                return self._json(200,{
+                    "original":original,"translated":translated,
+                    "source":payload.get("source"),"target":payload.get("target"),
+                    "requested_backend":payload.get("backend","auto"),
+                    "engine":"argos_translate_offline",
+                    "status":"locally_translated_not_official_source",
+                })
             if route == "/api/transcripts/translate":
                 item=self.server.transcripts.translate_later(
-                    payload.get("id"),payload.get("target_language"))
+                    payload.get("id"),payload.get("target_language"),
+                    backend=payload.get("backend","auto"))
                 return self._json(200,item)
             if route == "/api/audio/start":
                 return self._json(202,self.server.audio.start(
@@ -448,7 +557,7 @@ class Handler(BaseHTTPRequestHandler):
             if route == "/api/bookmarks":
                 self.server.store.add_bookmark(payload.get("label"),payload.get("target_type"),payload.get("target"))
                 return self._json(201, {"saved": True})
-        except (CaptureError, SurveyError, AudioError, DABError, LiveError, AutoScanError, TranslatorUnavailable) as exc:
+        except (CaptureError, SurveyError, AudioError, DABError, LiveError, LiveTVError, SpeechError, TranslatorUnavailable, PostProcessError, AutoScanError) as exc:
             self._json(409, {"error": str(exc)})
         except KeyError as exc:
             self._json(404, {"error": str(exc)})
@@ -469,6 +578,8 @@ def run_server(store: Store, *, host: str = "127.0.0.1", port: int = 8787):
     except KeyboardInterrupt:
         pass
     finally:
+        server.postprocess.stop(wait=True)
+        server.live_tv.stop()
         server.fm_auto.stop(wait=True)
         server.dab_auto.stop(wait=True)
         server.live_fm.stop(wait=True)

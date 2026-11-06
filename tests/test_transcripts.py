@@ -25,10 +25,17 @@ class TranscriptTests(unittest.TestCase):
         srt=self.db.export(self.session)
         self.assertIn("00:00:00,000 --> 00:00:08,000",srt)
         self.assertIn("Guten Morgen",srt)
+        self.assertNotIn("[UNTRANSLATED",self.db.export(self.session,translated=True))
         vtt=self.db.export(self.session,fmt="vtt",translated=True)
         self.assertIn("WEBVTT",vtt)
         self.assertIn("Günaydın",vtt)
         self.assertEqual(TranscriptStore(self.db.store).list(self.session)[0]["translated_text"],"Günaydın")
+
+    def test_explicit_gpu_npu_translation_rejects_unsupported_runtimes(self):
+        with self.assertRaises(ValueError):
+            translate_offline("Hello","en","de",backend="invalid")
+        with self.assertRaises(TranslatorUnavailable):
+            translate_offline("Hello","en","tr",backend="npu")
 
     def test_unavailable_language_never_fabricated(self):
         with self.assertRaises(ValueError):

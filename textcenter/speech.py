@@ -49,11 +49,68 @@ def transcribe_pcm(pcm:bytes,language:str,backend:str,profile:dict)->str:
     if backend not in ("cpu","gpu","npu"):
         raise ValueError("Invalid compute backend")
     validate_language(language)
-    model=_whisper_model(profile) if backend=="cpu" else profile["speech"].get("gpu_model_path")
-    if not model:
+    model=(_whisper_model(profile) if backend=="cpu" else
+           profile["speech"].get("gpu_model_path") if backend=="gpu" else
+           profile["speech"].get("npu_model_path"))
+    npu_engine=profile["speech"].get("npu_engine") if backend=="npu" else None
+    if not model and npu_engine!="hailo_whisper":
         raise SpeechError("Offline Whisper model for selected backend not installed")
+    if backend=="npu" and npu_engine=="hailo_whisper":
+        if not profile["speech"].get("ready_npu"):
+            raise SpeechError("Hailo model files or device runtime not available")
+        try:
+            import numpy as np
+            from array import array
+            from hailo_apps.python.standalone_apps.speech_recognition.whisper_pipeline import WhisperPipeline
+            from hailo_apps.python.standalone_apps.speech_recognition.audio_utils import (
+                preprocess_audio,improve_audio)
+            from hailo_apps.python.standalone_apps.speech_recognition.postprocessing import clean_transcription
+            xs=array("h")
+            xs.frombytes(pcm[:len(pcm)-(len(pcm)%2)])
+            audio=np.array([(xs[i]+xs[i+1])/65536.0
+                            for i in range(0,len(xs)-1,2)],dtype=np.float32)
+            pipeline=WhisperPipeline(
+                profile["speech"]["hailo_encoder_hef"],
+                profile["speech"]["hailo_decoder_hef"],
+                variant="base",npy_dir=profile["speech"]["hailo_npy_dir"],
+                add_embed=False)
+            try:
+                processed,start=improve_audio(audio)
+                if start is None:
+                    return ""
+                start_offset=max(start-0.2,0)
+                mels=preprocess_audio(processed,chunk_length=pipeline.get_chunk_length(),
+                                      chunk_offset=start_offset)
+                outputs=[]
+                for mel in mels:
+                    pipeline.send_data(mel)
+                    import time
+                    time.sleep(.1)
+                    outputs.append(pipeline.get_transcription())
+                return clean_transcription(" ".join(outputs)).strip()[:3000]
+            finally:
+                pipeline.stop()
+        except (ImportError,OSError,RuntimeError,ValueError,TypeError) as exc:
+            raise SpeechError("Hailo-10H ASR inference unavailable: "+str(exc)[:200]) from exc
     if backend=="npu":
-        raise SpeechError("No verified NPU-compatible ASR model/runtime")
+        if npu_engine!="openvino_genai" or not profile["speech"].get("ready_npu"):
+            raise SpeechError("No verified local NPU Whisper model/runtime")
+        try:
+            import openvino_genai
+            from array import array
+            # OpenVINO GenAI Whisper requires normalized 16-kHz mono samples.
+            # PCM source is mono signed 16-bit at 32-kHz.
+            samples=array("h")
+            samples.frombytes(pcm[:len(pcm)-(len(pcm)%2)])
+            normalized=[(samples[i]+samples[i+1])/65536.0
+                        for i in range(0,len(samples)-1,2)]
+            pipe=openvino_genai.WhisperPipeline(model,"NPU")
+            result=pipe.generate(normalized,max_new_tokens=120,
+                                 language="<|"+language+"|>",task="transcribe")
+            text=" ".join(getattr(result,"texts",[]) or []).strip()
+            return text[:3000]
+        except (ImportError,RuntimeError,ValueError,OSError,TypeError) as exc:
+            raise SpeechError("OpenVINO NPU transcription failed: "+str(exc)[:200]) from exc
     if backend=="gpu":
         if importlib.util.find_spec("faster_whisper") is None:
             raise SpeechError("faster-whisper CUDA package is not installed")
@@ -99,10 +156,13 @@ class SpeechPipeline:
     def __init__(self,*,store:TranscriptStore,session:str,source_id:str,
                  source_language:str,target_language:str|None,
                  backend:str="auto",profile:dict|None=None,
-                 transcriber=None,translator=None):
+                 transcriber=None,translator=None,medium:str="fm",translation_backend:str="auto"):
         self.store=store
         self.session=session
         self.source_id=source_id
+        if medium not in ("fm","dab","dvb_tv"):
+            raise ValueError("Unsupported audio medium")
+        self.medium=medium
         self.lang=validate_language(source_language)
         self.target=validate_language(target_language) if target_language else None
         self.profile=profile or detect_devices()
@@ -111,7 +171,9 @@ class SpeechPipeline:
             raise SpeechError(self.selection.get("reason") or "No configured local speech backend")
         self.backend=self.selection["selected"]
         self.transcriber=transcriber or transcribe_pcm
-        self.translator=translator or translate_offline
+        self.translation_backend=translation_backend
+        self.translator=translator or (
+            lambda text,src,dst:translate_offline(text,src,dst,backend=translation_backend))
         self.buffer=bytearray()
         self.samples=0
         self.queue=queue.Queue(maxsize=2)
@@ -146,9 +208,10 @@ class SpeechPipeline:
                     try:translated=self.translator(text,self.lang,self.target)
                     except (TranslatorUnavailable,ImportError,ValueError,RuntimeError) as exc:
                         self.last_error="Live translation unavailable: "+str(exc)[:200]
-                self.store.add(session=self.session,medium="fm",source_id=self.source_id,
+                self.store.add(session=self.session,medium=self.medium,source_id=self.source_id,
                     language=self.lang,text=text,backend=self.backend,start=start,end=end,
-                    translated=translated,target=self.target if translated else None)
+                    translated=translated,target=self.target if translated else None,
+                    translation_engine="argos_"+self.translation_backend if translated else None)
                 self.completed+=1
             except (SpeechError,ValueError,OSError,RuntimeError) as exc:
                 self.last_error="Speech transcription unavailable: "+str(exc)[:180]
@@ -159,6 +222,7 @@ class SpeechPipeline:
         return {"enabled":True,"selected_backend":self.backend,
                 "detected_device":self.selection["detected_device"],
                 "source_language":self.lang,"target_language":self.target,
+                "translation_backend":self.translation_backend,
                 "segments_completed":self.completed,"dropped_windows":self.dropped,
                 "queued_windows":self.queue.qsize(),"error":self.last_error}
 
