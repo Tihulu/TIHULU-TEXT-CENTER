@@ -37,6 +37,7 @@ INDEX_PAGES = {
     200: ("HEADLINES", "Cached RSS/Atom articles. Refresh only when requested."),
     300: ("WEATHER", "Weather text must be received from a genuine source; no synthetic forecast is displayed."),
     400: ("RADIO DATA", "FM RDS, DAB DLS, Journaline, NAVTEX and others require separately installed, tested decoders."),
+    420: ("LIVE STUDIO", "Opt-in continuous FM radio audio, recording, and offline subtitles; DVB TV awaiting hardware acceptance."),
     500: ("EMERGENCY", "Imported RF text is not an authenticated official alert. Use verified emergency sources."),
     600: ("LOCAL BOARD", "Offline bulletin board on loopback. No multi-user login and no radio transmission."),
     700: ("LIBRARY", "Stored articles, bookmarks and previously imported pages remain on this device."),

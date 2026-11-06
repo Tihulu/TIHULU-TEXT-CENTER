@@ -1,7 +1,7 @@
 /* TIHULU TEXT CENTER — no external libraries, no background timers fetching data. */
 "use strict";
 
-const state = { audioActive:false, audioPollTimer:null, csrf:"", page:100, subpage:0, source:"", entries:[], pages:[], receivers:null, rdsActive:false, rdsPollTimer:null, scanActive:false, scanPollTimer:null, selectedSurveyBand:"fm" };
+const state = { audioActive:false, audioPollTimer:null, csrf:"", page:100, subpage:0, source:"", entries:[], pages:[], receivers:null, rdsActive:false, rdsPollTimer:null, scanActive:false, scanPollTimer:null, selectedSurveyBand:"fm", liveRadioActive:false, liveRadioRecord:false, liveRadioPoll:null };
 const $ = (id) => document.getElementById(id);
 
 function el(tag, cls, text) {
@@ -174,6 +174,13 @@ async function refreshSourceChoices(){
   select.value=sources.some(([id])=>id===selected)?selected:"";
 }
 async function openPage(number,source,subpage){
+  if(state.page===420 && Number(number)!==420){
+    if(state.liveRadioPoll){clearTimeout(state.liveRadioPoll);state.liveRadioPoll=null;}
+    if(state.liveRadioActive&&!state.liveRadioRecord){
+      api("/api/live-radio/stop","POST",{}).catch(()=>{});
+      state.liveRadioActive=false;
+    }
+  }
   if(state.page===400 && Number(number)!==400 && state.audioActive){
     state.audioActive=false;
     if(state.audioPollTimer){clearTimeout(state.audioPollTimer);state.audioPollTimer=null;}
@@ -203,6 +210,7 @@ async function openPage(number,source,subpage){
     if(state.page===200) return showArticles();
     if(state.page===300) return showWeather();
     if(state.page===400) return showRadioData();
+    if(state.page===420) return showStudio();
     if(state.page===500) return showEmergency();
     if(state.page===600) return showBulletins();
     if(state.page===700) return showLibrary();
@@ -925,6 +933,340 @@ async function addDvbDevicePanel(){
   panel.append(actions);
   $("content").append(panel);
 }
+function showLiveCaptionState(captions){
+  const pane=$("live-caption-output");
+  if(!pane)return;
+  pane.replaceChildren();
+  if(!captions || captions.status==="disabled"){
+    pane.append(el("p","subtle","Live transcription is OFF. It uses no AI resources."));
+    return;
+  }
+  pane.append(el("div","item-meta","LOCAL ASR: "+captions.status.toUpperCase()+
+    " · "+(captions.device?.device_name||"no device")+
+    " · "+captions.source_lang+" → "+captions.target_lang+
+    " · "+captions.cue_count+" real speech cues"));
+  if(captions.error)pane.append(el("p","discover-warn",captions.error));
+  if(!captions.cues?.length){
+    pane.append(el("p","subtle","Waiting for genuine speech from the receiver. "+
+      "No synthetic subtitles. Processing may lag behind live playback."));
+    return;
+  }
+  captions.cues.slice(-5).forEach(cue=>{
+    const row=el("div","caption-line");
+    row.append(el("span","item-meta",cue.begin.toFixed(1)+"s – "+cue.end.toFixed(1)+"s"));
+    row.append(el("strong","",cue.original));
+    if(cue.translated)row.append(el("span","translation-line",cue.translated));
+    pane.append(row);
+  });
+}
+function showContinuousRadioState(report){
+  const status=$("radio-live-status");
+  if(status){
+    status.textContent="FM: "+report.status.toUpperCase()+
+      (report.frequency_hz?" · "+(report.frequency_hz/1e6).toFixed(3)+" MHz":"")+
+      (report.record?" · MP3 recording enabled":" · No recording")+
+      (report.error?" · "+report.error:"");
+  }
+  const player=$("radio-live-player");
+  if(player){
+    if(report.active&&report.session&&player.dataset.session!==report.session){
+      player.dataset.session=report.session;
+      player.src="/api/live-radio/stream?session="+encodeURIComponent(report.session);
+      player.hidden=false;
+      player.load();
+    }
+    if(!report.active && !report.record){
+      player.hidden=true;
+    }
+  }
+  showLiveCaptionState(report.captions);
+  const start=$("radio-live-start"),stop=$("radio-live-stop");
+  if(start)start.disabled=!!report.active||!$("radio-live-confirm")?.checked||!report.capability?.ready;
+  if(stop)stop.disabled=!report.active;
+}
+async function pollContinuousRadio(){
+  if(state.page!==420 && !state.liveRadioRecord)return;
+  try{
+    const report=await api("/api/live-radio/status");
+    state.liveRadioActive=report.active;
+    state.liveRadioRecord=report.active&&report.record;
+    if(state.page===420)showContinuousRadioState(report);
+    if(report.active){
+      state.liveRadioPoll=setTimeout(pollContinuousRadio,1000);
+    }else if(state.page===420){
+      await refreshReceiverStatus();
+      await showSavedRadioRecordings();
+      await showCaptionArchives();
+    }
+  }catch(error){
+    state.liveRadioActive=false;
+    notice("Radio streaming status unavailable: "+error.message);
+  }
+}
+async function showSavedRadioRecordings(){
+  const target=$("radio-recording-list");
+  if(!target)return;
+  const entries=await api("/api/live-radio/recordings");
+  target.replaceChildren();
+  if(!entries.length){
+    target.append(el("p","subtle","No user-requested MP3 recordings saved."));
+    return;
+  }
+  entries.forEach(item=>{
+    const line=el("div","recorded-line");
+    line.append(el("strong","",item.name+" · "+(item.bytes/1048576).toFixed(2)+" MiB"));
+    const link=el("a","","OPEN RECORDING");
+    link.href="/api/live-radio/recording/"+encodeURIComponent(item.id);
+    link.target="_blank";link.rel="noopener noreferrer";
+    line.append(link);target.append(line);
+  });
+}
+async function showCaptionArchives(){
+  const target=$("caption-archive-list");
+  if(!target)return;
+  const sessions=await api("/api/captions/sessions");
+  target.replaceChildren();
+  if(!sessions.length){
+    target.append(el("p","subtle","No transcript saved. Recording subtitles is OFF by default."));
+    return;
+  }
+  sessions.forEach(s=>{
+    const item=el("div","caption-archive-item");
+    item.append(el("strong","",s.source_label+" · "+s.source_lang.toUpperCase()+
+      " → "+s.target_lang.toUpperCase()+" · "+s.saved_cues+" cues"));
+    item.append(el("p","full-body","Source: "+s.media_kind+
+      " · ASR: "+s.backend+" · "+s.device+" · "+s.created_at));
+    const actions=el("div","card-actions");
+    ["original","translated"].forEach(layer=>{
+      ["srt","vtt"].forEach(format=>{
+        const link=el("a","archive-link",layer.toUpperCase()+" "+format.toUpperCase());
+        link.href="/api/captions/file?session="+encodeURIComponent(s.id)+
+          "&layer="+layer+"&format="+format;
+        link.target="_blank";link.rel="noopener noreferrer";
+        actions.append(link);
+      });
+    });
+    item.append(actions);
+    const translate=el("div","card-actions");
+    const targetLang=el("select");
+    [["en","English"],["de","German"],["tr","Turkish"]].forEach(([code,label])=>{
+      const option=el("option","",label);option.value=code;
+      if(code===s.target_lang)option.selected=true;
+      targetLang.append(option);
+    });
+    const translateBtn=button("TRANSLATE SAVED ORIGINAL",async()=>{
+      translateBtn.disabled=true;
+      try{
+        const result=await api("/api/captions/translate","POST",{
+          session:s.id,target_lang:targetLang.value});
+        notice("Translated "+result.translated+" saved captions offline.");
+      }catch(error){notice("Offline translation unavailable: "+error.message)}
+      finally{translateBtn.disabled=false}
+    });
+    translate.append(targetLang,translateBtn);item.append(translate);
+    target.append(item);
+  });
+}
+async function showStudio(){
+  section("LIVE MEDIA","Live Radio · TV · Translation",
+    "Local receiver playback / opt-in recording and subtitles");
+  const [radio,compute,dvb]=await Promise.all([
+    api("/api/live-radio/status"),api("/api/compute"),api("/api/dvb/status")
+  ]);
+  state.liveRadioActive=radio.active;
+  state.liveRadioRecord=radio.active&&radio.record;
+  const computePanel=el("article","item-card studio-wide");
+  computePanel.append(el("div","item-meta","AUTOMATIC / MANUAL LOCAL AI DEVICE SELECTION"));
+  computePanel.append(el("h3","","Detected compute devices"));
+  computePanel.append(el("p","",
+    "CPU, GPU and NPU devices are detected separately from model compatibility. "+
+    "ASR requires a preinstalled local faster-whisper multilingual model. "+
+    "Hailo/other NPUs remain selectable only when a compatible ASR runtime is verified."));
+  compute.devices.forEach(device=>{
+    const row=el("div","compute-device");
+    row.append(el("strong","",device.name));
+    row.append(el("span","item-meta",device.id+" · "+
+      (device.inference_compatible?"ASR runtime ready":"hardware only / runtime not validated")));
+    computePanel.append(row);
+  });
+  computePanel.append(el("p","full-body",
+    "faster-whisper: "+(compute.runtimes.faster_whisper?"installed":"missing")+
+    " · local model: "+(compute.whisper_model_local_ready?"ready":"missing")+
+    " · Argos Translate: "+(compute.runtimes.argostranslate?"installed":"missing")+
+    " · ffmpeg: "+(compute.runtimes.ffmpeg?"installed":"missing")+
+    " · NPU speech backend: not integrated"));
+  $("content").append(computePanel);
+
+  const panel=el("article","item-card studio-wide");
+  panel.append(el("div","item-meta","CONTINUOUS LOCAL FM RADIO / OPTIONAL ORIGINAL MP3 RECORDING"));
+  panel.append(el("h3","","Listen to live FM radio"));
+  panel.append(el("p","",
+    "Uses the actual RTL-SDR and ffmpeg to stream MP3 to this browser until stopped. "+
+    "No Internet is needed. Do not run it with the same dongle used by Flight Radar, "+
+    "RDS capture or another protected recording. Recording and captions are independently optional."));
+  const form=el("form","studio-form");
+  const frequency=field("Frequency (MHz)","number","98.600",10);
+  frequency.input.min="87.5";frequency.input.max="108";
+  frequency.input.step=".001";frequency.input.value="98.6";
+  form.append(frequency.wrap);
+  const recordLabel=el("label","scan-consent");
+  const record=el("input");record.type="checkbox";record.id="radio-live-record";
+  recordLabel.append(record,document.createTextNode(
+    " Save original FM audio as a local MP3 recording (max 512 MiB; explicit opt-in)."));
+  form.append(recordLabel);
+  const subtitleLabel=el("label","scan-consent");
+  const captions=el("input");captions.type="checkbox";captions.id="radio-live-captions";
+  subtitleLabel.append(captions,document.createTextNode(
+    " Enable live local speech transcription and subtitle processing (higher CPU/GPU usage)."));
+  form.append(subtitleLabel);
+  const languages=el("div","studio-languages");
+  const source=el("select");source.id="radio-subtitle-source";
+  const target=el("select");target.id="radio-subtitle-target";
+  const names=[["en","English"],["de","German"],["tr","Turkish"]];
+  names.forEach(([id,label])=>{
+    const s=el("option","",label);s.value=id;
+    const t=el("option","",label);t.value=id;
+    if(id==="de")s.selected=true;
+    if(id==="tr")t.selected=true;
+    source.append(s);target.append(t);
+  });
+  const labelSource=el("label","","Spoken language");labelSource.append(source);
+  const labelTarget=el("label","","Subtitle translation language");labelTarget.append(target);
+  languages.append(labelSource,labelTarget);
+  const deviceSelect=el("select");deviceSelect.id="radio-subtitle-device";
+  const auto=el("option","","Automatic (validated CPU/GPU)");auto.value="auto";
+  deviceSelect.append(auto);
+  compute.devices.forEach(device=>{
+    const option=el("option","",device.name+" · "+device.id+
+      (device.kind==="npu"?" (no compatible ASR runtime)":""));
+    option.value=device.id;
+    if(device.kind==="npu")option.disabled=true;
+    deviceSelect.append(option);
+  });
+  const deviceLabel=el("label","","ASR compute device");deviceLabel.append(deviceSelect);
+  languages.append(deviceLabel);
+  const translateLabel=el("label","scan-consent");
+  const translate=el("input");translate.type="checkbox";translate.checked=true;
+  translateLabel.append(translate,document.createTextNode(
+    " Translate speech live (uses installed Argos EN/DE/TR models)."));
+  const saveOriginalLabel=el("label","scan-consent");
+  const saveOriginal=el("input");saveOriginal.type="checkbox";
+  saveOriginalLabel.append(saveOriginal,document.createTextNode(
+    " Save timestamped original-language transcript locally."));
+  const saveTranslationLabel=el("label","scan-consent");
+  const saveTranslation=el("input");saveTranslation.type="checkbox";
+  saveTranslationLabel.append(saveTranslation,document.createTextNode(
+    " Save translated captions too (requires original transcript saving)."));
+  saveTranslation.addEventListener("change",()=>{
+    if(saveTranslation.checked)saveOriginal.checked=true;
+  });
+  const captionConfig=el("div","studio-caption-options");
+  captionConfig.append(languages,translateLabel,saveOriginalLabel,saveTranslationLabel);
+  form.append(captionConfig);
+  const updateSubtitles=()=>{
+    captionConfig.hidden=!captions.checked;
+    if(captions.checked&&!compute.whisper_model_local_ready){
+      notice("Local faster-whisper multilingual model is missing. Configure TIHULU_WHISPER_MODEL first.");
+    }
+  };
+  captions.addEventListener("change",updateSubtitles);
+  updateSubtitles();
+  const consentLabel=el("label","scan-consent");
+  const consent=el("input");consent.type="checkbox";consent.id="radio-live-confirm";
+  consentLabel.append(consent,document.createTextNode(
+    " I authorize radio tuning and understand no Flight Radar/readsb or "+
+    "other SDR service may be using this tuner."));
+  form.append(consentLabel);
+  const buttons=el("div","card-actions");
+  const start=el("button","action primary","START LIVE RADIO");start.type="submit";
+  start.id="radio-live-start";
+  const stop=button("STOP LIVE RADIO",async()=>{
+    try{
+      await api("/api/live-radio/stop","POST",{});
+      const player=$("radio-live-player");if(player)player.pause();
+      notice("Stopping live radio; releasing SDR and finalizing any recording.");
+    }catch(e){notice(e.message)}
+  },"action ghost");
+  stop.id="radio-live-stop";
+  buttons.append(start,stop);form.append(buttons);panel.append(form);
+  const status=el("p","full-body","Live radio inactive");status.id="radio-live-status";
+  panel.append(status);
+  const player=el("audio","local-audio-player");
+  player.id="radio-live-player";player.controls=true;player.autoplay=false;player.preload="none";
+  player.hidden=true;player.setAttribute("aria-label","Continuously received live FM radio");
+  panel.append(player);
+  const subtitleDisplay=el("div","studio-subtitles");
+  subtitleDisplay.id="live-caption-output";panel.append(subtitleDisplay);
+  panel.append(el("p","full-body",
+    "If playback cannot auto-start, press Play in the audio player. "+
+    "The stream stops when the player disconnects unless you explicitly enabled recording."));
+  panel.append(el("p","full-body",radio.capability?.reason||"Receiver readiness not checked"));
+  $("content").append(panel);
+  form.addEventListener("submit",async ev=>{
+    ev.preventDefault();
+    if(!consent.checked)return notice("Confirm that the RTL-SDR is free.");
+    start.disabled=true;
+    const options={enabled:captions.checked,
+        source_lang:source.value,target_lang:target.value,
+        device:deviceSelect.value,translate_live:translate.checked,
+        save_original:saveOriginal.checked,
+        save_translation:saveTranslation.checked};
+    try{
+      const started=await api("/api/live-radio/start","POST",{
+        frequency_mhz:Number(frequency.input.value),
+        record:record.checked,captions:options
+      });
+      state.liveRadioActive=started.active;
+      state.liveRadioRecord=started.record;
+      showContinuousRadioState({...started,capability:radio.capability});
+      const player=$("radio-live-player");
+      if(player)player.play().catch(()=>notice("Press Play in the live radio player to hear audio."));
+      if(state.liveRadioPoll)clearTimeout(state.liveRadioPoll);
+      state.liveRadioPoll=setTimeout(pollContinuousRadio,600);
+    }catch(error){
+      notice("Live radio unavailable: "+error.message);
+      start.disabled=false;
+    }
+  });
+  consent.addEventListener("change",()=>{start.disabled=!consent.checked||state.liveRadioActive||!radio.capability?.ready});
+  showContinuousRadioState(radio);
+  if(radio.active){
+    if(state.liveRadioPoll)clearTimeout(state.liveRadioPoll);
+    state.liveRadioPoll=setTimeout(pollContinuousRadio,800);
+  }
+
+  const tv=el("article","item-card studio-wide");
+  tv.append(el("div","item-meta","LIVE DVB-T2 TELEVISION / HARDWARE ACCEPTANCE GATE"));
+  tv.append(el("h3","","Hauppauge WinTV-soloHD — Continuous TV"));
+  tv.append(el("p","",
+    "The ordered Hauppauge 01589 has a separate DVB-T/T2/C tuner. "+
+    "Real live TV requires the confirmed Linux driver/firmware, station scan, "+
+    "service selection, protected tuner lease, verified transport stream and "+
+    "browser-compatible video transcoding. No TV stream has been verified yet; "+
+    "this panel will not create fictional video."));
+  tv.append(el("p","full-body",
+    "Hauppauge USB: "+dvb.hauppauge_usb.length+
+    " · DVB frontend paths: "+dvb.dvb_frontends.length+
+    " · dvbv5-zap: "+(dvb.tools["dvbv5-zap"]?"installed":"missing")+
+    " · ffmpeg: "+(dvb.tools.ffmpeg?"installed":"missing")+
+    " · DVB video lock: NOT VERIFIED"));
+  tv.append(el("p","full-body",
+    "When live TV is connected, it will use the same caption/export engine "+
+    "on its real audio stream; the TV tuner must remain separate from Nooelec FM."));
+  const tvLinks=el("div","card-actions");
+  tvLinks.append(button("CHECK DVB HARDWARE",()=>openPage(400,"",0)));
+  tv.append(tvLinks);$("content").append(tv);
+
+  const archives=el("article","item-card studio-wide");
+  archives.append(el("div","item-meta","USER-SAVED MEDIA AND CAPTIONS / OFFLINE"));
+  archives.append(el("h3","","Recordings and bilingual subtitle archive"));
+  const recordings=el("div","studio-recordings");recordings.id="radio-recording-list";
+  const subtitles=el("div","studio-caption-archive");subtitles.id="caption-archive-list";
+  archives.append(el("h4","","Original MP3 recordings"),recordings,
+    el("h4","","Transcripts / translate later / SRT / VTT"),subtitles);
+  $("content").append(archives);
+  await Promise.all([showSavedRadioRecordings(),showCaptionArchives()]);
+}
 async function showRadioData(){
   section("RF / BROADCAST SOURCES","Antenna scanning & actual decoder imports","User-approved tuning only");
   try { $("content").append(receiverCard(await refreshReceiverStatus())); }
@@ -1136,6 +1478,12 @@ function bindNavigation(){
   $("page-form").addEventListener("submit",(ev)=>{ev.preventDefault();openPage(Number($("page-number").value),$("source-select").value,Number($("subpage-number").value))});
   $("bookmark-page").addEventListener("click",()=>saveBookmark("Page "+state.page+(state.source?" · "+state.source:""),"page",state.page+":"+state.subpage+":"+state.source).catch((err)=>notice(err.message)));
   window.addEventListener("pagehide",()=>{
+    if(state.liveRadioActive&&!state.liveRadioRecord){
+      fetch("/api/live-radio/stop",{
+        method:"POST",headers:{"Content-Type":"application/json","X-Tihulu-CSRF":state.csrf},
+        body:"{}",keepalive:true
+      }).catch(()=>{});
+    }
     if(state.audioActive){
       fetch("/api/audio/stop",{
         method:"POST",headers:{"Content-Type":"application/json","X-Tihulu-CSRF":state.csrf},
