@@ -141,6 +141,19 @@ class HTTPTests(unittest.TestCase):
         self.assertEqual(self.request("POST","/api/scans/start",{"band":"dab"},csrf)[0],409)
         self.assertEqual(self.request("POST","/api/scans/stop",{},csrf)[0],200)
 
+    def test_local_verified_station_directory_is_source_attributed(self):
+        self.assertEqual(self.request("GET","/api/stations")[0],200)
+        self.assertEqual(json.loads(self.request("GET","/api/stations")[2]),[])
+        self.server.stations.save_fm(
+            frequency_hz=98_600_000,name="WDR 2",last_text="RDS fixture")
+        status,_,raw=self.request("GET","/api/stations?medium=fm")
+        self.assertEqual(status,200)
+        records=json.loads(raw)
+        self.assertEqual(len(records),1)
+        self.assertEqual(records[0]["name"],"WDR 2")
+        self.assertEqual(records[0]["decoder"],"rtl_fm_redsea")
+        self.assertEqual(self.request("GET","/api/stations?medium=invalid")[0],400)
+
     def test_automatic_fm_and_dab_scans_require_explicit_permission(self):
         for kind in ("fm","dab"):
             code,_,raw=self.request("GET","/api/auto/"+kind+"/status")
