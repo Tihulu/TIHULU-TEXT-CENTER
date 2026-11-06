@@ -6,6 +6,7 @@ import { inspectIqBytes, sampleBytes, probeUsbSamples } from '../satellite_cente
 test('real IQ probe measures sample bytes instead of permission grants',()=>{
  const samples=new Uint8Array([127,128,120,137,0,255,255,0]);
  assert.equal(sampleBytes(samples.buffer).length,8);
+ assert.equal(sampleBytes({frequency:137900000,directSampling:false,data:samples.buffer}).length,8);
  const report=inspectIqBytes([samples]);
  assert.equal(report.rawBytes,8);
  assert.equal(report.blocks,1);
@@ -22,7 +23,7 @@ test('synthetic browser hardware probe calls tuner and actual readSamples (never
   async setCenterFrequency(freq){calls.push(['frequency',freq]);},
   async setGain(gain){calls.push(['gain',gain]);},
   async resetBuffer(){calls.push(['reset']);},
-  async readSamples(num){calls.push(['samples',num]);return new Uint8Array([127,127,124,131,170,98,130,125]);}
+  async readSamples(num){calls.push(['samples',num]);return {frequency:137900000,directSampling:false,data:new Uint8Array([127,127,124,131,170,98,130,125]).buffer};}
  };
  const status=[];
  const report=await probeUsbSamples(device,{frequency:137900000,rate:1024000,durationMs:250,onProgress:m=>status.push(m)});
@@ -62,6 +63,7 @@ test('map always defaults to bundled land geography and offers a real diagnostic
  assert.ok(script.includes('mapStarted=true;setView(kind)'));
 
  assert.ok(app.includes('await probeUsbSamples(device'));
+ assert.ok(app.includes('const data=sampleBytes(raw)'));
  assert.ok(app.includes('await connectDevice({silent:true})'));
  assert.ok(app.includes('await closeDevice()'));
 });
