@@ -1012,5 +1012,28 @@ locationUI=initStationLocationUI({
  onStationChanged:invalidatePasses,
  log
 });
+// Honor the explicitly selected observer from the separate Images & Data
+// page. Do not place precise coordinates in a URL or send them to a catalog.
+try {
+  const savedStation=sessionStorage.getItem('tihulu-auto-station');
+  if(savedStation){
+    sessionStorage.removeItem('tihulu-auto-station');
+    const saved=JSON.parse(savedStation);
+    if(Date.now()-saved.createdAt<5*60000 &&
+       Number.isFinite(saved.lat)&&Math.abs(saved.lat)<=90 &&
+       Number.isFinite(saved.lon)&&Math.abs(saved.lon)<=180 &&
+       [12,24,48].includes(saved.hours)) {
+      $('city').value='Custom';
+      $('lat').value=String(saved.lat);$('lon').value=String(saved.lon);
+      $('hours').value=String(saved.hours);
+      $('lat').dispatchEvent(new Event('change',{bubbles:true}));
+      $('auto-plan-status').textContent='Observer location transferred locally (not in URL). Auto Mission uses the selected station.';
+    }
+  }
+} catch(e) {
+  $('auto-plan-status').textContent='Station transfer unavailable: '+e.message+
+    '. Confirm latitude/longitude before using Auto Schedule.';
+}
+
 renderSignal();
 log('Browser-only mode loaded with Earth/sky TLE tracking. No local service or USB access attempted.');
