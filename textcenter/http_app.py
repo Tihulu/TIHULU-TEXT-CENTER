@@ -21,6 +21,9 @@ from .compute import detect_devices,choose_backend
 from .capabilities import capability_catalog
 from .fm_survey import FMSurveySupervisor, SurveyError
 from .scan_catalog import scan_capabilities
+from .auto_scan import (
+    FMAutoScanner, DABAutoScanner, AutoScanError, dab_channels_from_peaks,
+)
 
 WEB_DIR = Path(__file__).resolve().parents[1] / "web"
 
@@ -65,6 +68,8 @@ class LocalServer(ThreadingHTTPServer):
             rds=self.rds, survey=self.survey,
             lock_dir=store.filename.parent / ".receiver-locks"
         )
+        self.fm_auto=FMAutoScanner(self.survey,self.rds)
+        self.dab_auto=DABAutoScanner(self.dab)
         self.live_fm=LiveFM(archive_dir=store.filename.parent/"recordings",
                             lock_dir=store.filename.parent/".receiver-locks",
                             transcripts=self.transcripts)
@@ -161,6 +166,10 @@ class Handler(BaseHTTPRequestHandler):
                     ],
                     "note":"No tuner accessed, no frequencies retuned, no internet fetched, no RF reception claimed",
                 })
+            if route == "/api/auto/fm/status":
+                return self._json(200,self.server.fm_auto.status())
+            if route == "/api/auto/dab/status":
+                return self._json(200,self.server.dab_auto.status())
             if route == "/api/scans":
                 return self._json(200, {
                     "features": scan_capabilities(receiver_inventory(), self.server.survey),
@@ -319,7 +328,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         route = urlsplit(self.path).path
-        allowed = {"/api/feeds/add", "/api/feeds/refresh", "/api/bulletins", "/api/bookmarks", "/api/rds/start", "/api/rds/stop", "/api/fm-survey/start", "/api/fm-survey/stop", "/api/scans/start", "/api/scans/stop", "/api/audio/start", "/api/audio/stop", "/api/dab/refresh", "/api/live/radio/start", "/api/live/radio/stop", "/api/transcripts/translate"}
+        allowed = {"/api/feeds/add", "/api/feeds/refresh", "/api/bulletins", "/api/bookmarks", "/api/rds/start", "/api/rds/stop", "/api/fm-survey/start", "/api/fm-survey/stop", "/api/scans/start", "/api/scans/stop", "/api/audio/start", "/api/audio/stop", "/api/dab/refresh", "/api/live/radio/start", "/api/live/radio/stop", "/api/transcripts/translate", "/api/auto/fm/start", "/api/auto/fm/stop", "/api/auto/dab/start", "/api/auto/dab/stop"}
         if route not in allowed:
             return self._json(404, {"error": "Not found"})
         if self.headers.get("X-Tihulu-CSRF") != self.server.csrf_token:
@@ -338,6 +347,39 @@ class Handler(BaseHTTPRequestHandler):
             payload = json.loads(self.rfile.read(length))
             if not isinstance(payload, dict):
                 raise ValueError("Expected JSON object")
+            if route == "/api/auto/fm/start":
+                if self.server.dab_auto.status(heartbeat=False)["active"]:
+                    raise AutoScanError("DAB auto scan is already in progress")
+                if self.server.audio.status()["active"] or self.server.live_fm.status()["active"]:
+                    raise AutoScanError("Existing FM audio/recording session must finish first")
+                return self._json(202,self.server.fm_auto.start(payload.get("mode","quick")))
+            if route == "/api/auto/fm/stop":
+                return self._json(200,self.server.fm_auto.stop())
+            if route == "/api/auto/dab/start":
+                if self.server.fm_auto.status(heartbeat=False)["active"]:
+                    raise AutoScanError("FM auto scan is already in progress")
+                if type(payload.get("consent")) is not bool or not payload.get("consent"):
+                    raise ValueError("Explicit permission to retune the existing DAB receiver is required")
+                if (self.server.survey.status(heartbeat=False)["active"] or
+                        self.server.rds.status(heartbeat=False)["active"] or
+                        self.server.audio.status()["active"] or
+                        self.server.live_fm.status()["active"]):
+                    raise AutoScanError("A Text Center RF capture is already running")
+                scan=self.server.survey.status(heartbeat=False)
+                hints=dab_channels_from_peaks(scan["candidates"]) if scan.get("band")=="dab" and scan.get("status")=="completed" else []
+                return self._json(202,self.server.dab_auto.start(
+                    payload.get("mode","full"),
+                    dwell_seconds=payload.get("dwell_seconds",8),
+                    candidates=hints))
+            if route == "/api/auto/dab/stop":
+                return self._json(200,self.server.dab_auto.stop())
+            if route in ("/api/scans/start", "/api/fm-survey/start",
+                         "/api/audio/start", "/api/rds/start",
+                         "/api/live/radio/start"):
+                if self.server.fm_auto.status(heartbeat=False)["active"]:
+                    raise AutoScanError("FM auto scan owns the tuner; stop it before manual RF operations")
+                if self.server.dab_auto.status(heartbeat=False)["active"]:
+                    raise AutoScanError("DAB scan retuning in progress; manual RF operations are blocked")
             if route == "/api/scans/start":
                 return self._json(202, self.server.survey.start(payload.get("band")))
             if route == "/api/scans/stop":
@@ -347,6 +389,8 @@ class Handler(BaseHTTPRequestHandler):
             if route == "/api/fm-survey/stop":
                 return self._json(200, self.server.survey.stop())
             if route == "/api/dab/refresh":
+                if self.server.dab_auto.status(heartbeat=False)["active"]:
+                    raise AutoScanError("DAB channel scan is retuning; read decoder data after it finishes")
                 if type(payload.get("include_images",True)) is not bool:
                     raise ValueError("Invalid DAB image option")
                 result=self.server.dab.refresh(include_images=payload.get("include_images",True))
@@ -393,7 +437,7 @@ class Handler(BaseHTTPRequestHandler):
             if route == "/api/bookmarks":
                 self.server.store.add_bookmark(payload.get("label"),payload.get("target_type"),payload.get("target"))
                 return self._json(201, {"saved": True})
-        except (CaptureError, SurveyError, AudioError, DABError, LiveError, TranslatorUnavailable) as exc:
+        except (CaptureError, SurveyError, AudioError, DABError, LiveError, AutoScanError, TranslatorUnavailable) as exc:
             self._json(409, {"error": str(exc)})
         except KeyError as exc:
             self._json(404, {"error": str(exc)})
@@ -414,6 +458,8 @@ def run_server(store: Store, *, host: str = "127.0.0.1", port: int = 8787):
     except KeyboardInterrupt:
         pass
     finally:
+        server.fm_auto.stop(wait=True)
+        server.dab_auto.stop(wait=True)
         server.live_fm.stop(wait=True)
         server.audio.stop(wait=True)
         server.survey.stop(wait=True)
