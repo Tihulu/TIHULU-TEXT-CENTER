@@ -881,7 +881,7 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("X-Content-Type-Options", "nosniff")
         self.send_header("X-Frame-Options", "DENY")
         self.send_header("Referrer-Policy", "no-referrer")
-        self.send_header("Content-Security-Policy", "default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self' http://127.0.0.1:8791 http://localhost:8791; img-src 'self' data:; form-action 'none'; base-uri 'none'")
+        self.send_header("Content-Security-Policy", "default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self' http://127.0.0.1:8791 http://localhost:8791; img-src 'self' data:; frame-src 'self'; form-action 'none'; base-uri 'none'")
         self.end_headers()
         self.wfile.write(content)
 
@@ -945,7 +945,8 @@ class Handler(BaseHTTPRequestHandler):
                     lat=q.get("lat", [None])[0], lon=q.get("lon", [None])[0]))
             if route.startswith("/api/image/"):
                 sub = route.removeprefix("/api/image/")
-                if not re.fullmatch(r"[A-Za-z0-9_-]+_meteor(?:_backup)?_decoded/[A-Za-z0-9_./-]+\.(png|jpg)", sub) or ".." in sub:
+                match = re.fullmatch(r"([A-Za-z0-9_.-]+)_decoded/([A-Za-z0-9_./-]+\.(png|jpg|jpeg))", sub)
+                if not match or ".." in sub or not meteor_capture(match.group(1)+".cu8"):
                     return self.reply(400, {"error": "Invalid image path"})
                 path = (self.server.station.archive/sub).resolve()
                 if not path.is_relative_to(self.server.station.archive.resolve()) or not path.is_file() or path.stat().st_size > 15_000_000:
