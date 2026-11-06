@@ -24,7 +24,7 @@ class FMSurveyTests(unittest.TestCase):
         self.assertEqual(len(parsed["candidates"]),2)
         self.assertTrue(all(x["verification"]=="unidentified_rf_energy"
                             for x in parsed["candidates"]))
-        self.assertEqual(parsed["candidates"][0]["frequency_mhz"],88.6)
+        self.assertEqual(parsed["candidates"][0]["frequency_mhz"],88.65)
         self.assertNotIn("station",parsed["candidates"][0])
         self.assertEqual(parse_power_csv("not a csv")["candidates"],[])
         self.assertEqual(build_survey_command("/usr/bin/rtl_power")[-1],"-1")

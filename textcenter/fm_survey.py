@@ -78,7 +78,9 @@ def parse_power_csv(payload: str, *, limit: int = 24) -> dict:
     # This is for discovery only, not a dBm calibration.
     merged: dict[int, float] = {}
     for hz, power in bins:
-        key = int(round(hz / 100_000)) * 100_000
+        # Keep measured bin centers separate: 100-kHz rounding can collapse
+        # adjacent bin centers (e.g. 87.55 and 87.65 MHz on a 100-kHz grid).
+        key = int(round(hz))
         merged[key] = max(power, merged.get(key, -1e9))
     frequencies = sorted(merged)
     readings = [merged[hz] for hz in frequencies]
