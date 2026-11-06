@@ -113,6 +113,8 @@ All location methods are optional. City suggestions are offline by default; GPS 
 <p class="hint">You can always enter fully custom latitude and longitude anywhere on Earth. Selecting a city or granting GPS permission updates both numbers, the pass planner and Earth/Sky tracking coordinates. Recalculate passes after changing ground station.</p>
 <div class="line"><button id="orbit-fetch">Refresh orbit data</button><button id="orbit-calc" class="secondary">Calculate passes</button></div>
 <label>Import local TLE file (fallback; remains in this tab)<input type="file" id="tle-file" accept=".txt,.tle,text/plain"></label>
+<div class="line"><button id="saved-tle-fetch" class="secondary" type="button">Load TLEs for my saved NORAD profiles</button></div>
+<p id="saved-tle-status" class="hint" role="status">User profiles are references only. Loading their TLEs is optional and requires Internet; private I/Q data is not sent.</p>
 <p id="orbit-state" class="status">No orbit data loaded. Predictions are not RF detections.</p>
 <div class="pass-sort-toolbar" aria-label="Filter and sort satellite passes">
 <label>Sort potential passes<select id="pass-sort">
