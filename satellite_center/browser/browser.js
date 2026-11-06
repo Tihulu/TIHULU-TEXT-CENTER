@@ -414,32 +414,116 @@ function satElevation(satlib,rec,observer,date) {
   return angle>=-90&&angle<=90?angle:null;
 }
 function fmtTime(time){return new Date(time).toLocaleString(undefined,{dateStyle:'short',timeStyle:'short'});}
+function scheduleFrequencyChoices(family){
+  const known={
+    iss:[[145800000,"ISS VHF 145.800 MHz (voice/SSTV vicinity)"],
+         [145825000,"ISS APRS 145.825 MHz"],[437800000,"ISS UHF 437.800 MHz"]],
+    meteor:[[137900000,"Meteor LRPT 137.900 MHz"],[137100000,"Meteor LRPT 137.100 MHz alternate"]],
+    cubesat:[[436000000,"CubeSat generic 436 MHz survey (NOT satellite-assigned downlink)"]],
+    iridium:[[1620000000,"Iridium 1620 MHz L-band spectrum energy ONLY"]]
+  };
+  return known[family]||[];
+}
 function appendPass(pass){
   const item=document.createElement('div');item.className='pass';
   const strong=document.createElement('strong');strong.textContent=pass.name+' · '+pass.family.toUpperCase();
   const description=document.createElement('small');
-  description.textContent=fmtTime(pass.aos)+' → '+fmtTime(pass.los)+' · max elevation '+pass.maximum.toFixed(1)+'° (geometric estimate)';
-  const btn=document.createElement('button');btn.textContent='Schedule browser-open capture';
-  btn.addEventListener('click',()=>{
-    if(!device){status('orbit-state','Choose and keep the WebUSB receiver connected before arming a scheduled capture.');return;}
-    const freq=FREQS[pass.family];
-    if(!freq){status('orbit-state','No verified receive frequency for this family');return;}
-    const id=pass.id+':'+pass.aos;
-    if(jobs.some(j=>j.id===id))return;
-    jobs.push({id,frequency:freq,when:pass.aos,until:pass.los,state:'armed',name:pass.name});
-    log('Scheduled '+pass.name+'; keep this tab foreground and connected. This cannot run if browser closes.');
-    renderJobs();
+  description.textContent=fmtTime(pass.aos)+' → '+fmtTime(pass.los)+
+    ' · max elevation '+pass.maximum.toFixed(1)+'° · '+
+    Math.max(1,Math.round((pass.los-pass.aos)/60000))+' min geometric pass (not an RF detection)';
+  item.append(strong,description);
+  const details=document.createElement('details');
+  const summary=document.createElement('summary');summary.textContent='Schedule / configure timed RF analysis';
+  details.append(summary);
+  const form=document.createElement('form');form.className='pass-schedule-form';
+  const fields=[
+    ['Run date + minute (local time)','when','datetime-local',localDateInput(Math.max(Date.now()+60000,pass.aos))],
+  ];
+  const timeLabel=document.createElement('label');
+  timeLabel.textContent='Run at exact local date / hour / minute';
+  const input=document.createElement('input');
+  input.type='datetime-local';input.step='60';
+  input.required=true;input.value=fields[0][3];
+  timeLabel.append(input);
+  const frequencyLabel=document.createElement('label');frequencyLabel.textContent='Receiver frequency';
+  const frequency=document.createElement('select');
+  for(const [hz,name] of scheduleFrequencyChoices(pass.family)){
+    const o=document.createElement('option');o.value=String(hz);o.textContent=name;frequency.append(o);
+  }
+  frequencyLabel.append(frequency);
+  const durationLabel=document.createElement('label');durationLabel.textContent='Actual RF sample length';
+  const duration=document.createElement('select');
+  for(const amount of [5,15,30,60]){
+    const o=document.createElement('option');o.value=String(amount);o.textContent=amount+' seconds';
+    if(amount===15)o.selected=true;
+    duration.append(o);
+  }
+  durationLabel.append(duration);
+  const rateLabel=document.createElement('label');rateLabel.textContent='Sample rate';
+  const rate=document.createElement('select');
+  for(const hz of [1024000,2048000]){
+    const o=document.createElement('option');o.value=String(hz);o.textContent=(hz/1e6)+' MS/s';
+    rate.append(o);
+  }
+  rateLabel.append(rate);
+  const saveLabel=document.createElement('label');saveLabel.className='schedule-wide check';
+  const raw=document.createElement('input');raw.type='checkbox';raw.checked=true;
+  saveLabel.append(raw,' Save raw I/Q (.cu8) and compute real digital-level statistics (128 MiB file cap)');
+  const explanation=document.createElement('p');explanation.className='hint schedule-wide';
+  explanation.textContent='The browser will run only while this tab is OPEN, visible and awake. You must approve USB access once beforehand. Scheduling does not send RF, start a capture now or decode satellite images.';
+  const alert=document.createElement('p');alert.className='pass-schedule-error schedule-wide';alert.setAttribute('role','status');
+  const confirm=document.createElement('button');confirm.type='submit';confirm.textContent='Confirm scheduled RF scan';
+  form.append(timeLabel,frequencyLabel,durationLabel,rateLabel,saveLabel,explanation,alert,confirm);
+  form.addEventListener('submit',async event=>{
+    event.preventDefault();
+    try{
+      const selectedTime=parseLocalScheduleTime(input.value);
+      const newJob=createScheduledPass(pass,{
+        when:selectedTime,durationSeconds:Number(duration.value),
+        sampleRate:Number(rate.value),frequency:Number(frequency.value),
+        saveRaw:raw.checked
+      });
+      if(jobs.some(j=>j.id===newJob.id))throw Error('This satellite/date/frequency is already scheduled.');
+      jobs.push(newJob);
+      jobs.sort((a,b)=>a.when-b.when);
+      alert.textContent='Scheduled: '+fmtTime(newJob.when)+' · '+(newJob.frequency/1e6).toFixed(3)+
+        ' MHz. See Step 4 for readiness, countdown and result.';
+      log('User armed '+newJob.name+' for '+fmtTime(newJob.when)+'. No RF capture started yet.');
+      renderJobs();
+      if(device&&!capturePromise){
+        await closeDevice(); // do not tie up the SDR for hours before the pass
+        status('device-status','USB released after scheduling. Existing browser permission can be reused automatically at the scheduled minute.');
+      }
+      const scheduler=document.getElementById('schedule-center');
+      if(scheduler)scheduler.scrollIntoView({behavior:'smooth',block:'nearest'});
+    }catch(error){alert.textContent='Could not schedule: '+error.message;}
   });
-  item.append(strong,description,btn);
+  details.append(form);item.append(details);
   return item;
 }
 function renderPasses(){
-  $('passes').replaceChildren();
-  if(!passes.length){status('passes','No passes above the selected elevation found in this window.');return;}
+  const target=$('passes'),sort=$('pass-sort').value,family=$('pass-family').value;
+  target.replaceChildren();
+  const items=sortPassList(passes,sort,family);
+  const shown=items.slice(0,visiblePassCount);
+  $('pass-list-count').textContent='Showing '+shown.length+' of '+items.length+
+    ' matches ('+passes.length+' total computed passes).';
+  const more=$('pass-show-more');
+  more.hidden=shown.length>=items.length;more.textContent='Show more passes ('+(items.length-shown.length)+' remaining)';
+  if(!items.length){
+    target.append(Object.assign(document.createElement('p'),{
+      className:'hint',textContent:passes.length?'No passes match the selected satellite filter.':'Calculate potential passes first.'
+    }));
+    return;
+  }
   const fragment=document.createDocumentFragment();
-  for(const pass of passes.slice(0,80))fragment.append(appendPass(pass));
-  $('passes').append(fragment);
+  for(const pass of shown)fragment.append(appendPass(pass));
+  target.append(fragment);
 }
+for(const id of ['pass-sort','pass-family']){
+  $(id).addEventListener('change',()=>{visiblePassCount=40;renderPasses();});
+}
+$('pass-show-more').addEventListener('click',()=>{visiblePassCount+=40;renderPasses();});
 $('orbit-calc').addEventListener('click',async()=>{
   if(!tleEntries.length){status('orbit-state','Load orbit TLEs from CelesTrak or an uploaded file first.');return;}
   const lat=Number($('lat').value),lon=Number($('lon').value),hours=Number($('hours').value),minimum=Number($('elev').value);
@@ -467,7 +551,8 @@ $('orbit-calc').addEventListener('click',async()=>{
       }
     }
     found.sort((a,b)=>a.aos-b.aos);
-    passes=found.slice(0,100);
+    passes=found; // retain all calculated passes so "latest date" is truthful
+    visiblePassCount=40;
     renderPasses();
     notifyMaps();
     status('orbit-state','Calculated '+found.length+' geometric passes from '+tleEntries.length+' TLE candidates at '+lat.toFixed(3)+', '+lon.toFixed(3)+'. Approximate 30-second resolution; no satellite signals identified.');
