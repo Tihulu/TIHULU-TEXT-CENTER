@@ -8,6 +8,27 @@ The public web UI is published separately on the repository's `gh-pages` branch.
 
 **Local USB service/dashboard:** http://127.0.0.1:8791/
 
+## Earth and sky tracking maps (new)
+
+The public [Satellite Center browser app](https://tihulu.github.io/TIHULU-TEXT-CENTER/satellite_center/browser/)
+now shows **OpenStreetMap ground tracks** and a **Heavens-Above-style
+sky plot** for the selected observing location. Satellite dots represent
+SGP4 orbital predictions from CelesTrak TLEs, **not** confirmed RTL-SDR
+detections or successful weather-image reception. Filter by ISS, Meteor-M,
+CubeSat and Iridium NEXT, visible elevation, or matching candidate
+receiver band; select one for azimuth, elevation, approximate coverage
+footprint and a safe SDR tune preset.
+
+OSM tiles are user-initiated and attributed to OpenStreetMap contributors;
+the browser sends the normal public site origin and visible map tile
+requests to OSM. The sky plot does not use a third-party map service.
+Heavens-Above and SatNOGS transmitter information are linked as
+external references. Firefox can use both maps (but not direct WebUSB
+RTL-SDR reception). Future/past slider positions are simulated.
+
+The standalone developer documentation lives at
+[Satellite Center MAPS.md](https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/feature/satellite-center-standalone-2026-11-06/satellite_center/MAPS.md).
+
 ## Browser-only mode — no local app required (experimental)
 
 **[Open Satellite Center in the browser](https://tihulu.github.io/TIHULU-TEXT-CENTER/satellite_center/)**.
