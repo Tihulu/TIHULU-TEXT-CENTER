@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="dark"><meta name="referrer" content="no-referrer">
+<title>TIHULU Satellite Center | Browser-only WebUSB</title>
+<link rel="stylesheet" href="./browser.css">
+</head><body>
+<header><div class="wrap"><p class="eyebrow">TIHULU SATELLITE CENTER · DIRECT USB EXPERIMENTAL</p>
+<h1>🛰 Satellite Center <span class="pill">No local app</span></h1>
+<p>Control your Nooelec RTL2832U receiver from this HTTPS page using a USB permission prompt. No Python service, pairing token or software installation for the web app itself.</p>
+<a href="../">TIHULU Text Center Home</a></div></header>
+<main class="wrap">
+<section class="notice"><strong>Browser compatibility:</strong> Chromium (Chrome/Edge/Brave/Opera), HTTPS and a free RTL-SDR are required. Firefox and Safari do not support WebUSB. Windows can still require a WinUSB driver, and Linux may need USB access permissions / the DVB kernel driver released. No website can bypass OS permissions. <a href="https://github.com/jtarrio/webrtlsdr" rel="noopener noreferrer" target="_blank">Web RTL-SDR library</a></section>
+<div class="columns"><div>
+<section><h2>1 · Choose USB receiver</h2>
+<div class="line"><button id="connect">Choose RTL-SDR (WebUSB)</button><button id="disconnect" class="secondary" disabled>Release USB</button></div>
+<p id="device-status" class="status" role="status">No USB device opened.</p>
+<p class="hint">The browser will show the USB chooser. Select the Nooelec / Realtek RTL2832U. Other applications such as readsb, Gqrx or welle.io must release the same dongle first; this page never stops them.</p>
+</section>
+<section><h2>2 · Receive satellite-band samples</h2>
+<label for="preset">Receive profile</label><select id="preset">
+<option value="137900000">Meteor-M LRPT primary · 137.900 MHz</option>
+<option value="137100000">Meteor-M LRPT alternate · 137.100 MHz</option>
+<option value="145800000">ISS VHF voice/SSTV vicinity · 145.800 MHz</option>
+<option value="145825000">ISS APRS vicinity · 145.825 MHz</option>
+<option value="437800000">ISS UHF vicinity · 437.800 MHz</option>
+<option value="436000000">Amateur CubeSat UHF survey · 436.000 MHz</option>
+<option value="1620000000">Iridium L-band energy sample · 1620.000 MHz</option>
+</select>
+<div class="line"><label>Sample rate<select id="rate"><option value="1024000">1.024 MS/s</option><option value="2048000">2.048 MS/s</option></select></label>
+<label>Capture duration<select id="duration"><option value="5">5 seconds</option><option value="15" selected>15 seconds</option><option value="30">30 seconds</option><option value="60">60 seconds</option></select></label></div>
+<label class="check"><input type="checkbox" id="record" checked> Save raw interleaved uint8 I/Q (.cu8) locally</label>
+<div class="line"><button id="start" disabled>Start real USB capture</button><button id="stop" class="secondary" disabled>Stop &amp; release</button></div>
+<p class="hint">Shows <strong>relative digital sample level</strong>, not calibrated dBm or a named satellite. Saved CU8 can be decoded later in SatDump. A burst alone does not identify an Iridium satellite. Buffer limit: 128 MiB.</p>
+<canvas id="level-chart" width="760" height="180" aria-label="Measured relative raw SDR sample level history"></canvas>
+<p id="sample-state" class="status" role="status">No RF samples measured.</p>
+</section>
+</div><div>
+<section><h2>3 · Satellite pass planner (web-only)</h2>
+<p class="hint">Uses downloaded CelesTrak TLEs and JavaScript orbital propagation. No local backend. If the remote catalog blocks browser CORS, import your own TLE text file below.</p>
+<div class="line"><label>Ground station<select id="city">
+<option value="Cologne">Cologne</option><option value="Izmir">İzmir</option><option value="Berlin">Berlin</option><option value="Istanbul">İstanbul</option><option value="Ankara">Ankara</option><option value="Brussels">Brussels</option><option value="Custom">Custom coordinates</option></select></label>
+<label>Lookahead<select id="hours"><option value="12">12 hours</option><option value="24" selected>24 hours</option><option value="48">48 hours</option></select></label></div>
+<div class="line"><label>Latitude (°)<input id="lat" type="number" value="50.938" step="0.001" min="-90" max="90"></label>
+<label>Longitude (°)<input id="lon" type="number" value="6.960" step="0.001" min="-180" max="180"></label>
+<label>Min elevation<select id="elev"><option value="5">5°</option><option value="15" selected>15°</option><option value="30">30°</option></select></label></div>
+<div class="line"><button id="orbit-fetch">Refresh orbit data</button><button id="orbit-calc" class="secondary">Calculate passes</button></div>
+<label>Import local TLE file (fallback; remains in this tab)<input type="file" id="tle-file" accept=".txt,.tle,text/plain"></label>
+<p id="orbit-state" class="status">No orbit data loaded. Predictions are not RF detections.</p>
+<div id="passes" class="pass-list"></div>
+</section>
+<section><h2>4 · Optional browser-open schedule</h2>
+<p class="hint">Choose Schedule on a predicted pass. The capture only starts while <strong>this tab remains open and this USB device is connected</strong>. No background activity after tab closure, laptop sleep or browser suspension. Pending jobs are session-only.</p>
+<div id="jobs">No scheduled browser captures.</div>
+</section>
+</div></div>
+<section><h2>Decoder availability and truthful status</h2>
+<p>Browser-only v0.3 provides genuine USB IQ collection and geometric pass estimates; <strong>in-page APRS/SSTV/Meteor image decoding is not connected yet</strong>. Use SatDump or another decoder with the saved CU8 file where legal. Iridium remains RF-energy research only; no private communications decoding.</p>
+<details><summary>What requires more than a browser?</summary><p>Windows may require WinUSB driver setup; Linux may require releasing the kernel DVB driver or adjusting permissions. To record a pass while the browser is closed, the optional local companion must remain running. The companion still supports offline SatDump and multimon-ng where installed.</p></details>
+<h3>Activity log</h3><pre id="log" aria-live="polite">Ready. USB idle. No fabricated RF data.</pre></section>
+<footer>Receive-only. The page never transmits RF, uploads I/Q files or silently scans. Page closing releases browser-owned USB access; an unexpected OS/browser crash cannot be guaranteed to cleanly close every device state. Browser client uses <a href="https://www.npmjs.com/package/@jtarrio/webrtlsdr" rel="noopener noreferrer" target="_blank">@jtarrio/webrtlsdr</a> from a version-pinned module CDN (requires Internet to load initially).</footer>
+</main><script type="module" src="./browser.js"></script></body></html>
