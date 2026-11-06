@@ -28,6 +28,7 @@ ASSETS = {
     "/web/rf_survey.mjs": ("web/rf_survey.mjs", "text/javascript"),
     "/web/catalog_discovery.mjs": ("web/catalog_discovery.mjs", "text/javascript"),
     "/web/simple_ui.mjs": ("web/simple_ui.mjs", "text/javascript"),
+    "/web/hardware_manager.mjs": ("web/hardware_manager.mjs", "text/javascript"),
     "/web/style.css": ("web/style.css", "text/css"),
     "/web/icon.svg": ("web/icon.svg", "image/svg+xml"),
     "/core/gnss.mjs": ("core/gnss.mjs", "text/javascript"),
