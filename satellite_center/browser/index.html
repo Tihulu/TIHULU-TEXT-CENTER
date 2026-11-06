@@ -49,6 +49,7 @@
 <p class="hint">Shows <strong>relative digital sample level</strong>, not calibrated dBm or a named satellite. Saved CU8 can be decoded later in SatDump. A burst alone does not identify an Iridium satellite. Buffer limit: 128 MiB.</p>
 <canvas id="level-chart" width="760" height="180" aria-label="Measured relative raw SDR sample level history"></canvas>
 <p id="sample-state" class="status" role="status">No RF samples measured.</p>
+<a class="iq-jump-link" href="#iq-analysis">Analyze .cu8 recording inside Satellite Center · spectrum / waterfall / level over time</a>
 </section>
 </div><div>
 <section><h2>3 · Satellite pass planner (web-only)</h2>
@@ -201,6 +202,35 @@ All location methods are optional. City suggestions are offline by default; GPS 
 <a href="https://www.heavens-above.com/" target="_blank" rel="noopener noreferrer">Heavens-Above (external predictions)</a> · <a href="https://db.satnogs.org/transmitters/" rel="noopener noreferrer" target="_blank">SatNOGS transmitter frequency catalog</a>
 </aside>
 </div>
+</section>
+<section id="iq-analysis" class="iq-panel">
+<h2>6 · CU8 I/Q analysis — directly in this browser</h2>
+<p class="hint">Analyze the <strong>last locally captured recording</strong> or <strong>open an existing .cu8 file</strong>. This page never uploads the file. View actual raw-sample power, spectral peaks, a time-frequency waterfall and sample statistics. It does not automatically decode Meteor LRPT, SSTV, APRS or Iridium messages.</p>
+<div class="iq-controls">
+<label>Local .cu8 file
+<input id="iq-file" type="file" accept=".cu8,.iq,.u8,application/octet-stream">
+</label>
+<label>Center frequency (MHz, from receiver/file name or manually entered)
+<input id="iq-center" type="number" min="24" max="1750" step="0.001" value="137.900">
+</label>
+<label>Sampling rate
+<select id="iq-rate"><option value="1024000">1.024 MS/s</option><option value="2048000">2.048 MS/s</option></select>
+</label>
+</div>
+<div class="line">
+<button type="button" id="iq-analyze-last" disabled>Analyze last recording</button>
+<button type="button" id="iq-analyze-file">Analyze selected file</button>
+<button type="button" id="iq-export-json" class="secondary" disabled>Export analysis JSON</button>
+</div>
+<p id="iq-last-info" class="hint">No local recording retained in this tab. Use a USB capture with Save raw I/Q enabled, or select a previously downloaded .cu8 file.</p>
+<p id="iq-analysis-status" class="status" role="status" aria-live="polite">No file analyzed. CU8 contains no metadata: verify sample rate and center frequency.</p>
+<div id="iq-analysis-summary" class="iq-metrics" aria-label="Measured I/Q statistics"></div>
+<div class="iq-chart-grid">
+<div><h3>Frequency spectrum · relative digital dB</h3><canvas id="iq-spectrum" width="1040" height="260" aria-label="Complex FFT frequency spectrum from recorded CU8 samples"></canvas></div>
+<div><h3>Waterfall · sampled time windows</h3><canvas id="iq-waterfall" width="1040" height="260" aria-label="Frequency versus time waterfall heat map from sampled complex I/Q data"></canvas></div>
+<div><h3>Relative sample power over time</h3><canvas id="iq-power-time" width="1040" height="190" aria-label="Sampled time-series relative digital I/Q level"></canvas></div>
+</div>
+<p class="hint">Analysis samples up to 48 short windows across the file instead of reading the entire recording into memory. Values are <strong>uncalibrated digital quantities, not dBm</strong>. Peaks may be noise, spurs, DC artifacts or other transmitters; a peak does not prove any specific satellite. Estimated duration assumes continuous CU8 samples with no USB dropouts. To reconstruct Meteor imagery or decode packets, a separate decoder remains necessary.</p>
 </section>
 <section><h2>Decoder availability and truthful status</h2>
 <p>Browser-only v0.3 provides genuine USB IQ collection and geometric pass estimates; <strong>in-page APRS/SSTV/Meteor image decoding is not connected yet</strong>. Use SatDump or another decoder with the saved CU8 file where legal. Iridium remains RF-energy research only; no private communications decoding.</p>
