@@ -5,10 +5,11 @@ import {parseNMEA,trilaterate2D,tdoaConstraints} from "../core/positioning.mjs";
 import {initAutoExplorer} from "./auto_explorer.mjs";
 import {initUsbSDR} from "./usb_sdr.mjs";
 import {exampleRings,ringPoints,validRangeSources} from "../core/evidence.mjs";
+import {LOCATION_LAYERS,layerReadiness,visibleLayerPreferences} from "../core/location_layers.mjs";
 
 const $=id=>document.getElementById(id), svgNS="http://www.w3.org/2000/svg";
 const state={
-  browser:null,serialFix:null,serialAt:0,receiverHistory:[],gnssFile:null,sp3:null,
+  browser:null,networkFix:null,serialFix:null,serialAt:0,receiverHistory:[],gnssFile:null,sp3:null,layerPrefs:null,
   time:null,mask:5,visible:[],autoOrbits:[],references:[],ranges:null,rangeInputs:[],tdoa:[],cachedPosition:null,
   map:{lat:DEFAULT_CENTER.lat,lon:DEFAULT_CENTER.lon,zoom:11,osm:false},
   serialPort:null,serialReader:null,reading:false,usbSelection:null,activeView:"dashboard"
@@ -26,8 +27,27 @@ function svgel(tag,attrs={},label){
 const STORAGE_LOCATION="tihulu.rfgeo.last-known-position.v1";
 const STORAGE_RANGES="tihulu.rfgeo.measured-ranges.v1";
 const STORAGE_REFS="tihulu.rfgeo.reference-points.v1";
+const STORAGE_LAYERS="tihulu.rfgeo.location-method-layers.v1";
 const store=(key,value)=>{try{localStorage.setItem(key,JSON.stringify(value))}catch{}};
 const restore=key=>{try{return JSON.parse(localStorage.getItem(key)||"null")}catch{return null}};
+const layerToggle=id=>document.getElementById(({gnss:"layer-gnss",device:"layer-device",gpsfree:"layer-gpsfree",radio:"layer-ranges",aircraft:"layer-aircraft",ground:"layer-stations",satellites:"layer-orbits",cached:"layer-cached",demo:"layer-demo"})[id]);
+const layerShown=id=>layerToggle(id)?.checked===true;
+const saveLayerPreferences=()=>{state.layerPrefs=Object.fromEntries(LOCATION_LAYERS.map(l=>[l.id,layerShown(l.id)]));store(STORAGE_LAYERS,state.layerPrefs)};
+function showOnlyLayers(ids){for(const l of LOCATION_LAYERS){const e=layerToggle(l.id);if(e)e.checked=ids.includes(l.id)}saveLayerPreferences();renderEarth()}
+function renderMethodReadiness(orbits){
+ const r=layerReadiness({...state,orbits},Date.now());
+ for(const layer of LOCATION_LAYERS){const d=r[layer.id],label=$("layer-status-"+layer.id);
+   if(label){label.textContent=d.state+(d.count&&d.count>1?" · "+d.count:"");label.title=d.detail;
+     label.dataset.available=String(!["UNAVAILABLE","NO FIX","NO DATA","NO MEASUREMENT"].includes(d.state));}
+ }
+ const lines=[r.gnss.state==="FIX"?"Dedicated GNSS fix available":"Dedicated GNSS: no current fix",
+ r.device.state==="FIX"?"Browser device fix (GPS/network method unknown)":"Browser/device: no current fix",
+ r.radio.state==="ESTIMATED"?"Radio: experimental measured-range estimate":"Radio: no measured ranges",
+ "GPS-free provider: "+r.gpsfree.state.toLowerCase(),
+ r.aircraft.count+" aircraft references, "+r.ground.count+" ground stations, "+r.satellites.count+" predicted satellite subpoints"];
+ setText("layer-explanation",lines.join(" · "));
+ setText("live-method-summary","GPS/GNSS: "+r.gnss.state+" · Device: "+r.device.state+" (method unknown) · GPS-free: "+r.gpsfree.state+" · Radio: "+r.radio.state+" · Aircraft: "+r.aircraft.count+" refs · Satellites: "+r.satellites.count+" predicted");
+}
 function source(){
  if(state.serialFix&&Date.now()-state.serialAt<90000)
   return {...state.serialFix,kind:"NMEA receiver — live",validObserver:true};
@@ -256,10 +276,10 @@ function renderEarth(){
    const tip=svgel("title",{},title);group.append(tip);
    markers.append(group);
  };
- const showRefs=$("layer-stations")?.checked!==false;
- const showOrbits=$("layer-orbits")?.checked===true;
- const showReal=$("layer-ranges")?.checked!==false;
- const showDemo=$("layer-demo")?.checked===true&&!state.rangeInputs.length;
+ const showGround=layerShown("ground"),showAir=layerShown("aircraft");
+ const showOrbits=layerShown("satellites");
+ const showReal=layerShown("radio");
+ const showDemo=layerShown("demo")&&!state.rangeInputs.length;
  const demo=showDemo&&Math.abs(p.lat)<=80&&Math.abs(p.lon)<=175?exampleRings(p):null;
  const active=state.rangeInputs.length>0?{stations:state.rangeInputs,solution:state.ranges,simulated:false}:demo;
  const renderCircle=(s,simulated)=>{
@@ -269,7 +289,7 @@ function renderEarth(){
    rings.append(svgel("path",{d:path,fill:simulated?"#f3c779":"#65e2c2","fill-opacity":".035",stroke:color,"stroke-width":simulated?2:2.7,"stroke-dasharray":simulated?"7 5":"none"}));
  };
  if(active&&(active.simulated||showReal)){
-   for(const s of active.stations)renderCircle(s,active.simulated);
+   for(const s of active.stations){if(active.simulated||(s.type==="aircraft"?showAir:showGround))renderCircle(s,active.simulated)}
    const solution=active.solution;
    if(solution&&Number.isFinite(solution.lat)&&Number.isFinite(solution.lon)){
      const q=pt(solution.lat,solution.lon);
@@ -278,26 +298,45 @@ function renderEarth(){
    }
    for(let i=0;i<active.stations.length;i++){
      const s=active.stations[i];
+     if(!active.simulated&&!(s.type==="aircraft"?showAir:showGround))continue;
      place(s,s.type==="aircraft"?"aircraft":"station",active.simulated?"#e7b46c":"#65e2c2",(s.name||"Source "+(i+1))+
        " · "+(s.rangeMeters/1000).toFixed(2)+" km "+(active.simulated?"SIMULATED":"IMPORTED RANGE")+
        (s.source?" · "+s.source:""),s.type==="aircraft"?"A":"R");
    }
  }
 
+ const liveGnss=!!(state.serialFix&&Date.now()-state.serialAt<90000);
+ const liveDevice=!!(state.browser&&Date.now()-Date.parse(state.browser.acquiredAt||0)<300000);
  // The browser-provided uncertainty radius is a different constraint from radio ranges.
  // Draw a separate violet dotted circle; never treat browser accuracy as a measured distance to a transmitter.
- if(p.validObserver&&Number.isFinite(p.accuracy)&&p.accuracy>0&&p.accuracy<=1000000){
-   const shape=ringPoints(p.lat,p.lon,p.accuracy,96).map((coord,i)=>{
+ const browserAccuracy=liveDevice&&layerShown("device")?state.browser:null;
+ if(browserAccuracy&&Number.isFinite(browserAccuracy.accuracy)&&browserAccuracy.accuracy>0&&browserAccuracy.accuracy<=1000000){
+   const shape=ringPoints(browserAccuracy.lat,browserAccuracy.lon,browserAccuracy.accuracy,96).map((coord,i)=>{
      const q=pt(coord.lat,coord.lon);
      return (i?"L":"M")+q.x.toFixed(2)+" "+q.y.toFixed(2);
    }).join(" ")+" Z";
    rings.append(svgel("path",{d:shape,fill:"#bd91f3","fill-opacity":".04",stroke:"#bd91f3",
      "stroke-width":2.2,"stroke-dasharray":"3 4"}));
  }
- place(p,"receiver",p.validObserver?"#6ce6d2":"#f3a66d",p.kind,"●");
+ // Each source has its OWN marker. No predicted orbit or aircraft point is ever the observer fix.
+ if(liveGnss&&layerShown("gnss"))place(state.serialFix,"receiver","#5ce1b7","DEDICATED GNSS NMEA FIX · receiver-reported; no RTL-SDR GNSS decode","G");
+ if(liveDevice&&layerShown("device"))place(state.browser,"receiver","#bd91f3","BROWSER / DEVICE LOCATION · actual GPS-vs-network provider unknown","B");
+ if(state.networkFix?.verifiedNonGnss===true&&["wifi","cell","ip"].includes(state.networkFix.method)&&layerShown("gpsfree"))
+   place(state.networkFix,"receiver","#4bb7d3","VERIFIED NON-GNSS NETWORK FIX · "+state.networkFix.method,"N");
+ if(state.ranges&&showReal)place(state.ranges,"solution","#7de0ac","Experimental 2D radio range estimate (user-imported, unverified)","X");
+ if(state.cachedPosition&&layerShown("cached"))
+   place(state.cachedPosition,"receiver","#c9ad76","CACHED previous location · "+state.cachedPosition.recordedAt+" · NOT LIVE","C");
+ const anyLocation=liveGnss&&layerShown("gnss")||liveDevice&&layerShown("device")||
+   state.ranges&&showReal||state.cachedPosition&&layerShown("cached")||
+   state.networkFix?.verifiedNonGnss&&layerShown("gpsfree");
+ if(!anyLocation)place(p,"receiver","#a4b3c3","MAP REFERENCE ONLY · NOT YOUR POSITION","?");
  const orbits=state.sp3?state.visible:state.autoOrbits;
- if(showOrbits)for(const s of orbits)place(s,"orbit","#57bdf4",s.id+" · predicted orbital subpoint; NOT RF reception","S");
- if(showRefs)for(const s of state.references)place(s,s.type,s.type==="aircraft"?"#f4a5cc":"#b8a4ef",s.name+" · "+s.source+" · REFERENCE, NOT A MEASURED RANGE",s.type==="aircraft"?"A":"R");
+ if(showOrbits)for(const s of orbits)place(s,"orbit","#57bdf4",s.id+" · predicted orbital subpoint; NOT RECEIVED RF","S");
+ for(const s of state.references){
+   if(s.type==="aircraft"&&showAir)place(s,"aircraft","#f4a5cc",s.name+" · "+s.source+" · AIRCRAFT REFERENCE, NOT OBSERVER FIX","A");
+   if(s.type==="station"&&showGround)place(s,"station","#b8a4ef",s.name+" · "+s.source+" · STATION REFERENCE, NO RANGE","R");
+ }
+ renderMethodReadiness(orbits);
  setText("earth-sat-count",orbits.length+" orbit positions PREDICTED; "+(showOrbits?"shown":"hidden by default"));
  setText("earth-ref-count",state.references.length+" reference points; "+state.rangeInputs.length+" user-imported measured range sources");
  if(state.rangeInputs.length){
@@ -364,12 +403,20 @@ for(const [id,delta] of [["map-zoom-in",1],["map-zoom-out",-1]]){
 }
 $("earth-reset")?.addEventListener("click",()=>renderPosition(true));
 $("earth-find")?.addEventListener("click",()=>window.dispatchEvent(new Event("tihulu:find-request")));
-for(const id of ["layer-ranges","layer-stations","layer-orbits","layer-demo"]){
- $(id)?.addEventListener("change",()=>{
-   if(id==="layer-demo"&&$("layer-demo").checked&&!state.rangeInputs.length)fitEvidence();
-   renderEarth();
+for(const layer of LOCATION_LAYERS){
+ layerToggle(layer.id)?.addEventListener("change",()=>{
+   saveLayerPreferences();
+   if(layer.id==="demo"&&layerShown("demo")&&!state.rangeInputs.length)fitEvidence();
+   else renderEarth();
  });
 }
+$("layer-only-fixes")?.addEventListener("click",()=>showOnlyLayers(["gnss","device","gpsfree","radio","cached"]));
+$("layer-show-references")?.addEventListener("click",()=>showOnlyLayers(["gnss","device","gpsfree","radio","aircraft","ground","satellites","cached"]));
+$("layer-defaults")?.addEventListener("click",()=>{
+ state.layerPrefs=visibleLayerPreferences(null);
+ for(const layer of LOCATION_LAYERS){const input=layerToggle(layer.id);if(input)input.checked=state.layerPrefs[layer.id]}
+ saveLayerPreferences();renderEarth();
+});
 function fitEvidence(){
  const records=state.rangeInputs.length?state.rangeInputs:$("layer-demo")?.checked?exampleRings(source()).stations:[];
  if(!records.length){renderPosition(true);return}
@@ -385,6 +432,7 @@ function fitEvidence(){
 $("earth-fit-evidence")?.addEventListener("click",fitEvidence);
 $("evidence-clear")?.addEventListener("click",()=>{
  state.ranges=null;state.rangeInputs=[];localStorage.removeItem(STORAGE_RANGES);
+ state.layerPrefs={...state.layerPrefs,demo:true};saveLayerPreferences();
  $("layer-demo").checked=true;fitEvidence();renderDiagnostics();msg("Range measurements cleared; showing clearly labeled synthetic ring explanation.");
 });
 let drag=null;
@@ -451,6 +499,7 @@ $("ranges-file")?.addEventListener("change",e=>importFile(e.target,100_000,async
  state.ranges=fix;state.rangeInputs=data.map((s,i)=>({...s,type:s.type==="aircraft"?"aircraft":"station",name:String(s.name||s.station||"Station "+(i+1)).slice(0,90),source:String(s.source||"User-supplied; not independently verified").slice(0,180)}));
  store(STORAGE_RANGES,state.rangeInputs);
  $("layer-demo").checked=false;$("layer-ranges").checked=true;
+ saveLayerPreferences();
  setText("radio-result",JSON.stringify({...fix,stationList:state.rangeInputs.map(s=>({name:s.name,type:s.type,rangeMeters:s.rangeMeters,source:s.source}))},null,2));
  fitEvidence();renderDiagnostics();
  msg("Measured-range rings shown on Earth Map. Experimental residual is NOT coordinate accuracy.");
@@ -462,7 +511,7 @@ $("tdoa-file")?.addEventListener("change",e=>importFile(e.target,100_000,async t
 }));
 $("clear-local")?.addEventListener("click",async()=>{
  // Keep the PWA application shell installed for offline startup; clear user data only.
- for(const key of [STORAGE_LOCATION,STORAGE_RANGES,STORAGE_REFS,"tihulu.rfgeo.gnss-orbits.v1"])try{localStorage.removeItem(key)}catch{}
+ for(const key of [STORAGE_LOCATION,STORAGE_RANGES,STORAGE_REFS,STORAGE_LAYERS,"tihulu.rfgeo.gnss-orbits.v1"])try{localStorage.removeItem(key)}catch{}
  state.sp3=null;state.time=null;state.visible=[];state.references=[];state.ranges=null;state.rangeInputs=[];state.cachedPosition=null;state.tdoa=[];
  state.browser=null;state.gnssFile=null;state.receiverHistory=[];await disconnect();
  $("layer-demo").checked=true;
@@ -503,17 +552,20 @@ window.addEventListener("tihulu:find-request",()=>{ if(state.serialFix&&Date.now
 window.addEventListener("tihulu:orbit",e=>{
   if(!Array.isArray(e.detail?.satellites))return;
   state.autoOrbits=e.detail.satellites.slice(0,450);
+  renderMethodReadiness(state.sp3?state.visible:state.autoOrbits);
   if(state.activeView==="sky"&&!state.sp3)renderSky();
   if(state.activeView==="earth"&&!state.sp3)renderEarth();
   if(!state.sp3){setText("dash-orbits",state.autoOrbits.length+" CelesTrak satellites");setText("orbit-tag","AUTO ORBITS / PREDICTED")}
 });
+state.layerPrefs=visibleLayerPreferences(restore(STORAGE_LAYERS));
+for(const layer of LOCATION_LAYERS){const input=layerToggle(layer.id);if(input)input.checked=state.layerPrefs[layer.id]}
 const savedFix=restore(STORAGE_LOCATION);
 if(savedFix&&Number.isFinite(savedFix.lat)&&Number.isFinite(savedFix.lon)&&Math.abs(savedFix.lat)<=90&&Math.abs(savedFix.lon)<=180&&savedFix.recordedAt){
  state.cachedPosition=savedFix;
 }
 const savedRanges=restore(STORAGE_RANGES);
 if(validRangeSources(savedRanges)){
- try{state.ranges=trilaterate2D(savedRanges);state.rangeInputs=savedRanges;$("layer-demo").checked=false}
+ try{state.ranges=trilaterate2D(savedRanges);state.rangeInputs=savedRanges;$("layer-demo").checked=false;state.layerPrefs.demo=false}
  catch{state.ranges=null;state.rangeInputs=[]}
 }
 const savedRefs=restore(STORAGE_REFS);

@@ -46,7 +46,7 @@
     <section class="live-explorer" aria-label="Live GNSS geolocation explorer">
       <div class="live-head">
         <div><div class="eyebrow">LIVE EXPLORER · EARTH + SKY</div><h2>Find your position and see the satellites</h2><p>Automatic navigation-satellite predictions. One button for real device positioning. Orbit positions and RF receptions are different measurements.</p></div>
-        <div class="live-controls"><button id="live-find" class="primary" type="button">◎ Find My Location</button><button id="live-connect" class="secondary" type="button">⌁ Connect USB SDR</button><button id="live-scan" class="secondary" type="button">Scan GNSS L1 · 2 s</button><button id="live-release" class="secondary" type="button">Release USB</button><button id="live-rings" class="secondary" type="button">◎ View Range Rings</button><button id="live-refresh" class="secondary" type="button">↻ Refresh Satellites</button></div>
+        <div class="live-controls"><button id="live-find" class="primary" type="button">◎ Find My Location</button><button id="live-connect" class="secondary" type="button">⌁ Connect USB SDR</button><button id="live-usb-check" class="secondary" type="button">USB Self-Test</button><button id="live-scan" class="secondary" type="button">Scan GNSS L1 · 2 s</button><button id="live-release" class="secondary" type="button">Release USB</button><button id="live-rings" class="secondary" type="button">◎ Location Layers &amp; Rings</button><button id="live-refresh" class="secondary" type="button">↻ Refresh Satellites</button></div>
       </div>
       <div class="live-stats">
         <div><span>POSITION SOURCE</span><strong id="live-pos-type">REFERENCE ONLY</strong><small id="live-pos-label">Cologne fallback · permission not requested</small></div>
@@ -54,6 +54,7 @@
         <div><span>ABOVE HORIZON</span><strong id="live-above">—</strong><small>Predicted geometry, not RF locks</small></div>
         <div><span>USB SDR</span><strong id="live-usb-status">Not connected</strong><small id="live-usb-detail">No radio capture</small></div>
       </div>
+      <div id="live-method-summary" class="live-method-summary" role="status">GNSS, device, GPS-free, radio, aircraft and satellite layers are separate. Open Location Layers to control their visibility.</div>
       <div class="live-map-grid">
         <article class="live-earth">
           <div class="live-panel-title"><div><div class="eyebrow">EARTH VIEW</div><h3>Position map</h3></div><span id="live-earth-source" class="live-source">COLOGNE REFERENCE</span></div>
@@ -97,12 +98,20 @@
        <div id="fix-evidence" class="fix-evidence" role="status" aria-live="polite">No confirmed live fix. Browser/device geolocation or a connected NMEA GNSS receiver may provide one. Last known location is never a new fix.</div>
        <div class="position-legend"><span><i class="legend-device"></i> Device-reported accuracy</span><span><i class="legend-ranges"></i> Measured station ranges</span><span><i class="legend-demo"></i> Simulated example</span></div>
        <h2>Layers and positioning evidence</h2>
-       <div class="earth-layer-controls" aria-label="Map layers">
-         <label><input id="layer-ranges" type="checkbox" checked> Measured radio distance rings</label>
-         <label><input id="layer-stations" type="checkbox" checked> Ground stations and aircraft</label>
-         <label><input id="layer-orbits" type="checkbox"> Predicted satellite ground points (not RF)</label>
-         <label><input id="layer-demo" type="checkbox" checked> Show ring explanation (SIMULATED)</label>
+       <div class="location-methods-head"><h3>Location methods &amp; map layers</h3><p>Choose which independent measurements and reference sources appear. A source without a fix never becomes your position.</p></div>
+       <div class="earth-layer-controls" id="location-layers" aria-label="Location method layers">
+         <label class="method-layer" data-method="gnss"><input id="layer-gnss" type="checkbox" checked><span class="method-layer-text"><strong>◉ GPS / GNSS receiver</strong><small>Dedicated satellite-navigation NMEA fix</small></span><em id="layer-status-gnss">NO FIX</em></label>
+         <label class="method-layer" data-method="device"><input id="layer-device" type="checkbox" checked><span class="method-layer-text"><strong>● Device location</strong><small>GPS or network provider; browser does not say which</small></span><em id="layer-status-device">NO FIX</em></label>
+         <label class="method-layer" data-method="gpsfree"><input id="layer-gpsfree" type="checkbox" checked><span class="method-layer-text"><strong>◇ GPS-free / Wi-Fi / cellular / IP</strong><small>Requires verified non-GNSS provider</small></span><em id="layer-status-gpsfree">UNAVAILABLE</em></label>
+         <label class="method-layer" data-method="radio"><input id="layer-ranges" type="checkbox" checked><span class="method-layer-text"><strong>◎ Radio positioning</strong><small>Measured station/aircraft distances and rings</small></span><em id="layer-status-radio">NO MEASUREMENT</em></label>
+         <label class="method-layer" data-method="aircraft"><input id="layer-aircraft" type="checkbox" checked><span class="method-layer-text"><strong>✈ Aircraft references</strong><small>Observed/imported aircraft; not a receiver fix</small></span><em id="layer-status-aircraft">NO DATA</em></label>
+         <label class="method-layer" data-method="ground"><input id="layer-stations" type="checkbox" checked><span class="method-layer-text"><strong>⌁ Ground stations</strong><small>Station coordinates; selected for radio geometry only with ranges</small></span><em id="layer-status-ground">NO DATA</em></label>
+         <label class="method-layer" data-method="satellites"><input id="layer-orbits" type="checkbox"><span class="method-layer-text"><strong>✧ Satellites / sky geometry</strong><small>Predicted orbital positions, not decoded GPS signals</small></span><em id="layer-status-satellites">NO DATA</em></label>
+         <label class="method-layer" data-method="cached"><input id="layer-cached" type="checkbox" checked><span class="method-layer-text"><strong>◷ Last-known offline position</strong><small>Historical location and timestamp; not live</small></span><em id="layer-status-cached">NO DATA</em></label>
+         <label class="method-layer" data-method="demo"><input id="layer-demo" type="checkbox" checked><span class="method-layer-text"><strong>◌ Simulated rings</strong><small>Fictional stations · educational example only</small></span><em id="layer-status-demo">SIMULATED</em></label>
        </div>
+       <div class="layer-quick-actions"><button id="layer-only-fixes" class="secondary" type="button">Position points</button><button id="layer-show-references" class="secondary" type="button">Show references</button><button id="layer-defaults" class="secondary" type="button">Reset layers</button></div>
+       <div id="layer-explanation" class="layer-explanation" role="status">GNSS fixes, device location and radio estimates are separate. Satellite orbits and aircraft references do not establish an observer position.</div>
        <div id="evidence-report" class="evidence-report" role="status">SIMULATED EXAMPLE: three fictional stations demonstrate circle intersections. No real radio ranges have been measured.</div>
        <div id="evidence-sources" class="evidence-sources" aria-label="Stations or aircraft used in circle calculation"></div>
        <button id="earth-fit-evidence" class="secondary" type="button">Fit rings / evidence to map</button>
@@ -133,7 +142,7 @@
        <button id="serial-connect" class="primary">Connect GNSS serial (9600 baud)</button><button id="serial-disconnect" class="secondary">Disconnect</button>
        <div id="serial-state" class="fine muted">UNAVAILABLE / NOT CONNECTED</div></article>
       <article class="panel"><h2>WebUSB RTL-SDR receiver</h2><p>Connect a compatible local RTL-SDR using supported HTTPS Chromium browsers. Bounded uncalibrated IQ sampling is available; actual GNSS acquisition, pseudorange measurements and satellite position fixing are NOT implemented.</p>
-       <button id="usb-select" class="secondary">Connect RTL-SDR via WebUSB</button><div id="usb-state" class="fine muted">No USB device selected.</div>
+       <button id="usb-select" class="secondary">Connect RTL-SDR via WebUSB</button><button id="usb-selftest" class="secondary" type="button">Test USB access (no Console)</button><div id="usb-state" class="fine muted">No USB device selected.</div>
        <div id="usb-diagnostics" class="usb-diagnostics" role="status" aria-live="polite">WebUSB diagnostics appear here after a connection attempt.</div>
        <details class="usb-troubleshoot"><summary>USB connection failed? Linux / Raspberry Pi setup</summary>
          <p>Chrome/Brave/Edge on HTTPS are required. If your stick is occupied by <code>readsb</code> or another SDR app, close or release it first. The application never stops unrelated processes.</p>

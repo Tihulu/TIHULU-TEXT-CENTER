@@ -108,3 +108,26 @@ Open the Dashboard or the dedicated Earth Map and click **Find My Location**. Th
 **Practical offline test:** Install/open the PWA over HTTPS while online at least once and grant location permission. Find your location and verify that a timestamped last-known position is saved. Switch off Internet connectivity and reopen the installed app: the local coordinate-grid map, station reference markers and measured-range overlays remain visible. Press Find My Location again. On a phone/receiver with independently working offline GNSS the device's geolocation API may still return a fresh fix; on desktops without location hardware, this may fail and the cached position remains labeled **LAST KNOWN / NOT LIVE**. PWA source code caching alone never creates offline GPS hardware.
 
 Browser coordinates are no longer considered fresh after **five minutes** without a new geolocation observation. A new measurement requires a user action. The demo does not infer range to any nearby aircraft or radio station. RTL-SDR WebUSB currently provides short uncalibrated RF sample captures, not GPS pseudorange decoding. To attempt real SDR standalone GNSS PVT, the separate GNSS-SDR backend plus suitable GNSS antenna/front-end must first be implemented and validated.
+
+
+## Independent positioning method layers (2026-11-06)
+
+Open the **Location Layers & Rings** button on the main Dashboard, or **Earth Map → Location methods & map layers**. Each layer has its own checkbox, availability indicator, marker color and provenance. On/off preferences are saved in the same browser origin for offline PWA reuse. Quick controls: *Position points*, *Show references* and *Reset layers*. Nothing in this interface requires pasting JavaScript into a developer console.
+
+| Layer | Display | Can it independently establish this receiver's position now? |
+|---|---|---|
+| GPS / GNSS receiver | Fresh actual NMEA fix | Yes, from compatible GNSS hardware (not RTL-SDR decoding) |
+| Device location | Browser-provided geolocation, with its accuracy estimate where available | Yes, but the browser does **not** disclose whether the device used GPS, Wi-Fi, cellular or IP |
+| GPS-free / Wi-Fi / cellular / IP | Only a position with explicitly verified non-GNSS provenance | **Not currently available**: browser geolocation alone cannot prove GPS was absent |
+| Radio positioning | User-imported station/aircraft measured range rings and experimental solver estimate | Only with 3+ real measurements, provided externally and **not independently verified** |
+| Aircraft | Imported aircraft locations, distinct from the receiver's own location | No: ADS-B aircraft coordinates alone do not supply observer range or synchronized TDOA |
+| Ground stations | Imported ground transmitter/receiver references | No: station coordinates alone are not ranging measurements |
+| Satellite orbit positions | Predicted navigation-satellite subpoints (off by default) | No: TLE/SGP4 geometry is not an acquired satellite signal or pseudorange position |
+| Last-known / cached | Previous coordinates and timestamp | No new measurement; explicitly labeled **CACHED / NOT LIVE** |
+| Simulated example | Three fictional sources and dashed rings | Never a real position measurement |
+
+The same map can show GNSS, device, experimental radio and saved position markers simultaneously without blending them into a false "hybrid fix". The auto-selected position source remains a separate label. Circles show calibrated/imported terrestrial ranges, while the browser-reported accuracy radius uses a separate violet dotted overlay. Satellite navigation itself is a three-dimensional timing/pseudorange problem, not 2D circles drawn around satellite ground projections.
+
+### No-DevTools USB self-test
+
+The Receiver page now offers **Test USB access (no Console)** and the Dashboard offers **USB Self-Test**. On supported desktop Chromium browsers over HTTPS, this checks a previously permitted 0bda:2838 USB device by opening it, claiming interface 0 and releasing/closing it. It does **not** start RF capture, decode GNSS or run privileged Linux commands. If the claim fails, the result is shown directly in the app. Closing other SDR tabs, stopping \`readsb\` on explicit user request and unbinding the verified \`dvb_usb_rtl28xxu\` kernel interface remain separate OS actions.

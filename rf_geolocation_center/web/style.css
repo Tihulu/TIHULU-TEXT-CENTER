@@ -90,3 +90,33 @@
 .position-legend .legend-device{border-color:#bd91f3;border-top-style:dotted}
 .position-legend .legend-ranges{border-color:#65e2c2}
 .position-legend .legend-demo{border-color:#f3c779;border-top-style:dashed}
+
+
+/* Independent geolocation-method layers. Colors denote provenance, not confidence. */
+.location-methods-head h3{margin:12px 0 5px;font-size:15px}
+.location-methods-head p{font-size:11px;color:#a9c7d5;line-height:1.5;margin:0}
+.earth-layer-controls .method-layer{display:flex;gap:10px;align-items:center;min-height:55px;padding:10px}
+.method-layer input{flex:none}
+.method-layer-text{min-width:0;display:flex;flex:1;flex-direction:column;gap:5px}
+.method-layer-text strong{font-size:12px;color:#e1f0f5}
+.method-layer-text small{font-size:10px;font-weight:400;color:#a7c1ce;line-height:1.4}
+.method-layer em{flex:none;font-style:normal;font-weight:750;letter-spacing:.04em;color:#abc0c8;font-size:9px;text-align:right;max-width:115px;overflow-wrap:anywhere}
+.method-layer[data-method="gnss"]{border-left:3px solid #5ce1b7}
+.method-layer[data-method="device"]{border-left:3px solid #bd91f3}
+.method-layer[data-method="gpsfree"]{border-left:3px solid #4bb7d3}
+.method-layer[data-method="radio"]{border-left:3px solid #7de0ac}
+.method-layer[data-method="aircraft"]{border-left:3px solid #f2a1ca}
+.method-layer[data-method="ground"]{border-left:3px solid #b7a8ee}
+.method-layer[data-method="satellites"]{border-left:3px solid #67bff0}
+.method-layer[data-method="cached"]{border-left:3px solid #c9ad76}
+.method-layer[data-method="demo"]{border-left:3px solid #ecc479}
+.method-layer em[data-available="true"]{color:#7ee4c5}
+.method-layer em[data-available="false"]{color:#d8b485}
+.layer-quick-actions{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
+.layer-quick-actions button{font-size:11px;min-height:35px}
+.layer-explanation{font-size:11px;line-height:1.6;padding:11px;margin:10px 0;border:1px solid #315365;background:#102538;border-radius:8px;color:#c3dbe5}
+@media(max-width:470px){.method-layer em{max-width:85px;font-size:8px}.method-layer-text small{font-size:9px}}
+
+
+.live-method-summary{padding:11px 14px;margin:-8px 0 14px;border-left:3px solid #5dbbd8;
+ background:#10283b;border-radius:8px;color:#b6d8e5;font-size:11px;line-height:1.65}
