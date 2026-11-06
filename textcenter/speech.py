@@ -49,9 +49,9 @@ def transcribe_pcm(pcm:bytes,language:str,backend:str,profile:dict)->str:
     if backend not in ("cpu","gpu","npu"):
         raise ValueError("Invalid compute backend")
     validate_language(language)
-    model=_whisper_model(profile)
+    model=_whisper_model(profile) if backend=="cpu" else profile["speech"].get("gpu_model_path")
     if not model:
-        raise SpeechError("Offline Whisper model not installed")
+        raise SpeechError("Offline Whisper model for selected backend not installed")
     if backend=="npu":
         raise SpeechError("No verified NPU-compatible ASR model/runtime")
     if backend=="gpu":
@@ -107,11 +107,6 @@ class SpeechPipeline:
         self.target=validate_language(target_language) if target_language else None
         self.profile=profile or detect_devices()
         self.selection=choose_backend(self.profile,backend)
-        if backend=="gpu" and self.profile["devices"][1]["detected"] and (
-            importlib.util.find_spec("faster_whisper") is not None):
-            # Presence is not enough: actual model test is performed in worker.
-            self.selection={"selected":"gpu","ready":bool(_whisper_model(self.profile)),
-                            "detected_device":self.profile["devices"][1]["name"]}
         if not self.selection["ready"]:
             raise SpeechError(self.selection.get("reason") or "No configured local speech backend")
         self.backend=self.selection["selected"]

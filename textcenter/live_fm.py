@@ -23,6 +23,9 @@ from .conflicts import find_receiver_conflicts
 from .fm_audio import audio_argv
 from .fm_rds import validate_request
 from .receivers import receiver_inventory
+from .compute import detect_devices
+from .speech import SpeechPipeline,SpeechError
+from .transcripts import TranscriptStore
 
 MAX_RECORD_BYTES = 1_073_741_824  # 1 GiB, recording stops, never fills storage
 SESSION_TIMEOUT = 18
@@ -43,7 +46,9 @@ def encode_argv(ffmpeg: str) -> list[str]:
 class LiveFM:
     def __init__(self, *, archive_dir:Path, inventory=None, lookup=None,
                  conflicts=None, lock_dir:Path|None=None,
-                 timeout:float=SESSION_TIMEOUT):
+                 timeout:float=SESSION_TIMEOUT, transcripts:TranscriptStore|None=None):
+        self.transcripts=transcripts
+        self.speech=None
         self.archive=Path(archive_dir)
         self.lock_dir=lock_dir or (self.archive.parent/".receiver-locks")
         self.inventory=inventory or receiver_inventory
@@ -102,10 +107,13 @@ class LiveFM:
             try:fcntl.flock(fd,fcntl.LOCK_UN)
             finally:os.close(fd)
 
-    def start(self, frequency_mhz, *, record=False):
+    def start(self, frequency_mhz, *, record=False, subtitles=False,
+              language="en", translate_to=None, backend="auto"):
         hz,_=validate_request(frequency_mhz,10)
-        if type(record) is not bool:
-            raise ValueError("Record flag must be a Boolean")
+        if type(record) is not bool or type(subtitles) is not bool:
+            raise ValueError("Record/subtitles flags must be Boolean")
+        if subtitles and self.transcripts is None:
+            raise LiveError("Transcript store unavailable")
         with self.mutex:
             if self.state["active"]:
                 raise LiveError("Live radio session already active")
@@ -142,6 +150,13 @@ class LiveFM:
                     "backend":"rtl_fm → ffmpeg libmp3lame",
                 }
                 self.listener=False
+                self.speech=None
+                if subtitles:
+                    self.speech=SpeechPipeline(
+                        store=self.transcripts,session=session,
+                        source_id=f"fm:{hz}",source_language=language,
+                        target_language=translate_to,backend=backend,profile=detect_devices())
+                self.state["subtitles_requested"]=subtitles
                 self.last_seen=time.monotonic()
                 self.worker=threading.Thread(target=self._feed,daemon=True,name="tihulu-live-fm-pcm")
                 self.watchdog=threading.Thread(target=self._watch,daemon=True,name="tihulu-live-fm-watchdog")
@@ -176,6 +191,8 @@ class LiveFM:
                 pcm=rtl.stdout.read(8192)
                 if not pcm:
                     break
+                if self.speech is not None:
+                    self.speech.feed(pcm)
                 enc.stdin.write(pcm)
                 enc.stdin.flush()
         except (OSError,BrokenPipeError,ValueError):
@@ -210,6 +227,8 @@ class LiveFM:
             try:self.record_file.close()
             except OSError:pass
         self.record_file=None
+        if self.speech is not None:
+            self.speech.stop()
         self._release_lock()
         self.state.update(active=False,status=status,error=reason,
             ended_at=datetime.now(timezone.utc).isoformat(timespec="seconds"),
@@ -220,7 +239,10 @@ class LiveFM:
         with self.mutex:
             if heartbeat and self.state["active"]:
                 self.last_seen=time.monotonic()
-            return dict(self.state)
+            snapshot=dict(self.state)
+            snapshot["speech"]=self.speech.status() if self.speech else {
+                "enabled":False,"reason":"Speech transcription not requested or unavailable"}
+            return snapshot
 
     def stop(self,*,wait=False):
         with self.mutex:

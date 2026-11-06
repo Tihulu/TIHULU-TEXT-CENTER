@@ -60,6 +60,17 @@ def detect_devices(*, executable_lookup=None, device_root=None,
                     "detected":bool(npus),"runtime_ready":False,
                     "detail":"NPU device node != working speech/translation model runtime. Explicit compatible adapter required."})
     executable=lookup("whisper-cli") or lookup("main")
+    gpu_model_dir=os.environ.get("TIHULU_FASTER_WHISPER_MODEL","")
+    gpu_model=Path(gpu_model_dir).expanduser() if gpu_model_dir else None
+    cuda_count=0
+    if nvidia.strip() and importlib.util.find_spec("faster_whisper") is not None:
+        try:
+            import ctranslate2
+            cuda_count=int(ctranslate2.get_cuda_device_count())
+        except (ImportError,OSError,RuntimeError,ValueError):
+            cuda_count=0
+    gpu_ready=bool(cuda_count and gpu_model and gpu_model.is_dir() and
+                   (gpu_model/"model.bin").is_file() and (gpu_model/"config.json").is_file())
     speech_ready=bool(executable and model and model.is_file() and model.stat().st_size>1024)
     argos=importlib.util.find_spec("argostranslate") is not None
     return {
@@ -68,7 +79,8 @@ def detect_devices(*, executable_lookup=None, device_root=None,
             "engine":"whisper.cpp CLI","executable":executable,
             "model_path":str(model) if model else None,
             "model_installed":bool(model and model.is_file()),
-            "ready_cpu":speech_ready,"ready_gpu":False,"ready_npu":False,
+            "ready_cpu":speech_ready,"ready_gpu":gpu_ready,"ready_npu":False,
+            "gpu_model_path":str(gpu_model) if gpu_model else None,
             "note":"whisper.cpp model must already be installed; configured with TIHULU_WHISPER_MODEL. No inference can be claimed without real capture and model."
         },
         "translation":{
