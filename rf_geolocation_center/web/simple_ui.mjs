@@ -54,7 +54,7 @@ function explain(state,source){
   " · Satellites: "+(state.autoOrbits||[]).length+" predicted"+
   " · RF range hypotheses: "+measured);
 }
-function showDvb(channels){
+function showDvb(channels,sites=[]){
  const list=$("simple-tv-channels");if(!list)return;
  list.replaceChildren();
  const head=document.createElement("p");
@@ -64,9 +64,13 @@ function showDvb(channels){
   const row=document.createElement("div");row.className="simple-channel";
   const title=document.createElement("strong");title.textContent=s.name;
   const desc=document.createElement("small");
+  const matches=sites.filter(site=>site.broadcastType?.includes("television")&&
+    (site.televisionFrequenciesMHz||[]).some(freq=>Math.abs(freq-s.frequencyMHz)<.01)).slice(0,5);
   desc.textContent=s.frequencyMHz.toFixed(3)+" MHz · "+s.deliverySystem+
     " · service ID "+(s.serviceId??"unknown")+
-    " · network ID "+(s.networkId??"unknown")+" · SOURCE: FILE / NO TRANSMITTER POSITION";
+    " · network ID "+(s.networkId??"unknown")+
+    " · TV site candidates: "+(matches.length?matches.map(site=>site.name).join(", ")+" (FREQUENCY ONLY / UNVERIFIED)":"NONE IDENTIFIED")+
+    " · FILE METADATA, NOT POSITION";
   row.append(title,desc);list.append(row);
  }
 }
@@ -83,7 +87,7 @@ export function initSimpleUI({state,source,setView,renderEarth,renderPosition,fi
  for(const id of [...METHODS,...SOURCES.map(x=>x[0])]){
   const e=$(id);if(e&&typeof saved?.[id]==="boolean")e.checked=saved[id];
  }
- state.dvbChannels=restoreDvb();showDvb(state.dvbChannels);
+ state.dvbChannels=restoreDvb();showDvb(state.dvbChannels,state.catalogTowers||[]);
  if(state.dvbChannels.length)status("simple-tv-status",state.dvbChannels.length+
   " DVB channel records loaded from locally saved imported scan; not a live tuner scan or location measurement.");
  const nav=$("show-advanced-nav"),advanced=$("advanced-nav");
@@ -158,7 +162,7 @@ export function initSimpleUI({state,source,setView,renderEarth,renderPosition,fi
    if(!channels.length)throw Error("No supported DVBv5 channel sections with valid FREQUENCY found. Export a DVBv5 channel list from your Linux DVB scanner.");
    state.dvbChannels=channels;
    try{localStorage.setItem(TVKEY,JSON.stringify({importedAt:new Date().toISOString(),channels}))}catch{}
-   showDvb(channels);
+   showDvb(channels,state.catalogTowers||[]);
    status("simple-tv-status","Imported "+channels.length+" DVB channel entries from "+file.name+
       ". This is native scan metadata, NOT a browser hardware scan; no receiver location or transmitter coordinates are present.");
    window.dispatchEvent(new CustomEvent("tihulu:dvb-metadata-imported",{detail:{channels:channels.length}}));
@@ -170,6 +174,7 @@ export function initSimpleUI({state,source,setView,renderEarth,renderPosition,fi
   const d=e.detail||{};
   const towerCandidates=Array.isArray(d.towers)?d.towers:[];
   const signature=towerCandidates.map(x=>x.id+":"+(x.frequenciesMHz||[]).join(",")).join("|");
+  if(state.dvbChannels?.length)showDvb(state.dvbChannels,towerCandidates);
   if(signature&&signature!==lastCatalogSignature){
    lastCatalogSignature=signature;
    const candidates=towerCandidates.flatMap(x=>(x.frequenciesMHz||[])
@@ -184,8 +189,11 @@ export function initSimpleUI({state,source,setView,renderEarth,renderPosition,fi
     const item=document.createElement("div");item.className="simple-channel";
     const title=document.createElement("strong");title.textContent=site.name;
     const sub=document.createElement("small");sub.textContent=site.frequencyMHz?
-     site.frequencyMHz.toFixed(3)+" MHz (OSM frequency tag, unverified RF)":
-     "Mapped RF tower; no known broadcast frequency";
+     site.frequencyMHz.toFixed(3)+" MHz FM (OSM frequency tag, unverified)":
+     site.televisionFrequenciesMHz?.length?
+       site.televisionFrequenciesMHz.join(", ")+" MHz TV (OSM catalog, unverified)":
+       (site.broadcastType?.includes("television")?"TV broadcast tower; frequency not recorded":
+        "Mapped FM tower; no known frequency");
     item.append(title,sub);summary.append(item);
    }
   }
