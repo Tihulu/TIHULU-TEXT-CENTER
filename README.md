@@ -17,6 +17,14 @@ image decoding through SatDump. It releases its own SDR processes on stop;
 it never preempts Flight Radar/readsb. **Iridium is orbital/spectrum
 survey only**, not a private communications decoder.
 
+**Ground station (new):** browser-only Satellite Center accepts
+explicit opt-in device location through the Geolocation API, offline
+autocomplete of **8,084 German and Turkish cities/towns**, optional
+worldwide online lookup through Open-Meteo and fully custom latitude/longitude
+anywhere on Earth. The selected station drives both the pass planner and
+the Earth/Sky map; changing the station invalidates older pass predictions.
+See the [location and GPS guide](docs/SATELLITE_CENTER_COMPANION.md).
+
 **Browser-only WebUSB is now the preferred mode:** on supported desktop Chromium
 browsers, open the hosted Satellite Center, grant permission to the Nooelec
 RTL2832U, and capture raw IQ directly without installing the Python companion.
