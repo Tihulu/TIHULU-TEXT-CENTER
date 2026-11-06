@@ -196,7 +196,9 @@ export function createSatelliteMaps({getTles,getSatLib,getPasses,getLastCapture,
    const pin=leaflet.circleMarker([s.lat,s.lon],{radius:active?10:7,
       color:active?"#fff":labelFor(s.family),weight:active?3:2,
       fillColor:labelFor(s.family),fillOpacity:0.84});
-   pin.bindTooltip(s.name+" · "+elFormat(s.el)+" el · TLE estimate");
+   const tooltip=document.createElement("span");
+   tooltip.textContent=s.name+" · "+elFormat(s.el)+" el · TLE estimate";
+   pin.bindTooltip(tooltip);
    pin.addTo(markers);pin.on("click",()=>choose(s.id));
    if(active&&$("map-tracks").checked){
     const pts=[];
