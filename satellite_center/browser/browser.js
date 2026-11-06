@@ -333,6 +333,22 @@ $('city').addEventListener('change',()=>{
 });
 function invalidatePasses(){
  if(passes.length){passes=[];renderPasses();}
+ // A pass at another ground station is not the same schedule. Never run
+ // stale geometry after GPS, offline city or custom coordinates change.
+ let cancelled=0;
+ for(const job of jobs){
+   if(job.state==='armed'){
+     job.state='cancelled';
+     job.message='Ground station changed. Recalculate passes for the new location and schedule again.';
+     cancelled++;
+   }
+ }
+ if(cancelled){
+   log('Cancelled '+cancelled+' future pass capture(s): station location changed.');
+   status('schedule-readiness','Station changed: '+cancelled+
+     ' old timed scan(s) cancelled. Recalculate and confirm new local pass times.');
+   renderJobs();
+ }
  notifyMaps();
 }
 function parseTle(text,source='uploaded') {
