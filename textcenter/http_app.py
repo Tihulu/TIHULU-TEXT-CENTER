@@ -357,7 +357,8 @@ class Handler(BaseHTTPRequestHandler):
                     raise AutoScanError("DAB auto scan is already in progress")
                 if self.server.audio.status()["active"] or self.server.live_fm.status()["active"]:
                     raise AutoScanError("Existing FM audio/recording session must finish first")
-                return self._json(202,self.server.fm_auto.start(payload.get("mode","quick")))
+                return self._json(202,self.server.fm_auto.start(
+                    payload.get("mode","quick"),consent=payload.get("consent")))
             if route == "/api/auto/fm/stop":
                 return self._json(200,self.server.fm_auto.stop())
             if route == "/api/auto/dab/start":
@@ -375,7 +376,7 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(202,self.server.dab_auto.start(
                     payload.get("mode","full"),
                     dwell_seconds=payload.get("dwell_seconds",8),
-                    candidates=hints))
+                    candidates=hints,consent=payload.get("consent")))
             if route == "/api/auto/dab/stop":
                 return self._json(200,self.server.dab_auto.stop())
             if route == "/api/auto/dab/tune":
