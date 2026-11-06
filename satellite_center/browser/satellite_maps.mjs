@@ -53,6 +53,13 @@ export function createSatelliteMaps({getTles,getSatLib,getPasses,getLastCapture,
  const family=$("map-family"),showAbove=$("map-above"),time=$("map-time");
  const ground=$("earth-map"),sky=$("sky-chart"),info=$("map-detail"),list=$("map-list");
  let leaflet=null,earthMap=null,markers=null,tracks=null,stationPin=null;
+ let osmTiles=null,worldOutline=null,worldData=null,worldPromise=null;
+ let tileDeadline=null,tileFailures=0,tileSuccesses=0,basemapRevision=0;
+ const basemapChoice=$("map-basemap");
+ const basemapStatus=message=>{$("map-basemap-state").textContent=String(message);};
+ function clearTileDeadline(){
+   if(tileDeadline!==null){clearTimeout(tileDeadline);tileDeadline=null;}
+ }
  let current=[],satrecMap=new Map(),selectedId=null,skyHit=[],run=0,lastUpdate=0;
  let mapStarted=false,view="sky",loading=null;
  const status=text=>$("map-state").textContent=String(text);
@@ -218,6 +225,99 @@ export function createSatelliteMaps({getTles,getSatLib,getPasses,getLastCapture,
    }
   }
  }
+ // A page-hosted public-domain Natural Earth outline is a real, usable map
+ // background even when Brave Shields or network policy rejects OSM tiles.
+ async function getWorldOutlineData(){
+   if(worldData)return worldData;
+   if(!worldPromise){
+     worldPromise=(async()=>{
+       const response=await fetch("./natural-earth-land-110m.geojson",{cache:"force-cache"});
+       if(!response.ok)throw Error("Bundled Natural Earth outlines unavailable: HTTP "+response.status);
+       const data=await response.json();
+       if(data?.type!=="FeatureCollection"||!Array.isArray(data.features)||data.features.length<100)
+         throw Error("Invalid Natural Earth map data");
+       worldData=data;
+       return worldData;
+     })();
+   }
+   try{return await worldPromise;}catch(error){worldPromise=null;throw error;}
+ }
+ function removeOsm(){
+   clearTileDeadline();
+   if(osmTiles&&earthMap?.hasLayer(osmTiles))earthMap.removeLayer(osmTiles);
+   if(osmTiles){osmTiles.off();osmTiles=null;}
+ }
+ async function useWorldOutline(reason,revision){
+   try{
+     const features=await getWorldOutlineData();
+     if(revision!==basemapRevision||!earthMap||basemapChoice.value!=="outline")return;
+     if(!worldOutline){
+       worldOutline=leaflet.geoJSON(features,{
+         pane:"world-outline",
+         interactive:false,
+         style:{stroke:true,color:"#709caa",weight:0.9,opacity:0.85,
+                fillColor:"#22566f",fillOpacity:0.82}
+       });
+     }
+     removeOsm();
+     if(!earthMap.hasLayer(worldOutline))worldOutline.addTo(earthMap);
+     earthMap.attributionControl.addAttribution(
+       'World outlines: <a href="https://www.naturalearthdata.com/" target="_blank" rel="noopener noreferrer">Natural Earth (public domain)</a>'
+     );
+     basemapStatus(reason ? "OpenStreetMap tiles did not load ("+reason+"). Showing bundled Natural Earth land outlines instead. Satellites, orbit tracks and station marker remain available." :
+       "World outlines loaded locally from this GitHub Pages app. Detailed OSM streets are not shown; try Load / retry OpenStreetMap.");
+     log("Earth map: bundled Natural Earth fallback active; no external map tile download needed.");
+   }catch(error){
+     basemapStatus("Both map backgrounds failed: "+error.message+". Satellite positions may still appear over a plain background.");
+     log("Earth fallback: "+error.message);
+   }
+ }
+ function useOSMTiles(revision){
+   removeOsm();
+   if(worldOutline&&earthMap.hasLayer(worldOutline))earthMap.removeLayer(worldOutline);
+   if(revision!==basemapRevision||basemapChoice.value!=="osm")return;
+   tileFailures=0;tileSuccesses=0;
+   basemapStatus("Requesting OpenStreetMap tiles for the visible viewport… This is not confirmation that tiles loaded.");
+   const layer=leaflet.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png",{
+     minZoom:2,maxZoom:12,updateWhenIdle:true,keepBuffer:1,detectRetina:false,
+     attribution:'&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap contributors</a>'
+   });
+   osmTiles=layer;
+   const fallBack=reason=>{
+     if(revision!==basemapRevision||basemapChoice.value!=="osm"||tileSuccesses>0)return;
+     basemapChoice.value="outline";
+     const nextRevision=++basemapRevision;
+     clearTileDeadline();
+     void useWorldOutline(reason,nextRevision);
+   };
+   layer.on("tileload",()=>{
+     if(revision!==basemapRevision)return;
+     tileSuccesses++;
+     if(tileSuccesses===1){
+       clearTileDeadline();
+       basemapStatus("OpenStreetMap tiles loaded. Ground and satellite locations are predicted from orbit data, not detected by USB.");
+     }
+   });
+   layer.on("tileerror",()=>{
+     if(revision!==basemapRevision)return;
+     tileFailures++;
+     if(tileFailures>=3&&tileSuccesses===0)fallBack("multiple tile request errors");
+     else if(tileSuccesses>0)basemapStatus("OpenStreetMap partially loaded: "+tileFailures+
+       " tile request error(s). Check Brave Shields/network or choose World outlines.");
+   });
+   layer.addTo(earthMap);
+   // Some privacy extensions prevent tile events entirely. Never report success
+   // until at least one real tileload; switch to a usable local map after 9s.
+   tileDeadline=setTimeout(()=>fallBack("no tiles loaded within 9 seconds"),9000);
+ }
+ async function changeBasemap(mode,why=""){
+   if(!earthMap)return;
+   basemapChoice.value=mode;
+   const revision=++basemapRevision;
+   clearTileDeadline();
+   if(mode==="outline")await useWorldOutline(why,revision);
+   else useOSMTiles(revision);
+ }
  async function openEarth(){
   if(earthMap){setView("earth");return;}
   if(loading)return loading;
@@ -239,15 +339,14 @@ export function createSatelliteMaps({getTles,getSatLib,getPasses,getLastCapture,
    leaflet=L;const o=observer();
    setView("earth"); // Show container before Leaflet measures its dimensions.
    earthMap=L.map("earth-map",{worldCopyJump:true,preferCanvas:true}).setView([o.lat,o.lon],3);
-   L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png",{
-    minZoom:2,maxZoom:12,updateWhenIdle:true,keepBuffer:1,detectRetina:false,
-    attribution:'&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap contributors</a>'
-   }).addTo(earthMap);
+   const worldPane=earthMap.createPane("world-outline");
+   worldPane.style.zIndex="225"; // above raster tiles, below satellite overlays
    markers=L.layerGroup().addTo(earthMap);tracks=L.layerGroup().addTo(earthMap);
    stationPin=L.circleMarker([o.lat,o.lon],{radius:8,color:"#fff",weight:2,
       fillColor:"#27ddff",fillOpacity:0.9}).bindTooltip("Ground station (manual coordinates)").addTo(earthMap);
    setView("earth");earthMap.invalidateSize();drawEarth();
-   status("OSM Earth map ready · orbit predictions only; map tiles are requested for the visible area.");
+   await changeBasemap(basemapChoice.value);
+   status("Earth map initialized: orbit predictions only. Check the basemap status below for actual imagery load.");
   })();
   try{await loading;}finally{loading=null;}
  }
@@ -288,9 +387,21 @@ export function createSatelliteMaps({getTles,getSatLib,getPasses,getLastCapture,
   });
  }
  $("map-load").addEventListener("click",()=>{
-  mapStarted=true;void openEarth().then(refresh).catch(e=>{
-   status("Earth map unavailable: "+e.message+"; sky chart still works.");log("OSM map: "+e.message);
+  mapStarted=true;
+  basemapChoice.value="osm";
+  void openEarth().then(async()=>{
+    if(earthMap&&osmTiles===null)await changeBasemap("osm");
+    else if(earthMap)await changeBasemap("osm"); // deliberate Retry rechecks tiles
+    await refresh();
+  }).catch(e=>{
+   basemapStatus("Earth map unavailable: "+e.message+"; sky chart still works.");
+   status("Earth map unavailable: "+e.message);log("OSM map: "+e.message);
   });
+ });
+ basemapChoice.addEventListener("change",()=>{
+  mapStarted=true;
+  void openEarth().then(async()=>{await changeBasemap(basemapChoice.value);await refresh();})
+    .catch(e=>basemapStatus("Basemap unavailable: "+e.message));
  });
  $("map-recenter").addEventListener("click",()=>{
   if(!earthMap)return;try{const o=observer();earthMap.setView([o.lat,o.lon],Math.max(3,earthMap.getZoom()));}catch(e){status(e.message);}
@@ -308,7 +419,10 @@ export function createSatelliteMaps({getTles,getSatLib,getPasses,getLastCapture,
  const tick=setInterval(()=>{
   if(mapStarted&&!document.hidden&&Number(time.value)===0&&Date.now()-lastUpdate>15000)void refresh();
  },18000);
- window.addEventListener("pagehide",()=>{clearInterval(tick);if(earthMap)earthMap.remove();});
+ window.addEventListener("pagehide",()=>{
+  clearInterval(tick);clearTileDeadline();removeOsm();
+  if(earthMap){earthMap.remove();earthMap=null;}
+ });
  mapStarted=true;setView("sky");drawList();
  status("Load TLE data, then use Sky or Earth. Tracking is geometric; USB permission alone does not prove reception.");
  return {refresh,choose};
