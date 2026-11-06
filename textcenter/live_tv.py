@@ -128,6 +128,7 @@ class LiveTV:
         self.speech=None
         self.teletext_sidecar=None
         self.teletext_last_seen=None
+        self.teletext_probe_until=0
         self.caption_source="auto"
         self.caption_enabled=False
         self.caption_show_original=True
@@ -180,6 +181,7 @@ class LiveTV:
             self.speech=None
             self.teletext_sidecar=None
             self.teletext_last_seen=None
+            self.teletext_probe_until=0
             self.caption_source=subtitle_source
             self.caption_enabled=subtitles
             self.subtitle_target=translate_to
@@ -279,6 +281,10 @@ class LiveTV:
             return
         if not status["active"]:
             self.subtitle_error=status.get("error") or "Teletext decoder unavailable"
+        else:
+            # Give actually broadcast Teletext a chance before consuming CPU
+            # with fallback ASR. A decoder which exits immediately is not held.
+            self.teletext_probe_until=time.monotonic()+15
 
     def _on_received_teletext(self,cue):
         """Only FFmpeg-decoded timed subtitle text may reach this path."""
@@ -318,6 +324,11 @@ class LiveTV:
         if self.caption_source=="speech":return "speech" if self.speech else "speech_unavailable"
         if self.teletext_last_seen is not None and time.monotonic()-self.teletext_last_seen<15:
             return "teletext"
+        if (self.teletext_last_seen is None and
+            self.teletext_sidecar is not None and
+            self.teletext_sidecar.status()["active"] and
+            time.monotonic()<self.teletext_probe_until):
+            return "teletext_waiting"
         return "speech" if self.speech else "unavailable"
 
     def configure_captions(self,*,enabled=None,source=None,translate_to=None,
