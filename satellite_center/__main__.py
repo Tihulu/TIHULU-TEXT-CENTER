@@ -542,6 +542,10 @@ class Station:
                 if chosen.tzinfo is None:
                     raise ValueError("Scheduled start must include UTC offset")
                 chosen = chosen.astimezone(UTC)
+            if chosen<aos and chosen>=aos-timedelta(seconds=120):
+                # Browser pass planners display minute resolution. Align an
+                # early start within two minutes to the server's exact AOS.
+                chosen=aos
             duration = 60 if seconds is None else seconds
             if type(duration) is not int or not 8 <= duration <= MAX_CAPTURE_SECONDS:
                 raise ValueError("Native recording must be 8–900 whole seconds")

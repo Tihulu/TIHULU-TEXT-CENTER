@@ -96,7 +96,7 @@ const connectionReady = () => !hosted || !!pairingToken;
 const $=id=>document.getElementById(id);
 const fmtTime=iso=>new Date(iso).toLocaleString(undefined,{dateStyle:'short',timeStyle:'short'});
 const localTimeInput=iso=>{const d=new Date(iso),pad=n=>String(n).padStart(2,"0");
- return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate())+"T"+pad(d.getHours())+":"+pad(d.getMinutes())};
+ return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate())+"T"+pad(d.getHours())+":"+pad(d.getMinutes())+":"+pad(d.getSeconds())};
 const show=(el,txt)=>{el.textContent=txt;};
 function log(text){$('log').textContent=(new Date()).toLocaleTimeString()+' — '+String(text)+'\n'+$('log').textContent.slice(0,5500)}
 async function api(path, data){
@@ -157,7 +157,7 @@ function renderPasses(items){
   }
   label.append(select);
   const timeLabel=text('label','Start · device local time'),time=document.createElement('input');
-  time.type='datetime-local';time.step='60';time.value=localTimeInput(pass.aos);timeLabel.append(time);
+  time.type='datetime-local';time.step='1';time.value=localTimeInput(pass.aos);timeLabel.append(time);
   const durationLabel=text('label','Record length · seconds (8–900)'),duration=document.createElement('input');
   duration.type='number';duration.min='8';duration.max='900';duration.step='1';duration.value='60';
   durationLabel.append(duration);
