@@ -4,6 +4,7 @@
 import { analyzeCu8Blob,parseCu8Filename } from "./iq_analysis.mjs?v=20261106-cuiq-v13";
 import { analyzeFullCu8Blob,demodulateCu8Preview } from "./iq_intelligence.mjs?v=20261106-signal-v1";
 import {discoverCu8Contents,discoveryReportJson} from "./signal_discovery.mjs?v=20261106-discovery-v1";
+import {createResultsZip} from "./results_zip.mjs";
 const $=id=>document.getElementById(id);
 const clamp=(n,low,high)=>Math.max(low,Math.min(high,n));
 const fmt=n=>Number.isFinite(n)?Number(n).toLocaleString(undefined,{maximumFractionDigits:2}):"N/A";
@@ -165,6 +166,7 @@ export function initIqAnalysisUI({log=()=>{}}={}){
    $("iq-export-metadata").disabled=!lastReport||inProgress;
    $("iq-auto-discover").disabled=inProgress;
    $("iq-discovery-export").disabled=!lastDiscovery||inProgress;
+   $("iq-discovery-zip").disabled=(!lastReport&&!lastDiscovery)||inProgress;
  }
  function updateMetadata(meta){
    if(!meta)return;
@@ -397,6 +399,68 @@ export function initIqAnalysisUI({log=()=>{}}={}){
  $("iq-discovery-export").addEventListener("click",()=>{
    if(!lastDiscovery)return;
    downloadJson(discoveryReportJson(lastDiscovery),lastReportName||"CU8-discovery");
+ });
+ $("iq-discovery-zip").addEventListener("click",async()=>{
+   if(inProgress||(!lastReport&&!lastDiscovery))return;
+   const btn=$("iq-discovery-zip"),state=$("iq-discovery-zip-status");
+   btn.disabled=true;
+   const entries=[],manifest={
+     format:"tihulu-cu8-analysis-v1",
+     sourceRecording:lastReportName||lastName||"unknown",
+     createdUtc:new Date().toISOString(),
+     rawIqIncluded:false,
+     note:"RF measurements and decoder candidates only. No verified spacecraft or complete onboard data.",
+     files:[],warnings:[]
+   };
+   const json=obj=>new Blob([JSON.stringify(obj,null,2)],{type:"application/json"});
+   const add=(name,blob,kind,quality)=>{
+     entries.push({name,blob});manifest.files.push({name,kind,bytes:blob.size,quality});
+   };
+   try{
+     state.textContent="Preparing local results ZIP (no uploads)…";
+     if(lastReport)add("analysis/spectrum.json",json(lastReport),"measured FFT",
+                       "Uncalibrated spectral data from supplied CU8");
+     if(lastDiscovery){
+       add("analysis/discovery.json",json(discoveryReportJson(lastDiscovery)),
+           "decoder evidence","Unverified spacecraft origin");
+       for(let i=0;i<(lastDiscovery.images||[]).length;i++){
+         const frame=lastDiscovery.images[i];
+         if(!Number.isInteger(frame.width)||!Number.isInteger(frame.height)||
+            frame.width<1||frame.height<1||frame.width*frame.height>8_000_000){
+           manifest.warnings.push("Invalid image dimensions for candidate "+(i+1));continue;
+         }
+         try{
+           const canvas=document.createElement("canvas");canvas.width=frame.width;canvas.height=frame.height;
+           const ctx=canvas.getContext("2d");if(!ctx)throw Error("Canvas unsupported");
+           ctx.putImageData(new ImageData(frame.rgba,frame.width,frame.height),0,0);
+           const blob=await new Promise(resolve=>canvas.toBlob(resolve,"image/png"));
+           if(!blob)throw Error("PNG conversion failed");
+           add("images/robot36_candidate_"+(i+1)+".png",blob,"image candidate",
+               "Robot36 line sync measured; spacecraft not independently verified");
+         }catch(error){manifest.warnings.push("Image "+(i+1)+" omitted: "+error.message);}
+       }
+       for(let i=0;i<(lastDiscovery.audioProbes||[]).length&&i<8;i++){
+         const probe=lastDiscovery.audioProbes[i];
+         if(probe.audioBlob instanceof Blob)
+           add("audio/probe_"+(i+1)+".wav",probe.audioBlob,"audio candidate",
+               "Real demodulation, speech/content unverified");
+       }
+     }
+     entries.unshift({name:"manifest.json",blob:json(manifest)});
+     entries.push({name:"README.txt",data:
+       "TIHULU Satellite Center: actual CU8 analysis outputs.\n"+
+       "Raw IQ excluded. Decoded media candidates do not prove satellite origin.\n"});
+     const zip=await createResultsZip(entries);
+     const url=URL.createObjectURL(zip),link=document.createElement("a");
+     link.href=url;link.download="TIHULU_CU8_results_"+new Date().toISOString().replace(/[:.]/g,"-")+".zip";
+     document.body.append(link);link.click();link.remove();
+     setTimeout(()=>URL.revokeObjectURL(url),30000);
+     state.textContent="ZIP download requested: "+manifest.files.length+
+       " actual output(s). Verify your browser Downloads.";
+   }catch(error){
+     state.textContent="ZIP unavailable: "+String(error?.message||error)+
+       ". Individual results and original CU8 remain available.";
+   }finally{setControls();}
  });
  $("iq-analyze-last").addEventListener("click",()=>{
    if(!lastBlob)return;updateMetadata(lastMetadata);

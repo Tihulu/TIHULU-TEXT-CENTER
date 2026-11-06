@@ -1,6 +1,6 @@
 import { platformFamily, webUsbHelp, permissionReport, usbInterfaceClaimProbe } from './usb_diagnostics.mjs?v=20261106-dvb-unbind-v09';
 import { createSatelliteMaps } from './satellite_maps.mjs?v=20261106-live-v14';
-import { initIqAnalysisUI } from './iq_analysis_ui.mjs?v=20261106-discovery-integrated-v1';
+import { initIqAnalysisUI } from './iq_analysis_ui.mjs?v=20261106-calendar-zip-v2';
 import { initSatelliteImageUI } from './satellite_images_ui.mjs?v=20261106-images-v15b';
 import { recordingName } from './satellite_imagery.mjs?v=20261106-images-v15';
 import { initStationLocationUI } from './location_search.mjs';
@@ -8,8 +8,8 @@ import { probeUsbSamples, sampleBytes } from './usb_live_probe.mjs?v=20261106-ma
 import { sortPassList } from './pass_sort.mjs';
 import { protocolsForPass, protocolCategories, passesFilteredByContent } from './pass_protocol_catalog.mjs';
 import {readUserProfiles} from './saved_satellite_protocols.mjs';
-import { selectAutomaticPasses, AUTO_TARGETS } from './auto_mission.mjs?v=20261106-full-pass-budget-v1';
-import {localDayKey,shiftCalendarDay,renderSatelliteCalendar} from './satellite_calendar.mjs';
+import { selectAutomaticPasses, AUTO_TARGETS } from './auto_mission.mjs?v=20261106-calendar-zip-v2';
+import {localDayKey,shiftCalendarDay,renderSatelliteCalendar} from './satellite_calendar.mjs?v=20261106-calendar-zip-v2';
 import { localDateInput, parseLocalScheduleTime, createScheduledPass, evaluateScheduledJob, secondsToJob, captureLevelSummary } from './schedule_controller.mjs';
 // TIHULU Satellite Center — no-local-install receive-only browser mode.
 // The RTL-SDR device is opened only after a direct user gesture.
@@ -1172,10 +1172,9 @@ $('auto-analyze').addEventListener('click',()=>{
 });
 $('auto-results').addEventListener('click',()=>{
   $('iq-discovery-results').scrollIntoView({behavior:'smooth',block:'start'});
-  if(!$('iq-discovery-export').disabled){
-    $('iq-discovery-export').click();
-    $('auto-plan-status').textContent='Exported discovery evidence JSON. Below you can save individually validated Robot36 PNGs and audio candidate WAVs; no unsupported APRS/LRPT messages are invented.';
-  }else $('auto-plan-status').textContent='No completed discovery results yet. Use Analyze Recordings after an actual RF capture.';
+  $('auto-plan-status').textContent=!$('iq-discovery-zip').disabled?
+    'Inspect the actual measured spectrum, Robot36 image candidates and audio previews below. Save everything as ZIP or download individual files. No satellite origin is presumed.':
+    'No completed analysis results yet. Analyze a real CU8 recording first.';
 });
 // Carry the operator's coverage preference from Images & Data without URL
 // coordinates or background USB permission prompts.

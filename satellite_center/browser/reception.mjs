@@ -1,6 +1,6 @@
 import {MISSIONS, missionById, localFileKind, fileEvidence} from "./reception_catalog.mjs";
 import {initSatelliteImageUI} from "./satellite_images_ui.mjs";
-import {initAutoReceptionUI} from "./auto_reception_ui.mjs?v=20261106-full-pass-budget-v1";
+import {initAutoReceptionUI} from "./auto_reception_ui.mjs?v=20261106-calendar-zip-v2";
 import {initSavedProtocolUI} from "./user_protocol_ui.mjs";
 
 const byId=id=>document.getElementById(id);
