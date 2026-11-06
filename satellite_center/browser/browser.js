@@ -1,6 +1,6 @@
 import { platformFamily, webUsbHelp, permissionReport, usbInterfaceClaimProbe } from './usb_diagnostics.mjs?v=20261106-dvb-unbind-v09';
 import { createSatelliteMaps } from './satellite_maps.mjs?v=20261106-live-v14';
-import { initIqAnalysisUI } from './iq_analysis_ui.mjs?v=20261106-calendar-zip-v2';
+import { initIqAnalysisUI } from './iq_analysis_ui.mjs?v=20261106-iss-npu-release-v1';
 import { initSatelliteImageUI } from './satellite_images_ui.mjs?v=20261106-images-v15b';
 import { recordingName } from './satellite_imagery.mjs?v=20261106-images-v15';
 import { initStationLocationUI } from './location_search.mjs';
@@ -8,7 +8,7 @@ import { probeUsbSamples, sampleBytes } from './usb_live_probe.mjs?v=20261106-ma
 import { sortPassList } from './pass_sort.mjs';
 import { protocolsForPass, protocolCategories, passesFilteredByContent } from './pass_protocol_catalog.mjs';
 import {readUserProfiles} from './saved_satellite_protocols.mjs';
-import { selectAutomaticPasses, AUTO_TARGETS } from './auto_mission.mjs?v=20261106-calendar-zip-v2';
+import { selectAutomaticPasses, AUTO_TARGETS } from './auto_mission.mjs?v=20261106-iss-npu-release-v1';
 import {localDayKey,shiftCalendarDay,renderSatelliteCalendar} from './satellite_calendar.mjs?v=20261106-calendar-zip-v2';
 import { localDateInput, parseLocalScheduleTime, createScheduledPass, evaluateScheduledJob, secondsToJob, captureLevelSummary } from './schedule_controller.mjs?v=20261106-stream-iq-v1';
 import {captureBudget,formatCaptureBudget,STREAM_IQ_BYTES} from './capture_duration.mjs?v=20261106-stream-v1';
@@ -208,7 +208,7 @@ if (!hardwareSupported) {
         Number.isFinite(intent.createdAt) && Date.now()-intent.createdAt>=0 &&
         Date.now()-intent.createdAt<=5*60000);
     } catch(error){ log('Auto mission intent rejected: '+error.message); }
-    if(permittedAutoIntent&&['images','messages','voice','all'].includes(requested)){
+    if(permittedAutoIntent&&['iss-images','images','messages','voice','all'].includes(requested)){
       void runAutoMission({mode:requested,fromNavigation:true});
     }
   }).catch(err => {
@@ -1397,7 +1397,7 @@ try {
     $('auto-browser-seconds').value=transferredSeconds;
 } catch(_error) { /* Storage unavailable: keep safe full-data default. */ }
 const requestedAutoMission=new URLSearchParams(location.search).get('auto-mission');
-if(['images','messages','voice','all'].includes(requestedAutoMission)){
+if(['iss-images','images','messages','voice','all'].includes(requestedAutoMission)){
   $('auto-mode').value=requestedAutoMission;
   $('auto-plan-status').textContent='Reception type preselected. Click Auto Schedule & Capture to grant hardware permission and arm passes.';
 }
