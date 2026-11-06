@@ -21,6 +21,19 @@ class RadarTests(unittest.TestCase):
         self.assertEqual(merged[0]["sources"],["antenna","internet"])
         self.assertEqual(merged[0]["position_source"],"antenna")
 
+    def test_cached_rf_never_overrides_fresh_internet_aircraft(self):
+        rf=parse_aircraft({"aircraft":[{"hex":"abcdef","seen":1,
+             "lat":51.0,"lon":7.0}]},"antenna")
+        rf[0]["stale"]=True
+        net=parse_aircraft({"ac":[{"hex":"abcdef","seen":10,
+             "lat":52.0,"lon":8.0}]},"internet")
+        merged=combine_aircraft(rf,net)
+        self.assertEqual(merged[0]["position_source"],"internet")
+        self.assertEqual(merged[0]["lat"],52.0)
+        self.assertFalse(merged[0]["stale"])
+        self.assertEqual(merged[0]["source_freshness"],{
+            "antenna":"cached","internet":"live"})
+
     def test_manual_local_internet_hybrid_and_offline_cache(self):
         with tempfile.TemporaryDirectory() as td:
             calls=[]
