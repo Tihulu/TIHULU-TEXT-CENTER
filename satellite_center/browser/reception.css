@@ -23,3 +23,14 @@
 .file-preview .file-warning{color:#ffca91}
 .reception-main footer{font-size:.85rem;color:#b5c9df;padding:10px 0}
 @media(max-width:760px){.reception-grid{grid-template-columns:1fr}.reception-actions>*{flex:1 1 auto}.reception-main>section,.reception-grid>section{padding:13px}}
+
+.mission-job-list{display:grid;gap:6px;margin:6px 0}
+.mission-job{background:#102d41;border:1px solid #40618b;border-radius:9px;padding:8px 12px;font-size:.9rem}
+.mission-extraction{display:grid;gap:12px}
+.mission-result{border:1px solid #345376;border-radius:12px;padding:12px;background:#0c1e34;min-width:0}
+.mission-result img,.mission-result canvas{display:block;width:auto;max-width:100%;max-height:440px;object-fit:contain;border-radius:8px;margin:10px 0;background:transparent}
+.mission-result audio{display:block;max-width:100%;margin:8px 0}
+.mission-result pre{white-space:pre-wrap;overflow-wrap:anywhere;max-height:320px;overflow:auto}
+.mission-result button{margin:6px 6px 6px 0;min-height:38px}
+#auto-mission-center .reception-controls input{max-width:230px}
+#auto-mission-center button:disabled{opacity:.5}
