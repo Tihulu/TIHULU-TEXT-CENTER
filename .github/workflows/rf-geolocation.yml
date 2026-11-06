@@ -31,6 +31,8 @@ jobs:
           node --check rf_geolocation_center/web/catalog_discovery.mjs
           node --check rf_geolocation_center/web/simple_ui.mjs
           node --check rf_geolocation_center/web/hardware_manager.mjs
+          node --check rf_geolocation_center/web/dvb_bridge_client.mjs
+          node --check rf_geolocation_center/core/scan_map.mjs
           node --check rf_geolocation_center/core/dvb_scan.mjs
           node --check rf_geolocation_center/core/gnss.mjs
           node --check rf_geolocation_center/core/positioning.mjs
@@ -49,7 +51,7 @@ jobs:
         with:
           python-version: '3.11'
       - name: Verify launcher unit and real localhost HTTP smoke tests
-        run: python -m unittest discover -s rf_geolocation_center/tests -p 'test_native.py' -v
+        run: python -m unittest discover -s rf_geolocation_center/tests -p 'test_*.py' -v
       - name: Compile optional Python loopback launcher
         run: python -m compileall -q rf_geolocation_center
       - name: Inspect honest native backend diagnostics
