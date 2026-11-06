@@ -24,7 +24,9 @@ export function llaFromECEF(x,y,z){
  const lat=Math.atan2(z+ep2*b*Math.sin(t)**3,p-e2*a*Math.cos(t)**3);
  const sl=Math.sin(lat),N=a/Math.sqrt(1-e2*sl*sl);
  const alt=Math.abs(Math.cos(lat))<1e-9?Math.abs(z)-b:p/Math.cos(lat)-N;
- return validateLLA(lat/DEG,lon/DEG,alt);
+ if(!Number.isFinite(alt)||Math.abs(alt)>50_000_000)throw Error("Invalid ECEF-derived altitude");
+ validateLLA(lat/DEG,lon/DEG,0); // Coordinate bounds; orbit altitude is not a ground-station altitude.
+ return {lat:lat/DEG,lon:lon/DEG,alt};
 }
 export function azElRange(targetECEF,observerLLA){
  const {lat,lon,alt=0}=observerLLA;
@@ -54,18 +56,46 @@ export function rtlSignalClass(mhz){
  if(mhz < .1||mhz>1750)return "Outside approximate tuner range";
  return "Frequency in nominal tuner range; GNSS antenna, LNA, clock, decoder and tracking NOT verified";
 }
+/* SP3-c/d epochs use the declared time system (often GPS, not UTC).
+ * GPS-UTC leap table for historic dates through 2026; actual UTC time labels
+ * need explicit conversion and a valid header. Other systems fail closed.
+ * Ref: IGS SP3-c specification and NIST/IERS leap-second announcements.
+ */
+const GPS_LEAPS=[
+ [1980,1,6,0],[1981,7,1,1],[1982,7,1,2],[1983,7,1,3],
+ [1985,7,1,4],[1988,1,1,5],[1990,1,1,6],[1991,1,1,7],
+ [1992,7,1,8],[1993,7,1,9],[1994,7,1,10],[1996,1,1,11],
+ [1997,7,1,12],[1999,1,1,13],[2006,1,1,14],[2009,1,1,15],
+ [2012,7,1,16],[2015,7,1,17],[2017,1,1,18]
+];
+function gpsEpochToUTC(gpsUnixMs){
+ if(gpsUnixMs>Date.UTC(2027,0,1,0,0,30))
+  throw Error("GPS-UTC leap-second table needs review for dates after 2026");
+ let offset=0;
+ for(const [y,mo,d,leaps] of GPS_LEAPS)
+  if(gpsUnixMs>=Date.UTC(y,mo-1,d)+leaps*1000)offset=leaps;
+ return gpsUnixMs-offset*1000;
+}
 export function parseSP3(text){
  if(typeof text!=="string"||text.length>5_000_000)throw Error("SP3 input must be text, max 5 MB");
+ const lines=text.split(/\r?\n/),header=lines.slice(0,Math.max(0,lines.findIndex(l=>l.startsWith("* "))));
+ const timeSystem=header.filter(l=>l.startsWith("%c"))
+   .map(l=>l.match(/\b(GPS|UTC|TAI|GAL|GLO|QZS)\b/))
+   .find(Boolean)?.[1];
+ if(!timeSystem)throw Error("SP3 time system missing; require a standards-compliant %c GPS or UTC header");
+ if(timeSystem!=="GPS"&&timeSystem!=="UTC")
+  throw Error("SP3 time system "+timeSystem+" requires a separately verified time conversion; not assumed UTC");
  const data=new Map(); let epoch=null,epochs=0;
- for(const line of text.split(/\r?\n/)){
+ for(const line of lines){
    if(line.startsWith("* ")){
      const m=line.match(/^\*\s+(\d{4})\s+(\d{1,2})\s+(\d{1,2})\s+(\d{1,2})\s+(\d{1,2})\s+([\d.]+)/);
      if(!m)throw Error("Malformed SP3 epoch");
      const [y,mo,d,h,mi,sec]=m.slice(1).map(Number);
-     if(y<1980||y>2200||mo<1||mo>12||d<1||d>31||h>23||mi>59||sec>=60)throw Error("Invalid SP3 UTC epoch");
-     epoch=Date.UTC(y,mo-1,d,h,mi,Math.floor(sec),Math.round((sec%1)*1000));
-     const dt=new Date(epoch);
+     if(y<1980||y>2200||mo<1||mo>12||d<1||d>31||h>23||mi>59||sec>=60)throw Error("Invalid SP3 time-system epoch");
+     const tagged=Date.UTC(y,mo-1,d,h,mi,Math.floor(sec),Math.round((sec%1)*1000));
+     const dt=new Date(tagged);
      if(dt.getUTCFullYear()!==y||dt.getUTCMonth()!==mo-1||dt.getUTCDate()!==d)throw Error("Invalid SP3 calendar date");
+     epoch=timeSystem==="GPS"?gpsEpochToUTC(tagged):tagged;
      if(++epochs>2048)throw Error("SP3 too many epochs");
    }else if(line.startsWith("P")&&epoch!==null){
      const m=line.match(/^P([GRECJIS]\d{2})\s+([-+]?[\d.]+)\s+([-+]?[\d.]+)\s+([-+]?[\d.]+)/);
@@ -81,9 +111,10 @@ export function parseSP3(text){
  if(!epochs||!data.size)throw Error("No valid orbital positions in SP3 input");
  for(const [id,rows] of data) data.set(id,rows.sort((a,b)=>a.t-b.t)
      .filter((r,i,arr)=>i===0||r.t!==arr[i-1].t));
- const times=[...data.values()].flatMap(x=>x.map(r=>r.t));
+ let first=Infinity,last=-Infinity;
+ for(const rows of data.values())for(const row of rows){if(row.t<first)first=row.t;if(row.t>last)last=row.t;}
  return {source:"User-imported SP3 orbital file",type:"precise_orbit_samples",data,
-   first:Math.min(...times),last:Math.max(...times),satelliteCount:data.size,
+   first,last,satelliteCount:data.size,timeSystem,displayTimeSystem:"UTC",
    warning:"Orbit geometry only, NOT received GNSS or navigation clock corrections."};
 }
 export function positionAt(rows,t){
