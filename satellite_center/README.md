@@ -10,6 +10,61 @@
 
 This is the **new `satellite_center/` directory** intended to be placed at the root of `Tihulu/TIHULU-TEXT-CENTER`. It does **not** alter Text Center routes, UI, recordings or the Survival Kit. Integration can be decided later.
 
+## v0.15 — Satellite Images and source-attributed recordings (2026-11-06)
+
+**Satellite Images** in the browser-only/Pages app offers two distinct,
+non-interchangeable acquisition paths:
+
+1. **Received with user's RTL-SDR:** actual ISS **Robot36 SSTV** events
+   (frequency and image mode are event-dependent; consult the
+   [ARISS schedule](https://www.ariss.org/upcoming-sstv-events.html)).
+   Select a locally captured demodulated FM WAV, or experiment with
+   recorded unsigned CU8 → narrowband FM → 1200 Hz sync detection →
+   320×240 Robot36 conversion. A decoded image is only shown if there
+   are repeated, aligned audio syncs. All such decodes are experimental
+   candidates, never assured ISS origin. Raw frequency power/geometry
+   does not count as a received image.
+2. **Meteor-M2-3/M2-4 LRPT:** locally captured CU8 can be decoded with
+   the optional native SatDump CLI. The installed companion supports
+   72k/80k pipeline choices and displays only real SatDump PNG/JPEG
+   outputs. No unsupported promise to decode Meteor LRPT in the
+   browser-only page; the in-browser RF/FM/Robot36 path is SSTV only.
+3. **Online original imagery:** NASA DSCOVR EPIC Earth photographs and
+   historic ISS Earth photographs from the NASA Images archive are
+   requested *on demand* via official NASA APIs. The online gallery
+   labels actual source and acquisition timestamps and never presents
+   external NASA downloads as if they were received via the local USB
+   antenna. NASA API rate limits/CORS may require opening the official
+   gallery. Official EUMETSAT and NOAA weather image viewers are also
+   linked for international use.
+
+**Filename convention:** `TIHULU_<SATELLITE-CANDIDATE>_<YYYYMMDDTHHMMSSZ>_<FREQUENCY>Hz[_<SAMPLE-RATE>SPS]_<IQ|SSTV|LRPT|...>.<ext>`.
+UTC avoids Windows/macOS/Linux/Raspberry Pi timezone ambiguity. Unknown
+attribution is explicitly `RF-UNATTRIBUTED`; observing a TLE pass is
+not proof of the transmitted signal's identity. Existing legacy raw
+recordings remain openable. The most recent browser I/Q recording
+is available for local FFT analysis and optional experimental SSTV
+decode, without uploading samples.
+
+**Shared cross-platform UI:** The installed Python local companion
+on Debian/Ubuntu/Pop!_OS, Raspberry Pi OS, Windows x64 and macOS Apple
+Silicon now exposes **Open live map and Satellite Images**, loading the
+exact same browser sources as GitHub Pages from its local
+`/browser/index.html` route. The 1-second LIVE TLE view, Pause, Sky,
+Earth map, and image gallery thus share one implementation.
+The embedded web interface is only loaded when requested and releases
+its own USB session on close. Two SDR frontends cannot own the same
+physical dongle simultaneously. Page-only WebUSB requires a compatible
+desktop Chromium-family browser; the desktop companion uses its native
+RTL-SDR tools for its own capture workflows.
+
+**Verification limits:** Core browser JS parses, UI controls are wired,
+image-naming metadata round-trips, and synthetic 240-scan-line Robot36
+audio yielded a 320×240 candidate. Cross-platform CI is defined for
+Ubuntu x64/ARM, Windows, and macOS, but physical SSTV/LRPT, receiving
+antennas, browser CORS and native hardware remain unverified until
+tested on compatible real RF data. No fabricated space imagery.
+
 ## Primary: browser-only direct WebUSB (no local installer)
 
 [Open the public Satellite Center](https://tihulu.github.io/TIHULU-TEXT-CENTER/satellite_center/)
