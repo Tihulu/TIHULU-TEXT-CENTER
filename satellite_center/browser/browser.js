@@ -558,7 +558,10 @@ function fmtTime(time){return new Date(time).toLocaleString(undefined,{dateStyle
 function scheduleFrequencyChoices(family){
   const known={
     iss:[[145800000,"ISS VHF 145.800 MHz (voice/SSTV vicinity)"],
-         [145825000,"ISS APRS 145.825 MHz"],[437800000,"ISS UHF 437.800 MHz"]],
+         [145825000,"ISS APRS 145.825 MHz (historical/alternate; check ARISS)"],
+         [437825000,"ISS UHF APRS 437.825 MHz (verify current status)"],
+         [437550000,"ISS SSTV Robot36 437.550 MHz (event-only)"],
+         [437800000,"ISS UHF voice repeater 437.800 MHz"]],
     meteor:[[137900000,"Meteor LRPT 137.900 MHz"],[137100000,"Meteor LRPT 137.100 MHz alternate"]],
     cubesat:[[436000000,"CubeSat generic 436 MHz survey (NOT satellite-assigned downlink)"]],
     iridium:[[1620000000,"Iridium 1620 MHz L-band spectrum energy ONLY"]]
