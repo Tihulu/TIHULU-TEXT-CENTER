@@ -104,9 +104,16 @@ All location methods are optional. City suggestions are offline by default; GPS 
 <div id="passes" class="pass-list"></div>
 <div class="line"><button id="pass-show-more" class="secondary" type="button" hidden>Show more passes</button></div>
 </section>
-<section><h2>4 · Optional browser-open schedule</h2>
-<p class="hint">Choose Schedule on a predicted pass. The capture only starts while <strong>this tab remains open and this USB device is connected</strong>. No background activity after tab closure, laptop sleep or browser suspension. Pending jobs are session-only.</p>
-<div id="jobs">No scheduled browser captures.</div>
+<section id="schedule-center"><h2>4 · Scheduled reception &amp; RF sample analysis</h2>
+<p class="hint">To schedule: <strong>1.</strong> Calculate passes → <strong>2.</strong> select <em>Schedule / configure</em> on a pass → <strong>3.</strong> choose the exact local date/minute, seconds, frequency and recording → <strong>4.</strong> confirm → <strong>5.</strong> grant USB access once and keep this browser tab <strong>open, visible and awake</strong> until the scheduled time.</p>
+<p class="hint">At the selected time the browser will attempt to reopen a <em>previously permitted</em> RTL-SDR, sample raw I/Q and calculate genuine relative power statistics. An optional IQ file download is attempted. This is <strong>not</strong> Meteor image decoding, APRS text decoding or identification of an individual satellite. An antenna and an active transmission are needed for real reception.</p>
+<div class="line"><button id="schedule-check" class="secondary" type="button">Check scheduled-scan readiness</button>
+<button id="schedule-wake" class="secondary" type="button">Request screen wake lock</button></div>
+<p id="schedule-readiness" class="status" role="status">No scan armed. WebUSB permission, tab visibility and receiver availability have not been checked.</p>
+<p class="hint">No closed-tab/background scheduling: suspended browsers and sleeping computers cannot guarantee a minute-accurate scan. Future jobs are saved <strong>in this tab only</strong> and are lost when it closes. Use the optional local companion for attended scheduling while the browser is closed.</p>
+<h3>Armed jobs and results</h3>
+<div id="jobs" class="scheduled-jobs" aria-live="polite">No scheduled browser captures.</div>
+<p id="scheduled-report" class="status" role="status">After a real capture, the sample-level report appears here. Only measured USB bytes are reported.</p>
 </section>
 </div></div>
 <section id="satellite-tracking-maps" class="tracking">
