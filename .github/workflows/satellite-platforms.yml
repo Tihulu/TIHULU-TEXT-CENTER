@@ -82,6 +82,9 @@ jobs:
           node --test tests/test_satellite_iq_intelligence.mjs tests/test_satellite_signal_discovery.mjs
           node --check satellite_center/browser/orbit_clock.mjs
           node --test tests/test_satellite_live_clock.mjs
+          node --check satellite_center/browser/reception_catalog.mjs
+          node --check satellite_center/browser/reception.mjs
+          node --test tests/test_satellite_reception.mjs
           node --check satellite_center/browser/satellite_imagery.mjs
           node --check satellite_center/browser/satellite_images_ui.mjs
           node --check satellite_center/browser/sstv_robot36.mjs
