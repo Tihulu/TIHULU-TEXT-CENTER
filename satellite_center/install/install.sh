@@ -37,6 +37,16 @@ cat > "$WEB_LAUNCH" <<'EOF'
 #!/bin/sh
 set -eu
 url="https://tihulu.github.io/TIHULU-TEXT-CENTER/satellite_center/browser/"
+if [ "$(uname -s)" = "Darwin" ]; then
+  for app in "/Applications/Brave Browser.app/Contents/MacOS/Brave Browser" \
+             "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
+             "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge" \
+             "/Applications/Chromium.app/Contents/MacOS/Chromium"; do
+    if [ -x "$app" ]; then exec "$app" --app="$url"; fi
+  done
+  echo "No Chromium browser found for direct WebUSB. Install Chrome/Brave or use the optional local companion." >&2
+  exec open "$url"
+fi
 for app in brave-browser brave-browser-stable chromium chromium-browser google-chrome google-chrome-stable microsoft-edge; do
   if command -v "$app" >/dev/null 2>&1; then
     exec "$app" --app="$url" --class=tihulu-satellite-web
@@ -55,8 +65,10 @@ chmod 755 "$WEB_LAUNCH"
 case "$(uname -s)" in
   Linux)
     icon_dir="$HOME/.local/share/icons/hicolor/scalable/apps"
-    mkdir -p "$HOME/.local/share/applications" "$icon_dir"
+    png_dir="$HOME/.local/share/icons/hicolor/512x512/apps"
+    mkdir -p "$HOME/.local/share/applications" "$icon_dir" "$png_dir"
     cp "$APP_DIR/satellite_center/assets/tihulu-satellite.svg" "$icon_dir/tihulu-satellite.svg"
+    cp "$APP_DIR/satellite_center/assets/tihulu-satellite.png" "$png_dir/tihulu-satellite.png"
     cat > "$HOME/.local/share/applications/tihulu-satellite-web.desktop" <<EOF
 [Desktop Entry]
 Type=Application
