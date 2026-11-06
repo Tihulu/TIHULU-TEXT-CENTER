@@ -1,6 +1,8 @@
 import { platformFamily, webUsbHelp, permissionReport } from './usb_diagnostics.mjs';
 import { createSatelliteMaps } from './satellite_maps.mjs';
 import { initStationLocationUI } from './location_search.mjs';
+import { sortPassList } from './pass_sort.mjs';
+import { localDateInput, parseLocalScheduleTime, createScheduledPass, evaluateScheduledJob, secondsToJob, captureLevelSummary } from './schedule_controller.mjs';
 // TIHULU Satellite Center — no-local-install receive-only browser mode.
 // The RTL-SDR device is opened only after a direct user gesture.
 // CelesTrak / CDN downloads are for client-side orbital prediction + JS only;
@@ -28,6 +30,7 @@ const TLE_SOURCES = Object.freeze({
 let driver = null, device = null, capturePromise = null, stopRequested = false;
 let lastCaptured = null, rtlLibraryError = null;
 let orbitalLibrary = null, tleEntries = [], passes = [], jobs = [], sessionCounter = 0;
+let visiblePassCount=40, lastScheduledFile=null, wakeLock=null, schedulerTickBusy=false;
 let lastTleFetchAt = 0;
 let locationUI = null;
 let satelliteMaps = null;
@@ -83,12 +86,15 @@ async function closeDevice() {
     catch (e) { log('USB close warning: ' + e.message); }
   }
 }
-async function connectDevice() {
+async function connectDevice({silent=false}={}) {
   if (!hardwareSupported || !driver) {
-    status('device-status', rtlLibraryError ? rtlLibraryError.message : 'WebUSB not ready');
-    return;
+    const msg=rtlLibraryError ? rtlLibraryError.message : 'WebUSB receiver driver is not ready';
+    status('device-status', msg);
+    if(silent)throw Error(msg);
+    return false;
   }
-  if (device || capturePromise) return;
+  if (device) return true;
+  if (capturePromise) {if(silent)throw Error("Another capture is active");return false;}
   let selectedWebUsbDevice = null;
   try {
     // The pinned driver calls requestDevice on this WebUSB adapter.
@@ -97,8 +103,17 @@ async function connectDevice() {
     // Do not enumerate or close other tabs' or programs' USB sessions.
     const webusb = {
       requestDevice: async options => {
-        const chosen = await navigator.usb.requestDevice(options);
-        selectedWebUsbDevice = chosen;
+        let chosen;
+        if(silent){
+          // getDevices() can reopen previously granted devices with no new user
+          // gesture. This never requests a new permission in the background.
+          const granted=await navigator.usb.getDevices();
+          chosen=granted.find(d=>d.vendorId===0x0bda&&d.productId===0x2838);
+          if(!chosen)throw Error("No previously permitted 0bda:2838 RTL-SDR. Click Choose RTL-SDR before scheduling.");
+        }else{
+          chosen=await navigator.usb.requestDevice(options);
+        }
+        selectedWebUsbDevice=chosen;
         return chosen;
       }
     };
@@ -116,7 +131,9 @@ async function connectDevice() {
     const rtl = paired.filter(x => x.vendorId === 0x0bda && x.productId === 0x2838);
     status('device-status', 'USB device opened using WebUSB. RTL2832U permission grants: ' + rtl.length +
       '. No RF data measured yet; antenna and signal unverified.');
-    log('RTL2832U WebUSB tuner opened. Device held only while this page is open.');
+    log((silent?"Scheduled auto-reopen":"Manual WebUSB connection")+": RTL2832U opened.");
+    refreshControls();
+    return true;
   } catch (e) {
     // provider.get() can open USBDevice, then fail to claim the interface.
     // It rejects before assigning our 'device' variable, so close the
@@ -137,6 +154,8 @@ async function connectDevice() {
     status('device-status', 'WebUSB could not open this RTL-SDR. Open the USB diagnostic panel below for platform-specific steps.\n' + String(e.message || e));
     log('USB diagnostics: ' + report.split('\n')[0]);
     await closeDevice();
+    if(silent)throw e;
+    return false;
   } finally { refreshControls(); }
 }
 function rmsLevel(bytes) {
