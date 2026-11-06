@@ -46,7 +46,9 @@ def parse_srt_cue(lines):
     end=seconds(matched.groups()[4:])
     if not (0 <= start < end <= 86399 and end-start <= 30):return None
     text=clean_text(" ".join(lines[head+1:]),MAX_CUE_LENGTH)
-    if not text:return None
+    if not text or sum(c.isalnum() for c in text)<3:return None
+    # DVB Teletext graphics/mosaic characters are not translatable captions.
+    if sum(c.isalnum() for c in text)/max(len(text),1)<0.17:return None
     return start,end,text
 
 
@@ -75,7 +77,8 @@ def teletext_probe_stream(url, ffprobe, *, runner=None):
             continue
         index=stream.get("index")
         if type(index) is not int or index<0 or index>100:continue
-        language=LANGUAGE_TAGS.get(str(stream.get("tags",{}).get("language","")).lower(),"und")
+        tags=stream.get("tags") or {}
+        language=LANGUAGE_TAGS.get(str(tags.get("language","")).lower(),"und")
         return {"index":index,"language":language,"codec":"dvb_teletext"}
     return None
 
@@ -202,7 +205,7 @@ class TVTeletextTap:
                 if cue and not self.stopping.is_set():self._store(cue)
             if not self.stopping.is_set():
                 raise RuntimeError("Teletext decoder ended without a continuing subtitle stream")
-        except (RuntimeError,OSError,ValueError,subprocess.TimeoutExpired) as exc:
+        except (RuntimeError,OSError,ValueError,TypeError,subprocess.TimeoutExpired) as exc:
             with self.lock:
                 if not self.stopping.is_set():
                     self.error=str(exc)[:220]
