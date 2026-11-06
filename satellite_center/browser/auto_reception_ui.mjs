@@ -8,6 +8,7 @@ import {discoverCu8Contents,discoveryReportJson} from "./signal_discovery.mjs";
 import {parseRecordingName} from "./satellite_imagery.mjs";
 import {decodeRobot36Audio} from "./sstv_robot36.mjs";
 import {initStationLocationUI} from "./location_search.mjs";
+import {localDayKey,shiftCalendarDay,renderSatelliteCalendar} from "./satellite_calendar.mjs";
 
 const $=id=>document.getElementById(id);
 const nativeHost=()=>window.location.protocol==="http:" && window.location.port==="8791" && ["127.0.0.1","localhost"].includes(window.location.hostname);
@@ -75,6 +76,98 @@ export function initAutoReceptionUI({getSelectedFile=()=>null,fileInput=$("local
     onStationChanged:()=>message("Station updated. Existing future schedules retain their original observer and must be edited or re-planned explicitly."),
     log:()=>{}
   });
+
+  // Live only while this tab is displayed; refreshing does not claim the SDR.
+  const calendarDay=$("auto-calendar-date");
+  const calendarGrid=$("auto-calendar-grid");
+  let calendarJobs=[];
+  calendarDay.value=localDayKey(new Date());
+  const calendarChoices={
+    "25544":[["iss-sstv","ISS SSTV · event only"],["iss-aprs","ISS APRS messages"],["iss-voice","ISS FM voice"]],
+    "57166":[["meteor-m2-3","Meteor-M2-3 LRPT Earth image"]],
+    "59051":[["meteor-m2-4","Meteor-M2-4 LRPT Earth image"]]
+  };
+  function startLocal(date){
+    const d=new Date(date);
+    return localDayKey(d)+"T"+String(d.getHours()).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0");
+  }
+  function editNativeAutoJob(job,card){
+    if(!nativeHost()||job.state!=="pending"||!job.mission_id){
+      message("Only pending automatic native capture tasks can change time/protocol. Browser jobs are editable on the receiver page.");
+      return;
+    }
+    const old=card.querySelector(".calendar-edit");
+    if(old){old.remove();return;}
+    const form=document.createElement("form");form.className="calendar-edit";
+    const when=document.createElement("input");when.type="datetime-local";when.required=true;
+    when.value=startLocal(job.run_at||job.aos);
+    const protocols=document.createElement("select");
+    for(const [id,label] of calendarChoices[String(job.pass_id||"").split(":")[0]]||[]){
+      const option=document.createElement("option");option.value=id;option.textContent=label;
+      protocols.append(option);
+    }
+    protocols.value=job.mission_id;
+    if(!protocols.value&&protocols.options.length)protocols.selectedIndex=0;
+    const lbl=(name,control)=>{
+      const label=document.createElement("label");label.textContent=name;label.append(control);form.append(label);
+    };
+    lbl("Start time · local, inside original pass",when);
+    lbl("Published receiver protocol",protocols);
+    const note=document.createElement("small");
+    note.textContent="Original pass: "+new Date(job.aos).toLocaleTimeString()+"–"+
+      new Date(job.los).toLocaleTimeString()+" (local). Changing satellite requires a new pass.";
+    form.append(note);
+    const save=document.createElement("button");save.type="submit";save.textContent="Save changes";form.append(save);
+    const error=document.createElement("p");error.className="status";error.setAttribute("role","status");form.append(error);
+    form.addEventListener("submit",async e=>{
+      e.preventDefault();save.disabled=true;
+      try{
+        const date=new Date(when.value);
+        if(!Number.isFinite(date.getTime()))throw Error("Invalid local start time");
+        await nativeApi("/api/auto-edit",{
+          job_id:job.id,run_at:date.toISOString(),mission_id:protocols.value
+        });
+        message("Saved native automatic job changes without touching unrelated SDR processes.");
+        await refreshNativeCalendar();
+      }catch(err){error.textContent="Not saved: "+err.message;}
+      finally{save.disabled=false;}
+    });
+    card.append(form);
+  }
+  async function refreshNativeCalendar(){
+    if(!nativeHost()){
+      calendarGrid.textContent="WebUSB schedules run only on Receiver & pass planner while that browser tab is open. Open that page to see and edit its live 24-hour calendar.";
+      return;
+    }
+    const status=await nativeApi("/api/status");
+    calendarJobs=(status.jobs||[]).filter(x=>x?.id&&(x.aos||x.run_at));
+    paintCalendar();
+  }
+  function paintCalendar(){
+    renderSatelliteCalendar(calendarGrid,calendarJobs,calendarDay.value,{
+      onEdit:editNativeAutoJob,
+      onCancel:async job=>{
+        if(!nativeHost())return;
+        try{
+          await nativeApi("/api/cancel",{job_id:job.id});
+          message("Cancelled only "+job.satellite+"'s pending capture.");
+          await refreshNativeCalendar();
+        }catch(e){message("Unable to cancel job: "+e.message);}
+      }
+    });
+  }
+  calendarDay.addEventListener("change",paintCalendar);
+  $("auto-calendar-prev").addEventListener("click",()=>{
+    calendarDay.value=shiftCalendarDay(calendarDay.value,-1);paintCalendar();
+  });
+  $("auto-calendar-next").addEventListener("click",()=>{
+    calendarDay.value=shiftCalendarDay(calendarDay.value,1);paintCalendar();
+  });
+  $("auto-calendar-refresh").addEventListener("click",()=>{
+    void refreshNativeCalendar().catch(e=>message("Calendar refresh unavailable: "+e.message));
+  });
+  void refreshNativeCalendar().catch(e=>message("Calendar unavailable: "+e.message));
+
   $("auto-mission-arm").addEventListener("click",async()=>{
     const mode=$("auto-mission-group").value;
     if(!Object.hasOwn(AUTO_PRESETS,mode))return;
@@ -113,6 +206,7 @@ export function initAutoReceptionUI({getSelectedFile=()=>null,fileInput=$("local
         const item=textNode("p",job.satellite+" · "+job.profile+"/"+job.mode+" · "+
           new Date(job.aos).toLocaleString()+" · ARMED (not received)",jobs,"mission-job");
       }
+      await refreshNativeCalendar();
       if(result.skipped?.length)textNode("p",result.skipped.length+
         " pass(es) skipped due to conflict, unsupported mode or timing.",jobs);
       message(result.scheduled_count+" unattended native capture(s) queued. The companion must remain RUNNING and the single RTL-SDR free. A predicted pass does not guarantee a transmission. "+
@@ -132,6 +226,7 @@ export function initAutoReceptionUI({getSelectedFile=()=>null,fileInput=$("local
         (result.owned_auto_capture_stop_requested?"Stopped the currently owned automatic capture. ":"")+
         "Other applications and manual jobs remain untouched.");
       jobs.replaceChildren();
+      await refreshNativeCalendar();
     }catch(e){message("Cancel failed: "+String(e?.message||e));}
   });
   function currentMetadata(name){
