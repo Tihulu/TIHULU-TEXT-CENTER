@@ -16,8 +16,14 @@ const persist=()=>{
 };
 function bindHardwareAndSources(state){
  for(const [a,b] of SOURCES){const target=$(b),pick=$(a);
-  if(!target||!pick)return;
+  if(!target||!pick)continue;
   target.checked=pick.checked;target.dispatchEvent(new Event("change"));
+ }
+ for(const [id,enabled] of [["layer-gnss",on("simple-gps")],["layer-device",on("simple-gps")],
+   ["layer-gpsfree",on("simple-gps")],["layer-cached",on("simple-gps")],
+   ["layer-ranges",on("simple-sdr")]]){
+  const input=$(id);
+  if(input&&input.checked!==enabled){input.checked=enabled;input.dispatchEvent(new Event("change"))}
  }
  // RF-only is a scientifically strict source filter: forbid using device GPS/OS
  // when only radio or DVB hardware methods are selected.
@@ -71,6 +77,7 @@ function restoreDvb(){
  }catch{}
  return [];
 }
+let lastCatalogSignature="";
 export function initSimpleUI({state,source,setView,renderEarth,renderPosition,fitRfSurveyMap}){
  const saved=(()=>{try{return JSON.parse(localStorage.getItem(KEY)||"null")}catch{return null}})();
  for(const id of [...METHODS,...SOURCES.map(x=>x[0])]){
@@ -124,7 +131,11 @@ export function initSimpleUI({state,source,setView,renderEarth,renderPosition,fi
     "Hauppauge native DVB tuner selected. Browser-only Pages cannot scan it directly; use the local DVB scan instructions, then import actual DVBv5 channel metadata.");
  });
  $("simple-fit")?.addEventListener("click",()=>{
-  if(state.rfRanges.length||state.rfSolution){fitRfSurveyMap();return}
+  if(state.rfRanges.length||state.rfSolution){
+   if(!on("simple-sdr")){$("simple-sdr").checked=true;bindHardwareAndSources(state)}
+   if(!on("simple-ground")){$("simple-ground").checked=true;bindHardwareAndSources(state)}
+   fitRfSurveyMap();return
+  }
   if(state.rangeInputs.length){setView("earth");$("earth-fit-evidence")?.click();return}
   status("simple-result","No measured/calibrated radio distances to draw. Open Radio / TV Scan; catalog tower positions and aircraft alone are not ranging measurements.");
  });
@@ -138,6 +149,7 @@ export function initSimpleUI({state,source,setView,renderEarth,renderPosition,fi
   status("quick-radio-status","Requested a real FM sweep through the connected RTL-SDR. Consult the scan result below; tuner-level energy does not identify a transmitter.");
  });
  $("quick-radio-release")?.addEventListener("click",()=>$("hard-stop")?.click());
+ $("quick-back-map")?.addEventListener("click",()=>setView("earth"));
  $("simple-dvb-file")?.addEventListener("change",async e=>{
   const file=e.currentTarget.files?.[0];if(!file)return;
   try{
@@ -156,6 +168,37 @@ export function initSimpleUI({state,source,setView,renderEarth,renderPosition,fi
  });
  window.addEventListener("tihulu:catalog-updated",e=>{
   const d=e.detail||{};
+  const towerCandidates=Array.isArray(d.towers)?d.towers:[];
+  const signature=towerCandidates.map(x=>x.id+":"+(x.frequenciesMHz||[]).join(",")).join("|");
+  if(signature&&signature!==lastCatalogSignature){
+   lastCatalogSignature=signature;
+   const candidates=towerCandidates.flatMap(x=>(x.frequenciesMHz||[])
+     .filter(freq=>Number.isFinite(freq)&&freq>=87.5&&freq<=108)
+     .map(freq=>({...x,frequencyMHz:freq}))).slice(0,60);
+   if(candidates.length)window.dispatchEvent(new CustomEvent("tihulu:rf-autosources",{detail:candidates}));
+  }
+  const summary=$("quick-radio-towers");
+  if(summary){
+   summary.replaceChildren();
+   for(const site of towerCandidates.slice(0,7)){
+    const item=document.createElement("div");item.className="simple-channel";
+    const title=document.createElement("strong");title.textContent=site.name;
+    const sub=document.createElement("small");sub.textContent=site.frequencyMHz?
+     site.frequencyMHz.toFixed(3)+" MHz (OSM frequency tag, unverified RF)":
+     "Mapped RF tower; no known broadcast frequency";
+    item.append(title,sub);summary.append(item);
+   }
+  }
+  const peakArea=$("quick-radio-peaks");
+  if(peakArea){
+   peakArea.replaceChildren();
+   for(const peak of (Array.isArray(d.fmReadings)?d.fmReadings:[]).slice().sort((a,b)=>b.levelDbFS-a.levelDbFS).slice(0,7)){
+    const item=document.createElement("div");item.className="simple-channel";
+    const label=document.createElement("strong");label.textContent=peak.frequencyMHz.toFixed(1)+" MHz · "+peak.levelDbFS.toFixed(1)+" dBFS-like";
+    const desc=document.createElement("small");desc.textContent=peak.matchQuality||"Real RF power sample; no station identity";
+    item.append(label,desc);peakArea.append(item);
+   }
+  }
   status("quick-radio-status",String(d.towers?.length||0)+" mapped broadcasting-site candidates · "+
     String(d.antennaAircraft?.length||0)+" real local ADS-B aircraft · "+
     String(d.aircraft?.length||0)+" internet aircraft · "+
