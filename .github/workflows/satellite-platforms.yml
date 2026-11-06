@@ -63,3 +63,5 @@ jobs:
         run: |
           node --check satellite_center/browser/satellite_maps.mjs
           node --test tests/test_satellite_maps.mjs
+          node --check satellite_center/browser/location_search.mjs
+          node --test tests/test_satellite_location.mjs
