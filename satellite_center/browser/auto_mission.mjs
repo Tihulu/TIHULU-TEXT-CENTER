@@ -36,7 +36,9 @@ export function selectAutomaticPasses(passes,{mode="images",now=Date.now(),maxJo
     if(!matched)continue;
     const start=Math.max(pass.aos-10000,now+30000);
     const until=Number(pass.los);
-    if(start+45000>until){skipped.push({name:pass.name,reason:"Pass too short or begins too soon"});continue;}
+    // The browser capture itself lasts 60 s. A 45 s remaining pass is NOT
+    // sufficient; never silently record beyond predicted line-of-sight loss.
+    if(start+60000>until){skipped.push({name:pass.name,reason:"Pass too short or begins too soon"});continue;}
     if(blocked.some(([a,b])=>start<b+20000&&until>a-20000)){
       skipped.push({name:pass.name,reason:"Single receiver conflict with an armed pass"});continue;
     }
