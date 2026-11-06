@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>TIHULU · Applications</title>
+<style>
+:root{color-scheme:dark;font-family:system-ui,-apple-system,Segoe UI,sans-serif;background:#080e19;color:#ecf2ff}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;background:radial-gradient(ellipse at 80% 0%,#153251 0%,#080e19 55%)}
+main{max-width:860px;margin:0 auto;padding:clamp(24px,5vw,70px) 22px}
+small,.muted{color:#9fb1ca}
+h1{font-size:clamp(2rem,5vw,3.2rem);margin:.35em 0}
+h2{margin:0 0 12px}
+.card{background:#122136;border:1px solid #31445e;border-radius:16px;padding:25px;margin-top:30px;box-shadow:0 15px 50px #0004}
+a.action{display:inline-block;margin-top:15px;background:#2869bb;border-radius:10px;color:#fff;padding:12px 18px;text-decoration:none;font-weight:700}
+a.action:hover,a.action:focus{background:#357edb}
+a{color:#93c3ff}
+footer{margin-top:36px;color:#9fb1ca;line-height:1.6}
+</style>
+</head>
+<body><main>
+<small>TIHULU · OFFLINE-FIRST SDR TOOLING</small>
+<h1>Application center</h1>
+<p class="muted">Public dashboards hosted by GitHub Pages. Actual SDR hardware operation and local recordings stay on your own device and require a separately installed local companion.</p>
+<section class="card">
+<h2>Satellite Center</h2>
+<p>ISS, Meteor-M, CubeSat and Iridium orbital predictions, reception scheduling and real-signal capture controls. Iridium survey is spectrum-only, not private communications decoding.</p>
+<a class="action" href="./satellite_center/">Open Satellite Center</a>
+<p class="muted">To access USB receivers, run the local companion at <code>http://127.0.0.1:8791/</code>, reveal its pairing token locally and enter the token in the hosted dashboard.</p>
+</section>
+<footer><p>This website does not itself connect to USB, track you, or collect private reception data. It is not an emergency alert service.</p>
+<p>Source repository: <a href="https://github.com/Tihulu/TIHULU-TEXT-CENTER">TIHULU-TEXT-CENTER</a>. The main Text Center and future Survival Kit integration are developed separately.</p></footer>
+</main></body></html>
