@@ -41,6 +41,7 @@ const maxRecordBytes = 128 * 1024 * 1024;
 const signalHistory = [];
 const hardwareSupported = !!(window.isSecureContext && navigator.usb);
 const connectButton = $('connect');
+$('usb-live-test').disabled=true; // No test until real WebUSB driver is loaded.
 const platform = platformFamily(navigator.userAgent || "");
 let lastUsbReport = "No USB diagnostics run.";
 $('usb-check').addEventListener('click', async () => {
@@ -66,10 +67,11 @@ if (!hardwareSupported) {
   import('https://esm.sh/@jtarrio/webrtlsdr@3.0.7/rtlsdr.js?bundle').then(mod => {
     if (typeof mod.RTL2832U_Provider !== 'function') throw Error('Unsupported WebUSB driver export');
     driver = mod.RTL2832U_Provider;
-    connectButton.disabled = false;
+    refreshControls();
     status('device-status', 'Ready to ask for USB permission. Plug Nooelec into USB, then select Choose RTL-SDR.');
   }).catch(err => {
     rtlLibraryError = err;
+    refreshControls();
     status('device-status', 'WebUSB library unavailable: ' + err.message + '. Internet access to esm.sh is needed to load the driver; no hardware was opened.');
   });
 }
