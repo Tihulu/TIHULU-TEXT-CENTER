@@ -159,8 +159,16 @@ All location methods are optional. City suggestions are offline by default; GPS 
 <label class="map-check"><input id="map-tracks" type="checkbox" checked> ±45 min orbit path</label>
 <label class="map-check"><input id="map-footprint" type="checkbox"> Geometric coverage footprint</label>
 </div>
-<p id="map-basemap-state" class="map-basemap-status" role="status" aria-live="polite">Default: bundled Natural Earth outlines. Click Earth to show the map; OpenStreetMap street tiles are optional.</p>
-<div id="earth-map" class="sat-earth" role="region" aria-label="Interactive Earth map showing predicted satellite positions over OpenStreetMap or public domain world outlines"></div>
+<div class="world-overview">
+<h3>Earth overview — bundled world geography</h3>
+<canvas id="earth-world-canvas" width="1000" height="500" tabindex="0" aria-label="Satellite ground positions on a world map drawn locally from Natural Earth land polygons"></canvas>
+<p id="earth-world-status" class="map-caption" role="status">Preparing bundled world geography. No OpenStreetMap tiles needed.</p>
+</div>
+<details id="earth-street-details" class="earth-street-details">
+<summary>Interactive street map (OpenStreetMap / Leaflet, optional)</summary>
+<p id="map-basemap-state" class="map-basemap-status" role="status" aria-live="polite">Optional Leaflet view has not been opened. The world map above works without it.</p>
+<div id="earth-map" class="sat-earth" role="region" aria-label="Optional Leaflet map with predicted satellite positions over OpenStreetMap or public-domain land outlines"></div>
+</details>
 <p class="map-caption">If OpenStreetMap tiles are blocked or unavailable, the app automatically switches to bundled Natural Earth world outlines. You can switch the base map manually. The outlines are coarse at city level, but satellite ground positions remain plotted. <a href="https://tile.openstreetmap.org/3/4/2.png" rel="noopener noreferrer" target="_blank">Check an OSM tile in a new tab</a> for network/Brave Shields troubleshooting.</p>
 <p class="map-caption">© <a href="https://www.openstreetmap.org/copyright" rel="noopener noreferrer" target="_blank">OpenStreetMap contributors</a>. Tiles load only for the view you open; no prefetch/offline tile download. Only the viewport is requested from OSM when selected. Coarse fallback outlines are public-domain Natural Earth data bundled in this website. Optional shaded coverage is approximate for the minimum elevation selected above.</p>
 </div>
