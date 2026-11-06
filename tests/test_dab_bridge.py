@@ -45,6 +45,50 @@ class DABTests(unittest.TestCase):
         self.assertTrue(result["radio_not_retuned"])
         self.assertEqual(result["services"][0]["name"],"TEST STATION")
 
+    def test_all_standard_channel_centres_can_archive_real_decoder_images(self):
+        from textcenter.dab_bridge import DAB_HZ
+        for channel,centre in (("5C",178_352_000),("8B",197_648_000),
+                               ("9D",208_064_000),("11D",222_064_000)):
+            with self.subTest(channel=channel):
+                seen=[]
+                def fetch(path,_):
+                    seen.append(path)
+                    return channel.encode() if path=="/channel" else (
+                        self.raw if path=="/mux.json" else PNG
+                    )
+                reader=DABReader(self.store,fetcher=fetch)
+                result=reader.refresh(include_images=True)
+                self.assertEqual(result["frequency_hz"],centre)
+                self.assertEqual(result["saved_mot_images"],1)
+                self.assertEqual(result["services"][0]["mot_image_status"],"saved")
+                self.assertTrue(result["services"][0]["mot_media_id"])
+                self.assertEqual(result["mot_images_failed"],0)
+                self.assertEqual(DAB_HZ[channel],centre)
+
+    def test_image_missing_vs_failed_is_visible_and_does_not_claim_save(self):
+        source=json.loads(self.raw)
+        source["services"].append({
+            "sid":"0x5678","label":"NO IMAGE",
+            "dls_label":"","mot_time":0
+        })
+        payload=json.dumps(source).encode()
+        def broken_slide(path,_):
+            if path=="/channel":return b"11D"
+            if path=="/mux.json":return payload
+            raise DABError("no MOT for this station")
+        report=DABReader(self.store,fetcher=broken_slide).refresh()
+        self.assertEqual(report["saved_mot_images"],0)
+        self.assertEqual(report["mot_images_failed"],1)
+        self.assertEqual(report["mot_images_missing"],1)
+        services={x["name"]:x for x in report["services"]}
+        self.assertEqual(services["TEST STATION"]["mot_image_status"],"failed")
+        self.assertEqual(services["NO IMAGE"]["mot_image_status"],"not_broadcast")
+        self.assertIn("No new MOT image saved",report["archive_notice"])
+        self.assertFalse(MediaStore(self.store).list())
+        skipped=DABReader(self.store,fetcher=broken_slide).refresh(include_images=False)
+        self.assertEqual(skipped["mot_images_skipped"],2)
+        self.assertTrue(all(x["mot_image_status"]=="not_requested" for x in skipped["services"]))
+
     def test_bad_endpoint_identity_and_unknown_channel_fail_closed(self):
         with self.assertRaises(DABError):
             parse_mux(json.dumps({"receiver":{"software":{"name":"fake"}},"services":[]}).encode(),"11D")

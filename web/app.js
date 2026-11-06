@@ -547,12 +547,92 @@ async function addAutoDiscovery(){
   try{showPassiveDiscovery(await api("/api/discovery/passive"))}
   catch(error){details.textContent="Passive discovery unavailable: "+error.message}
 }
+// A DAB spectrum peak is NOT a DAB service. Nominal channel centres and
+// groups are calculated on the backend from a published Band III raster.
+async function inspectDabBlock(block, target){
+  target.replaceChildren(el("p","full-body","Checking locally installed decoder and saved text…"));
+  try{
+    // Neither endpoint opens/tunes the receiver or accesses the Internet.
+    const [inventory, events, pages]=await Promise.all([
+      api("/api/receivers"), api("/api/events"), api("/api/pages")
+    ]);
+    target.replaceChildren();
+    const hasWelle=Boolean(inventory.decoders?.["welle-cli"]);
+    target.append(el("p","full-body",
+      "welle-cli: "+(hasWelle?"installed (not connected to this interface)":"not installed / not on PATH")+
+      ". This inspection does not start any tuner or perform DAB synchronization."));
+    const within=(record)=>Math.abs(Number(record.frequency_hz)-block.center_frequency_hz)<=768000;
+    const savedEvents=events.filter(e=>
+      ["dab_dls","journaline"].includes(e.medium)&&within(e));
+    if(!savedEvents.length){
+      target.append(el("p","full-body",
+        "No archived DAB DLS/Journaline text exists for this block. "+
+        "To open live stations, a real DAB ensemble/service decoder must be integrated; "+
+        "spectrum peaks alone cannot provide an interactive station list."));
+    }else{
+      target.append(el("p","full-body",savedEvents.length+
+        " existing imported text item(s), stored before this inspection — not a live broadcast lock:"));
+      savedEvents.slice(0,25).forEach(e=>{
+        const entry=el("article","dab-archive-item");
+        append(entry,el("strong","",e.station+" · "+e.title),
+          el("p","full-body",e.body),
+          el("span","subtle","Imported "+timeLabel(e.received_at)+" · "+e.provenance));
+        target.append(entry);
+      });
+    }
+    // Journaline pages are stored as imported pages, not live receiver pages.
+    const matchingPages=pages.filter(p=>p.medium==="journaline");
+    if(matchingPages.length){
+      const note=el("p","full-body","Other imported Journaline pages are in the library (source frequency may not be listed in this index).");
+      target.append(note);
+      target.append(button("OPEN RECEIVED PAGES",()=>openPage(700,"",0)));
+    }
+    target.append(el("p","full-body",
+      "Live DAB services and MOT images require an already-running welle-cli decoder "+
+      "with a locked real ensemble. Its read-only metadata bridge is available below.")); 
+    target.append(button("OPEN DAB RECEIVER & IMAGE PANEL",()=>{
+      const panel=$("dab-welle-bridge");
+      if(panel)panel.scrollIntoView({behavior:"smooth",block:"start"});
+      else notice("The DAB receiver bridge is unavailable in this build.");
+    }));
+  }catch(error){
+    target.replaceChildren(el("p","full-body","Local decoder/archive inspection failed: "+error.message));
+  }
+}
+function renderDabBlock(block, target){
+  const detail=el("details","dab-block");
+  detail.append(el("summary","dab-block-title",
+    "INSPECT "+block.block+" · "+block.center_frequency_mhz.toFixed(3)+" MHz · "+
+    block.peak_count+" RF peak"+(block.peak_count===1?"":"s")));
+  const body=el("div","dab-block-body");
+  append(body,
+    el("p","full-body","Nominal DAB Band III block "+block.block+
+      " (centre "+block.center_frequency_mhz.toFixed(3)+" MHz). "+
+      "This is a frequency-raster match ONLY; no ensemble, service, programme or DLS has been decoded."),
+    el("p","full-body","Measured peaks: "+block.peak_frequencies_mhz.map(n=>n.toFixed(3)+" MHz").join(", ")+
+      ". Strongest observed peak: "+block.max_above_median_db.toFixed(1)+" dB above survey median."),
+    el("p","full-body","Receiver status: NO VERIFIED DAB LOCK. "+
+      "A dedicated decoder (e.g. welle-compatible) is needed before station browsing.")
+  );
+  const findings=el("div","dab-inspection");
+  const check=button("CHECK DECODER & SAVED TEXT",async()=>{
+    check.disabled=true;
+    await inspectDabBlock(block,findings);
+    check.disabled=false;
+  });
+  body.append(check,findings);
+  detail.append(body);
+  target.append(detail);
+}
 function displaySurvey(status){
   const label=$("fm-survey-progress"),results=$("fm-survey-results");
+  const peaks=status.candidates||[];
+  const blocks=status.band==="dab" ? (status.dab_blocks||[]) : [];
   if(label){
     label.textContent="Band: "+String(status.band||"fm").toUpperCase()+
       " · "+status.status.toUpperCase()+
-      " · "+status.candidates.length+" unidentified energy peaks"+
+      " · "+peaks.length+" unidentified energy peaks"+
+      (status.band==="dab" ? " · "+blocks.length+" possible frequency blocks" : "")+
       (status.error?" · "+status.error:"");
   }
   const start=$("fm-survey-start"),stop=$("fm-survey-stop");
@@ -563,15 +643,38 @@ function displaySurvey(status){
   if(selected)selected.disabled=Boolean(status.active);
   if(!results)return;
   results.replaceChildren();
-  if(!status.candidates.length){
+  if(!peaks.length){
     results.append(el("p","full-body",status.active
       ?"Measuring RF energy. No channel or programme is decoded by this survey."
       :status.note||"No signal candidates saved."));
     return;
   }
+  if(status.band==="dab"&&blocks.length){
+    results.append(el("p","full-body",
+      peaks.length+" unidentified energy peaks map to "+blocks.length+
+      " possible DAB frequency blocks. Expand any block to inspect measurements "+
+      "and check cached DAB text. This is NOT confirmation of station reception."));
+    blocks.forEach(block=>renderDabBlock(block,results));
+    // Never discard peaks that fall outside the published DAB raster.
+    const seen=new Set(blocks.flatMap(b=>b.peak_frequencies_mhz));
+    const unmatched=peaks.filter(p=>!seen.has(p.frequency_mhz));
+    if(unmatched.length){
+      results.append(el("p","full-body","Other RF peaks not matching a nominal DAB block:"));
+      unmatched.forEach(candidate=>{
+        const detail=el("details","dab-block");
+        detail.append(el("summary","dab-block-title",
+          candidate.frequency_mhz.toFixed(3)+" MHz · unclassified RF peak (inspect)"));
+        detail.append(el("p","full-body","No matching DAB Band III raster block. "+
+          "Observed "+candidate.above_median_db.toFixed(1)+" dB above survey median; "+
+          "this measurement cannot identify a station."));
+        results.append(detail);
+      });
+    }
+    return;
+  }
   results.append(el("p","full-body",
     "These are unidentified spectrum peaks, NOT decoded radio/TV stations, services, messages or official alerts."));
-  status.candidates.forEach(candidate=>{
+  peaks.forEach(candidate=>{
     const row=el("div","scan-row");
     row.append(el("strong","",candidate.frequency_mhz.toFixed(3)+" MHz"));
     row.append(el("span","",candidate.above_median_db.toFixed(1)+" dB above local median"));
@@ -581,6 +684,12 @@ function displaySurvey(status){
         if(input){input.value=String(candidate.frequency_mhz);input.focus()}
         notice("Unidentified FM spectral peak; RDS decoding must verify the station.");
       }));
+    }else{
+      const info=el("details","scan-inline-details");
+      info.append(el("summary","","INSPECT RF PEAK"),
+        el("p","full-body","No "+String(status.band||"RF").toUpperCase()+
+          " decoder is connected. The spectral peak is RF energy only, not a packet, text message or station."));
+      row.append(info);
     }
     results.append(row);
   });
@@ -801,7 +910,10 @@ function showDabServices(result){
     " · "+result.services.length+" decoded service entries"));
   box.append(el("p","full-body",
     "DLS labels archived: "+result.imported_dls+
-    " · MOT slides archived: "+result.saved_mot_images+
+    " · MOT slides saved: "+result.saved_mot_images+
+    " · No broadcast slide: "+(result.mot_images_missing??0)+
+    " · Slide read/format errors: "+(result.mot_images_failed??0)+
+    " · Skipped: "+(result.mot_images_skipped??0)+
     (result.archive_notice?" · "+result.archive_notice:"")));
   result.services.forEach(s=>{
     const item=el("div","rds-row");
@@ -812,13 +924,26 @@ function showDabServices(result){
       s.dls ? "DLS: "+s.dls+" · received "+(s.dls_received_at||"time unknown")
             : "No decoded DLS from this station"));
     item.append(el("p","full-body",
-      s.mot_received_at?"MOT slide timestamp: "+s.mot_received_at:
-      "No decoded slideshow timestamp"));
+      "MOT image: "+(s.mot_image_status||"unknown")+
+      " — "+(s.mot_image_note||"No image status received")));
+    if(s.mot_media_id){
+      const picture=el("img","radio-image");
+      picture.src="/api/media/file/"+encodeURIComponent(s.mot_media_id);
+      picture.loading="lazy";
+      picture.alt="Broadcast MOT slide decoded from "+s.name;
+      picture.addEventListener("error",()=>{
+        picture.replaceWith(el("p","full-body",
+          "Image was saved, but browser preview failed. Check the local media endpoint."));
+      });
+      item.append(picture);
+    }
     box.append(item);
   });
 }
 async function addWelleDabBridge(){
   const last=await api("/api/dab/last");
+  const inventory=await api("/api/receivers");
+  const welleInstalled=Boolean(inventory.decoders?.["welle-cli"]);
   const panel=el("article","item-card");
   panel.id="dab-welle-bridge";
   panel.append(el("div","item-meta","DAB+ BROADCAST DATA / EXISTING RECEIVER / READ-ONLY"));
@@ -827,7 +952,13 @@ async function addWelleDabBridge(){
     "Connect to an already-running welle-cli web receiver at 127.0.0.1:7979. "+
     "The Text Center uses GET only for current ensemble metadata, station labels, "+
     "DLS text and MOT broadcast images. It NEVER launches, stops or retunes "+
-    "welle-cli or your Flight Radar. welle-cli is not installed on your last hardware check."));
+    "welle-cli or your Flight Radar.")); 
+  panel.append(el("p","full-body",
+    "welle-cli executable: "+(welleInstalled?"INSTALLED":"NOT FOUND")+
+    ". If unavailable, install your distribution's welle.io package yourself. "+
+    "With the SDR free, launch a real channel separately, e.g. "+
+    "welle-cli -c 11D -PC 1 -w 7979; this explicitly tunes the receiver. "+
+    "The -P carousel can wait for DLS/MOT, but reception and images are not guaranteed."));
   const opt=el("label","scan-consent");
   const img=el("input");img.type="checkbox";img.checked=true;img.id="dab-images";
   opt.append(img,document.createTextNode(" Save decoded MOT slideshow images offline "+
@@ -842,7 +973,12 @@ async function addWelleDabBridge(){
       });
       showDabServices(result);
       await refreshCounts();
-      notice("Read actual welle-cli metadata; no tuner retuned. Refresh page 400 to view archived images.");
+      await addRadioImageGallery();
+      notice("DAB decoder read completed. "+
+        result.saved_mot_images+" real MOT image(s) saved; "+
+        (result.mot_images_failed??0)+" failed; "+
+        (result.mot_images_missing??0)+" unavailable. "+
+        "No receiver retuned by Text Center.");
     }catch(e){notice("DAB receiver unavailable: "+e.message)}
     finally{refresh.disabled=false}
   },"action primary");
@@ -862,7 +998,9 @@ async function addWelleDabBridge(){
 }
 async function addRadioImageGallery(){
   const images=await api("/api/media");
+  const previous=$("radio-image-gallery");
   const outer=el("article","item-card");
+  outer.id="radio-image-gallery";
   outer.append(el("div","item-meta","REAL BROADCAST IMAGE ARCHIVE · OFFLINE"));
   outer.append(el("h3","","Station logos & DAB slideshow images"));
   outer.append(el("p","",
@@ -888,7 +1026,8 @@ async function addRadioImageGallery(){
     });
     outer.append(gallery);
   }
-  $("content").append(outer);
+  if(previous)previous.replaceWith(outer);
+  else $("content").append(outer);
 }
 async function addDvbDevicePanel(){
   const dvb=await api("/api/dvb/status");

@@ -34,17 +34,23 @@ Open http://127.0.0.1:8787/ and choose **Radio Data (400)**.
 
 `welle-cli` can expose an already-running DAB receiver's service list and decoded metadata over its built-in local web server. This Text Center bridge ONLY performs bounded HTTP GETs to 127.0.0.1:7979 on `/channel`, `/mux.json` and `/slide/<validated service id>` when the user clicks **Read Running DAB Receiver**.
 
-It never launches welle-cli, makes POST requests to `/channel`, acquires or retunes a USB device, or interrupts an existing SDR service. Network access is limited to the local loopback endpoint; no configurable arbitrary URLs or SSRF-style proxy is provided. DAB labels and DLS are saved to SQLite only when a verified receiver channel-to-frequency mapping and original decoder timestamp are available. The initial channel map explicitly supports 5C (178.352 MHz) and 11D (222.064 MHz); other channels are shown without inventing frequency attribution. The DAB service may expose MP3 playback through its own welle-cli web interface, but this is not yet embedded in Text Center as a continuous authenticated mobile/desktop player.
+It never launches welle-cli, makes POST requests to `/channel`, acquires or retunes a USB device, or interrupts an existing SDR service. Network access is limited to the local loopback endpoint; no configurable arbitrary URLs or SSRF-style proxy is provided. DAB labels and DLS are saved to SQLite only when a verified receiver channel-to-frequency mapping and original decoder timestamp are available. The channel map now includes all standard European Band III DAB channel centre frequencies (including 5C, 8B, 9D and 11D) as attribution **lookups**, not reception evidence. Only actual welle-cli service data with decoder timestamps is archived. The DAB service may expose MP3 playback through its own welle-cli web interface, but this is not yet embedded in Text Center as a continuous authenticated mobile/desktop player.
 
 Once `welle-cli` has been separately installed (not bundled by Text Center) and the USB device is **free**, a user-authorized example is:
 
 ```bash
 command -v welle-cli
+# If not found on Pop!_OS 24.04, inspect first:
+apt-cache policy welle.io
+# With your approval, install the distribution package:
+sudo apt update
+sudo apt install welle.io
+command -v welle-cli
 # Only if the device is free; using this command WILL open/retune your SDR:
-welle-cli -c 11D -C 1 -w 7979
+welle-cli -c 11D -PC 1 -w 7979
 ```
 
-The local receiver's page is then http://127.0.0.1:7979/ on that same machine. A first-party Kit portal on phones must use a properly authenticated TLS proxy, NOT a hard-coded 127.0.0.1 URL. The welle-cli service requires a broadcaster actually using DLS/MOT and a sufficiently strong signal. The owner must check hardware availability and explicitly launch it; never use this example while Flight Radar is acquiring the same dongle.
+The `-P` option lets the carousel wait for DLS and a slide (up to 80 seconds per service), rather than moving on every 10 seconds; it still cannot guarantee any broadcaster transmits a valid MOT image. Check the installed CLI's `welle-cli -h` for supported flags. The local receiver's page is then http://127.0.0.1:7979/ on that same machine. A first-party Kit portal on phones must use a properly authenticated TLS proxy, NOT a hard-coded 127.0.0.1 URL. The welle-cli service requires a broadcaster actually using DLS/MOT and a sufficiently strong signal. The owner must check hardware availability and explicitly launch it; never use this example while Flight Radar is acquiring the same dongle.
 
 **Journaline is not provided by this DAB bridge.** Interactive Journaline menus, TPEG and some other data applications need their own decoder/service/licensing assessment. The MOT slideshow is a broadcast image, not a download of Internet album art. A real station may broadcast no picture at all.
 
@@ -93,3 +99,23 @@ Linux support and firmware: https://www.hauppauge.com/pages/support/support_linu
 - Verify station listening, RDS/RT+, RDS2 images, DAB DLS/MOT, DVB service detection, Teletext subpages and resource arbitration separately using real user-supplied hardware captures.
 - Every piece of content must show whether it came from LIVE RF via a named decoder, an imported capture, Internet, or offline cache. A saved image is not a verified official emergency notification.
 - Full continuous FM audio, genuine DVB Teletext decoding, native DAB channel scanning, Journaline text hierarchy and optional Internet artwork remain distinct future stages; never mark them done simply because an image or spectrum scanner exists.
+
+
+### Diagnosing missing / unsaved DAB MOT images
+
+After independently starting a real welle-cli decoder on a free RTL-SDR and
+selecting a broadcast that is actually receivable, choose **Radio Data (400)**
+→ **READ RUNNING DAB RECEIVER** with **Save decoded MOT slideshow images** checked.
+The result is per-service, not a blanket promise that all stations send images:
+
+- \`saved\`: decoder supplied valid PNG/JPEG data, stored in SQLite, with immediate image preview and refreshed offline gallery.
+- \`not_broadcast\`: no MOT timestamp has been reported for this decoded service; no image is manufactured.
+- \`empty\`: decoder advertised MOT but returned fewer than 40 bytes.
+- \`failed\`: slide fetch failed, or bytes failed the bounded PNG/JPEG validation (320 KiB ceiling). The UI displays aggregate and per-service failures rather than silently swallowing them.
+- \`not_requested\`: user left the image-saving option unchecked.
+- \`frequency_unknown\`: unknown DAB block; image cannot be archived without attributable receive frequency.
+
+If welle-cli is not installed/running at 127.0.0.1:7979, no DAB service
+or image can be received by this adapter. The existing \`rtl_power\` spectrum
+peaks cannot be converted into broadcaster MOT artwork. No Internet artwork
+is substituted. This adapter never starts, stops or retunes the radio.
