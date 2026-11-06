@@ -275,6 +275,12 @@
           <div id="radio-rds-status" class="simple-result">No local decoder metadata received in this session.</div>
           <div id="radio-rds-results" class="simple-channel-list" aria-label="Actual decoded local radio metadata"></div>
          </div>
+         <details class="fm-calibration-candidates" id="fm-calibration-candidates">
+          <summary>FM calibration · choose a published transmitter</summary>
+          <p>Select a known, fixed FM source with a <strong>published frequency</strong>. Use real RTL-SDR measurements at a separately known distance to calibrate an experimental signal-loss model. Source identity, transmitter power and a measured range are NOT implied by signal strength.</p>
+          <div id="fm-calibration-source-list" class="simple-channel-list" aria-label="FM transmitter candidates with explicitly published site frequencies">Run Discover sources to load possible transmitter sites. No station identity is verified by antenna yet.</div>
+          <p class="fine muted">FM broadcast transmitters are not precision ranging beacons. Multiple carriers, power differences and propagation can invalidate the estimate. Calibration must never be labeled an accurate fix.</p>
+         </details>
          <div class="radio-quick-results"><div><h3>Detected site candidates</h3><div id="quick-radio-towers" class="simple-channel-list"></div></div><div><h3>Strongest actual RF frequencies</h3><div id="quick-radio-peaks" class="simple-channel-list"></div></div></div>
         </div>
         <div><h2>TV · Hauppauge WinTV-soloHD (01589)</h2><p>Connect your real Linux DVB tuner through the optional secure local bridge. Scan DVB-T2 from here, then compare actually detected channels with published TV transmitter sites on the map. Static Pages alone cannot access /dev/dvb.</p>
