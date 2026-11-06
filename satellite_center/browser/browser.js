@@ -10,7 +10,7 @@ import { protocolsForPass, protocolCategories, passesFilteredByContent } from '.
 import {readUserProfiles} from './saved_satellite_protocols.mjs';
 import { selectAutomaticPasses, AUTO_TARGETS } from './auto_mission.mjs?v=20261106-calendar-zip-v2';
 import {localDayKey,shiftCalendarDay,renderSatelliteCalendar} from './satellite_calendar.mjs?v=20261106-calendar-zip-v2';
-import { localDateInput, parseLocalScheduleTime, createScheduledPass, evaluateScheduledJob, secondsToJob, captureLevelSummary } from './schedule_controller.mjs';
+import { localDateInput, parseLocalScheduleTime, createScheduledPass, evaluateScheduledJob, secondsToJob, captureLevelSummary } from './schedule_controller.mjs?v=20261106-stream-iq-v1';
 import {captureBudget,formatCaptureBudget,STREAM_IQ_BYTES} from './capture_duration.mjs?v=20261106-stream-v1';
 // TIHULU Satellite Center — no-local-install receive-only browser mode.
 // The RTL-SDR device is opened only after a direct user gesture.
