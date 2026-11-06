@@ -265,9 +265,45 @@ export function createSatelliteMaps({getTles,getSatLib,getPasses,getLastCapture,
        if(containsPath){ctx.fill("evenodd");ctx.stroke();polygons++;}
      }
    }
+   // Draw the same predicted tracks and coverage as the interactive street
+   // map, with a global projection. Geographic edges never connect across
+   // the international date line.
+   const obs=observer(),displayed=filtered().slice(0,40);
+   const active=selected();
+   let canvasTracks=0,canvasCoverage=0;
+   for(const sat of displayed){
+     const chosen=active&&String(active.id)===String(sat.id);
+     const coverMode=$("map-coverage-scope").value;
+     if(coverMode==="all"||(coverMode==="selected"&&chosen)){
+       const bounds=coverageBounds(sat);
+       ctx.strokeStyle=labelFor(sat.family);
+       ctx.lineWidth=chosen?2.3:1.1;
+       ctx.globalAlpha=chosen?0.85:0.38;
+       for(const segment of mapSplitDateline(bounds)){
+         ctx.beginPath();segment.forEach(([lat,lon],i)=>{
+           const [x,y]=geoCanvasXY(lon,lat,W,H);
+           if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);
+         });ctx.stroke();canvasCoverage++;
+       }
+       ctx.globalAlpha=1;
+     }
+     const trackMode=$("map-track-scope").value;
+     if(trackMode==="all"||(trackMode==="selected"&&chosen)){
+       ctx.strokeStyle=labelFor(sat.family);
+       ctx.lineWidth=chosen?2.5:1.25;
+       ctx.globalAlpha=chosen?0.96:0.6;
+       for(const segment of mapSplitDateline(trackCoordinates(sat,mapDate().getTime(),obs.station))){
+         ctx.beginPath();segment.forEach(([lat,lon],i)=>{
+           const [x,y]=geoCanvasXY(lon,lat,W,H);
+           if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);
+         });ctx.stroke();canvasTracks++;
+       }
+       ctx.globalAlpha=1;
+     }
+   }
    // Ground station and orbit positions use the same locally calculated
    // coordinates as the pass calendar (never fabricated receptions).
-   const o=observer(),[gx,gy]=geoCanvasXY(o.lon,o.lat,W,H);
+   const o=obs,[gx,gy]=geoCanvasXY(o.lon,o.lat,W,H);
    ctx.beginPath();ctx.arc(gx,gy,8,0,2*Math.PI);ctx.fillStyle="#00d5ff";ctx.fill();
    ctx.lineWidth=2;ctx.strokeStyle="#fff";ctx.stroke();
    ctx.textAlign="left";ctx.font="13px system-ui";ctx.fillStyle="#d8f1fc";
@@ -287,7 +323,8 @@ export function createSatelliteMaps({getTles,getSatLib,getPasses,getLastCapture,
    }
    readout.textContent="Map drawn locally: "+geo.features.length+
      " Natural Earth land features ("+polygons+" polygons), "+
-     overviewHits.length+" predicted satellite points. "+
+     overviewHits.length+" predicted satellite points, "+canvasTracks+
+     " trajectory segments and "+canvasCoverage+" coverage outlines. "+
      "Click a satellite dot to select it. No OSM raster or USB permission needed.";
  }
  $("earth-world-canvas").addEventListener("click",event=>{
