@@ -440,7 +440,7 @@ function appendPass(pass){
     ['Run date + minute (local time)','when','datetime-local',localDateInput(Math.max(Date.now()+60000,pass.aos))],
   ];
   const timeLabel=document.createElement('label');
-  timeLabel.textContent='Run at exact local date / hour / minute';
+  timeLabel.textContent='Run at local date / hour / minute ('+(Intl.DateTimeFormat().resolvedOptions().timeZone||'device timezone')+')';
   const input=document.createElement('input');
   input.type='datetime-local';input.step='60';
   input.required=true;input.value=fields[0][3];
@@ -470,7 +470,7 @@ function appendPass(pass){
   const raw=document.createElement('input');raw.type='checkbox';raw.checked=true;
   saveLabel.append(raw,' Save raw I/Q (.cu8) and compute real digital-level statistics (128 MiB file cap)');
   const explanation=document.createElement('p');explanation.className='hint schedule-wide';
-  explanation.textContent='The browser will run only while this tab is OPEN, visible and awake. You must approve USB access once beforehand. Scheduling does not send RF, start a capture now or decode satellite images.';
+  explanation.textContent='Time is shown in your COMPUTER/BROWSER timezone, not necessarily the selected ground station timezone. The browser runs only while this tab is OPEN, visible and awake. Grant USB permission once beforehand. Scheduling does not transmit RF or decode satellite images.';
   const alert=document.createElement('p');alert.className='pass-schedule-error schedule-wide';alert.setAttribute('role','status');
   const confirm=document.createElement('button');confirm.type='submit';confirm.textContent='Confirm scheduled RF scan';
   form.append(timeLabel,frequencyLabel,durationLabel,rateLabel,saveLabel,explanation,alert,confirm);
