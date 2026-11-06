@@ -301,6 +301,7 @@ function saveCapture(bytes,name,job=null,metadata=null) {
   }
   triggerRawDownload(blob,name);
   if(iqAnalysisUI&&metadata)iqAnalysisUI.record(blob,name,metadata);
+  if(satelliteImageUI&&metadata)satelliteImageUI.recordCapture(blob,name,metadata);
   return blob;
 }
 async function startCapture(job=null) {
