@@ -29,3 +29,6 @@
 .recorded-line,.caption-archive-item{display:grid;gap:8px;background:#0a1a1f;border:1px solid #315055;border-radius:7px;padding:12px;overflow-wrap:anywhere;font-size:12px}
 .archive-link{display:inline-block;border:1px solid #3c6867;border-radius:4px;padding:8px;color:#bfe9d7;font-size:10px;font-weight:700;letter-spacing:.5px}
 @media(max-width:650px){.studio-languages{grid-template-columns:1fr}.studio-form .card-actions>*{flex:1 1 130px}.compute-device span{margin-left:0}}
+
+.live-tv-video{display:block;width:100%;max-height:520px;background:#000;border:1px solid #315254;border-radius:7px;margin:16px 0;aspect-ratio:16/9;object-fit:contain}
+.live-tv-video[hidden]{display:none}.studio-caption-options[hidden]{display:none}
