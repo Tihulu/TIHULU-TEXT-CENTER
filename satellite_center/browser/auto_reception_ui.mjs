@@ -212,6 +212,12 @@ export function initAutoReceptionUI({getSelectedFile=()=>null,fileInput=$("local
       const {lat,lon}=station();
       const hours=Number($("auto-hours").value),elevation=Number($("auto-elev").value);
       if(!nativeHost()){
+        const rawSeconds=$("auto-recording-seconds").value.trim();
+        const requestedSeconds=rawSeconds?Number(rawSeconds):60;
+        if(!Number.isInteger(requestedSeconds)||requestedSeconds<8||requestedSeconds>900)
+          throw Error("Choose 8–900 whole seconds or leave blank for automatic duration.");
+        if(requestedSeconds>60)
+          throw Error("Automatic browser WebUSB jobs remain limited to 60 s. For long unattended image/data passes use native receiver; for foreground browser I/Q use Calculate Passes with a user-selected streamed CU8 disk file. Nothing was armed.");
         message("Opening the shared browser RF scheduler. On first use, grant the Nooelec RTL-SDR WebUSB permission there. No capture starts until a future predicted pass.");
         // The destination may only silently reopen previously granted WebUSB;
         // a new permission requires a fresh user gesture on that page.
@@ -225,6 +231,7 @@ export function initAutoReceptionUI({getSelectedFile=()=>null,fileInput=$("local
             mode,createdAt:Date.now()
           }));
           sessionStorage.setItem("tihulu-auto-coverage-goal",$("auto-coverage-goal").value);
+          sessionStorage.setItem("tihulu-auto-browser-seconds",String(requestedSeconds));
         }catch(error){
           throw Error("Browser blocked same-tab station transfer. Open the receiver page and set your coordinates there before scheduling.");
         }

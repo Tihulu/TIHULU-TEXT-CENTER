@@ -1335,6 +1335,11 @@ try {
   const goal=sessionStorage.getItem('tihulu-auto-coverage-goal');
   sessionStorage.removeItem('tihulu-auto-coverage-goal');
   if(['full','sample'].includes(goal))$('auto-coverage').value=goal;
+  const transferredSeconds=sessionStorage.getItem('tihulu-auto-browser-seconds');
+  sessionStorage.removeItem('tihulu-auto-browser-seconds');
+  if(transferredSeconds!==null&&Number.isInteger(Number(transferredSeconds))&&
+     Number(transferredSeconds)>=8&&Number(transferredSeconds)<=60)
+    $('auto-browser-seconds').value=transferredSeconds;
 } catch(_error) { /* Storage unavailable: keep safe full-data default. */ }
 const requestedAutoMission=new URLSearchParams(location.search).get('auto-mission');
 if(['images','messages','voice','all'].includes(requestedAutoMission)){
