@@ -55,4 +55,5 @@ jobs:
       - name: Local receiver doctor (no radio opened)
         run: python -m satellite_center doctor
       - name: Static browser-only JS syntax (no hardware)
+        shell: bash
         run: node --input-type=module --check < satellite_center/browser/browser.js
