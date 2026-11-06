@@ -43,3 +43,21 @@ Meshtastic needs an approved LoRa transceiver. APRS transmit needs an authorized
 Installed binary does not certify decoder capability or capture quality. The local server stays bound to 127.0.0.1; authenticated TLS routing via tihulu.lan and authoritative shared receiver leases remain Survival Kit integration tasks. Do not auto-install packages, retune protected aircraft receiver or enable background polling.
 
 Automated CI tests synthetic RF CSV and API behavior, NOT a real SDR, DAB ensemble, DVB mux, HF antenna or physical decoder.
+
+
+## DAB frequency-raster candidate inspection (not ensemble reception)
+
+A completed DAB spectrum survey now groups individual energy peaks by **published
+Band III nominal channel centres**, each having a ±768 kHz nominal block width.
+For example, power peaks at 222.039 and 222.555 MHz both map to the **11D**
+raster centre at 222.064 MHz; this is one **possible block**, not two confirmed
+stations. All ungrouped RF peaks remain available for inspection. Clickable,
+keyboard-accessible block details can inspect measured frequencies, source
+limitations and any separately imported archival DAB text.
+
+This lookup **does not** tune welle-cli, acquire a DAB service, synchronize FIC,
+name a broadcaster or prove that any ensemble is on air. The DAB decoder
+integration remains a separate task requiring real receiver lease ownership,
+the installed compatible decoder, verified service metadata and actual
+physical off-air acceptance. No internet source is used to fake reception.
+Channel raster reference: https://www.ukwtv.de/cms/dab-kanaele.html .
