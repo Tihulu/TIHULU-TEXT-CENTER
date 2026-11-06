@@ -1,0 +1,18 @@
+{
+  "name": "TIHULU TEXT CENTER",
+  "short_name": "TIHULU Text",
+  "description": "Offline-first companion web app for real radio, TV, text and radar data",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#0b1318",
+  "theme_color": "#0b1419",
+  "icons": [
+    {
+      "src": "./pages-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
