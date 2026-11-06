@@ -49,6 +49,26 @@ export function initAutoReceptionUI({getSelectedFile=()=>null,fileInput=$("local
   const state={discovery:[],actualImages:[],packetText:[],warnings:[],name:""};
   const message=value=>{$("auto-mission-status").textContent=String(value);};
   const jobs=$("auto-mission-jobs"),output=$("auto-mission-output");
+
+  const runtime=$("auto-runtime"),receiver=$("auto-receiver"),decoders=$("auto-decoders");
+  if(nativeHost()){
+    runtime.textContent="Native companion · persistent scheduler";
+    receiver.textContent="Receiver: checking physical SDR status…";
+    decoders.textContent="Decoders: checking installed tools…";
+    void nativeApi("/api/status").then(s=>{
+      receiver.textContent="Receiver: "+(s.session?.active?"busy capturing":s.busy?"busy or external process":"idle / not claimed");
+      decoders.textContent="SatDump: "+(s.tools?.satdump?"installed":"missing")+
+        " · APRS: "+(s.tools?.["multimon-ng"]?"installed":"missing")+
+        " · Robot36: browser experimental";
+    }).catch(()=>{receiver.textContent="Receiver: companion unavailable";});
+  }else{
+    runtime.textContent="Web / PWA · foreground-only scheduler";
+    receiver.textContent=(window.isSecureContext&&navigator.usb)?
+      "WebUSB API available; receiver permission NOT yet granted":
+      "No direct WebUSB (Firefox/Safari or unsupported platform)";
+    decoders.textContent="Robot36 experimental · Meteor LRPT needs local SatDump · APRS requires native decoder";
+  }
+
   const analyze=$("auto-mission-analyze"),extract=$("auto-mission-extract");
   const cancel=$("auto-mission-cancel");
 
