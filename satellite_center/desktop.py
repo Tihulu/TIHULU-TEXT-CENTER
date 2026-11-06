@@ -13,17 +13,20 @@ from pathlib import Path
 import sys
 import wave
 
-from PyQt5.QtCore import Qt, QDate, QDateTime, QPointF, QRectF, QObject, QRunnable, QThreadPool, QTimer, pyqtSignal, QUrl
+from PyQt5.QtCore import Qt, QDate, QDateTime, QPointF, QRectF, QObject, QRunnable, QThreadPool, QTimer, pyqtSignal, QUrl, QSize
 from PyQt5.QtGui import QColor, QFont, QPainter, QPen, QPolygonF, QPixmap, QDesktopServices, QImage, QIcon
 from PyQt5.QtWidgets import (
     QApplication, QCheckBox, QComboBox, QDateEdit, QDateTimeEdit, QDoubleSpinBox,
     QFileDialog, QFormLayout, QGroupBox, QHBoxLayout, QLabel, QMainWindow,
     QMessageBox, QPlainTextEdit, QPushButton, QSpinBox, QSplitter, QTabWidget,
-    QTableWidget, QTableWidgetItem, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget
+    QTableWidget, QTableWidgetItem, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget,
+    QLineEdit, QFrame, QHeaderView, QSizePolicy
 )
 
 from .__main__ import Station, PROFILES, LOCATIONS, AUTO_DOWNLINK_PROFILES, allowed_mode
 from .native_analysis import analyze_cu8, save_spectrum_report, export_results_zip
+from .media_catalog import (MEDIA_COLORS, MEDIA_SYMBOLS, kinds_for_pass, filter_passes,
+                            media_summary, capabilities_for_pass)
 
 
 def local_time(value):
@@ -153,7 +156,14 @@ class SatelliteWindow(QMainWindow):
 
     def _style(self):
         self.setStyleSheet("""
-          QMainWindow,QWidget{background:#0d1c31;color:#e5f1ff;font-size:12px}
+          QMainWindow,QWidget{background:#0b1626;color:#eaf4ff;font-size:12px;font-family:"Noto Sans"}
+          QFrame#passDetail{background:#142840;border:1px solid #345a78;border-radius:12px}
+          QLabel#passTitle{font-size:17px;font-weight:700;color:#f1f9ff}
+          QLabel#passSubtitle{font-size:12px;color:#a9c5dd}
+          QLabel#passSectionTitle{font-size:13px;font-weight:650;color:#c8e3f9}
+          QLabel#dataHint{color:#9cb8d2;font-size:11px}
+          QLineEdit{background:#152d47;color:#f4fbff;border:1px solid #3c6182;border-radius:7px;padding:9px}
+          QLineEdit:focus,QComboBox:focus{border:1px solid #65c9e5}
           QGroupBox{border:1px solid #325370;border-radius:9px;margin-top:12px;padding:14px 8px 8px;font-weight:600}
           QGroupBox::title{subcontrol-origin:margin;left:14px;padding:0 5px;color:#b6d9f9}
           QTabWidget::pane{border:1px solid #31526f;border-radius:6px}
@@ -166,7 +176,11 @@ class SatelliteWindow(QMainWindow):
           QPushButton{background:#254d74;border:1px solid #49759d;border-radius:5px;padding:8px 13px}
           QPushButton:hover{background:#326a9a}
           QPushButton:disabled{color:#6f88a3;background:#17283b}
-          QHeaderView::section{background:#1b3857;color:#d9ebff;padding:7px}
+          QHeaderView::section{background:#1a344f;color:#d9ebff;padding:9px;border:0;border-bottom:1px solid #34536e;font-weight:600}
+          QTreeWidget::item{padding:6px}
+          QTreeWidget::item:selected{background:#294c70;color:#ffffff}
+          QScrollBar:vertical{width:11px;background:#101f34}
+          QScrollBar::handle:vertical{background:#345d80;min-height:26px;border-radius:5px}
           QLabel#headline{font-size:22px;font-weight:bold;color:#f1faff}
           QLabel#hint{color:#a7bfd7}
         """)
@@ -266,23 +280,100 @@ class SatelliteWindow(QMainWindow):
         if point:
             self.lat.setValue(point[0]);self.lon.setValue(point[1])
 
+    def _media_badges(self, kinds, *, compact=False):
+        """Real Qt QLabel chips: never HTML/WebView or browser content."""
+        widget=QWidget()
+        layout=QHBoxLayout(widget)
+        layout.setContentsMargins(3,1,3,1)
+        layout.setSpacing(5)
+        for kind in kinds:
+            badge=QLabel((MEDIA_SYMBOLS.get(kind,"")+" "+("RF" if kind=="RF data" else kind.upper())).strip())
+            color=MEDIA_COLORS[kind]
+            badge.setStyleSheet(
+                "QLabel { background:#233f5a; border:1px solid "+color+
+                "; color:"+color+"; border-radius:7px; padding:3px 8px;"
+                " font-size:"+("10" if compact else "11")+"px; font-weight:650; }")
+            badge.setToolTip(kind+" candidate / capability; satellite transmission not verified")
+            layout.addWidget(badge)
+        layout.addStretch(1)
+        widget.setStyleSheet("background:transparent;")
+        return widget
+
     def _passes_tab(self):
-        body=self._new_tab("Satellite passes")
+        body=self._new_tab("Passes & Data")
         top=QHBoxLayout();body.addLayout(top)
         self._station_controls(top)
-        group=QGroupBox("Receive-only pass prediction")
+        group=QGroupBox("Satellite reception planner")
         actions=QVBoxLayout(group)
-        actions.addWidget(self._button("Update public CelesTrak TLEs",self.refresh_tles))
-        actions.addWidget(self._button("Calculate local satellite passes",self.calculate_passes))
-        actions.addWidget(self._hint("Orbit calculation uses cached TLE data. "
-                      "The 1.024 MS/s native RTL-SDR writes to disk; no browser duration limit."))
+        actions.addWidget(self._button("↻  Update public orbital TLEs",self.refresh_tles))
+        actions.addWidget(self._button("◉  Calculate satellite passes",self.calculate_passes))
+        actions.addWidget(self._hint("Geometry from local TLEs is not evidence of RF. "
+                                    "Media tags describe supported *candidate formats*, "
+                                    "not files already available onboard or received."))
         actions.addStretch(1);top.addWidget(group)
+        top.setStretch(0,1);top.setStretch(1,1)
+
+        searchRow=QHBoxLayout()
+        self.pass_search=QLineEdit()
+        self.pass_search.setPlaceholderText("Search satellite, NORAD ID, family or receiver profile…")
+        self.pass_search.setClearButtonEnabled(True)
+        self.pass_search.textChanged.connect(self._render_pass_results)
+        self.pass_media_filter=QComboBox()
+        for title,key in [
+            ("All media types","All"),("▧  Image candidates","Image"),
+            ("♫  Audio candidates","Audio"),("≡  Text / packets","Text"),
+            ("◈  RF data","RF data"),("RF-only satellites","RF only")]:
+            self.pass_media_filter.addItem(title,key)
+        self.pass_media_filter.currentIndexChanged.connect(self._render_pass_results)
+        searchRow.addWidget(self.pass_search,3)
+        searchRow.addWidget(self.pass_media_filter,1)
+        body.addLayout(searchRow)
+
+        self.pass_overview=QLabel("Calculate passes to discover candidate image, audio, text and RF profiles.")
+        self.pass_overview.setObjectName("passSubtitle")
+        self.pass_overview.setWordWrap(True)
+        body.addWidget(self.pass_overview)
         self.pass_list=QTreeWidget()
-        self.pass_list.setHeaderLabels(["Satellite","AOS · local","LOS · local","Max elev.","Family"])
-        self.pass_list.setUniformRowHeights(True)
+        self.pass_list.setHeaderLabels([
+            "Satellite · NORAD","Potential data formats","AOS · local",
+            "LOS · local","Peak","Family"])
+        self.pass_list.setUniformRowHeights(False)
+        self.pass_list.setRootIsDecorated(False)
+        self.pass_list.setAlternatingRowColors(False)
+        self.pass_list.setSelectionMode(QTreeWidget.SingleSelection)
+        self.pass_list.setSortingEnabled(False) # AOS order is preserved
+        self.pass_list.header().setSectionResizeMode(0,QHeaderView.Stretch)
+        self.pass_list.header().setSectionResizeMode(1,QHeaderView.ResizeToContents)
+        for col in (2,3,4,5):
+            self.pass_list.header().setSectionResizeMode(col,QHeaderView.ResizeToContents)
         self.pass_list.itemSelectionChanged.connect(self.pass_selected)
-        body.addWidget(self.pass_list,1)
-        settings=QGroupBox("Configure selected predicted pass · native SDR")
+        body.addWidget(self.pass_list,3)
+
+        self.pass_detail=QFrame()
+        self.pass_detail.setObjectName("passDetail")
+        detail=QVBoxLayout(self.pass_detail)
+        detail.setContentsMargins(16,12,16,12)
+        detail.setSpacing(6)
+        self.pass_title=QLabel("Choose a satellite pass")
+        self.pass_title.setObjectName("passTitle")
+        self.pass_subtitle=QLabel("No received satellite data yet. Select a candidate pass to see protocols.")
+        self.pass_subtitle.setObjectName("passSubtitle")
+        self.pass_subtitle.setWordWrap(True)
+        self.pass_media_bar=QWidget()
+        self.pass_media_bar.setLayout(QHBoxLayout())
+        self.pass_media_bar.layout().setContentsMargins(0,1,0,1)
+        self.pass_media_bar.layout().setSpacing(7)
+        self.pass_requirements=QLabel("Image, audio, text and raw RF capability will appear here.")
+        self.pass_requirements.setWordWrap(True)
+        self.pass_requirements.setTextFormat(Qt.PlainText)
+        self.pass_requirements.setObjectName("dataHint")
+        detail.addWidget(self.pass_title)
+        detail.addWidget(self.pass_subtitle)
+        detail.addWidget(self.pass_media_bar)
+        detail.addWidget(self.pass_requirements)
+        body.addWidget(self.pass_detail,1)
+
+        settings=QGroupBox("Plan a real RF recording · native receiver")
         form=QFormLayout(settings)
         self.pass_profile=QComboBox()
         self.pass_profile.currentIndexChanged.connect(self._pass_modes)
@@ -297,11 +388,76 @@ class SatelliteWindow(QMainWindow):
         form.addRow("Receiver profile",self.pass_profile)
         form.addRow("RF output mode",self.pass_mode)
         form.addRow("Local start time",self.pass_time)
-        form.addRow("Actual RF duration · s",self.pass_seconds)
-        form.addRow("Disk budget",self.pass_cost)
-        self.arm_pass=self._button("Arm this RF recording",self.schedule_selected_pass)
+        form.addRow("Actual RF duration · seconds",self.pass_seconds)
+        form.addRow("Estimated disk space",self.pass_cost)
+        self.arm_pass=self._button("Arm selected RF capture",self.schedule_selected_pass)
         form.addRow(self.arm_pass)
         body.addWidget(settings)
+        self._render_pass_results()
+
+    def _set_pass_media_bar(self, kinds):
+        layout=self.pass_media_bar.layout()
+        while layout.count():
+            item=layout.takeAt(0)
+            if item.widget():item.widget().deleteLater()
+        if kinds:
+            chip_row=self._media_badges(kinds)
+            layout.addWidget(chip_row)
+        else:
+            empty=QLabel("No catalogued media formats for this selected pass")
+            empty.setObjectName("passSubtitle")
+            layout.addWidget(empty)
+
+    def _render_pass_results(self, *_):
+        """Only user search/filter or new predictions rebuild the native table.
+
+        Unlike old browser UI, periodic status updates never close a dropdown
+        or replace a focused Qt combo box.
+        """
+        previous=self.pass_list.currentItem()
+        selected=previous.data(0,Qt.UserRole) if previous is not None else None
+        all_rows=list(self.passes.values())
+        kind=self.pass_media_filter.currentData() or "All"
+        search=self.pass_search.text()
+        if kind=="RF only":
+            rows=[row for row in filter_passes(all_rows,"RF data",search)
+                  if kinds_for_pass(row)==["RF data"]]
+        else:
+            rows=filter_passes(all_rows,kind,search)
+        self.pass_list.blockSignals(True)
+        self.pass_list.clear()
+        selected_item=None
+        for row in rows:
+            kinds=kinds_for_pass(row)
+            norad=row.get("norad","?")
+            item=QTreeWidgetItem([
+                row["name"]+"  ·  "+str(norad),"",
+                local_time(row["aos"]),local_time(row["los"]),
+                str(row["max_elevation_deg"])+"°",row.get("family","unknown").upper()
+            ])
+            item.setData(0,Qt.UserRole,row["id"])
+            item.setToolTip(0,"Predicted orbital pass only; data transmission is unverified")
+            item.setToolTip(1,"Possible from known receiver protocols, not received files")
+            item.setSizeHint(1,QSize(360,45))
+            if "Image" in kinds:
+                item.setForeground(0,QColor("#F3D3A4"))
+            self.pass_list.addTopLevelItem(item)
+            self.pass_list.setItemWidget(item,1,self._media_badges(kinds,compact=True))
+            if row["id"]==selected:selected_item=item
+        self.pass_list.blockSignals(False)
+        counts={kind:sum(kind in kinds_for_pass(row) for row in rows)
+                for kind in ("Image","Audio","Text")}
+        self.pass_overview.setText(
+            f"{len(rows)} shown / {len(all_rows)} predicted · "
+            f"▧ {counts['Image']} image candidate(s) · "
+            f"♫ {counts['Audio']} audio · ≡ {counts['Text']} text · "
+            "No transmission or complete image guaranteed")
+        if selected_item is not None:
+            self.pass_list.setCurrentItem(selected_item)
+        elif rows:
+            self.pass_list.setCurrentItem(self.pass_list.topLevelItem(0))
+        else:
+            self.pass_selected()
 
     def _auto_tab(self):
         body=self._new_tab("Auto reception")
@@ -507,28 +663,41 @@ class SatelliteWindow(QMainWindow):
     def _apply_passes(self,data):
         rows=data.get("predictions",[])
         self.passes={r["id"]:r for r in rows}
-        self.pass_list.clear()
-        for row in rows:
-            item=QTreeWidgetItem([
-                row["name"],local_time(row["aos"]),local_time(row["los"]),
-                str(row["max_elevation_deg"])+"°",row["family"]
-            ])
-            item.setData(0,Qt.UserRole,row["id"])
-            self.pass_list.addTopLevelItem(item)
-        self.statusBar().showMessage(str(len(rows))+" predicted passes; not RF detections",15000)
-        if rows:self.pass_list.setCurrentItem(self.pass_list.topLevelItem(0))
+        self._render_pass_results()
+        warning=" · ".join(data.get("warnings",[])[:2])
+        self.statusBar().showMessage(
+            str(len(rows))+" orbital passes (not RF detections)"+
+            (" · "+warning if warning else ""),15000)
 
     def pass_selected(self):
         item=self.pass_list.currentItem()
         row=self.passes.get(item.data(0,Qt.UserRole)) if item else None
         self.pass_profile.blockSignals(True)
         self.pass_profile.clear()
+        self.arm_pass.setEnabled(bool(row))
         if row:
+            kinds=kinds_for_pass(row)
+            self.pass_title.setText(row["name"]+"  ·  NORAD "+str(row.get("norad","?")))
+            self.pass_subtitle.setText(
+                local_time(row["aos"])+"  →  "+local_time(row["los"])+
+                "   |   "+str(row.get("max_elevation_deg","?"))+"° peak   |   "
+                +str(row.get("family","unknown")).upper())
+            self._set_pass_media_bar(kinds)
+            self.pass_requirements.setText("\n".join("• "+s for s in media_summary(
+                row,check_decoders=False)))
             for key in row.get("profiles",[]):
                 if key in PROFILES:self.pass_profile.addItem(PROFILES[key]["label"],key)
             self.pass_time.setDateTime(native_datetime(row["aos"]))
-            remaining=(datetime.fromisoformat(row["los"])-datetime.fromisoformat(row["aos"])).total_seconds()
+            remaining=(datetime.fromisoformat(row["los"])-
+                       datetime.fromisoformat(row["aos"])).total_seconds()
             self.pass_seconds.setValue(max(8,min(900,int(remaining)-25)))
+        else:
+            self.pass_title.setText("No pass selected")
+            self.pass_subtitle.setText("Choose a candidate from the list or clear your filters.")
+            self._set_pass_media_bar([])
+            self.pass_requirements.setText(
+                "Image = known potential decoder protocol; RF data = raw samples only. "
+                "No transmission or decoded files are confirmed by orbital predictions.")
         self.pass_profile.blockSignals(False)
         self._pass_modes()
 
