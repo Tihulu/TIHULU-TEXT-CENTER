@@ -2,6 +2,8 @@
    Unavailable RF features must never be reported as acquired signals. */
 import {GNSS,DEFAULT_CENTER,parseSP3,visibleSatellites,rtlSignalClass,validateLLA} from "../core/gnss.mjs";
 import {parseNMEA,trilaterate2D,tdoaConstraints} from "../core/positioning.mjs";
+import {initAutoExplorer} from "./auto_explorer.mjs";
+import {initUsbSDR} from "./usb_sdr.mjs";
 
 const $=id=>document.getElementById(id), svgNS="http://www.w3.org/2000/svg";
 const state={
@@ -24,11 +26,9 @@ function source(){
  if(state.serialFix&&Date.now()-state.serialAt<90000)
   return {...state.serialFix,kind:"NMEA receiver — live",validObserver:true};
  if(state.browser)return {...state.browser,kind:"Browser / device location",validObserver:true};
- const observed=state.references.filter(p=>p.type==="aircraft"&&p.observedByReceiver===true);
- if(observed.length){
-   const ref=observed.slice().sort((a,b)=>distanceRef(a)-distanceRef(b))[0];
-   return {lat:ref.lat,lon:ref.lon,kind:"Observed aircraft (NOT your position)",validObserver:false};
- }
+ // Imported aircraft JSON is an untrusted reference, NOT authenticated
+ // ADS-B receiver observation. A future trusted Flight Radar adapter must
+ // supply verified observations before aircraft-centered fallback is enabled.
  return {...DEFAULT_CENTER,kind:"Cologne reference (NOT your position)",validObserver:false};
 }
 function distanceRef(p){const a=(p.lat-DEFAULT_CENTER.lat),b=(p.lon-DEFAULT_CENTER.lon)*Math.cos(DEFAULT_CENTER.lat*Math.PI/180);return a*a+b*b}
@@ -48,6 +48,7 @@ function recordFix(p,provider){
  state.receiverHistory.push(item);
  if(state.receiverHistory.length>500)state.receiverHistory.shift();
  renderHistory();
+ window.dispatchEvent(new CustomEvent("tihulu:position",{detail:{lat:p.lat,lon:p.lon,alt:p.altEllipsoidMeters??p.alt??0,provider,accuracy:p.accuracy??null}}));
 }
 function renderCatalog(){
  const c=$("gnss-catalog");c.replaceChildren();
@@ -68,7 +69,7 @@ function renderDiagnostics(){
    ["Dedicated GNSS NMEA",state.serialFix&&Date.now()-state.serialAt<90000?"Current valid serial receiver fix":state.gnssFile?"Historical receiver import":"Unavailable"],
    ["Precise orbit",state.sp3?state.sp3.satelliteCount+" satellites from imported SP3 file":"No orbit file imported"],
    ["RF acquisition","Unavailable — no GNSS SDR demodulator"],
-   ["Aircraft reference",state.references.filter(p=>p.type==="aircraft"&&p.observedByReceiver).length+" imported observed references"],
+   ["Aircraft reference",state.references.filter(p=>p.type==="aircraft").length+" imported aircraft references (NOT receiver-verified)"],
    ["Measured station ranges",state.ranges?state.ranges.usedRanges+" user-provided measurements":"Unavailable"],
    ["TDOA synchronized constraints",state.tdoa.length?state.tdoa.length+" imported constraints":"Unavailable"]
  ];
@@ -254,13 +255,6 @@ $("serial-connect")?.addEventListener("click",async()=>{
  finally{await disconnect()}
 });
 $("serial-disconnect")?.addEventListener("click",()=>{disconnect();msg("Own NMEA serial port released")});
-$("usb-select")?.addEventListener("click",async()=>{
- if(!("usb" in navigator)){msg("WebUSB unsupported here. No device selected.");return}
- try{const d=await navigator.usb.requestDevice({filters:[{vendorId:0x0bda,productId:0x2838}]});
- state.usbSelection=d;setText("usb-state","PERMISSION / SELECTION ONLY: "+d.productName+" — no RF open or IQ capture");
- setText("stage-device","USB SELECTED ONLY");msg("USB device selected, NOT opened. No satellite RF acquired.");
- }catch(e){msg("No USB device selected: "+e.message)}
-});
 $("hard-stop")?.addEventListener("click",()=>{
  disconnect();state.usbSelection=null;setText("usb-state","No USB device selected; no RF capture started");
  setText("stage-device","UNAVAILABLE");msg("HARD STOP: only this page's own serial reader was stopped; readsb/Gqrx not touched");
@@ -270,7 +264,7 @@ $("refs-file")?.addEventListener("change",e=>importFile(e.target,100_000,async t
  const list=JSON.parse(text);if(!Array.isArray(list)||list.length>200)throw Error("Expected <= 200 source-attributed reference points");
  const results=list.map(p=>{
    if(!["aircraft","station"].includes(p.type)||!p.source||!p.name)throw Error("Reference requires name, type and source");
-   const loc=safeCoord(p.lat,p.lon);return {...loc,name:String(p.name).slice(0,100),source:String(p.source).slice(0,180),type:p.type,observedByReceiver:p.observedByReceiver===true};
+   const loc=safeCoord(p.lat,p.lon);return {...loc,name:String(p.name).slice(0,100),source:String(p.source).slice(0,180),type:p.type,sourceClaimsObservation:p.observedByReceiver===true};
  });
  state.references=results;const c=$("refs-list");c.replaceChildren();
  for(const p of results)c.append(make("div","list-item",p.name+" · "+p.type+" · "+p.source));
@@ -311,7 +305,7 @@ for(const t of ["json","geojson","csv","gpx","kml"])$( "export-"+t)?.addEventLis
 function capabilities(){
  const c=$("capabilities");c.replaceChildren();
  for(const [a,b] of [
-   ["WebUSB",("usb" in navigator)?"Permission selection possible; GNSS RF decoding NOT implemented":"Unavailable"],
+   ["WebUSB",("usb" in navigator)?"RTL-SDR USB claim + uncalibrated GNSS-L1 RF sample; GNSS decoding NOT implemented":"Unavailable"],
    ["Web Serial",("serial" in navigator)?"NMEA receiver selection supported":"Unavailable"],
    ["Browser Geolocation",navigator.geolocation?"Available with permission":"Unavailable"],
    ["Local offline shell",("serviceWorker" in navigator)?"Supported by browser":"Unavailable"],
@@ -324,5 +318,8 @@ function capabilities(){
 if("serviceWorker" in navigator&&location.protocol==="https:"){
  navigator.serviceWorker.register("./sw.js").catch(()=>{});
 }
+window.addEventListener("tihulu:find-request",()=>{ if(state.serialFix&&Date.now()-state.serialAt<90000){ window.dispatchEvent(new CustomEvent("tihulu:position",{detail:{lat:state.serialFix.lat,lon:state.serialFix.lon,alt:state.serialFix.altEllipsoidMeters??0,provider:"Dedicated GNSS serial NMEA"}})); msg("Using fresh receiver-provided NMEA position; browser location not requested."); }else{$("locate")?.click()}});
 renderCatalog();renderHistory();renderDiagnostics();renderPosition(true);renderSky();capabilities();
+initAutoExplorer();
+initUsbSDR(msg);
 setInterval(()=>{if(state.serialFix&&Date.now()-state.serialAt>90000){state.serialFix=null;renderPosition(true);renderDiagnostics();msg("Stale serial NMEA fix expired")}},10000);

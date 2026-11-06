@@ -40,8 +40,35 @@
   <main id="main">
    <div class="notice" id="notice" role="status" aria-live="polite">No active RF capture. Browser location and local files require your permission.</div>
    <section id="view-dashboard" class="view active" aria-labelledby="dash-title">
-    <div class="eyebrow">MISSION OVERVIEW</div><h1 id="dash-title">Know where the evidence comes from.</h1>
+    <div class="eyebrow">MISSION OVERVIEW</div><h1 id="dash-title">Find your location. See the GNSS sky.</h1>
     <p class="lead">GNSS orbital geometry, real device coordinates and experimental radio positioning in one offline-first workspace. Prediction is never reception.</p>
+    
+    <section class="live-explorer" aria-label="Live GNSS geolocation explorer">
+      <div class="live-head">
+        <div><div class="eyebrow">LIVE EXPLORER · EARTH + SKY</div><h2>Find your position and see the satellites</h2><p>Automatic navigation-satellite predictions. One button for real device positioning. Orbit positions and RF receptions are different measurements.</p></div>
+        <div class="live-controls"><button id="live-find" class="primary" type="button">◎ Find My Location</button><button id="live-connect" class="secondary" type="button">⌁ Connect USB SDR</button><button id="live-scan" class="secondary" type="button">Scan GNSS L1 · 2 s</button><button id="live-release" class="secondary" type="button">Release USB</button><button id="live-refresh" class="secondary" type="button">↻ Refresh Satellites</button></div>
+      </div>
+      <div class="live-stats">
+        <div><span>POSITION SOURCE</span><strong id="live-pos-type">REFERENCE ONLY</strong><small id="live-pos-label">Cologne fallback · permission not requested</small></div>
+        <div><span>GNSS ORBITAL CATALOG</span><strong id="live-total">Loading…</strong><small id="live-epoch">Automatic one-time CelesTrak lookup</small></div>
+        <div><span>ABOVE HORIZON</span><strong id="live-above">—</strong><small>Predicted geometry, not RF locks</small></div>
+        <div><span>USB SDR</span><strong id="live-usb-status">Not connected</strong><small id="live-usb-detail">No radio capture</small></div>
+      </div>
+      <div class="live-map-grid">
+        <article class="live-earth">
+          <div class="live-panel-title"><div><div class="eyebrow">EARTH VIEW</div><h3>Position map</h3></div><span id="live-earth-source" class="live-source">COLOGNE REFERENCE</span></div>
+          <div class="live-map-wrap"><iframe id="live-osm" title="Interactive OpenStreetMap viewer with receiver location" loading="eager" referrerpolicy="strict-origin-when-cross-origin" allow="geolocation 'none'"></iframe></div>
+          <div class="live-map-footer"><span>© OpenStreetMap contributors · online map requested on page load</span><a id="live-open-osm" href="https://www.openstreetmap.org/" target="_blank" rel="noopener noreferrer">Open full map ↗</a></div>
+        </article>
+        <article class="live-sky">
+          <div class="live-panel-title"><div><div class="eyebrow">SKY VIEW · SGP4</div><h3>Navigation satellites overhead</h3></div><span id="live-sky-source" class="live-source">LOADING ORBITS</span></div>
+          <svg id="live-sky-svg" role="img" aria-label="Predicted GNSS satellites in a polar sky chart" viewBox="0 0 460 385"></svg>
+          <div id="live-satellite-list" class="live-satellite-list"><p>Loading current orbital data…</p></div>
+        </article>
+      </div>
+      <div class="live-status"><span id="live-position-status">Press Find My Location to use permission-based device coordinates. No RF hardware opens automatically.</span><span id="live-orbit-status">Orbital data: checking cache…</span></div>
+      <details class="live-explain"><summary>What actually determines my location?</summary><p><strong>Browser/device GPS:</strong> real positioning after permission. <strong>Dedicated GNSS receiver:</strong> valid live NMEA fixes. <strong>Predicted satellites:</strong> orbital geometry only, not reception. <strong>Aircraft and radio stations:</strong> positions alone cannot locate a receiver without independent range, timing or directional measurements. <strong>WebUSB RTL-SDR:</strong> direct hardware connection and raw RF energy samples where supported, but no GNSS satellite signal decoder yet.</p></details>
+    </section>
     <div class="metrics">
       <article class="metric"><span>LOCATION PROVIDER</span><strong id="dash-provider">Unavailable</strong><small id="dash-coordinates">No authorized coordinates</small></article>
       <article class="metric"><span>GNSS EPHEMERIS</span><strong id="dash-orbits">Not imported</strong><small id="dash-orbit-time">Import your own precise orbit SP3 file</small></article>
