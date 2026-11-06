@@ -1,5 +1,5 @@
 import { sortSatelliteList, nextPassForSatellite } from './pass_sort.mjs';
-import { createOrbitClock, shouldRefreshLive, trackCacheSlot, LIVE_REFRESH_MS } from './orbit_clock.mjs';
+import { createOrbitClock, shouldRefreshLive, trackCacheSlot, LIVE_REFRESH_MS } from './orbit_clock.mjs?v=20261106-live-v14';
 /* TIHULU satellite tracking maps: browser-only TLE geometry, never RF identity.
  * OSM tiles requested only when the operator opens the Earth map. */
 const $ = id => document.getElementById(id);
