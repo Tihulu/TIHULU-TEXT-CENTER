@@ -510,7 +510,7 @@ class Station:
     def save_jobs(self):
         safe_write(self.directory/"schedule.json", self.jobs[-150:])
 
-    def schedule(self, pass_id, profile, mode, run_at=None, seconds=None):
+    def schedule(self, pass_id, profile, mode, run_at=None, seconds=None, *, automatic=False):
         """Explicit native RF pass schedule (Firefox-compatible, no WebUSB/FSA).
 
         Enforces server-predicted public TLE event/profile and local disk
@@ -526,7 +526,11 @@ class Station:
             if profile not in event["profiles"] or mode not in MODES or not allowed_mode(profile, mode):
                 raise ValueError("Unsupported pass/profile/mode combination")
             if mode not in ("iq", "survey"):
-                raise ValueError("Use a named automatic mission for packet/audio decoding")
+                if not automatic or (profile, mode) not in {
+                    (candidate_profile, candidate_mode)
+                    for _, candidate_profile, candidate_mode in AUTO_DOWNLINK_PROFILES.values()
+                }:
+                    raise ValueError("Packet/audio scheduling requires a named approved automatic mission")
             aos = datetime.fromisoformat(event["aos"]).astimezone(UTC)
             los = datetime.fromisoformat(event["los"]).astimezone(UTC)
             if aos < now()+timedelta(seconds=12) or aos > now()+timedelta(days=3):
@@ -545,7 +549,7 @@ class Station:
                 if chosen.tzinfo is None:
                     raise ValueError("Scheduled start must include UTC offset")
                 chosen = chosen.astimezone(UTC)
-            if chosen<aos and chosen>=aos-timedelta(seconds=120):
+            if not automatic and chosen<aos and chosen>=aos-timedelta(seconds=120):
                 # Browser pass planners display minute resolution. Align an
                 # early start within two minutes to the server's exact AOS.
                 chosen=aos
@@ -554,14 +558,17 @@ class Station:
                 raise ValueError("Native recording must be 8–900 whole seconds")
             if mode == "survey" and duration > 180:
                 raise ValueError("Spectrum-only survey is limited to 180 s; select IQ disk recording for longer windows")
-            if chosen < max(aos, now()+timedelta(seconds=8)):
+            earliest = aos-timedelta(seconds=10) if automatic else aos
+            if chosen < max(earliest, now()+timedelta(seconds=8)):
                 raise ValueError("Native start must be in the future and inside predicted pass")
             if chosen+timedelta(seconds=duration+END_MARGIN_SECONDS)>los:
                 raise ValueError("Insufficient predicted LOS time for the full requested native recording")
             free = shutil.disk_usage(self.archive).free
             reserve = sum(int(other.get("estimated_bytes") or 0) for other in self.jobs
                           if other.get("state") in ("pending","running"))
-            estimate = 2*1024000*duration if mode == "iq" else 1_000_000
+            estimate = (2*1024000*duration if mode == "iq"
+                        else 96_000*duration if mode in ("sstv_audio", "fm_audio")
+                        else 1_000_000)
             if estimate>MAX_IQ_BYTES or free-reserve<estimate+200_000_000:
                 raise ValueError("Insufficient local disk space for raw IQ and safety reserve")
             if sum(j.get("state")=="pending" for j in self.jobs)>=24:
@@ -696,7 +703,9 @@ class Station:
             plan = plans[mission]
             _, profile, mode = candidates[mission]
             try:
-                job = self.schedule(event["id"], profile, mode)
+                job = self.schedule(event["id"], profile, mode,
+                                    stamp(aos-timedelta(seconds=10)),
+                                    plan["capture_seconds"], automatic=True)
             except (ValueError, RuntimeError) as error:
                 skipped.append(event["name"]+": "+str(error)[:90])
                 continue

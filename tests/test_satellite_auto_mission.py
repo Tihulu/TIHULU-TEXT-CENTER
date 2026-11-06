@@ -46,6 +46,30 @@ class AutoMissionTests(unittest.TestCase):
             p.start()
             self.addCleanup(p.stop)
 
+
+    def test_native_approved_auto_audio_can_schedule_full_pass_without_web(self):
+        from datetime import timedelta
+        from satellite_center.__main__ import now, stamp
+        with tempfile.TemporaryDirectory() as td:
+            app=Station(Path(td))
+            aos=now()+timedelta(minutes=10)
+            los=aos+timedelta(minutes=6)
+            app.predicted={"25544:synthetic":{"id":"25544:synthetic","name":"ISS test candidate",
+                "family":"iss","norad":25544,"profiles":["iss_sstv","iss_aprs_uhf"],
+                "aos":stamp(aos),"los":stamp(los)}}
+            try:
+                with self.assertRaisesRegex(ValueError,"requires a named approved"):
+                    app.schedule("25544:synthetic","iss_sstv","sstv_audio",stamp(aos),120)
+                with patch("satellite_center.__main__.shutil.disk_usage") as disk:
+                    disk.return_value.free=8_000_000_000
+                    job=app.schedule("25544:synthetic","iss_sstv","sstv_audio",
+                                     stamp(aos-timedelta(seconds=10)),290,automatic=True)
+                self.assertEqual(job["capture_seconds"],290)
+                self.assertEqual(job["estimated_bytes"],290*96000)
+                self.assertEqual(job["profile"],"iss_sstv")
+                self.assertEqual(job["state"],"pending")
+            finally:app.close()
+
     def test_schedules_nonoverlapping_real_public_targets_without_claiming_receiver(self):
         outcome = self.station.auto_schedule(
             ["meteor-m2-3", "meteor-m2-4", "iss-sstv"], hours=24, max_jobs=6
