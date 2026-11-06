@@ -320,3 +320,26 @@
 .radio-rds-panel>a{font-size:11px;color:#9bddc6}
 .radio-rds-panel>#radio-rds-status,.radio-rds-panel>#radio-rds-results{flex-basis:100%}
 .map-source-bullet.rds{background:#214934;color:#9eeabb}
+
+
+/* Interactive RF provenance markers — fix missing click/hover caused by pointer-events:none. */
+#earth-overlay{pointer-events:none}
+#earth-markers{pointer-events:none}
+#earth-markers g[data-map-marker]{pointer-events:all;cursor:pointer;outline:none}
+#earth-markers g[data-map-marker] circle{transition:stroke-width .12s ease,filter .12s ease}
+#earth-markers g[data-map-marker]:is(:hover,:focus-visible) circle{
+ stroke:#f5fbf6;stroke-width:3.5;filter:drop-shadow(0 0 3px #8ae9e3)
+}
+.map-hover-tip{position:absolute;z-index:26;max-width:min(280px,calc(100% - 14px));padding:7px 10px;
+ color:#e2f5ee;background:#10283b;box-shadow:0 3px 14px #0007;border:1px solid #6ba8b3;
+ border-radius:8px;font-size:11px;line-height:1.45;pointer-events:none}
+.map-hover-tip[hidden]{display:none}
+.map-source-popup{width:min(390px,calc(100% - 16px));max-height:min(350px,85%)}
+.map-source-facts{display:grid;gap:6px;margin:10px 0 3px;padding:9px;border-radius:8px;background:#122e42;
+ color:#c9e0ea;font-size:11px;line-height:1.5}
+.map-source-facts strong{color:#eaf9ef}
+.map-source-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:11px}
+.map-source-actions button,.map-source-actions a{min-height:35px;padding:8px 10px;font-size:11px;line-height:1.4}
+.map-source-actions a{border:1px solid #48718b;border-radius:7px;text-decoration:none;color:#9cdde5}
+.map-source-actions [hidden]{display:none}
+.map-dot.tower{background:#8fb8c7}
