@@ -16,7 +16,7 @@ class TVTests(unittest.TestCase):
             self.assertTrue(parsed["ready"])
             self.assertEqual(parsed["channels"][0]["name"],"TEST TV")
             cmd=zap_command("/usr/bin/dvbv5-zap",str(path),"TEST TV")
-            self.assertEqual(cmd[-3:],["-r","-P","TEST TV"])
+            self.assertEqual(cmd[-3:],["-r","-p","TEST TV"])
             encoder=tv_ffmpeg_command("/usr/bin/ffmpeg",audio_fd=9)
             self.assertIn("pipe:9",encoder)
             self.assertIn("frag_keyframe+empty_moov+default_base_moof",encoder)
