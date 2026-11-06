@@ -7,12 +7,14 @@ on:
       - 'docs/satellite/**'
       - 'tests/test_satellite_*.py'
       - 'tests/test_satellite_*.mjs'
+      - 'scripts/verify_satellite_pages_bundle.py'
       - '.github/workflows/satellite-platforms.yml'
   push:
     paths:
       - 'satellite_center/**'
       - 'docs/satellite/**'
       - 'tests/test_satellite_*.py'
+      - 'scripts/verify_satellite_pages_bundle.py'
       - '.github/workflows/satellite-platforms.yml'
 
 jobs:
