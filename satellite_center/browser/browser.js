@@ -1,5 +1,6 @@
 import { platformFamily, webUsbHelp, permissionReport, usbInterfaceClaimProbe } from './usb_diagnostics.mjs?v=20261106-dvb-unbind-v09';
-import { createSatelliteMaps } from './satellite_maps.mjs?v=20261106-leaflet-css-v11';
+import { createSatelliteMaps } from './satellite_maps.mjs?v=20261106-overlays-v12';
+import { initIqAnalysisUI } from './iq_analysis_ui.mjs';
 import { initStationLocationUI } from './location_search.mjs';
 import { probeUsbSamples, sampleBytes } from './usb_live_probe.mjs?v=20261106-map-usb-v07';
 import { sortPassList } from './pass_sort.mjs';
@@ -36,6 +37,7 @@ let visiblePassCount=40, lastScheduledFile=null, wakeLock=null, schedulerTickBus
 let lastTleFetchAt = 0;
 let locationUI = null;
 let satelliteMaps = null;
+let iqAnalysisUI = null;
 const notifyMaps = () => { if(satelliteMaps) void satelliteMaps.refresh().catch(e=>log('Map refresh: '+e.message)); };
 const maxRecordBytes = 128 * 1024 * 1024;
 const signalHistory = [];
@@ -279,7 +281,7 @@ function triggerRawDownload(blob,name) {
   log('Requested browser download: '+name+' · '+(blob.size/1048576).toFixed(2)+
     ' MiB of real IQ bytes. Browser settings may block automatic downloads; scheduled reports retain the latest file for manual retry.');
 }
-function saveCapture(bytes,name,job=null) {
+function saveCapture(bytes,name,job=null,metadata=null) {
   if (!bytes.length) return null;
   const blob=new Blob(bytes,{type:'application/octet-stream'});
   if(job){
@@ -294,6 +296,7 @@ function saveCapture(bytes,name,job=null) {
     job.fileName=name;
   }
   triggerRawDownload(blob,name);
+  if(iqAnalysisUI&&metadata)iqAnalysisUI.record(blob,name,metadata);
   return blob;
 }
 async function startCapture(job=null) {
@@ -359,7 +362,7 @@ async function startCapture(job=null) {
       if(recording&&chunks.length>0){
         const tag=new Date().toISOString().replaceAll(':','-').replace(/\..*/,'');
         const name='TIHULU-'+(job?'scheduled-':'')+Math.round(freq)+'-'+rate+'-'+tag+'.cu8';
-        saveCapture(chunks,name,job);
+        saveCapture(chunks,name,job,{centerHz:freq,sampleRate:rate});
       }
       if(job){
         job.state=stopRequested?'stopped':'finished';
@@ -863,6 +866,7 @@ window.addEventListener('appinstalled',()=>{
   log('Satellite Center added to your browser applications. Pin it to the OS dock from Applications.');
 });
 
+iqAnalysisUI=initIqAnalysisUI({log});
 satelliteMaps = createSatelliteMaps({
  getTles:()=>tleEntries,
  getSatLib:getOrbitalLibrary,
