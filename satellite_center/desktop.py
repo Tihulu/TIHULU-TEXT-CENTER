@@ -14,7 +14,7 @@ import sys
 import wave
 
 from PyQt5.QtCore import Qt, QDate, QDateTime, QPointF, QRectF, QObject, QRunnable, QThreadPool, QTimer, pyqtSignal, QUrl
-from PyQt5.QtGui import QColor, QFont, QPainter, QPen, QPolygonF, QPixmap, QDesktopServices, QImage
+from PyQt5.QtGui import QColor, QFont, QPainter, QPen, QPolygonF, QPixmap, QDesktopServices, QImage, QIcon
 from PyQt5.QtWidgets import (
     QApplication, QCheckBox, QComboBox, QDateEdit, QDateTimeEdit, QDoubleSpinBox,
     QFileDialog, QFormLayout, QGroupBox, QHBoxLayout, QLabel, QMainWindow,
@@ -138,6 +138,7 @@ class SatelliteWindow(QMainWindow):
         self.selected_path = None
         self.active = True
         self.setWindowTitle("TIHULU Satellite Center · Native SDR")
+        self.setWindowIcon(QIcon(str(Path(__file__).parent/"assets"/"tihulu-satellite.png")))
         self.resize(1200,820)
         self.setMinimumSize(900,650)
         self._build()
@@ -847,6 +848,9 @@ def main(argv=None):
     app=QApplication([sys.argv[0]]+args)
     app.setApplicationName("TIHULU Satellite Center")
     app.setOrganizationName("TIHULU")
+    app.setWindowIcon(QIcon(str(Path(__file__).parent/"assets"/"tihulu-satellite.png")))
+    if hasattr(app,"setDesktopFileName"):
+        app.setDesktopFileName("tihulu-satellite-center")
     if smoke:
         from tempfile import TemporaryDirectory
         with TemporaryDirectory(prefix="tihulu-native-smoke-") as td:

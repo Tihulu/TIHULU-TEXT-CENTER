@@ -28,7 +28,9 @@ installed native utilities. Installation never silently acquires USB,
 downloads TLEs or starts a scheduled radio recording.
 
 Native dependencies: Debian `python3-pyqt5`, `python3-numpy`,
-`python3-skyfield`, `rtl-sdr` and `xdg-utils`. Legacy `serve`
+`python3-skyfield`, `rtl-sdr` and `xdg-utils`. `qtwayland5`
+is recommended so Pop!_OS/COSMIC can use native Wayland Qt5 windows,
+with XWayland as a fallback if unavailable. Legacy `serve`
 is strictly opt-in: `tihulu-satellite-center serve --port 8791`.
 A native Qt window can open without any browser installed.
 

@@ -28,7 +28,7 @@ Priority: optional
 Architecture: all
 Maintainer: TIHULU Project <noreply@github.com>
 Depends: python3 (>= 3.11), python3-pyqt5, python3-numpy, python3-skyfield, rtl-sdr, xdg-utils
-Recommends: multimon-ng
+Recommends: multimon-ng, qtwayland5
 Description: TIHULU Satellite Center real native Qt desktop for Debian
  Independent Qt Widgets SDR desktop (no browser or embedded WebView),
  receive-only rtl_sdr USB, pass schedules, long on-disk raw IQ recording,
@@ -39,6 +39,10 @@ cat > "$PKG/usr/bin/tihulu-satellite-center" <<'EOF'
 #!/bin/sh
 set -eu
 export PYTHONPATH="/usr/share/tihulu-satellite-center${PYTHONPATH:+:$PYTHONPATH}"
+# Prefer native Wayland in COSMIC/Pop!_OS, XWayland fallback as needed.
+if [ -n "${WAYLAND_DISPLAY:-}" ] && [ -z "${QT_QPA_PLATFORM:-}" ]; then
+ export QT_QPA_PLATFORM="wayland;xcb"
+fi
 if [ "$#" -eq 0 ]; then
  set -- desktop
 fi
