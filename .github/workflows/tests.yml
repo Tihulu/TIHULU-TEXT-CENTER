@@ -20,5 +20,10 @@ jobs:
         run: python -m unittest discover -s tests -v
       - name: Check JS syntax
         run: node --check web/app.js
+      - name: Verify Satellite Center IQ engine and audio preview (pure Node)
+        run: |
+          node --check satellite_center/browser/iq_intelligence.mjs
+          node --check satellite_center/browser/iq_analysis_ui.mjs
+          node --test tests/test_satellite_iq_analysis.mjs tests/test_satellite_iq_intelligence.mjs
       - name: Verify no Python third-party dependencies
         run: python -m compileall -q textcenter tests

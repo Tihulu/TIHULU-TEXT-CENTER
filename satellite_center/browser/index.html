@@ -7,7 +7,7 @@
 <link rel="apple-touch-icon" href="./icon-192.png">
 <link rel="manifest" href="./manifest.webmanifest">
 <meta name="theme-color" content="#091a30">
-<link rel="stylesheet" href="./browser.css?v=20261106-live-v14">
+<link rel="stylesheet" href="./browser.css?v=20261106-signal-v1">
 </head><body>
 <header><div class="wrap"><p class="eyebrow">TIHULU SATELLITE CENTER · DIRECT USB EXPERIMENTAL</p>
 <h1><img src="./icon-192.png" width="54" height="54" alt="" style="vertical-align:middle;border-radius:14px;margin-right:8px">Satellite Center <span class="pill">No local app</span></h1>
@@ -209,8 +209,8 @@ All location methods are optional. City suggestions are offline by default; GPS 
 </div>
 </section>
 <section id="iq-analysis" class="iq-panel">
-<h2>6 · CU8 I/Q analysis — directly in this browser</h2>
-<p class="hint">Analyze the <strong>last locally captured recording</strong> or <strong>open an existing .cu8 file</strong>. This page never uploads the file. View actual raw-sample power, spectral peaks, a time-frequency waterfall and sample statistics. It does not automatically decode Meteor LRPT, SSTV, APRS or Iridium messages.</p>
+<h2>6 · Signal Intelligence — CU8 I/Q analysis &amp; audio preview</h2>
+<p class="hint">Analyze the <strong>last locally captured recording</strong> or open an existing <code>.cu8</code> file. Quick mode samples scattered windows; <strong>Full file</strong> processes every complete FFT block in bounded memory. Detect candidate energy regions and optionally generate an experimental AM/NFM audio preview. Neither identifies a satellite or decodes Meteor LRPT, APRS or Iridium traffic. I/Q samples remain in your browser.</p>
 <div class="iq-controls">
 <label>Local .cu8 file
 <input id="iq-file" type="file" accept=".cu8,.iq,.u8,application/octet-stream">
@@ -224,18 +224,28 @@ All location methods are optional. City suggestions are offline by default; GPS 
 </div>
 <div class="line">
 <button type="button" id="iq-analyze-last" disabled>Analyze last recording</button>
-<button type="button" id="iq-analyze-file">Analyze selected file</button>
+<button type="button" id="iq-analyze-file">Quick analysis of selected file</button>
+<button type="button" id="iq-analyze-full">Analyze full file (all I/Q)</button>
+<button type="button" id="iq-stop-analysis" class="secondary" disabled>Stop processing</button>
 <button type="button" id="iq-export-json" class="secondary" disabled>Export analysis JSON</button>
+<button type="button" id="iq-export-metadata" class="secondary" disabled>Export capture metadata JSON</button>
 </div>
 <p id="iq-last-info" class="hint">No local recording retained in this tab. Use a USB capture with Save raw I/Q enabled, or select a previously downloaded .cu8 file.</p>
 <p id="iq-analysis-status" class="status" role="status" aria-live="polite">No file analyzed. CU8 contains no metadata: verify sample rate and center frequency.</p>
 <div id="iq-analysis-summary" class="iq-metrics" aria-label="Measured I/Q statistics"></div>
+<h3>Unclassified RF energy candidates — full scan only</h3>
+<div id="iq-candidates" class="iq-candidates" aria-label="Selectable spectral candidates"><p>Perform a full scan to find strong RF energy concentrations. These are NOT identified transmissions or satellite positions.</p></div>
+<fieldset class="iq-audio-panel"><legend>Analog audio preview — experimental, offline</legend>
+<p class="hint">Select an energy candidate above or enter a baseband offset. AM and narrowband FM playback can be useful for listening to supported analog signals; this is <strong>not</strong> APRS, SSTV image, Meteor LRPT, or private-traffic decoding. Initial preview reads up to six seconds of the selected I/Q file.</p>
+<div class="line"><label>Offset from center (kHz)<input type="number" id="iq-audio-offset" value="0" step="0.1"></label><label>Demodulation<select id="iq-audio-mode"><option value="nfm">Narrowband FM</option><option value="am">AM</option></select></label><button type="button" id="iq-audio-preview" disabled>Generate 6-second audio preview</button></div>
+<audio controls id="iq-audio-player" hidden aria-label="Experimental analog audio preview"></audio>
+</fieldset>
 <div class="iq-chart-grid">
 <div><h3>Frequency spectrum · relative digital dB</h3><canvas id="iq-spectrum" width="1040" height="260" aria-label="Complex FFT frequency spectrum from recorded CU8 samples"></canvas></div>
-<div><h3>Waterfall · sampled time windows</h3><canvas id="iq-waterfall" width="1040" height="260" aria-label="Frequency versus time waterfall heat map from sampled complex I/Q data"></canvas></div>
+<div><h3>Waterfall · quick sampled / full binned timeline</h3><canvas id="iq-waterfall" width="1040" height="260" aria-label="Frequency versus time waterfall heat map from sampled complex I/Q data"></canvas></div>
 <div><h3>Relative sample power over time</h3><canvas id="iq-power-time" width="1040" height="190" aria-label="Sampled time-series relative digital I/Q level"></canvas></div>
 </div>
-<p class="hint">Analysis samples up to 48 short windows across the file instead of reading the entire recording into memory. Values are <strong>uncalibrated digital quantities, not dBm</strong>. Peaks may be noise, spurs, DC artifacts or other transmitters; a peak does not prove any specific satellite. Estimated duration assumes continuous CU8 samples with no USB dropouts. To reconstruct Meteor imagery or decode packets, a separate decoder remains necessary.</p>
+<p class="hint">Quick analysis samples a small number of windows. Full analysis reads <strong>every complete FFT window</strong> in small chunks without loading the entire recording; its waterfall compresses time into bounded bins. Both modes report <strong>uncalibrated digital quantities, not dBm</strong>. Candidate peaks can be noise, local electronics or RF energy; no orbit-based identification or distance estimate is made. CU8 has no embedded metadata, and reconstructed timing assumes gapless reception. Real satellite protocol decoding requires appropriate verified decoders.</p>
 </section>
 <section id="satellite-images" class="image-center">
 <h2>7 · Satellite Images — real RF decoding &amp; online archives</h2>
@@ -297,4 +307,4 @@ These provider viewers offer maps/imagery independently of your RTL-SDR.</p>
 <details><summary>What requires more than a browser?</summary><p>Windows may require WinUSB driver setup; Linux may require releasing the kernel DVB driver or adjusting permissions. To record a pass while the browser is closed, the optional local companion must remain running. The companion still supports offline SatDump and multimon-ng where installed.</p></details>
 <h3>Activity log</h3><pre id="log" aria-live="polite">Ready. USB idle. No fabricated RF data.</pre></section>
 <footer>Receive-only. The page never transmits RF, uploads I/Q files or silently scans. Page closing releases browser-owned USB access; an unexpected OS/browser crash cannot be guaranteed to cleanly close every device state. Browser client uses <a href="https://www.npmjs.com/package/@jtarrio/webrtlsdr" rel="noopener noreferrer" target="_blank">@jtarrio/webrtlsdr</a> from a version-pinned module CDN (requires Internet to load initially).</footer>
-</main><script type="module" src="./browser.js?v=20261106-live-v14"></script></body></html>
+</main><script type="module" src="./browser.js?v=20261106-signal-v1"></script></body></html>

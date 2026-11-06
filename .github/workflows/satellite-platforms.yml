@@ -13,6 +13,7 @@ on:
       - 'satellite_center/**'
       - 'docs/satellite/**'
       - 'tests/test_satellite_*.py'
+      - 'tests/test_satellite_*.mjs'
       - '.github/workflows/satellite-platforms.yml'
 
 jobs:
@@ -75,6 +76,8 @@ jobs:
           node --check satellite_center/browser/iq_analysis.mjs
           node --check satellite_center/browser/iq_analysis_ui.mjs
           node --test tests/test_satellite_iq_analysis.mjs
+          node --check satellite_center/browser/iq_intelligence.mjs
+          node --test tests/test_satellite_iq_intelligence.mjs
           node --check satellite_center/browser/orbit_clock.mjs
           node --test tests/test_satellite_live_clock.mjs
           node --check satellite_center/browser/satellite_imagery.mjs

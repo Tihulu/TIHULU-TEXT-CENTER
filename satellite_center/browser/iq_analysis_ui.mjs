@@ -2,6 +2,7 @@
  * Does not upload RF samples or claim demodulation of satellite traffic.
  */
 import { analyzeCu8Blob,parseCu8Filename } from "./iq_analysis.mjs?v=20261106-cuiq-v13";
+import { analyzeFullCu8Blob,demodulateCu8Preview } from "./iq_intelligence.mjs?v=20261106-signal-v1";
 const $=id=>document.getElementById(id);
 const clamp=(n,low,high)=>Math.max(low,Math.min(high,n));
 const fmt=n=>Number.isFinite(n)?Number(n).toLocaleString(undefined,{maximumFractionDigits:2}):"N/A";
@@ -78,7 +79,7 @@ function drawSpectrum(report){
 function drawWaterfall(report){
  const canvas=$("iq-waterfall"),ctx=canvas.getContext("2d");
  if(!ctx)return;
- const {w,h,x0,x1,y0,y1}=prepare(ctx,canvas,"Top: start · bottom: end (stratified windows; not continuous playback)");
+ const {w,h,x0,x1,y0,y1}=prepare(ctx,canvas,report.analysisMode?"Top: start · bottom: end (continuous FFT windows binned in time)":"Top: start · bottom: end (stratified windows; not continuous playback)");
  const rows=report.waterfallDb;let lo=Infinity,hi=-Infinity;
  for(const row of rows)for(const v of row){lo=Math.min(lo,v);hi=Math.max(hi,v);}
  if(!Number.isFinite(lo)||!Number.isFinite(hi))return;
@@ -97,7 +98,7 @@ function drawWaterfall(report){
 }
 function drawPower(report){
  graphLine($("iq-power-time"),report.powerHistoryDb,{
-  caption:"Sampled windows distributed over the file, not gap-free timestamps",
+  caption:report.analysisMode?"Full-file time bins (assumes gap-free IQ samples)":"Sampled windows distributed over the file, not gap-free timestamps",
   yLabel:"uncalibrated digital level",xLabel:"start → end",
   color:"#65ead3"});
 }
@@ -111,6 +112,8 @@ function renderReport(report,name){
  const parent=$("iq-analysis-summary");parent.replaceChildren();
  const metrics=[
   ["Source",name],["Bytes in file",fmt(report.totalBytes)],
+  ["Coverage",report.coveragePercent==null?"Stratified quick sampling":fmt(report.coveragePercent)+"% of complete FFT windows"],
+  ["Candidates",report.signalCandidates?.length??"Not classified in quick mode"],
   ["Estimated length",fmt(report.estimatedSeconds)+" s"],
   ["Sampled",fmt(report.sampledBytes)+" bytes / "+report.windows+" windows"],
   ["Sample rate",fmt(report.sampleRate/1e6)+" MS/s"],
@@ -125,15 +128,39 @@ function renderReport(report,name){
  ];
  for(const [label,value] of metrics)parent.append(showMetric(label,String(value)));
  drawSpectrum(report);drawWaterfall(report);drawPower(report);
+ const candidates=$("iq-candidates");candidates.replaceChildren();
+ if(report.signalCandidates){
+   if(!report.signalCandidates.length){
+     const p=document.createElement("p");p.textContent="No strong spectral energy groups detected at the current threshold. This does not establish absence of RF signals.";candidates.append(p);
+   }
+   report.signalCandidates.forEach((candidate,index)=>{
+     const b=document.createElement("button");b.type="button";b.className="secondary";
+     b.textContent=(index+1)+". "+(candidate.peakFrequencyHz==null?
+       fmt(candidate.peakOffsetHz/1000)+" kHz offset":
+       fmt(candidate.peakFrequencyHz/1e6)+" MHz")+" · "+fmt(candidate.widthHz/1000)+
+       " kHz span · +"+fmt(candidate.prominenceDb)+" dB vs median";
+     b.title="Unclassified RF energy. Select for experimental AM/NFM audio preview; NOT satellite identification.";
+     b.addEventListener("click",()=>{
+       $("iq-audio-offset").value=(candidate.peakOffsetHz/1000).toFixed(3);
+       $("iq-audio-preview").focus();
+     });candidates.append(b);
+   });
+ }else{
+   const p=document.createElement("p");p.textContent="Run Analyze full file to detect candidate spectral regions across the entire recording.";candidates.append(p);
+ }
 }
 export function initIqAnalysisUI({log=()=>{}}={}){
  let lastBlob=null,lastName=null,lastMetadata=null,activeRun=0;
- let lastReport=null,lastReportName=null,inProgress=false;
+ let lastReport=null,lastReportName=null,lastAnalyzedBlob=null,inProgress=false,activeController=null,previewUrl=null;
  function reportStatus(message){$("iq-analysis-status").textContent=String(message);}
  function setControls(){
    $("iq-analyze-last").disabled=!lastBlob||inProgress;
    $("iq-analyze-file").disabled=inProgress;
    $("iq-export-json").disabled=!lastReport||inProgress;
+   $("iq-analyze-full").disabled=inProgress;
+   $("iq-stop-analysis").disabled=!inProgress;
+   $("iq-audio-preview").disabled=!lastAnalyzedBlob||inProgress;
+   $("iq-export-metadata").disabled=!lastReport||inProgress;
  }
  function updateMetadata(meta){
    if(!meta)return;
@@ -141,7 +168,7 @@ export function initIqAnalysisUI({log=()=>{}}={}){
    const option=Array.from($("iq-rate").options).find(o=>Number(o.value)===meta.sampleRate);
    if(option)$("iq-rate").value=String(meta.sampleRate);
  }
- async function analyze(blob,name,metadata=null){
+ async function analyze(blob,name,metadata=null,full=false){
    if(inProgress){
      reportStatus("Analysis is already running. Finish it before starting another.");
      return;
@@ -153,24 +180,29 @@ export function initIqAnalysisUI({log=()=>{}}={}){
    if(MHz!==""&&(!Number.isFinite(centerHz)||centerHz<24000000||centerHz>1750000000)){
      reportStatus("Enter a valid 24–1750 MHz center frequency. CU8 files do not contain that metadata.");return;
    }
-   inProgress=true;setControls();lastReport=null;lastReportName=null;
+   inProgress=true;lastReport=null;lastReportName=null;activeController=new AbortController();setControls();
    try{
-     reportStatus("Reading small I/Q windows from "+name+" in this browser… No upload.");
-     const result=await analyzeCu8Blob(blob,{sampleRate:rate,centerHz,
-       maxWindows:32,onProgress:(n,total)=>reportStatus(
-         "Analyzing genuine CU8 I/Q · "+n+"/"+total+" windows read. No data uploaded.")});
-     lastReport=result;lastReportName=name;
+     reportStatus((full?"Processing all complete I/Q FFT windows of ":"Reading scattered I/Q windows from ")+name+" locally… No upload.");
+     const result=full
+       ?await analyzeFullCu8Blob(blob,{sampleRate:rate,centerHz,signal:activeController.signal,
+         onProgress:(n,total)=>reportStatus("Full file scan · "+n.toLocaleString()+" / "+
+           total.toLocaleString()+" FFT windows · "+(100*n/total).toFixed(1)+"%")})
+       :await analyzeCu8Blob(blob,{sampleRate:rate,centerHz,
+         maxWindows:32,onProgress:(n,total)=>reportStatus(
+           "Quick CU8 sample · "+n+"/"+total+" windows read. No upload.")});
+     lastReport=result;lastReportName=name;lastAnalyzedBlob=blob;
      renderReport(result,name);
-     reportStatus("Analysis complete · "+result.windows+" sampled windows ("+
-       fmt(result.sampledBytes)+" bytes read) · peak "+fmt(result.peakOffsetHz/1000)+
-       " kHz relative to center · "+fmt(result.peakVsMedianDb)+
-       " dB above median spectrum bin.\n"+result.warning);
+     $("iq-audio-offset").value=(result.peakOffsetHz/1000).toFixed(3);
+     reportStatus((full?"Full-file":"Quick-sampled")+" analysis complete · "+result.windows+
+       " FFT windows ("+fmt(result.sampledBytes)+" bytes) · peak "+
+       fmt(result.peakOffsetHz/1000)+" kHz offset · "+
+       fmt(result.peakVsMedianDb)+" dB above median FFT bin.\n"+result.warning);
      log("In-browser CU8 analysis complete ("+name+"). No RF samples uploaded.");
    }catch(error){
      reportStatus("CU8 analysis failed: "+String(error?.message||error));
      log("CU8 analysis error: "+String(error?.message||error));
    }finally{
-     inProgress=false;setControls();
+     inProgress=false;activeController=null;setControls();
    }
  }
  function onFile(){
@@ -182,13 +214,73 @@ export function initIqAnalysisUI({log=()=>{}}={}){
    $("iq-last-info").textContent="Local file selected: "+file.name+" ("+fmt(file.size)+
      " bytes). "+(inferred?"Center/rate inferred from TIHULU filename; confirm before analysis.":
        "CU8 has no embedded frequency/rate: enter the correct capture metadata.");
-   reportStatus("File selected locally. Click Analyze selected file. Nothing is uploaded.");
+   reportStatus("File selected locally. Choose Quick analysis or Analyze full file. Nothing is uploaded.");
  }
  $("iq-file").addEventListener("change",onFile);
  $("iq-analyze-file").addEventListener("click",()=>{
    const file=$("iq-file").files?.[0];
    if(!file){reportStatus("First choose a .cu8 file using Local .cu8 file.");return;}
    void analyze(file,file.name);
+ });
+ $("iq-analyze-full").addEventListener("click",()=>{
+   const file=$("iq-file").files?.[0];
+   if(file){void analyze(file,file.name,null,true);}
+   else if(lastBlob){updateMetadata(lastMetadata);void analyze(lastBlob,lastName||"last-capture.cu8",lastMetadata,true);}
+   else reportStatus("Choose a local CU8 file or first record a real WebUSB capture.");
+ });
+ $("iq-stop-analysis").addEventListener("click",()=>{activeController?.abort();});
+ $("iq-spectrum").addEventListener("click",event=>{
+   if(!lastReport)return;
+   const canvas=$("iq-spectrum"),rect=canvas.getBoundingClientRect();
+   const relativeX=(event.clientX-rect.left)*canvas.width/rect.width;
+   const fractional=Math.max(0,Math.min(1,(relativeX-56)/(canvas.width-18-56)));
+   const selectedOffsetHz=(fractional-0.5)*lastReport.sampleRate;
+   $("iq-audio-offset").value=(selectedOffsetHz/1000).toFixed(2);
+   reportStatus("Selected "+(lastReport.centerFrequencyHz==null?
+     (selectedOffsetHz/1000).toFixed(2)+" kHz baseband offset":
+     ((lastReport.centerFrequencyHz+selectedOffsetHz)/1e6).toFixed(6)+" MHz")+
+     " from spectrum. Select AM or NFM and generate an experimental audio preview if suitable.");
+ });
+ $("iq-audio-preview").addEventListener("click",async()=>{
+   if(!lastAnalyzedBlob||inProgress)return;
+   const rate=Number($("iq-rate").value),offsetHz=Number($("iq-audio-offset").value)*1000;
+   const mode=$("iq-audio-mode").value;
+   const player=$("iq-audio-player");
+   inProgress=true;activeController=new AbortController();setControls();
+   try{
+     reportStatus("Experimental "+mode.toUpperCase()+" demodulation of 6 seconds of local CU8 samples…");
+     const result=await demodulateCu8Preview(lastAnalyzedBlob,{sampleRate:rate,offsetHz,mode,
+       durationSec:6,signal:activeController.signal});
+     if(previewUrl)URL.revokeObjectURL(previewUrl);
+     previewUrl=URL.createObjectURL(result.blob);
+     player.src=previewUrl;player.hidden=false;
+     reportStatus("Analog audio preview generated locally · "+result.seconds.toFixed(2)+
+       " s · "+result.outputSampleRate+" samples/s. "+result.warning);
+   }catch(error){reportStatus("Audio preview unavailable: "+String(error?.message||error));}
+   finally{inProgress=false;activeController=null;setControls();}
+ });
+ $("iq-export-metadata").addEventListener("click",()=>{
+   if(!lastReport)return;
+   const actualCapture=lastAnalyzedBlob===lastBlob&&lastReportName===lastName?lastMetadata:null;
+   const info={format:"TIHULU Satellite Center capture metadata v1",
+     source_file:lastReportName,metadata_exported_utc:new Date().toISOString(),
+     center_frequency_hz:lastReport.centerFrequencyHz,
+     sample_rate_sps:lastReport.sampleRate,iq_datatype:"cu8",
+     capture_started_utc:actualCapture?.captureStartedUtc??null,
+     capture_ended_utc:actualCapture?.captureEndedUtc??null,
+     captured_complex_samples:actualCapture?.complexSamples??null,
+     receiver_type:actualCapture?.receiverType??null,
+     acquisition_method:actualCapture?.acquisition??"Unknown / imported CU8",
+     gain_mode:actualCapture?.gainMode??null,
+     candidate_target:actualCapture?.targetCandidate??null,
+     rf_source_verified:false,
+     evidence:"Raw CU8 FFT and relative digital power; not verified transmitter or satellite",
+     metadata_provenance:actualCapture?"USB capture settings recorded during acquisition":"Filename inference or operator-entered metadata",
+     notes:"CU8 does not embed metadata. This JSON is a separate sidecar for the selected file."};
+   const blob=new Blob([JSON.stringify(info,null,2)],{type:"application/json"});
+   const url=URL.createObjectURL(blob),a=document.createElement("a");
+   a.href=url;a.download=(lastReportName||"capture").replace(/\.cu8$/i,"")+".metadata.json";
+   document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);
  });
  $("iq-analyze-last").addEventListener("click",()=>{
    if(!lastBlob)return;updateMetadata(lastMetadata);
