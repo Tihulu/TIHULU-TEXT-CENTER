@@ -12,6 +12,7 @@ from pathlib import Path
 import json
 import hmac
 from .dvb_bridge import DVBScanBridge
+from .radio_metadata import read_local_radio_metadata
 import platform
 import sys
 from urllib.parse import unquote, urlsplit
@@ -160,6 +161,8 @@ class LocalAppHandler(BaseHTTPRequestHandler):
             self._json(200, DVB.capabilities(), origin)
         elif route == "/api/dvb/status":
             self._json(200, DVB.status(), origin)
+        elif route == "/api/radio/decoded":
+            self._json(200, read_local_radio_metadata(), origin)
         else:
             self._json(404, {"error": "Unknown DVB API endpoint"}, origin)
 
@@ -190,7 +193,7 @@ class LocalAppHandler(BaseHTTPRequestHandler):
             self._json(400, {"error": str(error)}, origin)
 
     def do_OPTIONS(self):
-        if urlsplit(self.path).path not in ("/api/dvb/capabilities", "/api/dvb/status",
+        if urlsplit(self.path).path not in ("/api/radio/decoded", "/api/dvb/capabilities", "/api/dvb/status",
                                            "/api/dvb/scan", "/api/dvb/stop"):
             self.send_error(404)
             return
@@ -212,7 +215,7 @@ class LocalAppHandler(BaseHTTPRequestHandler):
         self.end_headers()
 
     def do_GET(self):
-        if urlsplit(self.path).path.startswith("/api/dvb/"):
+        if urlsplit(self.path).path.startswith(("/api/dvb/", "/api/radio/")):
             self._api_get()
         else:
             self._respond(False)
