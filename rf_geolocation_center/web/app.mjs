@@ -3,6 +3,7 @@
 import {GNSS,DEFAULT_CENTER,parseSP3,visibleSatellites,rtlSignalClass,validateLLA} from "../core/gnss.mjs";
 import {parseNMEA,trilaterate2D,tdoaConstraints} from "../core/positioning.mjs";
 import {initAutoExplorer} from "./auto_explorer.mjs";
+import {initUsbSDR} from "./usb_sdr.mjs";
 
 const $=id=>document.getElementById(id), svgNS="http://www.w3.org/2000/svg";
 const state={
@@ -254,13 +255,6 @@ $("serial-connect")?.addEventListener("click",async()=>{
  finally{await disconnect()}
 });
 $("serial-disconnect")?.addEventListener("click",()=>{disconnect();msg("Own NMEA serial port released")});
-$("usb-select")?.addEventListener("click",async()=>{
- if(!("usb" in navigator)){msg("WebUSB unsupported here. No device selected.");return}
- try{const d=await navigator.usb.requestDevice({filters:[{vendorId:0x0bda,productId:0x2838}]});
- state.usbSelection=d;setText("usb-state","PERMISSION / SELECTION ONLY: "+d.productName+" — no RF open or IQ capture");
- setText("stage-device","USB SELECTED ONLY");msg("USB device selected, NOT opened. No satellite RF acquired.");
- }catch(e){msg("No USB device selected: "+e.message)}
-});
 $("hard-stop")?.addEventListener("click",()=>{
  disconnect();state.usbSelection=null;setText("usb-state","No USB device selected; no RF capture started");
  setText("stage-device","UNAVAILABLE");msg("HARD STOP: only this page's own serial reader was stopped; readsb/Gqrx not touched");
@@ -311,7 +305,7 @@ for(const t of ["json","geojson","csv","gpx","kml"])$( "export-"+t)?.addEventLis
 function capabilities(){
  const c=$("capabilities");c.replaceChildren();
  for(const [a,b] of [
-   ["WebUSB",("usb" in navigator)?"Permission selection possible; GNSS RF decoding NOT implemented":"Unavailable"],
+   ["WebUSB",("usb" in navigator)?"RTL-SDR USB claim + uncalibrated GNSS-L1 RF sample; GNSS decoding NOT implemented":"Unavailable"],
    ["Web Serial",("serial" in navigator)?"NMEA receiver selection supported":"Unavailable"],
    ["Browser Geolocation",navigator.geolocation?"Available with permission":"Unavailable"],
    ["Local offline shell",("serviceWorker" in navigator)?"Supported by browser":"Unavailable"],
@@ -324,6 +318,8 @@ function capabilities(){
 if("serviceWorker" in navigator&&location.protocol==="https:"){
  navigator.serviceWorker.register("./sw.js").catch(()=>{});
 }
+window.addEventListener("tihulu:find-request",()=>{ if(state.serialFix&&Date.now()-state.serialAt<90000){ window.dispatchEvent(new CustomEvent("tihulu:position",{detail:{lat:state.serialFix.lat,lon:state.serialFix.lon,alt:state.serialFix.altEllipsoidMeters??0,provider:"Dedicated GNSS serial NMEA"}})); msg("Using fresh receiver-provided NMEA position; browser location not requested."); }else{$("locate")?.click()}});
 renderCatalog();renderHistory();renderDiagnostics();renderPosition(true);renderSky();capabilities();
 initAutoExplorer();
+initUsbSDR(msg);
 setInterval(()=>{if(state.serialFix&&Date.now()-state.serialAt>90000){state.serialFix=null;renderPosition(true);renderDiagnostics();msg("Stale serial NMEA fix expired")}},10000);
