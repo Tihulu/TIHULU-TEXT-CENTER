@@ -15,11 +15,17 @@ class SatelliteBrowserStaticTests(unittest.TestCase):
             self.assertIn(phrase, html)
         self.assertNotIn("pair-token", html)
         self.assertNotIn("localhost:8791", html)
-        self.assertNotIn("127.0.0.1:8791", html)
+        # The page may document the OPTIONAL companion URL, but its
+        # browser-only entry point must not silently connect to localhost.
+        js = (ROOT / "browser.js").read_text(encoding="utf-8")
+        self.assertNotIn('fetch("http://127.0.0.1:8791', js)
+        self.assertNotIn("127.0.0.1:8791/api/capture", js)
 
     def test_real_iq_capture_not_fabricated(self):
         script = (ROOT / "browser.js").read_text(encoding="utf-8")
-        self.assertIn("new driver()", script)
+        # The WebUSB provider now receives a browser-only USB adapter,
+        # so the bare constructor from the early prototype is obsolete.
+        self.assertIn("new driver({webusb})", script)
         self.assertIn("await provider.get()", script)
         self.assertIn("await device.readSamples(", script)
         self.assertIn("await previous.close()", script)
@@ -36,7 +42,12 @@ class SatelliteBrowserStaticTests(unittest.TestCase):
         self.assertIn("satlib.twoline2satrec", script)
         self.assertIn("satlib.ecfToLookAngles", script)
         self.assertIn("2*3600000", script)
-        self.assertIn("if(document.hidden || !device || capturePromise)", script)
+        # Due work now uses an explicit foreground/receiver-busy state
+        # machine; a stale inline conditional would miss those checks.
+        self.assertIn("evaluateScheduledJob(job,now", script)
+        self.assertIn("visible:!document.hidden", script)
+        self.assertIn("receiverBusy:!!capturePromise||usbTestRunning", script)
+        self.assertIn("await connectDevice({silent:true})", script)
 
 
 if __name__ == "__main__":
