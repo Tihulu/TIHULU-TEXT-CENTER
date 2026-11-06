@@ -98,3 +98,7 @@ See [Live FM RadioText setup](docs/FM_RDS_LIVE.md). This feature will claim the 
 ## Auto Discover (v0.3)
 
 Radio Data (400) now contains **Auto Discover** for passive local USB/DVB/decoder/source/archive inventory and **Scan FM Band** for explicit one-shot rtl_power spectral measurements. Spectrum peaks are not yet named stations. Manual RDS/RadioText+ confirmation requires redsea and a free RTL-SDR. Active readsb, dump1090, Gqrx or other known receiver programs block capture instead of being stopped. See [Auto Discovery](docs/AUTO_DISCOVERY.md) and [all Survival Kit integration requirements](docs/SURVIVAL_KIT_MASTER_PROMPT.md).
+
+## Scan every supported source, without conflating RF and Internet
+
+Each of the 31 protocol/service capabilities now has its own readiness/scan action in **Protocols (860)**. The **Radio Data (400)** scan picker includes FM, DAB Band III, APRS VHF, DRM HF, RTTY HF, NAVTEX and WeatherFAX energy-survey modes. Surveys cannot identify broadcasters or decode text without the appropriate protocol receiver; full DVB scanning is pending a protected DVB tuner lease and TS Teletext decoder. **Text Networks (800)** are Internet-only links, not antenna stations. Pre-cached feeds and received pages remain accessible offline. [Full scan matrix](docs/SCANNING_MODES.md).

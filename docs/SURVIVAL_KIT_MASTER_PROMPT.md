@@ -58,3 +58,8 @@ Inspect live GitHub repository/branches, identify how the current Kit frontend, 
 ## Final constraints
 
 Integrate the standalone TIHULU-TEXT-CENTER as a distinct maintained module rather than copying it into unrelated Radio/Flight Radar repos. Do not create duplicate station, feed, AI, wiki or emergency data sources. Do not auto-install packages, disable protected services or auto-enable background scanning. Preserve all historical Survival Kit design decisions, responsive UI elements, and previously approved installation wizard/region/storage and energy controls. If a requested mode needs hardware or licensing, implement honest capability/adapter interfaces and explicitly mark the gate rather than falsely claiming it works.
+
+
+### Additional all-source scanning requirement
+
+Treat RF scanning, DVB service discovery, online network fetching and offline cache inspection as distinct operations. UI must offer a truthful per-feature scan/readiness action for all 31 tracked services; never imply that Gemini, Gopher, ARD Text web or Internet BBS is available through the RTL-SDR. Add actual decoder-specific DAB, DVB, HF and APRS adapters behind the existing Radio Center/Flight Radar/TV shared lease authority, preserving recordings and no-preemption. The current standalone implementation has seven manual RF energy-band profiles but does NOT yet decode all protocols. Implement real off-air Teletext only after DVB transport-stream and Teletext PID acceptance, and offline Internet reading only after a real user-requested cache operation.
