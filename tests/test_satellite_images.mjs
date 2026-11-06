@@ -78,6 +78,8 @@ test("cross-platform browser UI actually wires online imagery, SSTV audio/RF and
  assert.match(ui,/decodeRobot36Audio\(samples,rate\)/);
  assert.match(ui,/epicEntries\(json\)/);
  assert.match(ui,/nasaIssEntries\(json\)/);
- assert.match(app,/recordingName\(\{satellite:targetName/);
+ assert.match(app,/function captureFileName\(job,frequency,rate/);
+ assert.match(app,/return recordingName\(\{satellite:target/);
+ assert.match(app,/prepared.writable.write\(new Uint8Array\(data\)\)/);
  assert.match(app,/satelliteImageUI\.recordCapture\(blob,name,metadata\)/);
 });

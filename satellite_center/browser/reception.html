@@ -6,7 +6,7 @@
 <meta name="referrer" content="strict-origin-when-cross-origin">
 <title>Satellite Images &amp; Data | TIHULU Satellite Center</title>
 <link rel="icon" href="./icon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="./browser.css?v=20261106-calendar-zip-v2">
+<link rel="stylesheet" href="./browser.css?v=20261106-stream-iq-v1">
 <link rel="stylesheet" href="./reception.css?v=20261106-calendar-protocol-v2">
 </head>
 <body>
@@ -88,7 +88,7 @@
 </div>
 <p id="auto-mission-zip-status" class="hint" role="status" aria-live="polite">Analyze real recorded files first, then preview results with Step 3. ZIP contains extracted outputs and provenance manifest, not huge raw IQ files.</p>
 <div id="auto-mission-output" class="mission-extraction" aria-live="polite"></div>
-<p class="hint">For actual full-pass Meteor LRPT image reconstruction, the native companion needs SatDump and a free RTL-SDR. A 60-second browser CU8 sample may not contain a full Earth scan. Raw I/Q cannot be interpreted as human messages without a protocol decoder and validated packet frames.</p>
+<p class="hint">Manual RF sample length in the pass planner accepts up to 900 seconds in secure Chromium browsers using an explicitly chosen local .cu8 file; other browsers require the native companion for long IQ. At 1.024 MS/s the receiver writes about 2.048 MB/s, at 2.048 MS/s about 4.096 MB/s, with a 2 GB cap. For actual full-pass Meteor LRPT image reconstruction, the native companion needs SatDump and a free RTL-SDR. A 60-second browser CU8 sample may not contain a full Earth scan. Raw I/Q cannot be interpreted as human messages without a protocol decoder and validated packet frames.</p>
 </section>
 <section aria-labelledby="file-title">
 <h2 id="file-title">Recorded files · Open image, audio, video, text or I/Q</h2>

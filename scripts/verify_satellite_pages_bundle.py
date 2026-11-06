@@ -23,6 +23,7 @@ ASSETS = (
     "auto_mission.mjs",
     "auto_reception_ui.mjs",
     "results_zip.mjs",
+    "capture_duration.mjs",
     "browser.js",
     "browser.css",
     "manifest.webmanifest",

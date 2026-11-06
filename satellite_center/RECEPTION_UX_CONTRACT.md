@@ -31,6 +31,10 @@ captures alive after the tab closes or run native SatDump.
    other operator-approved formats remain eligible and the missing target
    is reported; no unapproved media kind is silently added.
    All estimates refer to received time windows, not every spacecraft dataset.
+   Manual browser per-pass **Actual RF sample length** is now an editable
+   1–900-second field. Raw IQ larger than 128 MiB requires an explicitly
+   authorized local CU8 stream on Chromium File System Access, or the native
+   companion. Never silently reduce requested duration to 60 seconds.
    The shared 24h calendar shows exact local start–end clock ranges, capture
    duration and spanning hour tracks. Cancelled jobs are omitted from display,
    not deleted from persisted audit JSON. In Step 3, users can preview actual

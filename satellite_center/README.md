@@ -3,6 +3,9 @@
 ## One-click Satellite Auto-Capture & Decode (2026-11-06 draft)
 
 ### Adjustable recording durations, timeline, result archive
+
+- **Actual RF sample length (Calculate Passes):** Manual per-pass scheduling now uses an editable 1–900-second number field instead of a fixed 60-second dropdown. Secure-origin Chromium browsers with File System Access can save long I/Q directly to a user-selected CU8 file, streaming individual received blocks with a 2 GB byte ceiling. A 2.048 MS/s recording has a shorter cap than 1.024 MS/s. Permission to save is obtained while explicitly scheduling the pass; the browser must remain open and visible. Firefox/Safari and unsupported browsers need a native companion for long data. Neither a geometrical pass nor a saved file proves full image reception.
+
 - User can choose a native 8–900 second clip (or leave blank for automatic pass-fitting). Browser WebUSB remains 8–60 seconds / 128 MiB because of foreground/memory limits. Large Meteor LRPT imaging requires the local disk-streamed SDR workflow; the actual downlink, sufficient antenna reception and SatDump decoding must still succeed.
 - The shared calendar hides cancelled jobs while preserving them in native audit records. Every visible job is labeled with local start–end time, actual planned clip duration, media type and estimated disk size; long jobs continue across hourly rows. Pending native tasks can edit time, protocol and recording duration.
 - Step 2 analyzes existing real files, Step 3 previews decoded image candidates, audio and text/data. **Save analyzed results as ZIP** packages actual output PNG/WAV/text/evidence JSON, manifest and warnings without uploading files. A safe ZIP limit of 256 MiB applies; raw IQ files are preserved separately for download and re-analysis, not embedded in ZIP. No decoding or source authenticity is fabricated.
