@@ -374,7 +374,17 @@ async function startCapture(job=null) {
         const name=recordingName({satellite:targetName,at:captureStartTime,
           frequencyHz:freq,sampleRate:rate,format:"cu8",
           kind:job?"SCHEDULED-IQ":"IQ"});
-        saveCapture(chunks,name,job,{centerHz:freq,sampleRate:rate});
+        saveCapture(chunks,name,job,{
+           centerHz:freq,sampleRate:rate,format:"cu8",
+           captureStartedUtc:captureStartTime.toISOString(),
+           captureEndedUtc:new Date().toISOString(),
+           complexSamples:Math.floor(bytesRecorded/2),
+           receiverType:"RTL2832U-family / WebUSB",
+           acquisition:"actual USB readSamples",
+           gainMode:"automatic",
+           targetCandidate:targetName,
+           rfSourceVerified:false
+         });
       }
       if(job){
         job.state=stopRequested?'stopped':'finished';
