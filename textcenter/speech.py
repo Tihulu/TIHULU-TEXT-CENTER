@@ -156,10 +156,13 @@ class SpeechPipeline:
     def __init__(self,*,store:TranscriptStore,session:str,source_id:str,
                  source_language:str,target_language:str|None,
                  backend:str="auto",profile:dict|None=None,
-                 transcriber=None,translator=None):
+                 transcriber=None,translator=None,medium:str="fm"):
         self.store=store
         self.session=session
         self.source_id=source_id
+        if medium not in ("fm","dab","dvb_tv"):
+            raise ValueError("Unsupported audio medium")
+        self.medium=medium
         self.lang=validate_language(source_language)
         self.target=validate_language(target_language) if target_language else None
         self.profile=profile or detect_devices()
@@ -203,7 +206,7 @@ class SpeechPipeline:
                     try:translated=self.translator(text,self.lang,self.target)
                     except (TranslatorUnavailable,ImportError,ValueError,RuntimeError) as exc:
                         self.last_error="Live translation unavailable: "+str(exc)[:200]
-                self.store.add(session=self.session,medium="fm",source_id=self.source_id,
+                self.store.add(session=self.session,medium=self.medium,source_id=self.source_id,
                     language=self.lang,text=text,backend=self.backend,start=start,end=end,
                     translated=translated,target=self.target if translated else None)
                 self.completed+=1

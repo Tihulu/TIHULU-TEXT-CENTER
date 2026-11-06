@@ -166,7 +166,8 @@ class LiveTV:
                         raise LiveTVError("TV transcript archive unavailable")
                     self.speech=SpeechPipeline(store=self.transcripts,session=session,
                         source_id="configured_tv:"+channel_id,source_language=language,
-                        target_language=translate_to,backend=backend,profile=detect_devices())
+                        target_language=translate_to,backend=backend,profile=detect_devices(),
+                        medium="dvb_tv")
                     read_fd,write_fd=os.pipe()
                     os.set_inheritable(write_fd,True)
                 try:
