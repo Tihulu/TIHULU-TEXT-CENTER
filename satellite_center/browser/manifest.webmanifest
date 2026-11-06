@@ -1,0 +1,24 @@
+{
+  "id": "/TIHULU-TEXT-CENTER/satellite_center/browser/",
+  "name": "TIHULU Satellite Center",
+  "short_name": "Satellite Center",
+  "description": "Satellite pass planner and direct WebUSB SDR receiver",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#080f1b",
+  "theme_color": "#091a30",
+  "categories": [
+    "utilities",
+    "education"
+  ],
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}
