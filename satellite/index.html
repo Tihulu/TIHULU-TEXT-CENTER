@@ -13,6 +13,8 @@
 <p class="muted">Token stays in this page's memory only, not a URL or browser storage. Your browser may ask for permission to access loopback. On Safari, use the local dashboard if HTTPS-to-HTTP localhost is blocked.</p></div>
 <div id="local-bridge" hidden><div class="line"><button id="show-pair" class="secondary">Reveal GitHub Pages pairing token</button><a href="https://tihulu.github.io/TIHULU-TEXT-CENTER/satellite_center/" target="_blank" rel="noopener noreferrer">Open hosted dashboard after Pages is enabled</a></div><p id="pair-output" class="output" hidden></p></div>
 <p id="bridge-state" class="warn" role="status">Looking for local companion...</p>
+<div class="line"><button id="quit" class="secondary">Quit companion &amp; release SDR</button>
+<span class="muted"><small>Closing this tab stops your active manual scan; opted-in scheduled captures continue while the companion stays open. Quit stops both.</small></span></div>
 </section><section class="side"><h2>Ground station</h2><label for="city">Observer location (manual, no GPS upload)</label><select id="city"></select><div id="custom-location" class="line" hidden><label>Latitude (degrees)<input id="lat" type="number" min="-90" max="90" step="0.001" value="50.938"></label><label>Longitude (degrees)<input id="lon" type="number" min="-180" max="180" step="0.001" value="6.960"></label></div>
 <div class="line"><label>Look ahead (hours)<select id="hours"><option>12</option><option selected>24</option><option>48</option><option>72</option></select></label><label>Minimum elevation<select id="elev"><option>5</option><option selected>15</option><option>30</option><option>45</option></select></label></div>
 <div class="stack spaced"><button id="refresh-orbits">Download fresh orbit data (Internet)</button><button class="secondary" id="predict">Calculate potential passes (cached TLE)</button></div>
@@ -28,6 +30,7 @@ let csrf = '', profiles = {}, activeRefresh = false, lastPasses = [];
 const hosted = location.hostname.toLowerCase() === 'tihulu.github.io';
 const endpoint = hosted ? 'http://127.0.0.1:8791' : location.origin;
 let pairingToken = '';
+const clientId = crypto.randomUUID();
 const connectionReady = () => !hosted || !!pairingToken;
 
 const $=id=>document.getElementById(id);
@@ -47,7 +50,7 @@ async function api(path, data){
 function text(tag,contents,cls){let e=document.createElement(tag);if(cls)e.className=cls;e.textContent=contents;return e}
 function selectOptions(el,items){el.replaceChildren();for(let [key,name] of items){let opt=document.createElement('option');opt.value=key;opt.textContent=name;el.appendChild(opt)}}
 function renderProfileModes(){let p=$('profile').value;for(let o of $('mode').options){o.disabled=!(o.value==='survey'||(o.value==='iq'&&profiles[p]?.freq)||(o.value==='aprs'&&p==='iss_aprs')||(o.value==='sstv_audio'&&p==='iss_voice'))}if($('mode').selectedOptions[0]?.disabled)$('mode').value='survey'}
-async function loadStatus(){try{let s=await api('/api/status');csrf=s.csrf;profiles=s.profiles;let city=$('city').value;selectOptions($('city'),[...Object.keys(s.location_presets).map(x=>[x,x]),['Custom','Custom coordinates (EU / Germany / Türkiye / anywhere)']]);$('city').value=city||'Cologne';toggleCustom();let chosen=$('profile').value;selectOptions($('profile'),Object.entries(profiles).map(([k,v])=>[k,v.label]));$('profile').value=profiles[chosen]?chosen:'meteor';renderProfileModes();
+async function loadStatus(){try{let s=await api('/api/status?client='+encodeURIComponent(clientId));csrf=s.csrf;profiles=s.profiles;let city=$('city').value;selectOptions($('city'),[...Object.keys(s.location_presets).map(x=>[x,x]),['Custom','Custom coordinates (EU / Germany / Türkiye / anywhere)']]);$('city').value=city||'Cologne';toggleCustom();let chosen=$('profile').value;selectOptions($('profile'),Object.entries(profiles).map(([k,v])=>[k,v.label]));$('profile').value=profiles[chosen]?chosen:'meteor';renderProfileModes();
 let cached=Object.entries(s.orbit_cache).map(([k,v])=>`${k}: ${v.present?v.age_hours+'h old':'not cached'}`);show($('orbits'),cached.join(' · '));show($('receiver'),`${s.tuner_present===true?'RTL2832U detected':s.tuner_present===null?'RTL-SDR passive detection unavailable on '+s.platform+'; actual tools decide':'No supported local RTL2832U verified'}\n${s.busy.length?'CONFLICT: '+s.busy.map(x=>x.process).join(', '):'No known concurrent receiver detected'}\nTools: ${Object.entries(s.tools).map(([k,v])=>`${k} ${v?'✓':'×'}`).join(' · ')}`);show($('session'),JSON.stringify(s.session,null,2));renderJobs(s.jobs);renderArchive(s.archive)
 }catch(e){log('Status: '+e.message);throw e}}
 function renderJobs(jobs){let el=$('schedule');el.replaceChildren();if(!jobs.length){el.appendChild(text('p','No scheduled receptions.'));return}for(let j of [...jobs].reverse().slice(0,25)){let card=text('div',`${j.satellite} — ${fmtTime(j.aos)} — ${j.profile}/${j.mode} — ${j.state}${j.result?' — '+JSON.stringify(j.result).slice(0,170):''}`,'pass');if(j.state==='pending'){let btn=text('button','Cancel','secondary');btn.addEventListener('click',async()=>{try{await api('/api/cancel',{job_id:j.id});await loadStatus()}catch(e){log(e.message)}});card.appendChild(btn)}el.appendChild(card)}}
@@ -66,13 +69,21 @@ $('family').addEventListener('change',()=>renderPasses(lastPasses));
 $('sky').addEventListener('click',async()=>{try{const data=await api('/api/sky?'+new URLSearchParams(locationQuery()));const group=$('family').value;const sats=data.above_5_degrees.filter(x=>group==='all'||x.family===group);show($('skynow'),`${sats.length} geometric satellites above 5° (${fmtTime(data.observed_at)}): `+sats.slice(0,35).map(x=>`${x.name} · az ${x.azimuth_deg}° / el ${x.elevation_deg}°`).join(' | ')+(sats.length>35?' …':''));log(`Sky position updated. ${sats.length} geometric candidates; not RF detections.`)}catch(e){log('Sky: '+e.message)}});
 $('refresh-orbits').addEventListener('click',async()=>{if(activeRefresh)return;activeRefresh=true;try{log('Fetching whitelisted CelesTrak orbit datasets on demand…');let r=await api('/api/refresh',{});log(JSON.stringify(r));await loadStatus()}catch(e){log(e.message)}finally{activeRefresh=false}});
 $('predict').addEventListener('click',async()=>{try{let q=new URLSearchParams({...locationQuery(),hours:$('hours').value,elev:$('elev').value});let result=await api('/api/passes?'+q);lastPasses=result.predictions;renderPasses(lastPasses);show($('pass-note'),`${result.predictions.length} potential passes · ${result.warnings.join(' · ')||'TLE cached'} · No reception implied`);log('Computed '+result.predictions.length+' geometric passes')}catch(e){log('Orbit predictions: '+e.message)}});
-$('capture').addEventListener('click',async()=>{try{let r=await api('/api/capture',{profile:$('profile').value,mode:$('mode').value,seconds:Number($('seconds').value)});log(JSON.stringify(r));await loadStatus()}catch(e){log('Capture: '+e.message)}});
+$('capture').addEventListener('click',async()=>{try{let r=await api('/api/capture',{profile:$('profile').value,mode:$('mode').value,seconds:Number($('seconds').value),client_id:clientId});log(JSON.stringify(r));await loadStatus()}catch(e){log('Capture: '+e.message)}});
 $('stop').addEventListener('click',async()=>{try{log(JSON.stringify(await api('/api/stop',{})));await loadStatus()}catch(e){log('Stop: '+e.message)}});
+$('quit').addEventListener('click',async()=>{if(!connectionReady())return; if(!confirm('Quit the local Satellite Center companion? Any active capture stops; future scheduled passes wait until you restart it.'))return; try{let r=await api('/api/quit',{});show($('bridge-state'),'Companion is closing. SDR is being released.');log(r.note);pairingToken=''}catch(e){log('Quit: '+e.message)}});
+window.addEventListener('pagehide',()=>{
+  if(!connectionReady() || !csrf) return;
+  // Best effort. A watchdog stops manual scans if the browser aborts this request.
+  const headers={'Content-Type':'application/json',...(hosted?{Authorization:'Bearer '+pairingToken}:{})};
+  fetch(endpoint+'/api/leave',{method:'POST',mode:'cors',keepalive:true,
+    headers,body:JSON.stringify({csrf,client_id:clientId})}).catch(()=>{});
+});
 $('remote-bridge').hidden=!hosted;
 $('local-bridge').hidden=hosted;
 if(hosted){show($('bridge-state'),'Not connected. Run the local companion and enter its token.');}
 else {show($('bridge-state'),'Local companion. Use Reveal pairing token if connecting from GitHub Pages.');loadStatus()}
 $('show-pair').addEventListener('click',async()=>{try{let d=await api('/api/pair',{});$('pair-output').hidden=false;show($('pair-output'),d.token+'\nKeep this token private. Enter it only on the official TIHULU GitHub Pages dashboard.')}catch(e){log('Pairing: '+e.message)}});
 $('connect-bridge').addEventListener('click',async()=>{pairingToken=$('pair-token').value.trim();$('pair-token').value='';if(!/^[a-f0-9]{64}$/.test(pairingToken)){pairingToken='';show($('bridge-state'),'Invalid token format');return}try{await loadStatus();show($('bridge-state'),'Connected to local hardware companion at 127.0.0.1:8791.')}catch(e){pairingToken='';show($('bridge-state'),'Connection failed: '+e.message)}});
-setInterval(async()=>{if(!connectionReady())return;try{let s=await api('/api/status');show($('session'),JSON.stringify(s.session,null,2));renderJobs(s.jobs);renderArchive(s.archive)}catch(e){log('Status poll: '+e.message)}},4000);
+setInterval(async()=>{if(!connectionReady())return;try{let s=await api('/api/status?client='+encodeURIComponent(clientId));show($('session'),JSON.stringify(s.session,null,2));renderJobs(s.jobs);renderArchive(s.archive)}catch(e){log('Status poll: '+e.message)}},4000);
 </script></body></html>
