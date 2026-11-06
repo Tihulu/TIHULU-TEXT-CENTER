@@ -11,6 +11,9 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 import json
 import hmac
+import secrets
+import re
+from urllib.parse import parse_qs
 from .dvb_bridge import DVBScanBridge
 from .radio_metadata import read_local_radio_metadata
 import platform
@@ -32,7 +35,6 @@ ASSETS = {
     "/web/catalog_discovery.mjs": ("web/catalog_discovery.mjs", "text/javascript"),
     "/web/simple_ui.mjs": ("web/simple_ui.mjs", "text/javascript"),
     "/web/hardware_manager.mjs": ("web/hardware_manager.mjs", "text/javascript"),
-    "/web/dvb_bridge_client.mjs": ("web/dvb_bridge_client.mjs", "text/javascript"),
     "/web/dvb_bridge_client.mjs": ("web/dvb_bridge_client.mjs", "text/javascript"),
     "/web/style.css": ("web/style.css", "text/css"),
     "/web/icon.svg": ("web/icon.svg", "image/svg+xml"),
@@ -110,6 +112,66 @@ class LocalAppHandler(BaseHTTPRequestHandler):
         self.end_headers()
         if not head_only:
             self.wfile.write(raw)
+
+    def _pair_page(self):
+        """On-device approval; no session token in URLs or third-party pages."""
+        host = self.headers.get("Host", "").split(":")[0].lower()
+        if host not in ("127.0.0.1", "localhost"):
+            self.send_error(403, "Loopback only")
+            return
+        params = parse_qs(urlsplit(self.path).query)
+        nonce = params.get("nonce", [""])[0]
+        destination = params.get("origin", [""])[0]
+        if not re.fullmatch(r"[A-Za-z0-9_-]{24,100}", nonce):
+            self.send_error(400, "Invalid pairing challenge")
+            return
+        port = self.server.server_address[1]
+        if destination == "pages" and PAGES_BRIDGE_ENABLED:
+            target = PAGES_ORIGIN
+        elif destination == "local":
+            target = "http://" + host + ":" + str(port)
+        else:
+            self.send_error(403, "This origin is not enabled for local pairing")
+            return
+        # The explicit click is a local user's approval for this one browser
+        # session; the only postMessage recipient is the allowlisted origin.
+        script_nonce = secrets.token_urlsafe(20)
+        payload = json.dumps({"type": "tihulu:dvb-bridge-paired",
+                              "nonce": nonce, "token": DVB.token})
+        # Escape every HTML-sensitive character before embedding JSON in script.
+        payload = payload.replace("<", "\\u003c").replace(">", "\\u003e").replace("&", "\\u0026")
+        target_js = json.dumps(target)
+        js = ("document.getElementById('approve').addEventListener('click',()=>{"
+              "if(!window.opener){document.getElementById('status').textContent='Return to TIHULU and try again; opener missing.';return;}"
+              "window.opener.postMessage(" + payload + "," + target_js + ");"
+              "document.getElementById('status').textContent='Approved for the originating TIHULU tab only. You can close this window.';"
+              "window.close();});")
+        body = ("""<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1"><title>TIHULU local TV pairing</title>
+<style>body{font:16px system-ui,sans-serif;color:#e6f7f6;background:#0b1e30;margin:0;padding:36px}
+main{max-width:560px;margin:auto;background:#173143;border:1px solid #46748a;border-radius:14px;padding:26px}
+button{border:0;border-radius:9px;background:#52c5b6;color:#061f23;padding:13px 22px;font-weight:800;cursor:pointer}
+p{line-height:1.6;color:#bed5df}small{color:#9ec9d9}</style></head>
+<body><main><h1>Allow local TV tuner access?</h1>
+<p>The official TIHULU Geolocation tab is requesting access to the DVB backend on this computer.
+Approve only if you started this local service and wish to connect your own TV tuner.</p>
+<p><strong>No scan starts now.</strong> TV scans still require a separate button click. Permission is not shared with other websites.</p>
+<button id="approve">Approve this tab</button><p id="status">Otherwise just close this window.</p>
+<small>Private localhost bridge · no token to copy or paste</small></main>
+<script nonce="{nonce}">{script}</script></body></html>""").format(nonce=script_nonce, script=js)
+        data = body.encode("utf-8")
+        self.send_response(200)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Length", str(len(data)))
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("X-Frame-Options", "DENY")
+        self.send_header("Referrer-Policy", "no-referrer")
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("Content-Security-Policy",
+                         "default-src 'none'; script-src 'nonce-" + script_nonce +
+                         "'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'")
+        self.end_headers()
+        self.wfile.write(data)
 
     def _bridge_origin(self):
         """Authorize only same-origin local UI or opt-in official Pages origin."""
@@ -216,7 +278,9 @@ class LocalAppHandler(BaseHTTPRequestHandler):
         self.end_headers()
 
     def do_GET(self):
-        if urlsplit(self.path).path.startswith(("/api/dvb/", "/api/radio/")):
+        if urlsplit(self.path).path == "/pair":
+            self._pair_page()
+        elif urlsplit(self.path).path.startswith(("/api/dvb/", "/api/radio/")):
             self._api_get()
         else:
             self._respond(False)
@@ -272,7 +336,7 @@ def main(argv=None):
         print("TIHULU RF Geolocation Center: http://127.0.0.1:" + str(args.port) + "/")
         print("Loopback-only: no LAN binding or automatic RF scan. Native DVB scanner requires explicit consent.")
         print("DVB browser bridge: " + ("official Pages allowed with token" if PAGES_BRIDGE_ENABLED else "localhost-only (use --enable-pages-bridge for official Pages)"))
-        print("DVB BRIDGE TOKEN (paste only into TIHULU's TV Scan panel): " + DVB.token)
+        print("No token copying needed: click Connect TV in TIHULU, then Approve in the local pairing window.")
         print("No TV scanning starts until you press Scan TV in the browser.")
         try:
             server.serve_forever(poll_interval=0.3)
