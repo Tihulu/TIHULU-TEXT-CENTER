@@ -39,6 +39,40 @@ class TVTests(unittest.TestCase):
                 tv.start("a",upstream_authorized=True)
             self.assertFalse(tv.status()["active"])
 
+    def test_missing_speech_model_preserves_real_tv_playback(self):
+        from unittest.mock import MagicMock,patch
+        from textcenter.speech import SpeechError
+        with tempfile.TemporaryDirectory() as tmp:
+            channels=Path(tmp)/"channels.json"
+            channels.write_text(json.dumps({"version":1,"channels":[{
+                "id":"safe-tv","name":"Authorized local relay",
+                "url":"http://127.0.0.1:9981/stream/channelid"
+            }]}))
+            from textcenter.core import Store
+            from textcenter.transcripts import TranscriptStore
+            captions=TranscriptStore(Store(Path(tmp)/"captions.db"))
+            tv=LiveTV(archive_dir=Path(tmp)/"recordings",transcripts=captions,
+                channels_file=channels,lookup=lambda _:"/usr/bin/ffmpeg")
+            fake=MagicMock()
+            fake.poll.return_value=0
+            with patch("textcenter.live_tv.SpeechPipeline",
+                       side_effect=SpeechError("Compatible Whisper model missing")),\
+                 patch("textcenter.live_tv.subprocess.Popen",return_value=fake),\
+                 patch("textcenter.live_tv.threading.Thread") as thread:
+                started=tv.start("safe-tv",subtitles=True,
+                    language="en",translate_to="tr",upstream_authorized=True)
+                self.assertTrue(started["active"])
+                self.assertTrue(started["subtitles_requested"])
+                self.assertFalse(started["subtitles_active"])
+                self.assertIn("Compatible Whisper model missing",
+                              started["subtitle_unavailable_reason"])
+                self.assertFalse(started["speech"]["enabled"])
+                self.assertEqual(thread.call_count,1,
+                                 "Speech PCM worker must not run with missing model")
+                stopped=tv.stop()
+                self.assertFalse(stopped["active"])
+                self.assertIsNone(tv.audio_read)
+
     def test_transcoding_produces_h264_aac_fragmented_mp4(self):
         argv=tv_ffmpeg_argv("/usr/bin/ffmpeg","http://127.0.0.1:9981/stream/a")
         self.assertIn("libx264",argv)

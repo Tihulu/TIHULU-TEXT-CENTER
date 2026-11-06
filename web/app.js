@@ -14,13 +14,14 @@ async function globalHardStop(){
       const player=$(id);
       if(player){player.pause();player.removeAttribute("src");player.dataset.session="";player.load();}
     }
-    for(const key of ["livePollTimer","tvPollTimer","audioPollTimer","rdsPollTimer","scanPollTimer","fmAutoTimer","dabAutoTimer","managedDabPollTimer"]){
+    for(const key of ["livePollTimer","tvPollTimer","audioPollTimer","rdsPollTimer","scanPollTimer","fmAutoTimer","dabAutoTimer","managedDabPollTimer","dabCaptionTimer"]){
       if(state[key])clearTimeout(state[key]);
       state[key]=null;
     }
     state.liveActive=false;state.tvActive=false;state.dabPlaying=false;state.audioActive=false;
     state.rdsActive=false;state.scanActive=false;state.managedDabOwned=false;
     state.fmRecording=false;state.tvRecording=false;
+    state.dabCaptionSession=null;state.dabCaptionTimer=null;
     syncLiveMediaDock();
     const pending=Object.entries(result.results||{}).filter(([,v])=>v.state!=="confirmed_stopped").map(([k,v])=>k+": "+v.state);
     notice(result.all_confirmed
@@ -1009,7 +1010,8 @@ function renderLiveDockCaptions(items,kind){
   const container=$(kind==="tv"?"live-dock-tv-captions":"live-dock-radio-captions");
   if(!container)return;
   container.replaceChildren();
-  if(kind==="radio")container.hidden=!state.liveActive;
+  container.hidden=!items.length||
+    (kind==="tv"?!state.tvActive:!(state.liveActive||state.dabPlaying));
   if(!items.length)return;
   const last=items[items.length-1];
   const original=el("p","dock-subtitle-original",
@@ -1048,6 +1050,58 @@ async function updateDockStationMetadata(){
     node.textContent="Station metadata temporarily unavailable; live audio can continue.";
   }
 }
+function updateDockCaptionExport(session,medium){
+  const links=$("live-dock-caption-exports");
+  if(!links)return;
+  links.replaceChildren();
+  if(!session||!(/^[0-9a-f]{32}$/.test(session)))return;
+  for(const format of ["srt","vtt"]){
+    for(const translated of [false,true]){
+      const link=el("a","action ghost",
+        (translated?"Translated ":"Original ")+format.toUpperCase());
+      link.href="/api/transcripts/export?session="+encodeURIComponent(session)+
+        "&format="+format+"&translated="+(translated?"1":"0");
+      link.download="TIHULU-"+medium+"-"+session.slice(0,8)+
+        (translated?"-translated":"-original")+"."+format;
+      links.append(link);
+    }
+  }
+}
+async function pollLiveDabCaptions(){
+  if(!state.dabPlaying||!state.dabCaptionSession)return;
+  try{
+    const status=await api("/api/dab/captions/status");
+    const note=$("live-dock-caption-status");
+    if(note)note.textContent=status.active?
+      "DAB+ live captions · "+(status.speech?.selected_backend||"local model")+
+      " · "+(status.speech?.segments_completed||0)+" real segments"+
+      (status.speech?.error?" · "+status.speech.error:""):
+      "DAB+ captions unavailable: "+(status.unavailable_reason||status.error||
+      "decoder has stopped");
+    const items=await api("/api/transcripts?session="+
+      encodeURIComponent(state.dabCaptionSession));
+    renderLiveDockCaptions(items,"dab");
+    updateDockCaptionExport(state.dabCaptionSession,"dab");
+    if(status.active&&state.dabPlaying){
+      state.dabCaptionTimer=setTimeout(pollLiveDabCaptions,1800);
+    }else{
+      state.dabCaptionSession=null;
+    }
+  }catch(error){
+    const note=$("live-dock-caption-status");
+    if(note)note.textContent="DAB caption status unavailable: "+error.message;
+    if(state.dabPlaying)state.dabCaptionTimer=setTimeout(pollLiveDabCaptions,3500);
+  }
+}
+async function stopDabCaptionTap(){
+  if(state.dabCaptionTimer)clearTimeout(state.dabCaptionTimer);
+  state.dabCaptionTimer=null;
+  const session=state.dabCaptionSession;
+  state.dabCaptionSession=null;
+  if(session)await api("/api/dab/captions/stop","POST",{});
+  const node=$("live-dock-radio-captions");
+  if(node){node.hidden=true;node.replaceChildren();}
+}
 function syncLiveMediaDock(){
   const dock=$("live-media-dock");if(!dock)return;
   dock.hidden=!(state.liveActive||state.tvActive||state.dabPlaying);
@@ -1073,10 +1127,14 @@ function bindMediaDock(){
   const radio=$("live-dock-stop-radio"),tv=$("live-dock-stop-tv");
   if(radio)radio.addEventListener("click",async()=>{
     try{
+      if(state.dabPlaying)await stopDabCaptionTap();
       const player=$("persistent-radio-player");
       player.pause();player.removeAttribute("src");player.dataset.session="";player.load();
       if(state.liveActive)await api("/api/live/radio/stop","POST",{});
-      state.liveActive=false;state.dabPlaying=false;syncLiveMediaDock();
+      state.liveActive=false;state.dabPlaying=false;
+      const note=$("live-dock-caption-status");
+      if(note)note.textContent="Live captions stopped";
+      syncLiveMediaDock();
     }catch(e){notice(e.message)}
   });
   if(tv)tv.addEventListener("click",async()=>{
@@ -1168,6 +1226,13 @@ async function pollLiveRadio(){
     if(stop)stop.disabled=!current.active;
     if(state.liveSession){
       const data=await api("/api/transcripts?session="+encodeURIComponent(state.liveSession));
+      updateDockCaptionExport(state.liveSession,"fm");
+      const note=$("live-dock-caption-status");
+      if(note&&state.liveActive)note.textContent=current.speech?.enabled?
+        "FM captions · "+current.speech.selected_backend+
+        " · "+current.speech.segments_completed+" real segments":
+        "FM captions unavailable: "+(current.subtitle_unavailable_reason||
+          current.speech?.reason||"Not enabled");
       liveRadioCaptionPanel(data,state.liveSession);
       renderLiveDockCaptions(data,"radio");
       const links=$("live-export-links");
@@ -1218,6 +1283,13 @@ async function pollLiveTV(){
     if(stop)stop.disabled=!current.active;
     if(state.tvSession){
       const data=await api("/api/transcripts?session="+encodeURIComponent(state.tvSession));
+      updateDockCaptionExport(state.tvSession,"tv");
+      const note=$("live-dock-caption-status");
+      if(note&&state.tvActive)note.textContent=current.speech?.enabled?
+        "TV captions · "+current.speech.selected_backend+
+        " · "+current.speech.segments_completed+" real segments":
+        "TV captions unavailable: "+(current.subtitle_unavailable_reason||
+          current.speech?.reason||"Not enabled");
       liveRadioCaptionPanel(data,state.tvSession,"live-tv-captions");
       renderLiveDockCaptions(data,"tv");
       const links=$("live-tv-export");
@@ -1889,6 +1961,9 @@ async function addWelleDabBridge(){
       });
       state.managedDabOwned=false;stopManagedDabPolling();
       if(result.stopped && state.dabPlaying){
+        if(state.dabCaptionTimer)clearTimeout(state.dabCaptionTimer);
+        state.dabCaptionTimer=null;
+        state.dabCaptionSession=null;
         const playing=$("persistent-radio-player");
         playing.pause();playing.removeAttribute("src");playing.onerror=null;playing.load();
         state.dabPlaying=false;syncLiveMediaDock();
@@ -2128,17 +2203,29 @@ async function addOfflineRecordingControl(){
 /* UNIFIED CHANNEL CENTER: browse verified tuner discoveries, not a guessed lineup.
    Records are editable presentation preferences; original decoder facts remain. */
 async function playFmChannel(channel, record){
+  const captionOptions=state.channelCaptionPrefs||{enabled:false,translate:false,source:'en',target:'en',backend:'auto'};
   if(state.liveActive||state.dabPlaying)
     throw Error("Stop the current FM/DAB playback before tuning the shared RTL-SDR.");
   if(!confirm("Tune the shared RTL-SDR to "+(channel.frequency_hz/1e6).toFixed(3)+
     " MHz and "+(record?"record actual FM audio":"play actual FM audio")+"? Any other SDR owner must be stopped first."))return;
   const result=await api("/api/live/radio/start","POST",{
-    frequency_mhz:channel.frequency_hz/1e6,record:!!record,subtitles:false,
-    original_language:"en",translated_language:null,backend:"auto"});
+    frequency_mhz:channel.frequency_hz/1e6,record:!!record,
+    subtitles:captionOptions.enabled,original_language:captionOptions.source,
+    translated_language:captionOptions.enabled&&captionOptions.translate?captionOptions.target:null,
+    backend:captionOptions.backend,translation_backend:"auto"});
   state.liveActive=Boolean(result.active);
   state.liveSession=result.session;
   state.liveFrequency=channel.frequency_hz;
   state.fmRecording=!!record;
+  const captionStatus=$("live-dock-caption-status");
+  if(captionStatus)captionStatus.textContent=captionOptions.enabled?
+    (result.subtitles_active?"FM live transcription enabled":
+      "FM audio only: "+(result.subtitle_unavailable_reason||"speech model not ready")):
+    "FM captions off";
+  const previous=$("live-dock-radio-captions");
+  if(previous){previous.hidden=true;previous.replaceChildren();}
+  if(state.livePollTimer)clearTimeout(state.livePollTimer);
+  state.livePollTimer=setTimeout(pollLiveRadio,350);
   const player=$("persistent-radio-player");
   player.onerror=null;
   player.src="/api/live/radio/stream?session="+encodeURIComponent(result.session)+
@@ -2153,8 +2240,10 @@ async function playFmChannel(channel, record){
     ". Playback is not proof of RDS metadata or current audio quality.");
 }
 async function playDabChannel(channel){
+  const captionOptions=state.channelCaptionPrefs||{enabled:false,translate:false,source:"en",target:"en",backend:"auto"};
   if(!channel.audio_advertised)throw Error("This DAB entry is a data service, not decoded audio.");
   if(state.liveActive)throw Error("Stop FM first: FM and DAB cannot share one Nooelec SDR.");
+  if(state.dabCaptionSession)await stopDabCaptionTap();
   if(state.dabPlaying){
     const old=$("persistent-radio-player");
     old.pause();old.removeAttribute("src");old.load();
@@ -2190,6 +2279,7 @@ async function playDabChannel(channel){
   syncLiveMediaDock();
   audio.onerror=()=>{
     state.dabPlaying=false;
+    void stopDabCaptionTap().catch(()=>{});
     syncLiveMediaDock();
     notice("The local welle-cli decoder did not deliver playable DAB MP3 audio. "+
       "Check lock and service audio availability; no Internet substitute was used.");
@@ -2202,19 +2292,59 @@ async function playDabChannel(channel){
     notice("DAB stream could not play: "+error.message+
       ". Check that the physical receiver has a DAB lock.");
   }
+  const note=$("live-dock-caption-status");
+  if(!captionOptions.enabled){
+    if(note)note.textContent="DAB+ live captions off";
+    return;
+  }
+  try{
+    const result=await api("/api/dab/captions/start","POST",{
+      channel:channel.channel,service_id:channel.service_id,
+      original_language:captionOptions.source,
+      translated_language:captionOptions.translate?captionOptions.target:null,
+      backend:captionOptions.backend,translation_backend:"auto"
+    });
+    if(result.active&&result.session){
+      state.dabCaptionSession=result.session;
+      if(note)note.textContent="DAB+ real speech decoding started";
+      if(state.dabCaptionTimer)clearTimeout(state.dabCaptionTimer);
+      state.dabCaptionTimer=setTimeout(pollLiveDabCaptions,400);
+    }else{
+      if(note)note.textContent="DAB audio only: "+
+        (result.unavailable_reason||"No compatible installed speech backend");
+      notice("DAB radio continues without transcription: "+
+        (result.unavailable_reason||"Speech model not available"));
+    }
+  }catch(error){
+    if(note)note.textContent="DAB audio only: "+error.message;
+    notice("DAB audio remains available; captions could not start: "+error.message);
+  }
 }
 async function playTvChannel(channel, record){
+  const captionOptions=state.channelCaptionPrefs||{enabled:false,translate:false,source:"en",target:"en",backend:"auto"};
   if(!channel.playable||!channel.tv_channel_id)
     throw Error("This real DVB service was discovered but no authorized MPEG-TS stream is configured for playback.");
   if(state.tvActive)throw Error("Stop the current TV session before switching channels.");
   if(!confirm("Open configured TV source "+channel.display_name+
     (record?" and record actual video":"")+"? The local MPEG-TS relay must already be authorized."))return;
   const session=await api("/api/live/tv/start","POST",{
-    channel_id:channel.tv_channel_id,record:!!record,subtitles:false,
-    original_language:"en",translated_language:null,backend:"auto",upstream_authorized:true});
+    channel_id:channel.tv_channel_id,record:!!record,
+    subtitles:captionOptions.enabled,original_language:captionOptions.source,
+    translated_language:captionOptions.enabled&&captionOptions.translate?captionOptions.target:null,
+    backend:captionOptions.backend,translation_backend:"auto",
+    upstream_authorized:true});
   state.tvActive=true;
   state.tvRecording=!!record;
   state.tvSession=session.session;
+  const note=$("live-dock-caption-status");
+  if(note)note.textContent=captionOptions.enabled?
+    (session.subtitles_active?"TV live transcription enabled":
+      "TV video only: "+(session.subtitle_unavailable_reason||"Speech backend not ready")):
+    "TV captions off";
+  const previous=$("live-dock-tv-captions");
+  if(previous){previous.hidden=true;previous.replaceChildren();}
+  if(state.tvPollTimer)clearTimeout(state.tvPollTimer);
+  state.tvPollTimer=setTimeout(pollLiveTV,350);
   const player=$("persistent-tv-player");
   player.src="/api/live/tv/stream?session="+encodeURIComponent(session.session)+
     "&token="+encodeURIComponent(state.csrf);
@@ -2248,6 +2378,75 @@ async function addChannelCenter(kind){
   const recordBox=el("input");recordBox.type="checkbox";
   record.append(recordBox,document.createTextNode(radio?" Record FM when playing":" Record configured TV when playing"));
   controls.append(search,medium,favorites,showHidden,record);
+  const speechBox=el("div","channel-caption-config");
+  speechBox.append(el("h4","","Live Captions & Translate"));
+  const captionControls=el("div","channel-caption-controls");
+  const captions=el("input");captions.type="checkbox";captions.id="channel-live-captions";
+  const transcribe=el("label","channel-filter-check");
+  transcribe.append(captions,document.createTextNode(" Live transcription"));
+  const translation=el("input");translation.type="checkbox";
+  translation.id="channel-live-translation";translation.disabled=true;
+  const translateLabel=el("label","channel-filter-check");
+  translateLabel.append(translation,document.createTextNode(" Translate speech live"));
+  const source=el("select");source.id="channel-speech-language";
+  source.setAttribute("aria-label","Broadcast speech language");
+  const target=el("select");target.id="channel-translate-language";
+  target.setAttribute("aria-label","Translate captions into");
+  for(const [code,name] of [["en","English"],["de","Deutsch"],["tr","Türkçe"]]){
+    const from=el("option","",name);from.value=code;source.append(from);
+    const to=el("option","",name);to.value=code;target.append(to);
+  }
+  source.value="en";target.value="en";
+  const backend=el("select");backend.id="channel-speech-backend";
+  backend.setAttribute("aria-label","Speech computation");
+  for(const [key,label] of [
+    ["auto","Automatic compute"],["cpu","CPU"],["gpu","GPU"],["npu","NPU"]]){
+    const option=el("option","",label);option.value=key;backend.append(option);
+  }
+  const languageControl=el("label","channel-caption-field");
+  languageControl.append(el("span","","Spoken language"),source);
+  const targetControl=el("label","channel-caption-field");
+  targetControl.append(el("span","","Translate into"),target);
+  const backendControl=el("label","channel-caption-field channel-caption-advanced");
+  backendControl.append(el("span","","AI compute"),backend);
+  const hint=el("p","channel-caption-hint",
+    "Captions run on actual received audio only. English is the default; "+
+    "other languages require installed compatible Whisper and Argos models. "+
+    "Choose options before Play. Missing AI never stops broadcast playback.");
+  speechBox.append(captionControls,hint);
+  captionControls.append(transcribe,translateLabel,languageControl,targetControl,backendControl);
+  state.channelCaptionPrefs={enabled:false,translate:false,source:"en",target:"en",backend:"auto"};
+  function syncCaptionOptions(){
+    translation.disabled=!captions.checked;
+    if(!captions.checked)translation.checked=false;
+    const options={enabled:captions.checked,translate:translation.checked,
+      source:source.value,target:target.value,backend:backend.value};
+    state.channelCaptionPrefs=options;
+    hint.textContent=options.enabled?
+      "Live captions requested for the NEXT playback. Only real decoded audio is "+
+      "transcribed; results appear in the persistent player, with SRT/VTT export. "+
+      "Missing AI models leave audio/video unaffected.":
+      "Live captions off. Turn on before Play to start real-time ASR; "+
+      "existing recordings remain available for later translation.";
+  }
+  for(const field of [captions,translation,source,target,backend])
+    field.addEventListener("change",syncCaptionOptions);
+  try{
+    const compute=await api("/api/compute");
+    const detect=el("option","","Detect language (Whisper CPU/GPU)");
+    detect.value="auto";
+    detect.disabled=!(compute.speech.auto_detect_backends||[]).length;
+    if(detect.disabled)detect.textContent+=" · compatible model missing";
+    source.prepend(detect);
+    if(!compute.speech.ready_cpu&&!compute.speech.ready_gpu&&!compute.speech.ready_npu){
+      hint.textContent="No compatible local Whisper model detected. Radio/TV playback "+
+        "remains available; subtitles require model installation.";
+    }
+  }catch(error){
+    hint.textContent="Local speech availability could not be checked. "+
+      "Broadcast playback is independent of AI: "+error.message;
+  }
+  syncCaptionOptions();
   const scan=button("FULL SCAN →",()=>{
     const id=radio?"automatic-channel-scanners":"dvb-full-scan";
     document.getElementById(id)?.scrollIntoView({behavior:"smooth",block:"start"});
@@ -2267,7 +2466,7 @@ async function addChannelCenter(kind){
   if(importDab)actions.append(importDab);
   const info=el("p","full-body");info.id="channel-hub-info";
   const list=el("div","channel-hub-list");list.id="channel-hub-list";
-  outer.append(controls,actions,info,list);
+  outer.append(controls,speechBox,actions,info,list);
   $("content").append(outer);
   let all=[];
   function render(){
@@ -3356,6 +3555,15 @@ function bindNavigation(){
   $("bookmark-page").addEventListener("click",()=>saveBookmark("Page "+state.page+(state.source?" · "+state.source:""),"page",state.page+":"+state.subpage+":"+state.source).catch((err)=>notice(err.message)));
   window.addEventListener("pagehide",()=>{
     stopManagedDabPolling();
+    if(state.dabCaptionTimer){clearTimeout(state.dabCaptionTimer);state.dabCaptionTimer=null;}
+    if(state.dabCaptionSession){
+      fetch("/api/dab/captions/stop",{
+        method:"POST",keepalive:true,
+        headers:{"Content-Type":"application/json","X-Tihulu-CSRF":state.csrf},
+        body:"{}"
+      }).catch(()=>{});
+      state.dabCaptionSession=null;
+    }
     if(state.dvbScanTimer){clearTimeout(state.dvbScanTimer);state.dvbScanTimer=null;}
     fetch("/api/dvb/scan/stop",{
       method:"POST",keepalive:true,

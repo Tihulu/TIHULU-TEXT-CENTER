@@ -27,7 +27,7 @@ import uuid
 
 from .live_fm import MAX_RECORD_BYTES,SESSION_TIMEOUT
 from .compute import detect_devices
-from .speech import SpeechPipeline
+from .speech import SpeechPipeline, SpeechError
 from .transcripts import TranscriptStore
 
 MAX_CHANNELS=64
@@ -161,15 +161,27 @@ class LiveTV:
             try:
                 self.record_file=open(self.archive/name,"xb") if name else None
                 read_fd=write_fd=None
+                subtitle_reason=None
+                # Caption models are optional. Never kill actual TV playback
+                # merely because a requested Whisper/Argos backend is missing.
                 if subtitles:
-                    if self.transcripts is None:
-                        raise LiveTVError("TV transcript archive unavailable")
-                    self.speech=SpeechPipeline(store=self.transcripts,session=session,
-                        source_id="configured_tv:"+channel_id,source_language=language,
-                        target_language=translate_to,backend=backend,profile=detect_devices(),
-                        medium="dvb_tv",translation_backend=translation_backend)
-                    read_fd,write_fd=os.pipe()
-                    os.set_inheritable(write_fd,True)
+                    try:
+                        if self.transcripts is None:
+                            raise SpeechError("TV transcript archive unavailable")
+                        self.speech=SpeechPipeline(
+                            store=self.transcripts,session=session,
+                            source_id="configured_tv:"+channel_id,
+                            source_language=language,target_language=translate_to,
+                            backend=backend,profile=detect_devices(),
+                            medium="dvb_tv",translation_backend=translation_backend)
+                        read_fd,write_fd=os.pipe()
+                        os.set_inheritable(write_fd,True)
+                    except (SpeechError,ValueError,ImportError,RuntimeError,OSError) as exc:
+                        self.speech=None
+                        subtitle_reason=str(exc)[:220]
+                        if read_fd is not None:os.close(read_fd)
+                        if write_fd is not None:os.close(write_fd)
+                        read_fd=write_fd=None
                 try:
                     self.process=subprocess.Popen(
                         tv_ffmpeg_argv(ffmpeg,channel["url"],write_fd),
@@ -187,6 +199,9 @@ class LiveTV:
                     "recorded_bytes":0,"listener_connected":False,
                     "source_status":"operator_configured_upstream_stream_not_dvb_verified",
                     "error":None,"format":"video/mp4",
+                    "subtitles_requested":subtitles,
+                    "subtitles_active":self.speech is not None,
+                    "subtitle_unavailable_reason":subtitle_reason,
                 }
                 self.last_seen=time.monotonic()
                 self.listener=False
@@ -261,7 +276,8 @@ class LiveTV:
             if heartbeat and self.state["active"]:self.last_seen=time.monotonic()
             result=dict(self.state)
             result["speech"]=self.speech.status() if self.speech else {
-                "enabled":False,"reason":"No user-requested TV transcription"}
+                "enabled":False,"reason":self.state.get("subtitle_unavailable_reason") or
+                    "No user-requested TV transcription"}
             return result
 
     def stop(self):
