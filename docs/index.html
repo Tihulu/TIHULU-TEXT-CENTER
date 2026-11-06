@@ -102,6 +102,8 @@
         <section id="view-tv" class="view" hidden>
           <article class="feature"><small>TRUSTED LOCAL MPEG-TS SOURCE</small><h2>TV, recording and subtitles</h2>
             <p>True TV reception requires an available DVB frontend and correctly configured, authorized upstream stream. The Hauppauge WinTV-soloHD requires real Linux/OS driver, firmware, service scan and transport-stream integration; a detected USB device alone is not live television.</p>
+            <p>In the local app, optional live TV captions prefer real text-decodable Teletext subtitles, with speech transcription as fallback when the Teletext stream is unavailable. On/off controls and offline translation require actual installed local models. A second Teletext subtitle reader is enabled only on explicitly multi-client-safe configured MPEG-TS relays.</p>
+            <p>TV Center and Text &amp; Alerts can browse existing, genuinely imported numbered Teletext pages, like a channel's text website. GitHub Pages alone cannot access the receiver, FFmpeg/libzvbi or local archive.</p>
             <a class="primary" href="http://127.0.0.1:8787/#page=420" target="_blank" rel="noopener">OPEN LOCAL TV</a></article>
         </section>
         <section id="view-translate" class="view" hidden>
