@@ -170,6 +170,12 @@ export function initAutoExplorer(){
    $("live-usb-status").textContent=e.detail?.status||"Not connected";
    $("live-usb-detail").textContent=e.detail?.message||"No radio activity";
  });
+ const dashboard=$("view-dashboard"),legacyMetrics=dashboard?.querySelector(":scope > .metrics"),legacyCards=dashboard?.querySelector(":scope > .panel-grid");
+ if(dashboard&&legacyMetrics&&legacyCards){
+   const extra=document.createElement("details");extra.className="live-advanced";
+   const summary=document.createElement("summary");summary.textContent="Advanced tools · Import NMEA / SP3 / Hardware diagnostics";
+   extra.append(summary);dashboard.insertBefore(extra,legacyMetrics);extra.append(legacyMetrics,legacyCards);
+ }
  updateMap();drawSky();void fetchCatalog();
  // Periodic geometry recalculation only; no network refresh, new permissions or RF scan.
  setInterval(()=>{if(document.visibilityState==="visible"&&state.satellites.length)recalc()},60000);
