@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {AUTO_PRESETS,AUTO_TARGETS,selectAutomaticPasses} from "../satellite_center/browser/auto_mission.mjs";
 
-const now=Date.UTC(2026,10,6,18,0,0);
+const now=Date.UTC(2026,10,10,18,0,0);
 const pass=(id,aos,span=540000,maximum=65)=>({
  id,name:"NORAD "+id,family:id===25544?"iss":"meteor",
  aos:now+aos,los:now+aos+span,maximum
@@ -85,3 +85,14 @@ test("ISS-only Series 35 mode selects UHF Robot36 without Meteor or APRS",()=>{
  assert.deepEqual(AUTO_PRESETS["iss-images"],["iss-sstv"]);
 });
 
+
+test("Outside 9–16 Nov event, ISS-only schedule does not fabricate active SSTV",()=>{
+ const early=Date.UTC(2026,10,6,18,0,0);
+ const earlyPass={id:25544,name:"ISS",aos:early+3600000,los:early+4200000};
+ const res=selectAutomaticPasses([earlyPass],{mode:"iss-images",now:early});
+ assert.equal(res.scheduled.length,0);
+ assert.match(res.skipped[0].reason,/9–16 November/);
+ const late=Date.UTC(2026,10,17,1,0,0);
+ const latePass={...earlyPass,aos:late+3600000,los:late+4200000};
+ assert.equal(selectAutomaticPasses([latePass],{mode:"iss-images",now:late}).scheduled.length,0);
+});
