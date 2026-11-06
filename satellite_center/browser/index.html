@@ -14,7 +14,12 @@
 <section><h2>1 · Choose USB receiver</h2>
 <div class="line"><button id="connect">Choose RTL-SDR (WebUSB)</button><button id="disconnect" class="secondary" disabled>Release USB</button></div>
 <p id="device-status" class="status" role="status">No USB device opened.</p>
-<p class="hint">The browser will show the USB chooser. Select the Nooelec / Realtek RTL2832U. Other applications such as readsb, Gqrx or welle.io must release the same dongle first; this page never stops them.</p>
+<details id="usb-help"><summary>USB not connecting? Diagnose without installing anything</summary>
+<p class="hint">A browser permission cannot stop readsb or unbind a Linux kernel driver. This diagnostic only reads WebUSB permissions; it will never claim USB, install software or change system settings.</p>
+<div class="line"><button class="secondary" type="button" id="usb-check">Check USB permissions (read-only)</button><button class="secondary" type="button" id="usb-copy">Copy troubleshooting report</button></div>
+<pre id="usb-report" role="status" aria-live="polite">Click Check USB permissions to inspect the browser's existing device permissions. If the device is busy, stop only the program you own before retrying.</pre>
+</details>
+<p class="hint">The browser will show the USB chooser. Select the Nooelec / Realtek RTL2832U. Other applications such as readsb, Gqrx or welle.io must release the same dongle first; this page never stops them. A cancelled chooser is not a driver failure. On Pop!_OS, check the readsb service and Linux DVB driver if the USB claim fails.</p>
 </section>
 <section><h2>2 · Receive satellite-band samples</h2>
 <label for="preset">Receive profile</label><select id="preset">
