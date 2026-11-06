@@ -13,6 +13,7 @@ from .receivers import receiver_inventory
 from .fm_rds import FMRSDSupervisor, CaptureError
 from .capabilities import capability_catalog
 from .fm_survey import FMSurveySupervisor, SurveyError
+from .scan_catalog import scan_capabilities
 
 WEB_DIR = Path(__file__).resolve().parents[1] / "web"
 
@@ -141,6 +142,16 @@ class Handler(BaseHTTPRequestHandler):
                     ],
                     "note":"No tuner accessed, no frequencies retuned, no internet fetched, no RF reception claimed",
                 })
+            if route == "/api/scans":
+                return self._json(200, {
+                    "features": scan_capabilities(receiver_inventory(), self.server.survey),
+                    "survey": self.server.survey.status(heartbeat=False),
+                    "warning": "Antenna scanning only finds RF energy; it cannot fetch Internet pages, identify decoded services or bypass receiver leases",
+                })
+            if route == "/api/scans/status":
+                current = self.server.survey.status()
+                current["capability"] = self.server.survey.availability(current.get("band", "fm"))
+                return self._json(200, current)
             if route == "/api/fm-survey/status":
                 status = self.server.survey.status()
                 status["capability"] = self.server.survey.availability()
@@ -193,7 +204,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         route = urlsplit(self.path).path
-        allowed = {"/api/feeds/add", "/api/feeds/refresh", "/api/bulletins", "/api/bookmarks", "/api/rds/start", "/api/rds/stop", "/api/fm-survey/start", "/api/fm-survey/stop"}
+        allowed = {"/api/feeds/add", "/api/feeds/refresh", "/api/bulletins", "/api/bookmarks", "/api/rds/start", "/api/rds/stop", "/api/fm-survey/start", "/api/fm-survey/stop", "/api/scans/start", "/api/scans/stop"}
         if route not in allowed:
             return self._json(404, {"error": "Not found"})
         if self.headers.get("X-Tihulu-CSRF") != self.server.csrf_token:
@@ -212,6 +223,10 @@ class Handler(BaseHTTPRequestHandler):
             payload = json.loads(self.rfile.read(length))
             if not isinstance(payload, dict):
                 raise ValueError("Expected JSON object")
+            if route == "/api/scans/start":
+                return self._json(202, self.server.survey.start(payload.get("band")))
+            if route == "/api/scans/stop":
+                return self._json(200, self.server.survey.stop())
             if route == "/api/fm-survey/start":
                 return self._json(202, self.server.survey.start())
             if route == "/api/fm-survey/stop":

@@ -31,6 +31,24 @@ class FMSurveyTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             parse_power_csv("x"*(256001))
 
+    def test_multiple_bands_do_not_claim_decoded_services(self):
+        from textcenter.fm_survey import SURVEY_BANDS
+        self.assertEqual(set(SURVEY_BANDS),{
+            "fm","dab","aprs","drm","rtty","navtex","weatherfax"
+        })
+        args=build_survey_command("/usr/bin/rtl_power","navtex")
+        self.assertIn("-D",args)
+        self.assertIn("450k:560k:2k",args)
+        self.assertNotIn("-D",build_survey_command("/usr/bin/rtl_power","dab"))
+        with self.assertRaises(ValueError):
+            build_survey_command("/usr/bin/rtl_power","ssh")
+        # A fake low-frequency peak is still RF energy, not NAVTEX text.
+        data=parse_power_csv(
+            "2026-11-06, 01:00:00, 490000, 510000, 2000, 1, -40, -42, -43, -44, -45, -46, -47, -48, -49, -50\\n",
+            band="navtex")
+        self.assertEqual(data["sweeps"],1)
+        self.assertNotIn("station",data["candidates"][0] if data["candidates"] else {})
+
     def test_conflict_and_missing_binary_are_denied(self):
         with tempfile.TemporaryDirectory() as td:
             sup=FMSurveySupervisor(

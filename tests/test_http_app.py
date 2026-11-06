@@ -120,6 +120,27 @@ class HTTPTests(unittest.TestCase):
         self.assertEqual(self.request("POST","/api/fm-survey/start",{},csrf)[0],409)
         self.assertEqual(self.request("POST","/api/fm-survey/stop",{},csrf)[0],200)
 
+    def test_each_scanner_route_denies_unsupported_bands_and_has_no_hidden_tuning(self):
+        status,_,raw=self.request("GET","/api/scans")
+        self.assertEqual(status,200)
+        features=json.loads(raw)["features"]
+        self.assertEqual(len(features),31)
+        rows={x["id"]:x for x in features}
+        self.assertEqual(rows["gemini"]["medium"],"internet_only")
+        self.assertEqual(rows["dvb_teletext"]["scan_type"],"dvb_service_adapter_pending")
+        self.assertEqual(rows["navtex"]["scan_type"],"rf_spectrum")
+        self.assertFalse(rows["dvb_teletext"]["can_survey_now"])
+        status,_,raw=self.request("GET","/api/scans/status")
+        self.assertEqual(status,200)
+        self.assertEqual(json.loads(raw)["status"],"idle")
+        _,_,boot=self.request("GET","/api/bootstrap")
+        csrf=json.loads(boot)["csrf"]
+        self.assertEqual(self.request("POST","/api/scans/start",{"band":"fm"})[0],403)
+        self.assertEqual(self.request("POST","/api/scans/start",{"band":"internet"},csrf)[0],400)
+        self.server.survey.conflicts=lambda: [{"process":"readsb"}]
+        self.assertEqual(self.request("POST","/api/scans/start",{"band":"dab"},csrf)[0],409)
+        self.assertEqual(self.request("POST","/api/scans/stop",{},csrf)[0],200)
+
     def test_no_forged_source(self):
         code,_,raw=self.request("GET","/api/page?source_id=ard_text&number=100")
         self.assertEqual(code,404)
