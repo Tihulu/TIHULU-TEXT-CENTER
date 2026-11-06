@@ -6,7 +6,7 @@ import {relativePowerDbFS} from "../core/rf_ranging.mjs";
 const $=id=>document.getElementById(id);
 export function initUsbSDR(report){
  let receiver=null,usbDevice=null,busy=false,stopping=false,sampling=false;
- let configuredRate=0,configuredFrequencyHz=0,configuredGain=null;
+ let configuredRate=0,configuredFrequencyHz=0,configuredGain=null,sweepCancel=false;
  let pendingSample=null,finishSample=null;
  const beginSample=()=>{
    pendingSample=new Promise(resolve=>{finishSample=resolve});
@@ -59,7 +59,7 @@ export function initUsbSDR(report){
    if(report)report(message);
  };
  async function release(){
-   stopping=true;sampling=false;
+   stopping=true;sampling=false;sweepCancel=true;
    // Close only this module's own handles; never stop OS services or other tabs.
    const inFlight=pendingSample;
    if(inFlight){
@@ -200,6 +200,59 @@ export function initUsbSDR(report){
      ". No unverified RF capture has been recorded; if USB transfer fails, release and reconnect.")}
    finally{sampling=false;busy=false;endSample()}
  }
+ async function fmSweep(startMHz=87.5,stopMHz=108,stepMHz=.2){
+   if(!receiver){notify("FM SCAN UNAVAILABLE","Connect the real RTL-SDR first. No synthetic spectrum readings.");window.dispatchEvent(new CustomEvent("tihulu:rf-fm-sweep-failed",{detail:{message:"RTL-SDR not connected"}}));return}
+   if(busy||sampling){notify("FM SCAN BUSY","Another USB operation is running.");return}
+   if(![startMHz,stopMHz,stepMHz].every(Number.isFinite)||startMHz<87.5||stopMHz>108||stepMHz<.1||stepMHz>.5){
+     notify("FM SCAN INVALID","Scan accepts 87.5–108 MHz and 0.1–0.5 MHz spacing.");return
+   }
+   if(configuredRate!==1024000){notify("FM SCAN BLOCKED","Sample rate not initialized; release and reconnect first.");return}
+   busy=true;sampling=true;stopping=false;sweepCancel=false;beginSample();
+   const oldHz=configuredFrequencyHz,oldGain=configuredGain;
+   const readings=[],total=Math.min(130,Math.floor((stopMHz-startMHz)/stepMHz+1.001));
+   try{
+     if(configuredGain!==20){await receiver.setGain(20);configuredGain=20}
+     for(let i=0;i<total&&!stopping&&!sweepCancel;i++){
+       const mhz=Math.round((startMHz+i*stepMHz)*1000)/1000;
+       const hz=Math.round(mhz*1000000);
+       if(configuredFrequencyHz!==hz){await receiver.setCenterFrequency(hz);configuredFrequencyHz=hz}
+       await receiver.resetBuffer(); // Flush old frequency's samples
+       if(stopping||sweepCancel)break;
+       const sample=await receiver.readSamples(8192);
+       const raw=sample?.data;
+       if(!(raw instanceof ArrayBuffer)&&!ArrayBuffer.isView(raw))throw Error("No actual SampleBlock.data from RTL-SDR");
+       const levelDbFS=relativePowerDbFS(raw);
+       readings.push({frequencyMHz:mhz,levelDbFS,sampleBytes:raw.byteLength,
+         measuredAt:new Date().toISOString(),hardware:"RTL2832U WebUSB",signalDecoded:false,
+         statement:"ENERGY ONLY · NOT STATION ID OR DISTANCE"});
+       if(i%4===0||i===total-1)window.dispatchEvent(new CustomEvent("tihulu:rf-fm-sweep-progress",{
+         detail:{completed:readings.length,total,frequencyMHz:mhz}
+       }));
+     }
+     if(!stopping)window.dispatchEvent(new CustomEvent("tihulu:rf-fm-sweep-results",{
+       detail:{readings,stopped:sweepCancel,hardware:"RTL2832U"}}
+     ));
+     if(!stopping)notify(sweepCancel?"FM SWEEP STOPPED":"FM SWEEP COMPLETE",readings.length+
+       " REAL RTL-SDR frequency-level samples, 87.5–108 MHz. No RDS station identification, GPS, distance or calibrated location.");
+   }catch(error){
+     if(!stopping){
+       const message=String(error?.message||error);
+       notify("FM SWEEP ERROR",message+" · no invented RF results.");
+       window.dispatchEvent(new CustomEvent("tihulu:rf-fm-sweep-failed",{detail:{message}}));
+     }
+   }finally{
+     if(!stopping&&receiver){
+       try{
+         if(configuredFrequencyHz!==oldHz&&oldHz>0){
+           await receiver.setCenterFrequency(oldHz);configuredFrequencyHz=oldHz;
+         }
+         if(configuredGain!==oldGain){await receiver.setGain(oldGain);configuredGain=oldGain}
+       }catch(e){notify("FM SWEEP RESTORE WARNING","Previous tuner setting could not be restored: "+String(e?.message||e))}
+     }
+     sampling=false;busy=false;endSample();
+   }
+ }
+
  async function selfTest(){
    if(busy||receiver){notify("USB TEST BUSY","Release this app's receiver or finish the current USB operation before testing.");return}
    if(!navigator.usb||!window.isSecureContext){
@@ -243,6 +296,8 @@ export function initUsbSDR(report){
  }
  // Select and claim receiver only when the user chooses it.
  window.addEventListener("tihulu:rf-capture-request",event=>{void captureRF(event.detail?.frequencyMHz,event.detail?.sourceId)});
+ window.addEventListener("tihulu:rf-fm-sweep-request",event=>{void fmSweep(event.detail?.startMHz,event.detail?.stopMHz,event.detail?.stepMHz)});
+ window.addEventListener("tihulu:rf-fm-sweep-stop",()=>{sweepCancel=true});
  $("usb-select")?.addEventListener("click",()=>{void connect()});
  $("usb-selftest")?.addEventListener("click",()=>{void selfTest()});
  $("live-usb-check")?.addEventListener("click",()=>{void selfTest()});
@@ -251,5 +306,5 @@ export function initUsbSDR(report){
  $("hard-stop")?.addEventListener("click",()=>{void release()});
  window.addEventListener("pagehide",()=>{void release()});
  document.addEventListener("visibilitychange",()=>{if(document.hidden&&receiver)void release()});
- return {connect,scan,release,selfTest,captureRF};
+ return {connect,scan,release,selfTest,captureRF,fmSweep};
 }
