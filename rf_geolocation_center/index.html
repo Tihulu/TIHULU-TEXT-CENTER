@@ -165,7 +165,34 @@
      </div>
    </section>
    <section id="view-catalog" class="view"><div class="eyebrow">MULTI-CONSTELLATION REFERENCE</div><h1>Systems and supported signal families</h1><p class="lead">Catalog coverage is not proof of reception. GLONASS FDMA channels are frequency-dependent.</p><div id="gnss-catalog" class="catalog-grid"></div></section>
-   <section id="view-radio" class="view"><div class="eyebrow">EXPERIMENTAL RF GEOMETRY</div><h1>Radio positioning</h1><p class="lead">Only ranges from genuine calibrated measurements qualify. RSSI alone cannot produce a defensible distance. No unverified results are labeled GNSS FIX.</p>
+   <section id="view-radio" class="view"><div class="eyebrow">INDEPENDENT RF HARDWARE SURVEY</div><h1>Radio positioning · antenna only</h1><p class="lead">Use RTL-SDR RF observations without using the device's GPS, Wi-Fi, IP location or browser Geolocation API. Fixed transmitter coordinates come from an explicitly entered external source. I/Q level is measured; distance is only an experimental propagation-model estimate after site-specific calibration.</p>
+    <article class="panel rf-survey-panel">
+      <h2>RF-only positioning session</h2>
+      <label class="rf-check"><input id="rf-only" type="checkbox"> RF-ONLY — never use OS location for this session</label>
+      <div id="rf-session-status" class="rf-session-status" role="status">RF-only mode is OFF. Browser/device location sources remain separate.</div>
+      <div class="rf-entry-grid">
+        <div class="field"><label for="rf-name">Transmitter / source ID</label><input id="rf-name" value="" placeholder="Known transmitter name (user supplied)" maxlength="100"></div>
+        <div class="field"><label for="rf-type">Source category</label><select id="rf-type"><option value="station">Fixed ground station</option><option value="aircraft">Aircraft (reference only)</option><option value="satellite">Satellite (reference only)</option></select></div>
+        <div class="field"><label for="rf-freq">Frequency (MHz, 24–1766)</label><input id="rf-freq" type="number" min="24" max="1766" step="0.001" value="98.6"></div>
+        <div class="field"><label for="rf-lat">Published source latitude</label><input id="rf-lat" type="number" min="-90" max="90" step="0.000001" placeholder="e.g. 50.9"></div>
+        <div class="field"><label for="rf-lon">Published source longitude</label><input id="rf-lon" type="number" min="-180" max="180" step="0.000001" placeholder="e.g. 6.9"></div>
+      </div>
+      <div class="rf-actions"><button id="rf-add" type="button" class="secondary">Add external source</button><button id="rf-capture" type="button" class="primary">Measure RF with antenna</button><button id="rf-clear" type="button" class="secondary">Clear RF survey</button></div>
+      <div class="rf-calibration">
+        <h3>Calibration at a known transmitter distance</h3>
+        <p>With the antenna at a known distance from the selected fixed transmitter, capture its RF level first, enter the independently known distance, then save calibration. At an unknown site capture the *same source* again using identical fixed gain, bandwidth and antenna. This estimates range only under a simplified power-loss assumption. It does not identify the transmitter signal or provide reliable distance without validation.</p>
+        <div class="rf-entry-grid">
+          <div class="field"><label for="rf-cal-distance">Independent reference distance (metres)</label><input id="rf-cal-distance" type="number" min="1" max="100000" step="1" placeholder="Actual known distance"></div>
+          <div class="field"><label for="rf-exponent">Path-loss exponent (assumption)</label><input id="rf-exponent" type="number" min="1.5" max="6" step="0.1" value="3"></div>
+        </div>
+        <button id="rf-calibrate" class="secondary" type="button">Use last actual RF capture as reference calibration</button>
+        <div id="rf-measurement-status" class="rf-measurement-status" role="status">No RTL-SDR measurement yet. Connect the USB SDR in the Receiver panel, then scan a chosen source.</div>
+      </div>
+      <div id="rf-source-list" class="rf-source-list"><p>No user-defined RF sources.</p></div>
+      <div class="rf-actions"><button id="rf-solve" class="primary" type="button">Calculate RF-only experimental position</button><button id="rf-fit-map" class="secondary" type="button">Show radio rings on Earth Map</button></div>
+      <div id="rf-solution-report" class="rf-measurement-status" role="status">No calibrated RF range hypotheses. A minimum of three fixed ground sources is necessary for experimental RF-only trilateration.</div>
+      <p class="fine muted">Scientific limit: RF intensity does not uniquely determine distance. Terrain, multipath, antenna patterns, gain, co-channel interference and source power affect this test. Aircraft and satellites appear on independent RF layers, but are not treated as fixed ground transmitters in this 2D RSSI solver.</p>
+    </article>
      <article class="panel"><h2>Measured range trilateration (2D)</h2><p>Import JSON list containing 3–64 stations: <code>lat</code>, <code>lon</code>, <code>rangeMeters</code>, <code>measured:true</code>. Use actual measured ranges only. Result is an experimental local 2D estimate, not a validated accuracy claim.</p><label for="ranges-file" class="file-button">Import range measurements</label><input id="ranges-file" type="file" accept=".json,application/json"><pre id="radio-result" class="result">No calibrated radio range dataset imported.</pre></article>
      <article class="panel"><h2>Synchronized multi-receiver TDOA</h2><p>Import JSON list containing <code>lat</code>, <code>lon</code>, <code>deltaSeconds</code>, <code>synchronized:true</code>, <code>measured:true</code>. Only physically feasible range-difference hyperbola constraints are reported. This does not independently calculate a position fix.</p><label for="tdoa-file" class="file-button">Import synchronized TDOA measurements</label><input id="tdoa-file" type="file" accept=".json,application/json"><pre id="tdoa-result" class="result">No synchronized TDOA data imported.</pre></article>
    </section>
