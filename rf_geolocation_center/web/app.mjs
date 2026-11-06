@@ -318,6 +318,13 @@ function renderScanMapPanel(matches){
  panel.replaceChildren();
  const counts={fm:matches.filter(x=>x.kind==="fm").length,tv:matches.filter(x=>x.kind==="tv").length,rds:matches.filter(x=>x.kind==="rds").length};
  const channels=(state.dvbChannels||[]).length;
+ const hypothesisCount=state.rfRanges.filter(r=>r.type==="station"&&Number.isFinite(r.rangeMeters)).length;
+ setText("rf-blind-status",state.rfSolution?
+   "RF-ONLY · EXPERIMENTAL RSSI MODEL: "+state.rfSolution.lat.toFixed(5)+", "+state.rfSolution.lon.toFixed(5)+
+   " derived from "+hypothesisCount+" user-calibrated source-range HYPOTHESES, not verified geolocation.":
+   "RF-ONLY · NO FIX: "+hypothesisCount+" current calibrated RF range hypotheses. "+
+   "Blind radio positioning needs at least 3 independent identified fixed transmitters with known coordinates and validated ranging/bearing/timing constraints. "+
+   "Catalog towers, FM power peaks, TV services or ADS-B aircraft positions alone cannot determine the receiver location.");
  setText("map-scan-status",counts.fm+" FM energy overlap · "+counts.rds+" decoded local FM RDS overlaps · "+counts.tv+
    " TV frequency-overlap candidates · "+channels+" native/imported DVB services · "+
    state.catalogAntennaAircraft.length+" real antenna ADS-B aircraft · "+state.catalogAircraft.length+
@@ -363,9 +370,20 @@ function renderEarth(){
  setText("map-center-label",p.validObserver?"MEASURED LOCATION: "+p.kind:p.kind.toUpperCase());
  const grid=$("earth-grid"),rings=$("earth-rings"),markers=$("earth-markers");
  grid.replaceChildren();rings.replaceChildren();markers.replaceChildren();
- const pt=(lat,lon)=>{const v=project(lat,lon);return {x:v.x,y:v.y,inside:v.x>=0&&v.x<=mapWidth&&v.y>=0&&v.y<=mapHeight}};
+ // Cache viewport and projection for this frame: each ring draws 96 points and
+ // many stations/satellites otherwise trigger hundreds of forced DOM layout reads.
+ const center=merc(state.map.lat,state.map.lon,state.map.zoom),w=mapWidth,h=mapHeight;
+ const worldWidth=256*Math.pow(2,state.map.zoom);
+ const pt=(lat,lon)=>{
+   const p=merc(lat,lon,state.map.zoom);
+   let dx=p.x-center.x;
+   if(dx>worldWidth/2)dx-=worldWidth;
+   if(dx<-worldWidth/2)dx+=worldWidth;
+   const x=w/2+dx,y=h/2+p.y-center.y;
+   return {x,y,inside:x>=0&&x<=mapWidth&&y>=0&&y<=mapHeight};
+ };
+ const matched=mapMatches();
  // Coordinate grid is built locally, without any online map tiles.
- const center=merc(state.map.lat,state.map.lon,state.map.zoom),w=rect.width,h=rect.height;
  const nw=unmerc(center.x-w/2,center.y-h/2,state.map.zoom);
  const se=unmerc(center.x+w/2,center.y+h/2,state.map.zoom);
  const spanLon=Math.abs(se.lon-nw.lon),spanLat=Math.abs(nw.lat-se.lat);
@@ -386,23 +404,121 @@ function renderEarth(){
  const place=(loc,kind,fill,title,prefix)=>{
    const v=pt(loc.lat,loc.lon);if(!v.inside)return;
    const group=svgel("g");
+   // Large, invisible target makes catalog towers accessible on touch screens.
+   // Keep this behind the actual marker so pointer events remain on one SVG group.
+   group.append(svgel("circle",{cx:v.x,cy:v.y,r:19,fill:"transparent",stroke:"none",
+     "data-marker-hitbox":"true","pointer-events":"all"}));
    group.append(svgel("circle",{cx:v.x,cy:v.y,r:kind==="receiver"||kind==="solution"?9:7,fill,stroke:"#0a192a","stroke-width":2}));
-   if(prefix)group.append(svgel("text",{x:v.x,y:v.y+3.7,fill:"#061627","font-size":10,"font-weight":800,"text-anchor":"middle"},prefix));
+   if(prefix)group.append(svgel("text",{x:v.x,y:v.y+3.7,fill:"#061627","font-size":10,"font-weight":800,"text-anchor":"middle","pointer-events":"none"},prefix));
    const tip=svgel("title",{},title);group.append(tip);
    group.setAttribute("role","button");
    group.setAttribute("tabindex","0");
+   group.setAttribute("data-map-marker",kind);
+   group.setAttribute("aria-label",title);
    group.style.cursor="pointer";
+   const originalId=String(loc.catalogId||loc.id||"");
+   const tower=state.catalogTowers.find(s=>s.id===originalId)||null;
+   const osmTower=!!tower||(loc.catalog==="OpenStreetMap/Overpass")||
+     /^osm-(node|way|relation)\//.test(originalId);
+   const verifiedRF=!!(loc.hasActualRF||loc.hardwareReceived);
+   const siteMatches=osmTower?matched.filter(m=>m.siteId===originalId):[];
+   const hoverTitle=osmTower?
+     (tower?.name||loc.name||"Broadcast tower")+" · "+
+       (siteMatches.length?"FREQUENCY OVERLAP · NO TOWER IDENTITY":"OSM CATALOG ONLY · NOT RF VERIFIED"):
+     kind==="aircraft"?(loc.hardwareReceived?"LOCAL ANTENNA ADS-B":"AIRCRAFT / REFERENCE"):
+     kind==="orbit"?"PREDICTED ORBIT · NOT ANTENNA LOCK":
+     (loc.name||title).slice(0,100);
+   const hover=$("map-hover-tip");
+   const positionInfo=el=>{
+    const x=Math.min(Math.max(8,v.x+13),Math.max(8,mapWidth-(el===hover?285:400)));
+    const y=Math.min(Math.max(8,v.y+16),Math.max(8,mapHeight-(el===hover?85:240)));
+    el.style.left=x+"px";el.style.top=y+"px";
+   };
+   group.addEventListener("pointerenter",()=>{
+    if(!hover||!$("map-source-popup")?.hidden)return;
+    hover.textContent=hoverTitle+" · Click for provenance";
+    positionInfo(hover);hover.hidden=false;
+   });
+   group.addEventListener("pointerleave",()=>{if(hover)hover.hidden=true});
+   group.addEventListener("pointerdown",event=>event.stopPropagation());
    const show=event=>{
     if(event)event.stopPropagation();
+    if(hover)hover.hidden=true;
     const popup=$("map-source-popup");if(!popup)return;
-    setText("map-source-popup-name",(prefix||kind||"Source")+" · "+kind.toUpperCase());
-    setText("map-source-popup-description",title+" · "+loc.lat.toFixed(5)+", "+loc.lon.toFixed(5));
-    const px=Math.min(Math.max(v.x+12,8),Math.max(8,mapWidth-350));
-    const py=Math.min(Math.max(v.y+14,8),Math.max(8,mapHeight-175));
-    popup.style.left=px+"px";popup.style.top=py+"px";popup.hidden=false;
+    const heading=loc.name||loc.callsign||loc.icao||"RF reference";
+    setText("map-source-popup-name",heading);
+    setText("map-source-popup-description",title);
+    const facts=$("map-source-facts");
+    facts.replaceChildren();
+    const addFact=(label,value)=>{
+      const line=make("div");
+      const key=make("strong",null,label+": ");
+      line.append(key,document.createTextNode(String(value)));facts.append(line);
+    };
+    const freqList=tower?.frequenciesMHz||loc.frequenciesMHz||[];
+    const tvList=tower?.televisionFrequenciesMHz||loc.televisionFrequenciesMHz||[];
+    const calibration=state.rfSources.find(s=>s.id===loc.id||s.catalogId===originalId);
+    addFact("Coordinates",loc.lat.toFixed(6)+", "+loc.lon.toFixed(6));
+    if(osmTower){
+      addFact("Location provenance","OPENSTREETMAP CATALOG / EXTERNAL MAPPED SITE");
+      addFact("Received by your antenna",calibration?.hasActualRF?"RF power sampled at a selected frequency; station identity NOT decoded":"NO verified direct receipt from this tower");
+      addFact("RF/TV link",siteMatches.length?
+        siteMatches.map(m=>m.kind.toUpperCase()+" "+m.frequencyMHz.toFixed(3)+" MHz: "+m.match).join(" | "):
+        "NO actual scan-to-site match. Marker does not prove signal or distance.");
+      addFact("FM frequencies",freqList.length?freqList.join(", ")+" MHz from public tags":"Unknown / not published");
+      addFact("TV frequencies",tvList.length?tvList.join(", ")+" MHz from public tags":"Unknown / not published");
+      addFact("Receiver position contribution","NONE: site coordinates alone do not give your position.");
+    }else if(kind==="aircraft"){
+      addFact("Position provenance",loc.hardwareReceived?
+        "REAL LOCAL RTL-SDR ADS-B via Flight Radar decoder":"External / user-supplied aircraft coordinates; NOT local RF ranging");
+      addFact("Last observation",loc.observedAt||"Not provided");
+      addFact("Observer range","UNKNOWN; ADS-B position transmission is not a receiver distance measurement");
+    }else if(kind==="orbit"){
+      addFact("Position provenance","EPHEMERIS PREDICTION OR MANUAL REFERENCE · NOT GNSS SIGNAL LOCK");
+    }else if(kind==="receiver"||kind==="solution"){
+      addFact("Position provenance",title);
+      addFact("RF measurement",verifiedRF?"RF signal observed; distance not directly measured":"No antenna-specific range proved");
+    }else{
+      addFact("Position provenance",loc.metadataOrigin||loc.source||"USER-SUPPLIED REFERENCE COORDINATES");
+      addFact("RTL-SDR observation",verifiedRF?"Real RF sample; emitter identity NOT confirmed":"No verified antenna observation");
+      if(loc.calibration||calibration?.calibration)addFact("Calibration","USER-SUPPLIED known-distance reference; propagation model remains experimental");
+      if(Number.isFinite(loc.rangeMeters))addFact("Range","~"+loc.rangeMeters.toFixed(0)+" m · UNVALIDATED RSSI hypothesis, not time-of-flight");
+    }
+    const link=$("map-source-catalog-link");
+    const url=tower?.catalogUrl||loc.catalogUrl||"";
+    const valid=/^https:\/\/www\.openstreetmap\.org\/(?:node|way|relation)\/\d+$/.test(url);
+    link.hidden=!valid;if(valid)link.href=url;else link.removeAttribute("href");
+    const measure=$("map-source-measure");
+    const frequency=Number.isFinite(loc.frequencyMHz)?loc.frequencyMHz:
+      freqList.find(f=>Number.isFinite(f)&&f>=87.5&&f<=108);
+    const eligible=kind==="station"&&Number.isFinite(frequency)&&frequency>=87.5&&frequency<=108;
+    measure.hidden=!eligible;
+    if(eligible){
+      measure.onclick=()=>{
+       if(osmTower){
+        window.dispatchEvent(new CustomEvent("tihulu:rf-autosource",{
+         detail:{...(tower||loc),type:"station",frequencyMHz:frequency,id:originalId}
+        }));
+       }
+       window.dispatchEvent(new CustomEvent("tihulu:rf-select-source",{
+        detail:{id:loc.id||null,catalogId:originalId,frequencyMHz:frequency}
+       }));
+       setView("radio");
+       const advanced=$("radio-advanced-tools");if(advanced)advanced.open=true;
+       $("rf-source-select")?.scrollIntoView({behavior:"smooth",block:"center"});
+       msg("FM calibration candidate: "+frequency.toFixed(3)+" MHz. First measure RF at a site with an INDEPENDENTLY KNOWN source distance and fixed gain. Record the reference, then repeat at the unknown location. RDS/source identity and propagation remain unverified.");
+      };
+    }
+    positionInfo(popup);popup.hidden=false;
    };
    group.addEventListener("click",show);
-   group.addEventListener("keydown",event=>{if(event.key==="Enter"||event.key===" "){event.preventDefault();show(event)}});
+   group.addEventListener("pointerup",event=>{
+     // Avoid relying on a synthesized mouse click after pointer capture/drag on mobile.
+     if(event.pointerType==="touch"||event.pointerType==="pen")show(event);
+   });
+   group.addEventListener("keydown",event=>{
+    if(event.key==="Enter"||event.key===" "){event.preventDefault();show(event)}
+   });
    markers.append(group);
  };
  const showGround=layerShown("ground"),showAir=layerShown("aircraft");
@@ -465,7 +581,6 @@ function renderEarth(){
 
  // Mapped broadcast TOWER references are not actual antenna-identified transmitters.
  // Actual frequency overlaps highlight candidates; OSM-only stations remain neutral.
- const matched=mapMatches();
  const drawnTowers=[];
  for(const site of state.catalogTowers){
    if(!showGround||state.rfSources.some(x=>x.catalogId===site.id))continue;
@@ -630,9 +745,20 @@ $("evidence-clear")?.addEventListener("click",()=>{
  $("layer-demo").checked=true;fitEvidence();renderDiagnostics();msg("Range measurements cleared; showing clearly labeled synthetic ring explanation.");
 });
 let drag=null;
-$("earth-map")?.addEventListener("pointerdown",e=>{if(e.button!==0)return;const c=merc(state.map.lat,state.map.lon,state.map.zoom);drag={x:e.clientX,y:e.clientY,c};e.currentTarget.setPointerCapture(e.pointerId)});
-$("earth-map")?.addEventListener("pointerup",e=>{if(!drag)return;const p=unmerc(drag.c.x-(e.clientX-drag.x),drag.c.y-(e.clientY-drag.y),state.map.zoom);
- if(p.lat>=-85&&p.lat<=85){state.map.lat=p.lat;state.map.lon=((p.lon+180+360)%360)-180}drag=null;renderEarth()});
+$("earth-map")?.addEventListener("pointerdown",e=>{
+ if(e.button!==0||e.target.closest("[data-map-marker], #map-source-popup, #map-hover-tip"))return;
+ const center=merc(state.map.lat,state.map.lon,state.map.zoom);
+ drag={x:e.clientX,y:e.clientY,c:center};
+ e.currentTarget.setPointerCapture(e.pointerId);
+});
+$("earth-map")?.addEventListener("pointerup",e=>{
+ if(!drag)return;
+ const moved=Math.hypot(e.clientX-drag.x,e.clientY-drag.y);
+ if(moved<4){drag=null;return}
+ const p=unmerc(drag.c.x-(e.clientX-drag.x),drag.c.y-(e.clientY-drag.y),state.map.zoom);
+ if(p.lat>=-85&&p.lat<=85){state.map.lat=p.lat;state.map.lon=((p.lon+180+360)%360)-180}
+ drag=null;const popup=$("map-source-popup");if(popup)popup.hidden=true;renderEarth();
+});
 $("earth-map")?.addEventListener("pointercancel",()=>{drag=null});
 $("earth-map")?.addEventListener("wheel",e=>{e.preventDefault();state.map.zoom=Math.max(2,Math.min(18,state.map.zoom+(e.deltaY<0?1:-1)));renderEarth()},{passive:false});
 window.addEventListener("resize",()=>{if(state.activeView==="earth")renderEarth()});
@@ -775,6 +901,15 @@ window.addEventListener("tihulu:rf-survey-updated",e=>{
 });
 window.addEventListener("tihulu:rf-fit-map",fitRfSurveyMap);
 $("map-source-popup-close")?.addEventListener("click",()=>{$("map-source-popup").hidden=true});
+$("earth-map")?.addEventListener("keydown",event=>{
+ if(event.key==="Escape"){
+  const popup=$("map-source-popup"),hover=$("map-hover-tip");
+  if(popup)popup.hidden=true;
+  if(hover)hover.hidden=true;
+ }
+});
+
+$("map-source-popup")?.addEventListener("pointerdown",event=>event.stopPropagation());
 window.addEventListener("tihulu:show-tv-on-map",()=>{
  const matches=mapMatches().filter(m=>m.kind==="tv");
  if(matches.length)focusMappedSources(matches,"TV channels with frequency-matched public broadcasting sites");

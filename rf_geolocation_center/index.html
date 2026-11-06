@@ -141,10 +141,16 @@
         <div id="osm-tiles" class="osm-tiles" hidden></div>
         <svg id="earth-overlay" class="earth-overlay" viewBox="0 0 900 520" preserveAspectRatio="none"><g id="earth-grid"></g><g id="earth-rings"></g><g id="earth-markers"></g></svg>
         <div class="map-cross">+</div>
-        <div id="map-source-popup" class="map-source-popup" hidden>
+        <div id="map-hover-tip" class="map-hover-tip" role="tooltip" hidden></div>
+        <div id="map-source-popup" class="map-source-popup" role="dialog" aria-label="Selected RF map source details" hidden>
          <button id="map-source-popup-close" aria-label="Close map source information" type="button">×</button>
          <strong id="map-source-popup-name">Source</strong>
          <p id="map-source-popup-description"></p>
+         <div id="map-source-facts" class="map-source-facts" aria-label="Signal and location provenance"></div>
+         <div class="map-source-actions">
+          <a id="map-source-catalog-link" target="_blank" rel="noopener noreferrer" hidden>Open original map record</a>
+          <button id="map-source-measure" type="button" class="secondary" hidden>Measure / calibrate RF source</button>
+         </div>
         </div>
        </div><div class="map-footer"><span>WGS84 · map pan by drag/touch · wheel or +/− zoom</span><span>© OpenStreetMap contributors, tiles only on request</span></div>
        <section class="map-discovery-results" aria-label="Receiver measurements and matching mapped transmitter candidates">
@@ -152,9 +158,11 @@
          <div><strong>Signals &amp; sources on this map</strong><p id="map-scan-status">No antenna scan linked to this map yet. Catalog towers are external references, not received stations.</p></div>
          <button id="map-focus-scan" class="secondary" type="button">Fit discovered sources</button>
         </div>
+        <div id="rf-blind-status" class="rf-blind-status" role="status">RF-ONLY · NO FIX: mapped tower coordinates and RF power alone do not establish your position. Calibrate three or more independently known fixed transmitters for an experimental RSSI estimate.</div>
         <div class="map-source-legend" aria-label="Source provenance">
          <span><i class="map-dot device"></i> Device position</span>
-         <span><i class="map-dot radio"></i> Mapped RF site / frequency candidate</span>
+         <span><i class="map-dot tower"></i> T = OSM catalog tower (not measured)</span>
+         <span><i class="map-dot radio"></i> F / RD = frequency / RDS overlap (not confirmed tower)</span>
          <span><i class="map-dot tv"></i> TV frequency candidate</span>
          <span><i class="map-dot aircraft"></i> Aircraft from antenna</span>
          <span><i class="map-dot internet"></i> Internet aircraft</span>
@@ -236,6 +244,24 @@
          <div class="simple-actions"><button id="radio-connect-rtl" class="primary" type="button">Connect RTL-SDR via WebUSB</button><button id="radio-manage-usb" class="secondary" type="button">Manage hardware</button></div>
          <div class="simple-actions"><button id="quick-radio-discover" class="primary" type="button">Discover sources</button><button id="quick-radio-scan" type="button">Scan FM band</button><button id="quick-radio-release" type="button">Hard Stop receiver</button><button id="quick-back-map" type="button">← Back to map</button></div>
          <div id="quick-radio-status" class="simple-result">Connect the RTL-SDR for antenna FM scans. Site lookup requires internet or a cached catalog.</div>
+         <div class="fm-reference-panel">
+          <strong>FM reference channel energy test</strong>
+          <p>Known published frequencies are useful for testing the receiver and a calibrated reference workflow. Their names are NOT verified by RF energy alone; their transmitter coordinates and actual range are not assumed.</p>
+          <div class="simple-actions">
+           <label for="fm-reference-channel">Known FM broadcast frequency
+            <select id="fm-reference-channel">
+             <option value="98.6">WDR 2 · Köln · 98.6 MHz</option>
+             <option value="87.6">1LIVE · Köln · 87.6 MHz</option>
+             <option value="99.2">WDR 2 · Langenberg · 99.2 MHz</option>
+             <option value="100.4">WDR 2 · Bonn · 100.4 MHz</option>
+             <option value="95.1">WDR 3 · Langenberg · 95.1 MHz</option>
+            </select>
+           </label>
+           <button id="fm-reference-probe" class="secondary" type="button">Measure this FM frequency</button>
+           <a href="https://www1.wdr.de/radio/wdr2/ueber-uns/frequenzen-100.html" target="_blank" rel="noopener noreferrer">WDR published frequency list</a>
+          </div>
+          <div id="fm-reference-status" class="simple-result">No FM reference sample yet. Choose a frequency and connect your actual RTL-SDR.</div>
+         </div>
          <div class="radio-adsb-link">
           <div><strong>Aircraft · real 1090 MHz ADS-B</strong><p>Use the existing Flight Radar decoder for actual ICAO, callsign and transmitted aircraft positions. One RTL-SDR cannot run FM and ADS-B simultaneously; release it here before opening the radar receiver.</p></div>
           <a href="../flight_radar/" id="quick-open-adsb" target="_blank" rel="noopener noreferrer">Open antenna Flight Radar</a>
@@ -249,6 +275,12 @@
           <div id="radio-rds-status" class="simple-result">No local decoder metadata received in this session.</div>
           <div id="radio-rds-results" class="simple-channel-list" aria-label="Actual decoded local radio metadata"></div>
          </div>
+         <details class="fm-calibration-candidates" id="fm-calibration-candidates">
+          <summary>FM calibration · choose a published transmitter</summary>
+          <p>Select a known, fixed FM source with a <strong>published frequency</strong>. Use real RTL-SDR measurements at a separately known distance to calibrate an experimental signal-loss model. Source identity, transmitter power and a measured range are NOT implied by signal strength.</p>
+          <div id="fm-calibration-source-list" class="simple-channel-list" aria-label="FM transmitter candidates with explicitly published site frequencies">Run Discover sources to load possible transmitter sites. No station identity is verified by antenna yet.</div>
+          <p class="fine muted">FM broadcast transmitters are not precision ranging beacons. Multiple carriers, power differences and propagation can invalidate the estimate. Calibration must never be labeled an accurate fix.</p>
+         </details>
          <div class="radio-quick-results"><div><h3>Detected site candidates</h3><div id="quick-radio-towers" class="simple-channel-list"></div></div><div><h3>Strongest actual RF frequencies</h3><div id="quick-radio-peaks" class="simple-channel-list"></div></div></div>
         </div>
         <div><h2>TV · Hauppauge WinTV-soloHD (01589)</h2><p>Connect your real Linux DVB tuner through the optional secure local bridge. Scan DVB-T2 from here, then compare actually detected channels with published TV transmitter sites on the map. Static Pages alone cannot access /dev/dvb.</p>

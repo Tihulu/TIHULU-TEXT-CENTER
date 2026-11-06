@@ -163,7 +163,9 @@ async function discoverAircraft(){
  }finally{busy=false;controller=null}
 }
 function showScan(result){
- fmReadings=matchFMScanToCatalog(result,towers);
+ // Single-channel spot probes update the matching frequency without erasing a prior full FM survey.
+ const combined=result.length===1?[...fmReadings.filter(r=>Math.abs(r.frequencyMHz-result[0].frequencyMHz)>.005),...result]:result;
+ fmReadings=matchFMScanToCatalog(combined,towers);
  const peaks=fmReadings.slice().sort((a,b)=>b.levelDbFS-a.levelDbFS).slice(0,16);
  const lines=peaks.map(r=>r.frequencyMHz.toFixed(1)+" MHz · "+r.levelDbFS.toFixed(1)+
   " dBFS-like · "+(r.candidateNames.length?"possible OSM frequency overlap: "+r.candidateNames.join(", "):"NO transmitter ID"));
@@ -240,7 +242,7 @@ export function initCatalogDiscovery(){
  $("catalog-aircraft")?.addEventListener("click",()=>void discoverAircraft());
  $("catalog-fm-scan")?.addEventListener("click",()=>{
   txt("catalog-fm-status","FM SWEEP REQUESTED: real RTL-SDR 87.5–108 MHz frequency levels. Receiver must be connected. No RDS source ID or range will be decoded.");
-  window.dispatchEvent(new CustomEvent("tihulu:rf-fm-sweep-request",{detail:{startMHz:87.5,stopMHz:108,stepMHz:.2}}));
+  window.dispatchEvent(new CustomEvent("tihulu:rf-fm-sweep-request",{detail:{startMHz:87.5,stopMHz:108,stepMHz:.1}}));
  });
  $("catalog-cancel")?.addEventListener("click",()=>{
   controller?.abort();window.dispatchEvent(new Event("tihulu:rf-fm-sweep-stop"));

@@ -18,9 +18,9 @@ test("setSampleRate writes resampler register only at initial connect, not on RF
 test("samples never race with another USB operation and release waits for in-flight read",()=>{
  const release=section("release","connect");
  const scan=section("scan","captureRF"),capture=section("captureRF","selfTest");
- assert.match(scan,/if\(busy\|\|sampling\)/);
+ assert.match(scan,/if\(busy\|\|sampling\|\|releasing\)/);
  assert.match(scan,/sampling=true;busy=true;stopping=false;beginSample\(\)/);
- assert.match(capture,/if\(busy\|\|sampling\)/);
+ assert.match(capture,/if\(busy\|\|sampling\|\|releasing\)/);
  assert.match(capture,/busy=true;sampling=true;stopping=false;beginSample\(\)/);
  assert.match(scan,/finally\{sampling=false;busy=false;endSample\(\)\}/);
  assert.match(capture,/finally\{sampling=false;busy=false;endSample\(\)\}/);
@@ -33,4 +33,12 @@ test("GNSS scan returns real I/Q from library SampleBlock.data, never claims GNS
  assert.match(scan,/const raw=block\?\.data/);
  assert.match(scan,/UNCALIBRATED; NOT GNSS SIGNAL LOCK/);
  assert.match(scan,/if\(configuredFrequencyHz!==1575420000\)/);
+});
+
+test("FM band sweeps every 100 kHz to include 98.6 MHz; single spot probes are bounded",()=>{
+ const sweep=section("fmSweep","selfTest");
+ assert.match(sweep,/const readings=\[\],total=Math\.min\(220/);
+ assert.match(sweep,/startMHz=87\.5,stopMHz=108,stepMHz=\.1/);
+ assert.doesNotMatch(sweep,/setSampleRate\s*\(/);
+ assert.match(sweep,/await receiver\.readSamples\(8192\)/);
 });

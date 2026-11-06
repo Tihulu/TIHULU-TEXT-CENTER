@@ -34,7 +34,9 @@ test("map SVG units match visible map pixels so circular towers and range rings 
  const html=read("index.html");
  assert.match(app,/const mapWidth=Math\.max\(1,rect\.width\),mapHeight=Math\.max\(1,rect\.height\)/);
  assert.match(app,/setAttribute\("viewBox","0 0 "\+mapWidth\+" "\+mapHeight\)/);
- assert.match(app,/x:v\.x,y:v\.y,inside:v\.x/);
+ assert.match(app,/const pt=\(lat,lon\)=>/);
+ assert.match(app,/const worldWidth=256\*Math\.pow\(2,state\.map\.zoom\)/);
+ assert.match(app,/return \{x,y,inside:/);
  assert.doesNotMatch(app,/const sx=900\/Math\.max/);
  assert.match(app,/new ResizeObserver/);
  assert.match(app,/drawnTowers\.some\(p=>Math\.hypot/);
