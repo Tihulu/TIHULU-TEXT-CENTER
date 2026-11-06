@@ -86,6 +86,15 @@ export function initAutoReceptionUI({getSelectedFile=()=>null,fileInput=$("local
         message("Opening the shared browser RF scheduler. On first use, grant the Nooelec RTL-SDR WebUSB permission there. No capture starts until a future predicted pass.");
         // The destination may only silently reopen previously granted WebUSB;
         // a new permission requires a fresh user gesture on that page.
+        // Carry station coordinates only through same-tab session storage,
+        // not a public URL, Referrer, or any Internet request.
+        try{
+          sessionStorage.setItem("tihulu-auto-station",JSON.stringify({
+            lat,lon,hours,createdAt:Date.now()
+          }));
+        }catch(error){
+          throw Error("Browser blocked same-tab station transfer. Open the receiver page and set your coordinates there before scheduling.");
+        }
         window.location.assign("./index.html?auto-mission="+encodeURIComponent(mode)+"#auto-workflow");
         return;
       }
