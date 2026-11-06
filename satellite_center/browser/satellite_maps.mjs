@@ -415,7 +415,10 @@ export function createSatelliteMaps({getTles,getSatLib,getPasses,getLastCapture,
      tileSuccesses++;
      if(tileSuccesses===1){
        clearTileDeadline();
-       basemapStatus("OpenStreetMap tiles loaded. Ground and satellite locations are predicted from orbit data, not detected by USB.");
+       basemapStatus("OpenStreetMap image requests succeeded ("+tileSuccesses+
+         " tile). This does NOT prove the images are visible. If the map looks blank, use Test map background for layer/render diagnostics.");
+     } else if(tileSuccesses%8===0){
+       basemapStatus("OpenStreetMap returned "+tileSuccesses+" tile images. Predicted satellite positions are not RF detections.");
      }
    });
    layer.on("tileerror",()=>{
@@ -461,14 +464,20 @@ export function createSatelliteMaps({getTles,getSatLib,getPasses,getLastCapture,
    });
    if(!L)throw Error("Leaflet did not initialize");
    leaflet=L;const o=observer();
+   $("earth-street-details").open=true;
    setView("earth"); // Show container before Leaflet measures its dimensions.
-   earthMap=L.map("earth-map",{worldCopyJump:true,preferCanvas:true}).setView([o.lat,o.lon],3);
+   // Two animation frames let Chromium/Brave and Firefox lay out an expanded
+   // <details> before Leaflet reads dimensions and calculates tile positions.
+   await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+   earthMap=L.map("earth-map",{worldCopyJump:true,preferCanvas:false}).setView([o.lat,o.lon],3);
    const worldPane=earthMap.createPane("world-outline");
    worldPane.style.zIndex="350"; // above raster tiles (200), below satellite overlays (400)
    markers=L.layerGroup().addTo(earthMap);tracks=L.layerGroup().addTo(earthMap);
    stationPin=L.circleMarker([o.lat,o.lon],{radius:8,color:"#fff",weight:2,
       fillColor:"#27ddff",fillOpacity:0.9}).bindTooltip("Ground station (manual coordinates)").addTo(earthMap);
-   setView("earth");earthMap.invalidateSize();drawEarth();
+   setView("earth");
+   earthMap.invalidateSize({pan:false,debounceMoveend:true});
+   drawEarth();
    await changeBasemap(basemapChoice.value);
    status("Earth map initialized: orbit predictions only. Check the basemap status below for actual imagery load.");
   })();
@@ -545,11 +554,27 @@ export function createSatelliteMaps({getTles,getSatLib,getPasses,getLastCapture,
      const data=await getWorldOutlineData();
      checks.push("Bundled land data: "+data.features.length+" Natural Earth features loaded");
      if(earthMap){
-       await changeBasemap("outline");
-       checks.push("Vector land polygons mounted: "+(worldOutline?.getLayers().length||0));
-       checks.push("Actual Leaflet land SVG paths: "+document.querySelectorAll("#earth-map .leaflet-world-outline-pane svg path").length);
-       checks.push("Map size: "+earthMap.getSize().x+" × "+earthMap.getSize().y);
-     }else checks.push("Choose Earth and then Load / retry OpenStreetMap to initialize Leaflet.");
+       // This test must NEVER switch layers or silently mutate the map.
+       const size=earthMap.getSize();
+       checks.push("Leaflet viewport: "+size.x+" × "+size.y+" px");
+       checks.push("Selected base layer: "+basemapChoice.value);
+       checks.push("OSM raster tile events: "+tileSuccesses+" loaded, "+tileFailures+" failed");
+       const tileElements=[...document.querySelectorAll("#earth-map img.leaflet-tile")];
+       checks.push("DOM raster images: "+tileElements.filter(img=>img.complete&&img.naturalWidth>0).length+
+         " / "+tileElements.length+" received with nonzero image dimensions");
+       checks.push("World-outline vector layer objects: "+(worldOutline?.getLayers().length||0));
+       checks.push("Natural Earth SVG paths: "+document.querySelectorAll("#earth-map .leaflet-world-outline-pane svg path").length);
+       checks.push("Satellite/ground marker layers: "+(markers?.getLayers().length||0)+
+         " / "+(stationPin?1:0));
+       const canvasOverlays=[...document.querySelectorAll("#earth-map .leaflet-pane canvas")];
+       const opaque=canvasOverlays.filter(canvas=>{
+         const style=getComputedStyle(canvas),color=style.backgroundColor;
+         return color!=="transparent"&&color!=="rgba(0, 0, 0, 0)"&&color!=="rgba(0,0,0,0)"&&style.backgroundImage==="none";
+       });
+       checks.push("Leaflet opaque canvas overlays: "+opaque.length+" / "+canvasOverlays.length+
+         (opaque.length?" — likely covering map images":" — no opaque map canvas"));
+       if(!size.x||!size.y)checks.push("PROBLEM: Leaflet container has zero dimension; expand the street-map panel.");
+     }else checks.push("Optional Leaflet street map not initialized; open the street section and Load / retry OpenStreetMap.");
    }catch(e){checks.push("Map error: "+e.message);}
    const report=checks.join("\n");
    basemapStatus(report);
