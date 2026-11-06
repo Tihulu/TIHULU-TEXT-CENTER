@@ -20,6 +20,7 @@ test("WGS84 ECEF/geodetic conversions roundtrip latitude longitude altitude",()=
 test("actual importable SP3 epochs produce only within-interval PREDICTED geometry",()=>{
  const file=[
  "#cP2026 11 06 00 00 00.00000000      4 ORBIT IGS",
+ "%c cc GPS ccc cccc cccc cccc ccccc ccccc ccccc ccccc",
  "*  2026 11 06 00 00 00.00000000","PG01  26560.000000  100.000000 1000.000000  0.000000",
  "*  2026 11 06 00 15 00.00000000","PG01  26520.000000  900.000000 1000.000000  0.000000",
  "*  2026 11 06 00 30 00.00000000","PG01  26460.000000 1700.000000 1000.000000  0.000000",
@@ -28,7 +29,9 @@ test("actual importable SP3 epochs produce only within-interval PREDICTED geomet
  ].join("\n");
  const orbit=parseSP3(file);
  assert.equal(orbit.satelliteCount,1);
- const middle=Date.UTC(2026,10,6,0,22,30);
+ assert.equal(orbit.timeSystem,"GPS");
+ assert.equal(orbit.first,Date.UTC(2026,10,5,23,59,42)); // GPS ahead of UTC by 18 seconds
+ const middle=Date.UTC(2026,10,6,0,22,12);
  assert.equal(positionAt(orbit.data.get("G01"),middle).method,"SP3 INTERPOLATED (CUBIC)");
  assert.equal(positionAt(orbit.data.get("G01"),middle-100_000_000),null);
  const v=visibleSatellites(orbit,middle,{lat:50.938,lon:6.96,alt:0});
@@ -36,7 +39,12 @@ test("actual importable SP3 epochs produce only within-interval PREDICTED geomet
  assert.equal(v[0].observedRF,false);
  assert.equal(v[0].state,"PREDICTED ORBIT GEOMETRY");
  assert.equal(visibleSatellites(orbit,orbit.last+1000,{lat:0,lon:0,alt:0}).length,0);
- assert.throws(()=>parseSP3("not orbit data"),/No valid/);
+ assert.throws(()=>parseSP3("not orbit data"),/time system missing/);
+ const utc=parseSP3(file.replace("%c cc GPS","%c cc UTC"));
+ assert.equal(utc.first,Date.UTC(2026,10,6,0,0,0));
+ assert.equal(utc.timeSystem,"UTC");
+ assert.throws(()=>parseSP3(file.replace("%c cc GPS","%c cc TAI")),
+   /separately verified time conversion/);
 });
 test("known NMEA GGA/RMC fixtures validate checksums and never invent accuracy meters",()=>{
  const gga="$GPGGA,123519,4807.038,N,01131.000,E,1,08,0.9,545.4,M,46.9,M,,*47";
