@@ -75,7 +75,11 @@
 </select>
 <div class="line"><label>Sample rate<select id="rate"><option value="1024000">1.024 MS/s</option><option value="2048000">2.048 MS/s</option></select></label>
 <label>RF sample length · seconds (manual 1–900)<input type="number" id="duration" min="1" max="900" step="1" value="15" inputmode="numeric"></label></div>
-<label class="check"><input type="checkbox" id="record" checked> Save raw interleaved uint8 I/Q (.cu8) locally</label>
+<div class="line" role="group" aria-label="Choose real RF recording outputs">
+<label class="check"><input type="checkbox" id="record" checked> Record raw RF (.cu8)</label>
+<label class="check"><input type="checkbox" id="wav-record"> Record FM-demodulated SSTV audio (.wav, mono PCM 48 kHz)</label>
+</div>
+<p class="hint">ISS SSTV preset defaults to WAV; select CU8 too if you want original RF evidence. Audio is produced from actual USB samples during recording. A WAV file is not evidence that ISS transmitted or that a Robot36 image is present. 900-second WAV and combined long formats save to user-authorized local disk.</p>
 <p id="capture-budget" class="hint" role="status">Short IQ stays in 128 MiB browser memory. Longer captures require a chosen local disk file; if unsupported use native receiver.</p>
 <div class="line"><button id="start" disabled>Start real USB capture</button><button id="stop" class="secondary" disabled>Stop &amp; release</button></div>
 <p class="hint">Measures uncalibrated digital sample levels, not dBm or proof of a satellite. RF samples can exceed 60 seconds (maximum 900 s / 2 GB) where the Chromium browser supports user-authorized disk streaming. You choose the local .cu8 file. On Firefox/Safari or unsupported browsers, use the optional native companion. Larger raw IQ requires space; actual Earth-image decoding needs a genuine downlink and decoder.</p>
@@ -343,7 +347,8 @@ All location methods are optional. City suggestions are offline by default; GPS 
 <input id="image-cuiq-file" type="file" accept=".cu8,.iq,.u8,application/octet-stream"></label>
 <div class="line">
 <button type="button" id="image-decode-cuiq">Decode selected CU8 → FM → Robot36</button>
-<button type="button" id="image-decode-last" disabled>Decode last USB capture as SSTV</button>
+<button type="button" id="image-decode-last" disabled>Decode last USB CU8 capture</button>
+<button type="button" id="image-decode-last-wav" disabled>Decode last captured FM WAV</button>
 </div>
 <p class="hint">Direct browser RF decoding is experimental. For Robot36, record at least 36–40 seconds of ISS SSTV at the frequency announced by ARISS, with suitable antenna, during an actual SSTV event. 1.024 or 2.048 MS/s CU8 only. This will not decode Meteor LRPT, other SSTV modes, or random energy peaks.</p>
 <p id="image-decode-status" role="status" class="status">No SSTV audio decoded. Real SSTV requires an active satellite transmission; never upload raw I/Q as WAV.</p>
@@ -379,4 +384,4 @@ These provider viewers offer maps/imagery independently of your RTL-SDR.</p>
 <details><summary>What requires more than a browser?</summary><p>Windows may require WinUSB driver setup; Linux may require releasing the kernel DVB driver or adjusting permissions. To record a pass while the browser is closed, the optional local companion must remain running. The companion still supports offline SatDump and multimon-ng where installed.</p></details>
 <h3>Activity log</h3><pre id="log" aria-live="polite">Ready. USB idle. No fabricated RF data.</pre></section>
 <footer>Receive-only. The page never transmits RF, uploads I/Q files or silently scans. Page closing releases browser-owned USB access; an unexpected OS/browser crash cannot be guaranteed to cleanly close every device state. Browser client uses <a href="https://www.npmjs.com/package/@jtarrio/webrtlsdr" rel="noopener noreferrer" target="_blank">@jtarrio/webrtlsdr</a> from a version-pinned module CDN (requires Internet to load initially).</footer>
-</main><script type="module" src="./browser.js?v=20261106-stable-select-v5"></script></body></html>
+</main><script type="module" src="./browser.js?v=20261106-direct-fm-wav-v1"></script></body></html>
