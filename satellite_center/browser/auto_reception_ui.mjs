@@ -7,6 +7,7 @@ import {AUTO_PRESETS} from "./auto_mission.mjs";
 import {discoverCu8Contents,discoveryReportJson} from "./signal_discovery.mjs";
 import {parseRecordingName} from "./satellite_imagery.mjs";
 import {decodeRobot36Audio} from "./sstv_robot36.mjs";
+import {initStationLocationUI} from "./location_search.mjs";
 
 const $=id=>document.getElementById(id);
 const nativeHost=()=>window.location.protocol==="http:" && window.location.port==="8791" && ["127.0.0.1","localhost"].includes(window.location.hostname);
@@ -69,14 +70,10 @@ export function initAutoReceptionUI({getSelectedFile=()=>null,fileInput=$("local
       throw Error("Enter a valid latitude and longitude or use device location.");
     return {lat,lon};
   }
-  $("auto-gps").addEventListener("click",()=>{
-    if(!navigator.geolocation){message("Geolocation API unavailable; enter coordinates.");return;}
-    navigator.geolocation.getCurrentPosition(pos=>{
-      $("auto-lat").value=String(pos.coords.latitude);
-      $("auto-lon").value=String(pos.coords.longitude);
-      message("Ground station set from your permission-granted location. No scan started.");
-    },error=>message("Location permission unavailable: "+error.message+
-      ". Existing manual coordinates remain unchanged."),{enableHighAccuracy:false,timeout:15000});
+  initStationLocationUI({
+    ids:{city:"auto-city-mode",lat:"auto-lat",lon:"auto-lon"},
+    onStationChanged:()=>message("Station updated. Existing future schedules retain their original observer and must be edited or re-planned explicitly."),
+    log:()=>{}
   });
   $("auto-mission-arm").addEventListener("click",async()=>{
     const mode=$("auto-mission-group").value;
@@ -84,7 +81,7 @@ export function initAutoReceptionUI({getSelectedFile=()=>null,fileInput=$("local
     const btn=$("auto-mission-arm");btn.disabled=true;
     try{
       const {lat,lon}=station();
-      const hours=Number($("auto-hours").value);
+      const hours=Number($("auto-hours").value),elevation=Number($("auto-elev").value);
       if(!nativeHost()){
         message("Opening the shared browser RF scheduler. On first use, grant the Nooelec RTL-SDR WebUSB permission there. No capture starts until a future predicted pass.");
         // The destination may only silently reopen previously granted WebUSB;
@@ -93,7 +90,7 @@ export function initAutoReceptionUI({getSelectedFile=()=>null,fileInput=$("local
         // not a public URL, Referrer, or any Internet request.
         try{
           sessionStorage.setItem("tihulu-auto-station",JSON.stringify({
-            lat,lon,hours,createdAt:Date.now()
+            lat,lon,hours,elevation,createdAt:Date.now()
           }));
           sessionStorage.setItem("tihulu-auto-start-intent",JSON.stringify({
             mode,createdAt:Date.now()
@@ -107,7 +104,7 @@ export function initAutoReceptionUI({getSelectedFile=()=>null,fileInput=$("local
       message("Requesting fresh-or-cached TLE geometry and checking native decoder availability…");
       const result=await nativeApi("/api/auto-schedule",{
         missions:[...AUTO_PRESETS[mode]],lat,lon,city:"Custom",hours,
-        elevation:20,max_jobs:6
+        elevation,max_jobs:6
       });
       jobs.replaceChildren();
       textNode("h3","Native receiver queue",jobs);
