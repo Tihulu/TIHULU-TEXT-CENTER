@@ -1,3 +1,13 @@
+## Browser-only direct FM SSTV WAV recording (2026-11-06)
+
+The [public Satellite Center browser receiver](browser/index.html) now records **real FM-demodulated SSTV audio in WAV during actual RTL2832U WebUSB sampling**; no native companion is necessary on supported secure-origin Chromium/Brave/Chrome/Edge. Select the `ISS SSTV 437.550 MHz` receiver preset: the UI defaults to `Record FM-demodulated SSTV audio (.wav)` while keeping a separate `Record raw RF (.cu8)` option. Check both to retain the original RF for later reprocessing; uncheck both for level measurements only.
+
+The WebUSB pipeline accepts genuine unsigned interleaved CU8 I/Q from `readSamples`, decimates with continuous stream state, FM-discriminates complex samples, removes carrier DC, emits real **48 kHz mono, signed 16-bit PCM** and writes an exact RIFF/WAV header with the final number of captured samples. It is **not** a raw-CU8 file renamed .wav. Short WAV clips are downloaded from bounded memory. WAV recordings exceeding the 16 MiB memory budget are streamed to a file selected through Chromium File System Access. When both CU8 and WAV require disk streaming, one explicit directory picker selects a folder for two separately written files. Up to 900 s can be requested within RF/disk browser limits. Closing or hiding the browser tab stops browser-only capture: this is not a background service or an unattended full-pass guarantee.
+
+Both manual receiver start and selected pass schedule entries support WAV, CU8 or both; calendar editing preserves output options. Browser-only automated ISS SSTV pass scheduling now prefers WAV. The in-page **Decode last captured FM WAV** button hands the short WAV to the existing experimental Robot36 image decoder; a longer WAV saved on disk can be explicitly re-opened via `Satellite Images & Data → Real demodulated SSTV audio (WAV)`. The raw CU8 path remains available for full spectrum analysis. The web app never claims an ISS signal or a verified picture merely because it successfully saved a WAV; real Robot36 1200 Hz synchronization is still required.
+
+**Reception limits:** 9–16 November 2026 ARISS Series 35 was announced at 437.550 MHz FM / Robot36. The web demodulator does not currently perform automatic Doppler tracking; at UHF the Doppler shift may affect decoding, especially near pass edges. Antenna suitability, device permissions, driver ownership and a genuine transmitting ISS pass remain mandatory. Firefox does not support direct WebUSB; use the native local companion for that browser.
+
 
 ### Debian / Pop!_OS — native, Firefox-compatible SDR application
 
