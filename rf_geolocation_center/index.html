@@ -197,8 +197,9 @@
       <div class="radio-quick-grid">
         <div><h2>Radio · Nooelec RTL-SDR</h2><p>Automatic FM band energy scan, broadcast-station catalog and real ADS-B aircraft shared from Flight Radar.</p>
          <div class="simple-actions" id="radio-usb-slot"></div>
-         <div class="simple-actions"><button id="quick-radio-discover" class="primary" type="button">Discover sources</button><button id="quick-radio-scan" type="button">Scan FM band</button><button id="quick-radio-release" type="button">Hard Stop receiver</button></div>
+         <div class="simple-actions"><button id="quick-radio-discover" class="primary" type="button">Discover sources</button><button id="quick-radio-scan" type="button">Scan FM band</button><button id="quick-radio-release" type="button">Hard Stop receiver</button><button id="quick-back-map" type="button">← Back to map</button></div>
          <div id="quick-radio-status" class="simple-result">Connect the RTL-SDR for antenna FM scans. Site lookup requires internet or a cached catalog.</div>
+         <div class="radio-quick-results"><div><h3>Detected site candidates</h3><div id="quick-radio-towers" class="simple-channel-list"></div></div><div><h3>Strongest actual RF frequencies</h3><div id="quick-radio-peaks" class="simple-channel-list"></div></div></div>
         </div>
         <div><h2>TV · Hauppauge WinTV-soloHD (01589)</h2><p>DVB-T, DVB-T2 and DVB-C. On Linux, the native DVB driver scans channels; browser-only GitHub Pages cannot directly control this DVB tuner.</p>
          <label class="file-button" for="simple-dvb-file">Import real DVB scan metadata</label>
