@@ -5,6 +5,10 @@ on:
     paths:
       - .github/workflows/sync-flight-radar-pages.yml
   workflow_dispatch:
+  schedule:
+    # Poll source every 15 minutes. Cross-repo GITHUB_TOKEN cannot initiate
+    # a dispatch without a separately authorized owner token.
+    - cron: '7,22,37,52 * * * *'
 
 permissions:
   contents: write
@@ -21,7 +25,9 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: Tihulu/tihulu-flight-radar
-          ref: 8af8e4dbf18a710aaee255486558add24d97fa22
+          # Follow the reviewed single source; do not leave a hard-coded commit
+          # pinned after new Flight Radar changes.
+          ref: feature/github-pages-local-bridge-2026-11-06
           path: flight-radar-source
           persist-credentials: false
       - uses: actions/setup-node@v4
@@ -35,6 +41,12 @@ jobs:
           node --check tihulu_flight_radar/web/browser_usb.mjs
           node --check tihulu_flight_radar/web/adsb_worker.mjs
           node --test tests/web_bridge.test.cjs tests/pages_tar.test.cjs tests/browser_adsb.test.cjs tests/browser_source.test.cjs tests/aircraft_visuals.test.cjs tests/webusb_sampleblock.test.cjs tests/internet_sources.test.cjs
+      - name: Stamp canonical source SHA, identical to standalone Flight Radar
+        run: |
+          set -euo pipefail
+          sha="$(git -C flight-radar-source rev-parse HEAD)"
+          printf '{"repo":"Tihulu/tihulu-flight-radar","source_ref":"feature/github-pages-local-bridge-2026-11-06","source_sha":"%s"}\n' "$sha" > flight-radar-source/tihulu_flight_radar/web/source-revision.json
+          echo "Canonical Flight Radar SHA: $sha"
       - name: Checkout existing live GitHub Pages branch
         uses: actions/checkout@v4
         with:
@@ -49,6 +61,8 @@ jobs:
           test -s pages/flight_radar/vendor/rtlsdr.mjs
           test -s pages/flight_radar/adsb_worker.mjs
           test -s pages/flight_radar/index.html
+          test -s pages/flight_radar/source-revision.json
+          python3 -m json.tool pages/flight_radar/source-revision.json >/dev/null
           cd pages
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
@@ -59,4 +73,6 @@ jobs:
             git commit -m 'publish: browser-only Flight Radar WebUSB into existing Pages site'
             git push origin HEAD:gh-pages
           fi
-          echo 'Target: https://tihulu.github.io/TIHULU-TEXT-CENTER/flight_radar/'
+          echo 'TEXT CENTER target: https://tihulu.github.io/TIHULU-TEXT-CENTER/flight_radar/'
+          echo 'Standalone target: https://tihulu.github.io/tihulu-flight-radar/'
+          echo 'Both Pages must serve matching source-revision.json source_sha values.'
