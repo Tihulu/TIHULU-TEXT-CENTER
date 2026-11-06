@@ -1175,6 +1175,47 @@ function bindMediaDock(){
       state.tvActive=false;syncLiveMediaDock();
     }catch(e){notice(e.message)}
   });
+  const display=$("live-tv-caption-display");
+  const processing=$("live-tv-caption-processing");
+  const translating=$("live-tv-caption-translation");
+  const source=$("live-tv-caption-source");
+  const target=$("live-tv-caption-target");
+  const apply=$("live-tv-caption-apply");
+  const pages=$("live-tv-open-teletext");
+  if(display)display.addEventListener("change",()=>{
+    state.tvCaptionDisplayMode=display.value;
+    renderLiveDockCaptions(state.lastTvCaptionRows||[],"tv");
+  });
+  if(pages)pages.addEventListener("click",async()=>{
+    await openPage(420,"",0);
+    document.getElementById("tv-teletext-reader")?.scrollIntoView({
+      behavior:"smooth",block:"start"});
+  });
+  if(apply)apply.addEventListener("click",async()=>{
+    if(!state.tvActive){
+      notice("Start a real authorized TV stream before changing live subtitle processing.");
+      return;
+    }
+    apply.disabled=true;
+    try{
+      const response=await api("/api/live/tv/captions/config","POST",{
+        processing:Boolean(processing?.checked),
+        subtitle_source:source?.value||"auto",
+        translation_enabled:Boolean(translating?.checked),
+        translated_language:target?.value||"en"
+      });
+      state.tvCaptionSourceActive=response.caption_source_active;
+      const status=$("live-tv-caption-source-status");
+      if(status)status.textContent=response.caption_source_active+
+        " · TV playback unchanged · "+(response.teletext_subtitles?.error||
+          response.teletext_subtitles?.status||"No Teletext decode attempted");
+      notice("Live TV caption processing updated. Source: "+
+        response.caption_source_active+". Current video remains playing.");
+    }catch(error){
+      notice("Caption settings could not be applied: "+error.message+
+        ". Video playback is unaffected.");
+    }finally{apply.disabled=false;}
+  });
   const volume=$("live-dock-volume"),mute=$("live-dock-mute");
   const players=[$("persistent-radio-player"),$("persistent-tv-player")].filter(Boolean);
   function setVolume(){
