@@ -36,6 +36,19 @@ history and JSON export without uploading raw data. These plots are
 uncalibrated and do not decode APRS/Meteor SSTV/LRPT or identify a
 spacecraft by RF energy alone.
 
+**Satellite Images (experimental):** the browser/Pages interface now includes
+official on-demand NASA DSCOVR EPIC and ISS historical Earth-photo galleries;
+user-supplied SSTV audio `.wav` and CU8→FM→Robot36 experiments for
+genuine ISS SSTV events; and the native optional SatDump companion can
+decode actual Meteor-M2-3/M2-4 LRPT CU8 recordings using 72k/80k pipelines.
+Do not confuse Internet photos with images received by RTL-SDR. A valid
+SSTV event and suitable antenna/receiver signal are required. Saved raw
+and decoded image filenames use satellite **candidate**, UTC capture
+date/time, radio frequency and available sample-rate metadata.
+**The Windows/macOS/Linux/Raspberry Pi desktop companion opens the
+same 1-second LIVE/Sky/Earth/image web modules as GitHub Pages** on demand.
+Live orbital rendering does not claim USB ownership or RF detection.
+
 **Browser-only WebUSB is now the preferred mode:** on supported desktop Chromium
 browsers, open the hosted Satellite Center, grant permission to the Nooelec
 RTL2832U, and capture raw IQ directly without installing the Python companion.
