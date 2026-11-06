@@ -755,13 +755,11 @@ function appendPass(pass){
     const o=document.createElement('option');o.value=String(hz);o.textContent=name;frequency.append(o);
   }
   frequencyLabel.append(frequency);
-  const durationLabel=document.createElement('label');durationLabel.textContent='Actual RF sample length';
-  const duration=document.createElement('select');
-  for(const amount of [5,15,30,60]){
-    const o=document.createElement('option');o.value=String(amount);o.textContent=amount+' seconds';
-    if(amount===15)o.selected=true;
-    duration.append(o);
-  }
+  const durationLabel=document.createElement('label');
+  durationLabel.textContent='Actual RF sample length · manual seconds';
+  const duration=document.createElement('input');
+  duration.type='number';duration.min='1';duration.max='900';duration.step='1';
+  duration.inputMode='numeric';duration.value='15';duration.required=true;
   durationLabel.append(duration);
   const rateLabel=document.createElement('label');rateLabel.textContent='Sample rate';
   const rate=document.createElement('select');
@@ -772,35 +770,73 @@ function appendPass(pass){
   rateLabel.append(rate);
   const saveLabel=document.createElement('label');saveLabel.className='schedule-wide check';
   const raw=document.createElement('input');raw.type='checkbox';raw.checked=true;
-  saveLabel.append(raw,' Save raw I/Q (.cu8) and compute real digital-level statistics (128 MiB file cap)');
+  saveLabel.append(raw,' Save actual raw I/Q (.cu8). Long samples stream to a user-selected local disk file when supported.');
   const explanation=document.createElement('p');explanation.className='hint schedule-wide';
-  explanation.textContent='Time is shown in your COMPUTER/BROWSER timezone, not necessarily the selected ground station timezone. The browser runs only while this tab is OPEN, visible and awake. Grant USB permission once beforehand. Scheduling does not transmit RF or decode satellite images.';
+  explanation.textContent='Local device time. Choose 1–900 seconds, limited by pass length and 2 GB raw IQ file cap. Above 128 MiB you must select a writable local .cu8 file now in Chromium; other browsers need the optional native receiver. A scheduled capture only runs with this browser OPEN, VISIBLE and AWAKE.';
   const alert=document.createElement('p');alert.className='pass-schedule-error schedule-wide';alert.setAttribute('role','status');
   const confirm=document.createElement('button');confirm.type='submit';confirm.textContent='Confirm scheduled RF scan';
-  form.append(timeLabel,frequencyLabel,durationLabel,rateLabel,saveLabel,explanation,alert,confirm);
+  const budgetLabel=document.createElement('p');
+  budgetLabel.className='schedule-capture-budget schedule-wide';
+  budgetLabel.setAttribute('role','status');
+  const refreshBudget=()=>{
+    const check=formatCaptureBudget(Number(duration.value),Number(rate.value),raw.checked,diskStreamingAvailable());
+    budgetLabel.textContent=check.ok?check.detail+" "+duration.value+" s requested; "+
+      (check.mode==="disk-stream"?"disk file must be authorized before arming.":"memory buffered or levels only."):
+      check.detail;
+  };
+  for(const element of [duration,rate,raw])element.addEventListener('change',refreshBudget);
+  duration.addEventListener('input',refreshBudget);rate.addEventListener('input',refreshBudget);
+  refreshBudget();
+  form.append(timeLabel,frequencyLabel,durationLabel,rateLabel,saveLabel,budgetLabel,explanation,alert,confirm);
   form.addEventListener('submit',async event=>{
     event.preventDefault();
+    let prepared=null;
+    confirm.disabled=true;
     try{
       const selectedTime=parseLocalScheduleTime(input.value);
+      const seconds=Number(duration.value),chosenRate=Number(rate.value);
+      const plan=captureBudget(seconds,chosenRate,raw.checked,
+        {fileStreaming:diskStreamingAvailable()});
       const newJob=createScheduledPass(pass,{
-        when:selectedTime,durationSeconds:Number(duration.value),
-        sampleRate:Number(rate.value),frequency:Number(frequency.value),
-        saveRaw:raw.checked
+        when:selectedTime,durationSeconds:seconds,
+        sampleRate:chosenRate,frequency:Number(frequency.value),
+        saveRaw:raw.checked,diskStreamPrepared:plan.mode==="disk-stream"
       });
-      if(jobs.some(j=>j.id===newJob.id))throw Error('This satellite/date/frequency is already scheduled.');
+      if(jobs.some(j=>j.id===newJob.id&&j.state==='armed'))
+        throw Error('This satellite/date/frequency is already scheduled.');
+      for(const other of jobs){
+        if(!['armed','starting','running'].includes(other.state))continue;
+        if(newJob.when<other.when+other.durationSeconds*1000+20000&&
+           newJob.when+newJob.durationSeconds*1000>other.when-20000)
+          throw Error('The single SDR is already reserved for an overlapping capture.');
+      }
+      // Pick the disk file NOW, during the form-submit gesture, never at a
+      // later unattended scheduled start when a new chooser is impossible.
+      if(plan.mode==="disk-stream"){
+        prepared=await selectLongCaptureFile(seconds,chosenRate,true,{
+          job:newJob,at:new Date(newJob.when),freq:newJob.frequency
+        });
+      }
       jobs.push(newJob);
+      if(prepared)preparedLongStreams.set(newJob.id,prepared);
+      prepared=null;
       jobs.sort((a,b)=>a.when-b.when);
-      alert.textContent='Scheduled: '+fmtTime(newJob.when)+' · '+(newJob.frequency/1e6).toFixed(3)+
-        ' MHz. See Step 4 for readiness, countdown and result.';
-      log('User armed '+newJob.name+' for '+fmtTime(newJob.when)+'. No RF capture started yet.');
+      alert.textContent='Scheduled '+fmtTime(newJob.when)+' for '+seconds+
+        ' s · '+(newJob.frequency/1e6).toFixed(3)+' MHz'+
+        (plan.mode==="disk-stream"?'. Local disk CU8 file selected; do not close this tab.':'.')+
+        ' See calendar for exact end time.';
+      log('User armed '+newJob.name+' for '+fmtTime(newJob.when)+
+        ' · '+seconds+' s · '+plan.mode+'. No RF capture started yet.');
       renderJobs();
       if(device&&!capturePromise){
-        await closeDevice(); // do not tie up the SDR for hours before the pass
-        status('device-status','USB released after scheduling. Existing browser permission can be reused automatically at the scheduled minute.');
+        await closeDevice(); // do not monopolize USB while waiting
+        status('device-status','USB released after scheduling. Tab must remain open and foreground.');
       }
-      const scheduler=document.getElementById('schedule-center');
-      if(scheduler)scheduler.scrollIntoView({behavior:'smooth',block:'nearest'});
-    }catch(error){alert.textContent='Could not schedule: '+error.message;}
+      document.getElementById('schedule-center')?.scrollIntoView({behavior:'smooth',block:'nearest'});
+    }catch(error){
+      if(prepared?.writable)await abortLongCapture(prepared);
+      alert.textContent='Could not schedule: '+String(error?.message||error);
+    }finally{confirm.disabled=false;}
   });
   details.append(form);item.append(details);
   return item;
