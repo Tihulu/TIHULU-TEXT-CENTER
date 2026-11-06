@@ -6,7 +6,8 @@ import time
 import unittest
 
 from textcenter.fm_survey import (
-    FMSurveySupervisor, SurveyError, build_survey_command, parse_power_csv
+    FMSurveySupervisor, SurveyError, build_survey_command, parse_power_csv,
+    dab_blocks_for_peaks
 )
 
 
@@ -48,6 +49,39 @@ class FMSurveyTests(unittest.TestCase):
             band="navtex")
         self.assertEqual(data["sweeps"],1)
         self.assertNotIn("station",data["candidates"][0] if data["candidates"] else {})
+
+    def test_dab_energy_peaks_group_by_raster_not_by_station(self):
+        # Values drawn from an example screenshot, not a captured/verified DAB
+        # ensemble. Two peaks can belong to one nominal 1.536-MHz DAB block.
+        raw = [178_383_000, 197_117_000, 197_805_000,
+               207_602_000, 222_039_000, 222_555_000]
+        peaks = [{"frequency_hz": hz, "above_median_db": 9.8} for hz in raw]
+        blocks = dab_blocks_for_peaks(peaks)
+        self.assertEqual({x["block"] for x in blocks}, {"5C", "8B", "9D", "11D"})
+        by_block = {x["block"]: x for x in blocks}
+        self.assertEqual(by_block["11D"]["center_frequency_hz"], 222_064_000)
+        self.assertEqual(by_block["11D"]["peak_count"], 2)
+        self.assertEqual(by_block["8B"]["peak_count"], 2)
+        self.assertEqual(by_block["5C"]["peak_count"], 1)
+        self.assertEqual(by_block["9D"]["peak_count"], 1)
+        self.assertTrue(all(x["verification"] == "nominal_raster_match_only" for x in blocks))
+        self.assertEqual(dab_blocks_for_peaks([
+            {"frequency_hz": 300_000_000, "above_median_db": 8.0}
+        ]), [])
+
+    def test_dab_csv_exposes_grouped_block_candidates(self):
+        values = [-70.0] * 11
+        values[5] = -35.0
+        values[9] = -30.0
+        csv_line = ("2026-11-06, 01:00:00, 221500000, 222600000, 100000, 1, "
+                    + ", ".join(str(v) for v in values) + "\n")
+        report = parse_power_csv(csv_line, band="dab")
+        self.assertEqual(len(report["candidates"]), 2)
+        self.assertEqual(len(report["dab_blocks"]), 1)
+        self.assertEqual(report["dab_blocks"][0]["block"], "11D")
+        self.assertEqual(report["dab_blocks"][0]["peak_count"], 2)
+        self.assertFalse(report["dab_decoder_connected"])
+        self.assertNotIn("dab_blocks", parse_power_csv(example_csv(), band="fm"))
 
     def test_conflict_and_missing_binary_are_denied(self):
         with tempfile.TemporaryDirectory() as td:

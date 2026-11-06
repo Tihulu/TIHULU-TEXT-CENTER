@@ -53,6 +53,59 @@ SURVEY_BANDS = {
            "range":"2M:18M:25k", "direct_sampling":True},
 }
 
+
+# Published European DAB Band III nominal centre raster (Hz). This is a
+# frequency lookup, NOT a database of currently broadcasting ensembles.
+# Candidate spectral peaks within a nominal 1.536-MHz DAB block can share
+# the same label. Without DAB synchronization no block is "received".
+DAB_BLOCKS = (
+    ("5A", 174_928_000), ("5B", 176_640_000), ("5C", 178_352_000), ("5D", 180_064_000),
+    ("6A", 181_936_000), ("6B", 183_648_000), ("6C", 185_360_000), ("6D", 187_072_000),
+    ("7A", 188_928_000), ("7B", 190_640_000), ("7C", 192_352_000), ("7D", 194_064_000),
+    ("8A", 195_936_000), ("8B", 197_648_000), ("8C", 199_360_000), ("8D", 201_072_000),
+    ("9A", 202_928_000), ("9B", 204_640_000), ("9C", 206_352_000), ("9D", 208_064_000),
+    ("10A", 209_936_000), ("10B", 211_648_000), ("10C", 213_360_000), ("10D", 215_072_000),
+    ("11A", 216_928_000), ("11B", 218_640_000), ("11C", 220_352_000), ("11D", 222_064_000),
+    ("12A", 223_936_000), ("12B", 225_648_000), ("12C", 227_360_000), ("12D", 229_072_000),
+    ("13A", 230_784_000), ("13B", 232_496_000), ("13C", 234_208_000),
+    ("13D", 235_776_000), ("13E", 237_488_000), ("13F", 239_200_000),
+)
+DAB_HALF_BANDWIDTH_HZ = 768_000
+
+
+def dab_blocks_for_peaks(peaks: list[dict]) -> list[dict]:
+    """Group RF energy peaks by nearest nominal Band III block, never station identity.
+
+    1.536 MHz is the nominal occupied DAB frequency block; a peak anywhere
+    inside it is only an ambiguous possible block candidate. An energy-only
+    scan cannot confirm OFDM synchronization, FIC or an ensemble/service.
+    """
+    grouped: dict[str, dict] = {}
+    for peak in peaks:
+        hz = peak.get("frequency_hz")
+        if type(hz) is not int:
+            continue
+        block, center = min(DAB_BLOCKS, key=lambda pair: abs(pair[1] - hz))
+        if abs(center - hz) > DAB_HALF_BANDWIDTH_HZ:
+            continue
+        item = grouped.setdefault(block, {
+            "block": block, "center_frequency_hz": center,
+            "center_frequency_mhz": round(center / 1_000_000, 3),
+            "peak_count": 0, "peak_frequencies_mhz": [],
+            "max_above_median_db": 0.0,
+            "verification": "nominal_raster_match_only",
+        })
+        item["peak_count"] += 1
+        item["peak_frequencies_mhz"].append(round(hz / 1_000_000, 3))
+        item["max_above_median_db"] = max(
+            item["max_above_median_db"], float(peak.get("above_median_db", 0.0))
+        )
+    for item in grouped.values():
+        item["peak_frequencies_mhz"].sort()
+        item["max_above_median_db"] = round(item["max_above_median_db"], 1)
+    return sorted(grouped.values(), key=lambda row: (-row["max_above_median_db"], row["block"]))
+
+
 def survey_band(band: str) -> dict:
     if not isinstance(band,str) or band not in SURVEY_BANDS:
         raise ValueError("Unsupported spectrum band; use a fixed preset")
@@ -134,14 +187,19 @@ def parse_power_csv(payload: str, *, limit: int = 24, band: str = "fm") -> dict:
                 "verification": "unidentified_rf_energy",
             })
     peaks.sort(key=lambda x: x["above_median_db"], reverse=True)
-    return {
+    candidates = peaks[:min(limit, 24)]
+    result = {
         "sweeps":sweeps,
         "bins_analyzed":len(readings),
         "relative_baseline_db":round(baseline,1),
         "threshold_above_median_db":round(threshold-baseline,1),
-        "candidates":peaks[:min(limit, 24)],
+        "candidates":candidates,
         "note":"Candidate RF energy only; no broadcast service, RDS, DAB, NAVTEX or APRS decode is verified.",
     }
+    if band == "dab":
+        result["dab_blocks"] = dab_blocks_for_peaks(candidates)
+        result["dab_decoder_connected"] = False
+    return result
 
 
 class FMSurveySupervisor:
@@ -163,7 +221,7 @@ class FMSurveySupervisor:
         self._state = {
             "status":"idle", "active":False, "session":None, "band":"fm",
             "started_at":None, "ended_at":None, "error":None,
-            "sweeps":0, "bins_analyzed":0, "candidates":[],
+            "sweeps":0, "bins_analyzed":0, "candidates":[], "dab_blocks":[],
             "note":"No spectrum survey has been run",
         }
 
@@ -227,7 +285,7 @@ class FMSurveySupervisor:
                     "band":band,
                     "started_at":datetime.now(timezone.utc).isoformat(timespec="seconds"),
                     "ended_at":None,"error":None,"sweeps":0,"bins_analyzed":0,
-                    "candidates":[],"note":"Measuring RF energy in "+profile["label"]+"; not decoding services",
+                    "candidates":[], "dab_blocks":[], "note":"Measuring RF energy in "+profile["label"]+"; not decoding services",
                 }
                 self._stop.clear()
                 self._last_poll=time.monotonic()
