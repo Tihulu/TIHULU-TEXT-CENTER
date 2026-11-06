@@ -187,7 +187,36 @@ async function stopCapture() {
 $('connect').addEventListener('click',()=>{void connectDevice();});
 $('disconnect').addEventListener('click',()=>{void stopCapture();});
 $('stop').addEventListener('click',()=>{void stopCapture();});
-$('satellite-hard-stop').addEventListener('click',()=>{void stopCapture();});
+async function hardStopCapture(){
+  stopRequested=true;
+  const owned=device;
+  if(owned){
+    try{
+      // Release this tab's actual WebUSB handle now; normal Stop can wait on reads.
+      await owned.close();
+      device=null;
+    }catch(error){
+      status('device-status','HARD STOP failed to close WebUSB: '+error.message+'. Release unconfirmed.');
+      log('Hard stop USB close error: '+error.message);
+      return;
+    }
+  }
+  refreshControls();
+  if(capturePromise){
+    let settled=false;
+    await Promise.race([
+      capturePromise.then(()=>{settled=true;}).catch(()=>{settled=true;}),
+      new Promise(resolve=>setTimeout(resolve,1800))
+    ]);
+    if(!settled){
+      status('device-status','Close requested; pending USB capture did not end promptly. Release unconfirmed.');
+      log('HARD STOP: driver read is still pending after USB close request');
+      return;
+    }
+  }
+  status('device-status','This tab\'s WebUSB session was closed. No external readsb/welle-cli was stopped.');
+}
+$('satellite-hard-stop').addEventListener('click',()=>{void hardStopCapture();});
 $('start').addEventListener('click',()=>{void startCapture().catch(e=>log(e.message));});
 navigator.usb?.addEventListener('disconnect',e=>{
   stopRequested=true;
