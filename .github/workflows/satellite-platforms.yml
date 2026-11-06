@@ -65,3 +65,8 @@ jobs:
           node --test tests/test_satellite_maps.mjs
           node --check satellite_center/browser/location_search.mjs
           node --test tests/test_satellite_location.mjs
+          node --check satellite_center/browser/pass_sort.mjs
+          node --check satellite_center/browser/schedule_controller.mjs
+          node --test tests/test_satellite_pass_schedule.mjs
+          python -c "import json; from pathlib import Path; p=Path('satellite_center/browser/natural-earth-land-110m.geojson'); d=json.loads(p.read_text()); assert d['type']=='FeatureCollection' and len(d['features'])>100"
+
