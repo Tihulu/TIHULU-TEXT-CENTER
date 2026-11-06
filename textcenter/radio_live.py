@@ -189,12 +189,17 @@ class LiveRadio:
             self._state["stream_clients"]=1
             q=self._chunks
         try:
+            last_bytes=time.monotonic()
             while True:
                 try:chunk=q.get(timeout=.7)
                 except queue.Empty:
                     with self._mutex:active=self._state["active"]
                     if not active and q.empty():break
+                    if time.monotonic()-last_bytes>18:
+                        self._stop.set()
+                        raise LiveRadioError("Receiver delivered no playable stream bytes within 18 seconds")
                     continue
+                last_bytes=time.monotonic()
                 if chunk is None:break
                 yield chunk
         finally:
