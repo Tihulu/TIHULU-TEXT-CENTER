@@ -74,9 +74,9 @@ class RdsSupervisorTests(unittest.TestCase):
         rtl,decoder=build_commands("/usr/bin/rtl_fm","/usr/bin/redsea",98_600_000,True)
         self.assertIn("--streams",decoder)
         from textcenter.media import MediaStore
-        png=(b"\\x89PNG\\r\\n\\x1a\\n"+b"\\x00\\x00\\x00\\x0dIHDR"+
-             b"\\x00\\x00\\x00\\x01\\x00\\x00\\x00\\x01"+b"\\x08\\x02\\x00\\x00\\x00"+
-             b"\\x90\\x77\\x53\\xde"+b"\\x00\\x00\\x00\\x00IEND\\xae\\x42\\x60\\x82")
+        png=(b"\x89PNG\r\n\x1a\n"+b"\x00\x00\x00\x0dIHDR"+
+             b"\x00\x00\x00\x01\x00\x00\x00\x01"+b"\x08\x02\x00\x00\x00"+
+             b"\x90\x77\x53\xde"+b"\x00\x00\x00\x00IEND\xae\x42\x60\x82")
         image=base64.b64encode(png).decode()
         supervisor=FMRSDSupervisor(self.store,inventory=self.inventory,
             lookup=lambda _:None,lock_dir=self.path/"locks")
