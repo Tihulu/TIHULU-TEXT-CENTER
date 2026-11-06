@@ -78,7 +78,7 @@ def resolve_compute_backend(mode="auto", targets=None, *, seconds=0, capabilitie
         "requested_targets": list(targets or []) if mode == "custom" else [],
         "selected_targets": selected,
         "trace_backend": "cupy-cuda" if use_gpu else
-                         "numpy-cpu" if "NumPy" in caps["cpu"]["implementation"] else "python-cpu",
+                         "numpy-cpu" if caps["cpu"]["implementation"].startswith("NumPy vectorization") else "python-cpu",
         "cpu_mandatory_stages": ["WAV I/O", "Robot36 alignment", "pixel assembly", "PNG output"],
         "note": ("CuPy computes zero-crossing tones on the GPU; CPU still performs alignment and image writing."
                  if use_gpu else "CPU-only real signal processing; no NPU/virtual acceleration claimed."),
