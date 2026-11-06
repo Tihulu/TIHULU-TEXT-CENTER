@@ -2,9 +2,9 @@
  * Frequency overlap is only a CANDIDATE, not emitter identification or range.
  * Sources without explicit tagged frequency are never matched by proximity.
  */
-export function matchedBroadcastSources(towers=[],fmReadings=[],dvbChannels=[]){
+export function matchedBroadcastSources(towers=[],fmReadings=[],dvbChannels=[],rdsRecords=[]){
  const out=[],seen=new Set();
- if(!Array.isArray(towers)||!Array.isArray(fmReadings)||!Array.isArray(dvbChannels))return out;
+ if(!Array.isArray(towers)||!Array.isArray(fmReadings)||!Array.isArray(dvbChannels)||!Array.isArray(rdsRecords))return out;
  for(const site of towers.slice(0,250)){
   if(!Number.isFinite(site.lat)||!Number.isFinite(site.lon)||Math.abs(site.lat)>90||Math.abs(site.lon)>180)continue;
   for(const freq of (site.frequenciesMHz||[]).slice(0,20)){
@@ -19,6 +19,23 @@ export function matchedBroadcastSources(towers=[],fmReadings=[],dvbChannels=[]){
      kind:"fm",frequencyMHz:freq,signalLevelDbFS:highest.levelDbFS,measuredAt:highest.measuredAt||null,
      metadataOrigin:"ACTUAL RTL-SDR RF POWER + EXTERNAL OSM FM FREQUENCY TAG",
      match:"FREQUENCY OVERLAP ONLY · SIGNAL IDENTITY UNVERIFIED",distanceMeters:null,receiverPosition:false});
+  }
+  for(const freq of (site.frequenciesMHz||[]).slice(0,20)){
+   if(!Number.isFinite(freq))continue;
+   const observations=rdsRecords.filter(r=>Number.isFinite(r.frequencyMHz)&&
+    r.frequencyMHz>=87.5&&r.frequencyMHz<=108&&
+    Math.abs(r.frequencyMHz-freq)<=.011);
+   if(!observations.length)continue;
+   const latest=observations[0];
+   const id=site.id+"|RDS|"+freq.toFixed(3);
+   if(seen.has(id))continue;seen.add(id);
+   out.push({id,siteId:site.id,name:site.name||"Mapped FM station site",
+    lat:site.lat,lon:site.lon,kind:"rds",frequencyMHz:freq,
+    stationLabel:latest.station||null,metadataTitle:latest.title||null,
+    observedAt:latest.observedAt||null,
+    metadataOrigin:"LOCALLY DECODED FM RDS TEXT + EXTERNAL OSM FM FREQUENCY TAG",
+    match:"RDS BROADCASTER TEXT AND FREQUENCY OVERLAP · EXTERNAL SITE NOT VERIFIED",
+    distanceMeters:null,receiverPosition:false});
   }
   for(const freq of (site.televisionFrequenciesMHz||[]).slice(0,20)){
    if(!Number.isFinite(freq))continue;
