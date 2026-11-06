@@ -37,7 +37,7 @@ function explain(state,source){
  const note=[];
  if(p.validObserver){note.push("YOUR LOCATION · "+p.kind+" · "+p.lat.toFixed(5)+", "+p.lon.toFixed(5));
   if(p.kind.includes("Browser"))note.push("GPS/Wi-Fi/cellular method unknown to browser");
- }else if(state.rfSolution){
+ }else if(state.rfSolution&&on("simple-sdr")){
   note.push("RF MODEL ONLY · "+state.rfSolution.lat.toFixed(5)+", "+state.rfSolution.lon.toFixed(5)+" · UNVALIDATED");
  }else if(state.cachedPosition&&!state.rfOnly){
   note.push("LAST KNOWN / NOT LIVE · "+state.cachedPosition.recordedAt);
