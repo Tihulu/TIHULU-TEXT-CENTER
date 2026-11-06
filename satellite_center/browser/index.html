@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="color-scheme" content="dark"><meta name="referrer" content="strict-origin-when-cross-origin">
-<title>TIHULU Satellite Center | Browser-only WebUSB</title>
+<title>TIHULU Satellite Center | Web, PWA &amp; Desktop</title>
 <link rel="icon" type="image/svg+xml" href="./icon.svg">
 <link rel="icon" type="image/png" sizes="192x192" href="./icon-192.png">
 <link rel="apple-touch-icon" href="./icon-192.png">
@@ -10,9 +10,9 @@
 <link rel="stylesheet" href="./browser.css?v=20261106-images-v15">
 </head><body>
 <header><div class="wrap"><p class="eyebrow">TIHULU SATELLITE CENTER · DIRECT USB EXPERIMENTAL</p>
-<h1><img src="./icon-192.png" width="54" height="54" alt="" style="vertical-align:middle;border-radius:14px;margin-right:8px">Satellite Center <span class="pill">No local app</span></h1>
-<p>Control your Nooelec RTL2832U receiver from this HTTPS page using a USB permission prompt. No Python service, pairing token or software installation for the web app itself.</p>
-<a href="../companion/">Optional local companion mode</a> · <a href="../../">Application center</a></div></header>
+<h1><img src="./icon-192.png" width="54" height="54" alt="" style="vertical-align:middle;border-radius:14px;margin-right:8px">Satellite Center <span class="pill">Shared Web + Desktop UI</span></h1>
+<p>One Satellite Center interface for GitHub Pages, installed PWA, and Linux, Raspberry Pi, Windows or macOS companion. Earth/Sky tracking, pass planning, and local file analysis are shared. Direct USB uses browser permission where supported; native decoding and unattended recording require the optional local receiver.</p>
+<a href="http://127.0.0.1:8791/" target="_blank" rel="noopener noreferrer">Local receiver &amp; decoder (optional)</a> · <a href="../../">Application center</a></div></header>
 <main class="wrap">
 <section class="notice" id="desktop-install"><strong>Show Satellite Center in Applications / Dock:</strong> in Chrome, Edge or Brave choose <em>Install this site as an app</em> from the browser menu or address bar, then pin it in your operating system's dock. The installed app uses the new radio V-dipole icon and opens its own window. <button id="install-app" hidden>Install web app</button>
 <p class="hint">Firefox on Linux does not natively install PWAs and cannot open RTL-SDR via WebUSB. The pass planner still works in Firefox. For real SDR reception with Firefox, start the optional local companion and open <a href="http://127.0.0.1:8791/" target="_blank" rel="noopener noreferrer">the local receiver page</a>. That requires installed helper software; a browser permission alone cannot replace WebUSB.</p></section>
@@ -53,8 +53,8 @@
 <a class="iq-jump-link" href="#iq-analysis">Analyze .cu8 recording inside Satellite Center · spectrum / waterfall / level over time</a>
 </section>
 </div><div>
-<section><h2>3 · Satellite pass planner (web-only)</h2>
-<p class="hint">Uses downloaded CelesTrak TLEs and JavaScript orbital propagation. No local backend. If the remote catalog blocks browser CORS, import your own TLE text file below.</p>
+<section><h2>3 · Satellite pass planner</h2>
+<p class="hint">The same CelesTrak TLE pass predictions work in the website, installed PWA and desktop companion (including Linux, Raspberry Pi, Windows and macOS). Orbital calculations run locally; Internet is needed only to refresh TLEs. Import a saved TLE text file to plan offline or when browser CORS blocks the catalog. Predicted passes are not proof of RF reception.</p>
 <div class="line"><label>Ground station mode<select id="city">
 <option value="Custom" selected>Custom coordinates (anywhere)</option>
 <option value="city-search">Search city / town (offline + optional online)</option>
