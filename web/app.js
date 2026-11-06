@@ -1,7 +1,7 @@
 /* TIHULU TEXT CENTER — no external libraries, no background timers fetching data. */
 "use strict";
 
-const state = { tvActive:false, tvPollTimer:null, tvSession:null, liveActive:false, livePollTimer:null, liveSession:null, audioActive:false, audioPollTimer:null, csrf:"", page:100, subpage:0, source:"", entries:[], pages:[], receivers:null, rdsActive:false, rdsPollTimer:null, scanActive:false, scanPollTimer:null, selectedSurveyBand:"fm" , fmAutoTimer:null, dabAutoTimer:null};
+const state = { liveFrequency:null, fmRecording:false, tvRecording:false, lastDockMetaAt:0, tvActive:false, tvPollTimer:null, tvSession:null, liveActive:false, livePollTimer:null, liveSession:null, audioActive:false, audioPollTimer:null, csrf:"", page:100, subpage:0, source:"", entries:[], pages:[], receivers:null, rdsActive:false, rdsPollTimer:null, scanActive:false, scanPollTimer:null, selectedSurveyBand:"fm" , fmAutoTimer:null, dabAutoTimer:null};
 const $ = (id) => document.getElementById(id);
 
 function el(tag, cls, text) {
@@ -969,6 +969,34 @@ function renderLiveDockCaptions(items,kind){
       "["+last.translated_language.toUpperCase()+"] "+last.translated_text));
   }
 }
+async function updateDockStationMetadata(){
+  const node=$("live-dock-station-meta");
+  if(!node||!state.liveActive||!state.liveFrequency)return;
+  if(Date.now()-state.lastDockMetaAt<25000)return;
+  state.lastDockMetaAt=Date.now();
+  try{
+    const items=await api("/api/events");
+    const matches=items.filter(x=>x.medium==="fm_rds"&&
+      Number(x.frequency_hz)===Number(state.liveFrequency));
+    if(!matches.length){
+      node.textContent="No actual RDS metadata archived for "+
+        (state.liveFrequency/1e6).toFixed(3)+" MHz. "+
+        "Live audio alone does not identify artist, title or broadcaster.";
+      return;
+    }
+    const last=matches[0];
+    const lines=String(last.body||"").split("\n");
+    const artist=lines.find(x=>x.startsWith("Artist: "));
+    const title=lines.find(x=>x.startsWith("Title: "));
+    node.textContent=(last.station||"Unknown RDS station")+
+      (artist?" · "+artist:"")+
+      (title?" · "+title:"")+
+      " · HISTORICAL RDS (captured "+timeLabel(last.received_at)+")"+
+      " · not simultaneously decoded from this live FM audio stream";
+  }catch(_){
+    node.textContent="Station metadata temporarily unavailable; live audio can continue.";
+  }
+}
 function syncLiveMediaDock(){
   const dock=$("live-media-dock");if(!dock)return;
   dock.hidden=!(state.liveActive||state.tvActive);
@@ -983,6 +1011,11 @@ function syncLiveMediaDock(){
   const r=$("live-dock-stop-radio"),t=$("live-dock-stop-tv");
   if(r)r.hidden=!state.liveActive;
   if(t)t.hidden=!state.tvActive;
+  const recording=$("live-dock-recording");
+  if(recording){
+    recording.textContent=(state.fmRecording||state.tvRecording)?"RECORDING ON":"RECORD OFF";
+    recording.classList.toggle("recording-active",state.fmRecording||state.tvRecording);
+  }
 }
 function bindMediaDock(){
   const radio=$("live-dock-stop-radio"),tv=$("live-dock-stop-tv");
@@ -1002,6 +1035,20 @@ function bindMediaDock(){
       state.tvActive=false;syncLiveMediaDock();
     }catch(e){notice(e.message)}
   });
+  const volume=$("live-dock-volume"),mute=$("live-dock-mute");
+  const players=[$("persistent-radio-player"),$("persistent-tv-player")].filter(Boolean);
+  function setVolume(){
+    const value=Number(volume?.value||0)/100;
+    players.forEach(player=>player.volume=value);
+    if(mute)mute.textContent=players.some(player=>player.muted)?"UNMUTE":"MUTE";
+  }
+  if(volume)volume.addEventListener("input",setVolume);
+  if(mute)mute.addEventListener("click",()=>{
+    const shouldMute=!players.some(player=>player.muted);
+    players.forEach(player=>player.muted=shouldMute);
+    mute.textContent=shouldMute?"UNMUTE":"MUTE";
+  });
+  setVolume();
 }
 function liveRadioCaptionPanel(captions,session,targetId="live-radio-captions"){
   const container=$(targetId);
@@ -1046,7 +1093,10 @@ async function pollLiveRadio(){
     const current=await api("/api/live/radio/status");
     state.liveActive=current.active;
     state.liveSession=current.session||state.liveSession;
+    state.liveFrequency=current.frequency_hz||null;
+    state.fmRecording=Boolean(current.recording);
     syncLiveMediaDock();
+    if(current.active)updateDockStationMetadata();
     const label=$("live-radio-status");
     if(label){
       label.textContent=current.status.toUpperCase()+
@@ -1098,6 +1148,7 @@ async function pollLiveTV(){
     const current=await api("/api/live/tv/status");
     state.tvActive=current.active;
     state.tvSession=current.session||state.tvSession;
+    state.tvRecording=Boolean(current.recording);
     syncLiveMediaDock();
     const label=$("live-tv-status");
     if(label)label.textContent=current.status.toUpperCase()+
