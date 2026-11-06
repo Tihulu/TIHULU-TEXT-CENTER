@@ -394,7 +394,7 @@ function renderEarth(){
    a.callsign+" · LOCAL ANTENNA MODE S ADS-B CRC VERIFIED, "+a.observedAt+
    " · decoded in Tihulu Flight Radar WebUSB tab · NOT receiver position or range","A");
  if(showAir)for(const a of state.catalogAircraft)place(a,"aircraft","#b17eb5",
-   a.callsign+" · OpenSky INTERNET aircraft coordinates at "+a.observedAt+
+   a.callsign+" · "+(Date.now()-Date.parse(a.observedAt)>120000?"HISTORICAL CACHED OpenSky":"RECENT OpenSky INTERNET")+" aircraft coordinates at "+a.observedAt+
    " · NOT received by THIS RTL-SDR and NOT USED FOR POSITION","I");
  const liveGnss=!state.rfOnly&&!!(state.serialFix&&Date.now()-state.serialAt<90000);
  const liveDevice=!state.rfOnly&&!!(state.browser&&Date.now()-Date.parse(state.browser.acquiredAt||0)<300000);
