@@ -18,7 +18,18 @@ from .media import MediaStore,MAX_IMAGE
 
 # Verified channel presets used by this initial bridge; other channels can be
 # viewed, but are NOT archived with a fabricated receive frequency.
-DAB_HZ={"5C":178_352_000,"11D":222_064_000}
+DAB_HZ=dict((
+    ("5A", 174_928_000), ("5B", 176_640_000), ("5C", 178_352_000), ("5D", 180_064_000),
+    ("6A", 181_936_000), ("6B", 183_648_000), ("6C", 185_360_000), ("6D", 187_072_000),
+    ("7A", 188_928_000), ("7B", 190_640_000), ("7C", 192_352_000), ("7D", 194_064_000),
+    ("8A", 195_936_000), ("8B", 197_648_000), ("8C", 199_360_000), ("8D", 201_072_000),
+    ("9A", 202_928_000), ("9B", 204_640_000), ("9C", 206_352_000), ("9D", 208_064_000),
+    ("10A", 209_936_000), ("10B", 211_648_000), ("10C", 213_360_000), ("10D", 215_072_000),
+    ("11A", 216_928_000), ("11B", 218_640_000), ("11C", 220_352_000), ("11D", 222_064_000),
+    ("12A", 223_936_000), ("12B", 225_648_000), ("12C", 227_360_000), ("12D", 229_072_000),
+    ("13A", 230_784_000), ("13B", 232_496_000), ("13C", 234_208_000),
+    ("13D", 235_776_000), ("13E", 237_488_000), ("13F", 239_200_000),
+))
 BASE="http://127.0.0.1:7979"
 MUX_LIMIT=350_000
 
@@ -89,7 +100,7 @@ def parse_mux(payload:bytes,channel:str)->dict:
     services=obj.get("services")
     if not isinstance(services,list) or len(services)>128:
         raise DABError("Invalid or excessive DAB service records")
-    if not re.fullmatch(r"(?:[5-9]|1[0-3])[A-F]",channel):
+    if channel not in DAB_HZ:
         channel="UNKNOWN"
     ensemble=_label((obj.get("ensemble") or {}).get("label") if isinstance(obj.get("ensemble"),dict) else None)
     items=[]

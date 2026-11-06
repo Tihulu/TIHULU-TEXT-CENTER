@@ -1,7 +1,7 @@
 /* TIHULU TEXT CENTER — no external libraries, no background timers fetching data. */
 "use strict";
 
-const state = { tvActive:false, tvPollTimer:null, tvSession:null, liveActive:false, livePollTimer:null, liveSession:null, audioActive:false, audioPollTimer:null, csrf:"", page:100, subpage:0, source:"", entries:[], pages:[], receivers:null, rdsActive:false, rdsPollTimer:null, scanActive:false, scanPollTimer:null, selectedSurveyBand:"fm" };
+const state = { tvActive:false, tvPollTimer:null, tvSession:null, liveActive:false, livePollTimer:null, liveSession:null, audioActive:false, audioPollTimer:null, csrf:"", page:100, subpage:0, source:"", entries:[], pages:[], receivers:null, rdsActive:false, rdsPollTimer:null, scanActive:false, scanPollTimer:null, selectedSurveyBand:"fm" , fmAutoTimer:null, dabAutoTimer:null};
 const $ = (id) => document.getElementById(id);
 
 function el(tag, cls, text) {
@@ -188,6 +188,12 @@ async function openPage(number,source,subpage){
     state.rdsActive=false;
     if(state.rdsPollTimer){clearTimeout(state.rdsPollTimer);state.rdsPollTimer=null;}
     api("/api/rds/stop","POST",{}).catch((error)=>notice("Could not stop capture: "+error.message));
+  }
+  if(state.page===400 && Number(number)!==400){
+    for(const [kind,key] of [["fm","fmAutoTimer"],["dab","dabAutoTimer"]]){
+      if(state[key]){clearTimeout(state[key]);state[key]=null;}
+      api("/api/auto/"+kind+"/stop","POST",{}).catch(()=>{});
+    }
   }
   clearNotice();
   if(!Number.isInteger(Number(number)) || Number(number)<100 || Number(number)>899) return notice("Select a page from 100 to 899.");
@@ -550,6 +556,235 @@ async function addAutoDiscovery(){
   try{showPassiveDiscovery(await api("/api/discovery/passive"))}
   catch(error){details.textContent="Passive discovery unavailable: "+error.message}
 }
+/* RF auto channel scans are separate from the advanced spectrum analyser.
+   Polling is only active on page 400 when the user started a scan. */
+function renderAutomaticScan(kind,report){
+  const prefix=kind==="fm"?"fm-auto":"dab-auto";
+  const progress=$(prefix+"-progress"),list=$(prefix+"-results");
+  const start=$(prefix+"-start"),stop=$(prefix+"-stop");
+  if(progress){
+    const phase=report.phase?report.phase.replaceAll("_"," "):report.status;
+    progress.textContent=report.status.toUpperCase()+" · "+phase+
+      " · "+(report.completed||0)+"/"+(report.total||0)+" checked"+
+      (report.current?" · "+report.current:"")+
+      " · "+(report.note||"")+(report.error?" · "+report.error:"");
+  }
+  if(start)start.disabled=report.active||!$(prefix+"-confirm")?.checked;
+  if(stop)stop.disabled=!report.active;
+  if(!list)return;
+  list.replaceChildren();
+  if(!report.results?.length){
+    list.append(el("p","full-body",report.active
+      ?"Scanning. A frequency alone is not evidence of an identified station."
+      :"No decoder-confirmed stations yet. A weak or non-RDS broadcast may be missed."));
+    return;
+  }
+  if(kind==="fm"){
+    report.results.forEach(station=>{
+      const row=el("article","auto-station");
+      append(row,el("strong","",station.station),
+        el("span","subtle",station.frequency_mhz.toFixed(3)+" MHz · REAL RDS LABEL · "+
+          station.received_groups+" groups"),
+        el("p","full-body",station.last_text||"No RadioText decoded; station name received"));
+      row.append(button("SET FM PREVIEW FREQUENCY",()=>{
+        const input=$("fm-audio-frequency");
+        if(input){
+          input.value=station.frequency_mhz;
+          input.scrollIntoView({behavior:"smooth",block:"center"});
+          notice("FM frequency selected. Press RECORD & LISTEN below after confirming your SDR is free.");
+        }else notice("FM listening controls are not available on this page.");
+      }));
+      list.append(row);
+    });
+  }else{
+    report.results.forEach(mux=>{
+      const group=el("details","auto-station");
+      group.append(el("summary","","DAB "+mux.channel+" · "+mux.ensemble+
+        " · "+mux.service_count+" decoded service entries"));
+      const details=el("div","auto-services");
+      details.append(el("p","full-body",
+        (mux.frequency_hz/1e6).toFixed(3)+" MHz · Real welle-cli FIC service list. "+
+        "Services marked as packet data may not contain audio."));
+      const tune=button("TUNE THIS BLOCK FOR LISTENING",async()=>{
+        tune.disabled=true;
+        try{
+          const tuned=await api("/api/auto/dab/tune","POST",{
+            channel:mux.channel,consent:true});
+          notice("Receiver tuned to "+tuned.channel+
+            ". Wait for lock, then open welle-cli and press Play on your chosen service.");
+        }catch(e){notice("DAB tuning unavailable: "+e.message)}
+        finally{tune.disabled=false}
+      });
+      const open=el("a","action ghost","OPEN WELLE-CLI PLAYER");
+      open.href="http://127.0.0.1:7979/";
+      open.target="_blank";open.rel="noopener noreferrer";
+      const media=button("READ CURRENT DLS / MOT",async()=>{
+        media.disabled=true;
+        try{
+          const result=await api("/api/dab/refresh","POST",{include_images:true});
+          showDabServices(result);
+          await refreshCounts();
+          notice("Read current decoder data on "+result.channel+
+            "; "+result.saved_mot_images+" genuine MOT image(s) saved. "+
+            "Slides are available only if the broadcaster transmitted them.");
+          const panel=$("dab-welle-bridge");
+          if(panel)panel.scrollIntoView({behavior:"smooth",block:"start"});
+        }catch(e){notice("DAB decoder data read failed: "+e.message)}
+        finally{media.disabled=false;}
+      });
+      const actions=el("div","card-actions");actions.append(tune,open,media);
+      details.append(actions);
+      mux.services.forEach(s=>{
+        const service=el("div","auto-service");
+        append(service,el("strong","",s.name),
+          el("span","subtle",s.sid+" · "+(s.program_type||"unknown type")+
+            " · "+(s.audio_advertised?"audio advertised":"data / no audio advertised")));
+        if(s.dls)service.append(el("p","full-body","DLS: "+s.dls+
+          (s.dls_received_at?" · "+timeLabel(s.dls_received_at):"")));
+        if(s.mot_received_at)service.append(el("p","full-body",
+          "MOT timestamp reported; picture import requires a separate decoder refresh."));
+        details.append(service);
+      });
+      group.append(details);list.append(group);
+    });
+  }
+}
+async function refreshSavedStationDirectory(){
+  const records=await api("/api/stations");
+  const old=$("station-directory");
+  const panel=el("article","item-card");panel.id="station-directory";
+  panel.append(el("div","item-meta","ACTUAL DECODER OBSERVATIONS · LOCAL SQLITE / OFFLINE"));
+  panel.append(el("h3","","Saved, verified station directory"));
+  panel.append(el("p","full-body",
+    "These are stations previously identified by a real FM RDS or DAB FIC decoder. "+
+    "A saved entry does not prove the station is currently on air or tuned."));
+  if(records.length){
+    const groups=el("div","auto-scan-grid");
+    for(const medium of ["fm","dab"]){
+      const pane=el("section","auto-scan-section");
+      pane.append(el("h3","",medium==="fm"?"FM / RDS":"DAB+ / FIC"));
+      const items=records.filter(r=>r.medium===medium);
+      if(!items.length)pane.append(el("p","full-body","No confirmed "+medium.toUpperCase()+" stations archived yet."));
+      items.forEach(st=>{
+        const row=el("article","auto-service");
+        row.append(el("strong","",st.name),
+          el("span","subtle",(st.frequency_hz/1e6).toFixed(3)+" MHz"+
+            (st.channel?" · block "+st.channel:"")+
+            (st.ensemble?" · "+st.ensemble:"")+
+            " · last verified "+timeLabel(st.observed_at)));
+        if(st.last_text)row.append(el("p","full-body",st.last_text));
+        if(medium==="fm"){
+          row.append(button("SET FM FREQUENCY",()=>{
+            const input=$("fm-audio-frequency");
+            if(input){input.value=(st.frequency_hz/1e6).toFixed(3);
+              input.scrollIntoView({behavior:"smooth",block:"center"});}
+          }));
+        }
+        pane.append(row);
+      });
+      groups.append(pane);
+    }
+    panel.append(groups);
+  }else{
+    panel.append(el("p","full-body","No stations verified yet. Begin an explicit FM RDS or DAB FIC automatic scan."));
+  }
+  if(old)old.replaceWith(panel);
+  else $("content").append(panel);
+}
+async function pollAutomaticScan(kind){
+  if(state.page!==400)return;
+  const prefix=kind==="fm"?"fm-auto":"dab-auto";
+  try{
+    const report=await api("/api/auto/"+kind+"/status");
+    renderAutomaticScan(kind,report);
+    if(report.active&&state.page===400){
+      state[kind==="fm"?"fmAutoTimer":"dabAutoTimer"]=
+        setTimeout(()=>pollAutomaticScan(kind),900);
+    }else if(state.page===400){
+      await refreshSavedStationDirectory();
+    }
+  }catch(e){notice(kind.toUpperCase()+" auto scan status: "+e.message)}
+}
+async function addAutomaticChannelScanners(){
+  if(state.fmAutoTimer){clearTimeout(state.fmAutoTimer);state.fmAutoTimer=null;}
+  if(state.dabAutoTimer){clearTimeout(state.dabAutoTimer);state.dabAutoTimer=null;}
+  const [fmStatus,dabStatus]=await Promise.all([
+    api("/api/auto/fm/status"),api("/api/auto/dab/status")]);
+  const outer=el("article","item-card auto-scan-panel");
+  outer.id="automatic-channel-scanners";
+  outer.append(el("div","item-meta","REAL RF CHANNEL DISCOVERY · MANUAL START · RECEIVE ONLY"));
+  outer.append(el("h3","","Automatically discover FM and DAB+ stations"));
+  outer.append(el("p","full-body",
+    "FM uses a complete 87.5–108 MHz spectrum sweep followed by sequential RDS "+
+    "verification of possible carriers. DAB scans real FIC service metadata from "+
+    "the local welle-cli receiver. Unidentified energy is not labelled as a station. "+
+    "Both scans can take several minutes and stop when you leave this page."));
+  const grid=el("div","auto-scan-grid");
+  for(const [kind,title,desc,status] of [
+    ["fm","FM Auto Scan","Full-band energy discovery, then confirmed RDS station names. Non-RDS or weak stations may be missed.",fmStatus],
+    ["dab","DAB+ Auto Scan","Scan all Band III blocks 5A–13F, or only likely blocks from a completed DAB energy survey.",dabStatus]
+  ]){
+    const pane=el("section","auto-scan-section");
+    const id=kind+"-auto";
+    pane.append(el("h3","",title),el("p","full-body",desc));
+    const select=el("select","auto-mode");
+    select.id=id+"-mode";
+    for(const [value,label] of (kind==="fm"?
+      [["quick","Quick: up to 16 RDS tuning trials"],["extended","Extended: up to 48 RDS tuning trials"]]:
+      [["full","Full DAB raster (5A–13F)"],["detected","Likely blocks from last spectrum survey"]])){
+      const opt=el("option","",label);opt.value=value;select.append(opt);
+    }
+    pane.append(select);
+    if(kind==="dab"){
+      const field=el("label","auto-dwell");
+      field.append(el("span","","Dwell per block (seconds)"));
+      const dwell=el("select");
+      dwell.id="dab-auto-dwell";
+      [5,8,12,18].forEach(x=>{const opt=el("option","",x+" seconds");opt.value=x;if(x===8)opt.selected=true;dwell.append(opt)});
+      field.append(dwell);pane.append(field);
+    }
+    const consent=el("label","scan-consent");
+    const cb=el("input");cb.type="checkbox";cb.id=id+"-confirm";
+    const disclaimer=kind==="fm"
+      ?" I confirm my single RTL-SDR is free. The scan will tune frequencies sequentially and can interrupt radio listening."
+      :" I own the already-running welle-cli receiver on localhost:7979 and explicitly permit "+
+       "retuning its channels. This WILL interrupt current listening; no protected recording "+
+       "or other operator may depend on it. The original channel is restored if no other client retunes.";
+    consent.append(cb,document.createTextNode(disclaimer));pane.append(consent);
+    const actions=el("div","card-actions");
+    const start=button("START "+kind.toUpperCase()+" AUTO SCAN",async()=>{
+      start.disabled=true;
+      try{
+        const payload=kind==="fm"?{mode:select.value,consent:cb.checked}:{
+          mode:select.value,consent:cb.checked,
+          dwell_seconds:Number($("dab-auto-dwell").value)};
+        const data=await api("/api/auto/"+kind+"/start","POST",payload);
+        renderAutomaticScan(kind,data);
+        state[kind==="fm"?"fmAutoTimer":"dabAutoTimer"]=
+          setTimeout(()=>pollAutomaticScan(kind),250);
+      }catch(e){notice(kind.toUpperCase()+" auto scan refused: "+e.message);start.disabled=!cb.checked;}
+    },"action primary");
+    start.id=id+"-start";start.disabled=true;
+    const stop=button("STOP",async()=>{
+      stop.disabled=true;
+      try{await api("/api/auto/"+kind+"/stop","POST",{});await pollAutomaticScan(kind)}
+      catch(e){notice(e.message)}
+    },"action ghost");
+    stop.id=id+"-stop";
+    cb.addEventListener("change",()=>{start.disabled=!cb.checked||Boolean(status.active)});
+    actions.append(start,stop);pane.append(actions);
+    const progress=el("p","full-body","");progress.id=id+"-progress";
+    pane.append(progress);
+    const results=el("div","scan-candidates");results.id=id+"-results";
+    pane.append(results);grid.append(pane);
+  }
+  outer.append(grid);$("content").append(outer);
+  renderAutomaticScan("fm",fmStatus);renderAutomaticScan("dab",dabStatus);
+  await refreshSavedStationDirectory();
+  if(fmStatus.active)state.fmAutoTimer=setTimeout(()=>pollAutomaticScan("fm"),700);
+  if(dabStatus.active)state.dabAutoTimer=setTimeout(()=>pollAutomaticScan("dab"),700);
+}
+
 function displaySurvey(status){
   const label=$("fm-survey-progress"),results=$("fm-survey-results");
   if(label){
@@ -1616,6 +1851,8 @@ async function showRadioData(){
   catch(error){empty("Receiver detection unavailable","The local USB inventory could not be read: "+error.message)}
   try {await addAutoDiscovery()}
   catch(error){empty("Auto discovery unavailable","Could not inspect local sources: "+error.message)}
+  try {await addAutomaticChannelScanners()}
+  catch(error){empty("Automatic channel discovery unavailable",error.message)}
   try {await addFMSurveyControl()}
   catch(error){empty("FM spectrum survey unavailable","Could not inspect rtl_power: "+error.message)}
   try {await addRdsControl()}
