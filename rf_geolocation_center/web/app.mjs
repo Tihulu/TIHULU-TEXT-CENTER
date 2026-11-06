@@ -194,11 +194,15 @@ function renderEarth(){
  setText("earth-ref-count",state.references.length+" user-imported source points");
  if(state.map.osm)renderTiles();
 }
+let lastTileViewport="";
 function renderTiles(){
- const el=$("osm-tiles");el.hidden=false;el.replaceChildren();
+ const el=$("osm-tiles");el.hidden=false;
  const box=$("earth-map").getBoundingClientRect(),z=state.map.zoom,world=Math.pow(2,z),c=merc(state.map.lat,state.map.lon,z);
  const minX=Math.floor((c.x-box.width/2)/256),maxX=Math.floor((c.x+box.width/2)/256);
  const minY=Math.max(0,Math.floor((c.y-box.height/2)/256)),maxY=Math.min(world-1,Math.floor((c.y+box.height/2)/256));
+ const key=[z,minX,maxX,minY,maxY].join(":");
+ if(lastTileViewport===key&&el.childElementCount)return;
+ lastTileViewport=key;el.replaceChildren();
  if((maxX-minX+1)*(maxY-minY+1)>40){msg("Zoom in to limit online map tile requests");return}
  for(let tx=minX;tx<=maxX;tx++)for(let ty=minY;ty<=maxY;ty++){
    const x=((tx%world)+world)%world,im=document.createElement("img");
