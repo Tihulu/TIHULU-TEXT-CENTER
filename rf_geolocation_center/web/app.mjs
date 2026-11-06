@@ -87,6 +87,7 @@ function renderSourceProvenance(){
 
 function source(){
  if(state.rfOnly){
+  if($("simple-tv")?.checked&&!$("simple-sdr")?.checked)return {...DEFAULT_CENTER,kind:"TV ONLY / NO RECEIVER POSITION · REFERENCE MAP CENTER",validObserver:false};
   if(state.rfSolution)return {...state.rfSolution,kind:"RF-ONLY CALIBRATED RSSI HYPOTHESIS · NO GPS/OS",validObserver:false};
   return {...DEFAULT_CENTER,kind:"RF-ONLY / NO VALID RADIO FIX · REFERENCE MAP CENTER",validObserver:false};
  }
@@ -118,7 +119,7 @@ function renderPosition(recenter=false){
 function renderFixEvidence(p=source()){
  const pane=$("fix-evidence");if(!pane)return;
  if(state.rfOnly){
-  pane.textContent=state.rfSolution?"RF-ONLY HARDWARE-BASED PROPAGATION HYPOTHESIS · "+fmt(state.rfSolution.lat,6)+", "+fmt(state.rfSolution.lon,6)+" · "+state.rfRanges.length+" calibrated radio sources. Antenna IQ measured; transmitter identity/coordinates and calibration external; NO browser/GNSS/IP fallback and NO certified accuracy.":"RF-ONLY ACTIVE · NO RF POSITION FIX. Connect RTL-SDR, enter known fixed stations, capture actual RF, independently calibrate and solve. Device GPS, Wi-Fi, IP, cached coordinates excluded.";
+  pane.textContent=state.rfSolution&&(!($("simple-tv")?.checked&&!$("simple-sdr")?.checked))?"RF-ONLY HARDWARE-BASED PROPAGATION HYPOTHESIS · "+fmt(state.rfSolution.lat,6)+", "+fmt(state.rfSolution.lon,6)+" · "+state.rfRanges.length+" calibrated radio sources. Antenna IQ measured; transmitter identity/coordinates and calibration external; NO browser/GNSS/IP fallback and NO certified accuracy.":"RF-ONLY ACTIVE · NO RF POSITION FIX. Connect RTL-SDR, enter known fixed stations, capture actual RF, independently calibrate and solve. Device GPS, Wi-Fi, IP, cached coordinates excluded.";
   return;
  }
  const offline=navigator.onLine===false;
