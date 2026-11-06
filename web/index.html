@@ -31,9 +31,12 @@
       </nav>
       <div class="side-footer">
         <p class="eyebrow">RECEIVER STATUS</p>
-        <div class="status-line"><span class="status-dot muted"></span> RF adapters not connected</div>
+        <div class="status-line" id="rtl-status" aria-live="polite"><span class="status-dot muted"></span> USB status not checked</div>
+        <div class="status-line" id="dvb-status"><span class="status-dot muted"></span> DVB frontend not checked</div>
+        <div class="status-line" id="decoder-status"><span class="status-dot muted"></span> RF text decoder inactive</div>
         <div class="status-line"><span class="status-dot green"></span> Local archive ready</div>
-        <p class="side-hint">No background polling · No transmission</p>
+        <button type="button" class="side-recheck" id="receiver-recheck">↻ Check USB status</button>
+        <p class="side-hint" id="receiver-check-note">Passive USB inventory only · No tuning</p>
       </div>
     </aside>
 

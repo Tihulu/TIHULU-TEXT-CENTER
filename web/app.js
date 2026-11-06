@@ -89,19 +89,45 @@ async function refreshCounts(){
 }
 function receiverSummary(data){
   if(!data) return "Receiver status not checked";
-  if(data.rtl_usb_count>0) return "RTL-SDR USB detected · decoder inactive";
-  if(data.status==="sysfs_unavailable") return "USB inventory not supported on this OS";
-  return "No RTL2832U USB device detected";
+  if(data.rtl_usb_count>0) {
+    const first=data.rtl_usb_devices[0];
+    return (first && first.product || "RTL2832U-compatible SDR")+" · USB detected";
+  }
+  if(data.status==="sysfs_unavailable") return "USB inventory unavailable on this OS";
+  return "No RTL2832U USB receiver detected";
+}
+function statusLine(id,text,ready){
+  const line=$(id);
+  if(!line) return;
+  const dot=el("span","status-dot "+(ready?"green":"muted"));
+  line.replaceChildren(dot, document.createTextNode(" "+text));
+}
+function renderReceiverStatus(data){
+  statusLine("rtl-status",receiverSummary(data),data.rtl_usb_count>0);
+  statusLine("dvb-status",data.dvb_frontends.length
+    ? "DVB frontend detected ("+data.dvb_frontends.length+")"
+    : "No DVB frontend detected",data.dvb_frontends.length>0);
+  statusLine("decoder-status",data.connected_decoder
+    ? "Text decoder connected"
+    : data.rds_pipeline_available ? "RDS tools installed · decoder inactive"
+    : "RF text decoder inactive",Boolean(data.connected_decoder));
+  if($("receiver-check-note")){
+    $("receiver-check-note").textContent="Checked "+timeLabel(data.checked_at)+" · Passive inspection, no tuning";
+  }
 }
 async function refreshReceiverStatus(){
-  const data=await api("/api/receivers");
-  state.receivers=data;
-  const line=document.querySelector(".side-footer .status-line");
-  if(line){
-    const dot=el("span","status-dot "+(data.rtl_usb_count>0?"green":"muted"));
-    line.replaceChildren(dot,document.createTextNode(" "+receiverSummary(data)));
+  try{
+    const data=await api("/api/receivers");
+    state.receivers=data;
+    renderReceiverStatus(data);
+    return data;
+  }catch(err){
+    state.receivers=null;
+    statusLine("rtl-status","USB status unavailable · check local server",false);
+    statusLine("dvb-status","DVB status unavailable",false);
+    statusLine("decoder-status","Decoder status unknown",false);
+    throw err;
   }
-  return data;
 }
 function receiverCard(data){
   const n=el("article","item-card");
@@ -118,7 +144,7 @@ function receiverCard(data){
   const actions=el("div","card-actions");
   actions.append(button("REFRESH DEVICE STATUS",async()=>{
     try{
-      const fresh=await refreshReceiverStatus();
+      await refreshReceiverStatus();
       await showRadioData();
       notice("Passive USB inventory refreshed. No radio tuning or decoder started.");
     }catch(e){notice(e.message)}
@@ -251,7 +277,7 @@ async function showWeather() {
 }
 async function showRadioData(){
   section("RECEIVER / INPUT","Radio & TV text archive","Receive-only imports");
-  try { $("content").append(receiverCard(state.receivers || await refreshReceiverStatus())); }
+  try { $("content").append(receiverCard(await refreshReceiverStatus())); }
   catch(error){empty("Receiver detection unavailable","The local USB inventory could not be read: "+error.message)}
   const events=await api("/api/events");
   events.forEach((e)=>{
@@ -339,6 +365,18 @@ function showAbout(){
   notes.forEach(([t,d])=>$("content").append(card(t,d,"DESIGN RULE")));
 }
 function bindNavigation(){
+  const recheck=$("receiver-recheck");
+  if(recheck) recheck.addEventListener("click",async()=>{
+    recheck.disabled=true;
+    try {
+      await refreshReceiverStatus();
+      notice("USB status refreshed. No receiver opened or retuned.");
+    } catch (err) {
+      notice("USB status check failed: "+err.message);
+    } finally {
+      recheck.disabled=false;
+    }
+  });
   document.querySelectorAll("[data-page]").forEach((n)=>n.addEventListener("click",()=>openPage(Number(n.dataset.page),"",0)));
   $("page-form").addEventListener("submit",(ev)=>{ev.preventDefault();openPage(Number($("page-number").value),$("source-select").value,Number($("subpage-number").value))});
   $("bookmark-page").addEventListener("click",()=>saveBookmark("Page "+state.page+(state.source?" · "+state.source:""),"page",state.page+":"+state.subpage+":"+state.source).catch((err)=>notice(err.message)));
@@ -352,7 +390,9 @@ async function start(){
   bindNavigation();
   const now=new Date();
   $("clock").textContent=now.toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"});
-  try{await refreshCounts();await refreshSourceChoices();await refreshReceiverStatus();await openPage(100,"",0)}
-  catch(err){notice("Local service unavailable: "+err.message);$("teletext-body").textContent="Unable to reach the local application server."}
+  try{await refreshCounts();await refreshSourceChoices();await openPage(100,"",0)}
+  catch(err){notice("Local content failed to load: "+err.message);$("teletext-body").textContent="Local API unavailable. Check the server and reload."}
+  try{await refreshReceiverStatus()}
+  catch(err){notice("USB status could not be checked: "+err.message)}
 }
 start();
