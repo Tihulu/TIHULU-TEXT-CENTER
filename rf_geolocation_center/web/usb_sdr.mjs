@@ -119,12 +119,55 @@ export function initUsbSDR(report){
    }catch(error){notify("SAMPLE ERROR",error.message||String(error))}
    finally{sampling=false}
  }
+ async function selfTest(){
+   if(busy||receiver){notify("USB TEST BUSY","Release this app's receiver or finish the current USB operation before testing.");return}
+   if(!navigator.usb||!window.isSecureContext){
+     notify("USB TEST UNAVAILABLE","Use an HTTPS page in a desktop Chromium browser with WebUSB support.");return
+   }
+   busy=true;stopping=false;
+   let device=null,opened=false,claimed=false,result="";
+   try{
+     const permitted=(await navigator.usb.getDevices()).filter(d=>d.vendorId===0x0bda&&d.productId===0x2838);
+     if(!permitted.length){
+       notify("USB NOT PERMITTED","No permitted RTL2832U device. Click Connect RTL-SDR once to grant browser permission, then rerun this test.");
+       return;
+     }
+     if(permitted.length>1){
+       notify("USB TEST AMBIGUOUS","Multiple matching RTL-SDR sticks are permitted. Use Connect to choose the intended receiver.");
+       return;
+     }
+     device=permitted[0];
+     if(stopping)throw Error("Cancelled by Hard Stop");
+     await device.open();opened=true;
+     if(stopping)throw Error("Cancelled by Hard Stop");
+     if(!device.configuration)await device.selectConfiguration(1);
+     if(stopping)throw Error("Cancelled by Hard Stop");
+     if(!device.configuration?.interfaces?.some(x=>x.interfaceNumber===0))
+       throw Error("Device configuration has no RTL-SDR control interface 0");
+     await device.claimInterface(0);claimed=true;
+     if(stopping)throw Error("Cancelled by Hard Stop");
+     result="PASS: WebUSB opened the device and claimed interface 0. This is a USB-access test only; no RF capture or GPS fix.";
+   }catch(error){
+     result="FAIL: "+(error.name||"Error")+" — "+(error.message||String(error))+
+       ". If claimInterface failed, check other USB tabs, Linux DVB driver ownership and browser sandbox. No terminal/Console paste required.";
+   }finally{
+     if(device&&claimed){try{await device.releaseInterface(0)}catch(e){result+=" Warning: releaseInterface failed: "+e.message}}
+     if(device&&opened){try{await device.close()}catch(e){result+=" Warning: device.close failed: "+e.message}}
+     busy=false;
+     if(result){
+       notify(result.startsWith("PASS")?"USB TEST PASS":"USB TEST FAIL",result);
+       const detail=$("usb-diagnostics");if(detail)detail.textContent=result;
+     }
+   }
+ }
  // Select and claim receiver only when the user chooses it.
  $("usb-select")?.addEventListener("click",()=>{void connect()});
+ $("usb-selftest")?.addEventListener("click",()=>{void selfTest()});
+ $("live-usb-check")?.addEventListener("click",()=>{void selfTest()});
  $("live-release")?.addEventListener("click",()=>{void release()});
  $("live-scan")?.addEventListener("click",()=>{void scan()});
  $("hard-stop")?.addEventListener("click",()=>{void release()});
  window.addEventListener("pagehide",()=>{void release()});
  document.addEventListener("visibilitychange",()=>{if(document.hidden&&receiver)void release()});
- return {connect,scan,release};
+ return {connect,scan,release,selfTest};
 }
