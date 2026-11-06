@@ -178,6 +178,7 @@ export function initIqAnalysisUI({log=()=>{}}={}){
    if(!file)return;
    const inferred=parseCu8Filename(file.name);
    if(inferred)updateMetadata(inferred);
+   else $("iq-center").value=""; // Unknown absolute center: show relative frequency, never invent MHz.
    $("iq-last-info").textContent="Local file selected: "+file.name+" ("+fmt(file.size)+
      " bytes). "+(inferred?"Center/rate inferred from TIHULU filename; confirm before analysis.":
        "CU8 has no embedded frequency/rate: enter the correct capture metadata.");
