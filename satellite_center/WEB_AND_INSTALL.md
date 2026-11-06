@@ -154,3 +154,58 @@ systemctl is-active readsb || true
 
 The first command may also show SDR processes owned by other applications.
 Do not terminate unrecognized processes automatically.
+
+
+## v0.2.3: USB connection and TV tuner classification
+
+The Pages and local dashboards now provide a first-run **Connect your USB SDR**
+guide, including operating-system-specific installation commands,
+cross-origin pairing steps, antenna coax wiring and an explicit **Test USB
+receiver (temporary access)** action. USB diagnostics never start automatically.
+
+### Physical Nooelec NESDR SMArt v5 setup
+
+1. Insert the **Nooelec NESDR SMArt v5 RTL2832U** into a USB port (or a stable
+   powered hub). Connect the antenna coax to the dongle's **SMA RF input**.
+   A USB plug goes into the computer; an antenna connector does not.
+2. Select an antenna suited to the band. ISS VHF is near 145 MHz; Meteor-M
+   weather downlinks use ~137 MHz (V-dipole/QFH recommended); Iridium NEXT
+   uses 1616–1626.5 MHz (L-band antenna and usually a suitable LNA/filter).
+   A TV antenna is not automatically suitable for these bands.
+3. Install and launch the **local** Satellite Center companion on the
+   USB-connected computer. On Pop!_OS/Debian/Raspberry Pi OS, optionally
+   install `rtl-sdr` utilities with `sudo apt install rtl-sdr`.
+4. Open `http://127.0.0.1:8791/` ON THAT COMPUTER and click
+   **Reveal GitHub Pages pairing token**. Copy the full local 64-hex-character
+   secret. It is *not* an SDR serial number, a GitHub token, or a password
+   supplied by an antenna.
+5. Paste the token into the HTTPS GitHub Pages view; click **Connect**.
+   Click **Test USB receiver**. It requests the selected `rtl_test -t`
+   executable, and reports real hardware-open evidence only. Some R820T
+   tuners correctly report that E4000-specific tests are not available;
+   the app does not treat this as an RF reception failure.
+6. If you see **CONFLICT: readsb** the same RTL-SDR is already being used by
+   Flight Radar. Only if you intend to pause it, stop it manually with
+   `sudo systemctl stop readsb`; Satellite Center will **not** terminate
+   other applications. When the test completes, it releases its own SDR
+   subprocess and receiver lock. Re-enable readsb only when you choose.
+
+**Amazon ASIN B0152XLPFS** is **Hauppauge WinTV-soloHD model 01589**.
+The manufacturer documents **DVB-T, DVB-T2 and DVB-C**, and a bundled portable
+terrestrial TV antenna; it does **not** support DVB-S/S2 or general RTL-SDR
+satellite capture. It belongs to the existing Text Center's
+`textcenter/dvb_hardware.py` TV detection, NOT Satellite Center's Nooelec
+SDR selection. Official Hauppauge specs:
+`https://hauppauge.de/site/products/data_solohd.html`.
+Product: `https://www.amazon.de/dp/B0152XLPFS`.
+
+### Diagnostic safety
+
+`POST /api/usb-test` is the same authenticated, owner-initiated, CSRF-checked
+operation as captures. It requires `rtl_test`, checks for active job /
+cooperating lock / known `readsb` conflicts, runs a bounded test for a
+maximum of about seven seconds, and stops only its own child. Successful
+device-open evidence is **not** proof of an RF signal, satellite, or data
+decode. On Windows/macOS installed USB tools and drivers are still required;
+passive Linux sysfs inventory is not available there. No drivers are
+silently modified and no unrelated SDR processes are killed.
