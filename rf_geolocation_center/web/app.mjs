@@ -105,6 +105,10 @@ function renderPosition(recenter=false){
 
 function renderFixEvidence(p=source()){
  const pane=$("fix-evidence");if(!pane)return;
+ if(state.rfOnly){
+  pane.textContent=state.rfSolution?"RF-ONLY HARDWARE-BASED PROPAGATION HYPOTHESIS · "+fmt(state.rfSolution.lat,6)+", "+fmt(state.rfSolution.lon,6)+" · "+state.rfRanges.length+" calibrated radio sources. Antenna IQ measured; transmitter identity/coordinates and calibration external; NO browser/GNSS/IP fallback and NO certified accuracy.":"RF-ONLY ACTIVE · NO RF POSITION FIX. Connect RTL-SDR, enter known fixed stations, capture actual RF, independently calibrate and solve. Device GPS, Wi-Fi, IP, cached coordinates excluded.";
+  return;
+ }
  const offline=navigator.onLine===false;
  const connection=offline?"OFFLINE · ":"";
  if(state.serialFix&&Date.now()-state.serialAt<90000){
@@ -158,7 +162,8 @@ function renderDiagnostics(){
    ["Browser position",state.browser?"Permission-granted position":"Unavailable"],
    ["Dedicated GNSS NMEA",state.serialFix&&Date.now()-state.serialAt<90000?"Current valid serial receiver fix":state.gnssFile?"Historical receiver import":"Unavailable"],
    ["Precise orbit",state.sp3?state.sp3.satelliteCount+" satellites from imported SP3 file":"No orbit file imported"],
-   ["RF acquisition","Unavailable — no GNSS SDR demodulator"],
+   ["RF acquisition",state.rfSources.filter(s=>s.hasActualRF).length+" actual RTL-SDR frequency readings (NOT decoded station identities); GNSS SDR demodulation unavailable"],
+   ["RF-only experiment",state.rfOnly?"ENABLED; "+state.rfRanges.length+" calibrated range hypotheses; "+(state.rfSolution?"uncertified experimental position":"no position"):"OFF; main location sources independent"],
    ["Aircraft reference",state.references.filter(p=>p.type==="aircraft").length+" imported aircraft references (NOT receiver-verified)"],
    ["Measured station ranges",state.ranges?state.ranges.usedRanges+" user-provided measurements":"Unavailable"],
    ["TDOA synchronized constraints",state.tdoa.length?state.tdoa.length+" imported constraints":"Unavailable"]
@@ -310,9 +315,9 @@ function renderEarth(){
  const showGround=layerShown("ground"),showAir=layerShown("aircraft");
  const showOrbits=layerShown("satellites");
  const showReal=layerShown("radio");
- const showDemo=layerShown("demo")&&!state.rangeInputs.length;
+ const showDemo=!state.rfOnly&&layerShown("demo")&&!state.rangeInputs.length;
  const demo=showDemo&&Math.abs(p.lat)<=80&&Math.abs(p.lon)<=175?exampleRings(p):null;
- const active=state.rangeInputs.length>0?{stations:state.rangeInputs,solution:state.ranges,simulated:false}:demo;
+ const active=!state.rfOnly&&state.rangeInputs.length>0?{stations:state.rangeInputs,solution:state.ranges,simulated:false}:demo;
  const renderCircle=(s,simulated)=>{
    const samples=ringPoints(s.lat,s.lon,s.rangeMeters,96);
    const path=samples.map((p,i)=>{const v=pt(p.lat,p.lon);return (i?"L":"M")+v.x.toFixed(2)+" "+v.y.toFixed(2)}).join(" ")+" Z";
@@ -336,8 +341,8 @@ function renderEarth(){
    }
  }
 
- const liveGnss=!!(state.serialFix&&Date.now()-state.serialAt<90000);
- const liveDevice=!!(state.browser&&Date.now()-Date.parse(state.browser.acquiredAt||0)<300000);
+ const liveGnss=!state.rfOnly&&!!(state.serialFix&&Date.now()-state.serialAt<90000);
+ const liveDevice=!state.rfOnly&&!!(state.browser&&Date.now()-Date.parse(state.browser.acquiredAt||0)<300000);
  // The browser-provided uncertainty radius is a different constraint from radio ranges.
  // Draw a separate violet dotted circle; never treat browser accuracy as a measured distance to a transmitter.
  const browserAccuracy=liveDevice&&layerShown("device")?state.browser:null;
@@ -352,15 +357,15 @@ function renderEarth(){
  // Each source has its OWN marker. No predicted orbit or aircraft point is ever the observer fix.
  if(liveGnss&&layerShown("gnss"))place(state.serialFix,"receiver","#5ce1b7","DEDICATED GNSS NMEA FIX · receiver-reported; no RTL-SDR GNSS decode","G");
  if(liveDevice&&layerShown("device"))place(state.browser,"receiver","#bd91f3","BROWSER / DEVICE LOCATION · actual GPS-vs-network provider unknown","B");
- if(state.networkFix?.verifiedNonGnss===true&&["wifi","cell","ip"].includes(state.networkFix.method)&&layerShown("gpsfree"))
+ if(!state.rfOnly&&state.networkFix?.verifiedNonGnss===true&&["wifi","cell","ip"].includes(state.networkFix.method)&&layerShown("gpsfree"))
    place(state.networkFix,"receiver","#4bb7d3","VERIFIED NON-GNSS NETWORK FIX · "+state.networkFix.method,"N");
- if(state.ranges&&showReal)place(state.ranges,"solution","#7de0ac","Experimental 2D radio range estimate (user-imported, unverified)","X");
- if(state.cachedPosition&&layerShown("cached"))
+ if(!state.rfOnly&&state.ranges&&showReal)place(state.ranges,"solution","#7de0ac","Experimental 2D radio range estimate (user-imported, unverified)","X");
+ if(!state.rfOnly&&state.cachedPosition&&layerShown("cached"))
    place(state.cachedPosition,"receiver","#c9ad76","CACHED previous location · "+state.cachedPosition.recordedAt+" · NOT LIVE","C");
- const anyLocation=liveGnss&&layerShown("gnss")||liveDevice&&layerShown("device")||
+ const anyLocation=state.rfOnly?!!(state.rfSolution&&showReal):liveGnss&&layerShown("gnss")||liveDevice&&layerShown("device")||
    state.ranges&&showReal||state.cachedPosition&&layerShown("cached")||
    state.networkFix?.verifiedNonGnss&&layerShown("gpsfree");
- if(!anyLocation)place(p,"receiver","#a4b3c3","MAP REFERENCE ONLY · NOT YOUR POSITION","?");
+ if(!anyLocation&&!state.rfOnly)place(p,"receiver","#a4b3c3","MAP REFERENCE ONLY · NOT YOUR POSITION","?");
  const orbits=state.sp3?state.visible:state.autoOrbits;
  if(showOrbits)for(const s of orbits)place(s,"orbit","#57bdf4",s.id+" · predicted orbital subpoint; NOT RECEIVED RF","S");
  for(const s of state.references){
@@ -579,7 +584,7 @@ function capabilities(){
 if("serviceWorker" in navigator&&location.protocol==="https:"){
  navigator.serviceWorker.register("./sw.js").catch(()=>{});
 }
-window.addEventListener("tihulu:find-request",()=>{ if(state.serialFix&&Date.now()-state.serialAt<90000){ window.dispatchEvent(new CustomEvent("tihulu:position",{detail:{lat:state.serialFix.lat,lon:state.serialFix.lon,alt:state.serialFix.altEllipsoidMeters??0,provider:"Dedicated GNSS serial NMEA"}})); msg("Using fresh receiver-provided NMEA position; browser location not requested."); }else{$("locate")?.click()}});
+window.addEventListener("tihulu:find-request",()=>{ if(state.rfOnly){setView("radio");msg("RF-ONLY: browser/GPS ignored. Capture known fixed transmitter signals using WebUSB and a user-provided calibration.");return} if(state.serialFix&&Date.now()-state.serialAt<90000){ window.dispatchEvent(new CustomEvent("tihulu:position",{detail:{lat:state.serialFix.lat,lon:state.serialFix.lon,alt:state.serialFix.altEllipsoidMeters??0,provider:"Dedicated GNSS serial NMEA"}})); msg("Using fresh receiver-provided NMEA position; browser location not requested."); }else{$("locate")?.click()}});
 window.addEventListener("tihulu:orbit",e=>{
   if(!Array.isArray(e.detail?.satellites))return;
   state.autoOrbits=e.detail.satellites.slice(0,450);
