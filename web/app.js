@@ -1,7 +1,7 @@
 /* TIHULU TEXT CENTER — no external libraries, no background timers fetching data. */
 "use strict";
 
-const state = { csrf:"", page:100, subpage:0, source:"", entries:[], pages:[], receivers:null, rdsActive:false, rdsPollTimer:null };
+const state = { csrf:"", page:100, subpage:0, source:"", entries:[], pages:[], receivers:null, rdsActive:false, rdsPollTimer:null, scanActive:false, scanPollTimer:null };
 const $ = (id) => document.getElementById(id);
 
 function el(tag, cls, text) {
@@ -174,6 +174,11 @@ async function refreshSourceChoices(){
   select.value=sources.some(([id])=>id===selected)?selected:"";
 }
 async function openPage(number,source,subpage){
+  if(state.page===400 && Number(number)!==400 && state.scanActive){
+    state.scanActive=false;
+    if(state.scanPollTimer){clearTimeout(state.scanPollTimer);state.scanPollTimer=null;}
+    api("/api/fm-survey/stop","POST",{}).catch(error=>notice("Survey stop request failed: "+error.message));
+  }
   if(state.page===400 && Number(number)!==400 && state.rdsActive){
     state.rdsActive=false;
     if(state.rdsPollTimer){clearTimeout(state.rdsPollTimer);state.rdsPollTimer=null;}
@@ -407,10 +412,165 @@ async function addRdsControl(){
     state.rdsPollTimer=setTimeout(pollRds,1500);
   }
 }
+function showPassiveDiscovery(result){
+  const list=$("discovery-details");
+  if(!list)return;
+  list.replaceChildren();
+  const inv=result.receiver;
+  const counts=result.archive_counts;
+  list.append(el("p","full-body","USB RTL-SDR: "+inv.rtl_usb_count+
+    " · DVB frontends: "+inv.dvb_frontends.length+
+    " · Cached articles: "+counts.articles+
+    " · Imported broadcast records: "+(counts.events+counts.pages)+
+    " · Feature types tracked: "+result.features_total));
+  const installed=Object.entries(inv.decoders).filter(([k,v])=>v).map(([k])=>k);
+  const missing=Object.entries(inv.decoders).filter(([k,v])=>!v).map(([k])=>k);
+  list.append(el("p","full-body","Installed tools: "+(installed.join(", ")||"none")));
+  list.append(el("p","full-body","Missing optional tools: "+(missing.join(", ")||"none")));
+  if(inv.receiver_conflicts?.length){
+    list.append(el("p","full-body","ACTIVE RECEIVER CONFLICTS: "+
+      [...new Set(inv.receiver_conflicts.map(x=>x.process))].join(", ")+
+      ". No tuner will be opened or retuned while a conflict exists."));
+  }else{
+    list.append(el("p","full-body","No known receiver process conflict detected. "+
+      "This does not guarantee exclusive hardware access."));
+  }
+  list.append(el("p","full-body","Passive discovery does not contact the internet or claim RF reception. "+
+    "Additional protocols are listed under Protocols (860)."));
+}
+async function addAutoDiscovery(){
+  const outer=el("article","item-card");outer.id="auto-discovery";
+  outer.append(el("div","item-meta","STEP 1 / SAFE AUTOMATIC DISCOVERY / NO TUNING"));
+  outer.append(el("h3","","Auto Discover connected sources"));
+  outer.append(el("p","",
+    "Detect available USB/DVB hardware, installed decoder tools, other receiver processes, "+
+    "stored RF text, feed cache and supported protocol modules. This step never changes radio frequency."));
+  const controls=el("div","card-actions");
+  const discover=button("AUTO DISCOVER",async()=>{
+    discover.disabled=true;
+    try{
+      const result=await api("/api/discovery/passive");
+      showPassiveDiscovery(result);
+      await refreshReceiverStatus();
+      notice("Local sources inventoried. Live RF scans require separate permission.");
+    }catch(error){notice(error.message)}
+    finally{discover.disabled=false}
+  });
+  controls.append(discover);
+  outer.append(controls);
+  const details=el("div","scan-summary");details.id="discovery-details";
+  outer.append(details);$("content").append(outer);
+  try{showPassiveDiscovery(await api("/api/discovery/passive"))}
+  catch(error){details.textContent="Passive discovery unavailable: "+error.message}
+}
+function displaySurvey(status){
+  const label=$("fm-survey-progress"),results=$("fm-survey-results");
+  if(label){
+    label.textContent="Status: "+status.status.toUpperCase()+
+      " · "+status.candidates.length+" unidentified FM energy peaks"+
+      (status.error?" · "+status.error:"");
+  }
+  const start=$("fm-survey-start"),stop=$("fm-survey-stop");
+  if(start)start.disabled=Boolean(status.active)||!status.capability?.ready||!$("fm-survey-confirm")?.checked;
+  if(stop)stop.disabled=!status.active;
+  if(!results)return;
+  results.replaceChildren();
+  if(!status.candidates.length){
+    results.append(el("p","full-body",status.active
+      ?"Survey in progress. This does not decode station identities."
+      :status.note||"No spectrum candidates saved."));
+    return;
+  }
+  results.append(el("p","full-body",
+    "Spectrum candidates only; none is yet a confirmed station. "+
+    "Choose a frequency for separate RDS verification if the receiver is free."));
+  status.candidates.forEach(candidate=>{
+    const row=el("div","scan-row");
+    row.append(el("strong","",candidate.frequency_mhz.toFixed(3)+" MHz"));
+    row.append(el("span","",candidate.above_median_db.toFixed(1)+" dB over median"));
+    row.append(button("USE FOR RDS",()=>{
+      const field=$("rds-frequency");
+      if(field){field.value=String(candidate.frequency_mhz);field.focus()}
+      notice("Unverified spectral peak. RDS reception must be tested separately.");
+    }));
+    results.append(row);
+  });
+}
+async function pollFMSurvey(){
+  if(state.page!==400)return;
+  try{
+    const report=await api("/api/fm-survey/status");
+    state.scanActive=report.active;
+    displaySurvey(report);
+    if(report.active && state.page===400){
+      state.scanPollTimer=setTimeout(pollFMSurvey,750);
+    }else{
+      await refreshReceiverStatus();
+    }
+  }catch(error){
+    state.scanActive=false;
+    notice("Spectrum survey status unavailable: "+error.message);
+  }
+}
+async function addFMSurveyControl(){
+  const report=await api("/api/fm-survey/status");
+  const outer=el("article","item-card");outer.id="fm-survey-control";
+  outer.append(el("div","item-meta","STEP 2 / USER-APPROVED RF SCAN / FM ONLY"));
+  outer.append(el("h3","","Scan the FM broadcast spectrum"));
+  outer.append(el("p","",
+    "One single-shot rtl_power sweep of 87.5–108 MHz. No RDS decoder required; "+
+    "rtl_power must be installed. Energy peaks are NOT station names."));
+  outer.append(el("p","full-body",report.capability?.reason||"Survey readiness unknown"));
+  const consent=el("label","scan-consent");
+  const cb=el("input");cb.type="checkbox";cb.id="fm-survey-confirm";
+  consent.append(cb,document.createTextNode(
+    " I understand this scan temporarily claims and retunes the RTL-SDR. "+
+    "Any Flight Radar/readsb or protected recording using this device must be stopped or isolated first."));
+  outer.append(consent);
+  const controls=el("div","card-actions");
+  const start=button("SCAN FM BAND",async()=>{
+    start.disabled=true;
+    try{
+      const response=await api("/api/fm-survey/start","POST",{});
+      state.scanActive=response.active;
+      notice("FM spectrum sweep started. Station identities are unverified.");
+      await refreshReceiverStatus();
+      if(state.scanPollTimer)clearTimeout(state.scanPollTimer);
+      state.scanPollTimer=setTimeout(pollFMSurvey,350);
+    }catch(error){
+      notice(error.message);
+      start.disabled=!report.capability?.ready||!cb.checked;
+    }
+  },"action primary");
+  start.id="fm-survey-start";start.disabled=true;
+  const stop=button("STOP SCAN",async()=>{
+    try{
+      await api("/api/fm-survey/stop","POST",{});
+      if(state.scanPollTimer)clearTimeout(state.scanPollTimer);
+      state.scanPollTimer=setTimeout(pollFMSurvey,300);
+    }catch(error){notice(error.message)}
+  },"action ghost");
+  stop.id="fm-survey-stop";
+  controls.append(start,stop);outer.append(controls);
+  cb.addEventListener("change",()=>{start.disabled=!cb.checked||!report.capability?.ready||state.scanActive});
+  const label=el("p","full-body","No survey attempted");label.id="fm-survey-progress";outer.append(label);
+  const data=el("div","scan-candidates");data.id="fm-survey-results";outer.append(data);
+  $("content").append(outer);
+  displaySurvey(report);
+  state.scanActive=report.active;
+  if(report.active){
+    if(state.scanPollTimer)clearTimeout(state.scanPollTimer);
+    state.scanPollTimer=setTimeout(pollFMSurvey,750);
+  }
+}
 async function showRadioData(){
   section("RECEIVER / INPUT","Radio & TV text archive","Receive-only imports");
   try { $("content").append(receiverCard(await refreshReceiverStatus())); }
   catch(error){empty("Receiver detection unavailable","The local USB inventory could not be read: "+error.message)}
+  try {await addAutoDiscovery()}
+  catch(error){empty("Auto discovery unavailable","Could not inspect local sources: "+error.message)}
+  try {await addFMSurveyControl()}
+  catch(error){empty("FM spectrum survey unavailable","Could not inspect rtl_power: "+error.message)}
   try {await addRdsControl()}
   catch(error){empty("FM capture control unavailable","Unable to load RDS status: "+error.message)}
   const events=await api("/api/events");
@@ -538,6 +698,12 @@ function bindNavigation(){
   $("page-form").addEventListener("submit",(ev)=>{ev.preventDefault();openPage(Number($("page-number").value),$("source-select").value,Number($("subpage-number").value))});
   $("bookmark-page").addEventListener("click",()=>saveBookmark("Page "+state.page+(state.source?" · "+state.source:""),"page",state.page+":"+state.subpage+":"+state.source).catch((err)=>notice(err.message)));
   window.addEventListener("pagehide",()=>{
+    if(state.scanActive){
+      fetch("/api/fm-survey/stop",{
+        method:"POST",headers:{"Content-Type":"application/json","X-Tihulu-CSRF":state.csrf},
+        body:"{}",keepalive:true
+      }).catch(()=>{});
+    }
     if(state.rdsActive){
       fetch("/api/rds/stop",{
         method:"POST",headers:{"Content-Type":"application/json","X-Tihulu-CSRF":state.csrf},
