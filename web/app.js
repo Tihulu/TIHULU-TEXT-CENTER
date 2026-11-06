@@ -14,13 +14,14 @@ async function globalHardStop(){
       const player=$(id);
       if(player){player.pause();player.removeAttribute("src");player.dataset.session="";player.load();}
     }
-    for(const key of ["livePollTimer","tvPollTimer","audioPollTimer","rdsPollTimer","scanPollTimer","fmAutoTimer","dabAutoTimer","managedDabPollTimer"]){
+    for(const key of ["livePollTimer","tvPollTimer","audioPollTimer","rdsPollTimer","scanPollTimer","fmAutoTimer","dabAutoTimer","managedDabPollTimer","dabCaptionTimer"]){
       if(state[key])clearTimeout(state[key]);
       state[key]=null;
     }
     state.liveActive=false;state.tvActive=false;state.dabPlaying=false;state.audioActive=false;
     state.rdsActive=false;state.scanActive=false;state.managedDabOwned=false;
     state.fmRecording=false;state.tvRecording=false;
+    state.dabCaptionSession=null;state.dabCaptionTimer=null;
     syncLiveMediaDock();
     const pending=Object.entries(result.results||{}).filter(([,v])=>v.state!=="confirmed_stopped").map(([k,v])=>k+": "+v.state);
     notice(result.all_confirmed
@@ -1960,6 +1961,9 @@ async function addWelleDabBridge(){
       });
       state.managedDabOwned=false;stopManagedDabPolling();
       if(result.stopped && state.dabPlaying){
+        if(state.dabCaptionTimer)clearTimeout(state.dabCaptionTimer);
+        state.dabCaptionTimer=null;
+        state.dabCaptionSession=null;
         const playing=$("persistent-radio-player");
         playing.pause();playing.removeAttribute("src");playing.onerror=null;playing.load();
         state.dabPlaying=false;syncLiveMediaDock();
@@ -2275,6 +2279,7 @@ async function playDabChannel(channel){
   syncLiveMediaDock();
   audio.onerror=()=>{
     state.dabPlaying=false;
+    void stopDabCaptionTap().catch(()=>{});
     syncLiveMediaDock();
     notice("The local welle-cli decoder did not deliver playable DAB MP3 audio. "+
       "Check lock and service audio availability; no Internet substitute was used.");
@@ -3550,6 +3555,15 @@ function bindNavigation(){
   $("bookmark-page").addEventListener("click",()=>saveBookmark("Page "+state.page+(state.source?" · "+state.source:""),"page",state.page+":"+state.subpage+":"+state.source).catch((err)=>notice(err.message)));
   window.addEventListener("pagehide",()=>{
     stopManagedDabPolling();
+    if(state.dabCaptionTimer){clearTimeout(state.dabCaptionTimer);state.dabCaptionTimer=null;}
+    if(state.dabCaptionSession){
+      fetch("/api/dab/captions/stop",{
+        method:"POST",keepalive:true,
+        headers:{"Content-Type":"application/json","X-Tihulu-CSRF":state.csrf},
+        body:"{}"
+      }).catch(()=>{});
+      state.dabCaptionSession=null;
+    }
     if(state.dvbScanTimer){clearTimeout(state.dvbScanTimer);state.dvbScanTimer=null;}
     fetch("/api/dvb/scan/stop",{
       method:"POST",keepalive:true,
