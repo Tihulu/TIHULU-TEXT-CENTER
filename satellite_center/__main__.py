@@ -236,11 +236,66 @@ class Station:
                     "receiver_detection": ("passive_linux_usb" if platform.system() == "Linux"
                                            else "not_passively_verified_on_this_os"),
                     "busy": detect_busy(), "tools": {n: bool(shutil.which(n)) for n in
-                    ("rtl_power", "rtl_sdr", "rtl_fm", "multimon-ng", "satdump", "qsstv")},
+                    ("rtl_test", "rtl_power", "rtl_sdr", "rtl_fm", "multimon-ng", "satdump", "qsstv")},
                     "orbit_cache": cached, "location_presets": LOCATIONS,
                     "profiles": PROFILES, "session": dict(self.session),
                     "jobs": [dict(j) for j in self.jobs[-100:]],
                     "archive": self.records()}
+
+    def usb_test(self):
+        """Opt-in bounded USB *open* test; does not tune to a station or transmit.
+
+        This temporarily leases the receiver and never stops another program.
+        rtl_test -t on R820T may exit with a nonzero E4000 tuner test result,
+        so report USB-open evidence separately from success of that feature.
+        """
+        tool = shutil.which("rtl_test")
+        if not tool:
+            raise RuntimeError("rtl_test is missing. Install rtl-sdr tools first; the USB is not verified")
+        with self.lock:
+            if self.closed.is_set() or self.session.get("active") or self.launching:
+                raise RuntimeError("An SDR job is active or queued; USB test blocked")
+            self.launching = True
+            proc = None
+            try:
+                self.stopping.clear()
+                self._acquire()
+                proc = self._launch_receiver([tool, "-t"], stdin=subprocess.DEVNULL,
+                                             stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                self.process = proc
+            except BaseException:
+                self.launching = False
+                self._release()
+                raise
+        try:
+            try:
+                out, err = proc.communicate(timeout=7)
+            except subprocess.TimeoutExpired:
+                stop_process(proc)
+                out, err = proc.communicate(timeout=2)
+            messages = (out + b"\n" + err).decode("utf-8", "replace")[-5000:]
+            low = messages.lower()
+            opened = ("using device" in low or "found rafael" in low or
+                      "found e4000 tuner" in low) and not any(
+                       warning in low for warning in
+                       ("libusb_open error", "usb_claim_interface error", "failed to open",
+                        "permission denied", "device or resource busy"))
+            if not opened:
+                raise RuntimeError("Receiver not opened. Check USB, drivers, permissions and other SDR applications. " +
+                                   "rtl_test: " + re.sub(r"[\x00-\x1f\x7f]+", " ", messages[-240:]))
+            return {"state": "usb_receiver_opened", "evidence": "rtl_test device access",
+                    "platform": platform.system(),
+                    "signal_decoded": False, "satellite_identified": False,
+                    "note": "USB receiver successfully opened then released. Antenna quality and RF reception remain unverified.",
+                    "rtl_test_output": re.sub(r"[\x00-\x1f\x7f]+", " ", messages[-500:])}
+        finally:
+            stop_process(proc)
+            with self.lock:
+                if self.process is proc:
+                    self.process = None
+                self.owned_processes.discard(proc)
+                self.launching = False
+                self._release()
 
     def refresh(self):
         """Only called by explicit operator action. Whitelisted HTTPS sources."""
@@ -779,6 +834,8 @@ class Handler(BaseHTTPRequestHandler):
             return self.reply(403, {"error": "Cross-origin access denied"})
         self.send_response(204)
         self.cors_headers()
+        if self.headers.get("Access-Control-Request-Private-Network") == "true":
+            self.send_header("Access-Control-Allow-Private-Network", "true")
         self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
         self.send_header("Access-Control-Allow-Headers", "Authorization, Content-Type")
         self.send_header("Access-Control-Max-Age", "300")
@@ -883,6 +940,8 @@ class Handler(BaseHTTPRequestHandler):
                 # Owner requested shutting down companion, including pending pass worker.
                 threading.Thread(target=self._shutdown_companion, daemon=True).start()
                 result = {"closing": True, "note": "Stopping owned SDR processes; future schedules require restarting the companion"}
+            elif route == "/api/usb-test":
+                result = app.usb_test()
             elif route == "/api/refresh":
                 result = app.refresh()
             elif route == "/api/schedule":
