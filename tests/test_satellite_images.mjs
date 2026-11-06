@@ -58,7 +58,7 @@ test("real Robot36 audio with 240 synchronized lines reconstructs a 320x240 imag
 test("no image without a real Robot36 synchronized audio train",()=>{
  const quiet=new Float32Array(16000*36);
  assert.throws(()=>decodeRobot36Audio(quiet,16000),/sync|Robot36/);
- assert.throws(()=>decodeRobot36Audio(quiet.slice(0,16000),16000),/32 seconds/);
+ assert.throws(()=>decodeRobot36Audio(quiet.slice(0,16000),16000),/36 seconds/);
 });
 test("CU8 FM demod rejects inadequate duration, malformed format, and incompatible sample rate",async()=>{
  await assert.rejects(cu8ToFmAudio(new Blob([new Uint8Array(4096)]),{sampleRate:1024000}),/at least 32/);
