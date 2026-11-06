@@ -657,6 +657,10 @@ window.addEventListener("tihulu:rf-survey-updated",e=>{
  renderSourceProvenance();renderDiagnostics();
 });
 window.addEventListener("tihulu:rf-fit-map",fitRfSurveyMap);
+$("live-rf-only")?.addEventListener("click",()=>{
+ const input=$("rf-only");if(input&&!input.checked){input.checked=true;input.dispatchEvent(new Event("change"))}
+ setView("radio");msg("Antenna-only RF positioning: choose a source, connect RTL-SDR, capture and calibrate. OS GPS/Wi-Fi/IP excluded.");
+});
 window.addEventListener("tihulu:find-request",()=>{ if(state.rfOnly){setView("radio");msg("RF-ONLY: browser/GPS ignored. Capture known fixed transmitter signals using WebUSB and a user-provided calibration.");return} if(state.serialFix&&Date.now()-state.serialAt<90000){ window.dispatchEvent(new CustomEvent("tihulu:position",{detail:{lat:state.serialFix.lat,lon:state.serialFix.lon,alt:state.serialFix.altEllipsoidMeters??0,provider:"Dedicated GNSS serial NMEA"}})); msg("Using fresh receiver-provided NMEA position; browser location not requested."); }else{$("locate")?.click()}});
 window.addEventListener("tihulu:orbit",e=>{
   if(!Array.isArray(e.detail?.satellites))return;
