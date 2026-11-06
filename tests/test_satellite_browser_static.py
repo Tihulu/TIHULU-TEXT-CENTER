@@ -68,6 +68,17 @@ class SatelliteBrowserStaticTests(unittest.TestCase):
                         'image-sstv-file', 'image-cuiq-file', 'image-fetch-online',
                         'image-gallery', 'image-local-gallery', 'image-decode-status'):
             self.assertIn('id="' + control + '"', reception)
+        workflow=(ROOT / "reception_workflow.mjs").read_text(encoding="utf-8")
+        for control in ('auto-mission-arm', 'auto-mission-analyze', 'auto-mission-extract', 'auto-mission-stop'):
+            self.assertIn('id="' + control + '"', reception)
+            self.assertIn('"' + control + '"', workflow)
+        self.assertIn('initReceptionWorkflow', script)
+        self.assertIn("discoverCu8Contents", workflow)
+        self.assertIn('"auto-schedule"', workflow)
+        self.assertIn('"auto-cancel"', workflow)
+        self.assertIn('"decode"', workflow)
+        self.assertIn("nativeImages", workflow)
+        self.assertIn("CRC", workflow)
         self.assertIn('initSatelliteImageUI', script)
         self.assertIn('satellite_images_ui.mjs', script)
         self.assertIn('http://127.0.0.1:8791/', reception)
