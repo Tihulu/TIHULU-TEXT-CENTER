@@ -1008,7 +1008,7 @@ async function scheduledTick(){
        visible:!document.hidden,receiverBusy:!!capturePromise||usbTestRunning
      });
      if(action==='missed'){
-       job.state='missed';job.message='The satellite pass ended before a foreground capture could start. No radio data collected.';
+       job.state='missed';job.message='Pass ended or insufficient time remained for a complete recording. No radio data collected.';
        log('Missed '+job.name+': pass window expired.');
        continue;
      }

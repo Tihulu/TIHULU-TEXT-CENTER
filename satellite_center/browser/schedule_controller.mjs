@@ -46,6 +46,11 @@ export function createScheduledPass(pass,choices,now=Date.now()){
 export function evaluateScheduledJob(job,now,{visible,receiverBusy}){
  if(!job||job.state!=="armed")return "none";
  if(now>=job.until)return "missed";
+ // Browser tabs may wake late or SDRs may be busy: never start a full clip
+ // if its actual start would extend beyond predicted LOS, even if armed earlier.
+ const clipMilliseconds=Number(job.durationSeconds)*1000;
+ if(!Number.isFinite(clipMilliseconds)||clipMilliseconds<=0||
+    Math.max(now,Number(job.when))+clipMilliseconds>Number(job.until))return "missed";
  if(now<job.when)return "waiting";
  if(!visible)return "waiting-foreground";
  if(receiverBusy)return "waiting-receiver";
