@@ -2,14 +2,45 @@
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>TIHULU Satellite Center</title><style>
 :root{color-scheme:dark;font-family:system-ui,-apple-system,"Segoe UI",sans-serif;background:#090e18;color:#e7ecf6}
-*{box-sizing:border-box}[hidden]{display:none!important}body{margin:0}header{padding:24px clamp(18px,4vw,60px);border-bottom:1px solid #253246;background:#111a2a}header h1{margin:0;font-size:clamp(1.3rem,3vw,2rem)}.sub{color:#a9b7d1;max-width:900px;line-height:1.5}main{max-width:1500px;margin:auto;padding:20px;display:grid;grid-template-columns:minmax(280px,350px) minmax(0,1fr);gap:18px}section{background:#101c2d;border:1px solid #273954;border-radius:14px;padding:18px;min-width:0}h2{font-size:1.1rem;margin:0 0 14px}h3{font-size:1rem;margin:12px 0 6px}label{display:block;color:#acbfdc;font-size:.9rem;margin-top:10px}select,input,button{font:inherit;border-radius:8px;min-height:40px;padding:8px 12px}select,input{width:100%;color:#f1f5fc;border:1px solid #385174;background:#152942}button{background:#2468bd;color:white;border:1px solid #3077cf;cursor:pointer}button:hover{background:#2b79d6}button:disabled{opacity:.5;cursor:not-allowed}.secondary{background:#20334f;border-color:#3e587c}.warn{color:#ffcc88}.ok{color:#a6e2ac}.muted{color:#a5b4c9}small{font-size:.82rem}p{line-height:1.5}.stack>*+*{margin-top:10px}.line{display:flex;align-items:center;gap:9px;flex-wrap:wrap}.line>*{flex:1}summary{cursor:pointer}.spaced{margin-top:18px}.wide{grid-column:2}.side{grid-row:span 2}.output{white-space:pre-wrap;word-break:break-word;padding:12px;background:#0b1422;border-radius:8px;color:#cce0f9;max-height:300px;overflow:auto;font:12px ui-monospace,monospace}.pass{padding:14px;border:1px solid #314561;border-radius:10px;margin:9px 0;background:#152338}.pass-head{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap}.pill{font-size:.8rem;color:#c1d3ff;border:1px solid #4968a2;padding:3px 8px;border-radius:50px}.pass-controls{display:flex;gap:7px;flex-wrap:wrap;align-items:end;margin-top:8px}.pass-controls select{max-width:250px}.pass-controls label{min-width:160px;flex:1}.pass-controls button{flex:0 0 auto}.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px}.cards article{border:1px solid #304562;border-radius:10px;padding:10px}.cards button{max-width:100%;overflow-wrap:anywhere}.gallery{display:flex;gap:8px;flex-wrap:wrap}.gallery img{max-width:260px;max-height:300px;object-fit:contain;border-radius:8px}.error{color:#ff9d9d}.sr{position:absolute;left:-9999px}@media(max-width:950px){main{grid-template-columns:1fr}.wide{grid-column:auto}.side{grid-row:auto}}@media(prefers-reduced-motion:reduce){*{scroll-behavior:auto}}
+*{box-sizing:border-box}[hidden]{display:none!important}body{margin:0}header{padding:24px clamp(18px,4vw,60px);border-bottom:1px solid #253246;background:#111a2a}header h1{margin:0;font-size:clamp(1.3rem,3vw,2rem)}.sub{color:#a9b7d1;max-width:900px;line-height:1.5}main{max-width:1500px;margin:auto;padding:20px;display:grid;grid-template-columns:minmax(280px,350px) minmax(0,1fr);gap:18px}section{background:#101c2d;border:1px solid #273954;border-radius:14px;padding:18px;min-width:0}h2{font-size:1.1rem;margin:0 0 14px}h3{font-size:1rem;margin:12px 0 6px}label{display:block;color:#acbfdc;font-size:.9rem;margin-top:10px}select,input,button{font:inherit;border-radius:8px;min-height:40px;padding:8px 12px}select,input{width:100%;color:#f1f5fc;border:1px solid #385174;background:#152942}button{background:#2468bd;color:white;border:1px solid #3077cf;cursor:pointer}button:hover{background:#2b79d6}button:disabled{opacity:.5;cursor:not-allowed}.secondary{background:#20334f;border-color:#3e587c}.warn{color:#ffcc88}.ok{color:#a6e2ac}.muted{color:#a5b4c9}small{font-size:.82rem}p{line-height:1.5}.stack>*+*{margin-top:10px}.line{display:flex;align-items:center;gap:9px;flex-wrap:wrap}.line>*{flex:1}summary{cursor:pointer}.spaced{margin-top:18px}.wide{grid-column:2}.side{grid-row:span 2}.output{white-space:pre-wrap;word-break:break-word;padding:12px;background:#0b1422;border-radius:8px;color:#cce0f9;max-height:300px;overflow:auto;font:12px ui-monospace,monospace}.pass{padding:14px;border:1px solid #314561;border-radius:10px;margin:9px 0;background:#152338}.pass-head{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap}.pill{font-size:.8rem;color:#c1d3ff;border:1px solid #4968a2;padding:3px 8px;border-radius:50px}.pass-controls{display:flex;gap:7px;flex-wrap:wrap;align-items:end;margin-top:8px}.pass-controls select{max-width:250px}.pass-controls label{min-width:160px;flex:1}.pass-controls button{flex:0 0 auto}.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px}.cards article{border:1px solid #304562;border-radius:10px;padding:10px}.cards button{max-width:100%;overflow-wrap:anywhere}.gallery{display:flex;gap:8px;flex-wrap:wrap}.gallery img{max-width:260px;max-height:300px;object-fit:contain;border-radius:8px}.error{color:#ff9d9d}
+.setup{border:1px solid #365475;border-radius:12px;padding:14px;background:#14253d;margin:13px 0}
+.setup summary{font-weight:750;font-size:1rem;color:#dcecff;cursor:pointer}
+.setup ol{padding-left:24px;line-height:1.7}
+.setup li{margin:7px 0}
+.setup code,.setup pre{font:12px ui-monospace,SFMono-Regular,Consolas,monospace;color:#cce3ff}
+.setup pre{padding:13px;background:#0a1525;border:1px solid #314b6a;border-radius:8px;white-space:pre-wrap;overflow-wrap:anywhere}
+.setup a{color:#8bbcff}
+.setup .line>button{flex:0 1 auto}
+.hardware-state{padding:10px 12px;background:#0c1930;border-radius:9px;border:1px solid #35516e;white-space:pre-wrap}
+.sr{position:absolute;left:-9999px}@media(max-width:950px){main{grid-template-columns:1fr}.wide{grid-column:auto}.side{grid-row:auto}}@media(prefers-reduced-motion:reduce){*{scroll-behavior:auto}}
 </style></head><body>
 <header><h1>🛰 TIHULU Satellite Center <small class="pill">Independent companion</small></h1>
 <p class="sub">Real orbital geometry · opt-in RTL-SDR scans · source-attributed captures · scheduled passes. A visible pass is not proof of a radio transmission. Nothing transmits over RF.</p></header>
 <main><section class="wide" id="bridge-panel" style="grid-column:1/-1">
-<h2>Local hardware connection</h2>
+<h2>Connect your USB SDR</h2>
+<p><strong>Plug the Nooelec NESDR SMArt v5 into this computer's USB port, then attach the antenna cable to the dongle's SMA antenna socket.</strong> The GitHub Pages website cannot directly open USB hardware. It controls the SDR through the locally installed companion.</p>
+<details class="setup" id="usb-guide" open>
+<summary>First-time setup · USB, local app and pairing</summary>
+<ol>
+<li><strong>Connect hardware:</strong> Insert the Nooelec RTL-SDR USB dongle; connect an antenna to its SMA RF connector (never connect an antenna directly to a computer's USB socket). For Meteor weather images use a ~137 MHz V-dipole/QFH; for ISS use ~145 MHz; Iridium requires an L-band antenna around 1.6 GHz, preferably with a suitable filter/LNA. Connecting an antenna does not establish reception.</li>
+<li><strong>Install the local companion on this same computer:</strong> select the operating system below; run the installer as your normal user, then open TIHULU Satellite Center from your Applications/Start menu.</li>
+<li><strong>Open <a href="http://127.0.0.1:8791/" target="_blank" rel="noopener noreferrer">http://127.0.0.1:8791/</a> on the computer holding the USB dongle.</strong> On that LOCAL page click <strong>Reveal GitHub Pages pairing token</strong>. Copy the full 64-character hexadecimal key. This is not your GitHub password, USB serial number, or an antenna identifier.</li>
+<li><strong>Back on this GitHub Pages tab:</strong> paste the token into the field marked Pairing token and click Connect. An “Invalid token format” message means the input is not a complete 64-character key. If the connection fails, verify the companion is running locally and browser loopback permission is allowed.</li>
+<li><strong>Check the dongle:</strong> click “Test USB receiver (temporary access)” after pairing. If <code>readsb</code>, Gqrx, welle.io or another SDR service is using the SAME dongle, stop it manually first (the app will not take it over).</li>
+</ol>
+<div class="line"><label for="setup-os">Computer operating system<select id="setup-os"><option value="linux">Debian / Ubuntu / Pop!_OS</option><option value="windows">Windows x64</option><option value="mac">macOS Apple Silicon / Intel</option><option value="pi">Raspberry Pi OS</option></select></label><button id="copy-install" type="button" class="secondary">Copy installation command</button></div>
+<pre id="install-command" aria-label="Installation command"></pre>
+<p id="os-advice" class="muted"></p>
+<div class="line"><button id="usb-test" type="button">Test USB receiver (temporary access)</button><button id="recheck-usb" type="button" class="secondary">Refresh device status</button></div>
+<p class="muted">The USB test uses the installed <code>rtl_test</code> program, may briefly reserve the dongle, and releases it on completion. It does not identify satellites or test the antenna. It never stops readsb automatically.</p>
+<p id="usb-test-status" class="hardware-state" role="status">USB diagnostic not run. Connect the local service first.</p>
+</details>
+<details class="setup">
+<summary>Other hardware: Hauppauge WinTV-soloHD (Amazon ASIN B0152XLPFS)</summary>
+<p><strong>Use in the TV / DVB-T2 area, NOT for satellite SDR scanning.</strong> The <a href="https://www.amazon.de/dp/B0152XLPFS" target="_blank" rel="noopener noreferrer">Hauppauge WinTV-soloHD 01589</a> is a separate DVB-T/T2 and DVB-C television USB tuner. It cannot replace the Nooelec NESDR for ISS, Meteor-M, CubeSat or Iridium reception. Its ordinary TV antenna connector is not interchangeable with the Nooelec SMA input without an appropriate RF adapter, and an adapter alone does not make it a satellite antenna.</p>
+</details>
 <p class="muted">The public GitHub Pages view is a static dashboard. RF scans and archives require a separately installed companion on this computer. No USB access is attempted by the website itself.</p>
-<div id="remote-bridge" hidden><div class="line"><label>Pairing token (from local companion)<input id="pair-token" type="password" autocomplete="off" placeholder="64-character token"></label><button id="connect-bridge">Connect to 127.0.0.1:8791</button></div>
+<div id="remote-bridge" hidden><div class="line"><label>Pairing token (from local companion)<input id="pair-token" type="password" autocomplete="off" placeholder="Paste 64 hex characters from local page"></label><button id="connect-bridge">Connect to 127.0.0.1:8791</button></div>
 <p class="muted">Token stays in this page's memory only, not a URL or browser storage. Your browser may ask for permission to access loopback. On Safari, use the local dashboard if HTTPS-to-HTTP localhost is blocked.</p></div>
 <div id="local-bridge" hidden><div class="line"><button id="show-pair" class="secondary">Reveal GitHub Pages pairing token</button><a href="https://tihulu.github.io/TIHULU-TEXT-CENTER/satellite_center/" target="_blank" rel="noopener noreferrer">Open hosted dashboard after Pages is enabled</a></div><p id="pair-output" class="output" hidden></p></div>
 <p id="bridge-state" class="warn" role="status">Looking for local companion...</p>
@@ -30,6 +61,18 @@ let csrf = '', profiles = {}, activeRefresh = false, lastPasses = [];
 const hosted = location.hostname.toLowerCase() === 'tihulu.github.io';
 const endpoint = hosted ? 'http://127.0.0.1:8791' : location.origin;
 let pairingToken = '';
+const installCmd = {
+linux: 'curl -fsSL https://raw.githubusercontent.com/Tihulu/TIHULU-TEXT-CENTER/feature/satellite-center-standalone-2026-11-06/satellite_center/install/install.sh | bash',
+windows: 'irm https://raw.githubusercontent.com/Tihulu/TIHULU-TEXT-CENTER/feature/satellite-center-standalone-2026-11-06/satellite_center/install/install.ps1 | iex',
+mac: 'curl -fsSL https://raw.githubusercontent.com/Tihulu/TIHULU-TEXT-CENTER/feature/satellite-center-standalone-2026-11-06/satellite_center/install/install.sh | bash',
+pi: 'curl -fsSL https://raw.githubusercontent.com/Tihulu/TIHULU-TEXT-CENTER/feature/satellite-center-standalone-2026-11-06/satellite_center/install/install.sh | bash'
+};
+const installAdvice = {
+linux: 'Requirements: git, Python 3.11+, python3-venv. To install SDR tools: sudo apt install rtl-sdr. On Pop!_OS, if readsb owns the RTL-SDR, stop it yourself with sudo systemctl stop readsb (only if you intend to pause Flight Radar). Launch: ~/.local/bin/tihulu-satellite.',
+windows: 'Requirements: Windows 10/11 x64, Python 3.11+. Run the command in PowerShell as a normal user. Install native RTL-SDR tools and, if needed, the WinUSB driver on the RTL2832U only (do not select the Hauppauge TV tuner in Zadig). Open TIHULU Satellite Center from Start Menu.',
+mac: 'Requirements: Python 3.11+, git. Install receiver tools with brew install librtlsdr. Start via ~/Applications/TIHULU Satellite Center.command. macOS may require manual driver/access troubleshooting.',
+pi: 'Requirements: Raspberry Pi OS (32/64-bit), git, Python 3.11+, python3-venv. Install rtl-sdr with sudo apt install rtl-sdr. Connect a properly powered USB port and suitable outdoor antenna. Launch from Applications.'
+};
 const clientId = crypto.randomUUID();
 const connectionReady = () => !hosted || !!pairingToken;
 
@@ -79,11 +122,39 @@ window.addEventListener('pagehide',()=>{
   fetch(endpoint+'/api/leave',{method:'POST',mode:'cors',keepalive:true,
     headers,body:JSON.stringify({csrf,client_id:clientId})}).catch(()=>{});
 });
+function showInstallGuidance(){
+ const os=$('setup-os').value;
+ show($('install-command'),installCmd[os]);
+ show($('os-advice'),installAdvice[os]);
+}
+$('setup-os').addEventListener('change',showInstallGuidance);
+const ua=navigator.userAgent||'';
+$('setup-os').value=/Win/i.test(ua)?'windows':/Mac/i.test(ua)?'mac':/armv7|aarch64/i.test(ua)&&/Linux/i.test(ua)?'pi':'linux';
+showInstallGuidance();
+$('copy-install').addEventListener('click',async()=>{
+ const cmd=installCmd[$('setup-os').value];
+ try{await navigator.clipboard.writeText(cmd);show($('usb-test-status'),'Installation command copied. Review the script before execution; run as your normal user.');}
+ catch(e){show($('usb-test-status'),'Clipboard unavailable. Select and copy the displayed command manually.')}
+});
+$('usb-test').addEventListener('click',async()=>{
+ try{
+  show($('usb-test-status'),'Checking installed rtl_test and briefly opening the dongle…');
+  const data=await api('/api/usb-test',{});
+  show($('usb-test-status'),'USB OPENED AND RELEASED — '+data.note+' '+(data.rtl_test_output||''));
+  await loadStatus();
+ }catch(e){
+  show($('usb-test-status'),'USB test blocked/failed: '+e.message+'. If readsb is active, stop it manually; check rtl_test, permissions, drivers and physical USB connection.');
+ }
+});
+$('recheck-usb').addEventListener('click',async()=>{
+ try{await loadStatus();show($('usb-test-status'),'Refreshed passive status. To actually open the receiver, use Test USB receiver.');}
+ catch(e){show($('usb-test-status'),'Local companion is not connected: '+e.message)}
+});
 $('remote-bridge').hidden=!hosted;
 $('local-bridge').hidden=hosted;
-if(hosted){show($('bridge-state'),'Not connected. Run the local companion and enter its token.');}
+if(hosted){show($('bridge-state'),'Not connected: first open http://127.0.0.1:8791/ locally, click Reveal pairing token, then paste its 64-character key here.');}
 else {show($('bridge-state'),'Local companion. Use Reveal pairing token if connecting from GitHub Pages.');loadStatus()}
 $('show-pair').addEventListener('click',async()=>{try{let d=await api('/api/pair',{});$('pair-output').hidden=false;show($('pair-output'),d.token+'\nKeep this token private. Enter it only on the official TIHULU GitHub Pages dashboard.')}catch(e){log('Pairing: '+e.message)}});
-$('connect-bridge').addEventListener('click',async()=>{pairingToken=$('pair-token').value.trim();$('pair-token').value='';if(!/^[a-f0-9]{64}$/.test(pairingToken)){pairingToken='';show($('bridge-state'),'Invalid token format');return}try{await loadStatus();show($('bridge-state'),'Connected to local hardware companion at 127.0.0.1:8791.')}catch(e){pairingToken='';show($('bridge-state'),'Connection failed: '+e.message)}});
+$('connect-bridge').addEventListener('click',async()=>{pairingToken=$('pair-token').value.trim();$('pair-token').value='';if(!/^[a-f0-9]{64}$/.test(pairingToken)){pairingToken='';show($('bridge-state'),'Invalid token format: get the 64-character hexadecimal key from http://127.0.0.1:8791/ → Reveal GitHub Pages pairing token. Do not use your USB serial number or GitHub password.');return}try{await loadStatus();show($('bridge-state'),'Connected to local hardware companion at 127.0.0.1:8791.')}catch(e){pairingToken='';show($('bridge-state'),'Connection failed: '+e.message)}});
 setInterval(async()=>{if(!connectionReady())return;try{let s=await api('/api/status?client='+encodeURIComponent(clientId));show($('session'),JSON.stringify(s.session,null,2));renderJobs(s.jobs);renderArchive(s.archive)}catch(e){log('Status poll: '+e.message)}},4000);
 </script></body></html>
