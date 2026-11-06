@@ -1,7 +1,7 @@
 /* Same-origin offline app shell only; NEVER cache remote OSM tiles or GNSS private imports. */
-const CACHE="tihulu-geolocation-shell-v1";
+const CACHE="tihulu-geolocation-shell-v2";
 const SHELL=["./","./index.html","./web/app.mjs","./web/style.css","./web/icon.svg",
- "./core/gnss.mjs","./core/positioning.mjs","./manifest.webmanifest"];
+ "./core/gnss.mjs","./core/positioning.mjs","./web/auto_explorer.mjs","./web/usb_sdr.mjs","./manifest.webmanifest"];
 self.addEventListener("install",event=>{
  event.waitUntil(caches.open(CACHE).then(c=>c.addAll(SHELL)));
  self.skipWaiting();
