@@ -1,7 +1,6 @@
 /* Three-step satellite workflow. Same module from Pages and local companion.
    No background USB claim, speculative image, or fabricated packet content. */
 import {discoverCu8Contents, discoveryReportJson} from "./signal_discovery.mjs";
-import {selectAutomaticPasses} from "./auto_mission.mjs";
 
 export function nativeOrigin(url) {
  const u=new URL(url);
@@ -85,6 +84,7 @@ export function initReceptionWorkflow() {
        // Pages cannot run Python or promise unattended capture. Transfer station
        // in same-origin sessionStorage, without putting its GPS in URL.
        sessionStorage.setItem("tihulu-auto-station",JSON.stringify({...station,hours,createdAt:Date.now()}));
+       sessionStorage.setItem("tihulu-auto-start-intent",JSON.stringify({mode,createdAt:Date.now()}));
        say("Opening the real WebUSB scheduler. Confirm the single USB permission/capture action in that tab; the browser must stay visible and awake.");
        location.assign("./index.html?auto-mission="+encodeURIComponent(mode)+"#auto-center");
      }
@@ -106,16 +106,34 @@ export function initReceptionWorkflow() {
  });
  async function chosenFile(){
    const input=$("local-file");
-   const file=input.files?.[0];
-   if(!file)throw Error("Choose an actual .cu8 recording in the Local file section first. The application will not invent data.");
-   if(!/\.(cu8|iq|u8)$/i.test(file.name))throw Error("Automatic RF analysis needs raw .cu8/.iq/.u8 samples; other files remain previewable.");
+   let file=input.files?.[0]||null;
+   let nativeArchive=null;
+   if(!file && nativeOrigin(location.href)){
+     const s=await status();
+     const candidates=(s.archive||[]).filter(x=>
+       /^TIHULU_[A-Za-z0-9_-]+\\.cu8$/i.test(x.file)&&
+       Number(x.bytes)>=4096&&Number(x.bytes)<=128*1024*1024);
+     candidates.sort((a,b)=>String(b.modified).localeCompare(String(a.modified)));
+     if(candidates.length){
+       nativeArchive=candidates[0];
+       say("Opening newest local companion IQ recording: "+nativeArchive.file);
+       const response=await fetch("../api/archive/"+encodeURIComponent(nativeArchive.file),{cache:"no-store"});
+       if(!response.ok)throw Error("Native archive HTTP "+response.status);
+       const blob=await response.blob();
+       if(blob.size!==nativeArchive.bytes)throw Error("Incomplete native archive: byte count differs");
+       file=new File([blob],nativeArchive.file,{type:"application/octet-stream"});
+     }
+   }
+   if(!file)throw Error("No saved recording available yet. Wait for the next scheduled pass, or choose a real .cu8 recording in the Local file section.");
+   if(!/\\.(cu8|iq|u8)$/i.test(file.name))throw Error("Automatic RF analysis needs raw .cu8/.iq/.u8 samples; other files remain previewable.");
    if(file.size<4096||file.size>1024*1024*1024)throw Error("Recording is empty or exceeds the 1 GiB safety limit");
-   const rate=Number($("recorded-rate").value);
+   const meta=file.name.match(/_(\\d{7,11})Hz(?:_(\\d{6,8})SPS)?_/i);
+   const rate=Number($("recorded-rate").value||meta?.[2]);
    const mhz=$("recorded-mhz").value.trim();
    if(![1024000,2048000].includes(rate))throw Error("Enter the real capture sample rate (1024000 or 2048000 samples/s)");
-   const centerHz=mhz?Number(mhz)*1e6:null;
+   const centerHz=mhz?Number(mhz)*1e6:meta?.[1]?Number(meta[1]):null;
    if(centerHz!==null&&(!Number.isFinite(centerHz)||centerHz<=0))throw Error("Invalid center frequency");
-   return {file,sampleRate:rate,centerHz};
+   return {file,sampleRate:rate,centerHz,nativeArchive};
  }
  $("auto-mission-analyze").addEventListener("click",async()=>{
    const button=$("auto-mission-analyze");button.disabled=true;
