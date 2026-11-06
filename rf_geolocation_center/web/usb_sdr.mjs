@@ -176,21 +176,25 @@ export function initUsbSDR(report){
    }
    busy=true;sampling=true;stopping=false;beginSample();
    const gainDb=20,sampleRate=1024000;
-   let samples=0,power=0;
+   let samples=0,power=0,rfStage="initial checks";
    try{
      if(configuredRate!==sampleRate)throw Error("Receiver sample rate not configured; release and reconnect");
      if(configuredGain!==gainDb){
+       rfStage="tuner gain configuration (USB control transfer)";
        await receiver.setGain(gainDb); // fixed gain is essential for level comparisons
        configuredGain=gainDb;
      }
      const targetFrequencyHz=Math.round(frequencyMHz*1e6);
      if(configuredFrequencyHz!==targetFrequencyHz){
+       rfStage="tune "+frequencyMHz.toFixed(3)+" MHz (USB control transfer)";
        await receiver.setCenterFrequency(targetFrequencyHz);
        configuredFrequencyHz=targetFrequencyHz;
      }
      if(stopping)return;
+     rfStage="reset hardware sample buffer";
      await receiver.resetBuffer();
      for(let i=0;i<8&&!stopping;i++){
+       rfStage="read I/Q sample block "+(i+1)+"/8";
        const block=await receiver.readSamples(16384);
        const bytes=block?.data;
        if(!(bytes instanceof ArrayBuffer)&&!ArrayBuffer.isView(bytes))throw Error("RTL-SDR did not return I/Q sample block.data");
@@ -208,8 +212,22 @@ export function initUsbSDR(report){
      window.dispatchEvent(new CustomEvent("tihulu:rf-observation",{detail:record}));
      notify("RF IQ CAPTURED",frequencyMHz.toFixed(3)+" MHz · "+samples+" bytes of REAL RTL-SDR I/Q · "+
        levelDbFS.toFixed(2)+" dBFS-like · fixed gain "+gainDb+" dB. Total receiver energy, not an identified station or distance.");
-   }catch(error){if(!stopping)notify("RF CAPTURE ERROR",(error?.message||String(error))+
-     ". No unverified RF capture has been recorded. For setRegBuffer/control-transfer errors, use Recover SDR to release/reconnect once and check Linux DVB ownership or USB power.")}
+   }catch(error){
+     if(!stopping){
+       const detail=String(error?.message||error);
+       const transfer=/setRegBuffer|transfer|control|stall|reg=/i.test(detail);
+       const explanation=transfer?
+         "USB register/control-transfer failure, not a transmitter or radio-range result. "+ 
+         "This browser driver/device session is no longer trusted; release it, then use Recover SDR for ONE reinitialization attempt. "+ 
+         "Check other SDR owners, Linux USB driver, power and browser compatibility.":
+         "Hardware sampling failed; no RF measurement was accepted.";
+       notify("RF CAPTURE ERROR","Stage: "+rfStage+" · "+detail+" · "+explanation);
+       window.dispatchEvent(new CustomEvent("tihulu:rf-capture-failed",{
+         detail:{stage:rfStage,message:detail,frequencyMHz,sourceId:String(sourceId||""),recoverable:transfer}
+       }));
+       if(transfer)await release(); // clean up the exact device we own; no implicit reattempt.
+     }
+   }
    finally{sampling=false;busy=false;endSample()}
  }
  async function fmSweep(startMHz=87.5,stopMHz=108,stepMHz=.1){
