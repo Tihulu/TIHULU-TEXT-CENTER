@@ -70,3 +70,23 @@
 .evidence-source strong{font-size:12px;color:#d4f1e8}
 .evidence-source span{font-size:11px;color:#a4cad8}
 .evidence-sources>p{margin:4px 0;font-size:11px}
+
+
+.usb-diagnostics{white-space:pre-wrap;overflow-wrap:anywhere;background:#0b1b2b;border:1px solid #315267;border-radius:8px;padding:10px;margin:12px 0;color:#b3dbe7;font-size:11px;line-height:1.6}
+.usb-diagnostics pre{white-space:pre-wrap;overflow-wrap:anywhere;font:inherit;margin:0}
+.usb-troubleshoot{border:1px solid #3a5268;border-radius:9px;padding:12px;color:#aac9d9}
+.usb-troubleshoot summary{font-weight:700;cursor:pointer}
+.usb-troubleshoot p{font-size:12px;line-height:1.6}
+.usb-troubleshoot code{font-size:11px;color:#e8c589}
+
+
+/* One-click fix evidence; accuracy is distinct from radio range geometry. */
+#earth-find{display:block;width:100%;margin:10px 0 12px}
+.fix-evidence{background:#0f2737;border:1px solid #376178;border-left:4px solid #88c3e8;
+  padding:13px;border-radius:8px;line-height:1.65;font-size:12px;color:#d0e3ed;overflow-wrap:anywhere}
+.position-legend{display:flex;flex-wrap:wrap;gap:12px;margin:12px 0 16px;font-size:11px;color:#c0d8e5}
+.position-legend span{display:inline-flex;align-items:center;gap:7px}
+.position-legend i{width:19px;display:inline-block;border-top:3px solid #fff}
+.position-legend .legend-device{border-color:#bd91f3;border-top-style:dotted}
+.position-legend .legend-ranges{border-color:#65e2c2}
+.position-legend .legend-demo{border-color:#f3c779;border-top-style:dashed}

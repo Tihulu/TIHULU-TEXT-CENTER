@@ -24,3 +24,17 @@ test("offline app shell includes range module and saved location behavior",()=>{
  assert.match(html,/id="live-offline-grid"/);
  assert.match(html,/id="live-rings"/);
 });
+
+test("one-click position view explicitly separates device uncertainty from radio station ranges",()=>{
+ const html=read("index.html"),app=read("web/app.mjs"),css=read("web/style.css");
+ assert.match(html,/id="earth-find"/);
+ assert.match(html,/id="fix-evidence"/);
+ assert.match(html,/legend-device/);
+ assert.match(html,/legend-ranges/);
+ assert.match(html,/legend-demo/);
+ assert.match(app,/function renderFixEvidence/);
+ assert.match(app,/browser-reported uncertainty, not a radio station range/i);
+ assert.match(app,/ringPoints\(p\.lat,p\.lon,p\.accuracy/);
+ assert.match(app,/5\*60\*1000/);
+ assert.match(css,/\.fix-evidence/);
+});

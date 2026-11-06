@@ -1,7 +1,7 @@
 /* Offline-first PWA shell. Never cache OSM tiles, USB samples, personal location or imported measurements.
  * The pinned satellite.js library is cached solely for local orbital predictions; RF is not involved.
  */
-const CACHE="tihulu-geolocation-shell-v4";
+const CACHE="tihulu-geolocation-shell-v5";
 const ORBITAL_LIB="https://esm.sh/satellite.js@6.0.1?bundle";
 const SHELL=["./","./index.html","./web/app.mjs","./web/auto_explorer.mjs","./web/usb_sdr.mjs",
  "./web/style.css","./web/icon.svg","./core/gnss.mjs","./core/positioning.mjs",

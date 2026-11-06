@@ -31,7 +31,7 @@ const restore=key=>{try{return JSON.parse(localStorage.getItem(key)||"null")}cat
 function source(){
  if(state.serialFix&&Date.now()-state.serialAt<90000)
   return {...state.serialFix,kind:"NMEA receiver — live",validObserver:true};
- if(state.browser)return {...state.browser,kind:"Browser / device location",validObserver:true};
+ if(state.browser&&Date.now()-Date.parse(state.browser.acquiredAt||0)<5*60*1000)return {...state.browser,kind:"Browser / device location",validObserver:true};
  if(state.ranges)return {...state.ranges,kind:"EXPERIMENTAL 2D RANGE ESTIMATE (UNVERIFIED)",validObserver:false};
  if(state.cachedPosition)return {...state.cachedPosition,kind:"LAST KNOWN (CACHED, NOT LIVE) · "+state.cachedPosition.provider,validObserver:false};
  // Imported aircraft JSON is an untrusted reference, NOT authenticated
@@ -47,10 +47,41 @@ function renderPosition(recenter=false){
  setText("dash-provider",p.kind);
  setText("dash-coordinates",fmt(p.lat,6)+"° · "+fmt(p.lon,6)+"°"+(p.accuracy!=null?" · browser ±"+Math.round(p.accuracy)+" m":""));
  setText("earth-source",p.kind);
+ renderFixEvidence(p);
  setText("map-center-label",p.validObserver?"LOCATION / "+p.kind.toUpperCase():p.kind.toUpperCase());
  if(recenter){state.map.lat=p.lat;state.map.lon=p.lon;state.map.zoom=Math.max(state.map.zoom,11)}
  renderEarth();
 }
+
+function renderFixEvidence(p=source()){
+ const pane=$("fix-evidence");if(!pane)return;
+ const offline=navigator.onLine===false;
+ const connection=offline?"OFFLINE · ":"";
+ if(state.serialFix&&Date.now()-state.serialAt<90000){
+   const s=state.serialFix;
+   pane.textContent=connection+"LIVE GNSS RECEIVER FIX · "+fmt(s.lat,6)+", "+fmt(s.lon,6)+
+     " · "+(s.usedSatellites??"unknown")+" satellites used (receiver reported)"+
+     " · HDOP "+(s.hdop??"not available")+
+     " · device/receiver measurement; not obtained by RTL-SDR GNSS demodulation.";
+ }else if(p.validObserver&&state.browser){
+   const a=state.browser.accuracy;
+   pane.textContent=connection+"BROWSER / DEVICE LOCATION · "+fmt(p.lat,6)+", "+fmt(p.lon,6)+
+     (Number.isFinite(a)?" · reported horizontal accuracy radius ±"+Math.round(a)+" m":" · accuracy not reported")+
+     " · source may be GPS, Wi-Fi, cellular or other OS positioning; the browser does not identify which."+
+     " Purple ring: browser-reported uncertainty, not a radio station range.";
+ }else if(state.ranges){
+   pane.textContent=connection+"EXPERIMENTAL RANGE ESTIMATE, NOT VERIFIED · "+fmt(p.lat,6)+", "+fmt(p.lon,6)+
+     " · "+state.rangeInputs.length+" user-imported unverified distance measurements."+
+     " No certified accuracy; source ages and calibration must be checked.";
+ }else if(state.cachedPosition){
+   pane.textContent=connection+"LAST KNOWN LOCATION · "+fmt(p.lat,6)+", "+fmt(p.lon,6)+
+     " · saved "+state.cachedPosition.recordedAt+" · CACHED ONLY, NOT A NEW POSITION FIX.";
+ }else{
+   pane.textContent=connection+"POSITION NOT FOUND · No live GNSS/NMEA fix, browser location, measured ranges or saved position."+
+     " Cologne map center is an orientation reference, NOT your location.";
+ }
+}
+
 function recordFix(p,provider){
  const item={lat:p.lat,lon:p.lon,provider,observedAt:new Date().toISOString(),alt:p.altEllipsoidMeters??null,accuracyMeters:provider==="Browser / device location"?p.accuracy??null:null};
  state.receiverHistory.push(item);
@@ -108,7 +139,7 @@ $("locate")?.addEventListener("click",()=>{
  msg("Browser geolocation unavailable: "+fallback.kind+" · not a live GNSS fix");return}
  msg("Requesting permission for browser/device location…");
  navigator.geolocation.getCurrentPosition(result=>{
-   const c=result.coords;state.browser={...safeCoord(c.latitude,c.longitude),accuracy:c.accuracy,alt:c.altitude??null};
+   const c=result.coords;state.browser={...safeCoord(c.latitude,c.longitude),accuracy:c.accuracy,alt:c.altitude??null,acquiredAt:new Date(result.timestamp||Date.now()).toISOString()};
    recordFix(state.browser,"Browser / device location");renderPosition(true);renderSky();renderDiagnostics();
    msg("Device location acquired with user permission. Source: browser, NOT SDR.");
  },error=>{const fallback=source();renderPosition(true);if(state.ranges)fitEvidence();
@@ -252,6 +283,17 @@ function renderEarth(){
        (s.source?" · "+s.source:""),s.type==="aircraft"?"A":"R");
    }
  }
+
+ // The browser-provided uncertainty radius is a different constraint from radio ranges.
+ // Draw a separate violet dotted circle; never treat browser accuracy as a measured distance to a transmitter.
+ if(p.validObserver&&Number.isFinite(p.accuracy)&&p.accuracy>0&&p.accuracy<=1000000){
+   const shape=ringPoints(p.lat,p.lon,p.accuracy,96).map((coord,i)=>{
+     const q=pt(coord.lat,coord.lon);
+     return (i?"L":"M")+q.x.toFixed(2)+" "+q.y.toFixed(2);
+   }).join(" ")+" Z";
+   rings.append(svgel("path",{d:shape,fill:"#bd91f3","fill-opacity":".04",stroke:"#bd91f3",
+     "stroke-width":2.2,"stroke-dasharray":"3 4"}));
+ }
  place(p,"receiver",p.validObserver?"#6ce6d2":"#f3a66d",p.kind,"●");
  const orbits=state.sp3?state.visible:state.autoOrbits;
  if(showOrbits)for(const s of orbits)place(s,"orbit","#57bdf4",s.id+" · predicted orbital subpoint; NOT RF reception","S");
@@ -283,7 +325,8 @@ function renderEarth(){
    evidenceList.append(make("p","muted","No measured range sources are currently used."));
  }
  evidenceList.append(make("p","fine muted","GNSS satellites: geometric predictions only; none have been used in a decoded RTL-SDR GNSS positioning solution. Unmeasured aircraft/ground-station references do not contribute to a fix."));
-  setText("earth-offline-status",(navigator.onLine===false?"OFFLINE: ":"")+
+  renderFixEvidence(p);
+ setText("earth-offline-status",(navigator.onLine===false?"OFFLINE: ":"")+
    "Coordinate grid, evidence rings and locally imported references render without map tiles. "+
    (state.cachedPosition?"Last saved position "+state.cachedPosition.recordedAt+" is cached (not live).":"No offline position saved yet."));
  if(state.map.osm&&navigator.onLine!==false)renderTiles();
@@ -320,6 +363,7 @@ for(const [id,delta] of [["map-zoom-in",1],["map-zoom-out",-1]]){
  $(id)?.addEventListener("click",()=>{state.map.zoom=Math.max(2,Math.min(18,state.map.zoom+delta));renderEarth()});
 }
 $("earth-reset")?.addEventListener("click",()=>renderPosition(true));
+$("earth-find")?.addEventListener("click",()=>window.dispatchEvent(new Event("tihulu:find-request")));
 for(const id of ["layer-ranges","layer-stations","layer-orbits","layer-demo"]){
  $(id)?.addEventListener("change",()=>{
    if(id==="layer-demo"&&$("layer-demo").checked&&!state.rangeInputs.length)fitEvidence();
@@ -479,4 +523,11 @@ if(Array.isArray(savedRefs)&&savedRefs.length<=200){
 renderCatalog();renderHistory();renderDiagnostics();renderPosition(true);renderSky();capabilities();
 initAutoExplorer();
 initUsbSDR(msg);
-setInterval(()=>{if(state.serialFix&&Date.now()-state.serialAt>90000){state.serialFix=null;renderPosition(true);renderDiagnostics();msg("Stale serial NMEA fix expired")}},10000);
+setInterval(()=>{
+ if(state.serialFix&&Date.now()-state.serialAt>90000){state.serialFix=null;renderPosition(false);renderDiagnostics();msg("Stale serial NMEA fix expired")}
+ if(state.browser&&Date.now()-Date.parse(state.browser.acquiredAt||0)>=5*60*1000){
+   state.browser=null;renderPosition(false);renderDiagnostics();
+   const p=source();window.dispatchEvent(new CustomEvent("tihulu:reference-position",{detail:{lat:p.lat,lon:p.lon,kind:p.kind}}));
+   msg("Browser location older than 5 minutes. Last-known position now labeled CACHED, NOT LIVE.");
+ }
+},10000);
