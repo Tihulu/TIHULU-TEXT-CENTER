@@ -30,6 +30,7 @@ from .media_catalog import (MEDIA_COLORS, MEDIA_SYMBOLS, kinds_for_pass, filter_
 from .native_locations import load_locations, search_locations, city_label
 from .native_orbit import OrbitEngine
 from .native_maps import OrbitCanvas
+from .native_signal_tools import discover_channels, fm_to_wav
 
 
 def local_time(value):
@@ -139,6 +140,9 @@ class SatelliteWindow(QMainWindow):
         self.last_archive_key = None
         self.last_analysis = None
         self.last_report_path = None
+        self.last_candidate_report = None
+        self.preview_wav = None
+        self.media_player = None
         self.decoded_paths = []
         self.imported_path = None
         self.selected_path = None
@@ -909,9 +913,24 @@ class SatelliteWindow(QMainWindow):
         body.addLayout(analyze_controls)
         self._row(body,
                   self._button("Analyze real CU8",self.analyze_file),
+                  self._button("Auto-discover RF candidates",self.discover_signals),
                   self._button("Decode Meteor 72k",lambda:self.decode_meteor("72k")),
-                  self._button("Decode Meteor 80k",lambda:self.decode_meteor("80k")),
-                  self._button("Save actual results ZIP",self.save_results_zip))
+                  self._button("Decode Meteor 80k",lambda:self.decode_meteor("80k")))
+        analog=QHBoxLayout()
+        analog.addWidget(QLabel("FM channel offset"))
+        self.audio_offset=QDoubleSpinBox()
+        self.audio_offset.setRange(-900,900)
+        self.audio_offset.setDecimals(2)
+        self.audio_offset.setSuffix(" kHz")
+        self.audio_offset.setValue(0)
+        analog.addWidget(self.audio_offset)
+        analog.addWidget(self._button("CU8 → genuine FM WAV",self.demodulate_fm))
+        analog.addWidget(self._button("Play selected / extracted WAV",self.play_audio))
+        analog.addWidget(self._button("Stop audio",self.stop_audio))
+        body.addLayout(analog)
+        self._row(body,self._button("Save real results ZIP",self.save_results_zip))
+        self.candidate_label=self._hint("RF discovery is based on energy above a local noise estimate. A peak alone is not a decoded packet or picture.")
+        body.addWidget(self.candidate_label)
         self.spectrum=SpectrumView()
         body.addWidget(self.spectrum,2)
         self.image=QLabel()
@@ -1292,6 +1311,68 @@ class SatelliteWindow(QMainWindow):
             self.refresh_status()
         self._task("Real CU8 "+mode+" FFT",work,done)
 
+    def discover_signals(self):
+        if not self.selected_path or Path(self.selected_path).suffix.lower()!=".cu8":
+            return QMessageBox.information(self,"Signal discovery",
+                "Select an actual .cu8 recording first. The native app does not fabricate RF.")
+        source=self.selected_path
+        rate=self.rate.currentData();hz=int(self.center.value()*1e6)
+        prior=self.last_analysis
+        def analyze():
+            if prior and prior.get("source")==str(source):
+                report=prior
+            else:
+                report=analyze_cu8(source,rate,hz,mode="overview")
+            result=discover_channels(report)
+            outfile=self.station.archive/(Path(source).stem[:85]+"_candidates.json")
+            outfile.write_text(json.dumps(result,indent=2),encoding="utf-8")
+            return report,result,outfile
+        def completed(value):
+            report,result,filepath=value
+            self.last_analysis=report
+            self.last_candidate_report=filepath
+            self.spectrum.set_report(report)
+            self.candidate_label.setText(
+                str(len(result["candidates"]))+
+                " statistically elevated channel candidate(s) · identity unverified")
+            self.file_details.setPlainText(json.dumps(result,indent=2))
+            self.refresh_status()
+        self._task("Native RF candidate discovery",analyze,completed)
+
+    def demodulate_fm(self):
+        if not self.selected_path or Path(self.selected_path).suffix.lower()!=".cu8":
+            return QMessageBox.information(self,"FM audio","Select a real CU8 recording first.")
+        source=self.selected_path;rate=self.rate.currentData()
+        center=int(self.center.value()*1e6)
+        offset=self.audio_offset.value()*1000
+        def completed(report):
+            self.preview_wav=report["output_wav"]
+            self.candidate_label.setText(
+                "Real 32 kHz PCM WAV saved; FM audio content is UNVERIFIED.")
+            self.file_details.setPlainText(json.dumps(report,indent=2))
+            self.refresh_status()
+        self._task("Extract real FM audio",lambda:fm_to_wav(
+            source,self.station.archive,rate,center,offset),completed)
+
+    def play_audio(self):
+        candidate=(self.selected_path if self.selected_path and
+                   Path(self.selected_path).suffix.lower()==".wav"
+                   else self.preview_wav)
+        if not candidate or not Path(candidate).is_file():
+            return QMessageBox.information(self,"Audio","Select a real WAV or demodulate CU8 first.")
+        try:
+            from PyQt5.QtMultimedia import QMediaPlayer,QMediaContent
+        except ImportError:
+            return QMessageBox.information(self,"Native audio backend",
+                "Install python3-pyqt5.qtmultimedia for in-app WAV playback.")
+        if self.media_player is None:self.media_player=QMediaPlayer(self)
+        self.media_player.setMedia(QMediaContent(QUrl.fromLocalFile(str(candidate))))
+        self.media_player.play()
+        self.statusBar().showMessage("Playing actual local WAV · "+Path(candidate).name,8000)
+
+    def stop_audio(self):
+        if self.media_player is not None:self.media_player.stop()
+
     def decode_meteor(self,variant):
         if not self.selected_path:return
         name=Path(self.selected_path).name
@@ -1310,6 +1391,10 @@ class SatelliteWindow(QMainWindow):
     def save_results_zip(self):
         sources=[]
         if self.last_report_path and self.last_report_path.is_file():sources.append(self.last_report_path)
+        if self.last_candidate_report and self.last_candidate_report.is_file():
+            sources.append(self.last_candidate_report)
+        if self.preview_wav and Path(self.preview_wav).is_file():
+            sources.append(Path(self.preview_wav))
         sources += [p for p in self.decoded_paths if p.is_file()]
         if self.selected_path and Path(self.selected_path).suffix.lower() in (
             ".png",".jpg",".jpeg",".wav",".txt",".json"):
@@ -1339,6 +1424,8 @@ class SatelliteWindow(QMainWindow):
                 event.ignore();return
         self.active=False
         self.timer.stop()
+        self.map_timer.stop()
+        self.stop_audio()
         self.station.close()
         event.accept()
 
