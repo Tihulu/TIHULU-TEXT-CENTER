@@ -152,3 +152,21 @@ Each of the 31 protocol/service capabilities now has its own readiness/scan acti
 ### Live DAB read-only bridge
 
 In **Radio Data (400)**, use **READ RUNNING DAB RECEIVER** after independently starting a compatible welle-cli web receiver on local TCP port 7979 and confirming that it owns an available device. Text Center reads only `/mux.json`, `/channel` and bounded `/slide/<service_id>` via GET. It never retunes welle-cli. Decoded DLS text is archived with original broadcast/decoder timestamp where a known channel frequency exists; MOT images are stored as source-attributed JPEG/PNG. Missing/weak signals and absent welle-cli are shown as unavailable. See [Radio and DVB setup](docs/RADIO_AND_DVB.md). Journaline and a continuous embedded DAB player remain future integrations.
+
+
+## Unified browser/desktop consolidation candidate — Nov 2026
+
+The draft [consolidation branch](https://github.com/Tihulu/TIHULU-TEXT-CENTER/tree/integration/consolidated-pages-webusb-2026-11-06)
+preserves the current main WebUSB-first Satellite Center description and the
+AI / ASR / translation files while combining [PR #8](https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/8),
+[PR #10](https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/10),
+[PR #11](https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/11)
+and [PR #12](https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/12).
+It adds a GitHub Pages portal with **Direct USB** (experimental in-browser
+mono FM audio, optional local recording and bounded raw IQ) and an isolated
+Satellite WebUSB page. DAB/MOT/RDS, TV, flight radar RF decoding, OS-managed
+receiver lifecycle and local AI models still require compatible external
+decoders/backends; direct WebUSB cannot override driver or OS permission
+requirements. **No hardware certification or merge to main is implied.**
+Read [Pages & desktop setup](docs/PAGES_AND_DESKTOP.md).
+

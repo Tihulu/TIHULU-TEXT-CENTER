@@ -22,3 +22,29 @@ jobs:
         run: node --check web/app.js
       - name: Verify no Python third-party dependencies
         run: python -m compileall -q textcenter tests
+      - name: Validate GitHub Pages JS and shell installers
+        run: |
+          node --check docs/pages.js
+          node --check docs/sw.js
+          node --check docs/webusb-radio.js
+          python -m unittest discover -s tests -p test_pages_webusb.py -v
+          bash -n install.sh scripts/bootstrap-unix.sh
+  portability:
+    name: Portable import and offline smoke / ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-15, ubuntu-24.04-arm]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Test pure-Python portable companion modules
+        run: |
+          python -c "from textcenter.http_app import LocalServer; from textcenter.desktop import browser_candidates; from textcenter.radar_bridge import RadarOverlay; from textcenter.language_packs import LanguagePacks; print('portable-import-ok')"
+          python -m unittest discover -s tests -p test_desktop.py -v
+          python -m unittest discover -s tests -p test_radar_bridge.py -v
+          python -m unittest discover -s tests -p test_language_packs.py -v
+

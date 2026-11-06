@@ -25,6 +25,9 @@ def main():
     server.add_argument("--host", default="127.0.0.1")
     server.add_argument("--port", type=int, default=8787)
     server.add_argument("--db", type=Path, default=default_db())
+    desktop = sub.add_parser("desktop", help="Launch a standalone application window and local server")
+    desktop.add_argument("--port", type=int, default=8787)
+    desktop.add_argument("--db", type=Path, default=default_db())
     importer = sub.add_parser("import-text", help="Import attributed decoder-produced JSON")
     importer.add_argument("--db", type=Path, default=default_db())
     importer.add_argument("--file", type=Path, required=True)
@@ -51,6 +54,12 @@ def main():
         if not 1 <= args.port <= 65535:
             parser.error("Port must be 1–65535")
         run_server(Store(args.db), host=args.host, port=args.port)
+    elif args.command == "desktop":
+        from .desktop import run_desktop
+        try:
+            run_desktop(db=args.db, port=args.port)
+        except (RuntimeError, OSError, ValueError) as exc:
+            parser.error(f"Desktop launch failed: {exc}")
     elif args.command == "import-media":
         try:
             raw=args.file.read_bytes()

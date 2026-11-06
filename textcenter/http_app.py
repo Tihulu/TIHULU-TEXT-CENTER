@@ -5,6 +5,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 from pathlib import Path
 import secrets
+import signal
+import threading
 from urllib.parse import parse_qs, urlsplit
 
 from . import __version__
@@ -24,6 +26,11 @@ from .speech import SpeechError
 from .capabilities import capability_catalog
 from .fm_survey import FMSurveySupervisor, SurveyError
 from .scan_catalog import scan_capabilities
+from .managed_dab import ManagedDABReceiver,ReceiverServiceError
+from .radar_bridge import RadarOverlay, RadarError
+from .language_packs import LanguagePacks, LanguagePackError
+from .auto_scan import FMAutoScanner,DABAutoScanner,AutoScanError,dab_channels_from_peaks
+from .channel_catalog import ChannelCatalog
 
 WEB_DIR = Path(__file__).resolve().parents[1] / "web"
 
@@ -50,6 +57,7 @@ INDEX_PAGES = {
     800: ("NETWORKS", "Web directories for Teletext, blogs, BBS, Gemini and Gopher."),
     850: ("ABOUT", "Standalone service with on-demand workers and no default polling or RF receiver."),
     860: ("PROTOCOLS", "See the complete requested protocol and service coverage, dependencies and readiness."),
+    880: ("FLIGHT RADAR", "Embedded local tar1090 viewer plus source-labelled antenna and Internet ADS-B overlay."),
 }
 
 class LocalServer(ThreadingHTTPServer):
@@ -58,9 +66,13 @@ class LocalServer(ThreadingHTTPServer):
 
     def __init__(self, address, store: Store):
         self.store = store
+        self.radar = RadarOverlay(store)
+        self.languages = LanguagePacks()
         self.media = MediaStore(store)
+        self.stations=ChannelCatalog(store)
         self.transcripts = TranscriptStore(store)
         self.dab = DABReader(store)
+        self.dab_managed = ManagedDABReceiver()
         self.dab_last = {"connected":False,"message":"No welle-cli web receiver checked yet"}
         self.csrf_token = secrets.token_urlsafe(32)
         self.rds = FMRSDSupervisor(store)
@@ -71,6 +83,8 @@ class LocalServer(ThreadingHTTPServer):
             rds=self.rds, survey=self.survey,
             lock_dir=store.filename.parent / ".receiver-locks"
         )
+        self.fm_auto=FMAutoScanner(self.survey,self.rds)
+        self.dab_auto=DABAutoScanner(self.dab)
         self.live_fm=LiveFM(archive_dir=store.filename.parent/"recordings",
                             lock_dir=store.filename.parent/".receiver-locks",
                             transcripts=self.transcripts)
@@ -79,6 +93,35 @@ class LocalServer(ThreadingHTTPServer):
         self.postprocess=RecordingTranscriber(
             transcripts=self.transcripts,radio=self.live_fm,tv=self.live_tv)
         super().__init__(address, Handler)
+
+    def server_close(self):
+        # Tests and alternate launchers can close the server directly.
+        # Always release this server's own DAB child in that case.
+        self.dab_managed.close()
+        super().server_close()
+
+    def release_owned_rf(self):
+        """User-initiated full stop: ONLY this server's own RF subprocesses.
+
+        Do not stop independent readsb, tar1090, welle-cli or remote sources.
+        Workers release their own advisory receiver locks and child groups.
+        """
+        stopped={}
+        for name,worker in (
+            ("dab",self.dab_managed),("fm_auto",self.fm_auto),("dab_auto",self.dab_auto),("radio",self.live_fm),
+            ("tv",self.live_tv),("audio",self.audio),
+            ("spectrum",self.survey),("rds",self.rds)
+        ):
+            try:
+                worker.stop()
+                stopped[name]="stopped"
+            except Exception:
+                stopped[name]="stop_failed"
+        return {
+            "receivers":stopped,
+            "external_processes_untouched":True,
+            "note":"Only RF activities started by this Text Center server are stopped."
+        }
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -108,7 +151,7 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Security-Policy",
                          "default-src 'none'; script-src 'self'; style-src 'self'; "
                          "img-src 'self' data:; media-src 'self'; connect-src 'self'; form-action 'self'; "
-                         "base-uri 'none'; frame-ancestors 'none'")
+                         "base-uri 'none'; frame-ancestors 'none'; frame-src http://127.0.0.1:*")
         self.end_headers()
         self.wfile.write(body)
 
@@ -177,6 +220,13 @@ class Handler(BaseHTTPRequestHandler):
                     ],
                     "note":"No tuner accessed, no frequencies retuned, no internet fetched, no RF reception claimed",
                 })
+            if route == "/api/stations":
+                requested=q.get("medium",[None])[0]
+                return self._json(200,self.server.stations.list(medium=requested))
+            if route == "/api/auto/fm/status":
+                return self._json(200,self.server.fm_auto.status())
+            if route == "/api/auto/dab/status":
+                return self._json(200,self.server.dab_auto.status())
             if route == "/api/scans":
                 return self._json(200, {
                     "features": scan_capabilities(receiver_inventory(), self.server.survey),
@@ -193,6 +243,19 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(200, status)
             if route == "/api/dab/last":
                 return self._json(200,self.server.dab_last)
+            if route == "/api/dab/manage/status":
+                owner=q.get("owner",[""])[0][:128]
+                return self._json(200,self.server.dab_managed.status(owner=owner))
+            if route == "/api/receiver/owned-status":
+                return self._json(200,{
+                    "dab":self.server.dab_managed.status(),
+                    "radio":self.server.live_fm.status(heartbeat=False),
+                    "tv":self.server.live_tv.status(heartbeat=False),
+                    "audio":self.server.audio.status(),
+                    "rds":self.server.rds.status(heartbeat=False),
+                    "spectrum":self.server.survey.status(heartbeat=False),
+                    "external_receivers_not_managed":True,
+                })
             if route == "/api/dvb/status":
                 return self._json(200,diagnose_dvb())
             if route == "/api/media":
@@ -208,6 +271,10 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(200,self.server.postprocess.status())
             if route == "/api/translation/status":
                 return self._json(200,translation_devices())
+            if route == "/api/languages/status":
+                return self._json(200,self.server.languages.status())
+            if route == "/api/radar/status":
+                return self._json(200,self.server.radar.status())
             if route == "/api/compute":
                 profile=detect_devices()
                 profile["selection"]={key:choose_backend(profile,key)
@@ -399,7 +466,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         route = urlsplit(self.path).path
-        allowed = {"/api/feeds/add", "/api/feeds/refresh", "/api/bulletins", "/api/bookmarks", "/api/rds/start", "/api/rds/stop", "/api/fm-survey/start", "/api/fm-survey/stop", "/api/scans/start", "/api/scans/stop", "/api/audio/start", "/api/audio/stop", "/api/dab/refresh", "/api/live/radio/start", "/api/live/radio/stop", "/api/transcripts/translate", "/api/translation/text", "/api/live/tv/start", "/api/live/tv/stop", "/api/recordings/transcription/start", "/api/recordings/transcription/stop"}
+        allowed = {"/api/feeds/add", "/api/feeds/refresh", "/api/bulletins", "/api/bookmarks", "/api/rds/start", "/api/rds/stop", "/api/fm-survey/start", "/api/fm-survey/stop", "/api/scans/start", "/api/scans/stop", "/api/audio/start", "/api/audio/stop", "/api/dab/refresh", "/api/live/radio/start", "/api/live/radio/stop", "/api/transcripts/translate", "/api/translation/text", "/api/live/tv/start", "/api/live/tv/stop", "/api/recordings/transcription/start", "/api/recordings/transcription/stop", "/api/radar/refresh", "/api/languages/refresh", "/api/languages/install", "/api/languages/translate", "/api/auto/fm/start", "/api/auto/fm/stop", "/api/auto/dab/start", "/api/auto/dab/stop", "/api/auto/dab/tune", "/api/receiver/stop-all", "/api/dab/manage/start", "/api/dab/manage/stop"}
         if route not in allowed:
             return self._json(404, {"error": "Not found"})
         if self.headers.get("X-Tihulu-CSRF") != self.server.csrf_token:
@@ -418,6 +485,45 @@ class Handler(BaseHTTPRequestHandler):
             payload = json.loads(self.rfile.read(length))
             if not isinstance(payload, dict):
                 raise ValueError("Expected JSON object")
+            if route == "/api/auto/fm/start":
+                if self.server.dab_auto.status(heartbeat=False)["active"]:
+                    raise AutoScanError("DAB auto scan is already in progress")
+                if self.server.audio.status()["active"] or self.server.live_fm.status()["active"]:
+                    raise AutoScanError("Existing FM audio/recording session must finish first")
+                return self._json(202,self.server.fm_auto.start(
+                    payload.get("mode","quick"),consent=payload.get("consent")))
+            if route == "/api/auto/fm/stop":
+                return self._json(200,self.server.fm_auto.stop())
+            if route == "/api/auto/dab/start":
+                if self.server.fm_auto.status(heartbeat=False)["active"]:
+                    raise AutoScanError("FM auto scan is already in progress")
+                if type(payload.get("consent")) is not bool or not payload.get("consent"):
+                    raise ValueError("Explicit permission to retune the existing DAB receiver is required")
+                if (self.server.survey.status(heartbeat=False)["active"] or
+                        self.server.rds.status(heartbeat=False)["active"] or
+                        self.server.audio.status()["active"] or
+                        self.server.live_fm.status()["active"]):
+                    raise AutoScanError("A Text Center RF capture is already running")
+                scan=self.server.survey.status(heartbeat=False)
+                hints=dab_channels_from_peaks(scan["candidates"]) if scan.get("band")=="dab" and scan.get("status")=="completed" else []
+                return self._json(202,self.server.dab_auto.start(
+                    payload.get("mode","full"),
+                    dwell_seconds=payload.get("dwell_seconds",8),
+                    candidates=hints,consent=payload.get("consent")))
+            if route == "/api/auto/dab/stop":
+                return self._json(200,self.server.dab_auto.stop())
+            if route == "/api/auto/dab/tune":
+                if self.server.fm_auto.status(heartbeat=False)["active"]:
+                    raise AutoScanError("FM auto scan is using the receiver")
+                return self._json(200,self.server.dab_auto.tune(
+                    payload.get("channel"),consent=payload.get("consent")))
+            if route in ("/api/scans/start", "/api/fm-survey/start",
+                         "/api/audio/start", "/api/rds/start",
+                         "/api/live/radio/start"):
+                if self.server.fm_auto.status(heartbeat=False)["active"]:
+                    raise AutoScanError("FM auto scan owns the tuner; stop it before manual RF operations")
+                if self.server.dab_auto.status(heartbeat=False)["active"]:
+                    raise AutoScanError("DAB scan retuning in progress; manual RF operations are blocked")
             if route == "/api/scans/start":
                 return self._json(202, self.server.survey.start(payload.get("band")))
             if route == "/api/scans/stop":
@@ -426,7 +532,26 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(202, self.server.survey.start())
             if route == "/api/fm-survey/stop":
                 return self._json(200, self.server.survey.stop())
+            if route == "/api/receiver/stop-all":
+                return self._json(200,self.server.release_owned_rf())
+            if route == "/api/dab/manage/start":
+                if payload.get("consent") is not True:
+                    raise ReceiverServiceError("Explicit consent to tune the DAB SDR is required")
+                if (self.server.live_fm.status(heartbeat=False)["active"] or
+                        self.server.live_tv.status(heartbeat=False)["active"] or
+                        self.server.rds.status(heartbeat=False)["active"] or
+                        self.server.survey.status(heartbeat=False)["active"] or
+                        self.server.audio.status()["active"]):
+                    raise ReceiverServiceError("A Text Center receiver is busy; stop it first")
+                return self._json(202,self.server.dab_managed.start(
+                    payload.get("channel"),owner=payload.get("owner")))
+            if route == "/api/dab/manage/stop":
+                return self._json(200,self.server.dab_managed.stop(
+                    owner=payload.get("owner"),
+                    owner_only=payload.get("owner_only") is True))
             if route == "/api/dab/refresh":
+                if self.server.dab_auto.status(heartbeat=False)["active"]:
+                    raise AutoScanError("DAB channel scan is retuning; read decoder data after it finishes")
                 if type(payload.get("include_images",True)) is not bool:
                     raise ValueError("Invalid DAB image option")
                 result=self.server.dab.refresh(include_images=payload.get("include_images",True))
@@ -443,6 +568,22 @@ class Handler(BaseHTTPRequestHandler):
                     upstream_authorized=payload.get("upstream_authorized",False)))
             if route == "/api/live/tv/stop":
                 return self._json(200,self.server.live_tv.stop())
+            if route == "/api/languages/refresh":
+                return self._json(200,self.server.languages.refresh_index(
+                    consent=payload.get("consent",False)))
+            if route == "/api/languages/install":
+                return self._json(202,self.server.languages.install(
+                    payload.get("source"),payload.get("target"),
+                    consent=payload.get("consent",False)))
+            if route == "/api/languages/translate":
+                return self._json(200,self.server.languages.translate(
+                    payload.get("text"),payload.get("source"),payload.get("target")))
+            if route == "/api/radar/refresh":
+                return self._json(200,self.server.radar.refresh(
+                    mode=payload.get("mode","antenna"),
+                    lat=payload.get("lat",51.1657),
+                    lon=payload.get("lon",10.4515),
+                    radius=payload.get("radius",150)))
             if route == "/api/recordings/transcription/start":
                 return self._json(202,self.server.postprocess.start(
                     medium=payload.get("medium"),filename=payload.get("filename"),
@@ -507,7 +648,7 @@ class Handler(BaseHTTPRequestHandler):
             if route == "/api/bookmarks":
                 self.server.store.add_bookmark(payload.get("label"),payload.get("target_type"),payload.get("target"))
                 return self._json(201, {"saved": True})
-        except (CaptureError, SurveyError, AudioError, DABError, LiveError, LiveTVError, SpeechError, TranslatorUnavailable, PostProcessError) as exc:
+        except (CaptureError, SurveyError, AudioError, DABError, LiveError, LiveTVError, SpeechError, TranslatorUnavailable, PostProcessError, AutoScanError, RadarError, LanguagePackError, ReceiverServiceError) as exc:
             self._json(409, {"error": str(exc)})
         except KeyError as exc:
             self._json(404, {"error": str(exc)})
@@ -523,13 +664,26 @@ def run_server(store: Store, *, host: str = "127.0.0.1", port: int = 8787):
     server = LocalServer((host, port), store)
     print(f"TIHULU TEXT CENTER v{__version__}: http://{host}:{server.server_port}/")
     print("Local mode. Background polling OFF. No receiver capture active at startup.")
+    original_sigterm=None
+    if threading.current_thread() is threading.main_thread():
+        def graceful_exit(_signum,_frame):
+            # Raise into serve_forever so the normal finally teardown
+            # releases app-owned USB children before Python terminates.
+            raise KeyboardInterrupt
+        original_sigterm=signal.getsignal(signal.SIGTERM)
+        signal.signal(signal.SIGTERM,graceful_exit)
     try:
         server.serve_forever(poll_interval=0.25)
     except KeyboardInterrupt:
         pass
     finally:
+        if original_sigterm is not None:
+            signal.signal(signal.SIGTERM,original_sigterm)
+        server.dab_managed.close()
         server.postprocess.stop(wait=True)
         server.live_tv.stop()
+        server.fm_auto.stop(wait=True)
+        server.dab_auto.stop(wait=True)
         server.live_fm.stop(wait=True)
         server.audio.stop(wait=True)
         server.survey.stop(wait=True)

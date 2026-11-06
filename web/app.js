@@ -1,7 +1,7 @@
 /* TIHULU TEXT CENTER — no external libraries, no background timers fetching data. */
 "use strict";
 
-const state = { tvActive:false, tvPollTimer:null, tvSession:null, liveActive:false, livePollTimer:null, liveSession:null, audioActive:false, audioPollTimer:null, csrf:"", page:100, subpage:0, source:"", entries:[], pages:[], receivers:null, rdsActive:false, rdsPollTimer:null, scanActive:false, scanPollTimer:null, selectedSurveyBand:"fm" };
+const state = { managedDabOwned:false, managedDabPollTimer:null, clientId:(window.crypto?.randomUUID?.()||("client-"+Date.now()+"-"+Math.random().toString(36).slice(2))), liveFrequency:null, fmRecording:false, tvRecording:false, lastDockMetaAt:0, tvActive:false, tvPollTimer:null, tvSession:null, liveActive:false, livePollTimer:null, liveSession:null, audioActive:false, audioPollTimer:null, csrf:"", page:100, subpage:0, source:"", entries:[], pages:[], receivers:null, rdsActive:false, rdsPollTimer:null, scanActive:false, scanPollTimer:null, selectedSurveyBand:"fm" , fmAutoTimer:null, dabAutoTimer:null};
 const $ = (id) => document.getElementById(id);
 
 function el(tag, cls, text) {
@@ -150,6 +150,22 @@ function receiverCard(data){
       "Tihulu will not stop or retune it automatically."));
   }
   const actions=el("div","card-actions");
+  actions.append(button("START FM RADIO",()=>openPage(410,"",0),"action primary"));
+  actions.append(button("STOP ALL TEXT CENTER RF",async()=>{
+    const response=await api("/api/receiver/stop-all","POST",{});
+    state.managedDabOwned=false;
+    if(state.managedDabPollTimer){
+      clearTimeout(state.managedDabPollTimer);state.managedDabPollTimer=null;
+    }
+    state.liveActive=false;state.tvActive=false;
+    state.audioActive=false;state.scanActive=false;state.rdsActive=false;
+    syncLiveMediaDock();
+    notice("Text Center's own radio, TV, FM/RDS, scans and managed DAB "+
+      "have been requested to stop. External readsb and welle-cli were NOT touched. "+
+      Object.entries(response.receivers).filter(([,v])=>v==="stop_failed")
+        .map(([k])=>k).join(", "));
+    await refreshReceiverStatus();
+  },"action ghost"));
   actions.append(button("REFRESH DEVICE STATUS",async()=>{
     try{
       await refreshReceiverStatus();
@@ -189,6 +205,12 @@ async function openPage(number,source,subpage){
     if(state.rdsPollTimer){clearTimeout(state.rdsPollTimer);state.rdsPollTimer=null;}
     api("/api/rds/stop","POST",{}).catch((error)=>notice("Could not stop capture: "+error.message));
   }
+  if(state.page===400 && Number(number)!==400){
+    for(const [kind,key] of [["fm","fmAutoTimer"],["dab","dabAutoTimer"]]){
+      if(state[key]){clearTimeout(state[key]);state[key]=null;}
+      api("/api/auto/"+kind+"/stop","POST",{}).catch(()=>{});
+    }
+  }
   clearNotice();
   if(!Number.isInteger(Number(number)) || Number(number)<100 || Number(number)>899) return notice("Select a page from 100 to 899.");
   state.page=Number(number);state.source=source||"";state.subpage=Number(subpage)||0;
@@ -211,6 +233,7 @@ async function openPage(number,source,subpage){
     if(state.page===700) return showLibrary();
     if(state.page===800) return showDirectory();
     if(state.page===860) return showCapabilities();
+    if(state.page===880) return showFlightRadar();
     return showAbout();
   } catch(err) {
     const message=String(err && err.message || err);
@@ -550,6 +573,235 @@ async function addAutoDiscovery(){
   try{showPassiveDiscovery(await api("/api/discovery/passive"))}
   catch(error){details.textContent="Passive discovery unavailable: "+error.message}
 }
+/* RF auto channel scans are separate from the advanced spectrum analyser.
+   Polling is only active on page 400 when the user started a scan. */
+function renderAutomaticScan(kind,report){
+  const prefix=kind==="fm"?"fm-auto":"dab-auto";
+  const progress=$(prefix+"-progress"),list=$(prefix+"-results");
+  const start=$(prefix+"-start"),stop=$(prefix+"-stop");
+  if(progress){
+    const phase=report.phase?report.phase.replaceAll("_"," "):report.status;
+    progress.textContent=report.status.toUpperCase()+" · "+phase+
+      " · "+(report.completed||0)+"/"+(report.total||0)+" checked"+
+      (report.current?" · "+report.current:"")+
+      " · "+(report.note||"")+(report.error?" · "+report.error:"");
+  }
+  if(start)start.disabled=report.active||!$(prefix+"-confirm")?.checked;
+  if(stop)stop.disabled=!report.active;
+  if(!list)return;
+  list.replaceChildren();
+  if(!report.results?.length){
+    list.append(el("p","full-body",report.active
+      ?"Scanning. A frequency alone is not evidence of an identified station."
+      :"No decoder-confirmed stations yet. A weak or non-RDS broadcast may be missed."));
+    return;
+  }
+  if(kind==="fm"){
+    report.results.forEach(station=>{
+      const row=el("article","auto-station");
+      append(row,el("strong","",station.station),
+        el("span","subtle",station.frequency_mhz.toFixed(3)+" MHz · REAL RDS LABEL · "+
+          station.received_groups+" groups"),
+        el("p","full-body",station.last_text||"No RadioText decoded; station name received"));
+      row.append(button("SET FM PREVIEW FREQUENCY",()=>{
+        const input=$("fm-audio-frequency");
+        if(input){
+          input.value=station.frequency_mhz;
+          input.scrollIntoView({behavior:"smooth",block:"center"});
+          notice("FM frequency selected. Press RECORD & LISTEN below after confirming your SDR is free.");
+        }else notice("FM listening controls are not available on this page.");
+      }));
+      list.append(row);
+    });
+  }else{
+    report.results.forEach(mux=>{
+      const group=el("details","auto-station");
+      group.append(el("summary","","DAB "+mux.channel+" · "+mux.ensemble+
+        " · "+mux.service_count+" decoded service entries"));
+      const details=el("div","auto-services");
+      details.append(el("p","full-body",
+        (mux.frequency_hz/1e6).toFixed(3)+" MHz · Real welle-cli FIC service list. "+
+        "Services marked as packet data may not contain audio."));
+      const tune=button("TUNE THIS BLOCK FOR LISTENING",async()=>{
+        tune.disabled=true;
+        try{
+          const tuned=await api("/api/auto/dab/tune","POST",{
+            channel:mux.channel,consent:true});
+          notice("Receiver tuned to "+tuned.channel+
+            ". Wait for lock, then open welle-cli and press Play on your chosen service.");
+        }catch(e){notice("DAB tuning unavailable: "+e.message)}
+        finally{tune.disabled=false}
+      });
+      const open=el("a","action ghost","OPEN WELLE-CLI PLAYER");
+      open.href="http://127.0.0.1:7979/";
+      open.target="_blank";open.rel="noopener noreferrer";
+      const media=button("READ CURRENT DLS / MOT",async()=>{
+        media.disabled=true;
+        try{
+          const result=await api("/api/dab/refresh","POST",{include_images:true});
+          showDabServices(result);
+          await refreshCounts();
+          notice("Read current decoder data on "+result.channel+
+            "; "+result.saved_mot_images+" genuine MOT image(s) saved. "+
+            "Slides are available only if the broadcaster transmitted them.");
+          const panel=$("dab-welle-bridge");
+          if(panel)panel.scrollIntoView({behavior:"smooth",block:"start"});
+        }catch(e){notice("DAB decoder data read failed: "+e.message)}
+        finally{media.disabled=false;}
+      });
+      const actions=el("div","card-actions");actions.append(tune,open,media);
+      details.append(actions);
+      mux.services.forEach(s=>{
+        const service=el("div","auto-service");
+        append(service,el("strong","",s.name),
+          el("span","subtle",s.sid+" · "+(s.program_type||"unknown type")+
+            " · "+(s.audio_advertised?"audio advertised":"data / no audio advertised")));
+        if(s.dls)service.append(el("p","full-body","DLS: "+s.dls+
+          (s.dls_received_at?" · "+timeLabel(s.dls_received_at):"")));
+        if(s.mot_received_at)service.append(el("p","full-body",
+          "MOT timestamp reported; picture import requires a separate decoder refresh."));
+        details.append(service);
+      });
+      group.append(details);list.append(group);
+    });
+  }
+}
+async function refreshSavedStationDirectory(){
+  const records=await api("/api/stations");
+  const old=$("station-directory");
+  const panel=el("article","item-card");panel.id="station-directory";
+  panel.append(el("div","item-meta","ACTUAL DECODER OBSERVATIONS · LOCAL SQLITE / OFFLINE"));
+  panel.append(el("h3","","Saved, verified station directory"));
+  panel.append(el("p","full-body",
+    "These are stations previously identified by a real FM RDS or DAB FIC decoder. "+
+    "A saved entry does not prove the station is currently on air or tuned."));
+  if(records.length){
+    const groups=el("div","auto-scan-grid");
+    for(const medium of ["fm","dab"]){
+      const pane=el("section","auto-scan-section");
+      pane.append(el("h3","",medium==="fm"?"FM / RDS":"DAB+ / FIC"));
+      const items=records.filter(r=>r.medium===medium);
+      if(!items.length)pane.append(el("p","full-body","No confirmed "+medium.toUpperCase()+" stations archived yet."));
+      items.forEach(st=>{
+        const row=el("article","auto-service");
+        row.append(el("strong","",st.name),
+          el("span","subtle",(st.frequency_hz/1e6).toFixed(3)+" MHz"+
+            (st.channel?" · block "+st.channel:"")+
+            (st.ensemble?" · "+st.ensemble:"")+
+            " · last verified "+timeLabel(st.observed_at)));
+        if(st.last_text)row.append(el("p","full-body",st.last_text));
+        if(medium==="fm"){
+          row.append(button("SET FM FREQUENCY",()=>{
+            const input=$("fm-audio-frequency");
+            if(input){input.value=(st.frequency_hz/1e6).toFixed(3);
+              input.scrollIntoView({behavior:"smooth",block:"center"});}
+          }));
+        }
+        pane.append(row);
+      });
+      groups.append(pane);
+    }
+    panel.append(groups);
+  }else{
+    panel.append(el("p","full-body","No stations verified yet. Begin an explicit FM RDS or DAB FIC automatic scan."));
+  }
+  if(old)old.replaceWith(panel);
+  else $("content").append(panel);
+}
+async function pollAutomaticScan(kind){
+  if(state.page!==400)return;
+  const prefix=kind==="fm"?"fm-auto":"dab-auto";
+  try{
+    const report=await api("/api/auto/"+kind+"/status");
+    renderAutomaticScan(kind,report);
+    if(report.active&&state.page===400){
+      state[kind==="fm"?"fmAutoTimer":"dabAutoTimer"]=
+        setTimeout(()=>pollAutomaticScan(kind),900);
+    }else if(state.page===400){
+      await refreshSavedStationDirectory();
+    }
+  }catch(e){notice(kind.toUpperCase()+" auto scan status: "+e.message)}
+}
+async function addAutomaticChannelScanners(){
+  if(state.fmAutoTimer){clearTimeout(state.fmAutoTimer);state.fmAutoTimer=null;}
+  if(state.dabAutoTimer){clearTimeout(state.dabAutoTimer);state.dabAutoTimer=null;}
+  const [fmStatus,dabStatus]=await Promise.all([
+    api("/api/auto/fm/status"),api("/api/auto/dab/status")]);
+  const outer=el("article","item-card auto-scan-panel");
+  outer.id="automatic-channel-scanners";
+  outer.append(el("div","item-meta","REAL RF CHANNEL DISCOVERY · MANUAL START · RECEIVE ONLY"));
+  outer.append(el("h3","","Automatically discover FM and DAB+ stations"));
+  outer.append(el("p","full-body",
+    "FM uses a complete 87.5–108 MHz spectrum sweep followed by sequential RDS "+
+    "verification of possible carriers. DAB scans real FIC service metadata from "+
+    "the local welle-cli receiver. Unidentified energy is not labelled as a station. "+
+    "Both scans can take several minutes and stop when you leave this page."));
+  const grid=el("div","auto-scan-grid");
+  for(const [kind,title,desc,status] of [
+    ["fm","FM Auto Scan","Full-band energy discovery, then confirmed RDS station names. Non-RDS or weak stations may be missed.",fmStatus],
+    ["dab","DAB+ Auto Scan","Scan all Band III blocks 5A–13F, or only likely blocks from a completed DAB energy survey.",dabStatus]
+  ]){
+    const pane=el("section","auto-scan-section");
+    const id=kind+"-auto";
+    pane.append(el("h3","",title),el("p","full-body",desc));
+    const select=el("select","auto-mode");
+    select.id=id+"-mode";
+    for(const [value,label] of (kind==="fm"?
+      [["quick","Quick: up to 16 RDS tuning trials"],["extended","Extended: up to 48 RDS tuning trials"]]:
+      [["full","Full DAB raster (5A–13F)"],["detected","Likely blocks from last spectrum survey"]])){
+      const opt=el("option","",label);opt.value=value;select.append(opt);
+    }
+    pane.append(select);
+    if(kind==="dab"){
+      const field=el("label","auto-dwell");
+      field.append(el("span","","Dwell per block (seconds)"));
+      const dwell=el("select");
+      dwell.id="dab-auto-dwell";
+      [5,8,12,18].forEach(x=>{const opt=el("option","",x+" seconds");opt.value=x;if(x===8)opt.selected=true;dwell.append(opt)});
+      field.append(dwell);pane.append(field);
+    }
+    const consent=el("label","scan-consent");
+    const cb=el("input");cb.type="checkbox";cb.id=id+"-confirm";
+    const disclaimer=kind==="fm"
+      ?" I confirm my single RTL-SDR is free. The scan will tune frequencies sequentially and can interrupt radio listening."
+      :" I own the already-running welle-cli receiver on localhost:7979 and explicitly permit "+
+       "retuning its channels. This WILL interrupt current listening; no protected recording "+
+       "or other operator may depend on it. The original channel is restored if no other client retunes.";
+    consent.append(cb,document.createTextNode(disclaimer));pane.append(consent);
+    const actions=el("div","card-actions");
+    const start=button("START "+kind.toUpperCase()+" AUTO SCAN",async()=>{
+      start.disabled=true;
+      try{
+        const payload=kind==="fm"?{mode:select.value,consent:cb.checked}:{
+          mode:select.value,consent:cb.checked,
+          dwell_seconds:Number($("dab-auto-dwell").value)};
+        const data=await api("/api/auto/"+kind+"/start","POST",payload);
+        renderAutomaticScan(kind,data);
+        state[kind==="fm"?"fmAutoTimer":"dabAutoTimer"]=
+          setTimeout(()=>pollAutomaticScan(kind),250);
+      }catch(e){notice(kind.toUpperCase()+" auto scan refused: "+e.message);start.disabled=!cb.checked;}
+    },"action primary");
+    start.id=id+"-start";start.disabled=true;
+    const stop=button("STOP",async()=>{
+      stop.disabled=true;
+      try{await api("/api/auto/"+kind+"/stop","POST",{});await pollAutomaticScan(kind)}
+      catch(e){notice(e.message)}
+    },"action ghost");
+    stop.id=id+"-stop";
+    cb.addEventListener("change",()=>{start.disabled=!cb.checked||Boolean(status.active)});
+    actions.append(start,stop);pane.append(actions);
+    const progress=el("p","full-body","");progress.id=id+"-progress";
+    pane.append(progress);
+    const results=el("div","scan-candidates");results.id=id+"-results";
+    pane.append(results);grid.append(pane);
+  }
+  outer.append(grid);$("content").append(outer);
+  renderAutomaticScan("fm",fmStatus);renderAutomaticScan("dab",dabStatus);
+  await refreshSavedStationDirectory();
+  if(fmStatus.active)state.fmAutoTimer=setTimeout(()=>pollAutomaticScan("fm"),700);
+  if(dabStatus.active)state.dabAutoTimer=setTimeout(()=>pollAutomaticScan("dab"),700);
+}
+
 function displaySurvey(status){
   const label=$("fm-survey-progress"),results=$("fm-survey-results");
   if(label){
@@ -733,6 +985,34 @@ function renderLiveDockCaptions(items,kind){
       "["+last.translated_language.toUpperCase()+"] "+last.translated_text));
   }
 }
+async function updateDockStationMetadata(){
+  const node=$("live-dock-station-meta");
+  if(!node||!state.liveActive||!state.liveFrequency)return;
+  if(Date.now()-state.lastDockMetaAt<25000)return;
+  state.lastDockMetaAt=Date.now();
+  try{
+    const items=await api("/api/events");
+    const matches=items.filter(x=>x.medium==="fm_rds"&&
+      Number(x.frequency_hz)===Number(state.liveFrequency));
+    if(!matches.length){
+      node.textContent="No actual RDS metadata archived for "+
+        (state.liveFrequency/1e6).toFixed(3)+" MHz. "+
+        "Live audio alone does not identify artist, title or broadcaster.";
+      return;
+    }
+    const last=matches[0];
+    const lines=String(last.body||"").split("\n");
+    const artist=lines.find(x=>x.startsWith("Artist: "));
+    const title=lines.find(x=>x.startsWith("Title: "));
+    node.textContent=(last.station||"Unknown RDS station")+
+      (artist?" · "+artist:"")+
+      (title?" · "+title:"")+
+      " · HISTORICAL RDS (captured "+timeLabel(last.received_at)+")"+
+      " · not simultaneously decoded from this live FM audio stream";
+  }catch(_){
+    node.textContent="Station metadata temporarily unavailable; live audio can continue.";
+  }
+}
 function syncLiveMediaDock(){
   const dock=$("live-media-dock");if(!dock)return;
   dock.hidden=!(state.liveActive||state.tvActive);
@@ -747,6 +1027,11 @@ function syncLiveMediaDock(){
   const r=$("live-dock-stop-radio"),t=$("live-dock-stop-tv");
   if(r)r.hidden=!state.liveActive;
   if(t)t.hidden=!state.tvActive;
+  const recording=$("live-dock-recording");
+  if(recording){
+    recording.textContent=(state.fmRecording||state.tvRecording)?"RECORDING ON":"RECORD OFF";
+    recording.classList.toggle("recording-active",state.fmRecording||state.tvRecording);
+  }
 }
 function bindMediaDock(){
   const radio=$("live-dock-stop-radio"),tv=$("live-dock-stop-tv");
@@ -766,6 +1051,20 @@ function bindMediaDock(){
       state.tvActive=false;syncLiveMediaDock();
     }catch(e){notice(e.message)}
   });
+  const volume=$("live-dock-volume"),mute=$("live-dock-mute");
+  const players=[$("persistent-radio-player"),$("persistent-tv-player")].filter(Boolean);
+  function setVolume(){
+    const value=Number(volume?.value||0)/100;
+    players.forEach(player=>player.volume=value);
+    if(mute)mute.textContent=players.some(player=>player.muted)?"UNMUTE":"MUTE";
+  }
+  if(volume)volume.addEventListener("input",setVolume);
+  if(mute)mute.addEventListener("click",()=>{
+    const shouldMute=!players.some(player=>player.muted);
+    players.forEach(player=>player.muted=shouldMute);
+    mute.textContent=shouldMute?"UNMUTE":"MUTE";
+  });
+  setVolume();
 }
 function liveRadioCaptionPanel(captions,session,targetId="live-radio-captions"){
   const container=$(targetId);
@@ -810,7 +1109,10 @@ async function pollLiveRadio(){
     const current=await api("/api/live/radio/status");
     state.liveActive=current.active;
     state.liveSession=current.session||state.liveSession;
+    state.liveFrequency=current.frequency_hz||null;
+    state.fmRecording=Boolean(current.recording);
     syncLiveMediaDock();
+    if(current.active)updateDockStationMetadata();
     const label=$("live-radio-status");
     if(label){
       label.textContent=current.status.toUpperCase()+
@@ -820,6 +1122,8 @@ async function pollLiveRadio(){
           " · ASR "+current.speech.selected_backend+" · "+
           current.speech.segments_completed+" segments":" · subtitles off")+
         (current.speech?.error?" · "+current.speech.error:"")+
+        (current.subtitle_unavailable_reason?" · captions unavailable: "+current.subtitle_unavailable_reason:"")+
+        (current.active?" · audio listener: "+(current.listener_connected?"connected":"connecting"):"")+
         (current.error?" · "+current.error:"");
     }
     const start=$("live-radio-start"),stop=$("live-radio-stop");
@@ -860,6 +1164,7 @@ async function pollLiveTV(){
     const current=await api("/api/live/tv/status");
     state.tvActive=current.active;
     state.tvSession=current.session||state.tvSession;
+    state.tvRecording=Boolean(current.recording);
     syncLiveMediaDock();
     const label=$("live-tv-status");
     if(label)label.textContent=current.status.toUpperCase()+
@@ -1111,19 +1416,48 @@ async function addLiveRadio(){
   const stop=el("button","action ghost","STOP RADIO");
   stop.type="button";stop.id="live-radio-stop";
   const actions=el("div","card-actions");
-  actions.append(start,stop);form.append(actions);
+  const findPlayer=button("SHOW AUDIO PLAYER",()=>{
+    syncLiveMediaDock();
+    const dock=$("live-media-dock");
+    if(!state.liveActive || !dock){
+      notice("No live FM stream is active. Start live radio after freeing the receiver.");
+      return;
+    }
+    dock.scrollIntoView({behavior:"smooth",block:"center"});
+    if(audio.paused)audio.play().catch(e=>
+      notice("Browser playback unavailable: "+(e?.message||e)+
+        ". Check browser media permissions and the audio stream request."));
+  },"action ghost");
+  actions.append(start,stop,findPlayer);form.append(actions);
   panel.append(form);
   const status=el("p","full-body","Not started");status.id="live-radio-status";
   panel.append(status);
   const audio=$("persistent-radio-player");
+  if(audio && audio.dataset.errorMonitor!=="enabled"){
+    audio.dataset.errorMonitor="enabled";
+    audio.addEventListener("error",()=>{
+      const code=audio.error?.code||"unknown";
+      notice("FM browser audio could not be decoded/loaded (media error "+code+
+        "). Check that ffmpeg/libmp3lame is installed, the local stream GET "+
+        "returns audio/mpeg and no other SDR process owns the USB device.");
+    });
+  }
   panel.append(el("p","full-body",
-    "Your live FM playback stays in the media dock while you browse other pages."));
+    "Your live FM playback stays in the media dock while you browse other pages. "+
+    "If Firefox blocks playback, press Play in the dock; verify the radio output volume."));
   const computeInfo=el("div","scan-summary");
   computeInfo.append(el("h4","","Detected local compute and offline models"));
   compute.devices.forEach(d=>computeInfo.append(el("p","full-body",
     d.id.toUpperCase()+": "+d.name+" · "+
     (d.detected?"hardware detected":"not detected")+" · "+
     (compute.selection[d.id].ready?"speech runtime ready":"speech runtime unavailable"))));
+  if(!compute.selection.auto.ready){
+    const asrWarning=el("p","full-body",
+      "No supported local speech model is ready. FM audio and recording can still run "+
+      "without subtitles; checking transcription will show a model-unavailable notice, "+
+      "not stop the radio.");
+    computeInfo.append(asrWarning);
+  }
   computeInfo.append(el("p","full-body",
     "Speech: "+(compute.speech.ready_cpu?"CPU model ready":"CPU model missing")+
     " · GPU compatible model: "+(compute.speech.ready_gpu?"ready":"not confirmed")+
@@ -1163,8 +1497,15 @@ async function addLiveRadio(){
       const url="/api/live/radio/stream?session="+
         encodeURIComponent(created.session)+"&token="+encodeURIComponent(state.csrf);
       audio.src=url;audio.dataset.session=created.session;syncLiveMediaDock();
-      try{await audio.play()}catch(_){
-        notice("Stream started. Press Play on the radio player if browser autoplay was blocked.");
+      try{await audio.play()}catch(error){
+        notice("FM receiver session started, but the browser could not autoplay audio ("+
+          (error?.name||"playback error")+
+          "). Press Play in the media dock. If still silent, inspect the LIVE RADIO "+
+          "status and browser console/network errors.");
+      }
+      if(created.subtitle_unavailable_reason){
+        notice("FM audio started without subtitles: "+created.subtitle_unavailable_reason+
+          ". No artificial transcription or translation is produced.");
       }
       if(state.livePollTimer)clearTimeout(state.livePollTimer);
       state.livePollTimer=setTimeout(pollLiveRadio,300);
@@ -1273,6 +1614,97 @@ async function addAudioPreview(){
     state.audioPollTimer=setTimeout(pollAudioPreview,750);
   }
 }
+/* Broadcast MOT requires an actual DAB decoder. Images already archived can
+   rotate locally while FM is playing, but new MOT cannot be fetched from the
+   same single RTL-SDR during an FM session. User starts every sync/slideshow. */
+async function addDabMotSlideshowPanel(){
+  const panel=el("article","item-card");
+  panel.id="dab-mot-slideshow";
+  panel.append(el("div","item-meta","DAB+ MOT SLIDESHOW · REAL DECODER IMAGES ONLY"));
+  panel.append(el("h3","","DAB+ Broadcast Slideshow"));
+  panel.append(el("p","full-body",
+    "Show genuine MOT images already saved from welle-cli. To capture new DAB slides, "+
+    "stop FM/Flight Radar on this SDR, start welle-cli on port 7979, tune a DAB "+
+    "ensemble and select SYNC. FM radio itself does not transmit DAB MOT."));
+  const summary=el("p","full-body","");summary.id="dab-mot-summary";
+  const display=el("div","dab-mot-viewer");
+  const picture=el("img","radio-image");
+  picture.alt="Decoded broadcast DAB MOT slide";
+  picture.hidden=true;
+  picture.loading="lazy";
+  const details=el("p","full-body","");
+  display.append(picture,details);
+  let images=[],index=0,playing=false,timer=null;
+  function stopRotation(){
+    playing=false;
+    if(timer){clearTimeout(timer);timer=null;}
+    start.textContent="START SLIDESHOW";
+  }
+  function show(){
+    if(!panel.isConnected){stopRotation();return;}
+    if(!images.length){
+      picture.hidden=true;picture.removeAttribute("src");
+      details.textContent="No genuine saved MOT slides. A spectrum energy peak "+
+        "or DLS text alone cannot provide a slideshow.";
+      return;
+    }
+    index=(index+images.length)%images.length;
+    const entry=images[index];
+    picture.src="/api/media/file/"+encodeURIComponent(entry.id);
+    picture.hidden=false;
+    picture.onerror=()=>{
+      details.textContent="Received image exists in the archive, but browser "+
+        "could not display its JPEG/PNG payload.";
+    };
+    details.textContent=entry.station+" · "+(entry.frequency_hz/1e6).toFixed(3)+
+      " MHz · "+timeLabel(entry.received_at)+" · "+(index+1)+"/"+images.length;
+  }
+  function tick(){
+    if(!playing||!panel.isConnected){stopRotation();return;}
+    index+=1;show();
+    timer=setTimeout(tick,5000);
+  }
+  async function loadSaved(){
+    const saved=await api("/api/media");
+    images=saved.filter(x=>x.medium==="dab_mot");
+    index=0;show();
+    summary.textContent=images.length+" verified DAB MOT slide(s) saved. "+
+      "These can be viewed offline without retuning the receiver.";
+  }
+  const row=el("div","card-actions");
+  const sync=button("SYNC CURRENT DAB MOT",async()=>{
+    sync.disabled=true;
+    try{
+      const live=await api("/api/live/radio/status");
+      if(live.active)throw new Error("Stop live FM first; a single RTL-SDR "+
+        "cannot receive FM and a different DAB block simultaneously.");
+      const response=await api("/api/dab/refresh","POST",{include_images:true});
+      await loadSaved();
+      await refreshCounts();
+      await addRadioImageGallery();
+      summary.textContent=response.saved_mot_images+" genuine MOT image(s) saved in "+
+        response.channel+" · "+(response.mot_images_missing??0)+" no image transmitted"+
+        " · "+(response.mot_images_failed??0)+" read/format failure(s). "+
+        (response.archive_notice||"");
+      showDabServices(response);
+      notice("Read existing welle-cli decoder without opening or retuning SDR.");
+    }catch(error){notice("DAB MOT sync unavailable: "+error.message)}
+    finally{sync.disabled=false}
+  },"action primary");
+  const prev=button("PREVIOUS",()=>{stopRotation();index--;show()});
+  const next=button("NEXT",()=>{stopRotation();index++;show()});
+  const start=button("START SLIDESHOW",()=>{
+    if(playing){stopRotation();return;}
+    if(!images.length){notice("No received DAB MOT images to show yet.");return;}
+    playing=true;start.textContent="STOP SLIDESHOW";
+    timer=setTimeout(tick,5000);
+  });
+  row.append(sync,prev,next,start);
+  panel.append(row,summary,display);
+  panel.refreshSavedMOT=loadSaved;
+  $("content").append(panel);
+  await loadSaved();
+}
 function showDabServices(result){
   const box=$("dab-service-results");
   if(!box)return;
@@ -1299,10 +1731,40 @@ function showDabServices(result){
       s.dls ? "DLS: "+s.dls+" · received "+(s.dls_received_at||"time unknown")
             : "No decoded DLS from this station"));
     item.append(el("p","full-body",
-      s.mot_received_at?"MOT slide timestamp: "+s.mot_received_at:
-      "No decoded slideshow timestamp"));
+      "MOT: "+(s.mot_image_status||
+        (s.mot_received_at?"reported by decoder, not yet saved":"not broadcast"))+
+      (s.mot_received_at?" · decoder timestamp "+s.mot_received_at:"")));
+    if(s.mot_media_id){
+      const photo=el("img","radio-image");
+      photo.src="/api/media/file/"+encodeURIComponent(s.mot_media_id);
+      photo.loading="lazy";photo.alt="Actual DAB MOT from "+s.name;
+      item.append(photo);
+    }
     box.append(item);
   });
+}
+function stopManagedDabPolling(){
+  if(state.managedDabPollTimer){
+    clearTimeout(state.managedDabPollTimer);
+    state.managedDabPollTimer=null;
+  }
+}
+async function pollManagedDab(){
+  if(!state.managedDabOwned){stopManagedDabPolling();return;}
+  try{
+    const status=await api("/api/dab/manage/status?owner="+
+      encodeURIComponent(state.clientId));
+    const info=$("managed-dab-status");
+    if(info)info.textContent=status.active
+      ?"APP-OWNED DAB "+status.channel+" · receiver PID "+status.pid+
+        " · auto-release after browser disconnect"
+      :"APP-OWNED DAB STOPPED · local SDR released";
+    if(!status.active){state.managedDabOwned=false;stopManagedDabPolling();return;}
+  }catch(e){
+    notice("Managed DAB receiver check: "+e.message);
+  }
+  stopManagedDabPolling();
+  if(state.managedDabOwned)state.managedDabPollTimer=setTimeout(pollManagedDab,4500);
 }
 async function addWelleDabBridge(){
   const last=await api("/api/dab/last");
@@ -1311,15 +1773,71 @@ async function addWelleDabBridge(){
   panel.append(el("div","item-meta","DAB+ BROADCAST DATA / EXISTING RECEIVER / READ-ONLY"));
   panel.append(el("h3","","DAB+ DLS, MOT slideshow & radio services"));
   panel.append(el("p","",
-    "Connect to an already-running welle-cli web receiver at 127.0.0.1:7979. "+
-    "The Text Center uses GET only for current ensemble metadata, station labels, "+
-    "DLS text and MOT broadcast images. It NEVER launches, stops or retunes "+
-    "welle-cli or your Flight Radar. welle-cli is not installed on your last hardware check."));
+    "Read current DAB ensemble, station names, DLS and genuine MOT slides "+
+    "from the local welle-cli decoder at 127.0.0.1:7979. Decoder data import "+
+    "remains read-only and never retunes. The separate Start/Stop section "+
+    "below can launch or stop ONLY a welle-cli child explicitly started by "+
+    "this Text Center tab. External readsb, Flight Radar and independently "+
+    "started welle-cli processes are never stopped automatically."));
   const opt=el("label","scan-consent");
   const img=el("input");img.type="checkbox";img.checked=true;img.id="dab-images";
   opt.append(img,document.createTextNode(" Save decoded MOT slideshow images offline "+
     "from this receiver (bounded PNG/JPEG, only if the broadcast actually provides them)."));
   panel.append(opt);
+  const managed=el("section","scan-summary");
+  managed.append(el("h4","","Manage local DAB receiver (explicit opt-in)"));
+  managed.append(el("p","full-body",
+    "START DAB opens welle-cli as a child of this Text Center only after checking "+
+    "the SDR is free. STOP DAB releases only this app-owned child. "+
+    "Independently started welle-cli and readsb are never terminated."));
+  const channel=el("select");
+  channel.id="managed-dab-channel";
+  for(const code of ["5C","8B","9D","11D"]){
+    const o=el("option","",code);o.value=code;
+    if(code==="11D")o.selected=true;
+    channel.append(o);
+  }
+  managed.append(channel);
+  const manageActions=el("div","card-actions");
+  const dabStart=button("START DAB RECEIVER",async()=>{
+    dabStart.disabled=true;
+    try{
+      const consent=confirm("Start the locally installed welle-cli and tune the "+
+        "Nooelec SDR to DAB "+channel.value+
+        "? All other SDR owners must first be stopped in their own applications.");
+      if(!consent)return;
+      const result=await api("/api/dab/manage/start","POST",{
+        channel:channel.value,owner:state.clientId,consent:true
+      });
+      state.managedDabOwned=true;
+      notice("Started app-owned DAB "+result.channel+
+        ". The browser connection will be monitored and the child freed on exit.");
+      await pollManagedDab();
+    }catch(error){notice("Could not start DAB: "+error.message)}
+    finally{dabStart.disabled=false}
+  },"action primary");
+  const dabStop=button("STOP DAB RECEIVER",async()=>{
+    dabStop.disabled=true;
+    try{
+      const result=await api("/api/dab/manage/stop","POST",{
+        owner:state.clientId,owner_only:true
+      });
+      state.managedDabOwned=false;stopManagedDabPolling();
+      const info=$("managed-dab-status");
+      if(info)info.textContent=result.stopped
+        ?"Owned DAB decoder stopped; tuner released."
+        :"No DAB receiver was started by this browser tab.";
+      notice("Only this tab's app-managed DAB receiver was stopped.");
+    }catch(error){notice(error.message)}
+    finally{dabStop.disabled=false}
+  },"action ghost");
+  manageActions.append(dabStart,dabStop);
+  managed.append(manageActions);
+  const managedStatus=el("p","full-body",
+    "External receivers remain externally managed.");
+  managedStatus.id="managed-dab-status";
+  managed.append(managedStatus);
+  panel.append(managed);
   const row=el("div","card-actions");
   const refresh=button("READ RUNNING DAB RECEIVER",async()=>{
     refresh.disabled=true;
@@ -1329,7 +1847,13 @@ async function addWelleDabBridge(){
       });
       showDabServices(result);
       await refreshCounts();
-      notice("Read actual welle-cli metadata; no tuner retuned. Refresh page 400 to view archived images.");
+      const slideshow=$("dab-mot-slideshow");
+      if(slideshow?.refreshSavedMOT)await slideshow.refreshSavedMOT();
+      await addRadioImageGallery();
+      notice("Read current welle-cli metadata without retuning: "+
+        result.saved_mot_images+" real DAB MOT image(s) saved; "+
+        (result.mot_images_missing??0)+" absent; "+
+        (result.mot_images_failed??0)+" decoder/save errors.");
     }catch(e){notice("DAB receiver unavailable: "+e.message)}
     finally{refresh.disabled=false}
   },"action primary");
@@ -1349,7 +1873,9 @@ async function addWelleDabBridge(){
 }
 async function addRadioImageGallery(){
   const images=await api("/api/media");
+  const previous=$("radio-image-gallery");
   const outer=el("article","item-card");
+  outer.id="radio-image-gallery";
   outer.append(el("div","item-meta","REAL BROADCAST IMAGE ARCHIVE · OFFLINE"));
   outer.append(el("h3","","Station logos & DAB slideshow images"));
   outer.append(el("p","",
@@ -1375,7 +1901,8 @@ async function addRadioImageGallery(){
     });
     outer.append(gallery);
   }
-  $("content").append(outer);
+  if(previous)previous.replaceWith(outer);
+  else $("content").append(outer);
 }
 async function addDvbDevicePanel(){
   const dvb=await api("/api/dvb/status");
@@ -1523,12 +2050,124 @@ async function showLiveRadioPage(){
   try{await addLiveRadio()}catch(e){empty("Live radio unavailable",e.message)}
   try{await addRdsControl()}catch(e){empty("RDS metadata unavailable",e.message)}
   try{await addRadioImageGallery()}catch(e){empty("Station artwork unavailable",e.message)}
+  try{await addDabMotSlideshowPanel()}catch(e){empty("DAB MOT slideshow unavailable",e.message)}
 }
 async function showLiveTVPage(){
   section("LIVE TV","Live television, recording & bilingual subtitles",
     "Requires a separately leased authorized MPEG-TS source");
   try{await addLiveTV()}catch(e){empty("TV source unavailable",e.message)}
   try{await addDvbDevicePanel()}catch(e){empty("DVB diagnostics unavailable",e.message)}
+}
+async function addLanguagePacksPanel(){
+  const initial=await api("/api/languages/status");
+  const box=el("article","item-card");
+  box.append(el("div","item-meta",
+    "OPTIONAL LOCAL LANGUAGE MODELS / EXPLICIT APPROVAL / NO SILENT DOWNLOAD"));
+  box.append(el("h3","","Add more translation languages"));
+  box.append(el("p","",
+    "Extra Argos packages are installed only at your request. "+
+    "They extend offline text translation beyond EN/DE/TR. "+
+    "They do not automatically enable speech recognition for those languages; "+
+    "a compatible ASR model must be configured separately."));
+  const info=el("p","full-body",
+    initial.argos_installed?"Argos package runtime detected.":"Argos Translate is not installed. "+
+    "Install it in an isolated Python environment before managing models.");
+  box.append(info);
+  const catalog=el("div","field");
+  const sourcePair=el("select");sourcePair.id="language-pair-install";
+  catalog.append(el("label","","Available directed language pairs"),sourcePair);
+  box.append(catalog);
+  const approveIndex=el("input");approveIndex.type="checkbox";
+  const indexLabel=el("label","scan-consent");
+  indexLabel.append(approveIndex,document.createTextNode(
+    " I authorize fetching the official Argos language package index from the Internet."));
+  box.append(indexLabel);
+  const approveInstall=el("input");approveInstall.type="checkbox";
+  const installLabel=el("label","scan-consent");
+  installLabel.append(approveInstall,document.createTextNode(
+    " I authorize downloading and installing the selected model into the current user's Argos package directory. "+
+    "Models can be large; provider package checksums/signatures are not independently audited by Text Center."));
+  box.append(installLabel);
+  const actions=el("div","card-actions");
+  const refresh=button("FETCH LANGUAGE CATALOG",async()=>{
+    if(!approveIndex.checked)return notice("Approve the Internet catalog download first.");
+    refresh.disabled=true;
+    try{
+      await api("/api/languages/refresh","POST",{consent:true});
+      await redraw();
+      notice("Argos language catalog downloaded by explicit request.");
+    }catch(error){notice("Language catalog unavailable: "+error.message)}
+    finally{refresh.disabled=false}
+  });
+  const install=button("INSTALL SELECTED LANGUAGE PAIR",async()=>{
+    if(!approveInstall.checked)return notice("Approve the selected model installation first.");
+    const pair=sourcePair.value.split(">");
+    if(pair.length!==2)return notice("No installable language pair selected");
+    install.disabled=true;
+    try{
+      await api("/api/languages/install","POST",{
+        source:pair[0],target:pair[1],consent:true});
+      notice("User-approved language package installation started.");
+      await redraw();
+    }catch(error){notice("Language installation blocked: "+error.message)}
+    finally{install.disabled=false}
+  },"action primary");
+  actions.append(refresh,install);box.append(actions);
+  const status=el("p","full-body","");box.append(status);
+  const extra=el("div","translation-extended");box.append(extra);
+  $("content").append(box);
+  async function redraw(){
+    if(state.page!==450)return;
+    const data=await api("/api/languages/status");
+    sourcePair.replaceChildren();
+    data.available_pairs.forEach(p=>{
+      const option=el("option","",
+        p.source_name+" ("+p.source+") → "+p.target_name+
+        " ("+p.target+") · version "+p.package_version);
+      option.value=p.source+">"+p.target;
+      sourcePair.append(option);
+    });
+    if(!data.available_pairs.length){
+      const option=el("option","","No downloaded catalog; fetch explicitly");
+      option.value="";sourcePair.append(option);
+    }
+    status.textContent="Installed: "+data.installed_pairs.length+
+      " directed language pairs · catalogue: "+data.available_pairs.length+
+      " · installer: "+data.installer.status+
+      (data.installer.pair?" · "+data.installer.pair:"")+
+      (data.installer.error?" · "+data.installer.error:"");
+    install.disabled=!data.argos_installed||!data.available_pairs.length||data.installer.active;
+    refresh.disabled=!data.argos_installed||data.installer.active;
+    extra.replaceChildren();
+    const installed=data.installed_pairs.filter(p=>p.source!==p.target);
+    if(installed.length){
+      extra.append(el("h4","","Translate with newly installed languages"));
+      const form=el("form","rds-form");
+      const pairSelect=el("select");
+      installed.forEach(p=>{
+        const opt=el("option","",p.source.toUpperCase()+" → "+p.target.toUpperCase());
+        opt.value=p.source+">"+p.target;pairSelect.append(opt);
+      });
+      const input=el("textarea","translation-editor");
+      input.rows=4;input.maxLength=12000;input.placeholder="Paste text to translate offline";
+      const submit=el("button","action primary","TRANSLATE WITH INSTALLED PAIR");
+      submit.type="submit";
+      const output=el("pre","translation-output","No translation requested");
+      form.append(pairSelect,input,submit);extra.append(form,output);
+      form.addEventListener("submit",async event=>{
+        event.preventDefault();submit.disabled=true;
+        try{
+          const [source,target]=pairSelect.value.split(">");
+          const translated=await api("/api/languages/translate","POST",{
+            source,target,text:input.value});
+          output.textContent=translated.translated;
+        }catch(error){output.textContent="Translation unavailable: "+error.message}
+        finally{submit.disabled=false}
+      });
+    }
+    if(data.installer.active&&state.page===450)setTimeout(redraw,1600);
+  }
+  await redraw();
 }
 async function showTranslatorPage(){
   section("OFFLINE TRANSLATOR","English · Deutsch · Türkçe",
@@ -1609,6 +2248,8 @@ async function showTranslatorPage(){
     "installed model, but NPU translation remains disabled until verified. "+
     "Nothing is downloaded automatically."));
   $("content").append(hardware);
+  try{await addLanguagePacksPanel()}
+  catch(error){empty("Additional language model manager unavailable",error.message)}
 }
 async function showRadioData(){
   section("RF / BROADCAST SOURCES","Antenna scanning & actual decoder imports","User-approved tuning only");
@@ -1616,6 +2257,8 @@ async function showRadioData(){
   catch(error){empty("Receiver detection unavailable","The local USB inventory could not be read: "+error.message)}
   try {await addAutoDiscovery()}
   catch(error){empty("Auto discovery unavailable","Could not inspect local sources: "+error.message)}
+  try {await addAutomaticChannelScanners()}
+  catch(error){empty("Automatic channel discovery unavailable",error.message)}
   try {await addFMSurveyControl()}
   catch(error){empty("FM spectrum survey unavailable","Could not inspect rtl_power: "+error.message)}
   try {await addRdsControl()}
@@ -1630,6 +2273,8 @@ async function showRadioData(){
   catch(error){empty("FM audio preview unavailable",error.message)}
   try {await addWelleDabBridge()}
   catch(error){empty("DAB receiver bridge unavailable",error.message)}
+  try {await addDabMotSlideshowPanel()}
+  catch(error){empty("DAB MOT slideshow unavailable",error.message)}
   try {await addRadioImageGallery()}
   catch(error){empty("Radio image archive unavailable",error.message)}
   try {await addDvbDevicePanel()}
@@ -1799,6 +2444,203 @@ async function showCapabilities(){
   });
   $("section-count").textContent=features.length+" protocols mapped to appropriate scanning or caching";
 }
+function drawRadarPlaneOverlay(data,stage,listing,flags){
+  stage.replaceChildren();
+  listing.replaceChildren();
+  const center=el("div","radar-grid-center","CENTRE · "+
+    data.area.lat.toFixed(3)+"° / "+data.area.lon.toFixed(3)+"°");
+  stage.append(center);
+  const km=data.area.radius_nm*1.852;
+  const latRange=km/111.0;
+  const lonRange=latRange/Math.max(0.15,Math.cos(data.area.lat*Math.PI/180));
+  const allowed=x=>{
+    if(x.stale&&!flags.cached)return false;
+    const ant=x.sources.includes("antenna"),net=x.sources.includes("internet");
+    return ant&&net?flags.hybrid:ant?flags.antenna:flags.internet;
+  };
+  let pins=0;
+  data.aircraft.filter(allowed).slice(0,150).forEach(p=>{
+    const each=p.source_freshness;
+    const meta=(each
+      ? "RF "+each.antenna.toUpperCase()+" + INTERNET "+each.internet.toUpperCase()
+      : (p.sources.length===2?"RF + INTERNET":
+        p.sources[0]==="antenna"?"ANTENNA ADS-B":"INTERNET ADS-B"))+
+      (p.stale?" · HISTORICAL CACHE":" · SOURCE-REPORTED FRESH");
+    if(p.positioned){
+      const x=50+((p.lon-data.area.lon)/(2*lonRange))*100;
+      const y=50-((p.lat-data.area.lat)/(2*latRange))*100;
+      if(x>=0&&x<=100&&y>=0&&y<=100){
+        const dot=el("button","radar-plane"+
+          (p.sources.length===2?" radar-hybrid":p.sources[0]==="antenna"?" radar-rf":" radar-web")+
+          (p.stale?" radar-stale":""),
+          "✈");
+        dot.type="button";
+        dot.style.left=x.toFixed(2)+"%";dot.style.top=y.toFixed(2)+"%";
+        dot.title=(p.flight||p.hex)+" · "+meta;
+        dot.setAttribute("aria-label",dot.title);
+        dot.addEventListener("click",()=>notice(dot.title));
+        stage.append(dot);pins++;
+      }
+    }
+    const row=el("article","radar-aircraft-row");
+    row.append(el("strong","",(p.flight||"Unknown flight")+" · "+p.hex.toUpperCase()));
+    row.append(el("span","",meta));
+    row.append(el("p","full-body",
+      (p.positioned?(p.lat.toFixed(4)+"°, "+p.lon.toFixed(4)+"°"):"Position not reported")+
+      " · age "+p.age_seconds+" s · altitude "+(p.alt_baro??"unknown")+
+      " ft · speed "+(p.gs??"unknown")+" kt"));
+    listing.append(row);
+  });
+  if(!pins)stage.append(el("p","radar-empty",
+    "No aircraft with usable fresh coordinates inside this selected area. "+
+    "The grid is a coordinate reference, not an Internet map tile."));
+  if(!listing.children.length)listing.append(el("p","full-body",
+    "No matching verified aircraft observations for the selected source filters."));
+}
+async function showFlightRadar(){
+  section("AIRCRAFT / SOURCE INTEGRITY","Flight Radar & tar1090",
+    "Real local ADS-B · optional Internet · independent source filters");
+  const panel=el("article","item-card radar-center");
+  panel.append(el("div","item-meta",
+    "FULL TAR1090 VIEWER / SEPARATE RECEIVER / NO IMPLICIT TUNING"));
+  panel.append(el("h3","","Existing tar1090 and Tihulu Flight Radar"));
+  panel.append(el("p","",
+    "The original full tar1090 viewer remains independent and keeps its "+
+    "detailed map, aircraft table, receiver controls and tracks. "+
+    "Choose a locally running viewer below. An embedded frame can be blocked "+
+    "by that viewer's security headers; Open Full Map works as an alternative. "+
+    "This screen never stops or retunes the Flight Radar receiver."));
+  const choices=el("select");
+  const maps=[
+    ["http://127.0.0.1:8080/tar1090/","Local tar1090 / port 8080"],
+    ["http://127.0.0.1/tar1090/","Local tar1090 / port 80"],
+    ["http://127.0.0.1:8505/","Tihulu Flight Radar built-in local map"]
+  ];
+  for(const [url,name] of maps){
+    const opt=el("option","",name);opt.value=url;choices.append(opt);
+  }
+  const mapActions=el("div","card-actions");
+  const open=el("a","action primary","OPEN FULL MAP");
+  open.href=choices.value;open.target="_blank";open.rel="noopener noreferrer";
+  const toggle=button("SHOW EMBEDDED MAP",()=>{
+    if(iframe.hidden){iframe.src=choices.value;iframe.hidden=false;toggle.textContent="HIDE EMBEDDED MAP";}
+    else{iframe.hidden=true;iframe.removeAttribute("src");toggle.textContent="SHOW EMBEDDED MAP";}
+  });
+  choices.addEventListener("change",()=>{open.href=choices.value;if(!iframe.hidden)iframe.src=choices.value});
+  mapActions.append(choices,toggle,open);
+  panel.append(mapActions);
+  const iframe=el("iframe","tar1090-frame");iframe.hidden=true;iframe.loading="lazy";
+  iframe.title="Local Tihulu Flight Radar or full tar1090 viewer";
+  iframe.setAttribute("sandbox","allow-scripts allow-same-origin allow-popups");
+  iframe.referrerPolicy="no-referrer";
+  panel.append(iframe);
+  $("content").append(panel);
+  const overlay=el("article","item-card radar-center");
+  overlay.append(el("div","item-meta","ON-DEMAND / ANTENNA + INTERNET / ODBL ATTRIBUTION"));
+  overlay.append(el("h3","","Aircraft overlay with source filters"));
+  overlay.append(el("p","",
+    "A separate lightweight positioning overlay complements full tar1090. "+
+    "Local aircraft come from the existing readsb/Tihulu Flight Radar JSON. "+
+    "Internet aircraft come from adsb.lol only when requested. "+
+    "Duplicate ICAO observations are merged without inventing positions. "+
+    "Offline cache is always labelled historical, never current traffic."));
+  const form=el("form","rds-form");
+  const source=el("select");
+  for(const [key,label] of [
+    ["antenna","Antenna only · local decoder"],
+    ["internet","Internet only · adsb.lol (ODbL)"],
+    ["hybrid","Hybrid · show both with provenance"]
+  ]){const opt=el("option","",label);opt.value=key;source.append(opt)}
+  const coords=el("div","radar-inputs");
+  const lat=field("Map latitude","number","51.1657",10);
+  const lon=field("Map longitude","number","10.4515",10);
+  const radius=field("Radius in nautical miles (1–250)","number","150",10);
+  lat.input.value="51.1657";lon.input.value="10.4515";radius.input.value="150";
+  lat.input.step="0.0001";lon.input.step="0.0001";radius.input.min="1";radius.input.max="250";
+  coords.append(lat.wrap,lon.wrap,radius.wrap);
+  const selector=el("div","field");
+  selector.append(el("label","","Data source and Internet access"),source);
+  form.append(selector,coords);
+  const consent=el("label","scan-consent");
+  const timer=el("input");timer.type="checkbox";
+  consent.append(timer,document.createTextNode(
+    " Refresh automatically every 30 seconds while this page is open "+
+    "(OFF by default; online API subject to provider rate limits)."));
+  form.append(consent);
+  const filters=el("div","radar-filter-box");
+  const switches={};
+  for(const [key,labelText] of [["antenna","RF-only"],["internet","Internet-only"],
+                                 ["hybrid","Seen by both"],["cached","Show historical cache"]]){
+    const wrap=el("label","scan-consent");
+    const input=el("input");input.type="checkbox";input.checked=key!=="cached";
+    wrap.append(input,document.createTextNode(" "+labelText));
+    filters.append(wrap);switches[key]=input;
+  }
+  form.append(filters);
+  const actions=el("div","card-actions");
+  const refresh=el("button","action primary","CHECK REAL AIRCRAFT NOW");refresh.type="submit";
+  const gps=button("USE BROWSER GPS",()=>{
+    if(!navigator.geolocation)return notice("Geolocation is unavailable");
+    navigator.geolocation.getCurrentPosition(pos=>{
+      lat.input.value=pos.coords.latitude.toFixed(4);
+      lon.input.value=pos.coords.longitude.toFixed(4);
+      notice("Map coordinates set from your permitted GPS position. "+
+        "No location is sent to an Internet provider until you request Internet mode.");
+    },err=>notice("Location unavailable: "+err.message),{timeout:8000});
+  });
+  actions.append(refresh,gps);form.append(actions);
+  const status=el("p","full-body",
+    "No Flight Radar refresh performed. Antenna/Internet data are independent.");
+  form.append(status);overlay.append(form);
+  const stage=el("div","radar-coordinate-grid");
+  stage.setAttribute("role","img");
+  stage.setAttribute("aria-label","Coordinate map of verified aircraft positions");
+  overlay.append(stage);
+  const list=el("div","radar-aircraft-list");
+  overlay.append(list);
+  overlay.append(el("p","full-body",
+    "Internet attribution: adsb.lol (ODbL 1.0) · https://www.adsb.lol/ · "+
+    "Not for navigation, emergency services or safety-critical decisions."));
+  $("content").append(overlay);
+  let latest=null,clock=null;
+  const filterValues=()=>Object.fromEntries(
+    Object.entries(switches).map(([key,input])=>[key,input.checked]));
+  for(const input of Object.values(switches)){
+    input.addEventListener("change",()=>{
+      if(latest)drawRadarPlaneOverlay(latest,stage,list,filterValues());
+    });
+  }
+  async function query(){
+    if(state.page!==880)return;
+    refresh.disabled=true;
+    try{
+      const answer=await api("/api/radar/refresh","POST",{
+        mode:source.value,lat:Number(lat.input.value),
+        lon:Number(lon.input.value),radius:Number(radius.input.value)});
+      latest=answer;
+      status.textContent=answer.checked_at+" · "+
+        answer.antenna_count+" antenna reports · "+
+        answer.internet_count+" Internet reports · "+
+        answer.with_position+" aircraft with coordinates · "+
+        Object.entries(answer.statuses).map(([k,v])=>k+": "+v.status).join(" | ");
+      drawRadarPlaneOverlay(answer,stage,list,filterValues());
+    }catch(error){
+      notice("Flight Radar request unavailable: "+error.message);
+      status.textContent="Data request failed; no new aircraft positions are claimed.";
+    }finally{
+      refresh.disabled=false;
+      if(state.page===880&&timer.checked)clock=setTimeout(query,30000);
+    }
+  }
+  timer.addEventListener("change",()=>{
+    if(clock)clearTimeout(clock);
+    if(timer.checked&&state.page===880)clock=setTimeout(query,30000);
+  });
+  form.addEventListener("submit",event=>{event.preventDefault();if(clock)clearTimeout(clock);query()});
+  stage.append(el("p","radar-empty",
+    "Select CHECK REAL AIRCRAFT NOW to query the existing local Flight Radar. "+
+    "Internet and automatic updates remain disabled until requested."));
+}
 function showAbout(){
   section("SYSTEM","How this terminal works","Build 0.3");
   const notes=[
@@ -1827,6 +2669,14 @@ function bindNavigation(){
   $("page-form").addEventListener("submit",(ev)=>{ev.preventDefault();openPage(Number($("page-number").value),$("source-select").value,Number($("subpage-number").value))});
   $("bookmark-page").addEventListener("click",()=>saveBookmark("Page "+state.page+(state.source?" · "+state.source:""),"page",state.page+":"+state.subpage+":"+state.source).catch((err)=>notice(err.message)));
   window.addEventListener("pagehide",()=>{
+    stopManagedDabPolling();
+    if(state.managedDabOwned){
+      fetch("/api/dab/manage/stop",{
+        method:"POST",keepalive:true,
+        headers:{"Content-Type":"application/json","X-Tihulu-CSRF":state.csrf},
+        body:JSON.stringify({owner:state.clientId,owner_only:true})
+      }).catch(()=>{});
+    }
     if(state.tvActive){
       fetch("/api/live/tv/stop",{
         method:"POST",headers:{"Content-Type":"application/json","X-Tihulu-CSRF":state.csrf},
@@ -1869,7 +2719,10 @@ async function start(){
   bindMediaDock();
   const now=new Date();
   $("clock").textContent=now.toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"});
-  try{await refreshCounts();await refreshSourceChoices();await openPage(100,"",0)}
+  const requested=new URLSearchParams(location.hash.replace(/^#/,"")).get("page");
+  const requestedPage=requested&&/^\d{3}$/.test(requested)?Number(requested):100;
+  const startPage=[100,200,300,400,410,420,450,500,600,700,800,850,860,880].includes(requestedPage)?requestedPage:100;
+  try{await refreshCounts();await refreshSourceChoices();await openPage(startPage,"",0)}
   catch(err){notice("Local content failed to load: "+err.message);$("teletext-body").textContent="Local API unavailable. Check the server and reload."}
   try{await refreshReceiverStatus()}
   catch(err){notice("USB status could not be checked: "+err.message)}
