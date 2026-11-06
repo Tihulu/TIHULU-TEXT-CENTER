@@ -1,8 +1,8 @@
 """Cross-platform user-local desktop window for the loopback-only Text Center.
 
-Opens a distinct Chromium/Edge app-profile window or an isolated Firefox
-window, not a headless background service. The browser owns the window; when
-it exits, our own server/receivers shut down. No USB access is attempted until
+Prefers a real Qt WebEngine application window (when installed), or falls
+back to a separate Chromium/Edge app-profile or Firefox window. The application
+owns its loopback server; closing the window stops only our own receivers. No USB access is attempted until
 a user performs an explicit receiver action in the web UI.
 """
 from __future__ import annotations
@@ -61,23 +61,34 @@ def desktop_browser_command(executable,kind,url,profile):
 def run_desktop(*,db:Path,port:int=8787,choices=None):
     if type(port) is not int or not 1024<=port<=65535:
         raise ValueError("Desktop port must be between 1024 and 65535")
+    from .qt_window import native_window_available,run_qt_window
+    native_ready=choices is None and native_window_available()
     browsers=choices if choices is not None else browser_candidates()
-    if not browsers:
-        raise RuntimeError("No supported window browser found. Install Chromium, Chrome, Edge or Firefox, or use python -m textcenter serve.")
+    if not native_ready and not browsers:
+        raise RuntimeError("No native PySide6 QtWebEngine or supported window browser found. "
+                           "Install a compatible desktop UI backend, or use python -m textcenter serve.")
     server=LocalServer(("127.0.0.1",port),Store(db))
     worker=Thread(target=server.serve_forever,kwargs={"poll_interval":0.25},
                   daemon=True,name="tihulu-text-center-desktop-server")
     worker.start()
     try:
-        with tempfile.TemporaryDirectory(prefix="tihulu-text-browser-") as tmp:
-            command=desktop_browser_command(browsers[0][0],browsers[0][1],
-                f"http://127.0.0.1:{server.server_port}/",Path(tmp)/"profile")
-            print(f"TIHULU TEXT CENTER desktop: {server.server_address[0]}:{server.server_port}")
-            with subprocess.Popen(command,stdin=subprocess.DEVNULL) as browser:
-                browser.wait()
+        url=f"http://127.0.0.1:{server.server_port}/"
+        print(f"TIHULU TEXT CENTER desktop: {url}")
+        if native_ready:
+            print("Native desktop UI: Qt WebEngine")
+            run_qt_window(url)
+        else:
+            print("Fallback desktop UI: isolated browser app window (Qt WebEngine unavailable)")
+            with tempfile.TemporaryDirectory(prefix="tihulu-text-browser-") as tmp:
+                command=desktop_browser_command(browsers[0][0],browsers[0][1],
+                    url,Path(tmp)/"profile")
+                with subprocess.Popen(command,stdin=subprocess.DEVNULL) as browser:
+                    browser.wait()
     finally:
         server.postprocess.stop(wait=True)
         server.live_tv.stop()
+        server.fm_auto.stop(wait=True)
+        server.dab_auto.stop(wait=True)
         server.live_fm.stop(wait=True)
         server.audio.stop(wait=True)
         server.survey.stop(wait=True)
