@@ -10,7 +10,10 @@ function validRate(rate){return Number.isFinite(rate)&&rate>=200000&&rate<=32000
 function dB(power){return 10*Math.log10(Math.max(power,1e-15));}
 function clamp(v,a,b){return Math.max(a,Math.min(b,v));}
 export function parseCu8Filename(name){
- const m=String(name||"").match(/(?:^|\/)TIHULU-(?:scheduled-)?(\d{7,11})-(\d{6,8})-[^/]*\.cu8$/i);
+ // v14+: explicitly embedded satellite candidate, UTC, center and sample rate.
+ // Legacy TIHULU-<frequency>-<rate>-... recordings are still supported.
+ const modern=String(name||"").match(/^TIHULU_[A-Z0-9-]+_\d{8}T\d{6}Z_(\d{7,11})Hz_(\d{6,8})SPS_[A-Z0-9-]+\.cu8$/i);
+ const m=modern||String(name||"").match(/(?:^|\/)TIHULU-(?:scheduled-)?(\d{7,11})-(\d{6,8})-[^/]*\.cu8$/i);
  if(!m)return null;
  const centerHz=Number(m[1]),sampleRate=Number(m[2]);
  if(!Number.isFinite(centerHz)||centerHz<24000000||centerHz>1750000000||!validRate(sampleRate))return null;
