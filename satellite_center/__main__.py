@@ -549,6 +549,8 @@ class Station:
             duration = 60 if seconds is None else seconds
             if type(duration) is not int or not 8 <= duration <= MAX_CAPTURE_SECONDS:
                 raise ValueError("Native recording must be 8–900 whole seconds")
+            if mode == "survey" and duration > 180:
+                raise ValueError("Spectrum-only survey is limited to 180 s; select IQ disk recording for longer windows")
             if chosen < max(aos, now()+timedelta(seconds=8)):
                 raise ValueError("Native start must be in the future and inside predicted pass")
             if chosen+timedelta(seconds=duration+END_MARGIN_SECONDS)>los:
