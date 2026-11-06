@@ -63,7 +63,16 @@ export function createSatelliteMaps({getTles,getSatLib,getPasses,getLastCapture,
  };
  const mapDate=()=>new Date(Date.now()+Number(time.value)*60000);
  const selected=()=>current.find(x=>String(x.id)===String(selectedId));
- const filtered=()=>current.filter(x=>(family.value==="all"||family.value===x.family)&&(!showAbove.checked||x.el>=0))
+ const bandMatch=(x)=>{
+  if(!$("map-band").checked)return true;
+  const f=Number($("preset").value);
+  if([145800000,145825000,437800000].includes(f))return x.family==="iss";
+  if([137900000,137100000].includes(f))return x.family==="meteor";
+  if(f===436000000)return x.family==="cubesat"; // survey vicinity only; not an assigned frequency
+  if(f===1620000000)return x.family==="iridium";
+  return false;
+ };
+ const filtered=()=>current.filter(x=>(family.value==="all"||family.value===x.family)&&(!showAbove.checked||x.el>=0)&&bandMatch(x))
    .sort((a,b)=>b.el-a.el).slice(0,40);
  function setView(kind){
   view=kind;$("map-sky-pane").hidden=kind!=="sky";$("map-earth-pane").hidden=kind!=="earth";
@@ -283,12 +292,13 @@ export function createSatelliteMaps({getTles,getSatLib,getPasses,getLastCapture,
  $("map-recenter").addEventListener("click",()=>{
   if(!earthMap)return;try{const o=observer();earthMap.setView([o.lat,o.lon],Math.max(3,earthMap.getZoom()));}catch(e){status(e.message);}
  });
- for(const id of ["map-family","map-above","map-tracks","map-footprint"]){
+ for(const id of ["map-family","map-above","map-band","map-tracks","map-footprint"]){
   $(id).addEventListener("change",()=>{drawList();drawDetail();drawSky();drawEarth();});
  }
  for(const id of ["city","lat","lon","elev"]){
   $(id).addEventListener("change",()=>{if(mapStarted)void refresh();});
  }
+ $("preset").addEventListener("change",()=>{drawList();drawDetail();drawSky();drawEarth();});
  time.addEventListener("input",()=>{void refresh();});
  $("map-now").addEventListener("click",()=>{time.value="0";void refresh();});
  $("map-reset-selection").addEventListener("click",()=>{selectedId=null;drawList();drawDetail();drawSky();drawEarth();});
