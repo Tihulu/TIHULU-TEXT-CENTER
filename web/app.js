@@ -109,8 +109,10 @@ function renderReceiverStatus(data){
     : "No DVB frontend detected",data.dvb_frontends.length>0);
   statusLine("decoder-status",data.rds_capture_active
     ? "FM RDS capture running · "+data.rds_groups_decoded+" groups decoded"
-    : data.rds_pipeline_available ? "RDS tools installed · decoder inactive"
-    : "RF text decoder inactive",Boolean(data.rds_capture_active));
+    : data.receiver_conflicts?.length
+      ? "SDR may be busy: "+[...new Set(data.receiver_conflicts.map(c=>c.process))].join(", ")
+      : data.rds_pipeline_available ? "RDS tools installed · decoder inactive"
+      : "RF text decoder inactive",Boolean(data.rds_capture_active));
   if($("receiver-check-note")){
     $("receiver-check-note").textContent="Checked "+timeLabel(data.checked_at)+" · Passive inspection, no tuning";
   }

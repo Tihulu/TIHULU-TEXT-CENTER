@@ -162,14 +162,18 @@ class FMRSDSupervisor:
                 fd = self._acquire_lock()
             except OSError as exc:
                 raise CaptureError(f"Cannot reserve cooperative SDR lock: {exc}") from exc
+            self._lock_fd = fd
             # Race-aware second preflight after our cooperative lock is held.
-            busy = self.conflicts()
+            try:
+                busy = self.conflicts()
+            except Exception:
+                self._unlock()
+                raise CaptureError("Cannot verify SDR ownership; refusing to tune")
             if busy:
                 self._unlock()
                 raise CaptureError(
                     "SDR contention detected: " + ", ".join(sorted(set(x["process"] for x in busy)))
                 )
-            self._lock_fd = fd
             self._stop.clear()
             self._last_poll = time.monotonic()
             self._recent.clear()
