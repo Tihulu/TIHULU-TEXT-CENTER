@@ -207,3 +207,15 @@ body.text-alerts-mode .content-layout{grid-template-columns:minmax(0,1fr)}
 body.text-alerts-mode .primary-column{width:100%}
 body.text-alerts-mode .feed-section{margin-top:4px}
 body.text-alerts-mode .content-grid{grid-template-columns:minmax(0,1fr)}
+
+/* Optional, opt-in speech controls shared by FM, DAB+ and TV. */
+.channel-caption-config{border:1px solid #40605b;border-radius:9px;background:#12252a;padding:14px;margin:14px 0}
+.channel-caption-config h4{font-size:15px;color:#e2eddf;margin:0 0 10px}
+.channel-caption-controls{display:flex;align-items:center;flex-wrap:wrap;gap:10px 14px}
+.channel-caption-field{display:grid;gap:5px;color:#b4cfc2;font:11px/1.4 var(--code)}
+.channel-caption-field select{min-width:130px;max-width:230px;background:#101d23;border:1px solid #46635c;border-radius:6px;padding:9px;color:#f1f7f0}
+.channel-caption-hint{font:11px/1.65 var(--code);color:#a0bdaf;margin:12px 0 0}
+.live-dock-caption-status{font:10px/1.6 var(--code);color:#c5e2c7;margin:6px 0}
+.live-dock-caption-exports{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}
+.live-dock-caption-exports a{font:10px/1.45 var(--code);padding:6px 9px;border-radius:5px}
+@media(max-width:640px){.channel-caption-controls{display:grid;grid-template-columns:1fr 1fr;gap:10px}.channel-caption-field{min-width:0}.channel-caption-field select{min-width:0;width:100%}}
