@@ -1,5 +1,6 @@
 import {MISSIONS, missionById, localFileKind, fileEvidence} from "./reception_catalog.mjs";
 import {initSatelliteImageUI} from "./satellite_images_ui.mjs";
+import {initAutoReceptionUI} from "./auto_reception_ui.mjs";
 
 const byId=id=>document.getElementById(id);
 const missionSelect=byId("mission"), categorySelect=byId("category");
@@ -150,4 +151,5 @@ initSatelliteImageUI({
   },
   log:(message)=>{fileStatus.textContent=String(message);}
 });
+initAutoReceptionUI({getSelectedFile:()=>selectedFile,fileInput});
 updateOptions();
