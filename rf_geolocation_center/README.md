@@ -131,3 +131,17 @@ The same map can show GNSS, device, experimental radio and saved position marker
 ### No-DevTools USB self-test
 
 The Receiver page now offers **Test USB access (no Console)** and the Dashboard offers **USB Self-Test**. On supported desktop Chromium browsers over HTTPS, this checks a previously permitted 0bda:2838 USB device by opening it, claiming interface 0 and releasing/closing it. It does **not** start RF capture, decode GNSS or run privileged Linux commands. If the claim fails, the result is shown directly in the app. Closing other SDR tabs, stopping \`readsb\` on explicit user request and unbinding the verified \`dvb_usb_rtl28xxu\` kernel interface remain separate OS actions.
+
+
+## Verified information origin: antenna versus device services
+
+The Dashboard shows **four independent acquisition records**, not one blended "location source":
+
+- **Your Location** — \`Dedicated USB/serial GNSS receiver\` for a fresh NMEA fix, \`Device / OS location service\` when the browser geolocation API provided coordinates, \`User-imported radio ranging file\` for an experimental estimate, \`Saved earlier position\` for cached coordinates, or the explicitly non-fix default Cologne center. A dedicated GNSS receiver may itself use a satellite antenna; it is **not** the Nooelec RTL-SDR used by this application's WebUSB RF sampling.
+- **RTL-SDR Antenna** — real WebUSB tuner ownership and bounded I/Q samples, if actually acquired. Its status is separate from location fixing and always indicates that an RF sample is **not** a GNSS fix.
+- **Satellite Positions** — CelesTrak internet TLE / cached orbit predictions or imported SP3 ephemerides. Their ground points and sky positions are **not** evidence that the local antenna received the satellites.
+- **Aircraft Positions** — imported JSON reference coordinates only (until a later authorized and verified ADS-B adapter exists), **not** current Nooelec antenna detections and **not** receiver-location measurements.
+
+The same acquisition summary is repeated under **Earth Map → Live location and evidence**. Map markers label their own provenance. Browser-provided location does **not** say whether GPS, Wi-Fi, cellular or IP contributed, so the app must never assert one of those without a separate verified source. The device accuracy radius and actual imported station range circles are different evidence and remain separately styled.
+
+The acquisition records and source logic work offline after PWA installation; dynamic antenna status is volatile and is never reinterpreted from an old cached position. Real GPS/Galileo signal decoding with the Nooelec RTL-SDR remains **NOT IMPLEMENTED**.
