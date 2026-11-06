@@ -9,6 +9,7 @@
   <link rel="icon" type="image/svg+xml" href="./pages-icon.svg">
   <link rel="stylesheet" href="./pages.css">
   <script src="./pages.js" defer></script>
+  <script src="./webusb-radio.js" type="module"></script>
   <title>TIHULU TEXT CENTER — Web</title>
 </head>
 <body>
@@ -19,6 +20,7 @@
       <nav aria-label="Web sections">
         <button class="nav active" data-view="home"><b>⌂</b> Overview <small>100</small></button>
         <button class="nav" data-view="radio"><b>◉</b> Live radio <small>410</small></button>
+        <button class="nav" data-view="usb"><b>⌁</b> Direct USB <small>415</small></button>
         <button class="nav" data-view="tv"><b>▣</b> Live TV <small>420</small></button>
         <button class="nav" data-view="translate"><b>文</b> Translation <small>450</small></button>
         <button class="nav" data-view="radar"><b>✈</b> Flight Radar <small>880</small></button>
@@ -28,7 +30,7 @@
       <div class="side-foot">
         <p><span class="dot"></span> GitHub Pages static frontend</p>
         <p id="network-status">Browser connection not checked</p>
-        <p>Broadcast decoding requires a companion running on your own computer or Raspberry Pi.</p>
+        <p>Experimental FM mono and raw RTL-SDR IQ work in WebUSB-compatible Chromium browsers with OS permission; full DAB/RDS/TV/AI needs a compatible decoder/backend.</p>
       </div>
     </aside>
     <main>
@@ -41,8 +43,8 @@
         <h1 id="view-title">Information, without the noise.</h1>
         <p class="subtitle" id="view-subtitle">Radio · Digital TV · Text services · Translators · Flight Radar</p>
         <div class="warning">
-          <strong>Hardware boundary</strong>
-          <span>GitHub Pages does not run an SDR decoder or access your USB tuner by itself. Install the local desktop/receiver companion for live RF, TV, recording and AI. The full local app opens in your browser and remains available without Internet.</span>
+          <strong>Browser-only receive mode</strong>
+          <span>Desktop Chrome/Edge/Brave can request WebUSB permission for experimental FM mono or genuine raw IQ without installing the companion. RDS/DAB/TV/AI still need appropriate decoders or models; Firefox/Safari do not support WebUSB. OS permissions and driver conflicts cannot be overridden by a web page.</span>
         </div>
         <section id="view-home" class="view">
           <div class="hero">
@@ -54,17 +56,46 @@
           </div>
           <div class="cards">
             <article><small>P410 / RF</small><h3>Live Radio</h3><p>Real SDR audio, optional recording, RadioText, DLS and MOT slideshow.</p><button data-view="radio">OPEN RADIO</button></article>
+            <article><small>P415 / ZERO INSTALL</small><h3>Direct browser USB</h3><p>Experimental FM mono, optional audio recording and raw IQ capture — no companion installation.</p><button data-view="usb">CONNECT USB</button></article>
             <article><small>P420 / DVB</small><h3>Live TV</h3><p>Authorized local TV stream, captions and original/translated recording archive.</p><button data-view="tv">OPEN TV</button></article>
             <article><small>P450 / AI</small><h3>Translator</h3><p>English, German, Turkish plus explicitly installed extra Argos language packs.</p><button data-view="translate">OPEN TRANSLATOR</button></article>
             <article><small>P880 / ADS-B</small><h3>Flight Radar</h3><p>Original full tar1090 viewer plus optional antenna / Internet / hybrid filters.</p><button data-view="radar">OPEN FLIGHT RADAR</button></article>
             <article><small>P600 / OFFLINE</small><h3>Browser notebook</h3><p>Local browser-only notes available offline, distinct from received RF text.</p><button data-view="notes">OPEN NOTES</button></article>
+            <article><small>ORBIT / WEBUSB</small><h3>Satellite browser</h3><p>Direct raw satellite-band IQ capture and orbit estimates without local installation.</p><a href="./satellite/">OPEN SATELLITE MODE</a></article>
             <article><small>SETUP</small><h3>Cross-platform</h3><p>Desktop application shortcuts and fast-forward-only updates for Linux, Pi, macOS and Windows.</p><button data-view="setup">OPEN SETUP</button></article>
           </div>
+        </section>
+                <section id="view-usb" class="view" hidden>
+          <article class="feature">
+            <small>DIRECT USB / EXPERIMENTAL · RECEIVE-ONLY</small>
+            <h2>Connect Nooelec in the browser</h2>
+            <p>Grant USB permission only when you choose. No installed Text Center companion or OS service starts automatically. Experimental FM mono is decoded inside this tab; raw I/Q samples are not DAB services or identified aircraft.</p>
+            <div class="actions">
+              <button id="usb-connect" class="primary" type="button">GRANT USB PERMISSION</button>
+              <button id="usb-stop" type="button" disabled>STOP &amp; RELEASE USB</button>
+            </div>
+            <p id="usb-status" role="status" class="usb-status">Checking WebUSB availability…</p>
+            <div class="usb-controls">
+              <label for="usb-mode">Receiving mode<select id="usb-mode">
+                <option value="fm">Experimental FM mono audio</option>
+                <option value="iq">Raw I/Q capture (.cu8)</option>
+              </select></label>
+              <label for="usb-frequency">Frequency MHz<input id="usb-frequency" type="number" min="24" max="1766" step="0.001" value="98.600"></label>
+              <label for="usb-duration">Raw I/Q duration<select id="usb-duration"><option value="5">5 seconds</option><option value="15" selected>15 seconds</option><option value="30">30 seconds</option></select></label>
+              <label for="usb-volume">FM volume<input id="usb-volume" type="range" min="0" max="100" value="50"></label>
+            </div>
+            <label class="usb-check" for="usb-record"><input type="checkbox" id="usb-record"> Save optional FM recording on STOP (downloads into this browser)</label>
+            <div class="actions"><button id="usb-start" type="button" class="primary" disabled>START REAL USB RECEPTION</button></div>
+            <p id="usb-capture-status" role="status" class="usb-status">No RF samples received. Reception and metadata are never simulated.</p>
+            <p class="hint">Mono FM: 87.5–108 MHz. Raw IQ: 24–1766 MHz, maximum 64 MiB per capture, saved as .cu8. DAB 11D at 222.064 MHz and ADS-B at 1090 MHz may be sampled but are NOT decoded here. Saved files are local downloads, not permanent server archives.</p>
+            <p class="hint">One Nooelec cannot receive FM and ADS-B simultaneously. If readsb/welle.io owns the device, release it in that app first. This page never kills external processes. Hiding/closing this tab requests release; unexpected crashes may prevent orderly shutdown.</p>
+            <a href="./satellite/">OPEN SATELLITE WEBUSB MODE</a>
+          </article>
         </section>
         <section id="view-radio" class="view" hidden>
           <article class="feature"><small>ANTENNA / RECEIVER REQUIRED</small><h2>Live radio and DAB+</h2>
             <p>Use your connected RTL-SDR or an already-running welle-cli service from the local application. Radio streaming and optional MP3 recording are independent from optional speech models. Real RDS, DLS and MOT only appear if transmitted and decoded.</p>
-            <div class="actions"><a class="primary" href="http://127.0.0.1:8787/#page=410" target="_blank" rel="noopener">OPEN RADIO PLAYER</a><a href="http://127.0.0.1:8787/#page=400" target="_blank" rel="noopener">AUTOMATIC FM/DAB SCANS</a></div></article>
+            <div class="actions"><button data-view="usb" type="button" class="primary">TRY WEBUSB FM</button><a class="primary" href="http://127.0.0.1:8787/#page=410" target="_blank" rel="noopener">OPEN RADIO PLAYER</a><a href="http://127.0.0.1:8787/#page=400" target="_blank" rel="noopener">AUTOMATIC FM/DAB SCANS</a></div></article>
         </section>
         <section id="view-tv" class="view" hidden>
           <article class="feature"><small>TRUSTED LOCAL MPEG-TS SOURCE</small><h2>TV, recording and subtitles</h2>
@@ -93,7 +124,7 @@
         </section>
         <section id="view-setup" class="view" hidden>
           <article class="feature"><small>REVIEW INSTALLER SOURCE BEFORE RUNNING</small><h2>Install the local companion</h2>
-            <p>GitHub Pages remains a secure static website. This computer/Pi-side companion is required for USB hardware, continuous TV/radio streams, audio/video recording and AI models.</p>
+            <p>Optional companion: WebUSB mono FM and raw IQ require no local install when the browser and OS allow it. Full RDS/DAB/MOT, TV, AI models and managed services still need appropriate decoders or a configured backend.</p>
             <h3>Debian / Ubuntu / Pop!_OS / Raspberry Pi OS / macOS</h3>
             <pre id="unix-command"></pre><button data-copy="unix-command">COPY INSTALL COMMAND</button>
             <h3>Windows PowerShell</h3>
