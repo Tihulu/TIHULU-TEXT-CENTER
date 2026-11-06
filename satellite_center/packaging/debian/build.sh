@@ -16,6 +16,7 @@ mkdir -p "$PKG/DEBIAN" "$DEST/satellite_center" "$PKG/usr/bin" \
  "$PKG/usr/share/icons/hicolor/512x512/apps" \
  "$PKG/usr/share/doc/tihulu-satellite-center"
 cp satellite_center/*.py "$DEST/satellite_center/"
+install -m 644 satellite_center/index.html "$DEST/satellite_center/index.html"
 cp -R satellite_center/browser "$DEST/satellite_center/browser"
 cp -R satellite_center/assets "$DEST/satellite_center/assets"
 cp satellite_center/README.md "$PKG/usr/share/doc/tihulu-satellite-center/README.md"
