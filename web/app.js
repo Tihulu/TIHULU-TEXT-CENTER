@@ -2199,17 +2199,29 @@ async function addOfflineRecordingControl(){
 /* UNIFIED CHANNEL CENTER: browse verified tuner discoveries, not a guessed lineup.
    Records are editable presentation preferences; original decoder facts remain. */
 async function playFmChannel(channel, record){
+  const captionOptions=state.channelCaptionPrefs||{enabled:false,translate:false,source:'en',target:'en',backend:'auto'};
   if(state.liveActive||state.dabPlaying)
     throw Error("Stop the current FM/DAB playback before tuning the shared RTL-SDR.");
   if(!confirm("Tune the shared RTL-SDR to "+(channel.frequency_hz/1e6).toFixed(3)+
     " MHz and "+(record?"record actual FM audio":"play actual FM audio")+"? Any other SDR owner must be stopped first."))return;
   const result=await api("/api/live/radio/start","POST",{
-    frequency_mhz:channel.frequency_hz/1e6,record:!!record,subtitles:false,
-    original_language:"en",translated_language:null,backend:"auto"});
+    frequency_mhz:channel.frequency_hz/1e6,record:!!record,
+    subtitles:captionOptions.enabled,original_language:captionOptions.source,
+    translated_language:captionOptions.enabled&&captionOptions.translate?captionOptions.target:null,
+    backend:captionOptions.backend,translation_backend:"auto"});
   state.liveActive=Boolean(result.active);
   state.liveSession=result.session;
   state.liveFrequency=channel.frequency_hz;
   state.fmRecording=!!record;
+  const captionStatus=$("live-dock-caption-status");
+  if(captionStatus)captionStatus.textContent=captionOptions.enabled?
+    (result.subtitles_active?"FM live transcription enabled":
+      "FM audio only: "+(result.subtitle_unavailable_reason||"speech model not ready")):
+    "FM captions off";
+  const previous=$("live-dock-radio-captions");
+  if(previous){previous.hidden=true;previous.replaceChildren();}
+  if(state.livePollTimer)clearTimeout(state.livePollTimer);
+  state.livePollTimer=setTimeout(pollLiveRadio,350);
   const player=$("persistent-radio-player");
   player.onerror=null;
   player.src="/api/live/radio/stream?session="+encodeURIComponent(result.session)+
@@ -2224,8 +2236,10 @@ async function playFmChannel(channel, record){
     ". Playback is not proof of RDS metadata or current audio quality.");
 }
 async function playDabChannel(channel){
+  const captionOptions=state.channelCaptionPrefs||{enabled:false,translate:false,source:"en",target:"en",backend:"auto"};
   if(!channel.audio_advertised)throw Error("This DAB entry is a data service, not decoded audio.");
   if(state.liveActive)throw Error("Stop FM first: FM and DAB cannot share one Nooelec SDR.");
+  if(state.dabCaptionSession)await stopDabCaptionTap();
   if(state.dabPlaying){
     const old=$("persistent-radio-player");
     old.pause();old.removeAttribute("src");old.load();
@@ -2273,19 +2287,59 @@ async function playDabChannel(channel){
     notice("DAB stream could not play: "+error.message+
       ". Check that the physical receiver has a DAB lock.");
   }
+  const note=$("live-dock-caption-status");
+  if(!captionOptions.enabled){
+    if(note)note.textContent="DAB+ live captions off";
+    return;
+  }
+  try{
+    const result=await api("/api/dab/captions/start","POST",{
+      channel:channel.channel,service_id:channel.service_id,
+      original_language:captionOptions.source,
+      translated_language:captionOptions.translate?captionOptions.target:null,
+      backend:captionOptions.backend,translation_backend:"auto"
+    });
+    if(result.active&&result.session){
+      state.dabCaptionSession=result.session;
+      if(note)note.textContent="DAB+ real speech decoding started";
+      if(state.dabCaptionTimer)clearTimeout(state.dabCaptionTimer);
+      state.dabCaptionTimer=setTimeout(pollLiveDabCaptions,400);
+    }else{
+      if(note)note.textContent="DAB audio only: "+
+        (result.unavailable_reason||"No compatible installed speech backend");
+      notice("DAB radio continues without transcription: "+
+        (result.unavailable_reason||"Speech model not available"));
+    }
+  }catch(error){
+    if(note)note.textContent="DAB audio only: "+error.message;
+    notice("DAB audio remains available; captions could not start: "+error.message);
+  }
 }
 async function playTvChannel(channel, record){
+  const captionOptions=state.channelCaptionPrefs||{enabled:false,translate:false,source:"en",target:"en",backend:"auto"};
   if(!channel.playable||!channel.tv_channel_id)
     throw Error("This real DVB service was discovered but no authorized MPEG-TS stream is configured for playback.");
   if(state.tvActive)throw Error("Stop the current TV session before switching channels.");
   if(!confirm("Open configured TV source "+channel.display_name+
     (record?" and record actual video":"")+"? The local MPEG-TS relay must already be authorized."))return;
   const session=await api("/api/live/tv/start","POST",{
-    channel_id:channel.tv_channel_id,record:!!record,subtitles:false,
-    original_language:"en",translated_language:null,backend:"auto",upstream_authorized:true});
+    channel_id:channel.tv_channel_id,record:!!record,
+    subtitles:captionOptions.enabled,original_language:captionOptions.source,
+    translated_language:captionOptions.enabled&&captionOptions.translate?captionOptions.target:null,
+    backend:captionOptions.backend,translation_backend:"auto",
+    upstream_authorized:true});
   state.tvActive=true;
   state.tvRecording=!!record;
   state.tvSession=session.session;
+  const note=$("live-dock-caption-status");
+  if(note)note.textContent=captionOptions.enabled?
+    (session.subtitles_active?"TV live transcription enabled":
+      "TV video only: "+(session.subtitle_unavailable_reason||"Speech backend not ready")):
+    "TV captions off";
+  const previous=$("live-dock-tv-captions");
+  if(previous){previous.hidden=true;previous.replaceChildren();}
+  if(state.tvPollTimer)clearTimeout(state.tvPollTimer);
+  state.tvPollTimer=setTimeout(pollLiveTV,350);
   const player=$("persistent-tv-player");
   player.src="/api/live/tv/stream?session="+encodeURIComponent(session.session)+
     "&token="+encodeURIComponent(state.csrf);
