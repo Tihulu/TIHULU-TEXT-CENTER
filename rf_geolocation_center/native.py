@@ -44,6 +44,7 @@ ASSETS = {
     "/core/rf_ranging.mjs": ("core/rf_ranging.mjs", "text/javascript"),
     "/core/source_catalog.mjs": ("core/source_catalog.mjs", "text/javascript"),
     "/core/dvb_scan.mjs": ("core/dvb_scan.mjs", "text/javascript"),
+    "/core/scan_map.mjs": ("core/scan_map.mjs", "text/javascript"),
     "/scripts/dvb_scan_linux.sh": ("scripts/dvb_scan_linux.sh", "text/plain"),
     "/scripts/usb_prepare_linux.sh": ("scripts/usb_prepare_linux.sh", "text/plain"),
 }
