@@ -28,6 +28,8 @@ import wave
 
 from . import __version__
 from .capture_naming import recording_name, PROFILE_TARGETS, meteor_capture
+from .capture_budget import (MAX_IQ_BYTES, MAX_CAPTURE_SECONDS,
+                             plan_capture_budget, END_MARGIN_SECONDS)
 from .bridge import (app_data_dir, lock_receiver, unlock_receiver, start_receiver_process,
                      stop_receiver_process, pairing_secret, allowed_origin,
                      local_host_allowed, request_is_remote)
@@ -36,8 +38,6 @@ UTC = timezone.utc
 DATA = Path(os.getenv("TIHULU_SATELLITE_DATA", str(app_data_dir())))
 TEXT_CENTER_LOCK = (Path.home()/".local/share/tihulu-text-center/.receiver-locks/rtl_fm_rds.lock"
                     if os.name != "nt" else DATA/".receiver-locks/rtl_fm_rds.lock")
-MAX_IQ_BYTES = 1_073_741_824  # 1 GiB: maximum per captured file
-MAX_CAPTURE_SECONDS = 480
 SOURCE_URLS = {
     "iss": "https://celestrak.org/NORAD/elements/gp.php?CATNR=25544&FORMAT=TLE",
     "meteor3": "https://celestrak.org/NORAD/elements/gp.php?CATNR=57166&FORMAT=TLE",
@@ -488,7 +488,7 @@ class Station:
             return job
 
     def auto_schedule(self, mission_ids, *, city="Cologne", lat=None, lon=None,
-                      hours=24, elevation=20, max_jobs=6):
+                      hours=24, elevation=20, max_jobs=6, coverage_goal="full"):
         """Explicit one-click receive-only mission planning with a single RTL-SDR.
 
         TLE passes are geometry, never proof of active transmitters. Mutating
@@ -503,6 +503,8 @@ class Station:
             raise ValueError("Lookahead must be 1–72 hours")
         if type(max_jobs) is not int or not 1 <= max_jobs <= 12:
             raise ValueError("Choose at most 12 jobs per request")
+        if coverage_goal not in ("full", "sample"):
+            raise ValueError("Coverage goal must be full or sample")
         chosen = dict.fromkeys(mission_ids)
         needed = {("rtl_sdr" if mode == "iq" else "rtl_fm")
                   for mid in chosen for _, _, mode in [candidates[mid]]}
@@ -536,6 +538,9 @@ class Station:
         new_jobs = []
         skipped = []
         now_utc = now()
+        free_on_disk = shutil.disk_usage(self.archive).free
+        reserved_bytes = sum(int(j.get("estimated_bytes") or 0) for j in self.jobs
+                             if j.get("state") in ("pending", "running"))
         events = prediction["predictions"]
         for event in events:
             if len(new_jobs) >= max_jobs:
@@ -548,26 +553,48 @@ class Station:
                    for a, b in existing):
                 skipped.append(event["name"]+": shared receiver time conflict")
                 continue
-            # Rotate public ISS SSTV/APRS options across distinct passes when
-            # the operator selects All. Never run two receivers simultaneously.
+            # Prefer a complete predicted window when multiple formats are selected.
+            # Do not change a user-requested images-only category.
             eligible = [mid for mid in chosen if event["norad"] == candidates[mid][0]]
-            mission = min(eligible, key=lambda mid: mission_counts[mid]) if eligible else None
-            if not mission:
+            plans = {mid: plan_capture_budget(aos, los, mid,
+                     free_bytes=max(0, free_on_disk-reserved_bytes),
+                     goal=coverage_goal) for mid in eligible}
+            viable = [mid for mid in eligible if plans[mid]["feasible"]]
+            if not viable:
+                if eligible:
+                    skipped.append(event["name"]+": too little predicted time or free disk for this format")
                 continue
+            mission = min(viable, key=lambda mid: (
+                plans[mid]["coverage"] != "full-pass-attempt",
+                mission_counts[mid], eligible.index(mid)))
+            plan = plans[mission]
             _, profile, mode = candidates[mission]
             try:
                 job = self.schedule(event["id"], profile, mode)
             except (ValueError, RuntimeError) as error:
                 skipped.append(event["name"]+": "+str(error)[:90])
                 continue
-            job["mission_id"] = mission
+            job.update(mission_id=mission, capture_seconds=plan["capture_seconds"],
+                       estimated_bytes=plan["estimated_bytes"], coverage=plan["coverage"],
+                       data_kind=plan["data_kind"], target_seconds=plan["target_seconds"],
+                       shortfall_seconds=plan["shortfall_seconds"],
+                       pass_visible_seconds=plan["pass_visible_seconds"],
+                       coverage_goal=coverage_goal, capture_note=plan["note"])
             with self.lock:
                 for stored in self.jobs:
                     if stored["id"] == job["id"]:
-                        stored["mission_id"] = mission
+                        stored.update({key: job[key] for key in (
+                            "mission_id", "capture_seconds", "estimated_bytes",
+                            "coverage", "data_kind", "target_seconds",
+                            "shortfall_seconds", "pass_visible_seconds",
+                            "coverage_goal", "capture_note")})
                 self.save_jobs()
             new_jobs.append(dict(job))
+            if plan["coverage"] != "full-pass-attempt":
+                skipped.append(event["name"]+": "+str(plan["shortfall_seconds"])+
+                               " seconds of predicted coverage missing; partial data only")
             mission_counts[mission] += 1
+            reserved_bytes += plan["estimated_bytes"]
             existing.append((aos, los))
         return {"scheduled": new_jobs, "scheduled_count": len(new_jobs),
                 "skipped": skipped[:20], "requested_targets": list(chosen),
@@ -689,14 +716,16 @@ class Station:
                     return
                 if nearest["state"] != "pending":
                     continue
-                if now() > datetime.fromisoformat(nearest["los"]):
-                    nearest.update(state="missed", result="Pass elapsed while receiver unavailable")
+                remaining = int((datetime.fromisoformat(nearest["los"])-now()).total_seconds())-END_MARGIN_SECONDS
+                duration = min(MAX_CAPTURE_SECONDS, remaining,
+                               int(nearest.get("capture_seconds") or MAX_CAPTURE_SECONDS))
+                if duration < 8:
+                    nearest.update(state="missed", result="Insufficient time before predicted LOS")
                     self.save_jobs()
                     continue
                 nearest["state"] = "running"
                 self.save_jobs()
             try:
-                duration = max(12, min(MAX_CAPTURE_SECONDS, int((datetime.fromisoformat(nearest["los"])-now()).total_seconds())))
                 result = self.capture(nearest["profile"], nearest["mode"], duration,
                         scheduled=True, satellite=nearest.get("satellite"))
                 with self.lock:
@@ -790,7 +819,7 @@ class Station:
         if profile not in PROFILES or mode not in MODES or not allowed_mode(profile, mode):
             raise ValueError("Unsupported capture preset")
         if type(seconds) is not int or not 8 <= seconds <= MAX_CAPTURE_SECONDS:
-            raise ValueError("Capture duration must be 8–480 seconds")
+            raise ValueError("Capture duration must be 8–900 seconds")
         if not scheduled and seconds > 240:
             raise ValueError("Manual capture maximum is 240 seconds")
         needed = {"survey": "rtl_power", "iq": "rtl_sdr", "aprs": "rtl_fm", "sstv_audio": "rtl_fm"}[mode]
@@ -1206,7 +1235,7 @@ class Handler(BaseHTTPRequestHandler):
                 result = app.auto_schedule(data.get("missions"), city=data.get("city", "Cologne"),
                     lat=data.get("lat"), lon=data.get("lon"),
                     hours=data.get("hours", 24), elevation=data.get("elevation", 20),
-                    max_jobs=data.get("max_jobs", 6))
+                    max_jobs=data.get("max_jobs", 6), coverage_goal=data.get("coverage_goal", "full"))
             elif route == "/api/auto-edit":
                 result = app.edit_auto_schedule(data.get("job_id"), data.get("run_at"),
                                                 data.get("mission_id"))
