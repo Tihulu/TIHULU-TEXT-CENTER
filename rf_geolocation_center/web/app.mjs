@@ -363,9 +363,20 @@ function renderEarth(){
  setText("map-center-label",p.validObserver?"MEASURED LOCATION: "+p.kind:p.kind.toUpperCase());
  const grid=$("earth-grid"),rings=$("earth-rings"),markers=$("earth-markers");
  grid.replaceChildren();rings.replaceChildren();markers.replaceChildren();
- const pt=(lat,lon)=>{const v=project(lat,lon);return {x:v.x,y:v.y,inside:v.x>=0&&v.x<=mapWidth&&v.y>=0&&v.y<=mapHeight}};
+ // Cache viewport and projection for this frame: each ring draws 96 points and
+ // many stations/satellites otherwise trigger hundreds of forced DOM layout reads.
+ const center=merc(state.map.lat,state.map.lon,state.map.zoom),w=mapWidth,h=mapHeight;
+ const worldWidth=256*Math.pow(2,state.map.zoom);
+ const pt=(lat,lon)=>{
+   const p=merc(lat,lon,state.map.zoom);
+   let dx=p.x-center.x;
+   if(dx>worldWidth/2)dx-=worldWidth;
+   if(dx<-worldWidth/2)dx+=worldWidth;
+   const x=w/2+dx,y=h/2+p.y-center.y;
+   return {x,y,inside:x>=0&&x<=mapWidth&&y>=0&&y<=mapHeight};
+ };
+ const matched=mapMatches();
  // Coordinate grid is built locally, without any online map tiles.
- const center=merc(state.map.lat,state.map.lon,state.map.zoom),w=rect.width,h=rect.height;
  const nw=unmerc(center.x-w/2,center.y-h/2,state.map.zoom);
  const se=unmerc(center.x+w/2,center.y+h/2,state.map.zoom);
  const spanLon=Math.abs(se.lon-nw.lon),spanLat=Math.abs(nw.lat-se.lat);
@@ -399,7 +410,7 @@ function renderEarth(){
    const osmTower=!!tower||(loc.catalog==="OpenStreetMap/Overpass")||
      /^osm-(node|way|relation)\//.test(originalId);
    const verifiedRF=!!(loc.hasActualRF||loc.hardwareReceived);
-   const siteMatches=osmTower?mapMatches().filter(m=>m.siteId===originalId):[];
+   const siteMatches=osmTower?matched.filter(m=>m.siteId===originalId):[];
    const hoverTitle=osmTower?
      (tower?.name||loc.name||"Broadcast tower")+" · "+
        (siteMatches.length?"FREQUENCY OVERLAP · NO TOWER IDENTITY":"OSM CATALOG ONLY · NOT RF VERIFIED"):
@@ -555,7 +566,6 @@ function renderEarth(){
 
  // Mapped broadcast TOWER references are not actual antenna-identified transmitters.
  // Actual frequency overlaps highlight candidates; OSM-only stations remain neutral.
- const matched=mapMatches();
  const drawnTowers=[];
  for(const site of state.catalogTowers){
    if(!showGround||state.rfSources.some(x=>x.catalogId===site.id))continue;
