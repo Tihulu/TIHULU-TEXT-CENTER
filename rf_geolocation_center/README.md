@@ -182,3 +182,27 @@ The default workflow is **automatic discovery first, manual entry optional**. In
 **Aircraft from the internet**: separate, one-click, user-initiated [OpenSky REST API](https://openskynetwork.github.io/opensky-api/rest.html) lookup for the chosen approximate search region (may fail due to CORS/auth/rate limits). It populates **INTERNET aircraft** reference markers, not local SDR observations. Cache snapshots are clearly labeled stale when offline. Current public OpenSky API constraints apply.
 
 Catalog site coordinates and manually chosen sources persist in the PWA local cache for offline map/reference use (not proof of real received RF). No background location, implicit GPS lookup, autonomous radio scan, second USB claim or invented source entries occur. The app can plot catalog *candidates* and actual Flight Radar decoded aircraft in parallel, but neither provides receiver location without additional physical timing/ranging/position constraints.
+
+
+## Simplified map-first locator and Hauppauge TV receiver (Nov 2026)
+
+Geolocation Center opens **Find My Location** by default. The large Earth Map has two multiselect groups:
+- **Position methods**: GPS / Device (browser geolocation or NMEA GNSS); Nooelec RTL-SDR; Hauppauge WinTV-soloHD 01589 (Amazon B0152XLPFS) TV tuner.
+- **RF map layers**: ground transmitters, aircraft and satellites (independent checkboxes). Different source provenance is preserved: mapped OSM tower sites, decoded antenna ADS-B aircraft, online aircraft, predicted satellite orbits, real GNSS fixes, experimental RF ranges.
+
+There are three primary actions: **Find My Location**, **Scan selected receivers** and **Show measured rings**. These controls change real map/source selections. An unselected data source never becomes a synthetic location fix. RF-only excludes device/GPS fallback; mixed mode can show independent layers. Last-known positions remain labeled NOT LIVE. Fictional demonstration rings are not shown by default. The sidebar only shows Find My Location, Radio / TV Scan and Advanced Tools; all old features remain accessible under advanced sections.
+
+**Radio / TV Scan** is a short separate screen with an authorized RTL-SDR WebUSB Connect button, on-demand OSM tower catalog lookup, physical FM 87.5–108 MHz RF power sweep, Hard Stop, strongest observed tuner frequencies and candidate stations. Sites with explicitly tagged FM frequencies are automatically added as unverified source candidates, avoiding manual transcription. Source identification, RDS decoding and actual range measurement are NOT implied by signal strength or a frequency overlap. Manual RF source entry, calibration and deeper evidence remain in Advanced.
+
+### Hauppauge WinTV-soloHD model 01589 and TV metadata
+Hauppauge's WinTV-soloHD is a DVB-T/DVB-T2/DVB-C receiver, **not** DVB-S satellite, GPS or ADS-B. Linux may expose its tuner through /dev/dvb/adapterN/frontend0, subject to actual kernel/firmware support. The static GitHub Pages website cannot directly operate that native Linux DVB frontend.
+
+To scan physical TV channels on supported Pop!_OS/Debian/Ubuntu Linux, use the optional helper at scripts/dvb_scan_linux.sh. Requires a real regional initial-tuning frequency file and the dvbv5-scan utility from the distribution's dvb-tools package. First run it without arguments to see available regional candidate tuning files, then run with your chosen real file and DVB adapter index:
+
+    bash dvb_scan_linux.sh
+    bash dvb_scan_linux.sh /path/to/real/regional/initial-tuning-file 0
+
+The script makes a timestamped local DVBv5 .conf channel file by scanning your physical Hauppauge tuner. Import that file in the Radio / TV Scan screen. The app displays service name, frequency, delivery system, service ID, network ID and metadata provenance. It labels imported files, not live browser scans. DVB services usually do NOT encode receiver coordinates or identify a single physical broadcasting station (DVB-T2 single-frequency networks may contain many sites). Correct source identification requires additional independent site/measurement data.
+
+### Known technical limits
+GPS-free autonomous radio positioning is not guaranteed by station frequencies, received signal levels or DVB service IDs alone. A reliable new RF receiver position requires defensible physical constraints such as independently calibrated ranges, synchronized time difference or directional measurements, or actual GNSS navigation decoding with compatible hardware. Native tuner scan-from-browser needs an explicitly authorized local backend; static GitHub Pages cannot launch Linux commands.
