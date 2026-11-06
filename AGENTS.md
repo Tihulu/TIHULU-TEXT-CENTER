@@ -21,3 +21,15 @@
 Run: \`python3 -m unittest discover -s tests -v\`, \`python3 -m compileall -q textcenter tests\`, and \`node --check web/app.js\`.
 
 No backend external Python dependencies are required for the initial version. Keep API and record formats documented in \`docs/DATA_FORMAT.md\` and integration boundaries in \`docs/SURVIVAL_KIT_INTEGRATION.md\`.
+
+## Flight Radar — mandatory mirrored Pages contract
+
+Flight Radar is **owned by** `Tihulu/tihulu-flight-radar`, not by TEXT CENTER. This repository contains a **built, read-only mirror** of its browser app at `gh-pages/flight_radar/`. Do not maintain a separate Flight Radar implementation here.
+
+Every Flight Radar browser update must appear at **both**:
+- https://tihulu.github.io/tihulu-flight-radar/ (standalone original repo)
+- https://tihulu.github.io/TIHULU-TEXT-CENTER/flight_radar/ (TEXT CENTER mirror)
+
+Read `docs/FLIGHT_RADAR_DUAL_PAGES.md` and the canonical Flight Radar repository's `AGENTS.md` before working on Flight Radar or its application links. The managed sync workflow `.github/workflows/sync-flight-radar-pages.yml` follows canonical branch `feature/github-pages-local-bridge-2026-11-06` until PR #6 merges. It polls every 15 minutes and supports manual dispatch; no second source of browser JavaScript is permitted. The website's `source-revision.json` must match the standalone publication's `source_sha`.
+
+Future coding agents: never consider a Flight Radar change delivered if only the TEXT CENTER site or only the standalone site is updated. Preserve other TEXT CENTER Pages, especially Satellite, RF Geolocation and Radio Center, and do not merge unrelated project code. Note if the standalone repo has not yet enabled GitHub Pages under Settings → Pages → Source: GitHub Actions; a passing build does not guarantee a live site.
