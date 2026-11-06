@@ -1593,6 +1593,23 @@ try {
      Number(transferredSeconds)>=8&&Number(transferredSeconds)<=60)
     $('auto-browser-seconds').value=transferredSeconds;
 } catch(_error) { /* Storage unavailable: keep safe full-data default. */ }
+// Same-tab transfer from the Images & Data recording-formats picker.
+try {
+ const raw=sessionStorage.getItem('tihulu-auto-formats');
+ if(raw){
+   sessionStorage.removeItem('tihulu-auto-formats');
+   const choice=JSON.parse(raw);
+   if(typeof choice.raw==='boolean'&&typeof choice.wav==='boolean'&&
+      Number.isFinite(choice.createdAt)&&Date.now()-choice.createdAt<5*60000){
+     $('auto-save-raw').checked=choice.raw;
+     $('auto-save-wav').checked=choice.wav;
+     refreshAutoOutputSummary();
+     $('auto-plan-status').textContent=
+       'Recording formats transferred from Satellite Images & Data: '+
+       outputSelectionText(choice.raw,choice.wav)+'. Review before arming.';
+   }
+ }
+}catch(e){log('Recording format transfer not available: '+String(e?.message||e));}
 const requestedAutoMission=new URLSearchParams(location.search).get('auto-mission');
 if(['iss-images','images','messages','voice','all'].includes(requestedAutoMission)){
   $('auto-mode').value=requestedAutoMission;
