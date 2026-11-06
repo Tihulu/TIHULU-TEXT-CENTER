@@ -261,12 +261,22 @@ export function initIqAnalysisUI({log=()=>{}}={}){
  });
  $("iq-export-metadata").addEventListener("click",()=>{
    if(!lastReport)return;
+   const actualCapture=lastAnalyzedBlob===lastBlob&&lastReportName===lastName?lastMetadata:null;
    const info={format:"TIHULU Satellite Center capture metadata v1",
-     source_file:lastReportName,created_utc:new Date().toISOString(),
+     source_file:lastReportName,metadata_exported_utc:new Date().toISOString(),
      center_frequency_hz:lastReport.centerFrequencyHz,
      sample_rate_sps:lastReport.sampleRate,iq_datatype:"cu8",
-     captured_at_utc:null,rf_source:"recorded CU8 / metadata operator-confirmed",
-     notes:"CU8 has no embedded metadata; named satellite candidates are not verified RF sources."};
+     capture_started_utc:actualCapture?.captureStartedUtc??null,
+     capture_ended_utc:actualCapture?.captureEndedUtc??null,
+     captured_complex_samples:actualCapture?.complexSamples??null,
+     receiver_type:actualCapture?.receiverType??null,
+     acquisition_method:actualCapture?.acquisition??"Unknown / imported CU8",
+     gain_mode:actualCapture?.gainMode??null,
+     candidate_target:actualCapture?.targetCandidate??null,
+     rf_source_verified:false,
+     evidence:"Raw CU8 FFT and relative digital power; not verified transmitter or satellite",
+     metadata_provenance:actualCapture?"USB capture settings recorded during acquisition":"Filename inference or operator-entered metadata",
+     notes:"CU8 does not embed metadata. This JSON is a separate sidecar for the selected file."};
    const blob=new Blob([JSON.stringify(info,null,2)],{type:"application/json"});
    const url=URL.createObjectURL(blob),a=document.createElement("a");
    a.href=url;a.download=(lastReportName||"capture").replace(/\.cu8$/i,"")+".metadata.json";
