@@ -24,8 +24,8 @@ function safeLoad(){
 function persist(){
  try{
   localStorage.setItem(KEY,JSON.stringify(sources.map(s=>({
-   id:s.id,name:s.name,lat:s.lat,lon:s.lon,type:s.type,
-   frequencyMHz:s.frequencyMHz,calibration:s.calibration||null
+   id:s.id,name:s.name,lat:s.lat,lon:s.lon,type:s.type,catalogId:s.catalogId||null,
+   frequencyMHz:s.frequencyMHz,calibration:s.calibration||null,catalog:s.catalog||null,metadataOrigin:s.metadataOrigin||"USER SUPPLIED"
   }))));
  }catch{}
 }
@@ -33,7 +33,7 @@ function sourceById(){return sources.find(s=>s.id===selected)||null}
 function broadcast(){
  window.dispatchEvent(new CustomEvent("tihulu:rf-survey-updated",{
   detail:{rfOnly,sources:sources.map(s=>({id:s.id,name:s.name,type:s.type,lat:s.lat,lon:s.lon,
-   frequencyMHz:s.frequencyMHz,hasActualRF:!!s.lastObservation,
+   frequencyMHz:s.frequencyMHz,hasActualRF:!!s.lastObservation,catalogId:s.catalogId||null,catalog:s.catalog||null,metadataOrigin:s.metadataOrigin||"USER SUPPLIED",
    calibration:!!s.calibration})),
    ranges:rangeEstimates.map(s=>({...s})),solution:solution?{...solution}:null}
  }));
@@ -82,7 +82,7 @@ function render(){
    const row=document.createElement("div");row.className="rf-source-row";
    const name=document.createElement("strong");name.textContent=s.name+" · "+s.type+" · "+s.frequencyMHz.toFixed(3)+" MHz";
    const desc=document.createElement("span");
-   desc.textContent="User-supplied position "+s.lat.toFixed(5)+", "+s.lon.toFixed(5)+
+   desc.textContent=(s.catalog?"CATALOG site candidate ("+s.catalog+") ":"User-supplied position ")+s.lat.toFixed(5)+", "+s.lon.toFixed(5)+
      " · "+(s.lastObservation?"REAL RF level "+s.lastObservation.levelDbFS.toFixed(2)+" dBFS-like":"NO ANTENNA READING")+
      " · "+(s.calibration?"Reference calibrated":"Not calibrated")+
      (s.rangeHypothesis?" · RANGE HYPOTHESIS "+Math.round(s.rangeHypothesis.rangeMeters)+" m":"")+
@@ -112,6 +112,21 @@ function addSource(){
  sources.push({id,name,type,frequencyMHz,lat,lon,calibration:null,lastObservation:null,rangeHypothesis:null});
  selected=id;persist();compute();render();
  message("rf-measurement-status","Added USER-SUPPLIED "+type+" source "+name+". Coordinates/frequency are NOT identified or confirmed by the RTL-SDR.");
+}
+function addCatalogCandidate(candidate){
+ if(!candidate||candidate.type!=="station"||!String(candidate.id).startsWith("osm-")||
+   !Number.isFinite(candidate.lat)||Math.abs(candidate.lat)>90||!Number.isFinite(candidate.lon)||Math.abs(candidate.lon)>180||
+   !Number.isFinite(candidate.frequencyMHz)||candidate.frequencyMHz<87.5||candidate.frequencyMHz>108)
+  return false;
+ if(sources.some(s=>s.catalogId===candidate.id&&Math.abs(s.frequencyMHz-candidate.frequencyMHz)<.001))return false;
+ if(sources.length>=60)return false;
+ const id="catalog-"+String(candidate.id).slice(0,74)+"-"+String(Math.round(candidate.frequencyMHz*1000));
+ if(sources.some(s=>s.id===id))return false;
+ sources.push({id,catalogId:candidate.id,name:String(candidate.name||"OSM transmitter").slice(0,100),
+  lat:candidate.lat,lon:candidate.lon,type:"station",frequencyMHz:candidate.frequencyMHz,
+  catalog:"OpenStreetMap/Overpass",metadataOrigin:"PUBLIC OSM SITE / FREQUENCY TAG · RF IDENTITY NOT DECODED",
+  calibration:null,lastObservation:null,rangeHypothesis:null,transmitterIdentityVerified:false});
+ selected=id;return true;
 }
 function capture(){
  const s=sourceById();
@@ -162,6 +177,18 @@ export function initRFSurvey(){
  sources=safeLoad();selected=sources[0]?.id||"";render();compute();
  $("rf-add").addEventListener("click",()=>{try{addSource()}catch(e){message("rf-measurement-status",e.message)}});
  $("rf-source-select")?.addEventListener("change",v=>{selected=v.target.value;render()});
+ window.addEventListener("tihulu:rf-autosource",e=>{
+   const ok=addCatalogCandidate(e.detail);
+   if(ok){persist();compute();render();message("rf-measurement-status","Imported OSM broadcast SITE CANDIDATE with tagged FM frequency. Antenna reception and source identity NOT verified.")}
+   else message("rf-measurement-status","Catalog source not imported: frequency absent/invalid, already listed or 60-source limit reached.");
+ });
+ window.addEventListener("tihulu:rf-autosources",e=>{
+   const candidates=Array.isArray(e.detail)?e.detail:[];
+   let added=0;for(const candidate of candidates.slice(0,90)){if(addCatalogCandidate(candidate))added++}
+   persist();compute();render();
+   message("rf-measurement-status",added+" OSM catalog candidate(s) auto-added with explicit FM frequency. These are EXTERNAL transmitter references, NOT measured RF signals or distance rings.");
+ });
+
  $("rf-only")?.addEventListener("change",v=>setRfOnly(v.target.checked));
  $("rf-capture")?.addEventListener("click",capture);
  $("rf-calibrate")?.addEventListener("click",()=>{try{saveCalibration()}catch(e){message("rf-measurement-status",e.message)}});
