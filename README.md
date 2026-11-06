@@ -2,6 +2,42 @@
 
 A lightweight, offline-first, English-language information and text-network center for desktop browsers and Raspberry Pi. Designed as a **standalone application** with a future integration path into [Tihulu Survival Kit](https://github.com/Tihulu/tihulu-survival-kit).
 
+## Satellite Center — standalone companion 🛰️
+
+**[Open Satellite Center on GitHub Pages](https://tihulu.github.io/TIHULU-TEXT-CENTER/satellite_center/)** ·
+[One-line installation / USB pairing guide](docs/SATELLITE_CENTER_COMPANION.md) ·
+[Satellite Center source and review (PR #9)](https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/9)
+
+The separate `satellite_center/` application provides ISS, Meteor-M,
+amateur CubeSat and Iridium NEXT orbital tracking, pass prediction, bounded
+receive-only RTL-SDR scans and opt-in scheduled recordings. With compatible
+local tools, it can collect ISS APRS text and attempt real Meteor-M LRPT
+image decoding through SatDump. It releases its own SDR processes on stop;
+it never preempts Flight Radar/readsb. **Iridium is orbital/spectrum
+survey only**, not a private communications decoder.
+
+The public GitHub Pages UI cannot directly access USB: install and launch
+the **local Satellite Center companion** first, then pair with its token.
+This module is under development in an independent **draft PR**; it is
+not merged into the main Text Center backend.
+
+**Linux / Pop!_OS / Debian / Ubuntu / Raspberry Pi OS / macOS** (Git,
+Python 3.11+ and venv required):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Tihulu/TIHULU-TEXT-CENTER/feature/satellite-center-standalone-2026-11-06/satellite_center/install/install.sh | bash
+```
+
+**Windows 10/11 x64** (PowerShell; Python 3.11+ required):
+
+```powershell
+irm https://raw.githubusercontent.com/Tihulu/TIHULU-TEXT-CENTER/feature/satellite-center-standalone-2026-11-06/satellite_center/install/install.ps1 | iex
+```
+
+Read the remote scripts before running them. SDR receiver utilities,
+device drivers and a suitable antenna may still need separate installation;
+see the [setup guide](docs/SATELLITE_CENTER_COMPANION.md).
+
 ## Scope
 
 - Teletext-style numbered navigation and a modern responsive interface.
