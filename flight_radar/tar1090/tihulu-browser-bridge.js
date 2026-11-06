@@ -25,6 +25,38 @@
   let updatedAt = 0;
   let connected = false;
   const MAX_AIRCRAFT = 1500;
+  // Pinned upstream tar1090 declares 'let OLMap' at global lexical scope.
+  // It is not window.OLMap. Use that actual map for genuine I/R badge layer.
+  function originalMap(){
+    return typeof OLMap !== "undefined" && OLMap ? OLMap : window.OLMap;
+  }
+  function originalPlanes(){return typeof g !== "undefined" && g ? g : window.g;}
+  function originalOl(){return typeof ol !== "undefined" && ol ? ol : window.ol;}
+  function updateUpstreamTable(){
+    const tar=typeof TAR !== "undefined" ? TAR : window.TAR;
+    if(tar?.planeMan?.refresh)tar.planeMan.refresh();
+    originalMap()?.render?.();
+  }
+  // tar1090 retains aircraft models after a JSON row disappears.
+  // Filtering transport JSON alone therefore cannot disable a map layer.
+  // Remove only excluded objects using upstream's own reaper pattern.
+  function reconcileSourceVisibility(){
+    if(!connected)return;
+    const group=originalPlanes();
+    if(!group || !Array.isArray(group.planesOrdered) || !group.planes)return;
+    const permitted=new Set(visibleAircraft().map(a=>a.hex));
+    let removed=0;
+    for(const plane of [...group.planesOrdered]){
+      if(!plane || permitted.has(String(plane.icao||"").toLowerCase()))continue;
+      if(plane.selected && typeof deselectAllPlanes==="function")deselectAllPlanes();
+      delete group.planes[plane.icao];
+      const i=group.planesOrdered.indexOf(plane);
+      if(i!==-1)group.planesOrdered.splice(i,1);
+      if(typeof plane.destroy==="function")plane.destroy();
+      removed++;
+    }
+    if(removed)updateUpstreamTable();
+  }
   function visibleAircraft(){
     const elapsed=Math.max(0,(Date.now()-updatedAt)/1000);
     return snapshot.aircraft.filter(a=>{
@@ -72,7 +104,8 @@
       checkbox.setAttribute("aria-label","Show "+name);
       checkbox.onchange=()=>{
         show[key]=checkbox.checked;
-        refreshBadges(); // upstream reads fresh filtered JSON on next poll
+        reconcileSourceVisibility(); // remove already-drawn markers and table rows
+        refreshBadges();
       };
       label.appendChild(checkbox);
       label.appendChild(document.createTextNode(" "+name));
@@ -84,6 +117,72 @@
     panel.appendChild(message);
     map.appendChild(panel);
     window.tihuluTarSourcePanel=panel;
+    // Restore the legacy selected-aircraft-safe layout. In tar1090 the
+    // selected_info block is a SIBLING of map_container and floats above it,
+    // so an unconditional top-left legend obscures the aircraft details.
+    const layout=()=>{
+      const host=document.getElementById("map_container");
+      const side=document.getElementById("sidebar_container");
+      const selected=document.getElementById("selected_infoblock");
+      if(!host || !host.getBoundingClientRect)return;
+      const bounds=host.getBoundingClientRect();
+      if(bounds.width<1 || bounds.height<1)return;
+      const selectedRect=selected?.getBoundingClientRect?.();
+      const selectedStyle=selected && window.getComputedStyle?.(selected);
+      const infoblockVisible=!!(selectedRect && selectedStyle?.display!=="none" &&
+        selectedStyle?.visibility!=="hidden" &&
+        selectedRect.width>30 && selectedRect.height>30 &&
+        selectedRect.right>bounds.left && selectedRect.left<bounds.right);
+      const safeLeft=infoblockVisible
+        ? Math.max(12,Math.ceil(selectedRect.right-bounds.left)+12):12;
+      const remaining=Math.max(0,Math.floor(bounds.width-safeLeft-12));
+      const sideBounds=side?.getBoundingClientRect?.();
+      const dockToSidebar=infoblockVisible && remaining<190 &&
+        sideBounds?.width>240 && sideBounds?.height>200;
+      if(dockToSidebar){
+        if(panel.parentElement!==side)side.insertBefore(panel,side.firstChild);
+        panel.style.position="relative";panel.style.left="auto";panel.style.top="auto";
+        panel.style.width="auto";panel.style.maxWidth="calc(100% - 12px)";
+        panel.style.margin="6px";panel.style.flexShrink="0";
+      }else{
+        if(panel.parentElement!==host)host.appendChild(panel);
+        panel.style.position="absolute";panel.style.left=safeLeft+"px";
+        panel.style.top="64px";panel.style.width="max-content";
+        panel.style.maxWidth=Math.max(70,remaining)+"px";
+        panel.style.margin="0";panel.style.flexShrink="";
+      }
+      // The original tar1090 altitude ramp is up to 800px wide and stays
+      // on the map bottom. Narrow the ramp when a selected plane's detail
+      // pane occupies the left side; never let ramp and details intersect.
+      const chart=document.getElementById("altitude_chart");
+      if(chart){
+        const right=Math.min(85,Math.max(12,Math.round(bounds.width*.06)));
+        const space=Math.max(0,Math.floor(bounds.width-right-(infoblockVisible?safeLeft:12)-12));
+        const width=Math.min(800,space);
+        chart.style.right=right+"px";
+        chart.style.width=width+"px";
+        chart.style.maxWidth=width+"px";
+        chart.style.visibility=space<125?"hidden":"";
+      }
+    };
+    window.tihuluTarLayout=layout;
+    window.addEventListener("resize",layout);
+    if(typeof ResizeObserver!=="undefined"){
+      const obs=new ResizeObserver(layout);
+      obs.observe(map);
+      const sel=document.getElementById("selected_infoblock");
+      if(sel)obs.observe(sel);
+      window.tihuluTarLayoutResizeObserver=obs;
+    }
+    if(typeof MutationObserver!=="undefined"){
+      const sel=document.getElementById("selected_infoblock");
+      if(sel){
+        const obs=new MutationObserver(layout);
+        obs.observe(sel,{attributes:true,attributeFilter:["style","class","hidden"]});
+        window.tihuluTarLayoutMutationObserver=obs;
+      }
+    }
+    layout();
     mountStatus();
   }
   const status = document.createElement("div");
@@ -163,6 +262,7 @@
     snapshot={now,messages:Number.isFinite(m.messages)?m.messages:0,aircraft};
     sources=observations;
     connected=true;updatedAt=Date.now();mountStatus();
+    reconcileSourceVisibility();
     refreshBadges();
   });
   function reply(){
@@ -205,7 +305,7 @@
   let tagLayer=null,tagSource=null;
   function refreshBadges(){
     if(!connected)return;
-    const ol=window.ol,map=window.OLMap;
+    const ol=originalOl(),map=originalMap();
     if(!ol?.layer?.Vector || !map?.addLayer || !ol?.proj?.fromLonLat)return;
     if(!tagLayer){
       tagSource=new ol.source.Vector();
@@ -233,5 +333,9 @@
       }));
     }
   }
-  window.setInterval(refreshBadges,2200);
+  window.setInterval(()=>{
+    reconcileSourceVisibility();
+    refreshBadges();
+    window.tihuluTarLayout?.();
+  },2200);
 })();
