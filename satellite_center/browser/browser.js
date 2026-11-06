@@ -367,7 +367,7 @@ function renderPasses(){
 $('orbit-calc').addEventListener('click',async()=>{
   if(!tleEntries.length){status('orbit-state','Load orbit TLEs from CelesTrak or an uploaded file first.');return;}
   const lat=Number($('lat').value),lon=Number($('lon').value),hours=Number($('hours').value),minimum=Number($('elev').value);
-  if(!Number.isFinite(lat)||!Number.isFinite(lon)||lat<-90||lat>90||lon<-180||lon>180){status('orbit-state','Invalid latitude/longitude');return;}
+  if(!$('lat').value.trim()||!$('lon').value.trim()||!Number.isFinite(lat)||!Number.isFinite(lon)||lat<-90||lat>90||lon<-180||lon>180){status('orbit-state','Enter valid latitude (−90…90) and longitude (−180…180) before calculating passes.');return;}
   status('orbit-state','Computing geometry locally in this browser (no RF reception implied)…');
   try{
     const satlib=await getOrbitalLibrary();
