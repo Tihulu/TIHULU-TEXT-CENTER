@@ -820,6 +820,8 @@ async function pollLiveRadio(){
           " · ASR "+current.speech.selected_backend+" · "+
           current.speech.segments_completed+" segments":" · subtitles off")+
         (current.speech?.error?" · "+current.speech.error:"")+
+        (current.subtitle_unavailable_reason?" · captions unavailable: "+current.subtitle_unavailable_reason:"")+
+        (current.active?" · audio listener: "+(current.listener_connected?"connected":"connecting"):"")+
         (current.error?" · "+current.error:"");
     }
     const start=$("live-radio-start"),stop=$("live-radio-stop");
@@ -1117,13 +1119,21 @@ async function addLiveRadio(){
   panel.append(status);
   const audio=$("persistent-radio-player");
   panel.append(el("p","full-body",
-    "Your live FM playback stays in the media dock while you browse other pages."));
+    "Your live FM playback stays in the media dock while you browse other pages. "+
+    "If Firefox blocks playback, press Play in the dock; verify the radio output volume."));
   const computeInfo=el("div","scan-summary");
   computeInfo.append(el("h4","","Detected local compute and offline models"));
   compute.devices.forEach(d=>computeInfo.append(el("p","full-body",
     d.id.toUpperCase()+": "+d.name+" · "+
     (d.detected?"hardware detected":"not detected")+" · "+
     (compute.selection[d.id].ready?"speech runtime ready":"speech runtime unavailable"))));
+  if(!compute.selection.auto.ready){
+    const asrWarning=el("p","full-body",
+      "No supported local speech model is ready. FM audio and recording can still run "+
+      "without subtitles; checking transcription will show a model-unavailable notice, "+
+      "not stop the radio.");
+    computeInfo.append(asrWarning);
+  }
   computeInfo.append(el("p","full-body",
     "Speech: "+(compute.speech.ready_cpu?"CPU model ready":"CPU model missing")+
     " · GPU compatible model: "+(compute.speech.ready_gpu?"ready":"not confirmed")+
@@ -1163,8 +1173,15 @@ async function addLiveRadio(){
       const url="/api/live/radio/stream?session="+
         encodeURIComponent(created.session)+"&token="+encodeURIComponent(state.csrf);
       audio.src=url;audio.dataset.session=created.session;syncLiveMediaDock();
-      try{await audio.play()}catch(_){
-        notice("Stream started. Press Play on the radio player if browser autoplay was blocked.");
+      try{await audio.play()}catch(error){
+        notice("FM receiver session started, but the browser could not autoplay audio ("+
+          (error?.name||"playback error")+
+          "). Press Play in the media dock. If still silent, inspect the LIVE RADIO "+
+          "status and browser console/network errors.");
+      }
+      if(created.subtitle_unavailable_reason){
+        notice("FM audio started without subtitles: "+created.subtitle_unavailable_reason+
+          ". No artificial transcription or translation is produced.");
       }
       if(state.livePollTimer)clearTimeout(state.livePollTimer);
       state.livePollTimer=setTimeout(pollLiveRadio,300);
@@ -1273,6 +1290,95 @@ async function addAudioPreview(){
     state.audioPollTimer=setTimeout(pollAudioPreview,750);
   }
 }
+/* Broadcast MOT requires an actual DAB decoder. Images already archived can
+   rotate locally while FM is playing, but new MOT cannot be fetched from the
+   same single RTL-SDR during an FM session. User starts every sync/slideshow. */
+async function addDabMotSlideshowPanel(){
+  const panel=el("article","item-card");
+  panel.id="dab-mot-slideshow";
+  panel.append(el("div","item-meta","DAB+ MOT SLIDESHOW · REAL DECODER IMAGES ONLY"));
+  panel.append(el("h3","","DAB+ Broadcast Slideshow"));
+  panel.append(el("p","full-body",
+    "Show genuine MOT images already saved from welle-cli. To capture new DAB slides, "+
+    "stop FM/Flight Radar on this SDR, start welle-cli on port 7979, tune a DAB "+
+    "ensemble and select SYNC. FM radio itself does not transmit DAB MOT."));
+  const summary=el("p","full-body","");summary.id="dab-mot-summary";
+  const display=el("div","dab-mot-viewer");
+  const picture=el("img","radio-image");
+  picture.alt="Decoded broadcast DAB MOT slide";
+  picture.hidden=true;
+  picture.loading="lazy";
+  const details=el("p","full-body","");
+  display.append(picture,details);
+  let images=[],index=0,playing=false,timer=null;
+  function stopRotation(){
+    playing=false;
+    if(timer){clearTimeout(timer);timer=null;}
+    start.textContent="START SLIDESHOW";
+  }
+  function show(){
+    if(!panel.isConnected){stopRotation();return;}
+    if(!images.length){
+      picture.hidden=true;picture.removeAttribute("src");
+      details.textContent="No genuine saved MOT slides. A spectrum energy peak "+
+        "or DLS text alone cannot provide a slideshow.";
+      return;
+    }
+    index=(index+images.length)%images.length;
+    const entry=images[index];
+    picture.src="/api/media/file/"+encodeURIComponent(entry.id);
+    picture.hidden=false;
+    picture.onerror=()=>{
+      details.textContent="Received image exists in the archive, but browser "+
+        "could not display its JPEG/PNG payload.";
+    };
+    details.textContent=entry.station+" · "+(entry.frequency_hz/1e6).toFixed(3)+
+      " MHz · "+timeLabel(entry.received_at)+" · "+(index+1)+"/"+images.length;
+  }
+  function tick(){
+    if(!playing||!panel.isConnected){stopRotation();return;}
+    index+=1;show();
+    timer=setTimeout(tick,5000);
+  }
+  async function loadSaved(){
+    const saved=await api("/api/media");
+    images=saved.filter(x=>x.medium==="dab_mot");
+    index=0;show();
+    summary.textContent=images.length+" verified DAB MOT slide(s) saved. "+
+      "These can be viewed offline without retuning the receiver.";
+  }
+  const row=el("div","card-actions");
+  const sync=button("SYNC CURRENT DAB MOT",async()=>{
+    sync.disabled=true;
+    try{
+      const live=await api("/api/live/radio/status");
+      if(live.active)throw new Error("Stop live FM first; a single RTL-SDR "+
+        "cannot receive FM and a different DAB block simultaneously.");
+      const response=await api("/api/dab/refresh","POST",{include_images:true});
+      await loadSaved();
+      await refreshCounts();
+      summary.textContent=response.saved_mot_images+" genuine MOT image(s) saved in "+
+        response.channel+" · "+(response.mot_images_missing??0)+" no image transmitted"+
+        " · "+(response.mot_images_failed??0)+" read/format failure(s). "+
+        (response.archive_notice||"");
+      showDabServices(response);
+      notice("Read existing welle-cli decoder without opening or retuning SDR.");
+    }catch(error){notice("DAB MOT sync unavailable: "+error.message)}
+    finally{sync.disabled=false}
+  },"action primary");
+  const prev=button("PREVIOUS",()=>{stopRotation();index--;show()});
+  const next=button("NEXT",()=>{stopRotation();index++;show()});
+  const start=button("START SLIDESHOW",()=>{
+    if(playing){stopRotation();return;}
+    if(!images.length){notice("No received DAB MOT images to show yet.");return;}
+    playing=true;start.textContent="STOP SLIDESHOW";
+    timer=setTimeout(tick,5000);
+  });
+  row.append(sync,prev,next,start);
+  panel.append(row,summary,display);
+  $("content").append(panel);
+  await loadSaved();
+}
 function showDabServices(result){
   const box=$("dab-service-results");
   if(!box)return;
@@ -1299,8 +1405,15 @@ function showDabServices(result){
       s.dls ? "DLS: "+s.dls+" · received "+(s.dls_received_at||"time unknown")
             : "No decoded DLS from this station"));
     item.append(el("p","full-body",
-      s.mot_received_at?"MOT slide timestamp: "+s.mot_received_at:
-      "No decoded slideshow timestamp"));
+      "MOT: "+(s.mot_image_status||
+        (s.mot_received_at?"reported by decoder, not yet saved":"not broadcast"))+
+      (s.mot_received_at?" · decoder timestamp "+s.mot_received_at:"")));
+    if(s.mot_media_id){
+      const photo=el("img","radio-image");
+      photo.src="/api/media/file/"+encodeURIComponent(s.mot_media_id);
+      photo.loading="lazy";photo.alt="Actual DAB MOT from "+s.name;
+      item.append(photo);
+    }
     box.append(item);
   });
 }
@@ -1349,7 +1462,9 @@ async function addWelleDabBridge(){
 }
 async function addRadioImageGallery(){
   const images=await api("/api/media");
+  const previous=$("radio-image-gallery");
   const outer=el("article","item-card");
+  outer.id="radio-image-gallery";
   outer.append(el("div","item-meta","REAL BROADCAST IMAGE ARCHIVE · OFFLINE"));
   outer.append(el("h3","","Station logos & DAB slideshow images"));
   outer.append(el("p","",
@@ -1375,7 +1490,8 @@ async function addRadioImageGallery(){
     });
     outer.append(gallery);
   }
-  $("content").append(outer);
+  if(previous)previous.replaceWith(outer);
+  else $("content").append(outer);
 }
 async function addDvbDevicePanel(){
   const dvb=await api("/api/dvb/status");
@@ -1523,6 +1639,7 @@ async function showLiveRadioPage(){
   try{await addLiveRadio()}catch(e){empty("Live radio unavailable",e.message)}
   try{await addRdsControl()}catch(e){empty("RDS metadata unavailable",e.message)}
   try{await addRadioImageGallery()}catch(e){empty("Station artwork unavailable",e.message)}
+  try{await addDabMotSlideshowPanel()}catch(e){empty("DAB MOT slideshow unavailable",e.message)}
 }
 async function showLiveTVPage(){
   section("LIVE TV","Live television, recording & bilingual subtitles",
@@ -1630,6 +1747,8 @@ async function showRadioData(){
   catch(error){empty("FM audio preview unavailable",error.message)}
   try {await addWelleDabBridge()}
   catch(error){empty("DAB receiver bridge unavailable",error.message)}
+  try {await addDabMotSlideshowPanel()}
+  catch(error){empty("DAB MOT slideshow unavailable",error.message)}
   try {await addRadioImageGallery()}
   catch(error){empty("Radio image archive unavailable",error.message)}
   try {await addDvbDevicePanel()}
