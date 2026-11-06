@@ -568,7 +568,7 @@ function satElevation(satlib,rec,observer,date) {
   return angle>=-90&&angle<=90?angle:null;
 }
 function fmtTime(time){return new Date(time).toLocaleString(undefined,{dateStyle:'short',timeStyle:'short'});}
-function scheduleFrequencyChoices(family){
+function scheduleFrequencyChoices(family,pass=null){
   const known={
     iss:[[145800000,"ISS VHF 145.800 MHz (voice/SSTV vicinity)"],
          [145825000,"ISS APRS 145.825 MHz (historical/alternate; check ARISS)"],
@@ -579,7 +579,17 @@ function scheduleFrequencyChoices(family){
     cubesat:[[436000000,"CubeSat generic 436 MHz survey (NOT satellite-assigned downlink)"]],
     iridium:[[1620000000,"Iridium 1620 MHz L-band spectrum energy ONLY"]]
   };
-  return known[family]||[];
+  const options=[...(known[family]||[])];
+  if(pass){
+    for(const candidate of protocolsForPass(pass)){
+      if(candidate.frequencyHz<24000000||candidate.frequencyHz>1750000000)continue;
+      if(options.some(o=>o[0]===candidate.frequencyHz))continue;
+      options.push([candidate.frequencyHz,
+        (candidate.provenance==="user-supplied"?"USER-DEFINED · ":"Published · ")+
+        candidate.protocol+" · "+(candidate.frequencyHz/1e6).toFixed(4)+" MHz"]);
+    }
+  }
+  return options;
 }
 function appendPass(pass){
   const item=document.createElement('div');item.className='pass';
@@ -596,19 +606,19 @@ function appendPass(pass){
     for(const kind of kinds){
       const badge=document.createElement('span');badge.className='pass-capability pass-kind-'+kind;
       badge.textContent=names[kind];
-      badge.title='Published protocol available; actual transmitter activity unverified.';
+      badge.title=known.some(p=>p.kind===kind&&p.provenance==='user-supplied')?'Contains a USER-SUPPLIED/UNVERIFIED profile; reception and decoder are not established.':'Published protocol candidate, NOT an active RF detection.';
       badges.append(badge);
     }
     item.append(badges);
     const more=document.createElement('details');more.className='pass-known-protocols';
-    const toggle=document.createElement('summary');toggle.textContent='Known public radio protocols ('+known.length+')';
+    const toggle=document.createElement('summary');toggle.textContent='Published / user receiver profiles ('+known.length+')';
     more.append(toggle);
     for(const p of known){
       const row=document.createElement('p');
       row.textContent=p.protocol+' · '+(p.frequencyHz/1e6).toFixed(4)+' MHz · '+p.activity+
         ' · '+p.decoder+' — '+p.note;
       const link=document.createElement('a');link.href=p.source;
-      link.target='_blank';link.rel='noopener noreferrer';link.textContent='Official protocol / transmitter reference';
+      link.target='_blank';link.rel='noopener noreferrer';link.textContent=p.provenance==='user-supplied'?'User-provided reference · not verified':'Published transmitter reference';
       row.append(document.createTextNode(' · '),link);more.append(row);
     }
     item.append(more);
@@ -632,7 +642,7 @@ function appendPass(pass){
   timeLabel.append(input);
   const frequencyLabel=document.createElement('label');frequencyLabel.textContent='Receiver frequency';
   const frequency=document.createElement('select');
-  for(const [hz,name] of scheduleFrequencyChoices(pass.family)){
+  for(const [hz,name] of scheduleFrequencyChoices(pass.family,pass)){
     const o=document.createElement('option');o.value=String(hz);o.textContent=name;frequency.append(o);
   }
   frequencyLabel.append(frequency);
@@ -705,6 +715,12 @@ function renderPasses(){
   for(const pass of shown)fragment.append(appendPass(pass));
   target.append(fragment);
 }
+window.addEventListener('storage',event=>{
+ if(event.key==='tihulu-satellite-user-downlinks-v1'){visiblePassCount=40;renderPasses();}
+});
+window.addEventListener('tihulu-profiles-changed',()=>{
+ visiblePassCount=40;renderPasses();
+});
 for(const id of ['pass-sort','pass-family','pass-content']){
   $(id).addEventListener('change',()=>{visiblePassCount=40;renderPasses();});
 }
@@ -768,7 +784,7 @@ function showCalendarEdit(job,card){
  time.required=true;time.value=localDateInput(job.when);
  addField('Start · device local time',time);
  const freq=document.createElement('select');
- const choices=scheduleFrequencyChoices(job.family);
+ const choices=scheduleFrequencyChoices(job.family,{id:job.passId});
  if(!choices.some(v=>v[0]===job.frequency))choices.unshift([job.frequency,'Current: '+(job.frequency/1e6).toFixed(3)+' MHz']);
  for(const [hz,name] of choices){
    if(hz<24000000||hz>1750000000)continue;
