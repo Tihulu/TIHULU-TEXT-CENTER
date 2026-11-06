@@ -36,3 +36,9 @@
 .live-explain p{font-size:11px}
 @media(max-width:1240px){.live-map-grid{grid-template-columns:1fr}.live-map-wrap{height:420px}.live-stats{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:650px){.live-head{flex-direction:column}.live-controls{width:100%;justify-content:flex-start}.live-controls button{flex:1;min-width:130px}.live-stats{grid-template-columns:repeat(2,minmax(0,1fr))}.live-stats>div{padding:10px}.live-map-wrap{height:340px}.live-explorer{padding:11px}.live-satellite-list{grid-template-columns:1fr}}
+
+
+.live-advanced{border:1px solid #27455a;border-radius:12px;background:#101e2e;padding:13px 16px;margin:0 0 24px}
+.live-advanced summary{font-weight:650;font-size:12px;color:#9edfd4;cursor:pointer;list-style-position:inside}
+.live-advanced>.metrics{margin-top:18px}
+.live-advanced>.panel-grid{margin:10px 0 0}

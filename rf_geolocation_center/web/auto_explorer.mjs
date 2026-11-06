@@ -109,6 +109,7 @@ export function initAutoExplorer(){
    try{const p=predictedSatellite(state.lib,s.rec,now,state.pos);return p?{...s,...p}:null}catch{return null}
   }).filter(Boolean);
   drawSky();
+  window.dispatchEvent(new CustomEvent("tihulu:orbit",{detail:{source:"CelesTrak SGP4 / PREDICTED",satellites:state.visible.map(s=>({lat:s.lat,lon:s.lon,az:s.az,el:s.el,id:s.id,group:s.group,name:s.name}))}}));
   const ages=state.satellites.map(s=>Math.abs(Date.now()-s.epoch)/DAY).sort((a,b)=>a-b);
   const median=ages.length?ages[Math.floor(ages.length/2)]:0;
   $("live-epoch").textContent="Median orbit epoch age "+median.toFixed(1)+" days"+(median>7?" · STALE":"");
@@ -169,6 +170,12 @@ export function initAutoExplorer(){
    $("live-usb-status").textContent=e.detail?.status||"Not connected";
    $("live-usb-detail").textContent=e.detail?.message||"No radio activity";
  });
+ const dashboard=$("view-dashboard"),legacyMetrics=dashboard?.querySelector(":scope > .metrics"),legacyCards=dashboard?.querySelector(":scope > .panel-grid");
+ if(dashboard&&legacyMetrics&&legacyCards){
+   const extra=document.createElement("details");extra.className="live-advanced";
+   const summary=document.createElement("summary");summary.textContent="Advanced tools · Import NMEA / SP3 / Hardware diagnostics";
+   extra.append(summary);dashboard.insertBefore(extra,legacyMetrics);extra.append(legacyMetrics,legacyCards);
+ }
  updateMap();drawSky();void fetchCatalog();
  // Periodic geometry recalculation only; no network refresh, new permissions or RF scan.
  setInterval(()=>{if(document.visibilityState==="visible"&&state.satellites.length)recalc()},60000);
