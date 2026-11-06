@@ -2613,7 +2613,10 @@ async function start(){
   bindMediaDock();
   const now=new Date();
   $("clock").textContent=now.toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"});
-  try{await refreshCounts();await refreshSourceChoices();await openPage(100,"",0)}
+  const requested=new URLSearchParams(location.hash.replace(/^#/,"")).get("page");
+  const requestedPage=requested&&/^\d{3}$/.test(requested)?Number(requested):100;
+  const startPage=[100,200,300,400,410,420,450,500,600,700,800,850,860,880].includes(requestedPage)?requestedPage:100;
+  try{await refreshCounts();await refreshSourceChoices();await openPage(startPage,"",0)}
   catch(err){notice("Local content failed to load: "+err.message);$("teletext-body").textContent="Local API unavailable. Check the server and reload."}
   try{await refreshReceiverStatus()}
   catch(err){notice("USB status could not be checked: "+err.message)}
