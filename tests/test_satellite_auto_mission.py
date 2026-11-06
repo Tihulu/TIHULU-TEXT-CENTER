@@ -60,8 +60,13 @@ class AutoMissionTests(unittest.TestCase):
 
     def test_quick_meteor_sample_is_not_scheduled_as_complete_image(self):
         outcome = self.station.auto_schedule(["meteor-m2-3"], coverage_goal="sample")
-        self.assertEqual(outcome["scheduled_count"], 0)
-        self.assertTrue(any("too little" in x for x in outcome["skipped"]))
+        self.assertEqual(outcome["scheduled_count"], 1)
+        job = outcome["scheduled"][0]
+        self.assertEqual(job["coverage"], "partial-pass")
+        self.assertEqual(job["capture_seconds"], 60)
+        self.assertEqual(job["data_kind"], "image")
+        self.assertGreater(job["shortfall_seconds"], 0)
+        self.assertIn("partial", " ".join(outcome["skipped"]))
 
     def test_native_sstv_uses_small_real_wav_instead_of_huge_iq(self):
         outcome = self.station.auto_schedule(["iss-sstv"])
