@@ -782,7 +782,7 @@ class Station:
                            "-s", str(rate), "-g", "35", "-n", str(count), str(target)]
                 self._run_bounded(command, seconds+20)
             elif mode == "aprs":
-                cmd1 = [shutil.which("rtl_fm"), "-d", "0", "-f", "145825000", "-M", "fm", "-s", "22050", "-g", "30"]
+                cmd1 = [shutil.which("rtl_fm"), "-d", "0", "-f", str(PROFILES[profile]["freq"]), "-M", "fm", "-s", "22050", "-g", "30"]
                 cmd2 = [shutil.which("multimon-ng"), "-t", "raw", "-a", "AFSK1200", "-"]
                 with target.open("xb") as out:
                     rx = self._launch_receiver(cmd1, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
