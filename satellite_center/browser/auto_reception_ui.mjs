@@ -235,7 +235,7 @@ export function initAutoReceptionUI({getSelectedFile=()=>null,fileInput=$("local
       await refreshNativeCalendar();
       if(result.skipped?.length)textNode("p",result.skipped.length+
         " pass(es) skipped due to conflict, unsupported mode or timing.",jobs);
-      message(result.scheduled_count+" native duration-aware capture(s) queued. Disk estimates and incomplete passes are listed above. The companion must remain RUNNING and the single RTL-SDR free. A predicted pass does not guarantee complete data, a transmission or a decoded image. "+
+      message(result.scheduled_count+" native duration-aware capture(s) queued. Disk estimates and incomplete passes are listed above. "+(result.disabled_targets?.length?"Unavailable formats: "+result.disabled_targets.join(", ")+". ":"")+"The companion must remain RUNNING and the single RTL-SDR free. A predicted pass does not guarantee complete data, a transmission or a decoded image. "+
         (result.warnings?.length?"Warnings: "+result.warnings.slice(0,2).join("; "):""));
     }catch(e){message("Auto schedule not armed: "+String(e?.message||e));}
     finally{btn.disabled=false;}
@@ -328,7 +328,7 @@ export function initAutoReceptionUI({getSelectedFile=()=>null,fileInput=$("local
         source:"Actual recorded or imported text. Packet CRC/source identity not reverified here."});
     }else if(["wav","mp3","ogg"].includes(ext)){
       state.audioFiles.push({name,blob,source:"Actual recorded/imported audio; speech or satellite origin NOT verified"});
-      if(/SSTV/i.test(name))await analyzeAudio(blob,name);
+      if(!/VOICE[-_ ]?AUDIO/i.test(name))await analyzeAudio(blob,name);
     }else if(["png","jpg","jpeg"].includes(ext)){
       state.warnings.push(name+": image already exists; import/preview below. Source is not verified from the filename.");
     }else state.warnings.push(name+": protocol not supported by available decoders.");
