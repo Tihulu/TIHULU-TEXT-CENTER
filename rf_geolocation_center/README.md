@@ -12,20 +12,20 @@ python3 -m http.server 8760 --bind 127.0.0.1
 
 Open http://127.0.0.1:8760/rf_geolocation_center/ (for local tests). HTTPS GitHub Pages target, only after deployment and URL verification: https://tihulu.github.io/TIHULU-TEXT-CENTER/rf_geolocation_center/
 
-The web application supports standalone static hosting without a native backend. Mobile browsers can use maps, import local data, access device location with permission and install as a PWA where supported. Desktop Chromium browsers may support Web Serial NMEA GNSS receivers and WebUSB **permission selection only**; no SDR IQ or GNSS RF decoder is currently implemented. Firefox and Safari cannot directly use the RTL-SDR through WebUSB.
+The web application supports standalone static hosting without a native backend. Mobile browsers can use maps, import local data, access device location with permission and install as a PWA where supported. Desktop Chromium browsers may support Web Serial NMEA GNSS receivers and WebUSB **real device connection and bounded uncalibrated IQ sampling** when hardware/browser permissions permit; no GNSS RF decoder or SDR position fix is currently implemented. Firefox and Safari cannot directly use the RTL-SDR through WebUSB.
 
 ## Implemented in experimental branch
 
 - Entire GNSS catalog: GPS, Galileo, GLONASS, BeiDou, QZSS, NavIC and SBAS. *Catalog visibility does not imply actual RF acquisition.*
 - Opt-in browser/device geolocation. Without genuinely authenticated receiver observations, map defaults to Cologne, Germany as a **reference**, not your position. Imported aircraft JSON remains an unverified map reference even if it claims an ADS-B observation; future trusted Flight Radar adapters may implement the aircraft-centered fallback after verifying the observation and position.
 - Precise-orbit SP3 file import, geometry-only Earth and polar sky plotting, explicit epochs and elevation mask. No extrapolated live position claims, and no satellite visibility implies RF reception.
-- On-demand OpenStreetMap tile loading, without bulk offline tile caching. Otherwise show own coordinate/map overlay.
+- Online OpenStreetMap tiles when requested by the map-first page; no bulk offline tile caching. Offline locally rendered WGS84 coordinate grid and range evidence remain usable without tiles.
 - Dedicated GNSS NMEA GGA/RMC logs with checksum validation and explicitly labeled historical import.
 - Optional Web Serial GNSS live NMEA read on supported desktop browsers. Fresh receiver fixes expire after 90 seconds.
-- Source-attributed station/aircraft reference import, experimental local 2D measured-range trilateration, and synchronized TDOA hyperbola constraints (not a TDOA position fix).
+- User-imported station/aircraft references, local experimental 2D range trilateration, **visible measured-distance circles and intersection marker** on Earth Map, separate synthetic **DEMO ONLY** explanation, and synchronized TDOA hyperbola constraints (not a TDOA position fix).
 - Real device/receiver in-memory position history and JSON, GeoJSON, CSV, GPX, KML exports.
 - Hard Stop releases only this application's serial receiver; it does not terminate readsb, Gqrx or other Tihulu receiver jobs.
-- Offline application shell service worker; no automatic RF/background fetching and no telemetry.
+- Offline PWA shell; locally stored last known position, imported reference stations and measured-range inputs (labeled saved/unverified), and a best-effort cached pinned SGP4 dependency. No automatic RF/background fetching or telemetry.
 
 ## Not yet implemented / acceptance pending
 
@@ -70,3 +70,32 @@ The first dashboard now includes an immediately visible **OpenStreetMap Earth Ma
 **Connect USB SDR** on compatible HTTPS desktop Chromium browsers now requests the RTL2832U USB device with a user gesture, loads the version-pinned browser driver, claims the tuner at 1575.420 MHz where OS permissions and other applications permit, and offers a bounded two-second **Scan GNSS L1** of relative raw digital sample level. It **does not decode** GPS/Galileo/BeiDou navigation signals, estimate C/N0, or produce a GNSS PVT fix. **Release USB** and **Hard Stop** only close this page's own WebUSB and NMEA serial handles; they do not stop \`readsb\`, Gqrx or any unrelated process. No automatic RF scanning on app launch.
 
 The embedded OSM map makes normal viewport requests immediately when the page loads; users should expect their browser's network address and viewed region to reach the map provider. No device geolocation is requested until the user clicks the location button.
+
+
+## Offline position and visually explained range rings
+
+The app must be installed/loaded over HTTPS while online at least once so that its PWA shell and required JavaScript are cached. When offline, the main map falls back to a local coordinate grid instead of a blank OpenStreetMap frame. User-approved browser location can still work if the underlying operating system/device has **offline GNSS or another offline location provider**; this is not guaranteed for every desktop/browser. An attached dedicated serial GNSS receiver may provide a live NMEA fix without internet. The current RTL-SDR sample survey cannot decode GNSS and **cannot locate the user independently**.
+
+Each valid device/serial fix is cached in the user's own browser storage with its UTC timestamp. If live positioning fails, the app can display an **experimental range estimate** from already imported measured distances, or the **last-known cached point**, both clearly distinguished from a fresh fix. All saved coordinates remain local to that browser origin and can be cleared from the Settings panel. Imported reference points and range observations also persist locally, up to the import limits.
+
+On the dedicated **Earth Map** page, use the checked layers:
+- **Measured radio distance rings:** solid aqua circles appear only after importing at least 3 values with \`measured:true\`, latitude/longitude, \`rangeMeters\` and ideally source/name/type metadata. Every station used appears as \`R\` (or \`A\` for a genuinely measured aircraft range); the best-fit intersection is marked \`X\`. The range residual is *not* a location accuracy estimate.
+- **Show ring explanation (SIMULATED):** checked initially when there are no measured ranges. This shows three **fictional** stations, dashed amber circles and a simulated intersection marked \`D\`. These are not antenna measurements and never count as a live positioning fix.
+- **Ground stations and aircraft:** imported verified/published reference coordinates are visibly distinct from measured positioning sources. A reference coordinate by itself does not yield a distance.
+- **Predicted satellite ground points:** off by default to avoid hundreds of dots obscuring Earth Map. This toggles predicted satellite subpoints, not GNSS pseudorange measurements or satellites used in a decoded solution. Real GNSS pseudoranges are 3D, not two-dimensional transmitter circles.
+
+The **Fit rings / evidence to map** control chooses a zoom around the current evidence geometry. **Clear measured ranges** removes persisted range observations and returns to the labeled simulated demonstration.
+
+Import accepted shape (illustrative JSON schema; do not treat this as a measurement unless the distances were actually measured):
+\`\`\`json
+{"stations":[
+  {"name":"Receiver A","type":"station","lat":51.26,"lon":7.15,"rangeMeters":4200,"measured":true,"source":"Actual calibrated range method","measuredAt":"2026-11-06T07:00:00Z"},
+  {"name":"Receiver B","type":"station","lat":51.29,"lon":7.22,"rangeMeters":3800,"measured":true,"source":"Actual calibrated range method","measuredAt":"2026-11-06T07:00:00Z"},
+  {"name":"Receiver C","type":"station","lat":51.22,"lon":7.19,"rangeMeters":5300,"measured":true,"source":"Actual calibrated range method","measuredAt":"2026-11-06T07:00:00Z"}
+]}
+\`\`\`
+Those numerical values are **schema placeholders, NOT actual measured distances**. Do not import them as a real capture.
+
+### Remaining scientific blockers
+
+No live aircraft-based self-positioning, no calibrated terrestrial ranging from uncalibrated SDR RSSI, no synchronized multi-receiver MLAT position fix, and no RTL-SDR GPS/Galileo tracking/pseudorange solver. Supporting published transmitter or aircraft coordinates on the map does not claim the antenna currently uses them. TLE/SGP4 positions can predict sky geometry offline only when compatible orbital data and the propagation library are cached; a predicted satellite is never a received navigation fix.
