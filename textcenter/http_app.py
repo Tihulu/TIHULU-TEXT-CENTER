@@ -314,7 +314,7 @@ def run_server(store: Store, *, host: str = "127.0.0.1", port: int = 8787):
         raise ValueError("This standalone service is loopback-only")
     server = LocalServer((host, port), store)
     print(f"TIHULU TEXT CENTER v{__version__}: http://{host}:{server.server_port}/")
-    print("Local mode. Background polling OFF. No connected tuner.")
+    print("Local mode. Background polling OFF. No receiver capture active at startup.")
     try:
         server.serve_forever(poll_interval=0.25)
     except KeyboardInterrupt:

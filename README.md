@@ -9,7 +9,7 @@ A lightweight, offline-first, English-language information and text-network cent
 - Read-only, source-attributed **broadcast text imports**, with page/subpage support (no fabricated reception).
 - On-demand RSS/Atom/JSON Feed 1.0/1.1 ingestion, searchable local article cache, and external text-community directories.
 - Local, offline bulletin-board notes and bookmarks.
-- FM RDS, DAB+ DLS/Journaline, DVB Teletext, HF weather text, APRS and similar protocols as **optional external-decoder adapters**, never as claims of built-in reception.
+- FM RDS/RadioText+ is an opt-in real rtl_fm/redsea decoder session; a separate optional read-only welle-cli bridge can import DAB+ DLS and MOT images. Journaline, off-air DVB Teletext, HF weather text and APRS still require dedicated decoder integrations.
 - No transmitter, DVB tuner control, automatic background polling, AI runner or live emergency-warning receiver. **FM RDS requires an explicit, bounded capture and installed rtl_fm/redsea**.
 
 ## Run
@@ -48,7 +48,7 @@ python3 -m textcenter make-template
 python3 -m textcenter import-text --file decoded-pages.json
 ```
 
-This imports **0 records**, as expected: no physical receiver is integrated yet. Run `python3 -m textcenter doctor` to check your SQLite record counts and installation state.
+This imports **0 records**, as expected: an empty template is not a received radio capture. Real RF acquisition is handled separately by explicit receiver actions on page 400. Run `python3 -m textcenter doctor` to check your SQLite record counts and installation state.
 
 ### Troubleshooting (Pop!_OS / Linux)
 
@@ -106,5 +106,9 @@ Each of the 31 protocol/service capabilities now has its own readiness/scan acti
 ## Radio audio, broadcast images and Hauppauge DVB preparation (v0.4)
 
 - **Short FM listening preview:** Radio Data (400) includes opt-in 10–20-second local WAV previews using a REAL RTL-SDR and `rtl_fm`; no `redsea` required for audio. This is **not continuous live radio**. The preview remains in local server memory, is never automatically recorded, and is lost on restart. It cannot run alongside Flight Radar/other receiver sessions on the same SDR. Playback uses the local browser `<audio>` element. See [Radio and DVB setup](docs/RADIO_AND_DVB.md).
-- **Broadcast picture archive:** stores actual bounded PNG/JPEG received images with source, timestamp and frequency. `redsea --streams` enables optional RDS2/RFT logo capture where supported by redsea 1.2+ and the broadcaster, at greater CPU cost. DAB+ MOT images can be imported from a genuine decoded source using `python3 -m textcenter import-media --file path/to/decoder-media.json`; the DAB receiver/decoder is not bundled yet. No Internet artwork is substituted for RF images.
+- **Broadcast picture archive:** stores actual bounded PNG/JPEG received images with source, timestamp and frequency. `redsea --streams` enables optional RDS2/RFT logo capture where supported by redsea 1.2+ and the broadcaster, at greater CPU cost. DAB+ DLS and MOT images can be retrieved from an already-running local welle-cli web receiver via an explicit read-only sync, or MOT images can be imported from a genuine external decoder using `python3 -m textcenter import-media --file path/to/decoder-media.json`. No DAB tuner process is bundled or automatically started. No Internet artwork is substituted for RF images.
 - **Hauppauge WinTV-soloHD 01589:** the application passively reports actual Hauppauge USB product strings, Linux DVB frontend paths, relevant SI2168 firmware candidates and DVB utilities. The model's order/delivery does NOT prove it is physically connected or has locked a TV service. No automatic, unprotected DVB retune or Teletext decoder is claimed.
+
+### Live DAB read-only bridge
+
+In **Radio Data (400)**, use **READ RUNNING DAB RECEIVER** after independently starting a compatible welle-cli web receiver on local TCP port 7979 and confirming that it owns an available device. Text Center reads only `/mux.json`, `/channel` and bounded `/slide/<service_id>` via GET. It never retunes welle-cli. Decoded DLS text is archived with original broadcast/decoder timestamp where a known channel frequency exists; MOT images are stored as source-attributed JPEG/PNG. Missing/weak signals and absent welle-cli are shown as unavailable. See [Radio and DVB setup](docs/RADIO_AND_DVB.md). Journaline and a continuous embedded DAB player remain future integrations.
