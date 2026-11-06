@@ -2276,9 +2276,12 @@ async function showTranslatorPage(){
         source:source.value,target:target.value,
         backend:backend.value,text:original.value});
       output.textContent=response.translated;
-      notice("Translated locally from "+(response.source||source.value).toUpperCase()+
-        (response.source_requested==="auto"?" (automatically detected)":"")+
-        "; original text remains untouched.");
+      notice(response.status==="original_unchanged_same_language"
+        ? "Source and target are both "+(response.source||"en").toUpperCase()+
+          ". Original text is unchanged; no translation was performed."
+        : "Translated locally from "+(response.source||source.value).toUpperCase()+
+          (response.source_requested==="auto"?" (automatically detected)":"")+
+          "; original text remains untouched.");
     }catch(e){
       output.textContent="Translation unavailable: "+e.message;
       notice(e.message);
