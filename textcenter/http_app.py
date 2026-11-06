@@ -12,6 +12,7 @@ from .core import Store, safe_https_url
 from .receivers import receiver_inventory
 from .fm_rds import FMRSDSupervisor, CaptureError
 from .capabilities import capability_catalog
+from .fm_survey import FMSurveySupervisor, SurveyError
 
 WEB_DIR = Path(__file__).resolve().parents[1] / "web"
 
@@ -45,6 +46,9 @@ class LocalServer(ThreadingHTTPServer):
         self.store = store
         self.csrf_token = secrets.token_urlsafe(32)
         self.rds = FMRSDSupervisor(store)
+        self.survey = FMSurveySupervisor(
+            rds=self.rds, lock_dir=store.filename.parent / ".receiver-locks"
+        )
         super().__init__(address, Handler)
 
 
@@ -102,15 +106,39 @@ class Handler(BaseHTTPRequestHandler):
             if route == "/api/receivers":
                 inventory = receiver_inventory()
                 rds_state = self.server.rds.status(heartbeat=False)
+                survey_state = self.server.survey.status(heartbeat=False)
+                inventory["fm_survey_active"] = survey_state["active"]
+                inventory["fm_candidate_count"] = len(survey_state["candidates"])
                 inventory["rds_capture_active"] = rds_state["active"]
                 inventory["rds_groups_decoded"] = rds_state["received_groups"] if rds_state["active"] else 0
-                inventory["active_capture"] = rds_state["active"]
+                inventory["active_capture"] = rds_state["active"] or survey_state["active"]
                 inventory["connected_decoder"] = bool(
                     rds_state["active"] and rds_state["received_groups"] > 0
                 )
                 # RDS JSON decoding is not calibrated RF signal-strength measurement.
                 inventory["signal_verified"] = False
                 return self._json(200, inventory)
+            if route == "/api/discovery/passive":
+                inventory = receiver_inventory()
+                catalog = capability_catalog(inventory)
+                return self._json(200, {
+                    "kind":"passive_local_inventory",
+                    "receiver":inventory,
+                    "archive_counts":self.server.store.counts(),
+                    "features_total":len(catalog),
+                    "software_ready":[x["title"] for x in catalog
+                                      if x["state"] in ("implemented","single_owner_only")],
+                    "unavailable_or_deferred":[
+                        {"title":x["title"],"state":x["state"],"requirements":x["requirements"]}
+                        for x in catalog
+                        if x["state"] not in ("implemented","single_owner_only","manual_capture")
+                    ],
+                    "note":"No tuner accessed, no frequencies retuned, no internet fetched, no RF reception claimed",
+                })
+            if route == "/api/fm-survey/status":
+                status = self.server.survey.status()
+                status["capability"] = self.server.survey.availability()
+                return self._json(200, status)
             if route == "/api/rds/status":
                 status = self.server.rds.status()
                 status["capability"] = self.server.rds.availability()
@@ -159,7 +187,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         route = urlsplit(self.path).path
-        allowed = {"/api/feeds/add", "/api/feeds/refresh", "/api/bulletins", "/api/bookmarks", "/api/rds/start", "/api/rds/stop"}
+        allowed = {"/api/feeds/add", "/api/feeds/refresh", "/api/bulletins", "/api/bookmarks", "/api/rds/start", "/api/rds/stop", "/api/fm-survey/start", "/api/fm-survey/stop"}
         if route not in allowed:
             return self._json(404, {"error": "Not found"})
         if self.headers.get("X-Tihulu-CSRF") != self.server.csrf_token:
@@ -178,6 +206,10 @@ class Handler(BaseHTTPRequestHandler):
             payload = json.loads(self.rfile.read(length))
             if not isinstance(payload, dict):
                 raise ValueError("Expected JSON object")
+            if route == "/api/fm-survey/start":
+                return self._json(202, self.server.survey.start())
+            if route == "/api/fm-survey/stop":
+                return self._json(200, self.server.survey.stop())
             if route == "/api/rds/start":
                 return self._json(202, self.server.rds.start(
                     frequency_mhz=payload.get("frequency_mhz"),
@@ -200,7 +232,7 @@ class Handler(BaseHTTPRequestHandler):
             if route == "/api/bookmarks":
                 self.server.store.add_bookmark(payload.get("label"),payload.get("target_type"),payload.get("target"))
                 return self._json(201, {"saved": True})
-        except CaptureError as exc:
+        except (CaptureError, SurveyError) as exc:
             self._json(409, {"error": str(exc)})
         except KeyError as exc:
             self._json(404, {"error": str(exc)})
@@ -221,5 +253,6 @@ def run_server(store: Store, *, host: str = "127.0.0.1", port: int = 8787):
     except KeyboardInterrupt:
         pass
     finally:
+        server.survey.stop(wait=True)
         server.rds.stop(wait=True)
         server.server_close()

@@ -97,6 +97,29 @@ class HTTPTests(unittest.TestCase):
         self.assertTrue(any(x["id"]=="meshtastic" for x in parsed))
         self.assertEqual(self.request("GET","/api/page?number=860")[0],200)
 
+    def test_discovery_passive_does_not_claim_real_rf(self):
+        code,_,data=self.request("GET","/api/discovery/passive")
+        self.assertEqual(code,200)
+        result=json.loads(data)
+        self.assertEqual(result["kind"],"passive_local_inventory")
+        self.assertIn("archive_counts",result)
+        self.assertIn("receiver",result)
+        self.assertIn("unavailable_or_deferred",result)
+        code,_,data=self.request("GET","/api/fm-survey/status")
+        self.assertEqual(code,200)
+        status=json.loads(data)
+        self.assertFalse(status["active"])
+        self.assertEqual(status["kind"],"spectrum_candidate_not_station")
+        _,_,raw=self.request("GET","/api/bootstrap")
+        csrf=json.loads(raw)["csrf"]
+        self.assertEqual(self.request("POST","/api/fm-survey/start",{})[0],403)
+        # An absent rtl_power, missing USB or readsb conflict must not start RF.
+        # This CI check can run on hosts with various installed binaries, so
+        # inject a deterministic blocked condition rather than asserting hardware.
+        self.server.survey.conflicts=lambda:[{"process":"readsb"}]
+        self.assertEqual(self.request("POST","/api/fm-survey/start",{},csrf)[0],409)
+        self.assertEqual(self.request("POST","/api/fm-survey/stop",{},csrf)[0],200)
+
     def test_no_forged_source(self):
         code,_,raw=self.request("GET","/api/page?source_id=ard_text&number=100")
         self.assertEqual(code,404)

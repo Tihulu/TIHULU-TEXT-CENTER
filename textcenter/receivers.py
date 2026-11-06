@@ -12,7 +12,10 @@ from .core import utc_now
 from .conflicts import find_receiver_conflicts
 
 RTL2832U_ID = ("0bda", "2838")
-DECODER_BINARIES = ("rtl_test", "rtl_fm", "redsea", "welle-cli", "rtl_433")
+DECODER_BINARIES = (
+    "rtl_test", "rtl_fm", "rtl_power", "redsea", "welle-cli", "rtl_433",
+    "dvbv5-scan", "dvbv5-zap", "direwolf", "multimon-ng", "fldigi", "dream",
+)
 
 def _read(path: Path, max_chars: int = 100) -> str:
     try:
