@@ -45,7 +45,7 @@ export const GNSS=[
  {id:"R",system:"GLONASS",operator:"Russia",type:"global",signals:[["G1 FDMA (channel-dependent)",null],["G2 FDMA (channel-dependent)",null],["G3",1202.025]]},
  {id:"C",system:"BeiDou BDS",operator:"China",type:"global",signals:[["B1C",1575.42],["B1I",1561.098],["B2a",1176.45],["B2b",1207.14],["B3I",1268.52]]},
  {id:"J",system:"QZSS",operator:"Japan",type:"regional",signals:[["L1",1575.42],["L2",1227.60],["L5",1176.45],["L6",1278.75]]},
- {id:"I",system:"NavIC / IRNSS",operator:"India",type:"regional",signals:[["L5",1176.45],["S",2492.028]]},
+ {id:"I",system:"NavIC / IRNSS",operator:"India",type:"regional",signals:[["L1 (newer satellites)",1575.42],["L5",1176.45],["S",2498.028]]},
  {id:"S",system:"SBAS (EGNOS, WAAS, MSAS, GAGAN, KASS and other services)",operator:"Regional augmentation providers",type:"augmentation",signals:[["L1",1575.42],["L5",1176.45]]}
 ];
 export const constellationFor=id=>GNSS.find(g=>g.id===String(id)[0])||null;
