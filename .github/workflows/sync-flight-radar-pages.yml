@@ -1,0 +1,62 @@
+name: Publish Browser-only Flight Radar inside TIHULU Applications
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/sync-flight-radar-pages.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: tihulu-flight-radar-pages-sync
+  cancel-in-progress: false
+
+jobs:
+  sync-flight-radar:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Get reviewed Flight Radar browser source (public repository)
+        uses: actions/checkout@v4
+        with:
+          repository: Tihulu/tihulu-flight-radar
+          ref: 578ff5bdf2e58acae0364265aa8ae980fab48f1c
+          path: flight-radar-source
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify and bundle direct WebUSB driver at CI time
+        run: |
+          cd flight-radar-source
+          bash scripts/build-browser-assets.sh
+          node --check tihulu_flight_radar/web/app.js
+          node --check tihulu_flight_radar/web/browser_usb.mjs
+          node --check tihulu_flight_radar/web/adsb_worker.mjs
+          node --test tests/web_bridge.test.cjs tests/pages_tar.test.cjs tests/browser_adsb.test.cjs tests/browser_source.test.cjs
+      - name: Checkout existing live GitHub Pages branch
+        uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+          path: pages
+          persist-credentials: true
+      - name: Publish versioned browser assets without disturbing Satellite Center
+        run: |
+          set -euo pipefail
+          mkdir -p pages/flight_radar
+          rsync -a --delete flight-radar-source/tihulu_flight_radar/web/ pages/flight_radar/
+          test -s pages/flight_radar/vendor/rtlsdr.mjs
+          test -s pages/flight_radar/adsb_worker.mjs
+          test -s pages/flight_radar/index.html
+          cd pages
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add flight_radar/
+          if git diff --cached --quiet; then
+            echo 'Flight Radar already published at current source version.'
+          else
+            git commit -m 'publish: browser-only Flight Radar WebUSB into existing Pages site'
+            git push origin HEAD:gh-pages
+          fi
+          echo 'Target: https://tihulu.github.io/TIHULU-TEXT-CENTER/flight_radar/'
