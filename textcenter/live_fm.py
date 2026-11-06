@@ -9,7 +9,10 @@ A browser heartbeat is required; leaving the page stops capture.
 from __future__ import annotations
 
 from datetime import datetime, timezone
-import fcntl
+try:
+    import fcntl  # POSIX-only SDR file locking
+except ImportError:
+    fcntl = None  # Windows can use loopback TV/radar; native RTL-SDR requires a backend port
 import os
 from pathlib import Path
 import shutil
