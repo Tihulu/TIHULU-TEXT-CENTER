@@ -8,6 +8,9 @@ export function initUsbSDR(report){
  const notify=(status,message)=>{
    window.dispatchEvent(new CustomEvent("tihulu:receiver-status",{detail:{status,message}}));
    if($("usb-state"))$("usb-state").textContent=status+": "+message;
+   const isOpen=["USB CONNECTED","SAMPLING","RF SAMPLED","SAMPLE ERROR"].includes(status);
+   if($("rf-state"))$("rf-state").textContent=isOpen?"RTL-SDR OPEN (THIS TAB)":"NO RF RECEIVER OPEN";
+   if($("stage-device"))$("stage-device").textContent=isOpen?"WEBUSB RTL-SDR OPEN":"UNAVAILABLE";
    if(report)report(message);
  };
  async function release(){
