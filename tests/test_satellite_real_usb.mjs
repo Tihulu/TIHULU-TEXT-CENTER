@@ -55,7 +55,8 @@ test('map always defaults to bundled land geography and offers a real diagnostic
  assert.ok(html.includes('id="usb-live-test-report"'));
  assert.ok(script.includes('renderer:leaflet.svg({pane:"world-outline"'));
  assert.ok(script.includes('await useWorldOutline(why,revision)'));
- assert.ok(script.includes('openEarth().then(refresh)'));
+ assert.ok(script.includes('openEarth().then(async()=>{'));
+ assert.ok(script.includes('await refresh();'));
  assert.ok(script.includes('earthMap.createPane("world-outline")'));
  assert.ok(script.includes('async function drawWorldCanvas()'));
  assert.ok(script.includes('ctx.fill("evenodd")'));
