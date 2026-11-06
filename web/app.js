@@ -584,10 +584,13 @@ function renderAutomaticScan(kind,report){
         el("span","subtle",station.frequency_mhz.toFixed(3)+" MHz · REAL RDS LABEL · "+
           station.received_groups+" groups"),
         el("p","full-body",station.last_text||"No RadioText decoded; station name received"));
-      row.append(button("TRY FM LISTEN",()=>{
+      row.append(button("SET FM PREVIEW FREQUENCY",()=>{
         const input=$("fm-audio-frequency");
-        if(input){input.value=station.frequency_mhz;input.scrollIntoView({behavior:"smooth",block:"center"})}
-        else notice("FM listening controls are not available on this page.");
+        if(input){
+          input.value=station.frequency_mhz;
+          input.scrollIntoView({behavior:"smooth",block:"center"});
+          notice("FM frequency selected. Press RECORD & LISTEN below after confirming your SDR is free.");
+        }else notice("FM listening controls are not available on this page.");
       }));
       list.append(row);
     });
