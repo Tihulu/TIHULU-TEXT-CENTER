@@ -189,6 +189,21 @@ export function initRFSurvey(){
    message("rf-measurement-status",added+" OSM catalog candidate(s) auto-added with explicit FM frequency. These are EXTERNAL transmitter references, NOT measured RF signals or distance rings.");
  });
 
+ window.addEventListener("tihulu:rf-select-source",event=>{
+   const wanted=event.detail||{};
+   const matched=sources.find(s=>
+     (wanted.id&&s.id===wanted.id)||
+     (wanted.catalogId&&s.catalogId===wanted.catalogId&&
+       Number.isFinite(wanted.frequencyMHz)&&Math.abs(s.frequencyMHz-wanted.frequencyMHz)<.001));
+   if(!matched){
+     message("rf-measurement-status","Selected map site has no measured FM source yet. Only frequency-tagged fixed sites are eligible; confirm transmitter and radio identity before calibrating.");
+     return;
+   }
+   selected=matched.id;render();
+   message("rf-measurement-status","Selected "+matched.name+" · "+matched.frequencyMHz.toFixed(3)+
+     " MHz from "+(matched.metadataOrigin||"external reference")+
+     ". Next: Measure RF with antenna, then provide a separately known true transmitter distance for reference calibration. Source identity is UNVERIFIED.");
+ });
  $("rf-only")?.addEventListener("change",v=>setRfOnly(v.target.checked));
  $("rf-capture")?.addEventListener("click",capture);
  $("rf-calibrate")?.addEventListener("click",()=>{try{saveCalibration()}catch(e){message("rf-measurement-status",e.message)}});
