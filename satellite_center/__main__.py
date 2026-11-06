@@ -58,6 +58,7 @@ PROFILES = {
     "iss_voice": {"label": "ISS voice / SSTV vicinity", "range": "145.76M:145.85M:5k", "freq": 145800000, "family": "iss"},
     "iss_sstv": {"label": "ISS SSTV · event-only 437.550 MHz Robot36 (confirm ARISS)", "range": "437.50M:437.60M:5k", "freq": 437550000, "family": "iss"},
     "iss_aprs": {"label": "ISS AX.25/APRS vicinity", "range": "145.78M:145.87M:5k", "freq": 145825000, "family": "iss"},
+    "iss_aprs_uhf": {"label": "ISS UHF AX.25/APRS 437.825 MHz (check ARISS)", "range": "437.78M:437.87M:5k", "freq": 437825000, "family": "iss"},
     "iss_uhf": {"label": "ISS repeater vicinity", "range": "437.76M:437.86M:5k", "freq": 437800000, "family": "iss"},
     "meteor": {"label": "Meteor-M LRPT primary (137.900 MHz)", "range": "137.0M:138.0M:12.5k", "freq": 137900000, "family": "meteor"},
     "meteor_backup": {"label": "Meteor-M LRPT alternate (137.100 MHz)", "range": "137.0M:138.0M:12.5k", "freq": 137100000, "family": "meteor"},
@@ -137,7 +138,7 @@ def profiles_for(fam):
 
 def allowed_mode(profile, mode):
     return mode == "survey" or (mode == "iq" and PROFILES[profile]["freq"] is not None) or (
-        profile == "iss_aprs" and mode == "aprs"
+        profile in ("iss_aprs", "iss_aprs_uhf") and mode == "aprs"
     ) or (profile in ("iss_voice", "iss_sstv") and mode == "sstv_audio")
 
 
@@ -477,6 +478,95 @@ class Station:
             self.start_scheduler()
             self.wake.set()
             return job
+
+    def auto_schedule(self, mission_ids, *, city="Cologne", lat=None, lon=None,
+                      hours=24, elevation=20, max_jobs=6):
+        """Explicit one-click receive-only mission planning with a single RTL-SDR.
+
+        TLE passes are geometry, never proof of active transmitters. Mutating
+        schedules is opt-in and uses the same persisted scheduler as manual jobs.
+        """
+        candidates = {
+            "iss-sstv": (25544, "iss_sstv", "iq"),
+            "iss-aprs": (25544, "iss_aprs_uhf", "aprs"),
+            "iss-voice": (25544, "iss_voice", "sstv_audio"),
+            "meteor-m2-3": (57166, "meteor", "iq"),
+            "meteor-m2-4": (59051, "meteor", "iq"),
+        }
+        if not isinstance(mission_ids, list) or not mission_ids or len(mission_ids) > len(candidates):
+            raise ValueError("Select one to five supported public downlink targets")
+        if any(not isinstance(mid, str) or mid not in candidates for mid in mission_ids):
+            raise ValueError("Unknown, retired, Internet-only or unsupported satellite target")
+        if type(hours) is not int or not 1 <= hours <= 72:
+            raise ValueError("Lookahead must be 1–72 hours")
+        if type(max_jobs) is not int or not 1 <= max_jobs <= 12:
+            raise ValueError("Choose at most 12 jobs per request")
+        chosen = dict.fromkeys(mission_ids)
+        needed = {("rtl_sdr" if mode == "iq" else "rtl_fm")
+                  for mid in chosen for _, _, mode in [candidates[mid]]}
+        if "iss-aprs" in chosen:
+            needed.add("multimon-ng")
+        missing = sorted(tool for tool in needed if not shutil.which(tool))
+        if missing:
+            raise RuntimeError("Cannot arm automatic reception: missing installed tools " + ", ".join(missing))
+        # The single click authorizes bounded on-demand orbit refresh, never
+        # auto-starts a receiver or changes unrelated services.
+        sources = {"iss" if mid.startswith("iss") else
+                   "meteor3" if mid == "meteor-m2-3" else "meteor4" for mid in chosen}
+        missing_tle = [source for source in sources if not
+                       (self.directory/(source+".tle")).is_file() or
+                       time.time()-(self.directory/(source+".tle")).stat().st_mtime > 7*86400]
+        refresh_report = self.refresh() if missing_tle else {}
+        prediction = self.passes(city=city, lat=lat, lon=lon, hours=hours, elevation=elevation)
+        existing = []
+        with self.lock:
+            for job in self.jobs:
+                if job.get("state") not in ("pending", "running"):
+                    continue
+                try:
+                    existing.append((datetime.fromisoformat(job["aos"]),
+                                     datetime.fromisoformat(job["los"])))
+                except (KeyError, ValueError):
+                    continue
+        new_jobs = []
+        skipped = []
+        now_utc = now()
+        events = prediction["predictions"]
+        for event in events:
+            if len(new_jobs) >= max_jobs:
+                break
+            aos = datetime.fromisoformat(event["aos"])
+            los = datetime.fromisoformat(event["los"])
+            if aos <= now_utc+timedelta(seconds=60):
+                continue
+            if any(aos < b+timedelta(seconds=20) and los > a-timedelta(seconds=20)
+                   for a, b in existing):
+                skipped.append(event["name"]+": shared receiver time conflict")
+                continue
+            mission = next((mid for mid in chosen if event["norad"] == candidates[mid][0]), None)
+            if not mission:
+                continue
+            _, profile, mode = candidates[mission]
+            try:
+                job = self.schedule(event["id"], profile, mode)
+            except (ValueError, RuntimeError) as error:
+                skipped.append(event["name"]+": "+str(error)[:90])
+                continue
+            job["mission_id"] = mission
+            with self.lock:
+                for stored in self.jobs:
+                    if stored["id"] == job["id"]:
+                        stored["mission_id"] = mission
+                self.save_jobs()
+            new_jobs.append(dict(job))
+            existing.append((aos, los))
+        return {"scheduled": new_jobs, "scheduled_count": len(new_jobs),
+                "skipped": skipped[:20], "requested_targets": list(chosen),
+                "receiver_claimed": False,
+                "status": "armed_not_received" if new_jobs else "no_eligible_nonoverlapping_passes",
+                "warnings": prediction["warnings"] +
+                    [k+": "+str(v.get("error")) for k,v in refresh_report.items() if v.get("error")],
+                "note": "Only geometry and an opt-in future recording schedule. The local companion must remain running, the single receiver must be free, and the spacecraft must actually transmit. No message or image is yet decoded."}
 
     def cancel(self, job_id):
         with self.lock:
@@ -1027,6 +1117,11 @@ class Handler(BaseHTTPRequestHandler):
                 result = app.refresh()
             elif route == "/api/schedule":
                 result = app.schedule(data.get("pass_id"), data.get("profile"), data.get("mode"))
+            elif route == "/api/auto-schedule":
+                result = app.auto_schedule(data.get("missions"), city=data.get("city", "Cologne"),
+                    lat=data.get("lat"), lon=data.get("lon"),
+                    hours=data.get("hours", 24), elevation=data.get("elevation", 20),
+                    max_jobs=data.get("max_jobs", 6))
             elif route == "/api/cancel":
                 result = app.cancel(data.get("job_id"))
             elif route == "/api/capture":
