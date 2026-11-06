@@ -29,6 +29,7 @@ TX_FEATURES = frozenset({"meshtastic", "aprs_tx"})
 def scan_capabilities(inventory: dict, survey) -> list[dict]:
     """One row for each feature: passive inventory + honest action constraints."""
     results=[]
+    readiness_cache: dict[str, dict] = {}
     for feature in capability_catalog(inventory):
         fid=feature["id"]
         row = {
@@ -41,7 +42,9 @@ def scan_capabilities(inventory: dict, survey) -> list[dict]:
         if fid in SPECTRUM_FEATURES:
             band=SPECTRUM_FEATURES[fid]
             p=SURVEY_BANDS[band]
-            availability=survey.availability(band)
+            if band not in readiness_cache:
+                readiness_cache[band] = survey.availability(band)
+            availability=readiness_cache[band]
             row.update({
                 "medium":"rf_receiver", "scan_type":"rf_spectrum",
                 "band":band,"band_label":p["label"],
