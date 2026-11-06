@@ -3,6 +3,7 @@ import io
 from pathlib import Path
 import struct
 import tempfile
+import math
 import unittest
 import wave
 import zlib
@@ -36,6 +37,30 @@ class Robot36Series35Test(unittest.TestCase):
         self.assertEqual(struct.unpack(">II", encoded[16:24]), (2,1))
         with self.assertRaises(ValueError):
             zlib.decompress(b"not zlib")
+
+    def test_full_36_second_synthetic_tone_can_reconstruct_candidate(self):
+        # Deterministic artificial audio is NOT a real ISS reception.
+        rate = 8000
+        seconds = 38
+        pcm = bytearray(rate * seconds * 2)
+        phase = 0.0
+        for i in range(rate * seconds):
+            within = (i / rate) % .150
+            tone = 1200 if within < .009 else 1900
+            phase += 2 * math.pi * tone / rate
+            struct.pack_into("<h", pcm, i * 2, int(14000 * math.sin(phase)))
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory) / "TIHULU_ISS-SSTV-CANDIDATE_SYNTH_437550000Hz_48000SPS_SSTV-AUDIO.wav"
+            with wave.open(str(source), "wb") as wav:
+                wav.setnchannels(1)
+                wav.setsampwidth(2)
+                wav.setframerate(rate)
+                wav.writeframes(pcm)
+            result = extract_robot36_wav(source)
+            self.assertEqual(result["status"], "robot36_sync_candidates_decoded")
+            self.assertGreaterEqual(len(result["images"]), 1)
+            self.assertFalse(result["images"][0]["satellite_identity_verified"])
+            self.assertTrue((Path(directory)/result["images"][0]["file"]).read_bytes().startswith(b"\\x89PNG"))
 
     def test_invalid_wav_rejected_without_fabrication(self):
         with tempfile.TemporaryDirectory() as directory:
