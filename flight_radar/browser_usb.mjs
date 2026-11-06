@@ -1,3 +1,4 @@
+import {normalizeIqSampleBlock, platformFamily, explainUsbError, readOnlyUsbReport} from "./usb_tools.mjs";
 /*
  * Device-owned browser RTL-SDR loop. No Python, readsb or companion server.
  * WebUSB permission is requested only from the explicit button click.
@@ -10,6 +11,25 @@ const LIBRARY="./vendor/rtlsdr.mjs";
 let Driver=null, device=null, chosenDevice=null, worker=null;
 let stopRequested=false,readLoop=null,ackResolve=null,bytes=0,alreadyReported=false;
 const $=id=>document.getElementById(id);
+const platform=platformFamily(navigator.userAgent||"");
+let reportText="No USB diagnostic recorded.";
+function showDiagnostic(text){
+ reportText=String(text);
+ const report=$("usbReport");
+ if(report)report.textContent=reportText;
+ const section=$("usbHelp");
+ if(section)section.open=true;
+}
+$("usbCheck")?.addEventListener("click",async()=>{
+ const status=await readOnlyUsbReport(navigator.usb,platform);
+ showDiagnostic(status);
+});
+$("usbCopy")?.addEventListener("click",async()=>{
+ try{
+  await navigator.clipboard.writeText(reportText);
+  tell("USB diagnostic copied; no USB serial numbers or raw IQ included.");
+ }catch(error){tell("Clipboard unavailable: "+String(error?.message||error),true);}
+});
 const tell=(message,error=false)=>{
  const el=$("usbStatus");
  if(el){el.textContent=String(message);el.dataset.error=error?"true":"false";}
@@ -34,13 +54,9 @@ async function preload(){
  }
 }
 function usbError(error){
- const message=String(error?.message||error);
- if(/connect|claim|busy|permission|denied|interface/i.test(message)){
-  return "USB could not be claimed: "+message+
-    ". Another application (readsb/Gqrx/welle.io), the Linux DVB driver or USB permissions may own it. "+
-    "The website cannot override OS permissions or stop other processes.";
- }
- return message;
+ const report=explainUsbError(error,platform);
+ showDiagnostic(report);
+ return report.split("\n").slice(0,4).join(" ");
 }
 function ack(){if(ackResolve){const callback=ackResolve;ackResolve=null;callback();}}
 function processMessage(msg){
@@ -73,13 +89,15 @@ async function cleanup(){
  $("usbStart").disabled=!Driver;
 }
 async function read(){
+ let terminalError=null;
  try{
   while(!stopRequested && device){
-   const raw=await device.readSamples(65536);
+   // @jtarrio/webrtlsdr 3.0.7 returns SampleBlock {frequency,
+   // directSampling, data:ArrayBuffer}, NOT a bare ArrayBuffer.
+   // The previous reader rejected every successful sample transfer!
+   const sampleBlock=await device.readSamples(65536);
    if(stopRequested)break;
-   const view=raw instanceof ArrayBuffer?new Uint8Array(raw):
-     ArrayBuffer.isView(raw)?new Uint8Array(raw.buffer,raw.byteOffset,raw.byteLength):null;
-   if(!view || view.byteLength<2)throw Error("No usable unsigned 8-bit interleaved I/Q samples returned.");
+   const view=normalizeIqSampleBlock(sampleBlock);
    if(view.byteLength>2*1024*1024)throw Error("WebUSB block exceeded safe 2 MiB bound.");
    const own=view.slice();
    bytes+=own.byteLength;
@@ -89,11 +107,17 @@ async function read(){
    await accepted;
   }
  }catch(error){
-  if(!stopRequested)tell("USB read failed: "+usbError(error),true);
+  if(!stopRequested){
+   terminalError=error;
+   tell("USB read failed: "+usbError(error),true);
+  }
  }finally{
   await cleanup();
   window.tihuluUsbStopped?.();
-  if(!alreadyReported){tell("Direct WebUSB receiver stopped; this tab released its device.");alreadyReported=true;}
+  if(!terminalError && !alreadyReported){
+   tell("Direct WebUSB receiver stopped; this tab released its device.");
+   alreadyReported=true;
+  }
  }
 }
 async function start(){
@@ -133,9 +157,10 @@ async function start(){
   tell("WebUSB active at 1090 MHz · scanning genuine IQ for CRC-verified ADS-B.");
   readLoop=read().finally(()=>{readLoop=null;});
  }catch(error){
-  tell(usbError(error),true);
+  const explanation=usbError(error);
   await cleanup();
   window.tihuluUsbStopped?.();
+  tell(explanation,true);  // Do not overwrite the actual error with Stop.
  }
 }
 async function stop(){
