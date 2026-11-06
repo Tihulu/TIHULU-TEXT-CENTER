@@ -12,3 +12,19 @@
 
 
 .local-audio-player{display:block;width:100%;max-width:580px;margin:14px 0 8px}.local-audio-player[hidden]{display:none}.radio-media-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:13px;margin-top:14px}.radio-media-card{background:#0a161b;border:1px solid #29454a;border-radius:8px;padding:10px;overflow-wrap:anywhere}.radio-media-card strong{display:block;margin-top:8px;font-size:12px;color:var(--lime)}.radio-media-card p{margin-top:4px}.radio-image{display:block;width:100%;height:140px;object-fit:contain;background:#040809;border:1px solid #223c42;border-radius:4px}.radio-media-card p{font-size:11px}
+
+/* Distinct automatic FM RDS / real DAB FIC discovery; spectrum remains separate. */
+.auto-scan-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-top:15px}
+.auto-scan-section{min-width:0;border:1px solid #3c595b;background:#0c1a1e;border-radius:8px;padding:14px}
+.auto-scan-section>h3{margin:0 0 7px}
+.auto-mode,.auto-dwell select{background:#0c1a1e;color:var(--white);border:1px solid #4b6668;border-radius:6px;padding:10px;width:100%;margin-top:12px}
+.auto-dwell{display:block;font-size:12px;color:var(--muted);margin-top:10px}
+.auto-station{padding:11px 5px;border-bottom:1px solid #355054}
+.auto-station:last-child{border-bottom:0}
+.auto-station strong{display:block;color:var(--lime);font-size:13px}
+.auto-station .subtle{display:block;margin-top:3px}
+.auto-station summary{cursor:pointer;color:var(--lime);font-weight:700}
+.auto-service{padding:9px;border-top:1px solid #294043;margin-top:8px}
+.auto-service strong{color:var(--teal);font-size:12px}
+.auto-services{padding:8px}
+@media(max-width:950px){.auto-scan-grid{grid-template-columns:1fr}}
