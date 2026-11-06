@@ -7,7 +7,8 @@ import { initStationLocationUI } from './location_search.mjs';
 import { probeUsbSamples, sampleBytes } from './usb_live_probe.mjs?v=20261106-map-usb-v07';
 import { sortPassList } from './pass_sort.mjs';
 import { protocolsForPass, protocolCategories, passesFilteredByContent } from './pass_protocol_catalog.mjs';
-import { selectAutomaticPasses } from './auto_mission.mjs';
+import { selectAutomaticPasses, AUTO_TARGETS } from './auto_mission.mjs';
+import {localDayKey,shiftCalendarDay,renderSatelliteCalendar} from './satellite_calendar.mjs';
 import { localDateInput, parseLocalScheduleTime, createScheduledPass, evaluateScheduledJob, secondsToJob, captureLevelSummary } from './schedule_controller.mjs';
 // TIHULU Satellite Center — no-local-install receive-only browser mode.
 // The RTL-SDR device is opened only after a direct user gesture.
@@ -752,12 +753,97 @@ function readableJobState(job,now=Date.now()){
  if(action==='missed')return 'expired';
  return 'armed / '+secondsToJob(job,now)+' s remaining';
 }
+let browserCalendarSignature="";
+const browserCalendarDay=$('browser-calendar-date');
+browserCalendarDay.value=localDayKey(new Date());
+function showCalendarEdit(job,card){
+ if(job.state!=='armed')return;
+ const existing=card.querySelector('.calendar-edit');
+ if(existing){existing.remove();return;}
+ const form=document.createElement('form');form.className='calendar-edit';
+ const addField=(name,control)=>{
+   const label=document.createElement('label');label.textContent=name;label.append(control);form.append(label);
+ };
+ const time=document.createElement('input');time.type='datetime-local';
+ time.required=true;time.value=localDateInput(job.when);
+ addField('Start · device local time',time);
+ const freq=document.createElement('select');
+ const choices=scheduleFrequencyChoices(job.family);
+ if(!choices.some(v=>v[0]===job.frequency))choices.unshift([job.frequency,'Current: '+(job.frequency/1e6).toFixed(3)+' MHz']);
+ for(const [hz,name] of choices){
+   if(hz<24000000||hz>1750000000)continue;
+   const o=document.createElement('option');o.value=String(hz);o.textContent=name;freq.append(o);
+ }
+ freq.value=String(job.frequency);addField('Known downlink frequency',freq);
+ const seconds=document.createElement('input');seconds.type='number';seconds.min='1';seconds.max='60';
+ seconds.value=String(job.durationSeconds);addField('Recording seconds (max 60)',seconds);
+ const rate=document.createElement('select');
+ for(const value of [1024000,2048000]){
+   const o=document.createElement('option');o.value=String(value);o.textContent=(value/1e6).toFixed(3)+' MS/s';rate.append(o);
+ }
+ rate.value=String(job.sampleRate);addField('Sample rate',rate);
+ const note=document.createElement('p');note.className='hint';
+ note.textContent='Edits must stay inside this geometric pass and cannot overlap another scheduled capture. No receiver is claimed by saving.';
+ form.append(note);
+ const save=document.createElement('button');save.type='submit';save.textContent='Save job changes';form.append(save);
+ const error=document.createElement('p');error.className='status';error.setAttribute('role','status');form.append(error);
+ form.addEventListener('submit',event=>{
+   event.preventDefault();
+   try{
+     const pass={id:job.passId,name:job.name,family:job.family,aos:job.passAos,los:job.passLos};
+     const next=createScheduledPass(pass,{
+       when:parseLocalScheduleTime(time.value),durationSeconds:Number(seconds.value),
+       sampleRate:Number(rate.value),frequency:Number(freq.value),saveRaw:job.saveRaw
+     });
+     for(const other of jobs){
+       if(other===job||!['armed','starting','running'].includes(other.state))continue;
+       if(next.when<other.passLos+20000&&next.until>other.passAos-20000){
+         throw Error('Single receiver conflict with another scheduled pass');
+       }
+     }
+     const mission=Object.entries(AUTO_TARGETS).find(([_,x])=>x.frequencyHz===next.frequency&&x.norad===Number(job.passId));
+     Object.assign(job,next,{
+       createdAt:job.createdAt,
+       missionId:mission?.[0]||undefined,
+       message:'Edited by operator. Browser must remain visible and awake.'
+     });
+     jobs.sort((a,b)=>a.when-b.when);
+     browserCalendarSignature='';renderJobs();
+     status('schedule-readiness','Scheduled job updated. Device remains released; no RF reception claimed.');
+   }catch(e){error.textContent='Changes not saved: '+e.message;}
+ });
+ card.append(form);
+}
+function paintBrowserCalendar(force=false){
+ const day=browserCalendarDay.value;
+ const signature=day+'|'+jobs.map(j=>[j.id,j.when,j.state,j.frequency,j.durationSeconds].join(':')).join('|');
+ if(!force&&signature===browserCalendarSignature)return;
+ browserCalendarSignature=signature;
+ renderSatelliteCalendar($('browser-calendar-grid'),jobs,day,{
+   onEdit:showCalendarEdit,
+   onCancel:job=>{
+     if(job.state==='armed'){
+       job.state='cancelled';job.message='Cancelled explicitly by operator. No RF capture started.';
+       browserCalendarSignature='';renderJobs();
+     }
+   }
+ });
+}
+browserCalendarDay.addEventListener('change',()=>paintBrowserCalendar(true));
+$('browser-calendar-prev').addEventListener('click',()=>{
+ browserCalendarDay.value=shiftCalendarDay(browserCalendarDay.value,-1);paintBrowserCalendar(true);
+});
+$('browser-calendar-next').addEventListener('click',()=>{
+ browserCalendarDay.value=shiftCalendarDay(browserCalendarDay.value,1);paintBrowserCalendar(true);
+});
+
 function renderJobs(){
  const container=$('jobs');container.replaceChildren();
  if(!jobs.length){
    const empty=document.createElement('p');empty.className='hint';
    empty.textContent='No scheduled captures. Calculate passes and select Schedule / configure to create one.';
    container.append(empty);
+   paintBrowserCalendar();
    return;
  }
  const now=Date.now();
@@ -809,6 +895,7 @@ function renderJobs(){
    }else panel.append(title,statusLine,timings,message,controls);
    container.append(panel);
  }
+ paintBrowserCalendar();
 }
 async function checkScheduledReadiness(){
  const lines=[];
@@ -1076,6 +1163,15 @@ try {
       $('city').value='Custom';
       $('lat').value=String(saved.lat);$('lon').value=String(saved.lon);
       $('hours').value=String(saved.hours);
+      if([5,15,20,30].includes(saved.elevation)){
+        // The main pass planner currently supports 5°, 15°, 30°; add 20° dynamically.
+        const elev=$('elev');
+        if(!Array.from(elev.options).some(o=>o.value===String(saved.elevation))){
+          const o=document.createElement('option');o.value=String(saved.elevation);
+          o.textContent=saved.elevation+'°';elev.append(o);
+        }
+        elev.value=String(saved.elevation);
+      }
       $('lat').dispatchEvent(new Event('change',{bubbles:true}));
       $('auto-plan-status').textContent='Observer location transferred locally (not in URL). Auto Mission uses the selected station.';
     }
