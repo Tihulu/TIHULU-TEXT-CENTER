@@ -91,6 +91,27 @@
 <a href="./index.html#schedule-center">Calculate pass &amp; plan capture</a>
 </div>
 <p class="hint">Selecting a satellite never claims USB, starts a scan or asserts the satellite is transmitting. The latest catalog, event announcements, frequencies, antenna and Doppler conditions must be checked before receiving. Receiver frequencies are candidates, not observed signals.</p>
+<details id="saved-protocols" class="user-protocol-manager">
+<summary>Advanced · Save additional satellite protocols / transmitter profiles</summary>
+<p class="hint">Extend the local list beyond ISS and Meteor using documented public transmitter frequencies. Imported records are <strong>USER-SUPPLIED / UNVERIFIED</strong>. They appear beside pass predictions, but do not automatically enable transmission, capture, or a protocol decoder.</p>
+<form id="user-protocol-form">
+<div class="reception-controls">
+<label>NORAD satellite ID<input id="user-protocol-norad" type="number" min="1000" max="9999999" required placeholder="e.g. 59051"></label>
+<label>Receive frequency (MHz)<input id="user-protocol-frequency" type="number" min="24" max="1750" step="0.000001" required placeholder="e.g. 137.900"></label>
+<label>Content<select id="user-protocol-kind"><option value="image">🖼 Image</option><option value="audio">🔊 Audio</option><option value="text">✉ Text / data</option><option value="video">🎥 Video</option></select></label>
+<label>Modulation / protocol<input id="user-protocol-mode" type="text" required maxlength="64" placeholder="e.g. LRPT, SSTV, AFSK1200"></label>
+<label>Source URL (HTTPS)<input id="user-protocol-source" type="url" placeholder="https://db.satnogs.org/"></label>
+</div>
+<div class="reception-actions">
+<button type="submit">Save profile locally</button>
+<button type="button" id="user-protocol-export" class="secondary">Export profile JSON</button>
+<label>Import JSON profiles<input id="user-protocol-import" type="file" accept=".json,application/json"></label>
+</div>
+</form>
+<p id="user-protocol-status" class="status" role="status">No custom protocol profile selected. No automatic decoder is installed through this form.</p>
+<div id="user-protocol-list"></div>
+<p class="hint">Reference: <a href="https://db.satnogs.org/transmitters/" target="_blank" rel="noopener noreferrer">SatNOGS public transmitter catalog</a>. Import/export transfers settings between Pages/PWA and desktop origins. A selected downlink still requires real RF capture and a compatible decoder.</p>
+</details>
 </section>
 <div class="reception-grid">
 <section>
