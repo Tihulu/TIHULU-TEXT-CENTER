@@ -24,11 +24,9 @@ function source(){
  if(state.serialFix&&Date.now()-state.serialAt<90000)
   return {...state.serialFix,kind:"NMEA receiver — live",validObserver:true};
  if(state.browser)return {...state.browser,kind:"Browser / device location",validObserver:true};
- const observed=state.references.filter(p=>p.type==="aircraft"&&p.observedByReceiver===true);
- if(observed.length){
-   const ref=observed.slice().sort((a,b)=>distanceRef(a)-distanceRef(b))[0];
-   return {lat:ref.lat,lon:ref.lon,kind:"Observed aircraft (NOT your position)",validObserver:false};
- }
+ // Imported aircraft JSON is an untrusted reference, NOT authenticated
+ // ADS-B receiver observation. A future trusted Flight Radar adapter must
+ // supply verified observations before aircraft-centered fallback is enabled.
  return {...DEFAULT_CENTER,kind:"Cologne reference (NOT your position)",validObserver:false};
 }
 function distanceRef(p){const a=(p.lat-DEFAULT_CENTER.lat),b=(p.lon-DEFAULT_CENTER.lon)*Math.cos(DEFAULT_CENTER.lat*Math.PI/180);return a*a+b*b}
@@ -68,7 +66,7 @@ function renderDiagnostics(){
    ["Dedicated GNSS NMEA",state.serialFix&&Date.now()-state.serialAt<90000?"Current valid serial receiver fix":state.gnssFile?"Historical receiver import":"Unavailable"],
    ["Precise orbit",state.sp3?state.sp3.satelliteCount+" satellites from imported SP3 file":"No orbit file imported"],
    ["RF acquisition","Unavailable — no GNSS SDR demodulator"],
-   ["Aircraft reference",state.references.filter(p=>p.type==="aircraft"&&p.observedByReceiver).length+" imported observed references"],
+   ["Aircraft reference",state.references.filter(p=>p.type==="aircraft").length+" imported aircraft references (NOT receiver-verified)"],
    ["Measured station ranges",state.ranges?state.ranges.usedRanges+" user-provided measurements":"Unavailable"],
    ["TDOA synchronized constraints",state.tdoa.length?state.tdoa.length+" imported constraints":"Unavailable"]
  ];
@@ -270,7 +268,7 @@ $("refs-file")?.addEventListener("change",e=>importFile(e.target,100_000,async t
  const list=JSON.parse(text);if(!Array.isArray(list)||list.length>200)throw Error("Expected <= 200 source-attributed reference points");
  const results=list.map(p=>{
    if(!["aircraft","station"].includes(p.type)||!p.source||!p.name)throw Error("Reference requires name, type and source");
-   const loc=safeCoord(p.lat,p.lon);return {...loc,name:String(p.name).slice(0,100),source:String(p.source).slice(0,180),type:p.type,observedByReceiver:p.observedByReceiver===true};
+   const loc=safeCoord(p.lat,p.lon);return {...loc,name:String(p.name).slice(0,100),source:String(p.source).slice(0,180),type:p.type,sourceClaimsObservation:p.observedByReceiver===true};
  });
  state.references=results;const c=$("refs-list");c.replaceChildren();
  for(const p of results)c.append(make("div","list-item",p.name+" · "+p.type+" · "+p.source));
