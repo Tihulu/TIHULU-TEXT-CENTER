@@ -241,3 +241,10 @@
  .simple-option{padding:9px}
  #view-earth .earth-map{height:420px}
 }
+
+
+.radio-quick-results{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:12px}
+.radio-quick-results h3{font-size:11px;margin:0 0 8px;color:#b4dce6;font-weight:750}
+.simple-channel-list{display:grid;gap:6px;max-height:285px;overflow:auto}
+.radio-quick-results .simple-channel{padding:7px 9px;background:#102638}
+@media(max-width:860px){.radio-quick-results{grid-template-columns:1fr}}
