@@ -10,6 +10,40 @@
 
 This is the **new `satellite_center/` directory** intended to be placed at the root of `Tihulu/TIHULU-TEXT-CENTER`. It does **not** alter Text Center routes, UI, recordings or the Survival Kit. Integration can be decided later.
 
+## Primary: browser-only direct WebUSB (no local installer)
+
+[Open the public Satellite Center](https://tihulu.github.io/TIHULU-TEXT-CENTER/satellite_center/)
+or go directly to
+[Browser-only WebUSB](https://tihulu.github.io/TIHULU-TEXT-CENTER/satellite_center/browser/).
+
+On desktop Chrome/Edge/other suitable Chromium browsers, press **Choose
+RTL-SDR (WebUSB)**, select the locally plugged-in Nooelec NESDR SMArt v5
+RTL2832U receiver and grant the browser USB permission. There is no Python
+process, `127.0.0.1` connection, pairing key or OS-level local software
+installation required for the **web application itself**.
+
+The browser source is under `satellite_center/browser/`. It dynamically
+loads the version-pinned `@jtarrio/webrtlsdr@3.0.7` WebUSB library,
+samples real USB I/Q data, plots relative digital signal level and optionally
+downloads original CU8 records of up to 128 MiB. It uses `satellite.js@6.0.1`
+for browser-side geometry, on-demand CelesTrak TLE downloads (with a
+two-hour per-tab refresh limit) or manual local TLE upload, and a limited
+in-memory browser-open pass scheduler. No third-party SDR process is stopped.
+
+**Limits and non-promises:** Firefox and Safari lack WebUSB; Windows may
+require WinUSB installation, Linux may require DVB kernel module release
+or udev permissions, and those cannot be fixed solely via browser consent.
+The hosted app cannot work with USB hardware plugged into a *different*
+computer. The tab must be open and foreground to schedule reliably, and
+WebUSB is released on stop, visibility hide or page exit. Browser-only
+Meteor LRPT imaging, ISS APRS text decoding and SSTV decoding are **not
+implemented yet**; real raw IQ may be decoded later in external tools.
+
+**The old local-companion application remains optional** for modes using
+installed SatDump/multimon-ng and for scheduling while the browser tab is
+closed but the companion runs. It is not the required path for the
+browser-only capture mode. A physical Nooelec test is still pending.
+
 ## What works (subject to installed tools and actual RF)
 
 - Local, mobile-responsive browser UI at **`http://127.0.0.1:8791/`** (independent from Text Center's `8787`).
