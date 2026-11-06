@@ -5,7 +5,7 @@ started. Satellite RF uses the existing receive-only Station/rtl_sdr backend.
 """
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 import json
 import math
 import re
@@ -612,8 +612,8 @@ class SatelliteWindow(QMainWindow):
             for hour in range(24):
                 slot=datetime.fromisoformat(day+f"T{hour:02d}:00:00").astimezone()
                 finish=slot.replace(hour=(hour+1)%24) if hour<23 else slot.replace(
-                    hour=0)+__import__("datetime").timedelta(days=1)
-                end=start+__import__("datetime").timedelta(seconds=secs)
+                    hour=0)+timedelta(days=1)
+                end=start+timedelta(seconds=secs)
                 if start<finish and end>slot:
                     hours[hour].append(start.strftime("%H:%M")+"–"+end.strftime("%H:%M")+
                      " · "+job.get("satellite","Unknown")+" · "+job.get("state",""))
@@ -788,7 +788,11 @@ class SatelliteWindow(QMainWindow):
         def done(result):
             self.decoded_paths=[self.station.archive/p for p in result.get("images",[])]
             self.file_details.setPlainText(json.dumps(result,indent=2))
-            if self.decoded_paths:self._choose_path(str(self.decoded_paths[0]))
+            if self.decoded_paths:
+                image=QPixmap(str(self.decoded_paths[0]))
+                if not image.isNull():
+                    self.image.setPixmap(image.scaled(720,250,Qt.KeepAspectRatio,
+                                                      Qt.SmoothTransformation))
             self.refresh_status()
         self._task("SatDump Meteor "+variant,
                    lambda:self.station.decode_meteor(name,variant),done)

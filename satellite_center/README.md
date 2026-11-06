@@ -1,3 +1,42 @@
+# TIHULU Satellite Center 0.3.0 — NATIVE desktop application
+
+**Primary Debian / Ubuntu / Pop!_OS program: Qt Widgets — NOT a website.**
+Launching from the Applications menu or running `tihulu-satellite-center`
+opens a genuine Qt5 desktop window with native select boxes, controls,
+calendar, capture and analysis panes. **No embedded WebView, WebEngine,
+Electron, localhost server or browser** is used by the desktop UI.
+The previous browser/WebUSB workflow is preserved only as an optional,
+**separate web application**. Historic browser/localhost sections below
+describe that separate legacy workflow, not the installed desktop app.
+
+Install the Debian package downloaded from GitHub Actions, then run:
+
+```bash
+sudo apt install ./tihulu-satellite-center_0.3.0~preview1_all.deb
+tihulu-satellite-center
+```
+
+The app provides: native receiver diagnostics, explicit CelesTrak TLE
+refresh and station pass prediction, manual 8–900s planned/direct IQ
+captures, optional auto-missions, an editable automatic-job schedule and
+24-hour recording calendar, local file imports, actual PNG/WAV/text
+preview, CPU NumPy CU8 FFT/waterfall (fast sampled or full-file streaming),
+optional SatDump image decoding of Meteor captures, and ZIP export of
+**only genuine analysis outputs**, with source-provenance warnings.
+All receiver/time/decoder behavior still depends on physical SDR and
+installed native utilities. Installation never silently acquires USB,
+downloads TLEs or starts a scheduled radio recording.
+
+Native dependencies: Debian `python3-pyqt5`, `python3-numpy`,
+`python3-skyfield`, `rtl-sdr` and `xdg-utils`. Legacy `serve`
+is strictly opt-in: `tihulu-satellite-center serve --port 8791`.
+A native Qt window can open without any browser installed.
+
+**Validation:** Debian 12 package install and headless Qt Widgets opening
+are software checks, not evidence of real Nooelec RF/SSTV/Meteor reception.
+
+---
+
 
 ### Debian / Pop!_OS — native, Firefox-compatible SDR application
 
