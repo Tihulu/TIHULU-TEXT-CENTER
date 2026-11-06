@@ -76,7 +76,13 @@ class TeletextFirstTests(unittest.TestCase):
             self.assertEqual(rows[0]["compute_backend"],"broadcast_teletext_libzvbi")
             self.assertEqual(rows[0]["source_id"],"configured_tv:ard:teletext:3")
             self.assertFalse(rows[0]["translated_text"])
+            # A cue is "live" ONLY while the real decoder remains active.
+            running=MagicMock()
+            running.poll.return_value=None
+            tap.process=running
             self.assertTrue(tap.status()["recent"])
+            running.poll.return_value=1
+            self.assertFalse(tap.status()["recent"])
         finally:tmp.cleanup()
 
     def test_tv_auto_prefers_current_teletext_and_skips_speech_pcm(self):
