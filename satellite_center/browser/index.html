@@ -126,7 +126,16 @@ All location methods are optional. City suggestions are offline by default; GPS 
 <label>Group<select id="pass-family"><option value="all">All satellites</option>
 <option value="iss">ISS</option><option value="meteor">Meteor-M</option>
 <option value="cubesat">CubeSat</option><option value="iridium">Iridium</option></select></label>
+<label>Known content<select id="pass-content">
+<option value="all">All tracked satellites</option>
+<option value="known">Known public downlinks</option>
+<option value="image">🖼 Image / Earth photos</option>
+<option value="audio">🔊 Voice / audio</option>
+<option value="text">✉ Packet text / data</option>
+<option value="video">🎥 Video (specialized hardware)</option>
+</select></label>
 <span id="pass-list-count" class="hint">No calculated passes yet.</span>
+<p class="hint pass-capability-help">Protocol labels mean a published, possible downlink — <strong>not a detected transmission</strong>. Modes, active frequencies and decoder availability can change. NOAA-15/18/19 APT are archive-only.</p>
 </div>
 <div id="passes" class="pass-list"></div>
 <div class="line"><button id="pass-show-more" class="secondary" type="button" hidden>Show more passes</button></div>
