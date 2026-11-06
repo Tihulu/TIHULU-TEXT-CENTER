@@ -30,6 +30,7 @@ from . import __version__
 from .capture_naming import recording_name, PROFILE_TARGETS, meteor_capture
 from .capture_budget import (MAX_IQ_BYTES, MAX_CAPTURE_SECONDS,
                              plan_capture_budget, END_MARGIN_SECONDS)
+from .sstv_series35 import extract_robot36_wav
 from .bridge import (app_data_dir, lock_receiver, unlock_receiver, start_receiver_process,
                      stop_receiver_process, pairing_secret, allowed_origin,
                      local_host_allowed, request_is_remote)
@@ -772,6 +773,20 @@ class Station:
             try:
                 result = self.capture(nearest["profile"], nearest["mode"], duration,
                         scheduled=True, satellite=nearest.get("satellite"))
+                # The receiver is already released by capture(). A full-pass
+                # ISS SSTV WAV can contain several separate Robot36 images.
+                # Decode only actual PCM samples; never infer imagery from
+                # a predicted pass, filename, or RF level alone.
+                if (nearest.get("mission_id") == "iss-sstv"
+                        and result.get("file", "").endswith(".wav")):
+                    try:
+                        result["sstv"] = extract_robot36_wav(
+                            self.archive / result["file"])
+                    except (ValueError, OSError, EOFError, wave.Error) as exc:
+                        result["sstv"] = {
+                            "status": "decoder_failed_original_wav_preserved",
+                            "images": [], "reason": str(exc)[:240],
+                        }
                 with self.lock:
                     nearest.update(state="completed", result=result)
                     self.save_jobs()
@@ -1218,6 +1233,13 @@ class Handler(BaseHTTPRequestHandler):
                     lat=q.get("lat", [None])[0], lon=q.get("lon", [None])[0]))
             if route.startswith("/api/image/"):
                 sub = route.removeprefix("/api/image/")
+                # Only locally generated, fixed-name Robot36 candidate PNGs.
+                # Keep existing path-restricted SatDump handling unchanged.
+                if re.fullmatch(r"TIHULU_[A-Za-z0-9_-]+_ROBOT36_[0-9]{2}\.png", sub):
+                    path = self.server.station.archive/sub
+                    if not path.is_file() or not 0 < path.stat().st_size <= 15_000_000:
+                        return self.reply(404, {"error": "Robot36 image unavailable"})
+                    return self.send_bytes(200, path.read_bytes(), "image/png")
                 match = re.fullmatch(r"([A-Za-z0-9_.-]+)_decoded/([A-Za-z0-9_./-]+\.(png|jpg|jpeg))", sub)
                 if not match or ".." in sub or not meteor_capture(match.group(1)+".cu8"):
                     return self.reply(400, {"error": "Invalid image path"})
