@@ -21,7 +21,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: Tihulu/tihulu-flight-radar
-          ref: b1232c26dfbde76331baea046ec3fc15efe8bd10
+          ref: 4237d9811d2bf99e775d1f84ccf8ed103ea5387a
           path: flight-radar-source
           persist-credentials: false
       - uses: actions/setup-node@v4
