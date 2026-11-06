@@ -414,8 +414,15 @@ export function createSatelliteMaps({getTles,getSatLib,getPasses,getLastCapture,
  for(const kind of ["sky","earth"]){
   $("map-tab-"+kind).addEventListener("click",()=>{
    mapStarted=true;setView(kind);
-   if(kind==="earth"&&!earthMap)status("Click Load OpenStreetMap to fetch map tiles on demand.");
-   else void refresh();
+   if(kind==="earth"&&!earthMap){
+     // Default background is bundled land outlines; no OSM tiles are fetched
+     // just by opening the Earth tab.
+     void openEarth().then(refresh).catch(e=>{
+       basemapStatus("Could not initialize Earth map: "+e.message+
+         ". Check browser console/network or use Sky view.");
+       log("Earth map load failed: "+e.message);
+     });
+   }else void refresh();
   });
  }
  $("map-load").addEventListener("click",()=>{
