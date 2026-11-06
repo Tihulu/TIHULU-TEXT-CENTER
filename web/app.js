@@ -2884,6 +2884,7 @@ async function showTextAndAlerts(){
   }
   async function display(entry){
     chosen=entry;
+    render();
     const current=++selection;
     reader.replaceChildren(el("p","full-body","Loading selected archived text…"));
     let full=entry;
@@ -2899,7 +2900,7 @@ async function showTextAndAlerts(){
            received.subpage!==entry.subpage){
           throw Error("Archive response does not match the selected received page");
         }
-        full={...entry,...received};
+        full={...entry,...received,kind:"page",name:entry.name};
       }catch(error){
         if(current!==selection)return;
         reader.replaceChildren(el("h3","","Could not open archived page"),
@@ -2944,7 +2945,8 @@ async function showTextAndAlerts(){
       reader.append(link);
     }
     const copy=button("COPY RECEIVED TEXT",()=>{
-      navigator.clipboard?.writeText(full.body||"").then(()=>notice("Copied saved text"))
+      if(!navigator.clipboard?.writeText){notice("Browser clipboard permission unavailable");return;}
+      navigator.clipboard.writeText(full.body||"").then(()=>notice("Copied saved text"))
         .catch(()=>notice("Browser clipboard permission unavailable"));
     },"action ghost");
     reader.append(copy);
