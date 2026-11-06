@@ -2756,11 +2756,99 @@ async function showLiveRadioPage(){
     parent.append(more);
   }
 }
+async function addTvTeletextPagesPanel(){
+  // This is a *reader of already received pages*. It does not retune TV,
+  // replace its separate native Teletext UI, or synthesize missing pages.
+  const details=el("details","advanced-section tv-teletext-browser");
+  details.id="tv-teletext-pages";
+  details.append(el("summary","","Teletext pages · channel websites & archived text"));
+  const note=el("p","full-body",
+    "Many television channels broadcast numbered Teletext pages with news, "+
+    "weather and programme guides. Only actually decoded and imported pages "+
+    "are shown. This viewer does not modify the TV application's Teletext "+
+    "decoder or tune the Hauppauge receiver.");
+  const controls=el("div","tv-teletext-controls");
+  const search=el("input");search.type="search";
+  search.placeholder="Search page, channel, topic or source…";
+  search.setAttribute("aria-label","Find archived TV Teletext pages");
+  const source=el("select");
+  source.setAttribute("aria-label","Teletext source");
+  controls.append(search,source);
+  const status=el("p","full-body");
+  const layout=el("div","tv-teletext-layout");
+  const list=el("div","tv-teletext-index");
+  const reader=el("div","tv-teletext-reader");
+  reader.append(el("p","full-body","Select an actually received Teletext page."));
+  layout.append(list,reader);
+  details.append(note,controls,status,layout);
+  $("content").append(details);
+  const pages=await api("/api/pages");
+  const received=pages.filter(x=>x.medium==="dvb_teletext"&&
+    Number.isInteger(x.page)&&x.page>=100&&x.page<=899);
+  const sources=[...new Map(received.map(p=>[p.source_id,p.station||p.source_id])).entries()];
+  const any=el("option","","All received TV sources");any.value="";
+  source.append(any);
+  for(const [key,name] of sources){
+    const option=el("option","",name+" · "+key);
+    option.value=key;source.append(option);
+  }
+  let selection=0;
+  function render(){
+    const term=search.value.trim().toLocaleLowerCase();
+    const matching=received.filter(x=>
+      (!source.value||x.source_id===source.value)&&
+      (!term||[x.title,x.station,x.source_id,x.page,x.subpage]
+        .join(" ").toLocaleLowerCase().includes(term)));
+    status.textContent=matching.length+" saved genuine Teletext pages · "+
+      received.length+" total · not proof of current broadcast availability";
+    list.replaceChildren();
+    if(!matching.length){
+      list.append(el("p","full-body",
+        "No received Teletext pages. A compatible decoder must import real "+
+        "broadcast pages before they can be browsed here or in Text & Alerts."));
+    }
+    for(const page of matching.slice(0,500)){
+      const select=button("P"+page.page+"/"+String(page.subpage).padStart(2,"0")+
+        " · "+page.title+" · "+page.station,async()=>{
+        const own=++selection;
+        reader.replaceChildren(el("p","full-body","Loading stored Teletext page…"));
+        const q=new URLSearchParams({source_id:page.source_id,
+          number:String(page.page),subpage:String(page.subpage)});
+        try{
+          const result=await api("/api/page?"+q.toString());
+          if(own!==selection||state.page!==420)return;
+          if(result.kind!=="broadcast"||result.source_id!==page.source_id||
+             result.page!==page.page||result.subpage!==page.subpage){
+            throw Error("Received page identity did not match requested Teletext source");
+          }
+          reader.replaceChildren(
+            el("div","item-meta",result.station+" · Page "+result.page+"/"+
+              String(result.subpage).padStart(2,"0")),
+            el("h3","",result.title),
+            el("pre","tv-teletext-body",result.body),
+            el("p","full-body",
+              "Received "+timeLabel(result.received_at)+
+              " · "+result.provenance+" · source "+result.source_id));
+        }catch(error){
+          if(own===selection)
+            reader.replaceChildren(el("p","full-body","Teletext page unavailable: "+error.message));
+        }
+      },"tv-teletext-page");
+      list.append(select);
+    }
+  }
+  source.addEventListener("change",render);
+  search.addEventListener("input",render);
+  render();
+  details.append(button("OPEN TEXT & ALERTS ARCHIVE",()=>openPage(500,"",0),"action ghost"));
+}
 async function showLiveTVPage(){
   section("TV CENTER","Scan channels · Choose · Watch · Record",
     "DVB-T/T2 scan is hardware-dependent · MPEG-TS relay needed for playback");
   try{await addChannelCenter("tv")}
   catch(e){empty("TV channel library unavailable",e.message)}
+  try{await addTvTeletextPagesPanel()}
+  catch(e){empty("TV Teletext archive reader unavailable",e.message)}
   try{await addDvbFullScan()}
   catch(e){empty("TV full scan unavailable",e.message)}
   try{await addLiveTV()}catch(e){empty("Live TV player unavailable",e.message)}
