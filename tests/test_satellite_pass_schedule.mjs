@@ -101,3 +101,10 @@ test("Repeated browser ticks update countdown in place, preserving opened contro
  assert.match(js,/panel\.querySelector\('\.job-state'\)/);
  assert.match(js,/editingCard&&editedJob\?\.state==='armed'/);
 });
+
+test("Native dashboard status polling leaves unchanged options and cards mounted",()=>{
+ const native=fs.readFileSync(new URL("../satellite_center/index.html",import.meta.url),"utf8");
+ assert.match(native,/document\.activeElement===el/);
+ assert.match(native,/signature===lastNativeJobsSignature/);
+ assert.match(native,/signature===lastNativeArchiveSignature/);
+});
