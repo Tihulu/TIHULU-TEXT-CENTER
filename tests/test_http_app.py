@@ -208,6 +208,19 @@ class HTTPTests(unittest.TestCase):
         self.assertEqual(self.request("POST","/api/captions/translate",
             {"session":"not-a-uuid","target_lang":"de"},csrf)[0],404)
 
+    def test_tv_live_requires_verified_hardware_and_channels(self):
+        code,_,raw=self.request("GET","/api/live-tv/channels")
+        self.assertEqual(code,200)
+        self.assertIn("hardware",json.loads(raw))
+        self.assertEqual(self.request("GET","/api/live-tv/stream?session=none")[0],404)
+        self.assertEqual(self.request("GET","/api/live-tv/recordings")[0],200)
+        self.assertEqual(self.request("GET","/api/live-tv/recording/invalid")[0],404)
+        _,_,boot=self.request("GET","/api/bootstrap")
+        csrf=json.loads(boot)["csrf"]
+        self.assertEqual(self.request("POST","/api/live-tv/start",
+            {"service":"unconfirmed"},csrf)[0],409)
+        self.assertEqual(self.request("POST","/api/live-tv/stop",{},csrf)[0],200)
+
     def test_no_forged_source(self):
         code,_,raw=self.request("GET","/api/page?source_id=ard_text&number=100")
         self.assertEqual(code,404)

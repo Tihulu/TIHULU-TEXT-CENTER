@@ -206,6 +206,16 @@ class LiveTV(LiveRadio):
             except OSError:pass
         return result
 
+    def recording_path(self,ident:str)->Path|None:
+        if not isinstance(ident,str) or not re.fullmatch(r"[0-9]{8}T[0-9]{6}Z_[0-9a-f]{32}",ident):
+            return None
+        path=self.record_dir/(ident+".ts")
+        try:
+            if path.is_symlink() or not path.is_file():return None
+            if not (1<=path.stat().st_size<=MAX_TV_RECORDING):return None
+        except OSError:return None
+        return path
+
     def _run_tv(self,service:str,channels_file:str,rec_id:str|None):
         zap=None;enc=None;record_file=None;dvr_fd=None;pipe=None;audio_pipe=None;audio_thread=None
         failure=None

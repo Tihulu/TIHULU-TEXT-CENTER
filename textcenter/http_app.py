@@ -20,6 +20,7 @@ from .fm_survey import FMSurveySupervisor, SurveyError
 from .scan_catalog import scan_capabilities
 from .compute import inventory_compute
 from .radio_live import LiveRadio,LiveRadioError
+from .tv_live import LiveTV
 
 WEB_DIR = Path(__file__).resolve().parents[1] / "web"
 
@@ -68,6 +69,7 @@ class LocalServer(ThreadingHTTPServer):
             store,rds=self.rds,survey=self.survey,preview=self.audio,
             lock_dir=store.filename.parent / ".receiver-locks"
         )
+        self.live_tv=LiveTV(store,lock_dir=store.filename.parent / ".receiver-locks")
         super().__init__(address, Handler)
 
 
@@ -98,6 +100,29 @@ class Handler(BaseHTTPRequestHandler):
 
     def _json(self, status: int, payload):
         self._send(status, json.dumps(payload, ensure_ascii=False).encode("utf-8"), "application/json; charset=utf-8")
+
+    def _stream_live(self,controller,session,mime):
+        state=controller.status()
+        if not state["active"] or not session or session!=state["session"]:
+            return self._json(404,{"error":"No matching active receiver stream"})
+        self.send_response(200)
+        self.send_header("Content-Type",mime)
+        self.send_header("Transfer-Encoding","chunked")
+        self.send_header("Cache-Control","no-store")
+        self.send_header("X-Content-Type-Options","nosniff")
+        self.send_header("Referrer-Policy","no-referrer")
+        self.send_header("Connection","close")
+        self.end_headers()
+        self.close_connection=True
+        try:
+            for block in controller.stream_chunks(session):
+                if not block:continue
+                self.wfile.write(f"{len(block):x}\r\n".encode("ascii")+block+b"\r\n")
+                self.wfile.flush()
+            self.wfile.write(b"0\r\n\r\n")
+        except (BrokenPipeError,ConnectionResetError,LiveRadioError,OSError):
+            controller.stop()
+        return
 
     def do_GET(self):
         parsed = urlsplit(self.path)
@@ -176,6 +201,39 @@ class Handler(BaseHTTPRequestHandler):
                 status = self.server.survey.status()
                 status["capability"] = self.server.survey.availability()
                 return self._json(200, status)
+            if route == "/api/live-tv/channels":
+                return self._json(200,self.server.live_tv.channel_status())
+            if route == "/api/live-tv/status":
+                status=self.server.live_tv.status()
+                status["capability"]=self.server.live_tv.availability()
+                return self._json(200,status)
+            if route == "/api/live-tv/recordings":
+                return self._json(200,self.server.live_tv.recordings())
+            if route.startswith("/api/live-tv/recording/"):
+                identity=route[len("/api/live-tv/recording/"):]
+                target=self.server.live_tv.recording_path(identity)
+                if target is None:
+                    return self._json(404,{"error":"No verified MPEG-TS TV recording"})
+                self.send_response(200)
+                self.send_header("Content-Type","video/mp2t")
+                self.send_header("Content-Length",str(target.stat().st_size))
+                self.send_header("Content-Disposition",'attachment; filename="'+target.name+'"')
+                self.send_header("Cache-Control","no-store")
+                self.send_header("X-Content-Type-Options","nosniff")
+                self.send_header("Connection","close")
+                self.end_headers()
+                self.close_connection=True
+                try:
+                    with target.open("rb") as media:
+                        while True:
+                            block=media.read(64*1024)
+                            if not block:break
+                            self.wfile.write(block)
+                except (OSError,BrokenPipeError,ConnectionResetError):pass
+                return
+            if route == "/api/live-tv/stream":
+                return self._stream_live(self.server.live_tv,
+                    q.get("session",[""])[0],"video/mp4")
             if route == "/api/compute":
                 return self._json(200,inventory_compute())
             if route == "/api/live-radio/status":
@@ -191,28 +249,8 @@ class Handler(BaseHTTPRequestHandler):
                     return self._json(404,{"error":"Recording missing or exceeds small-download limit"})
                 return self._send(200,content,"audio/mpeg")
             if route == "/api/live-radio/stream":
-                session=q.get("session",[""])[0]
-                state=self.server.live_radio.status()
-                if not state["active"] or session!=state["session"]:
-                    return self._json(404,{"error":"No matching active radio stream"})
-                self.send_response(200)
-                self.send_header("Content-Type","audio/mpeg")
-                self.send_header("Transfer-Encoding","chunked")
-                self.send_header("Cache-Control","no-store")
-                self.send_header("X-Content-Type-Options","nosniff")
-                self.send_header("Referrer-Policy","no-referrer")
-                self.send_header("Connection","close")
-                self.end_headers()
-                self.close_connection=True
-                try:
-                    for block in self.server.live_radio.stream_chunks(session):
-                        if not block:continue
-                        self.wfile.write(f"{len(block):x}\r\n".encode("ascii")+block+b"\r\n")
-                        self.wfile.flush()
-                    self.wfile.write(b"0\r\n\r\n")
-                except (BrokenPipeError,ConnectionResetError,LiveRadioError,OSError):
-                    self.server.live_radio.stop()
-                return
+                return self._stream_live(self.server.live_radio,
+                    q.get("session",[""])[0],"audio/mpeg")
             if route == "/api/captions/sessions":
                 return self._json(200,self.server.live_radio.archive.sessions())
             if route == "/api/captions/cues":
@@ -296,7 +334,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         route = urlsplit(self.path).path
-        allowed = {"/api/feeds/add", "/api/feeds/refresh", "/api/bulletins", "/api/bookmarks", "/api/rds/start", "/api/rds/stop", "/api/fm-survey/start", "/api/fm-survey/stop", "/api/scans/start", "/api/scans/stop", "/api/audio/start", "/api/audio/stop", "/api/dab/refresh", "/api/live-radio/start", "/api/live-radio/stop", "/api/captions/translate"}
+        allowed = {"/api/feeds/add", "/api/feeds/refresh", "/api/bulletins", "/api/bookmarks", "/api/rds/start", "/api/rds/stop", "/api/fm-survey/start", "/api/fm-survey/stop", "/api/scans/start", "/api/scans/stop", "/api/audio/start", "/api/audio/stop", "/api/dab/refresh", "/api/live-radio/start", "/api/live-radio/stop", "/api/captions/translate", "/api/live-tv/start", "/api/live-tv/stop"}
         if route not in allowed:
             return self._json(404, {"error": "Not found"})
         if self.headers.get("X-Tihulu-CSRF") != self.server.csrf_token:
@@ -323,6 +361,12 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(202, self.server.survey.start())
             if route == "/api/fm-survey/stop":
                 return self._json(200, self.server.survey.stop())
+            if route == "/api/live-tv/start":
+                return self._json(202,self.server.live_tv.start(
+                    service=payload.get("service"),record=payload.get("record",False),
+                    captions=payload.get("captions",{})))
+            if route == "/api/live-tv/stop":
+                return self._json(200,self.server.live_tv.stop())
             if route == "/api/live-radio/start":
                 return self._json(202,self.server.live_radio.start(
                     frequency_mhz=payload.get("frequency_mhz"),
@@ -388,6 +432,7 @@ def run_server(store: Store, *, host: str = "127.0.0.1", port: int = 8787):
     except KeyboardInterrupt:
         pass
     finally:
+        server.live_tv.stop(wait=True)
         server.live_radio.stop(wait=True)
         server.audio.stop(wait=True)
         server.survey.stop(wait=True)
