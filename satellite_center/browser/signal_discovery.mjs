@@ -118,6 +118,17 @@ function bestWindowStart(report,offsetHz,lengthSeconds){
  return Number(Math.max(0,Math.min(available-lengthSeconds,at-lengthSeconds/2)).toFixed(3));
 }
 function summaryError(e){return String(e?.message||e).slice(0,300);}
+export function sstvCaptureDiagnostic({centerHz=null,recordingSeconds=null,fileModifiedMs=null}={}){
+ const notes=[];
+ if(centerHz!==null&&Math.abs(centerHz-145800000)<30000)
+   notes.push("For the 9–16 Nov 2026 ISS SSTV event the announced channel is 437.550 MHz, not the historical 145.800 MHz voice/SSTV channel.");
+ if(Number.isFinite(recordingSeconds)&&recordingSeconds<36)
+   notes.push("Recording length "+recordingSeconds.toFixed(2)+" s is shorter than a nominal 36 s Robot36 frame.");
+ if(Number.isFinite(fileModifiedMs)&&fileModifiedMs>0&&fileModifiedMs<Date.parse("2026-11-09T00:00:00Z")&&
+    fileModifiedMs>=Date.parse("2026-11-01T00:00:00Z"))
+   notes.push("The file modification time predates the announced Nov 9 start (modification time is not RF acquisition proof).");
+ return notes.join(" ");
+}
 export async function discoverCu8Contents(file,{
  sampleRate,centerHz=null,onProgress=()=>{},signal=null,
  maxCandidates=NUM_AUDIO_PROBES,probeSeconds=3,enableImage=true,computePolicy=null
@@ -169,7 +180,7 @@ export async function discoverCu8Contents(file,{
    update("audio","complete",audioProbes.filter(p=>p.audioBlob).length+
      " analog demodulation previews; speech/music classification not verified");
    const recordingSeconds=file.size/(2*Number(sampleRate));
-   if(enableImage&&recordingSeconds>=33){
+   if(enableImage&&recordingSeconds>=36){
      const attempts=chosen.slice(0,2);
      for(let k=0;k<attempts.length;k++){
        checkAbort(signal);
@@ -192,13 +203,15 @@ export async function discoverCu8Contents(file,{
            frame.alignedLines+"/240 aligned lines; verify image visually");
        }catch(e){
          if(signal?.aborted)throw Error("Automatic discovery stopped by user.");
-         update("image","not verified","No validated Robot36 frame at this offset: "+summaryError(e));
+         update("image","not verified","No validated Robot36 frame at this offset: "+summaryError(e)+
+           " "+sstvCaptureDiagnostic({centerHz,recordingSeconds,fileModifiedMs:file.lastModified}));
        }
      }
    }else{
      update("image","skipped",enableImage?
        "Robot36 requires approximately 36 seconds of continuous CU8; this recording is "+
-       recordingSeconds.toFixed(1)+" seconds.":"Image test disabled by user");
+       recordingSeconds.toFixed(1)+" seconds. "+
+       sstvCaptureDiagnostic({centerHz,recordingSeconds,fileModifiedMs:file.lastModified}):"Image test disabled by user");
    }
  }
  // A named packet decoder must actually validate frame sync + CRC before
