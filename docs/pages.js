@@ -1,13 +1,14 @@
 "use strict";
-const views=["home","radio","tv","translate","radar","notes","setup"];
+const views=["home","radio","usb","tv","translate","radar","notes","setup"];
 const title={
   home:["Information, without the noise.","Offline-first radio, television, text and aircraft information"],
   radio:["Live radio & metadata","Real RF only, using your local receiver"],
+  usb:["Direct browser USB","Experimental FM mono and raw IQ, with permission and real hardware"],
   tv:["Live digital television","A genuine authorized local DVB stream is required"],
   translate:["Translation & captions","Original audio, source language and installed offline models"],
   radar:["Flight Radar & tar1090","Real antenna, Internet and hybrid observations kept distinct"],
   notes:["Offline notebook","This browser profile only — never claimed as received broadcast data"],
-  setup:["Install a local companion","Keep USB decoder and recordings on your own computer"]
+  setup:["Optional local companion","Try browser-only USB where supported; advanced decoders stay optional"]
 };
 const branch="integration/unified-text-center-pages-desktop-radar-2026-11-06";
 function show(view){
