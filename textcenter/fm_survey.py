@@ -34,22 +34,54 @@ MAX_SURVEY_SECONDS = 18
 MIN_FM = 87_500_000
 MAX_FM = 108_000_000
 
+# Fixed, non-user-editable survey profiles. Measurements are energy peaks,
+# never validated station names or decoded text. HF profiles require Q-branch.
+SURVEY_BANDS = {
+    "fm": {"label":"FM broadcast / RDS", "bounds":(87_500_000,108_000_000),
+           "range":"87.5M:108M:125k", "direct_sampling":False},
+    "dab": {"label":"DAB Band III / DLS / Journaline / MOT", "bounds":(174_000_000,240_000_000),
+           "range":"174M:240M:250k", "direct_sampling":False},
+    "aprs": {"label":"Amateur VHF / APRS energy (EU candidate region)", "bounds":(144_000_000,146_000_000),
+           "range":"144M:146M:12k", "direct_sampling":False},
+    "drm": {"label":"DRM MF/HF energy survey", "bounds":(1_000_000,22_000_000),
+           "range":"1M:22M:50k", "direct_sampling":True},
+    "rtty": {"label":"HF RTTY / Radiotelex energy survey", "bounds":(2_000_000,18_000_000),
+           "range":"2M:18M:25k", "direct_sampling":True},
+    "navtex": {"label":"NAVTEX LF/MF energy survey (not decoding)", "bounds":(450_000,560_000),
+           "range":"450k:560k:2k", "direct_sampling":True},
+    "weatherfax": {"label":"HF WeatherFAX energy survey", "bounds":(2_000_000,18_000_000),
+           "range":"2M:18M:25k", "direct_sampling":True},
+}
+
+def survey_band(band: str) -> dict:
+    if not isinstance(band,str) or band not in SURVEY_BANDS:
+        raise ValueError("Unsupported spectrum band; use a fixed preset")
+    return SURVEY_BANDS[band]
+
 
 class SurveyError(RuntimeError):
     pass
 
 
-def build_survey_command(executable: str) -> list[str]:
-    """Official rtl_power -1 single-shot FM scan; no shell or arbitrary args."""
-    return [executable, "-d", "0", "-f", "87.5M:108M:125k", "-i", "2s", "-1"]
+def build_survey_command(executable: str, band: str = "fm") -> list[str]:
+    """Single-shot rtl_power band scan with fixed allow-listed arguments."""
+    profile = survey_band(band)
+    command = [executable, "-d", "0", "-f", profile["range"], "-i", "2s", "-1"]
+    if profile["direct_sampling"]:
+        # In the osmocom rtl_power build -D requests direct sampling. Some
+        # forks use other syntax; those are not guaranteed compatible.
+        command.append("-D")
+    return command
 
 
-def parse_power_csv(payload: str, *, limit: int = 24) -> dict:
+def parse_power_csv(payload: str, *, limit: int = 24, band: str = "fm") -> dict:
     """Convert bounded rtl_power CSV measurements to *candidate* spectrum peaks.
 
     Relative power can be affected by gain, front-end filters and noise.
     No measurement identifies a broadcast service or confirms successful RDS.
     """
+    profile = survey_band(band)
+    min_hz,max_hz = profile["bounds"]
     if len(payload.encode("utf-8")) > MAX_SURVEY_BYTES:
         raise ValueError("Spectrum CSV exceeds the capture limit")
     bins: list[tuple[float, float]] = []
@@ -69,11 +101,11 @@ def parse_power_csv(payload: str, *, limit: int = 24) -> dict:
         sweeps += 1
         for idx, power in enumerate(values[:1000]):
             center = low + (idx + 0.5) * step
-            if MIN_FM <= center <= MAX_FM and math.isfinite(power):
+            if min_hz <= center <= max_hz and math.isfinite(power):
                 bins.append((center, power))
     if not bins:
         return {"sweeps": sweeps, "bins_analyzed":0, "candidates": [],
-                "note":"No usable rtl_power FM measurements were returned"}
+                "note":"No usable measurements for selected RF band"}
     # More than one CSV row may cover the same bin; keep strongest observed.
     # This is for discovery only, not a dBm calibration.
     merged: dict[int, float] = {}
@@ -108,7 +140,7 @@ def parse_power_csv(payload: str, *, limit: int = 24) -> dict:
         "relative_baseline_db":round(baseline,1),
         "threshold_above_median_db":round(threshold-baseline,1),
         "candidates":peaks[:min(limit, 24)],
-        "note":"Candidate RF energy peaks only. Service identity and RDS are unverified.",
+        "note":"Candidate RF energy only; no broadcast service, RDS, DAB, NAVTEX or APRS decode is verified.",
     }
 
 
@@ -129,16 +161,17 @@ class FMSurveySupervisor:
         self._lock_fd: int | None = None
         self._last_poll = 0.0
         self._state = {
-            "status":"idle", "active":False, "session":None,
+            "status":"idle", "active":False, "session":None, "band":"fm",
             "started_at":None, "ended_at":None, "error":None,
             "sweeps":0, "bins_analyzed":0, "candidates":[],
             "note":"No spectrum survey has been run",
         }
 
-    def availability(self) -> dict:
+    def availability(self, band: str = "fm") -> dict:
+        profile=survey_band(band)
         inv = self.inventory()
         if inv.get("platform") != "Linux":
-            return {"ready":False,"reason":"FM spectrum survey requires Linux"}
+            return {"ready":False,"reason":"RF spectrum survey requires Linux"}
         if inv.get("rtl_usb_count") != 1:
             return {"ready":False,"reason":"Exactly one RTL2832U USB candidate required"}
         if self.rds is not None and self.rds.status(heartbeat=False)["active"]:
@@ -152,7 +185,7 @@ class FMSurveySupervisor:
         if not self.lookup("rtl_power"):
             return {"ready":False,"reason":"rtl_power is missing (normally included with rtl-sdr)"}
         return {"ready":True,
-                "reason":"Manual FM-only single-shot survey available; stations cannot be identified from power alone"}
+                "reason":"Manual single-shot "+profile["label"]+" energy survey available; transmissions cannot be identified by power"}
 
     def _lock(self) -> None:
         self.lock_dir.mkdir(mode=0o700,parents=True,exist_ok=True)
@@ -175,11 +208,12 @@ class FMSurveySupervisor:
             finally:
                 os.close(fd)
 
-    def start(self) -> dict:
+    def start(self, band: str = "fm") -> dict:
+        profile=survey_band(band)
         with self._mutex:
             if self._state["active"]:
                 raise SurveyError("A spectrum survey is already running")
-            avail=self.availability()
+            avail=self.availability(band)
             if not avail["ready"]:
                 raise SurveyError(avail["reason"])
             self._lock()
@@ -190,9 +224,10 @@ class FMSurveySupervisor:
                     raise SurveyError("Receiver was occupied during preflight; scan cancelled")
                 self._state={
                     "status":"running","active":True,"session":uuid.uuid4().hex,
+                    "band":band,
                     "started_at":datetime.now(timezone.utc).isoformat(timespec="seconds"),
                     "ended_at":None,"error":None,"sweeps":0,"bins_analyzed":0,
-                    "candidates":[],"note":"Reading a single FM spectrum sweep (not station decoding)",
+                    "candidates":[],"note":"Measuring RF energy in "+profile["label"]+"; not decoding services",
                 }
                 self._stop.clear()
                 self._last_poll=time.monotonic()
@@ -257,7 +292,7 @@ class FMSurveySupervisor:
                 raise SurveyError("SDR became occupied before starting rtl_power")
             with tempfile.TemporaryFile() as stdout, tempfile.TemporaryFile() as stderr:
                 process=subprocess.Popen(
-                    build_survey_command(binary),stdin=subprocess.DEVNULL,
+                    build_survey_command(binary, self._state["band"]),stdin=subprocess.DEVNULL,
                     stdout=stdout,stderr=stderr,start_new_session=True,close_fds=True)
                 with self._mutex:
                     self._process=process
@@ -272,7 +307,7 @@ class FMSurveySupervisor:
                         status,error="cancelled","Scan stopped because the browser stopped polling"
                         break
                     if time.monotonic()>=deadline:
-                        status,error="error","FM survey exceeded its maximum time"
+                        status,error="error","RF band survey exceeded its maximum time"
                         break
                     time.sleep(0.1)
                 if process.poll() is None:
@@ -290,7 +325,7 @@ class FMSurveySupervisor:
                     payload=stdout.read(MAX_SURVEY_BYTES+1)
                     if len(payload)>MAX_SURVEY_BYTES:
                         raise SurveyError("Spectrum output exceeded 256 KB")
-                    data=parse_power_csv(payload.decode("utf-8","replace"))
+                    data=parse_power_csv(payload.decode("utf-8","replace"),band=self._state["band"])
         except (OSError,ValueError,SurveyError,subprocess.TimeoutExpired) as exc:
             status,error="error",str(exc)[:250]
         finally:
