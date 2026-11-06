@@ -25,6 +25,17 @@ anywhere on Earth. The selected station drives both the pass planner and
 the Earth/Sky map; changing the station invalidates older pass predictions.
 See the [location and GPS guide](docs/SATELLITE_CENTER_COMPANION.md).
 
+
+**Updated Earth map and CU8 browser analysis:** The OpenStreetMap view can
+display ground positions, ±45-minute tracks for all loaded satellites,
+selected or all approximate coverage circles, global map fit and
+selected-satellite focus. **6 · CU8 I/Q analysis** opens the latest raw
+USB capture or a previously downloaded `.cu8` locally, then shows a
+complex-FFT spectrum, time-frequency waterfall, relative digital-level
+history and JSON export without uploading raw data. These plots are
+uncalibrated and do not decode APRS/Meteor SSTV/LRPT or identify a
+spacecraft by RF energy alone.
+
 **Browser-only WebUSB is now the preferred mode:** on supported desktop Chromium
 browsers, open the hosted Satellite Center, grant permission to the Nooelec
 RTL2832U, and capture raw IQ directly without installing the Python companion.
