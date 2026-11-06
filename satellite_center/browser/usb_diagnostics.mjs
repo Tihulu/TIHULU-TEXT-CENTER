@@ -26,8 +26,8 @@ export function webUsbHelp(error, platform = "unknown") {
   const lines=[
     reason,
     "Browser-only app: no Python service, local bridge, app installation, or pairing token needed.",
-    "1. Close Flight Radar, Gqrx, SDR++, welle.io, rtl_test, and any other program using this *same* dongle.",
-    "2. Unplug the RTL-SDR, reconnect it, reload this HTTPS tab, and choose the Nooelec / Realtek receiver again."
+    "1. Close Flight Radar, Gqrx, SDR++, welle.io, rtl_test, and other programs using this *same* dongle.",
+    "2. Before unplugging or reconnecting, inspect Linux DVB driver ownership when on Pop!_OS, Debian or Raspberry Pi OS. Replugging can rebind a kernel driver."
   ];
   if(platform==="linux") {
     lines.push(
@@ -38,8 +38,12 @@ export function webUsbHelp(error, platform = "unknown") {
       "If still blocked, inspect (read-only):",
       "   lsusb -d 0bda:2838",
       "   lsusb -t",
-      "If lsusb -t shows Driver=dvb_usb_rtl28xxu, the Linux TV kernel driver owns it.",
-      "If there is no conflicting driver, the USB device-file permissions may need a one-time OS-level udev fix.",
+      "VERIFIED Nooelec 0bda:2838 on Pop!_OS: readsb was inactive, but Driver=dvb_usb_rtl28xxu still held interface 0; unbinding that interface made Brave WebUSB work.",
+      "If the DVB driver owns your Nooelec interface, use the optional per-device helper from this repository: bash scripts/rtl-sdr-usb-interface.sh status; release only when explicitly intended.",
+      "Do NOT assume USB path 1-4:1.0 on another PC. Check the device identity and actual sysfs path first.",
+      "After manually releasing the driver, keep the dongle connected; unplug/replug may rebind dvb_usb_rtl28xxu and recreate this error.",
+      "After USB capture, use Hard stop / Release USB before optionally restoring Linux DVB driver.",
+      "If there is no conflicting driver, a missing udev/ACL permission may require a separate one-time OS-level fix. Do not chmod 777.",
       "A website cannot run sudo, unbind a kernel driver, change udev rules, or stop readsb."
     );
   } else if(platform==="windows") {
