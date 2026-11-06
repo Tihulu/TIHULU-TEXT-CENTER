@@ -1,6 +1,7 @@
 import { platformFamily, webUsbHelp, permissionReport } from './usb_diagnostics.mjs';
 import { createSatelliteMaps } from './satellite_maps.mjs';
 import { initStationLocationUI } from './location_search.mjs';
+import { probeUsbSamples } from './usb_live_probe.mjs';
 import { sortPassList } from './pass_sort.mjs';
 import { localDateInput, parseLocalScheduleTime, createScheduledPass, evaluateScheduledJob, secondsToJob, captureLevelSummary } from './schedule_controller.mjs';
 // TIHULU Satellite Center — no-local-install receive-only browser mode.
@@ -28,6 +29,7 @@ const TLE_SOURCES = Object.freeze({
   iridium: 'https://celestrak.org/NORAD/elements/gp.php?GROUP=iridium-NEXT&FORMAT=TLE'
 });
 let driver = null, device = null, capturePromise = null, stopRequested = false;
+let usbTestRunning = false;
 let lastCaptured = null, rtlLibraryError = null;
 let orbitalLibrary = null, tleEntries = [], passes = [], jobs = [], sessionCounter = 0;
 let visiblePassCount=40, lastScheduledFile=null, wakeLock=null, schedulerTickBusy=false;
@@ -39,6 +41,7 @@ const maxRecordBytes = 128 * 1024 * 1024;
 const signalHistory = [];
 const hardwareSupported = !!(window.isSecureContext && navigator.usb);
 const connectButton = $('connect');
+$('usb-live-test').disabled=true; // No test until real WebUSB driver is loaded.
 const platform = platformFamily(navigator.userAgent || "");
 let lastUsbReport = "No USB diagnostics run.";
 $('usb-check').addEventListener('click', async () => {
@@ -64,18 +67,20 @@ if (!hardwareSupported) {
   import('https://esm.sh/@jtarrio/webrtlsdr@3.0.7/rtlsdr.js?bundle').then(mod => {
     if (typeof mod.RTL2832U_Provider !== 'function') throw Error('Unsupported WebUSB driver export');
     driver = mod.RTL2832U_Provider;
-    connectButton.disabled = false;
+    refreshControls();
     status('device-status', 'Ready to ask for USB permission. Plug Nooelec into USB, then select Choose RTL-SDR.');
   }).catch(err => {
     rtlLibraryError = err;
+    refreshControls();
     status('device-status', 'WebUSB library unavailable: ' + err.message + '. Internet access to esm.sh is needed to load the driver; no hardware was opened.');
   });
 }
 function refreshControls() {
-  $('start').disabled = !device || !!capturePromise;
+  $('start').disabled = !device || !!capturePromise || usbTestRunning;
   $('stop').disabled = !capturePromise;
-  $('disconnect').disabled = !device && !capturePromise;
-  $('connect').disabled = !driver || !!device || !!capturePromise;
+  $('disconnect').disabled = (!device && !capturePromise) || usbTestRunning;
+  $('connect').disabled = !driver || !!device || !!capturePromise || usbTestRunning;
+  $('usb-live-test').disabled = !driver || !!capturePromise || usbTestRunning;
 }
 async function closeDevice() {
   const previous = device;
@@ -158,6 +163,61 @@ async function connectDevice({silent=false}={}) {
     return false;
   } finally { refreshControls(); }
 }
+async function testRealUsbReceiver(){
+  if(usbTestRunning||capturePromise){
+    status('usb-live-test-report','USB test is unavailable while another sample capture/test is running.');
+    return;
+  }
+  if(!driver||!hardwareSupported){
+    status('usb-live-test-report','Real USB test unavailable: use desktop Chrome/Brave/Edge with WebUSB and wait for the browser RTL-SDR driver to load.');
+    return;
+  }
+  usbTestRunning=true;
+  refreshControls();
+  status('usb-live-test-report','Step 1/4: attempting to open the previously permitted RTL2832U. This is a REAL USB claim.');
+  try{
+    if(!device){
+      // Re-use explicit previously granted USB permission without a new
+      // chooser or extra program. If none exists, direct user to Choose RTL-SDR.
+      await connectDevice({silent:true});
+    }
+    if(!device)throw Error('No RTL-SDR could be opened. Press Choose RTL-SDR and grant permission first.');
+    status('usb-live-test-report','Step 2/4: tuning to the Step 2 frequency and reading real RF I/Q samples...');
+    const result=await probeUsbSamples(device,{
+      frequency:Number($('preset').value),rate:1024000,durationMs:3000,
+      onProgress:message=>status('usb-live-test-report',message)
+    });
+    if(!Number.isFinite(result.rawBytes)||result.rawBytes<16384)
+      throw Error('Too few real USB bytes for a valid sample-read test.');
+    status('usb-live-test-report',
+      'USB HARDWARE TEST PASSED: actual I/Q bytes received.\n'+
+      'Frequency: '+(result.frequencyHz/1e6).toFixed(3)+' MHz · rate: '+
+      (result.sampleRate/1e6)+' MS/s\n'+
+      'Read: '+result.rawBytes.toLocaleString()+' bytes in '+
+      result.blocks+' USB buffers ('+result.elapsedSeconds+' s).\n'+
+      'Observed unsigned sample range: '+result.minSample+'–'+result.maxSample+
+      ', digital relative level: '+result.relativeDigitalLevelDb+' dBFS-like.\n'+
+      (result.sampleSpan<=1?'WARNING: samples are nearly constant; check SDR driver and tuning.\n':'')+
+      'This proves USB opening and sample transfers ONLY, not antenna quality, a received satellite or decoded signal. USB released.');
+    log('Physical WebUSB test: '+result.rawBytes+' I/Q bytes, tuner opened/tuned and sampled. No station identified.');
+  }catch(err){
+    const message=String(err?.message||err);
+    status('usb-live-test-report','USB HARDWARE TEST FAILED or BLOCKED:\n'+message+
+      '\nIf permission already exists but claiming fails, readsb/Gqrx or the Linux DVB kernel driver may own the device. No process was stopped.\n'+
+      'Choose RTL-SDR first if this page has not yet been given permission.');
+    const report=webUsbHelp(err,platform);
+    lastUsbReport=report;
+    $('usb-report').textContent=report;
+    $('usb-help').open=true;
+    log('Physical USB test failed: '+message);
+  }finally{
+    status('device-status','Hardware test completed; this tab is releasing its RTL-SDR USB handle. Other applications were not stopped.');
+    try{await closeDevice();}catch(e){log('USB test cleanup: '+e.message);}
+    usbTestRunning=false;
+    refreshControls();
+  }
+}
+$('usb-live-test').addEventListener('click',()=>{void testRealUsbReceiver();});
 function rmsLevel(bytes) {
   let energy = 0, samples = 0;
   for (let i=0; i+1<bytes.length; i+=32) {
@@ -208,7 +268,7 @@ function saveCapture(bytes,name,job=null) {
   return blob;
 }
 async function startCapture(job=null) {
-  if(capturePromise || !device)throw Error('Choose or auto-open the USB device first.');
+  if(capturePromise || usbTestRunning || !device)throw Error('Choose the RTL-SDR and finish any hardware test before capturing.');
   stopRequested=false;
   const freq=job?job.frequency:Number($('preset').value);
   const rate=job?job.sampleRate:Number($('rate').value);
@@ -576,7 +636,7 @@ $('orbit-calc').addEventListener('click',async()=>{
 });
 function readableJobState(job,now=Date.now()){
  if(job.state!=='armed')return job.state;
- const action=evaluateScheduledJob(job,now,{visible:!document.hidden,receiverBusy:!!capturePromise});
+ const action=evaluateScheduledJob(job,now,{visible:!document.hidden,receiverBusy:!!capturePromise||usbTestRunning});
  if(action==='waiting-foreground')return 'due / waiting for visible tab';
  if(action==='waiting-receiver')return 'due / waiting for free receiver';
  if(action==='start')return 'due now';
