@@ -171,7 +171,9 @@ class FMAutoScanner(_WorkerState):
         self.rds=rds
         self.catalog=ChannelCatalog(rds.store) if hasattr(rds,"store") and hasattr(rds.store,"connect") else None
 
-    def start(self,mode="quick"):
+    def start(self,mode="quick",*,consent=False):
+        if consent is not True:
+            raise AutoScanError("Explicit FM tuner consent required")
         if mode not in ("quick","extended"):
             raise ValueError("Choose quick or extended FM scan")
         with self._mutex:
@@ -273,7 +275,9 @@ class DABAutoScanner(_WorkerState):
         self._original=None
         self._last_tuned=None
 
-    def start(self,mode="full",*,dwell_seconds=8, candidates=None):
+    def start(self,mode="full",*,dwell_seconds=8, candidates=None, consent=False):
+        if consent is not True:
+            raise AutoScanError("Explicit permission to retune the existing DAB receiver required")
         if mode not in ("full","detected"):
             raise ValueError("DAB scan mode must be full or detected")
         if type(dwell_seconds) not in (int,float) or not 4<=dwell_seconds<=18 or not math.isfinite(dwell_seconds):
