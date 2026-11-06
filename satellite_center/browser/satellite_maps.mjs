@@ -551,7 +551,9 @@ export function createSatelliteMaps({getTles,getSatLib,getPasses,getLastCapture,
        checks.push("Map size: "+earthMap.getSize().x+" × "+earthMap.getSize().y);
      }else checks.push("Choose Earth and then Load / retry OpenStreetMap to initialize Leaflet.");
    }catch(e){checks.push("Map error: "+e.message);}
-   basemapStatus(checks.join("\n"));
+   const report=checks.join("\n");
+   basemapStatus(report);
+   status(report); // visible even when optional Leaflet details are collapsed
    log("Map background diagnostic run; no USB activity.");
  });
  $("map-recenter").addEventListener("click",()=>{
