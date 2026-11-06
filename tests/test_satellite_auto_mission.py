@@ -73,6 +73,16 @@ class AutoMissionTests(unittest.TestCase):
         self.assertEqual([j["profile"] for j in outcome["scheduled"]],
                          ["iss_sstv", "iss_aprs_uhf"])
 
+    def test_cancel_auto_keeps_manual_schedule_intact(self):
+        result = self.station.auto_schedule(["iss-aprs"], max_jobs=1)
+        self.assertEqual(result["scheduled_count"], 1)
+        self.station.jobs.append({"id":"manual", "state":"pending"})
+        cancelled = self.station.cancel_auto_missions()
+        self.assertEqual(cancelled["auto_jobs_cancelled"], 1)
+        self.assertEqual(self.station.jobs[0]["state"], "cancelled")
+        self.assertEqual(self.station.jobs[-1]["state"], "pending")
+        self.assertFalse(cancelled["other_programs_stopped"])
+
     def test_no_unsupported_or_retired_catalog_targets(self):
         with self.assertRaisesRegex(ValueError, "Unknown"):
             self.station.auto_schedule(["legacy-noaa"])
