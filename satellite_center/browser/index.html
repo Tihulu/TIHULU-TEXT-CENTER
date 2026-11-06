@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="color-scheme" content="dark"><meta name="referrer" content="no-referrer">
+<meta name="color-scheme" content="dark"><meta name="referrer" content="strict-origin-when-cross-origin">
 <title>TIHULU Satellite Center | Browser-only WebUSB</title>
 <link rel="icon" type="image/svg+xml" href="./icon.svg">
 <link rel="icon" type="image/png" sizes="192x192" href="./icon-192.png">
@@ -65,6 +65,58 @@
 <div id="jobs">No scheduled browser captures.</div>
 </section>
 </div></div>
+<section id="satellite-tracking-maps" class="tracking">
+<h2>5 · Satellite maps · Earth &amp; sky</h2>
+<p class="hint">Track ISS, Meteor-M, amateur CubeSats and Iridium from TLE orbital elements, similar to Heavens-Above pass charts. <strong>A map pin is NOT a received signal.</strong> The ground view uses OpenStreetMap; the sky view uses your manually chosen observer location. Both share the same orbital catalog as the pass planner above.</p>
+<div class="map-toolbar">
+<div class="map-tabs" role="tablist" aria-label="Satellite map type">
+<button id="map-tab-sky" type="button" class="secondary active" role="tab" aria-selected="true" aria-controls="map-sky-pane">Sky · azimuth/elevation</button>
+<button id="map-tab-earth" type="button" class="secondary" role="tab" aria-selected="false" aria-controls="map-earth-pane">Earth · OpenStreetMap</button>
+</div>
+<label>Satellite family<select id="map-family">
+<option value="all">All tracked families</option><option value="iss">ISS</option>
+<option value="meteor">Meteor-M weather</option><option value="cubesat">Amateur CubeSat</option>
+<option value="iridium">Iridium NEXT · RF spectrum only</option>
+</select></label>
+<label class="map-check"><input type="checkbox" id="map-above"> Only above local horizon</label>
+<label class="map-check"><input type="checkbox" id="map-band"> Match current SDR band (candidate, not confirmed)</label>
+</div>
+<div class="map-toolbar">
+<label class="map-time-field">Time relative to now (minutes)
+<input id="map-time" type="range" min="-45" max="90" step="5" value="0">
+</label>
+<button id="map-now" type="button" class="secondary">Now / live</button>
+<span id="map-time-label" class="map-caption">Now · orbital geometry only</span>
+</div>
+<p id="map-state" class="status" aria-live="polite">Load orbital elements to populate the maps. No RF data detected.</p>
+<div class="sat-map-layout">
+<div class="map-primary">
+<div id="map-sky-pane" role="tabpanel" aria-labelledby="map-tab-sky">
+<canvas id="sky-chart" width="760" height="620" tabindex="0" aria-label="Polar sky plot: north up, east right; click a satellite to inspect it"></canvas>
+<p class="map-caption">Horizon = outside circle · zenith = center · north at top, east at right. Click a colored satellite dot to inspect the pass. This is an estimated sky position, not optical visibility or RF reception.</p>
+</div>
+<div id="map-earth-pane" role="tabpanel" aria-labelledby="map-tab-earth" hidden>
+<div class="map-toolbar"><button id="map-load" type="button">Load OpenStreetMap (on demand)</button>
+<button id="map-recenter" class="secondary" type="button">Center on ground station</button>
+<label class="map-check"><input id="map-tracks" type="checkbox" checked> ±45 min orbit path</label>
+<label class="map-check"><input id="map-footprint" type="checkbox"> Geometric coverage footprint</label>
+</div>
+<div id="earth-map" class="sat-earth" role="region" aria-label="Interactive OpenStreetMap with predicted satellite ground positions"></div>
+<p class="map-caption">© <a href="https://www.openstreetmap.org/copyright" rel="noopener noreferrer" target="_blank">OpenStreetMap contributors</a>. Tiles load only for the view you open; no prefetch/offline tile download. The viewport is requested from the OSM tile provider. Optional shaded coverage is approximate for the minimum elevation selected above.</p>
+</div>
+<div class="map-legend" aria-label="Satellite types">
+<span><i style="background:#61e5fa"></i>ISS</span><span><i style="background:#72eea3"></i>Meteor-M</span><span><i style="background:#f9c679"></i>CubeSat</span><span><i style="background:#c29aff"></i>Iridium</span>
+</div>
+</div>
+<aside class="map-sidebar">
+<div class="map-side-head"><h3>Predicted satellites</h3><button id="map-reset-selection" class="secondary" type="button">Clear selection</button></div>
+<div id="map-list" class="sat-list" aria-label="Satellite candidates"></div>
+<div id="map-detail" class="map-detail"><p class="hint">Choose a satellite to view pointing angles and a candidate SDR band.</p></div>
+<p class="hint">Nooelec NESDR SMArt v5: ISS 145 MHz and Meteor 137 MHz need suitable VHF antennas; Iridium 1.6 GHz needs an L-band antenna and often filtered LNA. TLEs cannot confirm whether a transmitter is active. CubeSat downlinks vary by satellite.</p>
+<a href="https://www.heavens-above.com/" target="_blank" rel="noopener noreferrer">Heavens-Above (external predictions)</a> · <a href="https://db.satnogs.org/transmitters/" rel="noopener noreferrer" target="_blank">SatNOGS transmitter frequency catalog</a>
+</aside>
+</div>
+</section>
 <section><h2>Decoder availability and truthful status</h2>
 <p>Browser-only v0.3 provides genuine USB IQ collection and geometric pass estimates; <strong>in-page APRS/SSTV/Meteor image decoding is not connected yet</strong>. Use SatDump or another decoder with the saved CU8 file where legal. Iridium remains RF-energy research only; no private communications decoding.</p>
 <details><summary>What requires more than a browser?</summary><p>Windows may require WinUSB driver setup; Linux may require releasing the kernel DVB driver or adjusting permissions. To record a pass while the browser is closed, the optional local companion must remain running. The companion still supports offline SatDump and multimon-ng where installed.</p></details>
