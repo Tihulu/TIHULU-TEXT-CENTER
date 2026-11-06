@@ -68,7 +68,7 @@ export function createSatelliteMaps({getTles,getSatLib,getPasses,getLastCapture,
  }
  let current=[],satrecMap=new Map(),selectedId=null,skyHit=[],run=0,lastUpdate=0;
  let mapStarted=false,view="sky",loading=null;
- let lastVisibleMarkerCount=0;
+ let lastVisibleMarkerCount=0,initialCatalogFitDone=false;
  const status=text=>$("map-state").textContent=String(text);
  const observer=()=>{
   const lat=Number($("lat").value),lon=Number($("lon").value);
@@ -138,6 +138,7 @@ export function createSatelliteMaps({getTles,getSatLib,getPasses,getLastCapture,
    const bounds=leaflet.latLngBounds(positions);
    // At most zoom 5 for one item, and zoom 0–2 for worldwide catalogs.
    earthMap.fitBounds(bounds.pad(0.12),{padding:[20,20],maxZoom:5,animate:false});
+   initialCatalogFitDone=true;
    updateEarthViewportCount();
    return true;
  }
@@ -618,7 +619,7 @@ export function createSatelliteMaps({getTles,getSatLib,getPasses,getLastCapture,
    earthMap.invalidateSize({pan:false,debounceMoveend:true});
    drawEarth();
    // Display the entire catalog on initial map entry, not an empty station-
-   // centered viewport. List click or Focus selected satellite zooms in later.
+   // centered viewport. If TLEs are loaded later, refresh() performs this fit.
    fitTrackedEarth();
    await changeBasemap(basemapChoice.value);
    status("Earth map initialized: orbit predictions only. Check the basemap status below for actual imagery load.");
@@ -650,6 +651,7 @@ export function createSatelliteMaps({getTles,getSatLib,getPasses,getLastCapture,
   if(!rows.some(x=>String(x.id)===String(selectedId)))selectedId=rows[0]?.id??null;
   $("map-time-label").textContent=(Number(time.value)===0?"LIVE / now":(Number(time.value)>0?"+":"")+time.value+" min simulated")+" · "+fmtDate(dt);
   drawList();drawDetail();drawSky();drawEarth();lastUpdate=Date.now();
+  if(earthMap && view==="earth" && !initialCatalogFitDone && rows.length)fitTrackedEarth();
   status(rows.length+" TLE-derived satellites · "+rows.filter(s=>s.el>=0).length+" above local horizon"+
    (rows.some(s=>s.ageDays>7)?" · WARNING: stale orbital elements":"")+
    " · No received satellite signals verified");
