@@ -172,7 +172,7 @@ export function initSatelliteImageUI({onTune=()=>{},onTargetChange=()=>{},log=()
  $("image-decode-sstv").addEventListener("click",async()=>{
    await decodeImportedWav($("image-sstv-file").files?.[0],$("image-decode-sstv"));
  });
- $("image-decode-last-wav").addEventListener("click",async()=>{
+ $("image-decode-last-wav")?.addEventListener("click",async()=>{
    if(lastWavBlob)await decodeImportedWav(lastWavBlob,$("image-decode-last-wav"));
  });
  async function decodeRF(blob,name,metadata){
@@ -245,7 +245,7 @@ export function initSatelliteImageUI({onTune=()=>{},onTargetChange=()=>{},log=()
    recordAudioCapture(blob,name){
      if(!blob||typeof blob.slice!=="function"||blob.size<44||!String(name).endsWith(".wav"))return;
      lastWavBlob=blob;lastWavName=name;
-     $("image-decode-last-wav").disabled=false;
+     if($("image-decode-last-wav"))$("image-decode-last-wav").disabled=false;
      errorText("image-decode-status","Real browser FM-demodulated WAV available: "+name+
        ". Choose Decode last captured FM WAV to check 1200 Hz Robot36 synchronization. Audio does not prove ISS reception.");
    }
