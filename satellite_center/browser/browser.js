@@ -1140,8 +1140,12 @@ function showCalendarEdit(job,card){
    const o=document.createElement('option');o.value=String(value);o.textContent=(value/1e6).toFixed(3)+' MS/s';rate.append(o);
  }
  rate.value=String(job.sampleRate);addField('Sample rate',rate);
+ const rawToggle=document.createElement('input');rawToggle.type='checkbox';rawToggle.checked=Boolean(job.saveRaw);
+ addField('Record raw CU8',rawToggle);
+ const wavToggle=document.createElement('input');wavToggle.type='checkbox';wavToggle.checked=Boolean(job.saveWav);
+ addField('Record real FM WAV (48 kHz PCM)',wavToggle);
  const note=document.createElement('p');note.className='hint';
- note.textContent='Edits must fit inside the predicted pass and another SDR booking. Long IQ edits need a new local .cu8 file selected now, while the tab is visible.';
+ note.textContent='Edits must fit the predicted pass and SDR availability. Long CU8/WAV edits require selecting a new local file/folder now, while the tab is visible.';
  form.append(note);
  const save=document.createElement('button');save.type='submit';save.textContent='Save job changes';form.append(save);
  const error=document.createElement('p');error.className='status';error.setAttribute('role','status');form.append(error);
@@ -1150,14 +1154,14 @@ function showCalendarEdit(job,card){
    let newPrepared=null;
    try{
      const durationSeconds=Number(seconds.value),sampleRate=Number(rate.value);
-     const plan=captureBudget(durationSeconds,sampleRate,job.saveRaw,
-       {fileStreaming:diskStreamingAvailable()});
+     const plan=inspectCaptureStorage(durationSeconds,sampleRate,rawToggle.checked,wavToggle.checked);
      const pass={id:job.passId,name:job.name,family:job.family,
        aos:job.passAos,los:job.passLos};
      const next=createScheduledPass(pass,{
        when:parseLocalScheduleTime(time.value),durationSeconds,
-       sampleRate,frequency:Number(freq.value),saveRaw:job.saveRaw,
-       diskStreamPrepared:plan.mode==="disk-stream"
+       sampleRate,frequency:Number(freq.value),
+       saveRaw:rawToggle.checked,saveWav:wavToggle.checked,
+       diskStreamPrepared:plan.rawDisk,wavDiskPrepared:plan.wavDisk
      });
      for(const other of jobs){
        if(other===job||!['armed','starting','running'].includes(other.state))continue;
@@ -1165,8 +1169,8 @@ function showCalendarEdit(job,card){
           next.when+next.durationSeconds*1000>other.when-20000)
          throw Error('Single receiver conflict with another capture');
      }
-     if(plan.mode==="disk-stream")
-       newPrepared=await selectLongCaptureFile(durationSeconds,sampleRate,true,{
+     if(plan.rawDisk||plan.wavDisk)
+       newPrepared=await selectRecordingFiles(durationSeconds,sampleRate,rawToggle.checked,wavToggle.checked,{
          job:next,at:new Date(next.when),freq:next.frequency
        });
      const previousId=job.id;
@@ -1184,7 +1188,7 @@ function showCalendarEdit(job,card){
      status('schedule-readiness',"Updated "+previousId+" to "+durationSeconds+
        " seconds; SDR remains released.");
    }catch(error){
-     if(newPrepared?.writable)await abortLongCapture(newPrepared);
+     if(newPrepared?.writable||newPrepared?.wavWritable)await abortLongCapture(newPrepared);
      error.textContent='Changes not saved: '+String(error?.message||error);
    }finally{save.disabled=false;}
  });
@@ -1469,7 +1473,9 @@ async function runAutoMission({mode=$('auto-mode').value,goal=$('auto-coverage')
     for(const item of proposal.scheduled) {
       const job=createScheduledPass(item.pass,{
         when:item.when,durationSeconds:item.durationSeconds,
-        sampleRate:item.sampleRate,frequency:item.frequency,saveRaw:item.saveRaw
+        sampleRate:item.sampleRate,frequency:item.frequency,
+       saveRaw:item.missionId==='iss-sstv'?false:item.saveRaw,
+       saveWav:item.missionId==='iss-sstv'
       });
       if(jobs.some(j=>j.id===job.id&&['armed','starting','running'].includes(j.state)))continue;
       job.missionId=item.missionId;
