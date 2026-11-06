@@ -492,7 +492,8 @@ class Station:
 
     def auto_schedule(self, mission_ids, *, city="Cologne", lat=None, lon=None,
                       hours=24, elevation=20, max_jobs=6, coverage_goal="full",
-                      duration_seconds=None, compute_mode="auto", compute_targets=None):
+                      duration_seconds=None, compute_mode="auto", compute_targets=None,
+                      event_window_only=False):
         """Explicit one-click receive-only mission planning with a single RTL-SDR.
 
         TLE passes are geometry, never proof of active transmitters. Mutating
@@ -516,6 +517,8 @@ class Station:
                 raise ValueError("Quick RF sample must not exceed 60 seconds")
         # Validate hardware choices before arming any RF job.
         compute_plan = resolve_compute_backend(compute_mode, compute_targets)
+        if type(event_window_only) is not bool:
+            raise ValueError("Event window gating must be a boolean")
         chosen = dict.fromkeys(mission_ids)
         # Missing optional decoders must not block other user-approved media.
         requested_targets = list(chosen)
@@ -576,6 +579,10 @@ class Station:
             # Prefer a complete predicted window when multiple formats are selected.
             # Do not change a user-requested images-only category.
             eligible = [mid for mid in chosen if event["norad"] == candidates[mid][0]]
+            if event_window_only and "iss-sstv" in eligible and not (
+                    datetime(2026, 11, 9, tzinfo=UTC) <= aos < datetime(2026, 11, 17, tzinfo=UTC)):
+                eligible.remove("iss-sstv")
+                skipped.append(event["name"]+": ISS Series 35 SSTV is limited to the 9–16 November event date envelope; actual activation TBD")
             plans = {mid: plan_capture_budget(aos, los, mid,
                      free_bytes=max(0, free_on_disk-reserved_bytes),
                      goal=coverage_goal, requested_seconds=duration_seconds)
@@ -603,7 +610,8 @@ class Station:
                        shortfall_seconds=plan["shortfall_seconds"],
                        pass_visible_seconds=plan["pass_visible_seconds"],
                        coverage_goal=coverage_goal, capture_note=plan["note"],
-                       compute_mode=compute_mode, compute_targets=compute_plan["requested_targets"])
+                       compute_mode=compute_mode, compute_targets=compute_plan["requested_targets"],
+                       event_window_only=event_window_only)
             with self.lock:
                 for stored in self.jobs:
                     if stored["id"] == job["id"]:
@@ -612,7 +620,8 @@ class Station:
                             "requested_seconds", "estimated_bytes",
                             "coverage", "data_kind", "target_seconds",
                             "shortfall_seconds", "pass_visible_seconds",
-                            "coverage_goal", "capture_note", "compute_mode", "compute_targets")})
+                            "coverage_goal", "capture_note", "compute_mode", "compute_targets",
+                            "event_window_only")})
                 self.save_jobs()
             new_jobs.append(dict(job))
             if plan["coverage"] != "full-pass-attempt":
@@ -1313,7 +1322,8 @@ class Handler(BaseHTTPRequestHandler):
                     max_jobs=data.get("max_jobs", 6), coverage_goal=data.get("coverage_goal", "full"),
                     duration_seconds=data.get("duration_seconds"),
                     compute_mode=data.get("compute_mode", "auto"),
-                    compute_targets=data.get("compute_targets"))
+                    compute_targets=data.get("compute_targets"),
+                    event_window_only=data.get("event_window_only", False))
             elif route == "/api/auto-edit":
                 result = app.edit_auto_schedule(data.get("job_id"), data.get("run_at"),
                                                 data.get("mission_id"), data.get("duration_seconds"))
