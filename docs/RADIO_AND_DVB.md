@@ -34,7 +34,7 @@ Open http://127.0.0.1:8787/ and choose **Radio Data (400)**.
 
 `welle-cli` can expose an already-running DAB receiver's service list and decoded metadata over its built-in local web server. This Text Center bridge ONLY performs bounded HTTP GETs to 127.0.0.1:7979 on `/channel`, `/mux.json` and `/slide/<validated service id>` when the user clicks **Read Running DAB Receiver**.
 
-It never launches welle-cli, makes POST requests to `/channel`, acquires or retunes a USB device, or interrupts an existing SDR service. Network access is limited to the local loopback endpoint; no configurable arbitrary URLs or SSRF-style proxy is provided. DAB labels and DLS are saved to SQLite only when a verified receiver channel-to-frequency mapping and original decoder timestamp are available. The initial channel map explicitly supports 5C (178.352 MHz) and 11D (222.064 MHz); other channels are shown without inventing frequency attribution. The DAB service may expose MP3 playback through its own welle-cli web interface, but this is not yet embedded in Text Center as a continuous authenticated mobile/desktop player.
+It never launches welle-cli, makes POST requests to `/channel`, acquires or retunes a USB device, or interrupts an existing SDR service. Network access is limited to the local loopback endpoint; no configurable arbitrary URLs or SSRF-style proxy is provided. DAB labels and DLS are saved to SQLite only when a verified receiver channel-to-frequency mapping and original decoder timestamp are available. The channel map now includes all standard European Band III DAB channel centre frequencies (including 5C, 8B, 9D and 11D) as attribution **lookups**, not reception evidence. Only actual welle-cli service data with decoder timestamps is archived. The DAB service may expose MP3 playback through its own welle-cli web interface, but this is not yet embedded in Text Center as a continuous authenticated mobile/desktop player.
 
 Once `welle-cli` has been separately installed (not bundled by Text Center) and the USB device is **free**, a user-authorized example is:
 
@@ -93,3 +93,23 @@ Linux support and firmware: https://www.hauppauge.com/pages/support/support_linu
 - Verify station listening, RDS/RT+, RDS2 images, DAB DLS/MOT, DVB service detection, Teletext subpages and resource arbitration separately using real user-supplied hardware captures.
 - Every piece of content must show whether it came from LIVE RF via a named decoder, an imported capture, Internet, or offline cache. A saved image is not a verified official emergency notification.
 - Full continuous FM audio, genuine DVB Teletext decoding, native DAB channel scanning, Journaline text hierarchy and optional Internet artwork remain distinct future stages; never mark them done simply because an image or spectrum scanner exists.
+
+
+### Diagnosing missing / unsaved DAB MOT images
+
+After independently starting a real welle-cli decoder on a free RTL-SDR and
+selecting a broadcast that is actually receivable, choose **Radio Data (400)**
+→ **READ RUNNING DAB RECEIVER** with **Save decoded MOT slideshow images** checked.
+The result is per-service, not a blanket promise that all stations send images:
+
+- \`saved\`: decoder supplied valid PNG/JPEG data, stored in SQLite, with immediate image preview and refreshed offline gallery.
+- \`not_broadcast\`: no MOT timestamp has been reported for this decoded service; no image is manufactured.
+- \`empty\`: decoder advertised MOT but returned fewer than 40 bytes.
+- \`failed\`: slide fetch failed, or bytes failed the bounded PNG/JPEG validation (320 KiB ceiling). The UI displays aggregate and per-service failures rather than silently swallowing them.
+- \`not_requested\`: user left the image-saving option unchecked.
+- \`frequency_unknown\`: unknown DAB block; image cannot be archived without attributable receive frequency.
+
+If welle-cli is not installed/running at 127.0.0.1:7979, no DAB service
+or image can be received by this adapter. The existing \`rtl_power\` spectrum
+peaks cannot be converted into broadcaster MOT artwork. No Internet artwork
+is substituted. This adapter never starts, stops or retunes the radio.
