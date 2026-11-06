@@ -6,6 +6,7 @@ import { recordingName } from './satellite_imagery.mjs?v=20261106-images-v15';
 import { initStationLocationUI } from './location_search.mjs';
 import { probeUsbSamples, sampleBytes } from './usb_live_probe.mjs?v=20261106-map-usb-v07';
 import { sortPassList } from './pass_sort.mjs';
+import { protocolsForPass, protocolCategories, passesFilteredByContent } from './pass_protocol_catalog.mjs';
 import { selectAutomaticPasses } from './auto_mission.mjs';
 import { localDateInput, parseLocalScheduleTime, createScheduledPass, evaluateScheduledJob, secondsToJob, captureLevelSummary } from './schedule_controller.mjs';
 // TIHULU Satellite Center — no-local-install receive-only browser mode.
@@ -587,6 +588,34 @@ function appendPass(pass){
     ' · max elevation '+pass.maximum.toFixed(1)+'° · '+
     Math.max(1,Math.round((pass.los-pass.aos)/60000))+' min geometric pass (not an RF detection)';
   item.append(strong,description);
+  const known=protocolsForPass(pass), kinds=protocolCategories(pass);
+  if(kinds.length){
+    const badges=document.createElement('div');badges.className='pass-capability-list';
+    const names={image:'🖼 IMAGE',audio:'🔊 AUDIO',text:'✉ TEXT / DATA',video:'🎥 VIDEO'};
+    for(const kind of kinds){
+      const badge=document.createElement('span');badge.className='pass-capability pass-kind-'+kind;
+      badge.textContent=names[kind];
+      badge.title='Published protocol available; actual transmitter activity unverified.';
+      badges.append(badge);
+    }
+    item.append(badges);
+    const more=document.createElement('details');more.className='pass-known-protocols';
+    const toggle=document.createElement('summary');toggle.textContent='Known public radio protocols ('+known.length+')';
+    more.append(toggle);
+    for(const p of known){
+      const row=document.createElement('p');
+      row.textContent=p.protocol+' · '+(p.frequencyHz/1e6).toFixed(4)+' MHz · '+p.activity+
+        ' · '+p.decoder+' — '+p.note;
+      const link=document.createElement('a');link.href=p.source;
+      link.target='_blank';link.rel='noopener noreferrer';link.textContent='Official protocol / transmitter reference';
+      row.append(document.createTextNode(' · '),link);more.append(row);
+    }
+    item.append(more);
+  }else{
+    const unknown=document.createElement('small');unknown.className='pass-no-known-protocol';
+    unknown.textContent='No verified public image/audio/text decoder profile in local catalog';
+    item.append(unknown);
+  }
   const details=document.createElement('details');
   const summary=document.createElement('summary');summary.textContent='Schedule / configure timed RF analysis';
   details.append(summary);
@@ -657,9 +686,9 @@ function appendPass(pass){
   return item;
 }
 function renderPasses(){
-  const target=$('passes'),sort=$('pass-sort').value,family=$('pass-family').value;
+  const target=$('passes'),sort=$('pass-sort').value,family=$('pass-family').value,contentKind=$('pass-content').value;
   target.replaceChildren();
-  const items=sortPassList(passes,sort,family);
+  const items=passesFilteredByContent(sortPassList(passes,sort,family),contentKind);
   const shown=items.slice(0,visiblePassCount);
   $('pass-list-count').textContent='Showing '+shown.length+' of '+items.length+
     ' matches ('+passes.length+' total computed passes).';
@@ -675,7 +704,7 @@ function renderPasses(){
   for(const pass of shown)fragment.append(appendPass(pass));
   target.append(fragment);
 }
-for(const id of ['pass-sort','pass-family']){
+for(const id of ['pass-sort','pass-family','pass-content']){
   $(id).addEventListener('change',()=>{visiblePassCount=40;renderPasses();});
 }
 $('pass-show-more').addEventListener('click',()=>{visiblePassCount+=40;renderPasses();});
