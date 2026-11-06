@@ -2156,10 +2156,25 @@ async function playDabChannel(channel){
   }
   if(!confirm("Select DAB+ "+channel.display_name+" · block "+channel.channel+
     " using the already-running welle-cli receiver? This may interrupt listening to another service."))return;
-  await api("/api/dab/select","POST",{
+  const selected=await api("/api/dab/select","POST",{
     channel:channel.channel,service_id:channel.service_id,consent:true});
-  // The receiver can need a short time to lock after an explicit user retune.
-  await new Promise(resolve=>setTimeout(resolve,1200));
+  if(selected.retuned_by_explicit_user){
+    // Tuning another multiplex is asynchronous. Only play after the
+    // actual welle-cli FIC parser confirms this exact audio service.
+    let locked=false,lastError="";
+    for(let attempt=0;attempt<10;attempt++){
+      await new Promise(resolve=>setTimeout(resolve,750));
+      try{
+        const mux=await api("/api/dab/refresh","POST",{include_images:false});
+        locked=mux.channel===channel.channel&&
+          mux.services.some(s=>s.sid.toLowerCase()===channel.service_id.toLowerCase()
+            &&s.audio_advertised);
+        if(locked)break;
+      }catch(error){lastError=error.message;}
+    }
+    if(!locked)throw Error("No verified DAB audio lock for "+channel.display_name+
+      " on "+channel.channel+" after retuning."+(lastError?" "+lastError:""));
+  }
   const audio=$("persistent-radio-player");
   audio.src="/api/dab/audio/"+encodeURIComponent(channel.service_id)+
     "?token="+encodeURIComponent(state.csrf);
