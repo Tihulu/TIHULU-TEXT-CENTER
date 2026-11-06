@@ -14,7 +14,7 @@ export function validStationCoordinates(lat,lon){
   return Number.isFinite(lat)&&Number.isFinite(lon)&&lat>=-90&&lat<=90&&lon>=-180&&lon<=180;
 }
 const aliasNames=Object.freeze({
-  "col": "köln","cologne":"köln","koln":"köln","munich":"münchen",
+  "cologne":"köln","koln":"köln","munich":"münchen",
   "nuremberg":"nürnberg","izmir":"izmir","istanbul":"istanbul",
   "eskisehir":"eskişehir","sanliurfa":"şanlıurfa","antep":"gaziantep",
   "huerth":"hürth","hurth":"hürth","duesseldorf":"düsseldorf","dusseldorf":"düsseldorf"
@@ -71,6 +71,7 @@ export function initStationLocationUI({onStationChanged,log}){
  let typingTimer=null,inFlight=null,lastRemoteAt=0;
  const cache=new Map();
  let latestSearchToken=0;
+ let internalApply=false;
  const say=text=>{status.textContent=String(text)};
  const countryName=c=>c==="DE"?"Germany":c==="TR"?"Türkiye":c||"Unknown";
  const label=row=>[row.name,row.region,row.countryName||countryName(row.country)].filter(Boolean).join(" · ");
@@ -100,7 +101,9 @@ export function initStationLocationUI({onStationChanged,log}){
    say("Station set: "+summary+" · "+nlat.toFixed(5)+"°, "+nlon.toFixed(5)+"°."+
        " Recalculate passes for this location.");
    if(!Number.isFinite(oldLat)||!Number.isFinite(oldLon)||Math.abs(oldLat-nlat)>1e-9||Math.abs(oldLon-nlon)>1e-9){
-     lat.dispatchEvent(new Event("change",{bubbles:true}));
+     internalApply=true;
+     try{lat.dispatchEvent(new Event("change",{bubbles:true}));}
+     finally{internalApply=false;}
    }
    if(typeof onStationChanged==="function")onStationChanged({...row,mode});
    log("Ground station chosen: "+row.provider+" · "+row.name+". Orbital geometry will use the new coordinates.");
@@ -255,6 +258,7 @@ export function initStationLocationUI({onStationChanged,log}){
      say("Manual coordinate entry. Edit both latitude and longitude; pass predictions use these values when recalculated.");
    });
    el.addEventListener("change",()=>{
+     if(internalApply)return;
      const a=Number(lat.value),b=Number(lon.value);
      if(!validStationCoordinates(a,b)||lat.value.trim()===""||lon.value.trim()===""){
        say("Invalid custom coordinates: latitude must be −90…90 and longitude −180…180.");
