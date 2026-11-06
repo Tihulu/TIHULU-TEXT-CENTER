@@ -44,6 +44,14 @@ installed SatDump/multimon-ng and for scheduling while the browser tab is
 closed but the companion runs. It is not the required path for the
 browser-only capture mode. A physical Nooelec test is still pending.
 
+## Signal Intelligence (draft, browser-local, cross-platform)
+
+The CU8 analysis view now offers a **quick stratified sample** and a **full-file streaming FFT** (all complete FFT blocks), time-binned waterfall, frequency/energy candidate selection, experiment-only AM/NFM audio preview, and JSON/metadata exports. Click the spectrum or a candidate to choose a baseband offset. Raw IQ stays on the user's device. Full-file work uses small slices and a Stop button.
+
+The full FFT is not a calibrated SNR, protocol decoder, transmitter identity or geographic range measurement. Browser file analysis can run without WebUSB in Firefox/Safari; capturing new RTL-SDR samples still requires supported hardware/browser or the separately installed companion. The GitHub Pages public release is not updated by this draft PR.
+
+**Implementation boundaries and next steps:** [SIGNAL_INTELLIGENCE.md](SIGNAL_INTELLIGENCE.md). The future source/positioning view must keep observed RF, observer GPS, predicted TLE geometry and Internet catalogs as separate provenance-labeled layers.
+
 ## Earth & Sky Maps (v0.4, browser-only)
 
 The direct GitHub Pages application includes an **interactive OpenStreetMap
