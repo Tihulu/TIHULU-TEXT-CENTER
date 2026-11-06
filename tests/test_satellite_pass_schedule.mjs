@@ -108,3 +108,10 @@ test("Native dashboard status polling leaves unchanged options and cards mounted
  assert.match(native,/signature===lastNativeJobsSignature/);
  assert.match(native,/signature===lastNativeArchiveSignature/);
 });
+
+test("Pass list waits for native selector focus to end before replacing its DOM",()=>{
+ const js=fs.readFileSync(new URL("../satellite_center/browser/browser.js",import.meta.url),"utf8");
+ assert.match(js,/passRenderDeferred=true;return/);
+ assert.match(js,/document\.activeElement\.matches\?\.\('select,input,textarea'\)/);
+ assert.match(js,/queueMicrotask\(/);
+});

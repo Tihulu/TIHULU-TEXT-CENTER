@@ -915,8 +915,20 @@ function appendPass(pass){
   details.append(form);item.append(details);
   return item;
 }
+let passRenderDeferred=false;
+$('passes').addEventListener('focusout',()=>{
+  queueMicrotask(()=>{
+    if(passRenderDeferred&&!$('passes').contains(document.activeElement))renderPasses();
+  });
+});
 function renderPasses(){
   const target=$('passes'),sort=$('pass-sort').value,family=$('pass-family').value,contentKind=$('pass-content').value;
+  // Defer protocol/catalog redraw until native select popup has closed.
+  if(target.contains(document.activeElement)&&
+     document.activeElement.matches?.('select,input,textarea')){
+    passRenderDeferred=true;return;
+  }
+  passRenderDeferred=false;
   target.replaceChildren();
   const items=passesFilteredByContent(sortPassList(passes,sort,family),contentKind);
   const shown=items.slice(0,visiblePassCount);
