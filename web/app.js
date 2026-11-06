@@ -1012,15 +1012,28 @@ function renderLiveDockCaptions(items,kind){
   container.replaceChildren();
   container.hidden=!items.length||
     (kind==="tv"?!state.tvActive:!(state.liveActive||state.dabPlaying));
+  state.lastDockCaptions=items;
   if(!items.length)return;
-  const last=items[items.length-1];
-  const original=el("p","dock-subtitle-original",
-    "["+last.original_language.toUpperCase()+"] "+last.original_text);
-  container.append(original);
-  if(last.translated_text){
+  let preferred=items;
+  if(kind==="tv"&&state.tvEffectiveSubtitleSource){
+    preferred=items.filter(item=>state.tvEffectiveSubtitleSource==="teletext"?
+      item.compute_backend==="broadcast_teletext":
+      state.tvEffectiveSubtitleSource==="speech"?
+        item.compute_backend!=="broadcast_teletext":false);
+  }
+  const last=preferred.length?preferred[preferred.length-1]:null;
+  if(!last||!$("live-captions-enabled")?.checked){
+    container.hidden=true;return;
+  }
+  if($("live-caption-original")?.checked!==false){
+    container.append(el("p","dock-subtitle-original",
+      "["+last.original_language.toUpperCase()+"] "+last.original_text));
+  }
+  if(last.translated_text&&$("live-caption-translation")?.checked!==false){
     container.append(el("p","dock-subtitle-translated",
       "["+last.translated_language.toUpperCase()+"] "+last.translated_text));
   }
+  container.hidden=!container.childElementCount;
 }
 async function updateDockStationMetadata(){
   const node=$("live-dock-station-meta");
@@ -1114,6 +1127,10 @@ function syncLiveMediaDock(){
     (state.liveActive?"LIVE FM RADIO  ":"")+
     (state.dabPlaying?"DAB+ RADIO  ":"")+
     "· user-started receive-only stream";
+  const switches=$("live-caption-switches");
+  if(switches)switches.hidden=!(state.liveActive||state.tvActive||state.dabPlaying);
+  const tvOnly=$("live-caption-source")?.closest(".tv-caption-source");
+  if(tvOnly)tvOnly.hidden=!state.tvActive;
   const r=$("live-dock-stop-radio"),t=$("live-dock-stop-tv");
   if(r)r.hidden=!(state.liveActive||state.dabPlaying);
   if(t)t.hidden=!state.tvActive;
