@@ -404,8 +404,12 @@ function renderEarth(){
  const place=(loc,kind,fill,title,prefix)=>{
    const v=pt(loc.lat,loc.lon);if(!v.inside)return;
    const group=svgel("g");
+   // Large, invisible target makes catalog towers accessible on touch screens.
+   // Keep this behind the actual marker so pointer events remain on one SVG group.
+   group.append(svgel("circle",{cx:v.x,cy:v.y,r:19,fill:"transparent",stroke:"none",
+     "data-marker-hitbox":"true","pointer-events":"all"}));
    group.append(svgel("circle",{cx:v.x,cy:v.y,r:kind==="receiver"||kind==="solution"?9:7,fill,stroke:"#0a192a","stroke-width":2}));
-   if(prefix)group.append(svgel("text",{x:v.x,y:v.y+3.7,fill:"#061627","font-size":10,"font-weight":800,"text-anchor":"middle"},prefix));
+   if(prefix)group.append(svgel("text",{x:v.x,y:v.y+3.7,fill:"#061627","font-size":10,"font-weight":800,"text-anchor":"middle","pointer-events":"none"},prefix));
    const tip=svgel("title",{},title);group.append(tip);
    group.setAttribute("role","button");
    group.setAttribute("tabindex","0");
@@ -502,12 +506,16 @@ function renderEarth(){
        setView("radio");
        const advanced=$("radio-advanced-tools");if(advanced)advanced.open=true;
        $("rf-source-select")?.scrollIntoView({behavior:"smooth",block:"center"});
-       msg("Selected "+frequency.toFixed(3)+" MHz for real antenna measurement. Calibrate only with an independently known distance; the site/frequency match is not an authenticated transmitter.");
+       msg("FM calibration candidate: "+frequency.toFixed(3)+" MHz. First measure RF at a site with an INDEPENDENTLY KNOWN source distance and fixed gain. Record the reference, then repeat at the unknown location. RDS/source identity and propagation remain unverified.");
       };
     }
     positionInfo(popup);popup.hidden=false;
    };
    group.addEventListener("click",show);
+   group.addEventListener("pointerup",event=>{
+     // Avoid relying on a synthesized mouse click after pointer capture/drag on mobile.
+     if(event.pointerType==="touch"||event.pointerType==="pen")show(event);
+   });
    group.addEventListener("keydown",event=>{
     if(event.key==="Enter"||event.key===" "){event.preventDefault();show(event)}
    });
@@ -893,6 +901,14 @@ window.addEventListener("tihulu:rf-survey-updated",e=>{
 });
 window.addEventListener("tihulu:rf-fit-map",fitRfSurveyMap);
 $("map-source-popup-close")?.addEventListener("click",()=>{$("map-source-popup").hidden=true});
+$("earth-map")?.addEventListener("keydown",event=>{
+ if(event.key==="Escape"){
+  const popup=$("map-source-popup"),hover=$("map-hover-tip");
+  if(popup)popup.hidden=true;
+  if(hover)hover.hidden=true;
+ }
+});
+
 $("map-source-popup")?.addEventListener("pointerdown",event=>event.stopPropagation());
 window.addEventListener("tihulu:show-tv-on-map",()=>{
  const matches=mapMatches().filter(m=>m.kind==="tv");
