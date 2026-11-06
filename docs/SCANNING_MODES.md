@@ -11,12 +11,12 @@ Radio Data (400) offers manual, bounded rtl_power energy surveys. It never initi
 | FM broadcast | 87.5–108 MHz | FM RDS, RadioText+, TMC | Needs redsea for genuine RDS/RT+ text and additional TMC decoder |
 | DAB Band III | 174–240 MHz | DLS/DLS+, Journaline, MOT Slideshow, EPG, TPEG | Needs actual DAB ensemble decoder and optional licenses |
 | APRS VHF | 144–146 MHz | AX.25/APRS packet radio in European candidate range | Needs narrow-FM audio and real packet decoder |
-| DRM MF/HF | 1–22 MHz | DRM/EWF/Journaline | Needs Q-branch/HF antenna and DRM decoder |
-| RTTY HF | 2–18 MHz | RTTY/Radiotelex, DWD maritime weather text | Needs Q-branch/HF antenna and RTTY demodulator |
-| NAVTEX LF/MF | 450–560 kHz | NAVTEX at 518/490 kHz | Needs suitable antenna and actual SITOR-B/NAVTEX decoder |
-| HF WeatherFAX | 2–18 MHz | Weather charts/facsimile | Needs suitable antenna and HF fax image decoder |
+| DRM MF/HF | 1–22 MHz | DRM/EWF/Journaline | **Blocked:** compatible Q-branch spectrum scanner, suitable antenna and DRM decoder pending |
+| RTTY HF | 2–18 MHz | RTTY/Radiotelex, DWD maritime weather text | **Blocked:** Q-branch scanner/antenna and RTTY decoder pending |
+| NAVTEX LF/MF | 450–560 kHz | NAVTEX at 518/490 kHz | **Blocked:** Q-branch scanner/antenna and SITOR-B/NAVTEX decoder pending |
+| HF WeatherFAX | 2–18 MHz | Weather charts/facsimile | **Blocked:** Q-branch scanner/antenna and HF fax decoder pending |
 
-rtl_power scans report only unidentified relative RF power peaks. They do not determine station names, service locks, official warnings or decoded text. Direct sampling uses the -D option from the osmocom rtl_power implementation; installed fork compatibility and real Q-branch reception must be tested separately. A wide band may hit the conservative 18-second timeout. No continuous all-band sweep is enabled.
+rtl_power scans report only unidentified relative RF power peaks. They do not determine station names, service locks, official warnings or decoded text. **Important hardware gate:** stock osmocom `rtl_power -D` selects **I-branch** direct sampling, whereas Nooelec NESDR SMArt v5 HF requires **Q-branch**. The four LF/HF profiles remain visible in the catalogue but are *disabled*, even when `rtl_power` is installed, until a Q-branch-capable spectrum backend, antenna and real hardware QA are provided. The separate band CSV parser remains usable for externally captured genuine measurements. Other RTL2832U devices cannot be assumed to have the same HF wiring. References: [Nooelec NESDR SMArt v5 FAQ](https://support.nooelec.com/hc/en-us/articles/10470422657047-NESDR-SMArt-v5-FAQ), [osmocom rtl_power source](https://github.com/osmocom/rtl-sdr/blob/master/src/rtl_power.c). A wide band may hit the conservative 18-second timeout. No continuous all-band sweep is enabled.
 
 ## 2. DVB-T2 Teletext is a separate hardware path
 

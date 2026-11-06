@@ -66,12 +66,17 @@ class SurveyError(RuntimeError):
 def build_survey_command(executable: str, band: str = "fm") -> list[str]:
     """Single-shot rtl_power band scan with fixed allow-listed arguments."""
     profile = survey_band(band)
-    command = [executable, "-d", "0", "-f", profile["range"], "-i", "2s", "-1"]
     if profile["direct_sampling"]:
-        # In the osmocom rtl_power build -D requests direct sampling. Some
-        # forks use other syntax; those are not guaranteed compatible.
-        command.append("-D")
-    return command
+        # Osmocom rtl_power -D selects I-branch (mode 1), while the NESDR
+        # SMArt v5's LF/HF antenna path is wired to Q-branch (mode 2).
+        # Do not start a misleading/incompatible HF scan; a validated
+        # Q-branch-capable backend is required before enabling these bands.
+        raise SurveyError(
+            "HF/LF survey unavailable: stock rtl_power -D selects I-branch; "
+            "NESDR SMArt v5 needs Q-branch. Install/integrate and validate a "
+            "Q-branch-capable scanner with a suitable LF/HF antenna."
+        )
+    return [executable, "-d", "0", "-f", profile["range"], "-i", "2s", "-1"]
 
 
 def parse_power_csv(payload: str, *, limit: int = 24, band: str = "fm") -> dict:
@@ -174,6 +179,11 @@ class FMSurveySupervisor:
             return {"ready":False,"reason":"RF spectrum survey requires Linux"}
         if inv.get("rtl_usb_count") != 1:
             return {"ready":False,"reason":"Exactly one RTL2832U USB candidate required"}
+        if profile["direct_sampling"]:
+            return {"ready":False,"reason":
+                "HF/LF survey blocked: stock rtl_power -D selects I-branch, "
+                "but NESDR SMArt v5 LF/HF reception requires Q-branch; "
+                "a compatible scanner and antenna must be validated first."}
         if self.rds is not None and self.rds.status(heartbeat=False)["active"]:
             return {"ready":False,"reason":"An FM RDS capture is already using the receiver"}
         conflicts = self.conflicts()
