@@ -292,6 +292,8 @@ export function createSatelliteMaps({getTles,getSatLib,getPasses,getLastCapture,
    basemapStatus("Requesting OpenStreetMap tiles for the visible viewport… This is not confirmation that tiles loaded.");
    const layer=leaflet.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png",{
      minZoom:2,maxZoom:12,updateWhenIdle:true,keepBuffer:1,detectRetina:false,
+     // OSMF tile policy (2026): do not strip the public website origin Referer.
+     referrerPolicy:"strict-origin-when-cross-origin",
      attribution:'&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap contributors</a>'
    });
    osmTiles=layer;
