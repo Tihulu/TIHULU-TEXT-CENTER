@@ -32,6 +32,7 @@ function source(){
  if(state.serialFix&&Date.now()-state.serialAt<90000)
   return {...state.serialFix,kind:"NMEA receiver — live",validObserver:true};
  if(state.browser)return {...state.browser,kind:"Browser / device location",validObserver:true};
+ if(state.ranges)return {...state.ranges,kind:"EXPERIMENTAL 2D RANGE ESTIMATE (UNVERIFIED)",validObserver:false};
  if(state.cachedPosition)return {...state.cachedPosition,kind:"LAST KNOWN (CACHED, NOT LIVE) · "+state.cachedPosition.provider,validObserver:false};
  // Imported aircraft JSON is an untrusted reference, NOT authenticated
  // ADS-B receiver observation. A future trusted Flight Radar adapter must
@@ -102,13 +103,19 @@ for(const btn of document.querySelectorAll("#nav button[data-view]"))btn.addEven
 for(const btn of document.querySelectorAll("[data-jump]"))btn.addEventListener("click",()=>setView(btn.dataset.jump));
 $("mobile-menu")?.addEventListener("click",()=>document.querySelector(".sidebar")?.classList.toggle("mobile-open"));
 $("locate")?.addEventListener("click",()=>{
- if(!navigator.geolocation){msg("Browser geolocation unavailable");return}
+ if(!navigator.geolocation){const fallback=source();renderPosition(true);if(state.ranges)fitEvidence();
+ window.dispatchEvent(new CustomEvent("tihulu:reference-position",{detail:{lat:fallback.lat,lon:fallback.lon,kind:fallback.kind}}));
+ msg("Browser geolocation unavailable: "+fallback.kind+" · not a live GNSS fix");return}
  msg("Requesting permission for browser/device location…");
  navigator.geolocation.getCurrentPosition(result=>{
    const c=result.coords;state.browser={...safeCoord(c.latitude,c.longitude),accuracy:c.accuracy,alt:c.altitude??null};
    recordFix(state.browser,"Browser / device location");renderPosition(true);renderSky();renderDiagnostics();
    msg("Device location acquired with user permission. Source: browser, NOT SDR.");
- },error=>msg("Browser location not available: "+error.message),{enableHighAccuracy:true,timeout:18000,maximumAge:0});
+ },error=>{const fallback=source();renderPosition(true);if(state.ranges)fitEvidence();
+ msg("Browser location unavailable: "+error.message+" · "+fallback.kind+" · "+
+ (state.ranges?"Experimental radio-range estimate available on Earth Map.":state.cachedPosition?"Offline last-known location available (not live).":"No offline position measurement currently available."));
+ window.dispatchEvent(new CustomEvent("tihulu:reference-position",{detail:{lat:fallback.lat,lon:fallback.lon,kind:fallback.kind}}));
+ },{enableHighAccuracy:true,timeout:18000,maximumAge:0});
 });
 async function importFile(input,maxBytes,handler){
  const file=input.files?.[0];if(!file)return;
@@ -222,8 +229,7 @@ function renderEarth(){
  const showOrbits=$("layer-orbits")?.checked===true;
  const showReal=$("layer-ranges")?.checked!==false;
  const showDemo=$("layer-demo")?.checked===true&&!state.rangeInputs.length;
- const evidence=state.rangeInputs.length?state.rangeInputs:showDemo?exampleRings({lat:state.map.lat,lon:state.map.lon}).stations:[];
- const demo=showDemo?exampleRings({lat:state.map.lat,lon:state.map.lon}):null;
+ const demo=showDemo&&Math.abs(p.lat)<=80&&Math.abs(p.lon)<=175?exampleRings(p):null;
  const active=state.rangeInputs.length>0?{stations:state.rangeInputs,solution:state.ranges,simulated:false}:demo;
  const renderCircle=(s,simulated)=>{
    const samples=ringPoints(s.lat,s.lon,s.rangeMeters,96);
