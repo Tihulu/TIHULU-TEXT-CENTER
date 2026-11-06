@@ -86,7 +86,7 @@ export function matchFMScanToCatalog(readings,candidates){
  if(!Array.isArray(readings)||!Array.isArray(candidates))return result;
  for(const r of readings){
   if(!Number.isFinite(r.frequencyMHz)||!Number.isFinite(r.levelDbFS))continue;
-  const matched=candidates.filter(c=>c.frequenciesMHz?.some(f=>Math.abs(f-r.frequencyMHz)<.101))
+  const matched=candidates.filter(c=>c.frequenciesMHz?.some(f=>Math.abs(f-r.frequencyMHz)<.015))
     .slice(0,12);
   result.push({...r,candidateIds:matched.map(c=>c.id),candidateNames:matched.map(c=>c.name),
    matchQuality:matched.length?"FREQUENCY OVERLAP ONLY · IDENTITY NOT DECODED":"RF LEVEL ONLY · UNKNOWN EMITTER"});
