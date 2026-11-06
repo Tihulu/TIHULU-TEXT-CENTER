@@ -114,7 +114,7 @@ export function initUsbSDR(report){
  }
  async function scan(){
    if(!receiver){notify("UNAVAILABLE","Connect RTL-SDR first; GNSS L1 scan not started.");return}
-   if(sampling){notify("BUSY","A bounded RF energy sample is already running.");return}
+   if(busy||sampling){notify("BUSY","USB receiver is already initializing, sampling or performing another operation.");return}
    sampling=true;busy=true;stopping=false;beginSample();
    const start=Date.now();let bytes=0,powerSum=0,powerN=0;
    try{
