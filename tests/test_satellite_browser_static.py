@@ -46,6 +46,20 @@ class SatelliteBrowserStaticTests(unittest.TestCase):
         self.assertIn('id="local-file"', reception)
         self.assertIn('id="mission"', reception)
         self.assertIn('id="export-evidence"', reception)
+        for ctl in ('auto-mission-arm', 'auto-mission-analyze',
+                    'auto-mission-extract', 'auto-gps', 'auto-lat', 'auto-lon'):
+            self.assertIn('id="' + ctl + '"', reception)
+        for ctl in ('auto-plan', 'auto-analyze', 'auto-results', 'auto-mode'):
+            self.assertIn('id="' + ctl + '"', html)
+        self.assertIn('auto_reception_ui.mjs', script)
+        receiver=(ROOT / "browser.js").read_text(encoding="utf-8")
+        self.assertIn('selectAutomaticPasses(', receiver)
+        self.assertIn('runAutoMission(', receiver)
+        backend=(ROOT.parent / "__main__.py").read_text(encoding="utf-8")
+        self.assertIn('def auto_schedule(', backend)
+        self.assertIn('route == "/api/auto-schedule"', backend)
+        self.assertIn('str(PROFILES[profile]["freq"])', backend)
+
         for control in ('image-target', 'image-decode-sstv', 'image-decode-cuiq',
                         'image-sstv-file', 'image-cuiq-file', 'image-fetch-online',
                         'image-gallery', 'image-local-gallery', 'image-decode-status'):
