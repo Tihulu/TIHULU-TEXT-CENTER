@@ -663,8 +663,8 @@ class Handler(BaseHTTPRequestHandler):
                     "detected_confidence":detected_confidence,
                     "target":payload.get("target","en"),
                     "requested_backend":payload.get("backend","auto"),
-                    "engine":"argos_translate_offline",
-                    "status":"locally_translated_not_official_source",
+                    "engine":"none_same_language" if source==payload.get("target","en") else "argos_translate_offline",
+                    "status":"original_unchanged_same_language" if source==payload.get("target","en") else "locally_translated_not_official_source",
                 })
             if route == "/api/transcripts/translate":
                 item=self.server.transcripts.translate_later(
