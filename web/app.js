@@ -227,8 +227,80 @@ function showBroadcast(data){
   actions.append(button("Next →",()=>openPage(Math.min(899,data.page+1),data.source_id,0)));
   n.append(actions);$("content").append(n);
 }
+function discoveryLine(label,detail,tone){
+  const line=el("div","discover-line");
+  const key=el("span","discover-key",label);
+  const value=el("strong","discover-value "+(tone||""),detail);
+  line.append(key,value);
+  return line;
+}
+function renderHomeDiscovery(report){
+  const container=$("home-discovery-results");
+  if(!container||state.page!==100)return;
+  container.replaceChildren();
+  const inv=report.receiver||{}, dec=inv.decoders||{},counts=report.archive_counts||{};
+  const sdr=Number(inv.rtl_usb_count||0),dvb=(inv.dvb_frontends||[]).length;
+  const busy=(inv.receiver_conflicts||[]);
+  const conflicts=[...new Set(busy.map(x=>x.process))];
+  container.append(
+    discoveryLine("RTL-SDR",sdr ? (inv.rtl_usb_devices?.[0]?.product||"RTL2832U device")+" detected" : "Not detected",sdr?"discover-good":""),
+    discoveryLine("DVB frontend",dvb ? String(dvb)+" device path(s) detected" : "No frontend detected",dvb?"discover-good":""),
+    discoveryLine("Receiver sharing",busy.length?"Possibly busy: "+conflicts.join(", "):"No known conflict · ownership unverified",busy.length?"discover-warn":""),
+    discoveryLine("FM scan",dec.rtl_power?"rtl_power installed · explicit approval required":"rtl_power missing",dec.rtl_power?"discover-good":"discover-warn"),
+    discoveryLine("RadioText decoder",dec.rtl_fm&&dec.redsea?"rtl_fm + redsea installed":"Missing: "+[!dec.rtl_fm?"rtl_fm":null,!dec.redsea?"redsea":null].filter(Boolean).join(", "),dec.rtl_fm&&dec.redsea?"discover-good":"discover-warn"),
+    discoveryLine("DAB text",dec["welle-cli"]?"DAB tool detected · integration pending":"DAB text decoder not connected",""),
+    discoveryLine("Text archive",String((counts.articles||0))+" articles · "+String((counts.events||0)+(counts.pages||0))+" RF records · "+String(counts.bulletins||0)+" notes","")
+  );
+  container.append(el("p","discover-disclaimer",
+    "Passive detection only — no tuning, station scan, internet requests or live broadcast verification. "+
+    "A visible USB device is not a free tuner."));
+  const missing=["redsea","rtl_power"].filter(k=>!dec[k]);
+  if(missing.length){
+    container.append(el("p","discover-guidance",
+      "Optional tools missing: "+missing.join(", ")+
+      ". Open Radio Data (400) for detailed readiness. Nothing will be installed automatically."));
+  }
+}
+async function addHomeDiscovery(){
+  const panel=el("article","home-discovery");
+  panel.append(el("div","item-meta","LIVE LOCAL CAPABILITY CHECK · NOT RF RECEPTION"));
+  const header=el("div","home-discovery-head");
+  header.append(el("h3","","Your connected information sources"));
+  const controls=el("div","card-actions");
+  const refresh=button("CHECK AGAIN",async()=>{
+    refresh.disabled=true;
+    try{
+      const result=await api("/api/discovery/passive");
+      renderHomeDiscovery(result);
+      await refreshReceiverStatus();
+      notice("Local hardware, services and cache checked. No RF tuning performed.");
+    }catch(err){notice("Discovery failed: "+err.message)}
+    finally{refresh.disabled=false}
+  });
+  controls.append(refresh);
+  header.append(controls);
+  panel.append(header);
+  const details=el("div","home-discovery-results");details.id="home-discovery-results";
+  details.append(el("p","","Inspecting local devices and installed decoders…"));
+  panel.append(details);
+  const actionRow=el("div","home-shortcuts");
+  actionRow.append(button("OPEN RADIO & FM SCAN",()=>openPage(400,"",0),"action primary"));
+  actionRow.append(button("ADD NEWS / BLOG FEEDS",()=>openPage(200,"",0)));
+  actionRow.append(button("ALL 31 PROTOCOLS",()=>openPage(860,"",0)));
+  panel.append(actionRow);
+  $("content").append(panel);
+  try{
+    const result=await api("/api/discovery/passive");
+    renderHomeDiscovery(result);
+  }catch(error){
+    if(state.page===100)details.replaceChildren(el("p","",
+      "Local discovery unavailable: "+error.message));
+  }
+}
 async function showIndex(){
-  section("START HERE","Explore the center","All primary sections");
+  section("START HERE","Your connected sources","Passive discovery at startup");
+  await addHomeDiscovery();
+  if(state.page!==100)return;
   const index=await api("/api/index");
   index.filter((x)=>x.page!==100).forEach((entry)=>{
     const n=el("button","tile");
