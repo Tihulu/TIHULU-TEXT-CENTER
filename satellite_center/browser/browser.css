@@ -11,3 +11,36 @@ label{display:block;color:#c2d6f0;font-size:13px;margin:10px 0}select,input:not(
 .hint,footer{font-size:13px;line-height:1.6;color:#aebfda}canvas{width:100%;border:1px solid #304866;border-radius:8px;background:#091523;margin:13px 0}pre{font-size:12px;white-space:pre-wrap;word-break:break-word;max-height:310px;overflow:auto;background:#07111d;padding:13px;border-radius:10px;color:#cfe4fb}
 .pass-list{max-height:360px;overflow:auto}.pass{padding:12px;border:1px solid #355271;border-radius:10px;background:#142840;margin:8px 0}.pass small{display:block;color:#aac0dc;margin:5px 0}.pass button{font-size:12px;padding:7px 10px;min-height:32px}#jobs{white-space:pre-wrap;font-size:13px;line-height:1.7}footer{margin:24px 0;padding:15px 0}
 @media(max-width:900px){.columns{grid-template-columns:1fr}section{padding:16px}}
+
+/* Satellite tracking: no tile loads before explicit Earth map action. */
+.tracking{background:#101e32;border-color:#3a5a7b}
+.map-toolbar{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin:13px 0}
+.map-toolbar>label{flex:1 1 185px}.map-toolbar button{flex:0 0 auto}
+.map-tabs{display:flex;flex-wrap:wrap;gap:7px;flex:1 1 325px}
+.map-tabs button.active{background:#266bb8;border-color:#80cfff}
+.map-time-field{flex:1 1 300px!important;min-width:180px}
+.map-time-field input{width:100%;accent-color:#48bfff}
+.map-check{display:flex;align-items:center;gap:8px;flex:0 1 auto!important;color:#cfe0f6}
+.map-check input{width:16px;height:16px;accent-color:#28b8fb}
+.map-caption{font-size:12px;color:#aabed6;line-height:1.5}
+.sat-map-layout{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(240px,1fr);gap:14px}
+.map-primary{min-width:0}.map-sidebar{background:#0b1829;border-radius:12px;border:1px solid #37516f;padding:15px;min-width:0}
+.map-side-head{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.map-side-head h3{margin:2px 0 12px}.map-side-head button{font-size:12px;min-height:32px;padding:6px 10px}
+#sky-chart{display:block;width:100%;height:auto;max-height:560px;aspect-ratio:760/620;border:1px solid #426081;border-radius:12px;background:#08182b;cursor:crosshair;object-fit:contain}
+.sat-earth{width:100%;height:480px;min-height:320px;border-radius:12px;border:1px solid #385472;background:#0b1e33}
+.map-legend{display:flex;flex-wrap:wrap;gap:8px;margin-top:11px;font-size:12px;color:#cfdef1}
+.map-legend span{display:inline-flex;align-items:center;gap:6px;padding:5px 8px;border-radius:20px;background:#1c304c}
+.map-legend i{width:10px;height:10px;border-radius:50%;display:inline-block}
+.sat-list{max-height:300px;overflow:auto;display:flex;flex-direction:column;gap:7px}
+.sat-row{text-align:left;display:flex;flex-direction:column;gap:3px;width:100%;padding:10px 11px;
+background:#142a44;border:1px solid #355271;border-left:4px solid #8ad9ff;border-radius:8px;color:#ecf4ff;min-height:52px;font-size:13px;overflow-wrap:anywhere}
+.sat-row small{font-size:11px;color:#acc5e3}
+.sat-row.selected{background:#21436a;border-color:#83bdf5}
+.map-detail{padding:14px;margin-top:13px;background:#12263f;border:1px solid #3a5879;border-radius:10px;overflow-wrap:anywhere}
+.map-detail h3{margin:0 0 9px}.map-detail p{margin:9px 0}.map-detail button{width:100%;margin:6px 0}
+.map-warning{color:#ffcc8a;font-size:13px;line-height:1.5}
+.leaflet-control-attribution{font-size:11px!important}
+@media(max-width:980px){.sat-map-layout{grid-template-columns:1fr}.sat-list{max-height:240px}}
+@media(max-width:580px){.map-toolbar{gap:8px}.map-tabs button{flex:1 1 140px}
+.sat-earth{height:350px}.map-sidebar{padding:11px}}
