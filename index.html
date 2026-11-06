@@ -18,6 +18,19 @@ a.action{display:inline-block;margin-top:15px;background:#2869bb;border-radius:1
 a.action:hover,a.action:focus{background:#357edb}
 a{color:#93c3ff}
 footer{margin-top:36px;color:#9fb1ca;line-height:1.6}
+
+.actions{display:flex;gap:10px;flex-wrap:wrap}
+.actions>a{width:max-content}
+.codebar{display:flex;gap:9px;align-items:stretch;max-width:100%;flex-wrap:wrap;margin:9px 0 20px}
+.codebar code{flex:1;min-width:190px;border:1px solid #37506c;background:#07111e;border-radius:9px;padding:12px;line-height:1.5;overflow-wrap:anywhere;word-break:break-word;font:13px/1.6 ui-monospace,SFMono-Regular,Consolas,monospace;color:#cfebff}
+.codebar button{cursor:pointer;color:white;background:#23456e;border:1px solid #4873a4;border-radius:9px;padding:10px 15px;font:600 14px system-ui}
+.codebar button:focus-visible,a:focus-visible{outline:3px solid #a1d3ff;outline-offset:2px}
+.detail{border-top:1px solid #2d425d;margin-top:20px;padding-top:18px}
+strong{color:#f7fbff}
+.badge{display:inline-block;color:#c5e5ff;background:#1d4168;border:1px solid #426e9d;border-radius:999px;font-size:12px;padding:4px 9px}
+ul{padding-left:22px;line-height:1.8}
+.note{color:#adbfda;font-size:.88rem}
+@media(prefers-reduced-motion:reduce){*{scroll-behavior:auto}}
 </style>
 </head>
 <body><main>
@@ -25,11 +38,33 @@ footer{margin-top:36px;color:#9fb1ca;line-height:1.6}
 <h1>Application center</h1>
 <p class="muted">Public dashboards hosted by GitHub Pages. Actual SDR hardware operation and local recordings stay on your own device and require a separately installed local companion.</p>
 <section class="card">
-<h2>Satellite Center</h2>
-<p>ISS, Meteor-M, CubeSat and Iridium orbital predictions, reception scheduling and real-signal capture controls. Iridium survey is spectrum-only, not private communications decoding.</p>
-<a class="action" href="./satellite_center/">Open Satellite Center</a>
+<h2>🛰 Satellite Center <span class="badge">Independent companion · v0.2.3</span></h2>
+<p>Receive-only satellite tracking and SDR reception companion for <strong>ISS, Meteor-M, CubeSat and Iridium NEXT</strong>, with CelesTrak TLE pass calendar, planned scans, scheduled recordings, APRS text and optional Meteor imagery via SatDump. Iridium is <strong>orbital/spectrum survey only</strong>, not private communications decoding.</p>
+<ul><li>Works with your compatible RTL-SDR via the <strong>local companion</strong>; GitHub Pages alone cannot access USB.</li><li>Supports Debian/Ubuntu/Pop!_OS, Raspberry Pi OS, macOS Apple Silicon/Intel and Windows x64 with separately installed SDR utilities and drivers.</li><li>Receiver is released after Stop/Quit and on abandoned manual sessions. A single RTL-SDR is not available to Flight Radar and Satellite Center simultaneously.</li></ul>
+<div class="actions"><a class="action" href="./satellite_center/">Open Satellite Center</a><a class="action" href="https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/main/docs/SATELLITE_CENTER_COMPANION.md">Install &amp; connect USB guide</a></div>
+<div class="detail"><h3>One-line install or update</h3>
+<p class="note">Run as your normal account after reviewing the remote installer. Requires Git and Python 3.11+ with venv (Windows needs Python 3.11+). These installers update the Satellite Center companion, not the Text Center itself.</p>
+<p><strong>Linux / Pop!_OS / Debian / Ubuntu / Raspberry Pi OS / macOS M-series</strong></p>
+<div class="codebar"><code id="sat-install-unix">curl -fsSL https://raw.githubusercontent.com/Tihulu/TIHULU-TEXT-CENTER/feature/satellite-center-standalone-2026-11-06/satellite_center/install/install.sh | bash</code><button type="button" data-copy="sat-install-unix">Copy command</button></div>
+<p><strong>Windows 10/11 x64 · PowerShell</strong></p>
+<div class="codebar"><code id="sat-install-win">irm https://raw.githubusercontent.com/Tihulu/TIHULU-TEXT-CENTER/feature/satellite-center-standalone-2026-11-06/satellite_center/install/install.ps1 | iex</code><button type="button" data-copy="sat-install-win">Copy command</button></div>
+<p class="note" id="copy-feedback" role="status">Standalone receiver starts at <code>http://127.0.0.1:8791/</code>. Copy the local pairing token from that page into the hosted Satellite Center dashboard. On Safari, prefer the local dashboard if loopback requests are restricted.</p>
+</div>
 <p class="muted">To access USB receivers, run the local companion at <code>http://127.0.0.1:8791/</code>, reveal its pairing token locally and enter the token in the hosted dashboard.</p>
 </section>
 <footer><p>This website does not itself connect to USB, track you, or collect private reception data. It is not an emergency alert service.</p>
 <p>Source repository: <a href="https://github.com/Tihulu/TIHULU-TEXT-CENTER">TIHULU-TEXT-CENTER</a>. The main Text Center and future Survival Kit integration are developed separately.</p></footer>
-</main></body></html>
+</main>
+<script>
+document.querySelectorAll('[data-copy]').forEach(btn=>btn.addEventListener('click',async()=>{
+ const code=document.getElementById(btn.dataset.copy);
+ const status=document.getElementById('copy-feedback');
+ try{
+  await navigator.clipboard.writeText(code.textContent.trim());
+  status.textContent='Command copied. Review the GitHub installer before running it.';
+ }catch(_){
+  status.textContent='Clipboard unavailable. Select the command text and copy it manually.';
+ }
+}));
+</script>
+</body></html>
