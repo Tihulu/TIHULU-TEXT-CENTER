@@ -228,6 +228,20 @@ class HTTPTests(unittest.TestCase):
         self.assertIn("connect-src 'self'",policy)
         self.assertIn("default-src 'none'",policy)
 
+    def test_recording_postprocess_needs_saved_file_and_valid_language(self):
+        status,_,raw=self.request("GET","/api/recordings/transcription/status")
+        self.assertEqual(status,200)
+        self.assertEqual(json.loads(raw)["status"],"idle")
+        self.assertEqual(self.request("POST","/api/recordings/transcription/start",
+            {"medium":"fm","filename":"missing.mp3","original_language":"de"})[0],403)
+        _,_,boot=self.request("GET","/api/bootstrap")
+        csrf=json.loads(boot)["csrf"]
+        self.assertEqual(self.request("POST","/api/recordings/transcription/start",
+            {"medium":"fm","filename":"../secret.mp3","original_language":"de"},csrf)[0],409)
+        self.assertEqual(self.request("POST","/api/recordings/transcription/start",
+            {"medium":"dvb_tv","filename":"x.mp4","original_language":"fr"},csrf)[0],400)
+        self.assertEqual(self.request("POST","/api/recordings/transcription/stop",{},csrf)[0],200)
+
     def test_no_forged_source(self):
         code,_,raw=self.request("GET","/api/page?source_id=ard_text&number=100")
         self.assertEqual(code,404)

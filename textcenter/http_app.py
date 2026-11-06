@@ -19,6 +19,7 @@ from .live_fm import LiveFM,LiveError
 from .live_tv import LiveTV,LiveTVError
 from .transcripts import TranscriptStore,TranslatorUnavailable,installed_translation_pairs
 from .compute import detect_devices,choose_backend
+from .postprocess import RecordingTranscriber,PostProcessError
 from .speech import SpeechError
 from .capabilities import capability_catalog
 from .fm_survey import FMSurveySupervisor, SurveyError
@@ -72,6 +73,8 @@ class LocalServer(ThreadingHTTPServer):
                             transcripts=self.transcripts)
         self.live_tv=LiveTV(archive_dir=store.filename.parent/"recordings",
                             transcripts=self.transcripts)
+        self.postprocess=RecordingTranscriber(
+            transcripts=self.transcripts,radio=self.live_fm,tv=self.live_tv)
         super().__init__(address, Handler)
 
 
@@ -198,6 +201,8 @@ class Handler(BaseHTTPRequestHandler):
                     return self._json(404, {"error":"No such decoded broadcast image"})
                 mime, raw=file
                 return self._send(200,raw,mime)
+            if route == "/api/recordings/transcription/status":
+                return self._json(200,self.server.postprocess.status())
             if route == "/api/compute":
                 profile=detect_devices()
                 profile["selection"]={key:choose_backend(profile,key)
@@ -389,7 +394,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         route = urlsplit(self.path).path
-        allowed = {"/api/feeds/add", "/api/feeds/refresh", "/api/bulletins", "/api/bookmarks", "/api/rds/start", "/api/rds/stop", "/api/fm-survey/start", "/api/fm-survey/stop", "/api/scans/start", "/api/scans/stop", "/api/audio/start", "/api/audio/stop", "/api/dab/refresh", "/api/live/radio/start", "/api/live/radio/stop", "/api/transcripts/translate", "/api/live/tv/start", "/api/live/tv/stop"}
+        allowed = {"/api/feeds/add", "/api/feeds/refresh", "/api/bulletins", "/api/bookmarks", "/api/rds/start", "/api/rds/stop", "/api/fm-survey/start", "/api/fm-survey/stop", "/api/scans/start", "/api/scans/stop", "/api/audio/start", "/api/audio/stop", "/api/dab/refresh", "/api/live/radio/start", "/api/live/radio/stop", "/api/transcripts/translate", "/api/live/tv/start", "/api/live/tv/stop", "/api/recordings/transcription/start", "/api/recordings/transcription/stop"}
         if route not in allowed:
             return self._json(404, {"error": "Not found"})
         if self.headers.get("X-Tihulu-CSRF") != self.server.csrf_token:
@@ -432,6 +437,14 @@ class Handler(BaseHTTPRequestHandler):
                     upstream_authorized=payload.get("upstream_authorized",False)))
             if route == "/api/live/tv/stop":
                 return self._json(200,self.server.live_tv.stop())
+            if route == "/api/recordings/transcription/start":
+                return self._json(202,self.server.postprocess.start(
+                    medium=payload.get("medium"),filename=payload.get("filename"),
+                    language=payload.get("original_language"),
+                    target_language=payload.get("translated_language"),
+                    backend=payload.get("backend","auto")))
+            if route == "/api/recordings/transcription/stop":
+                return self._json(200,self.server.postprocess.stop())
             if route == "/api/live/radio/start":
                 return self._json(202,self.server.live_fm.start(
                     payload.get("frequency_mhz"),record=payload.get("record",False),
@@ -494,6 +507,7 @@ def run_server(store: Store, *, host: str = "127.0.0.1", port: int = 8787):
     except KeyboardInterrupt:
         pass
     finally:
+        server.postprocess.stop(wait=True)
         server.live_tv.stop()
         server.live_fm.stop(wait=True)
         server.audio.stop(wait=True)
