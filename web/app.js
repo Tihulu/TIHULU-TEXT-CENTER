@@ -942,6 +942,8 @@ function showDabServices(result){
 }
 async function addWelleDabBridge(){
   const last=await api("/api/dab/last");
+  const inventory=await api("/api/receivers");
+  const welleInstalled=Boolean(inventory.decoders?.["welle-cli"]);
   const panel=el("article","item-card");
   panel.id="dab-welle-bridge";
   panel.append(el("div","item-meta","DAB+ BROADCAST DATA / EXISTING RECEIVER / READ-ONLY"));
@@ -950,7 +952,13 @@ async function addWelleDabBridge(){
     "Connect to an already-running welle-cli web receiver at 127.0.0.1:7979. "+
     "The Text Center uses GET only for current ensemble metadata, station labels, "+
     "DLS text and MOT broadcast images. It NEVER launches, stops or retunes "+
-    "welle-cli or your Flight Radar. welle-cli is not installed on your last hardware check."));
+    "welle-cli or your Flight Radar.")); 
+  panel.append(el("p","full-body",
+    "welle-cli executable: "+(welleInstalled?"INSTALLED":"NOT FOUND")+
+    ". If unavailable, install your distribution's welle.io package yourself. "+
+    "With the SDR free, launch a real channel separately, e.g. "+
+    "welle-cli -c 11D -PC 1 -w 7979; this explicitly tunes the receiver. "+
+    "The -P carousel can wait for DLS/MOT, but reception and images are not guaranteed."));
   const opt=el("label","scan-consent");
   const img=el("input");img.type="checkbox";img.checked=true;img.id="dab-images";
   opt.append(img,document.createTextNode(" Save decoded MOT slideshow images offline "+
