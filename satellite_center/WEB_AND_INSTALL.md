@@ -124,3 +124,33 @@ Tests cover local HTTP authorization, cross-origin rejection, token
 persistence and existing synthetic satellite receivers. No physical hardware
 acceptance has been performed on Windows, macOS, Raspberry Pi or Pop!_OS in
 this build.
+
+
+## Releasing the RTL-SDR on exit (v0.2.2)
+
+- Closing the Satellite Center **browser tab** sends a best-effort authenticated
+  departure request that immediately stops that tab's **manual** capture.
+- If browser cleanup is dropped, a missing status heartbeat automatically stops
+  its manual scan after approximately **14 seconds**. Scheduled captures that
+  were explicitly authorized are exempt; they can execute with the tab closed,
+  **only while the companion service remains running**.
+- **Quit companion & release SDR** stops the companion and every subprocess
+  it launched, including `rtl_power`, `rtl_sdr`, `rtl_fm` and decoder pipelines.
+  SIGTERM, Ctrl+C, and normal server closure use the same owned-child cleanup.
+- Previously queued jobs remain on disk but cannot execute while the companion
+  is shut down; restarting the app may resume pending future jobs.
+- The shared receiver file lock is released after the capture worker exits.
+  Other applications such as `readsb`, `welle.io` and Flight Radar are **never
+  killed or disabled**. If `readsb` owns the dongle, it remains busy until you
+  stop `readsb` yourself. Abrupt OS process kill/power loss cannot guarantee
+  cleanup on every platform; actual hardware verification is still pending.
+
+Suggested Linux diagnostics after stopping the companion:
+
+```bash
+pgrep -a -f '(^|/)(rtl_power|rtl_sdr|rtl_fm)( |$)' || true
+systemctl is-active readsb || true
+```
+
+The first command may also show SDR processes owned by other applications.
+Do not terminate unrecognized processes automatically.
