@@ -80,6 +80,17 @@ class SatelliteTests(unittest.TestCase):
             finally:
                 app.close()
 
+    def test_manual_native_360s_validates_before_usb_open(self):
+        with tempfile.TemporaryDirectory() as td:
+            app=Station(Path(td))
+            try:
+                with patch("satellite_center.__main__.shutil.which",return_value="/fake/rtl_sdr"), patch(
+                    "satellite_center.__main__.tuner_present",return_value=False):
+                    with self.assertRaisesRegex(RuntimeError,"RTL2832U"):
+                        app.capture("meteor","iq",360)
+            finally:
+                app.close()
+
     def test_missing_pass_cannot_be_scheduled(self):
         with tempfile.TemporaryDirectory() as td:
             app=Station(Path(td))

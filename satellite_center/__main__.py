@@ -956,8 +956,8 @@ class Station:
             raise ValueError("Unsupported capture preset")
         if type(seconds) is not int or not 8 <= seconds <= MAX_CAPTURE_SECONDS:
             raise ValueError("Capture duration must be 8–900 seconds")
-        if not scheduled and seconds > 240:
-            raise ValueError("Manual capture maximum is 240 seconds")
+        # Explicit manual requests use the same 8–900 s/2 GB native disk
+        # safety budget as scheduled captures. No browser IQ memory buffer.
         needed = {"survey": "rtl_power", "iq": "rtl_sdr", "aprs": "rtl_fm", "sstv_audio": "rtl_fm", "fm_audio": "rtl_fm"}[mode]
         if not shutil.which(needed) or (mode == "aprs" and not shutil.which("multimon-ng")):
             raise RuntimeError("Required installed RF decoder missing: " + ("multimon-ng" if mode == "aprs" else needed))
@@ -1395,7 +1395,8 @@ class Handler(BaseHTTPRequestHandler):
                         raise ValueError("Invalid browser client identifier")
                     if profile not in PROFILES or not allowed_mode(profile, mode):
                         raise ValueError("Invalid profile/mode")
-                    if not 8 <= seconds <= 240: raise ValueError("Manual duration must be 8–240")
+                    if not 8 <= seconds <= MAX_CAPTURE_SECONDS:
+                        raise ValueError("Manual duration must be 8–900 seconds")
                     app.launching = True
                     threading.Thread(target=self._background_capture,
                                      args=(profile, mode, seconds, owner), daemon=True).start()
