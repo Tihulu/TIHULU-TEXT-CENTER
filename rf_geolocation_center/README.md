@@ -228,6 +228,23 @@ Map markers and all geometry/range circles are now drawn in an SVG whose coordin
 
 **FM reference probes:** The Radio / TV Scan panel offers published NRW FM frequencies (WDR 2 Köln 98.6 MHz, 1LIVE Köln 87.6 MHz, WDR 2 Langenberg 99.2 MHz, WDR 2 Bonn 100.4 MHz, WDR 3 Langenberg 95.1 MHz). These published tuning references are sourced from https://www1.wdr.de/radio/wdr2/ueber-uns/frequenzen-100.html and https://rundfunkreferat.ekir.de/inhalt/wo-und-was-wir-senden . Measuring this selected channel uses actual RTL-SDR I/Q RF power at that frequency, but a frequency peak does not decode the broadcaster's RDS/PI, prove the tower identity, establish physical distance, or calibrate range on its own. The full 87.5–108 MHz band sweep now covers all 206 100 kHz centers rather than 200 kHz steps, and matching broadcast frequencies require exact centers within 15 kHz. Sources with no independently established geographic coordinates are not plotted as fixed towers.
 
-**Hauppauge TV:** Real DVB scanning requires an explicitly running, token-protected local Linux DVB bridge with working firmware/driver and dvbv5-scan; no browser-only GitHub Pages app can scan this tuner directly. Native TV frequencies and network/service IDs are genuine received-channel metadata, but in a single-frequency network they do not identify one specific tower or the listener's position.
+**Hauppauge TV:** Real DVB scanning requires an explicitly running, user-approved, internally authenticated local Linux DVB bridge with working firmware/driver and dvbv5-scan; no browser-only GitHub Pages app can scan this tuner directly. Native TV frequencies and network/service IDs are genuine received-channel metadata, but in a single-frequency network they do not identify one specific tower or the listener's position.
 
 The original advanced independent-reference RF calibration workflow remains intact. Choosing a frequency-tagged catalog tower from a map popup opens its survey, where real RF capture and separately known reference distance must be supplied before a modeled range ring can be drawn.
+
+
+## One-click TV pairing, fluid map and RTL-SDR recovery — Nov 6, 2026
+
+**TV receiver / Pages:** Hauppauge WinTV-soloHD 01589 uses the native Linux DVB frontend, not the browser RTL-SDR WebUSB tuner. The main **Find My Location / Hardware** panel now exposes **Connect TV tuner** and **Scan TV**, with the same real native DVB scan available on Radio / TV Scan.
+
+To connect from HTTPS GitHub Pages without copying any session token, start the user-owned local companion on the Pop!_OS/Linux PC from the matching feature-branch repository root:
+
+    python3 -m rf_geolocation_center.native serve --enable-pages-bridge
+
+It binds only to 127.0.0.1:8794, performs no automatic scans, and requires the user's explicit on-computer **Approve this tab** click in its localhost pairing popup. The web app generates a random pairing challenge and receives a short-lived-in-browser session credential through an exact-origin checked postMessage; it never puts the token in the URL, saves it to storage or transmits it to public servers. The local daemon has an origin allowlist and rejects unrelated websites. Legacy manual token entry remains hidden under Advanced for browsers that block the approval popup. Chrome may also ask local network access permission.
+
+The native companion discovers actual Linux /dev/dvb/adapterN/frontend0 nodes, read-only sysfs USB vendor/product/manufacturer strings when available, and only on **Scan TV** runs real dvbv5-scan if dvb-tools and driver/firmware are installed. A tuner physically connected by USB is not a browser WebUSB DVB decoder: the Linux kernel frontend is the receiving interface. TV channel frequencies, service IDs and network IDs come from actual native scans; public mapped TV sites remain frequency-overlap candidates, not directly measured distances or receiver locations.
+
+**Map:** Dragging previews map tiles/overlays continuously during pointer movement and commits exact geographic center on release, avoiding the old map that jumped only when the user let go. Wheel and double-click zoom preserve the cursor location. Source markers remain interactive and labeled by actual evidence. No synthetic location/range rings.
+
+**Nooelec RTL-SDR register-transfer error:** A setRegBuffer failure (e.g. block=0x1 reg=120) denotes a WebUSB control transfer/register transaction failure, not a signal distance. The new **Recover SDR** button explicitly releases this page's owned USB interface and attempts a single reconnect to the one already-permitted RTL2832U device. It does not run systemctl, unload drivers, reset third-party software, claim the Hauppauge TV tuner or fake data. If a second attempt fails, inspect USB cable/power, readsb/Gqrx ownership and whether the Linux rtl28xxu kernel DVB driver has reattached to the RTL-SDR specifically. The user remains in control of OS-level changes.

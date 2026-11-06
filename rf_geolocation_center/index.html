@@ -116,7 +116,14 @@
         <button id="hardware-refresh" class="secondary" type="button">Detect permitted devices</button>
         <div id="hardware-rtl-slot" class="hardware-control-slot"></div>
         <div id="hardware-test-slot" class="hardware-control-slot"></div>
+        <button id="hardware-recover" class="secondary" type="button">Recover SDR (USB error)</button>
         <button id="hardware-release" class="secondary" type="button">Release RTL-SDR</button>
+       </div>
+       <div class="hardware-tv-row">
+        <div><strong>TV · Hauppauge WinTV-soloHD (01589)</strong><small>Native Linux DVB-T/T2/C frontend, not generic browser WebUSB</small></div>
+        <button id="home-tv-connect" class="primary" type="button">Connect TV tuner</button>
+        <button id="home-tv-scan" class="secondary" type="button" disabled>Scan TV</button>
+        <span id="home-tv-state" role="status">No native TV backend connected</span>
        </div>
        <div class="hardware-gnss-row">
         <span>Optional dedicated GNSS serial receiver</span>
@@ -152,7 +159,7 @@
           <button id="map-source-measure" type="button" class="secondary" hidden>Measure / calibrate RF source</button>
          </div>
         </div>
-       </div><div class="map-footer"><span>WGS84 · map pan by drag/touch · wheel or +/− zoom</span><span>© OpenStreetMap contributors, tiles only on request</span></div>
+       </div><div class="map-footer"><span>WGS84 · drag to pan · wheel / double-click / +/− zoom · click pins for source evidence</span><span>© OpenStreetMap contributors, tiles only on request</span></div>
        <section class="map-discovery-results" aria-label="Receiver measurements and matching mapped transmitter candidates">
         <div class="map-discovery-top">
          <div><strong>Signals &amp; sources on this map</strong><p id="map-scan-status">No antenna scan linked to this map yet. Catalog towers are external references, not received stations.</p></div>
@@ -242,7 +249,7 @@
       <div class="radio-quick-grid">
         <div><h2>Radio · Nooelec RTL-SDR</h2><p>Automatic FM band energy scan, broadcast-station catalog and real ADS-B aircraft shared from Flight Radar.</p>
          <div class="simple-actions"><button id="radio-connect-rtl" class="primary" type="button">Connect RTL-SDR via WebUSB</button><button id="radio-manage-usb" class="secondary" type="button">Manage hardware</button></div>
-         <div class="simple-actions"><button id="quick-radio-discover" class="primary" type="button">Discover sources</button><button id="quick-radio-scan" type="button">Scan FM band</button><button id="quick-radio-release" type="button">Hard Stop receiver</button><button id="quick-back-map" type="button">← Back to map</button></div>
+         <div class="simple-actions"><button id="quick-radio-discover" class="primary" type="button">Discover sources</button><button id="quick-radio-scan" type="button">Scan FM band</button><button id="quick-radio-recover" type="button">Recover USB</button><button id="quick-radio-release" type="button">Hard Stop receiver</button><button id="quick-back-map" type="button">← Back to map</button></div>
          <div id="quick-radio-status" class="simple-result">Connect the RTL-SDR for antenna FM scans. Site lookup requires internet or a cached catalog.</div>
          <div class="fm-reference-panel">
           <strong>FM reference channel energy test</strong>
@@ -287,8 +294,11 @@
          <div class="tv-bridge-card">
           <h3>Connect native TV tuner</h3>
           <div class="tv-bridge-grid">
-           <label for="tv-bridge-token">Local bridge session token <input id="tv-bridge-token" type="password" autocomplete="off" spellcheck="false" placeholder="Paste token printed by local TV bridge"></label>
-           <button id="tv-bridge-connect" class="primary" type="button">Connect local TV hardware</button>
+           <div class="tv-pair-intro"><strong>Secure one-click pairing</strong><small>Approve this TIHULU tab in a localhost window. No token to type.</small></div>
+           <button id="tv-bridge-connect" class="primary" type="button">Connect TV · Local approval</button>
+           <details class="bridge-manual-token"><summary>Advanced: manual session token (legacy)</summary>
+            <label for="tv-bridge-token">Manual bridge token<input id="tv-bridge-token" type="password" autocomplete="off" spellcheck="false" placeholder="Optional legacy token"></label>
+           </details>
            <label for="tv-adapter">Detected DVB adapter<select id="tv-adapter" aria-label="Detected Linux DVB adapter"><option value="">Connect bridge first</option></select></label>
            <label for="tv-profile">Scan profile<select id="tv-profile"><option value="eu-uhf-t2">EU UHF DVB-T2 (channels 21–48)</option></select></label>
           </div>
@@ -302,8 +312,8 @@
          <label class="file-button" for="simple-dvb-file">Import real DVB scan metadata</label>
          <input id="simple-dvb-file" type="file" accept=".conf,.txt,.ini,text/plain">
          <details id="simple-tv-guide"><summary>How to enable secure local TV scanning (Pop!_OS / Linux)</summary>
-          <p>Run from the existing repository checkout: <code>python3 -m rf_geolocation_center.native serve --enable-pages-bridge</code>. Copy only the session token printed in your terminal into the field above. Install <code>dvb-tools</code> to provide <code>dvbv5-scan</code>, and make sure the TV tuner has a working <code>/dev/dvb/adapterN/frontend0</code> driver. The browser may ask permission for loopback network access; allow only for your trusted TIHULU page.</p>
-          <p>This bridge listens on <code>127.0.0.1:8794</code>, accepts the token only from local UI or the official Pages origin, never scans automatically, and never controls your Nooelec RTL-SDR. The token is kept in this browser session's memory, not saved to local storage. No internet connection is needed to scan after setup.</p>
+          <p>Run once from the existing repository checkout: <code>python3 -m rf_geolocation_center.native serve --enable-pages-bridge</code>. Click Connect TV and confirm in the localhost window; no token copying. Install <code>dvb-tools</code> to provide <code>dvbv5-scan</code>, and make sure the TV tuner has a working <code>/dev/dvb/adapterN/frontend0</code> driver. The browser may ask permission for loopback network access; allow only for your trusted TIHULU page.</p>
+          <p>This bridge listens on <code>127.0.0.1:8794</code>, accepts the token only from local UI or the official Pages origin, never scans automatically, and never controls your Nooelec RTL-SDR. Pairing is approved locally, with credentials kept only in page memory and never stored. Closing the tab clears them. No internet connection is needed to scan after setup.</p>
           <p>Check that <code>/dev/dvb/adapter0/frontend0</code> exists and that <code>dvbv5-scan</code> is installed. Run a DVB-T/T2 scan using a regional initial-tuning file, then import its DVBv5 channel list here. <a href="./scripts/dvb_scan_linux.sh" target="_blank" rel="noopener noreferrer">Linux scanning helper</a>.</p>
           <p>TV network/service IDs and channel frequencies are real broadcast metadata but normally do not contain your position or identify one unique transmitter in a single-frequency network.</p>
          </details>
