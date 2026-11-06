@@ -13,7 +13,7 @@ import {positionProvenance,radioProvenance,orbitalProvenance,aircraftProvenance}
 const $=id=>document.getElementById(id), svgNS="http://www.w3.org/2000/svg";
 const state={
   browser:null,networkFix:null,serialFix:null,serialAt:0,receiverHistory:[],gnssFile:null,sp3:null,layerPrefs:null,
-  rfOnly:false,rfSources:[],rfRanges:[],rfSolution:null,catalogTowers:[],catalogAircraft:[],catalogFM:[],usbStatus:"NOT CONNECTED",usbMessage:"No RF sample from antenna",
+  rfOnly:false,rfSources:[],rfRanges:[],rfSolution:null,catalogTowers:[],catalogAircraft:[],catalogAntennaAircraft:[],catalogFM:[],usbStatus:"NOT CONNECTED",usbMessage:"No RF sample from antenna",
   time:null,mask:5,visible:[],autoOrbits:[],references:[],ranges:null,rangeInputs:[],tdoa:[],cachedPosition:null,
   map:{lat:DEFAULT_CENTER.lat,lon:DEFAULT_CENTER.lon,zoom:11,osm:false},
   serialPort:null,serialReader:null,reading:false,usbSelection:null,activeView:"dashboard"
@@ -43,6 +43,7 @@ function renderMethodReadiness(orbits){
  if(state.rfRanges.length){r.radio.state=state.rfSolution?"RF MODEL":"RF ESTIMATE";r.radio.count=state.rfRanges.length;r.radio.detail="REAL RTL-SDR I/Q plus external transmitter coordinates and calibration; distance NOT directly measured, accuracy NOT validated";}
  const air=state.rfSources.filter(s=>s.type==="aircraft").length,ground=state.rfSources.filter(s=>s.type==="station").length,satelliteRefs=state.rfSources.filter(s=>s.type==="satellite").length;
  if(state.catalogAircraft.length){r.aircraft.count+=state.catalogAircraft.length;r.aircraft.state="INTERNET REFS";r.aircraft.detail="OpenSky aircraft coordinates from internet, not local RTL-SDR reception"}
+ if(state.catalogAntennaAircraft.length){r.aircraft.count+=state.catalogAntennaAircraft.length;r.aircraft.state="RF ADS-B";r.aircraft.detail="CRC-verified aircraft decoded from real 1090 MHz RTL-SDR in Tihulu Flight Radar; not range or receiver fix"}
  if(state.catalogTowers.length){r.ground.count+=state.catalogTowers.length;r.ground.state="OSM CATALOG";r.ground.detail="OpenStreetMap broadcast-site candidates; no verified RF identity or measured range"}
  if(air){r.aircraft.count+=air;r.aircraft.state="REFERENCES";r.aircraft.detail="Imported and user-entered aircraft positions are references; RF energy does not verify source identity";}
  if(ground){r.ground.count+=ground;r.ground.state="REFERENCES";r.ground.detail="Ground station coordinates are external metadata; RF level and calibrated range require actual antenna samples";}
@@ -389,6 +390,9 @@ function renderEarth(){
      " km; this is NOT measured distance from YOU","T");
  }
  // Internet-sourced aircraft must never appear as local RTL-SDR ADS-B frames.
+ if(showAir)for(const a of state.catalogAntennaAircraft)place(a,"aircraft","#5be1b2",
+   a.callsign+" · LOCAL ANTENNA MODE S ADS-B CRC VERIFIED, "+a.observedAt+
+   " · decoded in Tihulu Flight Radar WebUSB tab · NOT receiver position or range","A");
  if(showAir)for(const a of state.catalogAircraft)place(a,"aircraft","#b17eb5",
    a.callsign+" · OpenSky INTERNET aircraft coordinates at "+a.observedAt+
    " · NOT received by THIS RTL-SDR and NOT USED FOR POSITION","I");
@@ -425,7 +429,7 @@ function renderEarth(){
  }
  renderMethodReadiness(orbits);
  setText("earth-sat-count",orbits.length+" orbit positions PREDICTED; "+(showOrbits?"shown":"hidden by default"));
- setText("earth-ref-count",(state.references.length+state.rfSources.length+state.catalogTowers.length+state.catalogAircraft.length)+" external reference coordinates ("+state.catalogTowers.length+" OSM towers, "+state.catalogAircraft.length+" INTERNET aircraft) · "+state.rangeInputs.length+" imported ranges · "+state.rfRanges.length+" modeled RTL-SDR RSSI hypotheses");
+ setText("earth-ref-count",(state.references.length+state.rfSources.length+state.catalogTowers.length+state.catalogAircraft.length+state.catalogAntennaAircraft.length)+" external reference coordinates ("+state.catalogTowers.length+" OSM towers, "+state.catalogAircraft.length+" INTERNET aircraft, "+state.catalogAntennaAircraft.length+" LOCAL antenna ADS-B aircraft) · "+state.rangeInputs.length+" imported ranges · "+state.rfRanges.length+" modeled RTL-SDR RSSI hypotheses");
  if(state.rfOnly){
    setText("evidence-report",state.rfSolution?"RF-ONLY / RTL-SDR IQ MEASURED · "+state.rfRanges.length+" CALIBRATED RSSI RANGE HYPOTHESES, unverified. Orange dashed distance circles and faded bounds are propagation-model sensitivity NOT accuracy. No browser or device location was used.":"RF-ONLY / NO FIX · "+state.rfSources.filter(s=>s.hasActualRF).length+" real antenna frequency captures · "+state.rfRanges.length+" calibrated range hypotheses. Transmitter coordinates come from external user input; antenna energy alone is NOT transmitter distance.");
  }else if(state.rangeInputs.length){
@@ -682,6 +686,7 @@ window.addEventListener("tihulu:catalog-updated",e=>{
  const data=e.detail||{};
  state.catalogTowers=Array.isArray(data.towers)?data.towers.slice(0,150):[];
  state.catalogAircraft=Array.isArray(data.aircraft)?data.aircraft.slice(0,150):[];
+ state.catalogAntennaAircraft=Array.isArray(data.antennaAircraft)?data.antennaAircraft.slice(0,150):[];
  state.catalogFM=Array.isArray(data.fmReadings)?data.fmReadings.slice(0,130):[];
  if(state.activeView==="earth")renderEarth();
  else renderMethodReadiness(state.sp3?state.visible:state.autoOrbits);
