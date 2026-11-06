@@ -85,7 +85,7 @@ export function initAutoReceptionUI({getSelectedFile=()=>null,fileInput=$("local
   function finish(){
     busy=false;controller=null;
     analyze.disabled=false;cancel.disabled=true;
-    extract.disabled=!(state.discovery.length||state.actualImages.length||state.packetText.length||state.audioFiles.length);
+    extract.disabled=!(state.discovery.length||state.actualImages.length||state.packetText.length||state.audioFiles.length||state.warnings.length);
     zipButton.disabled=extract.disabled;
     zipStatus.textContent=zipButton.disabled?
       "No extracted media/data yet; original recordings remain available separately.":
@@ -545,7 +545,7 @@ export function initAutoReceptionUI({getSelectedFile=()=>null,fileInput=$("local
         ". Existing recordings and individual decoded output downloads remain available.";
     }finally{
       zipButton.disabled=busy||!(
-        state.discovery.length||state.actualImages.length||state.packetText.length||state.audioFiles.length);
+        state.discovery.length||state.actualImages.length||state.packetText.length||state.audioFiles.length||state.warnings.length);
     }
   });
   extract.addEventListener("click",()=>{

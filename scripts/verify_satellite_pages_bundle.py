@@ -22,6 +22,7 @@ ASSETS = (
     "reception_catalog.mjs",
     "auto_mission.mjs",
     "auto_reception_ui.mjs",
+    "results_zip.mjs",
     "browser.js",
     "browser.css",
     "manifest.webmanifest",
