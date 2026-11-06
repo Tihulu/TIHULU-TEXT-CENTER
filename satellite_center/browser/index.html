@@ -7,7 +7,7 @@
 <link rel="apple-touch-icon" href="./icon-192.png">
 <link rel="manifest" href="./manifest.webmanifest">
 <meta name="theme-color" content="#091a30">
-<link rel="stylesheet" href="./browser.css?v=20261106-discovery-integrated-v1">
+<link rel="stylesheet" href="./browser.css?v=20261106-calendar-zip-v2">
 <link rel="stylesheet" href="./reception.css">
 </head><body>
 <header><div class="wrap"><p class="eyebrow">TIHULU SATELLITE CENTER · DIRECT USB EXPERIMENTAL</p>
@@ -283,7 +283,9 @@ All location methods are optional. City suggestions are offline by default; GPS 
 <section class="iq-discovery-panel" aria-labelledby="iq-discovery-title">
 <h3 id="iq-discovery-title">Automatic signal discovery · progressive local analysis</h3>
 <p class="hint">Choose <strong>Automatic discovery</strong> above. The app examines the complete FFT, isolates the strongest unclassified RF regions, tries AM / narrowband FM audio, and checks long enough recordings for real Robot36 SSTV line synchronization. It does not upload RF data, identify speech/music from sound alone, or invent images, packet data or a satellite source. Other image/data protocols such as Meteor LRPT and APRS remain explicitly unsupported until their decoders verify the result. Processing can be cancelled with Stop processing.</p>
-<div class="line"><button type="button" id="iq-discovery-export" class="secondary" disabled>Export discovery evidence JSON</button></div>
+<div class="line"><button type="button" id="iq-discovery-export" class="secondary" disabled>Export discovery evidence JSON</button>
+<button type="button" id="iq-discovery-zip" class="secondary" disabled>Save analyzed PNG/WAV/JSON ZIP</button></div>
+<p id="iq-discovery-zip-status" class="hint" role="status">Analyze a real local CU8 file first. A ZIP contains the produced candidates and evidence, not the raw IQ file.</p>
 <div id="iq-discovery-stages" class="iq-discovery-stages" aria-live="polite"></div>
 <div id="iq-discovery-results" aria-live="polite" aria-label="Discovered audio and image candidates"></div>
 </section>

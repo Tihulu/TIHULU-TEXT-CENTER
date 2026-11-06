@@ -3,12 +3,12 @@
  * Decoding is local to this browser, except for explicitly authorized
  * companion SatDump/APRS archived products on localhost.
  */
-import {AUTO_PRESETS} from "./auto_mission.mjs?v=20261106-full-pass-budget-v1";
+import {AUTO_PRESETS} from "./auto_mission.mjs?v=20261106-calendar-zip-v2";
 import {discoverCu8Contents,discoveryReportJson} from "./signal_discovery.mjs";
 import {parseRecordingName} from "./satellite_imagery.mjs";
 import {decodeRobot36Audio} from "./sstv_robot36.mjs";
 import {initStationLocationUI} from "./location_search.mjs";
-import {localDayKey,shiftCalendarDay,renderSatelliteCalendar} from "./satellite_calendar.mjs";
+import {localDayKey,shiftCalendarDay,renderSatelliteCalendar} from "./satellite_calendar.mjs?v=20261106-calendar-zip-v2";
 import {createResultsZip} from "./results_zip.mjs";
 
 const $=id=>document.getElementById(id);
