@@ -40,3 +40,26 @@
 .auto-service strong{color:var(--teal);font-size:12px}
 .auto-services{padding:8px}
 @media(max-width:950px){.auto-scan-grid{grid-template-columns:1fr}}
+
+/* Source-attributed, tileless offline map and optional full tar1090 iframe */
+.radar-center{grid-column:1/-1;min-width:0}
+.radar-center .card-actions{flex-wrap:wrap}
+.tar1090-frame{display:block;width:100%;height:min(65vh,610px);border:1px solid #396569;border-radius:9px;background:#0b171a;margin:14px 0}
+.tar1090-frame[hidden]{display:none}
+.radar-inputs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.radar-filter-box{display:flex;flex-wrap:wrap;gap:4px 18px;margin:7px 0 12px}
+.radar-coordinate-grid{position:relative;isolation:isolate;min-height:290px;height:clamp(300px,40vw,480px);overflow:hidden;border:1px solid #376669;border-radius:10px;background-color:#0b2027;background-image:repeating-linear-gradient(0deg,transparent 0,transparent calc(25% - 1px),#32535770 25%),repeating-linear-gradient(90deg,transparent 0,transparent calc(25% - 1px),#32535770 25%),radial-gradient(ellipse at 50% 50%,#16353b 0%,#07131a 78%)}
+.radar-grid-center{position:absolute;top:12px;left:12px;z-index:1;font:600 11px var(--code);letter-spacing:1px;color:#acd0ce}
+.radar-empty{position:absolute;top:45%;left:10%;right:10%;margin:0;text-align:center;color:#b4cbce;font-size:13px;pointer-events:none}
+.radar-plane{position:absolute;z-index:2;transform:translate(-50%,-50%);border:1px solid #d3e2e4;border-radius:50%;padding:4px 6px;cursor:pointer;font-size:16px;background:#163f49;color:#e3f9fb}
+.radar-plane.radar-rf{color:#a6dff4;border-color:#85c5ee}
+.radar-plane.radar-web{color:#f5d18e;border-color:#e9b66d}
+.radar-plane.radar-hybrid{color:#c8eda1;border-color:#a9d87c}
+.radar-plane.radar-stale{opacity:.4;border-style:dashed}
+.radar-plane:focus-visible{outline:3px solid #c2f486}
+.radar-aircraft-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:13px 0}
+.radar-aircraft-row{padding:11px;border:1px solid #365358;border-radius:7px;background:#0c1b22;min-width:0}
+.radar-aircraft-row strong{display:block;color:#e0f7f5;font-size:13px}
+.radar-aircraft-row span{font-size:10px;color:#a0b9b9}
+.radar-aircraft-row p{margin:4px 0 0}
+@media(max-width:820px){.radar-inputs,.radar-aircraft-list{grid-template-columns:1fr}.tar1090-frame{height:370px}.radar-coordinate-grid{height:330px}}
