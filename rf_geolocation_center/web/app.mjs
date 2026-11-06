@@ -270,7 +270,20 @@ function renderEarth(){
    setText("evidence-report","No measured station ranges. Radio circles cannot be computed from transmitter or aircraft coordinates alone. "+
      "Enable 'Show ring explanation' for a clearly labeled simulated demonstration.");
  }
- setText("earth-offline-status",(navigator.onLine===false?"OFFLINE: ":"")+
+ const evidenceList=$("evidence-sources");evidenceList.replaceChildren();
+ if(active&&(active.simulated||showReal)){
+   for(const [i,s] of active.stations.entries()){
+     const item=make("div","evidence-source");
+     item.append(make("strong",null,(s.type==="aircraft"?"✈ A":"◎ R")+(i+1)+" · "+(s.name||"Source "+(i+1))));
+     item.append(make("span",null,(s.rangeMeters/1000).toFixed(2)+" km · "+
+       (active.simulated?"SIMULATED, NOT MEASURED":"USER-IMPORTED RANGE, UNVERIFIED")));
+     evidenceList.append(item);
+   }
+ }else{
+   evidenceList.append(make("p","muted","No measured range sources are currently used."));
+ }
+ evidenceList.append(make("p","fine muted","GNSS satellites: geometric predictions only; none have been used in a decoded RTL-SDR GNSS positioning solution. Unmeasured aircraft/ground-station references do not contribute to a fix."));
+  setText("earth-offline-status",(navigator.onLine===false?"OFFLINE: ":"")+
    "Coordinate grid, evidence rings and locally imported references render without map tiles. "+
    (state.cachedPosition?"Last saved position "+state.cachedPosition.recordedAt+" is cached (not live).":"No offline position saved yet."));
  if(state.map.osm&&navigator.onLine!==false)renderTiles();
