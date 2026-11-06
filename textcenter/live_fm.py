@@ -108,7 +108,7 @@ class LiveFM:
             finally:os.close(fd)
 
     def start(self, frequency_mhz, *, record=False, subtitles=False,
-              language="en", translate_to=None, backend="auto"):
+              language="en", translate_to=None, backend="auto", translation_backend="auto"):
         hz,_=validate_request(frequency_mhz,10)
         if type(record) is not bool or type(subtitles) is not bool:
             raise ValueError("Record/subtitles flags must be Boolean")
@@ -155,7 +155,8 @@ class LiveFM:
                     self.speech=SpeechPipeline(
                         store=self.transcripts,session=session,
                         source_id=f"fm:{hz}",source_language=language,
-                        target_language=translate_to,backend=backend,profile=detect_devices())
+                        target_language=translate_to,backend=backend,profile=detect_devices(),
+                        translation_backend=translation_backend)
                 self.state["subtitles_requested"]=subtitles
                 self.last_seen=time.monotonic()
                 self.worker=threading.Thread(target=self._feed,daemon=True,name="tihulu-live-fm-pcm")

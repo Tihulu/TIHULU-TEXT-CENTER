@@ -242,6 +242,20 @@ class HTTPTests(unittest.TestCase):
             {"medium":"dvb_tv","filename":"x.mp4","original_language":"fr"},csrf)[0],400)
         self.assertEqual(self.request("POST","/api/recordings/transcription/stop",{},csrf)[0],200)
 
+    def test_offline_translator_api_fail_closed(self):
+        code,_,raw=self.request("GET","/api/translation/status")
+        self.assertEqual(code,200)
+        self.assertIn("pairs",json.loads(raw))
+        self.assertEqual(self.request("POST","/api/translation/text",{})[0],403)
+        _,_,raw=self.request("GET","/api/bootstrap")
+        csrf=json.loads(raw)["csrf"]
+        self.assertEqual(self.request("POST","/api/translation/text",
+            {"text":"Hello","source":"en","target":"fr"},csrf)[0],400)
+        self.assertEqual(self.request("POST","/api/translation/text",
+            {"text":"Hello","source":"en","target":"de","backend":"npu"},csrf)[0],409)
+        self.assertEqual(self.request("POST","/api/translation/text",
+            {"text":"Hello","source":"en","target":"en"},csrf)[0],200)
+
     def test_no_forged_source(self):
         code,_,raw=self.request("GET","/api/page?source_id=ard_text&number=100")
         self.assertEqual(code,404)

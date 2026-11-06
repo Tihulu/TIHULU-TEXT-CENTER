@@ -210,7 +210,8 @@ class SpeechPipeline:
                         self.last_error="Live translation unavailable: "+str(exc)[:200]
                 self.store.add(session=self.session,medium=self.medium,source_id=self.source_id,
                     language=self.lang,text=text,backend=self.backend,start=start,end=end,
-                    translated=translated,target=self.target if translated else None)
+                    translated=translated,target=self.target if translated else None,
+                    translation_engine="argos_"+self.translation_backend if translated else None)
                 self.completed+=1
             except (SpeechError,ValueError,OSError,RuntimeError) as exc:
                 self.last_error="Speech transcription unavailable: "+str(exc)[:180]

@@ -138,7 +138,7 @@ class LiveTV:
                 "reason":"Configured upstream MPEG-TS relay available (not a DVB tuner lock)"}
 
     def start(self,channel_id,*,record=False,subtitles=False,language="en",
-              translate_to=None,backend="auto",upstream_authorized=False):
+              translate_to=None,backend="auto",translation_backend="auto",upstream_authorized=False):
         if type(record) is not bool or type(subtitles) is not bool or type(upstream_authorized) is not bool:
             raise ValueError("TV flags must be Boolean")
         if not upstream_authorized:
@@ -167,7 +167,7 @@ class LiveTV:
                     self.speech=SpeechPipeline(store=self.transcripts,session=session,
                         source_id="configured_tv:"+channel_id,source_language=language,
                         target_language=translate_to,backend=backend,profile=detect_devices(),
-                        medium="dvb_tv")
+                        medium="dvb_tv",translation_backend=translation_backend)
                     read_fd,write_fd=os.pipe()
                     os.set_inheritable(write_fd,True)
                 try:

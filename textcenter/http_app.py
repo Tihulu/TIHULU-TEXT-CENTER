@@ -17,7 +17,7 @@ from .dvb_hardware import diagnose_dvb
 from .dab_bridge import DABReader,DABError
 from .live_fm import LiveFM,LiveError
 from .live_tv import LiveTV,LiveTVError
-from .transcripts import TranscriptStore,TranslatorUnavailable,installed_translation_pairs
+from .transcripts import TranscriptStore,TranslatorUnavailable,installed_translation_pairs,translation_devices,translate_offline
 from .compute import detect_devices,choose_backend
 from .postprocess import RecordingTranscriber,PostProcessError
 from .speech import SpeechError
@@ -203,6 +203,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(200,raw,mime)
             if route == "/api/recordings/transcription/status":
                 return self._json(200,self.server.postprocess.status())
+            if route == "/api/translation/status":
+                return self._json(200,translation_devices())
             if route == "/api/compute":
                 profile=detect_devices()
                 profile["selection"]={key:choose_backend(profile,key)
@@ -394,7 +396,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         route = urlsplit(self.path).path
-        allowed = {"/api/feeds/add", "/api/feeds/refresh", "/api/bulletins", "/api/bookmarks", "/api/rds/start", "/api/rds/stop", "/api/fm-survey/start", "/api/fm-survey/stop", "/api/scans/start", "/api/scans/stop", "/api/audio/start", "/api/audio/stop", "/api/dab/refresh", "/api/live/radio/start", "/api/live/radio/stop", "/api/transcripts/translate", "/api/live/tv/start", "/api/live/tv/stop", "/api/recordings/transcription/start", "/api/recordings/transcription/stop"}
+        allowed = {"/api/feeds/add", "/api/feeds/refresh", "/api/bulletins", "/api/bookmarks", "/api/rds/start", "/api/rds/stop", "/api/fm-survey/start", "/api/fm-survey/stop", "/api/scans/start", "/api/scans/stop", "/api/audio/start", "/api/audio/stop", "/api/dab/refresh", "/api/live/radio/start", "/api/live/radio/stop", "/api/transcripts/translate", "/api/translation/text", "/api/live/tv/start", "/api/live/tv/stop", "/api/recordings/transcription/start", "/api/recordings/transcription/stop"}
         if route not in allowed:
             return self._json(404, {"error": "Not found"})
         if self.headers.get("X-Tihulu-CSRF") != self.server.csrf_token:
@@ -434,6 +436,7 @@ class Handler(BaseHTTPRequestHandler):
                     language=payload.get("original_language","en"),
                     translate_to=payload.get("translated_language"),
                     backend=payload.get("backend","auto"),
+                    translation_backend=payload.get("translation_backend","auto"),
                     upstream_authorized=payload.get("upstream_authorized",False)))
             if route == "/api/live/tv/stop":
                 return self._json(200,self.server.live_tv.stop())
@@ -451,12 +454,27 @@ class Handler(BaseHTTPRequestHandler):
                     subtitles=payload.get("subtitles",False),
                     language=payload.get("original_language","en"),
                     translate_to=payload.get("translated_language"),
-                    backend=payload.get("backend","auto")))
+                    backend=payload.get("backend","auto"),
+                    translation_backend=payload.get("translation_backend","auto")))
+
             if route == "/api/live/radio/stop":
                 return self._json(200,self.server.live_fm.stop())
+            if route == "/api/translation/text":
+                original=payload.get("text")
+                translated=translate_offline(
+                    original,payload.get("source"),payload.get("target"),
+                    backend=payload.get("backend","auto"))
+                return self._json(200,{
+                    "original":original,"translated":translated,
+                    "source":payload.get("source"),"target":payload.get("target"),
+                    "requested_backend":payload.get("backend","auto"),
+                    "engine":"argos_translate_offline",
+                    "status":"locally_translated_not_official_source",
+                })
             if route == "/api/transcripts/translate":
                 item=self.server.transcripts.translate_later(
-                    payload.get("id"),payload.get("target_language"))
+                    payload.get("id"),payload.get("target_language"),
+                    backend=payload.get("backend","auto"))
                 return self._json(200,item)
             if route == "/api/audio/start":
                 return self._json(202,self.server.audio.start(

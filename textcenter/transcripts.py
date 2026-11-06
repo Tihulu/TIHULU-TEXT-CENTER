@@ -149,7 +149,7 @@ class TranscriptStore:
 
     def add(self,*,session:str,medium:str,source_id:str,language:str,
             text:str,backend:str,start:float,end:float,
-            translated=None,target=None)->str:
+            translated=None,target=None,translation_engine=None)->str:
         if not isinstance(session,str) or not re.fullmatch(r"[0-9a-f]{32}",session):
             raise ValueError("Invalid session")
         if medium not in ("fm","dab","dvb_tv"):
@@ -167,7 +167,7 @@ class TranscriptStore:
             "original_text":original,
             "translated_language":target if isinstance(translated,str) and translated.strip() else None,
             "translated_text":clean_text(translated,12000) if isinstance(translated,str) and translated.strip() else None,
-            "translator_engine":"argos_offline" if translated else None,
+            "translator_engine":(translation_engine or "argos_offline") if translated else None,
             "compute_backend":clean_text(backend,80),"started_seconds":float(start),
             "ended_seconds":float(end),"captured_at":utc_now(),
         }
