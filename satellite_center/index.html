@@ -54,7 +54,23 @@
 <p class="warn"><small>One RTL-SDR can tune only one frequency/channel at a time. Iridium 1.6 GHz needs an L-band antenna, preferably filtered LNA. Energy peaks do not identify individual satellites or decode private calls.</small></p></section>
 <section><h2>Pass calendar</h2><div class="line"><label>Satellite group<select id="family"><option value="all">All groups</option><option value="iss">ISS</option><option value="meteor">Meteor</option><option value="cubesat">CubeSat</option><option value="iridium">Iridium NEXT</option></select></label><button id="sky" class="secondary">Show overhead satellites now</button></div><div id="skynow" class="muted"></div><p class="muted" id="pass-note">Fetch current TLE data, then calculate passes. Scheduling is opt-in, persists on disk, and operates only while this server is running.</p><div id="passes" aria-live="polite"></div></section>
 <section><h2>Scheduled receptions</h2><div id="schedule" class="muted">No jobs yet.</div><h2 class="spaced">Capture status</h2><div id="session" class="output" aria-live="polite">Idle</div></section>
-<section class="wide"><h2>Received archive and image decoding</h2><p class="muted">Only real saved data appears below. Meteor-M I/Q can be processed by installed SatDump. ISS SSTV WAV needs a compatible audio-image decoder such as QSSTV; APRS requires multimon-ng.</p><div class="cards" id="archive"></div><div id="gallery" class="gallery spaced"></div><h3>Event output</h3><div id="log" class="output" aria-live="polite">Ready. No RF capture started.</div></section></main>
+<section class="wide"><h2>Received archive and image decoding</h2><p class="muted">Only real saved data appears below. Meteor-M I/Q can be processed by installed SatDump. ISS SSTV WAV needs a compatible audio-image decoder such as QSSTV; APRS requires multimon-ng.</p><div class="cards" id="archive"></div><div id="gallery" class="gallery spaced"></div><h3>Event output</h3><div id="log" class="output" aria-live="polite">Ready. No RF capture started.</div></section>
+<section class="wide" id="live-image-workspace" style="grid-column:1/-1">
+<h2>Live orbital maps &amp; Satellite Images — shared browser engine</h2>
+<p class="muted">The same 1-second LIVE/Paused orbital clock, worldwide satellite trajectories, NASA Earth/ISS photo archive, experimental Robot36 SSTV audio decoder and local CU8 spectrum tools used by GitHub Pages are embedded on demand. This engine is platform-independent on Windows x64, Debian/Ubuntu/Pop!_OS, Raspberry Pi OS and macOS Apple Silicon.</p>
+<div class="line">
+<button id="open-live-workspace" type="button">Open live map and Satellite Images</button>
+<button class="secondary" type="button" id="close-live-workspace" disabled>Close / release browser session</button>
+<button class="secondary" type="button" id="new-live-tab">Open in separate tab</button>
+</div>
+<p class="muted">Live map rendering never acquires USB. If a receiver is already controlled by this desktop companion, do not open the same RTL-SDR using WebUSB in the embedded page. The radio remains single-owner; choose one receiver path. Meteor LRPT decoder support remains available through optional local SatDump.</p>
+<p id="live-workspace-status" class="hardware-state">Shared live imagery workspace is not running; no extra polling or USB access.</p>
+<div id="live-workspace-panel" hidden>
+<iframe id="satellite-live-frame" title="Satellite Center live maps and source-attributed imagery"
+style="display:block;width:100%;height:min(88vh,950px);min-height:650px;border:1px solid #365475;border-radius:10px"
+allow="usb; geolocation; screen-wake-lock" referrerpolicy="strict-origin-when-cross-origin"></iframe>
+</div>
+</section></main>
 <script>
 'use strict';
 let csrf = '', profiles = {}, activeRefresh = false, lastPasses = [];
@@ -150,6 +166,28 @@ $('recheck-usb').addEventListener('click',async()=>{
  try{await loadStatus();show($('usb-test-status'),'Refreshed passive status. To actually open the receiver, use Test USB receiver.');}
  catch(e){show($('usb-test-status'),'Local companion is not connected: '+e.message)}
 });
+// Same browser modules are served under /browser/ by the installed local
+// companion, and under satellite_center/browser/ by GitHub Pages.
+// Loading is opt-in; closing destroys the iframe and releases its owned SDR.
+const sharedLiveUrl=new URL("./browser/index.html",location.href).href;
+function openSharedLive(){
+  const frame=$('satellite-live-frame');
+  $('live-workspace-panel').hidden=false;
+  if(!frame.src||frame.src==='about:blank')frame.src=sharedLiveUrl;
+  $('open-live-workspace').disabled=true;
+  $('close-live-workspace').disabled=false;
+  show($('live-workspace-status'),'Shared LIVE + Satellite Images web engine opened. Orbital movement occurs while the embedded tab is visible; radio acquisition remains opt-in.');
+}
+$('open-live-workspace').addEventListener('click',openSharedLive);
+$('close-live-workspace').addEventListener('click',()=>{
+ const frame=$('satellite-live-frame');
+ frame.src='about:blank';
+ $('live-workspace-panel').hidden=true;
+ $('open-live-workspace').disabled=false;
+ $('close-live-workspace').disabled=true;
+ show($('live-workspace-status'),'Embedded app closed; pending browser-only jobs stop, and any browser-owned RTL-SDR connection is released on pagehide.');
+});
+$('new-live-tab').addEventListener('click',()=>{window.open(sharedLiveUrl,'_blank','noopener,noreferrer');});
 $('remote-bridge').hidden=!hosted;
 $('local-bridge').hidden=hosted;
 if(hosted){show($('bridge-state'),'Not connected: first open http://127.0.0.1:8791/ locally, click Reveal pairing token, then paste its 64-character key here.');}
