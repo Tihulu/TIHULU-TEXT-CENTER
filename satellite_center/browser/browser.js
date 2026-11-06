@@ -7,6 +7,7 @@ import { initStationLocationUI } from './location_search.mjs';
 import { probeUsbSamples, sampleBytes } from './usb_live_probe.mjs?v=20261106-map-usb-v07';
 import { sortPassList } from './pass_sort.mjs';
 import { protocolsForPass, protocolCategories, passesFilteredByContent } from './pass_protocol_catalog.mjs';
+import {readUserProfiles} from './saved_satellite_protocols.mjs';
 import { selectAutomaticPasses, AUTO_TARGETS } from './auto_mission.mjs';
 import {localDayKey,shiftCalendarDay,renderSatelliteCalendar} from './satellite_calendar.mjs';
 import { localDateInput, parseLocalScheduleTime, createScheduledPass, evaluateScheduledJob, secondsToJob, captureLevelSummary } from './schedule_controller.mjs';
@@ -493,7 +494,7 @@ function parseTle(text,source='uploaded') {
   return matches;
 }
 function boundedCatalog(records) {
-  const caps={iss:1,meteor:3,cubesat:8,iridium:14},counts={},ids=new Set();
+  const caps={iss:1,meteor:3,cubesat:24,iridium:14},counts={},ids=new Set();
   const result=[];
   for(const obj of records){
     if(ids.has(obj.id))continue;
@@ -516,6 +517,49 @@ $('tle-file').addEventListener('change',async e=>{
     status('orbit-state','Imported '+rows.length+' valid TLE records locally; '+tleEntries.length+' candidates selected. These are ephemerides, not live radio signals.');
   }catch(err){status('orbit-state','TLE import failed: '+err.message);}
 });
+$('saved-tle-fetch').addEventListener('click',async()=>{
+  const button=$('saved-tle-fetch'),label=$('saved-tle-status');
+  const records=readUserProfiles();
+  const norads=[...new Set(records.map(p=>p.norad))];
+  if(!norads.length){label.textContent='No saved custom NORAD transmitters. Add profiles from Images & Data first.';return;}
+  const supported=norads.filter(id=>id>=1000&&id<=99999).slice(0,8);
+  const skipped=norads.length-supported.length;
+  if(!supported.length){
+    label.textContent='The built-in TLE parser currently accepts five-digit NORAD IDs. For larger IDs, use an external tracker until OMM import is supported.';return;
+  }
+  button.disabled=true;
+  let loaded=[],errors=[];
+  try{
+    label.textContent='Downloading orbital elements for '+supported.length+' user-selected public catalog numbers. No SDR opened…';
+    // Bounded 3-way fanout with 8 s requests: avoid hammering public CelesTrak.
+    for(let index=0;index<supported.length;index+=3){
+      await Promise.all(supported.slice(index,index+3).map(async id=>{
+        const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),8000);
+        try{
+          const uri='https://celestrak.org/NORAD/elements/gp.php?CATNR='+id+'&FORMAT=TLE';
+          const result=await fetch(uri,{mode:'cors',cache:'no-store',signal:controller.signal});
+          if(!result.ok)throw Error('HTTP '+result.status);
+          const txt=await result.text();
+          if(txt.length>70000)throw Error('TLE response oversized');
+          const rows=parseTle(txt,'custom').filter(p=>p.id===id);
+          if(!rows.length)throw Error('No valid matching TLE');
+          loaded.push(...rows);
+        }catch(e){errors.push('NORAD '+id+': '+e.message);}
+        finally{clearTimeout(timeout);}
+      }));
+    }
+    if(loaded.length){
+      // Saved, opt-in profiles should be visible ahead of generic CubeSat survey
+      // rows but never overwrite the official ISS/Meteor identity.
+      tleEntries=boundedCatalog([...loaded,...tleEntries]);
+      passes=[];renderPasses();notifyMaps();
+    }
+    label.textContent='Loaded '+loaded.length+' verified-format TLE(s) for saved satellite IDs; '+
+      skipped+' skipped (max 8 five-digit IDs). '+(errors.length?'Errors: '+errors.slice(0,3).join(' · '):'')+
+      ' Click Calculate passes. The radio protocol is still USER-SUPPLIED and not independently verified.';
+  }finally{button.disabled=false;}
+});
+
 async function refreshOrbitalCatalog(){
   if(tleEntries.length && lastTleFetchAt && Date.now()-lastTleFetchAt < 2*3600000) {
     status('orbit-state','Keeping '+tleEntries.length+' TLE candidates from this tab\'s recent download. CelesTrak GP data is not refreshed more often than every two hours.');
@@ -725,7 +769,7 @@ async function calculateOrbitalPasses(){
     const observer={longitude:rad(lon),latitude:rad(lat),height:0};
     const start=Date.now(),end=start+hours*3600000,step=30000;
     const found=[];
-    for(const item of tleEntries.slice(0,30)){
+    for(const item of tleEntries.slice(0,45)){
       const rec=satlib.twoline2satrec(item.l1,item.l2);
       let current=null;
       for(let t=start;t<=end;t+=step){
