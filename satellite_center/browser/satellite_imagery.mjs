@@ -24,22 +24,25 @@ export function isoUtcCompact(value=new Date()){
  if(!Number.isFinite(date.getTime()))throw Error("Invalid UTC timestamp");
  return date.toISOString().replace(/[-:]/g,"").replace(/\.\d{3}Z$/,"Z");
 }
-export function recordingName({satellite,at=new Date(),frequencyHz,format="cu8",kind="IQ"}={}){
+export function recordingName({satellite,at=new Date(),frequencyHz,format="cu8",kind="IQ",sampleRate=null}={}){
  const freq=Number(frequencyHz);
  if(!Number.isFinite(freq)||freq<0)throw Error("Invalid capture frequency");
  const ext=String(format).toLowerCase();
  if(!["cu8","wav","png","jpg","jpeg","json","txt"].includes(ext))throw Error("Unsupported extension");
+ const ratePart=sampleRate===null?"":(Number.isInteger(Number(sampleRate))&&Number(sampleRate)>0?
+   "_"+Math.round(Number(sampleRate))+"SPS":null);
+ if(ratePart===null)throw Error("Invalid raw IQ sample rate");
  return "TIHULU_"+safeSatelliteName(satellite)+"_"+isoUtcCompact(at)+"_"+
-   Math.round(freq)+"Hz_"+safeSatelliteName(kind)+"."+ext;
+   Math.round(freq)+"Hz"+ratePart+"_"+safeSatelliteName(kind)+"."+ext;
 }
 export function parseRecordingName(name){
- const m=String(name||"").match(/^TIHULU_([A-Z0-9-]+)_(\d{8}T\d{6}Z)_(\d{1,11})Hz_([A-Z0-9-]+)\.(cu8|wav|png|jpg|jpeg|json|txt)$/i);
+ const m=String(name||"").match(/^TIHULU_([A-Z0-9-]+)_(\d{8}T\d{6}Z)_(\d{1,11})Hz(?:_(\d{5,9})SPS)?_([A-Z0-9-]+)\.(cu8|wav|png|jpg|jpeg|json|txt)$/i);
  if(!m)return null;
  const v=m[2],timestamp=new Date(v.slice(0,4)+"-"+v.slice(4,6)+"-"+v.slice(6,8)+"T"+
    v.slice(9,11)+":"+v.slice(11,13)+":"+v.slice(13,15)+"Z");
  if(!Number.isFinite(timestamp.getTime())||isoUtcCompact(timestamp)!==v)return null;
  return {satellite:m[1],timestamp:timestamp.toISOString(),frequencyHz:Number(m[3]),
-   kind:m[4],format:m[5].toLowerCase()};
+   sampleRate:m[4]?Number(m[4]):null,kind:m[5],format:m[6].toLowerCase()};
 }
 export function epicImageUrl(entry,variant="jpg"){
  if(!entry||typeof entry.image!=="string"||!/^[a-z0-9_-]+$/i.test(entry.image))
