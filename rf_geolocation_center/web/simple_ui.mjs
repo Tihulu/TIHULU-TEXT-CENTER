@@ -148,6 +148,30 @@ export function initSimpleUI({state,source,setView,renderEarth,renderPosition,fi
   status("quick-radio-status","Searching nearby mapped broadcast transmitters. Catalog data is a reference only, not antenna evidence.");
  });
  $("quick-online-aircraft")?.addEventListener("click",()=>$("catalog-aircraft")?.click());
+ $("fm-reference-probe")?.addEventListener("click",()=>{
+   const MHz=Number($("fm-reference-channel")?.value);
+   if(!Number.isFinite(MHz)||MHz<87.5||MHz>108)return;
+   const label=$("fm-reference-channel").selectedOptions?.[0]?.textContent||MHz.toFixed(1)+" MHz";
+   status("fm-reference-status","Requested actual RTL-SDR RF energy probe for "+label+
+     ". Radio receive level is NOT RDS identity, transmitter range or your position. Connect Nooelec first; stop other RTL-SDR services.");
+   window.dispatchEvent(new CustomEvent("tihulu:rf-fm-sweep-request",{
+     detail:{startMHz:MHz,stopMHz:MHz,stepMHz:.1}
+   }));
+ });
+ window.addEventListener("tihulu:rf-fm-sweep-results",e=>{
+   const MHz=Number($("fm-reference-channel")?.value);
+   const measurement=(Array.isArray(e.detail?.readings)?e.detail.readings:[])
+     .find(r=>Number.isFinite(r.frequencyMHz)&&Math.abs(r.frequencyMHz-MHz)<.015);
+   if(measurement){
+     status("fm-reference-status","REAL Nooelec RTL-SDR I/Q energy at "+MHz.toFixed(3)+
+       " MHz · "+measurement.levelDbFS.toFixed(2)+" dBFS-like · "+
+       measurement.measuredAt+" · relative power only. Station name is a published CHANNEL reference; no broadcaster ID, tower range or location fix established.");
+   }
+ });
+ window.addEventListener("tihulu:rf-fm-sweep-failed",e=>{
+   status("fm-reference-status","Physical RF acquisition failed: "+String(e.detail?.message||"USB transfer error")+
+    ". No synthetic level or location has been recorded.");
+ });
  $("quick-radio-scan")?.addEventListener("click",()=>{
   $("catalog-fm-scan")?.click();
   status("quick-radio-status","Requested a real FM sweep through the connected RTL-SDR. Consult the scan result below; tuner-level energy does not identify a transmitter.");
