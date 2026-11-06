@@ -20,7 +20,7 @@ from PyQt5.QtWidgets import (
     QFileDialog, QFormLayout, QGroupBox, QHBoxLayout, QLabel, QMainWindow,
     QMessageBox, QPlainTextEdit, QPushButton, QSpinBox, QSplitter, QTabWidget,
     QTableWidget, QTableWidgetItem, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget,
-    QLineEdit, QFrame, QHeaderView, QSizePolicy, QCompleter, QScrollArea
+    QLineEdit, QFrame, QHeaderView, QSizePolicy, QCompleter, QScrollArea, QSlider
 )
 
 from .__main__ import Station, PROFILES, LOCATIONS, AUTO_DOWNLINK_PROFILES, allowed_mode
@@ -28,6 +28,8 @@ from .native_analysis import analyze_cu8, save_spectrum_report, export_results_z
 from .media_catalog import (MEDIA_COLORS, MEDIA_SYMBOLS, kinds_for_pass, filter_passes,
                             media_summary, capabilities_for_pass)
 from .native_locations import load_locations, search_locations, city_label
+from .native_orbit import OrbitEngine
+from .native_maps import OrbitCanvas
 
 
 def local_time(value):
@@ -141,12 +143,24 @@ class SatelliteWindow(QMainWindow):
         self.imported_path = None
         self.selected_path = None
         self.active = True
+        self.orbit_engine=OrbitEngine(self.station)
+        self.map_selected_norad=None
+        self.map_live=True
+        self.map_paused_at=None
+        self.map_last_track_at=0
+        self.map_track_segments=[]
+        self.map_last_snapshot=None
         self.setWindowTitle("TIHULU Satellite Center · Native SDR")
         self.setWindowIcon(QIcon(str(Path(__file__).parent/"assets"/"tihulu-satellite.png")))
         self.resize(1200,820)
         self.setMinimumSize(900,650)
         self._build()
         self._style()
+        self.map_timer=QTimer(self)
+        self.map_timer.setInterval(1000)
+        self.map_timer.timeout.connect(self.refresh_orbit_map)
+        self.tabs.currentChanged.connect(self._on_tab_change)
+        if auto_poll:self.map_timer.start()
         self.statusBar().showMessage("Native Qt window. No browser, WebUSB or HTTP server.")
         self.timer=QTimer(self)
         self.timer.setInterval(5000)
@@ -202,6 +216,7 @@ class SatelliteWindow(QMainWindow):
         self.setCentralWidget(root)
         self._dashboard_tab()
         self._passes_tab()
+        self._maps_tab()
         self._auto_tab()
         self._calendar_tab()
         self._capture_tab()
@@ -537,6 +552,245 @@ class SatelliteWindow(QMainWindow):
             self.pass_list.setCurrentItem(self.pass_list.topLevelItem(0))
         else:
             self.pass_selected()
+
+
+    def _maps_tab(self):
+        body=self._new_tab("Maps & Live")
+        self.map_index=self.tabs.count()-1
+        body.addWidget(self._hint(
+            "Live TLE-derived orbital positions, NOT live RF detections. "
+            "Native sky/earth maps; offline Natural Earth by default. "
+            "OpenStreetMap downloads only tiles visibly requested after you enable them."))
+        line=QHBoxLayout()
+        self.map_family=QComboBox()
+        for name,value in (("All satellite families","all"),("ISS","iss"),
+                           ("Meteor","meteor"),("CubeSat","cubesat"),
+                           ("Iridium","iridium")):
+            self.map_family.addItem(name,value)
+        self.map_family.currentIndexChanged.connect(self._map_options_changed)
+        self.map_above=QCheckBox("Above local horizon only")
+        self.map_above.toggled.connect(self._map_options_changed)
+        self.map_follow=QCheckBox("Follow selected satellite")
+        self.map_follow.toggled.connect(self._map_options_changed)
+        self.map_live_button=QPushButton("● LIVE · 1 s")
+        self.map_live_button.setCheckable(True)
+        self.map_live_button.setChecked(True)
+        self.map_live_button.clicked.connect(self._toggle_map_live)
+        for widget in (self.map_family,self.map_above,self.map_follow,self.map_live_button):
+            line.addWidget(widget)
+        body.addLayout(line)
+        timebar=QHBoxLayout()
+        timebar.addWidget(QLabel("Orbit time"))
+        self.map_offset=QSlider(Qt.Horizontal)
+        self.map_offset.setRange(-45,90)
+        self.map_offset.setSingleStep(5)
+        self.map_offset.setPageStep(5)
+        self.map_offset.setTickInterval(15)
+        self.map_offset.setValue(0)
+        self.map_offset.valueChanged.connect(self._map_time_changed)
+        self.map_clock=QLabel("Now · live TLE prediction")
+        timebar.addWidget(self.map_offset,2)
+        timebar.addWidget(self.map_clock,1)
+        body.addLayout(timebar)
+        opts=QHBoxLayout()
+        self.map_coverage=QComboBox()
+        for name,value in (("Coverage · selected","selected"),
+                           ("Coverage · all visible","all"),
+                           ("Coverage · off","none")):
+            self.map_coverage.addItem(name,value)
+        self.map_coverage.currentIndexChanged.connect(self._map_options_changed)
+        self.map_tracks=QCheckBox("±45 min track")
+        self.map_tracks.setChecked(True)
+        self.map_tracks.toggled.connect(self._map_options_changed)
+        self.map_osm=QCheckBox("OpenStreetMap streets · online")
+        self.map_osm.setToolTip("User-triggered visible viewport tiles only; no offline bulk download.")
+        self.map_osm.toggled.connect(self._map_osm_toggled)
+        opts.addWidget(self.map_coverage)
+        opts.addWidget(self.map_tracks)
+        opts.addWidget(self.map_osm)
+        opts.addWidget(self._button("Center ground station",self._map_center_station))
+        body.addLayout(opts)
+
+        split=QSplitter(Qt.Horizontal)
+        self.map_views=QTabWidget()
+        self.map_sky=OrbitCanvas("sky")
+        self.map_earth=OrbitCanvas("earth")
+        self.map_views.addTab(self.map_sky,"Sky · Azimuth/Elevation")
+        self.map_views.addTab(self.map_earth,"Earth · OSM/Offline")
+        self.map_views.currentChanged.connect(self._map_view_switched)
+        self.map_sky.selected.connect(self._map_choose_satellite)
+        self.map_earth.selected.connect(self._map_choose_satellite)
+        split.addWidget(self.map_views)
+
+        panel=QWidget()
+        side=QVBoxLayout(panel)
+        side.setContentsMargins(8,2,4,2)
+        side.addWidget(QLabel("Predicted satellites · click map pin or list row"))
+        self.map_satellites=QTreeWidget()
+        self.map_satellites.setHeaderLabels(["TLE satellite","Elevation"])
+        self.map_satellites.setRootIsDecorated(False)
+        self.map_satellites.header().setSectionResizeMode(0,QHeaderView.Stretch)
+        self.map_satellites.itemSelectionChanged.connect(self._map_list_selected)
+        side.addWidget(self.map_satellites,3)
+        self.map_details=QPlainTextEdit()
+        self.map_details.setReadOnly(True)
+        self.map_details.setPlainText(
+            "Import/refresh public orbit data in Passes & Data. "
+            "An orbital pin never proves a transmitter.")
+        side.addWidget(self.map_details,2)
+        side.addWidget(self._button("Use selected family receiver preset",
+                                  self._map_tune_receiver))
+        split.addWidget(panel)
+        split.setStretchFactor(0,4)
+        split.setStretchFactor(1,2)
+        body.addWidget(split,1)
+        self.map_status=QLabel(
+            "No TLE trajectory loaded. Earth map opens offline without network.")
+        self.map_status.setWordWrap(True)
+        body.addWidget(self.map_status)
+
+    def _on_tab_change(self,index):
+        if index==self.map_index and self.active:
+            self.refresh_orbit_map()
+
+    def _map_osm_toggled(self,enabled):
+        self.map_earth.set_street(enabled)
+        self.map_status.setText(
+            "OSM street tiles enabled only for visible viewport · © OpenStreetMap contributors"
+            if enabled else "Offline Natural Earth map · no street-tile downloads.")
+    def _map_view_switched(self,index):
+        if index==1 and self.map_osm.isChecked():
+            self.map_earth._sync_tiles()
+        if self.active:self.refresh_orbit_map()
+    def _map_center_station(self):
+        self.map_earth.center_station()
+    def _map_options_changed(self,*_):
+        self.map_sky.above_only=self.map_above.isChecked()
+        self.map_earth.above_only=self.map_above.isChecked()
+        self.map_earth.coverage_scope=self.map_coverage.currentData()
+        self.map_earth.tracks_visible=self.map_tracks.isChecked()
+        self.map_sky.update();self.map_earth.update()
+        if self.active and self.tabs.currentIndex()==self.map_index:
+            self.refresh_orbit_map()
+    def _toggle_map_live(self):
+        self.map_live=self.map_live_button.isChecked()
+        if self.map_live:
+            self.map_paused_at=None
+            self.map_offset.blockSignals(True)
+            self.map_offset.setValue(0)
+            self.map_offset.blockSignals(False)
+        else:
+            self.map_paused_at=datetime.now(timezone.utc)
+        self.map_live_button.setText(
+            "● LIVE · 1 s" if self.map_live else "Ⅱ PAUSED · simulated")
+        self.refresh_orbit_map()
+    def _map_time_changed(self,minutes):
+        if minutes!=0 and self.map_live:
+            self.map_live=False
+            self.map_live_button.blockSignals(True)
+            self.map_live_button.setChecked(False)
+            self.map_live_button.blockSignals(False)
+            self.map_live_button.setText("Ⅱ PAUSED · simulated")
+            self.map_paused_at=datetime.now(timezone.utc)
+        if self.active:self.refresh_orbit_map()
+    def _map_when(self):
+        origin=(datetime.now(timezone.utc) if self.map_live else
+                self.map_paused_at or datetime.now(timezone.utc))
+        return origin+timedelta(minutes=self.map_offset.value())
+    def refresh_orbit_map(self):
+        if not self.active or self.tabs.currentIndex()!=self.map_index:return
+        if not self.isVisible() and self.map_live:return
+        if not self.map_live and self.map_last_snapshot is not None:
+            # User options can still request a new synthetic-time snapshot.
+            pass
+        latitude=self.lat.value();longitude=self.lon.value()
+        fam=self.map_family.currentData()
+        at=self._map_when()
+        self.map_clock.setText(
+            ("LIVE · " if self.map_live else "SIMULATED · ")+
+            at.astimezone().strftime("%H:%M:%S · %d %b %Y"))
+        selected=self.map_selected_norad
+        want_track=(selected is not None and self.map_tracks.isChecked() and
+                    (not self.map_track_segments or self.map_live is False or
+                     (time.monotonic()-self.map_last_track_at)>15))
+        options={"family_filter":fam,"minimum_el":-90,
+                 "selected_norad":selected,"with_track":want_track}
+        def calculate():
+            return self.orbit_engine.snapshot(latitude,longitude,at,**options)
+        self._task("map-orbit",calculate,
+                   lambda value:self._apply_map_snapshot(value,want_track),silent=True)
+    def _apply_map_snapshot(self,view,track_refreshed):
+        if track_refreshed:
+            self.map_track_segments=view.get("track_segments",[])
+            self.map_last_track_at=time.monotonic()
+        elif self.map_track_segments:
+            view["track_segments"]=self.map_track_segments
+        self.map_last_snapshot=view
+        self.map_sky.set_snapshot(view);self.map_earth.set_snapshot(view)
+        self.map_sky.set_selected(self.map_selected_norad)
+        self.map_earth.set_selected(self.map_selected_norad)
+        focused=self.map_satellites.currentItem()
+        before=focused.data(0,Qt.UserRole) if focused else self.map_selected_norad
+        self.map_satellites.blockSignals(True)
+        self.map_satellites.clear()
+        active=None
+        for sat in view["satellites"]:
+            if self.map_above.isChecked() and sat["el"]<0:continue
+            item=QTreeWidgetItem([sat["name"],f'{sat["el"]:+.1f}°'])
+            item.setData(0,Qt.UserRole,sat["norad"])
+            self.map_satellites.addTopLevelItem(item)
+            if sat["norad"]==before:active=item
+        if active:self.map_satellites.setCurrentItem(active)
+        self.map_satellites.blockSignals(False)
+        self._update_map_details()
+        self.map_status.setText(
+            f'{len(view["satellites"])} orbital candidates · {view["total_loaded"]} local TLE objects · '+
+            (view["warnings"][0] if view["warnings"] else "Current cached orbital data")+
+            " · Map pins are not RF detections")
+        if self.map_follow.isChecked() and view.get("selected"):
+            sat=view["selected"]
+            self.map_earth.center_lat=sat["lat"]
+            self.map_earth.center_lon=sat["lon"]
+            self.map_earth.update()
+            # Never fetch extra OSM tiles automatically as satellite moves.
+    def _map_choose_satellite(self,norad):
+        self.map_selected_norad=int(norad)
+        self.map_track_segments=[]
+        if self.map_last_snapshot:self._apply_map_snapshot(self.map_last_snapshot,False)
+        self.refresh_orbit_map()
+    def _map_list_selected(self):
+        item=self.map_satellites.currentItem()
+        if item is not None:self._map_choose_satellite(item.data(0,Qt.UserRole))
+    def _update_map_details(self):
+        sat=next((s for s in (self.map_last_snapshot or {}).get("satellites",[])
+                  if s["norad"]==self.map_selected_norad),None)
+        if not sat:
+            self.map_details.setPlainText(
+                "Choose an orbital candidate. No RF, audio, image or packet is verified.")
+            return
+        self.map_details.setPlainText(
+            f'{sat["name"]} · NORAD {sat["norad"]}\n'
+            f'{sat["family"].upper()} · Az {sat["az"]}° · El {sat["el"]}°\n'
+            f'Latitude {sat["lat"]}° · Longitude {sat["lon"]}°\n'
+            f'Altitude {sat["alt_km"]} km · Range {sat["range_km"]} km\n'
+            f'TLE age {sat["tle_age_days"]} d · status ORBITAL_POSITION_ONLY\n'
+            "No physical RF reception or image decoded from map position.")
+    def _map_tune_receiver(self):
+        sat=next((s for s in (self.map_last_snapshot or {}).get("satellites",[])
+                  if s["norad"]==self.map_selected_norad),None)
+        if sat is None:return
+        priorities={"iss":["iss_voice","iss_sstv","iss_aprs_uhf"],
+                    "meteor":["meteor","meteor_backup"],
+                    "iridium":["iridium_rf_iq","iridium"]}
+        key=next((x for x in priorities.get(sat["family"],[]) if x in PROFILES),None)
+        if key is None:
+            QMessageBox.information(self,"Receiver","No verified published receiver profile for this satellite family.")
+            return
+        idx=self.capture_profile.findData(key)
+        if idx>=0:
+            self.capture_profile.setCurrentIndex(idx)
+            self.tabs.setCurrentIndex(self.tabs.indexOf(self.capture_profile.parentWidget()) if False else 5)
+            self.statusBar().showMessage("Receiver preset selected. No USB scan started.",9000)
 
     def _auto_tab(self):
         body=self._new_tab("Auto reception")
