@@ -684,10 +684,17 @@ class SatelliteWindow(QMainWindow):
 
     def _capture_budget(self):
         mode=self.capture_mode.currentData()
+        if mode=="survey" and self.capture_seconds.maximum()!=180:
+            self.capture_seconds.setMaximum(180)
+        elif mode!="survey" and self.capture_seconds.maximum()!=900:
+            self.capture_seconds.setMaximum(900)
         secs=self.capture_seconds.value()
         self.capture_budget.setText(
             f"~{secs*2.048:.1f} MB raw CU8 on local disk · actual samples, no WebUSB"
-            if mode=="iq" else "Uses installed native receiver tools, not a browser")
+            if mode=="iq" else
+            "Native rtl_power records for exactly requested seconds (8–180)"
+            if mode=="survey" else
+            "Native receiver saves actual packet/audio output, no browser involved")
 
     def start_capture(self):
         key=self.capture_profile.currentData()

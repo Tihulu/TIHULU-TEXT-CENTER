@@ -1006,6 +1006,8 @@ class Station:
             raise ValueError("Capture duration must be 8–900 seconds")
         # Explicit manual requests use the same 8–900 s/2 GB native disk
         # safety budget as scheduled captures. No browser IQ memory buffer.
+        if mode == "survey" and seconds > 180:
+            raise ValueError("Native RF spectrum surveys are limited to 180 s; use raw IQ for longer intervals")
         needed = {"survey": "rtl_power", "iq": "rtl_sdr", "aprs": "rtl_fm", "sstv_audio": "rtl_fm", "fm_audio": "rtl_fm"}[mode]
         if not shutil.which(needed) or (mode == "aprs" and not shutil.which("multimon-ng")):
             raise RuntimeError("Required installed RF decoder missing: " + ("multimon-ng" if mode == "aprs" else needed))
@@ -1043,14 +1045,14 @@ class Station:
         try:
             if mode == "survey":
                 command = [shutil.which("rtl_power"), "-d", "0", "-f", PROFILES[profile]["range"], "-i", "2s"]
-                command += ["-e", f"{min(seconds, 180)}s"] if scheduled else ["-1"]
+                command += ["-e", f"{seconds}s"]  # honor selected full survey length
                 import tempfile
                 with tempfile.TemporaryFile() as output, tempfile.TemporaryFile() as error:
                     proc = self._launch_receiver(command, stdout=output, stderr=error,
                                             stdin=subprocess.DEVNULL)
                     with self.lock: self.process = proc
                     try:
-                        until = time.monotonic() + (min(seconds, 180) + 12 if scheduled else 26)
+                        until = time.monotonic() + seconds + 12
                         while proc.poll() is None and not self.stopping.is_set() and time.monotonic() < until:
                             time.sleep(0.2)
                         if self.stopping.is_set() or proc.poll() is None:

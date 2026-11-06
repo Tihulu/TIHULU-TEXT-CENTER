@@ -91,6 +91,14 @@ class SatelliteTests(unittest.TestCase):
             finally:
                 app.close()
 
+    def test_native_survey_refuses_silent_duration_truncation(self):
+        with tempfile.TemporaryDirectory() as td:
+            app=Station(Path(td))
+            try:
+                with self.assertRaisesRegex(ValueError,"limited to 180"):
+                    app.capture("iridium","survey",600)
+            finally:app.close()
+
     def test_missing_pass_cannot_be_scheduled(self):
         with tempfile.TemporaryDirectory() as td:
             app=Station(Path(td))
