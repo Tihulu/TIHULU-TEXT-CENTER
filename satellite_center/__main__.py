@@ -788,7 +788,7 @@ class Station:
                                "modified": datetime.fromtimestamp(path.stat().st_mtime, UTC).isoformat(timespec="seconds")})
         return result
 
-    def decode_meteor(self, name):
+    def decode_meteor(self, name, variant="72k"):
         if not meteor_capture(name):
             raise ValueError("Select an archived Meteor IQ recording")
         if self.session.get("active"):
@@ -796,23 +796,48 @@ class Station:
         exe = shutil.which("satdump")
         if not exe:
             raise RuntimeError("SatDump not installed; original .cu8 remains available")
+        if variant not in ("72k", "80k"):
+            raise ValueError("Supported Meteor LRPT decoder variants: 72k or 80k")
         src = self.archive/name
         if not src.is_file():
             raise ValueError("Recording not found")
         dest = self.archive/(src.stem+"_decoded")
         dest.mkdir(exist_ok=True, mode=0o700)
-        cmd = [exe, "pipeline", "meteor_m2-x_lrpt", "baseband", str(src), str(dest),
+        cmd = [exe, "pipeline",
+               "meteor_m2-x_lrpt_80k" if variant=="80k" else "meteor_m2-x_lrpt",
+               "baseband", str(src), str(dest),
                "--samplerate", "1024000", "--baseband_format", "cu8", "--dc_block"]
         try:
             result = subprocess.run(cmd, stdin=subprocess.DEVNULL, capture_output=True,
                                     timeout=220, check=False)
         except subprocess.TimeoutExpired as exc:
             raise RuntimeError("SatDump decoder timed out; original capture preserved") from exc
-        images = [str(p.relative_to(self.archive)) for p in dest.rglob("*.png") if p.is_file()][:32]
-        images += [str(p.relative_to(self.archive)) for p in dest.rglob("*.jpg") if p.is_file()][:32-len(images)]
-        return {"decoder_exit": result.returncode, "images": images,
+        # Only real SatDump-created files can become photo-gallery items.
+        # Copies receive satellite + capture UTC + frequency filenames; no
+        # decoded image is invented if the decoder fails or has no lock.
+        image_files = sorted(
+            (p for p in dest.rglob("*") if p.is_file() and
+             p.suffix.lower() in (".png", ".jpg") and not p.name.startswith("TIHULU_")
+             and p.stat().st_size <= 15_000_000),
+            key=lambda p:str(p))[:32]
+        match = re.search(r"_(\d{8}T\d{6}Z)_(\d{7,11})Hz", name)
+        original_time = (datetime.strptime(match.group(1), "%Y%m%dT%H%M%SZ").replace(tzinfo=UTC)
+                         if match else datetime.fromtimestamp(src.stat().st_mtime, UTC))
+        original_freq = int(match.group(2)) if match else 137900000
+        original_satellite = name.split("_")[1] if name.startswith("TIHULU_") else "METEOR-UNVERIFIED"
+        images = []
+        for idx, image in enumerate(image_files, start=1):
+            output_name = recording_name(
+                satellite=original_satellite, timestamp=original_time,
+                frequency_hz=original_freq, kind="LRPT-IMAGE-"+str(idx).zfill(2),
+                extension=image.suffix.lower())
+            output = dest/output_name
+            if image.resolve() != output.resolve():
+                shutil.copyfile(image,output)
+            images.append(str(output.relative_to(self.archive)))
+        return {"decoder_exit": result.returncode, "images": images, "variant": variant,
                 "result": "actual_decoder_files" if images else "no_images_decoded",
-                "note": "No images fabricated. Check pipeline version, frequency and signal quality.",
+                "note": "Only actual SatDump-created image files are shown; satellite source is a target candidate, not independently verified.",
                 "stderr": result.stderr.decode("utf-8", "replace")[-500:]}
 
 
@@ -1026,7 +1051,7 @@ class Handler(BaseHTTPRequestHandler):
             elif route == "/api/stop":
                 result = app.request_stop()
             elif route == "/api/decode":
-                result = app.decode_meteor(data.get("filename"))
+                result = app.decode_meteor(data.get("filename"), data.get("variant", "72k"))
             else:
                 return self.reply(404, {"error": "Not found"})
             return self.reply(200, result)
