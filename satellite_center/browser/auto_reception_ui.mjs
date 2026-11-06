@@ -9,7 +9,7 @@ import {parseRecordingName} from "./satellite_imagery.mjs";
 import {decodeRobot36Audio} from "./sstv_robot36.mjs";
 
 const $=id=>document.getElementById(id);
-const nativeHost=()=>["127.0.0.1","localhost"].includes(window.location.hostname);
+const nativeHost=()=>window.location.protocol==="http:" && window.location.port==="8791" && ["127.0.0.1","localhost"].includes(window.location.hostname);
 const signalMax=128*1024*1024;
 const fileType=name=>String(name||"").toLowerCase().split(".").pop();
 const textNode=(tag,value,parent,cls)=>{
