@@ -1010,16 +1010,46 @@ function renderLiveDockCaptions(items,kind){
   const container=$(kind==="tv"?"live-dock-tv-captions":"live-dock-radio-captions");
   if(!container)return;
   container.replaceChildren();
-  container.hidden=!items.length||
-    (kind==="tv"?!state.tvActive:!(state.liveActive||state.dabPlaying));
-  if(!items.length)return;
-  const last=items[items.length-1];
-  const original=el("p","dock-subtitle-original",
-    "["+last.original_language.toUpperCase()+"] "+last.original_text);
-  container.append(original);
-  if(last.translated_text){
+  const mode=kind==="tv"?(state.tvCaptionDisplayMode||"both"):"both";
+  container.hidden=mode==="off"||(kind==="tv"?!state.tvActive:
+    !(state.liveActive||state.dabPlaying));
+  if(container.hidden||!items.length)return;
+  let available=items;
+  if(kind==="tv"){
+    state.lastTvCaptionRows=items;
+    const source=state.tvCaptionSourceActive;
+    if(source==="broadcast_teletext"){
+      available=items.filter(c=>c.compute_backend==="broadcast_teletext_libzvbi");
+    }else if(source==="speech_transcription"){
+      available=items.filter(c=>c.compute_backend!=="broadcast_teletext_libzvbi");
+    }else{
+      available=[];
+    }
+    // Do not leave yesterday's or another source's caption on current TV.
+    available=available.filter(row=>{
+      const captured=Date.parse(row.captured_at||"");
+      return Number.isFinite(captured)&&Date.now()-captured<20000;
+    });
+  }
+  if(!available.length){container.hidden=true;return;}
+  const last=available[available.length-1];
+  const originalShown=mode==="both"||mode==="original";
+  const translatedShown=mode==="both"||mode==="translated";
+  if(originalShown){
+    container.append(el("p","dock-subtitle-original",
+      "["+last.original_language.toUpperCase()+"] "+last.original_text));
+  }
+  if(translatedShown && last.translated_text){
     container.append(el("p","dock-subtitle-translated",
       "["+last.translated_language.toUpperCase()+"] "+last.translated_text));
+  }
+  container.hidden=!container.childElementCount;
+  if(kind==="tv"&&!container.hidden){
+    const badge=el("small","tv-caption-provenance",
+      last.compute_backend==="broadcast_teletext_libzvbi"?
+        "DVB TELETEXT · ACTUAL BROADCAST SUBTITLES":
+        "WHISPER · ACTUAL TV AUDIO");
+    container.prepend(badge);
   }
 }
 async function updateDockStationMetadata(){
