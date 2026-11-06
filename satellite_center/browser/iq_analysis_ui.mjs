@@ -79,7 +79,7 @@ function drawSpectrum(report){
 function drawWaterfall(report){
  const canvas=$("iq-waterfall"),ctx=canvas.getContext("2d");
  if(!ctx)return;
- const {w,h,x0,x1,y0,y1}=prepare(ctx,canvas,"Top: start · bottom: end (stratified windows; not continuous playback)");
+ const {w,h,x0,x1,y0,y1}=prepare(ctx,canvas,report.analysisMode?"Top: start · bottom: end (continuous FFT windows binned in time)":"Top: start · bottom: end (stratified windows; not continuous playback)");
  const rows=report.waterfallDb;let lo=Infinity,hi=-Infinity;
  for(const row of rows)for(const v of row){lo=Math.min(lo,v);hi=Math.max(hi,v);}
  if(!Number.isFinite(lo)||!Number.isFinite(hi))return;
@@ -98,7 +98,7 @@ function drawWaterfall(report){
 }
 function drawPower(report){
  graphLine($("iq-power-time"),report.powerHistoryDb,{
-  caption:"Sampled windows distributed over the file, not gap-free timestamps",
+  caption:report.analysisMode?"Full-file time bins (assumes gap-free IQ samples)":"Sampled windows distributed over the file, not gap-free timestamps",
   yLabel:"uncalibrated digital level",xLabel:"start → end",
   color:"#65ead3"});
 }
@@ -214,7 +214,7 @@ export function initIqAnalysisUI({log=()=>{}}={}){
    $("iq-last-info").textContent="Local file selected: "+file.name+" ("+fmt(file.size)+
      " bytes). "+(inferred?"Center/rate inferred from TIHULU filename; confirm before analysis.":
        "CU8 has no embedded frequency/rate: enter the correct capture metadata.");
-   reportStatus("File selected locally. Click Analyze selected file. Nothing is uploaded.");
+   reportStatus("File selected locally. Choose Quick analysis or Analyze full file. Nothing is uploaded.");
  }
  $("iq-file").addEventListener("change",onFile);
  $("iq-analyze-file").addEventListener("click",()=>{
@@ -229,6 +229,18 @@ export function initIqAnalysisUI({log=()=>{}}={}){
    else reportStatus("Choose a local CU8 file or first record a real WebUSB capture.");
  });
  $("iq-stop-analysis").addEventListener("click",()=>{activeController?.abort();});
+ $("iq-spectrum").addEventListener("click",event=>{
+   if(!lastReport)return;
+   const canvas=$("iq-spectrum"),rect=canvas.getBoundingClientRect();
+   const relativeX=(event.clientX-rect.left)*canvas.width/rect.width;
+   const fractional=Math.max(0,Math.min(1,(relativeX-56)/(canvas.width-18-56)));
+   const selectedOffsetHz=(fractional-0.5)*lastReport.sampleRate;
+   $("iq-audio-offset").value=(selectedOffsetHz/1000).toFixed(2);
+   reportStatus("Selected "+(lastReport.centerFrequencyHz==null?
+     (selectedOffsetHz/1000).toFixed(2)+" kHz baseband offset":
+     ((lastReport.centerFrequencyHz+selectedOffsetHz)/1e6).toFixed(6)+" MHz")+
+     " from spectrum. Select AM or NFM and generate an experimental audio preview if suitable.");
+ });
  $("iq-audio-preview").addEventListener("click",async()=>{
    if(!lastAnalyzedBlob||inProgress)return;
    const rate=Number($("iq-rate").value),offsetHz=Number($("iq-audio-offset").value)*1000;
@@ -257,7 +269,7 @@ export function initIqAnalysisUI({log=()=>{}}={}){
      notes:"CU8 has no embedded metadata; named satellite candidates are not verified RF sources."};
    const blob=new Blob([JSON.stringify(info,null,2)],{type:"application/json"});
    const url=URL.createObjectURL(blob),a=document.createElement("a");
-   a.href=url;a.download=(lastReportName||"capture").replace(/\\.cu8$/i,"")+".metadata.json";
+   a.href=url;a.download=(lastReportName||"capture").replace(/\.cu8$/i,"")+".metadata.json";
    document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);
  });
  $("iq-analyze-last").addEventListener("click",()=>{
