@@ -205,6 +205,11 @@ class Station:
         self.lock = threading.RLock()
         self.device_lock = None
         self.process = None
+        self.owned_processes = set()  # Only processes launched by Satellite Center.
+        self.active_worker = None
+        self.manual_owner = None
+        self.last_manual_heartbeat = 0.0
+        self.closed = threading.Event()
         self.stopping = threading.Event()
         self.session = {"state": "idle", "active": False, "message": "No RF acquisition attempted"}
         self.jobs = safe_read(self.directory/"schedule.json", [])
@@ -427,13 +432,15 @@ class Station:
             raise ValueError("Pending schedule not found")
 
     def start_scheduler(self):
+        if self.closed.is_set():
+            return
         if self.scheduler_thread and self.scheduler_thread.is_alive():
             return
         self.scheduler_thread = threading.Thread(target=self._schedule_loop, name="satellite-opt-in-scheduler", daemon=True)
         self.scheduler_thread.start()
 
     def _schedule_loop(self):
-        while True:
+        while not self.closed.is_set():
             with self.lock:
                 pending = [j for j in self.jobs if j["state"] == "pending"]
                 if not pending:
@@ -446,6 +453,8 @@ class Station:
                 self.wake.clear()
                 continue
             with self.lock:
+                if self.closed.is_set():
+                    return
                 if nearest["state"] != "pending":
                     continue
                 if now() > datetime.fromisoformat(nearest["los"]):
@@ -491,7 +500,60 @@ class Station:
                 os.close(self.device_lock)
                 self.device_lock = None
 
-    def capture(self, profile, mode="survey", seconds=18, scheduled=False):
+    def _launch_receiver(self, command, **kwargs):
+        """Atomically own a child before another thread can request shutdown."""
+        with self.lock:
+            if self.stopping.is_set() or self.closed.is_set():
+                raise RuntimeError("Receiver session is stopping")
+            process = start_receiver_process(command, **kwargs)
+            self.owned_processes.add(process)
+            return process
+
+    def heartbeat(self, client_id):
+        if not isinstance(client_id, str) or not re.fullmatch(r"[A-Za-z0-9_-]{12,80}", client_id):
+            return False
+        with self.lock:
+            if client_id == self.manual_owner and self.session.get("active"):
+                self.last_manual_heartbeat = time.monotonic()
+                return True
+        return False
+
+    def leave(self, client_id):
+        """Closing a tab stops only its manual capture, never scheduled passes."""
+        if not isinstance(client_id, str) or not re.fullmatch(r"[A-Za-z0-9_-]{12,80}", client_id):
+            raise ValueError("Invalid browser client identifier")
+        with self.lock:
+            stop = (self.manual_owner == client_id and self.session.get("active"))
+        if stop:
+            self.request_stop()
+        return {"manual_capture_stop_requested": bool(stop),
+                "scheduled_jobs_preserved": True}
+
+    def _manual_watchdog(self, client_id):
+        """Fallback for crashed tabs where pagehide/keepalive is dropped."""
+        while not self.closed.wait(1):
+            with self.lock:
+                if self.manual_owner != client_id or not self.session.get("active"):
+                    return
+                stale = time.monotonic() - self.last_manual_heartbeat > 14
+            if stale:
+                self.request_stop()
+                return
+
+    def close(self):
+        """Idempotent graceful shutdown, preserving unrelated SDR programs."""
+        self.closed.set()
+        self.wake.set()
+        self.request_stop()
+        with self.lock:
+            worker = self.active_worker
+            scheduler = self.scheduler_thread
+        for thread in (worker, scheduler):
+            if thread is not None and thread is not threading.current_thread() and thread.is_alive():
+                thread.join(timeout=4)
+        self.request_stop()
+
+    def capture(self, profile, mode="survey", seconds=18, scheduled=False, owner=None):
         if profile not in PROFILES or mode not in MODES or not allowed_mode(profile, mode):
             raise ValueError("Unsupported capture preset")
         if type(seconds) is not int or not 8 <= seconds <= MAX_CAPTURE_SECONDS:
@@ -501,23 +563,35 @@ class Station:
         needed = {"survey": "rtl_power", "iq": "rtl_sdr", "aprs": "rtl_fm", "sstv_audio": "rtl_fm"}[mode]
         if not shutil.which(needed) or (mode == "aprs" and not shutil.which("multimon-ng")):
             raise RuntimeError("Required installed RF decoder missing: " + ("multimon-ng" if mode == "aprs" else needed))
+        if owner is not None and (not isinstance(owner, str) or
+                not re.fullmatch(r"[A-Za-z0-9_-]{12,80}", owner)):
+            raise ValueError("Invalid browser client identifier")
         with self.lock:
+            if self.closed.is_set():
+                raise RuntimeError("Satellite Center is shutting down")
             if self.session.get("active"):
                 raise RuntimeError("Satellite capture already running")
-            self._acquire()
             self.stopping.clear()
+            self._acquire()
+            self.active_worker = threading.current_thread()
+            self.manual_owner = None if scheduled else owner
+            self.last_manual_heartbeat = time.monotonic()
             identifier = now().strftime("%Y%m%dT%H%M%SZ") + "_" + uuid.uuid4().hex[:7]
             suffix = {"survey": ".json", "iq": ".cu8", "aprs": ".txt", "sstv_audio": ".wav"}[mode]
             target = self.archive/(identifier + "_" + profile + suffix)
             self.session = {"state": "running", "active": True, "profile": profile, "mode": mode,
-                            "started_at": stamp(), "path": target.name, "message": "Physical receiver requested; acquisition pending"}
+                            "started_at": stamp(), "path": target.name, "message": "Physical receiver requested; acquisition pending",
+                            "scheduled": scheduled}
+        if self.manual_owner:
+            threading.Thread(target=self._manual_watchdog, args=(self.manual_owner,),
+                             name="satellite-browser-watchdog", daemon=True).start()
         try:
             if mode == "survey":
                 command = [shutil.which("rtl_power"), "-d", "0", "-f", PROFILES[profile]["range"], "-i", "2s"]
                 command += ["-e", f"{min(seconds, 180)}s"] if scheduled else ["-1"]
                 import tempfile
                 with tempfile.TemporaryFile() as output, tempfile.TemporaryFile() as error:
-                    proc = start_receiver_process(command, stdout=output, stderr=error,
+                    proc = self._launch_receiver(command, stdout=output, stderr=error,
                                             stdin=subprocess.DEVNULL)
                     with self.lock: self.process = proc
                     try:
@@ -554,9 +628,9 @@ class Station:
                 cmd1 = [shutil.which("rtl_fm"), "-d", "0", "-f", "145825000", "-M", "fm", "-s", "22050", "-g", "30"]
                 cmd2 = [shutil.which("multimon-ng"), "-t", "raw", "-a", "AFSK1200", "-"]
                 with target.open("xb") as out:
-                    rx = start_receiver_process(cmd1, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+                    rx = self._launch_receiver(cmd1, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
                     try:
-                        decode = start_receiver_process(cmd2, stdin=rx.stdout, stdout=out, stderr=subprocess.DEVNULL)
+                        decode = self._launch_receiver(cmd2, stdin=rx.stdout, stdout=out, stderr=subprocess.DEVNULL)
                         rx.stdout.close()
                         self._wait_decode([rx, decode], seconds)
                     finally:
@@ -564,7 +638,7 @@ class Station:
                         if "decode" in locals(): stop_process(decode)
             else:
                 cmd = [shutil.which("rtl_fm"), "-d", "0", "-f", "145800000", "-M", "fm", "-s", "48000", "-g", "30"]
-                rx = start_receiver_process(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+                rx = self._launch_receiver(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
                 try:
                     with wave.open(str(target), "wb") as wav:
                         wav.setnchannels(1); wav.setsampwidth(2); wav.setframerate(48000)
@@ -595,10 +669,14 @@ class Station:
             with self.lock:
                 self.session["active"] = False
                 self.session["ended_at"] = stamp()
+                self.manual_owner = None
+                self.active_worker = None
+                self.process = None
+                self.owned_processes = {p for p in self.owned_processes if p.poll() is None}
                 self._release()
 
     def _run_bounded(self, command, timeout):
-        proc = start_receiver_process(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        proc = self._launch_receiver(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         with self.lock: self.process = proc
         try:
             until = time.monotonic()+timeout
@@ -623,8 +701,16 @@ class Station:
     def request_stop(self):
         self.stopping.set()
         with self.lock:
-            stop_process(self.process)
-        return {"requested": True}
+            processes = set(self.owned_processes)
+            if self.process is not None:
+                processes.add(self.process)
+        # Do not hold the station mutex while waiting for child process exit.
+        # Only processes launched by this Station are stopped (never readsb).
+        for proc in processes:
+            stop_process(proc)
+        with self.lock:
+            self.owned_processes.difference_update(p for p in processes if p.poll() is not None)
+        return {"requested": True, "owned_processes_stop_requested": len(processes)}
 
     def records(self):
         result = []
@@ -728,6 +814,10 @@ class Handler(BaseHTTPRequestHandler):
             if route == "/":
                 return self.send_bytes(200, PAGE.read_bytes(), "text/html; charset=utf-8")
             if route == "/api/status":
+                from urllib.parse import parse_qs
+                client = parse_qs(urlsplit(self.path).query).get("client", [None])[0]
+                if client:
+                    self.server.station.heartbeat(client)
                 return self.reply(200, {**self.server.station.status(), "csrf": self.server.csrf})
             if route == "/api/sky":
                 from urllib.parse import parse_qs
@@ -787,6 +877,12 @@ class Handler(BaseHTTPRequestHandler):
                 if request_is_remote(self.headers.get("Origin")):
                     return self.reply(403, {"error": "Pair locally at http://127.0.0.1:8791"})
                 result = {"token": app.pairing_token, "warning": "Keep private; anyone with it and Pages origin can operate the local receiver"}
+            elif route == "/api/leave":
+                result = app.leave(data.get("client_id"))
+            elif route == "/api/quit":
+                # Owner requested shutting down companion, including pending pass worker.
+                threading.Thread(target=self._shutdown_companion, daemon=True).start()
+                result = {"closing": True, "note": "Stopping owned SDR processes; future schedules require restarting the companion"}
             elif route == "/api/refresh":
                 result = app.refresh()
             elif route == "/api/schedule":
@@ -802,12 +898,15 @@ class Handler(BaseHTTPRequestHandler):
                     if app.session.get("active") or app.launching:
                         raise RuntimeError("Receiver already active")
                     profile, mode = data.get("profile"), data.get("mode", "survey")
+                    owner = data.get("client_id")
+                    if owner is not None and (not isinstance(owner, str) or not re.fullmatch(r"[A-Za-z0-9_-]{12,80}", owner)):
+                        raise ValueError("Invalid browser client identifier")
                     if profile not in PROFILES or not allowed_mode(profile, mode):
                         raise ValueError("Invalid profile/mode")
                     if not 8 <= seconds <= 240: raise ValueError("Manual duration must be 8–240")
                     app.launching = True
                     threading.Thread(target=self._background_capture,
-                                     args=(profile, mode, seconds), daemon=True).start()
+                                     args=(profile, mode, seconds, owner), daemon=True).start()
                 result = {"accepted": True, "note": "Check status; acquisition may fail on busy/missing SDR"}
             elif route == "/api/stop":
                 result = app.request_stop()
@@ -819,9 +918,13 @@ class Handler(BaseHTTPRequestHandler):
         except (ValueError, RuntimeError, OSError, json.JSONDecodeError) as exc:
             return self.reply(400, {"error": str(exc)[:240]})
 
-    def _background_capture(self, profile, mode, seconds):
+    def _shutdown_companion(self):
+        self.server.station.close()
+        self.server.shutdown()
+
+    def _background_capture(self, profile, mode, seconds, owner=None):
         try:
-            self.server.station.capture(profile, mode, seconds)
+            self.server.station.capture(profile, mode, seconds, owner=owner)
         except (ValueError, RuntimeError, OSError) as exc:
             with self.server.station.lock:
                 self.server.station.session.update(state="error", active=False,
@@ -841,6 +944,10 @@ class Server(ThreadingHTTPServer):
         self.csrf = secrets.token_urlsafe(32)
         super().__init__(address, Handler)
 
+    def server_close(self):
+        self.station.close()
+        super().server_close()
+
 
 def main():
     ap = argparse.ArgumentParser(description="Receive-only satellite companion: independent local web app")
@@ -859,9 +966,18 @@ def main():
         with Server((args.host, args.port), station) as server:
             if args.open_browser:
                 threading.Thread(target=lambda: webbrowser.open(f"http://127.0.0.1:{args.port}/"), daemon=True).start()
-            try: server.serve_forever()
-            except KeyboardInterrupt: pass
-            finally: station.request_stop()
+            previous_term = signal.getsignal(signal.SIGTERM)
+            def terminate(_signum, _frame):
+                # shutdown() must run on a different thread than serve_forever().
+                threading.Thread(target=server.shutdown, daemon=True).start()
+            signal.signal(signal.SIGTERM, terminate)
+            try:
+                server.serve_forever()
+            except KeyboardInterrupt:
+                pass
+            finally:
+                signal.signal(signal.SIGTERM, previous_term)
+                station.close()
 
 if __name__ == "__main__":
     main()
