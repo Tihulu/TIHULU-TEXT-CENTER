@@ -1,0 +1,406 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#0e1826"><meta name="description" content="Independent offline-first scientific GNSS, sky and radio positioning workbench. No invented RF fixes.">
+<title>TIHULU RF Geolocation Center</title>
+<link rel="icon" href="./web/icon.svg" type="image/svg+xml">
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="stylesheet" href="./web/style.css">
+<script type="module" src="./web/app.mjs"></script>
+</head><body>
+<a class="skip" href="#main">Skip to workspace</a>
+<div class="shell">
+ <aside class="sidebar" aria-label="Primary navigation">
+  <div class="brand"><div class="brand-icon" aria-hidden="true">◎</div><div><strong>TIHULU</strong><span>RF GEOLOCATION CENTER</span></div></div>
+  <div class="side-caption">SCIENCE WORKBENCH · v0.1 DRAFT</div>
+  <nav id="nav" aria-label="Workspace sections">
+   <button data-view="earth" class="selected">◉ Find My Location</button>
+   <button data-view="radio">⌁ Radio / TV Scan</button>
+   <button id="show-advanced-nav" type="button" aria-expanded="false">⚙ Advanced Tools</button>
+   <div id="advanced-nav" hidden>
+   <button data-view="dashboard">◈ Original Dashboard</button>
+   <button data-view="earth" class="legacy-earth-nav" hidden>◉ Earth Map</button>
+   <button data-view="sky">✳ Sky Map</button>
+   <button data-view="receiver">⌁ GNSS Receiver</button>
+   <button data-view="catalog">▤ Satellite Catalog</button>
+   <button data-view="radio" class="legacy-radio-nav" hidden>≋ Radio Positioning</button>
+   <button data-view="references">✈ Aircraft & Stations</button>
+   <button data-view="measurements">▦ Measurements</button>
+   <button data-view="history">⇩ History & Export</button>
+   <button data-view="settings">⚙ Settings & Hardware</button>
+   </div>
+  </nav>
+  <div class="sidebar-bottom">
+   <div class="dotline"><span class="dot off"></span><span id="rf-state">NO RF RECEIVER OPEN</span></div>
+   <div class="meta">Background RF: OFF<br>No synthetic signals or location fixes</div>
+   <button id="hard-stop" class="danger" type="button">■ HARD STOP — MY RF ONLY</button>
+  </div>
+ </aside>
+ <div class="workspace">
+  <header class="topbar">
+   <button id="mobile-menu" aria-label="Toggle menu" class="mobile-toggle">☰</button>
+   <div><strong id="heading">Dashboard</strong><div class="muted">EARTH + SKY · LOCAL DATA · SCIENTIFIC STATUS</div></div>
+   <div class="top-actions"><span class="status-tag" id="position-tag">POSITION UNAVAILABLE</span><span class="status-tag" id="orbit-tag">EPHEMERIS MISSING</span></div>
+  </header>
+  <main id="main">
+   <div class="notice" id="notice" role="status" aria-live="polite">No active RF capture. Browser location and local files require your permission.</div>
+   <section id="view-dashboard" class="view active" aria-labelledby="dash-title">
+    <div class="eyebrow">MISSION OVERVIEW</div><h1 id="dash-title">Find your location. See the GNSS sky.</h1>
+    <p class="lead">GNSS orbital geometry, real device coordinates and experimental radio positioning in one offline-first workspace. Prediction is never reception.</p>
+    
+    <section class="live-explorer" aria-label="Live GNSS geolocation explorer">
+      <div class="live-head">
+        <div><div class="eyebrow">LIVE EXPLORER · EARTH + SKY</div><h2>Find your position and see the satellites</h2><p>Automatic navigation-satellite predictions. One button for real device positioning. Orbit positions and RF receptions are different measurements.</p></div>
+        <div class="live-controls"><button id="live-find" class="primary" type="button">◎ Find My Location</button><button id="live-connect" class="secondary" type="button">⌁ Connect USB SDR</button><button id="live-usb-check" class="secondary" type="button">USB Self-Test</button><button id="live-scan" class="secondary" type="button">Scan GNSS L1 · 2 s</button><button id="live-release" class="secondary" type="button">Release USB</button><button id="live-rings" class="secondary" type="button">◎ Location Layers &amp; Rings</button><button id="live-rf-only" class="secondary" type="button">⌁ Antenna-only RF positioning</button><button id="live-refresh" class="secondary" type="button">↻ Refresh Satellites</button></div>
+      </div>
+      <div class="live-stats">
+        <div><span>POSITION SOURCE</span><strong id="live-pos-type">REFERENCE ONLY</strong><small id="live-pos-label">Cologne fallback · permission not requested</small></div>
+        <div><span>GNSS ORBITAL CATALOG</span><strong id="live-total">Loading…</strong><small id="live-epoch">Automatic one-time CelesTrak lookup</small></div>
+        <div><span>ABOVE HORIZON</span><strong id="live-above">—</strong><small>Predicted geometry, not RF locks</small></div>
+        <div><span>USB SDR</span><strong id="live-usb-status">Not connected</strong><small id="live-usb-detail">No radio capture</small></div>
+      </div>
+      <div id="live-method-summary" class="live-method-summary" role="status">GNSS, device, GPS-free, radio, aircraft and satellite layers are separate. Open Location Layers to control their visibility.</div>
+      <div class="provenance-intro"><h3>Where did each piece of information come from?</h3><p>A connected antenna is not necessarily the source of your location. Each channel below reports its own acquisition route.</p></div>
+      <div class="provenance-grid" id="source-provenance-dashboard" aria-label="Measured and referenced data origins">
+        <article class="provenance-item provenance-position"><span>YOUR LOCATION</span><strong id="origin-position">No measured location</strong><small id="origin-position-status">NO POSITION FIX</small><p id="origin-position-method">Waiting for a device or GNSS receiver</p><p id="origin-position-detail">No antenna-based positioning.</p></article>
+        <article class="provenance-item provenance-antenna"><span>RTL-SDR ANTENNA</span><strong id="origin-antenna">Nooelec RTL-SDR</strong><small id="origin-antenna-status">NOT CONNECTED</small><p id="origin-antenna-method">No RF capture</p><p id="origin-antenna-detail">An RF sample is not a location fix.</p></article>
+        <article class="provenance-item provenance-orbits"><span>SATELLITE POSITIONS</span><strong id="origin-orbits">No catalog loaded</strong><small>REFERENCE DATA · NOT RF</small><p id="origin-orbits-method">Not acquired by antenna</p><p id="origin-orbits-detail">Predictions are not received navigation signals.</p></article>
+        <article class="provenance-item provenance-aircraft"><span>AIRCRAFT POSITIONS</span><strong id="origin-aircraft">No aircraft data</strong><small>REFERENCE DATA · NOT RF</small><p id="origin-aircraft-method">No local ADS-B observations connected</p><p id="origin-aircraft-detail">Aircraft locations do not give receiver coordinates.</p></article>
+      </div>
+      <div class="live-map-grid">
+        <article class="live-earth">
+          <div class="live-panel-title"><div><div class="eyebrow">EARTH VIEW</div><h3>Position map</h3></div><span id="live-earth-source" class="live-source">COLOGNE REFERENCE</span></div>
+          <div class="live-map-wrap"><svg id="live-offline-grid" viewBox="0 0 800 460" preserveAspectRatio="none" role="img" aria-label="Offline coordinate map with last known position and grid" hidden></svg><iframe id="live-osm" title="Interactive OpenStreetMap viewer with receiver location" loading="eager" referrerpolicy="strict-origin-when-cross-origin" allow="geolocation 'none'"></iframe></div>
+          <div class="live-map-footer"><span>© OpenStreetMap contributors · online map requested on page load</span><a id="live-open-osm" href="https://www.openstreetmap.org/" target="_blank" rel="noopener noreferrer">Open full map ↗</a></div>
+        </article>
+        <article class="live-sky">
+          <div class="live-panel-title"><div><div class="eyebrow">SKY VIEW · SGP4</div><h3>Navigation satellites overhead</h3></div><span id="live-sky-source" class="live-source">LOADING ORBITS</span></div>
+          <svg id="live-sky-svg" role="img" aria-label="Predicted GNSS satellites in a polar sky chart" viewBox="0 0 460 385"></svg>
+          <div id="live-satellite-list" class="live-satellite-list"><p>Loading current orbital data…</p></div>
+        </article>
+      </div>
+      <div class="live-status"><span id="live-position-status">Press Find My Location to use permission-based device coordinates. No RF hardware opens automatically.</span><span id="live-orbit-status">Orbital data: checking cache…</span></div>
+      <details class="live-explain"><summary>What actually determines my location?</summary><p><strong>Browser/device GPS:</strong> real positioning after permission. <strong>Dedicated GNSS receiver:</strong> valid live NMEA fixes. <strong>Predicted satellites:</strong> orbital geometry only, not reception. <strong>Aircraft and radio stations:</strong> positions alone cannot locate a receiver without independent range, timing or directional measurements. <strong>WebUSB RTL-SDR:</strong> direct hardware connection and raw RF energy samples where supported, but no GNSS satellite signal decoder yet.</p></details>
+    </section>
+    <div class="metrics">
+      <article class="metric"><span>LOCATION PROVIDER</span><strong id="dash-provider">Unavailable</strong><small id="dash-coordinates">No authorized coordinates</small></article>
+      <article class="metric"><span>GNSS EPHEMERIS</span><strong id="dash-orbits">Not imported</strong><small id="dash-orbit-time">Import your own precise orbit SP3 file</small></article>
+      <article class="metric"><span>VISIBLE SATELLITES</span><strong id="dash-visible">—</strong><small>Geometric prediction, not acquired</small></article>
+      <article class="metric"><span>RF MEASUREMENT</span><strong>Not running</strong><small>Hard Stop controls this app only</small></article>
+    </div>
+    <div class="panel-grid">
+     <article class="panel"><h2>Start with your actual location</h2><p>Uses your browser/phone's permission-controlled location service. The source is labeled <b>Browser / Device Location</b>, never SDR.</p><button id="locate" class="primary">Request device location</button></article>
+     <article class="panel"><h2>Import real satellite orbits</h2><p>SP3 precise orbit samples enable Earth/sky geometry for the file's dated interval. No network fetch or TLE-based positioning.</p><label for="sp3-file" class="file-button">Choose SP3 orbit file</label><input type="file" id="sp3-file" accept=".sp3,.txt,text/plain"></article>
+     <article class="panel"><h2>Dedicated GNSS receiver</h2><p>Load receiver-produced NMEA logs or connect through Web Serial if available. A valid fix is attributed to the GNSS receiver, not a radio inference engine.</p><label for="nmea-file" class="file-button">Import NMEA log</label><input type="file" id="nmea-file" accept=".nmea,.log,.txt,text/plain"></article>
+     <article class="panel"><h2>Cross-platform status</h2><p id="dashboard-platform">Checking device and browser capabilities…</p><button data-jump="settings" class="secondary">Hardware & permissions</button></article>
+    </div>
+   </section>
+   <section id="view-earth" class="view active"><div class="section-head simple-title"><div><div class="eyebrow">TIHULU GEOLOCATION</div><h1>Find my location</h1><p class="lead">Choose your hardware and the sources to display. The map shows a real device fix, experimental radio estimate, or clearly labeled reference — never a fabricated position.</p></div><button id="osm-load" class="secondary">Load map tiles</button></div>
+     <article class="panel simple-position-panel" aria-label="Geolocation input and radio source options">
+      <div class="simple-choice-grid">
+       <fieldset class="simple-fieldset"><legend>Position methods · select any</legend>
+        <label class="simple-option"><input type="checkbox" id="simple-gps" checked><span><strong>GPS / Device</strong><small>Phone or computer location; offline GPS if available</small></span></label>
+        <label class="simple-option"><input type="checkbox" id="simple-sdr"><span><strong>Nooelec RTL-SDR radio</strong><small>Measured radio signals · experimental positioning</small></span></label>
+        <label class="simple-option"><input type="checkbox" id="simple-tv"><span><strong>Hauppauge WinTV-soloHD TV</strong><small>DVB-T/T2/C channels · native tuner metadata</small></span></label>
+       </fieldset>
+       <fieldset class="simple-fieldset"><legend>RF source layers · select any</legend>
+        <label class="simple-option"><input type="checkbox" id="simple-ground" checked><span><strong>Ground transmitters</strong><small>FM, TV sites and reference locations</small></span></label>
+        <label class="simple-option"><input type="checkbox" id="simple-aircraft" checked><span><strong>Aircraft</strong><small>Local ADS-B and internet contacts, kept separate</small></span></label>
+        <label class="simple-option"><input type="checkbox" id="simple-satellites"><span><strong>Satellites</strong><small>Predicted orbits, not automatically RF-received</small></span></label>
+       </fieldset>
+      </div>
+      <details id="simple-hardware" class="simple-hardware-panel" open>
+       <summary>Hardware · Add and connect your receivers <span id="hardware-count" class="hardware-counter">0 permitted USB devices</span></summary>
+       <div class="hardware-actions">
+        <button id="hardware-add" class="primary" type="button">+ Add USB device</button>
+        <button id="hardware-refresh" class="secondary" type="button">Detect permitted devices</button>
+        <div id="hardware-rtl-slot" class="hardware-control-slot"></div>
+        <div id="hardware-test-slot" class="hardware-control-slot"></div>
+        <button id="hardware-recover" class="secondary" type="button">Recover SDR (USB error)</button>
+        <button id="hardware-release" class="secondary" type="button">Release RTL-SDR</button>
+       </div>
+       <div class="hardware-tv-row">
+        <div><strong>TV · Hauppauge WinTV-soloHD (01589)</strong><small>Native Linux DVB-T/T2/C frontend, not generic browser WebUSB</small></div>
+        <button id="home-tv-identify" class="secondary" type="button">Identify TV USB</button>
+        <button id="home-tv-connect" class="primary" type="button">Connect TV tuner · local approval</button>
+        <button id="home-tv-scan" class="secondary" type="button" disabled>Scan TV</button>
+        <span id="home-tv-state" role="status">No native TV backend connected</span>
+       </div>
+       <div class="hardware-gnss-row">
+        <span>Optional dedicated GNSS serial receiver</span>
+        <div id="hardware-gnss-slot" class="hardware-control-slot"></div>
+       </div>
+       <div id="hardware-list" class="hardware-device-list" aria-label="Browser-permitted USB hardware"></div>
+       <div id="hardware-message" class="hardware-message" role="status" aria-live="polite">USB permissions are independent of receiver claims. Add device identifies hardware; Connect RTL-SDR actually opens its tuner.</div>
+       <p class="hardware-note"><strong>Nooelec RTL-SDR:</strong> WebUSB in desktop Chrome, Brave or Edge; release readsb/Gqrx first. <strong>Hauppauge WinTV-soloHD:</strong> may be listed by USB permission, but DVB-T/T2/C scanning uses the native Linux DVB driver, not the browser. Adding a TV USB permission does not enable a web DVB scan.</p>
+      </details>
+      <div class="simple-actions">
+       <button id="simple-find" class="primary" type="button">◎ Find My Location</button>
+       <button id="simple-scan" type="button" class="secondary">⌁ Scan selected receivers</button>
+       <button id="simple-fit" type="button" class="secondary">Show measured rings</button>
+      </div>
+      <div class="simple-result" id="simple-result" role="status" aria-live="polite">Select a method above and press Find My Location. GPS/device is available through browser permission; radio/TV discovery requires the corresponding receiver.</div>
+      <div class="simple-summary" id="simple-sources" role="status">Receiver: none · Radio references: 0 · Actual ranging: none</div>
+     </article>
+     <div class="two-col">
+      <article class="panel map-panel">
+       <div class="map-top"><span id="map-center-label">COLOGNE REFERENCE · NOT YOUR LOCATION</span><div><button id="map-zoom-out" aria-label="Zoom out">−</button><button id="map-zoom-in" aria-label="Zoom in">+</button></div></div>
+       <div id="earth-map" class="earth-map" role="region" aria-label="Interactive map: device position, measured signal rings, transmitter candidates, aircraft and satellites">
+        <div id="osm-tiles" class="osm-tiles" hidden></div>
+        <svg id="earth-overlay" class="earth-overlay" viewBox="0 0 900 520" preserveAspectRatio="none"><g id="earth-grid"></g><g id="earth-rings"></g><g id="earth-markers"></g></svg>
+        <div class="map-cross">+</div>
+        <div id="map-hover-tip" class="map-hover-tip" role="tooltip" hidden></div>
+        <div id="map-source-popup" class="map-source-popup" role="dialog" aria-label="Selected RF map source details" hidden>
+         <button id="map-source-popup-close" aria-label="Close map source information" type="button">×</button>
+         <strong id="map-source-popup-name">Source</strong>
+         <p id="map-source-popup-description"></p>
+         <div id="map-source-facts" class="map-source-facts" aria-label="Signal and location provenance"></div>
+         <div class="map-source-actions">
+          <a id="map-source-catalog-link" target="_blank" rel="noopener noreferrer" hidden>Open original map record</a>
+          <button id="map-source-measure" type="button" class="secondary" hidden>Measure / calibrate RF source</button>
+         </div>
+        </div>
+       </div><div class="map-footer"><span>WGS84 · drag to pan · wheel / double-click / +/− zoom · click pins for source evidence</span><span>© OpenStreetMap contributors, tiles only on request</span></div>
+       <section class="map-discovery-results" aria-label="Receiver measurements and matching mapped transmitter candidates">
+        <div class="map-discovery-top">
+         <div><strong>Signals &amp; sources on this map</strong><p id="map-scan-status">No antenna scan linked to this map yet. Catalog towers are external references, not received stations.</p></div>
+         <button id="map-focus-scan" class="secondary" type="button">Fit discovered sources</button>
+        </div>
+        <div id="rf-blind-status" class="rf-blind-status" role="status">RF-ONLY · NO FIX: mapped tower coordinates and RF power alone do not establish your position. Calibrate three or more independently known fixed transmitters for an experimental RSSI estimate.</div>
+        <div class="map-source-legend" aria-label="Source provenance">
+         <span><i class="map-dot device"></i> Device position</span>
+         <span><i class="map-dot tower"></i> T = OSM catalog tower (not measured)</span>
+         <span><i class="map-dot radio"></i> F / RD = frequency / RDS overlap (not confirmed tower)</span>
+         <span><i class="map-dot tv"></i> TV frequency candidate</span>
+         <span><i class="map-dot aircraft"></i> Aircraft from antenna</span>
+         <span><i class="map-dot internet"></i> Internet aircraft</span>
+         <span><i class="map-dot orbit"></i> Predicted satellite</span>
+        </div>
+        <div id="map-scan-results" class="map-scan-results" aria-live="polite"></div>
+       </section>
+      </article>
+      <details id="geo-advanced-tools" class="panel geo-advanced-tools"><summary>Advanced layers, evidence and calibration</summary><div class="geo-advanced-body"><h2>Live location and evidence</h2>
+       <button id="earth-find" class="primary" type="button">◎ Find My Location — online or offline</button>
+       <div id="fix-evidence" class="fix-evidence" role="status" aria-live="polite">No confirmed live fix. Browser/device geolocation or a connected NMEA GNSS receiver may provide one. Last known location is never a new fix.</div>
+       <div id="source-proof" class="source-proof" role="status">Source: none · Device service: not measured · RTL-SDR antenna: no location fix.</div>
+       <div class="position-legend"><span><i class="legend-device"></i> Device-reported accuracy</span><span><i class="legend-ranges"></i> Measured station ranges</span><span><i class="legend-demo"></i> Simulated example</span></div>
+       <h2>Layers and positioning evidence</h2>
+       <div class="location-methods-head"><h3>Location methods &amp; map layers</h3><p>Choose which independent measurements and reference sources appear. A source without a fix never becomes your position.</p></div>
+       <div class="earth-layer-controls" id="location-layers" aria-label="Location method layers">
+         <label class="method-layer" data-method="gnss"><input id="layer-gnss" type="checkbox" checked><span class="method-layer-text"><strong>◉ GPS / GNSS receiver</strong><small>Dedicated satellite-navigation NMEA fix</small></span><em id="layer-status-gnss">NO FIX</em></label>
+         <label class="method-layer" data-method="device"><input id="layer-device" type="checkbox" checked><span class="method-layer-text"><strong>● Device location</strong><small>GPS or network provider; browser does not say which</small></span><em id="layer-status-device">NO FIX</em></label>
+         <label class="method-layer" data-method="gpsfree"><input id="layer-gpsfree" type="checkbox" checked><span class="method-layer-text"><strong>◇ GPS-free / Wi-Fi / cellular / IP</strong><small>Requires verified non-GNSS provider</small></span><em id="layer-status-gpsfree">UNAVAILABLE</em></label>
+         <label class="method-layer" data-method="radio"><input id="layer-ranges" type="checkbox" checked><span class="method-layer-text"><strong>◎ Radio positioning</strong><small>Measured station/aircraft distances and rings</small></span><em id="layer-status-radio">NO MEASUREMENT</em></label>
+         <label class="method-layer" data-method="aircraft"><input id="layer-aircraft" type="checkbox" checked><span class="method-layer-text"><strong>✈ Aircraft references</strong><small>Observed/imported aircraft; not a receiver fix</small></span><em id="layer-status-aircraft">NO DATA</em></label>
+         <label class="method-layer" data-method="ground"><input id="layer-stations" type="checkbox" checked><span class="method-layer-text"><strong>⌁ Ground stations</strong><small>Station coordinates; selected for radio geometry only with ranges</small></span><em id="layer-status-ground">NO DATA</em></label>
+         <label class="method-layer" data-method="satellites"><input id="layer-orbits" type="checkbox"><span class="method-layer-text"><strong>✧ Satellites / sky geometry</strong><small>Predicted orbital positions, not decoded GPS signals</small></span><em id="layer-status-satellites">NO DATA</em></label>
+         <label class="method-layer" data-method="cached"><input id="layer-cached" type="checkbox" checked><span class="method-layer-text"><strong>◷ Last-known offline position</strong><small>Historical location and timestamp; not live</small></span><em id="layer-status-cached">NO DATA</em></label>
+         <label class="method-layer" data-method="demo"><input id="layer-demo" type="checkbox" checked><span class="method-layer-text"><strong>◌ Simulated rings</strong><small>Fictional stations · educational example only</small></span><em id="layer-status-demo">SIMULATED</em></label>
+       </div>
+       <div class="layer-quick-actions"><button id="layer-only-fixes" class="secondary" type="button">Position points</button><button id="layer-show-references" class="secondary" type="button">Show references</button><button id="layer-defaults" class="secondary" type="button">Reset layers</button></div>
+       <div id="layer-explanation" class="layer-explanation" role="status">GNSS fixes, device location and radio estimates are separate. Satellite orbits and aircraft references do not establish an observer position.</div>
+       <div id="evidence-report" class="evidence-report" role="status">SIMULATED EXAMPLE: three fictional stations demonstrate circle intersections. No real radio ranges have been measured.</div>
+       <div id="evidence-sources" class="evidence-sources" aria-label="Stations or aircraft used in circle calculation"></div>
+       <button id="earth-fit-evidence" class="secondary" type="button">Fit rings / evidence to map</button>
+       <button id="evidence-clear" class="secondary" type="button">Clear measured ranges</button>
+       <div class="field"><label>Current center</label><div id="earth-center">Cologne, Germany (default)</div></div>
+       <div class="field"><label>Geolocation source</label><div id="earth-source">Reference center is not a location fix</div></div>
+       <div class="field"><label>Predicted orbit markers</label><div id="earth-sat-count">0 — import SP3</div></div>
+       <div class="field"><label>Ground transmitters / aircraft</label><div id="earth-ref-count">0 — import your own verified references</div></div>
+       <button id="earth-reset" class="secondary">Center on location / reference</button>
+       <p class="muted fine" id="earth-offline-status">Offline fallback: locally rendered coordinate grid, reference markers and range rings remain visible without OpenStreetMap tiles. GNSS-based offline coordinates require a capable receiver, or a previously saved location labeled CACHED.</p>
+      </div></details>
+     </div>
+   </section>
+   <section id="view-sky" class="view"><div class="section-head"><div><div class="eyebrow">SKY GEOMETRY</div><h1>Azimuth and elevation</h1></div><span class="status-tag">PREDICTED ORBIT, NOT ACQUIRED</span></div>
+    <div class="two-col"><article class="panel sky-panel">
+      <svg id="sky-plot" viewBox="0 0 600 600" role="img" aria-label="Sky plot for actual user-imported SP3 ephemeris; empty unless imported"></svg>
+      <div class="fine muted">North is up. Horizon on outer ring; zenith at center. Imported precise-orbit interpolation only.</div>
+     </article><article class="panel">
+      <h2>Time and visibility</h2><label for="sky-time">Ephemeris epoch</label><input type="range" id="sky-time" min="0" max="1000" value="0" disabled>
+      <p id="sky-timestamp" class="muted">No SP3 epochs imported</p>
+      <label for="elevation-mask">Elevation mask: <output id="mask-label">5°</output></label><input type="range" id="elevation-mask" min="0" max="45" value="5">
+      <div id="sky-list" class="item-list"><p class="muted">Import a real SP3 file to see geometric satellite visibility.</p></div>
+     </article></div>
+   </section>
+   <section id="view-receiver" class="view"><div class="eyebrow">MEASUREMENT ORIGIN</div><h1>Dedicated GNSS receiver</h1>
+     <div class="panel-grid">
+      <article class="panel"><h2>Web Serial NMEA (optional)</h2><p>On supported Chromium desktop browsers, request explicit permission to a GNSS serial receiver. This is not an RTL-SDR decoder.</p>
+       <button id="serial-connect" class="primary">Connect GNSS serial (9600 baud)</button><button id="serial-disconnect" class="secondary">Disconnect</button>
+       <div id="serial-state" class="fine muted">UNAVAILABLE / NOT CONNECTED</div></article>
+      <article class="panel"><h2>WebUSB RTL-SDR receiver</h2><p>Connect a compatible local RTL-SDR using supported HTTPS Chromium browsers. Bounded uncalibrated IQ sampling is available; actual GNSS acquisition, pseudorange measurements and satellite position fixing are NOT implemented.</p>
+       <button id="usb-select" class="secondary">Connect RTL-SDR via WebUSB</button><button id="usb-selftest" class="secondary" type="button">Test USB access (no Console)</button><div id="usb-state" class="fine muted">No USB device selected.</div>
+       <div id="usb-diagnostics" class="usb-diagnostics" role="status" aria-live="polite">WebUSB diagnostics appear here after a connection attempt.</div>
+       <details class="usb-troubleshoot"><summary>USB connection failed? Linux / Raspberry Pi setup</summary>
+         <p>Chrome/Brave/Edge on HTTPS are required. If your stick is occupied by <code>readsb</code> or another SDR app, close or release it first. The application never stops unrelated processes.</p>
+         <p>To inspect the known Nooelec RTL2832U USB ID <code>0bda:2838</code>, open the script below and run the read-only <code>--check</code> mode first. The optional <code>--release</code> action stops <code>readsb</code> if active and unbinds only this device's <code>dvb_usb_rtl28xxu</code> interface. It does not blacklist the DVB driver.</p>
+         <a href="./scripts/usb_prepare_linux.sh" target="_blank" rel="noopener noreferrer">View Linux USB diagnostic/release script</a>
+         <p><code>bash usb_prepare_linux.sh --check</code></p>
+         <p><code>bash usb_prepare_linux.sh --release</code> (explicit user choice)</p>
+         <p>If the interface is already free but WebUSB still fails, check udev permissions and browser sandbox policy. Flatpak/Snap browsers may require additional hardware access. On Windows, a compatible USB driver may be required.</p>
+       </details></article>
+      <article class="panel"><h2>Last valid received coordinates</h2><pre id="receiver-fix" class="result">No valid NMEA messages observed.</pre></article>
+      <article class="panel"><h2>GNSS stages</h2><div class="stage-list"><span>DEVICE PRESENT <b id="stage-device">UNAVAILABLE</b></span><span>SIGNAL ACQUIRED <b>UNAVAILABLE</b></span><span>TRACKING / C/N₀ <b>UNAVAILABLE</b></span><span>NAVIGATION DATA <b>UNAVAILABLE</b></span><span>PVT FIX <b id="stage-fix">UNAVAILABLE</b></span></div></article>
+     </div>
+   </section>
+   <section id="view-catalog" class="view"><div class="eyebrow">MULTI-CONSTELLATION REFERENCE</div><h1>Systems and supported signal families</h1><p class="lead">Catalog coverage is not proof of reception. GLONASS FDMA channels are frequency-dependent.</p><div id="gnss-catalog" class="catalog-grid"></div></section>
+   <section id="view-radio" class="view"><div class="eyebrow">RADIO / TV SCAN</div><h1>Scan receivers and discover sources</h1>
+    <p class="lead">Choose a receiver. Found channels, mapped transmitters and aircraft stay separate from your actual location.</p>
+    <article class="panel radio-quick-panel">
+      <div class="radio-quick-grid">
+        <div><h2>Radio · Nooelec RTL-SDR</h2><p>Automatic FM band energy scan, broadcast-station catalog and real ADS-B aircraft shared from Flight Radar.</p>
+         <div class="simple-actions"><button id="radio-connect-rtl" class="primary" type="button">Connect RTL-SDR via WebUSB</button><button id="radio-manage-usb" class="secondary" type="button">Manage hardware</button></div>
+         <div class="simple-actions"><button id="quick-radio-discover" class="primary" type="button">Discover sources</button><button id="quick-radio-scan" type="button">Scan FM band</button><button id="quick-radio-recover" type="button">Recover USB</button><button id="quick-radio-release" type="button">Hard Stop receiver</button><button id="quick-back-map" type="button">← Back to map</button></div>
+         <div id="quick-radio-status" class="simple-result">Connect the RTL-SDR for antenna FM scans. Site lookup requires internet or a cached catalog.</div>
+         <div class="fm-reference-panel">
+          <strong>FM reference channel energy test</strong>
+          <p>Known published frequencies are useful for testing the receiver and a calibrated reference workflow. Their names are NOT verified by RF energy alone; their transmitter coordinates and actual range are not assumed.</p>
+          <div class="simple-actions">
+           <label for="fm-reference-channel">Known FM broadcast frequency
+            <select id="fm-reference-channel">
+             <option value="98.6">WDR 2 · Köln · 98.6 MHz</option>
+             <option value="87.6">1LIVE · Köln · 87.6 MHz</option>
+             <option value="99.2">WDR 2 · Langenberg · 99.2 MHz</option>
+             <option value="100.4">WDR 2 · Bonn · 100.4 MHz</option>
+             <option value="95.1">WDR 3 · Langenberg · 95.1 MHz</option>
+            </select>
+           </label>
+           <button id="fm-reference-probe" class="secondary" type="button">Measure this FM frequency</button>
+           <a href="https://www1.wdr.de/radio/wdr2/ueber-uns/frequenzen-100.html" target="_blank" rel="noopener noreferrer">WDR published frequency list</a>
+          </div>
+          <div id="fm-reference-status" class="simple-result">No FM reference sample yet. Choose a frequency and connect your actual RTL-SDR.</div>
+         </div>
+         <div class="radio-adsb-link">
+          <div><strong>Aircraft · real 1090 MHz ADS-B</strong><p>Use the existing Flight Radar decoder for actual ICAO, callsign and transmitted aircraft positions. One RTL-SDR cannot run FM and ADS-B simultaneously; release it here before opening the radar receiver.</p></div>
+          <a href="../flight_radar/" id="quick-open-adsb" target="_blank" rel="noopener noreferrer">Open antenna Flight Radar</a>
+          <button id="quick-online-aircraft" class="secondary" type="button">Find internet aircraft</button>
+         </div>
+         <div class="radio-rds-panel">
+          <div><strong>Decoded FM RDS / DAB+ metadata</strong><p>Read real PS, RadioText, programme metadata and DAB service records from an existing local TIHULU TEXT CENTER receiver. No extra RTL-SDR claim or automatic tuning.</p></div>
+          
+          <button id="radio-read-rds" class="secondary" type="button">Read local RDS / DAB</button>
+          <a href="http://127.0.0.1:8787/" target="_blank" rel="noopener noreferrer">Open local Text Center</a>
+          <div id="radio-rds-status" class="simple-result">No local decoder metadata received in this session.</div>
+          <div id="radio-rds-results" class="simple-channel-list" aria-label="Actual decoded local radio metadata"></div>
+         </div>
+         <details class="fm-calibration-candidates" id="fm-calibration-candidates">
+          <summary>FM calibration · choose a published transmitter</summary>
+          <p>Select a known, fixed FM source with a <strong>published frequency</strong>. Use real RTL-SDR measurements at a separately known distance to calibrate an experimental signal-loss model. Source identity, transmitter power and a measured range are NOT implied by signal strength.</p>
+          <div id="fm-calibration-source-list" class="simple-channel-list" aria-label="FM transmitter candidates with explicitly published site frequencies">Run Discover sources to load possible transmitter sites. No station identity is verified by antenna yet.</div>
+          <p class="fine muted">FM broadcast transmitters are not precision ranging beacons. Multiple carriers, power differences and propagation can invalidate the estimate. Calibration must never be labeled an accurate fix.</p>
+         </details>
+         <div class="radio-quick-results"><div><h3>Detected site candidates</h3><div id="quick-radio-towers" class="simple-channel-list"></div></div><div><h3>Strongest actual RF frequencies</h3><div id="quick-radio-peaks" class="simple-channel-list"></div></div></div>
+        </div>
+        <div><h2>TV · Hauppauge WinTV-soloHD (01589)</h2><p>Connect your real Linux DVB tuner through the optional secure local bridge. Scan DVB-T2 from here, then compare actually detected channels with published TV transmitter sites on the map. Static Pages alone cannot access /dev/dvb.</p>
+         <div class="tv-bridge-card">
+          <h3>Connect native TV tuner</h3>
+          <div class="tv-bridge-grid">
+           <div class="tv-pair-intro"><strong>Secure one-click pairing</strong><small>Approve this TIHULU tab in a localhost window. No token to type.</small></div>
+           <button id="tv-bridge-connect" class="primary" type="button">Connect TV · Local approval</button>
+
+           <label for="tv-adapter">Detected DVB adapter<select id="tv-adapter" aria-label="Detected Linux DVB adapter"><option value="">Connect bridge first</option></select></label>
+           <label for="tv-profile">Scan profile<select id="tv-profile"><option value="eu-uhf-t2">EU UHF DVB-T2 (channels 21–48)</option></select></label>
+          </div>
+          <div class="simple-actions">
+           <button id="tv-start-scan" class="primary" type="button" disabled>Scan TV channels</button>
+           <button id="tv-stop-scan" class="secondary" type="button" disabled>Stop TV scan</button>
+           <button id="tv-show-map" class="secondary" type="button">Show channels &amp; towers on map</button>
+          </div>
+          <div id="tv-bridge-status" class="simple-result" role="status" aria-live="polite">No local DVB bridge. No TV channels have been scanned by this web page.</div>
+         </div>
+         <label class="file-button" for="simple-dvb-file">Import real DVB scan metadata</label>
+         <input id="simple-dvb-file" type="file" accept=".conf,.txt,.ini,text/plain">
+         <details id="simple-tv-guide"><summary>TV scan setup · Linux DVB tuner driver (no token typing)</summary>
+          <p>Run once from the existing repository checkout: <code>python3 -m rf_geolocation_center.native serve --enable-pages-bridge</code>. Click Connect TV and confirm in the localhost window; no token copying. Install <code>dvb-tools</code> to provide <code>dvbv5-scan</code>, and make sure the TV tuner has a working <code>/dev/dvb/adapterN/frontend0</code> driver. The browser may ask permission for loopback network access; allow only for your trusted TIHULU page.</p>
+          <p>This bridge listens on <code>127.0.0.1:8794</code>, accepts the token only from local UI or the official Pages origin, never scans automatically, and never controls your Nooelec RTL-SDR. Pairing is approved locally, with credentials kept only in page memory and never stored. Closing the tab clears them. No internet connection is needed to scan after setup.</p>
+          <p>Check that <code>/dev/dvb/adapter0/frontend0</code> exists and that <code>dvbv5-scan</code> is installed. Run a DVB-T/T2 scan using a regional initial-tuning file, then import its DVBv5 channel list here. <a href="./scripts/dvb_scan_linux.sh" target="_blank" rel="noopener noreferrer">Linux scanning helper</a>.</p>
+          <p>TV network/service IDs and channel frequencies are real broadcast metadata but normally do not contain your position or identify one unique transmitter in a single-frequency network.</p>
+         </details>
+         <div id="simple-tv-status" class="simple-result">No native DVB scan imported. TV hardware access is not supported directly by this static web page.</div>
+         <div id="simple-tv-channels" class="simple-channel-list" aria-label="Actually imported TV channels"></div>
+        </div>
+      </div>
+    </article>
+    <details class="radio-advanced-tools" id="radio-advanced-tools"><summary>Advanced RF catalogs, calibration and measurements</summary>
+    <article class="panel rf-catalog-panel">
+      <h2>Automatic RF source discovery</h2>
+      <p>Look up real published radio transmitter sites automatically (OpenStreetMap/Overpass). Their reported positions and frequencies are <strong>external catalog candidates</strong>, not proof your antenna received those stations. Select an approximate search region; it is <strong>not used as your measured position</strong>. Manual inputs remain available below.</p>
+      <div class="rf-entry-grid">
+       <div class="field"><label for="catalog-center-lat">Catalog search center latitude (reference only)</label><input id="catalog-center-lat" type="number" min="-85" max="85" step="0.000001" value="50.94"></div>
+       <div class="field"><label for="catalog-center-lon">Catalog search center longitude (reference only)</label><input id="catalog-center-lon" type="number" min="-180" max="180" step="0.000001" value="6.96"></div>
+       <div class="field"><label for="catalog-radius">Search radius (km)</label><select id="catalog-radius"><option value="20">20 km</option><option value="50" selected>50 km</option><option value="100">100 km</option></select></div>
+      </div>
+      <div class="rf-actions">
+       <button id="catalog-map-center" class="secondary" type="button">Use Earth Map center (not GPS)</button>
+       <button id="catalog-discover" class="primary" type="button">Discover broadcast transmitters</button>
+       <button id="catalog-add-frequencies" class="secondary" type="button">Auto-add frequency-tagged transmitters</button>
+       <button id="catalog-aircraft" class="secondary" type="button">Find online aircraft (reference only)</button>
+      </div>
+      <div class="rf-actions">
+       <button id="catalog-fm-scan" class="primary" type="button">Scan FM band with RTL-SDR · 87.5–108 MHz</button>
+       <button id="catalog-cancel" class="secondary" type="button">Stop discovery / FM sweep</button>
+       <button id="catalog-fit-map" class="secondary" type="button">Show sources on Earth Map</button>
+      </div>
+      <div id="catalog-status" class="rf-measurement-status" role="status" aria-live="polite">Ready. Press Discover to fetch catalog sites for the reference region; offline cached sites are reused. Scan FM requires the connected RTL-SDR. No browser GPS access is requested.</div>
+      <div id="catalog-fm-status" class="rf-measurement-status" role="status">No physical FM spectrum scan. Energy peaks are not transmitter IDs or range measurements.</div>
+      <div id="catalog-tower-list" class="rf-catalog-list" aria-label="Catalog broadcasting site candidates"></div>
+      <div class="rf-measurement-status" id="catalog-adsb-status" role="status">Local antenna ADS-B: waiting for Tihulu Flight Radar direct WebUSB receiver. Both apps share aircraft data in same-origin browser tabs, but cannot claim the same SDR simultaneously.</div>
+      <p class="fine muted"><a href="https://tihulu.github.io/tihulu-flight-radar/" target="_blank" rel="noopener noreferrer">Open TIHULU Flight Radar (antenna ADS-B decoder)</a> · Connect the RTL-SDR there, not in both tabs. Decoded real aircraft are displayed below automatically. OpenSky internet aircraft remain separate.</p>
+      <div id="catalog-antenna-aircraft-list" class="rf-catalog-list" aria-label="Actually decoded 1090 MHz antenna aircraft"></div>
+      <div id="catalog-aircraft-list" class="rf-catalog-list" aria-label="Online aircraft references"></div>
+      <p class="fine muted">OpenStreetMap tower tags often omit frequencies, so many entries cannot yet be automatically matched to received RF. Internet aircraft metadata is NOT local ADS-B reception. A true antenna-only aircraft layer requires a compatible Mode S/ADS-B decoder; catalog matches never count as measured distance rings.</p>
+    </article>
+    <article class="panel rf-survey-panel">
+      <h2>RF-only positioning session</h2>
+      <label class="rf-check"><input id="rf-only" type="checkbox"> RF-ONLY — never use OS location for this session</label>
+      <div id="rf-source-provenance" class="rf-measurement-status" role="status">RECEIVER: Nooelec RTL2832U (WebUSB, when connected). RF sample power originates in antenna hardware; transmitter identity and position originate from user-entered external references. An RSSI model is not a measured range.</div>
+      <div id="rf-session-status" class="rf-session-status" role="status">RF-only mode is OFF. Browser/device location sources remain separate.</div>
+      <div class="rf-entry-grid">
+        <div class="field"><label for="rf-name">Transmitter / source ID</label><input id="rf-name" value="" placeholder="Known transmitter name (user supplied)" maxlength="100"></div>
+        <div class="field"><label for="rf-type">Source category</label><select id="rf-type"><option value="station">Fixed ground station</option><option value="aircraft">Aircraft (reference only)</option><option value="satellite">Satellite (reference only)</option></select></div>
+        <div class="field"><label for="rf-freq">Frequency (MHz, 24–1766)</label><input id="rf-freq" type="number" min="24" max="1766" step="0.001" value="98.6"></div>
+        <div class="field"><label for="rf-lat">Published source latitude</label><input id="rf-lat" type="number" min="-90" max="90" step="0.000001" placeholder="e.g. 50.9"></div>
+        <div class="field"><label for="rf-lon">Published source longitude</label><input id="rf-lon" type="number" min="-180" max="180" step="0.000001" placeholder="e.g. 6.9"></div>
+      </div>
+      <div class="field"><label for="rf-source-select">Select stored RF source for antenna capture / calibration</label><select id="rf-source-select" aria-label="Selected RF transmitter source"></select></div>
+      <div class="rf-actions"><button id="rf-add" type="button" class="secondary">Add external source</button><button id="rf-capture" type="button" class="primary">Measure RF with antenna</button><button id="rf-clear" type="button" class="secondary">Clear RF survey</button></div>
+      <div class="rf-calibration">
+        <h3>Calibration at a known transmitter distance</h3>
+        <p>With the antenna at a known distance from the selected fixed transmitter, capture its RF level first, enter the independently known distance, then save calibration. At an unknown site capture the *same source* again using identical fixed gain, bandwidth and antenna. This estimates range only under a simplified power-loss assumption. It does not identify the transmitter signal or provide reliable distance without validation.</p>
+        <div class="rf-entry-grid">
+          <div class="field"><label for="rf-cal-distance">Independent reference distance (metres)</label><input id="rf-cal-distance" type="number" min="1" max="100000" step="1" placeholder="Actual known distance"></div>
+          <div class="field"><label for="rf-exponent">Path-loss exponent (assumption)</label><input id="rf-exponent" type="number" min="1.5" max="6" step="0.1" value="3"></div>
+        </div>
+        <button id="rf-calibrate" class="secondary" type="button">Use last actual RF capture as reference calibration</button>
+        <div id="rf-measurement-status" class="rf-measurement-status" role="status">No RTL-SDR measurement yet. Connect the USB SDR in the Receiver panel, then scan a chosen source.</div>
+      </div>
+      <div id="rf-source-list" class="rf-source-list"><p>No user-defined RF sources.</p></div>
+      <div class="rf-actions"><button id="rf-solve" class="primary" type="button">Calculate RF-only experimental position</button><button id="rf-fit-map" class="secondary" type="button">Show radio rings on Earth Map</button></div>
+      <div id="rf-solution-report" class="rf-measurement-status" role="status">No calibrated RF range hypotheses. A minimum of three fixed ground sources is necessary for experimental RF-only trilateration.</div>
+      <p class="fine muted">Scientific limit: RF intensity does not uniquely determine distance. Terrain, multipath, antenna patterns, gain, co-channel interference and source power affect this test. Aircraft and satellites appear on independent RF layers, but are not treated as fixed ground transmitters in this 2D RSSI solver.</p>
+    </article>
+     <article class="panel"><h2>Measured range trilateration (2D)</h2><p>Import JSON list containing 3–64 stations: <code>lat</code>, <code>lon</code>, <code>rangeMeters</code>, <code>measured:true</code>. Use actual measured ranges only. Result is an experimental local 2D estimate, not a validated accuracy claim.</p><label for="ranges-file" class="file-button">Import range measurements</label><input id="ranges-file" type="file" accept=".json,application/json"><pre id="radio-result" class="result">No calibrated radio range dataset imported.</pre></article>
+     <article class="panel"><h2>Synchronized multi-receiver TDOA</h2><p>Import JSON list containing <code>lat</code>, <code>lon</code>, <code>deltaSeconds</code>, <code>synchronized:true</code>, <code>measured:true</code>. Only physically feasible range-difference hyperbola constraints are reported. This does not independently calculate a position fix.</p><label for="tdoa-file" class="file-button">Import synchronized TDOA measurements</label><input id="tdoa-file" type="file" accept=".json,application/json"><pre id="tdoa-result" class="result">No synchronized TDOA data imported.</pre></article>
+    </details>
+   </section>
+   <section id="view-references" class="view"><div class="eyebrow">EXTERNAL SOURCE SEPARATION</div><h1>Aircraft and ground stations</h1><p class="lead">Verified published station locations and observed aircraft positions can be displayed as references. They are not measurements of your receiver's location.</p>
+    <article class="panel"><h2>Import explicit references</h2><p>JSON array of points: <code>{"name":"Station","lat":50,"lon":7,"type":"station","source":"..."}</code>, or type <code>aircraft</code> with <code>observedByReceiver:true</code> for a genuinely observed ADS-B reference. No fake flight data are bundled.</p>
+      <label for="refs-file" class="file-button">Import reference points</label><input id="refs-file" type="file" accept=".json,application/json"><div id="refs-list" class="item-list"></div></article>
+   </section>
+   <section id="view-measurements" class="view"><div class="eyebrow">PROVENANCE & CAPABILITIES</div><h1>Measurement diagnostics</h1><article class="panel"><h2>Independent signal states</h2><div id="diagnostic-list" class="item-list">No sources observed.</div></article>
+      <article class="panel"><h2>Technical limitation</h2><p>No SDR GNSS correlation/tracking/backend, precision GNSS pseudorange PVT, inter-system bias model, real multi-receiver MLAT or official alert system is yet connected. GNSS-SDR, RINEX navigation, RTCM, external PVT or authentic ADS-B require separately tested adapters.</p></article>
+   </section>
+   <section id="view-history" class="view"><div class="eyebrow">USER-AUTHORIZED RECORDS</div><h1>History and exports</h1><article class="panel"><h2>Position history</h2><p>Only actual browser/device or NMEA coordinates are recorded in memory. No uploaded RF dataset is modified and no mock point is exported as received.</p><div id="history-list" class="item-list">No valid position recorded.</div>
+     <div class="button-row"><button id="export-json">Export JSON</button><button id="export-geojson">GeoJSON</button><button id="export-csv">CSV</button><button id="export-gpx">GPX</button><button id="export-kml">KML</button></div></article>
+   </section>
+   <section id="view-settings" class="view"><div class="eyebrow">HARDWARE & PRIVACY</div><h1>Permission-controlled local operation</h1>
+    <article class="panel"><h2>Capabilities</h2><div id="capabilities" class="stage-list"></div><p class="fine muted">Native SDR GNSS decoding, raw IQ capture, GNSS-SDR/RTK backend, autonomous background sessions and multi-client network receiver control are not provided by the browser-only version.</p></article>
+    <article class="panel"><h2>Stop and storage</h2><p>Hard Stop cancels this app's own Web Serial reader, releases any locally claimed interfaces, removes live device handles and stops active operations. It does not kill readsb, Gqrx, other browser tabs or unrelated radio software.</p>
+       <button id="clear-local" class="secondary">Clear saved view preference / cached orbit</button>
+       <p class="fine muted">No telemetry, cloud analytics or automatic background RF or orbital downloads. Service worker caches only same-origin application shell assets, never OSM tiles or private imported observation files.</p></article>
+   </section>
+  </main>
+  <footer>TIHULU RF Geolocation Center · Independent draft app · All times UTC where specified · No satellite acquisition claimed · <span id="foot-status">Offline-first</span></footer>
+ </div>
+</div>
+</body></html>
