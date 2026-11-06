@@ -156,7 +156,7 @@ export function initAutoExplorer(){
  $("live-refresh").addEventListener("click",()=>{void fetchCatalog(true)});
  $("live-find").addEventListener("click",()=>{
    $("live-position-status").textContent="Checking measured GNSS/browser position sources; aircraft or station coordinates alone cannot locate you.";
-   $("locate")?.click();
+   window.dispatchEvent(new Event("tihulu:find-request"));
  });
  $("live-connect").addEventListener("click",()=>{$("usb-select")?.click()});
  window.addEventListener("tihulu:position",e=>{
