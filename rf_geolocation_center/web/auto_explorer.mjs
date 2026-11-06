@@ -64,7 +64,7 @@ export function initAutoExplorer(){
      lastKnown={lat:saved.lat,lon:saved.lon,measured:false,source:"LAST KNOWN CACHED ("+saved.recordedAt+") · NOT LIVE"};
  }catch{}
  const state={pos:lastKnown||{lat:DEFAULT_CENTER.lat,lon:DEFAULT_CENTER.lon,measured:false,source:"Cologne reference (not your position)"},
- raw:null,lib:null,satellites:[],visible:[],loading:false};
+ raw:null,lib:null,satellites:[],visible:[],loading:false,rfOnly:false,previousPos:null};
  let mapSrc="";
  function drawOfflineMap(){
    const grid=$("live-offline-grid");if(!grid)return;
@@ -100,9 +100,9 @@ export function initAutoExplorer(){
     grid.hidden=true;frame.hidden=false;
     if(mapSrc!==url){frame.src=url;mapSrc=url}
   }
-  $("live-pos-type").textContent=p.measured?"DEVICE POSITION":p.source.startsWith("LAST KNOWN")?"CACHED / NOT LIVE":"REFERENCE / NOT A FIX";
+  $("live-pos-type").textContent=state.rfOnly?(p.source.startsWith("RF-ONLY MODEL")?"RF MODEL · NOT VERIFIED":"RF-ONLY · NO FIX"):p.measured?"DEVICE POSITION":p.source.startsWith("LAST KNOWN")?"CACHED / NOT LIVE":"REFERENCE / NOT A FIX";
   $("live-pos-label").textContent=p.source+" · "+p.lat.toFixed(5)+"°, "+p.lon.toFixed(5)+"°";
-  $("live-earth-source").textContent=p.measured?"MEASURED LOCATION":"COLOGNE REFERENCE";
+  $("live-earth-source").textContent=state.rfOnly?"RTL-SDR / EXTERNAL SOURCES":p.measured?"MEASURED LOCATION":"REFERENCE / CACHED";
   $("live-open-osm").href="https://www.openstreetmap.org/#map=11/"+p.lat+"/"+p.lon;
  }
  function drawSky(){
@@ -196,18 +196,43 @@ export function initAutoExplorer(){
  $("live-connect").addEventListener("click",()=>{$("usb-select")?.click()});
  $("live-rings")?.addEventListener("click",()=>{
    document.querySelector('#nav button[data-view="earth"]')?.click();
-   $("earth-fit-evidence")?.click();
+   if(state.rfOnly)window.dispatchEvent(new Event("tihulu:rf-fit-map"));
+   else $("earth-fit-evidence")?.click();
+ });
+ window.addEventListener("tihulu:rf-only-mode",event=>{
+   state.rfOnly=!!event.detail?.enabled;
+   if(state.rfOnly){
+     if(!state.previousPos)state.previousPos=state.pos;
+     state.pos={lat:DEFAULT_CENTER.lat,lon:DEFAULT_CENTER.lon,source:"RF-ONLY · NO FIX / Cologne reference (not your location)",measured:false};
+     $("live-position-status").textContent="RF ONLY: no GPS/browser/IP fix used. Map is a reference until the antenna survey estimates radio ranges.";
+   }else{
+     state.pos=state.previousPos||{lat:DEFAULT_CENTER.lat,lon:DEFAULT_CENTER.lon,source:"Cologne reference (not your location)",measured:false};
+     state.previousPos=null;
+   }
+   updateMap();recalc();
+ });
+ window.addEventListener("tihulu:rf-survey-updated",event=>{
+   if(!state.rfOnly)return;
+   const d=event.detail||{},s=Array.isArray(d.sources)?d.sources:[];
+   const candidate=d.solution&&Number.isFinite(d.solution.lat)&&Number.isFinite(d.solution.lon)?d.solution:s.find(p=>Number.isFinite(p.lat)&&Number.isFinite(p.lon));
+   if(candidate){
+     const estimate=!!d.solution;
+     state.pos={lat:candidate.lat,lon:candidate.lon,source:estimate?"RF-ONLY MODEL ESTIMATE (NOT VERIFIED)":"EXTERNAL RF SOURCE REFERENCE (NOT YOUR LOCATION)",measured:false};
+   }
+   updateMap();recalc();
  });
  window.addEventListener("offline",()=>{updateMap();$("live-position-status").textContent="Offline map mode: cached/device coordinates with local grid. Device GNSS may still work without Internet."});
  window.addEventListener("online",()=>{updateMap()});
  window.addEventListener("tihulu:reference-position",e=>{
    const p=e.detail;
    if(!p||![p.lat,p.lon].every(Number.isFinite))return;
+   if(state.rfOnly)return;
    state.pos={lat:p.lat,lon:p.lon,source:p.kind||"Offline reference (NOT A FIX)",measured:false};
    updateMap();recalc();
  });
  window.addEventListener("tihulu:position",e=>{
    const p=e.detail;if(!p||![p.lat,p.lon].every(Number.isFinite)||Math.abs(p.lat)>90||Math.abs(p.lon)>180)return;
+   if(state.rfOnly){state.previousPos={lat:p.lat,lon:p.lon,alt:p.alt||0,source:p.provider||"Device location",measured:true};return}
    state.pos={lat:p.lat,lon:p.lon,alt:p.alt||0,source:p.provider||"Device location",measured:true};
    $("live-position-status").textContent="Position acquired: "+state.pos.source+"; sky recalculated.";
    updateMap();recalc();

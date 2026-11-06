@@ -131,3 +131,41 @@ The same map can show GNSS, device, experimental radio and saved position marker
 ### No-DevTools USB self-test
 
 The Receiver page now offers **Test USB access (no Console)** and the Dashboard offers **USB Self-Test**. On supported desktop Chromium browsers over HTTPS, this checks a previously permitted 0bda:2838 USB device by opening it, claiming interface 0 and releasing/closing it. It does **not** start RF capture, decode GNSS or run privileged Linux commands. If the claim fails, the result is shown directly in the app. Closing other SDR tabs, stopping \`readsb\` on explicit user request and unbinding the verified \`dvb_usb_rtl28xxu\` kernel interface remain separate OS actions.
+
+
+## Verified information origin: antenna versus device services
+
+The Dashboard shows **four independent acquisition records**, not one blended "location source":
+
+- **Your Location** — \`Dedicated USB/serial GNSS receiver\` for a fresh NMEA fix, \`Device / OS location service\` when the browser geolocation API provided coordinates, \`User-imported radio ranging file\` for an experimental estimate, \`Saved earlier position\` for cached coordinates, or the explicitly non-fix default Cologne center. A dedicated GNSS receiver may itself use a satellite antenna; it is **not** the Nooelec RTL-SDR used by this application's WebUSB RF sampling.
+- **RTL-SDR Antenna** — real WebUSB tuner ownership and bounded I/Q samples, if actually acquired. Its status is separate from location fixing and always indicates that an RF sample is **not** a GNSS fix.
+- **Satellite Positions** — CelesTrak internet TLE / cached orbit predictions or imported SP3 ephemerides. Their ground points and sky positions are **not** evidence that the local antenna received the satellites.
+- **Aircraft Positions** — imported JSON reference coordinates only (until a later authorized and verified ADS-B adapter exists), **not** current Nooelec antenna detections and **not** receiver-location measurements.
+
+The same acquisition summary is repeated under **Earth Map → Live location and evidence**. Map markers label their own provenance. Browser-provided location does **not** say whether GPS, Wi-Fi, cellular or IP contributed, so the app must never assert one of those without a separate verified source. The device accuracy radius and actual imported station range circles are different evidence and remain separately styled.
+
+The acquisition records and source logic work offline after PWA installation; dynamic antenna status is volatile and is never reinterpreted from an old cached position. Real GPS/Galileo signal decoding with the Nooelec RTL-SDR remains **NOT IMPLEMENTED**.
+
+
+## RF-only source localization and hardware separation (November 2026)
+
+The **Dashboard → Antenna-only RF positioning** action opens a distinct RF-only workflow under **Radio positioning**. Switching the RF-only checkbox ON explicitly blocks browser Geolocation, GPS/NMEA, OS Wi-Fi/cellular/IP and cached position from this session's self-location calculation. The dedicated Earth Map can still display orbit/aircraft/ground reference layers and compare separate location methods when RF-only mode is OFF.
+
+**Actual receiver evidence:** \`RTL2832U (0bda:2838) → WebUSB → RTL-SDR fixed gain 20 dB → 1.024 MS/s I/Q samples\`. Press **Measure RF with antenna** on a selected frequency to collect real receiver bytes. The WebUSB driver returns \`SampleBlock {frequency,data}\`; the app now correctly extracts \`.data\`, computes an uncalibrated relative dBFS-like level and records the selected source ID, frequency, hardware origin and timestamp. This is **total sampled tuner energy**: no station ID, aircraft identity, digital message or GNSS lock is decoded by this measurement.
+
+**External reference metadata:** the user supplies a source name, type (fixed ground station, aircraft, satellite), coordinates and tuning frequency. The app must never label this metadata as received coordinates or as proof that the captured RF energy came from that particular emitter. The RF-only experiment accepts a source record even when not yet received, but does not invent signal strength.
+
+**Experimental radio distance:**
+1. At a location where the true distance to a specific fixed transmitter is independently known, take an actual RF capture (not an OS location requirement).
+2. Enter that independently known distance and a chosen path-loss exponent; save the actual captured level as that transmitter's calibration reference.
+3. Move the antenna to an unknown site; on the same hardware and antenna arrangement, take another real RF capture at the identical frequency, sample rate and fixed gain.
+4. If the model is numerically valid, derive an **RSSI propagation-model distance hypothesis**. Plot the hypothesis as an orange dashed circle with very broad heuristic bounds. The bounds are illustrative sensitivity, **not confidence intervals or measured range**.
+5. Repeat with at least three geographically separated fixed transmitters within ten minutes at one unknown site. The separately labeled **RF-ONLY / UNVALIDATED MODEL** solver can calculate an experimental intersection using no OS/device location coordinates.
+
+Single-receiver amplitude cannot provide a reliable physical distance simply because a station's coordinates, published coverage or transmission frequency are known. Different emitters, co-channel transmissions, directional patterns, transmit power, terrain, propagation, tuner gain/ADC scale and multipath invalidate naive RSSI ranging. The modeled result is **not a safety-grade self-location fix** and can be widely wrong even with small residuals. Source identity must be independently validated before trusting an experiment. Genuine time-of-flight ranging would require appropriate signal/timing synchronization or another supported radio-positioning method.
+
+**Aircraft and satellites:** user-entered RF-source reference markers are separately layerable, and optional actual frequency captures can be attributed to the chosen reference record only as an *unverified hypothesis*. Moving aircraft or satellites are NOT used as stationary ground transmitters in the two-dimensional RSSI solver. The predicted satellite sky does not mean the receiver acquired GNSS pseudoranges.
+
+**Offline:** once the PWA shell, app modules and WebUSB driver assets are cached while online, this workflow can run without Internet on a compatible browser with accessible hardware. The fixed transmitter coordinates and calibration references are stored locally. Raw IQ samples are not persistently stored and no RF sample is fabricated on page reopen. Hardware access on an offline tab remains subject to browser WebUSB and OS USB ownership rules. No privileged commands or DevTools paste is required.
+
+**Open release gates:** authentic station identity decoding and RF identification, comparison against surveyed truth positions, transmitter calibration in different terrain/antenna orientations, synchronized TDOA/AOA methods, real SDR-assisted GNSS PVT and physical receiver acceptance. No release should claim accurate antenna-only location until these gates pass.

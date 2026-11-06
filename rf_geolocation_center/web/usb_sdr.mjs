@@ -2,6 +2,7 @@
  * Sampled RF power is NOT a GNSS fix, signal acquisition or satellite identification.
  * Explicit user gesture only. Never touch readsb/Gqrx or other USB owners.
  */
+import {relativePowerDbFS} from "../core/rf_ranging.mjs";
 const $=id=>document.getElementById(id);
 export function initUsbSDR(report){
  let receiver=null,usbDevice=null,busy=false,stopping=false,sampling=false;
@@ -101,7 +102,8 @@ export function initUsbSDR(report){
      await receiver.resetBuffer();
      notify("SAMPLING","Measuring relative raw I/Q level near GNSS L1 for up to 2 s (not GPS acquisition).");
      while(sampling&&!stopping&&Date.now()-start<2000&&bytes<4*1024*1024){
-       const raw=await receiver.readSamples(16384);
+       const block=await receiver.readSamples(16384);
+       const raw=block?.data;
        const arr=raw instanceof ArrayBuffer?new Uint8Array(raw):ArrayBuffer.isView(raw)?new Uint8Array(raw.buffer,raw.byteOffset,raw.byteLength):null;
        if(!arr||arr.length<2)throw Error("No I/Q sample bytes returned");
        bytes+=arr.length;
@@ -118,6 +120,41 @@ export function initUsbSDR(report){
      }
    }catch(error){notify("SAMPLE ERROR",error.message||String(error))}
    finally{sampling=false}
+ }
+ async function captureRF(frequencyMHz,sourceId){
+   if(!receiver){notify("RF NOT CONNECTED","Connect RTL-SDR via WebUSB first. No simulated RF readings.");return}
+   if(busy||sampling){notify("RF BUSY","Another USB receive operation is in progress.");return}
+   if(!Number.isFinite(frequencyMHz)||frequencyMHz<24||frequencyMHz>1766){
+     notify("RF INVALID FREQUENCY","Enter a valid RTL-SDR frequency in MHz (24–1766).");return
+   }
+   busy=true;sampling=true;stopping=false;
+   const gainDb=20,sampleRate=1024000;
+   let samples=0,power=0;
+   try{
+     await receiver.setSampleRate(sampleRate);
+     await receiver.setGain(gainDb); // fixed gain is essential for model-based level comparisons.
+     await receiver.setCenterFrequency(Math.round(frequencyMHz*1e6));
+     await receiver.resetBuffer();
+     for(let i=0;i<8&&!stopping;i++){
+       const block=await receiver.readSamples(16384);
+       const bytes=block?.data;
+       if(!(bytes instanceof ArrayBuffer)&&!ArrayBuffer.isView(bytes))throw Error("RTL-SDR did not return I/Q sample block.data");
+       const n=bytes.byteLength;
+       const db=relativePowerDbFS(bytes);
+       power+=Math.pow(10,db/10)*n;samples+=n;
+     }
+     if(stopping){notify("RF STOPPED","Radio sample was cancelled. No measurement stored.");return}
+     if(samples===0)throw Error("No actual radio bytes received");
+     const levelDbFS=10*Math.log10(power/samples);
+     const record={levelDbFS,frequencyMHz,gainDb,sampleRate,sampleBytes:samples,
+       measuredAt:new Date().toISOString(),sourceId:String(sourceId||""),hardwareId:"RTL2832U WebUSB 0bda:2838",
+       observation:"REAL HARDWARE I/Q POWER LEVEL · NOT A DISTANCE",
+       sourceIdentityVerified:false,decodedSignal:false};
+     window.dispatchEvent(new CustomEvent("tihulu:rf-observation",{detail:record}));
+     notify("RF IQ CAPTURED",frequencyMHz.toFixed(3)+" MHz · "+samples+" bytes of REAL RTL-SDR I/Q · "+
+       levelDbFS.toFixed(2)+" dBFS-like · fixed gain "+gainDb+" dB. Total receiver energy, not an identified station or distance.");
+   }catch(error){notify("RF CAPTURE ERROR",error?.message||String(error))}
+   finally{sampling=false;busy=false}
  }
  async function selfTest(){
    if(busy||receiver){notify("USB TEST BUSY","Release this app's receiver or finish the current USB operation before testing.");return}
@@ -161,6 +198,7 @@ export function initUsbSDR(report){
    }
  }
  // Select and claim receiver only when the user chooses it.
+ window.addEventListener("tihulu:rf-capture-request",event=>{void captureRF(event.detail?.frequencyMHz,event.detail?.sourceId)});
  $("usb-select")?.addEventListener("click",()=>{void connect()});
  $("usb-selftest")?.addEventListener("click",()=>{void selfTest()});
  $("live-usb-check")?.addEventListener("click",()=>{void selfTest()});
@@ -169,5 +207,5 @@ export function initUsbSDR(report){
  $("hard-stop")?.addEventListener("click",()=>{void release()});
  window.addEventListener("pagehide",()=>{void release()});
  document.addEventListener("visibilitychange",()=>{if(document.hidden&&receiver)void release()});
- return {connect,scan,release,selfTest};
+ return {connect,scan,release,selfTest,captureRF};
 }

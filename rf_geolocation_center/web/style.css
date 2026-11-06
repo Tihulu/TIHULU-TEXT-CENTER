@@ -120,3 +120,43 @@
 
 .live-method-summary{padding:11px 14px;margin:-8px 0 14px;border-left:3px solid #5dbbd8;
  background:#10283b;border-radius:8px;color:#b6d8e5;font-size:11px;line-height:1.65}
+
+
+/* Position evidence provenance: physical RTL-SDR antenna versus device/OS services. */
+.provenance-intro{margin:12px 0 9px}
+.provenance-intro h3{font-size:15px;margin:0 0 3px;color:#d8f1f5}
+.provenance-intro p{font-size:11px;color:#abc6d6;margin:0 0 7px;line-height:1.5}
+.provenance-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px;margin-bottom:17px}
+.provenance-item{min-width:0;border:1px solid #314c64;background:#0f2235;border-radius:10px;padding:11px;display:flex;flex-direction:column;gap:6px}
+.provenance-item>span{font-size:9px;color:#88b7c9;letter-spacing:.1em;font-weight:800}
+.provenance-item strong{font-size:13px;color:#e0f0f4;line-height:1.3;overflow-wrap:anywhere}
+.provenance-item small{font-size:10px;color:#e3bb7c;font-weight:800;letter-spacing:.03em}
+.provenance-item p{margin:0;font-size:10px;line-height:1.55;color:#a8c2ce;overflow-wrap:anywhere}
+.provenance-position{border-left:3px solid #bd91f3}
+.provenance-antenna{border-left:3px solid #61dfb3}
+.provenance-orbits{border-left:3px solid #65bfea}
+.provenance-aircraft{border-left:3px solid #efadd1}
+.source-proof{margin:10px 0 15px;padding:12px;border:1px solid #45647a;border-radius:8px;background:#102b3c;
+ font-size:11px;line-height:1.6;color:#d0e6ef;overflow-wrap:anywhere}
+@media(max-width:1100px){.provenance-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:540px){.provenance-grid{grid-template-columns:1fr 1fr;gap:7px}.provenance-item{padding:9px}.provenance-item strong{font-size:11px}}
+
+
+/* Antenna-only RF survey: distinct external transmitter metadata and real receiver evidence */
+.rf-survey-panel{border:1px solid #54757c}
+.rf-entry-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:12px;row-gap:6px;margin:12px 0}
+.rf-entry-grid .field{min-width:0}
+.rf-entry-grid input,.rf-entry-grid select,#rf-source-select{display:block;width:100%;max-width:100%;padding:10px;background:#0c1c2c;border:1px solid #3b6278;border-radius:8px;color:#e1f1f9;font-size:13px}
+.rf-check{display:flex;align-items:center;gap:10px;margin:12px 0;padding:14px 13px;border:1px solid #d09766;background:#3a2a24;border-radius:9px;color:#ffe2c1;font-weight:700}
+.rf-check input{accent-color:#f89e74;width:18px;height:18px}
+.rf-actions{display:flex;gap:9px;flex-wrap:wrap;margin:14px 0}
+.rf-actions button{min-height:39px}
+.rf-session-status,.rf-measurement-status{padding:13px;border:1px solid #457083;border-radius:10px;background:#112737;color:#c6dce9;font-size:12px;line-height:1.65;overflow-wrap:anywhere;margin:9px 0}
+.rf-calibration{margin:16px 0;border:1px solid #37556c;background:#0d1e2d;border-radius:10px;padding:15px}
+.rf-calibration h3{font-size:14px;margin:0 0 7px}
+.rf-calibration p{font-size:12px;color:#b6cddc;line-height:1.6}
+.rf-source-list{display:grid;gap:9px;margin:12px 0}
+.rf-source-row{display:flex;flex-direction:column;gap:6px;padding:11px;border:1px solid #465c70;border-radius:9px;background:#14283a}
+.rf-source-row strong{font-size:12px;color:#f0decf}
+.rf-source-row span{font-size:11px;line-height:1.5;color:#a9cbd8;overflow-wrap:anywhere}
+@media(max-width:680px){.rf-entry-grid{grid-template-columns:1fr}.rf-survey-panel{padding:12px}.rf-actions button{flex:1;min-width:120px}}
