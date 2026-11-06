@@ -44,9 +44,11 @@ jobs:
           assert files['icon-512.png']=='512x512'
           for p in ['icon-192.png','icon-512.png','icon.svg']:
               assert (root/p).is_file()
-          from PIL import Image
-          assert Image.open(root/'icon-192.png').size==(192,192)
-          assert Image.open(root/'icon-512.png').size==(512,512)
+          import struct
+          for filename,size in [('icon-192.png',192),('icon-512.png',512)]:
+              raw=(root/filename).read_bytes()
+              assert raw[:8]==b'\\x89PNG\\r\\n\\x1a\\n'
+              assert struct.unpack('>II',raw[16:24])==(size,size)
           PY
       - name: Python import and bytecode sanity
         run: python -m compileall -q satellite_center
