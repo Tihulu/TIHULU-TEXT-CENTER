@@ -4,13 +4,15 @@ import {GNSS,DEFAULT_CENTER,parseSP3,visibleSatellites,rtlSignalClass,validateLL
 import {parseNMEA,trilaterate2D,tdoaConstraints} from "../core/positioning.mjs";
 import {initAutoExplorer} from "./auto_explorer.mjs";
 import {initUsbSDR} from "./usb_sdr.mjs";
+import {initRFSurvey} from "./rf_survey.mjs";
 import {exampleRings,ringPoints,validRangeSources} from "../core/evidence.mjs";
 import {LOCATION_LAYERS,layerReadiness,visibleLayerPreferences} from "../core/location_layers.mjs";
 import {positionProvenance,radioProvenance,orbitalProvenance,aircraftProvenance} from "../core/source_provenance.mjs";
 
 const $=id=>document.getElementById(id), svgNS="http://www.w3.org/2000/svg";
 const state={
-  browser:null,networkFix:null,serialFix:null,serialAt:0,receiverHistory:[],gnssFile:null,sp3:null,layerPrefs:null,usbStatus:"NOT CONNECTED",usbMessage:"No RF sample from antenna",
+  browser:null,networkFix:null,serialFix:null,serialAt:0,receiverHistory:[],gnssFile:null,sp3:null,layerPrefs:null,
+  rfOnly:false,rfSources:[],rfRanges:[],rfSolution:null,usbStatus:"NOT CONNECTED",usbMessage:"No RF sample from antenna",
   time:null,mask:5,visible:[],autoOrbits:[],references:[],ranges:null,rangeInputs:[],tdoa:[],cachedPosition:null,
   map:{lat:DEFAULT_CENTER.lat,lon:DEFAULT_CENTER.lon,zoom:11,osm:false},
   serialPort:null,serialReader:null,reading:false,usbSelection:null,activeView:"dashboard"
@@ -73,6 +75,10 @@ function renderSourceProvenance(){
 }
 
 function source(){
+ if(state.rfOnly){
+  if(state.rfSolution)return {...state.rfSolution,kind:"RF-ONLY CALIBRATED RSSI HYPOTHESIS · NO GPS/OS",validObserver:false};
+  return {...DEFAULT_CENTER,kind:"RF-ONLY / NO VALID RADIO FIX · REFERENCE MAP CENTER",validObserver:false};
+ }
  if(state.serialFix&&Date.now()-state.serialAt<90000)
   return {...state.serialFix,kind:"NMEA receiver — live",validObserver:true};
  if(state.browser&&Date.now()-Date.parse(state.browser.acquiredAt||0)<5*60*1000)return {...state.browser,kind:"Browser / device location",validObserver:true};
@@ -607,6 +613,7 @@ if(Array.isArray(savedRefs)&&savedRefs.length<=200){
 renderCatalog();renderHistory();renderDiagnostics();renderPosition(true);renderSky();capabilities();
 initAutoExplorer();
 initUsbSDR(msg);
+initRFSurvey();
 setInterval(()=>{
  if(state.serialFix&&Date.now()-state.serialAt>90000){state.serialFix=null;renderPosition(false);renderDiagnostics();msg("Stale serial NMEA fix expired")}
  if(state.browser&&Date.now()-Date.parse(state.browser.acquiredAt||0)>=5*60*1000){
