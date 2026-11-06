@@ -6,6 +6,7 @@ import {initAutoExplorer} from "./auto_explorer.mjs";
 import {initUsbSDR} from "./usb_sdr.mjs";
 import {initRFSurvey} from "./rf_survey.mjs";
 import {initCatalogDiscovery} from "./catalog_discovery.mjs";
+import {initSimpleUI} from "./simple_ui.mjs";
 import {exampleRings,ringPoints,validRangeSources} from "../core/evidence.mjs";
 import {LOCATION_LAYERS,layerReadiness,visibleLayerPreferences} from "../core/location_layers.mjs";
 import {positionProvenance,radioProvenance,orbitalProvenance,aircraftProvenance} from "../core/source_provenance.mjs";
@@ -111,6 +112,7 @@ function renderPosition(recenter=false){
  setText("map-center-label",p.validObserver?"LOCATION / "+p.kind.toUpperCase():p.kind.toUpperCase());
  if(recenter){state.map.lat=p.lat;state.map.lon=p.lon;state.map.zoom=Math.max(state.map.zoom,11)}
  renderEarth();
+ window.dispatchEvent(new Event("tihulu:simple-refresh"));
 }
 
 function renderFixEvidence(p=source()){
@@ -743,6 +745,9 @@ initAutoExplorer();
 initUsbSDR(msg);
 initRFSurvey();
 initCatalogDiscovery();
+initSimpleUI({state,source,setView,renderEarth,renderPosition,fitRfSurveyMap});
+setView("earth"); // Clean, map-first experience; original science workbench remains under Advanced Tools.
+
 setInterval(()=>{
  if(state.serialFix&&Date.now()-state.serialAt>90000){state.serialFix=null;renderPosition(false);renderDiagnostics();msg("Stale serial NMEA fix expired")}
  if(state.browser&&Date.now()-Date.parse(state.browser.acquiredAt||0)>=5*60*1000){
