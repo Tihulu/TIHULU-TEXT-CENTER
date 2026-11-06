@@ -141,6 +141,32 @@ class HTTPTests(unittest.TestCase):
         self.assertEqual(self.request("POST","/api/scans/start",{"band":"dab"},csrf)[0],409)
         self.assertEqual(self.request("POST","/api/scans/stop",{},csrf)[0],200)
 
+    def test_automatic_fm_and_dab_scans_require_explicit_permission(self):
+        for kind in ("fm","dab"):
+            code,_,raw=self.request("GET","/api/auto/"+kind+"/status")
+            self.assertEqual(code,200)
+            data=json.loads(raw)
+            self.assertEqual(data["status"],"idle")
+            self.assertFalse(data["active"])
+            self.assertEqual(self.request("POST","/api/auto/"+kind+"/start",
+                {"mode":"full"})[0],403)
+        _,_,bootstrap=self.request("GET","/api/bootstrap")
+        csrf=json.loads(bootstrap)["csrf"]
+        self.assertEqual(self.request("POST","/api/auto/fm/start",
+            {"mode":"invalid"},csrf)[0],400)
+        self.assertEqual(self.request("POST","/api/auto/dab/start",
+            {"mode":"full","consent":False},csrf)[0],400)
+        self.assertEqual(self.request("POST","/api/auto/dab/start",
+            {"mode":"full","consent":"yes"},csrf)[0],400)
+        self.server.dab_auto.fetcher=lambda path,limit: (
+            b"11D" if path=="/channel" else b'{"services":[]}')
+        self.assertEqual(self.request("POST","/api/auto/dab/start",
+            {"mode":"full","consent":True},csrf)[0],409)
+        self.assertEqual(self.request("POST","/api/auto/dab/tune",
+            {"channel":"11D","consent":True},csrf)[0],409)
+        self.assertEqual(self.request("POST","/api/auto/fm/stop",{},csrf)[0],200)
+        self.assertEqual(self.request("POST","/api/auto/dab/stop",{},csrf)[0],200)
+
     def test_audio_preview_routes_require_auth_and_fail_closed_when_busy(self):
         code,_,raw=self.request("GET","/api/audio/status")
         self.assertEqual(code,200)
