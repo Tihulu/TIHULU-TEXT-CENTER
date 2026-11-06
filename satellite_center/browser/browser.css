@@ -138,3 +138,27 @@ overflow-wrap:anywhere}
 #earth-map .leaflet-tile-pane img {
   max-width: none !important;
 }
+
+
+/* Satellite tracking overlays and local RF file analysis. */
+#map-track-scope,#map-coverage-scope{min-width:150px;max-width:270px}
+#map-overlay-count{flex:1 1 300px;line-height:1.45;align-self:center}
+.iq-jump-link{display:block;margin-top:14px;font-size:13px;font-weight:650;line-height:1.6}
+.iq-panel{border:1px solid #47749a;background:#11243a}
+.iq-panel h3{font-size:14px;color:#d7eafd;margin:7px 0}
+.iq-controls{display:grid;grid-template-columns:minmax(0,2fr) 1fr 1fr;gap:12px;margin:12px 0}
+.iq-controls label{min-width:0}
+.iq-controls input,.iq-controls select{min-width:0}
+.iq-controls input[type=file]{font-size:12px}
+.iq-metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(165px,1fr));gap:8px;margin:16px 0}
+.iq-metric{display:flex;flex-direction:column;gap:7px;padding:11px 12px;border:1px solid #375b7e;
+border-radius:8px;background:#091c32;min-width:0;overflow-wrap:anywhere}
+.iq-metric span{font-size:11px;color:#a8c3df}.iq-metric strong{font-size:13px;color:#edf6ff}
+.iq-chart-grid{display:grid;grid-template-columns:1fr;gap:15px}
+.iq-chart-grid>div{min-width:0;background:#0a1a2e;border:1px solid #345371;border-radius:10px;padding:12px}
+.iq-chart-grid canvas{display:block;max-width:100%;width:100%;height:auto;aspect-ratio:1040/260;
+border:1px solid #375471;border-radius:8px;margin:0;background:#081727}
+#iq-power-time{aspect-ratio:1040/190}
+#iq-analysis-status{white-space:pre-wrap;overflow-wrap:anywhere}
+@media(max-width:770px){.iq-controls{grid-template-columns:1fr 1fr}.iq-controls label:first-child{grid-column:1/-1}}
+@media(max-width:500px){.iq-controls{grid-template-columns:1fr}.iq-controls label:first-child{grid-column:auto}}
