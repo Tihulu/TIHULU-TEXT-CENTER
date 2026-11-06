@@ -1,0 +1,303 @@
+"""On-demand, single-shot FM *spectrum* survey using rtl_power.
+
+This finds candidate RF energy peaks only, not named stations or decoded
+RadioText. It does not auto-tune to peaks, retune an existing lease, preempt
+Flight Radar, or claim RF access in the background. User must explicitly start.
+
+Linux + single RTL2832U + rtl_power required. The scan uses the same flock
+path as FM RDS; third-party tools do not honor it, so we also refuse known
+conflicting SDR processes and USB handle owners.
+"""
+from __future__ import annotations
+
+import csv
+from datetime import datetime, timezone
+import fcntl
+import io
+import math
+import os
+from pathlib import Path
+import shutil
+import signal
+import statistics
+import subprocess
+import tempfile
+from threading import Event, Lock, Thread
+import time
+import uuid
+
+from .conflicts import find_receiver_conflicts
+from .receivers import receiver_inventory
+
+MAX_SURVEY_BYTES = 256_000
+MAX_SURVEY_SECONDS = 18
+MIN_FM = 87_500_000
+MAX_FM = 108_000_000
+
+
+class SurveyError(RuntimeError):
+    pass
+
+
+def build_survey_command(executable: str) -> list[str]:
+    """Official rtl_power -1 single-shot FM scan; no shell or arbitrary args."""
+    return [executable, "-d", "0", "-f", "87.5M:108M:125k", "-i", "2s", "-1"]
+
+
+def parse_power_csv(payload: str, *, limit: int = 24) -> dict:
+    """Convert bounded rtl_power CSV measurements to *candidate* spectrum peaks.
+
+    Relative power can be affected by gain, front-end filters and noise.
+    No measurement identifies a broadcast service or confirms successful RDS.
+    """
+    if len(payload.encode("utf-8")) > MAX_SURVEY_BYTES:
+        raise ValueError("Spectrum CSV exceeds the capture limit")
+    bins: list[tuple[float, float]] = []
+    sweeps = 0
+    for row in csv.reader(io.StringIO(payload)):
+        if len(row) < 8:
+            continue
+        try:
+            low, high, step = map(float, row[2:5])
+            values = [float(s) for s in row[6:]]
+        except (TypeError, ValueError):
+            continue
+        if not values or step < 1000 or step > 1_000_000:
+            continue
+        if not (math.isfinite(low) and math.isfinite(high) and math.isfinite(step)):
+            continue
+        sweeps += 1
+        for idx, power in enumerate(values[:1000]):
+            center = low + (idx + 0.5) * step
+            if MIN_FM <= center <= MAX_FM and math.isfinite(power):
+                bins.append((center, power))
+    if not bins:
+        return {"sweeps": sweeps, "bins_analyzed":0, "candidates": [],
+                "note":"No usable rtl_power FM measurements were returned"}
+    # More than one CSV row may cover the same bin; keep strongest observed.
+    # This is for discovery only, not a dBm calibration.
+    merged: dict[int, float] = {}
+    for hz, power in bins:
+        key = int(round(hz / 100_000)) * 100_000
+        merged[key] = max(power, merged.get(key, -1e9))
+    frequencies = sorted(merged)
+    readings = [merged[hz] for hz in frequencies]
+    baseline = statistics.median(readings)
+    deviation = statistics.median(abs(x - baseline) for x in readings)
+    threshold = baseline + max(8.0, deviation * 3)
+    peaks = []
+    for index, hz in enumerate(frequencies):
+        reading = merged[hz]
+        prev = merged.get(frequencies[index-1], -1e9) if index else -1e9
+        following = merged.get(frequencies[index+1], -1e9) if index + 1 < len(frequencies) else -1e9
+        # Local maxima only (flat plateaux get one candidate).
+        if reading >= threshold and reading >= prev and reading > following:
+            peaks.append({
+                "frequency_hz": hz,
+                "frequency_mhz": round(hz / 1_000_000, 3),
+                "relative_power_db": round(reading, 1),
+                "above_median_db": round(reading - baseline, 1),
+                "verification": "unidentified_rf_energy",
+            })
+    peaks.sort(key=lambda x: x["above_median_db"], reverse=True)
+    return {
+        "sweeps":sweeps,
+        "bins_analyzed":len(readings),
+        "relative_baseline_db":round(baseline,1),
+        "threshold_above_median_db":round(threshold-baseline,1),
+        "candidates":peaks[:min(limit, 24)],
+        "note":"Candidate RF energy peaks only. Service identity and RDS are unverified.",
+    }
+
+
+class FMSurveySupervisor:
+    def __init__(self, *, rds=None, inventory=None, lookup=None,
+                 conflicts=None, lock_dir: Path | None = None,
+                 max_seconds: float = MAX_SURVEY_SECONDS):
+        self.rds = rds
+        self.inventory = inventory or receiver_inventory
+        self.lookup = lookup or shutil.which
+        self.conflicts = conflicts or find_receiver_conflicts
+        self.lock_dir = lock_dir or Path.home()/".local/share/tihulu-text-center/.receiver-locks"
+        self.max_seconds = max_seconds
+        self._mutex = Lock()
+        self._stop = Event()
+        self._thread: Thread | None = None
+        self._process: subprocess.Popen | None = None
+        self._lock_fd: int | None = None
+        self._last_poll = 0.0
+        self._state = {
+            "status":"idle", "active":False, "session":None,
+            "started_at":None, "ended_at":None, "error":None,
+            "sweeps":0, "bins_analyzed":0, "candidates":[],
+            "note":"No spectrum survey has been run",
+        }
+
+    def availability(self) -> dict:
+        inv = self.inventory()
+        if inv.get("platform") != "Linux":
+            return {"ready":False,"reason":"FM spectrum survey requires Linux"}
+        if inv.get("rtl_usb_count") != 1:
+            return {"ready":False,"reason":"Exactly one RTL2832U USB candidate required"}
+        if self.rds is not None and self.rds.status(heartbeat=False)["active"]:
+            return {"ready":False,"reason":"An FM RDS capture is already using the receiver"}
+        conflicts = self.conflicts()
+        if conflicts:
+            names=", ".join(sorted({p["process"] for p in conflicts}))
+            return {"ready":False,"reason":
+                f"Receiver may be in use by: {names}. Scan blocked to protect ongoing reception.",
+                "conflicts":conflicts}
+        if not self.lookup("rtl_power"):
+            return {"ready":False,"reason":"rtl_power is missing (normally included with rtl-sdr)"}
+        return {"ready":True,
+                "reason":"Manual FM-only single-shot survey available; stations cannot be identified from power alone"}
+
+    def _lock(self) -> None:
+        self.lock_dir.mkdir(mode=0o700,parents=True,exist_ok=True)
+        os.chmod(self.lock_dir,0o700)
+        flags=os.O_RDWR | os.O_CREAT | os.O_CLOEXEC | getattr(os,"O_NOFOLLOW",0)
+        fd=os.open(self.lock_dir/"rtl_fm_rds.lock",flags,0o600)
+        try:
+            fcntl.flock(fd,fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except OSError:
+            os.close(fd)
+            raise SurveyError("Receiver reserved by a cooperating Text Center capture")
+        self._lock_fd=fd
+
+    def _unlock(self) -> None:
+        fd=self._lock_fd
+        self._lock_fd=None
+        if fd is not None:
+            try:
+                fcntl.flock(fd,fcntl.LOCK_UN)
+            finally:
+                os.close(fd)
+
+    def start(self) -> dict:
+        with self._mutex:
+            if self._state["active"]:
+                raise SurveyError("A spectrum survey is already running")
+            avail=self.availability()
+            if not avail["ready"]:
+                raise SurveyError(avail["reason"])
+            self._lock()
+            try:
+                if self.conflicts() or (
+                    self.rds is not None and self.rds.status(heartbeat=False)["active"]
+                ):
+                    raise SurveyError("Receiver was occupied during preflight; scan cancelled")
+                self._state={
+                    "status":"running","active":True,"session":uuid.uuid4().hex,
+                    "started_at":datetime.now(timezone.utc).isoformat(timespec="seconds"),
+                    "ended_at":None,"error":None,"sweeps":0,"bins_analyzed":0,
+                    "candidates":[],"note":"Reading a single FM spectrum sweep (not station decoding)",
+                }
+                self._stop.clear()
+                self._last_poll=time.monotonic()
+                self._thread=Thread(target=self._worker,daemon=True,name="tihulu-fm-spectrum")
+                self._thread.start()
+                return self._snapshot()
+            except BaseException:
+                self._unlock()
+                self._state["active"]=False
+                self._state["status"]="error"
+                raise
+
+    def _snapshot(self) -> dict:
+        return {**self._state,"candidates":list(self._state["candidates"]),
+                "kind":"spectrum_candidate_not_station"}
+
+    def status(self, *, heartbeat: bool = True) -> dict:
+        with self._mutex:
+            if heartbeat and self._state["active"]:
+                self._last_poll=time.monotonic()
+            return self._snapshot()
+
+    def stop(self, *, wait: bool = False) -> dict:
+        with self._mutex:
+            if self._state["active"]:
+                self._stop.set()
+                self._state["status"]="stopping"
+            thread=self._thread
+            snapshot=self._snapshot()
+        if wait and thread and thread.is_alive():
+            thread.join(timeout=4)
+        return snapshot
+
+    @staticmethod
+    def _terminate(process: subprocess.Popen | None) -> None:
+        if process is None or process.poll() is not None:
+            return
+        try:
+            os.killpg(process.pid,signal.SIGTERM)
+            process.wait(timeout=1)
+        except (ProcessLookupError,ChildProcessError):
+            pass
+        except (OSError,subprocess.TimeoutExpired):
+            try:
+                os.killpg(process.pid,signal.SIGKILL)
+                process.wait(timeout=0.5)
+            except (OSError,subprocess.TimeoutExpired):
+                pass
+
+    def _worker(self) -> None:
+        process=None
+        status="completed"
+        error=None
+        data={}
+        try:
+            binary=self.lookup("rtl_power")
+            if not binary:
+                raise SurveyError("rtl_power no longer installed")
+            if self.conflicts() or (
+                self.rds is not None and self.rds.status(heartbeat=False)["active"]
+            ):
+                raise SurveyError("SDR became occupied before starting rtl_power")
+            with tempfile.TemporaryFile() as stdout, tempfile.TemporaryFile() as stderr:
+                process=subprocess.Popen(
+                    build_survey_command(binary),stdin=subprocess.DEVNULL,
+                    stdout=stdout,stderr=stderr,start_new_session=True,close_fds=True)
+                with self._mutex:
+                    self._process=process
+                deadline=time.monotonic()+self.max_seconds
+                while process.poll() is None:
+                    if self._stop.is_set():
+                        status,error="cancelled","Scan stopped by user"
+                        break
+                    with self._mutex:
+                        idle=time.monotonic()-self._last_poll
+                    if idle>12:
+                        status,error="cancelled","Scan stopped because the browser stopped polling"
+                        break
+                    if time.monotonic()>=deadline:
+                        status,error="error","FM survey exceeded its maximum time"
+                        break
+                    time.sleep(0.1)
+                if process.poll() is None:
+                    self._terminate(process)
+                process.wait(timeout=1)
+                if status=="completed" and process.returncode != 0:
+                    stderr.seek(0)
+                    snippet=stderr.read(360).decode("utf-8","replace")
+                    # Avoid feeding arbitrary decoder output into exception details.
+                    error=("rtl_power exited unsuccessfully. SDR may be busy or lack "
+                           "permissions. "+snippet.replace("\n"," ")[:180])
+                    status="error"
+                if status=="completed":
+                    stdout.seek(0)
+                    payload=stdout.read(MAX_SURVEY_BYTES+1)
+                    if len(payload)>MAX_SURVEY_BYTES:
+                        raise SurveyError("Spectrum output exceeded 256 KB")
+                    data=parse_power_csv(payload.decode("utf-8","replace"))
+        except (OSError,ValueError,SurveyError,subprocess.TimeoutExpired) as exc:
+            status,error="error",str(exc)[:250]
+        finally:
+            self._terminate(process)
+            with self._mutex:
+                self._process=None
+                self._unlock()
+                self._state.update(data)
+                self._state["status"]=status
+                self._state["active"]=False
+                self._state["ended_at"]=datetime.now(timezone.utc).isoformat(timespec="seconds")
+                self._state["error"]=error
