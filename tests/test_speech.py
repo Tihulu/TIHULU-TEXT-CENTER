@@ -31,6 +31,13 @@ class SpeechTests(unittest.TestCase):
             self.assertEqual(rows[0]["translated_text"],"Good day")
             self.assertEqual(engine.status()["selected_backend"],"cpu")
 
+    def test_npu_runtime_without_local_export_is_blocked(self):
+        from textcenter.speech import transcribe_pcm
+        with self.assertRaises(SpeechError):
+            transcribe_pcm(b"\\x00"*64000,"de","npu",{
+                "speech":{"npu_engine":None,"ready_npu":False,"npu_model_path":None}
+            })
+
     def test_missing_asr_backend_is_explicitly_blocked(self):
         with tempfile.TemporaryDirectory() as td:
             profile={

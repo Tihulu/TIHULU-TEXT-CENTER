@@ -49,11 +49,30 @@ def transcribe_pcm(pcm:bytes,language:str,backend:str,profile:dict)->str:
     if backend not in ("cpu","gpu","npu"):
         raise ValueError("Invalid compute backend")
     validate_language(language)
-    model=_whisper_model(profile) if backend=="cpu" else profile["speech"].get("gpu_model_path")
+    model=(_whisper_model(profile) if backend=="cpu" else
+           profile["speech"].get("gpu_model_path") if backend=="gpu" else
+           profile["speech"].get("npu_model_path"))
     if not model:
         raise SpeechError("Offline Whisper model for selected backend not installed")
     if backend=="npu":
-        raise SpeechError("No verified NPU-compatible ASR model/runtime")
+        if profile["speech"].get("npu_engine")!="openvino_genai" or not profile["speech"].get("ready_npu"):
+            raise SpeechError("No verified local OpenVINO NPU Whisper model/runtime")
+        try:
+            import openvino_genai
+            from array import array
+            # OpenVINO GenAI Whisper requires normalized 16-kHz mono samples.
+            # PCM source is mono signed 16-bit at 32-kHz.
+            samples=array("h")
+            samples.frombytes(pcm[:len(pcm)-(len(pcm)%2)])
+            normalized=[(samples[i]+samples[i+1])/65536.0
+                        for i in range(0,len(samples)-1,2)]
+            pipe=openvino_genai.WhisperPipeline(model,"NPU")
+            result=pipe.generate(normalized,max_new_tokens=120,
+                                 language="<|"+language+"|>",task="transcribe")
+            text=" ".join(getattr(result,"texts",[]) or []).strip()
+            return text[:3000]
+        except (ImportError,RuntimeError,ValueError,OSError,TypeError) as exc:
+            raise SpeechError("OpenVINO NPU transcription failed: "+str(exc)[:200]) from exc
     if backend=="gpu":
         if importlib.util.find_spec("faster_whisper") is None:
             raise SpeechError("faster-whisper CUDA package is not installed")

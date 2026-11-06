@@ -56,9 +56,30 @@ def detect_devices(*, executable_lookup=None, device_root=None,
         npus=sorted(x.name for x in dev.glob("hailo*"))[:5]
     except OSError:
         npus=[]
-    devices.append({"id":"npu","name":"Hailo NPU ("+", ".join(npus)+")" if npus else "No Hailo NPU detected",
-                    "detected":bool(npus),"runtime_ready":False,
-                    "detail":"NPU device node != working speech/translation model runtime. Explicit compatible adapter required."})
+    # OpenVINO GenAI can run exported Whisper models on supported Intel NPUs.
+    # Hailo is a separate accelerator family and needs its own tested adapter.
+    ov_model_dir=os.environ.get("TIHULU_OPENVINO_WHISPER_MODEL","")
+    ov_model=Path(ov_model_dir).expanduser() if ov_model_dir else None
+    ov_installed=(importlib.util.find_spec("openvino") is not None and
+                  importlib.util.find_spec("openvino_genai") is not None)
+    intel_npu=None
+    if ov_installed:
+        try:
+            import openvino as ov
+            intel_npu=next((d for d in ov.Core().available_devices
+                            if d.split(".")[0]=="NPU"),None)
+        except (ImportError,RuntimeError,OSError):
+            intel_npu=None
+    ov_ready=bool(intel_npu and ov_model and ov_model.is_dir() and
+                  (ov_model/"config.json").is_file() and
+                  any(ov_model.glob("*.xml")))
+    detected_npu=bool(npus or intel_npu)
+    npu_label=("Intel OpenVINO "+intel_npu if intel_npu else
+               "Hailo NPU ("+", ".join(npus)+")" if npus else "No NPU detected")
+    devices.append({"id":"npu","name":npu_label,
+                    "detected":detected_npu,"runtime_ready":ov_ready,
+                    "detail":("OpenVINO NPU Whisper model locally configured" if ov_ready
+                              else "NPU device alone is insufficient. Hailo needs a separately tested compatible ASR adapter.")})
     executable=lookup("whisper-cli") or lookup("main")
     gpu_model_dir=os.environ.get("TIHULU_FASTER_WHISPER_MODEL","")
     gpu_model=Path(gpu_model_dir).expanduser() if gpu_model_dir else None
@@ -79,7 +100,9 @@ def detect_devices(*, executable_lookup=None, device_root=None,
             "engine":"whisper.cpp CLI","executable":executable,
             "model_path":str(model) if model else None,
             "model_installed":bool(model and model.is_file()),
-            "ready_cpu":speech_ready,"ready_gpu":gpu_ready,"ready_npu":False,
+            "ready_cpu":speech_ready,"ready_gpu":gpu_ready,"ready_npu":ov_ready,
+            "npu_engine":"openvino_genai" if ov_ready else None,
+            "npu_model_path":str(ov_model) if ov_model else None,
             "gpu_model_path":str(gpu_model) if gpu_model else None,
             "note":"whisper.cpp model must already be installed; configured with TIHULU_WHISPER_MODEL. No inference can be claimed without real capture and model."
         },

@@ -30,6 +30,7 @@ class DeviceTests(unittest.TestCase):
             self.assertIn("RTX 5080",profile["devices"][1]["name"])
             self.assertTrue(profile["devices"][2]["detected"])
             self.assertFalse(profile["devices"][2]["runtime_ready"])
+            # Hailo device presence alone does not provide an OpenVINO runtime.
             self.assertFalse(choose_backend(profile,"npu")["ready"])
 
     def test_tri_language(self):
