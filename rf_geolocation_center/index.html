@@ -92,7 +92,11 @@
         <div class="map-cross">+</div>
        </div><div class="map-footer"><span>WGS84 · map pan by drag/touch · wheel or +/− zoom</span><span>© OpenStreetMap contributors, tiles only on request</span></div>
       </article>
-      <article class="panel"><h2>Layers and positioning evidence</h2>
+      <article class="panel"><h2>Live location and evidence</h2>
+       <button id="earth-find" class="primary" type="button">◎ Find My Location — online or offline</button>
+       <div id="fix-evidence" class="fix-evidence" role="status" aria-live="polite">No confirmed live fix. Browser/device geolocation or a connected NMEA GNSS receiver may provide one. Last known location is never a new fix.</div>
+       <div class="position-legend"><span><i class="legend-device"></i> Device-reported accuracy</span><span><i class="legend-ranges"></i> Measured station ranges</span><span><i class="legend-demo"></i> Simulated example</span></div>
+       <h2>Layers and positioning evidence</h2>
        <div class="earth-layer-controls" aria-label="Map layers">
          <label><input id="layer-ranges" type="checkbox" checked> Measured radio distance rings</label>
          <label><input id="layer-stations" type="checkbox" checked> Ground stations and aircraft</label>
