@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="dark">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<title>Satellite Images &amp; Data | TIHULU Satellite Center</title>
+<link rel="icon" href="./icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="./browser.css">
+<link rel="stylesheet" href="./reception.css">
+</head>
+<body>
+<header><div class="wrap">
+<p class="eyebrow">TIHULU SATELLITE CENTER · ONE SHARED WEB / DESKTOP INTERFACE</p>
+<h1>Satellite Images &amp; Data</h1>
+<p>Receive open transmissions, decode when possible, inspect your own recording files, and keep online archives separate from RF measurements. No transmit capability.</p>
+<nav class="reception-nav" aria-label="Satellite Center sections">
+<a href="./index.html">Receiver &amp; pass planner</a>
+<a href="./reception.html" aria-current="page">Images &amp; Data</a>
+<a href="./index.html#satellite-tracking-maps">Earth / sky</a>
+<a href="./index.html#iq-analysis">Full CU8 analysis</a>
+</nav></div></header>
+<main class="wrap reception-main">
+<section aria-labelledby="reception-title">
+<h2 id="reception-title">Choose a satellite signal or image source</h2>
+<div class="reception-controls">
+<label>Public mission catalog<select id="mission"></select></label>
+<label>Type of content<select id="category"><option value="all">All types</option><option value="Image">RF images</option><option value="Audio">Audio</option><option value="Text / data">Text / data</option><option value="Online imagery">Online archives</option><option value="Archive">Old recordings</option></select></label>
+</div>
+<article id="mission-detail" class="mission-detail" aria-live="polite"></article>
+<div class="reception-actions">
+<a id="mission-source" href="https://www.ariss.org/upcoming-sstv-events.html" target="_blank" rel="noopener noreferrer">Verify source and transmission schedule</a>
+<a id="mission-open" href="./index.html#satellite-images">Open real decoder / capture controls</a>
+<a href="./index.html#schedule-center">Calculate pass &amp; plan capture</a>
+</div>
+<p class="hint">Selecting a satellite never claims USB, starts a scan or asserts the satellite is transmitting. The latest catalog, event announcements, frequencies, antenna and Doppler conditions must be checked before receiving. Receiver frequencies are candidates, not observed signals.</p>
+</section>
+<div class="reception-grid">
+<section>
+<h2>1 · Capture a real downlink</h2>
+<p>Use the <strong>Nooelec NESDR SMArt v5</strong> RTL2832U for compatible VHF/UHF receive-only downlinks. A suitable external antenna and a visible, transmitting satellite are essential.</p>
+<div class="reception-steps">
+<p><strong>Pass:</strong> choose your GPS/city station, load TLEs, find a high-elevation pass.</p>
+<p><strong>Record:</strong> on supported Chromium desktops use user-authorized WebUSB. Firefox/Safari or unattended recordings require the optional local receiver and its installed tools.</p>
+<p><strong>Decode:</strong> Robot36 WAV/CU8 candidates can be attempted locally in the common web app; Meteor LRPT currently requires optional SatDump in the native companion. Public APRS messages require a real packet decoder.</p>
+</div>
+<div class="reception-actions">
+<a href="./index.html#satellite-images">Open SSTV decoder and Meteor target</a>
+<a href="./index.html#iq-analysis">Analyze all CU8 samples</a>
+<a href="http://127.0.0.1:8791/" target="_blank" rel="noopener noreferrer">Native SatDump / APRS / scheduler</a>
+</div>
+<p class="hint">The native link refers to <em>this computer's</em> localhost. From a phone it does not connect to a desktop receiver. The companion is optional, never silently started.</p>
+</section>
+<section>
+<h2>2 · Your TV tuner is not a satellite SDR</h2>
+<p><strong>Hauppauge WinTV-soloHD 01589:</strong> receives terrestrial/cable digital TV (DVB-T/T2/C). It is not an open I/Q receiver for ISS SSTV, Meteor LRPT or raw CubeSat telemetry.</p>
+<p>Keep it in the <strong>Live TV / DVB</strong> module. Its portable TV antenna is not a substitute for an appropriate ~137 MHz weather-satellite V-dipole/QFH. An adapter does not change tuner support.</p>
+<p><strong>For real Earth images:</strong> Meteor-M is a more relevant RF target than commemorative ISS SSTV. The discontinued NOAA-15/18/19 APT series must be treated as an archive, not an active station.</p>
+<p class="hint">Sources: <a href="https://www.hauppauge.co.uk/site/products/data_solohd.html" target="_blank" rel="noopener noreferrer">Hauppauge product specification</a> · <a href="https://www.nesdis.noaa.gov/news/suspension-of-poes-data-to-users-after-june-16-2025-and-decommissioning" target="_blank" rel="noopener noreferrer">NOAA decommissioning</a>.</p>
+</section>
+</div>
+<section aria-labelledby="file-title">
+<h2 id="file-title">3 · Open and inspect a local image, audio, video or data file</h2>
+<p>Preview actual local files without uploading them. An imported image is <strong>user-supplied</strong>, not verified as received from a satellite. CU8 is raw I/Q and needs its original center frequency and sample rate for correct analysis.</p>
+<div class="reception-controls">
+<label>Choose your file<input id="local-file" type="file" accept=".png,.jpg,.jpeg,.webp,.gif,.wav,.mp3,.ogg,.flac,.m4a,.mp4,.webm,.mov,.txt,.json,.csv,.tle,.log,.aprs,.cu8,.iq,.u8,.cfile"></label>
+<label>Recorded center frequency (MHz; optional)<input type="number" step="0.000001" min="0" id="recorded-mhz" placeholder="e.g. 437.55"></label>
+<label>Recorded sample rate (samples/sec; optional)<input type="number" step="1" min="1" id="recorded-rate" placeholder="e.g. 1024000"></label>
+</div>
+<div id="file-preview" class="file-preview" role="region" aria-label="Local file preview">
+<p>No local file selected. Nothing is uploaded.</p>
+</div>
+<div class="reception-actions">
+<button type="button" id="export-evidence" disabled>Download metadata JSON</button>
+<button type="button" id="clear-file" class="secondary">Clear local preview</button>
+<a href="./index.html#iq-analysis">Open existing CU8/FFT/waterfall analyzer</a>
+<a href="./index.html#satellite-images">Open existing SSTV/Image Center</a>
+</div>
+<p id="file-status" class="status" role="status" aria-live="polite">Idle · no data accessed.</p>
+</section>
+<section>
+<h2>4 · Online imagery (not received via antenna)</h2>
+<p>Use the existing NASA on-demand image gallery, including DSCOVR EPIC Earth photos and historical ISS photography. Also access official EUMETSAT weather imagery and NASA Worldview. These have their own provider timestamps.</p>
+<div class="reception-actions">
+<a href="./index.html#satellite-images">Open NASA Image Gallery</a>
+<a href="https://view.eumetsat.int/" target="_blank" rel="noopener noreferrer">EUMETSAT viewer</a>
+<a href="https://worldview.earthdata.nasa.gov/" target="_blank" rel="noopener noreferrer">NASA Worldview</a>
+</div>
+</section>
+<footer>Same bundled page on GitHub Pages, installed PWA, Linux, Raspberry Pi OS, Windows and macOS native companion. This tab never opens USB, uploads RF samples or fabricates satellite pictures; use the existing verified capture/decoder controls when available.</footer>
+</main>
+<script type="module" src="./reception.mjs"></script>
+</body></html>
