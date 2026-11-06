@@ -252,7 +252,8 @@ export function initAutoReceptionUI({getSelectedFile=()=>null,fileInput=$("local
         missions:[...AUTO_PRESETS[mode]],lat,lon,city:"Custom",hours,
         elevation,max_jobs:6,coverage_goal:$("auto-coverage-goal").value,
         duration_seconds,
-        compute_mode:processing.mode,compute_targets:processing.targets
+        compute_mode:processing.mode,compute_targets:processing.targets,
+        event_window_only:true
       });
       jobs.replaceChildren();
       textNode("h3","Native receiver queue",jobs);
