@@ -110,10 +110,11 @@ class TVTeletextTap:
     def status(self):
         with self.lock:
             age=time.monotonic()-self.last_cue_at if self.last_cue_at is not None else None
+            active=bool(self.process is not None and self.process.poll() is None)
             return {
-                "active":bool(self.process is not None and self.process.poll() is None),
+                "active":active,
                 "status":self.status_message,"source":"broadcast_dvb_teletext",
-                "recent":age is not None and age<=FRESH_SECONDS,
+                "recent":active and age is not None and age<=FRESH_SECONDS,
                 "last_cue_age_seconds":round(age,1) if age is not None else None,
                 "segments_completed":self.cues,"stream_index":self.stream_index,
                 "language":self.language,"error":self.error,
