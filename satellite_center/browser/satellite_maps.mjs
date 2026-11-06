@@ -1,3 +1,4 @@
+import { sortSatelliteList, nextPassForSatellite } from './pass_sort.mjs';
 /* TIHULU satellite tracking maps: browser-only TLE geometry, never RF identity.
  * OSM tiles requested only when the operator opens the Earth map. */
 const $ = id => document.getElementById(id);
@@ -83,8 +84,10 @@ export function createSatelliteMaps({getTles,getSatLib,getPasses,getLastCapture,
   if(f===1620000000)return x.family==="iridium";
   return false;
  };
- const filtered=()=>current.filter(x=>(family.value==="all"||family.value===x.family)&&(!showAbove.checked||x.el>=0)&&bandMatch(x))
-   .sort((a,b)=>b.el-a.el).slice(0,40);
+ const filtered=()=>sortSatelliteList(
+   current.filter(x=>(family.value==="all"||family.value===x.family)&&(!showAbove.checked||x.el>=0)&&bandMatch(x)),
+   $("map-sat-sort").value,getPasses()
+ ).slice(0,40);
  function setView(kind){
   view=kind;$("map-sky-pane").hidden=kind!=="sky";$("map-earth-pane").hidden=kind!=="earth";
   for(const name of ["sky","earth"]){
@@ -107,7 +110,9 @@ export function createSatelliteMaps({getTles,getSatLib,getPasses,getLastCapture,
   for(const s of rows){
    const b=detailsNode("button",s.name,"sat-row"+(String(s.id)===String(selectedId)?" selected":""));
    b.type="button";b.style.borderLeftColor=labelFor(s.family);
-   const sub=detailsNode("small",s.family.toUpperCase()+" · "+(s.el>=0?"el "+elFormat(s.el)+" · az "+elFormat(s.az):"below horizon")+" · predicted geometry");
+   const next=nextPassForSatellite(s,getPasses());
+   const sub=detailsNode("small",s.family.toUpperCase()+" · "+(s.el>=0?"el "+elFormat(s.el)+" · az "+elFormat(s.az):"below horizon")+
+      (next!==null?" · next "+fmtDate(next):" · no calculated next pass")+" · orbital estimate");
    b.append(sub);b.addEventListener("click",()=>choose(s.id));list.append(b);
   }
  }
@@ -418,7 +423,7 @@ export function createSatelliteMaps({getTles,getSatLib,getPasses,getLastCapture,
  $("map-recenter").addEventListener("click",()=>{
   if(!earthMap)return;try{const o=observer();earthMap.setView([o.lat,o.lon],Math.max(3,earthMap.getZoom()));}catch(e){status(e.message);}
  });
- for(const id of ["map-family","map-above","map-band","map-tracks","map-footprint"]){
+ for(const id of ["map-family","map-above","map-band","map-sat-sort","map-tracks","map-footprint"]){
   $(id).addEventListener("change",()=>{drawList();drawDetail();drawSky();drawEarth();});
  }
  for(const id of ["city","lat","lon","elev"]){
