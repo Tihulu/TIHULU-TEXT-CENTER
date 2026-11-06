@@ -321,6 +321,22 @@ class HTTPTests(unittest.TestCase):
         self.assertEqual(records["aircraft"][0]["sources"],["antenna"])
         self.assertFalse(records["aircraft"][0]["stale"])
 
+    def test_optional_language_models_require_explicit_install_approval(self):
+        code,_,raw=self.request("GET","/api/languages/status")
+        self.assertEqual(code,200)
+        self.assertFalse(json.loads(raw)["auto_download"])
+        self.assertFalse(json.loads(raw)["live_asr_extra_languages"])
+        self.assertEqual(self.request("POST","/api/languages/refresh",
+            {"consent":True})[0],403)
+        _,_,boot=self.request("GET","/api/bootstrap")
+        csrf=json.loads(boot)["csrf"]
+        self.assertEqual(self.request("POST","/api/languages/refresh",
+            {"consent":False},csrf)[0],409)
+        self.assertEqual(self.request("POST","/api/languages/install",
+            {"source":"../../etc","target":"es","consent":True},csrf)[0],400)
+        self.assertEqual(self.request("POST","/api/languages/translate",
+            {"source":"en","target":"es","text":"Hello"},csrf)[0],409)
+
     def test_no_forged_source(self):
         code,_,raw=self.request("GET","/api/page?source_id=ard_text&number=100")
         self.assertEqual(code,404)
