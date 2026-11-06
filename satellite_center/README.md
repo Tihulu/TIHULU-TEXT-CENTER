@@ -1,4 +1,11 @@
-# TIHULU Satellite Center — standalone companion v0.1
+# TIHULU Satellite Center — standalone companion v0.2
+
+> **v0.2 cross-platform / GitHub Pages bridge:** This module now also has a
+> static Pages client with local pairing, portable Windows/macOS/Raspberry Pi
+> runtime, and one-line installers. Read [WEB_AND_INSTALL.md](WEB_AND_INSTALL.md).
+> This draft PR is **not yet published on Pages**; Windows/macOS/Raspberry Pi
+> hardware reception remains unverified.
+
 
 This is the **new `satellite_center/` directory** intended to be placed at the root of `Tihulu/TIHULU-TEXT-CENTER`. It does **not** alter Text Center routes, UI, recordings or the Survival Kit. Integration can be decided later.
 
