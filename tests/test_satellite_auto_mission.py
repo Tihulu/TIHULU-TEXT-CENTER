@@ -28,11 +28,18 @@ class AutoMissionTests(unittest.TestCase):
                                 "family": family, "aos": a.isoformat(), "los": b.isoformat(),
                                 "profiles": ["meteor"] if family=="meteor" else ["iss_sstv", "iss_aprs_uhf"]})
         self.captured = []
-        def fake_schedule(pass_id, profile, mode):
+        def fake_schedule(pass_id, profile, mode, run_at=None, seconds=None, *, automatic=False):
+            # Synthetic interception mirrors native auto schedules with
+            # explicit full duration, actual start, and allowlisted flag.
+            self.assertTrue(automatic)
+            self.assertIsNotNone(run_at)
+            self.assertIsInstance(seconds, int)
+            self.assertTrue(8 <= seconds <= 900)
             record = next(r for r in self.events if r["id"] == pass_id)
             job = {"id": str(len(self.captured)+1), "pass_id": pass_id, "satellite": record["name"],
                    "aos": record["aos"], "los": record["los"], "profile": profile,
-                   "mode": mode, "state": "pending"}
+                   "mode": mode, "state": "pending", "run_at": run_at,
+                   "capture_seconds": seconds}
             self.station.jobs.append(job)
             self.captured.append(job)
             return job
