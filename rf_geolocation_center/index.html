@@ -137,7 +137,7 @@
      <div class="two-col">
       <article class="panel map-panel">
        <div class="map-top"><span id="map-center-label">COLOGNE REFERENCE · NOT YOUR LOCATION</span><div><button id="map-zoom-out" aria-label="Zoom out">−</button><button id="map-zoom-in" aria-label="Zoom in">+</button></div></div>
-       <div id="earth-map" class="earth-map" role="img" aria-label="Coordinate map with real location and imported satellite positions">
+       <div id="earth-map" class="earth-map" role="region" aria-label="Interactive map: device position, measured signal rings, transmitter candidates, aircraft and satellites">
         <div id="osm-tiles" class="osm-tiles" hidden></div>
         <svg id="earth-overlay" class="earth-overlay" viewBox="0 0 900 520" preserveAspectRatio="none"><g id="earth-grid"></g><g id="earth-rings"></g><g id="earth-markers"></g></svg>
         <div class="map-cross">+</div>
@@ -236,6 +236,11 @@
          <div class="simple-actions"><button id="radio-connect-rtl" class="primary" type="button">Connect RTL-SDR via WebUSB</button><button id="radio-manage-usb" class="secondary" type="button">Manage hardware</button></div>
          <div class="simple-actions"><button id="quick-radio-discover" class="primary" type="button">Discover sources</button><button id="quick-radio-scan" type="button">Scan FM band</button><button id="quick-radio-release" type="button">Hard Stop receiver</button><button id="quick-back-map" type="button">← Back to map</button></div>
          <div id="quick-radio-status" class="simple-result">Connect the RTL-SDR for antenna FM scans. Site lookup requires internet or a cached catalog.</div>
+         <div class="radio-adsb-link">
+          <div><strong>Aircraft · real 1090 MHz ADS-B</strong><p>Use the existing Flight Radar decoder for actual ICAO, callsign and transmitted aircraft positions. One RTL-SDR cannot run FM and ADS-B simultaneously; release it here before opening the radar receiver.</p></div>
+          <a href="../flight_radar/" id="quick-open-adsb" target="_blank" rel="noopener noreferrer">Open antenna Flight Radar</a>
+          <button id="quick-online-aircraft" class="secondary" type="button">Find internet aircraft</button>
+         </div>
          <div class="radio-quick-results"><div><h3>Detected site candidates</h3><div id="quick-radio-towers" class="simple-channel-list"></div></div><div><h3>Strongest actual RF frequencies</h3><div id="quick-radio-peaks" class="simple-channel-list"></div></div></div>
         </div>
         <div><h2>TV · Hauppauge WinTV-soloHD (01589)</h2><p>Connect your real Linux DVB tuner through the optional secure local bridge. Scan DVB-T2 from here, then compare actually detected channels with published TV transmitter sites on the map. Static Pages alone cannot access /dev/dvb.</p>
