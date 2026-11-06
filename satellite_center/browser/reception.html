@@ -59,8 +59,60 @@
 <p class="hint">Sources: <a href="https://www.hauppauge.co.uk/site/products/data_solohd.html" target="_blank" rel="noopener noreferrer">Hauppauge product specification</a> · <a href="https://www.nesdis.noaa.gov/news/suspension-of-poes-data-to-users-after-june-16-2025-and-decommissioning" target="_blank" rel="noopener noreferrer">NOAA decommissioning</a>.</p>
 </section>
 </div>
+<section id="receive-decode" aria-labelledby="receive-decode-title">
+<h2 id="receive-decode-title">3 · Decode received images here, or fetch NASA imagery on demand</h2>
+<p class="hint"><strong>Actual RF:</strong> the same shared Robot36 SSTV / CU8 engine used by the main Satellite Center. <strong>Weather images:</strong> Meteor LRPT currently needs optional native SatDump. <strong>Internet:</strong> NASA photos are separately labeled and never called antenna receptions.</p>
+<div class="image-sources">
+<div class="image-source-panel">
+<h3>Real ISS SSTV / Meteor capture</h3>
+<label>RF target<select id="image-target">
+<option value="iss">ISS SSTV (event only)</option>
+<option value="meteor3">Meteor-M2-3 LRPT</option>
+<option value="meteor4">Meteor-M2-4 LRPT</option>
+</select></label>
+<p id="image-reception-guide" class="hint">Confirm the actual transmitting frequency and mode.</p>
+<div class="reception-actions">
+<button type="button" id="image-tune">Go to receiver at this satellite's candidate band</button>
+<button type="button" class="secondary" id="image-reception-open">Official event / decoder reference</button>
+</div>
+<label>Real demodulated SSTV audio (WAV)
+<input id="image-sstv-file" type="file" accept=".wav,audio/wav,audio/x-wav,audio/*"></label>
+<div class="reception-actions">
+<button type="button" id="image-decode-sstv">Decode Robot36 WAV</button>
+<button type="button" class="secondary" id="image-download-sstv" disabled>Save actual decoded PNG</button>
+</div>
+<label>Or real unsigned interleaved I/Q file (.cu8)
+<input id="image-cuiq-file" type="file" accept=".cu8,.iq,.u8,application/octet-stream"></label>
+<label>Acquisition sample rate<select id="rate"><option value="1024000">1.024 MS/s</option><option value="2048000">2.048 MS/s</option></select></label>
+<div class="reception-actions">
+<button type="button" id="image-decode-cuiq">Try CU8 → FM → Robot36</button>
+<button type="button" id="image-decode-last" hidden disabled>Decode last capture (main receiver only)</button>
+</div>
+<p id="image-decode-status" class="status" role="status" aria-live="polite">No RF data decoded. Robot36 needs a full actual SSTV transmission (~36 seconds), appropriate RF quality and correct sample rate. Never infer a picture from TLE geometry.</p>
+<canvas id="image-sstv-canvas" width="320" height="240" aria-label="Only populated after validated Robot36 line synchronization"></canvas>
+<label>Import a previously decoded image (user-supplied)
+<input id="image-import" type="file" accept="image/png,image/jpeg,.png,.jpg,.jpeg"></label>
+</div>
+<div class="image-source-panel">
+<h3>Online NASA photographs — not RF</h3>
+<label>Provider<select id="image-online-source">
+<option value="epic">NASA DSCOVR EPIC · Earth disk photographs</option>
+<option value="iss">NASA historical ISS Earth photo archive</option>
+</select></label>
+<div class="reception-actions">
+<button type="button" id="image-fetch-online">Fetch images from NASA</button>
+<button type="button" class="secondary" id="image-clear-online">Clear online gallery</button>
+</div>
+<p id="image-online-status" class="status">Online image search has not run. Provider time/source will be shown.</p>
+<div id="image-gallery" class="image-gallery" aria-live="polite"></div>
+<p class="hint">Provider images may be limited by rate quotas or browser CORS; open originals in the official NASA archive if downloading fails.</p>
+</div>
+</div>
+<h3>Locally decoded / user-imported images</h3>
+<div id="image-local-gallery" class="image-gallery" aria-live="polite"></div>
+</section>
 <section aria-labelledby="file-title">
-<h2 id="file-title">3 · Open and inspect a local image, audio, video or data file</h2>
+<h2 id="file-title">4 · Open and inspect a local image, audio, video or data file</h2>
 <p>Preview actual local files without uploading them. An imported image is <strong>user-supplied</strong>, not verified as received from a satellite. CU8 is raw I/Q and needs its original center frequency and sample rate for correct analysis.</p>
 <div class="reception-controls">
 <label>Choose your file<input id="local-file" type="file" accept=".png,.jpg,.jpeg,.webp,.gif,.wav,.mp3,.ogg,.flac,.m4a,.mp4,.webm,.mov,.txt,.json,.csv,.tle,.log,.aprs,.cu8,.iq,.u8,.cfile"></label>
@@ -79,7 +131,7 @@
 <p id="file-status" class="status" role="status" aria-live="polite">Idle · no data accessed.</p>
 </section>
 <section>
-<h2>4 · Online imagery (not received via antenna)</h2>
+<h2>5 · Other online imagery providers</h2>
 <p>Use the existing NASA on-demand image gallery, including DSCOVR EPIC Earth photos and historical ISS photography. Also access official EUMETSAT weather imagery and NASA Worldview. These have their own provider timestamps.</p>
 <div class="reception-actions">
 <a href="./index.html#satellite-images">Open NASA Image Gallery</a>
