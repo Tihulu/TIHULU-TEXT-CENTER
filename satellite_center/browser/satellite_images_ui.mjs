@@ -56,6 +56,7 @@ function errorText(target,message){$(target).textContent=String(message);}
 export function initSatelliteImageUI({onTune=()=>{},onTargetChange=()=>{},log=()=>{}}={}){
  let currentDecode=null,currentName=null,importUrls=[];
  let lastCu8Blob=null,lastCu8Name=null,lastCu8Metadata=null,lastDecodeSource="";
+ let decodedAt=null,decodedFrequencyHz=0,decodedSatellite="ISS-SSTV-CANDIDATE";
  const targetSelect=$("image-target"),getTarget=()=>IMAGE_TARGETS.find(t=>t.key===targetSelect.value)||IMAGE_TARGETS[0];
  function guide(){
    const t=getTarget();
@@ -129,10 +130,15 @@ export function initSatelliteImageUI({onTune=()=>{},onTargetChange=()=>{},log=()
    ctx.putImageData(new ImageData(candidate.rgba,candidate.width,candidate.height),0,0);
    currentDecode=candidate;
    lastDecodeSource=sourceLabel;
-   const proposed=getTarget().key==="iss"?"ISS-SSTV-CANDIDATE":"UNATTRIBUTED-SSTV";
-   currentName=recordingName({satellite:proposed,
-     at:new Date(file.lastModified||Date.now()),
-     frequencyHz:getTarget().frequencies[0],kind:"SSTV-ROBOT36",format:"png"});
+   const sourceMeta=parseRecordingName(file.name||"");
+   const proposed=sourceMeta?.satellite||
+     (getTarget().key==="iss"?"ISS-SSTV-CANDIDATE":"UNATTRIBUTED-SSTV");
+   const originalUtc=sourceMeta?.timestamp?new Date(sourceMeta.timestamp):
+     new Date(file.lastModified||Date.now());
+   const originalHz=sourceMeta?.frequencyHz||getTarget().frequencies[0];
+   decodedAt=originalUtc;decodedFrequencyHz=originalHz;decodedSatellite=proposed;
+   currentName=recordingName({satellite:proposed,at:originalUtc,
+     frequencyHz:originalHz,kind:"SSTV-ROBOT36",format:"png"});
    $("image-download-sstv").disabled=false;
    errorText("image-decode-status",candidate.status+" · "+candidate.alignedLines+
      "/240 verified line syncs · "+candidate.syncCandidates+" sync candidates. "+
@@ -198,10 +204,10 @@ export function initSatelliteImageUI({onTune=()=>{},onTargetChange=()=>{},log=()
      const url=URL.createObjectURL(blob),a=document.createElement("a");
      a.href=url;a.download=currentName;document.body.append(a);a.click();a.remove();
      setTimeout(()=>URL.revokeObjectURL(url),60000);
-     addLocalImage(blob,{satellite:"ISS-SSTV-CANDIDATE",at:new Date(),
+     addLocalImage(blob,{satellite:decodedSatellite,at:decodedAt||new Date(),
        source:"Experimental Robot36 local audio decoder; satellite NOT independently identified",
        caption:"Source "+lastDecodeSource+"; "+currentDecode.alignedLines+" synchronized rows",
-       kind:"SSTV-ROBOT36",frequencyHz:getTarget().frequencies[0]});
+       kind:"SSTV-ROBOT36",frequencyHz:decodedFrequencyHz});
    },"image/png");
  });
  $("image-import").addEventListener("change",()=>{
