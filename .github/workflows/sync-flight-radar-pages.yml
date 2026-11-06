@@ -67,6 +67,9 @@ jobs:
           test -s pages/flight_radar/tar1090/index.html
           test -s pages/flight_radar/tar1090/tihulu-browser-bridge.js
           grep -q 'tihulu-browser-bridge.js' pages/flight_radar/tar1090/index.html
+          grep -q 'id="selected_photo"' pages/flight_radar/tar1090/index.html
+          grep -q 'id="selected_infoblock"' pages/flight_radar/tar1090/index.html
+          grep -q 'id="fullTar1090"' pages/flight_radar/index.html
           test -s pages/flight_radar/tar1090/UPSTREAM-GPL-LICENSE.txt
           python3 - <<'PY'
           from pathlib import Path
