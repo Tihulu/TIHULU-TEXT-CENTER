@@ -44,6 +44,16 @@ class SatelliteBrowserStaticTests(unittest.TestCase):
         self.assertIn('href="./reception.html"', html)
         self.assertIn('Satellite Images &amp; Data', reception)
         self.assertIn('id="local-file"', reception)
+        for id in ("auto-calendar-grid", "auto-calendar-date", "city-query", "city-suggestions",
+                   "location-gps", "user-protocol-form", "user-protocol-import"):
+            self.assertIn('id="' + id + '"', reception)
+        for id in ("browser-calendar-grid", "pass-content", "saved-tle-fetch"):
+            self.assertIn('id="' + id + '"', html)
+        self.assertIn("initStationLocationUI", (ROOT / "auto_reception_ui.mjs").read_text(encoding="utf-8"))
+        self.assertIn("initSavedProtocolUI", script)
+        self.assertIn("renderSatelliteCalendar", (ROOT / "auto_reception_ui.mjs").read_text(encoding="utf-8"))
+        self.assertIn('route == "/api/auto-edit"', (ROOT.parent / "__main__.py").read_text(encoding="utf-8"))
+
         self.assertIn('id="mission"', reception)
         self.assertIn('id="export-evidence"', reception)
         for ctl in ('auto-mission-arm', 'auto-mission-analyze',
