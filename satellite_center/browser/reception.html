@@ -79,8 +79,27 @@
 <div id="auto-mission-output" class="mission-extraction" aria-live="polite"></div>
 <p class="hint">For actual full-pass Meteor LRPT image reconstruction, the native companion needs SatDump and a free RTL-SDR. A 60-second browser CU8 sample may not contain a full Earth scan. Raw I/Q cannot be interpreted as human messages without a protocol decoder and validated packet frames.</p>
 </section>
+<section aria-labelledby="file-title">
+<h2 id="file-title">Recorded files · Open image, audio, video, text or I/Q</h2>
+<p>Preview actual local files without uploading them. An imported image is <strong>user-supplied</strong>, not verified as received from a satellite. CU8 is raw I/Q and needs its original center frequency and sample rate for correct analysis.</p>
+<div class="reception-controls">
+<label>Choose your file<input id="local-file" type="file" accept=".png,.jpg,.jpeg,.webp,.gif,.wav,.mp3,.ogg,.flac,.m4a,.mp4,.webm,.mov,.txt,.json,.csv,.tle,.log,.aprs,.cu8,.iq,.u8,.cfile"></label>
+<label>Recorded center frequency (MHz; optional)<input type="number" step="0.000001" min="0" id="recorded-mhz" placeholder="e.g. 437.55"></label>
+<label>Recorded sample rate (samples/sec; optional)<input type="number" step="1" min="1" id="recorded-rate" placeholder="e.g. 1024000"></label>
+</div>
+<div id="file-preview" class="file-preview" role="region" aria-label="Local file preview">
+<p>No local file selected. Nothing is uploaded.</p>
+</div>
+<div class="reception-actions">
+<button type="button" id="export-evidence" disabled>Download metadata JSON</button>
+<button type="button" id="clear-file" class="secondary">Clear local preview</button>
+<a href="./index.html#iq-analysis">Open existing CU8/FFT/waterfall analyzer</a>
+<a href="./index.html#satellite-images">Open existing SSTV/Image Center</a>
+</div>
+<p id="file-status" class="status" role="status" aria-live="polite">Idle · no data accessed.</p>
+</section>
 <section aria-labelledby="reception-title">
-<h2 id="reception-title">Choose a satellite signal or image source</h2>
+<h2 id="reception-title">Explore known satellite signals and protocol profiles</h2>
 <div class="reception-controls">
 <label>Public mission catalog<select id="mission"></select></label>
 <label>Type of content<select id="category"><option value="all">All types</option><option value="Image">RF images</option><option value="Audio">Audio</option><option value="Video">Video (advanced hardware)</option><option value="Text / data">Text / data</option><option value="Online imagery">Online archives</option><option value="Archive">Old recordings</option></select></label>
@@ -114,6 +133,7 @@
 <p class="hint">Reference: <a href="https://db.satnogs.org/transmitters/" target="_blank" rel="noopener noreferrer">SatNOGS public transmitter catalog</a>. Import/export transfers settings between Pages/PWA and desktop origins. A selected downlink still requires real RF capture and a compatible decoder.</p>
 </details>
 </section>
+<details class="reception-advanced"><summary>Hardware, antenna and receiver advice (optional)</summary>
 <div class="reception-grid">
 <section>
 <h2>1 · Capture a real downlink</h2>
@@ -138,8 +158,9 @@
 <p class="hint">Sources: <a href="https://www.hauppauge.co.uk/site/products/data_solohd.html" target="_blank" rel="noopener noreferrer">Hauppauge product specification</a> · <a href="https://www.nesdis.noaa.gov/news/suspension-of-poes-data-to-users-after-june-16-2025-and-decommissioning" target="_blank" rel="noopener noreferrer">NOAA decommissioning</a>.</p>
 </section>
 </div>
+</details>
 <section id="receive-decode" aria-labelledby="receive-decode-title">
-<h2 id="receive-decode-title">3 · Decode received images here, or fetch NASA imagery on demand</h2>
+<h2 id="receive-decode-title">Manual decoder workspace · Real SSTV / Meteor and NASA imagery</h2>
 <p class="hint"><strong>Actual RF:</strong> the same shared Robot36 SSTV / CU8 engine used by the main Satellite Center. <strong>Weather images:</strong> Meteor LRPT currently needs optional native SatDump. <strong>Internet:</strong> NASA photos are separately labeled and never called antenna receptions.</p>
 <div class="image-sources">
 <div class="image-source-panel">
@@ -190,27 +211,8 @@
 <h3>Locally decoded / user-imported images</h3>
 <div id="image-local-gallery" class="image-gallery" aria-live="polite"></div>
 </section>
-<section aria-labelledby="file-title">
-<h2 id="file-title">4 · Open and inspect a local image, audio, video or data file</h2>
-<p>Preview actual local files without uploading them. An imported image is <strong>user-supplied</strong>, not verified as received from a satellite. CU8 is raw I/Q and needs its original center frequency and sample rate for correct analysis.</p>
-<div class="reception-controls">
-<label>Choose your file<input id="local-file" type="file" accept=".png,.jpg,.jpeg,.webp,.gif,.wav,.mp3,.ogg,.flac,.m4a,.mp4,.webm,.mov,.txt,.json,.csv,.tle,.log,.aprs,.cu8,.iq,.u8,.cfile"></label>
-<label>Recorded center frequency (MHz; optional)<input type="number" step="0.000001" min="0" id="recorded-mhz" placeholder="e.g. 437.55"></label>
-<label>Recorded sample rate (samples/sec; optional)<input type="number" step="1" min="1" id="recorded-rate" placeholder="e.g. 1024000"></label>
-</div>
-<div id="file-preview" class="file-preview" role="region" aria-label="Local file preview">
-<p>No local file selected. Nothing is uploaded.</p>
-</div>
-<div class="reception-actions">
-<button type="button" id="export-evidence" disabled>Download metadata JSON</button>
-<button type="button" id="clear-file" class="secondary">Clear local preview</button>
-<a href="./index.html#iq-analysis">Open existing CU8/FFT/waterfall analyzer</a>
-<a href="./index.html#satellite-images">Open existing SSTV/Image Center</a>
-</div>
-<p id="file-status" class="status" role="status" aria-live="polite">Idle · no data accessed.</p>
-</section>
 <section>
-<h2>5 · Other online imagery providers</h2>
+<h2>Official online imagery providers</h2>
 <p>Use the existing NASA on-demand image gallery, including DSCOVR EPIC Earth photos and historical ISS photography. Also access official EUMETSAT weather imagery and NASA Worldview. These have their own provider timestamps.</p>
 <div class="reception-actions">
 <a href="./index.html#satellite-images">Open NASA Image Gallery</a>
