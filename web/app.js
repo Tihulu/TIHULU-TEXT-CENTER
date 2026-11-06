@@ -203,6 +203,9 @@ async function openPage(number,source,subpage){
     if(state.page===200) return showArticles();
     if(state.page===300) return showWeather();
     if(state.page===400) return showRadioData();
+    if(state.page===410) return showLiveRadioPage();
+    if(state.page===420) return showLiveTVPage();
+    if(state.page===450) return showTranslatorPage();
     if(state.page===500) return showEmergency();
     if(state.page===600) return showBulletins();
     if(state.page===700) return showLibrary();
@@ -802,7 +805,7 @@ function liveRadioCaptionPanel(captions,session,targetId="live-radio-captions"){
   }
 }
 async function pollLiveRadio(){
-  if(state.page!==400&&!state.liveActive)return;
+  if(![400,410].includes(state.page)&&!state.liveActive)return;
   try{
     const current=await api("/api/live/radio/status");
     state.liveActive=current.active;
@@ -852,7 +855,7 @@ async function pollLiveRadio(){
   }catch(e){notice("Live receiver status unavailable: "+e.message);}
 }
 async function pollLiveTV(){
-  if(state.page!==400&&!state.tvActive)return;
+  if(![400,420].includes(state.page)&&!state.tvActive)return;
   try{
     const current=await api("/api/live/tv/status");
     state.tvActive=current.active;
@@ -1500,6 +1503,99 @@ async function addOfflineRecordingControl(){
     }catch(error){notice(error.message)}
   });
   await refresh();
+}
+async function showLiveRadioPage(){
+  section("LIVE RADIO","Continuous FM radio, recording & captions",
+    "Only when one available RTL-SDR is explicitly allocated");
+  try{await addLiveRadio()}catch(e){empty("Live radio unavailable",e.message)}
+  try{await addRdsControl()}catch(e){empty("RDS metadata unavailable",e.message)}
+  try{await addRadioImageGallery()}catch(e){empty("Station artwork unavailable",e.message)}
+}
+async function showLiveTVPage(){
+  section("LIVE TV","Live television, recording & bilingual subtitles",
+    "Requires a separately leased authorized MPEG-TS source");
+  try{await addLiveTV()}catch(e){empty("TV source unavailable",e.message)}
+  try{await addDvbDevicePanel()}catch(e){empty("DVB diagnostics unavailable",e.message)}
+}
+async function showTranslatorPage(){
+  section("OFFLINE TRANSLATOR","English · Deutsch · Türkçe",
+    "Original language preserved · Local models only");
+  const translation=await api("/api/translation/status");
+  const compute=await api("/api/compute");
+  const box=el("article","item-card");
+  box.append(el("div","item-meta","OFFLINE / NO AUTOMATIC MODEL DOWNLOAD"));
+  box.append(el("h3","","Translate between English, German and Turkish"));
+  const pairs=translation.pairs.map(p=>p.source.toUpperCase()+" → "+p.target.toUpperCase());
+  box.append(el("p","",pairs.length?
+    "Installed language pairs: "+pairs.join(", "):
+    "No installed Argos language-pair models detected. Install pairs explicitly to enable translation."));
+  const form=el("form","rds-form");
+  const controls=el("div","live-grid");
+  const source=el("select"),target=el("select"),backend=el("select");
+  const options=[["en","English"],["de","Deutsch"],["tr","Türkçe"]];
+  options.forEach(([code,title])=>{
+    const a=el("option","",title);a.value=code;source.append(a);
+    const b=el("option","",title);b.value=code;target.append(b);
+  });
+  source.value="de";target.value="tr";
+  for(const [key,label,ready] of [
+      ["auto","AUTO — verified GPU or CPU",true],
+      ["cpu","CPU — offline Argos",translation.cpu_available],
+      ["gpu","GPU — CUDA / CTranslate2",translation.gpu_available],
+      ["npu","NPU — translator model not supported",translation.npu_available]]){
+    const option=el("option","",label+(ready?"":" · UNAVAILABLE"));
+    option.value=key;option.disabled=!ready;backend.append(option);
+  }
+  for(const [label,control] of [
+      ["Original language",source],["Target language",target],
+      ["Compute backend",backend]]){
+    const group=el("div","field");group.append(el("label","",label),control);
+    controls.append(group);
+  }
+  form.append(controls);
+  const original=el("textarea","translation-editor");
+  original.rows=6;original.maxLength=12000;
+  original.placeholder="Write or paste text in English, German or Turkish.";
+  form.append(original);
+  const go=el("button","action primary","TRANSLATE OFFLINE");
+  go.type="submit";form.append(go);
+  const output=el("pre","translation-output");
+  output.textContent="Only a genuine installed translation model can produce translated text.";
+  box.append(form,el("h4","","Translation"),output);
+  const copy=button("COPY TRANSLATION",async()=>{
+    try{
+      if(!navigator.clipboard)throw Error("Clipboard not available");
+      await navigator.clipboard.writeText(output.textContent);
+      notice("Translation copied.");
+    }catch(_){notice("Select and copy the translated text manually.")}
+  });
+  box.append(copy);
+  form.addEventListener("submit",async e=>{
+    e.preventDefault();go.disabled=true;
+    try{
+      const response=await api("/api/translation/text","POST",{
+        source:source.value,target:target.value,
+        backend:backend.value,text:original.value});
+      output.textContent=response.translated;
+      notice("Translated locally; original text remains untouched.");
+    }catch(e){
+      output.textContent="Translation unavailable: "+e.message;
+      notice(e.message);
+    }finally{go.disabled=false}
+  });
+  $("content").append(box);
+  const hardware=el("article","notice-card");
+  hardware.append(el("h3","","Detected compute devices"));
+  compute.devices.forEach(d=>hardware.append(el("p","",
+    d.id.toUpperCase()+" — "+d.name+" · "+
+    (d.detected?"detected":"not detected")+" · "+
+    (d.runtime_ready?"runtime verified":"runtime not verified"))));
+  hardware.append(el("p","",
+    "Speech recognition and text translation use separate engines. "+
+    "Hailo or Intel NPU detection may allow speech recognition with a compatible "+
+    "installed model, but NPU translation remains disabled until verified. "+
+    "Nothing is downloaded automatically."));
+  $("content").append(hardware);
 }
 async function showRadioData(){
   section("RF / BROADCAST SOURCES","Antenna scanning & actual decoder imports","User-approved tuning only");
