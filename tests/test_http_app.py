@@ -156,6 +156,18 @@ class HTTPTests(unittest.TestCase):
             {"frequency_mhz":98.6,"duration_seconds":12},csrf)[0],409)
         self.assertEqual(self.request("POST","/api/audio/stop",{},csrf)[0],200)
 
+    def test_media_and_dvb_inventory_are_honest(self):
+        code,_,raw=self.request("GET","/api/dvb/status")
+        self.assertEqual(code,200)
+        data=json.loads(raw)
+        self.assertFalse(data["broadcast_locked"])
+        self.assertFalse(data["teletext_decoder_connected"])
+        self.assertFalse(data["service_scan_enabled"])
+        code,_,raw=self.request("GET","/api/media")
+        self.assertEqual(code,200)
+        self.assertEqual(json.loads(raw),[])
+        self.assertEqual(self.request("GET","/api/media/file/garbage")[0],404)
+
     def test_no_forged_source(self):
         code,_,raw=self.request("GET","/api/page?source_id=ard_text&number=100")
         self.assertEqual(code,404)

@@ -13,6 +13,7 @@ from .receivers import receiver_inventory
 from .fm_rds import FMRSDSupervisor, CaptureError
 from .fm_audio import FMPreview, AudioError
 from .media import MediaStore
+from .dvb_hardware import diagnose_dvb
 from .capabilities import capability_catalog
 from .fm_survey import FMSurveySupervisor, SurveyError
 from .scan_catalog import scan_capabilities
@@ -164,6 +165,8 @@ class Handler(BaseHTTPRequestHandler):
                 status = self.server.survey.status()
                 status["capability"] = self.server.survey.availability()
                 return self._json(200, status)
+            if route == "/api/dvb/status":
+                return self._json(200,diagnose_dvb())
             if route == "/api/media":
                 return self._json(200,self.server.media.list())
             if route.startswith("/api/media/file/"):
