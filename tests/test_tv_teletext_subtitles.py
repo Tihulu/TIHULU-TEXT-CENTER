@@ -100,6 +100,21 @@ class TeletextSubtitleTests(unittest.TestCase):
             self.assertEqual(tv._effective_subtitle_source(),"teletext_waiting")
             tv.state["active"]=False
 
+    def test_waits_for_really_decoded_teletext_before_asr_fallback(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tv=LiveTV(archive_dir=Path(tmp)/"records")
+            tv.caption_enabled=True
+            tv.caption_source="auto"
+            tv.speech=MagicMock()
+            tv.teletext_sidecar=MagicMock()
+            tv.teletext_sidecar.status.return_value={"active":True}
+            tv.teletext_probe_until=time.monotonic()+12
+            self.assertEqual(tv._effective_subtitle_source(),"teletext_waiting")
+            tv.teletext_probe_until=time.monotonic()-1
+            self.assertEqual(tv._effective_subtitle_source(),"speech")
+            tv.teletext_sidecar.status.return_value={"active":False}
+            self.assertEqual(tv._effective_subtitle_source(),"speech")
+
     def test_invalid_or_disabled_cues_are_never_imported(self):
         with tempfile.TemporaryDirectory() as tmp:
             store=TranscriptStore(Store(Path(tmp)/"db"))
