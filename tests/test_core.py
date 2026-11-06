@@ -75,6 +75,7 @@ class CoreTests(unittest.TestCase):
         }
         self.assertEqual(self.db.import_data(payload),{"pages":1,"events":1})
         self.assertEqual(self.db.page("rx1",100,0)["station"],"Example")
+        self.assertEqual(self.db.page("rx1",100,0)["body"],"Decoded payload")
         self.assertIsNone(self.db.page("rx1",101,0))
         self.assertEqual(self.db.events()[0]["medium"],"fm_rds")
         payload["pages"][0]["page"] = 900
