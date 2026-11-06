@@ -7,11 +7,12 @@ from __future__ import annotations
 
 import argparse
 from datetime import datetime, timedelta, timezone
-import fcntl
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 import math
 import os
+import platform
+import webbrowser
 from pathlib import Path
 import re
 import secrets
@@ -26,10 +27,14 @@ import uuid
 import wave
 
 from . import __version__
+from .bridge import (app_data_dir, lock_receiver, unlock_receiver, start_receiver_process,
+                     stop_receiver_process, pairing_secret, allowed_origin,
+                     local_host_allowed, request_is_remote)
 
 UTC = timezone.utc
-DATA = Path(os.getenv("TIHULU_SATELLITE_DATA", str(Path.home()/".local/share/tihulu-satellite-center")))
-TEXT_CENTER_LOCK = Path.home()/".local/share/tihulu-text-center/.receiver-locks/rtl_fm_rds.lock"
+DATA = Path(os.getenv("TIHULU_SATELLITE_DATA", str(app_data_dir())))
+TEXT_CENTER_LOCK = (Path.home()/".local/share/tihulu-text-center/.receiver-locks/rtl_fm_rds.lock"
+                    if os.name != "nt" else DATA/".receiver-locks/rtl_fm_rds.lock")
 MAX_IQ_BYTES = 1_073_741_824  # 1 GiB: maximum per captured file
 MAX_CAPTURE_SECONDS = 480
 SOURCE_URLS = {
@@ -159,6 +164,8 @@ def parse_power(raw, profile):
 
 def detect_busy():
     """Defensive, best-effort cross-application check; not an OS-wide lease."""
+    if platform.system() != "Linux":
+        return []  # Windows/macOS: no reliable passive OS-wide process check.
     try:
         from textcenter.conflicts import find_receiver_conflicts
         return find_receiver_conflicts()
@@ -176,23 +183,14 @@ def tuner_present():
 
 
 def stop_process(process):
-    if process is None or process.poll() is not None:
-        return
-    try:
-        os.killpg(process.pid, signal.SIGTERM)
-        process.wait(timeout=1.5)
-    except (ProcessLookupError, OSError, subprocess.TimeoutExpired):
-        try:
-            os.killpg(process.pid, signal.SIGKILL)
-            process.wait(timeout=1)
-        except (OSError, subprocess.TimeoutExpired):
-            pass
+    stop_receiver_process(process)
 
 
 class Station:
     def __init__(self, directory=DATA):
         self.directory = Path(directory)
         self.directory.mkdir(mode=0o700, parents=True, exist_ok=True)
+        self.pairing_token = pairing_secret(self.directory)
         self.archive = self.directory/"captures"
         self.archive.mkdir(exist_ok=True, mode=0o700)
         self.lock = threading.RLock()
@@ -219,7 +217,10 @@ class Station:
                 path = self.directory/(key+".tle")
                 cached[key] = {"present": path.is_file(),
                                "age_hours": round((time.time()-path.stat().st_mtime)/3600, 1) if path.is_file() else None}
-            return {"version": __version__, "tuner_present": tuner_present(),
+            return {"version": __version__, "platform": platform.system(),
+                    "tuner_present": tuner_present() if platform.system() == "Linux" else None,
+                    "receiver_detection": ("passive_linux_usb" if platform.system() == "Linux"
+                                           else "not_passively_verified_on_this_os"),
                     "busy": detect_busy(), "tools": {n: bool(shutil.which(n)) for n in
                     ("rtl_power", "rtl_sdr", "rtl_fm", "multimon-ng", "satdump", "qsstv")},
                     "orbit_cache": cached, "location_presets": LOCATIONS,
@@ -455,14 +456,16 @@ class Station:
                     self.save_jobs()
 
     def _acquire(self):
-        if not tuner_present():
+        # Mac/Windows cannot use the Linux sysfs inventory.
+        # Platform-native rtl-sdr tools report actual device errors.
+        if platform.system() == "Linux" and not tuner_present():
             raise RuntimeError("Exactly one Linux RTL2832U must be present")
         if detect_busy():
             raise RuntimeError("Another receiver appears active; scan not started")
         TEXT_CENTER_LOCK.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
-        fd = os.open(TEXT_CENTER_LOCK, os.O_CREAT|os.O_RDWR|os.O_CLOEXEC|getattr(os, "O_NOFOLLOW", 0), 0o600)
+        fd = os.open(TEXT_CENTER_LOCK, os.O_CREAT|os.O_RDWR|getattr(os, "O_CLOEXEC", 0)|getattr(os, "O_NOFOLLOW", 0), 0o600)
         try:
-            fcntl.flock(fd, fcntl.LOCK_EX|fcntl.LOCK_NB)
+            lock_receiver(fd)
             if detect_busy():
                 raise RuntimeError("Receiver occupied during preflight")
         except (RuntimeError, OSError):
@@ -473,7 +476,7 @@ class Station:
     def _release(self):
         if self.device_lock is not None:
             try:
-                fcntl.flock(self.device_lock, fcntl.LOCK_UN)
+                unlock_receiver(self.device_lock)
             finally:
                 os.close(self.device_lock)
                 self.device_lock = None
@@ -504,8 +507,8 @@ class Station:
                 command += ["-e", f"{min(seconds, 180)}s"] if scheduled else ["-1"]
                 import tempfile
                 with tempfile.TemporaryFile() as output, tempfile.TemporaryFile() as error:
-                    proc = subprocess.Popen(command, stdout=output, stderr=error,
-                                            stdin=subprocess.DEVNULL, start_new_session=True)
+                    proc = start_receiver_process(command, stdout=output, stderr=error,
+                                            stdin=subprocess.DEVNULL)
                     with self.lock: self.process = proc
                     try:
                         until = time.monotonic() + (min(seconds, 180) + 12 if scheduled else 26)
@@ -541,9 +544,9 @@ class Station:
                 cmd1 = [shutil.which("rtl_fm"), "-d", "0", "-f", "145825000", "-M", "fm", "-s", "22050", "-g", "30"]
                 cmd2 = [shutil.which("multimon-ng"), "-t", "raw", "-a", "AFSK1200", "-"]
                 with target.open("xb") as out:
-                    rx = subprocess.Popen(cmd1, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, start_new_session=True)
+                    rx = start_receiver_process(cmd1, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
                     try:
-                        decode = subprocess.Popen(cmd2, stdin=rx.stdout, stdout=out, stderr=subprocess.DEVNULL, start_new_session=True)
+                        decode = start_receiver_process(cmd2, stdin=rx.stdout, stdout=out, stderr=subprocess.DEVNULL)
                         rx.stdout.close()
                         self._wait_decode([rx, decode], seconds)
                     finally:
@@ -551,7 +554,7 @@ class Station:
                         if "decode" in locals(): stop_process(decode)
             else:
                 cmd = [shutil.which("rtl_fm"), "-d", "0", "-f", "145800000", "-M", "fm", "-s", "48000", "-g", "30"]
-                rx = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, start_new_session=True)
+                rx = start_receiver_process(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
                 try:
                     with wave.open(str(target), "wb") as wav:
                         wav.setnchannels(1); wav.setsampwidth(2); wav.setframerate(48000)
@@ -585,7 +588,7 @@ class Station:
                 self._release()
 
     def _run_bounded(self, command, timeout):
-        proc = subprocess.Popen(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+        proc = start_receiver_process(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         with self.lock: self.process = proc
         try:
             until = time.monotonic()+timeout
@@ -654,14 +657,53 @@ PAGE = Path(__file__).with_name("index.html")
 class Handler(BaseHTTPRequestHandler):
     server: "Server"
 
+    def guard(self):
+        if not local_host_allowed(self.headers.get("Host", ""), self.server.server_port):
+            self.reply(403, {"error": "Unexpected Host; localhost only"})
+            return False
+        origin = self.headers.get("Origin")
+        site = self.headers.get("Sec-Fetch-Site", "")
+        if not allowed_origin(origin, self.headers.get("Host", "")):
+            self.reply(403, {"error": "Origin not allowed"})
+            return False
+        if site == "cross-site" and not origin:
+            self.reply(403, {"error": "Cross-site browser resource blocked"})
+            return False
+        if request_is_remote(origin):
+            bearer = self.headers.get("Authorization", "")
+            if not secrets.compare_digest(bearer, "Bearer " + self.server.station.pairing_token):
+                self.reply(401, {"error": "Enter the pairing token from your local Satellite Center"})
+                return False
+        return True
+
+    def do_OPTIONS(self):
+        if not local_host_allowed(self.headers.get("Host", ""), self.server.server_port):
+            return self.reply(403, {"error": "Host rejected"})
+        if not request_is_remote(self.headers.get("Origin")):
+            return self.reply(403, {"error": "Cross-origin access denied"})
+        self.send_response(204)
+        self.cors_headers()
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "Authorization, Content-Type")
+        self.send_header("Access-Control-Max-Age", "300")
+        self.send_header("Content-Length", "0")
+        self.end_headers()
+
+    def cors_headers(self):
+        if request_is_remote(self.headers.get("Origin")):
+            self.send_header("Access-Control-Allow-Origin", "https://tihulu.github.io")
+            self.send_header("Vary", "Origin")
+
     def send_bytes(self, code, content, mime="application/json; charset=utf-8"):
         self.send_response(code)
         self.send_header("Content-Type", mime)
+        self.cors_headers()
         self.send_header("Content-Length", str(len(content)))
         self.send_header("Cache-Control", "no-store")
         self.send_header("X-Content-Type-Options", "nosniff")
         self.send_header("X-Frame-Options", "DENY")
-        self.send_header("Content-Security-Policy", "default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self' data:; form-action 'none'; base-uri 'none'")
+        self.send_header("Referrer-Policy", "no-referrer")
+        self.send_header("Content-Security-Policy", "default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self' http://127.0.0.1:8791 http://localhost:8791; img-src 'self' data:; form-action 'none'; base-uri 'none'")
         self.end_headers()
         self.wfile.write(content)
 
@@ -669,6 +711,8 @@ class Handler(BaseHTTPRequestHandler):
         self.send_bytes(code, json.dumps(data, ensure_ascii=False).encode(), "application/json; charset=utf-8")
 
     def do_GET(self):
+        if not self.guard():
+            return
         route = urlsplit(self.path).path
         try:
             if route == "/":
@@ -706,7 +750,9 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_header("Content-Type", "application/octet-stream")
                 self.send_header("Content-Disposition", f'attachment; filename="{file}"')
                 self.send_header("Content-Length", str(path.stat().st_size))
+                self.cors_headers()
                 self.send_header("X-Content-Type-Options", "nosniff")
+                self.send_header("Referrer-Policy", "no-referrer")
                 self.end_headers()
                 with path.open("rb") as fp:
                     while data := fp.read(65536): self.wfile.write(data)
@@ -716,6 +762,8 @@ class Handler(BaseHTTPRequestHandler):
             return self.reply(400, {"error": str(exc)[:240]})
 
     def do_POST(self):
+        if not self.guard():
+            return
         try:
             length = int(self.headers.get("Content-Length", "0"))
             if length < 2 or length > 4096:
@@ -725,7 +773,11 @@ class Handler(BaseHTTPRequestHandler):
                 return self.reply(403, {"error": "CSRF token required"})
             route = urlsplit(self.path).path
             app = self.server.station
-            if route == "/api/refresh":
+            if route == "/api/pair":
+                if request_is_remote(self.headers.get("Origin")):
+                    return self.reply(403, {"error": "Pair locally at http://127.0.0.1:8791"})
+                result = {"token": app.pairing_token, "warning": "Keep private; anyone with it and Pages origin can operate the local receiver"}
+            elif route == "/api/refresh":
                 result = app.refresh()
             elif route == "/api/schedule":
                 result = app.schedule(data.get("pass_id"), data.get("profile"), data.get("mode"))
@@ -785,6 +837,7 @@ def main():
     ap.add_argument("command", nargs="?", choices=("serve", "doctor"), default="serve")
     ap.add_argument("--host", default="127.0.0.1")
     ap.add_argument("--port", type=int, default=8791)
+    ap.add_argument("--open-browser", action="store_true", help="Open desktop browser after the local server starts")
     args = ap.parse_args()
     if args.host != "127.0.0.1" or not (1024 <= args.port <= 65535):
         ap.error("Loopback-only address 127.0.0.1 and port 1024–65535 required")
@@ -794,6 +847,8 @@ def main():
     else:
         print(f"TIHULU Satellite Center: http://127.0.0.1:{args.port}/ (receiver idle)")
         with Server((args.host, args.port), station) as server:
+            if args.open_browser:
+                threading.Thread(target=lambda: webbrowser.open(f"http://127.0.0.1:{args.port}/"), daemon=True).start()
             try: server.serve_forever()
             except KeyboardInterrupt: pass
             finally: station.request_stop()
