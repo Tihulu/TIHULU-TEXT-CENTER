@@ -276,3 +276,43 @@ It does **not** prove that the antenna is matched, calibrated signal
 power was measured, or any specific satellite transmitted. Test uses
 the chosen frequency, so a quiet band can still pass valid USB sampling.
 No physical-device run has been performed by CI.
+
+
+## Earth overlay visibility / focusing (v0.12)
+
+The OpenStreetMap base layer previously centred on the *ground station*
+(e.g. Germany) while the selected satellite's **ground subpoint** could be
+thousands of kilometres away (e.g. RADIO ROSTO near 59.6° N, 42.9° E).
+Consequently satellite markers, orbit tracks and coverage could all be
+correctly calculated but outside the viewport. The optional Leaflet panel
+now provides real operational map controls:
+
+- **Show all satellites:** fits the actual, currently filtered TLE-derived
+  satellite ground positions into the viewport, rather than retaining an
+  unrelated ground-station-only view. When TLEs load later, one initial
+  global fit is performed automatically.
+- **Focus selected satellite:** centres on the selected satellite's
+  ground subpoint and zooms in. Selecting an entry in the right-side
+  satellite list or clicking a marker does the same while Earth view is open.
+- **Center on ground station:** restores an observer-focused view;
+  predicted satellite locations outside its bounds will be labelled as
+  such and can still be accessed via the first two controls.
+- **Orbit tracks:** selectable *all tracked satellites* (default),
+  *selected only* or *off*, showing predicted ±45-minute ground tracks.
+- **Coverage circles:** *selected satellite* (default), *all tracked
+  satellites* or *off*. Coverage is a geometric min-elevation footprint
+  calculated from orbital altitude, not an RF measurement or signal
+  quality estimate.
+- **Overlay counter:** displays plotted marker counts, orbit/footprint
+  segment counts, and how many satellite subpoints fall in the current
+  map viewport. These are **not** detected spacecraft.
+- Explicit Leaflet layer panes keep footprints above base-map coastlines,
+  tracks above footprints, clickable satellite markers above tracks,
+  and the observer marker on top.
+
+The world-map overview Canvas remains fully independent of the optional
+Leaflet/OSM view. The radio receiver is never opened by selecting a map
+control. No claim is made that TLE geometry proves a transmission.
+
+Code/regression: `browser/satellite_maps.mjs`,
+`tests/test_satellite_earth_overlays.mjs`, cross-platform Node CI.
