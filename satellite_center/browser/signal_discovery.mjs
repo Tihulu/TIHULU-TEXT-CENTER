@@ -20,14 +20,17 @@ const delay=()=>new Promise(resolve=>setTimeout(resolve,0));
  * recovered audio. This is experimental, not a calibrated decoder.
  */
 export async function cu8ToTunedFmAudio(file,{sampleRate,offsetHz=0,
- durationSeconds=75,onProgress=()=>{},signal=null}={}){
+ durationSeconds=75,startSeconds=0,onProgress=()=>{},signal=null}={}){
  validateRate(sampleRate);
  if(!file||typeof file.slice!=="function"||!Number.isSafeInteger(file.size)||file.size%2)
    throw Error("Select a valid unsigned interleaved CU8 file.");
  if(!Number.isFinite(offsetHz)||Math.abs(offsetHz)>sampleRate*.45)
    throw Error("Offset is outside safe recorded bandwidth.");
+ if(!Number.isFinite(startSeconds)||startSeconds<0)throw Error("Invalid FM start time.");
+ const firstSample=Math.floor(startSeconds*sampleRate);
  const rate=16000,step1=sampleRate/64000,limitSamples=Math.min(
-   Math.floor(file.size/2),Math.floor(Math.max(1,Math.min(95,durationSeconds))*sampleRate));
+   Math.max(0,Math.floor(file.size/2)-firstSample),
+   Math.floor(Math.max(1,Math.min(95,durationSeconds))*sampleRate));
  const audio=new Float32Array(Math.ceil(limitSamples/(sampleRate/rate))+2);
  const step=-2*Math.PI*offsetHz/sampleRate;
  const rotationI=Math.cos(step),rotationQ=Math.sin(step);
@@ -38,7 +41,7 @@ export async function cu8ToTunedFmAudio(file,{sampleRate,offsetHz=0,
  while(processed<limitSamples){
    checkAbort(signal);
    const count=Math.min(inputChunk,limitSamples-processed);
-   const bytes=new Uint8Array(await file.slice(processed*2,(processed+count)*2).arrayBuffer());
+   const bytes=new Uint8Array(await file.slice((firstSample+processed)*2,(firstSample+processed+count)*2).arrayBuffer());
    if(bytes.length!==count*2)throw Error("Incomplete CU8 input.");
    for(let i=0;i<count;i++){
      const inI=(bytes[i*2]-127.5)/128,inQ=(bytes[i*2+1]-127.5)/128;
@@ -75,7 +78,7 @@ export async function cu8ToTunedFmAudio(file,{sampleRate,offsetHz=0,
  const gain=Math.min(12,0.33/rms);
  for(let i=0;i<output.length;i++)output[i]=Math.max(-1,Math.min(1,output[i]*gain));
  return {samples:output,rate,seconds:Number((output.length/rate).toFixed(3)),
-   offsetHz,rms:Number(rms.toFixed(8)),
+   offsetHz,startSeconds:firstSample/sampleRate,rms:Number(rms.toFixed(8)),
    warning:"Uncalibrated FM audio; simple decimation may suffer adjacent-channel aliasing."};
 }
 
@@ -95,6 +98,24 @@ function makeSteps(report){
    if(chosen.length>=NUM_AUDIO_PROBES)break;
  }
  return {known,chosen};
+}
+function bestWindowStart(report,offsetHz,lengthSeconds){
+ const available=report.estimatedSeconds;
+ if(!Number.isFinite(lengthSeconds)||available<=lengthSeconds)return 0;
+ const rows=report.waterfallDb;
+ if(!rows.length)return 0;
+ const bin=Math.max(0,Math.min(255,Math.floor(256*(0.5+offsetHz/report.sampleRate))));
+ let best=-Infinity,index=0;
+ for(let r=0;r<rows.length;r++){
+   const local=rows[r];
+   // Compare the target band with its own local median, so global gain shifts
+   // cannot masquerade as a uniquely active transmitter.
+   const noise=local.slice().sort((a,b)=>a-b)[Math.floor(local.length/2)];
+   const score=(local[bin]||-Infinity)-noise;
+   if(score>best){best=score;index=r;}
+ }
+ const at=(index+.5)*available/rows.length;
+ return Number(Math.max(0,Math.min(available-lengthSeconds,at-lengthSeconds/2)).toFixed(3));
 }
 function summaryError(e){return String(e?.message||e).slice(0,300);}
 export async function discoverCu8Contents(file,{
@@ -130,9 +151,11 @@ export async function discoverCu8Contents(file,{
        update("audio","running","Trying "+mode.toUpperCase()+
          " around "+(offset/1000).toFixed(2)+" kHz offset (candidate "+(k+1)+"/"+chosen.length+")");
        try{
+         const startSeconds=bestWindowStart(report,offset,Math.max(1,Math.min(9,probeSeconds)));
          const result=await demodulateCu8Preview(file,{sampleRate:Number(sampleRate),
-           offsetHz:offset,mode,durationSec:Math.max(1,Math.min(9,probeSeconds)),signal});
-         audioProbes.push({candidate:k+1,mode,offsetHz:offset,
+           offsetHz:offset,mode,durationSec:Math.max(1,Math.min(9,probeSeconds)),
+           startSeconds,signal});
+         audioProbes.push({candidate:k+1,mode,offsetHz:offset,startSeconds,
            frequencyHz:report.centerFrequencyHz===null?null:report.centerFrequencyHz+offset,
            durationSeconds:result.seconds,sampleRateHz:result.outputSampleRate,
            state:"audio preview generated — content not identified",audioBlob:result.blob});
@@ -154,10 +177,12 @@ export async function discoverCu8Contents(file,{
        update("image","running","Checking actual NFM audio for Robot36 1200 Hz line sync at "+
          (offset/1000).toFixed(2)+" kHz");
        try{
+         const durationSeconds=Math.min(75,recordingSeconds);
+         const startSeconds=bestWindowStart(report,offset,durationSeconds);
          const audio=await cu8ToTunedFmAudio(file,{sampleRate:Number(sampleRate),
-           offsetHz:offset,signal,durationSeconds:Math.min(75,recordingSeconds)});
+           offsetHz:offset,signal,durationSeconds,startSeconds});
          const frame=decodeRobot36Audio(audio.samples,audio.rate);
-         images.push({kind:"Robot36 SSTV candidate",offsetHz:offset,
+         images.push({kind:"Robot36 SSTV candidate",offsetHz:offset,startSeconds,
            frequencyHz:centerHz===null?null:centerHz+offset,
            alignedLines:frame.alignedLines,width:frame.width,height:frame.height,
            status:frame.status,rgba:frame.rgba,
