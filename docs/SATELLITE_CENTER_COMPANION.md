@@ -37,6 +37,54 @@ automatically. Data: [GeoNames-derived DE/TR directory](https://github.com/Tihul
 under ODbL 1.0, and [Open-Meteo](https://open-meteo.com/en/docs/geocoding-api)
 for optional worldwide lookup.
 
+## Updated Earth map, sorting and scheduled RF analysis (browser-only)
+
+- If the OSM street tiles remain blank in Brave/Chromium, select
+  **Base map → World outlines**. The app automatically tries a
+  **bundled public-domain Natural Earth** land-basemap after multiple tile
+  errors or nine seconds without a loaded tile. Use **Load / retry
+  OpenStreetMap** for a fresh attempt. This is an approximate world
+  outline, not detailed street imagery. The map keeps satellite/station
+  markers, predicted tracks and coverage even when external OSM tiles fail.
+  OSM requires a valid Referer from the public site and can block
+  third-party clients, while Brave Shields/network settings may also
+  prevent loading. The site does not silently bypass browser protections.
+- In **Satellite pass planner**, use **Sort potential passes → Soonest
+  date/time first** or **Latest / farthest date first**. You can also
+  sort by elevation, duration, name, and satellite family. The app
+  retains all computed passes before display pagination, avoiding a
+  misleading "latest" order from only the first 80 results. The
+  map-side satellite list has its own **Next pass · soonest/latest**
+  and near/far distance sorting.
+- **Schedule / configure timed RF analysis** on any computed pass opens
+  an explicit form for local date/hour/minute, receive-only frequency,
+  duration (5–60 s), sample rate and optional raw CU8 file download.
+  Confirming creates an in-memory job. The app releases an idle USB
+  receiver while waiting; at the chosen minute it tries to reopen
+  a **previously permitted** RTL2832U using WebUSB without a new
+  permission dialog.
+- **Check scheduled-scan readiness** is read-only; it reports browser
+  visibility, permission grant and optional screen wake lock. Keep the
+  browser tab visible and the computer awake. The browser cannot
+  guarantee execution while sleeping, hidden or closed. Any missed or
+  blocked scan gets an explicit status; a blocked job can be retried
+  within its original pass.
+- After actual USB sampling, the job reports raw byte count, number of
+  measured blocks and relative digital minimum/average/maximum/variation.
+  This is **not calibrated RF power, confirmed satellite identity or
+  decoding of Meteor images/APRS/SSTV**. Browser downloads can be
+  blocked, so the most recent raw file may be downloaded again manually.
+- Changing your observer via GPS, city search or manual coordinates
+  invalidates prior predictions **and cancels future armed jobs** for
+  the previous station. Recalculate and confirm new times.
+
+The scheduled time uses the **computer/browser timezone**, not
+necessarily the selected ground station country's local timezone.
+Actual SDR reception and unattended/browser-closed scheduling still
+require hardware validation or the optional local companion,
+respectively. Source and regression tests are in
+[PR #9](https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/9).
+
 ## Earth and sky tracking maps (new)
 
 The public [Satellite Center browser app](https://tihulu.github.io/TIHULU-TEXT-CENTER/satellite_center/browser/)
