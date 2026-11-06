@@ -275,6 +275,11 @@ class SpeechPipeline:
             finally:
                 self.queue.task_done()
 
+    def set_translation_target(self,target:str|None):
+        """Apply target to new genuine speech segments without restarting RF."""
+        self.target=validate_language(target) if target else None
+        return self.target
+
     def status(self):
         return {"enabled":True,"selected_backend":self.backend,
                 "detected_device":self.selection["detected_device"],
