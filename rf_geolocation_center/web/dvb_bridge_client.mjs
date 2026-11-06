@@ -12,7 +12,7 @@ const toggle=()=>{
  if($("home-tv-scan"))$("home-tv-scan").disabled=!connected||scanning;
 };
 async function rpc(route,method="GET",body=null){
- if(!token)throw Error("Paste the local bridge token from your own terminal first.");
+ if(!token)throw Error("Local approval required. Click Connect TV tuner, then approve the localhost pairing window.");
  const ctrl=new AbortController(),timeout=setTimeout(()=>ctrl.abort(),6000);
  try{
   const response=await fetch(ENDPOINT+route,{method,mode:"cors",cache:"no-store",
@@ -66,8 +66,6 @@ function pair(action="tv"){
      "The companion must already be running on 127.0.0.1:8794; official Pages needs --enable-pages-bridge.");
 }
 async function connect(){
- const fallback=$("tv-bridge-token")?.value?.trim()||"";
- if(fallback.length>=20&&fallback.length<=200)token=fallback;
  if(!token){pair("tv");return}
  await connectedStatus();
 }
@@ -137,9 +135,7 @@ async function scan(){
  }catch(error){scanning=false;toggle();say("TV scan was not started: "+String(error.message||error))}
 }
 async function readRadioMetadata(){
- const field=$("radio-bridge-token")?.value?.trim()||$("tv-bridge-token")?.value?.trim()||"";
  const output=$("radio-rds-results"),info=$("radio-rds-status");
- if(field.length>=20&&field.length<=200)token=field;
  if(!token){pair("radio");if(info)info.textContent="Approve the LOCAL receiver bridge pairing window. RDS/DAB uses the existing receiver without claiming USB.";return}
  try{
   const response=await rpc("/api/radio/decoded");
