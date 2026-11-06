@@ -66,6 +66,17 @@ jobs:
           test -s pages/flight_radar/tar1090/index.html
           test -s pages/flight_radar/tar1090/tihulu-browser-bridge.js
           test -s pages/flight_radar/tar1090/UPSTREAM-GPL-LICENSE.txt
+          python3 - <<'PY'
+          from pathlib import Path
+          import json
+          base = Path("pages/flight_radar")
+          assert json.loads((base / "source-revision.json").read_text())["source_sha"]
+          for file in ["operators.js", "icao_aircraft_types2.js"]:
+              data = (base / "tar1090/db2" / file).read_bytes()
+              assert data and not data.startswith(bytes([0x1f, 0x8b])), file
+              assert isinstance(json.loads(data), dict), file
+          print("Verified full tar1090 metadata is valid static JSON, not compressed data.")
+          PY
           test -s pages/flight_radar/source-revision.json
           python3 -m json.tool pages/flight_radar/source-revision.json >/dev/null
           cd pages
