@@ -43,7 +43,7 @@ function distanceRef(p){const a=(p.lat-DEFAULT_CENTER.lat),b=(p.lon-DEFAULT_CENT
 function setText(id,value){if($(id))$(id).textContent=String(value)}
 function renderPosition(recenter=false){
  const p=source();
- setText("position-tag",p.validObserver?"LOCATION: "+p.kind.toUpperCase():"REFERENCE ONLY");
+ setText("position-tag",p.validObserver?"LOCATION: "+p.kind.toUpperCase():p.kind.startsWith("EXPERIMENTAL")?"ESTIMATE · UNVERIFIED":p.kind.startsWith("LAST KNOWN")?"CACHED · NOT LIVE":"REFERENCE ONLY");
  setText("dash-provider",p.kind);
  setText("dash-coordinates",fmt(p.lat,6)+"° · "+fmt(p.lon,6)+"°"+(p.accuracy!=null?" · browser ±"+Math.round(p.accuracy)+" m":""));
  setText("earth-source",p.kind);
