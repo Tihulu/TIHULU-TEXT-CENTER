@@ -188,6 +188,9 @@
       <div id="catalog-status" class="rf-measurement-status" role="status" aria-live="polite">Ready. Press Discover to fetch catalog sites for the reference region; offline cached sites are reused. Scan FM requires the connected RTL-SDR. No browser GPS access is requested.</div>
       <div id="catalog-fm-status" class="rf-measurement-status" role="status">No physical FM spectrum scan. Energy peaks are not transmitter IDs or range measurements.</div>
       <div id="catalog-tower-list" class="rf-catalog-list" aria-label="Catalog broadcasting site candidates"></div>
+      <div class="rf-measurement-status" id="catalog-adsb-status" role="status">Local antenna ADS-B: waiting for Tihulu Flight Radar direct WebUSB receiver. Both apps share aircraft data in same-origin browser tabs, but cannot claim the same SDR simultaneously.</div>
+      <p class="fine muted"><a href="https://tihulu.github.io/tihulu-flight-radar/" target="_blank" rel="noopener noreferrer">Open TIHULU Flight Radar (antenna ADS-B decoder)</a> · Connect the RTL-SDR there, not in both tabs. Decoded real aircraft are displayed below automatically. OpenSky internet aircraft remain separate.</p>
+      <div id="catalog-antenna-aircraft-list" class="rf-catalog-list" aria-label="Actually decoded 1090 MHz antenna aircraft"></div>
       <div id="catalog-aircraft-list" class="rf-catalog-list" aria-label="Online aircraft references"></div>
       <p class="fine muted">OpenStreetMap tower tags often omit frequencies, so many entries cannot yet be automatically matched to received RF. Internet aircraft metadata is NOT local ADS-B reception. A true antenna-only aircraft layer requires a compatible Mode S/ADS-B decoder; catalog matches never count as measured distance rings.</p>
     </article>
