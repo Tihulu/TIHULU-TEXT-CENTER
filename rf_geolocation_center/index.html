@@ -55,6 +55,13 @@
         <div><span>USB SDR</span><strong id="live-usb-status">Not connected</strong><small id="live-usb-detail">No radio capture</small></div>
       </div>
       <div id="live-method-summary" class="live-method-summary" role="status">GNSS, device, GPS-free, radio, aircraft and satellite layers are separate. Open Location Layers to control their visibility.</div>
+      <div class="provenance-intro"><h3>Where did each piece of information come from?</h3><p>A connected antenna is not necessarily the source of your location. Each channel below reports its own acquisition route.</p></div>
+      <div class="provenance-grid" id="source-provenance-dashboard" aria-label="Measured and referenced data origins">
+        <article class="provenance-item provenance-position"><span>YOUR LOCATION</span><strong id="origin-position">No measured location</strong><small id="origin-position-status">NO POSITION FIX</small><p id="origin-position-method">Waiting for a device or GNSS receiver</p><p id="origin-position-detail">No antenna-based positioning.</p></article>
+        <article class="provenance-item provenance-antenna"><span>RTL-SDR ANTENNA</span><strong id="origin-antenna">Nooelec RTL-SDR</strong><small id="origin-antenna-status">NOT CONNECTED</small><p id="origin-antenna-method">No RF capture</p><p id="origin-antenna-detail">An RF sample is not a location fix.</p></article>
+        <article class="provenance-item provenance-orbits"><span>SATELLITE POSITIONS</span><strong id="origin-orbits">No catalog loaded</strong><small>REFERENCE DATA · NOT RF</small><p id="origin-orbits-method">Not acquired by antenna</p><p id="origin-orbits-detail">Predictions are not received navigation signals.</p></article>
+        <article class="provenance-item provenance-aircraft"><span>AIRCRAFT POSITIONS</span><strong id="origin-aircraft">No aircraft data</strong><small>REFERENCE DATA · NOT RF</small><p id="origin-aircraft-method">No local ADS-B observations connected</p><p id="origin-aircraft-detail">Aircraft locations do not give receiver coordinates.</p></article>
+      </div>
       <div class="live-map-grid">
         <article class="live-earth">
           <div class="live-panel-title"><div><div class="eyebrow">EARTH VIEW</div><h3>Position map</h3></div><span id="live-earth-source" class="live-source">COLOGNE REFERENCE</span></div>
@@ -96,6 +103,7 @@
       <article class="panel"><h2>Live location and evidence</h2>
        <button id="earth-find" class="primary" type="button">◎ Find My Location — online or offline</button>
        <div id="fix-evidence" class="fix-evidence" role="status" aria-live="polite">No confirmed live fix. Browser/device geolocation or a connected NMEA GNSS receiver may provide one. Last known location is never a new fix.</div>
+       <div id="source-proof" class="source-proof" role="status">Source: none · Device service: not measured · RTL-SDR antenna: no location fix.</div>
        <div class="position-legend"><span><i class="legend-device"></i> Device-reported accuracy</span><span><i class="legend-ranges"></i> Measured station ranges</span><span><i class="legend-demo"></i> Simulated example</span></div>
        <h2>Layers and positioning evidence</h2>
        <div class="location-methods-head"><h3>Location methods &amp; map layers</h3><p>Choose which independent measurements and reference sources appear. A source without a fix never becomes your position.</p></div>
