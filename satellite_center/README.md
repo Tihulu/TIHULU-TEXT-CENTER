@@ -1,43 +1,3 @@
-
-### Desktop launcher cleanup — duplicate Local/PWA entries
-
-Only the **TIHULU Satellite Center (System)** entry (the installed
-Debian `.deb` Qt Widgets application) is needed. Older **Local** or
-Chromium/PWA entries are obsolete for the desktop workflow. The user-local
-installer no longer creates a browser desktop shortcut unless
-`TIHULU_INSTALL_WEB_SHORTCUT=1` is explicitly set, and avoids creating
-another Local launcher when the system `.deb` is installed.
-
-After updating the `.deb`, preview the menu cleanup without altering any file:
-
-```bash
-tihulu-satellite-center cleanup-shortcuts
-```
-
-If the list contains only the unwanted TIHULU Satellite Center entries:
-
-```bash
-tihulu-satellite-center cleanup-shortcuts --apply
-```
-
-The cleanup archives matching user-level `.desktop` files into
-`~/.local/share/tihulu-satellite-center/shortcut-backups/`; it does not
-uninstall apps or delete browser profiles, recordings, saved RF jobs,
-other TIHULU apps or the system Qt launcher. Existing COSMIC menu caches
-may require a logout/login before duplicate icons disappear.
-
-## Browser-only direct FM SSTV WAV recording (2026-11-06)
-
-The [public Satellite Center browser receiver](browser/index.html) now records **real FM-demodulated SSTV audio in WAV during actual RTL2832U WebUSB sampling**; no native companion is necessary on supported secure-origin Chromium/Brave/Chrome/Edge. Select the `ISS SSTV 437.550 MHz` receiver preset: the UI defaults to `Record FM-demodulated SSTV audio (.wav)` while keeping a separate `Record raw RF (.cu8)` option. Check both to retain the original RF for later reprocessing; uncheck both for level measurements only.
-
-The WebUSB pipeline accepts genuine unsigned interleaved CU8 I/Q from `readSamples`, decimates with continuous stream state, FM-discriminates complex samples, removes carrier DC, emits real **48 kHz mono, signed 16-bit PCM** and writes an exact RIFF/WAV header with the final number of captured samples. It is **not** a raw-CU8 file renamed .wav. Short WAV clips are downloaded from bounded memory. WAV recordings exceeding the 16 MiB memory budget are streamed to a file selected through Chromium File System Access. When both CU8 and WAV require disk streaming, one explicit directory picker selects a folder for two separately written files. Up to 900 s can be requested within RF/disk browser limits. Closing or hiding the browser tab stops browser-only capture: this is not a background service or an unattended full-pass guarantee.
-
-Both manual receiver start and selected pass schedule entries support WAV, CU8 or both; calendar editing preserves output options. Browser-only automated ISS SSTV pass scheduling now prefers WAV. The in-page **Decode last captured FM WAV** button hands the short WAV to the existing experimental Robot36 image decoder; a longer WAV saved on disk can be explicitly re-opened via `Satellite Images & Data → Real demodulated SSTV audio (WAV)`. The raw CU8 path remains available for full spectrum analysis. The web app never claims an ISS signal or a verified picture merely because it successfully saved a WAV; real Robot36 1200 Hz synchronization is still required.
-
-**Reception limits:** 9–16 November 2026 ARISS Series 35 was announced at 437.550 MHz FM / Robot36. The web demodulator does not currently perform automatic Doppler tracking; at UHF the Doppler shift may affect decoding, especially near pass edges. Antenna suitability, device permissions, driver ownership and a genuine transmitting ISS pass remain mandatory. Firefox does not support direct WebUSB; use the native local companion for that browser.
-
-
-
 # TIHULU Satellite Center 0.3.0 — NATIVE desktop application
 
 **Primary Debian / Ubuntu / Pop!_OS program: Qt Widgets — NOT a website.**
@@ -52,9 +12,20 @@ describe that separate legacy workflow, not the installed desktop app.
 Install the Debian package downloaded from GitHub Actions, then run:
 
 ```bash
-sudo apt install ./tihulu-satellite-center_0.3.0~preview1_all.deb
+sudo apt install ./tihulu-satellite-center_0.3.0~preview2_all.deb
 tihulu-satellite-center
 ```
+
+**New native satellite browser:** Passes & Data lists potential IMAGE, AUDIO, TEXT and
+raw RF data types with NORAD IDs, orbital start/end, peak elevation,
+media filters and a decoder-requirements panel. **IMAGE** means the local
+protocol catalogue knows a potential reception/decoding route; it does
+**not** mean a picture is already available on the satellite or that a
+valid image will be received during this pass. Meteor LRPT needs actual
+on-disk samples and SatDump; ISS SSTV needs an active ARISS event.
+Iridium and unknown CubeSats are labelled RF-only / no catalogued image
+decoder. Qt ground-station selection reuses the **8,084 offline DE/TR
+cities** from the separate web app; no browser or location request is needed.
 
 The app provides: native receiver diagnostics, explicit CelesTrak TLE
 refresh and station pass prediction, manual 8–900s planned/direct IQ
@@ -117,7 +88,51 @@ to this branch's native desktop launcher; the separate web-only icon
 remains available for Chromium users. Debian package is marked preview
 until a physical RTL-SDR pass capture and end-to-end image decode pass.
 
-# TIHULU Satellite Center — standalone companion v0.2.3
+
+---
+
+### Desktop launcher cleanup — duplicate Local/PWA entries
+
+Only the **TIHULU Satellite Center (System)** entry (the installed
+Debian `.deb` Qt Widgets application) is needed. Older **Local** or
+Chromium/PWA entries are obsolete for the desktop workflow. The user-local
+installer no longer creates a browser desktop shortcut unless
+`TIHULU_INSTALL_WEB_SHORTCUT=1` is explicitly set, and avoids creating
+another Local launcher when the system `.deb` is installed.
+
+After updating the `.deb`, preview the menu cleanup without altering any file:
+
+```bash
+tihulu-satellite-center cleanup-shortcuts
+```
+
+If the list contains only the unwanted TIHULU Satellite Center entries:
+
+```bash
+tihulu-satellite-center cleanup-shortcuts --apply
+```
+
+The cleanup archives matching user-level `.desktop` files into
+`~/.local/share/tihulu-satellite-center/shortcut-backups/`; it does not
+uninstall apps or delete browser profiles, recordings, saved RF jobs,
+other TIHULU apps or the system Qt launcher. Existing COSMIC menu caches
+may require a logout/login before duplicate icons disappear.
+
+## Browser-only direct FM SSTV WAV recording (2026-11-06)
+
+The [public Satellite Center browser receiver](browser/index.html) now records **real FM-demodulated SSTV audio in WAV during actual RTL2832U WebUSB sampling**; no native companion is necessary on supported secure-origin Chromium/Brave/Chrome/Edge. Select the `ISS SSTV 437.550 MHz` receiver preset: the UI defaults to `Record FM-demodulated SSTV audio (.wav)` while keeping a separate `Record raw RF (.cu8)` option. Check both to retain the original RF for later reprocessing; uncheck both for level measurements only.
+
+The WebUSB pipeline accepts genuine unsigned interleaved CU8 I/Q from `readSamples`, decimates with continuous stream state, FM-discriminates complex samples, removes carrier DC, emits real **48 kHz mono, signed 16-bit PCM** and writes an exact RIFF/WAV header with the final number of captured samples. It is **not** a raw-CU8 file renamed .wav. Short WAV clips are downloaded from bounded memory. WAV recordings exceeding the 16 MiB memory budget are streamed to a file selected through Chromium File System Access. When both CU8 and WAV require disk streaming, one explicit directory picker selects a folder for two separately written files. Up to 900 s can be requested within RF/disk browser limits. Closing or hiding the browser tab stops browser-only capture: this is not a background service or an unattended full-pass guarantee.
+
+Both manual receiver start and selected pass schedule entries support WAV, CU8 or both; calendar editing preserves output options. Browser-only automated ISS SSTV pass scheduling now prefers WAV. The in-page **Decode last captured FM WAV** button hands the short WAV to the existing experimental Robot36 image decoder; a longer WAV saved on disk can be explicitly re-opened via `Satellite Images & Data → Real demodulated SSTV audio (WAV)`. The raw CU8 path remains available for full spectrum analysis. The web app never claims an ISS signal or a verified picture merely because it successfully saved a WAV; real Robot36 1200 Hz synchronization is still required.
+
+**Reception limits:** 9–16 November 2026 ARISS Series 35 was announced at 437.550 MHz FM / Robot36. The web demodulator does not currently perform automatic Doppler tracking; at UHF the Doppler shift may affect decoding, especially near pass edges. Antenna suitability, device permissions, driver ownership and a genuine transmitting ISS pass remain mandatory. Firefox does not support direct WebUSB; use the native local companion for that browser.
+
+
+
+
+---
+## Historical web/localhost companion documentation (legacy v0.2.3)
 
 ## One-click Satellite Auto-Capture & Decode (2026-11-06 draft)
 
@@ -304,7 +319,7 @@ Ubuntu x64/ARM, Windows, and macOS, but physical SSTV/LRPT, receiving
 antennas, browser CORS and native hardware remain unverified until
 tested on compatible real RF data. No fabricated space imagery.
 
-## Primary: browser-only direct WebUSB (no local installer)
+## Historical separate web-only mode: direct WebUSB (no local installer)
 
 [Open the public Satellite Center](https://tihulu.github.io/TIHULU-TEXT-CENTER/satellite_center/)
 or go directly to
