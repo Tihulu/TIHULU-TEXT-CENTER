@@ -744,23 +744,80 @@ $("evidence-clear")?.addEventListener("click",()=>{
  state.layerPrefs={...state.layerPrefs,demo:true};saveLayerPreferences();
  $("layer-demo").checked=true;fitEvidence();renderDiagnostics();msg("Range measurements cleared; showing clearly labeled synthetic ring explanation.");
 });
-let drag=null;
-$("earth-map")?.addEventListener("pointerdown",e=>{
+// Natural pan: move existing visual layers immediately while dragging, then
+// recompute the map center and reproject markers exactly once on release.
+let drag=null,panFrame=0,wheelSteps=0;
+const mapElement=$("earth-map");
+function panPreview(dx,dy){
+ if(panFrame)cancelAnimationFrame(panFrame);
+ panFrame=requestAnimationFrame(()=>{
+  panFrame=0;
+  for(const id of ["osm-tiles","earth-overlay"]){
+   const layer=$(id);
+   if(layer){layer.style.transform="translate3d("+dx+"px,"+dy+"px,0)";
+     layer.style.willChange="transform"}
+  }
+ });
+}
+function panClear(){
+ if(panFrame){cancelAnimationFrame(panFrame);panFrame=0}
+ for(const id of ["osm-tiles","earth-overlay"]){
+  const layer=$(id);
+  if(layer){layer.style.transform="";layer.style.willChange=""}
+ }
+}
+mapElement?.addEventListener("pointerdown",e=>{
  if(e.button!==0||e.target.closest("[data-map-marker], #map-source-popup, #map-hover-tip"))return;
  const center=merc(state.map.lat,state.map.lon,state.map.zoom);
- drag={x:e.clientX,y:e.clientY,c:center};
+ drag={id:e.pointerId,x:e.clientX,y:e.clientY,c:center,dx:0,dy:0};
  e.currentTarget.setPointerCapture(e.pointerId);
 });
-$("earth-map")?.addEventListener("pointerup",e=>{
- if(!drag)return;
- const moved=Math.hypot(e.clientX-drag.x,e.clientY-drag.y);
- if(moved<4){drag=null;return}
- const p=unmerc(drag.c.x-(e.clientX-drag.x),drag.c.y-(e.clientY-drag.y),state.map.zoom);
- if(p.lat>=-85&&p.lat<=85){state.map.lat=p.lat;state.map.lon=((p.lon+180+360)%360)-180}
- drag=null;const popup=$("map-source-popup");if(popup)popup.hidden=true;renderEarth();
+mapElement?.addEventListener("pointermove",e=>{
+ if(!drag||drag.id!==e.pointerId)return;
+ drag.dx=e.clientX-drag.x;drag.dy=e.clientY-drag.y;
+ if(Math.hypot(drag.dx,drag.dy)>2)panPreview(drag.dx,drag.dy);
 });
-$("earth-map")?.addEventListener("pointercancel",()=>{drag=null});
-$("earth-map")?.addEventListener("wheel",e=>{e.preventDefault();state.map.zoom=Math.max(2,Math.min(18,state.map.zoom+(e.deltaY<0?1:-1)));renderEarth()},{passive:false});
+function finishPan(event,cancel=false){
+ if(!drag||drag.id!==event.pointerId)return;
+ const {c,dx,dy}=drag;drag=null;panClear();
+ if(cancel||Math.hypot(dx,dy)<3)return;
+ const p=unmerc(c.x-dx,c.y-dy,state.map.zoom);
+ if(Number.isFinite(p.lat)&&p.lat>=-85&&p.lat<=85){
+  state.map.lat=p.lat;state.map.lon=((p.lon+540)%360)-180;
+ }
+ const popup=$("map-source-popup");if(popup)popup.hidden=true;
+ renderEarth();
+}
+mapElement?.addEventListener("pointerup",e=>finishPan(e));
+mapElement?.addEventListener("pointercancel",e=>finishPan(e,true));
+mapElement?.addEventListener("lostpointercapture",e=>finishPan(e,true));
+function zoomAtClient(clientX,clientY,step){
+ const oldZoom=state.map.zoom,newZoom=Math.max(2,Math.min(18,oldZoom+step));
+ if(oldZoom===newZoom)return;
+ const bounds=mapElement.getBoundingClientRect();
+ const offsetX=clientX-bounds.left-bounds.width/2,offsetY=clientY-bounds.top-bounds.height/2;
+ const before=merc(state.map.lat,state.map.lon,oldZoom);
+ const scale=Math.pow(2,newZoom-oldZoom);
+ const anchored={x:(before.x+offsetX)*scale-offsetX,
+                 y:(before.y+offsetY)*scale-offsetY};
+ const center=unmerc(anchored.x,anchored.y,newZoom);
+ state.map.lat=Math.max(-85,Math.min(85,center.lat));
+ state.map.lon=((center.lon+540)%360)-180;state.map.zoom=newZoom;
+ renderEarth();
+}
+mapElement?.addEventListener("wheel",event=>{
+ event.preventDefault();
+ wheelSteps+=event.deltaY*(event.deltaMode===1?16:event.deltaMode===2?100:1);
+ // A continuous touchpad scroll is accumulated; one wheel notch is one step.
+ if(Math.abs(wheelSteps)<90)return;
+ const step=wheelSteps<0?1:-1;
+ wheelSteps=0;
+ zoomAtClient(event.clientX,event.clientY,step);
+},{passive:false});
+mapElement?.addEventListener("dblclick",event=>{
+ if(event.target.closest("[data-map-marker], #map-source-popup"))return;
+ event.preventDefault();zoomAtClient(event.clientX,event.clientY,event.shiftKey?-1:1);
+});
 window.addEventListener("resize",()=>{if(state.activeView==="earth")renderEarth()});
 async function disconnect(){
  state.reading=false;
