@@ -8,6 +8,7 @@ import {initRFSurvey} from "./rf_survey.mjs";
 import {initCatalogDiscovery} from "./catalog_discovery.mjs";
 import {initSimpleUI} from "./simple_ui.mjs";
 import {initHardwareManager} from "./hardware_manager.mjs";
+import {initDVBBridge} from "./dvb_bridge_client.mjs";
 import {exampleRings,ringPoints,validRangeSources} from "../core/evidence.mjs";
 import {LOCATION_LAYERS,layerReadiness,visibleLayerPreferences} from "../core/location_layers.mjs";
 import {positionProvenance,radioProvenance,orbitalProvenance,aircraftProvenance} from "../core/source_provenance.mjs";
@@ -758,6 +759,7 @@ initRFSurvey();
 initCatalogDiscovery();
 initSimpleUI({state,source,setView,renderEarth,renderPosition,fitRfSurveyMap});
 initHardwareManager({setView});
+initDVBBridge();
 if(typeof ResizeObserver==="function"){
  const mapElement=$("earth-map");
  if(mapElement){
