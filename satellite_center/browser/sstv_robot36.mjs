@@ -74,9 +74,9 @@ function tonePixel(trace,t){
  const frequency=toneAt(trace,t);
  return frequency?clamp(Math.round((frequency-1500)*255/800)):127;
 }
-export function decodeRobot36Audio(samples,rate,{onProgress=null}={}){
- if(samples.length/rate<32)throw Error("Robot36 needs about 36 seconds of demodulated SSTV audio.");
- const trace=frequencyTrace(samples,rate);
+export function decodeRobot36Trace(trace,{onProgress=null}={}){
+ if(!(trace instanceof Float32Array)||trace.length<32000)
+   throw Error("Robot36 needs about 36 seconds of real demodulated SSTV audio.");
  const syncs=findRobot36Syncs(trace),alignment=chooseRobot36Start(syncs);
  const Y=Array.from({length:H},()=>new Uint8ClampedArray(W));
  const redDiff=Array.from({length:H},()=>new Float32Array(W));
@@ -115,4 +115,10 @@ export function decodeRobot36Audio(samples,rate,{onProgress=null}={}){
    status:rows>=225?"Robot36 candidate decoded":"Partial Robot36 sync candidate (image may be incomplete)",
    warning:"Experimental Robot36 WAV demodulation. Requires a real FM-demodulated SSTV audio signal and clear 1200 Hz line syncs. VIS code and satellite origin are not independently verified; picture quality and colors may be inaccurate."
  };
+}
+
+export function decodeRobot36Audio(samples,rate,options={}){
+ if(samples.length/rate<32)throw Error("Robot36 needs about 36 seconds of demodulated SSTV audio.");
+ const trace=frequencyTrace(samples,rate);
+ return decodeRobot36Trace(trace,options);
 }

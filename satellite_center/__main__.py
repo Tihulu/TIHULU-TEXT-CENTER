@@ -30,6 +30,8 @@ from . import __version__
 from .capture_naming import recording_name, PROFILE_TARGETS, meteor_capture
 from .capture_budget import (MAX_IQ_BYTES, MAX_CAPTURE_SECONDS,
                              plan_capture_budget, END_MARGIN_SECONDS)
+from .sstv_series35 import extract_robot36_wav
+from .compute_backends import compute_capabilities, resolve_compute_backend
 from .bridge import (app_data_dir, lock_receiver, unlock_receiver, start_receiver_process,
                      stop_receiver_process, pairing_secret, allowed_origin,
                      local_host_allowed, request_is_remote)
@@ -295,6 +297,7 @@ class Station:
                                            else "not_passively_verified_on_this_os"),
                     "busy": detect_busy(), "tools": {n: bool(shutil.which(n)) for n in
                     ("rtl_test", "rtl_power", "rtl_sdr", "rtl_fm", "multimon-ng", "satdump", "qsstv")},
+                    "compute": compute_capabilities(),
                     "orbit_cache": cached, "location_presets": LOCATIONS,
                     "profiles": PROFILES, "session": dict(self.session),
                     "jobs": [dict(j) for j in self.jobs[-100:]],
@@ -587,7 +590,8 @@ class Station:
 
     def auto_schedule(self, mission_ids, *, city="Cologne", lat=None, lon=None,
                       hours=24, elevation=20, max_jobs=6, coverage_goal="full",
-                      duration_seconds=None):
+                      duration_seconds=None, compute_mode="auto", compute_targets=None,
+                      event_window_only=False):
         """Explicit one-click receive-only mission planning with a single RTL-SDR.
 
         TLE passes are geometry, never proof of active transmitters. Mutating
@@ -609,6 +613,10 @@ class Station:
                 raise ValueError("Native recording duration must be 8–900 seconds or auto")
             if coverage_goal == "sample" and duration_seconds > 60:
                 raise ValueError("Quick RF sample must not exceed 60 seconds")
+        # Validate hardware choices before arming any RF job.
+        compute_plan = resolve_compute_backend(compute_mode, compute_targets)
+        if type(event_window_only) is not bool:
+            raise ValueError("Event window gating must be a boolean")
         chosen = dict.fromkeys(mission_ids)
         # Missing optional decoders must not block other user-approved media.
         requested_targets = list(chosen)
@@ -669,6 +677,10 @@ class Station:
             # Prefer a complete predicted window when multiple formats are selected.
             # Do not change a user-requested images-only category.
             eligible = [mid for mid in chosen if event["norad"] == candidates[mid][0]]
+            if event_window_only and "iss-sstv" in eligible and not (
+                    datetime(2026, 11, 9, tzinfo=UTC) <= aos < datetime(2026, 11, 17, tzinfo=UTC)):
+                eligible.remove("iss-sstv")
+                skipped.append(event["name"]+": ISS Series 35 SSTV is limited to the 9–16 November event date envelope; actual activation TBD")
             plans = {mid: plan_capture_budget(aos, los, mid,
                      free_bytes=max(0, free_on_disk-reserved_bytes),
                      goal=coverage_goal, requested_seconds=duration_seconds)
@@ -695,7 +707,9 @@ class Station:
                        data_kind=plan["data_kind"], target_seconds=plan["target_seconds"],
                        shortfall_seconds=plan["shortfall_seconds"],
                        pass_visible_seconds=plan["pass_visible_seconds"],
-                       coverage_goal=coverage_goal, capture_note=plan["note"])
+                       coverage_goal=coverage_goal, capture_note=plan["note"],
+                       compute_mode=compute_mode, compute_targets=compute_plan["requested_targets"],
+                       event_window_only=event_window_only)
             with self.lock:
                 for stored in self.jobs:
                     if stored["id"] == job["id"]:
@@ -704,7 +718,8 @@ class Station:
                             "requested_seconds", "estimated_bytes",
                             "coverage", "data_kind", "target_seconds",
                             "shortfall_seconds", "pass_visible_seconds",
-                            "coverage_goal", "capture_note")})
+                            "coverage_goal", "capture_note", "compute_mode", "compute_targets",
+                            "event_window_only")})
                 self.save_jobs()
             new_jobs.append(dict(job))
             if plan["coverage"] != "full-pass-attempt":
@@ -870,6 +885,24 @@ class Station:
             try:
                 result = self.capture(nearest["profile"], nearest["mode"], duration,
                         scheduled=True, satellite=nearest.get("satellite"))
+                # The receiver is already released by capture(). A full-pass
+                # ISS SSTV WAV can contain several separate Robot36 images.
+                # Decode only actual PCM samples; never infer imagery from
+                # a predicted pass, filename, or RF level alone.
+                if (nearest.get("mission_id") == "iss-sstv"
+                        and result.get("file", "").endswith(".wav")):
+                    try:
+                        result["sstv"] = extract_robot36_wav(
+                            self.archive / result["file"],
+                            compute_mode=nearest.get("compute_mode", "auto"),
+                            compute_targets=nearest.get("compute_targets"))
+                    except Exception as exc:
+                        # Decoder failures, including a removed CUDA device,
+                        # must not orphan a completed, genuine RF recording.
+                        result["sstv"] = {
+                            "status": "decoder_failed_original_wav_preserved",
+                            "images": [], "reason": str(exc)[:240],
+                        }
                 with self.lock:
                     nearest.update(state="completed", result=result)
                     self.save_jobs()
@@ -1316,6 +1349,13 @@ class Handler(BaseHTTPRequestHandler):
                     lat=q.get("lat", [None])[0], lon=q.get("lon", [None])[0]))
             if route.startswith("/api/image/"):
                 sub = route.removeprefix("/api/image/")
+                # Only locally generated, fixed-name Robot36 candidate PNGs.
+                # Keep existing path-restricted SatDump handling unchanged.
+                if re.fullmatch(r"TIHULU_[A-Za-z0-9_-]+_ROBOT36_[0-9]{2}\.png", sub):
+                    path = self.server.station.archive/sub
+                    if not path.is_file() or not 0 < path.stat().st_size <= 15_000_000:
+                        return self.reply(404, {"error": "Robot36 image unavailable"})
+                    return self.send_bytes(200, path.read_bytes(), "image/png")
                 match = re.fullmatch(r"([A-Za-z0-9_.-]+)_decoded/([A-Za-z0-9_./-]+\.(png|jpg|jpeg))", sub)
                 if not match or ".." in sub or not meteor_capture(match.group(1)+".cu8"):
                     return self.reply(400, {"error": "Invalid image path"})
@@ -1379,7 +1419,10 @@ class Handler(BaseHTTPRequestHandler):
                     lat=data.get("lat"), lon=data.get("lon"),
                     hours=data.get("hours", 24), elevation=data.get("elevation", 20),
                     max_jobs=data.get("max_jobs", 6), coverage_goal=data.get("coverage_goal", "full"),
-                    duration_seconds=data.get("duration_seconds"))
+                    duration_seconds=data.get("duration_seconds"),
+                    compute_mode=data.get("compute_mode", "auto"),
+                    compute_targets=data.get("compute_targets"),
+                    event_window_only=data.get("event_window_only", False))
             elif route == "/api/auto-edit":
                 result = app.edit_auto_schedule(data.get("job_id"), data.get("run_at"),
                                                 data.get("mission_id"), data.get("duration_seconds"))

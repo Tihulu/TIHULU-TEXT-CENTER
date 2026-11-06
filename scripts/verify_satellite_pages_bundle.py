@@ -35,6 +35,9 @@ ASSETS = (
     "iq_analysis_ui.mjs",
     "iq_intelligence.mjs",
     "signal_discovery.mjs",
+    "compute_selector.mjs",
+    "compute_backends.mjs",
+    "sstv_robot36.mjs",
 )
 
 
