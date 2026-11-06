@@ -786,6 +786,80 @@ async function addAudioPreview(){
     state.audioPollTimer=setTimeout(pollAudioPreview,750);
   }
 }
+function showDabServices(result){
+  const box=$("dab-service-results");
+  if(!box)return;
+  box.replaceChildren();
+  if(!result.connected){
+    box.append(el("p","",result.message||
+      "No existing welle-cli local web receiver has been checked."));
+    return;
+  }
+  box.append(el("p","",
+    "Ensemble: "+(result.ensemble||"unlabelled")+" · channel "+result.channel+
+    " · "+(result.frequency_hz?(result.frequency_hz/1e6).toFixed(3)+" MHz":"frequency unverified")+
+    " · "+result.services.length+" decoded service entries"));
+  box.append(el("p","full-body",
+    "DLS labels archived: "+result.imported_dls+
+    " · MOT slides archived: "+result.saved_mot_images+
+    (result.archive_notice?" · "+result.archive_notice:"")));
+  result.services.forEach(s=>{
+    const item=el("div","rds-row");
+    item.append(el("div","item-meta",
+      s.sid+" · "+(s.program_type||"unknown programme type")));
+    item.append(el("strong","",s.name));
+    item.append(el("p","",
+      s.dls ? "DLS: "+s.dls+" · received "+(s.dls_received_at||"time unknown")
+            : "No decoded DLS from this station"));
+    item.append(el("p","full-body",
+      s.mot_received_at?"MOT slide timestamp: "+s.mot_received_at:
+      "No decoded slideshow timestamp"));
+    box.append(item);
+  });
+}
+async function addWelleDabBridge(){
+  const last=await api("/api/dab/last");
+  const panel=el("article","item-card");
+  panel.id="dab-welle-bridge";
+  panel.append(el("div","item-meta","DAB+ BROADCAST DATA / EXISTING RECEIVER / READ-ONLY"));
+  panel.append(el("h3","","DAB+ DLS, MOT slideshow & radio services"));
+  panel.append(el("p","",
+    "Connect to an already-running welle-cli web receiver at 127.0.0.1:7979. "+
+    "The Text Center uses GET only for current ensemble metadata, station labels, "+
+    "DLS text and MOT broadcast images. It NEVER launches, stops or retunes "+
+    "welle-cli or your Flight Radar. welle-cli is not installed on your last hardware check."));
+  const opt=el("label","scan-consent");
+  const img=el("input");img.type="checkbox";img.checked=true;img.id="dab-images";
+  opt.append(img,document.createTextNode(" Save decoded MOT slideshow images offline "+
+    "from this receiver (bounded PNG/JPEG, only if the broadcast actually provides them)."));
+  panel.append(opt);
+  const row=el("div","card-actions");
+  const refresh=button("READ RUNNING DAB RECEIVER",async()=>{
+    refresh.disabled=true;
+    try{
+      const result=await api("/api/dab/refresh","POST",{
+        include_images:img.checked
+      });
+      showDabServices(result);
+      await refreshCounts();
+      notice("Read actual welle-cli metadata; no tuner retuned. Refresh page 400 to view archived images.");
+    }catch(e){notice("DAB receiver unavailable: "+e.message)}
+    finally{refresh.disabled=false}
+  },"action primary");
+  const external=el("a","action ghost","OPEN WELLE-CLI PLAYER");
+  external.href="http://127.0.0.1:7979/";
+  external.target="_blank";external.rel="noopener noreferrer";
+  external.title="Opens existing local welle-cli web interface; requires running welle-cli";
+  row.append(refresh,external);
+  panel.append(row);
+  const results=el("div","scan-summary");results.id="dab-service-results";
+  panel.append(results);
+  $("content").append(panel);
+  showDabServices(last);
+  panel.append(el("p","full-body",
+    "Journaline interactive menus, TPEG and other advanced services still require "+
+    "their own decoders and licensing. A DAB image is NOT automatically an Internet cover image."));
+}
 async function addRadioImageGallery(){
   const images=await api("/api/media");
   const outer=el("article","item-card");
@@ -863,6 +937,8 @@ async function showRadioData(){
   catch(error){empty("FM capture control unavailable","Unable to load RDS status: "+error.message)}
   try {await addAudioPreview()}
   catch(error){empty("FM audio preview unavailable",error.message)}
+  try {await addWelleDabBridge()}
+  catch(error){empty("DAB receiver bridge unavailable",error.message)}
   try {await addRadioImageGallery()}
   catch(error){empty("Radio image archive unavailable",error.message)}
   try {await addDvbDevicePanel()}
