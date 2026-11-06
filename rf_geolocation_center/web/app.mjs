@@ -43,7 +43,7 @@ function distanceRef(p){const a=(p.lat-DEFAULT_CENTER.lat),b=(p.lon-DEFAULT_CENT
 function setText(id,value){if($(id))$(id).textContent=String(value)}
 function renderPosition(recenter=false){
  const p=source();
- setText("position-tag",p.validObserver?"LOCATION: "+p.kind.toUpperCase():"REFERENCE ONLY");
+ setText("position-tag",p.validObserver?"LOCATION: "+p.kind.toUpperCase():p.kind.startsWith("EXPERIMENTAL")?"ESTIMATE · UNVERIFIED":p.kind.startsWith("LAST KNOWN")?"CACHED · NOT LIVE":"REFERENCE ONLY");
  setText("dash-provider",p.kind);
  setText("dash-coordinates",fmt(p.lat,6)+"° · "+fmt(p.lon,6)+"°"+(p.accuracy!=null?" · browser ±"+Math.round(p.accuracy)+" m":""));
  setText("earth-source",p.kind);
@@ -296,11 +296,18 @@ function renderTiles(){
  const minX=Math.floor((c.x-box.width/2)/256),maxX=Math.floor((c.x+box.width/2)/256);
  const minY=Math.max(0,Math.floor((c.y-box.height/2)/256)),maxY=Math.min(world-1,Math.floor((c.y+box.height/2)/256));
  const key=[z,minX,maxX,minY,maxY].join(":");
- if(lastTileViewport===key&&el.childElementCount)return;
+ if(lastTileViewport===key&&el.childElementCount){
+   for(const tile of el.querySelectorAll("img[data-tx][data-ty]")){
+     tile.style.left=(Number(tile.dataset.tx)*256-c.x+box.width/2)+"px";
+     tile.style.top=(Number(tile.dataset.ty)*256-c.y+box.height/2)+"px";
+   }
+   return;
+ }
  lastTileViewport=key;el.replaceChildren();
  if((maxX-minX+1)*(maxY-minY+1)>40){msg("Zoom in to limit online map tile requests");return}
  for(let tx=minX;tx<=maxX;tx++)for(let ty=minY;ty<=maxY;ty++){
    const x=((tx%world)+world)%world,im=document.createElement("img");
+   im.dataset.tx=String(tx);im.dataset.ty=String(ty);
    im.alt="";im.loading="lazy";im.decoding="async";
    im.referrerPolicy="strict-origin-when-cross-origin";
    im.style.left=(tx*256-c.x+box.width/2)+"px";im.style.top=(ty*256-c.y+box.height/2)+"px";
