@@ -74,13 +74,25 @@ export function initUsbSDR(report){
    busy=false;
    notify("NOT CONNECTED","Own RTL-SDR session stopped/released; unrelated applications untouched.");
  }
- async function connect(){
+ async function connect(preferredDevice=null){
    if(busy||receiver){notify("BUSY",receiver?"Device already connected.":"A connection attempt is already running.");return}
    if(!navigator.usb||!window.isSecureContext){notify("UNAVAILABLE","WebUSB requires HTTPS and desktop Chrome/Brave/Edge; Firefox/Safari do not support it.");return}
    busy=true;stopping=false;stage="USB permission selection";
    try{
-     // Request USB permission directly within the user gesture, before any network import.
-     usbDevice=await navigator.usb.requestDevice({filters:[{vendorId:0x0bda,productId:0x2838}]});
+     if(preferredDevice){
+       // A user selected a previously PERMITTED device in the hardware panel.
+       // Never allow an arbitrary generic USB device to be opened as RTL-SDR.
+       if(preferredDevice.vendorId!==0x0bda||preferredDevice.productId!==0x2838)
+         throw Error("Selected USB device is not a supported RTL2832U (0bda:2838)");
+       const allowed=await navigator.usb.getDevices();
+       if(!allowed.some(d=>d.vendorId===0x0bda&&d.productId===0x2838&&
+         (d===preferredDevice||(d.serialNumber&&d.serialNumber===preferredDevice.serialNumber))))
+         throw Error("RTL-SDR permission is missing or was revoked. Re-select the device through the browser.");
+       usbDevice=preferredDevice;
+     }else{
+       // Fresh user gesture: request permission directly before any network import.
+       usbDevice=await navigator.usb.requestDevice({filters:[{vendorId:0x0bda,productId:0x2838}]});
+     }
      if(stopping)throw Error("Connection cancelled by Hard Stop");
      stage="WebUSB driver module import";
      notify("CONNECTING","Loading pinned WebUSB driver; device permission granted but hardware not yet opened.");
@@ -298,6 +310,7 @@ export function initUsbSDR(report){
  window.addEventListener("tihulu:rf-capture-request",event=>{void captureRF(event.detail?.frequencyMHz,event.detail?.sourceId)});
  window.addEventListener("tihulu:rf-fm-sweep-request",event=>{void fmSweep(event.detail?.startMHz,event.detail?.stopMHz,event.detail?.stepMHz)});
  window.addEventListener("tihulu:rf-fm-sweep-stop",()=>{sweepCancel=true});
+ window.addEventListener("tihulu:hardware-connect-rtl",e=>{void connect(e.detail?.device||null)});
  $("usb-select")?.addEventListener("click",()=>{void connect()});
  $("usb-selftest")?.addEventListener("click",()=>{void selfTest()});
  $("live-usb-check")?.addEventListener("click",()=>{void selfTest()});
