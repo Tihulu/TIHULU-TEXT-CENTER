@@ -938,6 +938,21 @@ async function runAutoMission({mode=$('auto-mode').value,fromNavigation=false}={
   }finally{button.disabled=false;}
 }
 $('auto-plan').addEventListener('click',()=>{void runAutoMission();});
+$('auto-stop').addEventListener('click',async()=>{
+  let cancelled=0;
+  for(const job of jobs){
+    if(job.missionId&&job.state==='armed'){
+      job.state='cancelled';job.message='Operator cancelled automatic reception before the pass.';
+      cancelled++;
+    }
+  }
+  const ownedAutoCapture=jobs.some(j=>j.missionId&&['starting','running'].includes(j.state));
+  if(ownedAutoCapture)await stopCapture();
+  renderJobs();
+  $('auto-plan-status').textContent='Cancelled '+cancelled+
+    ' auto-armed pass(es). '+(ownedAutoCapture?'Stopped app-owned active auto capture. ':'')+
+    'No unrelated readsb/welle.io/Gqrx process or manual recording was stopped.';
+});
 $('auto-analyze').addEventListener('click',()=>{
   const file=$('iq-file').files?.[0];
   if(!file&&!lastScheduledFile){
