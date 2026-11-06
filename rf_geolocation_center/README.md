@@ -59,3 +59,14 @@ python3 -m rf_geolocation_center serve --port 8794
 Open http://127.0.0.1:8794/ (on the same computer). The server binds to loopback only, serves an explicit app-asset allowlist and does not open any RTL-SDR, decode GNSS RF, expose a LAN receiver API or package a native desktop binary. Python source compatibility on CI is not physical Raspberry Pi or Apple Silicon verification. See [architecture and scientific gates](docs/ARCHITECTURE_AND_RELEASE_GATES.md) and [platform matrix](docs/PLATFORM_TEST_MATRIX.md).
 
 Current SP3 parser checks the declared GPS/UTC time system and converts supported GPS epochs to UTC using leap seconds through 2026. Other time systems are blocked pending verified handling, rather than silently mislabeling their timestamps. Browser NMEA file import is historical; it is not a current live fix.
+
+
+## Map-first automatic GNSS discovery (2026-11-06)
+
+The first dashboard now includes an immediately visible **OpenStreetMap Earth Map** and **SGP4 navigation-satellite sky plot**. It makes one bounded CelesTrak \`GROUP=gnss\` TLE request on launch (at most once per 24h per client when cache is fresh) and refreshes sky geometry every minute while the page is visible. The public CelesTrak endpoint, version-pinned \`satellite.js\` browser module, and OSM map require internet on first load. Network/CORS errors must be shown as failures; they never generate synthetic satellites. A 7-day fallback cache is available, with stale orbit warnings. Automatic orbital discovery **does not scan or acquire RF satellites**.
+
+**Find My Location** uses a current validated serial GNSS fix when available, otherwise prompts for browser/device geolocation. Published aircraft and station positions are only reference locations and cannot establish an observer fix without independent measured ranges/timing. If no real location source exists, the map is explicitly labeled *Cologne reference, not your position*.
+
+**Connect USB SDR** on compatible HTTPS desktop Chromium browsers now requests the RTL2832U USB device with a user gesture, loads the version-pinned browser driver, claims the tuner at 1575.420 MHz where OS permissions and other applications permit, and offers a bounded two-second **Scan GNSS L1** of relative raw digital sample level. It **does not decode** GPS/Galileo/BeiDou navigation signals, estimate C/N0, or produce a GNSS PVT fix. **Release USB** and **Hard Stop** only close this page's own WebUSB and NMEA serial handles; they do not stop \`readsb\`, Gqrx or any unrelated process. No automatic RF scanning on app launch.
+
+The embedded OSM map makes normal viewport requests immediately when the page loads; users should expect their browser's network address and viewed region to reach the map provider. No device geolocation is requested until the user clicks the location button.
