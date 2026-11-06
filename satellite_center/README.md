@@ -134,9 +134,10 @@ require WinUSB installation, Linux may require DVB kernel module release
 or udev permissions, and those cannot be fixed solely via browser consent.
 The hosted app cannot work with USB hardware plugged into a *different*
 computer. The tab must be open and foreground to schedule reliably, and
-WebUSB is released on stop, visibility hide or page exit. Browser-only
-Meteor LRPT imaging, ISS APRS text decoding and SSTV decoding are **not
-implemented yet**; real raw IQ may be decoded later in external tools.
+WebUSB is released on stop, visibility hide or page exit. Browser-only Meteor LRPT imaging and ISS APRS packet decoding are **not
+implemented**. Experimental Robot36 SSTV reconstruction from actual local
+WAV/CU8 with line-sync checks is available inside Satellite Images & Data;
+the captured file and correct antenna, active event and metadata are required.
 
 **The old local-companion application remains optional** for modes using
 installed SatDump/multimon-ng and for scheduling while the browser tab is
