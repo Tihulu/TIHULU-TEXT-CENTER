@@ -225,3 +225,54 @@ No physical Nooelec scheduled-capture acceptance test has been performed
 by this code-only change. Synthetic tests cover sorting, schedule minute
 bounds, due/hidden/busy transitions, digital level statistics, tile
 fallback thresholds and UI control presence.
+
+
+## Follow-up: Earth map works independently of Leaflet (November 6, 2026)
+
+When OSM street tiles and the earlier Leaflet fallback both appear blank,
+the **Earth tab now automatically draws a world Canvas background** from the
+bundled `natural-earth-land-110m.geojson` file. It does not need OpenStreetMap
+servers or the Leaflet CDN for the basic world basemap.
+
+- Built-in Canvas shows real coastlines/land, the current selected station,
+  and ground subpoints of TLE-propagated satellites.
+- Satellite dots are clickable to synchronize with the prediction list and
+  receiver candidate profile. They do **not** claim RF reception.
+- **Interactive street map (OpenStreetMap / Leaflet, optional)** is a separate
+  expandable section. Missing OSM tiles can no longer prevent the Canvas
+  world map from being visible.
+- **Test map background** diagnoses the bundled map data, feature count,
+  Canvas render status and, if loaded, the separate Leaflet SVG paths.
+- Leaflet's own optional Natural Earth layer uses an explicitly assigned SVG
+  renderer and a pane above raster tiles, rather than an unreliable default
+  Canvas renderer below the basemap.
+- The app entry point and revised map modules have cache-busting version
+  identifiers to avoid using stale Pages/PWA cached JavaScript.
+
+The Canvas map is a **global geographic overview**, not street-level tiles.
+If its own Natural Earth JSON request fails, the app explicitly reports that
+rather than fabricating countries or pretending OSM loaded.
+
+## Follow-up: real WebUSB hardware test and sample shape correction
+
+The receiver panel now has **Test real USB + RF samples (3 sec)**, which
+tries to reopen a *previously permitted* RTL2832U from WebUSB, tunes to the
+selected Step 2 frequency, reads true complex I/Q samples and reports
+actual byte counts, unsigned sample spread and relative digital level.
+It always closes its own USB session afterward and never stops
+`readsb`, Gqrx or another process.
+
+The prior browser capture code incorrectly expected `readSamples()` to
+return an ArrayBuffer. In `@jtarrio/webrtlsdr` v3 it returns a
+`SampleBlock` object with `frequency`, `directSampling`, and
+`data: ArrayBuffer`. All three paths—manual record, timed record and
+hardware test—now extract `.data` correctly. This is a functional
+fix, not merely UI: the previous format mismatch could discard every
+valid received sample. Verified against the upstream TypeScript interface:
+https://github.com/jtarrio/webrtlsdr/blob/main/src/rtlsdr/rtldevice.ts
+
+A passing browser test proves a USB device opened and returned samples.
+It does **not** prove that the antenna is matched, calibrated signal
+power was measured, or any specific satellite transmitted. Test uses
+the chosen frequency, so a quiet band can still pass valid USB sampling.
+No physical-device run has been performed by CI.
