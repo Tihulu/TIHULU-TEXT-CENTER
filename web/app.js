@@ -1912,6 +1912,117 @@ async function showLiveTVPage(){
   try{await addLiveTV()}catch(e){empty("TV source unavailable",e.message)}
   try{await addDvbDevicePanel()}catch(e){empty("DVB diagnostics unavailable",e.message)}
 }
+async function addLanguagePacksPanel(){
+  const initial=await api("/api/languages/status");
+  const box=el("article","item-card");
+  box.append(el("div","item-meta",
+    "OPTIONAL LOCAL LANGUAGE MODELS / EXPLICIT APPROVAL / NO SILENT DOWNLOAD"));
+  box.append(el("h3","","Add more translation languages"));
+  box.append(el("p","",
+    "Extra Argos packages are installed only at your request. "+
+    "They extend offline text translation beyond EN/DE/TR. "+
+    "They do not automatically enable speech recognition for those languages; "+
+    "a compatible ASR model must be configured separately."));
+  const info=el("p","full-body",
+    initial.argos_installed?"Argos package runtime detected.":"Argos Translate is not installed. "+
+    "Install it in an isolated Python environment before managing models.");
+  box.append(info);
+  const catalog=el("div","field");
+  const sourcePair=el("select");sourcePair.id="language-pair-install";
+  catalog.append(el("label","","Available directed language pairs"),sourcePair);
+  box.append(catalog);
+  const approveIndex=el("input");approveIndex.type="checkbox";
+  const indexLabel=el("label","scan-consent");
+  indexLabel.append(approveIndex,document.createTextNode(
+    " I authorize fetching the official Argos language package index from the Internet."));
+  box.append(indexLabel);
+  const approveInstall=el("input");approveInstall.type="checkbox";
+  const installLabel=el("label","scan-consent");
+  installLabel.append(approveInstall,document.createTextNode(
+    " I authorize downloading and installing the selected model into the current user's Argos package directory. "+
+    "Models can be large; provider package checksums/signatures are not independently audited by Text Center."));
+  box.append(installLabel);
+  const actions=el("div","card-actions");
+  const refresh=button("FETCH LANGUAGE CATALOG",async()=>{
+    if(!approveIndex.checked)return notice("Approve the Internet catalog download first.");
+    refresh.disabled=true;
+    try{
+      await api("/api/languages/refresh","POST",{consent:true});
+      await redraw();
+      notice("Argos language catalog downloaded by explicit request.");
+    }catch(error){notice("Language catalog unavailable: "+error.message)}
+    finally{refresh.disabled=false}
+  });
+  const install=button("INSTALL SELECTED LANGUAGE PAIR",async()=>{
+    if(!approveInstall.checked)return notice("Approve the selected model installation first.");
+    const pair=sourcePair.value.split(">");
+    if(pair.length!==2)return notice("No installable language pair selected");
+    install.disabled=true;
+    try{
+      await api("/api/languages/install","POST",{
+        source:pair[0],target:pair[1],consent:true});
+      notice("User-approved language package installation started.");
+      await redraw();
+    }catch(error){notice("Language installation blocked: "+error.message)}
+    finally{install.disabled=false}
+  },"action primary");
+  actions.append(refresh,install);box.append(actions);
+  const status=el("p","full-body","");box.append(status);
+  const extra=el("div","translation-extended");box.append(extra);
+  $("content").append(box);
+  async function redraw(){
+    if(state.page!==450)return;
+    const data=await api("/api/languages/status");
+    sourcePair.replaceChildren();
+    data.available_pairs.forEach(p=>{
+      const option=el("option","",
+        p.source_name+" ("+p.source+") → "+p.target_name+
+        " ("+p.target+") · version "+p.package_version);
+      option.value=p.source+">"+p.target;
+      sourcePair.append(option);
+    });
+    if(!data.available_pairs.length){
+      const option=el("option","","No downloaded catalog; fetch explicitly");
+      option.value="";sourcePair.append(option);
+    }
+    status.textContent="Installed: "+data.installed_pairs.length+
+      " directed language pairs · catalogue: "+data.available_pairs.length+
+      " · installer: "+data.installer.status+
+      (data.installer.pair?" · "+data.installer.pair:"")+
+      (data.installer.error?" · "+data.installer.error:"");
+    install.disabled=!data.argos_installed||!data.available_pairs.length||data.installer.active;
+    refresh.disabled=!data.argos_installed||data.installer.active;
+    extra.replaceChildren();
+    const installed=data.installed_pairs.filter(p=>p.source!==p.target);
+    if(installed.length){
+      extra.append(el("h4","","Translate with newly installed languages"));
+      const form=el("form","rds-form");
+      const pairSelect=el("select");
+      installed.forEach(p=>{
+        const opt=el("option","",p.source.toUpperCase()+" → "+p.target.toUpperCase());
+        opt.value=p.source+">"+p.target;pairSelect.append(opt);
+      });
+      const input=el("textarea","translation-editor");
+      input.rows=4;input.maxLength=12000;input.placeholder="Paste text to translate offline";
+      const submit=el("button","action primary","TRANSLATE WITH INSTALLED PAIR");
+      submit.type="submit";
+      const output=el("pre","translation-output","No translation requested");
+      form.append(pairSelect,input,submit);extra.append(form,output);
+      form.addEventListener("submit",async event=>{
+        event.preventDefault();submit.disabled=true;
+        try{
+          const [source,target]=pairSelect.value.split(">");
+          const translated=await api("/api/languages/translate","POST",{
+            source,target,text:input.value});
+          output.textContent=translated.translated;
+        }catch(error){output.textContent="Translation unavailable: "+error.message}
+        finally{submit.disabled=false}
+      });
+    }
+    if(data.installer.active&&state.page===450)setTimeout(redraw,1600);
+  }
+  await redraw();
+}
 async function showTranslatorPage(){
   section("OFFLINE TRANSLATOR","English · Deutsch · Türkçe",
     "Original language preserved · Local models only");
@@ -1991,6 +2102,8 @@ async function showTranslatorPage(){
     "installed model, but NPU translation remains disabled until verified. "+
     "Nothing is downloaded automatically."));
   $("content").append(hardware);
+  try{await addLanguagePacksPanel()}
+  catch(error){empty("Additional language model manager unavailable",error.message)}
 }
 async function showRadioData(){
   section("RF / BROADCAST SOURCES","Antenna scanning & actual decoder imports","User-approved tuning only");
