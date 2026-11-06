@@ -26,6 +26,7 @@ import uuid
 
 from .core import Store
 from .receivers import receiver_inventory
+from .conflicts import find_receiver_conflicts
 
 MAX_DURATION = 90
 MAX_JSON_LINE = 8192
@@ -92,9 +93,11 @@ class FMRSDSupervisor:
     """Single bounded session, explicitly started/stopped by loopback browser user."""
 
     def __init__(self, store: Store, *, inventory=None, lookup=None,
-                 lock_dir: Path | None = None, idle_seconds: float = IDLE_SECONDS):
+                 conflicts=None, lock_dir: Path | None = None,
+                 idle_seconds: float = IDLE_SECONDS):
         self.store = store
         self.inventory = inventory or receiver_inventory
+        self.conflicts = conflicts or find_receiver_conflicts
         self.lookup = lookup or shutil.which
         self.lock_dir = lock_dir or (store.filename.parent / ".receiver-locks")
         self.idle_seconds = idle_seconds
@@ -120,6 +123,12 @@ class FMRSDSupervisor:
             return {"ready": False, "reason": "This RF backend currently supports Linux only"}
         if inventory.get("rtl_usb_count") != 1:
             return {"ready": False, "reason": "Exactly one RTL2832U-compatible USB device is required"}
+        conflicts = self.conflicts()
+        if conflicts:
+            names=", ".join(sorted(set(x["process"] for x in conflicts)))
+            return {"ready": False, "reason":
+                    f"SDR reserved/possibly in use by {names}. Stop it manually or use a separate receiver.",
+                    "conflicts": conflicts}
         if not self.lookup("rtl_fm"):
             return {"ready": False, "reason": "rtl_fm is missing"}
         if not self.lookup("redsea"):
@@ -153,6 +162,13 @@ class FMRSDSupervisor:
                 fd = self._acquire_lock()
             except OSError as exc:
                 raise CaptureError(f"Cannot reserve cooperative SDR lock: {exc}") from exc
+            # Race-aware second preflight after our cooperative lock is held.
+            busy = self.conflicts()
+            if busy:
+                self._unlock()
+                raise CaptureError(
+                    "SDR contention detected: " + ", ".join(sorted(set(x["process"] for x in busy)))
+                )
             self._lock_fd = fd
             self._stop.clear()
             self._last_poll = time.monotonic()
@@ -275,6 +291,8 @@ class FMRSDSupervisor:
             red_bin = self.lookup("redsea")
             if not rtl_bin or not red_bin:
                 raise CaptureError("Decoder executable disappeared before launch")
+            if self.conflicts():
+                raise CaptureError("Another SDR or plane-tracker process appeared before the tuner opened")
             rtl_argv, red_argv = build_commands(rtl_bin, red_bin, hz)
             rtl = subprocess.Popen(rtl_argv, stdout=subprocess.PIPE,
                                    stderr=subprocess.PIPE, stdin=subprocess.DEVNULL,

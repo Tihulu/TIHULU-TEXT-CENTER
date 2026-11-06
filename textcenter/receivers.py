@@ -9,6 +9,7 @@ from pathlib import Path
 import platform
 import shutil
 from .core import utc_now
+from .conflicts import find_receiver_conflicts
 
 RTL2832U_ID = ("0bda", "2838")
 DECODER_BINARIES = ("rtl_test", "rtl_fm", "redsea", "welle-cli", "rtl_433")
@@ -57,6 +58,9 @@ def receiver_inventory(*, sys_usb_root: Path | None = None,
             adapters = []
         dvb_frontends = [f"{p.parent.name}/{p.name}"[:90] for p in sorted(adapters)[:16]]
     installed = {name: bool(which(name)) for name in DECODER_BINARIES}
+    # Injected fixture USB roots must not accidentally report the host's
+    # actual /proc process list as belonging to a simulated receiver.
+    conflicts = find_receiver_conflicts() if sys_usb_root is None and system == "Linux" else []
     availability = ("sysfs_unavailable" if system != "Linux" or not usb.is_dir()
                     else "usb_candidate_present" if devices else "no_supported_usb_candidate")
     return {
@@ -67,6 +71,8 @@ def receiver_inventory(*, sys_usb_root: Path | None = None,
         "rtl_usb_devices": devices,
         "dvb_frontends": dvb_frontends,
         "decoders": installed,
+        "receiver_conflicts": conflicts,
+        "tuner_may_be_busy": bool(conflicts),
         "rds_pipeline_available": bool(devices) and installed["rtl_fm"] and installed["redsea"],
         "active_capture": False,
         "connected_decoder": False,

@@ -108,3 +108,30 @@ GitHub Actions runs **mock-only** parser/API/supervisor tests and checks
 browser JavaScript syntax. The real Nooelec dongle, real RDS reception, Pi5
 resource budgets, USB ownership across noncooperating programs, and live
 mobile/portal use require separate user-provided acceptance evidence.
+
+## Plane tracking, concurrent radio processes and dependencies
+
+The RDS capture checks Linux `/proc` for known ADS-B / RTL-SDR process names
+(including `readsb`, `dump1090*`, `rtl_433`, `rtl_fm`, `rtl_tcp`,
+`gqrx` and `welle*`) and for open file descriptors to the detected RTL
+USB device path, where permissions allow. **If any candidate conflict is
+reported, capture is refused** and the other process is never terminated.
+This supplements but **does not replace a shared resource lease**. A process
+running in another container/namespace, an unrecognized native driver or a
+race between inspections can still escape detection. Therefore keep active
+flight tracking/recording protected and do not initiate simultaneous SDR
+sessions with a single dongle.
+
+A network-only plane tracking mode using a receiver elsewhere may still show a
+`readsb` process; this conservative policy may block unnecessarily until
+Survival Kit's authoritative lease broker can assign the correct device.
+
+Useful read-only diagnosis:
+
+```bash
+python3 -m textcenter receivers
+pgrep -a -f 'readsb|dump1090|rtl_|gqrx|welle' || true
+ls -l /dev/dvb /dev/dvb/adapter* 2>/dev/null || true
+```
+
+Avoid manually killing a plane-tracker service or removing its USB device.

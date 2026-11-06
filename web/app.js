@@ -141,6 +141,12 @@ function receiverCard(data){
     data.rtl_usb_devices.forEach(d=>n.append(el("p","full-body",d.product+" / USB "+d.usb_id+" / "+d.usb_path)));
   }
   n.append(el("p","full-body","Executables: "+Object.entries(data.decoders).map(([k,v])=>k+" "+(v?"installed":"missing")).join(" · ")));
+  if(data.receiver_conflicts?.length){
+    const names=[...new Set(data.receiver_conflicts.map(c=>c.process))].join(", ");
+    n.append(el("p","full-body","SDR CONFLICT: "+names+
+      ". An existing flight tracker or radio application may own the same receiver. "+
+      "Tihulu will not stop or retune it automatically."));
+  }
   const actions=el("div","card-actions");
   actions.append(button("REFRESH DEVICE STATUS",async()=>{
     try{
@@ -343,6 +349,11 @@ async function addRdsControl(){
   outer.append(help);
   const reason=el("p","full-body",status.capability?.reason||"Receiver readiness unknown");
   outer.append(reason);
+  if(status.capability?.conflicts?.length){
+    const names=[...new Set(status.capability.conflicts.map(c=>c.process))].join(", ");
+    outer.append(el("p","full-body","BLOCKED: "+names+" is running. "+
+      "Do not interrupt an active ADS-B/Radio recording. Use another USB SDR or stop it manually."));
+  }
   const form=el("form","rds-form");
   const frequency=field("FM frequency (MHz)","number","98.600",10);
   frequency.input.id="rds-frequency";frequency.input.min="87.5";frequency.input.max="108.0";
