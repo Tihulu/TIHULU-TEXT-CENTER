@@ -1016,7 +1016,7 @@ function appendPass(pass){
       }
       document.getElementById('schedule-center')?.scrollIntoView({behavior:'smooth',block:'nearest'});
     }catch(error){
-      if(prepared?.writable)await abortLongCapture(prepared);
+      if(prepared?.writable||prepared?.wavWritable)await abortLongCapture(prepared);
       alert.textContent='Could not schedule: '+String(error?.message||error)+
         (nativeLocal()?'':'. In Firefox open the Debian native app on http://127.0.0.1:8791/browser/index.html to record without WebUSB/File System Access.');
     }finally{confirm.disabled=false;}
@@ -1382,6 +1382,8 @@ async function scheduledTick(){
        const prepared=preparedLongStreams.get(job.id)||null;
        if(job.diskStreamPrepared&&!prepared?.writable)
          throw Error('Preauthorized CU8 file writer unavailable; re-plan explicitly.');
+       if(job.wavDiskPrepared&&!prepared?.wavWritable)
+         throw Error('Preauthorized WAV file writer unavailable; re-plan explicitly.');
        preparedLongStreams.delete(job.id);
        await startCapture(job,prepared);
      }catch(e){
@@ -1481,9 +1483,10 @@ async function runAutoMission({mode=$('auto-mode').value,goal=$('auto-coverage')
       job.missionId=item.missionId;
       job.coverage=item.coverage;
       job.dataKind=item.dataKind;
-      job.estimatedBytes=item.estimatedBytes;
+      job.estimatedBytes=job.saveWav&&!job.saveRaw?
+        wavOutputPlan(item.durationSeconds,true).estimatedBytes:item.estimatedBytes;
       job.shortfallSeconds=item.shortfallSeconds;
-      job.message='Plan: '+item.durationSeconds+' s · ~'+Math.round(item.estimatedBytes/1e6)+
+      job.message='Plan: '+item.durationSeconds+' s · ~'+Math.round(job.estimatedBytes/1e6)+
         ' MB · '+item.dataKind+' · '+item.coverage+'; '+item.limitation;
       jobs.push(job);armed++;
     }
@@ -1579,7 +1582,10 @@ satelliteMaps = createSatelliteMaps({
  onTune:(frequency)=>{
    const preset=$('preset');
    const option=Array.from(preset.options).find(o=>Number(o.value)===frequency);
-   if(option) preset.value=option.value;
+   if(option){
+     preset.value=option.value;
+     preset.dispatchEvent(new Event('change',{bubbles:true}));
+   }
  },
  log
 });
