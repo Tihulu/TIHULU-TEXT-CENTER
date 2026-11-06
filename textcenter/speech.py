@@ -156,7 +156,7 @@ class SpeechPipeline:
     def __init__(self,*,store:TranscriptStore,session:str,source_id:str,
                  source_language:str,target_language:str|None,
                  backend:str="auto",profile:dict|None=None,
-                 transcriber=None,translator=None,medium:str="fm"):
+                 transcriber=None,translator=None,medium:str="fm",translation_backend:str="auto"):
         self.store=store
         self.session=session
         self.source_id=source_id
@@ -171,7 +171,9 @@ class SpeechPipeline:
             raise SpeechError(self.selection.get("reason") or "No configured local speech backend")
         self.backend=self.selection["selected"]
         self.transcriber=transcriber or transcribe_pcm
-        self.translator=translator or translate_offline
+        self.translation_backend=translation_backend
+        self.translator=translator or (
+            lambda text,src,dst:translate_offline(text,src,dst,backend=translation_backend))
         self.buffer=bytearray()
         self.samples=0
         self.queue=queue.Queue(maxsize=2)
@@ -219,6 +221,7 @@ class SpeechPipeline:
         return {"enabled":True,"selected_backend":self.backend,
                 "detected_device":self.selection["detected_device"],
                 "source_language":self.lang,"target_language":self.target,
+                "translation_backend":self.translation_backend,
                 "segments_completed":self.completed,"dropped_windows":self.dropped,
                 "queued_windows":self.queue.qsize(),"error":self.last_error}
 
