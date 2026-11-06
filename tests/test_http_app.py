@@ -204,6 +204,22 @@ class HTTPTests(unittest.TestCase):
         self.assertEqual(json.loads(self.request("GET","/api/transcripts")[2]),[])
         self.assertEqual(self.request("GET","/api/transcripts/export?session=bad")[0],400)
 
+    def test_tv_relay_requires_configured_protected_source(self):
+        code,_,raw=self.request("GET","/api/live/tv/channels")
+        self.assertEqual(code,200)
+        self.assertFalse(json.loads(raw)["capability"]["ready"])
+        code,_,raw=self.request("GET","/api/live/tv/status")
+        self.assertEqual(code,200)
+        self.assertFalse(json.loads(raw)["active"])
+        self.assertEqual(self.request("GET",
+            "/api/live/tv/stream?session=bad&token=bad")[0],403)
+        self.assertEqual(self.request("POST","/api/live/tv/start",{})[0],403)
+        _,_,raw=self.request("GET","/api/bootstrap")
+        csrf=json.loads(raw)["csrf"]
+        self.assertEqual(self.request("POST","/api/live/tv/start",
+            {"channel_id":"none","upstream_authorized":False},csrf)[0],409)
+        self.assertEqual(self.request("POST","/api/live/tv/stop",{},csrf)[0],200)
+
     def test_no_forged_source(self):
         code,_,raw=self.request("GET","/api/page?source_id=ard_text&number=100")
         self.assertEqual(code,404)

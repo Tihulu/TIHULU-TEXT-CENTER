@@ -16,6 +16,7 @@ from .media import MediaStore
 from .dvb_hardware import diagnose_dvb
 from .dab_bridge import DABReader,DABError
 from .live_fm import LiveFM,LiveError
+from .live_tv import LiveTV,LiveTVError
 from .transcripts import TranscriptStore,TranslatorUnavailable,installed_translation_pairs
 from .compute import detect_devices,choose_backend
 from .capabilities import capability_catalog
@@ -67,6 +68,8 @@ class LocalServer(ThreadingHTTPServer):
         )
         self.live_fm=LiveFM(archive_dir=store.filename.parent/"recordings",
                             lock_dir=store.filename.parent/".receiver-locks",
+                            transcripts=self.transcripts)
+        self.live_tv=LiveTV(archive_dir=store.filename.parent/"recordings",
                             transcripts=self.transcripts)
         super().__init__(address, Handler)
 
@@ -194,6 +197,66 @@ class Handler(BaseHTTPRequestHandler):
                                       for key in ("auto","cpu","gpu","npu")}
                 profile["translation"]["available_pairs"]=installed_translation_pairs()
                 return self._json(200,profile)
+            if route == "/api/live/tv/channels":
+                return self._json(200,{
+                    "channels":[{"id":x["id"],"name":x["name"],
+                                 "source_status":x["source_status"]}
+                                for x in self.server.live_tv.channels()],
+                    "capability":self.server.live_tv.availability(),
+                    "note":"Only dedicated upstream MPEG-TS sources configured by the owner; this app never tunes DVB."
+                })
+            if route == "/api/live/tv/status":
+                data=self.server.live_tv.status(heartbeat=True)
+                data["capability"]=self.server.live_tv.availability()
+                return self._json(200,data)
+            if route == "/api/live/tv/recordings":
+                return self._json(200,self.server.live_tv.recordings())
+            if route.startswith("/api/live/tv/recording/"):
+                filename=route[len("/api/live/tv/recording/"):]
+                file=self.server.live_tv.recording(filename)
+                if not file:return self._json(404,{"error":"TV recording not found"})
+                self.send_response(200)
+                self.send_header("Content-Type","video/mp4")
+                self.send_header("Content-Length",str(file.stat().st_size))
+                self.send_header("Content-Disposition",'attachment; filename="'+filename+'"')
+                self.send_header("Cache-Control","no-store")
+                self.send_header("X-Content-Type-Options","nosniff")
+                self.send_header("Connection","close")
+                self.end_headers()
+                try:
+                    with file.open("rb") as saved:
+                        while True:
+                            b=saved.read(65536)
+                            if not b:break
+                            self.wfile.write(b)
+                except (BrokenPipeError,ConnectionResetError):
+                    pass
+                self.close_connection=True
+                return
+            if route == "/api/live/tv/stream":
+                session=q.get("session",[""])[0]
+                token=q.get("token",[""])[0]
+                status=self.server.live_tv.status()
+                if token!=self.server.csrf_token or not status["active"] or status["session"]!=session:
+                    return self._json(403,{"error":"TV session not authorized or running"})
+                self.send_response(200)
+                self.send_header("Content-Type","video/mp4")
+                self.send_header("Transfer-Encoding","chunked")
+                self.send_header("Cache-Control","no-store")
+                self.send_header("X-Content-Type-Options","nosniff")
+                self.send_header("Connection","close")
+                self.end_headers()
+                try:
+                    for chunk in self.server.live_tv.stream(session):
+                        self.wfile.write(("%X\r\n"%len(chunk)).encode("ascii"))
+                        self.wfile.write(chunk)
+                        self.wfile.write(b"\r\n")
+                        self.wfile.flush()
+                    self.wfile.write(b"0\r\n\r\n")
+                except (BrokenPipeError,ConnectionResetError,OSError,LiveTVError):
+                    self.server.live_tv.stop()
+                self.close_connection=True
+                return
             if route == "/api/live/radio/status":
                 state=self.server.live_fm.status(heartbeat=True)
                 state["capability"]=self.server.live_fm.availability()
@@ -319,7 +382,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         route = urlsplit(self.path).path
-        allowed = {"/api/feeds/add", "/api/feeds/refresh", "/api/bulletins", "/api/bookmarks", "/api/rds/start", "/api/rds/stop", "/api/fm-survey/start", "/api/fm-survey/stop", "/api/scans/start", "/api/scans/stop", "/api/audio/start", "/api/audio/stop", "/api/dab/refresh", "/api/live/radio/start", "/api/live/radio/stop", "/api/transcripts/translate"}
+        allowed = {"/api/feeds/add", "/api/feeds/refresh", "/api/bulletins", "/api/bookmarks", "/api/rds/start", "/api/rds/stop", "/api/fm-survey/start", "/api/fm-survey/stop", "/api/scans/start", "/api/scans/stop", "/api/audio/start", "/api/audio/stop", "/api/dab/refresh", "/api/live/radio/start", "/api/live/radio/stop", "/api/transcripts/translate", "/api/live/tv/start", "/api/live/tv/stop"}
         if route not in allowed:
             return self._json(404, {"error": "Not found"})
         if self.headers.get("X-Tihulu-CSRF") != self.server.csrf_token:
@@ -352,6 +415,16 @@ class Handler(BaseHTTPRequestHandler):
                 result=self.server.dab.refresh(include_images=payload.get("include_images",True))
                 self.server.dab_last={"connected":True,**result}
                 return self._json(200,self.server.dab_last)
+            if route == "/api/live/tv/start":
+                return self._json(202,self.server.live_tv.start(
+                    payload.get("channel_id"),record=payload.get("record",False),
+                    subtitles=payload.get("subtitles",False),
+                    language=payload.get("original_language","en"),
+                    translate_to=payload.get("translated_language"),
+                    backend=payload.get("backend","auto"),
+                    upstream_authorized=payload.get("upstream_authorized",False)))
+            if route == "/api/live/tv/stop":
+                return self._json(200,self.server.live_tv.stop())
             if route == "/api/live/radio/start":
                 return self._json(202,self.server.live_fm.start(
                     payload.get("frequency_mhz"),record=payload.get("record",False),
@@ -393,7 +466,7 @@ class Handler(BaseHTTPRequestHandler):
             if route == "/api/bookmarks":
                 self.server.store.add_bookmark(payload.get("label"),payload.get("target_type"),payload.get("target"))
                 return self._json(201, {"saved": True})
-        except (CaptureError, SurveyError, AudioError, DABError, LiveError, TranslatorUnavailable) as exc:
+        except (CaptureError, SurveyError, AudioError, DABError, LiveError, LiveTVError, TranslatorUnavailable) as exc:
             self._json(409, {"error": str(exc)})
         except KeyError as exc:
             self._json(404, {"error": str(exc)})
@@ -414,6 +487,7 @@ def run_server(store: Store, *, host: str = "127.0.0.1", port: int = 8787):
     except KeyboardInterrupt:
         pass
     finally:
+        server.live_tv.stop()
         server.live_fm.stop(wait=True)
         server.audio.stop(wait=True)
         server.survey.stop(wait=True)
