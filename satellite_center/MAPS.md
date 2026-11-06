@@ -5,6 +5,51 @@ operator-refreshed or manually imported CelesTrak TLEs** as the pass calendar.
 These views are independent from WebUSB, so Firefox can display the maps even
 though Firefox cannot directly open RTL-SDR USB devices.
 
+## Ground-station location selector (v0.5)
+
+The same observer position now controls the pass calendar, polar sky plot
+and OSM map. The default station coordinates are intentionally approximate
+Cologne coordinates, **not inferred user GPS**.
+
+1. **Offline town autocomplete** — 8,084 embedded named places: 7,104
+   Germany and 980 Türkiye entries, including places such as Hürth,
+   Köln and Karaburun (İzmir). The local city-name search starts after
+   two characters and matches Turkish/German accent folding and common
+   aliases. Choose among the named state/country suggestions to avoid
+   mixing up towns with the same name. Entries are populated points,
+   not street addresses or device positions.
+2. **Explicit browser geolocation** — the operator presses
+   **Use device location (GPS / Wi-Fi)**; only then does the browser
+   call `navigator.geolocation.getCurrentPosition` and prompt for
+   permission. The displayed accuracy is the browser's estimate.
+   Geolocation may derive from IP/Wi-Fi rather than real GPS; it can be
+   denied or time out. Denial does not silently fall back to IP location.
+3. **Fully custom manual coordinates worldwide** — both latitude
+   (−90..+90) and longitude (−180..+180) remain editable, and the
+   user can switch to Custom mode without an account or online lookup.
+   Blank/out-of-range coordinates prevent pass calculation.
+4. **Optional worldwide city lookup** — a user click on
+   **Search worldwide online** queries
+   `https://geocoding-api.open-meteo.com/v1/search`, or users may
+   opt in to online suggestions as they type (unchecked by default).
+   Open-Meteo is an external service based on GeoNames, currently
+   free for non-commercial use with fair-use limits. Typing city
+   names offline does not contact that service. Network failures
+   leave the offline library and manual coordinate method usable.
+5. When a station changes, previously calculated passes are
+   invalidated and must be recalculated. Earth/Sky views immediately
+   use the new coordinates as their geometric reference; no USB scan
+   begins automatically.
+
+**Data attribution:** bundled `browser/cities-de-tr.json` is an ODbL
+1.0 derivative of `srestre/world-countries-cities-db` and its dr5hn
+upstream source. See [CITY_DATA_LICENSE.md](browser/CITY_DATA_LICENSE.md).
+Online search credit: [Open-Meteo Geocoding](https://open-meteo.com/en/docs/geocoding-api)
+and underlying GeoNames data. The user's browser may send a typed
+online query only after explicit online search/opt-in; no device GPS
+coordinate is sent to city search. No location state is persisted by
+the map app or transmitted in TLE requests.
+
 ## Earth / OpenStreetMap (OSM)
 
 - User-initiated **Load OpenStreetMap** control. Until clicked, no Leaflet
