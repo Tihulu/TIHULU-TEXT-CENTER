@@ -183,10 +183,10 @@ The **TV Center (P420)** offers actual DVB-T/T2 regional-plan discovery when Lin
 
 Review the source of [bootstrap-unix.sh](https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/feature/unified-channel-center-full-scan-ui-2026-11-06/scripts/bootstrap-unix.sh) before executing. Then:
 
-\`\`\`bash
+```bash
 curl -fsSL 'https://raw.githubusercontent.com/Tihulu/TIHULU-TEXT-CENTER/feature/unified-channel-center-full-scan-ui-2026-11-06/scripts/bootstrap-unix.sh' | bash -s -- feature/unified-channel-center-full-scan-ui-2026-11-06 --switch
-\`\`\`
+```
 
-The explicit \`--switch\` option permits switching an existing, **clean** installed checkout from another development branch. It does **not** reset, force-push or delete another branch, the database or recordings. The updater refuses dirty checkouts, detached HEADs, unknown repository origin and divergent branch histories. These drafts remain unmerged and physical SDR acceptance is still pending.
+The explicit `--switch` option permits switching an existing, **clean** installed checkout from another development branch. It does **not** reset, force-push or delete another branch, the database or recordings. The updater refuses dirty checkouts, detached HEADs, unknown repository origin and divergent branch histories. These drafts remain unmerged and physical SDR acceptance is still pending.
 
 See [UI / station-source audit](docs/END_TO_END_CHANNEL_UI_AUDIT_2026-11-06.md). GitHub Pages browser-only experimental FM/IQ remains separate from the local-backend DAB/TV full scan and native decoder.
