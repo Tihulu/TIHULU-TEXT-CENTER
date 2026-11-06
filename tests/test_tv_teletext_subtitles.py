@@ -112,6 +112,49 @@ class TeletextSubtitleTests(unittest.TestCase):
             self.assertEqual(store.list(session="b"*32),[])
             tv.state["active"]=False
 
+    def test_runtime_tv_caption_switches_preserve_tv_process(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            store=TranscriptStore(Store(Path(tmp)/"db.sqlite"))
+            tv=LiveTV(archive_dir=Path(tmp)/"recordings",transcripts=store)
+            tv.state["active"]=True
+            tv.state["session"]="c"*32
+            tv.subtitle_channel={"id":"safe","teletext_shared_safe":False}
+            tv.caption_source="auto"
+            status=tv.configure_captions(enabled=True,source="auto",
+                translate_to="de",original_visible=False,
+                translated_visible=True)
+            self.assertTrue(status["active"])
+            self.assertTrue(status["captions_enabled"])
+            self.assertFalse(status["caption_original_visible"])
+            self.assertTrue(status["caption_translated_visible"])
+            self.assertEqual(status["subtitle_effective_source"],"unavailable")
+            self.assertIn("multi-client-safe",status["teletext_error"])
+            off=tv.configure_captions(enabled=False)
+            self.assertEqual(off["subtitle_effective_source"],"off")
+            with self.assertRaises(ValueError):
+                tv.configure_captions(source="externally_invented")
+            tv.state["active"]=False
+
+    def test_fm_caption_toggle_does_not_retune_running_receiver(self):
+        from textcenter.live_fm import LiveFM
+        with tempfile.TemporaryDirectory() as tmp:
+            fm=LiveFM(archive_dir=Path(tmp)/"recordings")
+            fm.state.update(active=True,session="d"*32,
+                frequency_hz=98_600_000,caption_language="en",
+                caption_target=None,caption_compute="auto",
+                caption_translation_backend="auto",
+                subtitles_requested=False)
+            with patch.object(fm,"_configure_optional_speech") as setup:
+                fm.configure_captions(enabled=True,translate_to="tr")
+                self.assertEqual(setup.call_count,1)
+                self.assertEqual(setup.call_args.kwargs["translate_to"],"tr")
+            speech=MagicMock()
+            fm.speech=speech
+            fm.configure_captions(enabled=False)
+            speech.stop.assert_called_once()
+            self.assertTrue(fm.state["active"],"Receiver must remain live")
+            fm.state["active"]=False
+
     def test_tv_and_text_alerts_share_real_archived_page_ui(self):
         root=Path(__file__).resolve().parents[1]
         app=(root/"web/app.js").read_text()
