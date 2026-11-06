@@ -47,7 +47,7 @@ class SatelliteBrowserStaticTests(unittest.TestCase):
         self.assertIn('id="mission"', reception)
         self.assertIn('id="export-evidence"', reception)
         for ctl in ('auto-mission-arm', 'auto-mission-analyze',
-                    'auto-mission-extract', 'auto-gps', 'auto-lat', 'auto-lon'):
+                    'auto-mission-extract', 'location-gps', 'city-query', 'auto-lat', 'auto-lon', 'auto-elev'):
             self.assertIn('id="' + ctl + '"', reception)
         for ctl in ('auto-plan', 'auto-analyze', 'auto-results', 'auto-mode'):
             self.assertIn('id="' + ctl + '"', html)
