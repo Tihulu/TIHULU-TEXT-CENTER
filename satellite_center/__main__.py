@@ -789,7 +789,9 @@ class Station:
                             self.archive / result["file"],
                             compute_mode=nearest.get("compute_mode", "auto"),
                             compute_targets=nearest.get("compute_targets"))
-                    except (ValueError, OSError, EOFError, wave.Error) as exc:
+                    except Exception as exc:
+                        # Decoder failures, including a removed CUDA device,
+                        # must not orphan a completed, genuine RF recording.
                         result["sstv"] = {
                             "status": "decoder_failed_original_wav_preserved",
                             "images": [], "reason": str(exc)[:240],
