@@ -68,6 +68,15 @@ class AutoMissionTests(unittest.TestCase):
         self.assertGreater(job["shortfall_seconds"], 0)
         self.assertIn("partial", " ".join(outcome["skipped"]))
 
+    def test_missing_aprs_decoder_does_not_block_other_selected_media(self):
+        with patch("satellite_center.__main__.shutil.which",
+                   side_effect=lambda tool: None if tool == "multimon-ng" else "/fake/bin/"+tool):
+            outcome = self.station.auto_schedule(["iss-aprs", "iss-sstv"])
+        self.assertEqual(outcome["scheduled_count"], 1)
+        self.assertEqual(outcome["scheduled"][0]["mission_id"], "iss-sstv")
+        self.assertIn("iss-aprs", outcome["disabled_targets"])
+        self.assertTrue(any("missing tools" in note for note in outcome["skipped"]))
+
     def test_native_sstv_uses_small_real_wav_instead_of_huge_iq(self):
         outcome = self.station.auto_schedule(["iss-sstv"])
         self.assertEqual(outcome["scheduled_count"], 1)

@@ -27,6 +27,9 @@ captures alive after the tab closes or run native SatDump.
    Meteor LRPT image. When multiple requested formats are eligible, native
    planning prefers a feasible complete visible-window attempt over a partial
    image; image-only requests never silently change media category.
+   If one optional decoder is unavailable during a combined request, the
+   other operator-approved formats remain eligible and the missing target
+   is reported; no unapproved media kind is silently added.
    All estimates refer to received time windows, not every spacecraft dataset.
 3. **Calendar**: editable local-date day picker, actual 00:00–23:00 time slots,
    state/target/format labels, per-job cancellation. For a pending native task,
