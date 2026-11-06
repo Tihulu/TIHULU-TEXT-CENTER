@@ -58,6 +58,25 @@ export function initAutoReceptionUI({getSelectedFile=()=>null,fileInput=$("local
   });
 
   const runtime=$("auto-runtime"),receiver=$("auto-receiver"),decoders=$("auto-decoders");
+  const formatGroup=$("reception-browser-formats"),formatNote=$("reception-native-format-note");
+  const selectedFormats=()=>({raw:$("reception-auto-raw").checked,
+                             wav:$("reception-auto-wav").checked});
+  const updateFormatSummary=()=>{
+    const {raw,wav}=selectedFormats();
+    $("reception-format-summary").textContent=
+      raw&&wav?"CU8 + WAV selected · TWO separate files from ONE real WebUSB recording.":
+      raw?"CU8 only · one raw RF/IQ file.":
+      wav?"WAV only · one FM-demodulated audio file.":
+      "No file selected · choose WAV or CU8 to save a real ISS recording.";
+  };
+  for(const id of ["reception-auto-raw","reception-auto-wav"]){
+    $(id).addEventListener("change",updateFormatSummary);
+  }
+  updateFormatSummary();
+  if(nativeHost()){
+    formatGroup.hidden=true;
+    formatNote.hidden=false;
+  }
   if(nativeHost()){
     runtime.textContent="Native companion · persistent scheduler";
     receiver.textContent="Receiver: checking physical SDR status…";
@@ -224,7 +243,10 @@ export function initAutoReceptionUI({getSelectedFile=()=>null,fileInput=$("local
           throw Error("Choose 8–900 whole seconds or leave blank for automatic duration.");
         if(requestedSeconds>60)
           throw Error("Automatic browser WebUSB jobs remain limited to 60 s. For long unattended image/data passes use native receiver; for foreground browser I/Q use Calculate Passes with a user-selected streamed CU8 disk file. Nothing was armed.");
-        message("Opening the shared browser RF scheduler. On first use, grant the Nooelec RTL-SDR WebUSB permission there. No capture starts until a future predicted pass.");
+        const {raw,wav}=selectedFormats();
+        message("Opening the browser RF scheduler. ISS selected files: "+
+          (raw&&wav?"CU8 + WAV (two separate files)":raw?"CU8 only":wav?"WAV only":"none")+
+          ". Grant the RTL-SDR WebUSB permission there. No capture starts until an eligible pass.");
         // The destination may only silently reopen previously granted WebUSB;
         // a new permission requires a fresh user gesture on that page.
         // Carry station coordinates only through same-tab session storage,
@@ -238,6 +260,10 @@ export function initAutoReceptionUI({getSelectedFile=()=>null,fileInput=$("local
           }));
           sessionStorage.setItem("tihulu-auto-coverage-goal",$("auto-coverage-goal").value);
           sessionStorage.setItem("tihulu-auto-browser-seconds",String(requestedSeconds));
+          const format=selectedFormats();
+          if(["iss-images","images","all"].includes(mode)&&!format.raw&&!format.wav)
+            throw Error("Select WAV, CU8, or both for ISS SSTV reception.");
+          sessionStorage.setItem("tihulu-auto-formats",JSON.stringify({...format,createdAt:Date.now()}));
           sessionStorage.setItem("tihulu-auto-compute",JSON.stringify(computeSelector.getSelection()));
         }catch(error){
           throw Error("Browser blocked same-tab station transfer. Open the receiver page and set your coordinates there before scheduling.");
