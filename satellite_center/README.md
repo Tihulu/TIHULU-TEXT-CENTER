@@ -1,5 +1,60 @@
 # TIHULU Satellite Center — standalone companion v0.2.3
 
+## One-click Satellite Auto-Capture & Decode (2026-11-06 draft)
+
+On **Satellite Images & Data** (`browser/reception.html`) the user has three primary actions:
+
+1. **Auto Schedule & Capture:** select images / public ISS APRS messages /
+   both, choose GPS or manual ground station, and look ahead 12/24/48 h.
+   On the local native companion this single explicit click calls
+   `POST /api/auto-schedule`: it obtains missing TLEs on demand,
+   predicts passes, validates installed RTL-SDR/decoder tools, arms at most
+   six non-overlapping pass captures, and records actual RF on the established
+   scheduler. Schedules are persisted. The optional service must stay running,
+   and other programs such as readsb may prevent the device lease.
+   On Pages/PWA the button opens the common WebUSB scheduler with the selected
+   station transferred via **same-tab session storage, not the URL**; a
+   pre-authorized receiver can be silently reopened at an eligible pass.
+   New USB permissions must still be granted manually in a supported Chromium
+   browser. Browser-only automation lasts while its tab remains open,
+   foreground and awake. Each capture is max 60 s / 128 MiB; entire Meteor
+   image downlinks frequently need the longer native workflow.
+
+2. **Analyze Recordings:** native mode scans recent actual on-disk archive files
+   and attempts compatible SatDump Meteor LRPT output, CRC-unverified raw
+   public packet text viewing and browser local CU8 full-FFT/audio/Robot36
+   candidate discovery; only files fetched from its own localhost service.
+   On Pages/PWA select a real downloaded local recording via the file chooser
+   because the website cannot silently read Downloads. The receiver page
+   also offers Analyze Recordings for its last captured in-memory IQ file.
+
+3. **Extract Results:** display actual candidate images only from line-sync-
+   validated Robot36 or native SatDump output, allow user-controlled PNG/audio
+   and evidence JSON export, and show real APRS/text archive contents with
+   honest source labels. Unsupported modulation and packet decoders never
+   manufacture text, imagery or protocol matches.
+
+**Cancel Auto Missions:** clears only this application's auto-armed pending
+jobs and requests Stop for its own current automatic capture; external SDR
+programs, manual jobs and existing files are preserved. A separate Stop
+Analysis cancels local analysis, not arbitrary SatDump OS processes.
+
+**Current target set:** Meteor-M2-3 / M2-4 LRPT at a candidate 137.900 MHz,
+ISS SSTV 437.550 MHz Robot36 (event-only), ISS packet APRS UHF 437.825 MHz
+(current mode subject to ARISS) and optional ISS public FM audio. ISS video
+HamTV at 2395 MHz, retired NOAA-15/18/19 APT, NASA Internet imagery, and
+unverified CubeSat protocols are **not auto-armed** with the present NESDR.
+Auto-planning never claims the transmitter is active or that reception succeeded.
+
+This is an implemented but still **draft** cross-platform workflow: CI is
+synthetic (not hardware proof). Remaining gates include real ISS/Meteor
+receiving tests on Linux, Pi, Windows and macOS; browser-supported unattended
+full-pass Meteor decoding, broader open-format decoders, proper per-image
+quality/CRC validation and multi-day background service UX. See
+[Issue #21](https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/21)
+and [platform parity contract](FEATURE_PARITY.md).
+
+
 ## Satellite Images & Data — common cross-platform tab (2026-11-06)
 
 The separate **[Satellite Images & Data tab](browser/reception.html)** is now part
