@@ -613,7 +613,21 @@ function renderAutomaticScan(kind,report){
       const open=el("a","action ghost","OPEN WELLE-CLI PLAYER");
       open.href="http://127.0.0.1:7979/";
       open.target="_blank";open.rel="noopener noreferrer";
-      const actions=el("div","card-actions");actions.append(tune,open);
+      const media=button("READ CURRENT DLS / MOT",async()=>{
+        media.disabled=true;
+        try{
+          const result=await api("/api/dab/refresh","POST",{include_images:true});
+          showDabServices(result);
+          await refreshCounts();
+          notice("Read current decoder data on "+result.channel+
+            "; "+result.saved_mot_images+" genuine MOT image(s) saved. "+
+            "Slides are available only if the broadcaster transmitted them.");
+          const panel=$("dab-welle-bridge");
+          if(panel)panel.scrollIntoView({behavior:"smooth",block:"start"});
+        }catch(e){notice("DAB decoder data read failed: "+e.message)}
+        finally{media.disabled=false;}
+      });
+      const actions=el("div","card-actions");actions.append(tune,open,media);
       details.append(actions);
       mux.services.forEach(s=>{
         const service=el("div","auto-service");
