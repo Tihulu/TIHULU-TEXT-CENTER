@@ -48,7 +48,7 @@ function explain(state,source){
  status("simple-sources",
   "Device: "+(state.serialFix?"GNSS available":state.browser?"Browser fix":"no fresh fix")+
   " · RTL-SDR: "+state.usbStatus+
-  " · TV: "+tv+" imported channels"+
+  " · TV: "+tv+" "+(state.dvbOrigin?.startsWith("LIVE")?"native-scanned":"imported")+" channels"+
   " · Ground: "+((state.catalogTowers||[]).length+(state.rfSources||[]).filter(x=>x.type==="station").length)+
   " · Aircraft: "+((state.catalogAntennaAircraft||[]).length+(state.catalogAircraft||[]).length)+
   " · Satellites: "+(state.autoOrbits||[]).length+" predicted"+
@@ -165,9 +165,29 @@ export function initSimpleUI({state,source,setView,renderEarth,renderPosition,fi
    status("simple-tv-status","Imported "+channels.length+" DVB channel entries from "+file.name+
       ". This is native scan metadata, NOT a browser hardware scan; no receiver location or transmitter coordinates are present.");
    window.dispatchEvent(new CustomEvent("tihulu:dvb-metadata-imported",{detail:{channels:channels.length}}));
+   window.dispatchEvent(new CustomEvent("tihulu:tv-channels-updated",{detail:{fromNative:false,count:channels.length}}));
    explain(state,source);
   }catch(error){status("simple-tv-status","TV import failed: "+String(error.message||error))}
   finally{e.currentTarget.value=""}
+ });
+ window.addEventListener("tihulu:native-dvb-channels",e=>{
+   const data=e.detail||{};
+   const channels=Array.isArray(data.channels)?data.channels.filter(s=>
+    s&&typeof s.name==="string"&&Number.isFinite(s.frequencyHz)&&
+    Number.isFinite(s.frequencyMHz)&&s.frequencyHz>=40000000&&s.frequencyHz<=1200000000
+   ).slice(0,300):[];
+   if(!channels.length)return;
+   state.dvbChannels=channels;
+   state.dvbOrigin="LIVE NATIVE LINUX DVBv5 SCAN (TOKEN-AUTHORIZED LOOPBACK)";
+   try{localStorage.setItem(TVKEY,JSON.stringify({
+    importedAt:data.scannedAt||new Date().toISOString(),
+    source:"LIVE NATIVE LINUX DVBv5 / ACTUAL TUNER SCAN",channels}))}catch{}
+   showDvb(channels,state.catalogTowers||[]);
+   status("simple-tv-status","REAL NATIVE DVB SCAN · "+channels.length+
+      " received service records · "+(data.scannedAt||"time unknown")+
+      ". Broadcast source coordinates are NOT in the DVB service data; mapped TV towers are external frequency-overlap candidates.");
+   window.dispatchEvent(new CustomEvent("tihulu:tv-channels-updated",{detail:{fromNative:true,count:channels.length}}));
+   explain(state,source);
  });
  window.addEventListener("tihulu:catalog-updated",e=>{
   const d=e.detail||{};
