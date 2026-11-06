@@ -1,0 +1,37 @@
+name: Satellite Center browser-only WebUSB checks
+on:
+  push:
+    branches:
+      - feature/satellite-center-standalone-2026-11-06
+      - gh-pages
+    paths:
+      - satellite_center/browser/**
+      - .github/workflows/satellite-webusb.yml
+  pull_request:
+    paths:
+      - satellite_center/browser/**
+      - .github/workflows/satellite-webusb.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  webusb:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check browser scripts
+        run: |
+          node --check satellite_center/browser/browser.js
+          node --check satellite_center/browser/usb_diagnostics.mjs
+      - name: Unit-test permission-only diagnosis
+        run: node --test satellite_center/browser/usb_diagnostics.test.mjs
+      - name: Check static UI elements
+        run: |
+          grep -q 'id="usb-check"' satellite_center/browser/index.html
+          grep -q 'id="usb-report"' satellite_center/browser/index.html
+          grep -q './usb_diagnostics.mjs' satellite_center/browser/browser.js

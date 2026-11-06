@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="dark">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<title>Satellite Images &amp; Data | TIHULU Satellite Center</title>
+<link rel="icon" href="./icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="./browser.css?v=20261106-calendar-protocol-v2">
+<link rel="stylesheet" href="./reception.css?v=20261106-calendar-protocol-v2">
+</head>
+<body>
+<header><div class="wrap">
+<p class="eyebrow">TIHULU SATELLITE CENTER · ONE SHARED WEB / DESKTOP INTERFACE</p>
+<h1>Satellite Images &amp; Data</h1>
+<p>Receive open transmissions, decode when possible, inspect your own recording files, and keep online archives separate from RF measurements. No transmit capability.</p>
+<nav class="reception-nav" aria-label="Satellite Center sections">
+<a href="./index.html">Receiver &amp; pass planner</a>
+<a href="./reception.html" aria-current="page">Images &amp; Data</a>
+<a href="./index.html#satellite-tracking-maps">Earth / sky</a>
+<a href="./index.html#iq-analysis">Full CU8 analysis</a>
+</nav></div></header>
+<main class="wrap reception-main">
+<section id="auto-mission-center" aria-labelledby="auto-mission-title">
+<div class="receiver-readiness" role="status" aria-live="polite"><span id="auto-runtime">Checking platform…</span><span id="auto-receiver">No receiver activated</span><span id="auto-decoders">Decoder availability depends on this device</span></div>
+<h2 id="auto-mission-title">Automatic satellite reception — three buttons</h2>
+<p class="hint">Select supported public downlinks, then arm the nearest non-overlapping passes. It never activates a transmitter, claims the SDR in the background or pretends every predicted pass contains data. Native companion schedules persist while its service runs; browser-only WebUSB requires an open visible tab.</p>
+<div class="reception-controls">
+<label>Receive<select id="auto-mission-group">
+<option value="images">Earth weather images + ISS SSTV (event-dependent)</option>
+<option value="messages">ISS public APRS messages (station mode dependent)</option>
+<option value="voice">ISS FM voice / audio (station mode dependent)</option>
+<option value="all">Images + text + voice (one receiver, no overlaps)</option>
+</select></label>
+<label>Next passes<select id="auto-hours"><option value="12">12 h</option><option value="24" selected>24 h</option><option value="48">48 h</option></select></label>
+<label>Minimum elevation<select id="auto-elev"><option value="5">5°</option><option value="15">15°</option><option value="20" selected>20°</option><option value="30">30°</option></select></label>
+</div>
+<div class="location-picker reception-station">
+<h3>Ground station · Search / GPS / Manual coordinates</h3>
+<div class="location-search-row">
+<label class="location-query-label" for="city-query">Search city/town — 8,084 Germany &amp; Türkiye places available offline
+<input id="city-query" type="search" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="city-suggestions" autocomplete="off" spellcheck="false" placeholder="e.g. Hürth, Köln, İzmir, Karaburun…" maxlength="100"></label>
+<label for="city-country">Country<select id="city-country"><option value="all">All countries</option><option value="DE">Germany</option><option value="TR">Türkiye</option></select></label>
+</div>
+<div class="location-results" id="city-suggestions" role="listbox" aria-label="Location search suggestions" hidden></div>
+<div class="location-actions">
+<button id="location-gps" type="button">Use device location (GPS / Wi-Fi)</button>
+<button id="city-online-search" type="button" class="secondary">Search worldwide online</button>
+<label class="location-online-opt"><input id="city-online-toggle" type="checkbox"> Include online suggestions while typing (opt-in)</label>
+</div>
+<p id="location-status" class="location-status" role="status" aria-live="polite">Search offline, ask GPS permission, or enter coordinates. No location lookup is sent online without opt-in.</p>
+<div class="reception-controls">
+<label>Station mode<select id="auto-city-mode"><option value="Custom" selected>Manual coordinates</option><option value="city-search">Search city / town</option><option value="gps">Device GPS / Wi-Fi</option></select></label>
+<label>Latitude (°)<input type="number" id="auto-lat" step="0.00001" min="-90" max="90" value="50.938"></label>
+<label>Longitude (°)<input type="number" id="auto-lon" step="0.00001" min="-180" max="180" value="6.960"></label>
+</div>
+<p class="hint">Offline city names are bundled; worldwide search uses Open-Meteo only after your request. Station coordinates remain editable. Changing station does not silently change already armed capture jobs.</p>
+</div>
+<div class="reception-actions">
+<button type="button" id="auto-mission-arm">1 · Auto Schedule &amp; Capture</button>
+<button type="button" id="auto-mission-analyze" class="secondary">2 · Analyze Recordings</button>
+<button type="button" id="auto-mission-extract" class="secondary" disabled>3 · Extract Results</button>
+<button type="button" id="auto-mission-cancel" class="secondary" disabled>Stop analysis</button>
+<button type="button" id="auto-mission-stop" class="secondary">Cancel Auto Missions</button>
+</div>
+<p id="auto-mission-status" class="status" role="status" aria-live="polite">No pass scheduled; no recording selected or analyzed.</p>
+<div id="auto-mission-jobs" class="mission-job-list" aria-live="polite"></div>
+<section id="auto-calendar" class="sat-calendar-panel" aria-labelledby="auto-calendar-title">
+<h3 id="auto-calendar-title">Reception calendar · hour by hour</h3>
+<p class="hint">Automatically generated tasks can be edited or cancelled individually. Times are shown in your local time zone. Editing is allowed only within the satellite's predicted pass; no other receiver is commandeered.</p>
+<div class="reception-actions">
+<label for="auto-calendar-date">Date<input type="date" id="auto-calendar-date"></label>
+<button id="auto-calendar-prev" class="secondary" type="button">Previous day</button>
+<button id="auto-calendar-next" class="secondary" type="button">Next day</button>
+<button id="auto-calendar-refresh" class="secondary" type="button">Refresh scheduled jobs</button>
+</div>
+<div id="auto-calendar-grid" class="sat-calendar-grid" aria-live="polite">No scheduled jobs loaded.</div>
+</section>
+<div id="auto-mission-output" class="mission-extraction" aria-live="polite"></div>
+<p class="hint">For actual full-pass Meteor LRPT image reconstruction, the native companion needs SatDump and a free RTL-SDR. A 60-second browser CU8 sample may not contain a full Earth scan. Raw I/Q cannot be interpreted as human messages without a protocol decoder and validated packet frames.</p>
+</section>
+<section aria-labelledby="file-title">
+<h2 id="file-title">Recorded files · Open image, audio, video, text or I/Q</h2>
+<p>Preview actual local files without uploading them. An imported image is <strong>user-supplied</strong>, not verified as received from a satellite. CU8 is raw I/Q and needs its original center frequency and sample rate for correct analysis.</p>
+<div class="reception-controls">
+<label>Choose your file<input id="local-file" type="file" accept=".png,.jpg,.jpeg,.webp,.gif,.wav,.mp3,.ogg,.flac,.m4a,.mp4,.webm,.mov,.txt,.json,.csv,.tle,.log,.aprs,.cu8,.iq,.u8,.cfile"></label>
+<label>Recorded center frequency (MHz; optional)<input type="number" step="0.000001" min="0" id="recorded-mhz" placeholder="e.g. 437.55"></label>
+<label>Recorded sample rate (samples/sec; optional)<input type="number" step="1" min="1" id="recorded-rate" placeholder="e.g. 1024000"></label>
+</div>
+<div id="file-preview" class="file-preview" role="region" aria-label="Local file preview">
+<p>No local file selected. Nothing is uploaded.</p>
+</div>
+<div class="reception-actions">
+<button type="button" id="export-evidence" disabled>Download metadata JSON</button>
+<button type="button" id="clear-file" class="secondary">Clear local preview</button>
+<a href="./index.html#iq-analysis">Open existing CU8/FFT/waterfall analyzer</a>
+<a href="./index.html#satellite-images">Open existing SSTV/Image Center</a>
+</div>
+<p id="file-status" class="status" role="status" aria-live="polite">Idle · no data accessed.</p>
+</section>
+<section aria-labelledby="reception-title">
+<h2 id="reception-title">Explore known satellite signals and protocol profiles</h2>
+<div class="reception-controls">
+<label>Public mission catalog<select id="mission"></select></label>
+<label>Type of content<select id="category"><option value="all">All types</option><option value="Image">RF images</option><option value="Audio">Audio</option><option value="Video">Video (advanced hardware)</option><option value="Text / data">Text / data</option><option value="Online imagery">Online archives</option><option value="Archive">Old recordings</option></select></label>
+</div>
+<article id="mission-detail" class="mission-detail" aria-live="polite"></article>
+<div class="reception-actions">
+<a id="mission-source" href="https://www.ariss.org/upcoming-sstv-events.html" target="_blank" rel="noopener noreferrer">Verify source and transmission schedule</a>
+<a id="mission-open" href="./index.html#satellite-images">Open real decoder / capture controls</a>
+<a href="./index.html#schedule-center">Calculate pass &amp; plan capture</a>
+</div>
+<p class="hint">Selecting a satellite never claims USB, starts a scan or asserts the satellite is transmitting. The latest catalog, event announcements, frequencies, antenna and Doppler conditions must be checked before receiving. Receiver frequencies are candidates, not observed signals.</p>
+<details id="saved-protocols" class="user-protocol-manager">
+<summary>Advanced · Save additional satellite protocols / transmitter profiles</summary>
+<p class="hint">Extend the local list beyond ISS and Meteor using documented public transmitter frequencies. Imported records are <strong>USER-SUPPLIED / UNVERIFIED</strong>. They appear beside pass predictions, but do not automatically enable transmission, capture, or a protocol decoder.</p>
+<form id="user-protocol-form">
+<div class="reception-controls">
+<label>NORAD satellite ID<input id="user-protocol-norad" type="number" min="1000" max="9999999" required placeholder="e.g. 59051"></label>
+<label>Receive frequency (MHz)<input id="user-protocol-frequency" type="number" min="24" max="1750" step="0.000001" required placeholder="e.g. 137.900"></label>
+<label>Content<select id="user-protocol-kind"><option value="image">🖼 Image</option><option value="audio">🔊 Audio</option><option value="text">✉ Text / data</option><option value="video">🎥 Video</option></select></label>
+<label>Modulation / protocol<input id="user-protocol-mode" type="text" required maxlength="64" placeholder="e.g. LRPT, SSTV, AFSK1200"></label>
+<label>Source URL (HTTPS)<input id="user-protocol-source" type="url" placeholder="https://db.satnogs.org/"></label>
+</div>
+<div class="reception-actions">
+<button type="submit">Save profile locally</button>
+<button type="button" id="user-protocol-export" class="secondary">Export profile JSON</button>
+<label>Import JSON profiles<input id="user-protocol-import" type="file" accept=".json,application/json"></label>
+</div>
+</form>
+<p id="user-protocol-status" class="status" role="status">No custom protocol profile selected. No automatic decoder is installed through this form.</p>
+<div id="user-protocol-list"></div>
+<p class="hint">Reference: <a href="https://db.satnogs.org/transmitters/" target="_blank" rel="noopener noreferrer">SatNOGS public transmitter catalog</a>. Import/export transfers settings between Pages/PWA and desktop origins. A selected downlink still requires real RF capture and a compatible decoder.</p>
+</details>
+</section>
+<details class="reception-advanced"><summary>Hardware, antenna and receiver advice (optional)</summary>
+<div class="reception-grid">
+<section>
+<h2>1 · Capture a real downlink</h2>
+<p>Use the <strong>Nooelec NESDR SMArt v5</strong> RTL2832U for compatible VHF/UHF receive-only downlinks. A suitable external antenna and a visible, transmitting satellite are essential.</p>
+<div class="reception-steps">
+<p><strong>Pass:</strong> choose your GPS/city station, load TLEs, find a high-elevation pass.</p>
+<p><strong>Record:</strong> on supported Chromium desktops use user-authorized WebUSB. Firefox/Safari or unattended recordings require the optional local receiver and its installed tools.</p>
+<p><strong>Decode:</strong> Robot36 WAV/CU8 candidates can be attempted locally in the common web app; Meteor LRPT currently requires optional SatDump in the native companion. Public APRS messages require a real packet decoder.</p>
+</div>
+<div class="reception-actions">
+<a href="./index.html#satellite-images">Open SSTV decoder and Meteor target</a>
+<a href="./index.html#iq-analysis">Analyze all CU8 samples</a>
+<a href="http://127.0.0.1:8791/" target="_blank" rel="noopener noreferrer">Native SatDump / APRS / scheduler</a>
+</div>
+<p class="hint">The native link refers to <em>this computer's</em> localhost. From a phone it does not connect to a desktop receiver. The companion is optional, never silently started.</p>
+</section>
+<section>
+<h2>2 · Your TV tuner is not a satellite SDR</h2>
+<p><strong>Hauppauge WinTV-soloHD 01589:</strong> receives terrestrial/cable digital TV (DVB-T/T2/C). It is not an open I/Q receiver for ISS SSTV, Meteor LRPT or raw CubeSat telemetry.</p>
+<p>Keep it in the <strong>Live TV / DVB</strong> module. Its portable TV antenna is not a substitute for an appropriate ~137 MHz weather-satellite V-dipole/QFH. An adapter does not change tuner support.</p>
+<p><strong>For real Earth images:</strong> Meteor-M is a more relevant RF target than commemorative ISS SSTV. The discontinued NOAA-15/18/19 APT series must be treated as an archive, not an active station.</p>
+<p class="hint">Sources: <a href="https://www.hauppauge.co.uk/site/products/data_solohd.html" target="_blank" rel="noopener noreferrer">Hauppauge product specification</a> · <a href="https://www.nesdis.noaa.gov/news/suspension-of-poes-data-to-users-after-june-16-2025-and-decommissioning" target="_blank" rel="noopener noreferrer">NOAA decommissioning</a>.</p>
+</section>
+</div>
+</details>
+<section id="receive-decode" aria-labelledby="receive-decode-title">
+<h2 id="receive-decode-title">Manual decoder workspace · Real SSTV / Meteor and NASA imagery</h2>
+<p class="hint"><strong>Actual RF:</strong> the same shared Robot36 SSTV / CU8 engine used by the main Satellite Center. <strong>Weather images:</strong> Meteor LRPT currently needs optional native SatDump. <strong>Internet:</strong> NASA photos are separately labeled and never called antenna receptions.</p>
+<div class="image-sources">
+<div class="image-source-panel">
+<h3>Real ISS SSTV / Meteor capture</h3>
+<label>RF target<select id="image-target">
+<option value="iss">ISS SSTV (event only)</option>
+<option value="meteor3">Meteor-M2-3 LRPT</option>
+<option value="meteor4">Meteor-M2-4 LRPT</option>
+</select></label>
+<p id="image-reception-guide" class="hint">Confirm the actual transmitting frequency and mode.</p>
+<div class="reception-actions">
+<button type="button" id="image-tune">Go to receiver at this satellite's candidate band</button>
+<button type="button" class="secondary" id="image-reception-open">Official event / decoder reference</button>
+</div>
+<label>Real demodulated SSTV audio (WAV)
+<input id="image-sstv-file" type="file" accept=".wav,audio/wav,audio/x-wav,audio/*"></label>
+<div class="reception-actions">
+<button type="button" id="image-decode-sstv">Decode Robot36 WAV</button>
+<button type="button" class="secondary" id="image-download-sstv" disabled>Save actual decoded PNG</button>
+</div>
+<label>Or real unsigned interleaved I/Q file (.cu8)
+<input id="image-cuiq-file" type="file" accept=".cu8,.iq,.u8,application/octet-stream"></label>
+<label>Acquisition sample rate<select id="rate"><option value="1024000">1.024 MS/s</option><option value="2048000">2.048 MS/s</option></select></label>
+<div class="reception-actions">
+<button type="button" id="image-decode-cuiq">Try CU8 → FM → Robot36</button>
+<button type="button" id="image-decode-last" hidden disabled>Decode last capture (main receiver only)</button>
+</div>
+<p id="image-decode-status" class="status" role="status" aria-live="polite">No RF data decoded. Robot36 needs a full actual SSTV transmission (~36 seconds), appropriate RF quality and correct sample rate. Never infer a picture from TLE geometry.</p>
+<canvas id="image-sstv-canvas" width="320" height="240" aria-label="Only populated after validated Robot36 line synchronization"></canvas>
+<label>Import a previously decoded image (user-supplied)
+<input id="image-import" type="file" accept="image/png,image/jpeg,.png,.jpg,.jpeg"></label>
+</div>
+<div class="image-source-panel">
+<h3>Online NASA photographs — not RF</h3>
+<label>Provider<select id="image-online-source">
+<option value="epic">NASA DSCOVR EPIC · Earth disk photographs</option>
+<option value="iss">NASA historical ISS Earth photo archive</option>
+</select></label>
+<div class="reception-actions">
+<button type="button" id="image-fetch-online">Fetch images from NASA</button>
+<button type="button" class="secondary" id="image-clear-online">Clear online gallery</button>
+</div>
+<p id="image-online-status" class="status">Online image search has not run. Provider time/source will be shown.</p>
+<div id="image-gallery" class="image-gallery" aria-live="polite"></div>
+<p class="hint">Provider images may be limited by rate quotas or browser CORS; open originals in the official NASA archive if downloading fails.</p>
+</div>
+</div>
+<h3>Locally decoded / user-imported images</h3>
+<div id="image-local-gallery" class="image-gallery" aria-live="polite"></div>
+</section>
+<section>
+<h2>Official online imagery providers</h2>
+<p>Use the existing NASA on-demand image gallery, including DSCOVR EPIC Earth photos and historical ISS photography. Also access official EUMETSAT weather imagery and NASA Worldview. These have their own provider timestamps.</p>
+<div class="reception-actions">
+<a href="./index.html#satellite-images">Open NASA Image Gallery</a>
+<a href="https://view.eumetsat.int/" target="_blank" rel="noopener noreferrer">EUMETSAT viewer</a>
+<a href="https://worldview.earthdata.nasa.gov/" target="_blank" rel="noopener noreferrer">NASA Worldview</a>
+</div>
+</section>
+<footer>Same bundled page on GitHub Pages, installed PWA, Linux, Raspberry Pi OS, Windows and macOS native companion. This tab never opens USB, uploads RF samples or fabricates satellite pictures; use the existing verified capture/decoder controls when available.</footer>
+</main>
+<script type="module" src="./reception.mjs?v=20261106-calendar-protocol-v2"></script>
+</body></html>
