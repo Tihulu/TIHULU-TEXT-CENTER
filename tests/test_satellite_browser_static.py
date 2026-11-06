@@ -52,6 +52,10 @@ class SatelliteBrowserStaticTests(unittest.TestCase):
         for ctl in ('auto-plan', 'auto-analyze', 'auto-results', 'auto-mode'):
             self.assertIn('id="' + ctl + '"', html)
         self.assertIn('auto_reception_ui.mjs', script)
+        self.assertIn('id="auto-mission-stop"', reception)
+        self.assertIn('id="auto-stop"', html)
+        self.assertIn('route == "/api/auto-cancel"', (ROOT.parent / "__main__.py").read_text(encoding="utf-8"))
+
         receiver=(ROOT / "browser.js").read_text(encoding="utf-8")
         self.assertIn('selectAutomaticPasses(', receiver)
         self.assertIn('runAutoMission(', receiver)
