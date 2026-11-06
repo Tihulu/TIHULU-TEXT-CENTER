@@ -2786,6 +2786,84 @@ async function showLiveRadioPage(){
     parent.append(more);
   }
 }
+async function addTVTeletextReader(){
+  // Independent read-only use of the existing Teletext archive and Internet
+  // directory. Does not change the TV application's Teletext controls/driver.
+  const panel=el("article","item-card tv-teletext-reader");
+  panel.id="tv-teletext-reader";
+  panel.append(el("div","item-meta","TV CHANNEL TEXT / BROADCAST ARCHIVE VS INTERNET"));
+  panel.append(el("h3","","TV Teletext pages & broadcaster websites"));
+  panel.append(el("p","full-body",
+    "Browse actual imported DVB Teletext pages in the local archive, or open "+
+    "a broadcaster's separately labeled Internet Teletext website. "+
+    "The existing live TV Teletext viewer is unchanged. "+
+    "Archived pages do not automatically become synchronized subtitles."));
+  const controls=el("div","card-actions");
+  controls.append(button("OPEN ALL TEXT & ALERTS",()=>openPage(500,"",0),"action primary"));
+  controls.append(button("LEGACY NUMBERED PAGE VIEWER",()=>openPage(100,"",0),"action ghost"));
+  panel.append(controls);
+  const search=el("input","tv-teletext-search");
+  search.type="search";search.placeholder="Search broadcaster, page number or title…";
+  search.setAttribute("aria-label","Search real imported DVB Teletext pages");
+  panel.append(search);
+  const list=el("div","tv-teletext-pages");
+  panel.append(list);
+  const internet=el("details","advanced-section");
+  internet.append(el("summary","","Broadcaster Teletext websites · Internet only"));
+  const sites=el("div","tv-teletext-websites");
+  internet.append(sites);
+  panel.append(internet);
+  $("content").append(panel);
+  let pages=[];
+  try{
+    const decoded=await api("/api/pages");
+    pages=Array.isArray(decoded)?decoded.filter(item=>item.medium==="dvb_teletext"):[];
+  }catch(error){
+    list.append(el("p","full-body","Teletext archive unavailable: "+error.message));
+  }
+  const redraw=()=>{
+    list.replaceChildren();
+    const term=search.value.trim().toLocaleLowerCase();
+    const filtered=pages.filter(item=>
+      [item.station,item.title,String(item.page),String(item.subpage),item.source_id]
+        .join(" ").toLocaleLowerCase().includes(term)
+    );
+    if(!filtered.length)list.append(el("p","full-body",
+      pages.length?"No real archived Teletext pages match the search.":
+        "No DVB Teletext pages were imported. A DVB service scan or TV stream "+
+        "does not by itself decode Teletext pages."));
+    for(const item of filtered.slice(0,250)){
+      const number=Number(item.page),sub=Number(item.subpage||0);
+      const entry=el("article","channel-row");
+      const title=el("div","channel-main");
+      title.append(el("strong","",item.station+" · P"+String(number).padStart(3,"0")+
+        "/"+String(sub).padStart(2,"0")));
+      title.append(el("small","",String(item.title||"Received Teletext page")+
+        " · "+timeLabel(item.received_at)+" · ANTENNA ARCHIVE"));
+      const actions=el("div","channel-actions");
+      actions.append(button("READ PAGE",()=>openPage(number,item.source_id,sub),"action ghost"));
+      entry.append(title,actions);list.append(entry);
+    }
+  };
+  search.addEventListener("input",redraw);
+  redraw();
+  try{
+    const directory=await api("/api/directory");
+    const links=Array.isArray(directory)?directory.filter(x=>
+      /teletext|teleg[uü]n|ard text/i.test((x.category||"")+" "+(x.name||""))):[];
+    if(!links.length){
+      sites.append(el("p","full-body","No broadcaster Teletext websites in the current directory."));
+    }
+    for(const item of links){
+      const link=el("a","action ghost",item.name+" · INTERNET");
+      link.href=item.url;link.target="_blank";link.rel="noopener noreferrer";
+      link.title=item.note||"External Internet website, not local RF reception";
+      sites.append(link);
+    }
+  }catch(error){
+    sites.append(el("p","full-body","Website directory unavailable: "+error.message));
+  }
+}
 async function showLiveTVPage(){
   section("TV CENTER","Scan channels · Choose · Watch · Record",
     "DVB-T/T2 scan is hardware-dependent · MPEG-TS relay needed for playback");
@@ -2794,6 +2872,8 @@ async function showLiveTVPage(){
   try{await addDvbFullScan()}
   catch(e){empty("TV full scan unavailable",e.message)}
   try{await addLiveTV()}catch(e){empty("Live TV player unavailable",e.message)}
+  try{await addTVTeletextReader()}
+  catch(e){empty("TV Teletext archive unavailable",e.message)}
   const parent=$("content"),known=new Set(parent.children);
   try{await addDvbDevicePanel()}catch(e){empty("DVB diagnostics unavailable",e.message)}
   const extra=[...parent.children].filter(node=>!known.has(node));
