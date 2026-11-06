@@ -7,6 +7,7 @@ without loading the entire RF pass or installing Pillow/Numpy.
 """
 from __future__ import annotations
 
+from .compute_backends import resolve_compute_backend, vectorized_frequency_trace
 from array import array
 from bisect import bisect_left
 from pathlib import Path
@@ -134,8 +135,9 @@ def _png(width: int, height: int, rgb: bytes) -> bytes:
             + chunk(b"IEND", b""))
 
 
-def _decode_window(raw: bytes, sample_rate: int):
-    trace = _trace(raw, sample_rate)
+def _decode_window(raw: bytes, sample_rate: int, trace_backend: str = "python-cpu"):
+    trace = (_trace(raw, sample_rate) if trace_backend == "python-cpu" else
+             vectorized_frequency_trace(raw, sample_rate, gpu=trace_backend == "cupy-cuda"))
     syncs = _syncs(trace)
     alignment = _line_alignment(syncs)
     if alignment is None:
@@ -173,7 +175,8 @@ def _decode_window(raw: bytes, sample_rate: int):
             "png": _png(WIDTH, HEIGHT, pixels)}
 
 
-def extract_robot36_wav(path: str | Path, *, max_images: int = MAX_IMAGES) -> dict:
+def extract_robot36_wav(path: str | Path, *, max_images: int = MAX_IMAGES,
+                        compute_mode: str = "auto", compute_targets=None) -> dict:
     """Attempt automatic PNG candidates from a genuine 48 kHz mono PCM WAV.
 
     Never treats signal strength, a known ISS pass, or a WAV filename as
@@ -207,12 +210,14 @@ def extract_robot36_wav(path: str | Path, *, max_images: int = MAX_IMAGES) -> di
         if not 32 <= duration <= 910:
             raise ValueError("Recorded SSTV WAV must be 32-910 seconds")
         result["recorded_seconds"] = round(duration, 3)
+        compute = resolve_compute_backend(compute_mode, compute_targets, seconds=duration)
+        result["compute"] = compute
         for offset in range(0, max(1, int(duration)-31), STEP_SECONDS):
             wav.setpos(offset*rate)
             raw = wav.readframes(min(WINDOW_SECONDS*rate, frames-offset*rate))
             if len(raw) < 32*rate*2:
                 continue
-            candidate = _decode_window(raw, rate)
+            candidate = _decode_window(raw, rate, compute["trace_backend"])
             if candidate is None:
                 continue
             candidate["recording_offset_seconds"] = round(offset+candidate["start"], 3)
