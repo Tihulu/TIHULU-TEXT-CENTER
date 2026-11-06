@@ -669,7 +669,7 @@ async function addFMSurveyControl(){
   }
 }
 async function showRadioData(){
-  section("RECEIVER / INPUT","Radio & TV text archive","Receive-only imports");
+  section("RF / BROADCAST SOURCES","Antenna scanning & actual decoder imports","User-approved tuning only");
   try { $("content").append(receiverCard(await refreshReceiverStatus())); }
   catch(error){empty("Receiver detection unavailable","The local USB inventory could not be read: "+error.message)}
   try {await addAutoDiscovery()}
@@ -678,6 +678,15 @@ async function showRadioData(){
   catch(error){empty("FM spectrum survey unavailable","Could not inspect rtl_power: "+error.message)}
   try {await addRdsControl()}
   catch(error){empty("FM capture control unavailable","Unable to load RDS status: "+error.message)}
+  const info=el("article","notice-card");
+  append(info,el("h3","","RF survey is not a full broadcast decoder"),
+    el("p","","Band scans for DAB/DRM/RTTY/NAVTEX/APRS/WeatherFAX find RF energy, "+
+      "but no messages or stations until their specific decoders are connected. "+
+      "A DVB frontend also needs a real transport-stream and Teletext PID adapter. "+
+      "Internet directories are separate; they cannot be received from the antenna."));
+  const more=el("div","card-actions");
+  more.append(button("VIEW ALL PROTOCOLS & SCAN OPTIONS",()=>openPage(860,"",0)));
+  info.append(more);$("content").append(info);
   const events=await api("/api/events");
   events.forEach((e)=>{
     const n=card(e.title,e.body,e.medium.toUpperCase()+" · "+e.station+" · "+timeLabel(e.received_at));
@@ -744,36 +753,95 @@ async function showLibrary(){
   if(pages.length){const n=el("article","notice-card");append(n,el("h3","","Imported broadcast archive"),el("p","",pages.length+" numbered page records are stored locally. Open page 400 to browse received pages."));$("content").append(n)}
 }
 async function showDirectory(){
-  section("TEXT NETWORKS","Explore the small web","External sites require internet");
+  section("INTERNET-ONLY SOURCES","The small web","Not received from an antenna");
+  const explainer=el("article","notice-card");
+  append(explainer,
+    el("h3","","These are Internet links, not broadcast channels"),
+    el("p","","ARD Text on the web, TRT Telegün's website, Gemini, Gopher and online BBS "+
+      "need a network connection. Antennas cannot download these sites. "+
+      "When Internet is unavailable, previously downloaded RSS/Atom/JSON Feed items "+
+      "and locally stored RF pages remain readable; web links without cache do not."));
+  const actions=el("div","card-actions");
+  actions.append(button("ANTENNA CHANNEL SCANNING",()=>openPage(400,"",0),"action primary"));
+  actions.append(button("READ OFFLINE ARCHIVE",()=>openPage(700,"",0)));
+  actions.append(button("CACHED NEWS / FEEDS",()=>openPage(200,"",0)));
+  explainer.append(actions);
+  $("content").append(explainer);
   const entries=await api("/api/directory");
-  entries.forEach((d)=>{
-    const n=card(d.name,d.note,d.category.toUpperCase());
-    const link=el("a","","OPEN EXTERNAL SITE ↗");link.href=d.url;link.target="_blank";link.rel="noopener noreferrer";
-    const actions=el("div","card-actions");actions.append(link);n.append(actions);$("content").append(n);
+  entries.forEach(d=>{
+    const n=card(d.name,d.note,d.category.toUpperCase()+" · INTERNET REQUIRED");
+    const link=el("a","","OPEN INTERNET SITE ↗");
+    link.href=d.url;link.target="_blank";link.rel="noopener noreferrer";
+    const wrapper=el("div","card-actions");wrapper.append(link);n.append(wrapper);
+    $("content").append(n);
   });
 }
+async function openScanBand(band){
+  state.selectedSurveyBand=band;
+  await openPage(400,"",0);
+  const elScan=$("fm-survey-control");
+  if(elScan)elScan.scrollIntoView({behavior:"smooth",block:"start"});
+}
 async function showCapabilities(){
-  section("PROTOCOL COVERAGE","Full text & data service catalog","Verified / import / planned");
-  const catalog=await api("/api/capabilities");
-  const groups=[...new Set(catalog.map(x=>x.group))];
+  section("PROTOCOLS & SCANS","31 service types and scan readiness",
+          "RF bands · broadcast decoders · Internet · local content");
+  const response=await api("/api/scans");
+  const features=response.features;
   const intro=el("article","notice-card");
-  append(intro,el("h3","","Capabilities are not active reception"),
-        el("p","","Installed decoders, a USB ID and a local archive do not prove a live broadcast. "+
-          "All planned modules remain visible; no feature silently disappears, and official alerts require trusted verification."));
+  append(intro,
+    el("h3","","Every requested service is tracked — but not all can be scanned by an antenna"),
+    el("p","","RF spectrum scans only identify possible energy peaks. "+
+      "DAB Journaline, MOT, EPG, DVB Teletext, NAVTEX, DRM and APRS text need "+
+      "their own verified decoders. Internet-only sources need a network or a prior cache. "+
+      "Current receiver ownership and missing software can block a scan."));
+  const shortcuts=el("div","card-actions");
+  shortcuts.append(button("GO TO RF SCANNER",()=>openPage(400,"",0),"action primary"));
+  shortcuts.append(button("VIEW INTERNET LINKS",()=>openPage(800,"",0)));
+  intro.append(shortcuts);
   $("content").append(intro);
+  const groups=[...new Set(features.map(x=>x.group))];
   groups.forEach(group=>{
     const title=el("h3","protocol-group",group);$("content").append(title);
-    catalog.filter(x=>x.group===group).forEach(feature=>{
-      const display=feature.state.replaceAll("_"," ").toUpperCase();
-      const item=card(feature.title,feature.purpose,display);
-      item.append(el("p","full-body","Requires: "+feature.requirements));
-      const status=feature.dependency_status||null;
-      if(status) item.append(el("p","full-body",Object.entries(status).map(([k,v])=>
-        k.replaceAll("_"," ")+": "+(v?"yes":"no")).join(" · ")));
+    features.filter(x=>x.group===group).forEach(f=>{
+      const source=f.medium.replaceAll("_"," ").toUpperCase();
+      const stateText=f.implementation.replaceAll("_"," ").toUpperCase();
+      const item=card(f.title,f.requirements,source+" · "+stateText);
+      const description=el("p","full-body",f.reason);
+      item.append(description);
+      const actionRow=el("div","card-actions");
+      if(f.scan_type==="rf_spectrum"){
+        actionRow.append(button(
+          f.can_survey_now?"SCAN RF ENERGY BAND":"CHECK / SELECT RF BAND",
+          ()=>openScanBand(f.band)));
+        item.append(el("p","full-body","Band: "+f.band_label+
+          " · Spectrum survey: "+(f.can_survey_now?"available if device is still free":"blocked by current dependencies")+
+          " · Protocol decoder: not connected by this survey"));
+      }else if(f.scan_type==="dvb_service_adapter_pending"){
+        actionRow.append(button("VIEW DVB HARDWARE",()=>openPage(400,"",0)));
+        item.append(el("p","full-body",
+          "No DVB service scan is started until the TV/Radio Center resource lease, "+
+          "channel database and actual Teletext PID decoder are integrated."));
+      }else if(f.medium==="internet_only"){
+        actionRow.append(button(f.can_decode_now?"OPEN CACHED FEEDS":"VIEW INTERNET SOURCES",
+          ()=>openPage(f.can_decode_now?200:800,"",0)));
+      }else if(f.medium==="local_archive"){
+        actionRow.append(button("OPEN LOCAL ARCHIVE",
+          ()=>openPage(f.id==="local_board"?600:700,"",0)));
+      }else{
+        actionRow.append(button("CHECK DEPENDENCIES",async()=>{
+          try{
+            const fresh=await api("/api/scans");
+            const latest=fresh.features.find(x=>x.id===f.id);
+            if(latest)description.textContent=latest.reason;
+            notice("Dependencies rechecked; unsupported functions remain disabled.");
+          }catch(error){notice(error.message)}
+        }));
+      }
+      item.append(actionRow);
       $("content").append(item);
     });
   });
-  $("section-count").textContent=catalog.length+" features tracked";
+  $("section-count").textContent=features.length+" protocols mapped to appropriate scanning or caching";
 }
 function showAbout(){
   section("SYSTEM","How this terminal works","Build 0.3");
