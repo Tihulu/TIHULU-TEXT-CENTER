@@ -1,4 +1,4 @@
-import {normalizeIqSampleBlock, platformFamily, explainUsbError, readOnlyUsbReport} from "./usb_tools.mjs";
+import {normalizeIqSampleBlock, platformFamily, explainUsbError, readOnlyUsbReport, probeUsbInterface} from "./usb_tools.mjs";
 /*
  * Device-owned browser RTL-SDR loop. No Python, readsb or companion server.
  * WebUSB permission is requested only from the explicit button click.
@@ -10,6 +10,7 @@ import {normalizeIqSampleBlock, platformFamily, explainUsbError, readOnlyUsbRepo
 const LIBRARY="./vendor/rtlsdr.mjs";
 let Driver=null, device=null, chosenDevice=null, worker=null;
 let stopRequested=false,readLoop=null,ackResolve=null,bytes=0,alreadyReported=false;
+let claimProbeRunning=false;
 const $=id=>document.getElementById(id);
 const platform=platformFamily(navigator.userAgent||"");
 let reportText="No USB diagnostic recorded.";
@@ -23,6 +24,30 @@ function showDiagnostic(text){
 $("usbCheck")?.addEventListener("click",async()=>{
  const status=await readOnlyUsbReport(navigator.usb,platform);
  showDiagnostic(status);
+});
+$("usbClaimTest")?.addEventListener("click",async()=>{
+ if(device || chosenDevice || readLoop){
+  tell("Stop this tab's SDR capture before running the separate USB interface-claim test.",true);
+  return;
+ }
+ claimProbeRunning=true;
+ $("usbClaimTest").disabled=true;
+ $("usbStart").disabled=true;
+ try{
+  const result=await probeUsbInterface(navigator.usb);
+  const line=result.ok
+   ? result.summary
+   : "USB test failed at "+result.stage+": "+result.errorName+": "+result.errorMessage;
+  const extra=result.cleanupErrors?.length
+   ? "\nRelease warning: "+result.cleanupErrors.join("; "):"";
+  showDiagnostic(line+extra+(result.ok?"":"\n\n"+
+    explainUsbError({name:result.errorName,message:result.errorMessage},platform)));
+  tell(line,!result.ok);
+ }finally{
+  claimProbeRunning=false;
+  $("usbClaimTest").disabled=false;
+  $("usbStart").disabled=!Driver || !!device || !!readLoop;
+ }
 });
 $("usbCopy")?.addEventListener("click",async()=>{
  try{
@@ -87,6 +112,7 @@ async function cleanup(){
  if(worker){worker.terminate();worker=null;}
  $("usbStop").disabled=true;
  $("usbStart").disabled=!Driver;
+ if($("usbClaimTest"))$("usbClaimTest").disabled=false;
 }
 async function read(){
  let terminalError=null;
@@ -121,13 +147,14 @@ async function read(){
  }
 }
 async function start(){
- if(!Driver || device || readLoop || !isUsable())return;
+ if(!Driver || device || readLoop || !isUsable() || claimProbeRunning)return;
  if(window.tihuluUsbCanStart && !window.tihuluUsbCanStart()){
   tell("Disconnect the paired readsb bridge before choosing direct WebUSB. One SDR cannot be owned by two receivers.",true);
   return;
  }
  stopRequested=false;alreadyReported=false;
  $("usbStart").disabled=true;$("usbStop").disabled=false;
+ if($('usbClaimTest'))$('usbClaimTest').disabled=true;
  try{
   // Keep navigator.usb.requestDevice within the click's user activation.
   const provider=new Driver({webusb:{
