@@ -59,6 +59,9 @@ class SatelliteBrowserStaticTests(unittest.TestCase):
         for ctl in ('auto-mission-arm', 'auto-mission-analyze',
                     'auto-mission-extract', 'location-gps', 'city-query', 'auto-lat', 'auto-lon', 'auto-elev'):
             self.assertIn('id="' + ctl + '"', reception)
+        self.assertIn('id="auto-coverage-goal"', reception)
+        self.assertIn('id="auto-budget-status"', reception)
+        self.assertIn('id="auto-coverage"', html)
         for ctl in ('auto-plan', 'auto-analyze', 'auto-results', 'auto-mode'):
             self.assertIn('id="' + ctl + '"', html)
         self.assertIn('auto_reception_ui.mjs', script)

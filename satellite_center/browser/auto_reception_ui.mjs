@@ -3,7 +3,7 @@
  * Decoding is local to this browser, except for explicitly authorized
  * companion SatDump/APRS archived products on localhost.
  */
-import {AUTO_PRESETS} from "./auto_mission.mjs";
+import {AUTO_PRESETS} from "./auto_mission.mjs?v=20261106-full-pass-budget-v1";
 import {discoverCu8Contents,discoveryReportJson} from "./signal_discovery.mjs";
 import {parseRecordingName} from "./satellite_imagery.mjs";
 import {decodeRobot36Audio} from "./sstv_robot36.mjs";

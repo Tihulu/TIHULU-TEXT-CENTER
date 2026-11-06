@@ -19,6 +19,17 @@ On **Satellite Images & Data** (`browser/reception.html`) the user has three pri
    browser. Browser-only automation lasts while its tab remains open,
    foreground and awake. Each capture is max 60 s / 128 MiB; entire Meteor
    image downlinks frequently need the longer native workflow.
+   **Coverage goals:** choose full-pass (default) or an explicit quick RF sample.
+   Native auto-planning can now record up to 900 s / 2 GB of streamed CU8
+   per geometric pass when disk space permits (1.024 MS/s ≈ 2.048 MB/s).
+   Meteor LRPT uses IQ for later SatDump analysis; native ISS SSTV/voice
+   selects compact real FM WAV (~96 KB/s), and APRS uses decoder text.
+   Every armed job reports planned seconds, estimated bytes, data category
+   and whether the predicted visible pass is fully covered or only sampled.
+   If full image reception cannot fit the receiver/disk/window, All mode
+   prefers another feasible operator-selected text/audio downlink on that
+   same spacecraft. A full visible-window capture does not mean all data
+   aboard a spacecraft has been obtained.
 
 2. **Analyze Recordings:** native mode scans recent actual on-disk archive files
    and attempts compatible SatDump Meteor LRPT output, CRC-unverified raw
