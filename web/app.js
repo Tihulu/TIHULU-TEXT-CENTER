@@ -1378,6 +1378,7 @@ async function addDabMotSlideshowPanel(){
       const response=await api("/api/dab/refresh","POST",{include_images:true});
       await loadSaved();
       await refreshCounts();
+      await addRadioImageGallery();
       summary.textContent=response.saved_mot_images+" genuine MOT image(s) saved in "+
         response.channel+" · "+(response.mot_images_missing??0)+" no image transmitted"+
         " · "+(response.mot_images_failed??0)+" read/format failure(s). "+
@@ -1397,6 +1398,7 @@ async function addDabMotSlideshowPanel(){
   });
   row.append(sync,prev,next,start);
   panel.append(row,summary,display);
+  panel.refreshSavedMOT=loadSaved;
   $("content").append(panel);
   await loadSaved();
 }
@@ -1463,7 +1465,13 @@ async function addWelleDabBridge(){
       });
       showDabServices(result);
       await refreshCounts();
-      notice("Read actual welle-cli metadata; no tuner retuned. Refresh page 400 to view archived images.");
+      const slideshow=$("dab-mot-slideshow");
+      if(slideshow?.refreshSavedMOT)await slideshow.refreshSavedMOT();
+      await addRadioImageGallery();
+      notice("Read current welle-cli metadata without retuning: "+
+        result.saved_mot_images+" real DAB MOT image(s) saved; "+
+        (result.mot_images_missing??0)+" absent; "+
+        (result.mot_images_failed??0)+" decoder/save errors.");
     }catch(e){notice("DAB receiver unavailable: "+e.message)}
     finally{refresh.disabled=false}
   },"action primary");
