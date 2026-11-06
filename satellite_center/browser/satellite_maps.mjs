@@ -68,6 +68,7 @@ export function createSatelliteMaps({getTles,getSatLib,getPasses,getLastCapture,
  }
  let current=[],satrecMap=new Map(),selectedId=null,skyHit=[],run=0,lastUpdate=0;
  let mapStarted=false,view="sky",loading=null;
+ let lastVisibleMarkerCount=0,initialCatalogFitDone=false;
  const status=text=>$("map-state").textContent=String(text);
  const observer=()=>{
   const lat=Number($("lat").value),lon=Number($("lon").value);
@@ -102,7 +103,56 @@ export function createSatelliteMaps({getTles,getSatLib,getPasses,getLastCapture,
   }
  }
  function choose(id){
-  selectedId=id;drawList();drawDetail();if(view==="sky")drawSky();else drawEarth();
+  selectedId=id;drawList();drawDetail();
+  if(view==="sky")drawSky();
+  else{
+    drawEarth();
+    focusSelectedEarth();
+  }
+ }
+ // Leaflet's station-centred viewport can contain zero satellite subpoints
+ // even while the TLE catalog contains valid globally distributed satellites.
+ // Only camera controls (not orbital geometry) change what can be seen.
+ function focusSelectedEarth(){
+   if(!earthMap)return false;
+   const sat=selected();
+   if(!sat||!filtered().some(row=>String(row.id)===String(sat.id))){
+     $("map-overlay-count").textContent=
+       "Selected satellite is excluded by current filters. Clear family/above-horizon/band filters, then focus again.";
+     return false;
+   }
+   earthMap.setView([sat.lat,sat.lon],Math.max(4,Math.min(6,earthMap.getZoom())),{animate:false});
+   updateEarthViewportCount();
+   return true;
+ }
+ function fitTrackedEarth(){
+   if(!earthMap)return false;
+   const rows=filtered();
+   if(!rows.length){
+     $("map-overlay-count").textContent="No satellites match filters. Disable 'Only above local horizon' to see global tracks.";
+     return false;
+   }
+   const positions=rows.filter(row=>mapValidCoordinates(row.lat,row.lon))
+     .map(row=>[Math.max(-85,Math.min(85,row.lat)),row.lon]);
+   if(!positions.length)return false;
+   const bounds=leaflet.latLngBounds(positions);
+   // At most zoom 5 for one item, and zoom 0–2 for worldwide catalogs.
+   earthMap.fitBounds(bounds.pad(0.12),{padding:[20,20],maxZoom:5,animate:false});
+   initialCatalogFitDone=true;
+   updateEarthViewportCount();
+   return true;
+ }
+ function updateEarthViewportCount(){
+   if(!earthMap)return;
+   const rows=filtered();
+   const bounds=earthMap.getBounds();
+   lastVisibleMarkerCount=rows.filter(row=>bounds.contains([row.lat,row.lon])).length;
+   const chosen=selected();
+   const selectedVisible=chosen&&bounds.contains([chosen.lat,chosen.lon]);
+   $("map-overlay-count").textContent=
+     lastVisibleMarkerCount+" / "+rows.length+" satellite ground markers in this map viewport. "+
+     (chosen?"Selected "+chosen.name+": "+(selectedVisible?"in view.":"outside view — press Focus selected satellite. "):"")+
+     "Orbit paths ±45 min and coverage are TLE geometry, not radio detections.";
  }
  function drawList(){
   list.replaceChildren();
@@ -260,9 +310,45 @@ export function createSatelliteMaps({getTles,getSatLib,getPasses,getLastCapture,
        if(containsPath){ctx.fill("evenodd");ctx.stroke();polygons++;}
      }
    }
+   // Draw the same predicted tracks and coverage as the interactive street
+   // map, with a global projection. Geographic edges never connect across
+   // the international date line.
+   const obs=observer(),displayed=filtered().slice(0,40);
+   const active=selected();
+   let canvasTracks=0,canvasCoverage=0;
+   for(const sat of displayed){
+     const chosen=active&&String(active.id)===String(sat.id);
+     const coverMode=$("map-coverage-scope").value;
+     if(coverMode==="all"||(coverMode==="selected"&&chosen)){
+       const bounds=coverageBounds(sat);
+       ctx.strokeStyle=labelFor(sat.family);
+       ctx.lineWidth=chosen?2.3:1.1;
+       ctx.globalAlpha=chosen?0.85:0.38;
+       for(const segment of mapSplitDateline(bounds)){
+         ctx.beginPath();segment.forEach(([lat,lon],i)=>{
+           const [x,y]=geoCanvasXY(lon,lat,W,H);
+           if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);
+         });ctx.stroke();canvasCoverage++;
+       }
+       ctx.globalAlpha=1;
+     }
+     const trackMode=$("map-track-scope").value;
+     if(trackMode==="all"||(trackMode==="selected"&&chosen)){
+       ctx.strokeStyle=labelFor(sat.family);
+       ctx.lineWidth=chosen?2.5:1.25;
+       ctx.globalAlpha=chosen?0.96:0.6;
+       for(const segment of mapSplitDateline(trackCoordinates(sat,mapDate().getTime(),obs.station))){
+         ctx.beginPath();segment.forEach(([lat,lon],i)=>{
+           const [x,y]=geoCanvasXY(lon,lat,W,H);
+           if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);
+         });ctx.stroke();canvasTracks++;
+       }
+       ctx.globalAlpha=1;
+     }
+   }
    // Ground station and orbit positions use the same locally calculated
    // coordinates as the pass calendar (never fabricated receptions).
-   const o=observer(),[gx,gy]=geoCanvasXY(o.lon,o.lat,W,H);
+   const o=obs,[gx,gy]=geoCanvasXY(o.lon,o.lat,W,H);
    ctx.beginPath();ctx.arc(gx,gy,8,0,2*Math.PI);ctx.fillStyle="#00d5ff";ctx.fill();
    ctx.lineWidth=2;ctx.strokeStyle="#fff";ctx.stroke();
    ctx.textAlign="left";ctx.font="13px system-ui";ctx.fillStyle="#d8f1fc";
@@ -282,7 +368,8 @@ export function createSatelliteMaps({getTles,getSatLib,getPasses,getLastCapture,
    }
    readout.textContent="Map drawn locally: "+geo.features.length+
      " Natural Earth land features ("+polygons+" polygons), "+
-     overviewHits.length+" predicted satellite points. "+
+     overviewHits.length+" predicted satellite points, "+canvasTracks+
+     " trajectory segments and "+canvasCoverage+" coverage outlines. "+
      "Click a satellite dot to select it. No OSM raster or USB permission needed.";
  }
  $("earth-world-canvas").addEventListener("click",event=>{
@@ -293,38 +380,85 @@ export function createSatelliteMaps({getTles,getSatLib,getPasses,getLastCapture,
      .sort((a,b)=>a.dist-b.dist)[0];
    if(nearest&&nearest.dist<20)choose(nearest.id);
  });
+ function trackCoordinates(s,when,station){
+   const coords=[];
+   for(let m=-45;m<=45;m+=3){
+     const pos=propagate(s.lib,s.rec,new Date(when+m*60000),station);
+     if(pos)coords.push([pos.lat,pos.lon]);
+   }
+   return coords;
+ }
+ function coverageBounds(s){
+   const radius=mapFootprintKm(s.altKm,Number($("elev").value))/6371;
+   if(!Number.isFinite(radius)||radius<=0)return [];
+   const lat=s.lat*RAD,lon=s.lon*RAD,points=[];
+   for(let a=0;a<=360;a+=8){
+     const bearing=a*RAD;
+     const newLat=Math.asin(Math.sin(lat)*Math.cos(radius)+
+       Math.cos(lat)*Math.sin(radius)*Math.cos(bearing));
+     const newLon=lon+Math.atan2(Math.sin(bearing)*Math.sin(radius)*Math.cos(lat),
+       Math.cos(radius)-Math.sin(lat)*Math.sin(newLat));
+     const wrapped=((newLon*DEG+540)%360)-180;
+     points.push([newLat*DEG,wrapped]);
+   }
+   return points;
+ }
+ function layerCounts(){
+   const tracked=filtered();
+   return {displayed:tracked.length,total:current.length,
+     visible:tracked.filter(s=>s.el>=0).length};
+ }
  function drawEarth(){
-  void drawWorldCanvas();
-  if(!earthMap)return;
-  markers.clearLayers();tracks.clearLayers();
-  const selectedSat=selected(),now=mapDate(),o=observer();
-  stationPin.setLatLng([o.lat,o.lon]);
-  for(const s of filtered().slice(0,28)){
-   const active=selectedSat&&String(s.id)===String(selectedSat.id);
-   const pin=leaflet.circleMarker([s.lat,s.lon],{radius:active?10:7,
-      color:active?"#fff":labelFor(s.family),weight:active?3:2,
-      fillColor:labelFor(s.family),fillOpacity:0.84});
-   const tooltip=document.createElement("span");
-   tooltip.textContent=s.name+" · "+elFormat(s.el)+" el · TLE estimate";
-   pin.bindTooltip(tooltip);
-   pin.addTo(markers);pin.on("click",()=>choose(s.id));
-   if(active&&$("map-tracks").checked){
-    const pts=[];
-    for(let m=-45;m<=45;m+=3){
-     const p=propagate(s.lib,s.rec,new Date(now.getTime()+m*60000),o.station);
-     if(p)pts.push([p.lat,p.lon]);
-    }
-    mapSplitDateline(pts).forEach(segment=>{
-     leaflet.polyline(segment,{color:labelFor(s.family),weight:3,opacity:0.84,
-      dashArray:"5 5"}).addTo(tracks);
-    });
+   void drawWorldCanvas();
+   if(!earthMap)return;
+   markers.clearLayers();tracks.clearLayers();
+   const now=mapDate().getTime(),o=observer();
+   const rows=filtered().slice(0,40);
+   stationPin.setLatLng([o.lat,o.lon]);
+   const target=selected();
+   const scope=$("map-track-scope").value,coverage=$("map-coverage-scope").value;
+   let trackCount=0,coverageCount=0;
+   for(const s of rows){
+     const active=target&&String(target.id)===String(s.id);
+     const showTrack=scope==="all"||(scope==="selected"&&active);
+     const showCoverage=coverage==="all"||(coverage==="selected"&&active);
+     if(showCoverage){
+       const bounds=coverageBounds(s);
+       for(const segment of mapSplitDateline(bounds)){
+         // Geographic footprint of a circular horizon region; do not join
+         // across the antimeridian into a giant false polygon.
+         leaflet.polygon(segment,{pane:"sat-coverage",color:labelFor(s.family),weight:1.5,
+           opacity:active?0.85:0.45,fillColor:labelFor(s.family),
+           fillOpacity:active?0.13:0.035,interactive:false}).addTo(tracks);
+         coverageCount++;
+       }
+     }
+     if(showTrack){
+       for(const segment of mapSplitDateline(trackCoordinates(s,now,o.station))){
+         leaflet.polyline(segment,{pane:"sat-tracks",color:labelFor(s.family),weight:active?3.4:1.9,
+           opacity:active?0.96:0.60,dashArray:active?null:"5 5",
+           interactive:false}).addTo(tracks);
+         trackCount++;
+       }
+     }
    }
-   if(active&&$("map-footprint").checked){
-    leaflet.circle([s.lat,s.lon],{radius:mapFootprintKm(s.altKm,Number($("elev").value))*1000,
-     color:labelFor(s.family),weight:1,opacity:.6,dashArray:"4 6",
-     fillColor:labelFor(s.family),fillOpacity:0.05}).addTo(tracks);
+   // Draw markers last, on top of every trajectory and coverage circle.
+   for(const s of rows){
+     const active=target&&String(target.id)===String(s.id);
+     const marker=leaflet.circleMarker([s.lat,s.lon],{pane:"sat-markers",radius:active?10:6,
+       color:active?"#fff":labelFor(s.family),weight:active?3:1.5,
+       fillColor:labelFor(s.family),fillOpacity:0.95});
+     const tooltip=document.createElement("span");
+     tooltip.textContent=s.name+" · "+elFormat(s.el)+" el · orbital position only";
+     marker.bindTooltip(tooltip);
+     marker.on("click",()=>choose(s.id));
+     marker.addTo(markers);
    }
-  }
+   updateEarthViewportCount();
+   const counts=layerCounts();
+   const shortMessage=" | "+trackCount+" track segments, "+coverageCount+
+     " coverage segments, "+counts.visible+" of "+counts.displayed+" plotted satellites above local horizon.";
+   $("map-overlay-count").textContent+=shortMessage;
  }
  // A page-hosted public-domain Natural Earth outline is a real, usable map
  // background even when Brave Shields or network policy rejects OSM tiles.
@@ -397,7 +531,7 @@ export function createSatelliteMaps({getTles,getSatLib,getPasses,getLastCapture,
    tileFailures=0;tileSuccesses=0;
    basemapStatus("Requesting OpenStreetMap tiles for the visible viewport… This is not confirmation that tiles loaded.");
    const layer=leaflet.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png",{
-     minZoom:2,maxZoom:12,updateWhenIdle:true,keepBuffer:1,detectRetina:false,
+     minZoom:0,maxZoom:12,updateWhenIdle:true,keepBuffer:1,detectRetina:false,
      // OSMF tile policy (2026): do not strip the public website origin Referer.
      referrerPolicy:"strict-origin-when-cross-origin",
      attribution:'&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap contributors</a>'
@@ -469,15 +603,24 @@ export function createSatelliteMaps({getTles,getSatLib,getPasses,getLastCapture,
    // Two animation frames let Chromium/Brave and Firefox lay out an expanded
    // <details> before Leaflet reads dimensions and calculates tile positions.
    await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
-   earthMap=L.map("earth-map",{worldCopyJump:true,preferCanvas:false}).setView([o.lat,o.lon],3);
+   earthMap=L.map("earth-map",{worldCopyJump:true,preferCanvas:false,minZoom:0}).setView([10,0],1);
    const worldPane=earthMap.createPane("world-outline");
    worldPane.style.zIndex="350"; // above raster tiles (200), below satellite overlays (400)
+   // Explicit panes keep orbit tracks visible above raster tiles and world
+   // outlines, while clickable satellite markers stay above coverage fills.
+   for(const [name,z] of [["sat-coverage",380],["sat-tracks",420],["sat-markers",450],["sat-station",470]]){
+     const pane=earthMap.createPane(name);pane.style.zIndex=String(z);
+   }
    markers=L.layerGroup().addTo(earthMap);tracks=L.layerGroup().addTo(earthMap);
-   stationPin=L.circleMarker([o.lat,o.lon],{radius:8,color:"#fff",weight:2,
+   earthMap.on("moveend zoomend",()=>updateEarthViewportCount());
+   stationPin=L.circleMarker([o.lat,o.lon],{pane:"sat-station",radius:8,color:"#fff",weight:2,
       fillColor:"#27ddff",fillOpacity:0.9}).bindTooltip("Ground station (manual coordinates)").addTo(earthMap);
    setView("earth");
    earthMap.invalidateSize({pan:false,debounceMoveend:true});
    drawEarth();
+   // Display the entire catalog on initial map entry, not an empty station-
+   // centered viewport. If TLEs are loaded later, refresh() performs this fit.
+   fitTrackedEarth();
    await changeBasemap(basemapChoice.value);
    status("Earth map initialized: orbit predictions only. Check the basemap status below for actual imagery load.");
   })();
@@ -508,6 +651,7 @@ export function createSatelliteMaps({getTles,getSatLib,getPasses,getLastCapture,
   if(!rows.some(x=>String(x.id)===String(selectedId)))selectedId=rows[0]?.id??null;
   $("map-time-label").textContent=(Number(time.value)===0?"LIVE / now":(Number(time.value)>0?"+":"")+time.value+" min simulated")+" · "+fmtDate(dt);
   drawList();drawDetail();drawSky();drawEarth();lastUpdate=Date.now();
+  if(earthMap && view==="earth" && !initialCatalogFitDone && rows.length)fitTrackedEarth();
   status(rows.length+" TLE-derived satellites · "+rows.filter(s=>s.el>=0).length+" above local horizon"+
    (rows.some(s=>s.ageDays>7)?" · WARNING: stale orbital elements":"")+
    " · No received satellite signals verified");
@@ -591,10 +735,40 @@ export function createSatelliteMaps({getTles,getSatLib,getPasses,getLastCapture,
    status(report); // visible even when optional Leaflet details are collapsed
    log("Map background diagnostic run; no USB activity.");
  });
+ $("map-focus-selected").addEventListener("click",async()=>{
+   if(!earthMap){
+     $("earth-street-details").open=true;
+     try{await openEarth();}catch(e){basemapStatus(e.message);return;}
+   }
+   const s=selected();
+   if(s){earthMap.setView([s.lat,s.lon],Math.max(4,earthMap.getZoom()),{animate:false});}
+   else basemapStatus("Select a satellite first to focus its predicted ground position.");
+ });
+ $("map-fit-all").addEventListener("click",async()=>{
+   if(!earthMap){
+     $("earth-street-details").open=true;
+     try{await openEarth();}catch(e){basemapStatus(e.message);return;}
+   }
+   // Avoid fitting a nearby-only cluster: show all Earth locations, not
+   // merely the station where no satellite subpoint happens to be overhead.
+   earthMap.setView([15,0],2,{animate:false});drawEarth();
+ });
+ $("map-focus-selected").addEventListener("click",()=>{
+   if(earthMap){focusSelectedEarth();return;}
+   $("earth-street-details").open=true;
+   void openEarth().then(()=>{drawEarth();focusSelectedEarth();})
+     .catch(e=>status("Could not open map to focus satellite: "+e.message));
+ });
+ $("map-fit-all").addEventListener("click",()=>{
+   if(earthMap){fitTrackedEarth();return;}
+   $("earth-street-details").open=true;
+   void openEarth().then(()=>{drawEarth();fitTrackedEarth();})
+     .catch(e=>status("Could not open map to fit satellites: "+e.message));
+ });
  $("map-recenter").addEventListener("click",()=>{
   if(!earthMap)return;try{const o=observer();earthMap.setView([o.lat,o.lon],Math.max(3,earthMap.getZoom()));}catch(e){status(e.message);}
  });
- for(const id of ["map-family","map-above","map-band","map-sat-sort","map-tracks","map-footprint"]){
+ for(const id of ["map-family","map-above","map-band","map-sat-sort","map-track-scope","map-coverage-scope"]){
   $(id).addEventListener("change",()=>{drawList();drawDetail();drawSky();drawEarth();});
  }
  for(const id of ["city","lat","lon","elev"]){
