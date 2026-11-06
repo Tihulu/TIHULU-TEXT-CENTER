@@ -69,6 +69,30 @@ class HTTPTests(unittest.TestCase):
         self.assertEqual(stop[0],200)
         self.assertFalse(json.loads(stop[2])["stopped"])
 
+    def test_global_hard_stop_requires_user_confirmation_and_verifies_workers(self):
+        self.assertEqual(self.request("POST","/api/receiver/hard-stop",
+                                      {"confirm":True})[0],403)
+        _,_,bootstrap=self.request("GET","/api/bootstrap")
+        csrf=json.loads(bootstrap)["csrf"]
+        self.assertEqual(self.request("POST","/api/receiver/hard-stop",
+                                      {"confirm":False},csrf)[0],409)
+        code,_,payload=self.request("POST","/api/receiver/hard-stop",
+                                     {"confirm":True},csrf)
+        self.assertEqual(code,200)
+        result=json.loads(payload)
+        self.assertTrue(result["all_confirmed"],result)
+        self.assertTrue(result["external_processes_untouched"])
+        self.assertIn("postprocess",result["results"])
+        self.assertIn("fm_auto",result["results"])
+        self.assertTrue(all(not entry["active"] for entry in result["results"].values()))
+
+    def test_optional_local_language_detection_is_truthfully_reported(self):
+        code,_,raw=self.request("GET","/api/language-detection/status")
+        self.assertEqual(code,200)
+        data=json.loads(raw)
+        self.assertIs(type(data["ready"]),bool)
+        self.assertEqual(data["supported"],["en","de","tr"])
+
     def test_ui_and_local_navigation(self):
         code,headers,data=self.request("GET","/")
         self.assertEqual(code,200)

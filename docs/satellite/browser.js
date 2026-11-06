@@ -187,6 +187,7 @@ async function stopCapture() {
 $('connect').addEventListener('click',()=>{void connectDevice();});
 $('disconnect').addEventListener('click',()=>{void stopCapture();});
 $('stop').addEventListener('click',()=>{void stopCapture();});
+$('satellite-hard-stop').addEventListener('click',()=>{void stopCapture();});
 $('start').addEventListener('click',()=>{void startCapture().catch(e=>log(e.message));});
 navigator.usb?.addEventListener('disconnect',e=>{
   stopRequested=true;

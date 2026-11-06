@@ -31,6 +31,7 @@ from .radar_bridge import RadarOverlay, RadarError
 from .language_packs import LanguagePacks, LanguagePackError
 from .auto_scan import FMAutoScanner,DABAutoScanner,AutoScanError,dab_channels_from_peaks
 from .channel_catalog import ChannelCatalog
+from .language_detection import text_detection_status,detect_text_language,LanguageDetectionUnavailable
 
 WEB_DIR = Path(__file__).resolve().parents[1] / "web"
 
@@ -99,6 +100,41 @@ class LocalServer(ThreadingHTTPServer):
         # Always release this server's own DAB child in that case.
         self.dab_managed.close()
         super().server_close()
+
+    def hard_stop_owned(self):
+        """Stop every process/worker owned by THIS Text Center, not external apps.
+
+        This is not a system-wide SDR process killer. Confirm whether each
+        local worker actually reports inactive; do not claim USB is free if not.
+        """
+        results={}
+        workers=(
+            ("fm_auto",self.fm_auto,True),
+            ("dab_auto",self.dab_auto,True),
+            ("postprocess",self.postprocess,True),
+            ("dab",self.dab_managed,False),
+            ("radio",self.live_fm,True),
+            ("tv",self.live_tv,False),
+            ("audio",self.audio,True),
+            ("spectrum",self.survey,True),
+            ("rds",self.rds,True),
+        )
+        for name,worker,wait in workers:
+            try:
+                if wait:worker.stop(wait=True)
+                else:worker.stop()
+                try:status=worker.status(heartbeat=False)
+                except TypeError:status=worker.status()
+                active=status.get("active") if isinstance(status,dict) else None
+                results[name]={"state":"confirmed_stopped" if active is False else "unconfirmed",
+                               "active":active}
+            except Exception as exc:
+                results[name]={"state":"stop_failed","error":str(exc)[:160]}
+        return {"results":results,"all_confirmed":all(
+                    entry["state"]=="confirmed_stopped" for entry in results.values()),
+                "scope":"this_text_center_only",
+                "external_processes_untouched":True,
+                "note":"Separate Flight Radar, readsb, welle-cli or browser Pages WebUSB sessions are NOT controlled by this backend."}
 
     def release_owned_rf(self):
         """User-initiated full stop: ONLY this server's own RF subprocesses.
@@ -249,6 +285,8 @@ class Handler(BaseHTTPRequestHandler):
             if route == "/api/receiver/owned-status":
                 return self._json(200,{
                     "dab":self.server.dab_managed.status(),
+                    "fm_auto":self.server.fm_auto.status(heartbeat=False),
+                    "dab_auto":self.server.dab_auto.status(heartbeat=False),
                     "radio":self.server.live_fm.status(heartbeat=False),
                     "tv":self.server.live_tv.status(heartbeat=False),
                     "audio":self.server.audio.status(),
@@ -269,6 +307,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(200,raw,mime)
             if route == "/api/recordings/transcription/status":
                 return self._json(200,self.server.postprocess.status())
+            if route == "/api/language-detection/status":
+                return self._json(200,text_detection_status())
             if route == "/api/translation/status":
                 return self._json(200,translation_devices())
             if route == "/api/languages/status":
@@ -277,6 +317,7 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(200,self.server.radar.status())
             if route == "/api/compute":
                 profile=detect_devices()
+                profile["speech"]["auto_detect_backends"]=[key for key in ("cpu","gpu") if profile["speech"].get("ready_"+key)]
                 profile["selection"]={key:choose_backend(profile,key)
                                       for key in ("auto","cpu","gpu","npu")}
                 profile["translation"]["available_pairs"]=installed_translation_pairs()
@@ -466,7 +507,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         route = urlsplit(self.path).path
-        allowed = {"/api/feeds/add", "/api/feeds/refresh", "/api/bulletins", "/api/bookmarks", "/api/rds/start", "/api/rds/stop", "/api/fm-survey/start", "/api/fm-survey/stop", "/api/scans/start", "/api/scans/stop", "/api/audio/start", "/api/audio/stop", "/api/dab/refresh", "/api/live/radio/start", "/api/live/radio/stop", "/api/transcripts/translate", "/api/translation/text", "/api/live/tv/start", "/api/live/tv/stop", "/api/recordings/transcription/start", "/api/recordings/transcription/stop", "/api/radar/refresh", "/api/languages/refresh", "/api/languages/install", "/api/languages/translate", "/api/auto/fm/start", "/api/auto/fm/stop", "/api/auto/dab/start", "/api/auto/dab/stop", "/api/auto/dab/tune", "/api/receiver/stop-all", "/api/dab/manage/start", "/api/dab/manage/stop"}
+        allowed = {"/api/feeds/add", "/api/feeds/refresh", "/api/bulletins", "/api/bookmarks", "/api/rds/start", "/api/rds/stop", "/api/fm-survey/start", "/api/fm-survey/stop", "/api/scans/start", "/api/scans/stop", "/api/audio/start", "/api/audio/stop", "/api/dab/refresh", "/api/live/radio/start", "/api/live/radio/stop", "/api/transcripts/translate", "/api/translation/text", "/api/live/tv/start", "/api/live/tv/stop", "/api/recordings/transcription/start", "/api/recordings/transcription/stop", "/api/radar/refresh", "/api/languages/refresh", "/api/languages/install", "/api/languages/translate", "/api/auto/fm/start", "/api/auto/fm/stop", "/api/auto/dab/start", "/api/auto/dab/stop", "/api/auto/dab/tune", "/api/receiver/stop-all", "/api/receiver/hard-stop", "/api/dab/manage/start", "/api/dab/manage/stop"}
         if route not in allowed:
             return self._json(404, {"error": "Not found"})
         if self.headers.get("X-Tihulu-CSRF") != self.server.csrf_token:
@@ -534,6 +575,10 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(200, self.server.survey.stop())
             if route == "/api/receiver/stop-all":
                 return self._json(200,self.server.release_owned_rf())
+            if route == "/api/receiver/hard-stop":
+                if payload.get("confirm") is not True:
+                    raise ReceiverServiceError("HARD STOP requires explicit confirmation")
+                return self._json(200,self.server.hard_stop_owned())
             if route == "/api/dab/manage/start":
                 if payload.get("consent") is not True:
                     raise ReceiverServiceError("Explicit consent to tune the DAB SDR is required")
@@ -605,12 +650,18 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(200,self.server.live_fm.stop())
             if route == "/api/translation/text":
                 original=payload.get("text")
+                source=payload.get("source","en")
+                detected_confidence=None
+                if source=="auto":
+                    source,detected_confidence=detect_text_language(original)
                 translated=translate_offline(
-                    original,payload.get("source"),payload.get("target"),
+                    original,source,payload.get("target","en"),
                     backend=payload.get("backend","auto"))
                 return self._json(200,{
                     "original":original,"translated":translated,
-                    "source":payload.get("source"),"target":payload.get("target"),
+                    "source":source,"source_requested":payload.get("source","en"),
+                    "detected_confidence":detected_confidence,
+                    "target":payload.get("target","en"),
                     "requested_backend":payload.get("backend","auto"),
                     "engine":"argos_translate_offline",
                     "status":"locally_translated_not_official_source",
@@ -648,7 +699,7 @@ class Handler(BaseHTTPRequestHandler):
             if route == "/api/bookmarks":
                 self.server.store.add_bookmark(payload.get("label"),payload.get("target_type"),payload.get("target"))
                 return self._json(201, {"saved": True})
-        except (CaptureError, SurveyError, AudioError, DABError, LiveError, LiveTVError, SpeechError, TranslatorUnavailable, PostProcessError, AutoScanError, RadarError, LanguagePackError, ReceiverServiceError) as exc:
+        except (CaptureError, SurveyError, AudioError, DABError, LiveError, LiveTVError, SpeechError, TranslatorUnavailable, PostProcessError, AutoScanError, RadarError, LanguagePackError, ReceiverServiceError, LanguageDetectionUnavailable) as exc:
             self._json(409, {"error": str(exc)})
         except KeyError as exc:
             self._json(404, {"error": str(exc)})

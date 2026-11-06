@@ -187,6 +187,17 @@ async function stop(){
   else await releaseUsb();
 }
 usbEl("usb-stop").addEventListener("click",()=>{void stop()});
+usbEl("pages-hard-stop")?.addEventListener("click",async()=>{
+  // This can only release THIS TAB's WebUSB claim, never readsb or another origin.
+  const button=usbEl("pages-hard-stop");
+  button.disabled=true;
+  try{
+    await stop();
+    setUsb("HARD STOP requested for this Pages tab's own WebUSB receiver; other processes and tabs were not touched.");
+    setCapture("No browser-owned RF capture requested. If a driver failed to close, verify OS USB status.");
+  }catch(error){setUsb("HARD STOP could not confirm release: "+error.message);}
+  finally{button.disabled=false;}
+});
 navigator.usb?.addEventListener("disconnect",()=>{stopRequested=true;setUsb("USB disconnected; browser capture ending.");});
 window.addEventListener("pagehide",()=>{
   stopRequested=true;
