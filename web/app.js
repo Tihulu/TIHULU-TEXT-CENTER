@@ -1354,10 +1354,12 @@ async function addWelleDabBridge(){
   panel.append(el("div","item-meta","DAB+ BROADCAST DATA / EXISTING RECEIVER / READ-ONLY"));
   panel.append(el("h3","","DAB+ DLS, MOT slideshow & radio services"));
   panel.append(el("p","",
-    "Connect to an already-running welle-cli web receiver at 127.0.0.1:7979. "+
-    "The Text Center uses GET only for current ensemble metadata, station labels, "+
-    "DLS text and MOT broadcast images. It NEVER launches, stops or retunes "+
-    "welle-cli or your Flight Radar. welle-cli is not installed on your last hardware check."));
+    "Read current DAB ensemble, station names, DLS and genuine MOT slides "+
+    "from the local welle-cli decoder at 127.0.0.1:7979. Decoder data import "+
+    "remains read-only and never retunes. The separate Start/Stop section "+
+    "below can launch or stop ONLY a welle-cli child explicitly started by "+
+    "this Text Center tab. External readsb, Flight Radar and independently "+
+    "started welle-cli processes are never stopped automatically."));
   const opt=el("label","scan-consent");
   const img=el("input");img.type="checkbox";img.checked=true;img.id="dab-images";
   opt.append(img,document.createTextNode(" Save decoded MOT slideshow images offline "+
