@@ -112,3 +112,10 @@ Each of the 31 protocol/service capabilities now has its own readiness/scan acti
 ### Live DAB read-only bridge
 
 In **Radio Data (400)**, use **READ RUNNING DAB RECEIVER** after independently starting a compatible welle-cli web receiver on local TCP port 7979 and confirming that it owns an available device. Text Center reads only `/mux.json`, `/channel` and bounded `/slide/<service_id>` via GET. It never retunes welle-cli. Decoded DLS text is archived with original broadcast/decoder timestamp where a known channel frequency exists; MOT images are stored as source-attributed JPEG/PNG. Missing/weak signals and absent welle-cli are shown as unavailable. See [Radio and DVB setup](docs/RADIO_AND_DVB.md). Journaline and a continuous embedded DAB player remain future integrations.
+
+
+### FM audio playback and saving (local browser)
+
+A completed `RECORD & LISTEN` capture is a bounded, **in-memory** PCM-to-WAV preview, not an automatic permanent recording. The application now allows same-origin `audio/wav` playback through the restrictive Content Security Policy (`media-src 'self'`) and shows a **DOWNLOAD WAV** link only after a completed capture. Select it to save the exact received clip to the browser device before recording again or stopping Text Center. The server does not auto-save WAV files, start a background recorder, or interfere with the Flight Radar SDR lease. Avoid simultaneous use with welle-cli, readsb or another tuner owner.
+
+After updating, stop/restart the running Python server and hard-refresh the browser. A pre-update server continues to emit the old blocking CSP until restarted. If the browser still shows 0:00 after the restart, inspect `/api/audio/status` (`clip_ready`) and fetch `/api/audio/clip.wav` with curl from the same host to isolate audio delivery from browser playback. Synthetic CI WAV tests do not prove the quality or integrity of the real RF audio.

@@ -680,6 +680,10 @@ async function addFMSurveyControl(){
     state.scanPollTimer=setTimeout(pollFMSurvey,750);
   }
 }
+function setAudioPlayerError(message){
+  const error=$("fm-audio-error");
+  if(error){error.textContent=message;error.hidden=!message;}
+}
 function showAudioStatus(report){
   const status=$("fm-audio-status");
   if(status){
@@ -689,11 +693,27 @@ function showAudioStatus(report){
     status.textContent=label;
   }
   const player=$("fm-audio-player");
-  if(player&&report.clip_ready&&!report.active&&player.dataset.session!==report.session){
-    player.dataset.session=report.session;
-    player.src="/api/audio/clip.wav?session="+encodeURIComponent(report.session);
-    player.hidden=false;
-    player.load();
+  const download=$("fm-audio-download");
+  if(player){
+    const ready=Boolean(report.clip_ready&&!report.active&&report.session);
+    if(download)download.hidden=!ready;
+    if(ready){
+      const url="/api/audio/clip.wav?session="+encodeURIComponent(report.session);
+      if(download){
+        download.href=url;
+        const mhz=(Number(report.frequency_hz)/1e6).toFixed(3).replace(".","-");
+        download.download="tihulu-fm-"+mhz+"MHz-"+report.session.slice(0,8)+".wav";
+      }
+      if(player.dataset.session!==report.session){
+        player.dataset.session=report.session;
+        player.src=url;
+        player.hidden=false;
+        setAudioPlayerError("");
+        player.load();
+      }
+    }else if(!report.active && !report.clip_ready){
+      if(download)download.hidden=true;
+    }
   }
   const start=$("fm-audio-start"),stop=$("fm-audio-stop");
   if(start)start.disabled=Boolean(report.active)||!$("fm-audio-confirm")?.checked||!report.capability?.ready;
@@ -757,17 +777,37 @@ async function addAudioPreview(){
   const progress=el("p","full-body","No audio preview recorded");
   progress.id="fm-audio-status";outer.append(progress);
   const player=el("audio","local-audio-player");
-  player.id="fm-audio-player";player.controls=true;player.preload="none";
+  player.id="fm-audio-player";player.controls=true;player.preload="metadata";
   player.hidden=true;
   player.setAttribute("aria-label","Locally received FM audio preview");
-  outer.append(player);
+  const audioError=el("p","full-body","");
+  audioError.id="fm-audio-error";audioError.hidden=true;
+  player.addEventListener("error",()=>{
+    setAudioPlayerError(
+      "Browser could not load the recorded WAV. Check the server's Content-Security-Policy "+
+      "media-src setting and the /api/audio/clip.wav response. "+
+      "Try DOWNLOAD WAV or restart the current Python server after an update.");
+  });
+  player.addEventListener("loadedmetadata",()=>setAudioPlayerError(""));
+  const download=el("a","action ghost","DOWNLOAD WAV");
+  download.id="fm-audio-download";download.hidden=true;
+  download.setAttribute("download","tihulu-fm-preview.wav");
+  download.setAttribute("aria-label","Save this recorded FM audio WAV to your device");
+  outer.append(player,audioError,download);
+  outer.append(el("p","full-body",
+    "Preview clips are held in memory, not saved automatically. After capture, "+
+    "use DOWNLOAD WAV to keep a copy before recording another clip or closing the server."));
   outer.append(el("p","full-body",snapshot.capability?.reason||"Audio readiness unknown"));
   form.addEventListener("submit",async e=>{
     e.preventDefault();
     if(!confirm.checked)return notice("Confirm that your SDR is free before listening.");
     start.disabled=true;
     try{
-      player.pause();player.hidden=true;player.removeAttribute("src");
+      player.pause();player.hidden=true;player.removeAttribute("src");player.load();
+      player.dataset.session="";
+      const oldDownload=$("fm-audio-download");
+      if(oldDownload){oldDownload.hidden=true;oldDownload.removeAttribute("href");}
+      setAudioPlayerError("");
       const created=await api("/api/audio/start","POST",{
         frequency_mhz:Number(frequency.input.value),
         duration_seconds:Number(opts.value)});

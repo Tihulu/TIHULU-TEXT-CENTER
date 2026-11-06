@@ -84,7 +84,7 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("X-Frame-Options", "DENY")
         self.send_header("Content-Security-Policy",
                          "default-src 'none'; script-src 'self'; style-src 'self'; "
-                         "img-src 'self' data:; connect-src 'self'; form-action 'self'; "
+                         "img-src 'self' data:; media-src 'self'; connect-src 'self'; form-action 'self'; "
                          "base-uri 'none'; frame-ancestors 'none'")
         self.end_headers()
         self.wfile.write(body)
@@ -186,6 +186,15 @@ class Handler(BaseHTTPRequestHandler):
                 state["capability"]=self.server.audio.availability()
                 return self._json(200,state)
             if route == "/api/audio/clip.wav":
+                # If a session token is supplied, bind the request to that
+                # specific in-memory capture. A stale browser player must
+                # never silently play a newer recording instead.
+                requested=q.get("session")
+                state=self.server.audio.status()
+                if requested is not None and (
+                    len(requested)!=1 or requested[0]!=state.get("session")
+                ):
+                    return self._json(404, {"error":"FM audio session is no longer available"})
                 data=self.server.audio.wav_clip()
                 if data is None:
                     return self._json(404, {"error":"No completed FM audio preview"})
