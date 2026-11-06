@@ -124,13 +124,19 @@ All location methods are optional. City suggestions are offline by default; GPS 
 <p class="map-caption">Horizon = outside circle · zenith = center · north at top, east at right. Click a colored satellite dot to inspect the pass. This is an estimated sky position, not optical visibility or RF reception.</p>
 </div>
 <div id="map-earth-pane" role="tabpanel" aria-labelledby="map-tab-earth" hidden>
-<div class="map-toolbar"><button id="map-load" type="button">Load OpenStreetMap (on demand)</button>
+<div class="map-toolbar"><button id="map-load" type="button">Load / retry OpenStreetMap</button>
+<label class="basemap-choice">Base map<select id="map-basemap" aria-label="Earth map background">
+<option value="osm">OpenStreetMap street tiles</option>
+<option value="outline">World outlines (bundled, no tile service)</option>
+</select></label>
 <button id="map-recenter" class="secondary" type="button">Center on ground station</button>
 <label class="map-check"><input id="map-tracks" type="checkbox" checked> ±45 min orbit path</label>
 <label class="map-check"><input id="map-footprint" type="checkbox"> Geometric coverage footprint</label>
 </div>
-<div id="earth-map" class="sat-earth" role="region" aria-label="Interactive OpenStreetMap with predicted satellite ground positions"></div>
-<p class="map-caption">© <a href="https://www.openstreetmap.org/copyright" rel="noopener noreferrer" target="_blank">OpenStreetMap contributors</a>. Tiles load only for the view you open; no prefetch/offline tile download. The viewport is requested from the OSM tile provider. Optional shaded coverage is approximate for the minimum elevation selected above.</p>
+<p id="map-basemap-state" class="map-basemap-status" role="status" aria-live="polite">Earth map not loaded. Choose Load OpenStreetMap or World outlines.</p>
+<div id="earth-map" class="sat-earth" role="region" aria-label="Interactive Earth map showing predicted satellite positions over OpenStreetMap or public domain world outlines"></div>
+<p class="map-caption">If OpenStreetMap tiles are blocked or unavailable, the app automatically switches to bundled Natural Earth world outlines. You can switch the base map manually. The outlines are coarse at city level, but satellite ground positions remain plotted. <a href="https://tile.openstreetmap.org/3/4/2.png" rel="noopener noreferrer" target="_blank">Check an OSM tile in a new tab</a> for network/Brave Shields troubleshooting.</p>
+<p class="map-caption">© <a href="https://www.openstreetmap.org/copyright" rel="noopener noreferrer" target="_blank">OpenStreetMap contributors</a>. Tiles load only for the view you open; no prefetch/offline tile download. Only the viewport is requested from OSM when selected. Coarse fallback outlines are public-domain Natural Earth data bundled in this website. Optional shaded coverage is approximate for the minimum elevation selected above.</p>
 </div>
 <div class="map-legend" aria-label="Satellite types">
 <span><i style="background:#61e5fa"></i>ISS</span><span><i style="background:#72eea3"></i>Meteor-M</span><span><i style="background:#f9c679"></i>CubeSat</span><span><i style="background:#c29aff"></i>Iridium</span>
