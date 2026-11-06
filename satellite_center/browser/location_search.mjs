@@ -216,7 +216,7 @@ export function initStationLocationUI({onStationChanged,log}){
  });
  query.addEventListener("keydown",event=>{
    if(event.key==="ArrowDown"||event.key==="ArrowUp"){
-     if(choices.length){event.preventDefault();activate(active+(event.key==="ArrowDown"?1:-1));}
+     if(choices.length){event.preventDefault();activate(active<0?(event.key==="ArrowDown"?0:choices.length-1):active+(event.key==="ArrowDown"?1:-1));}
    }else if(event.key==="Enter"){
      if(choices.length){event.preventDefault();applyStation(choices[active<0?0:active],"city-search");}
      else if(query.value.trim().length>=2){event.preventDefault();void remoteSuggest();}
