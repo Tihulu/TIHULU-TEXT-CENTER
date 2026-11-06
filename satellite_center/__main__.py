@@ -594,7 +594,7 @@ class Station:
         if selected.tzinfo is None:
             raise ValueError("Scheduled start requires explicit UTC offset")
         selected = selected.astimezone(UTC)
-        if mission_id not in AUTO_DOWNLINK_PROFILES:
+        if not isinstance(mission_id, str) or mission_id not in AUTO_DOWNLINK_PROFILES:
             raise ValueError("Unsupported or unverified satellite protocol")
         target_norad, target_profile, target_mode = AUTO_DOWNLINK_PROFILES[mission_id]
         tools = {"iq": ["rtl_sdr"], "aprs": ["rtl_fm", "multimon-ng"]}[target_mode]
