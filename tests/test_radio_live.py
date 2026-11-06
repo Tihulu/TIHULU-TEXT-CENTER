@@ -46,20 +46,20 @@ class LiveRadioTests(unittest.TestCase):
             tuner=root/"mock_tuner"
             transcoder=root/"mock_encoder"
             tuner.write_text(
-                "#!/usr/bin/env python3\\n"
-                "import sys,time\\n"
-                "for i in range(80):\\n"
-                " sys.stdout.buffer.write(b'\\\\x00'*8192)\\n"
-                " sys.stdout.buffer.flush()\\n"
-                " time.sleep(.012)\\n")
+                "#!/usr/bin/env python3\n"
+                "import sys,time\n"
+                "for i in range(80):\n"
+                " sys.stdout.buffer.write(b'\\\x00'*8192)\n"
+                " sys.stdout.buffer.flush()\n"
+                " time.sleep(.012)\n")
             transcoder.write_text(
-                "#!/usr/bin/env python3\\n"
-                "import sys\\n"
-                "while True:\\n"
-                " block=sys.stdin.buffer.read(8192)\\n"
-                " if not block:break\\n"
-                " sys.stdout.buffer.write(b'MOCKMP3'+block[:64])\\n"
-                " sys.stdout.buffer.flush()\\n")
+                "#!/usr/bin/env python3\n"
+                "import sys\n"
+                "while True:\n"
+                " block=sys.stdin.buffer.read(8192)\n"
+                " if not block:break\n"
+                " sys.stdout.buffer.write(b'MOCKMP3'+block[:64])\n"
+                " sys.stdout.buffer.flush()\n")
             tuner.chmod(0o700);transcoder.chmod(0o700)
             srv=LiveRadio(Store(root/"app.sqlite"),
                 inventory=self.inv,conflicts=lambda:[],
