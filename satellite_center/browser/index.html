@@ -25,7 +25,9 @@
 <p id="device-status" class="status" role="status">No USB device opened.</p>
 <details id="usb-help"><summary>USB not connecting? Diagnose without installing anything</summary>
 <p class="hint">A browser permission cannot stop readsb or unbind a Linux kernel driver. This diagnostic only reads WebUSB permissions; it will never claim USB, install software or change system settings.</p>
-<div class="line"><button class="secondary" type="button" id="usb-check">Check USB permissions (read-only)</button><button class="secondary" type="button" id="usb-copy">Copy troubleshooting report</button></div>
+<div class="line"><button class="secondary" type="button" id="usb-check">Check USB permissions (read-only)</button><button class="secondary" type="button" id="usb-claim-test">Test USB interface claim (open → claim → release)</button><button class="secondary" type="button" id="usb-copy">Copy troubleshooting report</button></div>
+<p class="hint">A permission grant and a working USB interface are different. <strong>Test USB interface claim</strong> temporarily opens the permitted 0bda:2838 dongle and claims interface 0, then releases it without tuning, reading RF or stopping other processes. It shows the underlying browser USB error, including whether the failure happened during device opening or interface claiming.</p>
+<pre id="usb-claim-result" role="status" aria-live="polite">USB interface has not been tested.</pre>
 <pre id="usb-report" role="status" aria-live="polite">Click Check USB permissions to inspect the browser's existing device permissions. If the device is busy, stop only the program you own before retrying.</pre>
 </details>
 <p class="hint">The browser will show the USB chooser. Select the Nooelec / Realtek RTL2832U. Other applications such as readsb, Gqrx or welle.io must release the same dongle first; this page never stops them. A cancelled chooser is not a driver failure. On Pop!_OS, check the readsb service and Linux DVB driver if the USB claim fails.</p>
