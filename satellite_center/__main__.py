@@ -139,6 +139,15 @@ def allowed_mode(profile, mode):
     ) or (profile == "iss_voice" and mode == "sstv_audio")
 
 
+def topocentric_elevation_deg(observed_position):
+    """Skyfield's altaz() is (altitude, azimuth, distance), not (azimuth, altitude, distance)."""
+    altitude, _, _ = observed_position.altaz()
+    value = float(altitude.degrees)
+    if not math.isfinite(value) or not -90.0 <= value <= 90.0:
+        raise ValueError("Invalid topocentric elevation from orbital calculation")
+    return value
+
+
 def parse_power(raw, profile):
     """Keep measured bins; never identify an Iridium or other satellite by power."""
     import csv
@@ -307,13 +316,14 @@ class Station:
                             if peak is None:
                                 rising = None
                                 continue
-                            _, altitude, _ = (sat-observer).at(clock.from_datetime(peak)).altaz()
-                            if float(altitude.degrees) >= elevation:
+                            peak_elevation = topocentric_elevation_deg(
+                                (sat-observer).at(clock.from_datetime(peak)))
+                            if peak_elevation >= elevation:
                                 key = f"{item['id']}:{int(rising.timestamp())}"
                                 event = {"id": key, "norad": item["id"], "name": item["name"],
                                          "family": family(source, item), "aos": stamp(rising),
                                          "peak": stamp(peak), "los": stamp(end),
-                                         "max_elevation_deg": round(float(altitude.degrees), 1),
+                                         "max_elevation_deg": round(peak_elevation, 1),
                                          "profiles": profiles_for(family(source, item)),
                                          "status": "PREDICTED_GEOMETRY_NOT_SIGNAL",
                                          "tle_source": SOURCE_URLS[source], "tle_age_days": round(age, 2)}
