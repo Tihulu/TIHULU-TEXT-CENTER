@@ -99,6 +99,10 @@ installed SatDump/multimon-ng and for scheduling while the browser tab is
 closed but the companion runs. It is not the required path for the
 browser-only capture mode. A physical Nooelec test is still pending.
 
+## Progressive local CU8 signal discovery (draft)
+
+The separate Signal Intelligence panel now includes full-file spectrum analysis, energy candidate selection, AM/NFM audio previews, and explicit, attempted Robot36 image synchronization from sufficiently long recordings. All actual CU8 IQ remains in the user's browser. Packet protocols including APRS and Meteor LRPT require their own verified decoders; no false image/data extraction is claimed. See [SIGNAL_INTELLIGENCE.md](SIGNAL_INTELLIGENCE.md) for evidence requirements and platform limits. This draft implementation has not been synced to the public gh-pages branch.
+
 ## Earth & Sky Maps (v0.4, browser-only)
 
 The direct GitHub Pages application includes an **interactive OpenStreetMap
