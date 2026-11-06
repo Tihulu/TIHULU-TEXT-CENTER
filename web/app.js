@@ -18,7 +18,7 @@ async function globalHardStop(){
       if(state[key])clearTimeout(state[key]);
       state[key]=null;
     }
-    state.liveActive=false;state.tvActive=false;state.audioActive=false;
+    state.liveActive=false;state.tvActive=false;state.dabPlaying=false;state.audioActive=false;
     state.rdsActive=false;state.scanActive=false;state.managedDabOwned=false;
     state.fmRecording=false;state.tvRecording=false;
     syncLiveMediaDock();
@@ -232,7 +232,7 @@ async function openPage(number,source,subpage){
     if(state.scanPollTimer){clearTimeout(state.scanPollTimer);state.scanPollTimer=null;}
     api("/api/scans/stop","POST",{}).catch(error=>notice("Survey stop request failed: "+error.message));
   }
-  if(state.page===400 && Number(number)!==400 && state.rdsActive){
+  if([400,410].includes(state.page) && ![400,410].includes(Number(number)) && state.rdsActive){
     state.rdsActive=false;
     if(state.rdsPollTimer){clearTimeout(state.rdsPollTimer);state.rdsPollTimer=null;}
     api("/api/rds/stop","POST",{}).catch((error)=>notice("Could not stop capture: "+error.message));
@@ -462,14 +462,14 @@ function setRdsText(data){
   if(stop)stop.disabled=!data.active;
 }
 async function pollRds(){
-  if(state.page!==400)return;
+  if(![400,410].includes(state.page))return;
   try{
     const status=await api("/api/rds/status");
     state.rdsActive=status.active;
     setRdsText(status);
-    if(status.active && state.page===400){
+    if(status.active && [400,410].includes(state.page)){
       state.rdsPollTimer=setTimeout(pollRds,1500);
-    }else if(state.page===400 && (status.status==="completed" || status.status==="cancelled" || status.status==="error")){
+    }else if([400,410].includes(state.page) && (status.status==="completed" || status.status==="cancelled" || status.status==="error")){
       // Reload source-attributed stored text after an actual capture ends.
       if(!$("rds-finished-"+status.session)){
         const marker=el("span"); marker.id="rds-finished-"+status.session;
@@ -2056,7 +2056,7 @@ async function addOfflineRecordingControl(){
   const exports=el("div","card-actions");panel.append(exports);
   $("content").append(panel);
   async function refresh(){
-    if(state.page!==400)return;
+    if(![400,410].includes(state.page))return;
     const status=await api("/api/recordings/transcription/status");
     stateLabel.textContent=status.status.toUpperCase()+" · "+status.segments+
       " segments · "+status.seconds_processed+" s · "+(status.device||"no ASR")+
@@ -2129,6 +2129,7 @@ async function playFmChannel(channel, record){
   state.liveFrequency=channel.frequency_hz;
   state.fmRecording=!!record;
   const player=$("persistent-radio-player");
+  player.onerror=null;
   player.src="/api/live/radio/stream?session="+encodeURIComponent(result.session)+
     "&token="+encodeURIComponent(state.csrf);
   player.dataset.session=result.session;
@@ -3055,6 +3056,17 @@ function bindNavigation(){
   $("bookmark-page").addEventListener("click",()=>saveBookmark("Page "+state.page+(state.source?" · "+state.source:""),"page",state.page+":"+state.subpage+":"+state.source).catch((err)=>notice(err.message)));
   window.addEventListener("pagehide",()=>{
     stopManagedDabPolling();
+    if(state.dvbScanTimer){clearTimeout(state.dvbScanTimer);state.dvbScanTimer=null;}
+    fetch("/api/dvb/scan/stop",{
+      method:"POST",keepalive:true,
+      headers:{"Content-Type":"application/json","X-Tihulu-CSRF":state.csrf},
+      body:"{}"
+    }).catch(()=>{});
+    if(state.dabPlaying){
+      const player=$("persistent-radio-player");
+      if(player){player.pause();player.removeAttribute("src");player.load();}
+      state.dabPlaying=false;
+    }
     if(state.managedDabOwned){
       fetch("/api/dab/manage/stop",{
         method:"POST",keepalive:true,
