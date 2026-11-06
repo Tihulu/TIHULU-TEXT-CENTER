@@ -17,7 +17,7 @@ The web application supports standalone static hosting without a native backend.
 ## Implemented in experimental branch
 
 - Entire GNSS catalog: GPS, Galileo, GLONASS, BeiDou, QZSS, NavIC and SBAS. *Catalog visibility does not imply actual RF acquisition.*
-- Opt-in browser/device geolocation. Nearest verified observed aircraft (when explicitly imported), then Cologne as clearly labeled map-only fallbacks. Aircraft position is never reported as the user's location.
+- Opt-in browser/device geolocation. Without genuinely authenticated receiver observations, map defaults to Cologne, Germany as a **reference**, not your position. Imported aircraft JSON remains an unverified map reference even if it claims an ADS-B observation; future trusted Flight Radar adapters may implement the aircraft-centered fallback after verifying the observation and position.
 - Precise-orbit SP3 file import, geometry-only Earth and polar sky plotting, explicit epochs and elevation mask. No extrapolated live position claims, and no satellite visibility implies RF reception.
 - On-demand OpenStreetMap tile loading, without bulk offline tile caching. Otherwise show own coordinate/map overlay.
 - Dedicated GNSS NMEA GGA/RMC logs with checksum validation and explicitly labeled historical import.
@@ -46,3 +46,16 @@ Use real, source-attributed measurements for positioning; test fixture synthetic
 ## Future Survival Kit integration
 
 Use an authenticated `/geolocation/` route inside the Kit's TLS local portal and existing hardware lease broker. Allow mobile clients to view authorized Raspberry Pi receiver data over the local network. Do not expose unrestricted network-facing receiver controls. Keep this module independent until reviewed.
+
+## Python localhost source launcher (no native SDR decoder)
+
+Run from the repository root with Python 3.11+:
+
+```sh
+python3 -m rf_geolocation_center doctor
+python3 -m rf_geolocation_center serve --port 8794
+```
+
+Open http://127.0.0.1:8794/ (on the same computer). The server binds to loopback only, serves an explicit app-asset allowlist and does not open any RTL-SDR, decode GNSS RF, expose a LAN receiver API or package a native desktop binary. Python source compatibility on CI is not physical Raspberry Pi or Apple Silicon verification. See [architecture and scientific gates](docs/ARCHITECTURE_AND_RELEASE_GATES.md) and [platform matrix](docs/PLATFORM_TEST_MATRIX.md).
+
+Current SP3 parser checks the declared GPS/UTC time system and converts supported GPS epochs to UTC using leap seconds through 2026. Other time systems are blocked pending verified handling, rather than silently mislabeling their timestamps. Browser NMEA file import is historical; it is not a current live fix.
