@@ -75,6 +75,10 @@ export async function usbInterfaceClaimProbe(usb) {
     stage="open";
     await selected.open();
     ownedOpen=true;
+    if(selected.configuration===null){
+      stage="selectConfiguration(1)";
+      await selected.selectConfiguration(1);
+    }
     stage="claimInterface(0)";
     await selected.claimInterface(0);
     claimed=true;
