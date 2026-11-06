@@ -56,3 +56,22 @@ test("Catalog and FM sweep cannot use device location API or invent airport sour
  }
  const sw=read("sw.js");assert.match(sw,/core\/source_catalog\.mjs/);assert.match(sw,/web\/catalog_discovery\.mjs/);
 });
+
+
+test("OSM television broadcast tower metadata never becomes a GPS fix or invented DVB transmitter",()=>{
+ const sources=normalizeRadioTowers({elements:[
+  {type:"node",id:400,lat:50.95,lon:6.95,tags:{"communication:television":"yes",name:"Known TV tower",frequency:"514 MHz"}},
+  {type:"node",id:401,lat:50.98,lon:6.92,tags:{"communication:television":"yes",name:"Unlisted TV tower",channel:"K26"}}
+ ]},{lat:50.94,lon:6.96});
+ assert.equal(sources.length,2);
+ const t=sources.find(x=>x.id==="osm-node/400");
+ assert.equal(t.broadcastType,"television");
+ assert.deepEqual(t.televisionFrequenciesMHz,[514]);
+ assert.equal(t.frequencyMHz,null);
+ assert.equal(t.transmitterIdentityVerified,false);
+ assert.equal(t.hardwareReceived,false);
+ const unknown=sources.find(x=>x.id==="osm-node/401");
+ assert.deepEqual(unknown.televisionFrequenciesMHz,[]);
+ assert.equal(unknown.tvChannelTag,"K26");
+ assert.match(unknown.confidence,/NOT LINKED TO RF SIGNAL/);
+});

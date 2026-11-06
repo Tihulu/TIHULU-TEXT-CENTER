@@ -41,7 +41,9 @@ function buildRow(target,entry,kind){
   " position · "+entry.icao+" · "+entry.observedAt+" · NOT received via RTL-SDR":
   "OSM mapped broadcast site · "+entry.lat.toFixed(5)+", "+entry.lon.toFixed(5)+
   " · "+Math.round(entry.distanceFromSearchCenterMeters/1000)+" km from search CENTER (not your location) · "+
-  (entry.frequenciesMHz?.length?"FM tag "+entry.frequenciesMHz.join(", ")+" MHz · SIGNAL UNVERIFIED":"NO FREQUENCY IN CATALOG");
+  (entry.frequenciesMHz?.length?"FM tag "+entry.frequenciesMHz.join(", ")+" MHz · SIGNAL UNVERIFIED":
+   entry.televisionFrequenciesMHz?.length?"TV frequency tag "+entry.televisionFrequenciesMHz.join(", ")+" MHz · TRANSMITTER UNVERIFIED":
+   (entry.broadcastType==="television"?"TV broadcast tower · service frequency not tagged":"NO FREQUENCY IN CATALOG"));
  row.append(heading,desc);
  if(kind!=="aircraft"){
    const add=document.createElement("button");add.type="button";add.className="secondary";
@@ -60,7 +62,8 @@ function render(){
  if(towerList){
   towerList.replaceChildren();
   const head=document.createElement("p");head.textContent="Mapped broadcast site candidates: "+towers.length+
-    " · with FM frequency tags: "+towers.filter(s=>s.frequenciesMHz?.length).length;
+    " · FM frequency tagged: "+towers.filter(s=>s.frequenciesMHz?.length).length+
+    " · TV broadcast candidates: "+towers.filter(s=>s.broadcastType?.includes("television")).length;
   towerList.append(head);
   for(const s of towers.slice(0,80))buildRow(towerList,s,"tower");
  }
@@ -104,6 +107,9 @@ async function discover(){
     'nwr(around:'+radius+','+area.lat+','+area.lon+')["communication:radio"="yes"];'+
     'nwr(around:'+radius+','+area.lat+','+area.lon+')["broadcasting"="radio"];'+
     'nwr(around:'+radius+','+area.lat+','+area.lon+')["broadcasting:radio"="yes"];'+
+    'nwr(around:'+radius+','+area.lat+','+area.lon+')["communication:television"="yes"];'+
+    'nwr(around:'+radius+','+area.lat+','+area.lon+')["broadcasting"="television"];'+
+    'nwr(around:'+radius+','+area.lat+','+area.lon+')["broadcasting:television"="yes"];'+
     ');out center 200;';
   const response=await fetch("https://overpass-api.de/api/interpreter",{
     method:"POST",headers:{"Content-Type":"application/x-www-form-urlencoded;charset=UTF-8"},

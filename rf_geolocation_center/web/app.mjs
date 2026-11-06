@@ -388,7 +388,7 @@ function renderEarth(){
  for(const site of state.catalogTowers){
    if(!showGround||state.rfSources.some(x=>x.catalogId===site.id))continue;
    place(site,"station","#8fb8c7",site.name+" · OSM PUBLIC CATALOG TOWER · "+
-     (site.frequencyMHz?site.frequencyMHz.toFixed(3)+" MHz FM tag, RF NOT VERIFIED":"NO FM FREQUENCY TAG")+
+     (site.frequencyMHz?site.frequencyMHz.toFixed(3)+" MHz FM tag, RF NOT VERIFIED":site.televisionFrequenciesMHz?.length?"TV MHz tag "+site.televisionFrequenciesMHz.join(", ")+" · DVB SOURCE NOT VERIFIED":site.broadcastType?.includes("television")?"TV BROADCAST TOWER · CHANNEL NOT IDENTIFIED":"NO FREQUENCY TAG")+
      " · distance from SEARCH CENTER "+(site.distanceFromSearchCenterMeters/1000).toFixed(1)+
      " km; this is NOT measured distance from YOU","T");
  }

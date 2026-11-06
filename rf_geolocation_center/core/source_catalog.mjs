@@ -22,6 +22,19 @@ export function fmFrequencies(tags={}){
  }
  return frequencies.slice(0,12);
 }
+export function televisionFrequencies(tags={}){
+ // Only directly reported frequency values explicitly tagged in MHz.
+ // Regional TV channel numbers (e.g. "K26") are NOT automatically converted to MHz.
+ const raw=Object.entries(tags).filter(([k])=>/^(?:frequency(?::.*)?|broadcast:frequency|television:frequency)$/.test(k))
+  .map(([,v])=>String(v)).join(";");
+ const out=[];
+ for(const match of raw.replace(/,/g,".").matchAll(/(?:^|[^0-9])(\d{2,4}(?:\.\d{1,4})?)\s*MHz\b/gi)){
+  const mhz=Number(match[1]);
+  if(Number.isFinite(mhz)&&mhz>=47&&mhz<=900&&!out.some(v=>Math.abs(v-mhz)<.001))
+   out.push(Math.round(mhz*1000)/1000);
+ }
+ return out.slice(0,12);
+}
 export function normalizeRadioTowers(response,reference,max=150){
  if(!Array.isArray(response?.elements)||!Number.isFinite(reference?.lat)||!Number.isFinite(reference?.lon))
    throw Error("Invalid OSM Overpass radio tower response");
@@ -31,13 +44,16 @@ export function normalizeRadioTowers(response,reference,max=150){
    if(!Number.isFinite(lat)||!Number.isFinite(lon)||Math.abs(lat)>90||Math.abs(lon)>180)continue;
    const tags=el.tags||{};
    // Only explicitly radio-tagged objects. Generic mobile masts are not FM transmitters.
-   if(tags["communication:radio"]!=="yes"&&tags.broadcasting!=="radio"&&tags["broadcasting:radio"]!=="yes")continue;
+   const radio=tags["communication:radio"]==="yes"||tags.broadcasting==="radio"||tags["broadcasting:radio"]==="yes";
+   const television=tags["communication:television"]==="yes"||tags.broadcasting==="television"||tags["broadcasting:television"]==="yes";
+   if(!radio&&!television)continue;
    const id=String(el.type)+"/"+String(el.id);
    if(used.has(id))continue;used.add(id);
    const name=String(tags.name||tags.operator||tags.ref||"Radio mast "+id).slice(0,100);
    let dist;try{dist=distanceMeters(reference,{lat,lon})}catch{continue}
    out.push({id:"osm-"+id,name,type:"station",lat,lon,frequencyMHz:fmFrequencies(tags)[0]??null,
-    frequenciesMHz:fmFrequencies(tags),
+    frequenciesMHz:fmFrequencies(tags),televisionFrequenciesMHz:television?televisionFrequencies(tags):[],
+    broadcastType:radio&&television?"radio+television":television?"television":"radio",tvChannelTag:tags.channel||null,
     distanceFromSearchCenterMeters:Math.round(dist),
     catalog:"OpenStreetMap/Overpass",catalogUrl:"https://www.openstreetmap.org/"+id,
     metadataOrigin:"PUBLIC OSM MAPPING",hardwareReceived:false,transmitterIdentityVerified:false,
