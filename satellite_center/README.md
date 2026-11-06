@@ -1,6 +1,14 @@
 
 ### Debian / Pop!_OS — native, Firefox-compatible SDR application
 
+On the local server's `/browser/index.html`, Calculate Passes → Schedule
+offers native backend scheduling without Chromium WebUSB or the 128 MiB
+memory cap. Native server independently rechecks local TLE/pass geometry,
+allowlisted frequency and protocol, UTC start, disk budget and receiver
+conflicts. The Iridium 1620 MHz preset is RF energy recording only;
+no private messages or satellite identity are decoded.
+
+
 The **preferred Linux desktop launcher** is now the local RTL-SDR receiver
 (`tihulu-satellite-center` from the Debian package, or `tihulu-satellite`
 from the user-local source installer), not the WebUSB-only website. It

@@ -51,6 +51,44 @@ const notifyMaps = () => { if(satelliteMaps) void satelliteMaps.refresh().catch(
 const maxRecordBytes = 128 * 1024 * 1024;
 const preparedLongStreams=new Map();
 const diskStreamingAvailable=()=>Boolean(window.isSecureContext&&typeof window.showSaveFilePicker==="function");
+const nativeLocal=()=>location.protocol==="http:"&&["localhost","127.0.0.1"].includes(location.hostname);
+async function nativeRequest(route,payload=null,csrf=null){
+ const opts={cache:"no-store",credentials:"same-origin"};
+ if(payload!==null){opts.method="POST";opts.headers={"Content-Type":"application/json"};opts.body=JSON.stringify({...payload,csrf});}
+ const response=await fetch(route,opts);
+ const result=await response.json().catch(()=>({error:"Invalid local response"}));
+ if(!response.ok)throw Error(String(result.error||response.status));
+ return result;
+}
+async function nativeScheduledPass(pass,{when,durationSeconds,frequency,sampleRate,saveRaw}){
+ if(!nativeLocal())throw Error("Start the Debian app and open http://127.0.0.1:8791/browser/index.html");
+ if(sampleRate!==1024000)throw Error("Native rtl_sdr uses 1.024 MS/s; select that sample rate.");
+ if(!Number.isInteger(durationSeconds)||durationSeconds<8||durationSeconds>900)
+   throw Error("Native capture must be 8–900 whole seconds.");
+ if(!saveRaw&&durationSeconds>180)throw Error("Native spectrum-only survey is limited to 180 s; choose raw IQ for longer recordings.");
+ const state=await nativeRequest("/api/status");
+ if(!state.csrf||!state.profiles)throw Error("Local SDR server not available");
+ const profile=Object.entries(state.profiles).find(([,p])=>p.family===pass.family&&Number(p.freq)===frequency)?.[0];
+ if(!profile)throw Error("No approved native receiver profile for this satellite and frequency.");
+ const lat=Number($('lat').value),lon=Number($('lon').value);
+ if(!Number.isFinite(lat)||!Number.isFinite(lon)||Math.abs(lat)>90||Math.abs(lon)>180)
+   throw Error("Choose valid observer coordinates first.");
+ const hours=Math.max(1,Math.min(72,Math.ceil((pass.aos-Date.now())/3600000)+2));
+ const predict=()=>nativeRequest("/api/passes?lat="+encodeURIComponent(lat)+
+   "&lon="+encodeURIComponent(lon)+"&hours="+hours+"&elev=10");
+ let events=await predict();
+ const matched=()=>events.predictions?.find(p=>Number(p.norad)===Number(pass.id)&&
+   Math.abs(Date.parse(p.aos)-pass.aos)<=300000&&p.profiles?.includes(profile));
+ let target=matched();
+ if(!target&&events.warnings?.some(w=>/not downloaded|too old/.test(w))){
+   await nativeRequest("/api/refresh",{},state.csrf);
+   events=await predict();target=matched();
+ }
+ if(!target)throw Error("Native TLE pass differs from browser estimate. Refresh catalog and recalculate.");
+ return nativeRequest("/api/schedule",{pass_id:target.id,profile,mode:saveRaw?"iq":"survey",
+   run_at:new Date(when).toISOString(),duration_seconds:durationSeconds},state.csrf);
+}
+
 function captureFileName(job,frequency,rate,at=new Date()){
  const target=job?.name?job.name+"-CANDIDATE":
    imageCandidateTarget&&imageCandidateTarget.frequencies.includes(frequency)?
@@ -790,6 +828,11 @@ function appendPass(pass){
   const saveLabel=document.createElement('label');saveLabel.className='schedule-wide check';
   const raw=document.createElement('input');raw.type='checkbox';raw.checked=true;
   saveLabel.append(raw,' Save actual raw I/Q (.cu8). Long samples stream to a user-selected local disk file when supported.');
+  const localLink=document.createElement('a');
+  localLink.className="iq-jump-link schedule-wide";
+  localLink.href="http://127.0.0.1:8791/browser/index.html";
+  localLink.rel="noopener noreferrer";localLink.target="_blank";
+  localLink.textContent="Debian / Firefox alternative: use the local RTL-SDR app (no WebUSB or browser file limit)";
   const explanation=document.createElement('p');explanation.className='hint schedule-wide';
   explanation.textContent='Local device time. Choose 1–900 seconds, limited by pass length and 2 GB raw IQ file cap. Above 128 MiB you must select a writable local .cu8 file now in Chromium; other browsers need the optional native receiver. A scheduled capture only runs with this browser OPEN, VISIBLE and AWAKE.';
   const alert=document.createElement('p');alert.className='pass-schedule-error schedule-wide';alert.setAttribute('role','status');
@@ -806,7 +849,7 @@ function appendPass(pass){
   for(const element of [duration,rate,raw])element.addEventListener('change',refreshBudget);
   duration.addEventListener('input',refreshBudget);rate.addEventListener('input',refreshBudget);
   refreshBudget();
-  form.append(timeLabel,frequencyLabel,durationLabel,rateLabel,saveLabel,budgetLabel,explanation,alert,confirm);
+  form.append(timeLabel,frequencyLabel,durationLabel,rateLabel,saveLabel,budgetLabel,localLink,explanation,alert,confirm);
   form.addEventListener('submit',async event=>{
     event.preventDefault();
     let prepared=null;
@@ -814,6 +857,17 @@ function appendPass(pass){
     try{
       const selectedTime=parseLocalScheduleTime(input.value);
       const seconds=Number(duration.value),chosenRate=Number(rate.value);
+      if(nativeLocal()){
+        const job=await nativeScheduledPass(pass,{
+          when:selectedTime,durationSeconds:seconds,frequency:Number(frequency.value),
+          sampleRate:chosenRate,saveRaw:raw.checked
+        });
+        alert.textContent="Debian local SDR scheduled "+job.satellite+" · "+
+          new Date(job.run_at).toLocaleString()+" · "+job.capture_seconds+" seconds · "+
+          (job.estimated_bytes/1e6).toFixed(0)+" MB estimated. The native app must remain running; the browser may close.";
+        log("Native job "+job.id+" armed; RTL-SDR stays idle until start time.");
+        return;
+      }
       const plan=captureBudget(seconds,chosenRate,raw.checked,
         {fileStreaming:diskStreamingAvailable()});
       const newJob=createScheduledPass(pass,{
@@ -854,7 +908,8 @@ function appendPass(pass){
       document.getElementById('schedule-center')?.scrollIntoView({behavior:'smooth',block:'nearest'});
     }catch(error){
       if(prepared?.writable)await abortLongCapture(prepared);
-      alert.textContent='Could not schedule: '+String(error?.message||error);
+      alert.textContent='Could not schedule: '+String(error?.message||error)+
+        (nativeLocal()?'':'. In Firefox open the Debian native app on http://127.0.0.1:8791/browser/index.html to record without WebUSB/File System Access.');
     }finally{confirm.disabled=false;}
   });
   details.append(form);item.append(details);

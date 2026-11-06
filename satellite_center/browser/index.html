@@ -156,7 +156,7 @@ All location methods are optional. City suggestions are offline by default; GPS 
 <div class="line"><button id="schedule-check" class="secondary" type="button">Check scheduled-scan readiness</button>
 <button id="schedule-wake" class="secondary" type="button">Request screen wake lock</button></div>
 <p id="schedule-readiness" class="status" role="status">No scan armed. WebUSB permission, tab visibility and receiver availability have not been checked.</p>
-<p class="hint">No closed-tab/background scheduling: suspended browsers and sleeping computers cannot guarantee a minute-accurate scan. Future jobs are saved <strong>in this tab only</strong> and are lost when it closes. Use the optional local companion for attended scheduling while the browser is closed.</p>
+<p class="hint">Browser-only WebUSB jobs need a visible Chromium tab. On Debian/Pop!_OS open the <a href="http://127.0.0.1:8791/" rel="noopener noreferrer" target="_blank">native Satellite Center receiver</a> for long recordings in Firefox. Native rtl_sdr captures stream directly to disk and keep scheduled jobs while the local app runs; the website cannot start a local service remotely.</p>
 <h3>Armed jobs and results</h3>
 <div id="jobs" class="scheduled-jobs" aria-live="polite">No scheduled browser captures.</div>
 <section id="browser-schedule-calendar" class="sat-calendar-panel" aria-labelledby="browser-calendar-title">
