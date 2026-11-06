@@ -48,7 +48,10 @@ class TVTests(unittest.TestCase):
                 "id":"safe-tv","name":"Authorized local relay",
                 "url":"http://127.0.0.1:9981/stream/channelid"
             }]}))
-            tv=LiveTV(archive_dir=Path(tmp)/"recordings",
+            from textcenter.core import Store
+            from textcenter.transcripts import TranscriptStore
+            captions=TranscriptStore(Store(Path(tmp)/"captions.db"))
+            tv=LiveTV(archive_dir=Path(tmp)/"recordings",transcripts=captions,
                 channels_file=channels,lookup=lambda _:"/usr/bin/ffmpeg")
             fake=MagicMock()
             fake.poll.return_value=0
