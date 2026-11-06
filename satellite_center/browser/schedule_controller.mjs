@@ -1,5 +1,6 @@
 // Browser-only opt-in RF capture schedules. No closed-tab execution promises.
 import {captureBudget,MAX_BROWSER_CAPTURE_SECONDS} from './capture_duration.mjs';
+import {wavOutputPlan} from './fm_wav_record.mjs';
 export const MAX_SCHEDULE_SECONDS = MAX_BROWSER_CAPTURE_SECONDS;
 export const DEFAULT_SAMPLE_RATE = 1024000;
 export function localDateInput(time){
@@ -31,6 +32,8 @@ export function createScheduledPass(pass,choices,now=Date.now()){
   throw Error("Scheduled recording must finish before this satellite pass ends.");
  const {mode}=captureBudget(duration,sampleRate,Boolean(choices.saveRaw),
    {fileStreaming:Boolean(choices.diskStreamPrepared)});
+ const wav=wavOutputPlan(duration,Boolean(choices.saveWav),
+   {fileStreaming:Boolean(choices.wavDiskPrepared)});
  if(![1024000,2048000].includes(sampleRate))throw Error("Unsupported sample rate.");
  if(!Number.isFinite(frequency)||frequency<24000000||frequency>1750000000)
   throw Error("Receiver frequency is out of RTL-SDR range.");
@@ -40,7 +43,8 @@ export function createScheduledPass(pass,choices,now=Date.now()){
   family:pass.family, when,until,
   passAos:Number(pass.aos),passLos:until,
   frequency,sampleRate,durationSeconds:duration,
-  saveRaw:Boolean(choices.saveRaw),diskStreamPrepared:mode==="disk-stream",state:"armed",
+  saveRaw:Boolean(choices.saveRaw),saveWav:Boolean(choices.saveWav),
+  diskStreamPrepared:mode==="disk-stream",wavDiskPrepared:wav.mode==="disk-stream",state:"armed",
   createdAt:now,report:null,message:"Waiting for scheduled minute; browser must remain open and foreground."
  };
 }

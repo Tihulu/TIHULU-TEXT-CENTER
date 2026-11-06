@@ -1,7 +1,7 @@
 import { platformFamily, webUsbHelp, permissionReport, usbInterfaceClaimProbe } from './usb_diagnostics.mjs?v=20261106-dvb-unbind-v09';
 import { createSatelliteMaps } from './satellite_maps.mjs?v=20261106-live-v14';
 import { initIqAnalysisUI } from './iq_analysis_ui.mjs?v=20261106-iss-npu-release-v1';
-import { initSatelliteImageUI } from './satellite_images_ui.mjs?v=20261106-images-v15b';
+import { initSatelliteImageUI } from './satellite_images_ui.mjs?v=20261106-direct-fm-wav-v1';
 import { recordingName } from './satellite_imagery.mjs?v=20261106-images-v15';
 import { initStationLocationUI } from './location_search.mjs';
 import { probeUsbSamples, sampleBytes } from './usb_live_probe.mjs?v=20261106-map-usb-v07';
@@ -10,8 +10,9 @@ import { protocolsForPass, protocolCategories, passesFilteredByContent } from '.
 import {readUserProfiles} from './saved_satellite_protocols.mjs';
 import { selectAutomaticPasses, AUTO_TARGETS } from './auto_mission.mjs?v=20261106-iss-npu-release-v1';
 import {localDayKey,shiftCalendarDay,renderSatelliteCalendar} from './satellite_calendar.mjs?v=20261106-calendar-zip-v2';
-import { localDateInput, parseLocalScheduleTime, createScheduledPass, evaluateScheduledJob, secondsToJob, captureLevelSummary } from './schedule_controller.mjs?v=20261106-stream-iq-v1';
+import { localDateInput, parseLocalScheduleTime, createScheduledPass, evaluateScheduledJob, secondsToJob, captureLevelSummary } from './schedule_controller.mjs?v=20261106-direct-fm-wav-v1';
 import {captureBudget,formatCaptureBudget,STREAM_IQ_BYTES} from './capture_duration.mjs?v=20261106-stream-v1';
+import {createStreamingFmWavEncoder,createPcmWavHeader,wavOutputPlan} from './fm_wav_record.mjs?v=20261106-web-fm-wav-v1';
 // TIHULU Satellite Center — no-local-install receive-only browser mode.
 // The RTL-SDR device is opened only after a direct user gesture.
 // CelesTrak / CDN downloads are for client-side orbital prediction + JS only;
@@ -60,12 +61,13 @@ async function nativeRequest(route,payload=null,csrf=null){
  if(!response.ok)throw Error(String(result.error||response.status));
  return result;
 }
-async function nativeScheduledPass(pass,{when,durationSeconds,frequency,sampleRate,saveRaw}){
+async function nativeScheduledPass(pass,{when,durationSeconds,frequency,sampleRate,saveRaw,saveWav=false}){
  if(!nativeLocal())throw Error("Start the Debian app and open http://127.0.0.1:8791/browser/index.html");
  if(sampleRate!==1024000)throw Error("Native rtl_sdr uses 1.024 MS/s; select that sample rate.");
  if(!Number.isInteger(durationSeconds)||durationSeconds<8||durationSeconds>900)
    throw Error("Native capture must be 8–900 whole seconds.");
- if(!saveRaw&&durationSeconds>180)throw Error("Native spectrum-only survey is limited to 180 s; choose raw IQ for longer recordings.");
+ if(saveRaw&&saveWav)throw Error("One native scheduled receiver mode can write either CU8 or WAV; for both choose browser dual-format recording.");
+ if(!saveRaw&&!saveWav&&durationSeconds>180)throw Error("Native spectrum-only survey is limited to 180 s; choose CU8/WAV for longer recordings.");
  const state=await nativeRequest("/api/status");
  if(!state.csrf||!state.profiles)throw Error("Local SDR server not available");
  const profile=Object.entries(state.profiles).find(([,p])=>p.family===pass.family&&Number(p.freq)===frequency)?.[0];
@@ -85,10 +87,50 @@ async function nativeScheduledPass(pass,{when,durationSeconds,frequency,sampleRa
    events=await predict();target=matched();
  }
  if(!target)throw Error("Native TLE pass differs from browser estimate. Refresh catalog and recalculate.");
- return nativeRequest("/api/schedule",{pass_id:target.id,profile,mode:saveRaw?"iq":"survey",
+ return nativeRequest("/api/schedule",{pass_id:target.id,profile,mode:saveRaw?"iq":saveWav?"sstv_audio":"survey",
    run_at:new Date(when).toISOString(),duration_seconds:durationSeconds},state.csrf);
 }
 
+function captureWavName(job,frequency,at=new Date()){
+ const target=job?.name?job.name+"-CANDIDATE":
+   imageCandidateTarget&&imageCandidateTarget.frequencies.includes(frequency)?
+     imageCandidateTarget.name+"-CANDIDATE":"RF-UNATTRIBUTED";
+ return recordingName({satellite:target,at,frequencyHz:frequency,
+   sampleRate:48000,format:"wav",kind:"SSTV-AUDIO"});
+}
+function inspectCaptureStorage(seconds,rate,raw,wav){
+ const iq=captureBudget(seconds,rate,raw,{fileStreaming:diskStreamingAvailable()});
+ const audio=wavOutputPlan(seconds,wav,{fileStreaming:diskStreamingAvailable()});
+ return {iq,audio,rawDisk:iq.mode==="disk-stream",wavDisk:audio.mode==="disk-stream"};
+}
+async function selectRecordingFiles(seconds,rate,raw,wav,{job=null,at=new Date(),freq=null}={}){
+ const plan=inspectCaptureStorage(seconds,rate,raw,wav);
+ if(!plan.rawDisk&&!plan.wavDisk)return null;
+ const frequency=freq??Number($('preset').value);
+ const rawName=captureFileName(job,frequency,rate,at);
+ const wavName=captureWavName(job,frequency,at);
+ const prepared={name:rawName,wavName,writable:null,wavWritable:null};
+ try{
+   if(plan.rawDisk&&plan.wavDisk){
+     if(typeof window.showDirectoryPicker!=="function")
+       throw Error("Saving long CU8 and WAV together requires a Chromium directory picker. Record WAV-only, lower duration, or use the native app.");
+     const directory=await window.showDirectoryPicker({mode:"readwrite"});
+     const rawHandle=await directory.getFileHandle(rawName,{create:true});
+     const wavHandle=await directory.getFileHandle(wavName,{create:true});
+     prepared.writable=await rawHandle.createWritable();
+     prepared.wavWritable=await wavHandle.createWritable();
+   }else if(plan.rawDisk){
+     const handle=await window.showSaveFilePicker({suggestedName:rawName,
+       types:[{description:"TIHULU unsigned IQ CU8",accept:{"application/octet-stream":[".cu8"]}}]});
+     prepared.writable=await handle.createWritable();
+   }else{
+     const handle=await window.showSaveFilePicker({suggestedName:wavName,
+       types:[{description:"TIHULU demodulated FM WAV",accept:{"audio/wav":[".wav"]}}]});
+     prepared.wavWritable=await handle.createWritable();
+   }
+   return prepared;
+ }catch(error){await abortLongCapture(prepared);throw error;}
+}
 function captureFileName(job,frequency,rate,at=new Date()){
  const target=job?.name?job.name+"-CANDIDATE":
    imageCandidateTarget&&imageCandidateTarget.frequencies.includes(frequency)?
@@ -96,22 +138,13 @@ function captureFileName(job,frequency,rate,at=new Date()){
  return recordingName({satellite:target,at,frequencyHz:frequency,
    sampleRate:rate,format:"cu8",kind:job?"SCHEDULED-IQ":"IQ"});
 }
-async function selectLongCaptureFile(seconds,rate,saveRaw,{job=null,at=new Date(),freq=null}={}){
- const budget=captureBudget(seconds,rate,saveRaw,{fileStreaming:diskStreamingAvailable()});
- if(budget.mode!=="disk-stream")return null;
- const name=captureFileName(job,freq??Number($('preset').value),rate,at);
- const handle=await window.showSaveFilePicker({
-   suggestedName:name,
-   types:[{description:"TIHULU raw unsigned IQ (.cu8)",
-     accept:{"application/octet-stream":[".cu8"]}}]
- });
- const writable=await handle.createWritable();
- return {writable,handle,name,budget};
-}
 async function abortLongCapture(prepared){
- if(!prepared?.writable)return;
- const writable=prepared.writable;prepared.writable=null;
- try{await writable.abort();}catch(error){log("Disk stream cleanup: "+error.message);}
+ if(!prepared)return;
+ for(const key of ["writable","wavWritable"]){
+   if(!prepared[key])continue;
+   const stream=prepared[key];prepared[key]=null;
+   try{await stream.abort();}catch(error){log("Disk stream cleanup: "+error.message);}
+ }
 }
 function releaseScheduledStream(job){
  const prepared=preparedLongStreams.get(job.id);
@@ -120,15 +153,28 @@ function releaseScheduledStream(job){
  void abortLongCapture(prepared);
 }
 function updateManualCaptureBudget(){
- const estimate=formatCaptureBudget(Number($('duration').value),Number($('rate').value),
-   $('record').checked,diskStreamingAvailable());
  const label=$('capture-budget');
- label.dataset.feasible=String(estimate.ok);
- label.textContent=estimate.ok?estimate.detail+" Requested "+estimate.seconds+
-   " seconds. "+(estimate.mode==="disk-stream"?"Select a local CU8 file before capture. Browser tab must remain visible.":""):
-   estimate.detail;
+ try{
+   const seconds=Number($('duration').value),rate=Number($('rate').value);
+   const opts=inspectCaptureStorage(seconds,rate,$('record').checked,$('wav-record').checked);
+   label.dataset.feasible="true";
+   label.textContent=(opts.iq.mode==='levels-only'?'No raw CU8. ':
+     'CU8: '+(opts.iq.estimatedBytes/1e6).toFixed(0)+' MB ('+opts.iq.mode+'). ')+
+     (opts.audio.enabled?'WAV: '+(opts.audio.estimatedBytes/1e6).toFixed(1)+' MB ('+
+       opts.audio.mode+', 48 kHz mono PCM). ':'')+
+     ((opts.rawDisk&&opts.wavDisk)?'Choose one folder for both files. ':
+       (opts.rawDisk||opts.wavDisk)?'Choose a local file before recording. ':'')+
+     'Browser must remain visible during WebUSB capture.';
+ }catch(error){label.dataset.feasible="false";label.textContent=String(error?.message||error);}
 }
-for(const id of ['duration','rate','record']){
+$('preset').addEventListener('change',()=>{
+ // SSTV defaults to real FM WAV, but users may check CU8 as well.
+ const iss=Number($('preset').value)===437550000;
+ $('wav-record').checked=iss;
+ $('record').checked=!iss;
+ updateManualCaptureBudget();
+});
+for(const id of ['duration','rate','record','wav-record']){
  $(id).addEventListener('input',updateManualCaptureBudget);
  $(id).addEventListener('change',updateManualCaptureBudget);
 }
@@ -390,7 +436,7 @@ function triggerRawDownload(blob,name) {
   document.body.append(link);link.click();link.remove();
   setTimeout(()=>URL.revokeObjectURL(url),60000);
   log('Requested browser download: '+name+' · '+(blob.size/1048576).toFixed(2)+
-    ' MiB of real IQ bytes. Browser settings may block automatic downloads; scheduled reports retain the latest file for manual retry.');
+    ' MiB of real recorded RF-derived data. Browser settings may block automatic downloads.');
 }
 function saveCapture(bytes,name,job=null,metadata=null) {
   if (!bytes.length) return null;
@@ -417,7 +463,11 @@ async function startCapture(job=null,prepared=null) {
   const rate=job?job.sampleRate:Number($('rate').value);
   const limit=job?job.durationSeconds:Number($('duration').value);
   const recording=job?job.saveRaw:$('record').checked;
+  const recordingWav=job?Boolean(job.saveWav):$('wav-record').checked;
   const budget=captureBudget(limit,rate,recording,{fileStreaming:Boolean(prepared?.writable)});
+  const wavBudget=wavOutputPlan(limit,recordingWav,{fileStreaming:Boolean(prepared?.wavWritable)});
+  if(recordingWav&&wavBudget.mode==='disk-stream'&&!prepared?.wavWritable)
+    throw Error("Long WAV recording requires an explicitly selected local disk file.");
   if(budget.mode==="disk-stream"&&!prepared?.writable)
     throw Error("No user-selected local CU8 disk stream for this extended capture.");
   stopRequested=false;
@@ -425,6 +475,28 @@ async function startCapture(job=null,prepared=null) {
   const captureStartTime=new Date();
   capturePromise=(async()=>{
     let bytesReceived=0,bytesRecorded=0,chunks=[],measured=null,peakCount=0;
+    const fmWav=recordingWav?createStreamingFmWavEncoder(rate):null;
+    const wavChunks=[];
+    let wavWritten=false;
+    async function finalizeWav(){
+      if(!fmWav||wavWritten||fmWav.pcmBytes<2)return null;
+      const name=prepared?.wavName||captureWavName(job,freq,captureStartTime);
+      const header=fmWav.makeHeader();
+      if(prepared?.wavWritable){
+        await prepared.wavWritable.write({type:"write",position:0,data:header});
+        await prepared.wavWritable.close();
+        prepared.wavWritable=null;
+        log("Saved real demodulated FM audio to "+name+" ("+
+          (fmWav.pcmBytes/1048576).toFixed(2)+" MiB PCM). Open WAV in the Robot36 decoder.");
+      }else{
+        const blob=new Blob([header,...wavChunks],{type:"audio/wav"});
+        triggerRawDownload(blob,name);
+        satelliteImageUI?.recordAudioCapture(blob,name);
+      }
+      wavWritten=true;
+      if(job)job.wavFileName=name;
+      return {name,...fmWav.report()};
+    }
     const measurements=[],startedAt=Date.now();
     const deadline=startedAt+limit*1000;
     try {
@@ -437,6 +509,9 @@ async function startCapture(job=null,prepared=null) {
       await device.setCenterFrequency(freq);
       await device.setGain(null);
       await device.resetBuffer();
+      // RIFF/WAV headers are rewritten with the actual captured sample count
+      // before closing the streamed local file. Never save fabricated audio.
+      if(prepared?.wavWritable)await prepared.wavWritable.write(createPcmWavHeader(0));
       status('sample-state','Receiving real USB I/Q at '+(freq/1e6).toFixed(3)+' MHz · '+
         (rate/1e6)+' MS/s. Sample levels are uncalibrated. No satellite is identified.');
       while(!stopRequested && Date.now()<deadline){
@@ -452,6 +527,13 @@ async function startCapture(job=null,prepared=null) {
           signalHistory.push(measured);
           if(signalHistory.length>150)signalHistory.shift();
           renderSignal();
+        }
+        if(fmWav){
+          const pcm=fmWav.push(data);
+          if(pcm.length){
+            if(prepared?.wavWritable)await prepared.wavWritable.write(pcm);
+            else wavChunks.push(pcm);
+          }
         }
         if(recording){
           if(prepared?.writable){
@@ -472,6 +554,7 @@ async function startCapture(job=null,prepared=null) {
       }
       if(!bytesReceived)throw Error('Zero actual USB sample bytes received; no successful scan.');
       const report=captureLevelSummary(measurements,bytesReceived,Date.now()-startedAt);
+      report.wav=await finalizeWav();
       report.frequencyHz=freq;report.sampleRate=rate;report.rawBytes=bytesRecorded;
       report.recordedRaw=Boolean(recording&&bytesRecorded>0);
       report.time=new Date().toISOString();
@@ -501,8 +584,9 @@ async function startCapture(job=null,prepared=null) {
         job.state=stopRequested?'stopped':'finished';
         job.report=report;
         job.message=(stopRequested?'Capture stopped early. ':'Capture completed. ')+
-          (prepared?'IQ saved to user-selected disk file; reopen from disk to analyze. ':recording?
-           'Browser IQ download was requested; verify it in Downloads. ':'Raw IQ saving was disabled. ')+
+          (recording?(budget.mode==='disk-stream'?'CU8 saved to chosen disk. ':'Raw CU8 download requested. '):
+             'Raw CU8 was not selected. ')+
+          (recordingWav?(wavBudget.mode==='disk-stream'?'WAV saved to chosen disk. ':'FM WAV download requested. '):'')+
           'Uncalibrated RF power analysis only; no downlink or satellite identity confirmed.';
         status('scheduled-report',
           job.name+' · '+(freq/1e6).toFixed(3)+' MHz\n'+
@@ -515,6 +599,16 @@ async function startCapture(job=null,prepared=null) {
       }
       log('Session '+session+' captured '+bytesReceived+' real raw USB bytes; receiver released.');
     }catch(e){
+      if(stopRequested&&fmWav?.pcmBytes>0&&!wavWritten){
+        try{
+          const partial=await finalizeWav();
+          if(partial)log("Stopped early: partial real FM WAV preserved ("+partial.durationSeconds+" s).");
+        }catch(error){log("Partial FM WAV save failed: "+error.message);}
+      }
+      if(prepared?.wavWritable){
+        const stream=prepared.wavWritable;prepared.wavWritable=null;
+        try{await stream.abort();}catch{}
+      }
       // A deliberate Stop should preserve already received real RF bytes.
       // Unexpected driver/disk errors abort the uncommitted stream instead.
       if(prepared?.writable){
@@ -565,11 +659,12 @@ $('start').addEventListener('click',()=>{
  void (async()=>{
    let prepared=null;
    try{
-     prepared=await selectLongCaptureFile(Number($('duration').value),Number($('rate').value),
-       $('record').checked,{at:new Date(),freq:Number($('preset').value)});
+     prepared=await selectRecordingFiles(Number($('duration').value),Number($('rate').value),
+       $('record').checked,$('wav-record').checked,
+       {at:new Date(),freq:Number($('preset').value)});
      await startCapture(null,prepared);
    }catch(error){
-     if(prepared?.writable)await abortLongCapture(prepared);
+     if(prepared?.writable||prepared?.wavWritable)await abortLongCapture(prepared);
      status('sample-state',"Capture not started: "+String(error?.message||error));
      log("Capture preflight: "+String(error?.message||error));
    }
@@ -827,7 +922,16 @@ function appendPass(pass){
   rateLabel.append(rate);
   const saveLabel=document.createElement('label');saveLabel.className='schedule-wide check';
   const raw=document.createElement('input');raw.type='checkbox';raw.checked=true;
-  saveLabel.append(raw,' Save actual raw I/Q (.cu8). Long samples stream to a user-selected local disk file when supported.');
+  saveLabel.append(raw,' Record original unsigned I/Q (.cu8).');
+  const wavLabel=document.createElement('label');wavLabel.className='schedule-wide check';
+  const wav=document.createElement('input');wav.type='checkbox';
+  wav.checked=Number(frequency.value)===437550000;
+  if(wav.checked)raw.checked=false;
+  wavLabel.append(wav,' Record real FM-demodulated audio (.wav, mono PCM 48 kHz), suitable for Robot36 analysis.');
+  frequency.addEventListener('change',()=>{
+    const iss=Number(frequency.value)===437550000;
+    wav.checked=iss;raw.checked=!iss;refreshBudget();
+  });
   const localLink=document.createElement('a');
   localLink.className="iq-jump-link schedule-wide";
   localLink.href="http://127.0.0.1:8791/browser/index.html";
@@ -841,15 +945,20 @@ function appendPass(pass){
   budgetLabel.className='schedule-capture-budget schedule-wide';
   budgetLabel.setAttribute('role','status');
   const refreshBudget=()=>{
-    const check=formatCaptureBudget(Number(duration.value),Number(rate.value),raw.checked,diskStreamingAvailable());
-    budgetLabel.textContent=check.ok?check.detail+" "+duration.value+" s requested; "+
-      (check.mode==="disk-stream"?"disk file must be authorized before arming.":"memory buffered or levels only."):
-      check.detail;
+    try{
+      const plan=inspectCaptureStorage(Number(duration.value),Number(rate.value),raw.checked,wav.checked);
+      budgetLabel.textContent=(plan.rawDisk||plan.wavDisk?
+        "Select local "+(plan.rawDisk&&plan.wavDisk?"folder":"file")+" NOW for scheduled recording. ":
+        "Short outputs saved in memory/downloads. ")+
+        (raw.checked?"CU8 "+(plan.iq.estimatedBytes/1e6).toFixed(0)+" MB. ":"")+
+        (wav.checked?"Real FM WAV "+(plan.audio.estimatedBytes/1e6).toFixed(1)+" MB. ":"")+
+        "Browser tab must remain visible and awake.";
+    }catch(error){budgetLabel.textContent=String(error?.message||error);}
   };
-  for(const element of [duration,rate,raw])element.addEventListener('change',refreshBudget);
+  for(const element of [duration,rate,raw,wav])element.addEventListener('change',refreshBudget);
   duration.addEventListener('input',refreshBudget);rate.addEventListener('input',refreshBudget);
   refreshBudget();
-  form.append(timeLabel,frequencyLabel,durationLabel,rateLabel,saveLabel,budgetLabel,localLink,explanation,alert,confirm);
+  form.append(timeLabel,frequencyLabel,durationLabel,rateLabel,saveLabel,wavLabel,budgetLabel,localLink,explanation,alert,confirm);
   form.addEventListener('submit',async event=>{
     event.preventDefault();
     let prepared=null;
@@ -860,7 +969,7 @@ function appendPass(pass){
       if(nativeLocal()){
         const job=await nativeScheduledPass(pass,{
           when:selectedTime,durationSeconds:seconds,frequency:Number(frequency.value),
-          sampleRate:chosenRate,saveRaw:raw.checked
+          sampleRate:chosenRate,saveRaw:raw.checked,saveWav:wav.checked
         });
         alert.textContent="Debian local SDR scheduled "+job.satellite+" · "+
           new Date(job.run_at).toLocaleString()+" · "+job.capture_seconds+" seconds · "+
@@ -868,12 +977,12 @@ function appendPass(pass){
         log("Native job "+job.id+" armed; RTL-SDR stays idle until start time.");
         return;
       }
-      const plan=captureBudget(seconds,chosenRate,raw.checked,
-        {fileStreaming:diskStreamingAvailable()});
+      const plan=inspectCaptureStorage(seconds,chosenRate,raw.checked,wav.checked);
       const newJob=createScheduledPass(pass,{
         when:selectedTime,durationSeconds:seconds,
         sampleRate:chosenRate,frequency:Number(frequency.value),
-        saveRaw:raw.checked,diskStreamPrepared:plan.mode==="disk-stream"
+        saveRaw:raw.checked,saveWav:wav.checked,
+        diskStreamPrepared:plan.rawDisk,wavDiskPrepared:plan.wavDisk
       });
       if(jobs.some(j=>j.id===newJob.id&&j.state==='armed'))
         throw Error('This satellite/date/frequency is already scheduled.');
@@ -885,8 +994,8 @@ function appendPass(pass){
       }
       // Pick the disk file NOW, during the form-submit gesture, never at a
       // later unattended scheduled start when a new chooser is impossible.
-      if(plan.mode==="disk-stream"){
-        prepared=await selectLongCaptureFile(seconds,chosenRate,true,{
+      if(plan.rawDisk||plan.wavDisk){
+        prepared=await selectRecordingFiles(seconds,chosenRate,raw.checked,wav.checked,{
           job:newJob,at:new Date(newJob.when),freq:newJob.frequency
         });
       }
@@ -896,10 +1005,10 @@ function appendPass(pass){
       jobs.sort((a,b)=>a.when-b.when);
       alert.textContent='Scheduled '+fmtTime(newJob.when)+' for '+seconds+
         ' s · '+(newJob.frequency/1e6).toFixed(3)+' MHz'+
-        (plan.mode==="disk-stream"?'. Local disk CU8 file selected; do not close this tab.':'.')+
+        ((plan.rawDisk||plan.wavDisk)?'. Local disk output selected; do not close this tab.':'.')+
         ' See calendar for exact end time.';
       log('User armed '+newJob.name+' for '+fmtTime(newJob.when)+
-        ' · '+seconds+' s · '+plan.mode+'. No RF capture started yet.');
+        ' · '+seconds+' s · CU8 '+plan.iq.mode+' / WAV '+plan.audio.mode+'. No RF capture started yet.');
       renderJobs();
       if(device&&!capturePromise){
         await closeDevice(); // do not monopolize USB while waiting
@@ -907,7 +1016,7 @@ function appendPass(pass){
       }
       document.getElementById('schedule-center')?.scrollIntoView({behavior:'smooth',block:'nearest'});
     }catch(error){
-      if(prepared?.writable)await abortLongCapture(prepared);
+      if(prepared?.writable||prepared?.wavWritable)await abortLongCapture(prepared);
       alert.textContent='Could not schedule: '+String(error?.message||error)+
         (nativeLocal()?'':'. In Firefox open the Debian native app on http://127.0.0.1:8791/browser/index.html to record without WebUSB/File System Access.');
     }finally{confirm.disabled=false;}
@@ -1031,8 +1140,12 @@ function showCalendarEdit(job,card){
    const o=document.createElement('option');o.value=String(value);o.textContent=(value/1e6).toFixed(3)+' MS/s';rate.append(o);
  }
  rate.value=String(job.sampleRate);addField('Sample rate',rate);
+ const rawToggle=document.createElement('input');rawToggle.type='checkbox';rawToggle.checked=Boolean(job.saveRaw);
+ addField('Record raw CU8',rawToggle);
+ const wavToggle=document.createElement('input');wavToggle.type='checkbox';wavToggle.checked=Boolean(job.saveWav);
+ addField('Record real FM WAV (48 kHz PCM)',wavToggle);
  const note=document.createElement('p');note.className='hint';
- note.textContent='Edits must fit inside the predicted pass and another SDR booking. Long IQ edits need a new local .cu8 file selected now, while the tab is visible.';
+ note.textContent='Edits must fit the predicted pass and SDR availability. Long CU8/WAV edits require selecting a new local file/folder now, while the tab is visible.';
  form.append(note);
  const save=document.createElement('button');save.type='submit';save.textContent='Save job changes';form.append(save);
  const error=document.createElement('p');error.className='status';error.setAttribute('role','status');form.append(error);
@@ -1041,14 +1154,14 @@ function showCalendarEdit(job,card){
    let newPrepared=null;
    try{
      const durationSeconds=Number(seconds.value),sampleRate=Number(rate.value);
-     const plan=captureBudget(durationSeconds,sampleRate,job.saveRaw,
-       {fileStreaming:diskStreamingAvailable()});
+     const plan=inspectCaptureStorage(durationSeconds,sampleRate,rawToggle.checked,wavToggle.checked);
      const pass={id:job.passId,name:job.name,family:job.family,
        aos:job.passAos,los:job.passLos};
      const next=createScheduledPass(pass,{
        when:parseLocalScheduleTime(time.value),durationSeconds,
-       sampleRate,frequency:Number(freq.value),saveRaw:job.saveRaw,
-       diskStreamPrepared:plan.mode==="disk-stream"
+       sampleRate,frequency:Number(freq.value),
+       saveRaw:rawToggle.checked,saveWav:wavToggle.checked,
+       diskStreamPrepared:plan.rawDisk,wavDiskPrepared:plan.wavDisk
      });
      for(const other of jobs){
        if(other===job||!['armed','starting','running'].includes(other.state))continue;
@@ -1056,8 +1169,8 @@ function showCalendarEdit(job,card){
           next.when+next.durationSeconds*1000>other.when-20000)
          throw Error('Single receiver conflict with another capture');
      }
-     if(plan.mode==="disk-stream")
-       newPrepared=await selectLongCaptureFile(durationSeconds,sampleRate,true,{
+     if(plan.rawDisk||plan.wavDisk)
+       newPrepared=await selectRecordingFiles(durationSeconds,sampleRate,rawToggle.checked,wavToggle.checked,{
          job:next,at:new Date(next.when),freq:next.frequency
        });
      const previousId=job.id;
@@ -1075,7 +1188,7 @@ function showCalendarEdit(job,card){
      status('schedule-readiness',"Updated "+previousId+" to "+durationSeconds+
        " seconds; SDR remains released.");
    }catch(error){
-     if(newPrepared?.writable)await abortLongCapture(newPrepared);
+     if(newPrepared?.writable||newPrepared?.wavWritable)await abortLongCapture(newPrepared);
      error.textContent='Changes not saved: '+String(error?.message||error);
    }finally{save.disabled=false;}
  });
@@ -1269,6 +1382,8 @@ async function scheduledTick(){
        const prepared=preparedLongStreams.get(job.id)||null;
        if(job.diskStreamPrepared&&!prepared?.writable)
          throw Error('Preauthorized CU8 file writer unavailable; re-plan explicitly.');
+       if(job.wavDiskPrepared&&!prepared?.wavWritable)
+         throw Error('Preauthorized WAV file writer unavailable; re-plan explicitly.');
        preparedLongStreams.delete(job.id);
        await startCapture(job,prepared);
      }catch(e){
@@ -1360,15 +1475,18 @@ async function runAutoMission({mode=$('auto-mode').value,goal=$('auto-coverage')
     for(const item of proposal.scheduled) {
       const job=createScheduledPass(item.pass,{
         when:item.when,durationSeconds:item.durationSeconds,
-        sampleRate:item.sampleRate,frequency:item.frequency,saveRaw:item.saveRaw
+        sampleRate:item.sampleRate,frequency:item.frequency,
+       saveRaw:item.missionId==='iss-sstv'?false:item.saveRaw,
+       saveWav:item.missionId==='iss-sstv'
       });
       if(jobs.some(j=>j.id===job.id&&['armed','starting','running'].includes(j.state)))continue;
       job.missionId=item.missionId;
       job.coverage=item.coverage;
       job.dataKind=item.dataKind;
-      job.estimatedBytes=item.estimatedBytes;
+      job.estimatedBytes=job.saveWav&&!job.saveRaw?
+        wavOutputPlan(item.durationSeconds,true).estimatedBytes:item.estimatedBytes;
       job.shortfallSeconds=item.shortfallSeconds;
-      job.message='Plan: '+item.durationSeconds+' s · ~'+Math.round(item.estimatedBytes/1e6)+
+      job.message='Plan: '+item.durationSeconds+' s · ~'+Math.round(job.estimatedBytes/1e6)+
         ' MB · '+item.dataKind+' · '+item.coverage+'; '+item.limitation;
       jobs.push(job);armed++;
     }
@@ -1464,7 +1582,10 @@ satelliteMaps = createSatelliteMaps({
  onTune:(frequency)=>{
    const preset=$('preset');
    const option=Array.from(preset.options).find(o=>Number(o.value)===frequency);
-   if(option) preset.value=option.value;
+   if(option){
+     preset.value=option.value;
+     preset.dispatchEvent(new Event('change',{bubbles:true}));
+   }
  },
  log
 });
