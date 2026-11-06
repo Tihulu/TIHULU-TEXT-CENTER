@@ -89,6 +89,7 @@ export function createSatelliteMaps({getTles,getSatLib,getPasses,getLastCapture,
    button.setAttribute("aria-pressed",String(live));
    $("map-pause").disabled=!live;
    const indicator=$("map-live-state");
+   indicator.dataset.mode=live?"live":"paused";
    const message=live?"LIVE · updates every second while this tab is visible":
      "PAUSED / simulated snapshot · press Now / live to resume";
    // Do not re-announce an aria-live message every second.
@@ -852,7 +853,8 @@ export function createSatelliteMaps({getTles,getSatLib,getPasses,getLastCapture,
  });
  const tick=setInterval(()=>{
    if(shouldRefreshLive({
-     live:clock.isLive,visible:!document.hidden,started:mapStarted,
+     live:clock.isLive,visible:!document.hidden,
+     started:mapStarted&&getTles().length>0,
      elapsedMs:Date.now()-lastUpdate
    }))void refresh();
  },LIVE_REFRESH_MS);
