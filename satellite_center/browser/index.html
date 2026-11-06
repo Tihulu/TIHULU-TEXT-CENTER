@@ -7,7 +7,7 @@
 <link rel="apple-touch-icon" href="./icon-192.png">
 <link rel="manifest" href="./manifest.webmanifest">
 <meta name="theme-color" content="#091a30">
-<link rel="stylesheet" href="./browser.css?v=20261106-discovery-integrated-v1">
+<link rel="stylesheet" href="./browser.css?v=20261106-stream-iq-v1">
 <link rel="stylesheet" href="./reception.css">
 </head><body>
 <header><div class="wrap"><p class="eyebrow">TIHULU SATELLITE CENTER · DIRECT USB EXPERIMENTAL</p>
@@ -72,10 +72,11 @@
 <option value="1620000000">Iridium L-band energy sample · 1620.000 MHz</option>
 </select>
 <div class="line"><label>Sample rate<select id="rate"><option value="1024000">1.024 MS/s</option><option value="2048000">2.048 MS/s</option></select></label>
-<label>Capture duration<select id="duration"><option value="5">5 seconds</option><option value="15" selected>15 seconds</option><option value="30">30 seconds</option><option value="60">60 seconds</option></select></label></div>
+<label>RF sample length · seconds (manual 1–900)<input type="number" id="duration" min="1" max="900" step="1" value="15" inputmode="numeric"></label></div>
 <label class="check"><input type="checkbox" id="record" checked> Save raw interleaved uint8 I/Q (.cu8) locally</label>
+<p id="capture-budget" class="hint" role="status">Short IQ stays in 128 MiB browser memory. Longer captures require a chosen local disk file; if unsupported use native receiver.</p>
 <div class="line"><button id="start" disabled>Start real USB capture</button><button id="stop" class="secondary" disabled>Stop &amp; release</button></div>
-<p class="hint">Shows <strong>relative digital sample level</strong>, not calibrated dBm or a named satellite. Raw CU8 is saved under a <strong>satellite candidate / UTC date/time / frequency / sample rate</strong> filename; the candidate name is not RF proof. Meteor images require a decoder such as SatDump. Buffer limit: 128 MiB.</p>
+<p class="hint">Measures uncalibrated digital sample levels, not dBm or proof of a satellite. RF samples can exceed 60 seconds (maximum 900 s / 2 GB) where the Chromium browser supports user-authorized disk streaming. You choose the local .cu8 file. On Firefox/Safari or unsupported browsers, use the optional native companion. Larger raw IQ requires space; actual Earth-image decoding needs a genuine downlink and decoder.</p>
 <canvas id="level-chart" width="760" height="180" aria-label="Measured relative raw SDR sample level history"></canvas>
 <p id="sample-state" class="status" role="status">No RF samples measured.</p>
 <a class="iq-jump-link" href="#iq-analysis">Analyze .cu8 recording inside Satellite Center · spectrum / waterfall / level over time</a>
@@ -283,7 +284,9 @@ All location methods are optional. City suggestions are offline by default; GPS 
 <section class="iq-discovery-panel" aria-labelledby="iq-discovery-title">
 <h3 id="iq-discovery-title">Automatic signal discovery · progressive local analysis</h3>
 <p class="hint">Choose <strong>Automatic discovery</strong> above. The app examines the complete FFT, isolates the strongest unclassified RF regions, tries AM / narrowband FM audio, and checks long enough recordings for real Robot36 SSTV line synchronization. It does not upload RF data, identify speech/music from sound alone, or invent images, packet data or a satellite source. Other image/data protocols such as Meteor LRPT and APRS remain explicitly unsupported until their decoders verify the result. Processing can be cancelled with Stop processing.</p>
-<div class="line"><button type="button" id="iq-discovery-export" class="secondary" disabled>Export discovery evidence JSON</button></div>
+<div class="line"><button type="button" id="iq-discovery-export" class="secondary" disabled>Export discovery evidence JSON</button>
+<button type="button" id="iq-discovery-zip" class="secondary" disabled>Save analyzed PNG/WAV/JSON ZIP</button></div>
+<p id="iq-discovery-zip-status" class="hint" role="status">Analyze a real local CU8 file first. A ZIP contains the produced candidates and evidence, not the raw IQ file.</p>
 <div id="iq-discovery-stages" class="iq-discovery-stages" aria-live="polite"></div>
 <div id="iq-discovery-results" aria-live="polite" aria-label="Discovered audio and image candidates"></div>
 </section>
@@ -363,4 +366,4 @@ These provider viewers offer maps/imagery independently of your RTL-SDR.</p>
 <details><summary>What requires more than a browser?</summary><p>Windows may require WinUSB driver setup; Linux may require releasing the kernel DVB driver or adjusting permissions. To record a pass while the browser is closed, the optional local companion must remain running. The companion still supports offline SatDump and multimon-ng where installed.</p></details>
 <h3>Activity log</h3><pre id="log" aria-live="polite">Ready. USB idle. No fabricated RF data.</pre></section>
 <footer>Receive-only. The page never transmits RF, uploads I/Q files or silently scans. Page closing releases browser-owned USB access; an unexpected OS/browser crash cannot be guaranteed to cleanly close every device state. Browser client uses <a href="https://www.npmjs.com/package/@jtarrio/webrtlsdr" rel="noopener noreferrer" target="_blank">@jtarrio/webrtlsdr</a> from a version-pinned module CDN (requires Internet to load initially).</footer>
-</main><script type="module" src="./browser.js?v=20261106-calendar-zip-v2"></script></body></html>
+</main><script type="module" src="./browser.js?v=20261106-stream-iq-v1"></script></body></html>

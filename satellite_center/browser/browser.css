@@ -236,6 +236,9 @@ border:1px solid #375471;border-radius:8px;margin:0;background:#081727}
 .pass-known-protocols p{margin:7px 0 4px;line-height:1.4;overflow-wrap:anywhere}
 .pass-no-known-protocol{display:block;opacity:.65;margin:6px 0}
 .pass-capability-help{flex:1 1 100%;font-size:.82rem}
+#capture-budget[data-feasible="false"]{color:#ffb9b0}
+.pass-schedule-form .schedule-capture-budget{font-size:.82rem;color:#b1d7f4;overflow-wrap:anywhere}
+.pass-schedule-form input[type="number"]{width:100%;min-width:0}
 .sat-calendar-panel{margin-top:16px;border:1px solid #315273;background:#0d2037;padding:14px;border-radius:12px;min-width:0}
 .sat-calendar-panel h3{margin:0 0 9px}
 .sat-calendar-grid{display:flex;flex-direction:column;max-height:670px;overflow:auto;border:1px solid #375371;border-radius:10px}

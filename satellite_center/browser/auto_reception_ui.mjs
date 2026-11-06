@@ -3,12 +3,12 @@
  * Decoding is local to this browser, except for explicitly authorized
  * companion SatDump/APRS archived products on localhost.
  */
-import {AUTO_PRESETS} from "./auto_mission.mjs?v=20261106-full-pass-budget-v1";
+import {AUTO_PRESETS} from "./auto_mission.mjs?v=20261106-calendar-zip-v2";
 import {discoverCu8Contents,discoveryReportJson} from "./signal_discovery.mjs";
 import {parseRecordingName} from "./satellite_imagery.mjs";
 import {decodeRobot36Audio} from "./sstv_robot36.mjs";
 import {initStationLocationUI} from "./location_search.mjs";
-import {localDayKey,shiftCalendarDay,renderSatelliteCalendar} from "./satellite_calendar.mjs";
+import {localDayKey,shiftCalendarDay,renderSatelliteCalendar} from "./satellite_calendar.mjs?v=20261106-calendar-zip-v2";
 import {createResultsZip} from "./results_zip.mjs";
 
 const $=id=>document.getElementById(id);
@@ -212,6 +212,12 @@ export function initAutoReceptionUI({getSelectedFile=()=>null,fileInput=$("local
       const {lat,lon}=station();
       const hours=Number($("auto-hours").value),elevation=Number($("auto-elev").value);
       if(!nativeHost()){
+        const rawSeconds=$("auto-recording-seconds").value.trim();
+        const requestedSeconds=rawSeconds?Number(rawSeconds):60;
+        if(!Number.isInteger(requestedSeconds)||requestedSeconds<8||requestedSeconds>900)
+          throw Error("Choose 8–900 whole seconds or leave blank for automatic duration.");
+        if(requestedSeconds>60)
+          throw Error("Automatic browser WebUSB jobs remain limited to 60 s. For long unattended image/data passes use native receiver; for foreground browser I/Q use Calculate Passes with a user-selected streamed CU8 disk file. Nothing was armed.");
         message("Opening the shared browser RF scheduler. On first use, grant the Nooelec RTL-SDR WebUSB permission there. No capture starts until a future predicted pass.");
         // The destination may only silently reopen previously granted WebUSB;
         // a new permission requires a fresh user gesture on that page.
@@ -225,6 +231,7 @@ export function initAutoReceptionUI({getSelectedFile=()=>null,fileInput=$("local
             mode,createdAt:Date.now()
           }));
           sessionStorage.setItem("tihulu-auto-coverage-goal",$("auto-coverage-goal").value);
+          sessionStorage.setItem("tihulu-auto-browser-seconds",String(requestedSeconds));
         }catch(error){
           throw Error("Browser blocked same-tab station transfer. Open the receiver page and set your coordinates there before scheduling.");
         }
@@ -291,7 +298,7 @@ export function initAutoReceptionUI({getSelectedFile=()=>null,fileInput=$("local
     return {sampleRate:Number(sampleRate),centerHz};
   }
   async function analyzeCu8(blob,name){
-    if(blob.size>1024*1024*1024)throw Error("Recording exceeds the 1 GiB per-file safety cap.");
+    if(blob.size>2_000_000_000)throw Error("Recording exceeds the 2 GB supported IQ safety cap. Keep raw IQ separate and use offline SatDump for larger files.");
     const {sampleRate,centerHz}=currentMetadata(name);
     message("Scanning the REAL "+(blob.size/1048576).toFixed(1)+" MiB CU8: FFT → audio → Robot36 sync → packet decoder availability…");
     const result=await discoverCu8Contents(blob,{
