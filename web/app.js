@@ -1113,11 +1113,32 @@ async function addLiveRadio(){
   const stop=el("button","action ghost","STOP RADIO");
   stop.type="button";stop.id="live-radio-stop";
   const actions=el("div","card-actions");
-  actions.append(start,stop);form.append(actions);
+  const findPlayer=button("SHOW AUDIO PLAYER",()=>{
+    syncLiveMediaDock();
+    const dock=$("live-media-dock");
+    if(!state.liveActive || !dock){
+      notice("No live FM stream is active. Start live radio after freeing the receiver.");
+      return;
+    }
+    dock.scrollIntoView({behavior:"smooth",block:"center"});
+    if(audio.paused)audio.play().catch(e=>
+      notice("Browser playback unavailable: "+(e?.message||e)+
+        ". Check browser media permissions and the audio stream request."));
+  },"action ghost");
+  actions.append(start,stop,findPlayer);form.append(actions);
   panel.append(form);
   const status=el("p","full-body","Not started");status.id="live-radio-status";
   panel.append(status);
   const audio=$("persistent-radio-player");
+  if(audio && audio.dataset.errorMonitor!=="enabled"){
+    audio.dataset.errorMonitor="enabled";
+    audio.addEventListener("error",()=>{
+      const code=audio.error?.code||"unknown";
+      notice("FM browser audio could not be decoded/loaded (media error "+code+
+        "). Check that ffmpeg/libmp3lame is installed, the local stream GET "+
+        "returns audio/mpeg and no other SDR process owns the USB device.");
+    });
+  }
   panel.append(el("p","full-body",
     "Your live FM playback stays in the media dock while you browse other pages. "+
     "If Firefox blocks playback, press Play in the dock; verify the radio output volume."));
