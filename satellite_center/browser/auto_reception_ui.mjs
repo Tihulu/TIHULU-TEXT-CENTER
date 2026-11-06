@@ -3,7 +3,7 @@
  * Decoding is local to this browser, except for explicitly authorized
  * companion SatDump/APRS archived products on localhost.
  */
-import {AUTO_PRESETS} from "./auto_mission.mjs";
+import {AUTO_PRESETS} from "./auto_mission.mjs?v=20261106-full-pass-budget-v1";
 import {discoverCu8Contents,discoveryReportJson} from "./signal_discovery.mjs";
 import {parseRecordingName} from "./satellite_imagery.mjs";
 import {decodeRobot36Audio} from "./sstv_robot36.mjs";
@@ -46,7 +46,7 @@ export function initAutoReceptionUI({getSelectedFile=()=>null,fileInput=$("local
   const audioPreviewUrls=[];
   const releasePreviews=()=>{for(const url of audioPreviewUrls)URL.revokeObjectURL(url);audioPreviewUrls.length=0;};
   window.addEventListener("pagehide",releasePreviews);
-  const state={discovery:[],actualImages:[],packetText:[],warnings:[],name:""};
+  const state={discovery:[],actualImages:[],packetText:[],audioFiles:[],warnings:[],name:""};
   const message=value=>{$("auto-mission-status").textContent=String(value);};
   const jobs=$("auto-mission-jobs"),output=$("auto-mission-output");
 
@@ -77,12 +77,12 @@ export function initAutoReceptionUI({getSelectedFile=()=>null,fileInput=$("local
     busy=true;controller=new AbortController();
     analyze.disabled=true;extract.disabled=true;cancel.disabled=false;
     jobs.hidden=false;output.replaceChildren();
-    state.discovery=[];state.actualImages=[];state.packetText=[];state.warnings=[];
+    state.discovery=[];state.actualImages=[];state.packetText=[];state.audioFiles=[];state.warnings=[];
   }
   function finish(){
     busy=false;controller=null;
     analyze.disabled=false;cancel.disabled=true;
-    extract.disabled=!(state.discovery.length||state.actualImages.length||state.packetText.length);
+    extract.disabled=!(state.discovery.length||state.actualImages.length||state.packetText.length||state.audioFiles.length);
   }
   function station(){
     const lat=Number($("auto-lat").value),lon=Number($("auto-lon").value);
@@ -208,6 +208,7 @@ export function initAutoReceptionUI({getSelectedFile=()=>null,fileInput=$("local
           sessionStorage.setItem("tihulu-auto-start-intent",JSON.stringify({
             mode,createdAt:Date.now()
           }));
+          sessionStorage.setItem("tihulu-auto-coverage-goal",$("auto-coverage-goal").value);
         }catch(error){
           throw Error("Browser blocked same-tab station transfer. Open the receiver page and set your coordinates there before scheduling.");
         }
@@ -217,19 +218,24 @@ export function initAutoReceptionUI({getSelectedFile=()=>null,fileInput=$("local
       message("Requesting fresh-or-cached TLE geometry and checking native decoder availability…");
       const result=await nativeApi("/api/auto-schedule",{
         missions:[...AUTO_PRESETS[mode]],lat,lon,city:"Custom",hours,
-        elevation,max_jobs:6
+        elevation,max_jobs:6,coverage_goal:$("auto-coverage-goal").value
       });
       jobs.replaceChildren();
       textNode("h3","Native receiver queue",jobs);
       if(!result.scheduled_count)textNode("p","No eligible non-overlapping satellite passes in the selected window. Check TLE cache, transmitter status and minimum elevation.",jobs);
       for(const job of result.scheduled){
-        const item=textNode("p",job.satellite+" · "+job.profile+"/"+job.mode+" · "+
-          new Date(job.aos).toLocaleString()+" · ARMED (not received)",jobs,"mission-job");
+        const size=job.estimated_bytes?
+          " · ~"+(job.estimated_bytes/1e9).toFixed(2)+" GB of raw IQ":" · packet/text output";
+        textNode("p",job.satellite+" · "+job.data_kind+" · "+
+          new Date(job.aos).toLocaleString()+" · planned "+job.capture_seconds+
+          " s"+size+" · "+job.coverage+
+          (job.shortfall_seconds?" · "+job.shortfall_seconds+" s outside planned capture":"")+
+          " · ARMED (not received)",jobs,"mission-job");
       }
       await refreshNativeCalendar();
       if(result.skipped?.length)textNode("p",result.skipped.length+
         " pass(es) skipped due to conflict, unsupported mode or timing.",jobs);
-      message(result.scheduled_count+" unattended native capture(s) queued. The companion must remain RUNNING and the single RTL-SDR free. A predicted pass does not guarantee a transmission. "+
+      message(result.scheduled_count+" native duration-aware capture(s) queued. Disk estimates and incomplete passes are listed above. The companion must remain RUNNING and the single RTL-SDR free. A predicted pass does not guarantee complete data, a transmission or a decoded image. "+
         (result.warnings?.length?"Warnings: "+result.warnings.slice(0,2).join("; "):""));
     }catch(e){message("Auto schedule not armed: "+String(e?.message||e));}
     finally{btn.disabled=false;}
@@ -300,7 +306,7 @@ export function initAutoReceptionUI({getSelectedFile=()=>null,fileInput=$("local
     return results.length;
   }
   async function analyzeAudio(blob,name){
-    if(blob.size>60*1024*1024){state.warnings.push(name+": audio file over 60 MiB decoder limit");return;}
+    if(blob.size>100*1024*1024){state.warnings.push(name+": audio file over 100 MiB decoder limit");return;}
     const AudioContext=window.AudioContext||window.webkitAudioContext;
     if(!AudioContext){state.warnings.push("WebAudio not supported");return;}
     const ctx=new AudioContext();
@@ -321,7 +327,8 @@ export function initAutoReceptionUI({getSelectedFile=()=>null,fileInput=$("local
       state.packetText.push({name,body:await blob.text(),
         source:"Actual recorded or imported text. Packet CRC/source identity not reverified here."});
     }else if(["wav","mp3","ogg"].includes(ext)){
-      await analyzeAudio(blob,name);
+      state.audioFiles.push({name,blob,source:"Actual recorded/imported audio; speech or satellite origin NOT verified"});
+      if(/SSTV/i.test(name))await analyzeAudio(blob,name);
     }else if(["png","jpg","jpeg"].includes(ext)){
       state.warnings.push(name+": image already exists; import/preview below. Source is not verified from the filename.");
     }else state.warnings.push(name+": protocol not supported by available decoders.");
@@ -360,7 +367,7 @@ export function initAutoReceptionUI({getSelectedFile=()=>null,fileInput=$("local
       }else{
         throw Error("Select your downloaded .cu8/.wav/.txt file using the file chooser. Browsers cannot silently read your Downloads folder.");
       }
-      const count=state.discovery.length+state.actualImages.length+state.packetText.length;
+      const count=state.discovery.length+state.actualImages.length+state.packetText.length+state.audioFiles.length;
       message(count+" real file/result group(s) analyzed. "+state.warnings.length+
         " unsupported/failed decoding notice(s). Press 3 · Extract Results to inspect and save verified outputs.");
     }catch(e){message("Analysis incomplete: "+String(e?.message||e));}
@@ -441,6 +448,17 @@ export function initAutoReceptionUI({getSelectedFile=()=>null,fileInput=$("local
       save.textContent="Save analysis evidence JSON";
       save.addEventListener("click",()=>postFile(new Blob([JSON.stringify(discoveryReportJson(result),null,2)],{type:"application/json"}),"TIHULU_satellite_analysis.json"));
       section.append(save);output.append(section);
+    }
+    for(const recording of state.audioFiles){
+      any=true;const card=document.createElement("article");card.className="mission-result";
+      textNode("h3",recording.name+" · Recorded audio",card);
+      textNode("p",recording.source,card);
+      const url=URL.createObjectURL(recording.blob);audioPreviewUrls.push(url);
+      const player=document.createElement("audio");player.controls=true;player.src=url;
+      const save=document.createElement("button");save.type="button";
+      save.textContent="Save original recorded audio";
+      save.addEventListener("click",()=>postFile(recording.blob,recording.name));
+      card.append(player,save);output.append(card);
     }
     for(const frame of state.actualImages){any=true;output.append(makeNativeImg(frame));}
     for(const item of state.packetText){

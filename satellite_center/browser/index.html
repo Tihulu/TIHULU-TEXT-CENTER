@@ -26,12 +26,17 @@
 <option value="voice">ISS FM voice / audio candidate</option>
 <option value="all">Images + text + voice (single receiver; no overlapping scans)</option>
 </select></label>
+<label>Recording goal<select id="auto-coverage">
+<option value="full" selected>Prefer useful complete data (long image passes require native receiver)</option>
+<option value="sample">Quick RF sample · up to 60 seconds (may be incomplete)</option>
+</select></label>
 <button id="auto-plan" type="button">1 · Auto Schedule &amp; Capture</button>
 <button id="auto-analyze" type="button" class="secondary">2 · Analyze Recordings</button>
 <button id="auto-results" type="button" class="secondary">3 · Extract Results</button>
 <button id="auto-stop" type="button" class="secondary">Cancel Auto Missions / Release Owned SDR</button>
 </div>
 <p id="auto-plan-status" class="status" role="status" aria-live="polite">No automatic passes armed. Nothing is scanning.</p>
+<p class="hint" id="auto-budget-help">Capture feasibility: 1.024 MS/s unsigned IQ needs about 2.048 MB per second (60 seconds ≈ 123 MB). This browser keeps at most 128 MiB in memory; full Meteor LRPT weather images generally need longer native disk recordings with free space and SatDump. Complete coverage is never a guarantee of a complete transmitted dataset.</p>
 <p class="hint">Browser capture limits: 60 s / 128 MiB per pass, potentially insufficient for an entire Meteor LRPT Earth image. The native service can schedule longer recordings, but SatDump/APRS decoders must actually be installed. No device is claimed until authorized, and images/messages are never inferred from a TLE pass alone.</p>
 </section>
 
@@ -357,4 +362,4 @@ These provider viewers offer maps/imagery independently of your RTL-SDR.</p>
 <details><summary>What requires more than a browser?</summary><p>Windows may require WinUSB driver setup; Linux may require releasing the kernel DVB driver or adjusting permissions. To record a pass while the browser is closed, the optional local companion must remain running. The companion still supports offline SatDump and multimon-ng where installed.</p></details>
 <h3>Activity log</h3><pre id="log" aria-live="polite">Ready. USB idle. No fabricated RF data.</pre></section>
 <footer>Receive-only. The page never transmits RF, uploads I/Q files or silently scans. Page closing releases browser-owned USB access; an unexpected OS/browser crash cannot be guaranteed to cleanly close every device state. Browser client uses <a href="https://www.npmjs.com/package/@jtarrio/webrtlsdr" rel="noopener noreferrer" target="_blank">@jtarrio/webrtlsdr</a> from a version-pinned module CDN (requires Internet to load initially).</footer>
-</main><script type="module" src="./browser.js?v=20261106-calendar-protocol-v2"></script></body></html>
+</main><script type="module" src="./browser.js?v=20261106-full-pass-budget-v1"></script></body></html>
