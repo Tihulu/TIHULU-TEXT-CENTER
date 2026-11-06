@@ -11,7 +11,7 @@ class SatelliteBrowserStaticTests(unittest.TestCase):
         html = (ROOT / "index.html").read_text(encoding="utf-8")
         for phrase in ("Choose RTL-SDR (WebUSB)", "Release USB", "Start real USB capture",
                        "browser.js", "Browser-only", "Shared Web + Desktop UI",
-                       "in-page APRS/SSTV/Meteor image decoding is not connected yet"):
+                       "in-browser APRS/Meteor LRPT decoding is not implemented"):
             self.assertIn(phrase, html)
         # The pass planner is shared by the installed companion and Pages/PWA.
         self.assertIn("3 · Satellite pass planner</h2>", html)
@@ -32,6 +32,29 @@ class SatelliteBrowserStaticTests(unittest.TestCase):
         js = (ROOT / "browser.js").read_text(encoding="utf-8")
         self.assertNotIn('fetch("http://127.0.0.1:8791', js)
         self.assertNotIn("127.0.0.1:8791/api/capture", js)
+
+    def test_cross_platform_satellite_images_data_tab(self):
+        reception=(ROOT / "reception.html").read_text(encoding="utf-8")
+        html=(ROOT / "index.html").read_text(encoding="utf-8")
+        script=(ROOT / "reception.mjs").read_text(encoding="utf-8")
+        catalog=(ROOT / "reception_catalog.mjs").read_text(encoding="utf-8")
+        for asset in ("reception.html", "reception.css", "reception.mjs",
+                      "reception_catalog.mjs"):
+            self.assertTrue((ROOT / asset).is_file(), asset)
+        self.assertIn('href="./reception.html"', html)
+        self.assertIn('Satellite Images &amp; Data', reception)
+        self.assertIn('id="local-file"', reception)
+        self.assertIn('id="mission"', reception)
+        self.assertIn('id="export-evidence"', reception)
+        self.assertIn('http://127.0.0.1:8791/', reception)
+        self.assertIn("URL.revokeObjectURL", script)
+        self.assertIn("source:\"user-imported_unverified\"", catalog)
+        self.assertIn("retired", catalog)
+        self.assertIn("meteor-m2-3", catalog)
+        self.assertIn("iss-sstv", catalog)
+        self.assertIn("image-target", (ROOT / "browser.js").read_text(encoding="utf-8"))
+        native=(ROOT.parent / "index.html").read_text(encoding="utf-8")
+        self.assertIn('./browser/reception.html', native)
 
     def test_real_iq_capture_not_fabricated(self):
         script = (ROOT / "browser.js").read_text(encoding="utf-8")
