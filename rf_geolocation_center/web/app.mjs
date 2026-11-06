@@ -6,10 +6,11 @@ import {initAutoExplorer} from "./auto_explorer.mjs";
 import {initUsbSDR} from "./usb_sdr.mjs";
 import {exampleRings,ringPoints,validRangeSources} from "../core/evidence.mjs";
 import {LOCATION_LAYERS,layerReadiness,visibleLayerPreferences} from "../core/location_layers.mjs";
+import {positionProvenance,radioProvenance,orbitalProvenance,aircraftProvenance} from "../core/source_provenance.mjs";
 
 const $=id=>document.getElementById(id), svgNS="http://www.w3.org/2000/svg";
 const state={
-  browser:null,networkFix:null,serialFix:null,serialAt:0,receiverHistory:[],gnssFile:null,sp3:null,layerPrefs:null,
+  browser:null,networkFix:null,serialFix:null,serialAt:0,receiverHistory:[],gnssFile:null,sp3:null,layerPrefs:null,usbStatus:"NOT CONNECTED",usbMessage:"No RF sample from antenna",
   time:null,mask:5,visible:[],autoOrbits:[],references:[],ranges:null,rangeInputs:[],tdoa:[],cachedPosition:null,
   map:{lat:DEFAULT_CENTER.lat,lon:DEFAULT_CENTER.lon,zoom:11,osm:false},
   serialPort:null,serialReader:null,reading:false,usbSelection:null,activeView:"dashboard"
@@ -48,6 +49,29 @@ function renderMethodReadiness(orbits){
  setText("layer-explanation",lines.join(" · "));
  setText("live-method-summary","GPS/GNSS: "+r.gnss.state+" · Device: "+r.device.state+" (method unknown) · GPS-free: "+r.gpsfree.state+" · Radio: "+r.radio.state+" · Aircraft: "+r.aircraft.count+" refs · Satellites: "+r.satellites.count+" predicted");
 }
+function renderSourceProvenance(){
+ const pos=positionProvenance(state),rf=radioProvenance(state.usbStatus,state.usbMessage);
+ const orb=orbitalProvenance(!!state.sp3,state.sp3?.satelliteCount??state.autoOrbits.length);
+ const air=aircraftProvenance(state.references);
+ setText("origin-position",pos.source);
+ setText("origin-position-status",pos.fix);
+ setText("origin-position-method",pos.acquisition);
+ setText("origin-position-detail",pos.detail);
+ setText("origin-antenna",rf.source);
+ setText("origin-antenna-status",rf.status);
+ setText("origin-antenna-method",rf.acquisition);
+ setText("origin-antenna-detail",rf.detail);
+ setText("origin-orbits",orb.source);
+ setText("origin-orbits-method",orb.acquisition);
+ setText("origin-orbits-detail",orb.detail);
+ setText("origin-aircraft",air.source);
+ setText("origin-aircraft-method",air.acquisition);
+ setText("origin-aircraft-detail",air.detail);
+ setText("source-proof","LOCATION: "+pos.source+" — "+pos.fix+" | ACQUIRED VIA: "+pos.acquisition+
+  " | RTL-SDR ANTENNA: "+rf.status+" — "+(rf.hasRF?"RF sample only, NO FIX":"no antenna-derived position")+
+  " | SATELLITES: "+orb.source+" (NOT RF) | AIRCRAFT: "+air.source+" (NOT observer position).");
+}
+
 function source(){
  if(state.serialFix&&Date.now()-state.serialAt<90000)
   return {...state.serialFix,kind:"NMEA receiver — live",validObserver:true};
@@ -241,6 +265,7 @@ function project(lat,lon){
  return {x:box.width/2+dx,y:box.height/2+p.y-center.y};
 }
 function renderEarth(){
+ renderSourceProvenance();
  const box=$("earth-map");if(!box)return;
  const p=source(),rect=box.getBoundingClientRect();
  const sx=900/Math.max(1,rect.width),sy=520/Math.max(1,rect.height);
@@ -553,12 +578,19 @@ window.addEventListener("tihulu:orbit",e=>{
   if(!Array.isArray(e.detail?.satellites))return;
   state.autoOrbits=e.detail.satellites.slice(0,450);
   renderMethodReadiness(state.sp3?state.visible:state.autoOrbits);
+  renderSourceProvenance();
   if(state.activeView==="sky"&&!state.sp3)renderSky();
   if(state.activeView==="earth"&&!state.sp3)renderEarth();
   if(!state.sp3){setText("dash-orbits",state.autoOrbits.length+" CelesTrak satellites");setText("orbit-tag","AUTO ORBITS / PREDICTED")}
 });
 state.layerPrefs=visibleLayerPreferences(restore(STORAGE_LAYERS));
 for(const layer of LOCATION_LAYERS){const input=layerToggle(layer.id);if(input)input.checked=state.layerPrefs[layer.id]}
+window.addEventListener("tihulu:receiver-status",event=>{
+ const detail=event.detail||{};
+ state.usbStatus=typeof detail.status==="string"?detail.status:"UNKNOWN";
+ state.usbMessage=typeof detail.message==="string"?detail.message:"";
+ renderSourceProvenance();
+});
 const savedFix=restore(STORAGE_LOCATION);
 if(savedFix&&Number.isFinite(savedFix.lat)&&Number.isFinite(savedFix.lon)&&Math.abs(savedFix.lat)<=90&&Math.abs(savedFix.lon)<=180&&savedFix.recordedAt){
  state.cachedPosition=savedFix;
