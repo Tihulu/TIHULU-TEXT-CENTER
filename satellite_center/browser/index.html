@@ -7,7 +7,7 @@
 <link rel="apple-touch-icon" href="./icon-192.png">
 <link rel="manifest" href="./manifest.webmanifest">
 <meta name="theme-color" content="#091a30">
-<link rel="stylesheet" href="./browser.css?v=20261106-cuiq-v13">
+<link rel="stylesheet" href="./browser.css?v=20261106-live-v14">
 </head><body>
 <header><div class="wrap"><p class="eyebrow">TIHULU SATELLITE CENTER · DIRECT USB EXPERIMENTAL</p>
 <h1><img src="./icon-192.png" width="54" height="54" alt="" style="vertical-align:middle;border-radius:14px;margin-right:8px">Satellite Center <span class="pill">No local app</span></h1>
@@ -141,9 +141,12 @@ All location methods are optional. City suggestions are offline by default; GPS 
 <label class="map-time-field">Time relative to now (minutes)
 <input id="map-time" type="range" min="-45" max="90" step="5" value="0">
 </label>
-<button id="map-now" type="button" class="secondary">Now / live</button>
-<span id="map-time-label" class="map-caption">Now · orbital geometry only</span>
+<button id="map-now" type="button" class="secondary active" aria-pressed="true">Now / live <span aria-hidden="true">●</span></button>
+<button id="map-pause" type="button" class="secondary">Pause</button>
+<span id="map-live-state" class="map-live-indicator" role="status" aria-live="polite">LIVE · 1-second orbital position updates</span>
+<span id="map-time-label" class="map-caption" aria-live="off">LIVE / now · orbital geometry only</span>
 </div>
+<p class="map-caption">**Now / live** updates predicted positions once per second while the tab is visible (based on cached TLEs); tracks refresh about every 15 seconds. **Pause** or move the time slider to freeze a simulated time. Press **Now / live** to resume the current wall clock. Orbit animation does not start USB reception.</p>
 <p id="map-state" class="status" aria-live="polite">Load orbital elements to populate the maps. No RF data detected.</p>
 <div class="sat-map-layout">
 <div class="map-primary">
@@ -162,6 +165,7 @@ All location methods are optional. City suggestions are offline by default; GPS 
 <label class="map-check">Orbit tracks<select id="map-track-scope" aria-label="Ground-track visibility"><option value="all" selected>All tracked satellites (±45 min)</option><option value="selected">Selected only</option><option value="off">Off</option></select></label>
 <label class="map-check">Coverage circles<select id="map-coverage-scope" aria-label="Coverage overlay visibility"><option value="selected" selected>Selected satellite</option><option value="all">All tracked satellites</option><option value="off">Off</option></select></label>
 <button id="map-focus-selected" class="secondary" type="button">Focus selected satellite</button>
+<label class="map-check"><input type="checkbox" id="map-follow-selected"> Follow selected satellite while LIVE</label>
 <button id="map-fit-all" class="secondary" type="button">Show all satellites</button>
 <span class="hint" id="map-overlay-count" role="status">All geographic positions, including satellites below your horizon, can be shown.</span>
 <input type="checkbox" id="map-tracks" checked hidden aria-hidden="true">
@@ -237,4 +241,4 @@ All location methods are optional. City suggestions are offline by default; GPS 
 <details><summary>What requires more than a browser?</summary><p>Windows may require WinUSB driver setup; Linux may require releasing the kernel DVB driver or adjusting permissions. To record a pass while the browser is closed, the optional local companion must remain running. The companion still supports offline SatDump and multimon-ng where installed.</p></details>
 <h3>Activity log</h3><pre id="log" aria-live="polite">Ready. USB idle. No fabricated RF data.</pre></section>
 <footer>Receive-only. The page never transmits RF, uploads I/Q files or silently scans. Page closing releases browser-owned USB access; an unexpected OS/browser crash cannot be guaranteed to cleanly close every device state. Browser client uses <a href="https://www.npmjs.com/package/@jtarrio/webrtlsdr" rel="noopener noreferrer" target="_blank">@jtarrio/webrtlsdr</a> from a version-pinned module CDN (requires Internet to load initially).</footer>
-</main><script type="module" src="./browser.js?v=20261106-cuiq-v13"></script></body></html>
+</main><script type="module" src="./browser.js?v=20261106-live-v14"></script></body></html>

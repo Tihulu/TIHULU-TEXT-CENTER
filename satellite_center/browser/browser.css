@@ -162,3 +162,15 @@ border:1px solid #375471;border-radius:8px;margin:0;background:#081727}
 #iq-analysis-status{white-space:pre-wrap;overflow-wrap:anywhere}
 @media(max-width:770px){.iq-controls{grid-template-columns:1fr 1fr}.iq-controls label:first-child{grid-column:1/-1}}
 @media(max-width:500px){.iq-controls{grid-template-columns:1fr}.iq-controls label:first-child{grid-column:auto}}
+
+
+/* Live orbital time UI: active/paused are clear without suggesting RF reception. */
+.map-live-indicator{display:inline-flex;align-items:center;gap:6px;font-size:12px;
+ border:1px solid #3a6583;padding:8px 10px;border-radius:8px;color:#b5e0fb;
+ background:#112b43;font-weight:650}
+.map-live-indicator[data-mode="live"]{color:#93f0ca;border-color:#376d5a;
+ background:#102d2a}
+.map-live-indicator[data-mode="paused"]{color:#f4cd92;border-color:#806641;
+ background:#342917}
+#map-now[aria-pressed="true"]{border-color:#50ad8b;background:#225947;color:#e8fff4}
+#map-pause:disabled{opacity:.5;cursor:not-allowed}
