@@ -32,7 +32,8 @@ function adapterOptions(devices){
  for(const device of devices){
   const item=document.createElement("option");
   item.value=String(device.adapter);
-  item.textContent="Adapter "+device.adapter+" · "+device.device;
+  item.textContent="Adapter "+device.adapter+" · "+(device.manufacturer||"Linux DVB")+": "+(device.product||device.device)+
+    (device.usbId?" · USB "+device.usbId:"");
   selector.append(item);
  }
  if(!devices.length){const item=document.createElement("option");item.value="";item.textContent="No usable /dev/dvb frontend";selector.append(item)}
@@ -75,7 +76,8 @@ async function connectedStatus(){
   adapterOptions(Array.isArray(caps.adapters)?caps.adapters:[]);
   profileOptions(Array.isArray(caps.profiles)?caps.profiles:[]);
   connected=!!caps.available;
-  say("LOCAL HARDWARE CHECK: "+(caps.adapters?.length||0)+" Linux DVB frontend(s), dvbv5-scan "+(caps.scanTool?"installed":"NOT installed")+". "+
+  const matchedHauppauge=Array.isArray(caps.adapters)?caps.adapters.filter(a=>a.likelyHauppauge).length:0;
+  say("LOCAL HARDWARE CHECK: "+(caps.adapters?.length||0)+" Linux DVB frontend(s), "+matchedHauppauge+" Hauppauge-like adapter(s) via sysfs, dvbv5-scan "+(caps.scanTool?"installed":"NOT installed")+". "+
     (connected?"Ready for a user-requested physical DVB-T2 scan.":"Not ready: connect TV tuner and install dvb-tools / verify kernel firmware.")+
     " NO antenna positions or GPS location have been inferred.");
   window.dispatchEvent(new CustomEvent("tihulu:tv-bridge-hardware",{detail:{available:connected,adapters:caps.adapters||[]}}));
@@ -185,6 +187,7 @@ export function initDVBBridge(){
  $("tv-bridge-connect").addEventListener("click",()=>{void connect()});
  $("home-tv-connect")?.addEventListener("click",()=>{void connect()});
  $("home-tv-scan")?.addEventListener("click",()=>{void scan()});
+ $("hard-stop")?.addEventListener("click",()=>{if(scanning)void stop()});
  $("tv-start-scan").addEventListener("click",()=>{void scan()});
  $("tv-stop-scan").addEventListener("click",()=>{void stop()});
  $("tv-show-map").addEventListener("click",()=>window.dispatchEvent(new Event("tihulu:show-tv-on-map")));
