@@ -6,6 +6,7 @@ import { recordingName } from './satellite_imagery.mjs?v=20261106-images-v15';
 import { initStationLocationUI } from './location_search.mjs';
 import { probeUsbSamples, sampleBytes } from './usb_live_probe.mjs?v=20261106-map-usb-v07';
 import { sortPassList } from './pass_sort.mjs';
+import { selectAutomaticPasses } from './auto_mission.mjs';
 import { localDateInput, parseLocalScheduleTime, createScheduledPass, evaluateScheduledJob, secondsToJob, captureLevelSummary } from './schedule_controller.mjs';
 // TIHULU Satellite Center — no-local-install receive-only browser mode.
 // The RTL-SDR device is opened only after a direct user gesture.
@@ -495,7 +496,7 @@ $('tle-file').addEventListener('change',async e=>{
     status('orbit-state','Imported '+rows.length+' valid TLE records locally; '+tleEntries.length+' candidates selected. These are ephemerides, not live radio signals.');
   }catch(err){status('orbit-state','TLE import failed: '+err.message);}
 });
-$('orbit-fetch').addEventListener('click',async()=>{
+async function refreshOrbitalCatalog(){
   if(tleEntries.length && lastTleFetchAt && Date.now()-lastTleFetchAt < 2*3600000) {
     status('orbit-state','Keeping '+tleEntries.length+' TLE candidates from this tab\'s recent download. CelesTrak GP data is not refreshed more often than every two hours.');
     return;
@@ -520,7 +521,8 @@ $('orbit-fetch').addEventListener('click',async()=>{
   if(results.length){tleEntries=boundedCatalog(results);lastTleFetchAt=Date.now();notifyMaps();}
   status('orbit-state',results.length ? 'Cached '+tleEntries.length+' client-side TLE candidates. '+(errors.join(' · ')||'All sources read') :
      'Browser could not read CelesTrak (possibly CORS/network). Import a .tle/.txt file manually. '+errors.join(' · '));
-});
+}
+$('orbit-fetch').addEventListener('click',()=>{void refreshOrbitalCatalog();});
 const rad = deg=>deg*Math.PI/180, deg=rad=>rad*180/Math.PI;
 async function getOrbitalLibrary(){
   if(!orbitalLibrary)orbitalLibrary=await import('https://esm.sh/satellite.js@6.0.1?bundle');
@@ -646,7 +648,7 @@ for(const id of ['pass-sort','pass-family']){
   $(id).addEventListener('change',()=>{visiblePassCount=40;renderPasses();});
 }
 $('pass-show-more').addEventListener('click',()=>{visiblePassCount+=40;renderPasses();});
-$('orbit-calc').addEventListener('click',async()=>{
+async function calculateOrbitalPasses(){
   if(!tleEntries.length){status('orbit-state','Load orbit TLEs from CelesTrak or an uploaded file first.');return;}
   const lat=Number($('lat').value),lon=Number($('lon').value),hours=Number($('hours').value),minimum=Number($('elev').value);
   if(!$('lat').value.trim()||!$('lon').value.trim()||!Number.isFinite(lat)||!Number.isFinite(lon)||lat<-90||lat>90||lon<-180||lon>180){status('orbit-state','Enter valid latitude (−90…90) and longitude (−180…180) before calculating passes.');return;}
@@ -679,7 +681,8 @@ $('orbit-calc').addEventListener('click',async()=>{
     notifyMaps();
     status('orbit-state','Calculated '+found.length+' geometric passes from '+tleEntries.length+' TLE candidates at '+lat.toFixed(3)+', '+lon.toFixed(3)+'. Approximate 30-second resolution; no satellite signals identified.');
   }catch(err){status('orbit-state','Orbit computation failed: '+err.message+'. Check browser connectivity to the JS library CDN.');}
-});
+}
+$('orbit-calc').addEventListener('click',()=>{void calculateOrbitalPasses();});
 function readableJobState(job,now=Date.now()){
  if(job.state!=='armed')return job.state;
  const action=evaluateScheduledJob(job,now,{visible:!document.hidden,receiverBusy:!!capturePromise||usbTestRunning});
@@ -878,6 +881,75 @@ window.addEventListener('appinstalled',()=>{
   installButton.hidden=true;
   log('Satellite Center added to your browser applications. Pin it to the OS dock from Applications.');
 });
+
+async function runAutoMission({mode=$('auto-mode').value,fromNavigation=false}={}) {
+  const button=$('auto-plan'),statusBox=$('auto-plan-status');
+  if(button.disabled)return;
+  button.disabled=true;
+  $('auto-mode').value=mode;
+  try {
+    if(!hardwareSupported||!driver)throw Error('Direct WebUSB requires a supported Chromium browser and ready RTL2832U driver. Use the native companion for Firefox/Safari or unattended capture.');
+    if(usbTestRunning||capturePromise)throw Error('Receiver is already sampling; stop your owned capture before arming new passes.');
+    statusBox.textContent='Checking explicit WebUSB access, current TLE catalog and ground-station pass predictions…';
+    // First-click chooser is an actual direct user gesture. Navigation from
+    // another page may only silently reopen an already granted device.
+    if(!device) {
+      const opened=await connectDevice({silent:fromNavigation});
+      if(!opened)throw Error('RTL-SDR not granted/opened. Click Choose RTL-SDR and retry Auto Schedule.');
+    }
+    if(!device)throw Error('RTL-SDR permission not available in this browser.');
+    await closeDevice(); // waiting for future passes must NOT monopolize the dongle
+    if(!tleEntries.length)await refreshOrbitalCatalog();
+    if(!tleEntries.length)throw Error('Could not load TLEs. Import a TLE text file, then retry.');
+    if(!passes.length)await calculateOrbitalPasses();
+    const proposal=selectAutomaticPasses(passes,{mode,now:Date.now(),maxJobs:6,existingJobs:jobs});
+    let armed=0;
+    for(const item of proposal.scheduled) {
+      const job=createScheduledPass(item.pass,{
+        when:item.when,durationSeconds:item.durationSeconds,
+        sampleRate:item.sampleRate,frequency:item.frequency,saveRaw:item.saveRaw
+      });
+      if(jobs.some(j=>j.id===job.id&&['armed','starting','running'].includes(j.state)))continue;
+      job.missionId=item.missionId;
+      job.message='Auto-armed for one short real WebUSB CU8 recording; no RF signal confirmed.';
+      jobs.push(job);armed++;
+    }
+    jobs.sort((a,b)=>a.when-b.when);
+    renderJobs();
+    statusBox.textContent=armed?
+      'Armed '+armed+' non-overlapping candidate pass(es). USB released while waiting. Keep this browser tab OPEN, VISIBLE and AWAKE; grant permissions before every browser-origin change. '+proposal.skipped.length+' conflicts/short windows skipped. Each I/Q record is at most 60 s / 128 MiB, not a guaranteed Earth image.':
+      'No new eligible non-overlapping passes in this window. '+proposal.skipped.map(x=>x.reason).slice(0,2).join(' · ');
+    log('Automatic mission plan: '+armed+' RF recording jobs armed, '+proposal.skipped.length+' skipped; no device is currently in use.');
+    if(armed)document.getElementById('schedule-center')?.scrollIntoView({behavior:'smooth',block:'nearest'});
+  }catch(error){
+    statusBox.textContent='Auto schedule not armed: '+String(error?.message||error)+
+      '. No background service was started and existing recordings are unchanged.';
+    log('Auto mission scheduling: '+String(error?.message||error));
+  }finally{button.disabled=false;}
+}
+$('auto-plan').addEventListener('click',()=>{void runAutoMission();});
+$('auto-analyze').addEventListener('click',()=>{
+  const file=$('iq-file').files?.[0];
+  if(!file&&!lastScheduledFile){
+    $('auto-plan-status').textContent='No recording available in this tab. Wait for a real capture or choose a saved .cu8 in Signal Intelligence below.';
+    $('iq-analysis').scrollIntoView({behavior:'smooth'});return;
+  }
+  $('auto-plan-status').textContent='Analyzing real CU8 now. Results only appear after validated decoding or measurable RF evidence.';
+  $('iq-analysis').scrollIntoView({behavior:'smooth'});
+  $('iq-auto-discover').click();
+});
+$('auto-results').addEventListener('click',()=>{
+  $('iq-discovery-results').scrollIntoView({behavior:'smooth',block:'start'});
+  if(!$('iq-discovery-export').disabled){
+    $('iq-discovery-export').click();
+    $('auto-plan-status').textContent='Exported discovery evidence JSON. Below you can save individually validated Robot36 PNGs and audio candidate WAVs; no unsupported APRS/LRPT messages are invented.';
+  }else $('auto-plan-status').textContent='No completed discovery results yet. Use Analyze Recordings after an actual RF capture.';
+});
+const requestedAutoMission=new URLSearchParams(location.search).get('auto-mission');
+if(['images','messages','all'].includes(requestedAutoMission)){
+  $('auto-mode').value=requestedAutoMission;
+  $('auto-plan-status').textContent='Reception type preselected. Click Auto Schedule & Capture to grant hardware permission and arm passes.';
+}
 
 iqAnalysisUI=initIqAnalysisUI({log});
 satelliteImageUI=initSatelliteImageUI({
