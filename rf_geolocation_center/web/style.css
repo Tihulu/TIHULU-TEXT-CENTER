@@ -116,3 +116,7 @@
 .layer-quick-actions button{font-size:11px;min-height:35px}
 .layer-explanation{font-size:11px;line-height:1.6;padding:11px;margin:10px 0;border:1px solid #315365;background:#102538;border-radius:8px;color:#c3dbe5}
 @media(max-width:470px){.method-layer em{max-width:85px;font-size:8px}.method-layer-text small{font-size:9px}}
+
+
+.live-method-summary{padding:11px 14px;margin:-8px 0 14px;border-left:3px solid #5dbbd8;
+ background:#10283b;border-radius:8px;color:#b6d8e5;font-size:11px;line-height:1.65}
