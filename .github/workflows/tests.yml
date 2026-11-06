@@ -26,6 +26,8 @@ jobs:
         run: |
           node --check docs/pages.js
           node --check docs/sw.js
+          node --check docs/webusb-radio.js
+          python -m unittest discover -s tests -p test_pages_webusb.py -v
           bash -n install.sh scripts/bootstrap-unix.sh
   portability:
     name: Portable import and offline smoke / ${{ matrix.os }}
