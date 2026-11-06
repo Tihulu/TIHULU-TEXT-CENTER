@@ -21,6 +21,7 @@
 <p class="hint">One click predicts and arms real ISS/Meteor passes; later analyze actual recordings and open verified extraction results. Browser auto capture requires previously granted RTL-SDR access and a visible, awake tab. An optional native companion can record while the browser is closed.</p>
 <div class="line">
 <label>Auto-target group<select id="auto-mode">
+<option value="iss-images">ISS SSTV ONLY · Series 35 (9–16 Nov 2026) · 437.550 MHz Robot36</option>
 <option value="images">Weather Earth images + ISS SSTV (event-only)</option>
 <option value="messages">ISS APRS packet candidates</option>
 <option value="voice">ISS FM voice / audio candidate</option>
@@ -38,6 +39,7 @@
 </div>
 <p id="auto-plan-status" class="status" role="status" aria-live="polite">No automatic passes armed. Nothing is scanning.</p>
 <p class="hint" id="auto-budget-help">Capture feasibility: 1.024 MS/s unsigned IQ needs about 2.048 MB per second (60 seconds ≈ 123 MB). This browser keeps at most 128 MiB in memory; full Meteor LRPT weather images generally need longer native disk recordings with free space and SatDump. Complete coverage is never a guarantee of a complete transmitted dataset.</p>
+<p class="hint"><strong>ISS Series 35 · 9–16 November 2026:</strong> 437.550 MHz FM ± Doppler, Robot36 (36 s picture / 120 s break); start/end UTC times TBD. ARISS currently has a Robot 35/36 wording discrepancy; confirm <a href="https://www.ariss.org/upcoming-sstv-events.html" target="_blank" rel="noopener noreferrer">the current ARISS event notice</a>. The native receiver attempts complete WAV passes and now extracts every validated Robot36 frame to PNG. Browser WebUSB 60 s sampling does not guarantee an image and Firefox requires the native companion.</p>
 <p class="hint">Browser capture limits: 60 s / 128 MiB per pass, potentially insufficient for an entire Meteor LRPT Earth image. The native service can schedule longer recordings, but SatDump/APRS decoders must actually be installed. No device is claimed until authorized, and images/messages are never inferred from a TLE pass alone.</p>
 </section>
 
@@ -270,6 +272,17 @@ All location methods are optional. City suggestions are offline by default; GPS 
 <select id="iq-rate"><option value="1024000">1.024 MS/s</option><option value="2048000">2.048 MS/s</option></select>
 </label>
 </div>
+<section class="notice" aria-label="Signal analysis compute backend">
+ <label>Processing hardware · optimize per device
+  <select id="iq-compute-mode"><option value="auto" selected>Auto — optimized for this device (recommended)</option><option value="custom">Custom CPU / GPU / NPU multi-select</option></select>
+ </label>
+ <fieldset class="line"><legend>Compatible processing devices · multiple allowed</legend>
+  <label><input type="checkbox" id="iq-compute-cpu" checked> CPU</label>
+  <label><input type="checkbox" id="iq-compute-gpu"> GPU</label>
+  <label><input type="checkbox" id="iq-compute-npu"> NPU</label>
+ </fieldset>
+ <p id="iq-compute-status" class="hint" role="status">Detecting compatible compute kernels…</p>
+</section>
 <div class="line">
 <button type="button" id="iq-analyze-last" disabled>Analyze last recording</button>
 <button type="button" id="iq-analyze-file">Quick analysis of selected file</button>
