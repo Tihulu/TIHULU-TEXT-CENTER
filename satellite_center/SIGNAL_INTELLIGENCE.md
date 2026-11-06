@@ -25,6 +25,22 @@ Status: incremental implementation on `feature/satellite-signal-intelligence-202
 
 **Never claim** Windows/macOS/Raspberry Pi/Firefox/Safari/browser-only equal hardware features: provide honest per-capability readiness instead. Tests on emulators/runners do not prove real USB reception.
 
+## Progressive CU8 content discovery (added 2026-11-06)
+
+The **Automatic discovery · sound / image / data** action in the browser now:
+
+1. Checks raw CU8 integrity and sample rate; uses filename/acquisition metadata when available (never guesses missing absolute MHz).
+2. Performs an FFT sweep of every complete block with bounded reads and binned waterfall/power timelines.
+3. Includes the tuned-center hypothesis even when FFT suppresses DC artifacts; adds strongest energy regions. These are only **unclassified candidates**.
+4. Uses the time-frequency waterfall to choose candidate-specific active time intervals; tries six limited, real-sample AM/NFM analog demodulations at up to three candidate offsets and exports local playable WAV previews.
+5. For captures long enough for Robot36 (≈36 s), uses actual channelized FM samples from promising time ranges and requires repeatable 1200 Hz scan-line sync before rendering an **unverified image candidate**. A valid-looking picture does not alone prove spacecraft origin. Other SSTV standards cannot be assumed from Robot36 failure.
+6. Marks APRS/AX.25, Meteor-M LRPT and other digital systems **not checked** until purpose-built synchronizers and CRC/FEC verification are integrated.
+7. Exports a JSON evidence trail without raw audio/image bytes; the recorded CU8 stays local. Stop interrupts both FFT and demodulation steps.
+
+**Known limitations:** Classification is experimental; browser playback from FM/AM is NOT evidence of intelligible voice or music; strong noise can produce audio files. A single recording can contain nothing identifiable or multiple unrelated transmissions. Center frequencies, capture sample rate, correct antenna, capture duration, sufficient SNR, drift, Doppler and IQ gain matter. The boxcar channelizer is a first implementation and may leak adjacent channels; future revisions should use proper channel FIR filtering and selective resampling. Signal overlap, weak packets, and modulation families without decoders remain Unknown.
+
+**Published static UI:** the browser-only files were synchronized to `gh-pages` via PR #19 (merge SHA `0d5e8df7d646a7961616f875c9fa6c4737c2cf68`); the site's actual availability is subject to Pages deployment completion. Source PR #18 remains draft for platform/hardware review and eventual integration into PR #9.
+
 ## Next implementation milestones
 
 1. **Capture metadata at acquisition** — preserve capture UTC (device/browser timestamp), tuner center, effective rate, device ID/model, gain/AGC, nominal bandwidth and sample count in a companion sidecar (prefer SigMF-compatible schema when possible; CU8 remains raw). Record acquisition provenance; missing fields remain unknown. Use satellite target only as `candidate_target`, not `rf_verified_source`. Support manual correction with audit trail and association of sidecar by file name.
