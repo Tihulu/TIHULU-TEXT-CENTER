@@ -5,10 +5,11 @@
 const $=id=>document.getElementById(id);
 const ENDPOINT="http://127.0.0.1:8794";
 let token="",connected=false,refreshHandle=null,scanning=false,lastJob=null,pairPopup=null,pairNonce="",pairAction="tv";
-const say=value=>{const el=$("tv-bridge-status");if(el)el.textContent=value};
+const say=value=>{const el=$("tv-bridge-status"),home=$("home-tv-state");if(el)el.textContent=value;if(home)home.textContent=String(value).slice(0,260)};
 const toggle=()=>{
  if($("tv-start-scan"))$("tv-start-scan").disabled=!connected||scanning;
  if($("tv-stop-scan"))$("tv-stop-scan").disabled=!connected||!scanning;
+ if($("home-tv-scan"))$("home-tv-scan").disabled=!connected||scanning;
 };
 async function rpc(route,method="GET",body=null){
  if(!token)throw Error("Paste the local bridge token from your own terminal first.");
@@ -183,6 +184,7 @@ export function initDVBBridge(){
  });
  $("tv-bridge-connect").addEventListener("click",()=>{void connect()});
  $("home-tv-connect")?.addEventListener("click",()=>{void connect()});
+ $("home-tv-scan")?.addEventListener("click",()=>{void scan()});
  $("tv-start-scan").addEventListener("click",()=>{void scan()});
  $("tv-stop-scan").addEventListener("click",()=>{void stop()});
  $("tv-show-map").addEventListener("click",()=>window.dispatchEvent(new Event("tihulu:show-tv-on-map")));
