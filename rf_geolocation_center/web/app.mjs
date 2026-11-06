@@ -17,7 +17,7 @@ import {positionProvenance,radioProvenance,orbitalProvenance,aircraftProvenance}
 const $=id=>document.getElementById(id), svgNS="http://www.w3.org/2000/svg";
 const state={
   browser:null,networkFix:null,serialFix:null,serialAt:0,receiverHistory:[],gnssFile:null,sp3:null,layerPrefs:null,
-  rfOnly:false,rfSources:[],rfRanges:[],rfSolution:null,catalogTowers:[],catalogAircraft:[],catalogAntennaAircraft:[],catalogFM:[],usbStatus:"NOT CONNECTED",usbMessage:"No RF sample from antenna",
+  rfOnly:false,rfSources:[],rfRanges:[],rfSolution:null,catalogTowers:[],catalogAircraft:[],catalogAntennaAircraft:[],catalogFM:[],radioDecoded:[],usbStatus:"NOT CONNECTED",usbMessage:"No RF sample from antenna",
   time:null,mask:5,visible:[],autoOrbits:[],references:[],ranges:null,rangeInputs:[],tdoa:[],cachedPosition:null,
   map:{lat:DEFAULT_CENTER.lat,lon:DEFAULT_CENTER.lon,zoom:11,osm:false},
   serialPort:null,serialReader:null,reading:false,usbSelection:null,activeView:"dashboard"
@@ -293,7 +293,7 @@ function project(lat,lon){
  return {x:box.width/2+dx,y:box.height/2+p.y-center.y};
 }
 function mapMatches(){
- return matchedBroadcastSources(state.catalogTowers,state.catalogFM,state.dvbChannels||[]);
+ return matchedBroadcastSources(state.catalogTowers,state.catalogFM,state.dvbChannels||[],state.radioDecoded);
 }
 function focusMappedSources(sources,reason){
  const points=Array.isArray(sources)?sources.filter(x=>Number.isFinite(x?.lat)&&Number.isFinite(x?.lon)&&Math.abs(x.lat)<85&&Math.abs(x.lon)<=180):[];
@@ -316,9 +316,9 @@ function focusMappedSources(sources,reason){
 function renderScanMapPanel(matches){
  const panel=$("map-scan-results");if(!panel)return;
  panel.replaceChildren();
- const counts={fm:matches.filter(x=>x.kind==="fm").length,tv:matches.filter(x=>x.kind==="tv").length};
+ const counts={fm:matches.filter(x=>x.kind==="fm").length,tv:matches.filter(x=>x.kind==="tv").length,rds:matches.filter(x=>x.kind==="rds").length};
  const channels=(state.dvbChannels||[]).length;
- setText("map-scan-status",counts.fm+" FM frequency-overlap source candidates · "+counts.tv+
+ setText("map-scan-status",counts.fm+" FM energy overlap · "+counts.rds+" decoded local FM RDS overlaps · "+counts.tv+
    " TV frequency-overlap candidates · "+channels+" native/imported DVB services · "+
    state.catalogAntennaAircraft.length+" real antenna ADS-B aircraft · "+state.catalogAircraft.length+
    " Internet aircraft. Matched site coordinates are external OSM references, NOT radio-measured ranges.");
@@ -326,10 +326,11 @@ function renderScanMapPanel(matches){
  for(const m of shown){
   const button=make("button","map-source-result");
   button.type="button";
-  const color=make("span","map-source-bullet "+m.kind,m.kind==="fm"?"FM":"TV");
+  const color=make("span","map-source-bullet "+m.kind,m.kind==="fm"?"FM":m.kind==="rds"?"RDS":"TV");
   const name=make("strong",null,m.name+" · "+m.frequencyMHz.toFixed(3)+" MHz");
   const desc=make("small",null,
    m.kind==="tv"?(m.serviceNames||[]).slice(0,3).join(", ")+" · Possible TV site, network may be SFN":
+   m.kind==="rds"?(m.stationLabel||"FM RDS")+" · broadcaster text, actual emitter site NOT verified":
    "Real SDR RF-energy frequency overlap · NOT RDS identification");
   button.append(color,name,desc);
   button.addEventListener("click",()=>focusMappedSources([m],"Selected "+m.kind.toUpperCase()+" frequency-candidate site"));
@@ -472,12 +473,12 @@ function renderEarth(){
    if(!pos.inside||drawnTowers.some(p=>Math.hypot(p.x-pos.x,p.y-pos.y)<18))continue;
    drawnTowers.push(pos);
    const linked=matched.filter(m=>m.siteId===site.id);
-   const hasTV=linked.some(m=>m.kind==="tv"),hasFM=linked.some(m=>m.kind==="fm");
-   place(site,"station",hasTV?"#efc069":hasFM?"#50d0d9":"#8fb8c7",
-     site.name+" · "+(hasTV?"NATIVE DVB SERVICE FREQUENCY OVERLAP, TRANSMITTER NOT VERIFIED":hasFM?"RTL-SDR FM ENERGY FREQUENCY OVERLAP, IDENTITY NOT VERIFIED":"OSM PUBLIC CATALOG TOWER, NO RECEIVER ASSOCIATION")+" · "+
+   const hasTV=linked.some(m=>m.kind==="tv"),hasFM=linked.some(m=>m.kind==="fm"),hasRDS=linked.some(m=>m.kind==="rds");
+   place(site,"station",hasTV?"#efc069":hasRDS?"#8fe0ad":hasFM?"#50d0d9":"#8fb8c7",
+     site.name+" · "+(hasTV?"NATIVE DVB SERVICE FREQUENCY OVERLAP, TRANSMITTER NOT VERIFIED":hasRDS?"RDS DECODER STATION/FREQUENCY OVERLAP, TOWER NOT VERIFIED":hasFM?"RTL-SDR FM ENERGY FREQUENCY OVERLAP, IDENTITY NOT VERIFIED":"OSM PUBLIC CATALOG TOWER, NO RECEIVER ASSOCIATION")+" · "+
      (site.frequencyMHz?site.frequencyMHz.toFixed(3)+" MHz FM tag, RF NOT VERIFIED":site.televisionFrequenciesMHz?.length?"TV MHz tag "+site.televisionFrequenciesMHz.join(", ")+" · DVB SOURCE NOT VERIFIED":site.broadcastType?.includes("television")?"TV BROADCAST TOWER · CHANNEL NOT IDENTIFIED":"NO FREQUENCY TAG")+
      " · distance from SEARCH CENTER "+(site.distanceFromSearchCenterMeters/1000).toFixed(1)+
-     " km; this is NOT measured distance from YOU",hasTV?"TV":hasFM?"F":"T");
+     " km; this is NOT measured distance from YOU",hasTV?"TV":hasRDS?"RD":hasFM?"F":"T");
  }
  // Internet-sourced aircraft must never appear as local RTL-SDR ADS-B frames.
  if(showAir)for(const a of state.catalogAntennaAircraft)place(a,"aircraft","#5be1b2",
@@ -787,6 +788,14 @@ $("map-focus-scan")?.addEventListener("click",()=>{
  const matches=mapMatches();
  if(matches.length)focusMappedSources(matches,"Actual scanned FM/TV frequencies matched to published transmitter candidates");
  else focusMappedSources(state.catalogTowers,"OSM catalog sites only; scan-to-site identification not available");
+});
+window.addEventListener("tihulu:radio-metadata",e=>{
+ const records=Array.isArray(e.detail?.events)?e.detail.events:[];
+ state.radioDecoded=records.slice(0,60);
+ if(state.activeView==="earth")renderEarth();
+ const recent=mapMatches().filter(m=>m.kind==="rds"&&
+   Number.isFinite(Date.parse(m.observedAt))&&Date.now()-Date.parse(m.observedAt)<3600000);
+ if(recent.length)focusMappedSources(recent,"Recently decoded RDS frequency matches and mapped transmitter candidates");
 });
 window.addEventListener("tihulu:tv-channels-updated",e=>{
  if(state.activeView==="earth")renderEarth();
