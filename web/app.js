@@ -1,7 +1,7 @@
 /* TIHULU TEXT CENTER — no external libraries, no background timers fetching data. */
 "use strict";
 
-const state = { csrf:"", page:100, subpage:0, source:"", entries:[], pages:[], receivers:null, rdsActive:false, rdsPollTimer:null, scanActive:false, scanPollTimer:null, selectedSurveyBand:"fm" };
+const state = { audioActive:false, audioPollTimer:null, csrf:"", page:100, subpage:0, source:"", entries:[], pages:[], receivers:null, rdsActive:false, rdsPollTimer:null, scanActive:false, scanPollTimer:null, selectedSurveyBand:"fm" };
 const $ = (id) => document.getElementById(id);
 
 function el(tag, cls, text) {
@@ -174,6 +174,11 @@ async function refreshSourceChoices(){
   select.value=sources.some(([id])=>id===selected)?selected:"";
 }
 async function openPage(number,source,subpage){
+  if(state.page===400 && Number(number)!==400 && state.audioActive){
+    state.audioActive=false;
+    if(state.audioPollTimer){clearTimeout(state.audioPollTimer);state.audioPollTimer=null;}
+    api("/api/audio/stop","POST",{}).catch(()=>{});
+  }
   if(state.page===400 && Number(number)!==400 && state.scanActive){
     state.scanActive=false;
     if(state.scanPollTimer){clearTimeout(state.scanPollTimer);state.scanPollTimer=null;}
@@ -375,6 +380,7 @@ function setRdsText(data){
     let line="Status: "+data.status.toUpperCase();
     if(data.frequency_hz)line+=" · "+(data.frequency_hz/1e6).toFixed(3)+" MHz";
     line+=" · "+data.received_groups+" decoded groups · "+data.saved_items+" saved text items";
+    if(data.rds2_images)line+=" · "+data.saved_images+" RDS2 images received";
     if(data.error)line+=" · "+data.error;
     status.textContent=line;
   }
@@ -446,8 +452,13 @@ async function addRdsControl(){
   consent.append(check,document.createTextNode(" I confirm that my RTL-SDR is not used by Gqrx, welle.io, readsb, or another recording."));
   const start=el("button","action primary","START RDS CAPTURE");start.id="rds-start";start.type="submit";
   const stop=el("button","action ghost","STOP CAPTURE");stop.id="rds-stop";stop.type="button";
+  const imagesOption=el("label","scan-consent");
+  const imageCheck=el("input");imageCheck.type="checkbox";imageCheck.id="rds-images";
+  imagesOption.append(imageCheck,document.createTextNode(
+    " Receive optional RDS2/RFT station logos via redsea --streams (requires redsea >=1.2; "+
+    "3–4× decoder CPU load; only broadcasters transmitting RDS2 logos will supply images)."));
   const buttons=el("div","card-actions");buttons.append(start,stop);
-  append(form,frequency.wrap,duration,consent,buttons);
+  append(form,frequency.wrap,duration,consent,imagesOption,buttons);
   outer.append(form);
   const progress=el("p","full-body","No capture yet");progress.id="rds-progress";
   const live=el("div","rds-live");live.id="rds-live";
@@ -459,7 +470,8 @@ async function addRdsControl(){
     start.disabled=true;
     try{
       const started=await api("/api/rds/start","POST",{
-        frequency_mhz:Number(frequency.input.value),duration_seconds:Number(seconds.value)
+        frequency_mhz:Number(frequency.input.value),duration_seconds:Number(seconds.value),
+        rds2_images:imageCheck.checked
       });
       state.rdsActive=true;notice("Receiver launched on your explicit request. Unverified until actual RDS JSON arrives.");
       setRdsText({...started,capability:status.capability});
@@ -668,6 +680,177 @@ async function addFMSurveyControl(){
     state.scanPollTimer=setTimeout(pollFMSurvey,750);
   }
 }
+function showAudioStatus(report){
+  const status=$("fm-audio-status");
+  if(status){
+    let label="Capture: "+report.status.toUpperCase();
+    if(report.recorded_seconds)label+=" · "+report.recorded_seconds+" sec recorded";
+    if(report.error)label+=" · "+report.error;
+    status.textContent=label;
+  }
+  const player=$("fm-audio-player");
+  if(player&&report.clip_ready&&!report.active&&player.dataset.session!==report.session){
+    player.dataset.session=report.session;
+    player.src="/api/audio/clip.wav?session="+encodeURIComponent(report.session);
+    player.hidden=false;
+    player.load();
+  }
+  const start=$("fm-audio-start"),stop=$("fm-audio-stop");
+  if(start)start.disabled=Boolean(report.active)||!$("fm-audio-confirm")?.checked||!report.capability?.ready;
+  if(stop)stop.disabled=!report.active;
+}
+async function pollAudioPreview(){
+  if(state.page!==400)return;
+  try{
+    const report=await api("/api/audio/status");
+    state.audioActive=report.active;
+    showAudioStatus(report);
+    if(report.active&&state.page===400){
+      state.audioPollTimer=setTimeout(pollAudioPreview,750);
+    }else{
+      await refreshReceiverStatus();
+    }
+  }catch(error){
+    state.audioActive=false;
+    notice("FM audio preview status failed: "+error.message);
+  }
+}
+async function addAudioPreview(){
+  const snapshot=await api("/api/audio/status");
+  const outer=el("article","item-card");outer.id="fm-audio-panel";
+  outer.append(el("div","item-meta","RECEIVE-ONLY FM AUDIO / EXPLICIT USER REQUEST"));
+  outer.append(el("h3","","Listen to a short FM radio preview"));
+  outer.append(el("p","",
+    "Captures 10–20 seconds of actual mono FM audio as WAV using rtl_fm. "+
+    "This is a listening preview, NOT an indefinite live stream; it does not "+
+    "require an Internet connection, redsea, or an audio output device on the server. "+
+    "The clip is held in memory only."));
+  const duration=el("div","field");
+  const frequency=field("FM frequency (MHz)","number","98.600",10);
+  frequency.input.id="fm-audio-frequency";
+  frequency.input.value="98.6";frequency.input.min="87.5";
+  frequency.input.max="108.0";frequency.input.step="0.001";
+  const opts=el("select");opts.id="fm-audio-length";
+  [10,12,15,20].forEach(n=>{
+    const option=el("option","",n+" seconds");option.value=n;
+    if(n===12)option.selected=true;opts.append(option);
+  });
+  duration.append(el("label","","Preview duration"),opts);
+  const form=el("form","rds-form");
+  const cbLabel=el("label","scan-consent");
+  const confirm=el("input");confirm.type="checkbox";confirm.id="fm-audio-confirm";
+  cbLabel.append(confirm,document.createTextNode(
+    " I authorize this short RTL-SDR FM tuning session; no Flight Radar, "+
+    "SDR app or protected recording may be using the same tuner."));
+  const start=el("button","action primary","RECORD & LISTEN");
+  start.type="submit";start.id="fm-audio-start";
+  const stop=button("STOP RECORDING",async()=>{
+    try{
+      await api("/api/audio/stop","POST",{});
+      if(state.audioPollTimer)clearTimeout(state.audioPollTimer);
+      state.audioPollTimer=setTimeout(pollAudioPreview,200);
+    }catch(e){notice(e.message)}
+  },"action ghost");
+  stop.id="fm-audio-stop";
+  const actions=el("div","card-actions");actions.append(start,stop);
+  append(form,frequency.wrap,duration,cbLabel,actions);outer.append(form);
+  const progress=el("p","full-body","No audio preview recorded");
+  progress.id="fm-audio-status";outer.append(progress);
+  const player=el("audio","local-audio-player");
+  player.id="fm-audio-player";player.controls=true;player.preload="none";
+  player.hidden=true;
+  player.setAttribute("aria-label","Locally received FM audio preview");
+  outer.append(player);
+  outer.append(el("p","full-body",snapshot.capability?.reason||"Audio readiness unknown"));
+  form.addEventListener("submit",async e=>{
+    e.preventDefault();
+    if(!confirm.checked)return notice("Confirm that your SDR is free before listening.");
+    start.disabled=true;
+    try{
+      player.pause();player.hidden=true;player.removeAttribute("src");
+      const created=await api("/api/audio/start","POST",{
+        frequency_mhz:Number(frequency.input.value),
+        duration_seconds:Number(opts.value)});
+      state.audioActive=created.active;
+      notice("Recording an actual, short FM preview; audio playback becomes available when complete.");
+      if(state.audioPollTimer)clearTimeout(state.audioPollTimer);
+      state.audioPollTimer=setTimeout(pollAudioPreview,400);
+    }catch(error){notice("Audio preview unavailable: "+error.message);start.disabled=false;}
+  });
+  confirm.addEventListener("change",()=>{start.disabled=!confirm.checked||state.audioActive||!snapshot.capability?.ready});
+  $("content").append(outer);
+  state.audioActive=snapshot.active;
+  showAudioStatus(snapshot);
+  if(snapshot.active){
+    if(state.audioPollTimer)clearTimeout(state.audioPollTimer);
+    state.audioPollTimer=setTimeout(pollAudioPreview,750);
+  }
+}
+async function addRadioImageGallery(){
+  const images=await api("/api/media");
+  const outer=el("article","item-card");
+  outer.append(el("div","item-meta","REAL BROADCAST IMAGE ARCHIVE · OFFLINE"));
+  outer.append(el("h3","","Station logos & DAB slideshow images"));
+  outer.append(el("p","",
+    "RDS2/RFT station logos and actual DAB MOT decoder images appear "+
+    "here only after being decoded/attributed and stored locally. "+
+    "No Internet artwork is substituted for broadcast images."));
+  if(!images.length){
+    outer.append(el("p","full-body",
+      "No broadcast images received or imported. RDS2 needs redsea 1.2+ "+
+      "and a broadcaster sending logo data. DAB MOT needs a DAB metadata decoder."));
+  }else{
+    const gallery=el("div","radio-media-grid");
+    images.forEach(entry=>{
+      const card=el("div","radio-media-card");
+      const picture=el("img","radio-image");
+      picture.src="/api/media/file/"+encodeURIComponent(entry.id);
+      picture.loading="lazy";
+      picture.alt="Broadcast image imported from "+entry.station;
+      card.append(picture,el("strong","",entry.station),
+        el("p","",entry.medium.toUpperCase()+" · "+(entry.frequency_hz/1e6).toFixed(3)+" MHz"),
+        el("p","",timeLabel(entry.received_at)+" · "+entry.provenance));
+      gallery.append(card);
+    });
+    outer.append(gallery);
+  }
+  $("content").append(outer);
+}
+async function addDvbDevicePanel(){
+  const dvb=await api("/api/dvb/status");
+  const panel=el("article","item-card");
+  panel.append(el("div","item-meta","DVB-T / DVB-T2 / DVB-C · PASSIVE DEVICE CHECK"));
+  panel.append(el("h3","","Hauppauge WinTV-soloHD 01589 readiness"));
+  panel.append(el("p","",
+    "Separate USB television receiver — not the Nooelec SDR. "+
+    "Detect USB devices, frontend paths, candidate firmware and installed DVB tools. "+
+    "No TV channel scan or recording is interrupted by this check."));
+  panel.append(el("p","full-body",
+    "Hauppauge USB candidates: "+dvb.hauppauge_usb.length+
+    " · Explicit soloHD product string: "+(dvb.model_confirmed?"seen":"not confirmed")+
+    " · DVB frontends: "+dvb.dvb_frontends.length));
+  dvb.hauppauge_usb.forEach(x=>panel.append(el("p","full-body",
+    "USB "+x.usb_id+" · "+x.product+" · "+x.usb_path)));
+  dvb.dvb_frontends.forEach(x=>panel.append(el("p","full-body",
+    "Frontend "+x.frontend+" · "+x.kernel_name+" · ownership/lock not verified")));
+  panel.append(el("p","full-body",
+    "Firmware candidates: "+Object.entries(dvb.firmware_candidates).map(([k,v])=>
+      k+" "+(v?"present":"missing")).join(" · ")));
+  panel.append(el("p","full-body",
+    "DVB utilities: "+Object.entries(dvb.tools).map(([k,v])=>
+      k+" "+(v?"installed":"missing")).join(" · ")));
+  panel.append(el("p","full-body",
+    "DVB service and Teletext PID decoding NOT connected yet. "+
+    "When the tuner arrives, verify its physical USB identity and driver/firmware "+
+    "before a region-scoped service scan behind protected tuner ownership."));
+  const actions=el("div","card-actions");
+  actions.append(button("RECHECK DVB HARDWARE",async()=>{
+    try{await showRadioData();notice("Refreshed passive DVB status; no tuning performed.")}
+    catch(e){notice(e.message)}
+  }));
+  panel.append(actions);
+  $("content").append(panel);
+}
 async function showRadioData(){
   section("RF / BROADCAST SOURCES","Antenna scanning & actual decoder imports","User-approved tuning only");
   try { $("content").append(receiverCard(await refreshReceiverStatus())); }
@@ -678,6 +861,12 @@ async function showRadioData(){
   catch(error){empty("FM spectrum survey unavailable","Could not inspect rtl_power: "+error.message)}
   try {await addRdsControl()}
   catch(error){empty("FM capture control unavailable","Unable to load RDS status: "+error.message)}
+  try {await addAudioPreview()}
+  catch(error){empty("FM audio preview unavailable",error.message)}
+  try {await addRadioImageGallery()}
+  catch(error){empty("Radio image archive unavailable",error.message)}
+  try {await addDvbDevicePanel()}
+  catch(error){empty("DVB device diagnostics unavailable",error.message)}
   const info=el("article","notice-card");
   append(info,el("h3","","RF survey is not a full broadcast decoder"),
     el("p","","Band scans for DAB/DRM/RTTY/NAVTEX/APRS/WeatherFAX find RF energy, "+
@@ -871,6 +1060,12 @@ function bindNavigation(){
   $("page-form").addEventListener("submit",(ev)=>{ev.preventDefault();openPage(Number($("page-number").value),$("source-select").value,Number($("subpage-number").value))});
   $("bookmark-page").addEventListener("click",()=>saveBookmark("Page "+state.page+(state.source?" · "+state.source:""),"page",state.page+":"+state.subpage+":"+state.source).catch((err)=>notice(err.message)));
   window.addEventListener("pagehide",()=>{
+    if(state.audioActive){
+      fetch("/api/audio/stop",{
+        method:"POST",headers:{"Content-Type":"application/json","X-Tihulu-CSRF":state.csrf},
+        body:"{}",keepalive:true
+      }).catch(()=>{});
+    }
     if(state.scanActive){
       fetch("/api/scans/stop",{
         method:"POST",headers:{"Content-Type":"application/json","X-Tihulu-CSRF":state.csrf},
