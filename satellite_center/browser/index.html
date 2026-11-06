@@ -272,6 +272,17 @@ All location methods are optional. City suggestions are offline by default; GPS 
 <select id="iq-rate"><option value="1024000">1.024 MS/s</option><option value="2048000">2.048 MS/s</option></select>
 </label>
 </div>
+<section class="notice" aria-label="Signal analysis compute backend">
+ <label>Processing hardware · optimize per device
+  <select id="iq-compute-mode"><option value="auto" selected>Auto — optimized for this device (recommended)</option><option value="custom">Custom CPU / GPU / NPU multi-select</option></select>
+ </label>
+ <fieldset class="line"><legend>Compatible processing devices · multiple allowed</legend>
+  <label><input type="checkbox" id="iq-compute-cpu" checked> CPU</label>
+  <label><input type="checkbox" id="iq-compute-gpu"> GPU</label>
+  <label><input type="checkbox" id="iq-compute-npu"> NPU</label>
+ </fieldset>
+ <p id="iq-compute-status" class="hint" role="status">Detecting compatible compute kernels…</p>
+</section>
 <div class="line">
 <button type="button" id="iq-analyze-last" disabled>Analyze last recording</button>
 <button type="button" id="iq-analyze-file">Quick analysis of selected file</button>
