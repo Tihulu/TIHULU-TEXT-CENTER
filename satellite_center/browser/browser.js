@@ -122,7 +122,7 @@ if (!hardwareSupported) {
         Number.isFinite(intent.createdAt) && Date.now()-intent.createdAt>=0 &&
         Date.now()-intent.createdAt<=5*60000);
     } catch(error){ log('Auto mission intent rejected: '+error.message); }
-    if(permittedAutoIntent&&['images','messages','all'].includes(requested)){
+    if(permittedAutoIntent&&['images','messages','voice','all'].includes(requested)){
       void runAutoMission({mode:requested,fromNavigation:true});
     }
   }).catch(err => {
@@ -1108,7 +1108,7 @@ $('auto-results').addEventListener('click',()=>{
   }else $('auto-plan-status').textContent='No completed discovery results yet. Use Analyze Recordings after an actual RF capture.';
 });
 const requestedAutoMission=new URLSearchParams(location.search).get('auto-mission');
-if(['images','messages','all'].includes(requestedAutoMission)){
+if(['images','messages','voice','all'].includes(requestedAutoMission)){
   $('auto-mode').value=requestedAutoMission;
   $('auto-plan-status').textContent='Reception type preselected. Click Auto Schedule & Capture to grant hardware permission and arm passes.';
 }
