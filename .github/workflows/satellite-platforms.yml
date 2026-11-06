@@ -60,6 +60,19 @@ jobs:
       - name: Static browser-only JS syntax (no hardware)
         shell: bash
         run: node --input-type=module --check < satellite_center/browser/browser.js
+      - name: Native Debian dashboard inline JavaScript syntax (no SDR)
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import os, re
+          html=Path("satellite_center/index.html").read_text(encoding="utf-8")
+          scripts=re.findall(r"<script(?:\\s[^>]*)?>(.*?)</script>",html,re.S|re.I)
+          assert len(scripts)==1, "Expected one inline native dashboard script"
+          dest=Path(os.environ["RUNNER_TEMP"])/"tihulu_native_dashboard_check.js"
+          dest.write_text(scripts[0],encoding="utf-8")
+          PY
+          node --check "$RUNNER_TEMP/tihulu_native_dashboard_check.js"
       - name: Earth and sky tracker tests (no hardware)
         shell: bash
         run: |
