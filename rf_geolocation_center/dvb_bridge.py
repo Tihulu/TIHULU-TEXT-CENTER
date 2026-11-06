@@ -67,6 +67,31 @@ def profiles():
     return values
 
 
+def _frontend_usb_metadata(adapter_id):
+    """Read actual sysfs USB ancestor, never infer tuner model from adapter index."""
+    syspath = Path("/sys/class/dvb") / ("dvb" + str(adapter_id) + ".frontend0") / "device"
+    try:
+        current = syspath.resolve(strict=True)
+        for parent in (current, *current.parents):
+            vendor_file, product_file = parent / "idVendor", parent / "idProduct"
+            if vendor_file.is_file() and product_file.is_file():
+                vendor = vendor_file.read_text().strip().lower()[:4]
+                product = product_file.read_text().strip().lower()[:4]
+                def read_label(name):
+                    path = parent / name
+                    return path.read_text(errors="replace").strip()[:90] if path.is_file() else ""
+                manufacturer = read_label("manufacturer")
+                label = read_label("product")
+                return {"usbId": vendor + ":" + product,
+                        "manufacturer": manufacturer, "product": label,
+                        "likelyHauppauge": vendor == "2040" or
+                            "hauppauge" in manufacturer.lower() or "hauppauge" in label.lower()}
+    except (OSError, ValueError):
+        pass
+    return {"usbId": None, "manufacturer": "", "product": "",
+            "likelyHauppauge": False}
+
+
 def adapters():
     found = []
     root = Path("/dev/dvb")
@@ -78,8 +103,9 @@ def adapters():
             if not (0 <= adapter_id <= 99):
                 continue
             if (folder / "frontend0").exists():
+                info = _frontend_usb_metadata(adapter_id)
                 found.append({"adapter": adapter_id, "device": "Linux DVB adapter " + str(adapter_id),
-                              "path": str(folder / "frontend0"),
+                              "path": str(folder / "frontend0"), **info,
                               "origin": "REAL OS DVB FRONTEND (not RTL-SDR WebUSB)"})
         except (ValueError, OSError):
             continue
