@@ -21,6 +21,31 @@
 <a href="./index.html#iq-analysis">Full CU8 analysis</a>
 </nav></div></header>
 <main class="wrap reception-main">
+<section id="auto-mission-center" aria-labelledby="auto-mission-title">
+<h2 id="auto-mission-title">Automatic satellite reception — three buttons</h2>
+<p class="hint">Select supported public downlinks, then arm the nearest non-overlapping passes. It never activates a transmitter, claims the SDR in the background or pretends every predicted pass contains data. Native companion schedules persist while its service runs; browser-only WebUSB requires an open visible tab.</p>
+<div class="reception-controls">
+<label>What to receive<select id="auto-mission-group">
+<option value="images">Earth weather images + ISS SSTV (event-dependent)</option>
+<option value="messages">ISS APRS messages (437.825 MHz candidate)</option>
+<option value="all">Images + messages (one receiver, no overlaps)</option>
+</select></label>
+<label>Latitude (ground station)<input type="number" id="auto-lat" step="0.00001" min="-90" max="90" value="50.938"></label>
+<label>Longitude<input type="number" id="auto-lon" step="0.00001" min="-180" max="180" value="6.960"></label>
+<label>Next passes<select id="auto-hours"><option value="12">12 h</option><option value="24" selected>24 h</option><option value="48">48 h</option></select></label>
+<button type="button" id="auto-gps" class="secondary">Use my location</button>
+</div>
+<div class="reception-actions">
+<button type="button" id="auto-mission-arm">1 · Auto Schedule &amp; Capture</button>
+<button type="button" id="auto-mission-analyze" class="secondary">2 · Analyze Recordings</button>
+<button type="button" id="auto-mission-extract" class="secondary" disabled>3 · Extract Results</button>
+<button type="button" id="auto-mission-cancel" class="secondary" disabled>Stop analysis</button>
+</div>
+<p id="auto-mission-status" class="status" role="status" aria-live="polite">No pass scheduled; no recording selected or analyzed.</p>
+<div id="auto-mission-jobs" class="mission-job-list" aria-live="polite"></div>
+<div id="auto-mission-output" class="mission-extraction" aria-live="polite"></div>
+<p class="hint">For actual full-pass Meteor LRPT image reconstruction, the native companion needs SatDump and a free RTL-SDR. A 60-second browser CU8 sample may not contain a full Earth scan. Raw I/Q cannot be interpreted as human messages without a protocol decoder and validated packet frames.</p>
+</section>
 <section aria-labelledby="reception-title">
 <h2 id="reception-title">Choose a satellite signal or image source</h2>
 <div class="reception-controls">
