@@ -6,7 +6,8 @@
 import {AUTO_PRESETS} from "./auto_mission.mjs?v=20261106-calendar-zip-v2";
 import {discoverCu8Contents,discoveryReportJson} from "./signal_discovery.mjs";
 import {parseRecordingName} from "./satellite_imagery.mjs";
-import {decodeRobot36Audio} from "./sstv_robot36.mjs";
+import {decodeRobot36WithCompute} from "./compute_backends.mjs";
+import {initComputeSelector} from "./compute_selector.mjs";
 import {initStationLocationUI} from "./location_search.mjs";
 import {localDayKey,shiftCalendarDay,renderSatelliteCalendar} from "./satellite_calendar.mjs?v=20261106-calendar-zip-v2";
 import {createResultsZip} from "./results_zip.mjs";
@@ -50,6 +51,11 @@ export function initAutoReceptionUI({getSelectedFile=()=>null,fileInput=$("local
   const state={discovery:[],actualImages:[],nativeDecodeReports:[],packetText:[],audioFiles:[],warnings:[],name:""};
   const message=value=>{$("auto-mission-status").textContent=String(value);};
   const jobs=$("auto-mission-jobs"),output=$("auto-mission-output");
+  const computeSelector=initComputeSelector("auto",{
+    capabilitiesProvider:nativeHost()?async()=>{
+      const info=await nativeApi("/api/status");return info.compute;
+    }:null
+  });
 
   const runtime=$("auto-runtime"),receiver=$("auto-receiver"),decoders=$("auto-decoders");
   if(nativeHost()){
@@ -225,6 +231,7 @@ export function initAutoReceptionUI({getSelectedFile=()=>null,fileInput=$("local
             mode,createdAt:Date.now()
           }));
           sessionStorage.setItem("tihulu-auto-coverage-goal",$("auto-coverage-goal").value);
+          sessionStorage.setItem("tihulu-auto-compute",JSON.stringify(computeSelector.getSelection()));
         }catch(error){
           throw Error("Browser blocked same-tab station transfer. Open the receiver page and set your coordinates there before scheduling.");
         }
@@ -238,10 +245,14 @@ export function initAutoReceptionUI({getSelectedFile=()=>null,fileInput=$("local
         throw Error("Select 8–900 whole seconds or leave blank for automatic duration.");
       if($("auto-coverage-goal").value==="sample"&&duration_seconds>60)
         throw Error("Quick sample is limited to 60 s; use full coverage for longer captures.");
+      await computeSelector.ready;
+      await computeSelector.plan(180); // reject explicitly unavailable GPU/NPU
+      const processing=computeSelector.getSelection();
       const result=await nativeApi("/api/auto-schedule",{
         missions:[...AUTO_PRESETS[mode]],lat,lon,city:"Custom",hours,
         elevation,max_jobs:6,coverage_goal:$("auto-coverage-goal").value,
-        duration_seconds
+        duration_seconds,
+        compute_mode:processing.mode,compute_targets:processing.targets
       });
       jobs.replaceChildren();
       textNode("h3","Native receiver queue",jobs);
@@ -294,8 +305,9 @@ export function initAutoReceptionUI({getSelectedFile=()=>null,fileInput=$("local
     if(blob.size>1024*1024*1024)throw Error("Recording exceeds the 1 GiB per-file safety cap.");
     const {sampleRate,centerHz}=currentMetadata(name);
     message("Scanning the REAL "+(blob.size/1048576).toFixed(1)+" MiB CU8: FFT → audio → Robot36 sync → packet decoder availability…");
+    const selected=computeSelector.getSelection();
     const result=await discoverCu8Contents(blob,{
-      sampleRate,centerHz,signal:controller?.signal,
+      sampleRate,centerHz,signal:controller?.signal,computePolicy:selected,
       onProgress:evt=>{if(evt.state!=="running")message(evt.phase+": "+evt.message);}
     });
     state.discovery.push({name,result});
@@ -335,11 +347,12 @@ export function initAutoReceptionUI({getSelectedFile=()=>null,fileInput=$("local
     const ctx=new AudioContext();
     try{
       const data=await ctx.decodeAudioData(await blob.arrayBuffer());
-      const result=decodeRobot36Audio(data.getChannelData(0),data.sampleRate);
+      const result=await decodeRobot36WithCompute(data.getChannelData(0),data.sampleRate,
+        {...computeSelector.getSelection(),signal:controller?.signal});
       state.actualImages.push({rgba:result.rgba,width:result.width,height:result.height,
         name:name.replace(/\.[^.]+$/,"")+"-Robot36.png",
         source:"Actual WAV Robot36 sync candidate (satellite identity not independently verified)",
-        alignedLines:result.alignedLines});
+        alignedLines:result.alignedLines,compute:result.compute});
     }catch(e){state.warnings.push(name+": no valid Robot36 image: "+String(e?.message||e));}
     finally{await ctx.close();}
   }
