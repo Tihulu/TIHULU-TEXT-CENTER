@@ -12,3 +12,23 @@
 
 
 .local-audio-player{display:block;width:100%;max-width:580px;margin:14px 0 8px}.local-audio-player[hidden]{display:none}.radio-media-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:13px;margin-top:14px}.radio-media-card{background:#0a161b;border:1px solid #29454a;border-radius:8px;padding:10px;overflow-wrap:anywhere}.radio-media-card strong{display:block;margin-top:8px;font-size:12px;color:var(--lime)}.radio-media-card p{margin-top:4px}.radio-image{display:block;width:100%;height:140px;object-fit:contain;background:#040809;border:1px solid #223c42;border-radius:4px}.radio-media-card p{font-size:11px}
+
+/* Live Studio: responsive radio audio, compute/translation controls, local captions. */
+.studio-wide{grid-column:1/-1;min-width:0}.studio-form{display:grid;gap:13px;margin-top:15px}
+.studio-languages{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px}
+.studio-languages label{display:grid;gap:5px;font-size:12px;color:#b5c6c7}
+.studio-languages select,.studio-caption-archive select{max-width:100%;min-width:0;border:1px solid #375459;border-radius:5px;background:#101e24;color:#e5efee;padding:10px}
+.studio-caption-options{display:grid;gap:9px;background:#0b1b1f;border:1px solid #29484b;border-radius:8px;padding:13px}
+.studio-caption-options[hidden]{display:none}
+.compute-device{display:flex;gap:7px 14px;flex-wrap:wrap;align-items:center;border-top:1px solid #2f474a;padding:8px 0;font-size:12px}
+.compute-device span{margin-left:auto}
+.studio-subtitles{margin-top:14px;background:#061316;border:1px solid #315354;border-radius:8px;padding:14px;min-height:90px}
+.caption-line{display:grid;gap:4px;border-bottom:1px solid #294144;padding:10px 4px;font-size:14px}
+.caption-line strong{font-weight:600;color:#f1f8f6}.caption-line .translation-line{color:#a8e6c0}
+.studio-recordings,.studio-caption-archive{display:grid;gap:10px;margin:10px 0 20px}
+.recorded-line,.caption-archive-item{display:grid;gap:8px;background:#0a1a1f;border:1px solid #315055;border-radius:7px;padding:12px;overflow-wrap:anywhere;font-size:12px}
+.archive-link{display:inline-block;border:1px solid #3c6867;border-radius:4px;padding:8px;color:#bfe9d7;font-size:10px;font-weight:700;letter-spacing:.5px}
+@media(max-width:650px){.studio-languages{grid-template-columns:1fr}.studio-form .card-actions>*{flex:1 1 130px}.compute-device span{margin-left:0}}
+
+.live-tv-video{display:block;width:100%;max-height:520px;background:#000;border:1px solid #315254;border-radius:7px;margin:16px 0;aspect-ratio:16/9;object-fit:contain}
+.live-tv-video[hidden]{display:none}.studio-caption-options[hidden]{display:none}
