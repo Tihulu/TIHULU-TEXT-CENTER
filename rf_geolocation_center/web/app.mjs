@@ -296,11 +296,18 @@ function renderTiles(){
  const minX=Math.floor((c.x-box.width/2)/256),maxX=Math.floor((c.x+box.width/2)/256);
  const minY=Math.max(0,Math.floor((c.y-box.height/2)/256)),maxY=Math.min(world-1,Math.floor((c.y+box.height/2)/256));
  const key=[z,minX,maxX,minY,maxY].join(":");
- if(lastTileViewport===key&&el.childElementCount)return;
+ if(lastTileViewport===key&&el.childElementCount){
+   for(const tile of el.querySelectorAll("img[data-tx][data-ty]")){
+     tile.style.left=(Number(tile.dataset.tx)*256-c.x+box.width/2)+"px";
+     tile.style.top=(Number(tile.dataset.ty)*256-c.y+box.height/2)+"px";
+   }
+   return;
+ }
  lastTileViewport=key;el.replaceChildren();
  if((maxX-minX+1)*(maxY-minY+1)>40){msg("Zoom in to limit online map tile requests");return}
  for(let tx=minX;tx<=maxX;tx++)for(let ty=minY;ty<=maxY;ty++){
    const x=((tx%world)+world)%world,im=document.createElement("img");
+   im.dataset.tx=String(tx);im.dataset.ty=String(ty);
    im.alt="";im.loading="lazy";im.decoding="async";
    im.referrerPolicy="strict-origin-when-cross-origin";
    im.style.left=(tx*256-c.x+box.width/2)+"px";im.style.top=(ty*256-c.y+box.height/2)+"px";
