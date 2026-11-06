@@ -1,12 +1,13 @@
 /* Offline-first PWA shell. Never cache OSM tiles, USB samples, personal location or imported measurements.
  * The pinned satellite.js library is cached solely for local orbital predictions; RF is not involved.
  */
-const CACHE="tihulu-geolocation-shell-v8";
+const CACHE="tihulu-geolocation-shell-v9";
 const ORBITAL_LIB="https://esm.sh/satellite.js@6.0.1?bundle";
 const USB_LIB="https://esm.sh/@jtarrio/webrtlsdr@3.0.7/rtlsdr.js?bundle";
 const SHELL=["./","./index.html","./web/app.mjs","./web/auto_explorer.mjs","./web/usb_sdr.mjs",
  "./web/style.css","./web/icon.svg","./core/gnss.mjs","./core/positioning.mjs",
- "./core/evidence.mjs","./core/location_layers.mjs","./core/source_provenance.mjs","./manifest.webmanifest"];
+ "./core/evidence.mjs","./core/location_layers.mjs","./core/source_provenance.mjs",
+ "./core/rf_ranging.mjs","./web/rf_survey.mjs","./manifest.webmanifest"];
 self.addEventListener("install",event=>{
  event.waitUntil(caches.open(CACHE).then(async cache=>{
    await cache.addAll(SHELL);
