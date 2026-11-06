@@ -38,7 +38,7 @@ test("web app displays tuner evidence, authentic aircraft and accessible marker 
  for(const id of ["map-scan-status","map-scan-results","map-focus-scan","map-source-popup",
   "tv-bridge-connect","tv-adapter","tv-profile","tv-start-scan","tv-stop-scan","tv-show-map",
   "quick-open-adsb","quick-online-aircraft"])assert.ok(html.includes('id="'+id+'"'),id);
- assert.match(app,/matchedBroadcastSources\(state\.catalogTowers,state\.catalogFM,state\.dvbChannels\|\|\[\]\)/);
+ assert.match(app,/matchedBroadcastSources\(state\.catalogTowers,state\.catalogFM,state\.dvbChannels\|\|\[\],state\.radioDecoded\)/);
  assert.match(app,/tihulu:tv-channels-updated/);
  assert.match(app,/tihulu:rf-scan-finished/);
  assert.match(app,/map-source-popup/);
@@ -47,4 +47,16 @@ test("web app displays tuner evidence, authentic aircraft and accessible marker 
  assert.match(read("sw.js"),/core\/scan_map\.mjs/);
  assert.match(read("sw.js"),/web\/dvb_bridge_client\.mjs/);
  assert.match(read("native.py"),/web\/dvb_bridge_client\.mjs/);
+});
+
+
+test("decoded historical FM RDS labels are only a frequency/site hypothesis, never transmitter or GPS fix",()=>{
+ const rds=[{station:"WDR example RDS label",frequencyMHz:98.6,observedAt:"2026-11-06T08:00:00Z"}];
+ const records=matchedBroadcastSources(towers,[],[],rds);
+ assert.equal(records.length,1);
+ assert.equal(records[0].kind,"rds");
+ assert.equal(records[0].stationLabel,"WDR example RDS label");
+ assert.equal(records[0].receiverPosition,false);
+ assert.equal(records[0].distanceMeters,null);
+ assert.match(records[0].match,/SITE NOT VERIFIED/);
 });
