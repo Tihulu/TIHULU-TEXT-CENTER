@@ -1009,7 +1009,8 @@ function renderLiveDockCaptions(items,kind){
   const container=$(kind==="tv"?"live-dock-tv-captions":"live-dock-radio-captions");
   if(!container)return;
   container.replaceChildren();
-  if(kind==="radio")container.hidden=!state.liveActive;
+  container.hidden=!items.length||
+    (kind==="tv"?!state.tvActive:!(state.liveActive||state.dabPlaying));
   if(!items.length)return;
   const last=items[items.length-1];
   const original=el("p","dock-subtitle-original",
@@ -1048,6 +1049,58 @@ async function updateDockStationMetadata(){
     node.textContent="Station metadata temporarily unavailable; live audio can continue.";
   }
 }
+function updateDockCaptionExport(session,medium){
+  const links=$("live-dock-caption-exports");
+  if(!links)return;
+  links.replaceChildren();
+  if(!session||!(/^[0-9a-f]{32}$/.test(session)))return;
+  for(const format of ["srt","vtt"]){
+    for(const translated of [false,true]){
+      const link=el("a","action ghost",
+        (translated?"Translated ":"Original ")+format.toUpperCase());
+      link.href="/api/transcripts/export?session="+encodeURIComponent(session)+
+        "&format="+format+"&translated="+(translated?"1":"0");
+      link.download="TIHULU-"+medium+"-"+session.slice(0,8)+
+        (translated?"-translated":"-original")+"."+format;
+      links.append(link);
+    }
+  }
+}
+async function pollLiveDabCaptions(){
+  if(!state.dabPlaying||!state.dabCaptionSession)return;
+  try{
+    const status=await api("/api/dab/captions/status");
+    const note=$("live-dock-caption-status");
+    if(note)note.textContent=status.active?
+      "DAB+ live captions · "+(status.speech?.selected_backend||"local model")+
+      " · "+(status.speech?.segments_completed||0)+" real segments"+
+      (status.speech?.error?" · "+status.speech.error:""):
+      "DAB+ captions unavailable: "+(status.unavailable_reason||status.error||
+      "decoder has stopped");
+    const items=await api("/api/transcripts?session="+
+      encodeURIComponent(state.dabCaptionSession));
+    renderLiveDockCaptions(items,"dab");
+    updateDockCaptionExport(state.dabCaptionSession,"dab");
+    if(status.active&&state.dabPlaying){
+      state.dabCaptionTimer=setTimeout(pollLiveDabCaptions,1800);
+    }else{
+      state.dabCaptionSession=null;
+    }
+  }catch(error){
+    const note=$("live-dock-caption-status");
+    if(note)note.textContent="DAB caption status unavailable: "+error.message;
+    if(state.dabPlaying)state.dabCaptionTimer=setTimeout(pollLiveDabCaptions,3500);
+  }
+}
+async function stopDabCaptionTap(){
+  if(state.dabCaptionTimer)clearTimeout(state.dabCaptionTimer);
+  state.dabCaptionTimer=null;
+  const session=state.dabCaptionSession;
+  state.dabCaptionSession=null;
+  if(session)await api("/api/dab/captions/stop","POST",{});
+  const node=$("live-dock-radio-captions");
+  if(node){node.hidden=true;node.replaceChildren();}
+}
 function syncLiveMediaDock(){
   const dock=$("live-media-dock");if(!dock)return;
   dock.hidden=!(state.liveActive||state.tvActive||state.dabPlaying);
@@ -1073,10 +1126,14 @@ function bindMediaDock(){
   const radio=$("live-dock-stop-radio"),tv=$("live-dock-stop-tv");
   if(radio)radio.addEventListener("click",async()=>{
     try{
+      if(state.dabPlaying)await stopDabCaptionTap();
       const player=$("persistent-radio-player");
       player.pause();player.removeAttribute("src");player.dataset.session="";player.load();
       if(state.liveActive)await api("/api/live/radio/stop","POST",{});
-      state.liveActive=false;state.dabPlaying=false;syncLiveMediaDock();
+      state.liveActive=false;state.dabPlaying=false;
+      const note=$("live-dock-caption-status");
+      if(note)note.textContent="Live captions stopped";
+      syncLiveMediaDock();
     }catch(e){notice(e.message)}
   });
   if(tv)tv.addEventListener("click",async()=>{
@@ -1168,6 +1225,13 @@ async function pollLiveRadio(){
     if(stop)stop.disabled=!current.active;
     if(state.liveSession){
       const data=await api("/api/transcripts?session="+encodeURIComponent(state.liveSession));
+      updateDockCaptionExport(state.liveSession,"fm");
+      const note=$("live-dock-caption-status");
+      if(note&&state.liveActive)note.textContent=current.speech?.enabled?
+        "FM captions · "+current.speech.selected_backend+
+        " · "+current.speech.segments_completed+" real segments":
+        "FM captions unavailable: "+(current.subtitle_unavailable_reason||
+          current.speech?.reason||"Not enabled");
       liveRadioCaptionPanel(data,state.liveSession);
       renderLiveDockCaptions(data,"radio");
       const links=$("live-export-links");
@@ -1218,6 +1282,13 @@ async function pollLiveTV(){
     if(stop)stop.disabled=!current.active;
     if(state.tvSession){
       const data=await api("/api/transcripts?session="+encodeURIComponent(state.tvSession));
+      updateDockCaptionExport(state.tvSession,"tv");
+      const note=$("live-dock-caption-status");
+      if(note&&state.tvActive)note.textContent=current.speech?.enabled?
+        "TV captions · "+current.speech.selected_backend+
+        " · "+current.speech.segments_completed+" real segments":
+        "TV captions unavailable: "+(current.subtitle_unavailable_reason||
+          current.speech?.reason||"Not enabled");
       liveRadioCaptionPanel(data,state.tvSession,"live-tv-captions");
       renderLiveDockCaptions(data,"tv");
       const links=$("live-tv-export");
