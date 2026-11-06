@@ -12,6 +12,10 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 ASSETS = (
     "index.html",
+    "reception.html",
+    "reception.css",
+    "reception.mjs",
+    "reception_catalog.mjs",
     "browser.js",
     "browser.css",
     "manifest.webmanifest",
