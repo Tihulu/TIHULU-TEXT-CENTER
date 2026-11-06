@@ -23,6 +23,8 @@ jobs:
           node --check rf_geolocation_center/web/app.mjs
           node --check rf_geolocation_center/web/maps.mjs
           node --check rf_geolocation_center/web/receivers.mjs
+          node --check rf_geolocation_center/web/auto_explorer.mjs
+          node --check rf_geolocation_center/web/usb_sdr.mjs
           node --check rf_geolocation_center/core/gnss.mjs
           node --check rf_geolocation_center/core/positioning.mjs
           node --check rf_geolocation_center/sw.js
