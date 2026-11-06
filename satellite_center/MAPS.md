@@ -130,3 +130,98 @@ WebUSB if the operating system allows the receiver to be claimed.
   and valid observer coordinate bounds.
 - No end-to-end on-device satellite reception, map tile rendering in
   Chromium/Firefox, or active downlink detection was verified by CI.
+
+
+## Earth basemap failure recovery (Nov 2026)
+
+On some browser/network/privacy-filter configurations the Leaflet satellite
+markers render but the OSM raster imagery remains blank. This should **not**
+be interpreted as successful map loading. The Earth view now:
+
+1. Sets explicit `strict-origin-when-cross-origin` tile referrer policy,
+   as required by OSMF's tile use policy.
+2. Tracks actual `tileload` and `tileerror` events, rather than reporting
+   "ready" merely because Leaflet initialized.
+3. On three tile errors without any loaded tile, or nine seconds with no
+   successful tile load, selects a **bundled, public-domain Natural Earth
+   1:110m land outline fallback**, so Earth geography remains visible with
+   the station and satellite overlays.
+4. Displays the active layer and its success/failure state, provides a
+   `Load / retry OpenStreetMap` button and an explicit **Base map** selector.
+   A blocked tile service is never claimed to be a successful OSM layer.
+
+If a provider returns a 200-status "blocked" image instead of the requested
+map (some OSM restrictions do), Leaflet might report `tileload` even though
+the content is not geographic. Switch manually to **World outlines**.
+Do not disable privacy protections automatically; the user can test their
+network/Brave Shields settings separately. This fallback is a coarse world
+map, not street-level OSM.
+
+Data: Natural Earth public-domain 1:110m land, mirrored and reduced from
+`martynafford/natural-earth-geojson/110m/physical/ne_110m_land.json`.
+Source: https://www.naturalearthdata.com/
+OSM tile rules: https://operations.osmfoundation.org/policies/tiles/
+
+## Pass and satellite sorting
+
+- Pass-calendar selector: **soonest date/time, latest/farthest date/time,
+  highest/lowest maximum elevation, longest/shortest pass and A–Z**.
+- The old UI silently displayed only the first 80 entries from a truncated
+  100-pass cache. The full computed pass list is now retained; the panel
+  paginates 40 entries at a time with **Show more passes**. Consequently
+  "latest date first" sorts over all calculated candidates.
+- Right-side satellite list sorts by elevation, **next calculated pass
+  soonest/latest**, slant-range near/far and name.
+- A next-pass ranking requires Calculate passes first; no timestamp
+  is invented for a satellite lacking a computed pass.
+- Neither sorting nor filtering adjusts a pass time or a scheduled RF job.
+
+## Browser-only scheduled receiver analysis
+
+1. **Calculate passes**, then expand **Schedule / configure timed RF
+   analysis** for a satellite.
+2. Confirm exact **date + hour + minute** in the **computer/browser local
+   timezone** (which may differ from the ground station timezone),
+   candidate frequency, sampling rate, 5/15/30/60-second duration and
+   whether to save raw interleaved `.cu8` USB IQ.
+3. **Confirm scheduled RF scan**. It creates a memory-only job and
+   releases any idle SDR immediately, so waiting hours does not keep
+   the receiver claimed.
+4. Click **Choose RTL-SDR** once to grant WebUSB if it was not already
+   permitted. **Check scheduled-scan readiness** inspects prior USB
+   grants read-only, without taking RF samples. An optional Screen Wake
+   Lock button can reduce screen sleep risk where available.
+5. At the due minute (if the page is visible and running), it tries to
+   reopen **only a previously permitted RTL2832U via
+   `navigator.usb.getDevices`**, then tunes to the chosen profile and
+   reads actual I/Q USB bytes for the configured duration or remaining
+   pass length. Jobs are sequential; competing receiver jobs wait.
+6. It computes actual raw sample-level minimum/average/maximum,
+   block count, size, elapsed time and variation, **not calibrated
+   RF dBm or proof of a named satellite**. If raw recording was requested
+   the browser download is triggered; an explicit **Download raw IQ
+   again** action retains the latest recording if automatic downloads
+   are blocked.
+7. The job card shows **armed / due / starting / running / finished /
+   blocked / missed / stopped** with date, countdown, error reason and
+   measured RF report. A blocked pass can be retried *while still active*
+   without changing any unrelated USB process.
+
+**Critical limitation:** A static browser cannot guarantee background work
+after tab closure, browser suspension or laptop sleep. This schedule is
+**foreground-only**; the user is told to keep the tab open/visible, and
+missed passes are explicitly labelled. Previous WebUSB permissions do not
+prove the device is free. The app never kills `readsb`, Gqrx or welle.io.
+The idle USB device is not kept claimed while waiting.
+
+**Still not implemented in browser:** Meteor LRPT image reconstruction,
+APRS packets, SSTV images or satellite-specific RF identification. The
+result is honest uncalibrated sample-level analysis and optional raw IQ;
+the optional local companion with SatDump/multimon-ng is needed for
+external decoders and for jobs while the browser tab is closed but the
+companion service runs.
+
+No physical Nooelec scheduled-capture acceptance test has been performed
+by this code-only change. Synthetic tests cover sorting, schedule minute
+bounds, due/hidden/busy transitions, digital level statistics, tile
+fallback thresholds and UI control presence.
