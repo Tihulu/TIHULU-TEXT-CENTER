@@ -10,6 +10,7 @@ export const AUTO_TARGETS=Object.freeze({
 });
 export const AUTO_PRESETS=Object.freeze({
   images:Object.freeze(["meteor-m2-3","meteor-m2-4","iss-sstv"]),
+  "iss-images":Object.freeze(["iss-sstv"]),
   messages:Object.freeze(["iss-aprs"]),
   voice:Object.freeze(["iss-voice"]),
   all:Object.freeze(["meteor-m2-3","meteor-m2-4","iss-sstv","iss-aprs","iss-voice"])
