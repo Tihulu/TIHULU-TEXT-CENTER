@@ -1010,16 +1010,46 @@ function renderLiveDockCaptions(items,kind){
   const container=$(kind==="tv"?"live-dock-tv-captions":"live-dock-radio-captions");
   if(!container)return;
   container.replaceChildren();
-  container.hidden=!items.length||
-    (kind==="tv"?!state.tvActive:!(state.liveActive||state.dabPlaying));
-  if(!items.length)return;
-  const last=items[items.length-1];
-  const original=el("p","dock-subtitle-original",
-    "["+last.original_language.toUpperCase()+"] "+last.original_text);
-  container.append(original);
-  if(last.translated_text){
+  const mode=kind==="tv"?(state.tvCaptionDisplayMode||"both"):"both";
+  container.hidden=mode==="off"||(kind==="tv"?!state.tvActive:
+    !(state.liveActive||state.dabPlaying));
+  if(container.hidden||!items.length)return;
+  let available=items;
+  if(kind==="tv"){
+    state.lastTvCaptionRows=items;
+    const source=state.tvCaptionSourceActive;
+    if(source==="broadcast_teletext"){
+      available=items.filter(c=>c.compute_backend==="broadcast_teletext_libzvbi");
+    }else if(source==="speech_transcription"){
+      available=items.filter(c=>c.compute_backend!=="broadcast_teletext_libzvbi");
+    }else{
+      available=[];
+    }
+    // Do not leave yesterday's or another source's caption on current TV.
+    available=available.filter(row=>{
+      const captured=Date.parse(row.captured_at||"");
+      return Number.isFinite(captured)&&Date.now()-captured<20000;
+    });
+  }
+  if(!available.length){container.hidden=true;return;}
+  const last=available[available.length-1];
+  const originalShown=mode==="both"||mode==="original";
+  const translatedShown=mode==="both"||mode==="translated";
+  if(originalShown){
+    container.append(el("p","dock-subtitle-original",
+      "["+last.original_language.toUpperCase()+"] "+last.original_text));
+  }
+  if(translatedShown && last.translated_text){
     container.append(el("p","dock-subtitle-translated",
       "["+last.translated_language.toUpperCase()+"] "+last.translated_text));
+  }
+  container.hidden=!container.childElementCount;
+  if(kind==="tv"&&!container.hidden){
+    const badge=el("small","tv-caption-provenance",
+      last.compute_backend==="broadcast_teletext_libzvbi"?
+        "DVB TELETEXT · ACTUAL BROADCAST SUBTITLES":
+        "WHISPER · ACTUAL TV AUDIO");
+    container.prepend(badge);
   }
 }
 async function updateDockStationMetadata(){
@@ -1145,6 +1175,47 @@ function bindMediaDock(){
       state.tvActive=false;syncLiveMediaDock();
     }catch(e){notice(e.message)}
   });
+  const display=$("live-tv-caption-display");
+  const processing=$("live-tv-caption-processing");
+  const translating=$("live-tv-caption-translation");
+  const source=$("live-tv-caption-source");
+  const target=$("live-tv-caption-target");
+  const apply=$("live-tv-caption-apply");
+  const pages=$("live-tv-open-teletext");
+  if(display)display.addEventListener("change",()=>{
+    state.tvCaptionDisplayMode=display.value;
+    renderLiveDockCaptions(state.lastTvCaptionRows||[],"tv");
+  });
+  if(pages)pages.addEventListener("click",async()=>{
+    await openPage(420,"",0);
+    document.getElementById("tv-teletext-reader")?.scrollIntoView({
+      behavior:"smooth",block:"start"});
+  });
+  if(apply)apply.addEventListener("click",async()=>{
+    if(!state.tvActive){
+      notice("Start a real authorized TV stream before changing live subtitle processing.");
+      return;
+    }
+    apply.disabled=true;
+    try{
+      const response=await api("/api/live/tv/captions/config","POST",{
+        processing:Boolean(processing?.checked),
+        subtitle_source:source?.value||"auto",
+        translation_enabled:Boolean(translating?.checked),
+        translated_language:target?.value||"en"
+      });
+      state.tvCaptionSourceActive=response.caption_source_active;
+      const status=$("live-tv-caption-source-status");
+      if(status)status.textContent=response.caption_source_active+
+        " · TV playback unchanged · "+(response.teletext_subtitles?.error||
+          response.teletext_subtitles?.status||"No Teletext decode attempted");
+      notice("Live TV caption processing updated. Source: "+
+        response.caption_source_active+". Current video remains playing.");
+    }catch(error){
+      notice("Caption settings could not be applied: "+error.message+
+        ". Video playback is unaffected.");
+    }finally{apply.disabled=false;}
+  });
   const volume=$("live-dock-volume"),mute=$("live-dock-mute");
   const players=[$("persistent-radio-player"),$("persistent-tv-player")].filter(Boolean);
   function setVolume(){
@@ -1266,6 +1337,7 @@ async function pollLiveTV(){
     state.tvActive=current.active;
     state.tvSession=current.session||state.tvSession;
     state.tvRecording=Boolean(current.recording);
+    state.tvCaptionSourceActive=current.caption_source_active||"off";
     syncLiveMediaDock();
     const label=$("live-tv-status");
     if(label)label.textContent=current.status.toUpperCase()+
@@ -1285,11 +1357,21 @@ async function pollLiveTV(){
       const data=await api("/api/transcripts?session="+encodeURIComponent(state.tvSession));
       updateDockCaptionExport(state.tvSession,"tv");
       const note=$("live-dock-caption-status");
-      if(note&&state.tvActive)note.textContent=current.speech?.enabled?
-        "TV captions · "+current.speech.selected_backend+
-        " · "+current.speech.segments_completed+" real segments":
-        "TV captions unavailable: "+(current.subtitle_unavailable_reason||
-          current.speech?.reason||"Not enabled");
+      if(note&&state.tvActive){
+        const detail=current.teletext_subtitles;
+        note.textContent=current.caption_source_active==="broadcast_teletext"?
+          "TV captions · real DVB Teletext text · "+detail.segments_completed+" cues":
+          current.caption_source_active==="speech_transcription"?
+          "TV captions · real audio Whisper fallback · "+
+            current.speech.segments_completed+" segments":
+          "TV captions: "+(detail?.error||current.teletext_unavailable_reason||
+            current.subtitle_unavailable_reason||"Waiting for real broadcast subtitles or audio model");
+      }
+      const teletextStatus=$("live-tv-caption-source-status");
+      if(teletextStatus&&state.tvActive)
+        teletextStatus.textContent="Active source: "+current.caption_source_active+
+          " · Teletext "+(current.teletext_subtitles?.status||"not connected")+
+          (current.teletext_subtitles?.error?" · "+current.teletext_subtitles.error:"");
       liveRadioCaptionPanel(data,state.tvSession,"live-tv-captions");
       renderLiveDockCaptions(data,"tv");
       const links=$("live-tv-export");
@@ -1364,11 +1446,28 @@ async function addLiveTV(){
     const wrap=el("div","field");
     wrap.append(el("label","",label),control);settings.append(wrap);
   }
+  const subtitleSource=el("select");subtitleSource.id="live-tv-subtitle-source";
+  for(const [value,name] of [
+    ["auto","Auto · Teletext first, speech fallback"],
+    ["broadcast","Real DVB Teletext text only"],
+    ["speech","Speech transcription only"],
+    ["off","No captions"]
+  ]){
+    const item=el("option","",name);item.value=value;subtitleSource.append(item);
+  }
+  const subtitleSourceField=el("div","field");
+  subtitleSourceField.append(el("label","","Live subtitle source"),subtitleSource);
+  settings.append(subtitleSourceField);
   form.append(settings);
   const subtitles=el("input");subtitles.type="checkbox";
   const translate=el("input");translate.type="checkbox";
   const record=el("input");record.type="checkbox";
-  for(const [input,text] of [[subtitles,"Transcribe real TV audio into original-language captions"],
+  const teletextConsent=el("input");teletextConsent.type="checkbox";
+  const auxReaderLabel=el("label","scan-consent");
+  auxReaderLabel.append(teletextConsent,document.createTextNode(
+    " I authorize a second read-only libzvbi Teletext reader on this already-authorized TV relay, which supports multiple clients."));
+  form.append(auxReaderLabel);
+  for(const [input,text] of [[subtitles,"Use real DVB Teletext captions or TV audio fallback"],
                               [translate,"Also translate live subtitles (EN/DE/TR)"],
                               [record,"Record the TV stream locally"]]){
     const label=el("label","scan-consent");
@@ -1420,8 +1519,18 @@ async function addLiveTV(){
         subtitles:subtitles.checked,original_language:lang.value,
         translated_language:subtitles.checked&&translate.checked?target.value:null,
         backend:backend.value,translation_backend:tvTranslationBackend.value,
-        upstream_authorized:true});
+        upstream_authorized:true,subtitle_source:subtitleSource.value,
+        auxiliary_teletext_consent:teletextConsent.checked});
       state.tvActive=true;state.tvSession=newSession.session;
+      state.tvCaptionSourceActive=newSession.caption_source_active||"off";
+      const inDock=$("live-tv-caption-processing");
+      if(inDock)inDock.checked=subtitles.checked;
+      const sourceDock=$("live-tv-caption-source");
+      if(sourceDock)sourceDock.value=subtitleSource.value;
+      const targetDock=$("live-tv-caption-target");
+      if(targetDock)targetDock.value=target.value;
+      const translationDock=$("live-tv-caption-translation");
+      if(translationDock)translationDock.checked=translate.checked;
       video.src="/api/live/tv/stream?session="+encodeURIComponent(state.tvSession)+
         "&token="+encodeURIComponent(state.csrf);
       video.dataset.session=state.tvSession;syncLiveMediaDock();
@@ -2332,10 +2441,22 @@ async function playTvChannel(channel, record){
     subtitles:captionOptions.enabled,original_language:captionOptions.source,
     translated_language:captionOptions.enabled&&captionOptions.translate?captionOptions.target:null,
     backend:captionOptions.backend,translation_backend:"auto",
-    upstream_authorized:true});
+    upstream_authorized:true,
+    subtitle_source:captionOptions.tvSource||"auto",
+    auxiliary_teletext_consent:Boolean(captionOptions.teletextConsent)});
   state.tvActive=true;
   state.tvRecording=!!record;
   state.tvSession=session.session;
+  state.tvCaptionSourceActive=session.caption_source_active||"off";
+  state.tvCaptionDisplayMode=state.tvCaptionDisplayMode||"both";
+  const tvCaptionProcessing=$("live-tv-caption-processing");
+  if(tvCaptionProcessing)tvCaptionProcessing.checked=Boolean(captionOptions.enabled);
+  const tvCaptionTranslation=$("live-tv-caption-translation");
+  if(tvCaptionTranslation)tvCaptionTranslation.checked=Boolean(captionOptions.translate);
+  const tvCaptionSource=$("live-tv-caption-source");
+  if(tvCaptionSource)tvCaptionSource.value=captionOptions.tvSource||"auto";
+  const tvCaptionTarget=$("live-tv-caption-target");
+  if(tvCaptionTarget)tvCaptionTarget.value=captionOptions.target||"en";
   const note=$("live-dock-caption-status");
   if(note)note.textContent=captionOptions.enabled?
     (session.subtitles_active?"TV live transcription enabled":
@@ -2415,21 +2536,46 @@ async function addChannelCenter(kind){
     "Choose options before Play. Missing AI never stops broadcast playback.");
   speechBox.append(captionControls,hint);
   captionControls.append(transcribe,translateLabel,languageControl,targetControl,backendControl);
-  state.channelCaptionPrefs={enabled:false,translate:false,source:"en",target:"en",backend:"auto"};
+  let tvSource=null,auxReader=null;
+  if(!radio){
+    const sourceSelect=el("label","channel-caption-field");
+    sourceSelect.append(el("span","","TV caption source"));
+    tvSource=el("select");tvSource.id="channel-tv-subtitle-source";
+    for(const [value,label] of [
+      ["auto","Auto · DVB Teletext first → Speech if missing"],
+      ["broadcast","Broadcast Teletext text only"],
+      ["speech","Speech transcription only"],
+      ["off","Captions disabled"]
+    ]){
+      const option=el("option","",label);option.value=value;tvSource.append(option);
+    }
+    sourceSelect.append(tvSource);
+    const consent=el("label","channel-filter-check");
+    auxReader=el("input");auxReader.type="checkbox";
+    auxReader.id="channel-tv-secondary-teletext-reader";
+    consent.append(auxReader,document.createTextNode(
+      " Allow one additional read-only Teletext decoder client on this already-authorized TV relay"));
+    captionControls.append(sourceSelect,consent);
+  }
+  state.channelCaptionPrefs={enabled:false,translate:false,source:"en",
+    target:"en",backend:"auto",tvSource:"auto",teletextConsent:false};
   function syncCaptionOptions(){
     translation.disabled=!captions.checked;
     if(!captions.checked)translation.checked=false;
     const options={enabled:captions.checked,translate:translation.checked,
-      source:source.value,target:target.value,backend:backend.value};
+      source:source.value,target:target.value,backend:backend.value,
+      tvSource:tvSource?.value||"auto",
+      teletextConsent:Boolean(auxReader?.checked)};
     state.channelCaptionPrefs=options;
     hint.textContent=options.enabled?
-      "Live captions requested for the NEXT playback. Only real decoded audio is "+
-      "transcribed; results appear in the persistent player, with SRT/VTT export. "+
-      "Missing AI models leave audio/video unaffected.":
+      (radio?"Live transcription uses actual received audio. ":
+      "Auto prefers real DVB Teletext subtitle cues, falling back to TV audio ASR after a grace period. "+
+      "A second decoder reader needs explicit safe multi-client consent. ")+
+      "Only actual broadcaster/ASR captions are saved; no model or subtitle decoder never interrupts playback.":
       "Live captions off. Turn on before Play to start real-time ASR; "+
       "existing recordings remain available for later translation.";
   }
-  for(const field of [captions,translation,source,target,backend])
+  for(const field of [captions,translation,source,target,backend,tvSource,auxReader].filter(Boolean))
     field.addEventListener("change",syncCaptionOptions);
   try{
     const compute=await api("/api/compute");
@@ -2640,6 +2786,84 @@ async function showLiveRadioPage(){
     parent.append(more);
   }
 }
+async function addTVTeletextReader(){
+  // Independent read-only use of the existing Teletext archive and Internet
+  // directory. Does not change the TV application's Teletext controls/driver.
+  const panel=el("article","item-card tv-teletext-reader");
+  panel.id="tv-teletext-reader";
+  panel.append(el("div","item-meta","TV CHANNEL TEXT / BROADCAST ARCHIVE VS INTERNET"));
+  panel.append(el("h3","","TV Teletext pages & broadcaster websites"));
+  panel.append(el("p","full-body",
+    "Browse actual imported DVB Teletext pages in the local archive, or open "+
+    "a broadcaster's separately labeled Internet Teletext website. "+
+    "The existing live TV Teletext viewer is unchanged. "+
+    "Archived pages do not automatically become synchronized subtitles."));
+  const controls=el("div","card-actions");
+  controls.append(button("OPEN ALL TEXT & ALERTS",()=>openPage(500,"",0),"action primary"));
+  controls.append(button("LEGACY NUMBERED PAGE VIEWER",()=>openPage(100,"",0),"action ghost"));
+  panel.append(controls);
+  const search=el("input","tv-teletext-search");
+  search.type="search";search.placeholder="Search broadcaster, page number or title…";
+  search.setAttribute("aria-label","Search real imported DVB Teletext pages");
+  panel.append(search);
+  const list=el("div","tv-teletext-pages");
+  panel.append(list);
+  const internet=el("details","advanced-section");
+  internet.append(el("summary","","Broadcaster Teletext websites · Internet only"));
+  const sites=el("div","tv-teletext-websites");
+  internet.append(sites);
+  panel.append(internet);
+  $("content").append(panel);
+  let pages=[];
+  try{
+    const decoded=await api("/api/pages");
+    pages=Array.isArray(decoded)?decoded.filter(item=>item.medium==="dvb_teletext"):[];
+  }catch(error){
+    list.append(el("p","full-body","Teletext archive unavailable: "+error.message));
+  }
+  const redraw=()=>{
+    list.replaceChildren();
+    const term=search.value.trim().toLocaleLowerCase();
+    const filtered=pages.filter(item=>
+      [item.station,item.title,String(item.page),String(item.subpage),item.source_id]
+        .join(" ").toLocaleLowerCase().includes(term)
+    );
+    if(!filtered.length)list.append(el("p","full-body",
+      pages.length?"No real archived Teletext pages match the search.":
+        "No DVB Teletext pages were imported. A DVB service scan or TV stream "+
+        "does not by itself decode Teletext pages."));
+    for(const item of filtered.slice(0,250)){
+      const number=Number(item.page),sub=Number(item.subpage||0);
+      const entry=el("article","channel-row");
+      const title=el("div","channel-main");
+      title.append(el("strong","",item.station+" · P"+String(number).padStart(3,"0")+
+        "/"+String(sub).padStart(2,"0")));
+      title.append(el("small","",String(item.title||"Received Teletext page")+
+        " · "+timeLabel(item.received_at)+" · ANTENNA ARCHIVE"));
+      const actions=el("div","channel-actions");
+      actions.append(button("READ PAGE",()=>openPage(number,item.source_id,sub),"action ghost"));
+      entry.append(title,actions);list.append(entry);
+    }
+  };
+  search.addEventListener("input",redraw);
+  redraw();
+  try{
+    const directory=await api("/api/directory");
+    const links=Array.isArray(directory)?directory.filter(x=>
+      /teletext|teleg[uü]n|ard text/i.test((x.category||"")+" "+(x.name||""))):[];
+    if(!links.length){
+      sites.append(el("p","full-body","No broadcaster Teletext websites in the current directory."));
+    }
+    for(const item of links){
+      const link=el("a","action ghost",item.name+" · INTERNET");
+      link.href=item.url;link.target="_blank";link.rel="noopener noreferrer";
+      link.title=item.note||"External Internet website, not local RF reception";
+      sites.append(link);
+    }
+  }catch(error){
+    sites.append(el("p","full-body","Website directory unavailable: "+error.message));
+  }
+}
 async function showLiveTVPage(){
   section("TV CENTER","Scan channels · Choose · Watch · Record",
     "DVB-T/T2 scan is hardware-dependent · MPEG-TS relay needed for playback");
@@ -2648,6 +2872,8 @@ async function showLiveTVPage(){
   try{await addDvbFullScan()}
   catch(e){empty("TV full scan unavailable",e.message)}
   try{await addLiveTV()}catch(e){empty("Live TV player unavailable",e.message)}
+  try{await addTVTeletextReader()}
+  catch(e){empty("TV Teletext archive unavailable",e.message)}
   const parent=$("content"),known=new Set(parent.children);
   try{await addDvbDevicePanel()}catch(e){empty("DVB diagnostics unavailable",e.message)}
   const extra=[...parent.children].filter(node=>!known.has(node));

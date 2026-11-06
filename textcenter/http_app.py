@@ -568,7 +568,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         route = urlsplit(self.path).path
-        allowed = {"/api/feeds/add", "/api/feeds/refresh", "/api/bulletins", "/api/bookmarks", "/api/rds/start", "/api/rds/stop", "/api/fm-survey/start", "/api/fm-survey/stop", "/api/scans/start", "/api/scans/stop", "/api/audio/start", "/api/audio/stop", "/api/dab/refresh", "/api/live/radio/start", "/api/live/radio/stop", "/api/transcripts/translate", "/api/translation/text", "/api/live/tv/start", "/api/live/tv/stop", "/api/recordings/transcription/start", "/api/recordings/transcription/stop", "/api/radar/refresh", "/api/languages/refresh", "/api/languages/install", "/api/languages/translate", "/api/auto/fm/start", "/api/auto/fm/stop", "/api/auto/dab/start", "/api/auto/dab/stop", "/api/auto/dab/tune", "/api/receiver/stop-all", "/api/receiver/hard-stop", "/api/channel-center/update", "/api/dvb/scan/start", "/api/dvb/scan/stop", "/api/dab/select", "/api/dab/captions/start", "/api/dab/captions/stop", "/api/dab/manage/start", "/api/dab/manage/stop"}
+        allowed = {"/api/feeds/add", "/api/feeds/refresh", "/api/bulletins", "/api/bookmarks", "/api/rds/start", "/api/rds/stop", "/api/fm-survey/start", "/api/fm-survey/stop", "/api/scans/start", "/api/scans/stop", "/api/audio/start", "/api/audio/stop", "/api/dab/refresh", "/api/live/radio/start", "/api/live/radio/stop", "/api/transcripts/translate", "/api/translation/text", "/api/live/tv/start", "/api/live/tv/stop", "/api/live/tv/captions/config", "/api/recordings/transcription/start", "/api/recordings/transcription/stop", "/api/radar/refresh", "/api/languages/refresh", "/api/languages/install", "/api/languages/translate", "/api/auto/fm/start", "/api/auto/fm/stop", "/api/auto/dab/start", "/api/auto/dab/stop", "/api/auto/dab/tune", "/api/receiver/stop-all", "/api/receiver/hard-stop", "/api/channel-center/update", "/api/dvb/scan/start", "/api/dvb/scan/stop", "/api/dab/select", "/api/dab/captions/start", "/api/dab/captions/stop", "/api/dab/manage/start", "/api/dab/manage/stop"}
         if route not in allowed:
             return self._json(404, {"error": "Not found"})
         if self.headers.get("X-Tihulu-CSRF") != self.server.csrf_token:
@@ -719,9 +719,17 @@ class Handler(BaseHTTPRequestHandler):
                     translate_to=payload.get("translated_language"),
                     backend=payload.get("backend","auto"),
                     translation_backend=payload.get("translation_backend","auto"),
-                    upstream_authorized=payload.get("upstream_authorized",False)))
+                    upstream_authorized=payload.get("upstream_authorized",False),
+                    subtitle_source=payload.get("subtitle_source","auto"),
+                    auxiliary_teletext_consent=payload.get("auxiliary_teletext_consent",False)))
             if route == "/api/live/tv/stop":
                 return self._json(200,self.server.live_tv.stop())
+            if route == "/api/live/tv/captions/config":
+                return self._json(200,self.server.live_tv.configure_captions(
+                    processing=payload.get("processing"),
+                    translate_to=payload.get("translated_language"),
+                    target_enabled=payload.get("translation_enabled"),
+                    subtitle_source=payload.get("subtitle_source")))
             if route == "/api/languages/refresh":
                 return self._json(200,self.server.languages.refresh_index(
                     consent=payload.get("consent",False)))

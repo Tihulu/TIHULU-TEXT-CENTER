@@ -218,6 +218,18 @@ class SpeechPipeline:
         self.thread=Thread(target=self._worker,daemon=True,name="tihulu-speech-asr")
         self.thread.start()
 
+    def skip(self,pcm:bytes):
+        """Advance real PCM timeline while broadcaster text has priority.
+
+        No audio, synthetic caption, or recognition job is created.
+        Clear an incomplete ASR window to avoid mixing subtitle modes.
+        """
+        if self.stopping.is_set():return
+        if not isinstance(pcm,(bytes,bytearray)):
+            raise ValueError("PCM must contain real bytes")
+        self.samples+=(len(self.buffer)+len(pcm))//2
+        self.buffer.clear()
+
     def feed(self,pcm:bytes):
         if self.stopping.is_set():return
         self.buffer.extend(pcm)
@@ -262,6 +274,11 @@ class SpeechPipeline:
                 self.last_error="Speech transcription unavailable: "+str(exc)[:180]
             finally:
                 self.queue.task_done()
+
+    def set_translation_target(self,target:str|None):
+        """Apply target to new genuine speech segments without restarting RF."""
+        self.target=validate_language(target) if target else None
+        return self.target
 
     def status(self):
         return {"enabled":True,"selected_backend":self.backend,
