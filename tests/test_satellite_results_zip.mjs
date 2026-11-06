@@ -14,7 +14,7 @@ test("ZIP contains real files and a valid stored central directory",async()=>{
  assert.equal(view.getUint16(data.length-22+10,true),3);
  const dir=view.getUint32(data.length-22+16,true);
  assert.equal(view.getUint32(dir,true),0x02014b50);
- assert.equal(view.getUint32(8,true),0);
+ assert.equal(view.getUint16(8,true),0);
  const name=new TextDecoder().decode(data.slice(30,30+view.getUint16(26,true)));
  assert.equal(name,"manifest.json");
  assert.equal(archive.type,"application/zip");

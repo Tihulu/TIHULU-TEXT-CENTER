@@ -525,11 +525,11 @@ export function initAutoReceptionUI({getSelectedFile=()=>null,fileInput=$("local
       };
       entries.unshift({name:"manifest.json",blob:asJson(manifest)});
       entries.push({name:"README.txt",blob:asText(
-        "TIHULU Satellite Center\\nReal decoded/imported results with provenance.\\n"+
-        "Candidate signal, Robot36 sync or SatDump image does not prove a spacecraft ID.\\n"+
-        "Full recorded pass is not all onboard data. Raw CU8 IQ is excluded for size.\\n"
+        "TIHULU Satellite Center\nReal decoded/imported results with provenance.\n"+
+        "Candidate signal, Robot36 sync or SatDump image does not prove a spacecraft ID.\n"+
+        "Full recorded pass is not all onboard data. Raw CU8 IQ is excluded for size.\n"
       )});
-      if(warnings.length)entries.push({name:"warnings.txt",blob:asText(warnings.join("\\n"))});
+      if(warnings.length)entries.push({name:"warnings.txt",blob:asText(warnings.join("\n"))});
       zipStatus.textContent="Packaging "+index.length+" output file(s) and provenance in ZIP…";
       const archive=await createResultsZip(entries,{
         onProgress:({done,total})=>{

@@ -31,6 +31,12 @@ captures alive after the tab closes or run native SatDump.
    other operator-approved formats remain eligible and the missing target
    is reported; no unapproved media kind is silently added.
    All estimates refer to received time windows, not every spacecraft dataset.
+   The shared 24h calendar shows exact local start–end clock ranges, capture
+   duration and spanning hour tracks. Cancelled jobs are omitted from display,
+   not deleted from persisted audit JSON. In Step 3, users can preview actual
+   decoder candidates, then explicitly export them in a bounded ZIP (PNG/WAV,
+   text, analysis JSON, manifest and warnings; large CU8 preserved separately).
+   ZIP files have CRC32 integrity but do not establish RF/spacecraft identity.
 3. **Calendar**: editable local-date day picker, actual 00:00–23:00 time slots,
    state/target/format labels, per-job cancellation. For a pending native task,
    edit local start time and target's **known protocol** only inside the original
