@@ -5,6 +5,7 @@ import {parseNMEA,trilaterate2D,tdoaConstraints} from "../core/positioning.mjs";
 import {initAutoExplorer} from "./auto_explorer.mjs";
 import {initUsbSDR} from "./usb_sdr.mjs";
 import {initRFSurvey} from "./rf_survey.mjs";
+import {initCatalogDiscovery} from "./catalog_discovery.mjs";
 import {exampleRings,ringPoints,validRangeSources} from "../core/evidence.mjs";
 import {LOCATION_LAYERS,layerReadiness,visibleLayerPreferences} from "../core/location_layers.mjs";
 import {positionProvenance,radioProvenance,orbitalProvenance,aircraftProvenance} from "../core/source_provenance.mjs";
@@ -12,7 +13,7 @@ import {positionProvenance,radioProvenance,orbitalProvenance,aircraftProvenance}
 const $=id=>document.getElementById(id), svgNS="http://www.w3.org/2000/svg";
 const state={
   browser:null,networkFix:null,serialFix:null,serialAt:0,receiverHistory:[],gnssFile:null,sp3:null,layerPrefs:null,
-  rfOnly:false,rfSources:[],rfRanges:[],rfSolution:null,usbStatus:"NOT CONNECTED",usbMessage:"No RF sample from antenna",
+  rfOnly:false,rfSources:[],rfRanges:[],rfSolution:null,catalogTowers:[],catalogAircraft:[],catalogFM:[],usbStatus:"NOT CONNECTED",usbMessage:"No RF sample from antenna",
   time:null,mask:5,visible:[],autoOrbits:[],references:[],ranges:null,rangeInputs:[],tdoa:[],cachedPosition:null,
   map:{lat:DEFAULT_CENTER.lat,lon:DEFAULT_CENTER.lon,zoom:11,osm:false},
   serialPort:null,serialReader:null,reading:false,usbSelection:null,activeView:"dashboard"
@@ -41,6 +42,8 @@ function renderMethodReadiness(orbits){
  const r=layerReadiness({...state,orbits},Date.now());
  if(state.rfRanges.length){r.radio.state=state.rfSolution?"RF MODEL":"RF ESTIMATE";r.radio.count=state.rfRanges.length;r.radio.detail="REAL RTL-SDR I/Q plus external transmitter coordinates and calibration; distance NOT directly measured, accuracy NOT validated";}
  const air=state.rfSources.filter(s=>s.type==="aircraft").length,ground=state.rfSources.filter(s=>s.type==="station").length,satelliteRefs=state.rfSources.filter(s=>s.type==="satellite").length;
+ if(state.catalogAircraft.length){r.aircraft.count+=state.catalogAircraft.length;r.aircraft.state="INTERNET REFS";r.aircraft.detail="OpenSky aircraft coordinates from internet, not local RTL-SDR reception"}
+ if(state.catalogTowers.length){r.ground.count+=state.catalogTowers.length;r.ground.state="OSM CATALOG";r.ground.detail="OpenStreetMap broadcast-site candidates; no verified RF identity or measured range"}
  if(air){r.aircraft.count+=air;r.aircraft.state="REFERENCES";r.aircraft.detail="Imported and user-entered aircraft positions are references; RF energy does not verify source identity";}
  if(ground){r.ground.count+=ground;r.ground.state="REFERENCES";r.ground.detail="Ground station coordinates are external metadata; RF level and calibrated range require actual antenna samples";}
  if(satelliteRefs){r.satellites.detail+=" · "+satelliteRefs+" RF survey satellite coordinate references supplied by user (NOT tracked RF)";}
@@ -190,6 +193,7 @@ function setView(name){
  document.querySelector(".sidebar")?.classList.remove("mobile-open");
  if(name==="earth"){state.map.osm=navigator.onLine!==false;renderEarth()}
  if(name==="sky")renderSky();
+ if(name==="radio")window.dispatchEvent(new Event("tihulu:catalog-auto-discover"));
 }
 for(const btn of document.querySelectorAll("#nav button[data-view]"))btn.addEventListener("click",()=>setView(btn.dataset.view));
 for(const btn of document.querySelectorAll("[data-jump]"))btn.addEventListener("click",()=>setView(btn.dataset.jump));
@@ -376,6 +380,18 @@ function renderEarth(){
        (s.hasActualRF?"RF energy observed, source identity unverified":"NO RF capture")+" · NOT GNSS TRACKING","S");
  }
 
+ // Mapped broadcast TOWER references are not actual antenna-identified transmitters.
+ for(const site of state.catalogTowers){
+   if(!showGround||state.rfSources.some(x=>x.catalogId===site.id))continue;
+   place(site,"station","#8fb8c7",site.name+" · OSM PUBLIC CATALOG TOWER · "+
+     (site.frequencyMHz?site.frequencyMHz.toFixed(3)+" MHz FM tag, RF NOT VERIFIED":"NO FM FREQUENCY TAG")+
+     " · distance from SEARCH CENTER "+(site.distanceFromSearchCenterMeters/1000).toFixed(1)+
+     " km; this is NOT measured distance from YOU","T");
+ }
+ // Internet-sourced aircraft must never appear as local RTL-SDR ADS-B frames.
+ if(showAir)for(const a of state.catalogAircraft)place(a,"aircraft","#b17eb5",
+   a.callsign+" · OpenSky INTERNET aircraft coordinates at "+a.observedAt+
+   " · NOT received by THIS RTL-SDR and NOT USED FOR POSITION","I");
  const liveGnss=!state.rfOnly&&!!(state.serialFix&&Date.now()-state.serialAt<90000);
  const liveDevice=!state.rfOnly&&!!(state.browser&&Date.now()-Date.parse(state.browser.acquiredAt||0)<300000);
  // The browser-provided uncertainty radius is a different constraint from radio ranges.
@@ -409,7 +425,7 @@ function renderEarth(){
  }
  renderMethodReadiness(orbits);
  setText("earth-sat-count",orbits.length+" orbit positions PREDICTED; "+(showOrbits?"shown":"hidden by default"));
- setText("earth-ref-count",(state.references.length+state.rfSources.length)+" external reference coordinates · "+state.rangeInputs.length+" imported measured range sources · "+state.rfRanges.length+" modeled RTL-SDR RSSI hypotheses");
+ setText("earth-ref-count",(state.references.length+state.rfSources.length+state.catalogTowers.length+state.catalogAircraft.length)+" external reference coordinates ("+state.catalogTowers.length+" OSM towers, "+state.catalogAircraft.length+" INTERNET aircraft) · "+state.rangeInputs.length+" imported ranges · "+state.rfRanges.length+" modeled RTL-SDR RSSI hypotheses");
  if(state.rfOnly){
    setText("evidence-report",state.rfSolution?"RF-ONLY / RTL-SDR IQ MEASURED · "+state.rfRanges.length+" CALIBRATED RSSI RANGE HYPOTHESES, unverified. Orange dashed distance circles and faded bounds are propagation-model sensitivity NOT accuracy. No browser or device location was used.":"RF-ONLY / NO FIX · "+state.rfSources.filter(s=>s.hasActualRF).length+" real antenna frequency captures · "+state.rfRanges.length+" calibrated range hypotheses. Transmitter coordinates come from external user input; antenna energy alone is NOT transmitter distance.");
  }else if(state.rangeInputs.length){
@@ -662,6 +678,26 @@ window.addEventListener("tihulu:rf-survey-updated",e=>{
  renderSourceProvenance();renderDiagnostics();
 });
 window.addEventListener("tihulu:rf-fit-map",fitRfSurveyMap);
+window.addEventListener("tihulu:catalog-updated",e=>{
+ const data=e.detail||{};
+ state.catalogTowers=Array.isArray(data.towers)?data.towers.slice(0,150):[];
+ state.catalogAircraft=Array.isArray(data.aircraft)?data.aircraft.slice(0,150):[];
+ state.catalogFM=Array.isArray(data.fmReadings)?data.fmReadings.slice(0,130):[];
+ if(state.activeView==="earth")renderEarth();
+ else renderMethodReadiness(state.sp3?state.visible:state.autoOrbits);
+});
+window.addEventListener("tihulu:catalog-use-map-center",()=>{
+ window.dispatchEvent(new CustomEvent("tihulu:catalog-map-center",{detail:{lat:state.map.lat,lon:state.map.lon}}));
+});
+window.addEventListener("tihulu:catalog-fit-map",()=>{
+ const sites=state.catalogTowers.length?state.catalogTowers:state.catalogAircraft;
+ if(!sites.length){setView("radio");msg("First discover some published transmitters or online aircraft to show on the map.");return}
+ state.map.lat=sites.reduce((t,p)=>t+p.lat,0)/sites.length;
+ state.map.lon=sites.reduce((t,p)=>t+p.lon,0)/sites.length;
+ state.map.zoom=10;setView("earth");
+ msg("Map centered on EXTERNAL CATALOG coordinates, NOT a calculated receiver fix.");
+});
+
 $("live-rf-only")?.addEventListener("click",()=>{
  const input=$("rf-only");if(input&&!input.checked){input.checked=true;input.dispatchEvent(new Event("change"))}
  setView("radio");msg("Antenna-only RF positioning: choose a source, connect RTL-SDR, capture and calibrate. OS GPS/Wi-Fi/IP excluded.");
@@ -701,6 +737,7 @@ renderCatalog();renderHistory();renderDiagnostics();renderPosition(true);renderS
 initAutoExplorer();
 initUsbSDR(msg);
 initRFSurvey();
+initCatalogDiscovery();
 setInterval(()=>{
  if(state.serialFix&&Date.now()-state.serialAt>90000){state.serialFix=null;renderPosition(false);renderDiagnostics();msg("Stale serial NMEA fix expired")}
  if(state.browser&&Date.now()-Date.parse(state.browser.acquiredAt||0)>=5*60*1000){
