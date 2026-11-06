@@ -39,20 +39,21 @@ const saveLayerPreferences=()=>{state.layerPrefs=Object.fromEntries(LOCATION_LAY
 function showOnlyLayers(ids){for(const l of LOCATION_LAYERS){const e=layerToggle(l.id);if(e)e.checked=ids.includes(l.id)}saveLayerPreferences();renderEarth()}
 function renderMethodReadiness(orbits){
  const r=layerReadiness({...state,orbits},Date.now());
+ if(state.rfRanges.length){r.radio.state=state.rfSolution?"RF MODEL":"RF ESTIMATE";r.radio.count=state.rfRanges.length;r.radio.detail="REAL RTL-SDR I/Q plus external transmitter coordinates and calibration; distance NOT directly measured, accuracy NOT validated";}
  for(const layer of LOCATION_LAYERS){const d=r[layer.id],label=$("layer-status-"+layer.id);
    if(label){label.textContent=d.state+(d.count&&d.count>1?" · "+d.count:"");label.title=d.detail;
      label.dataset.available=String(!["UNAVAILABLE","NO FIX","NO DATA","NO MEASUREMENT"].includes(d.state));}
  }
  const lines=[r.gnss.state==="FIX"?"Dedicated GNSS fix available":"Dedicated GNSS: no current fix",
  r.device.state==="FIX"?"Browser device fix (GPS/network method unknown)":"Browser/device: no current fix",
- r.radio.state==="ESTIMATED"?"Radio: experimental measured-range estimate":"Radio: no measured ranges",
+ state.rfRanges.length?"Radio antenna: "+state.rfRanges.length+" calibrated RSSI distance hypotheses (NOT measured ranges)":r.radio.state==="ESTIMATED"?"Radio: imported measured-range estimate":"Radio: no measured ranges",
  "GPS-free provider: "+r.gpsfree.state.toLowerCase(),
  r.aircraft.count+" aircraft references, "+r.ground.count+" ground stations, "+r.satellites.count+" predicted satellite subpoints"];
  setText("layer-explanation",lines.join(" · "));
- setText("live-method-summary","GPS/GNSS: "+r.gnss.state+" · Device: "+r.device.state+" (method unknown) · GPS-free: "+r.gpsfree.state+" · Radio: "+r.radio.state+" · Aircraft: "+r.aircraft.count+" refs · Satellites: "+r.satellites.count+" predicted");
+ setText("live-method-summary",state.rfOnly?"RF-ONLY HARDWARE SESSION · RTL-SDR antenna observations: "+state.rfSources.filter(s=>s.hasActualRF).length+" · calibrated range hypotheses: "+state.rfRanges.length+" · "+(state.rfSolution?"Experimental RSSI MODEL position":"No RF position")+" · Browser GPS/Wi-Fi/IP excluded":"GPS/GNSS: "+r.gnss.state+" · Device: "+r.device.state+" (method unknown) · GPS-free: "+r.gpsfree.state+" · Radio: "+r.radio.state+" · Aircraft: "+r.aircraft.count+" refs · Satellites: "+r.satellites.count+" predicted");
 }
 function renderSourceProvenance(){
- const pos=positionProvenance(state),rf=radioProvenance(state.usbStatus,state.usbMessage);
+ const pos=state.rfOnly?{source:"RTL-SDR ANTENNA ONLY",fix:state.rfSolution?"EXPERIMENTAL RSSI ESTIMATE · UNVERIFIED":"NO RF POSITION FIX",acquisition:"Real USB I/Q levels + external user-supplied transmitter coordinates/calibration; no GPS/Wi-Fi/IP",detail:"RF captures are real; ranges are propagation-model hypotheses, not measured distances. Browser geolocation never enters this solver."}:positionProvenance(state),rf=radioProvenance(state.usbStatus,state.usbMessage);
  const orb=orbitalProvenance(!!state.sp3,state.sp3?.satelliteCount??state.autoOrbits.length);
  const air=aircraftProvenance(state.references);
  setText("origin-position",pos.source);
@@ -624,6 +625,38 @@ function capabilities(){
 if("serviceWorker" in navigator&&location.protocol==="https:"){
  navigator.serviceWorker.register("./sw.js").catch(()=>{});
 }
+function fitRfSurveyMap(){
+ const sources=state.rfRanges.length?state.rfRanges:state.rfSources;
+ if(!sources.length){setView("radio");msg("Add station coordinates to the RF-only source list first.");return}
+ setView("earth");
+ const points=[...sources];
+ if(state.rfSolution)points.push(state.rfSolution);
+ const lat=points.reduce((a,p)=>a+p.lat,0)/points.length;
+ const lon=points.reduce((a,p)=>a+p.lon,0)/points.length;
+ if(!Number.isFinite(lat)||!Number.isFinite(lon))return;
+ state.map.lat=lat;state.map.lon=lon;
+ const maxMeters=Math.max(...sources.map(s=>Math.max(s.rangeMeters||0,s.upperMeters||0)),2000);
+ const box=$("earth-map").getBoundingClientRect(),size=Math.max(240,Math.min(box.width||720,box.height||460));
+ let zoom=15;
+ while(zoom>2&&maxMeters*2.5*256*Math.pow(2,zoom)/40075017>size*.78)zoom--;
+ state.map.zoom=zoom;
+ renderEarth();
+ msg("Earth Map centered on user-supplied transmitter locations and RF-only hypothetical rings; NO OS/device coordinates used.");
+}
+window.addEventListener("tihulu:rf-only-mode",e=>{
+ state.rfOnly=!!e.detail?.enabled;
+ renderPosition(false);renderDiagnostics();renderSourceProvenance();
+ msg(state.rfOnly?"RF-ONLY session: GNSS/browser/device/cached locations excluded from the selected position.":"RF-ONLY disabled; source provenance remains separate.");
+});
+window.addEventListener("tihulu:rf-survey-updated",e=>{
+ const d=e.detail||{};
+ state.rfSources=Array.isArray(d.sources)?d.sources.slice(0,60):[];
+ state.rfRanges=Array.isArray(d.ranges)?d.ranges.slice(0,32):[];
+ state.rfSolution=d.solution&&Number.isFinite(d.solution.lat)&&Number.isFinite(d.solution.lon)?d.solution:null;
+ if(state.rfOnly){renderPosition(false)}else if(state.activeView==="earth")renderEarth();
+ renderSourceProvenance();renderDiagnostics();
+});
+window.addEventListener("tihulu:rf-fit-map",fitRfSurveyMap);
 window.addEventListener("tihulu:find-request",()=>{ if(state.rfOnly){setView("radio");msg("RF-ONLY: browser/GPS ignored. Capture known fixed transmitter signals using WebUSB and a user-provided calibration.");return} if(state.serialFix&&Date.now()-state.serialAt<90000){ window.dispatchEvent(new CustomEvent("tihulu:position",{detail:{lat:state.serialFix.lat,lon:state.serialFix.lon,alt:state.serialFix.altEllipsoidMeters??0,provider:"Dedicated GNSS serial NMEA"}})); msg("Using fresh receiver-provided NMEA position; browser location not requested."); }else{$("locate")?.click()}});
 window.addEventListener("tihulu:orbit",e=>{
   if(!Array.isArray(e.detail?.satellites))return;
