@@ -415,7 +415,10 @@ export function createSatelliteMaps({getTles,getSatLib,getPasses,getLastCapture,
      tileSuccesses++;
      if(tileSuccesses===1){
        clearTileDeadline();
-       basemapStatus("OpenStreetMap tiles loaded. Ground and satellite locations are predicted from orbit data, not detected by USB.");
+       basemapStatus("OpenStreetMap image requests succeeded ("+tileSuccesses+
+         " tile). This does NOT prove the images are visible. If the map looks blank, use Test map background for layer/render diagnostics.");
+     } else if(tileSuccesses%8===0){
+       basemapStatus("OpenStreetMap returned "+tileSuccesses+" tile images. Predicted satellite positions are not RF detections.");
      }
    });
    layer.on("tileerror",()=>{
@@ -461,14 +464,20 @@ export function createSatelliteMaps({getTles,getSatLib,getPasses,getLastCapture,
    });
    if(!L)throw Error("Leaflet did not initialize");
    leaflet=L;const o=observer();
+   $("earth-street-details").open=true;
    setView("earth"); // Show container before Leaflet measures its dimensions.
-   earthMap=L.map("earth-map",{worldCopyJump:true,preferCanvas:true}).setView([o.lat,o.lon],3);
+   // Two animation frames let Chromium/Brave and Firefox lay out an expanded
+   // <details> before Leaflet reads dimensions and calculates tile positions.
+   await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+   earthMap=L.map("earth-map",{worldCopyJump:true,preferCanvas:false}).setView([o.lat,o.lon],3);
    const worldPane=earthMap.createPane("world-outline");
    worldPane.style.zIndex="350"; // above raster tiles (200), below satellite overlays (400)
    markers=L.layerGroup().addTo(earthMap);tracks=L.layerGroup().addTo(earthMap);
    stationPin=L.circleMarker([o.lat,o.lon],{radius:8,color:"#fff",weight:2,
       fillColor:"#27ddff",fillOpacity:0.9}).bindTooltip("Ground station (manual coordinates)").addTo(earthMap);
-   setView("earth");earthMap.invalidateSize();drawEarth();
+   setView("earth");
+   earthMap.invalidateSize({pan:false,debounceMoveend:true});
+   drawEarth();
    await changeBasemap(basemapChoice.value);
    status("Earth map initialized: orbit predictions only. Check the basemap status below for actual imagery load.");
   })();
