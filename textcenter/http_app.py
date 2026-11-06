@@ -10,6 +10,7 @@ from urllib.parse import parse_qs, urlsplit
 from . import __version__
 from .core import Store, safe_https_url
 from .receivers import receiver_inventory
+from .fm_rds import FMRSDSupervisor, CaptureError
 
 WEB_DIR = Path(__file__).resolve().parents[1] / "web"
 
@@ -41,6 +42,7 @@ class LocalServer(ThreadingHTTPServer):
     def __init__(self, address, store: Store):
         self.store = store
         self.csrf_token = secrets.token_urlsafe(32)
+        self.rds = FMRSDSupervisor(store)
         super().__init__(address, Handler)
 
 
@@ -97,6 +99,10 @@ class Handler(BaseHTTPRequestHandler):
                 })
             if route == "/api/receivers":
                 return self._json(200, receiver_inventory())
+            if route == "/api/rds/status":
+                status = self.server.rds.status()
+                status["capability"] = self.server.rds.availability()
+                return self._json(200, status)
             if route == "/api/index":
                 return self._json(200, [{"page": k, "title": v[0], "description": v[1]} for k,v in INDEX_PAGES.items()])
             if route == "/api/page":
@@ -139,7 +145,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         route = urlsplit(self.path).path
-        allowed = {"/api/feeds/add", "/api/feeds/refresh", "/api/bulletins", "/api/bookmarks"}
+        allowed = {"/api/feeds/add", "/api/feeds/refresh", "/api/bulletins", "/api/bookmarks", "/api/rds/start", "/api/rds/stop"}
         if route not in allowed:
             return self._json(404, {"error": "Not found"})
         if self.headers.get("X-Tihulu-CSRF") != self.server.csrf_token:
@@ -158,6 +164,13 @@ class Handler(BaseHTTPRequestHandler):
             payload = json.loads(self.rfile.read(length))
             if not isinstance(payload, dict):
                 raise ValueError("Expected JSON object")
+            if route == "/api/rds/start":
+                return self._json(202, self.server.rds.start(
+                    frequency_mhz=payload.get("frequency_mhz"),
+                    duration=payload.get("duration_seconds"),
+                ))
+            if route == "/api/rds/stop":
+                return self._json(200, self.server.rds.stop())
             if route == "/api/feeds/add":
                 fid = self.server.store.add_feed(payload.get("title"), payload.get("url"))
                 return self._json(201, {"id": fid})
@@ -173,6 +186,8 @@ class Handler(BaseHTTPRequestHandler):
             if route == "/api/bookmarks":
                 self.server.store.add_bookmark(payload.get("label"),payload.get("target_type"),payload.get("target"))
                 return self._json(201, {"saved": True})
+        except CaptureError as exc:
+            self._json(409, {"error": str(exc)})
         except KeyError as exc:
             self._json(404, {"error": str(exc)})
         except (ValueError, TypeError) as exc:
@@ -192,4 +207,5 @@ def run_server(store: Store, *, host: str = "127.0.0.1", port: int = 8787):
     except KeyboardInterrupt:
         pass
     finally:
+        server.rds.stop(wait=True)
         server.server_close()

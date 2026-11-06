@@ -72,6 +72,23 @@ class HTTPTests(unittest.TestCase):
         self.assertFalse(status["signal_verified"])
         self.assertFalse(status["connected_decoder"])
 
+    def test_rds_endpoint_fails_closed_without_real_decoder(self):
+        status,_,raw=self.request("GET","/api/rds/status")
+        self.assertEqual(status,200)
+        data=json.loads(raw)
+        self.assertEqual(data["status"],"idle")
+        self.assertFalse(data["active"])
+        self.assertIn("capability",data)
+        _,_,bootstrap=self.request("GET","/api/bootstrap")
+        csrf=json.loads(bootstrap)["csrf"]
+        self.assertEqual(self.request("POST","/api/rds/start",
+            {"frequency_mhz":100,"duration_seconds":20})[0],403)
+        self.assertEqual(self.request("POST","/api/rds/start",
+            {"frequency_mhz":999,"duration_seconds":20},csrf)[0],400)
+        self.assertEqual(self.request("POST","/api/rds/start",
+            {"frequency_mhz":98.6,"duration_seconds":20},csrf)[0],409)
+        self.assertEqual(self.request("POST","/api/rds/stop",{},csrf)[0],200)
+
     def test_no_forged_source(self):
         code,_,raw=self.request("GET","/api/page?source_id=ard_text&number=100")
         self.assertEqual(code,404)
