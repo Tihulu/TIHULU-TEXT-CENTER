@@ -132,6 +132,10 @@ def combine_aircraft(local,remote):
             else:
                 winner=dict(existing)
             winner["sources"]=["antenna","internet"]
+            winner["source_freshness"]={
+                "antenna":"cached" if row.get("stale") else "live",
+                "internet":"cached" if existing.get("stale") else "live",
+            }
             winner["position_source"]=winner.get("position_source")
             result[key]=winner
     return sorted(result.values(),key=lambda r:(not r["positioned"],r["age_seconds"]))[:MAX_AIRCRAFT]
