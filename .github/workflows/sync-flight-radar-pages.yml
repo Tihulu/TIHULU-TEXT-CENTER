@@ -41,13 +41,15 @@ jobs:
           cd flight-radar-source
           bash scripts/build-browser-assets.sh
           node --check tihulu_flight_radar/web/multi_sources.js
+          node --check tihulu_flight_radar/web/flight_location_ui.mjs
+          node --check tihulu_flight_radar/web/location_search.mjs
           node --check tihulu_flight_radar/web/app.js
           # Regression gate: public Pages must start genuine Internet aircraft without USB.
           grep -q 'const startPagesInternet=' tihulu_flight_radar/web/app.js
           node --check tihulu_flight_radar/web/browser_usb.mjs
           node --check tihulu_flight_radar/web/adsb_worker.mjs
           node --check tihulu_flight_radar/web/tar1090-adapter.js
-          node --test tests/web_bridge.test.cjs tests/pages_tar.test.cjs tests/browser_adsb.test.cjs tests/browser_source.test.cjs tests/aircraft_visuals.test.cjs tests/webusb_sampleblock.test.cjs tests/internet_sources.test.cjs tests/multi_sources.test.cjs tests/tar_layers_regression.test.cjs tests/tar_full_browser.test.cjs
+          node --test tests/web_bridge.test.cjs tests/pages_tar.test.cjs tests/browser_adsb.test.cjs tests/browser_source.test.cjs tests/aircraft_visuals.test.cjs tests/webusb_sampleblock.test.cjs tests/internet_sources.test.cjs tests/multi_sources.test.cjs tests/tar_layers_regression.test.cjs tests/location_selector.test.cjs tests/tar_full_browser.test.cjs
       - name: Stamp canonical source SHA, identical to standalone Flight Radar
         run: |
           set -euo pipefail
@@ -69,6 +71,10 @@ jobs:
           rsync -a --delete flight-radar-source/tihulu_flight_radar/web/ pages/flight_radar/
           test -s pages/flight_radar/vendor/rtlsdr.mjs
           test -s pages/flight_radar/multi_sources.js
+          test -s pages/flight_radar/flight_location_ui.mjs
+          test -s pages/flight_radar/location_search.mjs
+          test -s pages/flight_radar/cities-de-tr.json
+          test -s pages/flight_radar/CITY_DATA_LICENSE.md
           test -s pages/flight_radar/adsb_worker.mjs
           test -s pages/flight_radar/index.html
           test -s pages/flight_radar/tar1090/index.html
