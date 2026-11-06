@@ -24,7 +24,9 @@ export function llaFromECEF(x,y,z){
  const lat=Math.atan2(z+ep2*b*Math.sin(t)**3,p-e2*a*Math.cos(t)**3);
  const sl=Math.sin(lat),N=a/Math.sqrt(1-e2*sl*sl);
  const alt=Math.abs(Math.cos(lat))<1e-9?Math.abs(z)-b:p/Math.cos(lat)-N;
- return validateLLA(lat/DEG,lon/DEG,alt);
+ if(!Number.isFinite(alt)||Math.abs(alt)>50_000_000)throw Error("Invalid ECEF-derived altitude");
+ validateLLA(lat/DEG,lon/DEG,0); // Coordinate bounds; orbit altitude is not a ground-station altitude.
+ return {lat:lat/DEG,lon:lon/DEG,alt};
 }
 export function azElRange(targetECEF,observerLLA){
  const {lat,lon,alt=0}=observerLLA;
