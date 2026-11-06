@@ -93,3 +93,79 @@ Linux support and firmware: https://www.hauppauge.com/pages/support/support_linu
 - Verify station listening, RDS/RT+, RDS2 images, DAB DLS/MOT, DVB service detection, Teletext subpages and resource arbitration separately using real user-supplied hardware captures.
 - Every piece of content must show whether it came from LIVE RF via a named decoder, an imported capture, Internet, or offline cache. A saved image is not a verified official emergency notification.
 - Full continuous FM audio, genuine DVB Teletext decoding, native DAB channel scanning, Journaline text hierarchy and optional Internet artwork remain distinct future stages; never mark them done simply because an image or spectrum scanner exists.
+
+
+## User-initiated automatic FM & DAB station discovery (new)
+
+**Radio Data (400)** now separates two **real decoder-backed auto-discovery**
+workflows from the existing manual **RF spectrum survey**.
+
+### FM Auto Scan
+- One user-authorized rtl_power sweep covers the **entire 87.5–108 MHz**
+  band. The scanner uses a more sensitive, explicitly unverified peak list
+  than the visible spectrum analyzer (4 dB / 1.8×MAD heuristic, bounded
+  local maxima); it selects neighboring 100-kHz FM tuning grid points.
+- Each selected frequency is then tuned **sequentially** using the existing
+  rtl_fm + redsea receive-only RDS decoder for a bounded **10-second**
+  verification. Only real, non-fallback PS/station labels are added to the
+  confirmed results. Captured RadioText remains stored with source
+  provenance through the existing SQLite event archive.
+- **Quick** checks up to 16 tuning points; **Extended** up to 48. Full band
+  means the initial energy survey covers 87.5–108 MHz, **not** that every
+  possible FM carrier is individually demodulated. Non-RDS stations,
+  crowded channels and weak/multipath RF may be missed. Neither option
+  can guarantee all local broadcasters. User may stop anytime.
+- The existing separate manual **Spectrum Analyzer** still exposes
+  unidentified peaks, and an independent manual RDS capture still works.
+
+### DAB+ Auto Scan
+- Requires the user to **start welle-cli separately** on a free RTL-SDR,
+  e.g. \`welle-cli -c 11D -PC 1 -w 7979\`.
+- From Text Center, explicit consent allows the new dedicated DAB auto
+  scanner to issue bounded POSTs to **only**
+  \`http://127.0.0.1:7979/channel\`, using allow-listed Band III channels.
+  Mode **Full** scans all standard **5A–13F** blocks (38 channels);
+  **Detected blocks** scans only nominal raster matches from the most
+  recently completed DAB energy survey. One channel is tuned at a time.
+  Default dwell: 8 seconds per block; available settings 5–18 seconds.
+- Actual decoded FIC ensemble and service metadata returned by
+  \`/mux.json\` populate the station list. Service names, advertised
+  audio/data roles and available DLS text/timestamps come from the
+  decoder — never from an Internet channel catalogue. Only real DLS
+  timestamps enter the persistent archive. No decoded services means the
+  block is not claimed as received.
+- **This retunes an existing welle-cli instance and interrupts its current
+  audio stream**. Require explicit ownership and consent. Text Center
+  **never kills or launches** that process. On successful scan/cancel it
+  attempts to restore the starting block **only if no other client changed
+  the tuned channel**; otherwise it stops and leaves the external
+  receiver alone. Scan aborts if the browser stops polling.
+- After scanning, click **TUNE THIS BLOCK FOR LISTENING** on a genuinely
+  decoded block. This expressly retunes welle-cli, then
+  **OPEN WELLE-CLI PLAYER** opens its existing service list and Play
+  buttons; do not pretend a second built-in MP3 player was created. The
+  current DAB read-only bridge remains available to fetch genuine DLS
+  and optional MOT slides from the currently tuned block. MOT artwork
+  is **not guaranteed**, and the rapid scanning loop itself does not
+  wait 80 seconds on every service or falsely save images.
+- Internet access, third-party SDR preemption, packet-radio TX, automatic
+  power-up scanning and global OS-level exclusive device leasing are
+  **not** implemented by this change. Only explicit opt-in workflows run;
+  scan status is held in RAM during the server session. Hardware
+  acceptance on the user's physical device is still required.
+
+### Quick local validation (after PR review)
+1. Stop existing Text Center server; update the selected worktree; restart
+   \`python3 -m textcenter serve\` and hard-refresh the page.
+2. **FM:** stop welle-cli and all other SDR owners; select Quick FM Auto Scan,
+   acknowledge the device-ownership checkbox, and let the browser remain
+   on Radio Data (400). Review actual RDS-confirmed stations.
+3. **DAB:** after FM scan has stopped, start welle-cli in a separate terminal
+   and verify its local web interface. With explicit consent, select
+   DAB Full or Detected scan and monitor progress; inspect the FIC station
+   list; verify original channel restoration and the stop button.
+4. Open the welle web player for listening. For DLS/MOT while tuned,
+   use the separate **READ RUNNING DAB RECEIVER** panel.
+5. **Never** simultaneously operate manual spectrum scan, FM audio, FM
+   RDS capture, Flight Radar/readsb or other radio recording on the same
+   RTL-SDR. CI uses synthetic decoder fixtures only.

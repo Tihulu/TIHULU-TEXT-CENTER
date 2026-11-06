@@ -9,7 +9,10 @@ A browser heartbeat is required; leaving the page stops capture.
 from __future__ import annotations
 
 from datetime import datetime, timezone
-import fcntl
+try:
+    import fcntl  # POSIX-only SDR file locking
+except ImportError:
+    fcntl = None  # Windows can use loopback TV/radar; native RTL-SDR requires a backend port
 import os
 from pathlib import Path
 import shutil
@@ -148,16 +151,21 @@ class LiveFM:
                     "error":None,"recording":record,"recording_name":name,
                     "recorded_bytes":0,"listener_connected":False,"format":"audio/mpeg",
                     "backend":"rtl_fm → ffmpeg libmp3lame",
+                    "subtitles_requested":subtitles,
+                    "subtitles_active":False,
+                    "subtitle_unavailable_reason":None,
                 }
                 self.listener=False
                 self.speech=None
+                # Audio reception must never depend on an optional ASR model.
+                # If speech runtime/models are missing, explicitly degrade to
+                # audio-only while keeping the verified RF stream and optional
+                # recording alive. Never invent captions or auto-download AI.
                 if subtitles:
-                    self.speech=SpeechPipeline(
-                        store=self.transcripts,session=session,
-                        source_id=f"fm:{hz}",source_language=language,
-                        target_language=translate_to,backend=backend,profile=detect_devices(),
+                    self._configure_optional_speech(
+                        session=session,hz=hz,language=language,
+                        translate_to=translate_to,backend=backend,
                         translation_backend=translation_backend)
-                self.state["subtitles_requested"]=subtitles
                 self.last_seen=time.monotonic()
                 self.worker=threading.Thread(target=self._feed,daemon=True,name="tihulu-live-fm-pcm")
                 self.watchdog=threading.Thread(target=self._watch,daemon=True,name="tihulu-live-fm-watchdog")
@@ -167,6 +175,30 @@ class LiveFM:
             except BaseException:
                 self._shutdown("error","Unable to initialize FM stream")
                 raise
+
+    def _configure_optional_speech(self, *, session, hz, language,
+                                   translate_to, backend, translation_backend):
+        """A missing optional local speech model cannot abort live FM audio.
+
+        Invoked inside the receiver mutex only after the audio processes are
+        provisioned. Any unavailable ASR/translator is reported honestly to
+        callers instead of suppressing audio playback.
+        """
+        try:
+            self.speech=SpeechPipeline(
+                store=self.transcripts,session=session,
+                source_id=f"fm:{hz}",source_language=language,
+                target_language=translate_to,backend=backend,
+                profile=detect_devices(),
+                translation_backend=translation_backend)
+        except (SpeechError, ValueError, ImportError, RuntimeError) as exc:
+            self.speech=None
+            self.state["subtitles_active"]=False
+            self.state["subtitle_unavailable_reason"]=(str(exc)[:220] or
+                "Offline speech model or runtime unavailable")
+        else:
+            self.state["subtitles_active"]=True
+            self.state["subtitle_unavailable_reason"]=None
 
     @staticmethod
     def _terminate(proc):
@@ -242,7 +274,9 @@ class LiveFM:
                 self.last_seen=time.monotonic()
             snapshot=dict(self.state)
             snapshot["speech"]=self.speech.status() if self.speech else {
-                "enabled":False,"reason":"Speech transcription not requested or unavailable"}
+                "enabled":False,
+                "reason":self.state.get("subtitle_unavailable_reason") or
+                    "Speech transcription not requested or unavailable"}
             return snapshot
 
     def stop(self,*,wait=False):

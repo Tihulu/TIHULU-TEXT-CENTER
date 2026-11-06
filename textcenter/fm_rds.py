@@ -11,7 +11,10 @@ from __future__ import annotations
 
 from collections import deque
 from datetime import datetime, timezone
-import fcntl
+try:
+    import fcntl  # POSIX-only SDR file locking
+except ImportError:
+    fcntl = None  # Windows can use loopback TV/radar; native RTL-SDR requires a backend port
 import json
 import os
 from pathlib import Path
