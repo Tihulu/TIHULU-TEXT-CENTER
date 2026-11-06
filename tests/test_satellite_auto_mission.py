@@ -62,6 +62,17 @@ class AutoMissionTests(unittest.TestCase):
         self.assertEqual(outcome["scheduled"][0]["profile"], "iss_aprs_uhf")
         self.assertEqual(outcome["scheduled"][0]["mode"], "aprs")
 
+    def test_two_iss_passes_serve_different_downlink_objectives(self):
+        a = self.now + timedelta(seconds=10800)
+        b = a + timedelta(seconds=480)
+        self.events.append({"id": "25544:extra", "norad": 25544, "name": "Test 25544 later",
+                            "family": "iss", "aos": a.isoformat(), "los": b.isoformat(),
+                            "profiles": ["iss_sstv", "iss_aprs_uhf"]})
+        outcome = self.station.auto_schedule(["iss-sstv", "iss-aprs"], max_jobs=6)
+        self.assertEqual(outcome["scheduled_count"], 2)
+        self.assertEqual([j["profile"] for j in outcome["scheduled"]],
+                         ["iss_sstv", "iss_aprs_uhf"])
+
     def test_no_unsupported_or_retired_catalog_targets(self):
         with self.assertRaisesRegex(ValueError, "Unknown"):
             self.station.auto_schedule(["legacy-noaa"])
