@@ -326,8 +326,8 @@
 #earth-overlay{pointer-events:none}
 #earth-markers{pointer-events:none}
 #earth-markers g[data-map-marker]{pointer-events:all;cursor:pointer;outline:none}
-#earth-markers g[data-map-marker] circle{transition:stroke-width .12s ease,filter .12s ease}
-#earth-markers g[data-map-marker]:is(:hover,:focus-visible) circle{
+#earth-markers g[data-map-marker] circle:not([data-marker-hitbox]){transition:stroke-width .12s ease,filter .12s ease}
+#earth-markers g[data-map-marker]:is(:hover,:focus-visible) circle:not([data-marker-hitbox]){
  stroke:#f5fbf6;stroke-width:3.5;filter:drop-shadow(0 0 3px #8ae9e3)
 }
 .map-hover-tip{position:absolute;z-index:26;max-width:min(280px,calc(100% - 14px));padding:7px 10px;
@@ -357,3 +357,8 @@
 .fm-reference-panel a{color:#a1deea;font-size:11px}
 .rf-blind-status{padding:9px 12px;border-radius:8px;background:#112a3b;border:1px solid #41667b;
  font-size:11px;line-height:1.65;color:#cce0e9;margin:9px 0}
+
+/* Touch-sized transparent hitboxes preserve original pin appearance and visual radius. */
+#earth-markers [data-marker-hitbox]{fill:transparent;stroke:none;pointer-events:all;cursor:pointer}
+#earth-markers g[data-map-marker]:focus-visible{outline:none}
+#earth-map:has(#map-source-popup:not([hidden])){cursor:default}
