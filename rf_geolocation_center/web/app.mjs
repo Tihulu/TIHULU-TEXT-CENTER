@@ -40,6 +40,11 @@ function showOnlyLayers(ids){for(const l of LOCATION_LAYERS){const e=layerToggle
 function renderMethodReadiness(orbits){
  const r=layerReadiness({...state,orbits},Date.now());
  if(state.rfRanges.length){r.radio.state=state.rfSolution?"RF MODEL":"RF ESTIMATE";r.radio.count=state.rfRanges.length;r.radio.detail="REAL RTL-SDR I/Q plus external transmitter coordinates and calibration; distance NOT directly measured, accuracy NOT validated";}
+ const air=state.rfSources.filter(s=>s.type==="aircraft").length,ground=state.rfSources.filter(s=>s.type==="station").length,satelliteRefs=state.rfSources.filter(s=>s.type==="satellite").length;
+ if(air){r.aircraft.count+=air;r.aircraft.state="REFERENCES";r.aircraft.detail="Imported and user-entered aircraft positions are references; RF energy does not verify source identity";}
+ if(ground){r.ground.count+=ground;r.ground.state="REFERENCES";r.ground.detail="Ground station coordinates are external metadata; RF level and calibrated range require actual antenna samples";}
+ if(satelliteRefs){r.satellites.detail+=" · "+satelliteRefs+" RF survey satellite coordinate references supplied by user (NOT tracked RF)";}
+ if(state.rfOnly){for(const key of ["gnss","device","gpsfree","cached"]){r[key].state="EXCLUDED";r[key].detail="RF-ONLY session explicitly forbids using this source for positioning"}}
  for(const layer of LOCATION_LAYERS){const d=r[layer.id],label=$("layer-status-"+layer.id);
    if(label){label.textContent=d.state+(d.count&&d.count>1?" · "+d.count:"");label.title=d.detail;
      label.dataset.available=String(!["UNAVAILABLE","NO FIX","NO DATA","NO MEASUREMENT"].includes(d.state));}
