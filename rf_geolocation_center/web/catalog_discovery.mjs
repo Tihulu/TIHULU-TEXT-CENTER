@@ -7,7 +7,7 @@ import {normalizeRadioTowers,normalizeOpenSkyStates,matchFMScanToCatalog} from "
 const $=id=>document.getElementById(id);
 const TOWER_KEY="tihulu.rfgeo.catalog.towers.v1";
 const AIR_KEY="tihulu.rfgeo.catalog.aircraft.v1";
-let towers=[],aircraft=[],fmReadings=[],busy=false,controller=null;
+let towers=[],aircraft=[],fmReadings=[],busy=false,controller=null,initialDiscoveryDone=false;
 const txt=(id,value)=>{const e=$(id);if(e)e.textContent=String(value)};
 function cached(key){
  try{
@@ -157,6 +157,12 @@ export function initCatalogDiscovery(){
  if(lastAircraft)aircraft=lastAircraft.entries;
  render();
  $("catalog-map-center")?.addEventListener("click",()=>window.dispatchEvent(new Event("tihulu:catalog-use-map-center")));
+ window.addEventListener("tihulu:catalog-auto-discover",()=>{
+   if(initialDiscoveryDone)return;
+   initialDiscoveryDone=true;
+   if(navigator.onLine!==false)void discover();
+ });
+
  $("catalog-discover")?.addEventListener("click",()=>void discover());
  $("catalog-add-frequencies")?.addEventListener("click",()=>{
    const entries=towers.filter(s=>Number.isFinite(s.frequencyMHz)&&s.frequencyMHz>=87.5&&s.frequencyMHz<=108);
