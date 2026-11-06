@@ -68,6 +68,7 @@ export function createSatelliteMaps({getTles,getSatLib,getPasses,getLastCapture,
  }
  let current=[],satrecMap=new Map(),selectedId=null,skyHit=[],run=0,lastUpdate=0;
  let mapStarted=false,view="sky",loading=null;
+ let lastVisibleMarkerCount=0;
  const status=text=>$("map-state").textContent=String(text);
  const observer=()=>{
   const lat=Number($("lat").value),lon=Number($("lon").value);
@@ -103,11 +104,54 @@ export function createSatelliteMaps({getTles,getSatLib,getPasses,getLastCapture,
  }
  function choose(id){
   selectedId=id;drawList();drawDetail();
-  if(view==="sky")drawSky();else{
+  if(view==="sky")drawSky();
+  else{
     drawEarth();
-    const chosen=selected();
-    if(earthMap&&chosen)earthMap.setView([chosen.lat,chosen.lon],Math.max(earthMap.getZoom(),4),{animate:false});
+    focusSelectedEarth();
   }
+ }
+ // Leaflet's station-centred viewport can contain zero satellite subpoints
+ // even while the TLE catalog contains valid globally distributed satellites.
+ // Only camera controls (not orbital geometry) change what can be seen.
+ function focusSelectedEarth(){
+   if(!earthMap)return false;
+   const sat=selected();
+   if(!sat||!filtered().some(row=>String(row.id)===String(sat.id))){
+     $("map-overlay-count").textContent=
+       "Selected satellite is excluded by current filters. Clear family/above-horizon/band filters, then focus again.";
+     return false;
+   }
+   earthMap.setView([sat.lat,sat.lon],Math.max(4,Math.min(6,earthMap.getZoom())),{animate:false});
+   updateEarthViewportCount();
+   return true;
+ }
+ function fitTrackedEarth(){
+   if(!earthMap)return false;
+   const rows=filtered();
+   if(!rows.length){
+     $("map-overlay-count").textContent="No satellites match filters. Disable 'Only above local horizon' to see global tracks.";
+     return false;
+   }
+   const positions=rows.filter(row=>mapValidCoordinates(row.lat,row.lon))
+     .map(row=>[Math.max(-85,Math.min(85,row.lat)),row.lon]);
+   if(!positions.length)return false;
+   const bounds=leaflet.latLngBounds(positions);
+   // At most zoom 5 for one item, and zoom 0–2 for worldwide catalogs.
+   earthMap.fitBounds(bounds.pad(0.12),{padding:[20,20],maxZoom:5,animate:false});
+   updateEarthViewportCount();
+   return true;
+ }
+ function updateEarthViewportCount(){
+   if(!earthMap)return;
+   const rows=filtered();
+   const bounds=earthMap.getBounds();
+   lastVisibleMarkerCount=rows.filter(row=>bounds.contains([row.lat,row.lon])).length;
+   const chosen=selected();
+   const selectedVisible=chosen&&bounds.contains([chosen.lat,chosen.lon]);
+   $("map-overlay-count").textContent=
+     lastVisibleMarkerCount+" / "+rows.length+" satellite ground markers in this map viewport. "+
+     (chosen?"Selected "+chosen.name+": "+(selectedVisible?"in view.":"outside view — press Focus selected satellite. "):"")+
+     "Orbit paths ±45 min and coverage are TLE geometry, not radio detections.";
  }
  function drawList(){
   list.replaceChildren();
@@ -382,7 +426,7 @@ export function createSatelliteMaps({getTles,getSatLib,getPasses,getLastCapture,
        for(const segment of mapSplitDateline(bounds)){
          // Geographic footprint of a circular horizon region; do not join
          // across the antimeridian into a giant false polygon.
-         leaflet.polygon(segment,{color:labelFor(s.family),weight:1.5,
+         leaflet.polygon(segment,{pane:"sat-coverage",color:labelFor(s.family),weight:1.5,
            opacity:active?0.85:0.45,fillColor:labelFor(s.family),
            fillOpacity:active?0.13:0.035,interactive:false}).addTo(tracks);
          coverageCount++;
@@ -390,7 +434,7 @@ export function createSatelliteMaps({getTles,getSatLib,getPasses,getLastCapture,
      }
      if(showTrack){
        for(const segment of mapSplitDateline(trackCoordinates(s,now,o.station))){
-         leaflet.polyline(segment,{color:labelFor(s.family),weight:active?3.4:1.9,
+         leaflet.polyline(segment,{pane:"sat-tracks",color:labelFor(s.family),weight:active?3.4:1.9,
            opacity:active?0.96:0.60,dashArray:active?null:"5 5",
            interactive:false}).addTo(tracks);
          trackCount++;
@@ -400,7 +444,7 @@ export function createSatelliteMaps({getTles,getSatLib,getPasses,getLastCapture,
    // Draw markers last, on top of every trajectory and coverage circle.
    for(const s of rows){
      const active=target&&String(target.id)===String(s.id);
-     const marker=leaflet.circleMarker([s.lat,s.lon],{radius:active?10:6,
+     const marker=leaflet.circleMarker([s.lat,s.lon],{pane:"sat-markers",radius:active?10:6,
        color:active?"#fff":labelFor(s.family),weight:active?3:1.5,
        fillColor:labelFor(s.family),fillOpacity:0.95});
      const tooltip=document.createElement("span");
@@ -409,11 +453,11 @@ export function createSatelliteMaps({getTles,getSatLib,getPasses,getLastCapture,
      marker.on("click",()=>choose(s.id));
      marker.addTo(markers);
    }
+   updateEarthViewportCount();
    const counts=layerCounts();
-   $("map-overlay-count").textContent="Plotted "+rows.length+" of "+counts.total+
-     " satellite positions ("+counts.visible+" above your horizon), "+
-     trackCount+" trajectory segments and "+coverageCount+
-     " coverage segments. Predictions, not radio reception.";
+   const shortMessage=" | "+trackCount+" track segments, "+coverageCount+
+     " coverage segments, "+counts.visible+" of "+counts.displayed+" plotted satellites above local horizon.";
+   $("map-overlay-count").textContent+=shortMessage;
  }
  // A page-hosted public-domain Natural Earth outline is a real, usable map
  // background even when Brave Shields or network policy rejects OSM tiles.
@@ -486,7 +530,7 @@ export function createSatelliteMaps({getTles,getSatLib,getPasses,getLastCapture,
    tileFailures=0;tileSuccesses=0;
    basemapStatus("Requesting OpenStreetMap tiles for the visible viewport… This is not confirmation that tiles loaded.");
    const layer=leaflet.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png",{
-     minZoom:2,maxZoom:12,updateWhenIdle:true,keepBuffer:1,detectRetina:false,
+     minZoom:0,maxZoom:12,updateWhenIdle:true,keepBuffer:1,detectRetina:false,
      // OSMF tile policy (2026): do not strip the public website origin Referer.
      referrerPolicy:"strict-origin-when-cross-origin",
      attribution:'&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap contributors</a>'
@@ -558,15 +602,24 @@ export function createSatelliteMaps({getTles,getSatLib,getPasses,getLastCapture,
    // Two animation frames let Chromium/Brave and Firefox lay out an expanded
    // <details> before Leaflet reads dimensions and calculates tile positions.
    await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
-   earthMap=L.map("earth-map",{worldCopyJump:true,preferCanvas:false}).setView([15,0],2);
+   earthMap=L.map("earth-map",{worldCopyJump:true,preferCanvas:false,minZoom:0}).setView([10,0],1);
    const worldPane=earthMap.createPane("world-outline");
    worldPane.style.zIndex="350"; // above raster tiles (200), below satellite overlays (400)
+   // Explicit panes keep orbit tracks visible above raster tiles and world
+   // outlines, while clickable satellite markers stay above coverage fills.
+   for(const [name,z] of [["sat-coverage",380],["sat-tracks",420],["sat-markers",450],["sat-station",470]]){
+     const pane=earthMap.createPane(name);pane.style.zIndex=String(z);
+   }
    markers=L.layerGroup().addTo(earthMap);tracks=L.layerGroup().addTo(earthMap);
-   stationPin=L.circleMarker([o.lat,o.lon],{radius:8,color:"#fff",weight:2,
+   earthMap.on("moveend zoomend",()=>updateEarthViewportCount());
+   stationPin=L.circleMarker([o.lat,o.lon],{pane:"sat-station",radius:8,color:"#fff",weight:2,
       fillColor:"#27ddff",fillOpacity:0.9}).bindTooltip("Ground station (manual coordinates)").addTo(earthMap);
    setView("earth");
    earthMap.invalidateSize({pan:false,debounceMoveend:true});
    drawEarth();
+   // Display the entire catalog on initial map entry, not an empty station-
+   // centered viewport. List click or Focus selected satellite zooms in later.
+   fitTrackedEarth();
    await changeBasemap(basemapChoice.value);
    status("Earth map initialized: orbit predictions only. Check the basemap status below for actual imagery load.");
   })();
@@ -697,6 +750,18 @@ export function createSatelliteMaps({getTles,getSatLib,getPasses,getLastCapture,
    // Avoid fitting a nearby-only cluster: show all Earth locations, not
    // merely the station where no satellite subpoint happens to be overhead.
    earthMap.setView([15,0],2,{animate:false});drawEarth();
+ });
+ $("map-focus-selected").addEventListener("click",()=>{
+   if(earthMap){focusSelectedEarth();return;}
+   $("earth-street-details").open=true;
+   void openEarth().then(()=>{drawEarth();focusSelectedEarth();})
+     .catch(e=>status("Could not open map to focus satellite: "+e.message));
+ });
+ $("map-fit-all").addEventListener("click",()=>{
+   if(earthMap){fitTrackedEarth();return;}
+   $("earth-street-details").open=true;
+   void openEarth().then(()=>{drawEarth();fitTrackedEarth();})
+     .catch(e=>status("Could not open map to fit satellites: "+e.message));
  });
  $("map-recenter").addEventListener("click",()=>{
   if(!earthMap)return;try{const o=observer();earthMap.setView([o.lat,o.lon],Math.max(3,earthMap.getZoom()));}catch(e){status(e.message);}
