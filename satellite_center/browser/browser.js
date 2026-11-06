@@ -11,6 +11,7 @@ import {readUserProfiles} from './saved_satellite_protocols.mjs';
 import { selectAutomaticPasses, AUTO_TARGETS } from './auto_mission.mjs?v=20261106-calendar-zip-v2';
 import {localDayKey,shiftCalendarDay,renderSatelliteCalendar} from './satellite_calendar.mjs?v=20261106-calendar-zip-v2';
 import { localDateInput, parseLocalScheduleTime, createScheduledPass, evaluateScheduledJob, secondsToJob, captureLevelSummary } from './schedule_controller.mjs';
+import {captureBudget,formatCaptureBudget,STREAM_IQ_BYTES} from './capture_duration.mjs?v=20261106-stream-v1';
 // TIHULU Satellite Center — no-local-install receive-only browser mode.
 // The RTL-SDR device is opened only after a direct user gesture.
 // CelesTrak / CDN downloads are for client-side orbital prediction + JS only;
@@ -48,6 +49,52 @@ let satelliteImageUI = null;
 let imageCandidateTarget=null;
 const notifyMaps = () => { if(satelliteMaps) void satelliteMaps.refresh().catch(e=>log('Map refresh: '+e.message)); };
 const maxRecordBytes = 128 * 1024 * 1024;
+const preparedLongStreams=new Map();
+const diskStreamingAvailable=()=>Boolean(window.isSecureContext&&typeof window.showSaveFilePicker==="function");
+function captureFileName(job,frequency,rate,at=new Date()){
+ const target=job?.name?job.name+"-CANDIDATE":
+   imageCandidateTarget&&imageCandidateTarget.frequencies.includes(frequency)?
+     imageCandidateTarget.name+"-CANDIDATE":"RF-UNATTRIBUTED";
+ return recordingName({satellite:target,at,frequencyHz:frequency,
+   sampleRate:rate,format:"cu8",kind:job?"SCHEDULED-IQ":"IQ"});
+}
+async function selectLongCaptureFile(seconds,rate,saveRaw,{job=null,at=new Date(),freq=null}={}){
+ const budget=captureBudget(seconds,rate,saveRaw,{fileStreaming:diskStreamingAvailable()});
+ if(budget.mode!=="disk-stream")return null;
+ const name=captureFileName(job,freq??Number($('preset').value),rate,at);
+ const handle=await window.showSaveFilePicker({
+   suggestedName:name,
+   types:[{description:"TIHULU raw unsigned IQ (.cu8)",
+     accept:{"application/octet-stream":[".cu8"]}}]
+ });
+ const writable=await handle.createWritable();
+ return {writable,handle,name,budget};
+}
+async function abortLongCapture(prepared){
+ if(!prepared?.writable)return;
+ const writable=prepared.writable;prepared.writable=null;
+ try{await writable.abort();}catch(error){log("Disk stream cleanup: "+error.message);}
+}
+function releaseScheduledStream(job){
+ const prepared=preparedLongStreams.get(job.id);
+ if(!prepared)return;
+ preparedLongStreams.delete(job.id);
+ void abortLongCapture(prepared);
+}
+function updateManualCaptureBudget(){
+ const estimate=formatCaptureBudget(Number($('duration').value),Number($('rate').value),
+   $('record').checked,diskStreamingAvailable());
+ const label=$('capture-budget');
+ label.dataset.feasible=String(estimate.ok);
+ label.textContent=estimate.ok?estimate.detail+" Requested "+estimate.seconds+
+   " seconds. "+(estimate.mode==="disk-stream"?"Select a local CU8 file before capture. Browser tab must remain visible.":""):
+   estimate.detail;
+}
+for(const id of ['duration','rate','record']){
+ $(id).addEventListener('input',updateManualCaptureBudget);
+ $(id).addEventListener('change',updateManualCaptureBudget);
+}
+updateManualCaptureBudget();
 const signalHistory = [];
 const hardwareSupported = !!(window.isSecureContext && navigator.usb);
 const connectButton = $('connect');
