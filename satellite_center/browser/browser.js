@@ -105,6 +105,13 @@ if (!hardwareSupported) {
     driver = mod.RTL2832U_Provider;
     refreshControls();
     status('device-status', 'Ready to ask for USB permission. Plug Nooelec into USB, then select Choose RTL-SDR.');
+    // A click on the dedicated Images & Data tab may request a one-step
+    // automatic plan. It may ONLY reuse a previously granted USB device,
+    // never trigger a permission chooser on page load.
+    const requested=new URLSearchParams(location.search).get('auto-mission');
+    if(['images','messages','all'].includes(requested)){
+      void runAutoMission({mode:requested,fromNavigation:true});
+    }
   }).catch(err => {
     rtlLibraryError = err;
     refreshControls();
