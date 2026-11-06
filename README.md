@@ -170,3 +170,23 @@ decoders/backends; direct WebUSB cannot override driver or OS permission
 requirements. **No hardware certification or merge to main is implied.**
 Read [Pages & desktop setup](docs/PAGES_AND_DESKTOP.md).
 
+
+## Radio / TV Center consolidated channel UX (draft PR #15)
+
+[PR #15 — Verified channel search, FM/DAB full scans, selectable DAB audio, DVB-T/T2 regional service discovery and editable station lists](https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/15) builds on PR #14 and PR #13 without replacing their RF lifecycle, WebUSB Pages, translation or recording features.
+
+The **Radio Center (P410)** shows separately verified FM RDS and DAB FIC stations with Play, search, favorites, local aliases, hidden-channel toggles and sort order. Full FM does a real 87.5–108 MHz survey and up to 128 RDS verification attempts. Full DAB scans the 5A–13F multiplex blocks through an approved local welle-cli session. A decoder-confirmed audio SID can be streamed through the in-app player from the fixed welle-cli localhost MP3 endpoint. Non-audio DAB data services are not falsely playable.
+
+The **TV Center (P420)** offers actual DVB-T/T2 regional-plan discovery when Linux has dvbv5-scan, an installed frequency table and an accessible separate DVB tuner; the scanned services are saved, searchable and editable. The physical scan **does not itself create an MPEG-TS playback relay**. Only separately authorized, configured local stream entries are playable. **Advanced RF (P400)** contains equipment/spectrum/debug tools without duplicate main players.
+
+### Safe preview install / update (Linux, Raspberry Pi OS, macOS)
+
+Review the source of [bootstrap-unix.sh](https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/feature/unified-channel-center-full-scan-ui-2026-11-06/scripts/bootstrap-unix.sh) before executing. Then:
+
+\`\`\`bash
+curl -fsSL 'https://raw.githubusercontent.com/Tihulu/TIHULU-TEXT-CENTER/feature/unified-channel-center-full-scan-ui-2026-11-06/scripts/bootstrap-unix.sh' | bash -s -- feature/unified-channel-center-full-scan-ui-2026-11-06 --switch
+\`\`\`
+
+The explicit \`--switch\` option permits switching an existing, **clean** installed checkout from another development branch. It does **not** reset, force-push or delete another branch, the database or recordings. The updater refuses dirty checkouts, detached HEADs, unknown repository origin and divergent branch histories. These drafts remain unmerged and physical SDR acceptance is still pending.
+
+See [UI / station-source audit](docs/END_TO_END_CHANNEL_UI_AUDIT_2026-11-06.md). GitHub Pages browser-only experimental FM/IQ remains separate from the local-backend DAB/TV full scan and native decoder.
