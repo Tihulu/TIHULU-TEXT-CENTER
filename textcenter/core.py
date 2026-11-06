@@ -131,7 +131,7 @@ def fetch_feed(url: str) -> bytes:
     guard_public_dns(url)
     req = urllib.request.Request(
         safe_https_url(url),
-        headers={"User-Agent": "TihuluTextCenter/0.1 (+manual feed refresh)", "Accept": "application/rss+xml, application/atom+xml, application/xml, text/xml"},
+        headers={"User-Agent": "TihuluTextCenter/0.1 (+manual feed refresh)", "Accept": "application/rss+xml, application/atom+xml, application/feed+json, application/json, application/xml, text/xml"},
     )
     opener = urllib.request.build_opener(_NoRedirect())
     with opener.open(req, timeout=9) as response:
@@ -152,9 +152,53 @@ def _child_text(node: ET.Element, names: tuple[str, ...]) -> str:
     return ""
 
 
+def _json_feed_items(payload: bytes, *, feed_id: str, feed_title: str,
+                     source_url: str) -> list[dict]:
+    """JSON Feed 1/1.1, bounded text-only archive; no JSON attachments downloaded."""
+    try:
+        doc = json.loads(payload)
+    except (ValueError, UnicodeError) as exc:
+        raise ValueError("Invalid JSON Feed") from exc
+    if not isinstance(doc, dict) or doc.get("version") not in (
+            "https://jsonfeed.org/version/1", "https://jsonfeed.org/version/1.1"):
+        raise ValueError("Unsupported JSON Feed version")
+    items = doc.get("items")
+    if not isinstance(items, list):
+        raise ValueError("JSON Feed items must be an array")
+    out = []
+    for item in items[:MAX_FEED_ITEMS]:
+        if not isinstance(item, dict):
+            continue
+        title = clean_text(item.get("title"), 220) or "(untitled)"
+        content = item.get("content_text")
+        if isinstance(content, str):
+            body = clean_text(content, 10000)
+        else:
+            html = item.get("content_html") or item.get("summary") or ""
+            body = text_only(html, 10000) if isinstance(html, str) else ""
+        link = item.get("url") or item.get("external_url") or ""
+        try:
+            link = safe_https_url(link)
+        except (ValueError, TypeError):
+            link = ""
+        pub = clean_text(item.get("date_published") or item.get("date_modified"), 100)
+        origin_id = clean_text(item.get("id"), 300)
+        key = sha256((feed_id+"\n"+origin_id+"\n"+title+"\n"+link+"\n"+pub).encode()).hexdigest()[:32]
+        out.append({
+            "id":key, "feed_id":feed_id, "source_name":feed_title,
+            "source_url":source_url, "title":title, "body":body,
+            "url":link, "published_at":pub, "observed_at":utc_now(),
+            "medium":"internet_feed",
+        })
+    return out
+
+
 def parse_feed(payload: bytes, *, feed_id: str, feed_title: str, source_url: str) -> list[dict]:
     if len(payload) > MAX_FEED_BYTES:
         raise ValueError("Feed too large")
+    if payload.lstrip().startswith(b"{"):
+        return _json_feed_items(payload, feed_id=feed_id,
+                                feed_title=feed_title, source_url=source_url)
     if b"<!DOCTYPE" in payload.upper() or b"<!ENTITY" in payload.upper():
         raise ValueError("External or custom XML entities are forbidden")
     try:

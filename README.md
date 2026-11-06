@@ -7,7 +7,7 @@ A lightweight, offline-first, English-language information and text-network cent
 - Teletext-style numbered navigation and a modern responsive interface.
 - Passive local RTL2832U USB / DVB frontend inventory and installed decoder tool checks (does not access or tune radios).
 - Read-only, source-attributed **broadcast text imports**, with page/subpage support (no fabricated reception).
-- On-demand RSS/Atom ingestion, searchable local article cache, and external text-community directories.
+- On-demand RSS/Atom/JSON Feed 1.0/1.1 ingestion, searchable local article cache, and external text-community directories.
 - Local, offline bulletin-board notes and bookmarks.
 - FM RDS, DAB+ DLS/Journaline, DVB Teletext, HF weather text, APRS and similar protocols as **optional external-decoder adapters**, never as claims of built-in reception.
 - No transmitter, DVB tuner control, automatic background polling, AI runner or live emergency-warning receiver. **FM RDS requires an explicit, bounded capture and installed rtl_fm/redsea**.

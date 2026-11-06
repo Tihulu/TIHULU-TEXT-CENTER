@@ -50,6 +50,35 @@ class CoreTests(unittest.TestCase):
         self.assertEqual(self.db.articles("%"),[])
         self.assertEqual(self.db.feeds()[0]["last_count"],1)
 
+    def test_json_feed_v11_text_and_html_items(self):
+        feed={
+            "version":"https://jsonfeed.org/version/1.1",
+            "title":"Example",
+            "items":[
+                {"id":"1","title":"Text item","url":"https://example.org/one",
+                 "content_text":"Native JSON Feed body","date_published":"2026-11-06T10:00:00Z"},
+                {"id":"2","title":"HTML item","url":"https://example.org/two",
+                 "content_html":"<p>Page</p><script>discard()</script><b>safe</b>"},
+                {"id":"3","title":"Bad URL","url":"http://127.0.0.1/private",
+                 "content_text":"No local link should be exposed"}
+            ]
+        }
+        import json
+        fid=self.db.add_feed("JSON", "https://example.org/feed.json")
+        rows=parse_feed(json.dumps(feed).encode(),feed_id=fid,feed_title="JSON",
+                        source_url="https://example.org/feed.json")
+        self.assertEqual(len(rows),3)
+        self.assertEqual(rows[0]["body"],"Native JSON Feed body")
+        self.assertIn("Page",rows[1]["body"])
+        self.assertNotIn("discard",rows[1]["body"])
+        self.assertEqual(rows[2]["url"],"")
+        self.assertEqual(self.db.refresh_feed(fid,fetcher=lambda _:json.dumps(feed).encode()),3)
+        self.assertEqual(len(self.db.articles()),3)
+        for bad in (b'{"version":"not-jsonfeed","items":[]}',
+                    b'{"version":"https://jsonfeed.org/version/1.1","items":{}}'):
+            with self.assertRaises(ValueError):
+                parse_feed(bad,feed_id=fid,feed_title="JSON",source_url="https://example.org/feed.json")
+
     def test_atom_and_xml_entity_limits(self):
         atom=b"""<feed xmlns="http://www.w3.org/2005/Atom"><entry>
         <title>One</title><link rel="alternate" href="https://example.org/post"/>
