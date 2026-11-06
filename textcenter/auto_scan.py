@@ -70,6 +70,19 @@ def _station_from_recent(events: list[dict]) -> str | None:
     return None
 
 
+def dab_channels_from_peaks(peaks:list[dict])->list[str]:
+    """Only possible raster matches. An RF peak never confirms an ensemble."""
+    selected=set()
+    for peak in peaks[:80]:
+        hz=peak.get("frequency_hz") if isinstance(peak,dict) else None
+        if type(hz) is not int:
+            continue
+        channel,center=min(DAB_HZ.items(),key=lambda item:abs(item[1]-hz))
+        if abs(hz-center)<=768_000:
+            selected.add(channel)
+    return [channel for channel in DAB_HZ if channel in selected]
+
+
 def _post_channel(channel:str) -> None:
     """Only the fixed local welle-cli /channel endpoint is writable."""
     if channel not in DAB_HZ:
@@ -81,7 +94,7 @@ def _post_channel(channel:str) -> None:
         headers={"Content-Type":"text/plain; charset=ascii"})
     try:
         with opener.open(request,timeout=2.5) as response:
-            if response.status!=200 or len(response.read(96))>95:
+            if response.status!=200:
                 raise AutoScanError("Unexpected local DAB retune response")
     except (OSError,ValueError) as exc:
         raise AutoScanError("Cannot retune the existing local welle-cli receiver") from exc
