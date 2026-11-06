@@ -212,7 +212,7 @@ export function initUsbSDR(report){
      ". No unverified RF capture has been recorded; if USB transfer fails, release and reconnect.")}
    finally{sampling=false;busy=false;endSample()}
  }
- async function fmSweep(startMHz=87.5,stopMHz=108,stepMHz=.2){
+ async function fmSweep(startMHz=87.5,stopMHz=108,stepMHz=.1){
    if(!receiver){notify("FM SCAN UNAVAILABLE","Connect the real RTL-SDR first. No synthetic spectrum readings.");window.dispatchEvent(new CustomEvent("tihulu:rf-fm-sweep-failed",{detail:{message:"RTL-SDR not connected"}}));return}
    if(busy||sampling){notify("FM SCAN BUSY","Another USB operation is running.");return}
    if(![startMHz,stopMHz,stepMHz].every(Number.isFinite)||startMHz<87.5||stopMHz>108||stepMHz<.1||stepMHz>.5){
@@ -221,7 +221,7 @@ export function initUsbSDR(report){
    if(configuredRate!==1024000){notify("FM SCAN BLOCKED","Sample rate not initialized; release and reconnect first.");return}
    busy=true;sampling=true;stopping=false;sweepCancel=false;beginSample();
    const oldHz=configuredFrequencyHz,oldGain=configuredGain;
-   const readings=[],total=Math.min(130,Math.floor((stopMHz-startMHz)/stepMHz+1.001));
+   const readings=[],total=Math.min(220,Math.floor((stopMHz-startMHz)/stepMHz+1.001));
    try{
      if(configuredGain!==20){await receiver.setGain(20);configuredGain=20}
      for(let i=0;i<total&&!stopping&&!sweepCancel;i++){
@@ -245,7 +245,7 @@ export function initUsbSDR(report){
        detail:{readings,stopped:sweepCancel,hardware:"RTL2832U"}}
      ));
      if(!stopping)notify(sweepCancel?"FM SWEEP STOPPED":"FM SWEEP COMPLETE",readings.length+
-       " REAL RTL-SDR frequency-level samples, 87.5–108 MHz. No RDS station identification, GPS, distance or calibrated location.");
+       " REAL RTL-SDR frequency-level samples from "+startMHz.toFixed(3)+"–"+stopMHz.toFixed(3)+" MHz. No RDS station identification, GPS, distance or calibrated location.");
    }catch(error){
      if(!stopping){
        const message=String(error?.message||error);
