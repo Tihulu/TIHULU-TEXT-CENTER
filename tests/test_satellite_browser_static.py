@@ -46,6 +46,12 @@ class SatelliteBrowserStaticTests(unittest.TestCase):
         self.assertIn('id="local-file"', reception)
         self.assertIn('id="mission"', reception)
         self.assertIn('id="export-evidence"', reception)
+        for control in ('image-target', 'image-decode-sstv', 'image-decode-cuiq',
+                        'image-sstv-file', 'image-cuiq-file', 'image-fetch-online',
+                        'image-gallery', 'image-local-gallery', 'image-decode-status'):
+            self.assertIn('id="' + control + '"', reception)
+        self.assertIn('initSatelliteImageUI', script)
+        self.assertIn('satellite_images_ui.mjs', script)
         self.assertIn('http://127.0.0.1:8791/', reception)
         self.assertIn("URL.revokeObjectURL", script)
         self.assertIn("source:\"user-imported_unverified\"", catalog)
