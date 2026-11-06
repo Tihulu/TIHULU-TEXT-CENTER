@@ -245,6 +245,7 @@ async function openPage(number,source,subpage){
   }
   clearNotice();
   if(!Number.isInteger(Number(number)) || Number(number)<100 || Number(number)>899) return notice("Select a page from 100 to 899.");
+  document.body.classList.toggle("text-alerts-mode",Number(number)===500&&!source);
   state.page=Number(number);state.source=source||"";state.subpage=Number(subpage)||0;
   $("page-number").value=state.page;$("subpage-number").value=state.subpage;$("source-select").value=state.source;
   const query=new URLSearchParams({number:String(state.page),subpage:String(state.subpage)});
