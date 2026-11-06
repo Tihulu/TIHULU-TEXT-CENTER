@@ -133,6 +133,10 @@ export function initAutoReceptionUI({getSelectedFile=()=>null,fileInput=$("local
     };
     lbl("Start time · local, inside original pass",when);
     lbl("Published receiver protocol",protocols);
+    const seconds=document.createElement("input");seconds.type="number";seconds.min="8";seconds.max="900";
+    seconds.step="1";seconds.inputMode="numeric";
+    seconds.placeholder="Auto: remaining pass";seconds.value=job.requested_seconds==null?"":String(job.requested_seconds);
+    lbl("Record duration · 8–900 seconds, empty = auto",seconds);
     const note=document.createElement("small");
     note.textContent="Original pass: "+new Date(job.aos).toLocaleTimeString()+"–"+
       new Date(job.los).toLocaleTimeString()+" (local). Changing satellite requires a new pass.";
@@ -144,8 +148,13 @@ export function initAutoReceptionUI({getSelectedFile=()=>null,fileInput=$("local
       try{
         const date=new Date(when.value);
         if(!Number.isFinite(date.getTime()))throw Error("Invalid local start time");
+        const raw=seconds.value.trim();
+        const duration_seconds=raw?Number(raw):null;
+        if(raw&&(!Number.isInteger(duration_seconds)||duration_seconds<8||duration_seconds>900))
+          throw Error("Choose 8–900 whole seconds or blank for auto.");
         await nativeApi("/api/auto-edit",{
-          job_id:job.id,run_at:date.toISOString(),mission_id:protocols.value
+          job_id:job.id,run_at:date.toISOString(),mission_id:protocols.value,
+          duration_seconds
         });
         message("Saved native automatic job changes without touching unrelated SDR processes.");
         await refreshNativeCalendar();
@@ -216,9 +225,16 @@ export function initAutoReceptionUI({getSelectedFile=()=>null,fileInput=$("local
         return;
       }
       message("Requesting fresh-or-cached TLE geometry and checking native decoder availability…");
+      const requested=$("auto-recording-seconds").value.trim();
+      const duration_seconds=requested?Number(requested):null;
+      if(requested&&(!Number.isInteger(duration_seconds)||duration_seconds<8||duration_seconds>900))
+        throw Error("Select 8–900 whole seconds or leave blank for automatic duration.");
+      if($("auto-coverage-goal").value==="sample"&&duration_seconds>60)
+        throw Error("Quick sample is limited to 60 s; use full coverage for longer captures.");
       const result=await nativeApi("/api/auto-schedule",{
         missions:[...AUTO_PRESETS[mode]],lat,lon,city:"Custom",hours,
-        elevation,max_jobs:6,coverage_goal:$("auto-coverage-goal").value
+        elevation,max_jobs:6,coverage_goal:$("auto-coverage-goal").value,
+        duration_seconds
       });
       jobs.replaceChildren();
       textNode("h3","Native receiver queue",jobs);

@@ -65,3 +65,14 @@ test("All mode alternates ISS image and packet frequencies between passes",()=>{
  assert.deepEqual(r.scheduled.map(x=>x.missionId),["iss-sstv","iss-aprs"]);
  assert.deepEqual(r.scheduled.map(x=>x.frequency),[437550000,437825000]);
 });
+
+test("Operator can choose bounded WebUSB duration",()=>{
+ const selected=pass(25544,3600000,240000);
+ const plan=selectAutomaticPasses([selected],{mode:"images",goal:"sample",durationSeconds:25,now});
+ assert.equal(plan.scheduled.length,1);
+ assert.equal(plan.scheduled[0].durationSeconds,25);
+ assert.equal(plan.scheduled[0].estimatedBytes,51200000);
+ assert.equal(plan.scheduled[0].coverage,"partial-pass");
+ assert.throws(()=>selectAutomaticPasses([selected],{mode:"images",durationSeconds:61,now}),/8–60/);
+ assert.throws(()=>selectAutomaticPasses([selected],{mode:"images",durationSeconds:7,now}),/8–60/);
+});
