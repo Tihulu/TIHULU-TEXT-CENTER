@@ -568,7 +568,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         route = urlsplit(self.path).path
-        allowed = {"/api/feeds/add", "/api/feeds/refresh", "/api/bulletins", "/api/bookmarks", "/api/rds/start", "/api/rds/stop", "/api/fm-survey/start", "/api/fm-survey/stop", "/api/scans/start", "/api/scans/stop", "/api/audio/start", "/api/audio/stop", "/api/dab/refresh", "/api/live/radio/start", "/api/live/radio/stop", "/api/transcripts/translate", "/api/translation/text", "/api/live/tv/start", "/api/live/tv/stop", "/api/live/tv/captions/configure", "/api/recordings/transcription/start", "/api/recordings/transcription/stop", "/api/radar/refresh", "/api/languages/refresh", "/api/languages/install", "/api/languages/translate", "/api/auto/fm/start", "/api/auto/fm/stop", "/api/auto/dab/start", "/api/auto/dab/stop", "/api/auto/dab/tune", "/api/receiver/stop-all", "/api/receiver/hard-stop", "/api/channel-center/update", "/api/dvb/scan/start", "/api/dvb/scan/stop", "/api/dab/select", "/api/dab/captions/start", "/api/dab/captions/stop", "/api/dab/manage/start", "/api/dab/manage/stop"}
+        allowed = {"/api/feeds/add", "/api/feeds/refresh", "/api/bulletins", "/api/bookmarks", "/api/rds/start", "/api/rds/stop", "/api/fm-survey/start", "/api/fm-survey/stop", "/api/scans/start", "/api/scans/stop", "/api/audio/start", "/api/audio/stop", "/api/dab/refresh", "/api/live/radio/start", "/api/live/radio/stop", "/api/transcripts/translate", "/api/translation/text", "/api/live/tv/start", "/api/live/tv/stop", "/api/live/tv/captions/configure", "/api/live/radio/captions/configure", "/api/dab/captions/translate", "/api/recordings/transcription/start", "/api/recordings/transcription/stop", "/api/radar/refresh", "/api/languages/refresh", "/api/languages/install", "/api/languages/translate", "/api/auto/fm/start", "/api/auto/fm/stop", "/api/auto/dab/start", "/api/auto/dab/stop", "/api/auto/dab/tune", "/api/receiver/stop-all", "/api/receiver/hard-stop", "/api/channel-center/update", "/api/dvb/scan/start", "/api/dvb/scan/stop", "/api/dab/select", "/api/dab/captions/start", "/api/dab/captions/stop", "/api/dab/manage/start", "/api/dab/manage/stop"}
         if route not in allowed:
             return self._json(404, {"error": "Not found"})
         if self.headers.get("X-Tihulu-CSRF") != self.server.csrf_token:
@@ -703,6 +703,9 @@ class Handler(BaseHTTPRequestHandler):
                     translation_backend=payload.get("translation_backend","auto")))
             if route == "/api/dab/captions/stop":
                 return self._json(200,self.server.live_dab_captions.stop(wait=True))
+            if route == "/api/dab/captions/translate":
+                return self._json(200,self.server.live_dab_captions.configure_translation(
+                    translate_to=payload.get("translate_to")))
             if route == "/api/dab/refresh":
                 if self.server.dab_auto.status(heartbeat=False)["active"]:
                     raise AutoScanError("DAB channel scan is retuning; read decoder data after it finishes")
@@ -765,6 +768,10 @@ class Handler(BaseHTTPRequestHandler):
 
             if route == "/api/live/radio/stop":
                 return self._json(200,self.server.live_fm.stop())
+            if route == "/api/live/radio/captions/configure":
+                return self._json(200,self.server.live_fm.configure_captions(
+                    enabled=payload.get("enabled"),
+                    translate_to=payload.get("translate_to")))
             if route == "/api/translation/text":
                 original=payload.get("text")
                 source=payload.get("source","en")
