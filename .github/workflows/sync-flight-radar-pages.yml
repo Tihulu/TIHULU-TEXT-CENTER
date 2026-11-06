@@ -40,6 +40,7 @@ jobs:
           node --check tihulu_flight_radar/web/app.js
           node --check tihulu_flight_radar/web/browser_usb.mjs
           node --check tihulu_flight_radar/web/adsb_worker.mjs
+          node --check tihulu_flight_radar/web/tar1090-adapter.js
           node --test tests/web_bridge.test.cjs tests/pages_tar.test.cjs tests/browser_adsb.test.cjs tests/browser_source.test.cjs tests/aircraft_visuals.test.cjs tests/webusb_sampleblock.test.cjs tests/internet_sources.test.cjs tests/tar_full_browser.test.cjs
       - name: Stamp canonical source SHA, identical to standalone Flight Radar
         run: |
@@ -65,6 +66,7 @@ jobs:
           test -s pages/flight_radar/index.html
           test -s pages/flight_radar/tar1090/index.html
           test -s pages/flight_radar/tar1090/tihulu-browser-bridge.js
+          grep -q 'tihulu-browser-bridge.js' pages/flight_radar/tar1090/index.html
           test -s pages/flight_radar/tar1090/UPSTREAM-GPL-LICENSE.txt
           python3 - <<'PY'
           from pathlib import Path
