@@ -18,7 +18,7 @@
 
 ## Stage B — genuine radio and TV data adapters (not implemented)
 
-- FM RDS/RadioText+ adapter from tested discriminator + RDS decoder, preserving PI/PS/PTY/RT/RT+ only as actually decoded.
+- FM RDS explicit 10–90 second manual rtl_fm/redsea subprocess adapter implemented (synthetic CI only; user must install redsea and verify on real RTL-SDR). RT+ rich tag display, shared SDR broker and protected recording integration still pending.
 - DAB+ DLS/DLS+, Slideshow, EPG and optional Journaline from a receiver/decoder that exposes validated data. Journaline license and transport support need independent review.
 - Hauppauge WinTV-soloHD DVB-T2/C: verify Linux firmware/frontend, transport-stream lock, actual Teletext PIDs and decoder output before allowing page import; preserve recordings and shared mux behavior.
 - Optional HF NAVTEX/RTTY and weatherfax on suitable receiver + antenna; schedules and propagation are not guaranteed.

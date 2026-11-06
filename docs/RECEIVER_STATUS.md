@@ -42,3 +42,7 @@ command -v welle-cli
 The source-based JSON `import-text` path is still supported and remains the only supported broadcast data import in this milestone.
 
 Relevant upstream reference for future FM adapter: https://github.com/windytan/redsea . Example source-supplied pipeline: `rtl_fm -M fm -l 0 -A std -p 0 -s 171k -g 20 -F 9 -f 98.6M | redsea --input mpx -r 171k`. This **will attempt to claim and retune the RTL-SDR** and is shown only as documentation, not executed by Tihulu. Check existing receiver ownership first.
+
+## New v0.2 explicit FM RDS capture
+
+Once `redsea` and `rtl_fm` are installed, open Radio Data (400) and use the consent checkbox plus **Start RDS Capture**. The source-backed live decoder replaces the old JSON-only FM workflow, but decoder readiness is still distinct from USB discovery and RDS groups are not official alerts. See [FM_RDS_LIVE.md](FM_RDS_LIVE.md).

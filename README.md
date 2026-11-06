@@ -10,7 +10,7 @@ A lightweight, offline-first, English-language information and text-network cent
 - On-demand RSS/Atom ingestion, searchable local article cache, and external text-community directories.
 - Local, offline bulletin-board notes and bookmarks.
 - FM RDS, DAB+ DLS/Journaline, DVB Teletext, HF weather text, APRS and similar protocols as **optional external-decoder adapters**, never as claims of built-in reception.
-- No transmitter, SDR driver, DVB tuner control, background polling, AI runner or live emergency-warning receiver in this initial standalone build.
+- No transmitter, DVB tuner control, automatic background polling, AI runner or live emergency-warning receiver. **FM RDS requires an explicit, bounded capture and installed rtl_fm/redsea**.
 
 ## Run
 
@@ -88,3 +88,9 @@ The Radio Data (400) page now shows passive USB candidates and available decoder
 ### If the CLI detects your SDR but the sidebar still says it is missing
 
 The old static sidebar placeholder was removed. After updating, **stop the old Python server** with Ctrl+C, run `git pull --ff-only`, restart `python3 -m textcenter serve`, and hard-refresh the browser. From the same local browser, `http://127.0.0.1:8787/api/receivers` should show `rtl_usb_count` and the decoder-tool inventory. Click **Check USB status** in the sidebar or **Refresh Device Status** on page 400. A receiver may be USB-detected while its **text decoder remains inactive**; that is expected until an authorized real decoder pipeline is integrated.
+
+## Live FM RDS: explicit 10–90 second capture (Linux)
+
+Text Center v0.2 includes an optional local **FM RDS receiver session**. This only runs when manually started from Radio Data (400). It uses an actual USB RTL2832U receiver and two external executables: `rtl_fm` and `redsea`. Real JSON output is archived in SQLite, grouped by measured capture frequency, with UTC receive time and source labels. No actual RF session is claimed to have run in GitHub CI.
+
+See [Live FM RadioText setup](docs/FM_RDS_LIVE.md). This feature will claim the USB receiver, so **close Gqrx/welle.io/readsb and any other receiver job first**. A cooperative lock only prevents other instances using this same locking convention; it cannot protect a tuner from third-party applications.

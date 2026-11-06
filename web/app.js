@@ -1,7 +1,7 @@
 /* TIHULU TEXT CENTER — no external libraries, no background timers fetching data. */
 "use strict";
 
-const state = { csrf:"", page:100, subpage:0, source:"", entries:[], pages:[], receivers:null };
+const state = { csrf:"", page:100, subpage:0, source:"", entries:[], pages:[], receivers:null, rdsActive:false, rdsPollTimer:null };
 const $ = (id) => document.getElementById(id);
 
 function el(tag, cls, text) {
@@ -166,6 +166,11 @@ async function refreshSourceChoices(){
   select.value=sources.some(([id])=>id===selected)?selected:"";
 }
 async function openPage(number,source,subpage){
+  if(state.page===400 && Number(number)!==400 && state.rdsActive){
+    state.rdsActive=false;
+    if(state.rdsPollTimer){clearTimeout(state.rdsPollTimer);state.rdsPollTimer=null;}
+    api("/api/rds/stop","POST",{}).catch((error)=>notice("Could not stop capture: "+error.message));
+  }
   clearNotice();
   if(!Number.isInteger(Number(number)) || Number(number)<100 || Number(number)>899) return notice("Select a page from 100 to 899.");
   state.page=Number(number);state.source=source||"";state.subpage=Number(subpage)||0;
@@ -275,10 +280,122 @@ async function showWeather() {
   found.forEach((e)=>append($("content"),card(e.title,e.body,e.medium.toUpperCase()+" · "+e.station+" · "+timeLabel(e.received_at))));
   if(!found.length) empty("No weather broadcast imported","NAVTEX and HF weatherfax require a compatible antenna, receiver and decoder. Local conditions are not inferred from unverified presets.");
 }
+function setRdsText(data){
+  const box=$("rds-live"),status=$("rds-progress");
+  if(status){
+    let line="Status: "+data.status.toUpperCase();
+    if(data.frequency_hz)line+=" · "+(data.frequency_hz/1e6).toFixed(3)+" MHz";
+    line+=" · "+data.received_groups+" decoded groups · "+data.saved_items+" saved text items";
+    if(data.error)line+=" · "+data.error;
+    status.textContent=line;
+  }
+  if(box){
+    box.replaceChildren();
+    if(!data.recent.length){
+      box.append(el("p","",data.active
+        ?"Listening for actual RDS groups. No signal or station is assumed."
+        :"No recent decoded text in this session."));
+    }else{
+      data.recent.slice().reverse().forEach(event=>{
+        const row=el("div","rds-row");
+        append(row,el("div","item-meta",event.station+" · "+timeLabel(event.received_at)),
+                   el("strong","",event.title),el("p","",event.text));
+        box.append(row);
+      });
+    }
+  }
+  const start=$("rds-start"),stop=$("rds-stop"),confirm=$("rds-confirm");
+  if(start)start.disabled=Boolean(data.active) || !data.capability?.ready || !confirm?.checked;
+  if(stop)stop.disabled=!data.active;
+}
+async function pollRds(){
+  if(state.page!==400)return;
+  try{
+    const status=await api("/api/rds/status");
+    state.rdsActive=status.active;
+    setRdsText(status);
+    if(status.active && state.page===400){
+      state.rdsPollTimer=setTimeout(pollRds,1500);
+    }else if(state.page===400 && (status.status==="completed" || status.status==="cancelled" || status.status==="error")){
+      // Reload source-attributed stored text after an actual capture ends.
+      if(!$("rds-finished-"+status.session)){
+        const marker=el("span"); marker.id="rds-finished-"+status.session;
+        const box=$("rds-live");if(box)box.append(marker);
+        await showRadioData();
+      }
+    }
+  }catch(error){
+    state.rdsActive=false;
+    notice("FM capture status unavailable: "+error.message);
+  }
+}
+async function addRdsControl(){
+  const status=await api("/api/rds/status");
+  const outer=el("article","item-card");outer.id="rds-control";
+  outer.append(el("div","item-meta","REAL FM RADIOTEXT / EXPLICIT CAPTURE ONLY"));
+  outer.append(el("h3","","Tune & decode FM RDS"));
+  const help=el("p","",
+    "Uses the single RTL-SDR receiver via rtl_fm → redsea. No scanning, no transmission. "+
+    "A protected recording or other SDR app may already own the device; stop them yourself first.");
+  outer.append(help);
+  const reason=el("p","full-body",status.capability?.reason||"Receiver readiness unknown");
+  outer.append(reason);
+  const form=el("form","rds-form");
+  const frequency=field("FM frequency (MHz)","number","98.600",10);
+  frequency.input.id="rds-frequency";frequency.input.min="87.5";frequency.input.max="108.0";
+  frequency.input.step="0.001";frequency.input.value="98.6";
+  const duration=el("div","field");const durationLabel=el("label","","Capture duration");
+  const seconds=el("select");seconds.id="rds-duration";
+  [15,30,45,60,90].forEach(n=>{const option=el("option","",n+" seconds");option.value=String(n);if(n===30)option.selected=true;seconds.append(option)});
+  append(duration,durationLabel,seconds);
+  const consent=el("label","rds-consent"),check=el("input");check.type="checkbox";check.id="rds-confirm";
+  consent.append(check,document.createTextNode(" I confirm that my RTL-SDR is not used by Gqrx, welle.io, readsb, or another recording."));
+  const start=el("button","action primary","START RDS CAPTURE");start.id="rds-start";start.type="submit";
+  const stop=el("button","action ghost","STOP CAPTURE");stop.id="rds-stop";stop.type="button";
+  const buttons=el("div","card-actions");buttons.append(start,stop);
+  append(form,frequency.wrap,duration,consent,buttons);
+  outer.append(form);
+  const progress=el("p","full-body","No capture yet");progress.id="rds-progress";
+  const live=el("div","rds-live");live.id="rds-live";
+  append(outer,progress,live);
+  check.addEventListener("change",()=>{start.disabled=!check.checked || state.rdsActive || !status.capability?.ready});
+  form.addEventListener("submit",async(ev)=>{
+    ev.preventDefault();
+    if(!check.checked)return notice("Confirm that the SDR is free before starting.");
+    start.disabled=true;
+    try{
+      const started=await api("/api/rds/start","POST",{
+        frequency_mhz:Number(frequency.input.value),duration_seconds:Number(seconds.value)
+      });
+      state.rdsActive=true;notice("Receiver launched on your explicit request. Unverified until actual RDS JSON arrives.");
+      setRdsText({...started,capability:status.capability});
+      if(state.rdsPollTimer)clearTimeout(state.rdsPollTimer);
+      state.rdsPollTimer=setTimeout(pollRds,500);
+    }catch(error){notice(error.message);start.disabled=false;}
+  });
+  stop.addEventListener("click",async()=>{
+    try{
+      const stopped=await api("/api/rds/stop","POST",{});
+      notice("Stop requested; waiting for decoder cleanup.");
+      if(state.rdsPollTimer)clearTimeout(state.rdsPollTimer);
+      state.rdsPollTimer=setTimeout(pollRds,300);
+      setRdsText({...stopped,capability:status.capability});
+    }catch(error){notice(error.message)}
+  });
+  $("content").append(outer);
+  setRdsText(status);
+  state.rdsActive=status.active;
+  if(status.active){
+    if(state.rdsPollTimer)clearTimeout(state.rdsPollTimer);
+    state.rdsPollTimer=setTimeout(pollRds,1500);
+  }
+}
 async function showRadioData(){
   section("RECEIVER / INPUT","Radio & TV text archive","Receive-only imports");
   try { $("content").append(receiverCard(await refreshReceiverStatus())); }
   catch(error){empty("Receiver detection unavailable","The local USB inventory could not be read: "+error.message)}
+  try {await addRdsControl()}
+  catch(error){empty("FM capture control unavailable","Unable to load RDS status: "+error.message)}
   const events=await api("/api/events");
   events.forEach((e)=>{
     const n=card(e.title,e.body,e.medium.toUpperCase()+" · "+e.station+" · "+timeLabel(e.received_at));
@@ -380,6 +497,14 @@ function bindNavigation(){
   document.querySelectorAll("[data-page]").forEach((n)=>n.addEventListener("click",()=>openPage(Number(n.dataset.page),"",0)));
   $("page-form").addEventListener("submit",(ev)=>{ev.preventDefault();openPage(Number($("page-number").value),$("source-select").value,Number($("subpage-number").value))});
   $("bookmark-page").addEventListener("click",()=>saveBookmark("Page "+state.page+(state.source?" · "+state.source:""),"page",state.page+":"+state.subpage+":"+state.source).catch((err)=>notice(err.message)));
+  window.addEventListener("pagehide",()=>{
+    if(state.rdsActive){
+      fetch("/api/rds/stop",{
+        method:"POST",headers:{"Content-Type":"application/json","X-Tihulu-CSRF":state.csrf},
+        body:"{}",keepalive:true
+      }).catch(()=>{});
+    }
+  });
   document.addEventListener("keydown",(ev)=>{
     if(ev.key.toLowerCase()==="g" && !["INPUT","TEXTAREA","SELECT"].includes(document.activeElement.tagName)){
       ev.preventDefault();$("page-number").focus();$("page-number").select();
