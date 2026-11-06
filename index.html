@@ -40,6 +40,12 @@ ul{padding-left:22px;line-height:1.8}
 <h1>Application center</h1>
 <p class="muted">Choose <strong>Browser-only WebUSB</strong> to use a compatible RTL-SDR directly from Chrome/Edge, with no local server. A separate optional companion provides features that cannot run once a browser tab closes.</p>
 <section class="card">
+<h2>✈ Flight Radar <span class="badge">Browser-only ADS-B · WebUSB experimental</span></h2>
+<p>Track genuine 1090 MHz ADS-B aircraft from a compatible RTL-SDR directly in Brave, Chrome or Edge without a locally installed app. Internet aircraft can be added through an authorized HTTPS/CORS feed. The map separates source badges <strong>R</strong> (radio), <strong>I</strong> (Internet), and <strong>I/R</strong> (both); all airplane symbols use the same altitude color gradient.</p>
+<p class="note">Opening order: permitted current location → nearest genuinely radio-positioned aircraft → Cologne. USB requires exclusive access and operating-system permissions. The browser decoder is experimental; a paired desktop receiver remains optional.</p>
+<div class="actions"><a class="action" href="./flight_radar/">Open Flight Radar in browser</a><a href="https://github.com/Tihulu/tihulu-flight-radar/pull/6">Development and validation</a></div>
+</section>
+<section class="card">
 <h2><img src="./satellite_center/browser/icon-192.png" alt="" width="44" height="44" style="vertical-align:middle;border-radius:10px;margin-right:9px">Satellite Center <span class="badge">Direct browser WebUSB · experimental</span></h2>
 <p>Track <strong>ISS, Meteor-M, CubeSat and Iridium NEXT</strong> on interactive <strong>OpenStreetMap Earth</strong> and <strong>azimuth/elevation sky maps</strong> using CelesTrak orbital elements. The Chromium WebUSB mode can request direct RTL-SDR access and save raw IQ. The optional local companion supports external APRS/SatDump decoding and longer-lived scheduled captures. Iridium remains <strong>orbit/spectrum survey only</strong>, not private communications decoding.</p>
 <ul><li><strong>No local software needed for browser mode</strong> when a supported Chromium browser can claim your RTL-SDR via WebUSB. Linux/Windows may still require driver or USB permission changes.</li><li>Supports Debian/Ubuntu/Pop!_OS, Raspberry Pi OS, macOS Apple Silicon/Intel and Windows x64 with separately installed SDR utilities and drivers.</li><li>Receiver is released after Stop/Quit and on abandoned manual sessions. A single RTL-SDR is not available to Flight Radar and Satellite Center simultaneously.</li></ul>
@@ -56,7 +62,7 @@ ul{padding-left:22px;line-height:1.8}
 </div>
 <p class="muted">Direct WebUSB mode asks for USB permission and keeps recordings on your computer. It currently collects raw IQ and calculates orbital passes; in-browser satellite image and APRS decoding are not yet connected. Firefox/Safari are unsupported. Only the optional companion requires <code>http://127.0.0.1:8791/</code> and pairing.</p>
 </section>
-<footer><p>This website does not itself connect to USB, track you, or collect private reception data. It is not an emergency alert service.</p>
+<footer><p>USB access is requested only when you explicitly select and permit a receiver. Raw RF data stays on the device/browser session and is not uploaded by this site. It is not an emergency alert service.</p>
 <p>Source repository: <a href="https://github.com/Tihulu/TIHULU-TEXT-CENTER">TIHULU-TEXT-CENTER</a>. The main Text Center and future Survival Kit integration are developed separately.</p></footer>
 </main>
 <script>
