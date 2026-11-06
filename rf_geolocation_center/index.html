@@ -141,7 +141,27 @@
         <div id="osm-tiles" class="osm-tiles" hidden></div>
         <svg id="earth-overlay" class="earth-overlay" viewBox="0 0 900 520" preserveAspectRatio="none"><g id="earth-grid"></g><g id="earth-rings"></g><g id="earth-markers"></g></svg>
         <div class="map-cross">+</div>
+        <div id="map-source-popup" class="map-source-popup" hidden>
+         <button id="map-source-popup-close" aria-label="Close map source information" type="button">×</button>
+         <strong id="map-source-popup-name">Source</strong>
+         <p id="map-source-popup-description"></p>
+        </div>
        </div><div class="map-footer"><span>WGS84 · map pan by drag/touch · wheel or +/− zoom</span><span>© OpenStreetMap contributors, tiles only on request</span></div>
+       <section class="map-discovery-results" aria-label="Receiver measurements and matching mapped transmitter candidates">
+        <div class="map-discovery-top">
+         <div><strong>Signals &amp; sources on this map</strong><p id="map-scan-status">No antenna scan linked to this map yet. Catalog towers are external references, not received stations.</p></div>
+         <button id="map-focus-scan" class="secondary" type="button">Fit discovered sources</button>
+        </div>
+        <div class="map-source-legend" aria-label="Source provenance">
+         <span><i class="map-dot device"></i> Device position</span>
+         <span><i class="map-dot radio"></i> Mapped RF site / frequency candidate</span>
+         <span><i class="map-dot tv"></i> TV frequency candidate</span>
+         <span><i class="map-dot aircraft"></i> Aircraft from antenna</span>
+         <span><i class="map-dot internet"></i> Internet aircraft</span>
+         <span><i class="map-dot orbit"></i> Predicted satellite</span>
+        </div>
+        <div id="map-scan-results" class="map-scan-results" aria-live="polite"></div>
+       </section>
       </article>
       <details id="geo-advanced-tools" class="panel geo-advanced-tools"><summary>Advanced layers, evidence and calibration</summary><div class="geo-advanced-body"><h2>Live location and evidence</h2>
        <button id="earth-find" class="primary" type="button">◎ Find My Location — online or offline</button>
