@@ -7,7 +7,7 @@ import {normalizeRadioTowers,normalizeOpenSkyStates,matchFMScanToCatalog} from "
 const $=id=>document.getElementById(id);
 const TOWER_KEY="tihulu.rfgeo.catalog.towers.v1";
 const AIR_KEY="tihulu.rfgeo.catalog.aircraft.v1";
-let towers=[],aircraft=[],fmReadings=[],busy=false,controller=null,initialDiscoveryDone=false;
+let towers=[],aircraft=[],antennaAircraft=[],antennaAt=0,fmReadings=[],busy=false,controller=null,initialDiscoveryDone=false;
 const txt=(id,value)=>{const e=$(id);if(e)e.textContent=String(value)};
 function cached(key){
  try{
@@ -27,7 +27,7 @@ function reference(){
 }
 function sync(){
  window.dispatchEvent(new CustomEvent("tihulu:catalog-updated",{
-  detail:{towers:towers.slice(0,150),aircraft:aircraft.slice(0,150),fmReadings:fmReadings.slice(0,130)}
+  detail:{towers:towers.slice(0,150),aircraft:aircraft.slice(0,150),antennaAircraft:antennaAircraft.slice(0,150),fmReadings:fmReadings.slice(0,130)}
  }));
 }
 function buildRow(target,entry,kind){
@@ -62,6 +62,21 @@ function render(){
     " · with FM frequency tags: "+towers.filter(s=>s.frequenciesMHz?.length).length;
   towerList.append(head);
   for(const s of towers.slice(0,80))buildRow(towerList,s,"tower");
+ }
+ const antennaList=$("catalog-antenna-aircraft-list");
+ if(antennaList){
+  antennaList.replaceChildren();
+  const header=document.createElement("p");
+  header.textContent="Actual RTL-SDR ADS-B decoded aircraft: "+antennaAircraft.length+
+    " (shared by Flight Radar, CRC-verified 1090 MHz; local browser, not Internet)";
+  antennaList.append(header);
+  for(const p of antennaAircraft.slice(0,80)){
+   const row=document.createElement("div");row.className="rf-catalog-row";
+   const a=document.createElement("strong");a.textContent="✈ "+p.callsign+" · "+p.icao;
+   const b=document.createElement("small");b.textContent=p.lat.toFixed(5)+", "+p.lon.toFixed(5)+
+     " · "+p.observedAt+" · REAL ANTENNA ADS-B MESSAGE; observer range NOT known";
+   row.append(a,b);antennaList.append(row);
+  }
  }
  if(airList){
   airList.replaceChildren();
@@ -149,8 +164,51 @@ function showScan(result){
    lines.join("\n")+"\nNo RDS/PI or signal identity decoded. Level peaks alone do not locate the observer.");
  sync();
 }
+function acceptAntennaAircraft(message){
+ if(!message||message.app!=="tihulu-flight-radar"||
+   !Number.isFinite(message.timestamp)||Math.abs(Date.now()-message.timestamp)>15000)return;
+ if(message.type==="stopped"){
+  antennaAircraft=[];antennaAt=0;
+  txt("catalog-adsb-status","Flight Radar stopped its direct RTL-SDR reception; no live antenna aircraft. Internet aircraft remain separately labeled.");
+  render();return;
+ }
+ if(message.type!=="actual_adsb"||!Array.isArray(message.aircraft))return;
+ antennaAt=Date.now();
+ const fresh=[],seen=new Set();
+ for(const a of message.aircraft.slice(0,150)){
+  const icao=String(a.hex||"").toLowerCase();
+  if(!/^[0-9a-f]{6}$/.test(icao)||seen.has(icao)||!Number.isFinite(a.lat)||Math.abs(a.lat)>90||
+    !Number.isFinite(a.lon)||Math.abs(a.lon)>180||!Number.isFinite(a.seen_pos)||
+    a.seen_pos<0||a.seen_pos>60)continue;
+  seen.add(icao);
+  fresh.push({id:"adsb-local-"+icao,icao,callsign:String(a.flight||icao).slice(0,25),
+   lat:a.lat,lon:a.lon,altitudeMeters:Number.isFinite(a.alt_baro)?a.alt_baro*0.3048:null,
+   frequencyMHz:1090,observedAt:new Date(message.timestamp).toISOString(),
+   catalog:"Tihulu Flight Radar WebUSB",hardwareReceived:true,metadataOrigin:"REAL RTL-SDR MODE S ADS-B",
+   confidence:"CRC-VERIFIED ANTENNA AIRCRAFT POSITION · NOT RECEIVER POSITION"});
+ }
+ antennaAircraft=fresh;
+ txt("catalog-adsb-status","LIVE antenna ADS-B from Tihulu Flight Radar: "+fresh.length+
+   " position-bearing aircraft · decoder CRC-verified; "+
+   Math.max(0,Number(message.messages)||0)+" total RF messages. This does NOT locate the ground receiver.");
+ render();
+}
 export function initCatalogDiscovery(){
  if(!$("catalog-discover"))return;
+ if(typeof BroadcastChannel!=="undefined"){
+  const channel=new BroadcastChannel("tihulu.rfgeo.adsb.v1");
+  channel.addEventListener("message",e=>acceptAntennaAircraft(e.data));
+  window.addEventListener("pagehide",()=>channel.close(),{once:true});
+  // Last live snapshot is never persisted; expire stale browser-to-browser RF observations.
+  setInterval(()=>{
+   if(antennaAt&&Date.now()-antennaAt>20000){
+    antennaAt=0;antennaAircraft=[];
+    txt("catalog-adsb-status","Direct antenna aircraft feed became stale; no live Flight Radar snapshot received in 20 seconds.");
+    render();
+   }
+  },5000);
+ }else txt("catalog-adsb-status","BroadcastChannel unavailable: live Flight Radar antenna sharing is unsupported in this browser.");
+
  const prior=cached(TOWER_KEY);
  if(prior)towers=prior.entries;
  const lastAircraft=cached(AIR_KEY);
