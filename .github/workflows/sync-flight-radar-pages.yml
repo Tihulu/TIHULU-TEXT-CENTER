@@ -38,6 +38,8 @@ jobs:
           cd flight-radar-source
           bash scripts/build-browser-assets.sh
           node --check tihulu_flight_radar/web/app.js
+          # Regression gate: public Pages must start genuine Internet aircraft without USB.
+          grep -q 'const startPagesInternet=' tihulu_flight_radar/web/app.js
           node --check tihulu_flight_radar/web/browser_usb.mjs
           node --check tihulu_flight_radar/web/adsb_worker.mjs
           node --check tihulu_flight_radar/web/tar1090-adapter.js
