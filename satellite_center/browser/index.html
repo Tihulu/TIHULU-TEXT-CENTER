@@ -149,6 +149,14 @@ All location methods are optional. City suggestions are offline by default; GPS 
 <p class="hint">No closed-tab/background scheduling: suspended browsers and sleeping computers cannot guarantee a minute-accurate scan. Future jobs are saved <strong>in this tab only</strong> and are lost when it closes. Use the optional local companion for attended scheduling while the browser is closed.</p>
 <h3>Armed jobs and results</h3>
 <div id="jobs" class="scheduled-jobs" aria-live="polite">No scheduled browser captures.</div>
+<section id="browser-schedule-calendar" class="sat-calendar-panel" aria-labelledby="browser-calendar-title">
+<h3 id="browser-calendar-title">My reception calendar · 24-hour timeline</h3>
+<p class="hint">Browser schedules run only while this tab stays open, visible and awake. Edit time, frequency, duration or cancel each pending job here. The native companion can preserve unattended jobs while its service is running.</p>
+<div class="line"><label>Date<input id="browser-calendar-date" type="date"></label>
+<button id="browser-calendar-prev" class="secondary" type="button">Previous day</button>
+<button id="browser-calendar-next" class="secondary" type="button">Next day</button></div>
+<div id="browser-calendar-grid" class="sat-calendar-grid" aria-live="polite">No scheduled RF jobs.</div>
+</section>
 <p id="scheduled-report" class="status" role="status">After a real capture, the sample-level report appears here. Only measured USB bytes are reported.</p>
 </section>
 </div></div>
