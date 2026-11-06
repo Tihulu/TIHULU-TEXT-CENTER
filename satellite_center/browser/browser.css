@@ -197,3 +197,14 @@ border:1px solid #375471;border-radius:8px;margin:0;background:#081727}
 .photo-meta a{font-size:12px}
 #image-online-status{overflow-wrap:anywhere}
 @media(max-width:820px){.image-sources{grid-template-columns:1fr}}
+
+/* Offline Signal Intelligence: candidate bands and analog preview */
+.iq-candidates{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0 18px}
+.iq-candidates button{flex:1 1 260px;text-align:left;overflow-wrap:anywhere;white-space:normal}
+.iq-candidates p{font-size:13px;color:#b6cee5}
+.iq-audio-panel{border:1px solid #345a7b;border-radius:10px;background:#0c2138;margin:12px 0 18px;padding:12px}
+.iq-audio-panel legend{font-size:13px;font-weight:650;color:#dbeeff;padding:0 5px}
+.iq-audio-panel .line{display:flex;flex-wrap:wrap;gap:10px;align-items:end}
+.iq-audio-panel input,.iq-audio-panel select{min-width:140px}
+#iq-audio-player{display:block;width:100%;max-width:600px;margin:10px 0}
+#iq-audio-player[hidden]{display:none}
