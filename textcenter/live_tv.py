@@ -277,7 +277,7 @@ class LiveTV:
             result=dict(self.state)
             result["speech"]=self.speech.status() if self.speech else {
                 "enabled":False,"reason":self.state.get("subtitle_unavailable_reason") or
-                    "No user-requested TV transcription"
+                    "No user-requested TV transcription"}
             return result
 
     def stop(self):
