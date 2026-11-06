@@ -1,7 +1,8 @@
 /* User-initiated photo sources, experimental Robot36 audio decoding and
  * honest local files. Nothing downloads on page load or acquires the SDR.
  */
-import { IMAGE_TARGETS, recordingName, epicEntries, nasaIssEntries } from "./satellite_imagery.mjs";
+import { IMAGE_TARGETS, recordingName, parseRecordingName, epicEntries, nasaIssEntries } from "./satellite_imagery.mjs";
+import { cu8ToFmAudio } from "./fm_iq_demod.mjs";
 import { decodeRobot36Audio } from "./sstv_robot36.mjs";
 const $=id=>document.getElementById(id);
 function imgCard({source,satellite,timestamp,caption,imageUrl,archiveUrl},cleanup){
@@ -31,6 +32,7 @@ function imageClear(container){
 function errorText(target,message){$(target).textContent=String(message);}
 export function initSatelliteImageUI({onTune=()=>{},onTargetChange=()=>{},log=()=>{}}={}){
  let currentDecode=null,currentName=null,importUrls=[];
+ let lastCu8Blob=null,lastCu8Name=null,lastCu8Metadata=null,lastDecodeSource="";
  const targetSelect=$("image-target"),getTarget=()=>IMAGE_TARGETS.find(t=>t.key===targetSelect.value)||IMAGE_TARGETS[0];
  function guide(){
    const t=getTarget();
@@ -97,38 +99,74 @@ export function initSatelliteImageUI({onTune=()=>{},onTargetChange=()=>{},log=()
    }
    return localName;
  }
+ function drawDecodedAudio(samples,rate,file,sourceLabel){
+   const candidate=decodeRobot36Audio(samples,rate);
+   const canvas=$("image-sstv-canvas"),ctx=canvas.getContext("2d");
+   if(!ctx)throw Error("2D Canvas unavailable");
+   ctx.putImageData(new ImageData(candidate.rgba,candidate.width,candidate.height),0,0);
+   currentDecode=candidate;
+   lastDecodeSource=sourceLabel;
+   const proposed=getTarget().key==="iss"?"ISS-SSTV-CANDIDATE":"UNATTRIBUTED-SSTV";
+   currentName=recordingName({satellite:proposed,
+     at:new Date(file.lastModified||Date.now()),
+     frequencyHz:getTarget().frequencies[0],kind:"SSTV-ROBOT36",format:"png"});
+   $("image-download-sstv").disabled=false;
+   errorText("image-decode-status",candidate.status+" · "+candidate.alignedLines+
+     "/240 verified line syncs · "+candidate.syncCandidates+" sync candidates. "+
+     "Source: "+sourceLabel+". Satellite origin/visual fidelity NOT verified. "+
+     "Save as "+currentName+".");
+   log("Real local SSTV audio synchronization: "+candidate.alignedLines+
+     " lines ("+sourceLabel+").");
+ }
  $("image-decode-sstv").addEventListener("click",async()=>{
    const file=$("image-sstv-file").files?.[0],btn=$("image-decode-sstv");
    if(!file){errorText("image-decode-status","Choose a real narrowband-FM SSTV audio WAV first.");return;}
    if(file.size>60*1024*1024){errorText("image-decode-status","Audio exceeds 60 MiB safe import limit.");return;}
    btn.disabled=true;currentDecode=null;$("image-download-sstv").disabled=true;
    try{
-     errorText("image-decode-status","Reading the audio locally and searching for Robot36 synchronization (not raw CU8)…");
+     errorText("image-decode-status","Reading WAV audio locally and checking for Robot36 1200 Hz syncs…");
      const AudioCtx=window.AudioContext||window.webkitAudioContext;
-     if(!AudioCtx)throw Error("WebAudio decoding is unsupported in this browser");
-     const audio=new AudioCtx();
+     if(!AudioCtx)throw Error("WebAudio decoding is unsupported");
+     const context=new AudioCtx();
      let decoded;
-     try{decoded=await audio.decodeAudioData(await file.arrayBuffer());}
-     finally{await audio.close();}
-     const samples=decoded.getChannelData(0);
-     const candidate=decodeRobot36Audio(samples,decoded.sampleRate);
-     const canvas=$("image-sstv-canvas"),ctx=canvas.getContext("2d");
-     if(!ctx)throw Error("2D Canvas unavailable");
-     ctx.putImageData(new ImageData(candidate.rgba,candidate.width,candidate.height),0,0);
-     currentDecode=candidate;
-     const proposed=getTarget().key==="iss"?"ISS-SSTV-CANDIDATE":"UNATTRIBUTED-SSTV";
-     const originalTime=new Date(file.lastModified||Date.now());
-     currentName=recordingName({satellite:proposed,at:originalTime,
-       frequencyHz:getTarget().frequencies[0],kind:"SSTV-ROBOT36",format:"png"});
-     $("image-download-sstv").disabled=false;
-     errorText("image-decode-status",candidate.status+" · "+candidate.alignedLines+
-       "/240 line syncs · "+candidate.syncCandidates+" sync candidates. "+
-       "Experimental audio decode only; image origin/satellite unverified. "+
-       "Download as "+currentName+".");
-     log("Experimental SSTV audio decoder produced "+candidate.alignedLines+
-       " synchronized rows from user's actual local audio.");
-   }catch(error){errorText("image-decode-status","No verified Robot36 picture decoded: "+String(error?.message||error));}
+     try{decoded=await context.decodeAudioData(await file.arrayBuffer());}
+     finally{await context.close();}
+     drawDecodedAudio(decoded.getChannelData(0),decoded.sampleRate,file,"user WAV FM-demodulated audio");
+   }catch(error){errorText("image-decode-status",
+     "No credible Robot36 SSTV image produced: "+String(error?.message||error));}
    finally{btn.disabled=false;}
+ });
+ async function decodeRF(blob,name,metadata){
+   const buttons=[$("image-decode-cuiq"),$("image-decode-last")];
+   for(const b of buttons)b.disabled=true;
+   currentDecode=null;$("image-download-sstv").disabled=true;
+   try{
+     const parsed=parseRecordingName(name);
+     const rate=metadata?.sampleRate||parsed?.sampleRate||Number($("rate").value);
+     errorText("image-decode-status","Demodulating real raw CU8 into FM audio locally (no upload). "+
+       "Then the decoder checks for 1200 Hz Robot36 line syncs; no image is assumed.");
+     const audio=await cu8ToFmAudio(blob,{sampleRate:rate,
+       onProgress:(done,total)=>errorText("image-decode-status",
+         "FM demodulation: "+Math.round(100*done/total)+"% of raw RF bytes read locally…")});
+     drawDecodedAudio(audio.samples,audio.rate,
+       {lastModified:blob.lastModified||Date.now(),name},
+       "user-provided CU8 → narrowband FM → Robot36 candidate");
+   }catch(error){
+     errorText("image-decode-status","No credible Robot36 image obtained from RF CU8: "+
+       String(error?.message||error)+
+       ". Verify ISS SSTV event, sample rate, receiving frequency, FM quality and antenna.");
+   }finally{
+     $("image-decode-cuiq").disabled=false;
+     $("image-decode-last").disabled=!lastCu8Blob;
+   }
+ }
+ $("image-decode-cuiq").addEventListener("click",()=>{
+   const file=$("image-cuiq-file").files?.[0];
+   if(!file){errorText("image-decode-status","Select a .cu8 RF recording first.");return;}
+   void decodeRF(file,file.name,null);
+ });
+ $("image-decode-last").addEventListener("click",()=>{
+   if(lastCu8Blob)void decodeRF(lastCu8Blob,lastCu8Name,lastCu8Metadata);
  });
  $("image-download-sstv").addEventListener("click",()=>{
    if(!currentDecode||!currentName)return;
@@ -139,7 +177,7 @@ export function initSatelliteImageUI({onTune=()=>{},onTargetChange=()=>{},log=()
      setTimeout(()=>URL.revokeObjectURL(url),60000);
      addLocalImage(blob,{satellite:"ISS-SSTV-CANDIDATE",at:new Date(),
        source:"Experimental Robot36 local audio decoder; satellite NOT independently identified",
-       caption:"Decoded from user-supplied FM SSTV WAV; "+currentDecode.alignedLines+" synchronized rows",
+       caption:"Source "+lastDecodeSource+"; "+currentDecode.alignedLines+" synchronized rows",
        kind:"SSTV-ROBOT36",frequencyHz:getTarget().frequencies[0]});
    },"image/png");
  });
@@ -155,5 +193,15 @@ export function initSatelliteImageUI({onTune=()=>{},onTargetChange=()=>{},log=()
    gallery.prepend(record);
    while(gallery.children.length>12){const last=gallery.lastElementChild;last.dispatchEvent(new Event("remove"));last.remove();}
  });
- return {getSelectedTarget:getTarget};
+ return {
+   getSelectedTarget:getTarget,
+   recordCapture(blob,name,metadata){
+     if(!blob||typeof blob.slice!=="function"||!blob.size||!String(name).endsWith(".cu8"))return;
+     lastCu8Blob=blob;lastCu8Name=name;lastCu8Metadata=metadata;
+     $("image-decode-last").disabled=false;
+     errorText("image-decode-status","Latest real WebUSB CU8 available: "+name+
+       ". To attempt actual ISS SSTV from its raw I/Q choose Decode last USB capture. "+
+       "No decoder is started automatically, no image is claimed.");
+   }
+ };
 }
