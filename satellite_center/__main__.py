@@ -506,13 +506,21 @@ class Station:
         if coverage_goal not in ("full", "sample"):
             raise ValueError("Coverage goal must be full or sample")
         chosen = dict.fromkeys(mission_ids)
-        needed = {("rtl_sdr" if mode == "iq" else "rtl_fm")
-                  for mid in chosen for _, _, mode in [candidates[mid]]}
-        if "iss-aprs" in chosen:
-            needed.add("multimon-ng")
-        missing = sorted(tool for tool in needed if not shutil.which(tool))
-        if missing:
-            raise RuntimeError("Cannot arm automatic reception: missing installed tools " + ", ".join(missing))
+        # Missing optional decoders must not block other user-approved media.
+        requested_targets = list(chosen)
+        missing_per_mission = {}
+        for mid in chosen:
+            _norad, _profile, required_mode = candidates[mid]
+            required = (["rtl_sdr"] if required_mode == "iq" else
+                        ["rtl_fm", "multimon-ng"] if required_mode == "aprs" else
+                        ["rtl_fm"])
+            absent = [tool for tool in required if not shutil.which(tool)]
+            if absent:
+                missing_per_mission[mid] = absent
+        chosen = dict.fromkeys(mid for mid in chosen if mid not in missing_per_mission)
+        if not chosen:
+            raise RuntimeError("No selected mode has installed receiver/decoder tools: " +
+                               "; ".join(k+": "+", ".join(v) for k,v in missing_per_mission.items()))
         # The single click authorizes bounded on-demand orbit refresh, never
         # auto-starts a receiver or changes unrelated services.
         sources = {"iss" if mid.startswith("iss") else
@@ -536,7 +544,8 @@ class Station:
                 except (KeyError, ValueError):
                     continue
         new_jobs = []
-        skipped = []
+        skipped = [mid+": missing tools "+", ".join(absent)
+                   for mid, absent in missing_per_mission.items()]
         now_utc = now()
         free_on_disk = shutil.disk_usage(self.archive).free
         reserved_bytes = sum(int(j.get("estimated_bytes") or 0) for j in self.jobs
@@ -597,7 +606,8 @@ class Station:
             reserved_bytes += plan["estimated_bytes"]
             existing.append((aos, los))
         return {"scheduled": new_jobs, "scheduled_count": len(new_jobs),
-                "skipped": skipped[:20], "requested_targets": list(chosen),
+                "skipped": skipped[:20], "requested_targets": requested_targets,
+                "disabled_targets": list(missing_per_mission),
                 "receiver_claimed": False,
                 "status": "armed_not_received" if new_jobs else "no_eligible_nonoverlapping_passes",
                 "warnings": prediction["warnings"] +
@@ -652,9 +662,12 @@ class Station:
                     continue
                 if selected < end+timedelta(seconds=20) and los > start-timedelta(seconds=20):
                     raise ValueError("An existing job needs the same receiver during this pass")
+            reserved_by_others = sum(int(other.get("estimated_bytes") or 0)
+                                     for other in self.jobs if other is not job and
+                                     other.get("state") in ("pending", "running"))
             plan = plan_capture_budget(aos, los, mission_id,
-                         free_bytes=shutil.disk_usage(self.archive).free+
-                                    int(job.get("estimated_bytes") or 0),
+                         free_bytes=max(0, shutil.disk_usage(self.archive).free-
+                                        reserved_by_others),
                          goal=job.get("coverage_goal", "full"),
                          start_at=selected-timedelta(seconds=10))
             if not plan["feasible"]:
