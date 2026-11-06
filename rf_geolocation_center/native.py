@@ -158,7 +158,7 @@ Approve only if you started this local service and wish to connect your own TV t
 <p><strong>No scan starts now.</strong> TV scans still require a separate button click. Permission is not shared with other websites.</p>
 <button id="approve">Approve this tab</button><p id="status">Otherwise just close this window.</p>
 <small>Private localhost bridge · no token to copy or paste</small></main>
-<script nonce="{nonce}">{script}</script></body></html>""").format(nonce=script_nonce, script=js)
+<script nonce="PAIR_SCRIPT_NONCE">PAIR_SCRIPT_BODY</script></body></html>""").replace("PAIR_SCRIPT_NONCE", script_nonce).replace("PAIR_SCRIPT_BODY", js)
         data = body.encode("utf-8")
         self.send_response(200)
         self.send_header("Content-Type", "text/html; charset=utf-8")
@@ -309,7 +309,7 @@ def doctor():
         "static_assets": len(ASSETS),
         "binding": "loopback-only when running serve",
         "rf_receiver": "NOT IMPLEMENTED",
-        "dvb_bridge": "REAL LINUX DVBv5 VIA OPT-IN LOOPBACK SCAN; TOKEN REQUIRED",
+        "dvb_bridge": "REAL LINUX DVBv5 VIA OPT-IN LOOPBACK; LOCAL APPROVAL PAIRING (NO TOKEN PASTE)",
         "dvb_backend_status": DVB.capabilities(),
         "native_gnss_decoder": "NOT IMPLEMENTED",
         "gnss_positional_provider": "browser geolocation / imported or Web Serial NMEA only",
