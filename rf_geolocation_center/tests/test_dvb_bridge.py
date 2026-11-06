@@ -86,6 +86,9 @@ class DVBBridgeTests(unittest.TestCase):
             with contextlib.closing(request("local")) as response:
                 body = response.read().decode()
                 self.assertIn(root, body)
+            with contextlib.closing(urlopen(root + "/pair?origin=local&from=localhost&nonce=" + nonce,
+                                            timeout=3)) as response:
+                self.assertIn("http://localhost:", response.read().decode())
             with self.assertRaises(HTTPError) as err:
                 request("evil.example")
             self.assertEqual(err.exception.code, 403)
@@ -124,6 +127,11 @@ class DVBBridgeTests(unittest.TestCase):
             with contextlib.closing(urlopen(opt, timeout=3)) as response:
                 self.assertEqual(response.status, 204)
                 self.assertEqual(response.headers.get("Access-Control-Allow-Origin"), "https://tihulu.github.io")
+            private_opt = Request(root + "/api/dvb/capabilities", method="OPTIONS",
+                    headers={"Origin": "https://tihulu.github.io",
+                             "Access-Control-Request-Private-Network": "true"})
+            with contextlib.closing(urlopen(private_opt, timeout=3)) as response:
+                self.assertEqual(response.headers.get("Access-Control-Allow-Private-Network"), "true")
             request = Request(root + "/api/dvb/scan", method="POST",
                               headers={"Origin": "https://tihulu.github.io",
                                        "X-Tihulu-Bridge-Token": DVB.token,
