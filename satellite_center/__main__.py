@@ -201,7 +201,7 @@ def _linux_receiver_processes(proc=Path("/proc")):
                 pass
     except OSError:
         pass
-    return hits[:20]
+    return sorted(hits, key=lambda entry: entry['pid'])[:20]
 
 
 def detect_busy():

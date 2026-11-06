@@ -2,7 +2,7 @@
 # User-local install: Debian/Ubuntu/Pop!_OS, Raspberry Pi OS, macOS arm64/x86_64.
 set -euo pipefail
 REPO="https://github.com/Tihulu/TIHULU-TEXT-CENTER.git"
-CHANNEL="${TIHULU_CHANNEL:-feature/satellite-center-standalone-2026-11-06}"
+CHANNEL="${TIHULU_CHANNEL:-feature/satellite-auto-discovery-integrated-2026-11-06}"
 APP_DIR="${TIHULU_APP_DIR:-$HOME/.local/share/tihulu-satellite-center-app}"
 BIN_DIR="$HOME/.local/bin"
 if ! command -v git >/dev/null; then echo "git is required; install git and rerun." >&2; exit 1; fi
@@ -29,8 +29,8 @@ exec "$APP_DIR/.venv-satellite/bin/python" -m satellite_center serve --port 8791
 EOF
 chmod 755 "$BIN_DIR/tihulu-satellite"
 
-# Standalone WebUSB window is the primary desktop shortcut; no local backend
-# is launched by it. Kept separate from the optional local companion command.
+# Browser-only WebUSB is secondary. On Debian/Firefox the PRIMARY launcher
+# starts the native loopback SDR backend; this avoids File System Access limits.
 WEB_URL="https://tihulu.github.io/TIHULU-TEXT-CENTER/satellite_center/browser/"
 WEB_LAUNCH="$BIN_DIR/tihulu-satellite-web"
 cat > "$WEB_LAUNCH" <<'EOF'
@@ -72,8 +72,8 @@ case "$(uname -s)" in
     cat > "$HOME/.local/share/applications/tihulu-satellite-web.desktop" <<EOF
 [Desktop Entry]
 Type=Application
-Name=TIHULU Satellite Center
-Comment=WebUSB satellite receiver in a standalone Chromium window
+Name=TIHULU Satellite Center (Browser WebUSB)
+Comment=Optional browser-only planner, requires Chromium for direct RTL-SDR USB
 Exec=$WEB_LAUNCH
 Icon=tihulu-satellite
 Terminal=false
@@ -85,8 +85,8 @@ EOF
     cat > "$HOME/.local/share/applications/tihulu-satellite.desktop" <<EOF
 [Desktop Entry]
 Type=Application
-Name=TIHULU Satellite Center (Local Companion)
-Comment=Optional localhost radio decoding and scheduled satellite captures
+Name=TIHULU Satellite Center
+Comment=Native Debian/Pop!_OS RTL-SDR recording, offline pass planning and long captures
 Exec=$BIN_DIR/tihulu-satellite
 Icon=tihulu-satellite
 Terminal=false
@@ -94,7 +94,7 @@ StartupNotify=true
 Categories=Education;Science;HamRadio;
 EOF
     command -v gtk-update-icon-cache >/dev/null 2>&1 && gtk-update-icon-cache -f "$HOME/.local/share/icons/hicolor" >/dev/null 2>&1 || true
-    echo "App icons registered: TIHULU Satellite Center (browser) and Local Companion."
+    echo "Desktop launchers registered: TIHULU Satellite Center (native default) and optional Browser WebUSB."
     echo "Pin the TIHULU Satellite Center launcher to the COSMIC dock from the Applications menu."
     echo "If Chromium isn't installed, Firefox can show the planner, but cannot directly open WebUSB."
     echo "Optional RTL-SDR CLI tools for the local companion: sudo apt install rtl-sdr multimon-ng"
@@ -107,7 +107,7 @@ EOF
     ;;
   *) echo "Use Windows install.ps1 on Windows." >&2; exit 1;;
 esac
-echo "WebUSB browser application: $WEB_LAUNCH (no local SDR service)"
-echo "Optional local decoder companion: $BIN_DIR/tihulu-satellite"
+echo "Native SDR application: $BIN_DIR/tihulu-satellite (works with Firefox; local backend)"
+echo "Optional browser WebUSB: $WEB_LAUNCH (Chromium required for RF capture)"
 echo "Local dashboard: http://127.0.0.1:8791/"
 echo "No USB driver, RF capture, remote listener or background daemon was silently activated."

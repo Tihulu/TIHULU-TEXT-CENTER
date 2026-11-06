@@ -1,3 +1,33 @@
+
+### Debian / Pop!_OS — native, Firefox-compatible SDR application
+
+The **preferred Linux desktop launcher** is now the local RTL-SDR receiver
+(`tihulu-satellite-center` from the Debian package, or `tihulu-satellite`
+from the user-local source installer), not the WebUSB-only website. It
+serves the existing Satellite Center UI at `http://127.0.0.1:8791/`,
+which opens in your normal browser **including Firefox**. RF capture
+runs through native `rtl_sdr` / `rtl_fm` tools; it does **not** depend
+on Firefox's missing File System Access or WebUSB APIs.
+
+A native Debian `.deb` (source + shared UI + icons, using Debian's own
+`python3-skyfield` and `rtl-sdr` packages) is built and smoke-tested
+in GitHub Actions: `.github/workflows/satellite-debian-package.yml`.
+Install the downloaded artifact with `sudo apt install ./tihulu-satellite-center_*.deb`.
+Open **TIHULU Satellite Center** from Applications or run
+`tihulu-satellite-center`. Use **Satellite Images & Data → Auto Schedule
+& Capture** for native long Meteor image candidates, or the supported
+native pass scheduler for other allowlisted receive-only modes.
+Use `tihulu-satellite-center doctor` to inspect installed tools
+without accessing RF. Actual USB opening needs udev/device permissions;
+`rtl_test -t` should succeed. User-specific recordings stay under
+`~/.local/share/tihulu-satellite-center/`. No background daemon or
+hardware operation is enabled by installation.
+
+For a non-root user-local install, `install/install.sh` now defaults
+to this branch's native desktop launcher; the separate web-only icon
+remains available for Chromium users. Debian package is marked preview
+until a physical RTL-SDR pass capture and end-to-end image decode pass.
+
 # TIHULU Satellite Center — standalone companion v0.2.3
 
 ## One-click Satellite Auto-Capture & Decode (2026-11-06 draft)
