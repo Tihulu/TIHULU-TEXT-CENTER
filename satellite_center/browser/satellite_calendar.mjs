@@ -107,6 +107,7 @@ export function renderSatelliteCalendar(host,jobs,day,{onEdit=null,onCancel=null
    const duration=jobDurationSeconds(job);
    const card=document.createElement("article");
    card.className="sat-calendar-job"+(firstSegment?"":" sat-calendar-continued");
+   if(job?.id)card.dataset.jobId=String(job.id);
    const lineTitle=document.createElement("strong");
    const title=String(job.satellite||job.name||job.mission_id||"Unattributed satellite");
    lineTitle.textContent=title+(firstSegment?"":" · continues");

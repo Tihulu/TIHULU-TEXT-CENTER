@@ -87,3 +87,8 @@ test("Calendar rows cannot shrink under tall capture cards and overlap other hou
 function requireCss(){
  return readFileSync(new URL("../satellite_center/browser/browser.css",import.meta.url),"utf8");
 }
+
+test("Calendar cards are keyed to their live job identifiers",()=>{
+ const js=readFileSync(new URL("../satellite_center/browser/satellite_calendar.mjs",import.meta.url),"utf8");
+ assert.match(js,/card\.dataset\.jobId=String\(job\.id\)/);
+});

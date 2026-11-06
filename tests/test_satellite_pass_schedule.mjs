@@ -94,3 +94,10 @@ test("UI has pass/satellite sorting and actionable scheduler/preflight controls"
  assert.ok(map.includes('natural-earth-land-110m.geojson'));
  assert.ok(map.includes('referrerPolicy:"strict-origin-when-cross-origin"'));
 });
+
+test("Repeated browser ticks update countdown in place, preserving opened controls",()=>{
+ const js=fs.readFileSync(new URL("../satellite_center/browser/browser.js",import.meta.url),"utf8");
+ assert.match(js,/signature===lastRenderedJobCardsSignature/);
+ assert.match(js,/panel\.querySelector\('\.job-state'\)/);
+ assert.match(js,/editingCard&&editedJob\?\.state==='armed'/);
+});
