@@ -131,6 +131,24 @@
       </div>
     </div>
     <div class="live-dock-controls"><button type="button" id="live-dock-mute">MUTE</button><label for="live-dock-volume">VOLUME</label><input type="range" id="live-dock-volume" min="0" max="100" value="80" aria-label="Radio and TV player volume"><span id="live-dock-recording">RECORD OFF</span></div>
+    <div id="live-caption-switches" class="live-caption-switches" hidden>
+      <label><input type="checkbox" id="live-captions-enabled"> Captions</label>
+      <label><input type="checkbox" id="live-caption-original" checked> Original text</label>
+      <label><input type="checkbox" id="live-caption-translation" checked> Translation</label>
+      <label class="tv-caption-source">Subtitle source
+        <select id="live-caption-source">
+          <option value="auto">Auto · Teletext → speech fallback</option>
+          <option value="teletext">Teletext only</option>
+          <option value="speech">Speech recognition only</option>
+        </select>
+      </label>
+      <label>Translate to
+        <select id="live-caption-target">
+          <option value="off">Off</option><option value="en">English</option>
+          <option value="de">German</option><option value="tr">Turkish</option>
+        </select>
+      </label>
+    </div>
     <p id="live-dock-station-meta" class="live-dock-metadata">No current live station metadata. Previously received RDS is labelled historical.</p>
     <audio id="persistent-radio-player" controls preload="none" aria-label="Continuous local FM radio" hidden></audio>
     <div id="live-dock-radio-captions" class="live-dock-caption" hidden aria-live="polite"></div>
