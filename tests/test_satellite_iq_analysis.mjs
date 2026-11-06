@@ -29,7 +29,7 @@ test("complex FFT frequency of a known positive-offset IQ tone is grounded in ra
  assert.equal(report.spectrumDb.length,N);
  assert.equal(report.waterfallDb.length,16);
  assert.equal(report.waterfallDb[0].length,256);
- assert.match(report.warning,/not a confirmed satellite/);
+ assert.match(report.warning,/not a confirmed satellite/i);
 });
 test("spectral peak correctly handles negative complex baseband frequencies",()=>{
  const report=analyzeIqWindows(tone(-64,8),{sampleRate:FS,centerHz:137900000});
