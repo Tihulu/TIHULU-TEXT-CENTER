@@ -52,6 +52,7 @@ def main():
             self.preferences = ChannelPreferences()
             self.scan_monitor = None
             self.bridge = None
+            self.last_playback_error = False
             self.latest = {"original": "", "translated": "", "source": "none"}
             self.channels = []
             self.setStyleSheet("""
@@ -522,20 +523,43 @@ def main():
                              name="tihulu-tv-region-scan").start()
 
         def play(self):
-            idx = self.channel_list.currentRow()
-            if not 0 <= idx < len(self.channels):
-                QMessageBox.information(self, "Select a channel", "Choose a channel from the list.")
+            idx=self.channel_list.currentRow()
+            if not 0<=idx<len(self.channels):
+                QMessageBox.information(self,"Select a channel",
+                    "Choose a channel from the list; stored channel names alone do not verify reception.")
                 return
+            channel=self.channels[idx]
             self.stop()
+            self.last_playback_error=False
+            self.player_hint.setText(
+                "Tuning "+channel.name+"…\\nWaiting for real DVB transport packets")
+            self.player_hint.show()
+            self.playback_detail.setText(
+                "TUNE REQUESTED · "+channel.name+" · "+
+                format_frequency(channel)+" · service "+str(channel.service_id))
+            self.playback_diagnostics.append(
+                "Tune request: "+channel.name+" / "+format_frequency(channel)+
+                " · Scan file: "+str(channel.path))
             try:
-                self.capture.start(self.channels[idx], int(self.video.winId()), self.hw.currentText(),
-                                   self.renderer.currentText())
+                self.capture.start(channel,int(self.video.winId()),
+                                   self.hw.currentText(),self.renderer.currentText())
                 self.apply_mode()
-            except (RuntimeError, OSError, ValueError) as exc:
-                QMessageBox.warning(self, "TV receiver", str(exc))
+            except (RuntimeError,OSError,ValueError) as exc:
+                self.last_playback_error=True
+                message="Tune failed: "+str(exc)
+                self.player_hint.setText(message)
+                self.playback_detail.setText(message)
+                self.playback_diagnostics.append(message)
+                QMessageBox.warning(self,"DVB tune failed",message)
 
         def stop(self):
             self.capture.stop()
+            if hasattr(self,"player_hint"):
+                self.player_hint.setText("Receiver stopped · select a channel to watch")
+                self.player_hint.show()
+            if hasattr(self,"playback_detail") and not self.last_playback_error:
+                self.playback_detail.setText(
+                    "Receiver stopped · USB/DVB device released by this application")
 
         def choose_model(self):
             file, _ = QFileDialog.getOpenFileName(self, "Select installed multilingual Whisper GGML model", str(Path.home()), "Whisper GGML models (*.bin);;All files (*)")
@@ -632,8 +656,36 @@ def main():
                             f"UCB change: {info['ucb_delta']} | "
                             f"Loss indications: {info['loss_indications']} | "
                             f"Readings: {info['lock_readings']}")
+                elif kind == "verified_stream":
+                    self.player_hint.hide()
+                    self.playback_detail.setText(
+                        "REAL DVB TRANSPORT VERIFIED · "+str(info.get("channel"))+
+                        " · service "+str(info.get("service_id"))+
+                        " · "+str(info.get("packets"))+" packets inspected")
+                    self.playback_diagnostics.append(
+                        "Real MPEG-TS packets and selected PAT/PMT observed. "
+                        "Video rendering is a separate step.")
+                    self.last_playback_error=False
                 elif kind in ("status", "warning", "error"):
-                    self.statusbar.setText(str(info))
+                    message=str(info)
+                    if kind=="error":
+                        self.last_playback_error=True
+                        self.player_hint.setText(
+                            "Cannot play this DVB service\\n\\n"+
+                            message+"\\n\\nSee Reception & diagnostics.")
+                        self.player_hint.show()
+                        self.playback_detail.setText("PLAYBACK FAILED · "+message)
+                        self.playback_diagnostics.append("ERROR · "+message)
+                        self.statusbar.setText("Playback error · "+message)
+                        # Release only our own tuner/player processes.
+                        self.capture.stop()
+                    elif kind=="warning":
+                        self.playback_diagnostics.append("WARNING · "+message)
+                        if not self.last_playback_error:
+                            self.statusbar.setText(message)
+                    elif not self.last_playback_error:
+                        self.playback_diagnostics.append("STATUS · "+message)
+                        self.statusbar.setText(message)
 
         def closeEvent(self, event):
             self.scanner.cancel()
