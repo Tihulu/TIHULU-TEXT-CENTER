@@ -12,7 +12,7 @@ UPSTREAM = "https://github.com/KDE/kaffeine.git"
 TAG = "v2.0.19"
 REVISION = "e7ea15b86dafed3b20b151cbcb080578ab8e2d5c"
 PATHS = ("src/mainwindow.cpp", "src/dvb/dvbliveview.cpp",
-         "src/dvb/dvbliveview_p.h")
+         "src/dvb/dvbliveview_p.h", "src/dvb/dvbmanager.cpp", "src/dvb/dvbtab.cpp")
 
 def transform(files):
     files = dict(files)
@@ -112,6 +112,43 @@ def transform(files):
 		if (writeFd >= 0) {
 			buffers.append(buffer);
 ''')
+    # Use Kaffeine's OWN DVB scan engine; absolutely no w_scan_cpp,
+    # dvbv5-scan background child, or second frontend ownership. These
+    # multiplexes were physically detected on the original local setup.
+    # The user opts into this targeted source from native Configure Television.
+    manager = "src/dvb/dvbmanager.cpp"
+    change(manager, '''\treturn scanSources.value(type);
+}''', '''\tQStringList list = scanSources.value(type);
+\tif (type == DvbT2)
+\t\tlist.prepend(QLatin1String("TIHULU tested: 538 / 586 / 626 MHz"));
+\treturn list;
+}''')
+    change(manager, '''\treturn scanData.value(scanSource);
+}''', '''\t// Selectable, native Kaffeine scan source based on real DVB-T2
+\t// multiplexes previously received with this adapter. Not a fake
+\t// channel list, and not a replacement for Auto scan.
+\tif (scanSource.first == DvbT2 &&
+\t    scanSource.second == QLatin1String("TIHULU tested: 538 / 586 / 626 MHz")) {
+\t\tQList<DvbTransponder> known;
+\t\tconst int hz[] = { 538000000, 586000000, 626000000 };
+\t\tfor (int frequency : hz) {
+\t\t\tDvbTransponder transponder = DvbTransponder::fromString(
+\t\t\t\tQString::fromLatin1("T2 %1 8MHz AUTO AUTO AUTO AUTO AUTO AUTO 0")
+\t\t\t\t\t.arg(frequency));
+\t\t\tif (transponder.isValid())
+\t\t\t\tknown.append(transponder);
+\t\t}
+\t\tif (known.size() != 3)
+\t\t\tqCWarning(logDvb, "TIHULU: expected three valid DVB-T2 scan transponders");
+\t\treturn known;
+\t}
+\treturn scanData.value(scanSource);
+}''')
+    # Keep native Kaffeine left channel sidebar + video + playback buttons.
+    # Only clarify the built-in "Channels" control also opens scan.
+    tab = "src/dvb/dvbtab.cpp"
+    change(tab, 'i18n("Channels"), this);',
+           'i18n("Channels / Antenna Scan"), this);')
     return files
 
 def apply(root: Path):
