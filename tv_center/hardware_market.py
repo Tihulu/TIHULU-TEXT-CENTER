@@ -80,6 +80,19 @@ def detect_hardware():
     except OSError:
         pass
     npu=list(Path("/dev").glob("hailo*"))
+    intel_npu = False
+    try:
+        import openvino as ov
+        intel_npu = any(device.split(".")[0] == "NPU"
+                        for device in ov.Core().available_devices)
+    except (ImportError,OSError,RuntimeError):
+        pass
+    # /dev/accel may indicate Intel NPU hardware but does not prove an
+    # OpenVINO speech model can execute there.
+    accel = list(Path("/dev/accel").glob("accel*"))
+    available_npu = [p.name for p in npu] + (
+        ["Intel OpenVINO NPU"] if intel_npu else
+        ["Intel accel node (runtime unverified)"] if accel else [])
     return {
         "cpu": platform.processor() or platform.machine() or "CPU",
         "architecture": platform.machine(),
@@ -97,11 +110,13 @@ def detect_hardware():
                    if name and not nvcc else
                    "CUDA compile toolchain detected; inference still requires a compiled runtime and tested model"
                    if name else "No NVIDIA GPU found")},
-        "npu":{"detected":bool(npu),"devices":[p.name for p in npu],
+        "npu":{"detected":bool(available_npu),"devices":available_npu,
                "ready":False,
-               "detail":("Hailo present; install a compatible Hailo Whisper pipeline, "
-                         "not ordinary GGML CUDA models" if npu else
-                         "No Hailo device found; optional NPU is not required")},
+               "detail":("Hailo detected: requires a compatible Hailo HEF/NPY Whisper pipeline"
+                         if npu else
+                         "Intel NPU detected: requires OpenVINO GenAI and NPU-exported Whisper model"
+                         if available_npu else
+                         "No NPU detected; optional NPU is not required")},
         "raspberry_pi_5":pi5,
     }
 
