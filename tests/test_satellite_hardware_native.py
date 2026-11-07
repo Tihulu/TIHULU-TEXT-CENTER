@@ -87,6 +87,36 @@ class NativeHardwareTests(unittest.TestCase):
         self.assertIsNone(self.station.process)
         self.assertFalse(self.station.receiver_enabled)
 
+    def test_dual_native_capture_uses_same_iq_file_for_real_fm_conversion(self):
+        report={"output_wav":str(self.station.archive/"from_real_iq_fm.wav")}
+        with patch.object(self.station,"capture",return_value={
+            "file":"native_real_recording.cu8","mode":"iq","bytes":1048576
+        }) as captured, patch(
+            "satellite_center.native_signal_tools.fm_to_wav",return_value=report
+        ) as demodulated:
+            result=self.station.capture_dual("iss_sstv",30)
+        self.assertEqual(result["mode"],"iq_and_fm_wav")
+        self.assertEqual(result["wav"],"from_real_iq_fm.wav")
+        self.assertEqual(captured.call_args.args[:3],("iss_sstv","iq",30))
+        self.assertEqual(demodulated.call_args.args[0],
+                         self.station.archive/"native_real_recording.cu8")
+        with self.assertRaisesRegex(ValueError,"ISS audio profile"):
+            self.station.capture_dual("meteor",30)
+
+    def test_local_tle_import_is_bounded_and_never_claims_a_downlink(self):
+        source=self.path/"saved_iss.tle"
+        source.write_text("\\n".join([
+            "ISS (ZARYA)",
+            ("1 25544U 98067A   26311.35246347  .00001234  00000-0  29639-4 0  9996").ljust(70),
+            ("2 25544  51.6345 159.7912 0005428  79.9879  38.5994 15.50433348711115").ljust(70),
+        ])+"\\n")
+        report=self.station.import_tle(source,"iss")
+        self.assertEqual(report["tle_count"],1)
+        self.assertFalse(report["radio_signal_verified"])
+        self.assertTrue((self.path/"iss.tle").is_file())
+        with self.assertRaisesRegex(ValueError,"does not match"):
+            self.station.import_tle(source,"meteor3")
+
     def test_sample_test_rejects_invented_frequency(self):
         with self.assertRaisesRegex(ValueError, "published receive-only"):
             self.station.sample_test(9999)
