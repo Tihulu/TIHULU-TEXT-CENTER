@@ -22,7 +22,7 @@ class NativeChainedCaptureTests(unittest.TestCase):
         }}
         attempts = []
 
-        def fake_schedule(pass_id, profile, mode, run_at=None, seconds=None):
+        def fake_schedule(pass_id, profile, mode, run_at=None, seconds=None, *, automatic=False, sample_rate=1024000):
             attempts.append((run_at, seconds))
             if fail_second and len(attempts) == 2:
                 raise ValueError("Simulated failure while creating the second part")
