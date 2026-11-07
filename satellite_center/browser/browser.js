@@ -1213,81 +1213,76 @@ function showCalendarEdit(job,card){
  if(job.state!=='armed')return;
  const existing=card.querySelector('.calendar-edit');
  if(existing){existing.remove();return;}
+ const series=job.groupId?jobs.filter(j=>j.groupId===job.groupId):[job];
+ if(series.some(j=>j.state!=='armed')){
+   status('schedule-readiness','A segment of this series has already begun. Only pending segments may be cancelled individually.');
+   return;
+ }
+ const base=series.reduce((a,j)=>j.when<a.when?j:a,series[0]);
+ const total=series.reduce((n,j)=>n+j.durationSeconds,0);
  const form=document.createElement('form');form.className='calendar-edit';
  const addField=(name,control)=>{
    const label=document.createElement('label');label.textContent=name;label.append(control);form.append(label);
  };
  const time=document.createElement('input');time.type='datetime-local';
- time.required=true;time.value=localDateInput(job.when);
- addField('Start · device local time',time);
+ time.required=true;time.value=localDateInput(base.when);
+ addField('Series start · device local time',time);
  const freq=document.createElement('select');
- const choices=scheduleFrequencyChoices(job.family,{id:job.passId});
- if(!choices.some(v=>v[0]===job.frequency))choices.unshift([job.frequency,'Current: '+(job.frequency/1e6).toFixed(3)+' MHz']);
+ const choices=scheduleFrequencyChoices(base.family,{id:base.passId});
+ if(!choices.some(v=>v[0]===base.frequency))choices.unshift([base.frequency,'Current: '+(base.frequency/1e6).toFixed(3)+' MHz']);
  for(const [hz,name] of choices){
    if(hz<24000000||hz>1750000000)continue;
    const o=document.createElement('option');o.value=String(hz);o.textContent=name;freq.append(o);
  }
- freq.value=String(job.frequency);addField('Known downlink frequency',freq);
+ freq.value=String(base.frequency);addField('Downlink frequency',freq);
  const seconds=document.createElement('input');seconds.type='number';
  seconds.min='1';seconds.max='900';seconds.step='1';seconds.inputMode='numeric';
- seconds.value=String(job.durationSeconds);
- addField('RF sample length · seconds (1–900, disk file for longer IQ)',seconds);
+ seconds.value=String(total);
+ addField('Total recording length (all segments)',seconds);
+ const unit=document.createElement('select');
+ for(const [key,label] of [['seconds','Seconds'],['minutes','Minutes']]){
+   const o=document.createElement('option');o.value=key;o.textContent=label;unit.append(o);
+ }
+ addField('Length unit',unit);wireDurationUnit(seconds,unit);
  const rate=document.createElement('select');
  for(const value of [1024000,2048000]){
    const o=document.createElement('option');o.value=String(value);o.textContent=(value/1e6).toFixed(3)+' MS/s';rate.append(o);
  }
- rate.value=String(job.sampleRate);addField('Sample rate',rate);
- const rawToggle=document.createElement('input');rawToggle.type='checkbox';rawToggle.checked=Boolean(job.saveRaw);
+ rate.value=String(base.sampleRate);addField('Sample rate',rate);
+ const rawToggle=document.createElement('input');rawToggle.type='checkbox';rawToggle.checked=Boolean(base.saveRaw);
  addField('Record raw CU8',rawToggle);
- const wavToggle=document.createElement('input');wavToggle.type='checkbox';wavToggle.checked=Boolean(job.saveWav);
+ const wavToggle=document.createElement('input');wavToggle.type='checkbox';wavToggle.checked=Boolean(base.saveWav);
  addField('Record real FM WAV (48 kHz PCM)',wavToggle);
  const note=document.createElement('p');note.className='hint';
- note.textContent='Edits must fit the predicted pass and SDR availability. Long CU8/WAV edits require selecting a new local file/folder now, while the tab is visible.';
+ note.textContent='Editing this series replaces all '+series.length+
+   ' pending entries atomically with ≤60 s clips (≤32 s at 2.048 MS/s CU8). '+
+   'Receiver restarts cause brief gaps. Each clip is saved as an independent file.';
  form.append(note);
- const save=document.createElement('button');save.type='submit';save.textContent='Save job changes';form.append(save);
+ const save=document.createElement('button');save.type='submit';
+ save.textContent='Replan '+series.length+' task(s)';form.append(save);
  const error=document.createElement('p');error.className='status';error.setAttribute('role','status');form.append(error);
- form.addEventListener('submit',async event=>{
+ form.addEventListener('submit',event=>{
    event.preventDefault();save.disabled=true;
-   let newPrepared=null;
    try{
-     const durationSeconds=Number(seconds.value),sampleRate=Number(rate.value);
-     const plan=inspectCaptureStorage(durationSeconds,sampleRate,rawToggle.checked,wavToggle.checked);
-     const pass={id:job.passId,name:job.name,family:job.family,
-       aos:job.passAos,los:job.passLos};
-     const next=createScheduledPass(pass,{
-       when:parseLocalScheduleTime(time.value),durationSeconds,
-       sampleRate,frequency:Number(freq.value),
-       saveRaw:rawToggle.checked,saveWav:wavToggle.checked,
-       diskStreamPrepared:plan.rawDisk,wavDiskPrepared:plan.wavDisk
+     const totalSeconds=durationToSeconds(seconds.value,unit.value);
+     const pass={id:base.passId,name:base.name,family:base.family,
+       aos:base.passAos,los:base.passLos};
+     const next=scheduleBrowserSegments(pass,{
+       when:parseLocalScheduleTime(time.value),durationSeconds:totalSeconds,
+       sampleRate:Number(rate.value),frequency:Number(freq.value),
+       saveRaw:rawToggle.checked,saveWav:wavToggle.checked
      });
-     for(const other of jobs){
-       if(other===job||!['armed','starting','running'].includes(other.state))continue;
-       if(next.when<other.when+other.durationSeconds*1000+20000&&
-          next.when+next.durationSeconds*1000>other.when-20000)
-         throw Error('Single receiver conflict with another capture');
-     }
-     if(plan.rawDisk||plan.wavDisk)
-       newPrepared=await selectRecordingFiles(durationSeconds,sampleRate,rawToggle.checked,wavToggle.checked,{
-         job:next,at:new Date(next.when),freq:next.frequency
-       });
-     const previousId=job.id;
-     releaseScheduledStream(job);
-     const mission=Object.entries(AUTO_TARGETS).find(([_,x])=>
-       x.frequencyHz===next.frequency&&x.norad===Number(job.passId));
-     Object.assign(job,next,{
-       createdAt:job.createdAt,missionId:mission?.[0]||undefined,
-       message:'Edited by operator. Browser must remain visible and awake.'
-     });
-     if(newPrepared){preparedLongStreams.set(job.id,newPrepared);newPrepared=null;}
-     jobs.sort((a,b)=>a.when-b.when);
-     form.remove();
-     browserCalendarSignature='';renderJobs();
-     status('schedule-readiness',"Updated "+previousId+" to "+durationSeconds+
-       " seconds; SDR remains released.");
-   }catch(error){
-     if(newPrepared?.writable||newPrepared?.wavWritable)await abortLongCapture(newPrepared);
-     error.textContent='Changes not saved: '+String(error?.message||error);
-   }finally{save.disabled=false;}
+     const originalIds=series.map(j=>j.id);
+     assertNoCaptureConflicts(next.jobs,originalIds);
+     for(const old of series)releaseScheduledStream(old);
+     const oldIds=new Set(originalIds);
+     jobs=jobs.filter(j=>!oldIds.has(j.id));
+     jobs.push(...next.jobs);jobs.sort((a,b)=>a.when-b.when);
+     form.remove();browserCalendarSignature='';renderJobs();
+     status('schedule-readiness','Replanned '+next.jobs.length+
+       ' RF clip(s) · '+scheduleBatchText(next)+' · SDR remains released.');
+   }catch(err){error.textContent='Replan not saved: '+String(err?.message||err);}
+   finally{save.disabled=false;}
  });
  card.append(form);
 }
