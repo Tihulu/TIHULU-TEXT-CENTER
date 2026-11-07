@@ -1,5 +1,16 @@
 # TIHULU Satellite Center 0.3.0 — NATIVE desktop application
 
+**Qt desktop/browser parity audit:** [NATIVE_WEB_PARITY.md](NATIVE_WEB_PARITY.md)
+tracks shipped features, their receive-only evidence limitations and
+unverified hardware/release gates. Maps & Live includes native OpenStreetMap,
+sky/earth pins, 1-second orbital tracking, ±45-minute orbit traces,
+selected/all track scopes, radio-data format filters, image candidate details
+and PNG/GeoJSON map export. Overview has the same three-step
+Auto Schedule/Analyze/Extract workflow; Recordings & results provides native
+CU8 FFT, FM WAV, Robot36, SatDump and ZIP outputs. Saved protocols
+supports direct JSON interchange with the separate web project.
+
+
 **Primary Debian / Ubuntu / Pop!_OS program: Qt Widgets — NOT a website.**
 Launching from the Applications menu or running `tihulu-satellite-center`
 opens a genuine Qt5 desktop window with native select boxes, controls,

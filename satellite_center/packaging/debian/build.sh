@@ -4,7 +4,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/../../.."
 if ! command -v dpkg-deb >/dev/null; then echo "dpkg-deb is required" >&2; exit 1; fi
-VERSION="${TIHULU_DEB_VERSION:-0.3.0~preview3}"
+VERSION="${TIHULU_DEB_VERSION:-0.3.0~preview4}"
 case "$VERSION" in *[!a-zA-Z0-9.+:~-]*|"") echo "Invalid Debian package version" >&2; exit 1;; esac
 ROOT="$(mktemp -d)"
 trap 'rm -rf "$ROOT"' EXIT
@@ -28,7 +28,7 @@ Priority: optional
 Architecture: all
 Maintainer: TIHULU Project <noreply@github.com>
 Depends: python3 (>= 3.11), python3-pyqt5, python3-numpy, python3-skyfield, rtl-sdr, xdg-utils
-Recommends: multimon-ng, qtwayland5
+Recommends: multimon-ng, qtwayland5, python3-pyqt5.qtmultimedia
 Description: TIHULU Satellite Center real native Qt desktop for Debian
  Independent Qt Widgets SDR desktop (no browser or embedded WebView),
  receive-only rtl_sdr USB, pass schedules, long on-disk raw IQ recording,
