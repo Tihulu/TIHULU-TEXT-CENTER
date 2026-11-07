@@ -469,6 +469,13 @@ class SatelliteWindow(QMainWindow):
         top.addWidget(self.home_auto_length,1)
         top.addWidget(self.home_auto_goal,2)
         w.addLayout(top)
+        self.home_iss_format=QComboBox()
+        self.home_iss_format.addItem("WAV · actual FM/SSTV audio","wav")
+        self.home_iss_format.addItem("CU8 · original raw RF","cu8")
+        self.home_iss_format.addItem("CU8 + WAV · from same native RF capture","both")
+        form_formats=QFormLayout()
+        form_formats.addRow("ISS recording format",self.home_iss_format)
+        w.addLayout(form_formats)
         steps=QHBoxLayout()
         self.home_auto=self._button("2   Auto schedule & capture",self._home_auto)
         self.home_analyze=self._button("3   Open & analyze a recording",self._home_analyze)
@@ -832,6 +839,8 @@ class SatelliteWindow(QMainWindow):
         self.coverage.setCurrentIndex(self.coverage.findData(
             self.home_auto_goal.currentData()))
         self.auto_seconds.setValue(self.home_auto_length.value())
+        self.auto_iss_format.setCurrentIndex(
+            self.auto_iss_format.findData(self.home_iss_format.currentData()))
         self.auto_schedule()
 
     def _home_select_station(self,*_):
@@ -3391,6 +3400,7 @@ def main(argv=None):
             assert window.pass_sample_rate.count()==2
             assert window.capture_sample_rate.count()==2
             assert window.home_capture_rate.count()==2
+            assert window.home_iss_format.count()==3
             window.capture_profile.setCurrentIndex(
                 window.capture_profile.findData("meteor"))
             window.capture_mode.setCurrentIndex(window.capture_mode.findData("iq"))
