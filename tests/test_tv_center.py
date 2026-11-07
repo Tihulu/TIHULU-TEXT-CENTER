@@ -54,8 +54,8 @@ class NativeTVTests(unittest.TestCase):
             head = bytes([0x47, ((pid >> 8) & 0x1f) | (0x40 if start else 0),
                           pid & 0xff, 0x10])
             return head + payload + bytes([0xff]) * (184-len(payload))
-        chunks = [packet(0, b"\\x00"+pat, True),
-                  packet(0x100, b"\\x00"+pmt, True),
+        chunks = [packet(0, bytes([0])+pat, True),
+                  packet(0x100, bytes([0])+pmt, True),
                   packet(0x200, b"video"),
                   packet(0x201, b"audio"),
                   packet(0x202, b"teletext"),
