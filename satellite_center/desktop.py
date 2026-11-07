@@ -1016,6 +1016,41 @@ class SatelliteWindow(QMainWindow):
             self.home_region.addItem(region,region)
         self.home_region.blockSignals(False)
         self._home_find_city()
+        self._sync_home_region_to_detail()
+
+    def _sync_home_region_to_detail(self):
+        """One country/region filter state, not two contradictory selectors."""
+        if not hasattr(self,"city_country") or not hasattr(self,"city_region"):
+            return
+        cc=self.home_country.currentData() or "all"
+        if self.city_country.currentData()!=cc:
+            self.city_country.blockSignals(True)
+            self.city_country.setCurrentIndex(self.city_country.findData(cc))
+            self.city_country.blockSignals(False)
+            self._refresh_city_regions()
+        region=self.home_region.currentData()
+        index=self.city_region.findData(region)
+        if index>=0 and self.city_region.currentIndex()!=index:
+            self.city_region.blockSignals(True)
+            self.city_region.setCurrentIndex(index)
+            self.city_region.blockSignals(False)
+        self._refresh_city_search()
+
+    def _sync_detail_region_to_home(self,*_):
+        if not hasattr(self,"home_country") or not hasattr(self,"home_region"):
+            return
+        cc=self.city_country.currentData() or "all"
+        if self.home_country.currentData()!=cc:
+            self.home_country.blockSignals(True)
+            self.home_country.setCurrentIndex(self.home_country.findData(cc))
+            self.home_country.blockSignals(False)
+            self._home_update_regions()
+        index=self.home_region.findData(self.city_region.currentData())
+        if index>=0 and self.home_region.currentIndex()!=index:
+            self.home_region.blockSignals(True)
+            self.home_region.setCurrentIndex(index)
+            self.home_region.blockSignals(False)
+        self._home_find_city()
 
     def _home_find_city(self,*_):
         if not hasattr(self,"_offline_cities"):
@@ -1024,6 +1059,8 @@ class SatelliteWindow(QMainWindow):
         cc=self.home_country.currentData() or "all"
         region=self.home_region.currentData()
         rows=search_locations(self._offline_cities,query,cc,limit=18,region=region)
+        if hasattr(self,"city_country") and hasattr(self,"city_region"):
+            self._sync_home_region_to_detail()
         self.home_city_results.blockSignals(True)
         self.home_city_results.clear()
         for row in rows:
@@ -1226,6 +1263,7 @@ class SatelliteWindow(QMainWindow):
         self.city_region=QComboBox()
         self.city_region.addItem("All states / provinces",None)
         self.city_region.currentIndexChanged.connect(self._refresh_city_search)
+        self.city_region.currentIndexChanged.connect(self._sync_detail_region_to_home)
         self.city_search=QLineEdit()
         self.city_search.setPlaceholderText(
             "Search 8,084 cities · Hürth, Aachen, İzmir, Karaburun…")
@@ -1386,6 +1424,7 @@ class SatelliteWindow(QMainWindow):
             self.city_region.addItem(region,region)
         self.city_region.blockSignals(False)
         self._refresh_city_search()
+        self._sync_detail_region_to_home()
 
     def _refresh_city_search(self, *_):
         if hasattr(self,"city_search"):
