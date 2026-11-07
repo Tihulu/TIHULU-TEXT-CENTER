@@ -853,7 +853,7 @@ function boundedCatalog(records) {
   for(const obj of records){
     if(ids.has(obj.id))continue;
     const family=obj.family;
-    if(!Object.hasOwn(caps,family)|| (counts[family]||0)>=caps[family])continue;
+    if(!Object.prototype.hasOwnProperty.call(caps,family)|| (counts[family]||0)>=caps[family])continue;
     counts[family]=(counts[family]||0)+1;
     ids.add(obj.id);result.push(obj);
   }
@@ -1168,7 +1168,7 @@ function appendPass(pass){
         totalSeconds+' s recording / '+chain.plan.elapsedSeconds+
         ' s including '+chain.plan.totalGapSeconds+
         ' s reserved gaps. First '+fmtTime(chain.jobs[0].when)+
-        ', last '+fmtTime(chain.jobs.at(-1).when+chain.jobs.at(-1).durationSeconds*1000)+
+        ', last '+fmtTime(chain.jobs[chain.jobs.length-1].when+chain.jobs[chain.jobs.length-1].durationSeconds*1000)+
         '. See the calendar; keep this tab visible. Browser downloads may require permission.';
       log('Operator armed '+chain.jobs.length+' independent CU8/WAV jobs for '+pass.name+
         '; no radio has been claimed. '+chain.plan.warning);
