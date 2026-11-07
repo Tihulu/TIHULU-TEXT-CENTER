@@ -13,7 +13,9 @@ TAG = "v2.0.19"
 REVISION = "e7ea15b86dafed3b20b151cbcb080578ab8e2d5c"
 PATHS = ("src/mainwindow.cpp", "src/dvb/dvbliveview.cpp",
          "src/dvb/dvbliveview_p.h", "src/dvb/dvbmanager.cpp", "src/dvb/dvbtab.cpp",
-         "src/dvb/dvbtab.h", "src/backend-vlc/vlcmediawidget.cpp")
+         "src/dvb/dvbtab.h", "src/backend-vlc/vlcmediawidget.cpp",
+         "src/mediawidget.cpp", "src/mediawidget.h", "src/osdwidget.cpp",
+         "src/osdwidget.h")
 
 def transform(files):
     files = dict(files)
@@ -135,6 +137,159 @@ def transform(files):
 \t\t       tihuluProfile.constData());
 \t}
 \tQStringList argList;''')
+
+    # Kaffeine's OsdWidget already renders ABOVE libVLC's native video
+    # surface. Reuse that mechanism in a *separate* caption OSD so the
+    # original channel/volume OSD and DVB Teletext continue to work.
+    osdh = "src/osdwidget.h"
+    change(osdh, '''\tvoid showText(const QString &text, int duration); // duration: msecs
+''', '''\tvoid showText(const QString &text, int duration); // duration: msecs
+\tvoid showCaption(const QString &text, bool atTop, int pixelSize, int backgroundPercent);
+\tvoid hideCaption();
+''')
+    change(osdh, '''\tOsdObject *osdObject;
+\tQTimer *timer;''', '''\tOsdObject *osdObject;
+\tQTimer *timer;
+\tbool tihuluCaptionMode = false;
+\tbool tihuluCaptionTop = false;
+\tint tihuluCaptionSize = 25;
+\tint tihuluCaptionOpacity = 70;
+\tQString tihuluCaptionText;''')
+    osdc = "src/osdwidget.cpp"
+    change(osdc, '''void OsdWidget::showObject(OsdObject *osdObject_, int duration)
+{''',
+    '''void OsdWidget::showCaption(const QString &text, bool atTop,
+\tint pixelSize, int backgroundPercent)
+{
+\tif (text.isEmpty()) {
+\t\thideCaption();
+\t\treturn;
+\t}
+\tconst QString cleaned = text.left(1100);
+\tif (tihuluCaptionMode && tihuluCaptionText == cleaned &&
+\t    tihuluCaptionTop == atTop && tihuluCaptionSize == pixelSize &&
+\t    tihuluCaptionOpacity == backgroundPercent)
+\t\treturn;
+\ttihuluCaptionMode = true;
+\ttihuluCaptionText = cleaned;
+\ttihuluCaptionTop = atTop;
+\ttihuluCaptionSize = qBound(16, pixelSize, 44);
+\ttihuluCaptionOpacity = qBound(0, backgroundPercent, 100);
+\ttimer->stop();
+\tshow();
+\traise();
+\tupdate();
+}
+
+void OsdWidget::hideCaption()
+{
+\tif (tihuluCaptionMode) {
+\t\ttihuluCaptionMode = false;
+\t\ttihuluCaptionText.clear();
+\t\tsetMask(QRegion());
+\t\thide();
+\t}
+}
+
+void OsdWidget::showObject(OsdObject *osdObject_, int duration)
+{''')
+    change(osdc, '''void OsdWidget::paintEvent(QPaintEvent *)
+{
+\tif (osdObject == NULL) {''',
+    '''void OsdWidget::paintEvent(QPaintEvent *)
+{
+\tif (tihuluCaptionMode) {
+\t\tQFont face = font();
+\t\tface.setPixelSize(tihuluCaptionSize);
+\t\tface.setBold(true);
+\t\tQFontMetrics metrics(face);
+\t\tconst int limit = qMax(200, width() - 56);
+\t\tQRect bounds = metrics.boundingRect(
+\t\t\tQRect(0, 0, limit - 24, height()),
+\t\t\tQt::AlignHCenter | Qt::TextWordWrap, tihuluCaptionText);
+\t\tconst int boxHeight = qMin(qMax(40, bounds.height() + 22), qMax(40, height() - 30));
+\t\tQRect box((width() - limit) / 2,
+\t\t\ttihuluCaptionTop ? 35 : qMax(12, height() - boxHeight - 40),
+\t\t\tlimit, boxHeight);
+\t\tQPainter painter(this);
+\t\tpainter.setRenderHint(QPainter::Antialiasing);
+\t\tpainter.setPen(Qt::NoPen);
+\t\tpainter.setBrush(QColor(0, 0, 0, tihuluCaptionOpacity * 255 / 100));
+\t\tpainter.drawRoundedRect(box, 8, 8);
+\t\tpainter.setFont(face);
+\t\tpainter.setPen(Qt::white);
+\t\tpainter.drawText(box.adjusted(12, 9, -12, -9),
+\t\t\tQt::AlignHCenter | Qt::AlignVCenter | Qt::TextWordWrap,
+\t\t\ttihuluCaptionText);
+\t\tsetMask(box);
+\t\treturn;
+\t}
+\tif (osdObject == NULL) {''')
+
+    mediah = "src/mediawidget.h"
+    change(mediah, '''\tOsdWidget *osdWidget;
+''', '''\tOsdWidget *osdWidget;
+\tOsdWidget *tihuluCaptionWidget;
+''')
+    mediac = "src/mediawidget.cpp"
+    change(mediac, '#include <QComboBox>\n',
+           '#include <QComboBox>\n#include <QCoreApplication>\n'
+           '#include <QDateTime>\n#include <QFile>\n#include <QJsonDocument>\n'
+           '#include <QJsonObject>\n#include <QStandardPaths>\n')
+    change(mediac, '''\tosdWidget = new OsdWidget(this);
+''',
+    '''\tosdWidget = new OsdWidget(this);
+\t// Independent on-video subtitles; native Kaffeine OSD is untouched.
+\ttihuluCaptionWidget = new OsdWidget(this);
+\ttihuluCaptionWidget->setAttribute(Qt::WA_TransparentForMouseEvents);
+\ttihuluCaptionWidget->resize(size());
+\tconst QString runtime = QStandardPaths::writableLocation(QStandardPaths::RuntimeLocation);
+\tif (!runtime.isEmpty()) {
+\t\tconst QString captionPath = runtime + QLatin1String("/tihulu-caption-")
+\t\t\t+ QString::number(QCoreApplication::applicationPid()) + QLatin1String(".json");
+\t\tQTimer *captionPoll = new QTimer(this);
+\t\tconnect(captionPoll, &QTimer::timeout, this, [this, captionPath]() {
+\t\t\tif (source->getType() != MediaSource::Dvb) {
+\t\t\t\ttihuluCaptionWidget->hideCaption();
+\t\t\t\treturn;
+\t\t\t}
+\t\t\tQFile file(captionPath);
+\t\t\tif (!file.exists() || !file.open(QIODevice::ReadOnly)) {
+\t\t\t\ttihuluCaptionWidget->hideCaption();
+\t\t\t\treturn;
+\t\t\t}
+\t\t\tQByteArray bytes = file.read(16385);
+\t\t\tif (bytes.size() > 16384) {
+\t\t\t\ttihuluCaptionWidget->hideCaption();
+\t\t\t\treturn;
+\t\t\t}
+\t\t\tQJsonDocument doc = QJsonDocument::fromJson(bytes);
+\t\t\tif (!doc.isObject()) {
+\t\t\t\ttihuluCaptionWidget->hideCaption();
+\t\t\t\treturn;
+\t\t\t}
+\t\t\tQJsonObject obj = doc.object();
+\t\t\tif (!obj.value(QLatin1String("enabled")).toBool(false) ||
+\t\t\t    obj.value(QLatin1String("expires_ms")).toDouble(0)
+\t\t\t      < static_cast<double>(QDateTime::currentMSecsSinceEpoch())) {
+\t\t\t\ttihuluCaptionWidget->hideCaption();
+\t\t\t\treturn;
+\t\t\t}
+\t\t\ttihuluCaptionWidget->showCaption(
+\t\t\t\tobj.value(QLatin1String("text")).toString(),
+\t\t\t\tobj.value(QLatin1String("position")).toString() == QLatin1String("top"),
+\t\t\t\tobj.value(QLatin1String("size")).toInt(25),
+\t\t\t\tobj.value(QLatin1String("opacity")).toInt(70));
+\t\t});
+\t\tcaptionPoll->start(150);
+\t}
+''')
+    change(mediac, '''\tosdWidget->resize(event->size());
+\tQWidget::resizeEvent(event);''',
+    '''\tosdWidget->resize(event->size());
+\ttihuluCaptionWidget->resize(event->size());
+\ttihuluCaptionWidget->raise();
+\tQWidget::resizeEvent(event);''')
 
     # Use Kaffeine's OWN DVB scan engine; absolutely no w_scan_cpp,
     # dvbv5-scan background child, or second frontend ownership. These
