@@ -21,7 +21,7 @@ import signal
 import subprocess
 import threading
 import time
-from urllib.request import urlopen
+from urllib.request import Request, urlopen
 from urllib.parse import urlsplit
 import uuid
 import wave
@@ -635,7 +635,11 @@ class Station:
         result = {}
         for key, url in SOURCE_URLS.items():
             try:
-                with urlopen(url, timeout=9) as response:
+                request=Request(url,headers={
+                    "User-Agent":"TIHULU-Satellite-Center/0.3 (https://github.com/Tihulu/TIHULU-TEXT-CENTER)",
+                    "Accept":"text/plain",
+                })
+                with urlopen(request, timeout=9) as response:
                     if urlsplit(response.url).hostname not in {"celestrak.org", "www.celestrak.org"}:
                         raise ValueError("Unexpected orbit data redirect")
                     payload = response.read(350001)
