@@ -218,7 +218,7 @@ class TVCapture:
                 with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as client:
                     client.settimeout(1.2)
                     client.connect(sock_path)
-                    client.sendall((json.dumps({"command": ["set_property", "program", service_id]}) + "\\n").encode())
+                    client.sendall((json.dumps({"command": ["set_property", "program", service_id]}) + "\n").encode())
                     message = client.recv(8192).decode("utf-8", "replace")
                     if '"error":"success"' in message.replace(" ", ""):
                         self.emit("status", f"Selected MPEG-TS service {service_id}")
