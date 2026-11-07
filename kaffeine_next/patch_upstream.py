@@ -12,7 +12,8 @@ UPSTREAM = "https://github.com/KDE/kaffeine.git"
 TAG = "v2.0.19"
 REVISION = "e7ea15b86dafed3b20b151cbcb080578ab8e2d5c"
 PATHS = ("src/mainwindow.cpp", "src/dvb/dvbliveview.cpp",
-         "src/dvb/dvbliveview_p.h", "src/dvb/dvbmanager.cpp", "src/dvb/dvbtab.cpp")
+         "src/dvb/dvbliveview_p.h", "src/dvb/dvbmanager.cpp", "src/dvb/dvbtab.cpp",
+         "src/dvb/dvbtab.h")
 
 def transform(files):
     files = dict(files)
@@ -156,6 +157,45 @@ def transform(files):
     tab = "src/dvb/dvbtab.cpp"
     change(tab, 'i18n("Channels"), this);',
            'i18n("Channels / Antenna Scan"), this);')
+    # A full frequency sweep must not silently shrink to the currently
+    # playing mux. Kaffeine's original Channels dialog deliberately
+    # provides "Current Transponder" when the live view owns the tuner.
+    # Add an explicit, confirmation-protected full scanner instead.
+    change(tab, '#include <QMenu>\\n',
+           '#include <QMenu>\\n#include <QMessageBox>\\n')
+    change(tab, '''\tmenu->addAction(collection->addAction(QLatin1String("dvb_channels"), channelsAction));
+''', '''\tmenu->addAction(collection->addAction(QLatin1String("dvb_channels"), channelsAction));
+\tQAction *fullScanAction = new QAction(
+\t\tQIcon::fromTheme(QLatin1String("edit-find")),
+\t\ti18n("Full Antenna Scan..."), this);
+\tconnect(fullScanAction, SIGNAL(triggered(bool)), this, SLOT(showFullScanDialog()));
+\tmenu->addAction(collection->addAction(QLatin1String("tihulu_dvb_full_scan"), fullScanAction));
+''')
+    change(tab, '''void DvbTab::showChannelDialog()
+{
+\tQDialog *dialog = new DvbScanDialog(manager, this);
+''', '''void DvbTab::showFullScanDialog()
+{
+\t// The native DVB scanner needs exclusive tuner ownership for
+\t// changing frequencies; Kaffeine's Channels editor can instead
+\t// stay attached to a single currently playing transponder.
+\tif (manager->getLiveView()->getDevice() != NULL) {
+\t\tif (QMessageBox::question(this, i18n("Full Antenna Scan"),
+\t\t\ti18n("Stop live TV temporarily to scan multiple frequencies?"),
+\t\t\tQMessageBox::Yes | QMessageBox::No, QMessageBox::No) != QMessageBox::Yes)
+\t\t\treturn;
+\t\tmediaWidget->stop();
+\t}
+\tshowChannelDialog();
+}
+
+void DvbTab::showChannelDialog()
+{
+\tQDialog *dialog = new DvbScanDialog(manager, this);
+''')
+    tabhdr = "src/dvb/dvbtab.h"
+    change(tabhdr, '\tvoid showChannelDialog();',
+           '\tvoid showChannelDialog();\n\tvoid showFullScanDialog();')
     return files
 
 def apply(root: Path):
