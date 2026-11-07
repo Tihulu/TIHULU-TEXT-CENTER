@@ -39,18 +39,25 @@ jobs:
           test -s "$temp/usr/share/tihulu-satellite-center/satellite_center/browser/reception.html"
       - name: Debian 12 Bookworm apt install + localhost server smoke (NO USB)
         run: |
-          docker run --rm -v "$PWD:/checkout:ro" debian:bookworm bash -euc '
+          mkdir -p dist/ui-preview
+          docker run --rm -v "$PWD:/checkout:ro" -v "$PWD/dist/ui-preview:/ui-preview" debian:bookworm bash -euc '
             apt-get -qq update
             DEBIAN_FRONTEND=noninteractive apt-get -qq install -y python3-pyqt5 python3-numpy python3-skyfield rtl-sdr xdg-utils >/dev/null
             dpkg -i /checkout/dist/*.deb
             tihulu-satellite-center doctor | grep -F "\"platform\": \"Linux\""
-            QT_QPA_PLATFORM=offscreen PYTHONPATH=/usr/share/tihulu-satellite-center /usr/bin/python3 -m satellite_center.desktop --smoke
+            TIHULU_UI_SNAPSHOT_DIR=/ui-preview QT_QPA_PLATFORM=offscreen PYTHONPATH=/usr/share/tihulu-satellite-center /usr/bin/python3 -m satellite_center.desktop --smoke
             tihulu-satellite-center serve --port 8877 >/tmp/satellite.log 2>&1 &
             pid=$!
             trap "kill $pid 2>/dev/null || true" EXIT
             sleep 2
             python3 -c "import urllib.request; root=urllib.request.urlopen(\"http://127.0.0.1:8877/\", timeout=4).read(); assert b\"TIHULU Satellite Center\" in root and b\"Scheduled receptions\" in root; passpage=urllib.request.urlopen(\"http://127.0.0.1:8877/browser/index.html\", timeout=4).read(); assert b\"Satellite\" in passpage and b\"duration\" in passpage; reception=urllib.request.urlopen(\"http://127.0.0.1:8877/browser/reception.html\", timeout=4).read(); assert b\"auto-mission\" in reception"
           '
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tihulu-satellite-center-native-ui-preview7
+          path: dist/ui-preview/*.png
+          if-no-files-found: error
+          retention-days: 30
       - uses: actions/upload-artifact@v4
         with:
           name: tihulu-satellite-center-debian-native
