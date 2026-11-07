@@ -17,6 +17,16 @@
   let bridge=null,seq=0;
   const callbacks=new Map();
   const hardwareState={enabled:false,verified:false,actualIQ:false};
+  let radioPending=null;
+  const radioControls=['connect','usb-live-test','usb-claim-test','start','auto-plan'];
+  const updateRadioControls=()=>{
+    for(const id of radioControls){
+      const el=$(id);if(!el)continue;
+      if(radioPending)el.disabled=true;
+      else if(id==='start')el.disabled=!hardwareState.enabled;
+      else el.disabled=false;
+    }
+  };
   const showNativeStatus=(response)=>{
     const hw=response?.hardware||{};
     const present=(hw.usb_devices||[]).some(d=>d.receiver_type==='rtl_sdr') ||
@@ -27,7 +37,7 @@
       ? 'RF ENABLED · native capture armed; USB released between jobs'
       : present?'RTL-SDR DETECTED · click Connect & verify to enable real RF recording'
                :'RTL-SDR NOT FOUND · check physical USB and Linux permissions');
-    if($('start'))$('start').disabled=!hardwareState.enabled;
+    updateRadioControls();
     if($('disconnect'))$('disconnect').disabled=!hardwareState.enabled;
     return response;
   };
@@ -347,11 +357,22 @@
     if(!node||!controls.has(node.id))return;
     event.preventDefault();
     event.stopImmediatePropagation(); // never reach browser.js WebUSB callbacks
+    const ownsRadio=radioControls.includes(node.id);
+    if(ownsRadio&&radioPending){
+      say('device-status','Receiver busy with '+radioPending+
+        '. Do not start another USB test until this operation finishes.');
+      return;
+    }
+    if(ownsRadio){radioPending=node.id;updateRadioControls();}
     Promise.resolve().then(()=>execute(node.id)).catch(error=>{
       const message=String(error?.message||error);
       say(node.id.startsWith('auto-')?'auto-plan-status':'device-status',
           'Native operation failed: '+message);
       log('Native action '+node.id+' failed: '+message);
+    }).finally(()=>{
+      if(ownsRadio){radioPending=null;updateRadioControls();}
+      if(bridge)refreshNativeStatus().catch(error=>
+        log('Status refresh after '+node.id+': '+error.message));
     });
   },true);
 
