@@ -1266,7 +1266,7 @@ class SatelliteWindow(QMainWindow):
             self.timeline.setRowHeight(hour,40)
         body.addWidget(self.timeline,2)
         self.job_list=QTreeWidget()
-        self.job_list.setHeaderLabels(["Satellite","Local start","Local end","Duration","State","Protocol"])
+        self.job_list.setHeaderLabels(["Satellite / part","Local start","Local end","Duration","State / countdown","Protocol"])
         self.job_list.itemSelectionChanged.connect(self._job_selected)
         body.addWidget(self.job_list,1)
         self.job_note=self._hint("Cancelled jobs are hidden from the calendar; "
@@ -1664,6 +1664,17 @@ class SatelliteWindow(QMainWindow):
             self.last_jobs_key=jobs_key
             self._render_job_list()
             self._render_calendar()
+        else:
+            # Update D/H/M/S countdown on the existing native calendar
+            # without replacing the selected tree row every five seconds.
+            for row in range(self.job_list.topLevelItemCount()):
+                item=self.job_list.topLevelItem(row)
+                job=next((j for j in self._calendar_jobs if j.get("id")==item.data(0,Qt.UserRole)),None)
+                if job and job.get("state")=="pending":
+                    start=job.get("run_at") or job.get("aos")
+                    if start:
+                        remaining=datetime.fromisoformat(start).timestamp()-time.time()
+                        item.setText(4,"pending · "+format_native_countdown(remaining))
         archive_key=json.dumps(state.get("archive",[]),sort_keys=True)
         if archive_key!=self.last_archive_key:
             self.last_archive_key=archive_key
@@ -1791,9 +1802,15 @@ class SatelliteWindow(QMainWindow):
         seconds=duration_seconds(self.pass_seconds,self.pass_unit)
         start=datetime.fromtimestamp(self.pass_time.dateTime().toSecsSinceEpoch(),timezone.utc).isoformat()
         def completed(job):
-            text=("Scheduled "+str(job.get("satellite","satellite"))+
-                  " · "+str(job.get("capture_seconds",seconds))+" seconds. "
-                  "The Qt app must be running to execute this job.")
+            if job.get("scheduled_count"):
+                text=(str(job["scheduled_count"])+" separate calendar recordings armed · "+
+                      str(job.get("requested_seconds",seconds))+" s requested · "+
+                      str(job.get("unrecorded_gap_seconds",0))+
+                      " s of receiver restart gaps. Keep the Qt app running.")
+            else:
+                text=("Scheduled "+str(job.get("satellite","satellite"))+
+                      " · "+str(job.get("capture_seconds",seconds))+" seconds. "+
+                      "The Qt app must be running to execute this job.")
             self.pass_feedback.setText(text)
             self.statusBar().showMessage(text,12000)
             self.refresh_status()
@@ -1845,8 +1862,13 @@ class SatelliteWindow(QMainWindow):
             if start and secs:
                 end=datetime.fromtimestamp(datetime.fromisoformat(start).timestamp()+secs,
                                            timezone.utc).isoformat()
-            item=QTreeWidgetItem([job.get("satellite","Unknown"),local_time(start),
-                local_time(end),str(secs)+" s",job.get("state",""),
+            part=(" · "+str(job.get("segment_index"))+"/"+str(job.get("segment_count"))
+                  if job.get("segment_count") else "")
+            countdown=(" · "+format_native_countdown(
+                (datetime.fromisoformat(start).timestamp()-time.time()))
+                if job.get("state")=="pending" and start else "")
+            item=QTreeWidgetItem([job.get("satellite","Unknown")+part,local_time(start),
+                local_time(end),str(secs)+" s",job.get("state","")+countdown,
                 job.get("mission_id") or job.get("profile","")])
             item.setData(0,Qt.UserRole,job["id"])
             self.job_list.addTopLevelItem(item)
@@ -1870,8 +1892,10 @@ class SatelliteWindow(QMainWindow):
                     hour=0)+timedelta(days=1)
                 end=start+timedelta(seconds=secs)
                 if start<finish and end>slot:
-                    hours[hour].append(start.strftime("%H:%M")+"–"+end.strftime("%H:%M")+
-                     " · "+job.get("satellite","Unknown")+" · "+job.get("state",""))
+                    segment=(" · part "+str(job.get("segment_index"))+"/"+str(job.get("segment_count"))
+                             if job.get("segment_count") else "")
+                    hours[hour].append(start.strftime("%H:%M:%S")+"–"+end.strftime("%H:%M:%S")+
+                     " · "+job.get("satellite","Unknown")+segment+" · "+job.get("state",""))
         for hour,entries in enumerate(hours):
             current=self.timeline.item(hour,1)
             text="\n".join(entries) if entries else "—"
@@ -1956,7 +1980,9 @@ class SatelliteWindow(QMainWindow):
                  f"Acquire the real RTL-SDR for {secs} seconds at {PROFILES[key]['label']}?\n"
                  "This does NOT prove a satellite is transmitting.",
                  QMessageBox.Yes|QMessageBox.No)!=QMessageBox.Yes:return
-        self._task("Physical SDR capture",lambda:self.station.capture(key,mode,secs),
+        self._task("Physical SDR capture",
+                   lambda:self.station.capture_series(key,mode,secs,segment_seconds=180)
+                   if mode=="survey" and secs>180 else self.station.capture(key,mode,secs),
                    lambda result:(self.file_details.setPlainText(json.dumps(result,indent=2)),
                                   self.refresh_status()))
 
