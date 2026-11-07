@@ -127,6 +127,8 @@ class TVCapture:
         self.hwdec = "no"
         self._lock = threading.Lock()
         self._pending = False
+        self._player_queue = queue.Queue(maxsize=24)
+        self._writer_thread = None
 
     def emit(self, kind, value):
         try:
@@ -184,12 +186,45 @@ class TVCapture:
                               stdin=subprocess.PIPE, stdout=subprocess.DEVNULL,
                               stderr=subprocess.DEVNULL, start_new_session=True)
             os.set_blocking(self.player.stdin.fileno(), False)
+            self._player_queue = queue.Queue(maxsize=24)
+            self._writer_thread = threading.Thread(target=self._write_player, daemon=True,
+                                                    name="tihulu-tv-mpv-writer")
+            self._writer_thread.start()
             self.thread = threading.Thread(target=self._pump, daemon=True, name="tihulu-tv-dvb")
             self.thread.start()
             self.emit("status", "Tuned to " + channel.name + "; receiving live transport stream")
         except BaseException:
             self.stop()
             raise
+
+    def _write_player(self):
+        """Write *all* bytes of a TS chunk or explicitly report a dropped queue.
+
+        A single nonblocking os.write can write only part of a chunk; silently
+        ignoring that result would create continuity errors inside our app.
+        """
+        fd = self.player.stdin.fileno()
+        while not self.stop_flag.is_set():
+            try:
+                chunk = self._player_queue.get(timeout=0.25)
+            except queue.Empty:
+                continue
+            data = memoryview(chunk)
+            try:
+                while data and not self.stop_flag.is_set():
+                    try:
+                        n = os.write(fd, data)
+                        if n > 0:
+                            data = data[n:]
+                        else:
+                            raise BrokenPipeError()
+                    except BlockingIOError:
+                        select.select([], [fd], [], 0.25)
+            except (BrokenPipeError, OSError, ValueError):
+                self.emit("error", "MPV input closed or stopped")
+                break
+            finally:
+                self._player_queue.task_done()
 
     def _pump(self):
         dvr = None
@@ -213,10 +248,10 @@ class TVCapture:
                         continue
                     if self.player and self.player.poll() is None:
                         try:
-                            os.write(self.player.stdin.fileno(), buf)
-                        except (BlockingIOError, BrokenPipeError):
-                            # Drop packets rather than block the tuner indefinitely.
-                            self.emit("warning", "Player backpressure: video packets dropped")
+                            self._player_queue.put_nowait(buf)
+                        except queue.Full:
+                            # Never block DVR reads; make packet loss explicit.
+                            self.emit("warning", "Player too slow; TS queue overflow, packets dropped")
                     with self._lock:
                         mode, page = self.caption_mode, self.page
                         source, target, model = self.source_lang, self.target_lang, self.model
@@ -237,7 +272,8 @@ class TVCapture:
                             self._pending = True
                             path = str(Path(tmp) / "segment.ts")
                             data = Path(path).read_bytes()
-                            threading.Thread(target=self._decode, args=(data, mode, page, source, target, model),
+                            sid = self.channel.service_id if self.channel else None
+                            threading.Thread(target=self._decode, args=(data, mode, page, source, target, model, sid),
                                              daemon=True, name="tihulu-tv-captions").start()
                         # If analysis is slower than reception, skip this segment.
                 if clip:
@@ -249,11 +285,11 @@ class TVCapture:
                 os.close(dvr)
             self.emit("status", "TV capture ended")
 
-    def _decode(self, data, mode, page, source, target, model):
+    def _decode(self, data, mode, page, source, target, model, service_id):
         try:
             from .captions import decode_segment
             result = decode_segment(data, mode=mode, page=page, source=source,
-                                    target=target, model=model)
+                                    target=target, model=model, service_id=service_id)
             if result.get("original"):
                 self.emit("caption", result)
             elif result.get("error"):
@@ -276,6 +312,8 @@ class TVCapture:
         self.player, self.zap = None, None
         if self.thread and self.thread.is_alive() and threading.current_thread() != self.thread:
             self.thread.join(timeout=1.0)
+        if self._writer_thread and self._writer_thread.is_alive() and threading.current_thread() != self._writer_thread:
+            self._writer_thread.join(timeout=1.0)
         if self.lockfile is not None:
             fcntl.flock(self.lockfile, fcntl.LOCK_UN)
             os.close(self.lockfile)

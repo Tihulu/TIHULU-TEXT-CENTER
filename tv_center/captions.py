@@ -18,15 +18,30 @@ def _run(argv, timeout=30):
                           stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                           timeout=timeout, check=False)
 
-def _sub_stream(path):
-    probe = _run(["ffprobe", "-v", "error", "-show_streams",
+def _program_streams(path, service_id):
+    """Choose streams for the tuned DVB service, never another TV in the multiplex."""
+    probe = _run(["ffprobe", "-v", "error", "-show_programs", "-show_streams",
                   "-of", "json", str(path)], timeout=15)
     if probe.returncode:
-        return None
+        return []
     try:
-        streams = json.loads(probe.stdout).get("streams", [])
+        data = json.loads(probe.stdout)
     except (ValueError, UnicodeError):
-        return None
+        return []
+    if service_id is None:
+        return data.get("streams", [])
+    for program in data.get("programs", []):
+        try:
+            program_id = int(program.get("program_id", program.get("program_num", -1)))
+        except (ValueError, TypeError):
+            continue
+        if program_id == service_id:
+            return program.get("streams", [])
+    # Do not inadvertently transcribe a neighbouring TV service.
+    return []
+
+def _sub_stream(path, service_id):
+    streams = _program_streams(path, service_id)
     return next((s["index"] for s in streams
                  if s.get("codec_name") == "dvb_teletext"), None)
 
@@ -44,10 +59,10 @@ def ass_text(raw: str) -> str:
             lines.append(txt)
     return "\n".join(lines[-6:])[:1600]
 
-def teletext_from_clip(path: Path, page: int) -> str:
+def teletext_from_clip(path: Path, page: int, service_id: int | None = None) -> str:
     if not 100 <= page <= 899:
         raise ValueError("Teletext page must be 100-899")
-    idx = _sub_stream(path)
+    idx = _sub_stream(path, service_id)
     if idx is None:
         return ""
     cmd = ["ffmpeg", "-hide_banner", "-loglevel", "error",
@@ -56,13 +71,18 @@ def teletext_from_clip(path: Path, page: int) -> str:
     proc = _run(cmd, timeout=25)
     return ass_text(proc.stdout.decode("utf-8", "replace")) if proc.returncode == 0 else ""
 
-def asr_from_clip(path: Path, language: str, model: str) -> str:
+def asr_from_clip(path: Path, language: str, model: str,
+                  service_id: int | None = None) -> str:
     if language not in SUPPORTED:
         raise ValueError("Unsupported transcription language")
     if not model or not Path(model).expanduser().is_file():
         raise RuntimeError("Whisper model not installed. Select a local multilingual GGML model.")
+    streams = _program_streams(path, service_id)
+    audio_index = next((s["index"] for s in streams if s.get("codec_type") == "audio"), None)
+    if audio_index is None:
+        raise RuntimeError("No audio track in the selected TV service")
     audio = _run(["ffmpeg", "-hide_banner", "-loglevel", "error", "-i", str(path),
-                  "-map", "0:a:0", "-vn", "-ar", "32000", "-ac", "1",
+                  "-map", f"0:{audio_index}", "-vn", "-ar", "32000", "-ac", "1",
                   "-f", "s16le", "-"], timeout=35)
     if audio.returncode or len(audio.stdout) < 32000:
         raise RuntimeError("No usable audio stream in recorded TV segment")
@@ -86,7 +106,7 @@ def translate(text: str, source: str, target: str) -> tuple[str | None, str | No
         return None, "Translation pack missing or failed: " + str(exc)[:120]
 
 def decode_segment(ts: bytes, *, mode="auto", page=150, source="de",
-                   target="tr", model="") -> dict:
+                   target="tr", model="", service_id: int | None = None) -> dict:
     if mode not in ("teletext", "page", "asr", "auto"):
         raise ValueError("Unsupported caption source")
     if not 100 <= page <= 899 or source not in SUPPORTED or target not in SUPPORTED:
@@ -98,11 +118,11 @@ def decode_segment(ts: bytes, *, mode="auto", page=150, source="de",
         p.write_bytes(ts)
         original, used, error = "", "", None
         if mode in ("teletext", "page", "auto"):
-            original = teletext_from_clip(p, page)
+            original = teletext_from_clip(p, page, service_id)
             used = f"teletext_page_{page}" if original else ""
         if not original and mode in ("asr", "auto"):
             try:
-                original = asr_from_clip(p, source, model)
+                original = asr_from_clip(p, source, model, service_id)
                 used = "local_asr" if original else ""
             except (RuntimeError, OSError, subprocess.TimeoutExpired) as exc:
                 error = str(exc)[:180]
