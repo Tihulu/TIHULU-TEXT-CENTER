@@ -225,6 +225,39 @@ The log should report an enforced software profile; **any remaining**
 NVIDIA VDPAU decoder line or frozen picture needs more diagnosis rather
 than a false success claim.
 
+### Automatic synchronization (opt-in)
+
+The companion now includes **Automatic sync · detect caption lag & adjust safe
+TV buffer** (OFF by default). Select it and press **Apply**. It collects at
+least **three real live Whisper/Argos results** and compares the audio
+capture start against the timestamp at which the translated caption became
+available. The display shows:
+
+- **Estimated caption availability lag**, measured from actual processing.
+- **Safe TV playback buffer range** and a recommended delay in seconds.
+- Sample count and whether the safe hardware/memory limit was reached.
+
+With automatic sync OFF, the recommendation is informational; **manual
+caption offset and playback delay are not changed**. With it ON, the first
+valid recommendation is applied to Kaffeine's existing audio+video MPEG-TS
+buffer; later changes have a 30-second cooldown, 0.75-second hysteresis and
+at most 0.5-second adjustment to avoid rapid playback stalls.
+
+Automatic TV delay is limited to **6 seconds** on normal Linux systems,
+**4 seconds** on Raspberry Pi 5 and a stricter value if the current
+transport-stream bitrate would consume more than roughly **48 MiB**.
+Manual playback delay continues to support 0–8 seconds. When the
+observed lag is above the safe maximum, the UI warns that speech/text
+can remain late rather than pushing the buffer past its memory budget.
+
+**Accuracy limitation:** this is an *availability-lag estimator*, not
+speaker diarization, word-level Whisper timestamps or an independent
+audio/video lip-sync meter. It cannot reconstruct the exact position of
+each word inside a four-second audio chunk. Manual **Caption offset**
+remains available for visual fine-tuning; automatic mode does not
+fabricate a precise text offset. Broadcaster Teletext is not used to
+train Whisper latency and changing the DVB service clears measurements.
+
 ## Live video freezes or stalls — Pop!_OS / COSMIC / NVIDIA
 
 The tuner and Kaffeine must not be replaced with another scanner. There

@@ -6,10 +6,85 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from kaffeine_next.caption_timing import CaptionConfig, CueQueue, KaffeineOSD, cue_window
+from kaffeine_next.caption_timing import (CaptionConfig, CueQueue, KaffeineOSD, cue_window,
+    AutoSyncEstimator, AutoSyncController, SyncRecommendation)
 from kaffeine_next.patch_upstream import PATHS
 
 class KaffeineTimingTests(unittest.TestCase):
+    def test_auto_sync_starts_disabled_and_checkbox_is_applied_only(self):
+        self.assertFalse(CaptionConfig().automatic_sync)
+        self.assertTrue(CaptionConfig(automatic_sync=True).validate().automatic_sync)
+        with self.assertRaises(ValueError):
+            CaptionConfig(automatic_sync=1).validate()
+        from pathlib import Path
+        source = (Path(__file__).resolve().parent.parent /
+                  "kaffeine_next" / "captions_overlay.py").read_text()
+        self.assertIn('QCheckBox("Automatic sync', source)
+        self.assertIn("automatic_sync=automatic.isChecked()", source)
+        self.assertIn("automatic.toggled.connect(set_pending)", source) if (
+            "automatic.toggled.connect(set_pending)" in source) else self.assertIn(
+                "(show_video,show_original,show_translation,automatic)",source)
+        self.assertIn("auto_controller.next_delay(", source)
+        self.assertIn("ipc.set_playback_delay(revised)", source)
+
+    def test_real_asr_only_and_minimum_samples_before_suggesting_delay(self):
+        e = AutoSyncEstimator()
+        self.assertIsNone(e.recommend())
+        self.assertFalse(e.observe(0,4,4.7,"broadcaster_teletext_subtitles"))
+        self.assertTrue(e.observe(0,4,4.7,"local_asr"))
+        self.assertTrue(e.observe(4,8,9,"local_asr"))
+        self.assertIsNone(e.recommend())
+        self.assertTrue(e.observe(8,12,13.4,"local_asr"))
+        rec = e.recommend()
+        self.assertEqual(rec.samples,3)
+        self.assertEqual(rec.observed_lag_ms,5000)
+        self.assertEqual((rec.safe_min_ms,rec.safe_max_ms),(5500,6000))
+        self.assertEqual(rec.suggested_delay_ms,6000)
+        self.assertIn("safe playback delay",rec.summary)
+        self.assertFalse(rec.saturated)
+
+    def test_auto_sync_rejects_discontinuous_or_invalid_capture_windows(self):
+        e = AutoSyncEstimator(minimum=1)
+        self.assertFalse(e.observe(0,0.1,1,"local_asr"))
+        self.assertFalse(e.observe(1,5,4,"local_asr"))
+        self.assertFalse(e.observe(0,5,99,"local_asr"))
+        self.assertFalse(e.observe(None,5,6,"local_asr"))
+        self.assertIsNone(e.recommend())
+
+    def test_auto_safe_cap_and_live_bitrate_memory_budget(self):
+        e = AutoSyncEstimator(minimum=3,ceiling_ms=6000)
+        for start in (0,4,8):
+            e.observe(start,start+4,start+12,"local_asr")
+        rec = e.recommend(platform_cap_ms=4000)
+        self.assertEqual(rec.safe_max_ms,4000)
+        self.assertEqual(rec.suggested_delay_ms,4000)
+        self.assertTrue(rec.saturated)
+        # 24 MiB/s -> 48 MiB budget allows only 2s buffering.
+        rec = e.recommend(bytes_per_second=24 * 1024 * 1024)
+        self.assertEqual(rec.safety_cap_ms,2000)
+        self.assertTrue(rec.saturated)
+        self.assertLessEqual(rec.suggested_delay_ms,rec.safe_max_ms)
+
+    def test_auto_changes_only_on_opt_in_with_cooldown_and_small_updates(self):
+        ctrl = AutoSyncController(cooldown_seconds=30,deadband_ms=750,step_ms=500)
+        rec = SyncRecommendation(4,5000,5000,6000,5500,6000,False)
+        self.assertIsNone(ctrl.next_delay(rec,0,10,enabled=False))
+        self.assertEqual(ctrl.next_delay(rec,0,10,enabled=True),5500)
+        self.assertIsNone(ctrl.next_delay(rec,5500,20,enabled=True))
+        unchanged = SyncRecommendation(5,5300,5000,6000,6000,6000,False)
+        self.assertIsNone(ctrl.next_delay(unchanged,5500,45,enabled=True))
+        ctrl.last_change_at = 10
+        self.assertEqual(ctrl.next_delay(unchanged,5000,50,enabled=True),5500)
+        ctrl.reset()
+        self.assertFalse(ctrl.has_applied)
+
+    def test_timestamp_only_estimators_never_claim_exact_word_alignment(self):
+        e=AutoSyncEstimator(minimum=3)
+        for start in (0,4,8):
+            e.observe(start,start+4,start+5,"local_asr")
+        self.assertGreater(e.recommend().observed_lag_ms,4000)
+        self.assertIn("chunk",AutoSyncEstimator.__doc__.lower())
+
     def test_overlay_patch_includes_native_video_and_osd(self):
         self.assertIn("src/osdwidget.cpp", PATHS)
         self.assertIn("src/mediawidget.cpp", PATHS)
