@@ -37,6 +37,28 @@
     }
   };
   const setHardwareLabels=()=>{
+    const eyebrow=document.querySelector('header .eyebrow');
+    if(eyebrow)eyebrow.textContent='TIHULU SATELLITE CENTER · DIRECT NATIVE OS SDR';
+    const pill=document.querySelector('header h1 .pill');
+    if(pill)pill.textContent='Native desktop · 0.3.0 preview10';
+    const intro=document.querySelector('header h1 + p');
+    if(intro)intro.textContent=
+      'Same Satellite Center web interface in a locally installed Qt window. '+
+      'Hardware is controlled by Linux RTL-SDR tools through Qt WebChannel, '+
+      'not WebUSB or an external browser. Offline maps and local analysis '+
+      'are available without an SDR.';
+    const strip=document.querySelector('.web-runtime-strip');
+    if(strip){
+      const strong=strip.querySelector('strong');
+      if(strong)strong.textContent='Native Qt desktop · web-identical UI';
+      const hints=strip.querySelectorAll('span');
+      if(hints[0])hints[0].textContent=
+        'Same orbit maps and data panels as the website. TLE positions are NOT RF signals.';
+      if(hints[1])hints[1].textContent=
+        'Real USB connection and RF acquisition use OS-native SDR binaries (no WebUSB).';
+    }
+    const install=document.querySelector('#desktop-install');
+    if(install)install.hidden=true; // PWA install is browser-only, desktop is installed.
     for(const id of ['connect','usb-live-test','disconnect','start','stop']){
       if($(id))$(id).disabled=false;
     }
