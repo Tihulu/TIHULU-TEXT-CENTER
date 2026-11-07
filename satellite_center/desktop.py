@@ -970,10 +970,23 @@ class SatelliteWindow(QMainWindow):
         self.auto_seconds.setValue(0)
         self.auto_jobs=QSpinBox();self.auto_jobs.setRange(1,12);self.auto_jobs.setValue(6)
         self.auto_elev=QDoubleSpinBox();self.auto_elev.setRange(5,75);self.auto_elev.setValue(20)
+        self.auto_compute=QComboBox()
+        for title,mode,targets in (
+            ("Auto (native capability detection)","auto",[]),
+            ("CPU only","custom",["cpu"]),
+            ("CPU + GPU (only if backend available)","custom",["cpu","gpu"]),
+            ("CPU + NPU (only if backend available)","custom",["cpu","npu"]),
+            ("CPU + GPU + NPU (only if backend available)",
+             "custom",["cpu","gpu","npu"])):
+            self.auto_compute.addItem(title,(mode,targets))
+        self.auto_compute.setToolTip(
+            "GPU/NPU selection requests installed compute backends. It does "
+            "not claim hardware acceleration or change RF acquisition.")
         form.addRow("Coverage priority",self.coverage)
         form.addRow("Capture length · s",self.auto_seconds)
         form.addRow("Maximum future jobs",self.auto_jobs)
         form.addRow("Minimum elevation",self.auto_elev)
+        form.addRow("Image/SSTV analysis compute",self.auto_compute)
         form.addRow(self._button("Auto Schedule & Capture · native",self.auto_schedule))
         body.addWidget(options)
         body.addWidget(self._button("Cancel pending AUTO jobs only",self.cancel_automatic))
@@ -1462,9 +1475,11 @@ class SatelliteWindow(QMainWindow):
         if not missions:return QMessageBox.information(self,"Auto reception","Select at least one satellite mode.")
         seconds=self.auto_seconds.value() or None
         coverage=self.coverage.currentData()
+        compute_mode,compute_targets=self.auto_compute.currentData()
         params={"lat":self.lat.value(),"lon":self.lon.value(),"hours":self.hours.value(),
                 "elevation":self.auto_elev.value(),"max_jobs":self.auto_jobs.value(),
-                "coverage_goal":coverage,"duration_seconds":seconds}
+                "coverage_goal":coverage,"duration_seconds":seconds,
+                "compute_mode":compute_mode,"compute_targets":compute_targets}
         self._task("Auto mission planning",lambda:self.station.auto_schedule(missions,**params),
                    lambda result:(self.file_details.setPlainText(json.dumps(result,indent=2,default=str)),
                                   self.refresh_status()))
@@ -1990,6 +2005,8 @@ def main(argv=None):
             assert window.home_auto.text().startswith("1 ")
             assert window.home_analyze.text().startswith("2 ")
             assert window.home_extract.text().startswith("3 ")
+            assert window.auto_compute.count()==5
+            assert window.auto_compute.currentData()[0]=="auto"
             assert window.pass_seconds.maximum()==900
             assert window.capture_seconds.maximum()==900
             assert len(window._offline_cities)==8084
