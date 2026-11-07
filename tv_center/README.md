@@ -324,3 +324,44 @@ live TV are not encrypted, and local Wi-Fi still requires care.
 
 All above integrations are experimental and subject to real DVB tuner, browser,
 codec, Pi 5 throughput and security acceptance testing before release.
+
+## Direct WebUSB EM28178 transport laboratory
+
+The **2040:8268 Hauppauge WinTV-soloHD** is mapped to
+`EM28178_BOARD_PCTV_292E` with a **bulk USB transport** in the Linux kernel
+`em28xx` driver. The new Pages tab implements actual WebUSB operations
+for this exact VID/PID, with explicit permission and no device auto-opening:
+
+- Inspect USB configurations, interfaces, alternates, endpoint type and size.
+- Explicitly open a device and read the **EM28xx chip-ID register 0x0A**
+  using a single vendor **IN** control transfer, as the Linux driver does.
+- Explicitly attempt claiming the bulk **IN** endpoint at the current
+  configuration/alternate 0. This may fail when Linux `em28xx` owns the
+  interface; the browser deliberately **does not detach it** or reset USB.
+- Optionally request **one** bounded bulk-IN transfer (max 16 KiB) and
+  classify actual 188-byte MPEG-TS packets with a parser that checks
+  sync, continuity, CRC32/MPEG-2, PAT service IDs, PMT and codec/PIDs.
+- Load a user-selected existing `.ts` recording into the same
+  in-browser analyzer, reading at most 2 MiB, without uploading it.
+- Export a device/transport diagnostic JSON without USB serial numbers.
+
+**THIS IS NOT YET A WORKING DIRECT WEBUSB DVB-T2 RECEIVER.** USB descriptors,
+a chip-ID read and even a valid transport packet do not demonstrate
+successful tuner configuration or RF reception. The following are still
+unimplemented in WebUSB: EM28xx digital mode and GPIO sequencing, robust
+I2C controller, Si2168 (including correctly licensed firmware) and Si2157
+tuner initialization, delivery-system modulation setup, frequency and lock
+monitoring, continuous packet acquisition, service discovery with full DVB
+tables, A/V demux and HEVC/AAC playback. WebAssembly can help with
+decoding/demultiplexing but cannot replace missing hardware controls.
+
+Do not blacklist, unload or detach `em28xx` to run these browser tests.
+On the user's Linux machine, native DVB via `/dev/dvb` remains the
+safe, tested driver path. For browser-based real TV and scanning use the
+opt-in native loopback bridge or PIN-paired LAN HLS stream.
+
+Primary implementation references:
+- https://kernel.googlesource.com/pub/scm/linux/kernel/git/torvalds/linux/+/f4cdf7ca9a1fdcca413157df19753f388a5a224e/drivers/media/usb/em28xx/em28xx-cards.c
+- https://kernel.googlesource.com/pub/scm/linux/kernel/git/torvalds/linux/+/f4cdf7ca9a1fdcca413157df19753f388a5a224e/drivers/media/usb/em28xx/em28xx-dvb.c
+- https://kernel.googlesource.com/pub/scm/linux/kernel/git/torvalds/linux/+/e5c91aac491def6ab3f90c4cc246e3fcb0f8f058/drivers/media/usb/em28xx/em28xx-core.c
+

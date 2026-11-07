@@ -34,6 +34,7 @@ jobs:
           for f in tv_center/web/*.js; do
             node --input-type=module --check < "$f"
           done
+          node --test tv_center/web/tests/*.test.mjs
 
   preview-deb:
     runs-on: ubuntu-latest
