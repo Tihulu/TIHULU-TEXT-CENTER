@@ -105,11 +105,11 @@ class NativeHardwareTests(unittest.TestCase):
 
     def test_local_tle_import_is_bounded_and_never_claims_a_downlink(self):
         source=self.path/"saved_iss.tle"
-        source.write_text("\\n".join([
+        source.write_text("\n".join([
             "ISS (ZARYA)",
             ("1 25544U 98067A   26311.35246347  .00001234  00000-0  29639-4 0  9996").ljust(70),
             ("2 25544  51.6345 159.7912 0005428  79.9879  38.5994 15.50433348711115").ljust(70),
-        ])+"\\n")
+        ])+"\n")
         report=self.station.import_tle(source,"iss")
         self.assertEqual(report["tle_count"],1)
         self.assertFalse(report["radio_signal_verified"])
