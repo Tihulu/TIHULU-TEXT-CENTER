@@ -117,14 +117,14 @@
     for(const id of ['connect','usb-live-test','disconnect','start','stop']){
       if($(id))$(id).disabled=false;
     }
-    if($('connect'))$('connect').textContent='Connect & verify physical RTL-SDR';
-    if($('usb-live-test'))$('usb-live-test').textContent='Test real USB + IQ (native)';
+    if($('connect'))$('connect').textContent='Connect & enable RF (USB + real IQ)';
+    if($('usb-live-test'))$('usb-live-test').textContent='IQ test only (does not enable RF)';
     if($('disconnect')){
       $('disconnect').textContent='Stop & disconnect RF';
       $('disconnect').disabled=false;
     }
     if($('usb-check'))$('usb-check').textContent='Refresh Linux USB/process status';
-    if($('usb-claim-test'))$('usb-claim-test').textContent='Test native USB open / release';
+    if($('usb-claim-test'))$('usb-claim-test').textContent='USB access check only (does not enable RF)';
     if($('start'))$('start').textContent='Start direct native RF capture';
     if($('stop'))$('stop').textContent='Stop native capture';
     if($('auto-plan'))$('auto-plan').textContent='1 · Schedule native RF passes';
@@ -165,7 +165,7 @@
     $('device-status')?.after(state);
     const help=document.createElement('p');
     help.className='hint';
-    help.textContent='USB open test does not enable capture. Connect & verify must acquire real IQ successfully, then arms native recording. The SDR is intentionally released while idle.';
+    help.textContent='To record from your Nooelec NESDR, use the FIRST blue button: Connect & enable RF (USB + real IQ). USB access check and IQ test are diagnostics ONLY and do not enable recording. The SDR is intentionally released while idle.';
     state.after(help);
     // Never insert fake coordinates, imagery or signal levels.
   };
@@ -190,6 +190,7 @@
       case 'connect': {
         if($('connect'))$('connect').disabled=true;
         try{
+          say('device-status','Connecting: checking physical USB (rtl_test) then acquiring a real 1 MiB IQ sample (rtl_sdr). A successful USB-open test alone does not enable RF.');
           const result=await invoke('connect',{},'device-status');
           if(result.receiver_enabled!==true ||
              result.sample_test?.state!=='real_iq_samples_received')
@@ -207,9 +208,10 @@
         const result=await invoke('sample',{frequency:selectedFrequency()},'usb-live-test-report');
         hardwareState.actualIQ=true;
         say('usb-live-test-report',
-          'PASS · '+result.complex_samples+' physical complex IQ samples at '+
+          'IQ DIAGNOSTIC PASS · '+result.complex_samples+' physical complex IQ samples at '+
           (result.frequency_hz/1e6).toFixed(3)+
-          ' MHz. Process released. This does not prove satellite reception.');
+          ' MHz. Process released. This test DOES NOT enable RF recording; use Connect & enable RF.');
+        await refreshNativeStatus();
         return;
       }
       case 'usb-check': {
@@ -227,7 +229,17 @@
       }
       case 'usb-claim-test': {
         const result=await invoke('usb_open',{},'usb-claim-result');
-        say('usb-claim-result',JSON.stringify(result,null,2));
+        const status=await refreshNativeStatus();
+        const armed=status.hardware?.receiver_enabled===true;
+        say('usb-claim-result',
+          'USB ACCESS DIAGNOSTIC PASS · '+String(result.state)+
+          '\\nOnly USB open/release was tested; no IQ sample was acquired by this action.'+
+          '\\nRF recording: '+(armed?'already enabled from a separate Connect action':
+            'DISABLED. Press the FIRST blue Connect & enable RF (USB + real IQ) button to activate.')+
+          '\\n\\nRaw USB evidence:\\n'+JSON.stringify(result,null,2));
+        say('device-status',armed
+          ? 'USB open check passed · RF already enabled from prior Connect.'
+          : 'USB open check passed · RF is still DISABLED. Click Connect & enable RF above.');
         return;
       }
       case 'usb-copy': {
