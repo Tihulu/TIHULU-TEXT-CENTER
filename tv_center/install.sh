@@ -1,59 +1,37 @@
 #!/usr/bin/env bash
-# Native Debian/Ubuntu/Pop!_OS/Raspberry Pi OS installer.
-# No changes to Kaffeine, saved channels, or unrelated RTL-SDR devices.
-set -Eeuo pipefail
-umask 077
-REPO="https://github.com/Tihulu/TIHULU-TEXT-CENTER.git"
-BRANCH="feature/tv-center-native-teletext-asr-2026-11-07"
-MODE="$*"
-if [ "$MODE" != "" ] && [ "$MODE" != "--local" ]; then
-  echo "Usage: bash tv_center/install.sh [--local]" >&2
-  exit 2
-fi
-if [ "$(uname -s)" != "Linux" ] || [ ! -f /etc/os-release ] || [ ! -x /usr/bin/apt-get ]; then
-  echo "Debian/Ubuntu/Pop!_OS/Raspberry Pi OS with apt required." >&2
-  exit 1
+# Native TV Center development installer for Debian-family Linux.
+set -Ee -o pipefail
+if [[ "$(uname)" != Linux || ! -f /etc/os-release ]]; then
+  echo "Requires Debian/Ubuntu/Pop!_OS/Raspberry Pi OS." >&2; exit 1
 fi
 . /etc/os-release
-ID_LIKE=$(grep "^ID_LIKE=" /etc/os-release || true)
 case " $ID $ID_LIKE " in
   *debian*|*ubuntu*|*pop*|*raspbian*) ;;
-  *) echo "Unsupported distribution (Debian-family required)." >&2; exit 1 ;;
+  *) echo "Unsupported Linux distribution." >&2; exit 1 ;;
 esac
-if [ "$(id -u)" -eq 0 ]; then
-  ROOTCMD=""
-elif command -v sudo >/dev/null 2>&1; then
-  ROOTCMD="sudo"
-else
-  echo "sudo required for APT installation" >&2
-  exit 1
+if [[ -n "$1" && "$1" != "--local" ]]; then
+  echo "Usage: bash tv_center/install.sh [--local]" >&2; exit 2
 fi
-echo "TIHULU TV Center — experimental native TV/Teletext/translation client"
-echo "GitHub source: $BRANCH"
-echo "APT will install system dependencies, including country-aware w-scan-cpp."
-echo "Kaffeine settings, existing channel files, firmware and model packs remain untouched."
-$ROOTCMD apt-get update
-$ROOTCMD apt-get install -y --no-install-recommends ca-certificates git python3 python3-pyqt5 dvb-tools w-scan-cpp mpv ffmpeg psmisc dpkg
-TMP=""
-OUT=""
-cleanup() {
-  if [ -n "$TMP" ]; then rm -rf -- "$TMP"; fi
-  if [ -n "$OUT" ]; then rm -rf -- "$OUT"; fi
-}
-trap cleanup EXIT
-if [ "$MODE" = "--local" ]; then
-  SOURCE="$(cd -- "$(dirname -- "$0")/.." && pwd)"
-  test -f "$SOURCE/tv_center/packaging/build-deb.sh" || { echo "Run --local from cloned repository" >&2; exit 1; }
+root_cmd() { if (( EUID == 0 )); then "$@"; else sudo "$@"; fi; }
+echo "Installing native DVB/MPV dependencies; existing TV scans are preserved."
+root_cmd apt-get update
+root_cmd apt-get install -y --no-install-recommends \
+  ca-certificates git python3 python3-pyqt5 dvb-tools mpv ffmpeg psmisc dpkg
+tempdir="$(mktemp -d)"
+trap 'rm -rf "$tempdir"' EXIT
+if [[ "$1" == "--local" ]]; then
+  source_root="$(cd "$(dirname "$BASH_SOURCE")/.." && pwd)"
 else
-  TMP="$(mktemp -d)"
-  SOURCE="$TMP/checkout"
-  git clone --quiet --depth 1 --single-branch --branch "$BRANCH" "$REPO" "$SOURCE"
+  source_root="$tempdir/repo"
+  git clone --quiet --depth 1 \
+    --branch feature/tv-center-native-teletext-asr-2026-11-07 \
+    https://github.com/Tihulu/TIHULU-TEXT-CENTER.git "$source_root"
 fi
-OUT="$(mktemp -d)"
-bash "$SOURCE/tv_center/packaging/build-deb.sh" "$OUT"
-DEB="$OUT/tihulu-tv-center_0.1.0~dev1_all.deb"
-test -s "$DEB" || { echo "Debian package build failed" >&2; exit 1; }
-$ROOTCMD apt-get install -y "$DEB"
-echo "Installed. Start: tihulu-tv-center   Diagnostics: tihulu-tv-center doctor"
-echo "Web: https://tihulu.github.io/TIHULU-TEXT-CENTER/tv_center/"
-echo "Before scanning, close Kaffeine and Tvheadend to release the DVB tuner."
+bash "$source_root/tv_center/packaging/build-deb.sh" "$tempdir"
+pkg="$tempdir/tihulu-tv-center_0.1.0~dev1_all.deb"
+test -s "$pkg"
+root_cmd dpkg -i "$pkg"
+echo "Installed. Open TIHULU TV Center from the apps menu or run: tihulu-tv-center"
+echo "Diagnostics: tihulu-tv-center doctor"
+echo "For iPhone/Android, enable Local Wi-Fi + HLS in the desktop app."
+echo "No TV hardware was opened and no AI model was downloaded by the installer."
