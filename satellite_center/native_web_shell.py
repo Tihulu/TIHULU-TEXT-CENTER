@@ -303,8 +303,9 @@ def main(argv=None):
         if ok and opts.screenshot:
             window.grab().save(opts.screenshot,"PNG")
         app.exit(0 if ok else 1)
-    window.web.loadFinished.connect(
-        lambda ok:QTimer.singleShot(2800,inspect) if ok else complete(False))
+    # The bundled scheme may load before the window is shown; schedule the
+    # check independently of loadFinished to avoid race-dependent CI failures.
+    QTimer.singleShot(3500,inspect)
     QTimer.singleShot(14000,lambda:complete(False))
     return app.exec_()
 
