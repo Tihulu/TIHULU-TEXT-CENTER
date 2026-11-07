@@ -115,6 +115,85 @@ def transform(files):
 		if (writeFd >= 0) {
 			buffers.append(buffer);
 ''')
+    # Delay *both* audio and video by buffering already-filtered TS bytes
+    # before Kaffeine's existing FIFO -> libVLC. The AI tap above stays
+    # pre-delay so Whisper can finish nearer to delayed playback.
+    # A capped 64 MiB queue prevents uncontrolled memory growth on Pi 5.
+    change(hdr, '''\tQString tihuluCaptionSocketPath;
+\tint tihuluCaptionFd;
+''', '''\tQString tihuluCaptionSocketPath;
+\tint tihuluCaptionFd;
+\tQString tihuluDelayFile;
+\tQList<QPair<qint64, QByteArray> > tihuluDelayed;
+\tqint64 tihuluDelayedBytes = 0;
+\tqint64 tihuluConfigCheckedAt = 0;
+\tint tihuluVideoDelayMs = 0;
+''')
+    change(live, '#include <QCoreApplication>\n',
+           '#include <QCoreApplication>\n#include <QDateTime>\n')
+    change(live, '''\tfileName = runtime + QLatin1String("/dvbpipe.m2t");''',
+           '''\ttihuluDelayFile = runtime + QLatin1String("/tihulu-playback-delay-")
+\t\t+ QString::number(QCoreApplication::applicationPid()) + QLatin1String(".txt");
+\tfileName = runtime + QLatin1String("/dvbpipe.m2t");''')
+    change(live, '''\tretryCounter = 0;
+\tnotifier->setEnabled(false);''',
+           '''\tretryCounter = 0;
+\tnotifier->setEnabled(false);
+\t// Never replay a previous channel's delayed TS after switching services.
+\ttihuluDelayed.clear();
+\ttihuluDelayedBytes = 0;''')
+    change(live, '''\tif (!timeShiftFile.isOpen()) {
+\t\tif (writeFd >= 0) {
+\t\t\tbuffers.append(buffer);
+\t\t\twriteToPipe();
+\t\t\tif (emptyBuffer) {''',
+    '''\t// Read at most once per second, not for every TS packet.
+\tconst qint64 now = QDateTime::currentMSecsSinceEpoch();
+\tif (now - tihuluConfigCheckedAt >= 1000) {
+\t\ttihuluConfigCheckedAt = now;
+\t\tQFile settings(tihuluDelayFile);
+\t\tint value = 0;
+\t\tif (settings.open(QIODevice::ReadOnly) && settings.size() < 16) {
+\t\t\tbool ok = false;
+\t\t\tint requested = settings.readAll().trimmed().toInt(&ok);
+\t\t\tif (ok && requested >= 0 && requested <= 8000)
+\t\t\t\tvalue = requested;
+\t\t}
+\t\ttihuluVideoDelayMs = value;
+\t}
+\tif (!timeShiftFile.isOpen()) {
+\t\tif (writeFd >= 0) {
+\t\t\tif (tihuluVideoDelayMs > 0) {
+\t\t\t\ttihuluDelayed.append(qMakePair(now, buffer));
+\t\t\t\ttihuluDelayedBytes += buffer.size();
+\t\t\t\tif (tihuluDelayedBytes > 64LL * 1024 * 1024) {
+\t\t\t\t\tqCWarning(logDvb, "TIHULU playback delay exceeded 64 MiB; reverting to live");
+\t\t\t\t\ttihuluVideoDelayMs = 0;
+\t\t\t\t}
+\t\t\t}
+\t\t\twhile (!tihuluDelayed.isEmpty() &&
+\t\t\t       (tihuluVideoDelayMs == 0 ||
+\t\t\t        now - tihuluDelayed.first().first >= tihuluVideoDelayMs)) {
+\t\t\t\tconst QByteArray chunk = tihuluDelayed.takeFirst().second;
+\t\t\t\ttihuluDelayedBytes -= chunk.size();
+\t\t\t\tbuffers.append(chunk);
+\t\t\t}
+\t\t\tif (tihuluVideoDelayMs == 0)
+\t\t\t\tbuffers.append(buffer);
+\t\t\tif (!buffers.isEmpty())
+\t\t\t\twriteToPipe();
+\t\t\tif (emptyBuffer) {''')
+    # Kaffeine's timeshift file already implements its own media timeline;
+    # never concatenate a second delayed FIFO while timeshift is enabled.
+    change(live, '''\t} else {
+\t\tnotifier->setEnabled(false);
+\t\ttimeShiftFile.write(buffer); // FIXME avoid buffer reallocation''',
+    '''\t} else {
+\t\ttihuluDelayed.clear();
+\t\ttihuluDelayedBytes = 0;
+\t\tnotifier->setEnabled(false);
+\t\ttimeShiftFile.write(buffer); // FIXME avoid buffer reallocation''')
+
     # Keep Kaffeine's native libVLC rendering but offer explicit recovery
     # profiles for broken VA-API/VDPAU/NVIDIA paths and bad live FIFO caching.
     # Every platform remains configurable: original Kaffeine settings take
@@ -156,6 +235,7 @@ def transform(files):
 \tint tihuluCaptionOpacity = 70;
 \tQString tihuluCaptionText;''')
     osdc = "src/osdwidget.cpp"
+    change(osdc, '#include <QPainter>\n', '#include <QPainter>\n#include <QRegion>\n')
     change(osdc, '''void OsdWidget::showObject(OsdObject *osdObject_, int duration)
 {''',
     '''void OsdWidget::showCaption(const QString &text, bool atTop,
