@@ -1327,6 +1327,9 @@ class SatelliteWindow(QMainWindow):
         self._row(browse,self.continue_analysis,
                   self._button("See generated results  →",
                                lambda:self.result_steps.setCurrentIndex(2)))
+        # Keep next-step actions immediately below the archive list instead
+        # of distributing empty vertical space through the entire tab.
+        browse.addStretch(1)
         analyze_controls=QHBoxLayout()
         self.rate=QComboBox()
         self.rate.addItem("1.024 MS/s",1024000)
