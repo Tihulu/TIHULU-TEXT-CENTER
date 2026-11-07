@@ -43,6 +43,13 @@ class BrowserTVTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             TVBridge(lambda:{},lambda p:None,host="0.0.0.0")
 
+    def test_mobile_serves_shared_scan_ui_module(self):
+        from tv_center.lan import STATIC
+        self.assertEqual(STATIC["web-controls.js"], "web-controls.js")
+        self.assertEqual(STATIC["scan-ui-state.js"], "scan-ui-state.js")
+        module=Path(__file__).parents[1]/"tv_center/web/scan-ui-state.js"
+        self.assertTrue(module.is_file())
+
     def test_browser_assets_link_to_real_controls(self):
         root=Path(__file__).parents[1]/"tv_center/web"
         pages=(root/"index.html").read_text()

@@ -23,6 +23,7 @@ MIME = {".m3u8": "application/vnd.apple.mpegurl", ".ts": "video/mp2t",
         ".html": "text/html; charset=utf-8"}
 STATIC = {"": "mobile.html", "mobile.html": "mobile.html",
           "mobile.js": "mobile.js", "web-controls.js": "web-controls.js",
+          "scan-ui-state.js": "scan-ui-state.js",
           "style.css": "style.css"}
 
 def lan_ip():
