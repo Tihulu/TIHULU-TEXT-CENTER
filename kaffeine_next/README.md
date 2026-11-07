@@ -142,6 +142,52 @@ forcing ABI-incompatible libraries or replacing system libQt5Gui.
 The source-build CI proves it works with Ubuntu 24.04 distro Qt;
 a particular desktop still needs runtime and DVB hardware testing.
 
+## Live Whisper quality: GPU, missing speech and longer A/V buffer
+
+The original first implementation threw away **an entire 4-second MPEG-TS
+chunk whenever the previous Whisper calculation was still running**.
+That creates speech gaps *before* translation. A TV playback delay cannot
+restore those lost words.
+
+The new Kaffeine-caption worker accepts **6-second continuous windows** with
+approximately **1-second overlap** to preserve syllables/phrases crossing
+segment boundaries. Every captured segment enters a chronological **bounded
+FIFO** rather than being discarded when inference is busy. The default
+desktop queue is 96 MiB (48 MiB on a Pi-family device), up to 24 clips.
+This is finite storage, not a claim of guaranteed lossless recording
+if CPU processing remains slower than capture indefinitely. The UI reports
+queue depth and any overflow explicitly. Repeated words caused by overlap
+are trimmed **before** sending the text to Argos/NLLB translation, so they
+don't contaminate the translation.
+
+The TV **audio+video delay is now manually adjustable from 0 to 20 seconds**.
+The opt-in automatic recommender caps itself at 12 seconds on a desktop,
+6 seconds on a Raspberry Pi 5, and may choose less when the actual MPEG-TS
+bitrate would exceed the reserved memory. Audio and video are delayed
+*together*; this is not the same as a caption-offset/lip-sync meter.
+The underlying C++ buffer is still capped at 64 MiB and reverts safely
+if an extremely high-bitrate service exceeds the cap.
+
+To determine whether Whisper is actually accelerated, the caption status
+explicitly reports **Whisper: GPU / CPU / NPU** and selected model when
+the ASR engine is used. Hardware detection in the Model Market alone is
+not proof of a working CUDA model. In particular, the Pop!_OS Kaffeine
+`--software-video` switch affects **libVLC HEVC video rendering**, NOT
+the separate CUDA Whisper speech engine. Both may be enabled together.
+
+For NVIDIA RTX 5080, use Model Market to install the compatible
+**CUDA whisper.cpp engine** (requires CUDA toolkit 12.8 or newer) and
+a verified multilingual **Large-v3 Turbo / Large-v3 Turbo Q5** model.
+Choose GPU or Auto and enable ASR. Large-v3 Turbo generally offers a
+better accuracy/speed tradeoff than the default Tiny model, but actual
+throughput depends on the installation. A Pi 5 without a supported speech
+NPU needs a smaller model to keep up with live speech.
+
+DVB radio audio selection also prefers an ordinary soundtrack tagged for
+the requested source language rather than an unrelated language or an
+accessibility audio-description track. It falls back to the existing
+program audio if no matching track exists.
+
 ## Synchronized live subtitles, embedded on-video OSD and Apply / Reset
 
 In Kaffeine choose **TIHULU AI → Live Teletext / Whisper subtitles**.
@@ -161,7 +207,7 @@ without replacing libVLC or Kaffeine's existing EPG/Teletext OSD.
 - **Caption offset:** -10 to +10 seconds. Positive makes text appear
   later; negative requests earlier text, but recognition cannot predict
   speech before a segment has finished decoding.
-- **TV playback buffer:** 0–8 seconds. The native Kaffeine MPEG-TS FIFO
+- **TV playback buffer:** 0–20 seconds. The native Kaffeine MPEG-TS FIFO
   keeps **audio and video together** and optionally delays both behind
   the immediate RF/Whisper capture. This enables more realistic alignment
   without shifting audio relative to the picture. The delay queue is
@@ -243,8 +289,8 @@ valid recommendation is applied to Kaffeine's existing audio+video MPEG-TS
 buffer; later changes have a 30-second cooldown, 0.75-second hysteresis and
 at most 0.5-second adjustment to avoid rapid playback stalls.
 
-Automatic TV delay is limited to **6 seconds** on normal Linux systems,
-**4 seconds** on Raspberry Pi 5 and a stricter value if the current
+Automatic TV delay is limited to **12 seconds** on normal Linux systems,
+**6 seconds** on Raspberry Pi 5 and a stricter value if the current
 transport-stream bitrate would consume more than roughly **48 MiB**.
 Manual playback delay continues to support 0–8 seconds. When the
 observed lag is above the safe maximum, the UI warns that speech/text
