@@ -1310,6 +1310,14 @@ class SatelliteWindow(QMainWindow):
         self.coverage.addItem("Prefer full visible pass","full")
         self.coverage.addItem("Quick RF sample","sample")
         form.addRow("Recording goal",self.coverage)
+        self.auto_iss_format=QComboBox()
+        self.auto_iss_format.addItem("WAV · FM audio only", "wav")
+        self.auto_iss_format.addItem("CU8 · full IQ data only", "cu8")
+        self.auto_iss_format.addItem("CU8 + WAV · from same physical capture", "both")
+        self.auto_iss_format.setToolTip(
+            "Native CU8 + WAV records actual IQ first, then derives 32-kHz "
+            "FM audio from that same IQ. It does not use WebUSB.")
+        form.addRow("ISS SSTV recording files",self.auto_iss_format)
         self.auto_schedule_button=self._button(
             "Calculate passes & schedule recordings",self.auto_schedule)
         form.addRow(self.auto_schedule_button)
@@ -1934,11 +1942,12 @@ class SatelliteWindow(QMainWindow):
         self.pass_mode.clear()
         mode_labels={
             "iq":"Raw IQ · CU8 disk (8–900 s)",
+            "iq_and_fm_wav":"CU8 + derived FM WAV · same capture",
             "survey":"RF spectrum survey (8–180 s)",
             "sstv_audio":"SSTV FM audio · WAV (event-only)",
             "fm_audio":"Voice / FM audio · WAV",
             "aprs":"AX.25 APRS text · real decoder required"}
-        for mode in ("iq","sstv_audio","fm_audio","aprs","survey"):
+        for mode in ("iq","iq_and_fm_wav","sstv_audio","fm_audio","aprs","survey"):
             if key and allowed_mode(key,mode):
                 self.pass_mode.addItem(mode_labels[mode],mode)
         index=self.pass_mode.findData(current)
@@ -1953,7 +1962,11 @@ class SatelliteWindow(QMainWindow):
         elif mode!="survey" and self.pass_seconds.maximum()!=900:
             self.pass_seconds.setMaximum(900)
         seconds=self.pass_seconds.value()
-        if mode=="iq":
+        if mode=="iq_and_fm_wav":
+            self.pass_cost.setText(
+                f"~{seconds*2.112:.1f} MB · raw CU8 then derived 32-kHz FM WAV. "
+                "Both are genuine samples; FM content remains unverified.")
+        elif mode=="iq":
             self.pass_cost.setText(
                 f"~{seconds*2.048:.1f} MB raw CU8 · true streamed disk recording, max 900 s")
         elif mode=="survey":
@@ -1993,7 +2006,8 @@ class SatelliteWindow(QMainWindow):
         params={"lat":self.lat.value(),"lon":self.lon.value(),"hours":self.hours.value(),
                 "elevation":self.auto_elev.value(),"max_jobs":self.auto_jobs.value(),
                 "coverage_goal":coverage,"duration_seconds":seconds,
-                "compute_mode":compute_mode,"compute_targets":compute_targets}
+                "compute_mode":compute_mode,"compute_targets":compute_targets,
+                "iss_record_format":self.auto_iss_format.currentData()}
         self.auto_feedback.setText("Calculating local satellite passes and checking receiver feasibility…")
         self._task("Auto mission planning",lambda:self.station.auto_schedule(missions,**params),
                    self._auto_schedule_finished)
@@ -2007,6 +2021,8 @@ class SatelliteWindow(QMainWindow):
         if disabled:text+=" Some selected decoders are unavailable: "+", ".join(map(str,disabled))
         if not count:text="No feasible capture job scheduled. "+(" ".join(map(str,skipped[:2])) or "Check TLEs, elevation and receiver tools.")
         self.auto_feedback.setText(text)
+        if hasattr(self,"home_auto_status"):
+            self.home_auto_status.setText(text)
         self.refresh_status()
         self.statusBar().showMessage(text[:220],14000)
 
@@ -2110,9 +2126,11 @@ class SatelliteWindow(QMainWindow):
         key=self.capture_profile.currentData()
         self.capture_mode.blockSignals(True)
         self.capture_mode.clear()
-        for mode in ("iq","survey","aprs","sstv_audio","fm_audio"):
+        for mode in ("iq","iq_and_fm_wav","survey","aprs","sstv_audio","fm_audio"):
             if key and allowed_mode(key,mode):
-                self.capture_mode.addItem({"iq":"Save raw CU8 IQ","survey":"RF spectrum survey",
+                self.capture_mode.addItem({"iq":"Save raw CU8 IQ",
+                     "iq_and_fm_wav":"Save both CU8 + derived FM WAV",
+                     "survey":"RF spectrum survey",
                      "aprs":"AX.25 APRS (if actual data)","sstv_audio":"SSTV audio WAV",
                      "fm_audio":"FM voice WAV"}[mode],mode)
         self.capture_mode.blockSignals(False)
@@ -2128,6 +2146,8 @@ class SatelliteWindow(QMainWindow):
         self.capture_budget.setText(
             f"~{secs*2.048:.1f} MB raw CU8 on local disk · actual samples, no WebUSB"
             if mode=="iq" else
+            f"~{secs*2.112:.1f} MB CU8 + FM WAV from the same physical IQ recording"
+            if mode=="iq_and_fm_wav" else
             "Native rtl_power records for exactly requested seconds (8–180)"
             if mode=="survey" else
             "Native receiver saves actual packet/audio output, no browser involved")
@@ -2142,8 +2162,17 @@ class SatelliteWindow(QMainWindow):
                  "This does NOT prove a satellite is transmitting.",
                  QMessageBox.Yes|QMessageBox.No)!=QMessageBox.Yes:return
         self._task("Physical SDR capture",lambda:self.station.capture(key,mode,secs),
-                   lambda result:(self.file_details.setPlainText(json.dumps(result,indent=2)),
-                                  self.refresh_status()))
+                   self._manual_capture_completed)
+
+    def _manual_capture_completed(self,result):
+        self.file_details.setPlainText(json.dumps(result,indent=2,default=str))
+        if result.get("wav"):
+            self.preview_wav=str(self.station.archive/result["wav"])
+            self._register_output_files([self.station.archive/result["wav"]])
+        if result.get("wav_error"):
+            self.statusBar().showMessage(
+                "Raw CU8 saved, but WAV conversion failed: "+result["wav_error"],14000)
+        self.refresh_status()
 
     def stop_capture(self):
         self._task("Stop owned receiver",self.station.request_stop,
