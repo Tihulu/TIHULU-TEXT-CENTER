@@ -1,7 +1,8 @@
 {
   "source_branch": "feature/tv-center-native-teletext-asr-2026-11-07",
-  "source_sha": "3a31876f48c4688337a45addd089495badbea227",
-  "webusb": "experimental EM28178 read-only register and bulk-IN TS diagnostics; NOT DVB-T2 tuning",
-  "nativeBridge": "optional PIN/token authenticated DVB capture",
-  "browserAI": "opt-in WebGPU/WASM Whisper and translation"
+  "source_sha": "33efea7b5136a08efff3d6d714ae360be41401a1",
+  "mode": "GitHub Pages web app; native Linux/Pi required for actual DVB scanning",
+  "fix": "Country-frequency plan and satellite position are mutually exclusive; scan/stop/cancel disabled when unsupported or receiver disconnected",
+  "webusb": "EM28178 read-only diagnostics only; no browser DVB-T2 tuner driver",
+  "browserAI": "on-demand WebGPU/WASM Whisper"
 }

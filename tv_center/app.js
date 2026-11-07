@@ -5,11 +5,18 @@
   const BASE = "http://127.0.0.1:8768";
   const state = message => { $("state").textContent = message; };
   function reset() {
+    const wasConnected = connected;
     if (timer) clearInterval(timer);
     timer = null; token = ""; connected = false; busy = false;
     $("connect").disabled = false; $("disconnect").disabled = true;
     $("open-page").disabled = true;
+    $("channel").textContent = "No local receiver connected";
+    $("source").textContent = "Connect to native TV Center for real broadcast data.";
+    $("original").textContent = "No native captions — receiver disconnected.";
+    $("translated").textContent = "";
+    $("caption-source").textContent = "No transcript received";
     state("DISCONNECTED");
+    if (wasConnected) document.dispatchEvent(new Event("tihulu-tv-disconnected"));
   }
   async function api(path, method="GET", data=null) {
     const response = await fetch(BASE+path, {
