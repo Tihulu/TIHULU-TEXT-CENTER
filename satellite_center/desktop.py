@@ -42,6 +42,7 @@ from .native_map_parity import (
     filter_orbit_snapshot, export_orbit_geojson)
 from .native_signal_tools import discover_channels, fm_to_wav
 from .sstv_series35 import extract_robot36_wav
+from .native_imagery import list_official_images, fetch_official_image
 from .native_protocols import (load_profiles, save_profiles, import_profiles,
                                export_profiles, parse_user_protocol, match_user_hints)
 
@@ -264,12 +265,12 @@ class SatelliteWindow(QMainWindow):
         nav=QHBoxLayout()
         nav.setSpacing(3)
         for label,target in (
-            ("Home","Overview"),
-            ("Hardware","Hardware"),
-            ("Find satellites","Passes & Data"),
-            ("Maps & live","Maps & Live"),
-            ("Auto receive","Auto reception"),
-            ("Recordings & results","Recordings & results"),
+            ("Receiver & planner","Overview"),
+            ("Hardware / USB","Hardware"),
+            ("Satellite Images & Data","Satellite Images & Data"),
+            ("Earth / Sky","Maps & Live"),
+            ("Signal analysis","Recordings & results"),
+            ("Pass planner","Passes & Data"),
         ):
             button=QPushButton(label.replace("&","&&"))
             button.setObjectName("primaryNav")
@@ -285,6 +286,7 @@ class SatelliteWindow(QMainWindow):
         self.more_button.setPopupMode(QToolButton.InstantPopup)
         tools=QMenu(self.more_button)
         for label,target in (
+            ("Auto reception","Auto reception"),
             ("Reception calendar","Reception calendar"),
             ("Manual RF capture","Manual RF capture"),
             ("Saved protocols","Saved protocols"),
@@ -307,6 +309,7 @@ class SatelliteWindow(QMainWindow):
         self._calendar_tab()
         self._capture_tab()
         self._results_tab()
+        self._images_tab()
         self._protocols_tab()
 
     def _update_nav_selection(self,index):
@@ -1756,6 +1759,274 @@ class SatelliteWindow(QMainWindow):
                   self._button("Choose another file",
                                lambda:self.result_steps.setCurrentIndex(0)))
 
+    def _images_tab(self):
+        """Native equivalent of Satellite Images & Data, never a WebView."""
+        host=self._new_tab("Satellite Images & Data")
+        scroll=QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.NoFrame)
+        host.addWidget(scroll)
+        page=QWidget()
+        body=QVBoxLayout(page)
+        body.setSpacing(12)
+        scroll.setWidget(page)
+        heading=QLabel("Satellite Images & Data")
+        heading.setObjectName("passTitle")
+        body.addWidget(heading)
+        body.addWidget(self._hint(
+            "Decode only genuinely recorded SSTV / Meteor data, browse your local files, "
+            "or request official NASA photographs separately. "
+            "An online NASA image is NEVER a picture received by your RTL-SDR."))
+
+        receiver=QGroupBox("1 · Real RF imagery · ISS SSTV / Meteor LRPT")
+        controls=QVBoxLayout(receiver)
+        controls.addWidget(self._hint(
+            "ISS Robot36 needs an actually recorded WAV; Meteor LRPT needs raw CU8 "
+            "and the installed SatDump decoder. No invented PNG is created."))
+        actions=QHBoxLayout()
+        actions.addWidget(self._button("Select ISS SSTV receiver",self._image_tune_iss))
+        actions.addWidget(self._button("Open recorded WAV / CU8",self._image_import))
+        controls.addLayout(actions)
+        decoders=QHBoxLayout()
+        decoders.addWidget(self._button("Decode WAV → Robot36 PNG",self._image_decode_sstv))
+        decoders.addWidget(self._button("Meteor 72k",lambda:self.decode_meteor("72k")))
+        decoders.addWidget(self._button("Meteor 80k",lambda:self.decode_meteor("80k")))
+        controls.addLayout(decoders)
+        controls.addWidget(self._button("Inspect decoded result files / ZIP",
+                                        self._home_extract))
+        body.addWidget(receiver)
+
+        local=QGroupBox("2 · Recorded files · PNG, WAV, CU8, text and JSON")
+        local_layout=QVBoxLayout(local)
+        local_buttons=QHBoxLayout()
+        local_buttons.addWidget(self._button("Refresh saved files",self.refresh_status))
+        local_buttons.addWidget(self._button("Open any local file",self._image_import))
+        local_buttons.addWidget(self._button("Open recordings folder",self.open_archive_folder))
+        local_layout.addLayout(local_buttons)
+        self.native_image_files=QTreeWidget()
+        self.native_image_files.setHeaderLabels(
+            ["Saved file","Data type / format","Bytes"])
+        self.native_image_files.setMaximumHeight(185)
+        self.native_image_files.header().setSectionResizeMode(0,QHeaderView.Stretch)
+        self.native_image_files.header().setSectionResizeMode(1,QHeaderView.ResizeToContents)
+        self.native_image_files.itemSelectionChanged.connect(self._image_local_selected)
+        local_layout.addWidget(self.native_image_files)
+        self.native_local_preview=QLabel(
+            "Choose a real local image/WAV/text file to inspect it. "
+            "Only actual PNG/JPEG images are drawn here.")
+        self.native_local_preview.setWordWrap(True)
+        self.native_local_preview.setAlignment(Qt.AlignCenter)
+        self.native_local_preview.setMinimumHeight(85)
+        local_layout.addWidget(self.native_local_preview)
+        self.native_local_status=self._hint(
+            "No file chosen. Source identity cannot be inferred from filename alone.")
+        local_layout.addWidget(self.native_local_status)
+        body.addWidget(local)
+
+        nasa=QGroupBox("3 · Online NASA Earth imagery · NOT received by SDR")
+        online=QVBoxLayout(nasa)
+        nasa_toolbar=QHBoxLayout()
+        self.online_provider=QComboBox()
+        self.online_provider.addItem("NASA DSCOVR EPIC · whole Earth","epic")
+        self.online_provider.addItem("NASA ISS Earth photo archive","iss")
+        nasa_toolbar.addWidget(self.online_provider)
+        nasa_toolbar.addWidget(self._button("Fetch official image catalog",
+                                            self._image_fetch_catalog))
+        online.addLayout(nasa_toolbar)
+        self.online_image_status=self._hint(
+            "Online imagery is optional, fetched only on click over HTTPS. "
+            "No RF recording, WebUSB or embedded browser required.")
+        online.addWidget(self.online_image_status)
+        self.online_image_files=QTreeWidget()
+        self.online_image_files.setHeaderLabels(["NASA image","UTC / archive time","Source"])
+        self.online_image_files.setMaximumHeight(180)
+        self.online_image_files.header().setSectionResizeMode(0,QHeaderView.Stretch)
+        self.online_image_files.itemSelectionChanged.connect(self._image_online_selected)
+        online.addWidget(self.online_image_files)
+        self.online_image_preview=QLabel(
+            "Select an official NASA item and click Preview to download it.")
+        self.online_image_preview.setWordWrap(True)
+        self.online_image_preview.setMinimumHeight(130)
+        self.online_image_preview.setAlignment(Qt.AlignCenter)
+        online.addWidget(self.online_image_preview)
+        self.online_records=[]
+        self.online_selected=None
+        self.online_image_bytes=None
+        self.online_image_format=None
+        downloads=QHBoxLayout()
+        downloads.addWidget(self._button("Preview selected NASA image",
+                                         self._image_preview_online))
+        downloads.addWidget(self._button("Save NASA image with source label",
+                                         self._image_save_online))
+        online.addLayout(downloads)
+        body.addWidget(nasa)
+        body.addWidget(self._button(
+            "Explore satellite signal / user-saved protocol profiles",
+            lambda:self._open_native_tab("Saved protocols")))
+        body.addStretch(1)
+
+    def _image_tune_iss(self):
+        key="iss_sstv"
+        self.home_capture_profile.setCurrentIndex(
+            self.home_capture_profile.findData(key))
+        self.capture_profile.setCurrentIndex(self.capture_profile.findData(key))
+        self._open_native_tab("Overview")
+        self.statusBar().showMessage(
+            "ISS SSTV candidate 437.550 MHz selected for native RF acquisition. "
+            "Check current ARISS event before recording.",12000)
+
+    def _image_import(self):
+        path,_=QFileDialog.getOpenFileName(
+            self,"Open actual local RF / image / audio / text",
+            str(self.station.archive),
+            "Supported files (*.cu8 *.wav *.png *.jpg *.jpeg *.txt *.json *.csv);;All files (*)")
+        if not path:return
+        self._choose_path(path)
+        self._image_show_local(Path(path))
+
+    def _image_decode_sstv(self):
+        self._open_native_tab("Recordings & results")
+        self.result_steps.setCurrentIndex(2)
+        self.decode_robot36_native()
+
+    def _image_local_selected(self):
+        item=self.native_image_files.currentItem()
+        if item is None:return
+        path=Path(str(item.data(0,Qt.UserRole)))
+        self._image_show_local(path)
+
+    def _image_show_local(self,path):
+        if not path.is_file():
+            self.native_local_status.setText("File removed or unavailable: "+str(path))
+            return
+        label,why=describe_local_file(path)
+        self.native_local_status.setText(
+            str(path)+"  ·  "+label+"  ·  "+why)
+        self.native_local_preview.clear()
+        if path.suffix.lower() in (".png",".jpg",".jpeg") and path.stat().st_size<20_000_000:
+            pixmap=QPixmap(str(path))
+            if not pixmap.isNull():
+                self.native_local_preview.setPixmap(
+                    pixmap.scaled(700,255,Qt.KeepAspectRatio,Qt.SmoothTransformation))
+                return
+        self.native_local_preview.setText(
+            path.name+"  ·  "+label+"\nUse Signal analysis for CU8 FFT, "
+            "WAV playback, text and decoder outputs.")
+
+    def _update_native_image_files(self,archive):
+        selected=(self.native_image_files.currentItem().data(0,Qt.UserRole)
+                  if self.native_image_files.currentItem() is not None else None)
+        self.native_image_files.blockSignals(True)
+        self.native_image_files.clear()
+        for item in archive:
+            name=item.get("file","")
+            path=self.station.archive/name
+            if not path.is_file():continue
+            label,_=describe_local_file(path)
+            row=QTreeWidgetItem([name,label,str(item.get("bytes",0))])
+            row.setData(0,Qt.UserRole,str(path))
+            self.native_image_files.addTopLevelItem(row)
+            if str(path)==selected:
+                self.native_image_files.setCurrentItem(row)
+        self.native_image_files.blockSignals(False)
+
+    def _image_fetch_catalog(self):
+        provider=self.online_provider.currentData()
+        self.online_image_status.setText("Requesting official NASA catalog over HTTPS…")
+        self._task("NASA image catalog",
+                   lambda:list_official_images(provider),
+                   self._image_catalog_done)
+
+    def _image_catalog_done(self,rows):
+        self.online_records=rows
+        self.online_image_bytes=None
+        self.online_selected=None
+        self.online_image_preview.clear()
+        self.online_image_files.clear()
+        for index,record in enumerate(rows):
+            item=QTreeWidgetItem([
+                str(record.get("caption","NASA image"))[:105],
+                str(record.get("time","unknown")),
+                str(record.get("provider","NASA"))])
+            item.setData(0,Qt.UserRole,index)
+            self.online_image_files.addTopLevelItem(item)
+        self.online_image_status.setText(
+            f"{len(rows)} official NASA archive item(s), NONE received over RF. "
+            "Select one to preview.")
+
+    def _image_online_selected(self):
+        item=self.online_image_files.currentItem()
+        if item is None:return
+        index=item.data(0,Qt.UserRole)
+        if not isinstance(index,int) or not 0<=index<len(self.online_records):return
+        self.online_selected=self.online_records[index]
+        self.online_image_bytes=None
+        self.online_image_preview.setText(
+            str(self.online_selected["caption"])+"\n"+
+            str(self.online_selected["time"])+"\nSource: "+
+            str(self.online_selected["provider"])+" (ONLINE ONLY, not RF)")
+
+    def _image_preview_online(self):
+        if self.online_selected is None:
+            return QMessageBox.information(self,"NASA preview",
+                "Choose an official NASA image from the list first.")
+        item=dict(self.online_selected)
+        self.online_image_status.setText("Downloading selected NASA image preview…")
+        self._task("NASA image preview",lambda:fetch_official_image(item),
+                   lambda data:self._image_preview_done(item,data))
+
+    def _image_preview_done(self,item,data):
+        if self.online_selected is None or item.get("url")!=self.online_selected.get("url"):
+            return
+        pixmap=QPixmap()
+        if not pixmap.loadFromData(data):
+            self.online_image_status.setText("NASA image is not readable by local Qt.")
+            return
+        self.online_image_bytes=data
+        self.online_image_format=".png" if data.startswith(b"\x89PNG") else ".jpg"
+        self.online_image_preview.setPixmap(pixmap.scaled(
+            760,330,Qt.KeepAspectRatio,Qt.SmoothTransformation))
+        self.online_image_status.setText(
+            f"Official online NASA image downloaded ({len(data)} bytes); "
+            "not an RF reception, ISS downlink or local SDR acquisition.")
+
+    def _image_save_online(self):
+        if self.online_image_bytes is None or self.online_selected is None:
+            return QMessageBox.information(self,"Save NASA image",
+                "First select and preview a real official NASA image.")
+        import re as _re
+        basename=_re.sub(r"[^A-Za-z0-9_-]","_",
+                         str(self.online_selected.get("id") or "nasa_earth"))[:50]
+        filename="NASA_ONLINE_"+basename+(self.online_image_format or ".jpg")
+        path,_=QFileDialog.getSaveFileName(
+            self,"Save official online NASA photo (NOT RF)",
+            str(Path.home()/filename),
+            "Images (*.jpg *.png)")
+        if not path:return
+        target=Path(path).expanduser()
+        if target.exists():
+            return QMessageBox.warning(self,"Save NASA image",
+                                       "Destination already exists; not overwriting.")
+        # Keep original verified format and provenance in sidecar metadata.
+        if target.suffix.lower() != self.online_image_format:
+            return QMessageBox.warning(self,"Save NASA image",
+                                       "Keep original NASA PNG/JPEG file extension.")
+        manifest=target.with_suffix(target.suffix+".source.json")
+        if manifest.exists():
+            return QMessageBox.warning(self,"Save NASA image",
+                                       "Provenance metadata already exists; choose another name.")
+        try:
+            with target.open("xb") as stream:
+                stream.write(self.online_image_bytes)
+            manifest.write_text(json.dumps({
+                **self.online_selected,"source_medium":"ONLINE_HTTPS_NOT_RF",
+                "saved_at":datetime.now(timezone.utc).isoformat()
+            },indent=2),encoding="utf-8")
+        except OSError as error:
+            return QMessageBox.warning(self,"Save NASA image",str(error))
+        self.online_image_status.setText(
+            "Saved NASA ONLINE image and provenance JSON to "+str(target))
+
     def _protocols_tab(self):
         """Manual public downlink catalog, independent of receiver allowlist."""
         body=self._new_tab("Saved protocols")
@@ -1938,6 +2209,8 @@ class SatelliteWindow(QMainWindow):
                 elif key in ("Connect SDR","Disconnect SDR","USB diagnostic","Real RF sample test"):
                     self.hardware_feedback.setText(key+" failed: "+message)
                     self.refresh_status()
+                if key.startswith("NASA "):
+                    self.online_image_status.setText(key+" failed: "+message)
                 if not silent:
                     QMessageBox.warning(self,"Satellite Center",message)
         def on_finished():
@@ -2034,6 +2307,7 @@ class SatelliteWindow(QMainWindow):
         if archive_key!=self.last_archive_key:
             self.last_archive_key=archive_key
             self._render_files(state.get("archive",[]))
+            self._update_native_image_files(state.get("archive",[]))
 
     def usb_test(self):
         self.hardware_feedback.setText("Testing physical USB access without enabling capture…")
@@ -2739,7 +3013,7 @@ def main(argv=None):
         with TemporaryDirectory(prefix="tihulu-native-smoke-") as td:
             station=Station(Path(td))
             window=SatelliteWindow(station,auto_poll=False)
-            assert window.tabs.count()==9, "Native pages not built"
+            assert window.tabs.count()==10, "Native pages not built"
             assert window.tabs.tabBar().isHidden(), "Expose guided primary navigation"
             assert len(window.nav_buttons)==6
             assert "Hardware" in window.nav_buttons
@@ -2759,7 +3033,11 @@ def main(argv=None):
             assert window.result_steps.currentIndex()==2
             window._open_native_tab("Overview")
             assert window.protocol_list.topLevelItemCount()==0
-            assert window.tabs.tabText(8)=="Saved protocols"
+            assert window.tabs.tabText(9)=="Saved protocols"
+            assert window._open_native_tab("Satellite Images & Data")
+            assert window.online_provider.count()==2
+            assert window.native_image_files.topLevelItemCount()==0
+            window._open_native_tab("Overview")
             assert window.map_sky.mode=="sky"
             assert window.map_earth.mode=="earth"
             assert window.map_views.currentIndex()==1, "Default map should be Earth"
@@ -2853,6 +3131,7 @@ def main(argv=None):
                 for name,filename in (
                     ("Overview","01-home.png"),
                     ("Hardware","06-hardware.png"),
+                    ("Satellite Images & Data","07-satellite-images.png"),
                     ("Passes & Data","02-find-satellites.png"),
                     ("Maps & Live","03-earth-map.png"),
                     ("Auto reception","04-auto-receive.png"),
