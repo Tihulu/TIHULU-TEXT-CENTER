@@ -1208,7 +1208,10 @@ class SatelliteWindow(QMainWindow):
         self.city_country=QComboBox()
         for text,country in [("Germany + Türkiye","all"),("Germany","DE"),("Türkiye","TR")]:
             self.city_country.addItem(text,country)
-        self.city_country.currentIndexChanged.connect(self._refresh_city_search)
+        self.city_country.currentIndexChanged.connect(self._refresh_city_regions)
+        self.city_region=QComboBox()
+        self.city_region.addItem("All states / provinces",None)
+        self.city_region.currentIndexChanged.connect(self._refresh_city_search)
         self.city_search=QLineEdit()
         self.city_search.setPlaceholderText(
             "Search 8,084 cities · Hürth, Aachen, İzmir, Karaburun…")
@@ -1227,7 +1230,8 @@ class SatelliteWindow(QMainWindow):
 
         controls.addRow("Quick preset",self.city)
         controls.addRow("Country",self.city_country)
-        controls.addRow("Offline city search",self.city_search)
+        controls.addRow("State / province",self.city_region)
+        controls.addRow("Offline city / town search",self.city_search)
         lookup=QHBoxLayout()
         lookup.addWidget(self._button("Worldwide online lookup (opt-in)",
                                       self._search_online_city))
@@ -1246,6 +1250,7 @@ class SatelliteWindow(QMainWindow):
         self.elev.valueChanged.connect(self._sync_home_from_planner)
         self._sync_home_from_planner()
         self._home_update_regions()
+        self._refresh_city_regions()
         parent.addWidget(group)
 
     def _search_online_city(self, query=None):
@@ -1351,13 +1356,25 @@ class SatelliteWindow(QMainWindow):
                     "Preset station: "+self.city.currentText()+
                     " · coordinates editable. Recalculate passes after changing station.")
 
+    def _refresh_city_regions(self,*_):
+        if not hasattr(self,"city_region"):return
+        country=self.city_country.currentData() or "all"
+        self.city_region.blockSignals(True)
+        self.city_region.clear()
+        self.city_region.addItem("All states / provinces",None)
+        for region in regions_for(self._offline_cities,country):
+            self.city_region.addItem(region,region)
+        self.city_region.blockSignals(False)
+        self._refresh_city_search()
+
     def _refresh_city_search(self, *_):
         if hasattr(self,"city_search"):
             self._search_offline_city(self.city_search.text())
 
     def _search_offline_city(self, value):
         country=self.city_country.currentData() or "all"
-        rows=search_locations(self._offline_cities,value,country,limit=12)
+        region=self.city_region.currentData()
+        rows=search_locations(self._offline_cities,value,country,limit=12,region=region)
         self._current_city_suggestions={city_label(row):row for row in rows}
         self.city_model.setStringList(list(self._current_city_suggestions))
         if rows and self.city_search.hasFocus():
