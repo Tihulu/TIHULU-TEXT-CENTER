@@ -50,6 +50,24 @@ class StarterAI:
             pairs = argos_installed_pairs()
         except (ImportError, OSError, RuntimeError):
             pairs = []
+        # On first install the desktop process may still run system Python
+        # while Argos has just been installed in the new user-owned venv.
+        # Read readiness from that runtime rather than falsely saying missing.
+        if not pairs and self.runtime.status()["installed"]:
+            try:
+                exe = self.runtime.status()["python"]
+                base = str(Path(__file__).resolve().parent.parent)
+                env = os.environ.copy()
+                env["PYTHONPATH"] = base + os.pathsep + env.get("PYTHONPATH", "")
+                proc = subprocess.run(
+                    [exe, "-m", "tv_center.ai_provision", "--argos-status-worker"],
+                    cwd=base, env=env, stdin=subprocess.DEVNULL,
+                    stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                    timeout=12, check=False)
+                if proc.returncode == 0:
+                    pairs = json.loads(proc.stdout.decode("utf-8", "replace"))
+            except (OSError, ValueError, UnicodeError, subprocess.TimeoutExpired):
+                pass
         model = self.library._path("tiny")
         active = self.ai.values.get("model_path", "")
         return {
@@ -165,6 +183,9 @@ def main(args=None):
     args = list(sys.argv[1:] if args is None else args)
     if args == ["--argos-worker"]:
         argos_worker()
+        return 0
+    if args == ["--argos-status-worker"]:
+        print(json.dumps(argos_installed_pairs(), ensure_ascii=False))
         return 0
     starter = StarterAI()
     if args in ([], ["status"]):
