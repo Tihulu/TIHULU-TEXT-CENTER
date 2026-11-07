@@ -54,7 +54,9 @@ class ScanMonitor(QDialog):
             key = (name, freq)
             if key not in self.seen:
                 self.seen.add(key)
-                suffix = (" · " + str(freq) + " Hz") if freq else ""
+                from .core import Channel, format_frequency
+                suffix = (" · " + format_frequency(Channel(name, None, freq, None,
+                            delivery=info.get("delivery", "")))) if freq else ""
                 self.channels.addItem(name + suffix)
                 self.channels.scrollToBottom()
             self.counter.setText("Found services: " + str(len(self.seen)))

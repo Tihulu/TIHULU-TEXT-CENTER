@@ -8,7 +8,7 @@ from tv_center.channel_prefs import ChannelPreferences, profile_key
 from tv_center.ai_settings import AISettings
 from tv_center.model_market import ModelLibrary, ModelError, CATALOG
 from tv_center.scanner import scan_commands, parse_scan_progress
-from tv_center.core import Channel, read_channels, parse_signal_log
+from tv_center.core import Channel, read_channels, parse_signal_log, format_frequency, zap_argv
 
 class SatelliteAndAISettingsTests(unittest.TestCase):
     def test_satellite_scan_is_not_terrestrial_country(self):
@@ -39,6 +39,17 @@ class SatelliteAndAISettingsTests(unittest.TestCase):
         self.assertEqual(d["service_reported"], "KiKA HD")
         self.assertIsNone(parse_scan_progress(""))
         self.assertIsNone(parse_scan_progress("   "))
+
+    def test_satellite_channel_name_and_khz_units(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp)/"sat.conf"
+            path.write_text("[TRT Çocuk: Uydu & HD]\nDELIVERY_SYSTEM=DVBS2\n"
+                            "FREQUENCY=11508500\nSERVICE_ID=151\n")
+            channels = read_channels([path])
+            self.assertEqual(len(channels), 1)
+            self.assertEqual(channels[0].frequency, 11508500)
+            self.assertEqual(format_frequency(channels[0]), "11.509 GHz")
+            self.assertEqual(zap_argv(channels[0])[-1], "TRT Çocuk: Uydu & HD")
 
     def test_satellite_frequency_and_radio_type(self):
         with tempfile.TemporaryDirectory() as tmp:

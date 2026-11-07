@@ -7,6 +7,7 @@ from __future__ import annotations
 
 
 def edit_channels(parent, preferences, profile, channels):
+    from .core import format_frequency
     from PyQt5.QtCore import Qt
     from PyQt5.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel,
         QListWidget, QListWidgetItem, QComboBox, QPushButton, QMessageBox)
@@ -80,7 +81,7 @@ def edit_channels(parent, preferences, profile, channels):
                 kind = "RADIO" if row["kind"] == "radio" else "TV"
                 flag = " [NEW]" if row["new"] else ""
                 locked = " [encrypted]" if row["encrypted"] else ""
-                label = f"{checkbox}{icon}{name} · {kind} · {row['channel'].frequency/1e6:g} MHz{flag}{locked}"
+                label = f"{checkbox}{icon}{name} · {kind} · {format_frequency(row['channel'])}{flag}{locked}"
                 item = QListWidgetItem(label)
                 item.setData(Qt.UserRole, row["key"])
                 self.list.addItem(item)

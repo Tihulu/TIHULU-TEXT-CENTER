@@ -14,7 +14,7 @@ import sys
 import threading
 
 from . import __version__
-from .core import TVCapture, discover_channels, read_channels, receiver_status, parse_signal_log, Channel
+from .core import TVCapture, discover_channels, read_channels, receiver_status, parse_signal_log, format_frequency, Channel
 from .bridge import TVBridge
 from .captions import install_argos_pack
 from .scanner import AutoScanner, ScanError, PROFILES, MODES
@@ -286,12 +286,10 @@ def main():
             self.channel_list.clear()
             for row in self.visible_rows:
                 c = row["channel"]
-                freq_unit = "GHz" if c.frequency > 1_000_000_000 else "MHz"
-                freq = c.frequency / (1e9 if freq_unit == "GHz" else 1e6)
                 star = "★ " if row["favorite"] else ""
                 category = "RADIO" if row["kind"] == "radio" else "TV"
                 encrypted = " 🔒" if c.encrypted else ""
-                self.channel_list.addItem(f"{star}{c.name} · {category} · {freq:g} {freq_unit}{encrypted}")
+                self.channel_list.addItem(f"{star}{c.name} · {category} · {format_frequency(c)}{encrypted}")
             new_count = sum(1 for r in curated if r["new"])
             self.list_origin.setText(f"{source_label}\n{len(self.all_channels)} scanned · "
                                      f"{len(self.channels)} included · {new_count} awaiting review")

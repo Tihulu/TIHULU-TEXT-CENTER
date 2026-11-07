@@ -49,9 +49,16 @@ def read_channels(files: list[Path]) -> list[Channel]:
                 sid = int(attrs["SERVICE_ID"], 0) if "SERVICE_ID" in attrs else None
             except ValueError:
                 return
-            if freq < 40_000_000 or freq > 20_000_000_000:
-                return
             delivery = attrs.get("DELIVERY_SYSTEM", "").upper()
+            satellite = "DVBS" in delivery or "DVB-S" in delivery
+            if satellite:
+                # DVBv5 satellite tuning files conventionally use kHz
+                # (e.g. 11508500), though some exports use Hz.
+                if not (3_000_000 <= freq <= 20_000_000 or
+                        3_000_000_000 <= freq <= 20_000_000_000):
+                    return
+            elif not 40_000_000 <= freq <= 1_000_000_000:
+                return
             service_type = attrs.get("SERVICE_TYPE", "").upper()
             radio = ("RADIO" in service_type or service_type in ("2", "0X02", "10", "0X0A"))
             key = (freq, sid, name, delivery)
@@ -79,11 +86,19 @@ def discover_channels() -> list[Channel]:
         files.append(extra)
     return read_channels(files)
 
+def format_frequency(channel: Channel) -> str:
+    if ("DVBS" in channel.delivery or "DVB-S" in channel.delivery) and channel.frequency < 100_000_000:
+        return f"{channel.frequency / 1_000_000:.3f} GHz"
+    if channel.frequency >= 1_000_000_000:
+        return f"{channel.frequency / 1_000_000_000:.3f} GHz"
+    return f"{channel.frequency / 1_000_000:g} MHz"
+
 def zap_argv(channel: Channel, adapter: int = 0) -> list[str]:
     if adapter not in range(0, 16):
         raise ValueError("Adapter must be between 0 and 15")
-    if not re.fullmatch(r"[\w .+()/-]{1,120}", channel.name, flags=re.UNICODE):
-        raise ValueError("Unsupported channel name")
+    if not channel.name or len(channel.name) > 120 or any(
+            ord(c) < 32 or ord(c) == 127 for c in channel.name):
+        raise ValueError("Unsafe DVB service name")
     return ["dvbv5-zap", "-a", str(adapter), "-c", str(channel.path),
             "-p", "-P", "-r", channel.name]
 

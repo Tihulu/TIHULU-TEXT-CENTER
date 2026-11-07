@@ -148,6 +148,7 @@ class AutoScanner:
                                     if notify: notify({"stage": stage, "kind":"found",
                                                        "channel": channel.name,
                                                        "frequency": channel.frequency,
+                                                       "delivery": channel.delivery,
                                                        "count": len(last_names)})
                     if now - last_signal >= 5.0:
                         last_signal = now
@@ -213,7 +214,8 @@ class AutoScanner:
                     raise ScanError("No DVB service list created; prior channels retained")
                 for n, c in enumerate(discovered):
                     if notify: notify({"stage":2, "kind":"found", "channel":c.name,
-                                       "frequency":c.frequency, "count":n+1})
+                                       "frequency":c.frequency, "delivery":c.delivery,
+                                       "count":n+1})
                 # Preserve the owner's channel preferences in a separate file.
                 staged = output / (target.name + ".staging")
                 staged.write_bytes(channels_file.read_bytes())
