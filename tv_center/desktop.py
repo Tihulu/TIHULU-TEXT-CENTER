@@ -7,6 +7,7 @@ from __future__ import annotations
 from pathlib import Path
 import json
 import os
+import tempfile
 import queue
 import subprocess
 import sys
@@ -15,8 +16,8 @@ import threading
 from . import __version__
 from .core import TVCapture, discover_channels, read_channels, receiver_status, parse_signal_log, Channel
 from .bridge import TVBridge
-from .lan import MobileLAN
 from .captions import install_argos_pack
+from .scanner import AutoScanner, ScanError, PROFILES, MODES
 
 def main():
     if os.environ.get("WAYLAND_DISPLAY"):
@@ -38,8 +39,8 @@ def main():
             self.setWindowTitle("TIHULU TV Center · Native DVB")
             self.resize(1280, 795)
             self.capture = TVCapture()
+            self.scanner = AutoScanner()
             self.bridge = None
-            self.mobile_lan = None
             self.latest = {"original": "", "translated": "", "source": "none"}
             self.channels = []
             self.setStyleSheet("""
@@ -85,13 +86,29 @@ def main():
             import_btn = QPushButton("Import DVBv5 channel file")
             import_btn.clicked.connect(self.import_channels)
             l.addWidget(import_btn)
-            scan_btn = QPushButton("Scan from initial transponder file")
-            scan_btn.clicked.connect(self.scan_channels)
-            l.addWidget(scan_btn)
             self.country = QComboBox()
             self.country.addItem("Germany (DE)", "DE")
             self.country.addItem("Türkiye (TR)", "TR")
+            self.country.currentIndexChanged.connect(self.refresh_channels)
             l.addWidget(self.country)
+            self.delivery = QComboBox()
+            self.delivery.addItem("Antenna · DVB-T / DVB-T2", "t")
+            self.delivery.addItem("Cable · DVB-C", "c")
+            self.delivery.currentIndexChanged.connect(self.refresh_channels)
+            l.addWidget(self.delivery)
+            scan_btn = QPushButton("🔎 Automatic full channel scan")
+            scan_btn.clicked.connect(self.scan_channels)
+            l.addWidget(scan_btn)
+            self.stop_scan_btn = QPushButton("Cancel running scan")
+            self.stop_scan_btn.setEnabled(False)
+            self.stop_scan_btn.clicked.connect(self.cancel_scan)
+            l.addWidget(self.stop_scan_btn)
+            self.list_origin = QLabel("Previously saved frequencies. Run automatic scan to verify.")
+            self.list_origin.setWordWrap(True)
+            l.addWidget(self.list_origin)
+            manual_btn = QPushButton("Advanced · Scan from frequency file")
+            manual_btn.clicked.connect(self.scan_from_file)
+            l.addWidget(manual_btn)
             self.signal_btn = QPushButton("Measure current signal · 15 s")
             self.signal_btn.clicked.connect(self.measure_signal)
             l.addWidget(self.signal_btn)
@@ -161,15 +178,6 @@ def main():
             self.bridge_token.setReadOnly(True)
             self.bridge_token.setPlaceholderText("Bridge OFF — no local server")
             form.addRow("Temporary bridge token", self.bridge_token)
-            self.lan_toggle = QCheckBox("Allow phone / tablet on trusted Wi-Fi (OFF by default)")
-            self.lan_toggle.toggled.connect(self.toggle_mobile_lan)
-            form.addRow("Local Wi-Fi", self.lan_toggle)
-            self.lan_details = QLabel("Mobile access OFF — no LAN listener")
-            self.lan_details.setWordWrap(True)
-            form.addRow("Phone URL / pairing code", self.lan_details)
-            self.mobile_video_toggle = QCheckBox("Share live H.264/AAC video (CPU intensive)")
-            self.mobile_video_toggle.toggled.connect(self.toggle_mobile_video)
-            form.addRow("Mobile video", self.mobile_video_toggle)
             self.statusbar = QLabel("Idle. No active tuner or AI worker.")
             self.statusbar.setWordWrap(True)
             outer.addWidget(self.statusbar)
@@ -218,16 +226,35 @@ def main():
                 self.capture.emit("measurement", parse_signal_log(raw))
             threading.Thread(target=worker, daemon=True, name="tihulu-tv-signal").start()
 
-        def refresh_channels(self):
-            self.channels = discover_channels()
+        def refresh_channels(self, *_):
+            country = self.country.currentData() or "DE"
+            medium = self.delivery.currentData() or "t"
+            expected = Path.home() / ".config/tihulu-tv-center" / f"channels-{country}-{medium}.conf"
+            if expected.is_file():
+                self.channels = read_channels([expected])
+                source_label = f"Verified saved scan · {PROFILES[country]['name']} · {MODES[medium]}"
+            elif country == "DE" and medium == "t":
+                # Preserve the user's previous genuine Kaffeine/dvbv5 results, but
+                # prominently label them as *saved*, not a completed auto scan.
+                self.channels = discover_channels()
+                source_label = "Imported historical Germany scans · NOT a fresh automatic scan"
+            else:
+                self.channels = []
+                source_label = f"No saved {PROFILES[country]['name']} {MODES[medium]} scan — press Automatic full channel scan"
+            self.channels = sorted(self.channels, key=lambda c: (c.frequency, c.name.casefold()))
             self.channel_list.clear()
             for c in self.channels:
                 mhz = c.frequency / 1e6
-                self.channel_list.addItem(f"{c.name}    · {mhz:g} MHz")
-            self.statusbar.setText(f"{len(self.channels)} scanned DVBv5 channels loaded. No background scan.")
+                encrypted = " · ENCRYPTED" if c.encrypted else ""
+                self.channel_list.addItem(f"{c.name} · {mhz:g} MHz{encrypted}")
+            self.list_origin.setText(f"{source_label} | {len(self.channels)} services")
+            if not self.scanner.running:
+                self.statusbar.setText(source_label)
 
         def import_channels(self):
-            file, _ = QFileDialog.getOpenFileName(self, "Choose DVBv5 channels.conf", str(Path.home()), "DVBv5 config (*.conf);;All files (*)")
+            file, _ = QFileDialog.getOpenFileName(
+                self, "Choose DVBv5 channels.conf", str(Path.home()),
+                "DVBv5 config (*.conf);;All files (*)")
             if not file:
                 return
             target = Path.home() / ".config/tihulu-tv-center/channels.conf"
@@ -238,25 +265,68 @@ def main():
             self.refresh_channels()
 
         def scan_channels(self):
+            """Full country-aware on-air sweep, without asking for a frequency file."""
+            if self.scanner.running:
+                QMessageBox.information(self, "Scan running", "A full scan is already active.")
+                return
             if self.capture.thread and self.capture.thread.is_alive():
-                QMessageBox.warning(self, "Receiver busy", "Stop TV before scanning.")
+                QMessageBox.warning(self, "Receiver busy", "Stop live TV before scanning.")
                 return
-            initial, _ = QFileDialog.getOpenFileName(
-                self, "Select genuine DVB-T2 initial transponder file",
-                "/usr/share/dvb/dvb-t", "Initial scan data (*);;All files (*)")
-            if not initial:
+            country = self.country.currentData()
+            medium = self.delivery.currentData()
+            adapter = self.capture.adapter
+            label = f"{PROFILES[country]['name']} · {MODES[medium]}"
+            if QMessageBox.question(self, "Automatic full scan",
+                f"Scan actual {label} broadcasts on DVB adapter {adapter}?\n\n"
+                "This may take several minutes, requires the tuner exclusively, "
+                "and will preserve any earlier saved channel lists if no new channels are found."
+            ) != QMessageBox.Yes:
                 return
-            dest = Path.home() / ".config/tihulu-tv-center/channels.conf"
-            dest.parent.mkdir(parents=True, exist_ok=True)
-            self.statusbar.setText("Scanning: receiver cannot be used for TV during scan.")
+            self.stop_scan_btn.setEnabled(True)
+            self.statusbar.setText(f"{label}: preparing automatic scan")
             def worker():
                 try:
-                    p = subprocess.run(["dvbv5-scan", "-a", str(self.capture.adapter), "-C", self.country.currentData(), "-F", "-T", "5",
-                                        "-o", str(dest), initial],
-                                       capture_output=True, text=True, timeout=300, check=False)
-                    self.capture.emit("scan", (p.returncode == 0, p.stderr[-600:]))
-                except (OSError, subprocess.TimeoutExpired) as e:
-                    self.capture.emit("scan", (False, str(e)))
+                    result = self.scanner.run(country, medium, adapter,
+                           notify=lambda text: self.capture.emit("scan_progress", f"{label} · {text}"))
+                    self.capture.emit("scan", (True, f"{result['channels']} services / "
+                                               f"{result['frequencies']} frequencies in {label}"))
+                except (ScanError, ValueError, OSError, RuntimeError) as exc:
+                    self.capture.emit("scan", (False, str(exc)))
+            threading.Thread(target=worker, daemon=True, name="tihulu-tv-auto-scan").start()
+
+        def cancel_scan(self):
+            self.scanner.cancel()
+            self.stop_scan_btn.setEnabled(False)
+            self.statusbar.setText("Cancelling scan; existing channel lists remain preserved")
+
+        def scan_from_file(self):
+            if self.scanner.running or (self.capture.thread and self.capture.thread.is_alive()):
+                QMessageBox.warning(self, "Receiver busy", "Stop TV or automatic scan first.")
+                return
+            initial, _ = QFileDialog.getOpenFileName(
+                self, "Choose genuine initial transponder file (advanced mode)",
+                "/usr/share/dvb", "Initial scan data (*);;All files (*)")
+            if not initial:
+                return
+            target = Path.home() / ".config/tihulu-tv-center/channels.conf"
+            target.parent.mkdir(parents=True, exist_ok=True)
+            country, adapter = self.country.currentData(), self.capture.adapter
+            self.statusbar.setText("Advanced scan in progress (existing results preserved on failure)")
+            def worker():
+                try:
+                    with tempfile.TemporaryDirectory(prefix="tihulu-tv-manual-") as tmp:
+                        staged = Path(tmp) / "channels.conf"
+                        p = subprocess.run(["dvbv5-scan", "-a", str(adapter), "-C", country,
+                                            "-T", "5", "-o", str(staged), initial],
+                                           capture_output=True, text=True, timeout=600, check=False)
+                        if p.returncode != 0 or not read_channels([staged]):
+                            self.capture.emit("scan", (False, p.stderr[-500:] or "No channels found"))
+                        else:
+                            import shutil
+                            shutil.copyfile(staged, target)
+                            self.capture.emit("scan", (True, "Advanced scan saved " + str(target)))
+                except (OSError, subprocess.TimeoutExpired) as exc:
+                    self.capture.emit("scan", (False, str(exc)))
             threading.Thread(target=worker, daemon=True).start()
 
         def play(self):
@@ -274,10 +344,6 @@ def main():
 
         def stop(self):
             self.capture.stop()
-            if hasattr(self, "mobile_video_toggle"):
-                self.mobile_video_toggle.blockSignals(True)
-                self.mobile_video_toggle.setChecked(False)
-                self.mobile_video_toggle.blockSignals(False)
 
         def choose_model(self):
             file, _ = QFileDialog.getOpenFileName(self, "Select installed multilingual Whisper GGML model", str(Path.home()), "Whisper GGML models (*.bin);;All files (*)")
@@ -310,56 +376,8 @@ def main():
                     "subtitle_mode": self.capture.caption_mode,
                     "teletext_page": self.capture.page,
                     "supported_languages": ["tr", "de", "en"],
-                    "mobile_video": self.capture.mobile_stream_dir() is not None,
-                    "web_video": "optional_local_hls_only",
+                    "web_video": "not_available_in_pages_preview",
                     "pi5_hardware_verified": False}
-
-        def toggle_mobile_lan(self, enabled):
-            if enabled:
-                try:
-                    self.mobile_lan = MobileLAN(self.snapshot,
-                         lambda p: self.capture.set_captions(
-                             "page", p, self.lang_in.currentText(),
-                             self.lang_out.currentText(), self.model.text()),
-                         self.capture.mobile_stream_dir)
-                    info = self.mobile_lan.start()
-                    self.lan_details.setText(
-                        f"Open on phone: {info['url']}  |  Pairing code: {info['pin']}")
-                    self.statusbar.setText("Trusted Wi-Fi web access ON. Local HTTP is not encrypted.")
-                except OSError as exc:
-                    self.lan_toggle.blockSignals(True)
-                    self.lan_toggle.setChecked(False)
-                    self.lan_toggle.blockSignals(False)
-                    self.mobile_lan = None
-                    QMessageBox.warning(self, "Mobile LAN listener", str(exc))
-            else:
-                if self.mobile_lan:
-                    self.mobile_lan.stop()
-                    self.mobile_lan = None
-                self.capture.stop_mobile_video()
-                self.mobile_video_toggle.blockSignals(True)
-                self.mobile_video_toggle.setChecked(False)
-                self.mobile_video_toggle.blockSignals(False)
-                self.lan_details.setText("Mobile access OFF — no LAN listener")
-
-        def toggle_mobile_video(self, enabled):
-            if enabled:
-                if not self.mobile_lan:
-                    QMessageBox.information(self, "Enable phone access first",
-                       "Enable Local Wi-Fi before sharing mobile HLS.")
-                    self.mobile_video_toggle.blockSignals(True)
-                    self.mobile_video_toggle.setChecked(False)
-                    self.mobile_video_toggle.blockSignals(False)
-                    return
-                try:
-                    self.capture.start_mobile_video()
-                except (RuntimeError, OSError, ValueError) as exc:
-                    self.mobile_video_toggle.blockSignals(True)
-                    self.mobile_video_toggle.setChecked(False)
-                    self.mobile_video_toggle.blockSignals(False)
-                    QMessageBox.warning(self, "Mobile HLS encoder", str(exc))
-            else:
-                self.capture.stop_mobile_video()
 
         def toggle_bridge(self, enabled):
             if enabled:
@@ -389,8 +407,11 @@ def main():
                     self.latest = info
                     self.subtitle.setText((info.get("translated") or info["original"])
                                           + "\n" + ("Source: " + info.get("source", "unknown")))
+                elif kind == "scan_progress":
+                    self.statusbar.setText(str(info))
                 elif kind == "scan":
                     ok, message = info
+                    self.stop_scan_btn.setEnabled(False)
                     self.refresh_channels()
                     self.statusbar.setText("Scan: " + ("completed" if ok else "failed") + " — " + message)
                 elif kind == "measurement":
@@ -406,8 +427,7 @@ def main():
                     self.statusbar.setText(str(info))
 
         def closeEvent(self, event):
-            if self.mobile_lan:
-                self.mobile_lan.stop()
+            self.scanner.cancel()
             if self.bridge:
                 self.bridge.stop()
             self.stop()
