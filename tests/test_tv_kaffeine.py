@@ -21,6 +21,9 @@ class KaffeineCaptionTapTests(TestCase):
         self.assertIn("DvbT2Transponder::Bandwidth8MHz", source)
         self.assertIn("538000000, 586000000, 626000000", source)
         self.assertIn("Channels / Antenna Scan", source)
+        self.assertIn("Full Antenna Scan...", source)
+        self.assertIn("mediaWidget->stop()", source)
+        self.assertIn("QTimer::singleShot", source)
         self.assertNotIn('QProcess::startDetached(QLatin1String("w_scan_cpp")', source)
         self.assertNotIn('QProcess::startDetached(QLatin1String("dvbv5-scan")', source)
 
@@ -42,7 +45,8 @@ class KaffeineCaptionTapTests(TestCase):
 
     def test_upstream_release_is_immutable(self):
         self.assertEqual(REVISION, "e7ea15b86dafed3b20b151cbcb080578ab8e2d5c")
-        self.assertEqual(len(PATHS), 5)
+        self.assertEqual(len(PATHS), 6)
+        self.assertIn("src/dvb/dvbtab.h", PATHS)
         self.assertIn("src/dvb/dvbmanager.cpp", PATHS)
         self.assertIn("src/dvb/dvbtab.cpp", PATHS)
 
