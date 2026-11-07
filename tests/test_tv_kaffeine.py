@@ -27,6 +27,16 @@ class KaffeineCaptionTapTests(TestCase):
         self.assertNotIn('QProcess::startDetached(QLatin1String("w_scan_cpp")', source)
         self.assertNotIn('QProcess::startDetached(QLatin1String("dvbv5-scan")', source)
 
+    def test_software_video_profile_is_opt_in_and_does_not_override_settings(self):
+        from kaffeine_next.patch_upstream import transform
+        import inspect
+        patched_source = inspect.getsource(transform)
+        self.assertIn("TIHULU_VLC_PROFILE", patched_source)
+        self.assertIn("--avcodec-hw=none", patched_source)
+        self.assertIn("--file-caching=1500", patched_source)
+        self.assertIn("software-no-audio", patched_source)
+        self.assertIn('args.contains(QLatin1String("--avcodec-hw"))', patched_source)
+
     def test_kaffeine_receiver_diagnostics_do_not_open_frontend(self):
         from kaffeine_next.diagnostics import inspect
         with tempfile.TemporaryDirectory() as root:
@@ -45,7 +55,8 @@ class KaffeineCaptionTapTests(TestCase):
 
     def test_upstream_release_is_immutable(self):
         self.assertEqual(REVISION, "e7ea15b86dafed3b20b151cbcb080578ab8e2d5c")
-        self.assertEqual(len(PATHS), 6)
+        self.assertEqual(len(PATHS), 7)
+        self.assertIn("src/backend-vlc/vlcmediawidget.cpp", PATHS)
         self.assertIn("src/dvb/dvbtab.h", PATHS)
         self.assertIn("src/dvb/dvbmanager.cpp", PATHS)
         self.assertIn("src/dvb/dvbtab.cpp", PATHS)
