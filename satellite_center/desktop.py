@@ -30,6 +30,7 @@ from PyQt5.QtWidgets import (
 )
 
 from .__main__ import Station, PROFILES, LOCATIONS, AUTO_DOWNLINK_PROFILES, allowed_mode
+from .capture_budget import MAX_IQ_BYTES
 from .native_analysis import analyze_cu8, save_spectrum_report, export_results_zip
 from .native_data_labels import describe_local_file
 from .media_catalog import (MEDIA_COLORS, MEDIA_SYMBOLS, kinds_for_pass, filter_passes,
@@ -521,6 +522,10 @@ class SatelliteWindow(QMainWindow):
             self.home_capture_profile.addItem(info["label"],key)
         self.home_capture_profile.currentIndexChanged.connect(self._home_capture_modes)
         self.home_capture_mode=QComboBox()
+        self.home_capture_rate=QComboBox()
+        self.home_capture_rate.addItem("1.024 MS/s",1024000)
+        self.home_capture_rate.addItem("2.048 MS/s",2048000)
+        self.home_capture_rate.currentIndexChanged.connect(self._home_capture_budget)
         self.home_capture_length=QSpinBox()
         self.home_capture_length.setRange(8,900)
         self.home_capture_length.setValue(60)
@@ -528,6 +533,7 @@ class SatelliteWindow(QMainWindow):
         self.home_capture_length.valueChanged.connect(self._home_capture_budget)
         manual_form.addRow("Receive profile",self.home_capture_profile)
         manual_form.addRow("Save format",self.home_capture_mode)
+        manual_form.addRow("IQ sample rate",self.home_capture_rate)
         manual_form.addRow("Recording length · seconds",self.home_capture_length)
         ml.addLayout(manual_form)
         self.home_capture_cost=self._hint("Local disk recording · estimated space")
@@ -791,12 +797,14 @@ class SatelliteWindow(QMainWindow):
 
     def _home_capture_budget(self,*_):
         mode=self.home_capture_mode.currentData()
-        if mode=="survey" and self.home_capture_length.maximum()!=180:
-            self.home_capture_length.setMaximum(180)
-        elif mode!="survey" and self.home_capture_length.maximum()!=900:
-            self.home_capture_length.setMaximum(900)
+        rate=int(self.home_capture_rate.currentData() or 1024000)
+        is_iq=mode in ("iq","iq_and_fm_wav")
+        cap=min(900,MAX_IQ_BYTES//(2*rate)) if is_iq else 180 if mode=="survey" else 900
+        self.home_capture_length.setMaximum(max(8,cap))
+        self.home_capture_rate.setEnabled(is_iq)
         seconds=self.home_capture_length.value()
-        estimate=2.112 if mode=="iq_and_fm_wav" else 2.048 if mode=="iq" else .096
+        estimate=(2*rate/1e6+(.064 if mode=="iq_and_fm_wav" else 0)
+                  if is_iq else .096)
         self.home_capture_cost.setText(
             "Estimated local disk: ~"+f"{seconds*estimate:.1f}"+" MB. "
             "Native RTL-SDR receiver, no WebUSB. Source identity unverified.")
@@ -809,6 +817,8 @@ class SatelliteWindow(QMainWindow):
             self.capture_profile.findData(profile))
         mode_index=self.capture_mode.findData(mode)
         if mode_index>=0:self.capture_mode.setCurrentIndex(mode_index)
+        self.capture_sample_rate.setCurrentIndex(
+            self.capture_sample_rate.findData(self.home_capture_rate.currentData()))
         self.capture_seconds.setValue(self.home_capture_length.value())
         self.start_capture()
 
@@ -1190,6 +1200,10 @@ class SatelliteWindow(QMainWindow):
         self.pass_profile=QComboBox()
         self.pass_profile.currentIndexChanged.connect(self._pass_modes)
         self.pass_mode=QComboBox()
+        self.pass_sample_rate=QComboBox()
+        self.pass_sample_rate.addItem("1.024 MS/s",1024000)
+        self.pass_sample_rate.addItem("2.048 MS/s",2048000)
+        self.pass_sample_rate.currentIndexChanged.connect(self._pass_budget)
         self.pass_time=QDateTimeEdit(QDateTime.currentDateTime())
         self.pass_time.setCalendarPopup(True)
         self.pass_time.setDisplayFormat("yyyy-MM-dd HH:mm:ss")
@@ -1199,6 +1213,7 @@ class SatelliteWindow(QMainWindow):
         self.pass_cost=self._hint("Choose a predicted pass")
         form.addRow("Receiver profile",self.pass_profile)
         form.addRow("RF output mode",self.pass_mode)
+        form.addRow("IQ sampling rate",self.pass_sample_rate)
         form.addRow("Local start time",self.pass_time)
         form.addRow("Actual RF duration · seconds",self.pass_seconds)
         form.addRow("Estimated disk space",self.pass_cost)
@@ -1812,6 +1827,10 @@ class SatelliteWindow(QMainWindow):
             self.capture_profile.addItem(value["label"],key)
         self.capture_profile.currentIndexChanged.connect(self._capture_modes)
         self.capture_mode=QComboBox()
+        self.capture_sample_rate=QComboBox()
+        self.capture_sample_rate.addItem("1.024 MS/s",1024000)
+        self.capture_sample_rate.addItem("2.048 MS/s",2048000)
+        self.capture_sample_rate.currentIndexChanged.connect(self._capture_budget)
         self.capture_seconds=QSpinBox();self.capture_seconds.setRange(8,900)
         self.capture_seconds.setValue(60)
         self.capture_budget=self._hint("Long captures write real CU8 directly to disk.")
@@ -1819,7 +1838,8 @@ class SatelliteWindow(QMainWindow):
         self.capture_seconds.valueChanged.connect(self._capture_budget)
         form.addRow("Receiver frequency / band",self.capture_profile)
         form.addRow("Hardware mode",self.capture_mode)
-        form.addRow("Actual sample length · 8–900 s",self.capture_seconds)
+        form.addRow("IQ sample rate",self.capture_sample_rate)
+        form.addRow("Actual sample length",self.capture_seconds)
         form.addRow("Estimated disk budget",self.capture_budget)
         body.addLayout(form)
         self._row(body,
@@ -2698,18 +2718,19 @@ class SatelliteWindow(QMainWindow):
 
     def _pass_budget(self):
         mode=self.pass_mode.currentData()
-        if mode=="survey" and self.pass_seconds.maximum()!=180:
-            self.pass_seconds.setMaximum(180)
-        elif mode!="survey" and self.pass_seconds.maximum()!=900:
-            self.pass_seconds.setMaximum(900)
+        rate=int(self.pass_sample_rate.currentData() or 1024000)
+        is_iq=mode in ("iq","iq_and_fm_wav")
+        maximum=min(900,MAX_IQ_BYTES//(2*rate)) if is_iq else 180 if mode=="survey" else 900
+        self.pass_seconds.setMaximum(max(8,maximum))
+        self.pass_sample_rate.setEnabled(is_iq)
         seconds=self.pass_seconds.value()
         if mode=="iq_and_fm_wav":
             self.pass_cost.setText(
-                f"~{seconds*2.112:.1f} MB · raw CU8 then derived 32-kHz FM WAV. "
+                f"~{seconds*(2*rate/1e6+.064):.1f} MB · raw CU8 then derived 32-kHz FM WAV. "
                 "Both are genuine samples; FM content remains unverified.")
         elif mode=="iq":
             self.pass_cost.setText(
-                f"~{seconds*2.048:.1f} MB raw CU8 · true streamed disk recording, max 900 s")
+                f"~{seconds*2*rate/1e6:.1f} MB raw CU8 · real disk streaming, max {maximum} s at this rate")
         elif mode=="survey":
             self.pass_cost.setText("Real rtl_power spectrum survey · 8–180 s (not image decoding)")
         elif mode in ("sstv_audio","fm_audio"):
@@ -2727,6 +2748,7 @@ class SatelliteWindow(QMainWindow):
         profile=self.pass_profile.currentData()
         mode=self.pass_mode.currentData()
         seconds=self.pass_seconds.value()
+        sample_rate=int(self.pass_sample_rate.currentData() or 1024000)
         start=datetime.fromtimestamp(self.pass_time.dateTime().toSecsSinceEpoch(),timezone.utc).isoformat()
         def completed(job):
             text=("Scheduled "+str(job.get("satellite","satellite"))+
@@ -2735,8 +2757,8 @@ class SatelliteWindow(QMainWindow):
             self.pass_feedback.setText(text)
             self.statusBar().showMessage(text,12000)
             self.refresh_status()
-        self._task("Arm scheduled RF",lambda:self.station.schedule(key,profile,mode,start,seconds),
-                   completed)
+        self._task("Arm scheduled RF",lambda:self.station.schedule(
+            key,profile,mode,start,seconds,sample_rate=sample_rate),completed)
 
     def auto_schedule(self):
         missions=[mid for mid,box in self.mission_boxes.items() if box.isChecked()]
@@ -2879,15 +2901,16 @@ class SatelliteWindow(QMainWindow):
 
     def _capture_budget(self):
         mode=self.capture_mode.currentData()
-        if mode=="survey" and self.capture_seconds.maximum()!=180:
-            self.capture_seconds.setMaximum(180)
-        elif mode!="survey" and self.capture_seconds.maximum()!=900:
-            self.capture_seconds.setMaximum(900)
+        rate=int(self.capture_sample_rate.currentData() or 1024000)
+        is_iq=mode in ("iq","iq_and_fm_wav")
+        maximum=min(900,MAX_IQ_BYTES//(2*rate)) if is_iq else 180 if mode=="survey" else 900
+        self.capture_seconds.setMaximum(max(8,maximum))
+        self.capture_sample_rate.setEnabled(is_iq)
         secs=self.capture_seconds.value()
         self.capture_budget.setText(
-            f"~{secs*2.048:.1f} MB raw CU8 on local disk · actual samples, no WebUSB"
+            f"~{secs*2*rate/1e6:.1f} MB raw CU8 on local disk · maximum {maximum}s at {rate/1e6:.3f} MS/s"
             if mode=="iq" else
-            f"~{secs*2.112:.1f} MB CU8 + FM WAV from the same physical IQ recording"
+            f"~{secs*(2*rate/1e6+.064):.1f} MB CU8 + FM WAV from same IQ recording"
             if mode=="iq_and_fm_wav" else
             "Native rtl_power records for exactly requested seconds (8–180)"
             if mode=="survey" else
@@ -2897,13 +2920,14 @@ class SatelliteWindow(QMainWindow):
         key=self.capture_profile.currentData()
         mode=self.capture_mode.currentData()
         secs=self.capture_seconds.value()
+        rate=int(self.capture_sample_rate.currentData() or 1024000)
         if not key or not mode:return
         if QMessageBox.question(self,"Receive-only capture",
                  f"Acquire the real RTL-SDR for {secs} seconds at {PROFILES[key]['label']}?\n"
                  "This does NOT prove a satellite is transmitting.",
                  QMessageBox.Yes|QMessageBox.No)!=QMessageBox.Yes:return
-        self._task("Physical SDR capture",lambda:self.station.capture(key,mode,secs),
-                   self._manual_capture_completed)
+        self._task("Physical SDR capture",lambda:self.station.capture(
+            key,mode,secs,sample_rate=rate),self._manual_capture_completed)
 
     def _manual_capture_completed(self,result):
         self.file_details.setPlainText(json.dumps(result,indent=2,default=str))
@@ -2984,6 +3008,10 @@ class SatelliteWindow(QMainWindow):
         elif suffix==".cu8":
             marker=re.search(r"_(\d{7,11})Hz",p.name)
             if marker:self.center.setValue(int(marker.group(1))/1e6)
+            rate_match=re.search(r"_(1024000|2048000)SPS",p.name)
+            if rate_match:
+                index=self.rate.findData(int(rate_match.group(1)))
+                if index>=0:self.rate.setCurrentIndex(index)
             self.file_details.appendPlainText("\nRaw unsigned interleaved IQ; select sample rate, "
                "then Fast overview or Whole-file streaming FFT. Peak ≠ validated spacecraft.")
 
@@ -3352,6 +3380,16 @@ def main(argv=None):
             assert window.auto_compute.count()==5
             assert window.auto_compute.currentData()[0]=="auto"
             assert window.pass_seconds.maximum()==900
+            assert window.pass_sample_rate.count()==2
+            assert window.capture_sample_rate.count()==2
+            assert window.home_capture_rate.count()==2
+            window.capture_profile.setCurrentIndex(
+                window.capture_profile.findData("meteor"))
+            window.capture_mode.setCurrentIndex(window.capture_mode.findData("iq"))
+            window.capture_sample_rate.setCurrentIndex(
+                window.capture_sample_rate.findData(2048000))
+            assert window.capture_seconds.maximum()==488
+            window.capture_sample_rate.setCurrentIndex(0)
             assert window.capture_seconds.maximum()==900
             assert len(window._offline_cities)==8084
             # Native city search and station selection without geocoding.
