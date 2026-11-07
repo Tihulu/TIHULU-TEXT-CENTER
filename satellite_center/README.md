@@ -48,6 +48,40 @@ The native dual-format path derives 32 kHz FM WAV from CU8 after capture
 whereas the browser WebUSB writer can produce 48 kHz concurrently. OS-driver
 access and true Meteor/ISS reception require real Pop!_OS/Nooelec acceptance.
 
+## Preview10 · Installed desktop orbit maps and TLE networking
+
+The installed `tihulu://desktop/` Qt WebEngine page has a different origin
+from the HTTPS web/PWA edition. Browser `fetch()` requests to CelesTrak and
+dynamic JavaScript orbital CDNs may fail there, even when the OS can reach
+the public service. Desktop actions therefore use the existing private,
+allowlisted **Qt WebChannel → Python** path:
+
+- **Refresh orbit data**: native HTTPS CelesTrak requests with source
+  verification, a 350 kB per-source limit, locally cached TLEs, and explicit
+  provider errors. A cache older than seven days is not presented as fresh.
+- **Calculate passes**: native Skyfield predictions using the selected ground
+  station coordinates; no simulated RF data, no browser orbital CDN.
+- **Earth / Sky**: Skyfield orbital positions and bounded local orbit tracks
+  updated while the map is visible. Public-domain Natural Earth geography
+  is loaded from the bundled file, including if custom-scheme `fetch` fails.
+- **Import local TLE**: the user-selected file is validated and synchronized
+  into a private `manual.tle` cache for offline desktop map and pass use.
+  This is *explicit user input*, not a background web lookup. Duplicate NORAD
+  IDs are resolved in favor of the imported file.
+- **Saved custom NORAD**: explicitly requested CelesTrak lookup likewise
+  saves a bounded local TLE record.
+
+The website/PWA still uses its previous browser-only fetch and satellite.js
+path. The built-in **world-outline canvas** does not depend on OpenStreetMap
+tile servers. The optional *detailed Leaflet/OSM street map* **still requires**
+the external Leaflet resource and network map tiles; failure there does not
+invalidate the offline geography and Skyfield satellite positions.
+
+To verify in the installed desktop: click **Refresh orbit data**, then
+**Calculate passes**, open **Earth / Sky**, and select **Earth**. The native
+Skyfield and world-outline status will identify which layer loaded, rather
+than implying that a predicted TLE location was received over RF.
+
 ## Preview9 · full home satellite pass planning (2026-11-07)
 
 Following desktop feedback, the **Home → 3 · Satellite pass planner** is
