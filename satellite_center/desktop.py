@@ -1609,37 +1609,11 @@ class SatelliteWindow(QMainWindow):
         previous=self.pass_list.currentItem()
         selected=previous.data(0,Qt.UserRole) if previous is not None else None
         all_rows=list(self.passes.values())
-        kind=self.pass_media_filter.currentData() or "All"
-        search=self.pass_search.text()
-        if kind=="RF only":
-            rows=[row for row in filter_passes(all_rows,"RF data",search)
-                  if kinds_for_pass(row)==["RF data"]]
-        else:
-            rows=filter_passes(all_rows,kind,search)
-        family=self.pass_family_filter.currentData() or "all"
-        if family!="all":
-            rows=[row for row in rows if row.get("family")==family]
-        order=self.pass_sort.currentData() or "soonest"
-        def duration(row):
-            try:
-                return (datetime.fromisoformat(row["los"])-
-                        datetime.fromisoformat(row["aos"])).total_seconds()
-            except (KeyError,ValueError,TypeError):
-                return 0
-        if order=="latest":
-            rows.sort(key=lambda row:row.get("aos",""),reverse=True)
-        elif order=="high":
-            rows.sort(key=lambda row:float(row.get("max_elevation_deg",0)),reverse=True)
-        elif order=="low":
-            rows.sort(key=lambda row:float(row.get("max_elevation_deg",0)))
-        elif order=="duration-long":
-            rows.sort(key=duration,reverse=True)
-        elif order=="duration-short":
-            rows.sort(key=duration)
-        elif order=="name":
-            rows.sort(key=lambda row:row.get("name","").casefold())
-        else:
-            rows.sort(key=lambda row:row.get("aos",""))
+        rows=sort_filter_passes(
+            all_rows,search=self.pass_search.text(),
+            family=self.pass_family_filter.currentData() or "all",
+            medium=self.pass_media_filter.currentData() or "All",
+            order=self.pass_sort.currentData() or "soonest")
         self.pass_list.blockSignals(True)
         self.pass_list.clear()
         selected_item=None
@@ -2863,6 +2837,18 @@ class SatelliteWindow(QMainWindow):
                     self.tle_import_feedback.setText("TLE import failed: "+message)
                 elif key=="Worldwide geocoding":
                     self.city_info.setText("Online city lookup failed: "+message)
+                    self.home_city_info.setText(
+                        "Worldwide lookup failed: "+message+
+                        " · Offline search and custom coordinates still work.")
+                elif key=="Predict satellite passes":
+                    self.home_pass_summary.setText(
+                        "Unable to calculate orbital passes: "+message+
+                        " · Confirm Skyfield/TLE data, refresh orbit files, "
+                        "or import a local TLE.")
+                elif key=="Public TLE refresh":
+                    self.home_pass_summary.setText(
+                        "Orbit refresh failed: "+message+
+                        " · Use cached files or import a local TLE.")
                 elif key in ("Connect SDR","Disconnect SDR","USB diagnostic","Real RF sample test"):
                     self.hardware_feedback.setText(key+" failed: "+message)
                     self.refresh_status()
@@ -3024,9 +3010,23 @@ class SatelliteWindow(QMainWindow):
         self._task("USB diagnostic",self.station.usb_test,completed)
 
     def refresh_tles(self):
-        self._task("Public TLE refresh",self.station.refresh,
-                   lambda result: (self.file_details.setPlainText(json.dumps(result,indent=2)),
-                                   self.refresh_status()))
+        self.home_pass_summary.setText(
+            "Refreshing public orbital TLEs over HTTPS (explicit request)…")
+        def finished(result):
+            self.file_details.setPlainText(json.dumps(result,indent=2))
+            successes=sum(bool(v.get("cached")) for v in result.values())
+            errors=[name+": "+str(v.get("error")) for name,v in result.items()
+                    if v.get("error")]
+            if successes:
+                self.home_pass_summary.setText(
+                    str(successes)+" orbit catalog source(s) refreshed. Calculating passes…")
+                self.calculate_passes()
+            else:
+                self.home_pass_summary.setText(
+                    "TLE refresh failed · "+("; ".join(errors[:2]) or "unknown error")+
+                    " · Import a local TLE file from Full pass planner.")
+            self.refresh_status()
+        self._task("Public TLE refresh",self.station.refresh,finished)
 
     def _station_kwargs(self):
         return {"lat":self.lat.value(),"lon":self.lon.value(),
@@ -3048,19 +3048,38 @@ class SatelliteWindow(QMainWindow):
                    lambda:self.station.import_tle(path,source),finished)
 
     def calculate_passes(self):
+        if "Predict satellite passes" in self.tasks:
+            return
+        # Snapshot the same coordinates and lookahead used by BOTH Qt views.
+        parameters=self._station_kwargs()
+        self.home_pass_summary.setText(
+            f"Calculating real TLE predictions for {parameters['lat']:.5f}°, "
+            f"{parameters['lon']:.5f}° · {parameters['hours']} h… "
+            "Missing/expired orbit files will be refreshed on demand.")
         self._task("Predict satellite passes",
-                   lambda:self.station.passes(**self._station_kwargs()),
+                   lambda:self.station.plan_passes(**parameters),
                    self._apply_passes)
 
     def _apply_passes(self,data):
         rows=data.get("predictions",[])
         self.passes={r["id"]:r for r in rows}
         self._render_pass_results()
-        if hasattr(self,"home_pass_summary"):
+        self._render_home_passes()
+        if not rows:
+            warnings=data.get("warnings") or []
+            refresh=data.get("automatic_tle_refresh") or {}
+            errors=[str(name)+": "+str(entry["error"]) for name,entry in
+                    refresh.items() if entry.get("error")]
             self.home_pass_summary.setText(
-                str(len(rows))+" predicted orbital pass(es). "
-                "Find satellites has sorting, media filters, and individually editable RF schedules. "
-                "Prediction ≠ received RF.")
+                "0 predicted passes. "+
+                (" · ".join((warnings+errors)[:3]) if warnings or errors else
+                 "Try a longer lookahead, lower min elevation or refresh TLE data.")+
+                " · Local .tle import available in Full pass planner.")
+        self.home_city_info.setText(
+            "Ground station for results: "+
+            f"{data.get('observer',{}).get('lat',self.lat.value()):.5f}°, "+
+            f"{data.get('observer',{}).get('lon',self.lon.value()):.5f}° · "
+            "orbital geometry, not RF detections.")
         target=getattr(self,"map_pending_pass_norad",None)
         if target is not None:
             self.map_pending_pass_norad=None
