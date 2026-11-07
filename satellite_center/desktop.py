@@ -36,6 +36,7 @@ from .native_data_labels import describe_local_file
 from .media_catalog import (MEDIA_COLORS, MEDIA_SYMBOLS, kinds_for_pass, filter_passes,
                             media_summary, capabilities_for_pass)
 from .native_locations import load_locations, search_locations, city_label, regions_for
+from .native_geocoding import search_worldwide
 from .native_pass_filters import sort_filter_passes
 from .native_orbit import OrbitEngine
 from .native_maps import OrbitCanvas
@@ -578,8 +579,21 @@ class SatelliteWindow(QMainWindow):
         self.home_station.addItem("Search offline city / district / town","offline")
         self.home_station.addItem("Search any city worldwide (online)","online")
         self.home_station.currentIndexChanged.connect(self._home_select_station)
+        self.home_search_timer=QTimer(self)
+        self.home_search_timer.setSingleShot(True)
+        self.home_search_timer.setInterval(850)
+        self.home_search_timer.timeout.connect(self._home_online_auto_search)
+        self.home_geocode_generation=0
+        self.home_geocode_cache={}
         pl.addWidget(self.home_station)
 
+        # Identical interaction model to website: query first, optional remote
+        # suggestions while typing, country/state and GPS in expandable options.
+        self.home_advanced_button=QPushButton("Advanced location options  ▸")
+        self.home_advanced_button.setCheckable(True)
+        self.home_location_options=QWidget()
+        adv=QVBoxLayout(self.home_location_options)
+        adv.setContentsMargins(0,0,0,0)
         location_filters=QHBoxLayout()
         self.home_country=QComboBox()
         for title,key in (("Germany + Türkiye","all"),("Germany","DE"),
@@ -591,7 +605,7 @@ class SatelliteWindow(QMainWindow):
         self.home_region.currentIndexChanged.connect(self._home_find_city)
         location_filters.addWidget(self.home_country,1)
         location_filters.addWidget(self.home_region,2)
-        pl.addLayout(location_filters)
+        adv.addLayout(location_filters)
 
         self.home_city_search=QLineEdit()
         self.home_city_search.setPlaceholderText(
@@ -600,9 +614,15 @@ class SatelliteWindow(QMainWindow):
         self.home_city_search.textChanged.connect(self._home_find_city)
         self.home_city_search.returnPressed.connect(self._home_apply_first_city)
         pl.addWidget(self.home_city_search)
+        self.home_auto_online=QCheckBox("Include worldwide online suggestions while typing")
+        self.home_auto_online.setToolTip(
+            "Opt-in: city search terms are sent to Open-Meteo after an 850 ms pause.")
+        self.home_auto_online.toggled.connect(self._home_online_option_changed)
+        pl.addWidget(self.home_auto_online)
         self.home_city_results=QListWidget()
         self.home_city_results.setMaximumHeight(110)
-        self.home_city_results.setMinimumHeight(56)
+        self.home_city_results.setMinimumHeight(0)
+        self.home_city_results.setVisible(False)
         self.home_city_results.itemClicked.connect(self._home_apply_city_item)
         self.home_city_results.itemActivated.connect(self._home_apply_city_item)
         pl.addWidget(self.home_city_results)
@@ -615,7 +635,7 @@ class SatelliteWindow(QMainWindow):
             "Search worldwide online",self._home_worldwide_lookup))
         online_actions.addWidget(self._button(
             "Use OS location (ask permission)",self._request_system_location))
-        pl.addLayout(online_actions)
+        adv.addLayout(online_actions)
 
         coordinates=QHBoxLayout()
         self.home_lat=QDoubleSpinBox()
@@ -630,7 +650,7 @@ class SatelliteWindow(QMainWindow):
         coordinates.addWidget(self.home_lat,1)
         coordinates.addWidget(QLabel("Longitude"))
         coordinates.addWidget(self.home_lon,1)
-        pl.addLayout(coordinates)
+        adv.addLayout(coordinates)
 
         lookahead=QHBoxLayout()
         self.home_hours=QSpinBox()
@@ -643,7 +663,15 @@ class SatelliteWindow(QMainWindow):
         lookahead.addWidget(self.home_hours,1)
         lookahead.addWidget(QLabel("Min elevation · °"))
         lookahead.addWidget(self.home_elev,1)
-        pl.addLayout(lookahead)
+        adv.addLayout(lookahead)
+        self.home_location_options.setVisible(False)
+        self.home_advanced_button.toggled.connect(self.home_location_options.setVisible)
+        self.home_advanced_button.toggled.connect(
+            lambda open_:self.home_advanced_button.setText(
+                "Advanced location options  ▾" if open_ else
+                "Advanced location options  ▸"))
+        pl.addWidget(self.home_advanced_button)
+        pl.addWidget(self.home_location_options)
 
         stationrow=QHBoxLayout()
         stationrow.addWidget(self._button("Refresh orbit data",self.refresh_tles))
