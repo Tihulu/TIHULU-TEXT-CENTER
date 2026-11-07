@@ -179,6 +179,29 @@ class TVCapture:
         self._player_queue = queue.Queue(maxsize=24)
         self._writer_thread = None
         self._ipc_dir = None
+        self.mobile_stream = None
+
+    def start_mobile_video(self):
+        if not self.channel or not self.zap or self.zap.poll() is not None:
+            raise RuntimeError('Tune a channel before enabling mobile video')
+        if self.channel.encrypted or not self.channel.service_id:
+            raise RuntimeError('Mobile video needs a free-to-air scanned service ID')
+        if self.mobile_stream is not None:
+            return
+        from .streaming import HLSStreamer
+        stream = HLSStreamer(self.emit)
+        stream.start(self.channel.service_id)
+        self.mobile_stream = stream
+
+    def stop_mobile_video(self):
+        stream = self.mobile_stream
+        self.mobile_stream = None
+        if stream is not None:
+            stream.stop()
+
+    def mobile_stream_dir(self):
+        stream = self.mobile_stream
+        return stream.get_dir() if stream else None
 
     def emit(self, kind, value):
         try:
@@ -332,6 +355,8 @@ class TVCapture:
                     buf = service_filter.feed(buf)
                     if not buf:
                         continue
+                    if self.mobile_stream is not None:
+                        self.mobile_stream.offer(buf)
                     if self.player and self.player.poll() is None:
                         try:
                             self._player_queue.put_nowait(buf)
@@ -387,6 +412,7 @@ class TVCapture:
 
     def stop(self):
         self.stop_flag.set()
+        self.stop_mobile_video()
         for proc in (self.player, self.zap):
             if proc is not None and proc.poll() is None:
                 proc.terminate()
