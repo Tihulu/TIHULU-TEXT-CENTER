@@ -67,18 +67,20 @@ class OrbitEngine:
                 self.records.append((item,source,sat,age/86400))
                 if len(self.records)>=160:return
     def snapshot(self,lat,lon,at=None,*,family_filter="all",minimum_el=-90,
-                 selected_norad=None,with_track=False):
+                 selected_norad=None,with_track=False,track_scope="selected"):
         from skyfield.api import wgs84
         from .__main__ import family
         lat=float(lat);lon=float(lon)
         if not valid(lat,lon):raise ValueError("Select valid observer coordinates")
+        if track_scope not in ("selected","all"):
+            raise ValueError("Only selected/all track scopes are supported")
         at=at or datetime.now(timezone.utc)
         if at.tzinfo is None:raise ValueError("UTC-aware time required")
         at=at.astimezone(timezone.utc)
         self._load()
         observer=wgs84.latlon(lat,lon)
         t=self.ts.from_datetime(at)
-        rows=[];selected=None
+        rows=[];selected=None;orbit_sources={}
         for item,source,sat,age in self.records:
             fam=family(source,item)
             if family_filter not in ("all",fam):continue
@@ -95,21 +97,36 @@ class OrbitEngine:
                          tle_age_days=round(age,2),status="ORBITAL_POSITION_ONLY")
                 if selected_norad is not None and row["norad"]==int(selected_norad):
                     selected=(row,sat)
-                if row["el"]>=minimum_el:rows.append(row)
+                if row["el"]>=minimum_el:
+                    rows.append(row)
+                    orbit_sources[row["norad"]]=sat
             except (ValueError,RuntimeError,OverflowError,ArithmeticError):continue
         rows.sort(key=lambda p:(-p["el"],p["name"]))
-        track=[]
-        if with_track and selected:
-            samples=[]
-            for minute in range(-45,46,5):
-                try:
-                    pos=wgs84.subpoint_of(selected[1].at(
-                        self.ts.from_datetime(at+timedelta(minutes=minute))))
-                    samples.append(dict(lat=pos.latitude.degrees,lon=pos.longitude.degrees,
-                                        minute_offset=minute))
-                except (ValueError,OverflowError,RuntimeError,ArithmeticError):continue
-            track=dateline_segments(samples)
+        track=[];choices=[]
+        if with_track:
+            # All visible tracks is bounded to avoid 100s of propagations on
+            # every Qt frame; 12 objects at most, updated by map timer cache.
+            if track_scope=="all":
+                choices=[(row["norad"],orbit_sources[row["norad"]])
+                         for row in rows if row["el"]>=0][:12]
+            elif selected:
+                choices=[(selected[0]["norad"],selected[1])]
+            sample_times=[
+                self.ts.from_datetime(at+timedelta(minutes=minute))
+                for minute in range(-45,46,5)]
+            for _norad,satellite in choices:
+                samples=[]
+                for minute,tick in zip(range(-45,46,5),sample_times):
+                    try:
+                        pos=wgs84.subpoint_of(satellite.at(tick))
+                        samples.append(dict(
+                            lat=pos.latitude.degrees,lon=pos.longitude.degrees,
+                            minute_offset=minute))
+                    except (ValueError,OverflowError,RuntimeError,ArithmeticError):
+                        continue
+                track.extend(dateline_segments(samples))
         return dict(at_utc=at.isoformat(),observer={"lat":lat,"lon":lon},satellites=rows,
                     selected=selected[0] if selected else None,track_segments=track,
+                    track_scope=track_scope,track_object_count=len(choices),
                     total_loaded=len(self.records),warnings=list(self.warnings),
                     note="TLE geometry only. No actual RF reception or satellite data verified.")
