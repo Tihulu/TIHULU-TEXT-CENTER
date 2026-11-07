@@ -26,12 +26,13 @@ class ScanMonitor(QDialog):
         layout.addWidget(self.signal)
         self.frequency = QLabel("Frequency: waiting for scanner")
         layout.addWidget(self.frequency)
-        self.counter = QLabel("Found services: 0")
+        self.counter = QLabel("Services resolved: 0 (expected during Stage 1)")
         layout.addWidget(self.counter)
         self.channels = QListWidget()
         layout.addWidget(self.channels, 2)
         self.log = QTextEdit()
         self.log.setReadOnly(True)
+        self.log.document().setMaximumBlockCount(400)
         self.log.setMaximumHeight(160)
         layout.addWidget(self.log, 1)
         buttons = QHBoxLayout()
@@ -47,7 +48,10 @@ class ScanMonitor(QDialog):
         kind = info.get("kind")
         stage = info.get("stage", 1)
         if kind == "status":
-            self.stage.setText("Stage " + str(stage) + " · " + info.get("text", ""))
+            description = info.get("text", "")
+            if stage == 1:
+                description += " · service names are resolved in Stage 2"
+            self.stage.setText("Stage " + str(stage) + " · " + description)
         elif kind == "found":
             name = info.get("channel", "")
             freq = info.get("frequency")
@@ -59,7 +63,7 @@ class ScanMonitor(QDialog):
                             delivery=info.get("delivery", "")))) if freq else ""
                 self.channels.addItem(name + suffix)
                 self.channels.scrollToBottom()
-            self.counter.setText("Found services: " + str(len(self.seen)))
+            self.counter.setText("Services resolved: " + str(len(self.seen)))
         elif kind == "log":
             line = info.get("text", "")
             if line:

@@ -50,16 +50,56 @@ def check_dependencies():
 
 
 def parse_scan_progress(line: str):
-    """Return only what the external scanner actually reported."""
-    line = re.sub(r"[\x00-\x08\x0b-\x1f\x7f\x1b]", "", line).strip()[-280:]
+    """Accept genuine RF tuning reports, never C++ source line numbers or dates."""
+    line = re.sub(r"[\x00-\x08\x0b-\x1f\x7f\x1b]", "", line).strip()[-320:]
     if not line:
         return None
-    # Frequencies and services must be extracted from the real scan, not a catalog.
-    frequency = re.search(r"(?<!\d)(\d{3,12})(?:\s*(?:kHz|MHz|Hz))?(?!\d)", line)
-    names = re.search(r"(?:service(?:_name)?|channel|program)\s*[:=]\s*(.{2,90})", line, re.I)
+    # w_scan_cpp typically emits "538000: (time: 00:..." or
+    # "... f = 538000 kHz". Log timestamps/line numbers are NOT frequencies.
+    khz = re.search(r"^\s*(\d{5,7}):\s*\(time:", line)
+    if not khz:
+        khz = re.search(r"\bf\s*=\s*(\d{5,7})\s*kHz\b", line, re.I)
+    hz = re.search(r"\b(?:frequency|freq)\s*[:=]\s*(\d{8,10})\s*(?:Hz)?\b", line, re.I)
+    mhz = re.search(r"\b(?:frequency|freq)\s*[:=]\s*(\d{2,4}(?:\.\d+)?)\s*MHz\b", line, re.I)
+    frequency = None
+    if khz:
+        value = int(khz.group(1)) / 1000
+        if 40 <= value <= 3000:
+            frequency = f"{value:.3f} MHz"
+    elif hz:
+        value = int(hz.group(1)) / 1_000_000
+        if 40 <= value <= 3000:
+            frequency = f"{value:.3f} MHz"
+    elif mhz:
+        value = float(mhz.group(1))
+        if 40 <= value <= 3000:
+            frequency = f"{value:.3f} MHz"
     return {"kind": "log", "text": line,
-            "frequency_reported": frequency.group(1) if frequency else None,
-            "service_reported": names.group(1).strip() if names else None}
+            "frequency_reported": frequency, "service_reported": None}
+
+
+class IncrementalScanLog:
+    """Read only newly appended scanner stderr; never replay the same tail."""
+    def __init__(self, path):
+        self.path = Path(path)
+        self.offset = 0
+        self.pending = b""
+
+    def poll(self):
+        try:
+            size = self.path.stat().st_size
+            if size < self.offset:
+                self.offset, self.pending = 0, b""
+            with self.path.open("rb") as f:
+                f.seek(self.offset)
+                data = f.read(65536)
+                self.offset = f.tell()
+        except OSError:
+            return []
+        # Progress may use CR rather than LF; both are valid delimiters.
+        parts = re.split(rb"[\r\n]", self.pending + data)
+        self.pending = parts.pop()[-4096:]
+        return [item.decode("utf-8", "replace") for item in parts if item.strip()]
 
 
 def passive_signal(adapter: int):
@@ -111,6 +151,7 @@ class AutoScanner:
             last_tail = 0
             last_signal = 0
             last_names = set()
+            log_reader = IncrementalScanLog(stderr)
             try:
                 while proc.poll() is None:
                     if self.cancelled.is_set():
@@ -122,23 +163,13 @@ class AutoScanner:
                     now = time.monotonic()
                     if now - last_tail >= 0.65:
                         last_tail = now
-                        # Read bounded log tail. No large stdout/stderr accumulation in RAM.
-                        try:
-                            with stderr.open("rb") as log:
-                                log.seek(max(0, log.seek(0, os.SEEK_END) - 8192))
-                                recent = log.read().decode("utf-8", "replace")
-                        except OSError:
-                            recent = ""
-                        if recent:
-                            for line in recent.splitlines()[-8:]:
-                                obj = parse_scan_progress(line)
-                                if obj and obj["text"] != self._latest.get("line"):
-                                    self._latest["line"] = obj["text"]
-                                    if notify: notify({"stage": stage, **obj})
-                                    if obj.get("service_reported") and notify:
-                                        notify({"stage": stage, "kind": "found",
-                                                "channel": obj["service_reported"],
-                                                "frequency": None, "provisional": True})
+                        # Follow only fresh stderr bytes. The old tail reader
+                        # replayed previous lines indefinitely and showed fake
+                        # scanner restarts / misleading frequencies in the UI.
+                        for line in log_reader.poll():
+                            obj = parse_scan_progress(line)
+                            if obj and notify:
+                                notify({"stage": stage, **obj})
                         if partial_file and partial_file.is_file():
                             from .core import read_channels
                             for channel in read_channels([partial_file]):
@@ -152,9 +183,18 @@ class AutoScanner:
                                                        "count": len(last_names)})
                     if now - last_signal >= 5.0:
                         last_signal = now
+                        # The scanner owns the frontend. A second process
+                        # cannot reliably collect simultaneous DVB statistics.
                         if notify: notify({"stage": stage, "kind":"signal",
-                                           "metrics": passive_signal(adapter)})
+                                           "metrics":{"available":False,
+                                           "reason":"Scanner owns the DVB frontend; measure C/N/UCB after scanning"}})
                     time.sleep(0.35)
+                # Process the final unread bytes too, including trailing log
+                # output which arrived after the last polling interval.
+                for line in log_reader.poll():
+                    obj = parse_scan_progress(line)
+                    if obj and notify:
+                        notify({"stage": stage, **obj})
                 if self.cancelled.is_set():
                     raise ScanError("Scan cancelled; previous channel list preserved")
                 if proc.returncode != 0:
