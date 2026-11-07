@@ -1516,44 +1516,40 @@ async function runAutoMission({mode=$('auto-mode').value,goal=$('auto-coverage')
     if(!tleEntries.length)await refreshOrbitalCatalog();
     if(!tleEntries.length)throw Error('Could not load TLEs. Import a TLE text file, then retry.');
     if(!passes.length)await calculateOrbitalPasses();
-    const durationSeconds=Number($('auto-browser-seconds').value);
-    if(!Number.isInteger(durationSeconds)||durationSeconds<8||durationSeconds>60)
-      throw Error('Choose a browser capture length between 8 and 60 seconds.');
+    const totalSeconds=secondsFromEntry($('auto-browser-seconds').value,$('auto-browser-unit').value);
+    if(totalSeconds<8)throw Error('Automatic RF recording must be at least 8 seconds.');
+    const durationSeconds=Math.min(60,totalSeconds);
     const autoRaw=$('auto-save-raw').checked,autoWav=$('auto-save-wav').checked;
     if(['iss-images','images','all'].includes(mode)&&!autoRaw&&!autoWav)
       throw Error('Choose at least CU8 or WAV for automatic ISS SSTV image capture. Both are allowed.');
     const proposal=selectAutomaticPasses(passes,{
-      mode,goal,durationSeconds,now:Date.now(),maxJobs:6,existingJobs:jobs
+      mode,goal:totalSeconds>60?'sample':goal,durationSeconds,now:Date.now(),maxJobs:6,existingJobs:jobs
     });
-    let armed=0;
+    let armed=0,recordingGroups=0;
     for(const item of proposal.scheduled) {
-      const job=createScheduledPass(item.pass,{
-        when:item.when,durationSeconds:item.durationSeconds,
-        sampleRate:item.sampleRate,frequency:item.frequency,
-       saveRaw:item.missionId==='iss-sstv'?autoRaw:item.saveRaw,
-       saveWav:item.missionId==='iss-sstv'?autoWav:false
-      });
-      if(jobs.some(j=>j.id===job.id&&['armed','starting','running'].includes(j.state)))continue;
-      job.missionId=item.missionId;
-      job.coverage=item.coverage;
-      job.dataKind=item.dataKind;
-      job.estimatedBytes=(item.missionId==='iss-sstv')?
-        (job.saveRaw?item.durationSeconds*item.sampleRate*2:0)+
-        (job.saveWav?wavOutputPlan(item.durationSeconds,true).estimatedBytes:0):
-        item.estimatedBytes;
-      job.shortfallSeconds=item.shortfallSeconds;
-      job.message='Plan: '+item.durationSeconds+' s · ~'+Math.round(job.estimatedBytes/1e6)+
-        ' MB · '+item.dataKind+' · '+
-        (item.missionId==='iss-sstv'?outputSelectionText(job.saveRaw,job.saveWav)+' · ':'')+
-        item.coverage+'; '+item.limitation;
-      jobs.push(job);armed++;
+      const selectedRaw=item.missionId==='iss-sstv'?autoRaw:item.saveRaw;
+      const selectedWav=item.missionId==='iss-sstv'?autoWav:false;
+      try{
+        const chain=buildBrowserChain(item.pass,{when:item.when,totalSeconds,
+          rate:item.sampleRate,frequency:item.frequency,raw:selectedRaw,wav:selectedWav});
+        for(const job of chain.jobs){
+          job.missionId=item.missionId;
+          job.coverage=item.coverage;
+          job.dataKind=item.dataKind;
+          job.shortfallSeconds=item.shortfallSeconds;
+        }
+        jobs.push(...chain.jobs);
+        armed+=chain.jobs.length;recordingGroups++;
+      }catch(error){
+        proposal.skipped.push({name:item.pass.name,reason:'Chained recording unavailable: '+error.message});
+      }
     }
     jobs.sort((a,b)=>a.when-b.when);
     renderJobs();
     statusBox.textContent=armed?
-      'Armed '+armed+' non-overlapping RF candidate pass(es). ISS selected outputs: '+
-      outputSelectionText(autoRaw,autoWav)+'. USB is released while waiting. Browser clips max out at 60 s / 128 MiB; Meteor full imagery requires a native disk capture. '+proposal.skipped.length+' skipped; '+proposal.skipped.map(x=>x.reason).slice(0,2).join(' · ')+' Keep this tab VISIBLE and AWAKE.':
-      'No feasible passes for this data goal. '+proposal.skipped.map(x=>x.reason).slice(0,3).join(' · ')+' You can choose Quick RF sample or use the optional local receiver for full-pass imaging.';
+      'Armed '+recordingGroups+' satellite pass(es) as '+armed+' independent calendar capture segment(s), '+totalSeconds+' s per pass, 6 s reserved between parts. Segments are not lossless or gap-free. ISS selected outputs: '+
+      outputSelectionText(autoRaw,autoWav)+'. USB is released while waiting. Browser clips max out at 60 s / 128 MiB; Meteor full imagery requires a native disk capture. '+proposal.skipped.length+' skipped; '+proposal.skipped.map(x=>x.reason).slice(0,2).join(' · ')+' Downloads may require multiple-file approval. Keep this tab VISIBLE and AWAKE.':
+      'No feasible passes or not enough LOS time for this capture chain. '+proposal.skipped.map(x=>x.reason).slice(0,3).join(' · ')+' You can choose Quick RF sample or use the optional local receiver for full-pass imaging.';
     log('Automatic mission plan: '+armed+' RF recording jobs armed, '+proposal.skipped.length+' skipped; no device is currently in use.');
     if(armed)document.getElementById('schedule-center')?.scrollIntoView({behavior:'smooth',block:'nearest'});
   }catch(error){
@@ -1604,8 +1600,11 @@ try {
   const transferredSeconds=sessionStorage.getItem('tihulu-auto-browser-seconds');
   sessionStorage.removeItem('tihulu-auto-browser-seconds');
   if(transferredSeconds!==null&&Number.isInteger(Number(transferredSeconds))&&
-     Number(transferredSeconds)>=8&&Number(transferredSeconds)<=60)
+     Number(transferredSeconds)>=8&&Number(transferredSeconds)<=7200)
     $('auto-browser-seconds').value=transferredSeconds;
+  const transferredUnit=sessionStorage.getItem('tihulu-auto-browser-unit');
+  sessionStorage.removeItem('tihulu-auto-browser-unit');
+  if(['minutes','seconds'].includes(transferredUnit))$('auto-browser-unit').value=transferredUnit;
 } catch(_error) { /* Storage unavailable: keep safe full-data default. */ }
 // Same-tab transfer from the Images & Data recording-formats picker.
 try {
