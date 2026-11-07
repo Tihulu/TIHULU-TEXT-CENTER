@@ -140,7 +140,7 @@ describe that separate legacy workflow, not the installed desktop app.
 Install the Debian package downloaded from GitHub Actions, then run:
 
 ```bash
-sudo apt install ./tihulu-satellite-center_0.3.0~preview9_all.deb
+sudo apt install ./tihulu-satellite-center_0.3.0~preview10_all.deb
 tihulu-satellite-center
 ```
 
