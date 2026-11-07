@@ -1,0 +1,6 @@
+{
+  "source_branch": "feature/tv-center-native-teletext-asr-2026-11-07",
+  "source_sha": "14746c1862d1e8ab4f23a3597ac6966585d422f5",
+  "published_section": "tv_center",
+  "description": "Static web companion only; requires opt-in local receiver bridge. No browser DVB hardware or HLS video."
+}
