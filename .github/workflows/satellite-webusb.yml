@@ -27,6 +27,8 @@ jobs:
       - name: Check browser scripts
         run: |
           node --check satellite_center/browser/browser.js
+          node --check satellite_center/browser/chained_capture.mjs
+          node --test tests/test_satellite_chained_capture.mjs
           node --check satellite_center/browser/fm_wav_record.mjs
           node --check satellite_center/browser/sstv_capture_diagnostics.mjs
           node --test tests/test_satellite_sstv_capture_diagnostics.mjs
