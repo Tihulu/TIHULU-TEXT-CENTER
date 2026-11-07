@@ -16,7 +16,7 @@ root_cmd() { if (( EUID == 0 )); then "$@"; else sudo "$@"; fi; }
 echo "Installing native DVB/MPV dependencies; existing TV scans are preserved."
 root_cmd apt-get update
 root_cmd apt-get install -y --no-install-recommends \
-  ca-certificates git python3 python3-pyqt5 dvb-tools mpv ffmpeg psmisc dpkg
+  ca-certificates git python3 python3-pyqt5 python3-venv dvb-tools mpv ffmpeg psmisc dpkg
 if apt-cache show w-scan-cpp >/dev/null 2>&1; then
   root_cmd apt-get install -y --no-install-recommends w-scan-cpp
 else

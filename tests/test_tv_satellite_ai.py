@@ -8,7 +8,7 @@ from tv_center.channel_prefs import ChannelPreferences, profile_key
 from tv_center.ai_settings import AISettings
 from tv_center.model_market import ModelLibrary, ModelError, CATALOG
 from tv_center.scanner import scan_commands, parse_scan_progress
-from tv_center.core import Channel, read_channels
+from tv_center.core import Channel, read_channels, parse_signal_log
 
 class SatelliteAndAISettingsTests(unittest.TestCase):
     def test_satellite_scan_is_not_terrestrial_country(self):
@@ -25,6 +25,14 @@ class SatelliteAndAISettingsTests(unittest.TestCase):
             satellite_scan_args(0, "made-up-satellite")
         with self.assertRaises(ValueError):
             satellite_scan_args(0, "S42E0", 7)
+
+    def test_real_signal_power_cnr_ucb(self):
+        sample = ("Lock (0x1f) Signal= -63.00dBm C/N= 21.25dB UCB= 100\n"
+                  "Lock (0x1f) Signal= -62.00dBm C/N= 22.00dB UCB= 100\n")
+        output = parse_signal_log(sample)
+        self.assertEqual(output["signal_last_dbm"], -62.0)
+        self.assertEqual(output["ucb_delta"], 0)
+        self.assertEqual(output["cn_last_db"], 22)
 
     def test_scan_log_never_invents_service(self):
         d = parse_scan_progress("new channel: KiKA HD")

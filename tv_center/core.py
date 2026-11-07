@@ -143,12 +143,15 @@ def parse_signal_log(raw: str) -> dict:
     if not isinstance(raw, str):
         raise ValueError("Monitor output must be text")
     locks = [line for line in raw.splitlines() if line.startswith("Lock")]
-    cn, ucb = [], []
+    cn, ucb, levels = [], [], []
     for line in locks:
         match_cn = re.search(r"C/N=\s*([\d.]+)dB", line)
+        match_level = re.search(r"Signal=\s*(-?[\d.]+)dBm", line)
         match_ucb = re.search(r"UCB=\s*(\d+)", line)
         if match_cn:
             cn.append(float(match_cn.group(1)))
+        if match_level:
+            levels.append(float(match_level.group(1)))
         if match_ucb:
             ucb.append(int(match_ucb.group(1)))
     no_lock = sum(("Carrier(0x03)" in line or "(0x00)" in line)
@@ -157,6 +160,7 @@ def parse_signal_log(raw: str) -> dict:
             "cn_min_db": min(cn) if cn else None,
             "cn_max_db": max(cn) if cn else None,
             "cn_last_db": cn[-1] if cn else None,
+            "signal_last_dbm": levels[-1] if levels else None,
             "ucb_first": ucb[0] if ucb else None,
             "ucb_last": ucb[-1] if ucb else None,
             "ucb_delta": ucb[-1] - ucb[0] if len(ucb) >= 2 else None}

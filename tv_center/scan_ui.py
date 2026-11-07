@@ -71,6 +71,7 @@ class ScanMonitor(QDialog):
             else:
                 self.signal.setText(
                     "Signal receiver: lock samples " + str(m.get("lock_readings")) +
+                    " · Power " + str(m.get("signal_last_dbm")) + " dBm" +
                     " · C/N " + str(m.get("cn_last_db")) + " dB" +
                     " · UCB increase " + str(m.get("ucb_delta")) +
                     " · loss signs " + str(m.get("loss_indications")))

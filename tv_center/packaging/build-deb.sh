@@ -26,7 +26,15 @@ cd /usr/share/tihulu-tv-center || exit 1
 if [ -n "${WAYLAND_DISPLAY:-}" ]; then
   export QT_QPA_PLATFORM=xcb
 fi
-exec /usr/bin/python3 -m tv_center "$@"
+if [ "${1:-}" = "remove-runtime" ]; then
+  exec /usr/bin/python3 -m tv_center.runtime remove
+fi
+PYTHON="/usr/bin/python3"
+AI_ENV="$HOME/.local/share/tihulu-tv-center/ai-runtime"
+if [ -f "$AI_ENV/.tihulu-owned-ai-runtime" ] && [ -x "$AI_ENV/bin/python3" ]; then
+  PYTHON="$AI_ENV/bin/python3"
+fi
+exec "$PYTHON" -m tv_center "$@"
 LAUNCH
 chmod 755 "$TMP/usr/bin/tihulu-tv-center"
 cat > "$TMP/usr/share/applications/tihulu-tv-center.desktop" <<'DESKTOP'

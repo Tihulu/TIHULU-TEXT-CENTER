@@ -135,6 +135,10 @@ class AutoScanner:
                                 if obj and obj["text"] != self._latest.get("line"):
                                     self._latest["line"] = obj["text"]
                                     if notify: notify({"stage": stage, **obj})
+                                    if obj.get("service_reported") and notify:
+                                        notify({"stage": stage, "kind": "found",
+                                                "channel": obj["service_reported"],
+                                                "frequency": None, "provisional": True})
                         if partial_file and partial_file.is_file():
                             from .core import read_channels
                             for channel in read_channels([partial_file]):

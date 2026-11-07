@@ -13,6 +13,7 @@ def open_ai_settings(parent, ai, after_save=None):
     from .model_market import (CATALOG, ModelLibrary, ModelError,
         argos_available_pairs, argos_installed_pairs, argos_install, argos_remove)
     from textcenter.compute import detect_devices, choose_backend
+    from .runtime import AIRuntime, RuntimeErrorAI
 
     class Manager(QDialog):
         def __init__(self):
@@ -51,6 +52,16 @@ def open_ai_settings(parent, ai, after_save=None):
             self.model_path = QLineEdit(ai.values["model_path"])
             self.model_path.setPlaceholderText("No active Whisper model selected")
             form.addRow("Active model (CPU GGML or runtime-specific)", self.model_path)
+            self.engine_state = QLabel("")
+            form.addRow("Optional AI Python runtime", self.engine_state)
+            engine_buttons = QHBoxLayout()
+            self.install_engine = QPushButton("Install Argos engine (PyPI, optional)")
+            self.install_engine.clicked.connect(self.install_engine_runtime)
+            self.remove_engine = QPushButton("Remove managed AI runtime")
+            self.remove_engine.clicked.connect(self.remove_engine_runtime)
+            engine_buttons.addWidget(self.install_engine)
+            engine_buttons.addWidget(self.remove_engine)
+            form.addRow(engine_buttons)
 
             models = QGroupBox("Whisper model market · multilingual DE / EN / TR")
             root.addWidget(models)
@@ -120,6 +131,28 @@ def open_ai_settings(parent, ai, after_save=None):
             self.populate_models()
             self.inspect_compute()
             self.inspect_argos()
+            self.inspect_runtime()
+
+        def inspect_runtime(self):
+            runtime = AIRuntime()
+            status = runtime.status()
+            self.engine_state.setText("Installed in " + status["path"] if status["installed"]
+                                      else "Not installed. Argos package downloads need an engine.")
+
+        def install_engine_runtime(self):
+            if QMessageBox.question(self, "Install optional translator runtime",
+                "Create a user-owned Python virtualenv and download Argos Translate "
+                "from PyPI? This may use storage/network resources. Restart TV Center "
+                "after installation. No changes are made to system Python.") != QMessageBox.Yes:
+                return
+            self.begin("Installing optional Argos engine…", AIRuntime().install_argos)
+
+        def remove_engine_runtime(self):
+            if QMessageBox.question(self, "Remove translator runtime",
+                "Remove only the app-owned optional Python virtualenv? Whisper model "
+                "files and saved channel lists remain intact.") != QMessageBox.Yes:
+                return
+            self.begin("Removing app-owned AI runtime…", AIRuntime().uninstall)
 
         def selected_model(self):
             selected = self.models.currentItem()
@@ -184,6 +217,7 @@ def open_ai_settings(parent, ai, after_save=None):
                     self.feedback.setText("Completed: " + str(data))
                     self.populate_models()
                     self.inspect_argos()
+                    self.inspect_runtime()
                 else:
                     self.running = False
                     self.feedback.setText("Failed: " + str(data))

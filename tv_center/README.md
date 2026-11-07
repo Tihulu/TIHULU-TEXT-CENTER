@@ -167,3 +167,16 @@ Argos Python runtime and explicit consent. Models can live on an external SSD.
 Compute selection is Auto/CPU/GPU/NPU; only an actually compatible runtime
 and installed model are treated as ready. Disabling the feature stops its
 related worker but does not uninstall system-level inference libraries.
+
+### Optional Argos runtime install / removal
+
+The Settings model store also offers an explicit **Install Argos engine**
+operation. This creates a user-owned virtual environment at
+`~/.local/share/tihulu-tv-center/ai-runtime` and downloads the Python
+`argostranslate` package from PyPI after confirmation. Restart TV Center to
+switch the launcher to the optional runtime. The installer includes
+`python3-venv` for this purpose; ordinary TV does not need the AI environment.
+Use **Remove managed AI runtime** (from an instance started with system Python)
+or close the app and run `tihulu-tv-center remove-runtime` to uninstall it.
+Model files and TV channels stay untouched. This feature is opt-in and not
+hardware-validated on Raspberry Pi 5.
