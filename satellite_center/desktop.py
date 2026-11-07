@@ -2555,10 +2555,14 @@ class SatelliteWindow(QMainWindow):
              "RTL-SDR not seen in USB inventory" if usb_count==0 else
              "USB enumeration unavailable on this platform"))
         last_test=hardware.get("last_usb_test") or {}
+        last_sample=hardware.get("last_real_sample") or {}
         self.hardware_access.setText(
-            "Verified physical USB + real IQ acquisition · "+
+            "Connect verified: USB OPEN + real IQ, test released · "+
             str(last_test.get("verified_at","unknown")) if last_test else
-            "USB sample reception NOT verified · run Connect or Test real RF")
+            "Real IQ test passed · "+str(last_sample.get("sample_bytes",0))+
+            " bytes at "+str(last_sample.get("verified_at","unknown"))+
+            " (does NOT enable scheduled RF)" if last_sample else
+            "No real IQ verified yet · use Connect or Test real RF")
         self.hardware_mode.setText(
             "RF acquisition: ENABLED for explicit captures and pending jobs" if enabled
             else "RF acquisition: DISABLED · survives restart; no new scheduled capture")
@@ -2617,6 +2621,7 @@ class SatelliteWindow(QMainWindow):
             "RF DISABLED · lease released" if not enabled and released else
             "RF DISABLED · release incomplete" if not enabled else
             "USB IQ VERIFIED · idle ready" if hardware.get("last_usb_test") else
+            "Real IQ sample TEST passed; Connect to arm future recordings" if hardware.get("last_real_sample") else
             "USB not yet verified by real IQ capture; open Hardware / USB.")
         self._calendar_jobs=state.get("jobs",[])
         jobs_key=json.dumps([(j.get("id"),j.get("state"),j.get("run_at"),j.get("result"),
