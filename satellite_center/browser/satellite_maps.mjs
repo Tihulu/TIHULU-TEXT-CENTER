@@ -535,9 +535,14 @@ export function createSatelliteMaps({getTles,getSatLib,getPasses,getLastCapture,
    if(worldData)return worldData;
    if(!worldPromise){
      worldPromise=(async()=>{
-       const response=await fetch("./natural-earth-land-110m.geojson",{cache:"force-cache"});
-       if(!response.ok)throw Error("Bundled Natural Earth outlines unavailable: HTTP "+response.status);
-       const data=await response.json();
+       let data;
+       if(typeof window.nativeWorldOutline==='function'){
+         data=await window.nativeWorldOutline();
+       }else{
+         const response=await fetch("./natural-earth-land-110m.geojson",{cache:"force-cache"});
+         if(!response.ok)throw Error("Bundled Natural Earth outlines unavailable: HTTP "+response.status);
+         data=await response.json();
+       }
        if(data?.type!=="FeatureCollection"||!Array.isArray(data.features)||data.features.length<100)
          throw Error("Invalid Natural Earth map data");
        worldData=data;
