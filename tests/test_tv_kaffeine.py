@@ -35,7 +35,8 @@ class KaffeineCaptionTapTests(TestCase):
         self.assertIn("--avcodec-hw=none", patched_source)
         self.assertIn("--file-caching=1500", patched_source)
         self.assertIn("software-no-audio", patched_source)
-        self.assertIn('args.contains(QLatin1String("--avcodec-hw"))', patched_source)
+        self.assertIn('option.startsWith(QLatin1String("--avcodec-hw="))', patched_source)
+        self.assertIn('args.append(QLatin1String(" --avcodec-hw=none"))', patched_source)
 
     def test_kaffeine_receiver_diagnostics_do_not_open_frontend(self):
         from kaffeine_next.diagnostics import inspect
