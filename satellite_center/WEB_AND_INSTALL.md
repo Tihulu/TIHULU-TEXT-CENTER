@@ -4,6 +4,15 @@ This additive companion is not merged into Text Center or Survival Kit yet.
 It uses port **8791** only on **127.0.0.1**, without starting a receiver or
 fetching TLE data in the background. It cannot control USB directly from Pages.
 
+## Preview10 graphical mode
+
+The default **installed** desktop `tihulu-satellite-center` launches
+the same website HTML/CSS in an embedded Qt WebEngine window with
+direct OS-native RTL-SDR calls via in-process Qt WebChannel, **not WebUSB**.
+`tihulu-satellite-center desktop-widgets` runs the traditional
+browser-engine-free PyQt Widgets interface instead. The desktop launches
+neither an external browser nor an HTTP listener.
+
 ## Preferred 2026-11-07 Linux install — native SDR preview10
 
 Use this for Debian/Ubuntu/Pop!_OS **native desktop**, not the older
