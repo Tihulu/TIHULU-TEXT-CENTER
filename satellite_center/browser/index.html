@@ -91,7 +91,7 @@
 <option value="1620000000">Iridium L-band energy sample · 1620.000 MHz</option>
 </select>
 <div class="line"><label>Sample rate<select id="rate"><option value="1024000">1.024 MS/s</option><option value="2048000">2.048 MS/s</option></select></label>
-<label>RF sample length · seconds (manual 1–900)<input type="number" id="duration" min="1" max="900" step="1" value="15" inputmode="numeric"></label></div>
+<label>RF sample length<input type="number" id="duration" min="1" max="7200" step="1" value="15" inputmode="numeric"></label><label>Length unit<select id="duration-unit"><option value="seconds">Seconds</option><option value="minutes">Minutes</option></select></label></div>
 <fieldset class="capture-format-picker" id="manual-format-picker">
 <legend>Recording file formats · select one or both</legend>
 <div class="capture-format-options">
@@ -106,7 +106,7 @@
 <p id="capture-format-summary" class="capture-format-summary" role="status" aria-live="polite">Recording CU8 only · 1 file. Both boxes may be checked together.</p>
 <p class="hint">On ISS SSTV 437.550 MHz, WAV is preselected; you can add CU8 or click Select CU8 + WAV. Both are generated from the SAME actual WebUSB RF samples and saved as two separate files. Long captures request a local file/folder before starting. A WAV does not prove ISS transmitted or Robot36 synchronization.</p>
 </fieldset>
-<p id="capture-budget" class="hint" role="status">Short IQ stays in 128 MiB browser memory. Longer captures require a chosen local disk file; if unsupported use native receiver.</p>
+<p id="capture-budget" class="hint" role="status">Up to 60 seconds per WebUSB file, with a 128 MiB CU8 cap. Longer requests become multiple calendar jobs, each with separate downloads. Restart gaps are possible.</p>
 <div class="line"><button id="start" disabled>Start real USB capture</button><button id="stop" class="secondary" disabled>Stop &amp; release</button></div>
 <p class="hint">Measures uncalibrated digital sample levels, not dBm or proof of a satellite. RF samples can exceed 60 seconds (maximum 900 s / 2 GB) where the Chromium browser supports user-authorized disk streaming. You choose the local .cu8 file. On Firefox/Safari or unsupported browsers, use the optional native companion. Larger raw IQ requires space; actual Earth-image decoding needs a genuine downlink and decoder.</p>
 <canvas id="level-chart" width="760" height="180" aria-label="Measured relative raw SDR sample level history"></canvas>
