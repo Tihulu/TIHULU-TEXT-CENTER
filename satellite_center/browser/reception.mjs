@@ -1,4 +1,5 @@
 import {MISSIONS, missionById, localFileKind, fileEvidence} from "./reception_catalog.mjs";
+import {inspectLocalFormat} from "./file_format_inspector.mjs";
 import {initSatelliteImageUI} from "./satellite_images_ui.mjs?v=20261106-direct-fm-wav-v1";
 import {initAutoReceptionUI} from "./auto_reception_ui.mjs?v=20261107-cu8-wav-multiselect-v1";
 import {initSavedProtocolUI} from "./user_protocol_ui.mjs";
@@ -8,7 +9,8 @@ const missionSelect=byId("mission"), categorySelect=byId("category");
 const detail=byId("mission-detail"), sourceLink=byId("mission-source");
 const openLink=byId("mission-open"), fileInput=byId("local-file");
 const preview=byId("file-preview"), fileStatus=byId("file-status");
-let selectedFile=null, activeObjectUrl=null;
+let selectedFile=null, activeObjectUrl=null, selectedInspection=null;
+let previewGeneration=0;
 
 function appendText(tag,text,parent=detail,className=""){
   const node=document.createElement(tag);
@@ -78,12 +80,22 @@ function manifest(){
   return fileEvidence(selectedFile,currentMission().id,invalidNumber("recorded-mhz",1e6),invalidNumber("recorded-rate"));
 }
 async function updateFilePreview(){
-  const file=selectedFile;
+  const file=selectedFile, generation=++previewGeneration;
+  selectedInspection=null;
   clearPreview();
   if(!file){appendText("p","No file selected. Nothing is uploaded.",preview);fileStatus.textContent="Idle · no data accessed.";byId("export-evidence").disabled=true;return;}
   const evidence=manifest();
+  const inspection=await inspectLocalFormat(file);
+  if(selectedFile!==file||previewGeneration!==generation)return;
+  selectedInspection=inspection;
   appendText("h3",evidence.name,preview);
-  appendText("p",evidence.format.toUpperCase()+" · "+file.size.toLocaleString()+" bytes · user-imported/unverified",preview,"file-warning");
+  appendText("p",inspection.label+" · "+file.size.toLocaleString()+" bytes · user-imported/unverified",preview,"file-format-label");
+  appendText("p",inspection.explanation,preview,inspection.status==="header-mismatch"||inspection.status==="size-warning"?"file-warning":"file-format-explanation");
+  if(inspection.status==="header-mismatch"){
+    fileStatus.textContent="Format mismatch · no media preview. A filename alone cannot certify decoded content.";
+    byId("export-evidence").disabled=false;
+    return;
+  }
   if(evidence.durationSeconds!==null)appendText("p","Estimated gapless CU8 duration: "+evidence.durationSeconds.toFixed(2)+" s, assuming unsigned interleaved I/Q (2 bytes/complex sample) and the manually entered sample rate.",preview);
   const kind=localFileKind(file.name);
   if(["image","audio","video"].includes(kind)){
@@ -107,7 +119,9 @@ async function updateFilePreview(){
   }else{
     appendText("p","Unsupported browser preview. Original file remains local; no automatic format claims.",preview);
   }
-  fileStatus.textContent="Local preview ready · no upload, no RF-source verification.";
+  fileStatus.textContent=inspection.status==="size-warning"?
+    "Incomplete raw IQ sample pair · analyze only after verifying source format.":
+    "Local file inspected · "+inspection.label+" · no upload or RF-source verification.";
   byId("export-evidence").disabled=false;
 }
 categorySelect.addEventListener("change",updateOptions);
@@ -123,14 +137,16 @@ for(const id of ["recorded-mhz","recorded-rate"]){
   });
 }
 byId("clear-file").addEventListener("click",()=>{
-  selectedFile=null;fileInput.value="";clearPreview();
+  selectedFile=null;selectedInspection=null;previewGeneration++;
+  fileInput.value="";clearPreview();
   byId("export-evidence").disabled=true;
   appendText("p","No file selected. Nothing is uploaded.",preview);
   fileStatus.textContent="Cleared local preview.";
 });
 byId("export-evidence").addEventListener("click",()=>{
   try{
-    const data=manifest();
+    const data={...manifest(),formatInspection:selectedInspection};
+    if(!selectedInspection)throw Error("File inspection not finished; try again.");
     const blob=new Blob([JSON.stringify(data,null,2)+"\n"],{type:"application/json"});
     const url=URL.createObjectURL(blob);
     const a=document.createElement("a");
