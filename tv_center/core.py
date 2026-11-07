@@ -131,7 +131,7 @@ def isolated_channel_file(channel: Channel, destination: Path) -> Channel:
         except ValueError:
             return
         if frequency==channel.frequency and (channel.service_id is None or sid==channel.service_id):
-            matches.append("["+title+"]\\n"+"\\n".join(block)+"\\n")
+            matches.append("["+title+"]\n"+"\n".join(block)+"\n")
     for line in source.read_text(encoding="utf-8",errors="replace").splitlines():
         item=line.strip()
         if item.startswith("[") and item.endswith("]"):
@@ -146,7 +146,7 @@ def isolated_channel_file(channel: Channel, destination: Path) -> Channel:
                            f"({len(matches)} found for {channel.name!r} "
                            f"on {channel.frequency} Hz). Rescan this source.")
     destination=Path(destination)
-    destination.write_text(matches[0].replace("\\n","\\n"),encoding="utf-8")
+    destination.write_text(matches[0],encoding="utf-8")
     return Channel(channel.name,destination,channel.frequency,channel.service_id,
                    channel.encrypted,channel.delivery,channel.kind)
 
