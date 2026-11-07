@@ -28,7 +28,7 @@ test("Explicit short-sample mode can record Meteor RF but never promise an Earth
  const result=selectAutomaticPasses([pass(57166,3600000)],{mode:"images",goal:"sample",now});
  assert.equal(result.scheduled.length,1);
  assert.equal(result.scheduled[0].coverage,"partial-pass");
- assert.match(result.scheduled[0].limitation,/RF sample only/);
+ assert.match(result.scheduled[0].limitation,/separate RF clips/);
  assert.equal(result.scheduled[0].estimatedBytes,122880000);
 });
 test("Manual pending pass takes priority and all entries remain geometry-only",()=>{
@@ -37,7 +37,7 @@ test("Manual pending pass takes priority and all entries remain geometry-only",(
  });
  assert.equal(result.scheduled.length,0);
  assert.equal(result.skipped.length,1);
- assert.match(result.note,/full Meteor imagery needs native/i);
+ assert.match(result.note,/native single-file capture/i);
 });
 test("APRS UHF is separate from SSTV and no retired/unsupported satellites are armed",()=>{
  const r=selectAutomaticPasses([pass(25544,3600000),pass(57166,4200000)],{now,mode:"messages"});
@@ -73,8 +73,10 @@ test("Operator can choose bounded WebUSB duration",()=>{
  assert.equal(plan.scheduled[0].durationSeconds,25);
  assert.equal(plan.scheduled[0].estimatedBytes,51200000);
  assert.equal(plan.scheduled[0].coverage,"partial-pass");
- assert.throws(()=>selectAutomaticPasses([selected],{mode:"images",durationSeconds:61,now}),/8–60/);
- assert.throws(()=>selectAutomaticPasses([selected],{mode:"images",durationSeconds:7,now}),/8–60/);
+ const segmented=selectAutomaticPasses([selected],{mode:"images",durationSeconds:61,now});
+ assert.equal(segmented.scheduled[0].durationSeconds,61);
+ assert.throws(()=>selectAutomaticPasses([selected],{mode:"images",durationSeconds:901,now}),/8–900/);
+ assert.throws(()=>selectAutomaticPasses([selected],{mode:"images",durationSeconds:7,now}),/8–900/);
 });
 
 test("ISS-only Series 35 mode selects UHF Robot36 without Meteor or APRS",()=>{

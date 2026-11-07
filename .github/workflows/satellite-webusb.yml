@@ -28,6 +28,8 @@ jobs:
         run: |
           node --check satellite_center/browser/browser.js
           node --check satellite_center/browser/fm_wav_record.mjs
+          node --check satellite_center/browser/segmented_capture.mjs
+          node --test tests/test_satellite_segmented_capture.mjs
           node --check satellite_center/browser/sstv_capture_diagnostics.mjs
           node --test tests/test_satellite_sstv_capture_diagnostics.mjs
           node --test tests/test_satellite_fm_wav_record.mjs

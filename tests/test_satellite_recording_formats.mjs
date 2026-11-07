@@ -43,8 +43,9 @@ test("full browser ISS auto workflow exposes user-selected both formats and two-
    assert.match(html,new RegExp('id="'+id+'"'),id);
  assert.match(js,/saveRaw:item\.missionId==='iss-sstv'\?autoRaw/);
  assert.match(js,/saveWav:item\.missionId==='iss-sstv'\?autoWav/);
- assert.match(js,/job\.saveRaw\?item\.durationSeconds\*item\.sampleRate\*2:0/);
- assert.match(js,/job\.saveWav\?wavOutputPlan\(item\.durationSeconds,true\)\.estimatedBytes:0/);
+ assert.match(js,/saveRaw:item\.missionId==='iss-sstv'\?autoRaw/);
+ assert.match(js,/estimatedBytes/);
+ assert.match(js,/scheduleBrowserSegments/);
 });
 
 test("Satellite Images & Data transfers both choices to the main WebUSB planner",()=>{
@@ -56,7 +57,7 @@ test("Satellite Images & Data transfers both choices to the main WebUSB planner"
  assert.match(main,/sessionStorage\.getItem\('tihulu-auto-formats'\)/);
  assert.match(main,/\$\('auto-save-raw'\)\.checked=choice\.raw/);
  assert.match(main,/\$\('auto-save-wav'\)\.checked=choice\.wav/);
- assert.match(html,/Native unattended ISS auto mode currently records WAV only/);
+ assert.match(html,/Native unattended long jobs split at 180 s/);
  assert.match(index,/WAV · FM audio for Robot36/);
 });
 

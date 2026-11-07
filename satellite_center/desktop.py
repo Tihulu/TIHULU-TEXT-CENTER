@@ -32,6 +32,7 @@ from PyQt5.QtWidgets import (
 from .__main__ import Station, PROFILES, LOCATIONS, AUTO_DOWNLINK_PROFILES, allowed_mode
 from .capture_budget import MAX_IQ_BYTES
 from .native_analysis import analyze_cu8, save_spectrum_report, export_results_zip
+from .native_segments import format_native_countdown
 from .native_data_labels import describe_local_file
 from .media_catalog import (MEDIA_COLORS, MEDIA_SYMBOLS, kinds_for_pass, filter_passes,
                             media_summary, capabilities_for_pass)
@@ -61,6 +62,40 @@ def native_datetime(value):
 
 def small_bytes(count):
     return f"{count / 1048576:.1f} MiB"
+
+
+def duration_seconds(spin, unit):
+    return int(round(spin.value()*(60 if unit.currentData()=="minutes" else 1)))
+
+
+def set_duration_seconds(spin, unit, seconds):
+    spin.setValue(seconds/60 if unit.currentData()=="minutes" else seconds)
+
+
+def native_duration_control(value=60, minimum=8, maximum=900):
+    """Native Qt numerical recording length with seconds/minutes switch."""
+    spin=QDoubleSpinBox()
+    spin.setDecimals(0);spin.setSingleStep(1)
+    spin.setRange(minimum,maximum);spin.setValue(value)
+    unit=QComboBox()
+    unit.addItem("Seconds","seconds");unit.addItem("Minutes","minutes")
+    host=QWidget();layout=QHBoxLayout(host)
+    layout.setContentsMargins(0,0,0,0)
+    layout.addWidget(spin,3);layout.addWidget(unit,1)
+    previous={"unit":"seconds"}
+    def changed(_index):
+        current=unit.currentData()
+        total=spin.value()*(60 if previous["unit"]=="minutes" else 1)
+        spin.blockSignals(True)
+        spin.setDecimals(3 if current=="minutes" else 0)
+        spin.setSingleStep(.25 if current=="minutes" else 1)
+        spin.setRange(minimum/60 if current=="minutes" else minimum,
+                      maximum/60 if current=="minutes" else maximum)
+        spin.setValue(total/60 if current=="minutes" else total)
+        spin.blockSignals(False)
+        previous["unit"]=current
+    unit.currentIndexChanged.connect(changed)
+    return host,spin,unit
 
 
 class TaskSignals(QObject):
@@ -442,7 +477,7 @@ class SatelliteWindow(QMainWindow):
             "All radio access uses native rtl_sdr/rtl_fm tools and your attached USB SDR. "
             "No WebUSB, browser, server or embedded website."))
 
-        workflow=QGroupBox("Satellite Auto-Capture && Decode — three steps")
+        workflow=QGroupBox("Satellite Auto-Capture & Decode — three steps")
         w=QVBoxLayout(workflow)
         w.addWidget(self._hint(
             "Select a published image, text or voice target and schedule real local RF acquisition. "
@@ -585,7 +620,7 @@ class SatelliteWindow(QMainWindow):
                                   lambda:self._open_native_tab("Passes & Data")))
         right.addWidget(planner)
 
-        calendar=QGroupBox("4 · Scheduled reception && recorded data")
+        calendar=QGroupBox("4 · Scheduled reception & recorded data")
         cl=QVBoxLayout(calendar)
         self.home_jobs_status=self._hint("No native RF jobs checked yet.")
         cl.addWidget(self.home_jobs_status)
@@ -1219,15 +1254,16 @@ class SatelliteWindow(QMainWindow):
         self.pass_time=QDateTimeEdit(QDateTime.currentDateTime())
         self.pass_time.setCalendarPopup(True)
         self.pass_time.setDisplayFormat("yyyy-MM-dd HH:mm:ss")
-        self.pass_seconds=QSpinBox();self.pass_seconds.setRange(8,900);self.pass_seconds.setValue(60)
+        pass_duration,self.pass_seconds,self.pass_unit=native_duration_control(60,8,900)
         self.pass_seconds.valueChanged.connect(self._pass_budget)
+        self.pass_unit.currentIndexChanged.connect(self._pass_budget)
         self.pass_mode.currentIndexChanged.connect(self._pass_budget)
         self.pass_cost=self._hint("Choose a predicted pass")
         form.addRow("Receiver profile",self.pass_profile)
         form.addRow("RF output mode",self.pass_mode)
         form.addRow("IQ sampling rate",self.pass_sample_rate)
         form.addRow("Local start time",self.pass_time)
-        form.addRow("Actual RF duration · seconds",self.pass_seconds)
+        form.addRow("Total RF duration · seconds or minutes",pass_duration)
         form.addRow("Estimated disk space",self.pass_cost)
         self.arm_pass=self._button("Arm selected RF capture",self.schedule_selected_pass)
         form.addRow(self.arm_pass)
@@ -1756,10 +1792,8 @@ class SatelliteWindow(QMainWindow):
         body.addWidget(self.auto_expand)
         self.auto_settings=QGroupBox("Advanced · capture and processing")
         advanced=QFormLayout(self.auto_settings)
-        self.auto_seconds=QSpinBox()
-        self.auto_seconds.setRange(0,900)
+        auto_duration,self.auto_seconds,self.auto_unit=native_duration_control(0,0,900)
         self.auto_seconds.setSpecialValueText("Auto · fit pass")
-        self.auto_seconds.setValue(0)
         self.auto_jobs=QSpinBox()
         self.auto_jobs.setRange(1,12)
         self.auto_jobs.setValue(6)
@@ -1777,7 +1811,7 @@ class SatelliteWindow(QMainWindow):
             self.auto_compute.addItem(title,(mode,targets))
         self.auto_compute.setToolTip(
             "Selecting GPU/NPU is a request, not evidence of real accelerator use.")
-        advanced.addRow("Duration · 0 = fit pass",self.auto_seconds)
+        advanced.addRow("Total duration · 0 = auto · s/min",auto_duration)
         advanced.addRow("Maximum jobs",self.auto_jobs)
         advanced.addRow("Minimum elevation (°)",self.auto_elev)
         advanced.addRow("Analysis hardware",self.auto_compute)
@@ -1820,7 +1854,7 @@ class SatelliteWindow(QMainWindow):
             self.timeline.setRowHeight(hour,40)
         body.addWidget(self.timeline,2)
         self.job_list=QTreeWidget()
-        self.job_list.setHeaderLabels(["Satellite","Local start","Local end","Duration","State","Protocol"])
+        self.job_list.setHeaderLabels(["Satellite / part","Local start","Local end","Duration","State / countdown","Protocol"])
         self.job_list.itemSelectionChanged.connect(self._job_selected)
         body.addWidget(self.job_list,1)
         self.job_note=self._hint("Cancelled jobs are hidden from the calendar; "
@@ -1843,15 +1877,15 @@ class SatelliteWindow(QMainWindow):
         self.capture_sample_rate.addItem("1.024 MS/s",1024000)
         self.capture_sample_rate.addItem("2.048 MS/s",2048000)
         self.capture_sample_rate.currentIndexChanged.connect(self._capture_budget)
-        self.capture_seconds=QSpinBox();self.capture_seconds.setRange(8,900)
-        self.capture_seconds.setValue(60)
+        capture_duration,self.capture_seconds,self.capture_unit=native_duration_control(60,8,900)
         self.capture_budget=self._hint("Long captures write real CU8 directly to disk.")
         self.capture_mode.currentIndexChanged.connect(self._capture_budget)
         self.capture_seconds.valueChanged.connect(self._capture_budget)
+        self.capture_unit.currentIndexChanged.connect(self._capture_budget)
         form.addRow("Receiver frequency / band",self.capture_profile)
         form.addRow("Hardware mode",self.capture_mode)
         form.addRow("IQ sample rate",self.capture_sample_rate)
-        form.addRow("Actual sample length",self.capture_seconds)
+        form.addRow("Total sample length · seconds / minutes",capture_duration)
         form.addRow("Estimated disk budget",self.capture_budget)
         body.addLayout(form)
         self._row(body,
@@ -2609,6 +2643,17 @@ class SatelliteWindow(QMainWindow):
             self.last_jobs_key=jobs_key
             self._render_job_list()
             self._render_calendar()
+        else:
+            # Update D/H/M/S countdown on the existing native calendar
+            # without replacing the selected tree row every five seconds.
+            for row in range(self.job_list.topLevelItemCount()):
+                item=self.job_list.topLevelItem(row)
+                job=next((j for j in self._calendar_jobs if j.get("id")==item.data(0,Qt.UserRole)),None)
+                if job and job.get("state")=="pending":
+                    start=job.get("run_at") or job.get("aos")
+                    if start:
+                        remaining=datetime.fromisoformat(start).timestamp()-time.time()
+                        item.setText(4,"pending · "+format_native_countdown(remaining))
         archive_key=json.dumps(state.get("archive",[]),sort_keys=True)
         if archive_key!=self.last_archive_key:
             self.last_archive_key=archive_key
@@ -2702,7 +2747,8 @@ class SatelliteWindow(QMainWindow):
             self.pass_time.setDateTime(native_datetime(row["aos"]))
             remaining=(datetime.fromisoformat(row["los"])-
                        datetime.fromisoformat(row["aos"])).total_seconds()
-            self.pass_seconds.setValue(max(8,min(900,int(remaining)-25)))
+            set_duration_seconds(self.pass_seconds,self.pass_unit,
+                                 max(8,min(900,int(remaining)-25)))
         else:
             self.pass_title.setText("No pass selected")
             self.pass_subtitle.setText("Choose a candidate from the list or clear your filters.")
@@ -2735,21 +2781,17 @@ class SatelliteWindow(QMainWindow):
 
     def _pass_budget(self):
         mode=self.pass_mode.currentData()
-        rate=int(self.pass_sample_rate.currentData() or 1024000)
-        is_iq=mode in ("iq","iq_and_fm_wav")
-        maximum=min(900,MAX_IQ_BYTES//(2*rate)) if is_iq else 180 if mode=="survey" else 900
-        self.pass_seconds.setMaximum(max(8,maximum))
-        self.pass_sample_rate.setEnabled(is_iq)
-        seconds=self.pass_seconds.value()
+        seconds=duration_seconds(self.pass_seconds,self.pass_unit)
         if mode=="iq_and_fm_wav":
             self.pass_cost.setText(
                 f"~{seconds*(2*rate/1e6+.064):.1f} MB · raw CU8 then derived 32-kHz FM WAV. "
                 "Both are genuine samples; FM content remains unverified.")
         elif mode=="iq":
             self.pass_cost.setText(
-                f"~{seconds*2*rate/1e6:.1f} MB raw CU8 · real disk streaming, max {maximum} s at this rate")
+                f"~{seconds*2.048:.1f} MB raw CU8. >180 s can be split into separate ≤180 s files; single continuous IQ still supported.")
         elif mode=="survey":
-            self.pass_cost.setText("Real rtl_power spectrum survey · 8–180 s (not image decoding)")
+            self.pass_cost.setText("Real rtl_power spectrum survey: "+str(seconds)+
+                " s total, split into ≤180 s calendar files with 2 s restart gaps (not image decoding)")
         elif mode in ("sstv_audio","fm_audio"):
             self.pass_cost.setText(
                 f"~{seconds*.096:.1f} MB estimated WAV · native FM demodulation, activity unverified")
@@ -2764,23 +2806,32 @@ class SatelliteWindow(QMainWindow):
         key=item.data(0,Qt.UserRole)
         profile=self.pass_profile.currentData()
         mode=self.pass_mode.currentData()
-        seconds=self.pass_seconds.value()
+        seconds=duration_seconds(self.pass_seconds,self.pass_unit)
         sample_rate=int(self.pass_sample_rate.currentData() or 1024000)
         start=datetime.fromtimestamp(self.pass_time.dateTime().toSecsSinceEpoch(),timezone.utc).isoformat()
         def completed(job):
-            text=("Scheduled "+str(job.get("satellite","satellite"))+
-                  " · "+str(job.get("capture_seconds",seconds))+" seconds. "
-                  "The Qt app must be running to execute this job.")
+            if job.get("scheduled_count"):
+                text=(str(job["scheduled_count"])+" separate calendar recordings armed · "+
+                      str(job.get("requested_seconds",seconds))+" s requested · "+
+                      str(job.get("unrecorded_gap_seconds",0))+
+                      " s of receiver restart gaps. Keep the Qt app running.")
+            else:
+                text=("Scheduled "+str(job.get("satellite","satellite"))+
+                      " · "+str(job.get("capture_seconds",seconds))+" seconds. "+
+                      "The Qt app must be running to execute this job.")
             self.pass_feedback.setText(text)
             self.statusBar().showMessage(text,12000)
             self.refresh_status()
-        self._task("Arm scheduled RF",lambda:self.station.schedule(
-            key,profile,mode,start,seconds,sample_rate=sample_rate),completed)
+        self._task("Arm scheduled RF",
+                   lambda:self.station.schedule_series(key,profile,mode,start,seconds,
+                                                        segment_seconds=180,sample_rate=sample_rate)
+                   if seconds>180 else self.station.schedule(key,profile,mode,start,seconds,sample_rate=sample_rate),
+                   completed)
 
     def auto_schedule(self):
         missions=[mid for mid,box in self.mission_boxes.items() if box.isChecked()]
         if not missions:return QMessageBox.information(self,"Auto reception","Select at least one satellite mode.")
-        seconds=self.auto_seconds.value() or None
+        seconds=duration_seconds(self.auto_seconds,self.auto_unit) or None
         coverage=self.coverage.currentData()
         compute_mode,compute_targets=self.auto_compute.currentData()
         params={"lat":self.lat.value(),"lon":self.lon.value(),"hours":self.hours.value(),
@@ -2822,8 +2873,13 @@ class SatelliteWindow(QMainWindow):
             if start and secs:
                 end=datetime.fromtimestamp(datetime.fromisoformat(start).timestamp()+secs,
                                            timezone.utc).isoformat()
-            item=QTreeWidgetItem([job.get("satellite","Unknown"),local_time(start),
-                local_time(end),str(secs)+" s",job.get("state",""),
+            part=(" · "+str(job.get("segment_index"))+"/"+str(job.get("segment_count"))
+                  if job.get("segment_count") else "")
+            countdown=(" · "+format_native_countdown(
+                (datetime.fromisoformat(start).timestamp()-time.time()))
+                if job.get("state")=="pending" and start else "")
+            item=QTreeWidgetItem([job.get("satellite","Unknown")+part,local_time(start),
+                local_time(end),str(secs)+" s",job.get("state","")+countdown,
                 job.get("mission_id") or job.get("profile","")])
             item.setData(0,Qt.UserRole,job["id"])
             self.job_list.addTopLevelItem(item)
@@ -2847,8 +2903,10 @@ class SatelliteWindow(QMainWindow):
                     hour=0)+timedelta(days=1)
                 end=start+timedelta(seconds=secs)
                 if start<finish and end>slot:
-                    hours[hour].append(start.strftime("%H:%M")+"–"+end.strftime("%H:%M")+
-                     " · "+job.get("satellite","Unknown")+" · "+job.get("state",""))
+                    segment=(" · part "+str(job.get("segment_index"))+"/"+str(job.get("segment_count"))
+                             if job.get("segment_count") else "")
+                    hours[hour].append(start.strftime("%H:%M:%S")+"–"+end.strftime("%H:%M:%S")+
+                     " · "+job.get("satellite","Unknown")+segment+" · "+job.get("state",""))
         for hour,entries in enumerate(hours):
             current=self.timeline.item(hour,1)
             text="\n".join(entries) if entries else "—"
@@ -2881,17 +2939,24 @@ class SatelliteWindow(QMainWindow):
         from PyQt5.QtWidgets import QDialog, QDialogButtonBox
         dialog=QDialog(self);dialog.setWindowTitle("Edit native automatic reception")
         form=QFormLayout(dialog)
-        clock=QDateTimeEdit(native_datetime(job["run_at"]))
+        group=[j for j in self._calendar_jobs if
+               job.get("segment_group") and j.get("segment_group")==job["segment_group"]]
+        first=min(group,key=lambda j:j["run_at"]) if group else job
+        clock=QDateTimeEdit(native_datetime(first["run_at"]))
         clock.setCalendarPopup(True);clock.setDisplayFormat("yyyy-MM-dd HH:mm:ss")
-        dur=QSpinBox();dur.setRange(0,900);dur.setSpecialValueText("Auto (fit pass)")
-        dur.setValue(int(job.get("requested_seconds") or 0))
+        total=(job.get("requested_seconds") if job.get("requested_seconds") is not None else
+               sum(int(j.get("capture_seconds") or 0) for j in group)
+               if group else 0)
+        durationWidget,dur,durUnit=native_duration_control(int(total or 0),0,900)
+        dur.setSpecialValueText("Auto (fit pass)")
         options=QComboBox()
         norad=str(job.get("pass_id","")).split(":")[0]
         for mid,(num,_,_) in AUTO_DOWNLINK_PROFILES.items():
             if str(num)==norad:options.addItem(mid,mid)
         index=options.findData(job["mission_id"])
         if index>=0:options.setCurrentIndex(index)
-        form.addRow("Start time · local",clock);form.addRow("Duration",dur)
+        form.addRow("Series start · local",clock)
+        form.addRow("Total length · seconds/minutes",durationWidget)
         form.addRow("Published RF protocol",options)
         buttons=QDialogButtonBox(QDialogButtonBox.Ok|QDialogButtonBox.Cancel)
         buttons.accepted.connect(dialog.accept);buttons.rejected.connect(dialog.reject)
@@ -2899,7 +2964,7 @@ class SatelliteWindow(QMainWindow):
         if dialog.exec_()!=QDialog.Accepted:return
         start=datetime.fromtimestamp(clock.dateTime().toSecsSinceEpoch(),timezone.utc).isoformat()
         self._task("Edit automatic pass",lambda:self.station.edit_auto_schedule(
-            job["id"],start,options.currentData(),dur.value() or None),
+            job["id"],start,options.currentData(),duration_seconds(dur,durUnit) or None),
             lambda result:self.refresh_status())
 
     def _capture_modes(self):
@@ -2918,33 +2983,30 @@ class SatelliteWindow(QMainWindow):
 
     def _capture_budget(self):
         mode=self.capture_mode.currentData()
-        rate=int(self.capture_sample_rate.currentData() or 1024000)
-        is_iq=mode in ("iq","iq_and_fm_wav")
-        maximum=min(900,MAX_IQ_BYTES//(2*rate)) if is_iq else 180 if mode=="survey" else 900
-        self.capture_seconds.setMaximum(max(8,maximum))
-        self.capture_sample_rate.setEnabled(is_iq)
-        secs=self.capture_seconds.value()
+        secs=duration_seconds(self.capture_seconds,self.capture_unit)
         self.capture_budget.setText(
             f"~{secs*2*rate/1e6:.1f} MB raw CU8 on local disk · maximum {maximum}s at {rate/1e6:.3f} MS/s"
             if mode=="iq" else
-            f"~{secs*(2*rate/1e6+.064):.1f} MB CU8 + FM WAV from same IQ recording"
-            if mode=="iq_and_fm_wav" else
-            "Native rtl_power records for exactly requested seconds (8–180)"
+            "Native rtl_power survey can split >180 s into separate ≤180 s captures; real gaps are recorded in report"
             if mode=="survey" else
+            f"~{secs*2.112:.1f} MB CU8 + FM WAV from the same physical IQ recording"
+            if mode=="iq_and_fm_wav" else
             "Native receiver saves actual packet/audio output, no browser involved")
 
     def start_capture(self):
         key=self.capture_profile.currentData()
         mode=self.capture_mode.currentData()
-        secs=self.capture_seconds.value()
+        secs=duration_seconds(self.capture_seconds,self.capture_unit)
         rate=int(self.capture_sample_rate.currentData() or 1024000)
         if not key or not mode:return
         if QMessageBox.question(self,"Receive-only capture",
                  f"Acquire the real RTL-SDR for {secs} seconds at {PROFILES[key]['label']}?\n"
                  "This does NOT prove a satellite is transmitting.",
                  QMessageBox.Yes|QMessageBox.No)!=QMessageBox.Yes:return
-        self._task("Physical SDR capture",lambda:self.station.capture(
-            key,mode,secs,sample_rate=rate),self._manual_capture_completed)
+        self._task("Physical SDR capture",
+                   lambda:self.station.capture_series(key,mode,secs,segment_seconds=180)
+                   if mode=="survey" and secs>180 else self.station.capture(key,mode,secs,sample_rate=rate),
+                   self._manual_capture_completed)
 
     def _manual_capture_completed(self,result):
         self.file_details.setPlainText(json.dumps(result,indent=2,default=str))

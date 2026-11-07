@@ -28,6 +28,7 @@ import wave
 
 from . import __version__
 from .capture_naming import recording_name, PROFILE_TARGETS, meteor_capture
+from .native_segments import capture_parts, total_wall_seconds, NATIVE_PART_SECONDS, NATIVE_RESET_SECONDS
 from .capture_budget import (MAX_IQ_BYTES, MAX_CAPTURE_SECONDS,
                              plan_capture_budget, END_MARGIN_SECONDS)
 from .sstv_series35 import extract_robot36_wav
@@ -760,7 +761,10 @@ class Station:
     def save_jobs(self):
         safe_write(self.directory/"schedule.json", self.jobs[-150:])
 
-    def schedule(self, pass_id, profile, mode, run_at=None, seconds=None, *, automatic=False, sample_rate=1024000):
+    def schedule(self, pass_id, profile, mode, run_at=None, seconds=None, *, automatic=False,
+                 segment_group=None, segment_index=None, segment_count=None,
+                 requested_total_seconds=None, restart_gap_seconds=0,
+                 sample_rate=1024000):
         """Explicit native RF pass schedule (Firefox-compatible, no WebUSB/FSA).
 
         Enforces server-predicted public TLE event/profile and local disk
@@ -807,6 +811,8 @@ class Station:
                 # Browser pass planners display minute resolution. Align an
                 # early start within two minutes to the server's exact AOS.
                 chosen=aos
+            if type(sample_rate) is not int or sample_rate not in (1024000,2048000):
+                raise ValueError("Unsupported native RF sample rate.")
             duration = 60 if seconds is None else seconds
             if type(duration) is not int or not 8 <= duration <= MAX_CAPTURE_SECONDS:
                 raise ValueError("Native recording must be 8–900 whole seconds")
@@ -833,7 +839,10 @@ class Station:
                     continue
                 a=datetime.fromisoformat(other.get("run_at") or other["aos"]).astimezone(UTC)
                 b=a+timedelta(seconds=int(other.get("capture_seconds") or 900))
-                if chosen<b+timedelta(seconds=20) and chosen+timedelta(seconds=duration)>a-timedelta(seconds=20):
+                # Sibling captures within one explicitly scheduled series are
+                # allowed back-to-back; independent jobs retain a 20 s guard.
+                padding = 0 if segment_group and other.get("segment_group")==segment_group else 20
+                if chosen<b+timedelta(seconds=padding) and chosen+timedelta(seconds=duration)>a-timedelta(seconds=padding):
                     raise ValueError("Single RTL-SDR already reserved for overlapping capture")
             job = {"id": uuid.uuid4().hex[:12], "pass_id": pass_id,
                    "satellite": event["name"], "family": event["family"],
@@ -845,11 +854,79 @@ class Station:
                    "data_kind": "raw RF energy" if event["family"]=="iridium" else "unclassified IQ",
                    "coverage": "full-pass-attempt" if chosen+timedelta(seconds=duration)>=los-timedelta(seconds=END_MARGIN_SECONDS+5) else "partial-pass",
                    "state": "pending", "created_at": stamp(), "result": None}
+            if segment_group:
+                job.update(segment_group=segment_group,
+                           segment_index=segment_index, segment_count=segment_count,
+                           requested_total_seconds=requested_total_seconds,
+                           restart_gap_seconds=restart_gap_seconds)
             self.jobs.append(job)
             self.save_jobs()
             self.start_scheduler()
             self.wake.set()
             return dict(job)
+
+    def schedule_series(self, pass_id, profile, mode, run_at=None, total_seconds=60, *,
+                        automatic=False, segment_seconds=NATIVE_PART_SECONDS,
+                        gap_seconds=NATIVE_RESET_SECONDS,sample_rate=1024000):
+        """Atomically arm independent native RF jobs for a single public pass.
+
+        A 300-second spectrum survey becomes two 150-second captures with a
+        documented 2-second receiver restart gap, not a fabricated continuous
+        300-second RF stream. The native IQ mode can instead use schedule()
+        directly for one uninterrupted ≤900 s file.
+        """
+        parts = capture_parts(total_seconds, cap_seconds=segment_seconds,
+                              gap_seconds=gap_seconds)
+        if len(parts)==1:
+            job = self.schedule(pass_id, profile, mode, run_at,
+                                total_seconds, automatic=automatic,sample_rate=sample_rate)
+            return {"scheduled":[job],"scheduled_count":1,
+                    "group_id":None,"requested_seconds":total_seconds,
+                    "unrecorded_gap_seconds":0}
+        with self.lock:
+            event = self.predicted.get(pass_id)
+            if not event:
+                raise ValueError("Refresh native TLE predictions before arming series")
+            aos = datetime.fromisoformat(event["aos"]).astimezone(UTC)
+            los = datetime.fromisoformat(event["los"]).astimezone(UTC)
+            if run_at is None:
+                chosen=aos
+            else:
+                try:
+                    chosen=datetime.fromisoformat(run_at)
+                except (TypeError, ValueError) as exc:
+                    raise ValueError("Invalid native series start") from exc
+                if chosen.tzinfo is None:
+                    raise ValueError("Native series start requires a timezone offset")
+                chosen=chosen.astimezone(UTC)
+                if not automatic and aos-timedelta(seconds=120)<=chosen<aos:
+                    chosen=aos
+            if chosen+timedelta(seconds=total_wall_seconds(parts)+END_MARGIN_SECONDS)>los:
+                raise ValueError("Series does not fit the predicted pass including receiver restart gaps")
+            if chosen<now()+timedelta(seconds=12):
+                raise ValueError("Plan segmented capture at least 12 seconds before start")
+            group_id=uuid.uuid4().hex[:12]
+            appended=[]
+            try:
+                for part in parts:
+                    when=chosen+timedelta(seconds=part["offset_seconds"])
+                    job=self.schedule(pass_id,profile,mode,stamp(when),
+                        part["duration_seconds"],automatic=automatic,
+                        segment_group=group_id,segment_index=part["index"],
+                        segment_count=part["count"],
+                        requested_total_seconds=total_seconds,
+                        restart_gap_seconds=gap_seconds,sample_rate=sample_rate)
+                    appended.append(job)
+            except Exception:
+                ids={j["id"] for j in appended}
+                self.jobs=[j for j in self.jobs if j["id"] not in ids]
+                self.save_jobs()
+                self.wake.set()
+                raise
+            return {"scheduled":appended,"scheduled_count":len(appended),
+                    "group_id":group_id,"requested_seconds":total_seconds,
+                    "unrecorded_gap_seconds":gap_seconds*(len(parts)-1),
+                    "note":"Each native capture is a distinct receiver acquisition; restart intervals are not recorded."}
 
     def auto_schedule(self, mission_ids, *, city="Cologne", lat=None, lon=None,
                       hours=24, elevation=20, max_jobs=6, coverage_goal="full",
@@ -931,6 +1008,11 @@ class Station:
         reserved_bytes = sum(int(j.get("estimated_bytes") or 0) for j in self.jobs
                              if j.get("state") in ("pending", "running"))
         events = prediction["predictions"]
+        # Real predictions from passes() must remain accessible to the
+        # transactional grouped scheduler even after a refresh/cache hit.
+        with self.lock:
+            self.predicted.update({e["id"]:e for e in events
+                                   if isinstance(e,dict) and e.get("id")})
         for event in events:
             if len(new_jobs) >= max_jobs:
                 break
@@ -972,35 +1054,50 @@ class Station:
                     skipped.append(event["name"]+": insufficient disk for selected CU8/WAV outputs")
                     continue
             try:
-                job = self.schedule(event["id"], profile, mode,
-                                    stamp(aos-timedelta(seconds=10)),
-                                    plan["capture_seconds"], automatic=True)
+                if plan["capture_seconds"] > NATIVE_PART_SECONDS:
+                    # Auto-fit must reserve unsampled receiver restart time;
+                    # do not silently overrun LOS. Explicit requested seconds
+                    # still fail if the complete requested schedule cannot fit.
+                    start_at=aos-timedelta(seconds=10)
+                    available=int((los-start_at).total_seconds())-END_MARGIN_SECONDS
+                    total=plan["capture_seconds"]
+                    if duration_seconds is None:
+                        while total>180 and total+2*(math.ceil(total/180)-1)>available:
+                            total-=1
+                    batch = self.schedule_series(event["id"],profile,mode,
+                        stamp(start_at),total,automatic=True,
+                        segment_seconds=NATIVE_PART_SECONDS)
+                    entries=batch["scheduled"]
+                else:
+                    entries=[self.schedule(event["id"],profile,mode,
+                        stamp(aos-timedelta(seconds=10)),
+                        plan["capture_seconds"],automatic=True)]
             except (ValueError, RuntimeError) as error:
                 skipped.append(event["name"]+": "+str(error)[:90])
                 continue
-            job.update(run_at=stamp(aos-timedelta(seconds=10)),
-                       mission_id=mission, capture_seconds=plan["capture_seconds"],
-                       requested_seconds=duration_seconds,
-                       estimated_bytes=estimate_for_mode, coverage=plan["coverage"],
-                       data_kind=plan["data_kind"], target_seconds=plan["target_seconds"],
-                       shortfall_seconds=plan["shortfall_seconds"],
-                       pass_visible_seconds=plan["pass_visible_seconds"],
-                       coverage_goal=coverage_goal, capture_note=plan["note"],
-                       compute_mode=compute_mode, compute_targets=compute_plan["requested_targets"],
-                       event_window_only=event_window_only,
-                       iss_record_format=iss_record_format)
+            for job in entries:
+                job.update(mission_id=mission,requested_seconds=duration_seconds,
+                           coverage=("segmented-"+plan["coverage"] if len(entries)>1 else plan["coverage"]),
+                           data_kind=plan["data_kind"], target_seconds=plan["target_seconds"],
+                           shortfall_seconds=plan["shortfall_seconds"],
+                           pass_visible_seconds=plan["pass_visible_seconds"],
+                           coverage_goal=coverage_goal, capture_note=plan["note"]+
+                             (" Independent receiver restarts; gaps are not sampled." if len(entries)>1 else ""),
+                           compute_mode=compute_mode, compute_targets=compute_plan["requested_targets"],
+                           event_window_only=event_window_only,
+                           iss_record_format=iss_record_format)
             with self.lock:
+                lookup={j["id"]:j for j in entries}
                 for stored in self.jobs:
-                    if stored["id"] == job["id"]:
-                        stored.update({key: job[key] for key in (
-                            "mission_id", "run_at", "capture_seconds",
-                            "requested_seconds", "estimated_bytes",
-                            "coverage", "data_kind", "target_seconds",
-                            "shortfall_seconds", "pass_visible_seconds",
-                            "coverage_goal", "capture_note", "compute_mode", "compute_targets",
-                            "event_window_only","iss_record_format")})
+                    if stored["id"] in lookup:
+                        job=lookup[stored["id"]]
+                        stored.update({key:job[key] for key in (
+                            "mission_id","requested_seconds","coverage","data_kind",
+                            "target_seconds","shortfall_seconds","pass_visible_seconds",
+                            "coverage_goal","capture_note","compute_mode",
+                            "compute_targets","event_window_only","iss_record_format")})
                 self.save_jobs()
-            new_jobs.append(dict(job))
+            new_jobs.extend(dict(job) for job in entries)
             if plan["coverage"] != "full-pass-attempt":
                 skipped.append(event["name"]+": "+str(plan["shortfall_seconds"])+
                                " seconds of predicted coverage missing; partial data only")
@@ -1048,6 +1145,14 @@ class Station:
                         and j.get("mission_id") and j.get("state") == "pending"), None)
             if not job:
                 raise ValueError("Editable pending automatic task not found")
+            # Editing any part of a multi-part mission replaces the ENTIRE
+            # pending group, never a single segment left in an inconsistent
+            # schedule. Also upgrade a one-part job to a series if length >180.
+            if job.get("segment_group") or (
+                    duration_seconds is not None and duration_seconds>180):
+                return self._edit_segmented_auto_group(
+                    job,selected,mission_id,duration_seconds,
+                    target_norad,target_profile,target_mode)
             pass_norad = int(str(job["pass_id"]).split(":")[0])
             if target_norad != pass_norad:
                 raise ValueError("Protocol belongs to another spacecraft; recalculate its pass first")
@@ -1090,6 +1195,62 @@ class Station:
             self.save_jobs()
             self.wake.set()
             return dict(job)
+
+    def _edit_segmented_auto_group(self, job, selected, mission_id,
+                                   duration_seconds, target_norad,
+                                   target_profile, target_mode):
+        """Replace an entire pending native group under the receiver lock.
+
+        The caller holds self.lock (RLock). Failed re-planning restores every
+        previous pending job; another application's SDR work is untouched.
+        """
+        group_id=job.get("segment_group")
+        original=[j for j in self.jobs if
+                  (j.get("segment_group")==group_id if group_id else j is job)]
+        if not original or any(j.get("state")!="pending" for j in original):
+            raise ValueError("Only fully pending capture series can be edited")
+        if int(str(job["pass_id"]).split(":")[0])!=target_norad:
+            raise ValueError("Edited radio protocol belongs to another spacecraft")
+        original.sort(key=lambda j:j.get("run_at",""))
+        aos=datetime.fromisoformat(job["aos"]).astimezone(UTC)
+        los=datetime.fromisoformat(job["los"]).astimezone(UTC)
+        if not (max(aos-timedelta(seconds=10),now()+timedelta(seconds=12))
+                <=selected<=los-timedelta(seconds=12)):
+            raise ValueError("Edited series must start inside the future predicted pass")
+        total=(duration_seconds if duration_seconds is not None else
+               sum(int(j["capture_seconds"]) for j in original))
+        previous=[dict(j) for j in original]
+        for j in original:
+            j.update(state="cancelled",result="Replaced by edited capture series")
+        self.save_jobs()
+        try:
+            batch=self.schedule_series(job["pass_id"],target_profile,target_mode,
+               stamp(selected),total,automatic=True,segment_seconds=180)
+            for added in batch["scheduled"]:
+                added.update(mission_id=mission_id,requested_seconds=duration_seconds,
+                    coverage_goal=job.get("coverage_goal","full"),
+                    compute_mode=job.get("compute_mode","auto"),
+                    compute_targets=job.get("compute_targets"),
+                    event_window_only=job.get("event_window_only",False),
+                    data_kind=job.get("data_kind","unclassified IQ"))
+            lookup={j["id"]:j for j in batch["scheduled"]}
+            for stored in self.jobs:
+                if stored["id"] in lookup:
+                    stored.update(lookup[stored["id"]])
+            self.save_jobs()
+            self.wake.set()
+            return batch
+        except Exception:
+            # schedule_series removes any partially created new jobs itself.
+            backup={j["id"]:j for j in previous}
+            for entry in self.jobs:
+                prior=backup.get(entry["id"])
+                if prior:
+                    entry.clear()
+                    entry.update(prior)
+            self.save_jobs()
+            self.wake.set()
+            raise
 
     def cancel_auto_missions(self):
         """Cancel only this app's explicitly auto-armed pending/running jobs."""
@@ -1282,6 +1443,32 @@ class Station:
                 thread.join(timeout=4)
         self.request_stop()
 
+    def capture_series(self, profile, mode, total_seconds, *, segment_seconds=180,
+                       gap_seconds=NATIVE_RESET_SECONDS):
+        """User-initiated local receive-only sequence, no browser or fake IQ continuity."""
+        parts=capture_parts(total_seconds,cap_seconds=segment_seconds,
+                            gap_seconds=gap_seconds)
+        outputs=[]
+        for part in parts:
+            if outputs and self.stopping.is_set():
+                break
+            if outputs and gap_seconds:
+                # Leave tuner lease free; operator Stop also works between files.
+                deadline=time.monotonic()+gap_seconds
+                while time.monotonic()<deadline and not self.stopping.is_set() and not self.closed.is_set():
+                    time.sleep(min(.1,deadline-time.monotonic()))
+                if self.stopping.is_set() or self.closed.is_set():
+                    break
+            captured=self.capture(profile,mode,part["duration_seconds"])
+            outputs.append({**captured, "segment_index":part["index"],
+                            "segment_count":part["count"],
+                            "requested_total_seconds":total_seconds})
+        return {"scheduled":False,"mode":mode,"requested_seconds":total_seconds,
+                "segment_count":len(parts),"completed_segments":len(outputs),
+                "unrecorded_gap_seconds":gap_seconds*max(0,len(outputs)-1),
+                "recordings":outputs,
+                "note":"Each file is an independent real RF acquisition. Receiver restarts are unrecorded."}
+
     def capture_dual(self,profile,seconds=60,scheduled=False,owner=None,satellite=None,
                      sample_rate=1024000):
         """Receive physical CU8 once, then demodulate its *same samples* to WAV.
@@ -1315,6 +1502,8 @@ class Station:
             raise ValueError("Unsupported capture preset")
         if type(seconds) is not int or not 8 <= seconds <= MAX_CAPTURE_SECONDS:
             raise ValueError("Capture duration must be 8–900 seconds")
+        if not self.receiver_enabled:
+            raise RuntimeError("Receiver disabled in Hardware. Connect & verify USB to enable RF.")
         if not self.receiver_enabled:
             raise RuntimeError("Receiver disabled in Hardware. Connect & verify USB to enable RF.")
         if type(sample_rate) is not int or sample_rate not in (1024000,2048000):
@@ -1747,6 +1936,10 @@ class Handler(BaseHTTPRequestHandler):
             elif route == "/api/schedule":
                 result = app.schedule(data.get("pass_id"), data.get("profile"), data.get("mode"),
                                       data.get("run_at"), data.get("duration_seconds"))
+            elif route == "/api/schedule-series":
+                result = app.schedule_series(data.get("pass_id"), data.get("profile"),
+                    data.get("mode"),data.get("run_at"),
+                    data.get("duration_seconds"),segment_seconds=180)
             elif route == "/api/auto-schedule":
                 result = app.auto_schedule(data.get("missions"), city=data.get("city", "Cologne"),
                     lat=data.get("lat"), lon=data.get("lon"),

@@ -84,7 +84,7 @@ test("UI has pass/satellite sorting and actionable scheduler/preflight controls"
    assert.ok(html.includes('id="'+id+'"'),id+" missing");
  assert.ok(app.includes("connectDevice({silent:true})"));
  assert.ok(app.includes("nativeScheduledPass("));
- assert.ok(app.includes('nativeRequest("/api/schedule"'));
+ assert.ok(app.includes('"/api/schedule"') && app.includes('"/api/schedule-series"'));
  assert.ok(html.includes('href="http://127.0.0.1:8791/"'));
  assert.ok(app.includes("navigator.usb.getDevices()"));
  assert.ok(app.includes("localDateInput("));
