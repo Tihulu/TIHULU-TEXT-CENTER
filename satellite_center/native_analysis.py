@@ -152,12 +152,13 @@ def export_results_zip(outputs, destination, *, source=None, max_bytes=MAX_RESUL
         p = _file(original)
         if p.suffix.lower() not in ALLOWED_RESULTS:
             raise ValueError("Result ZIP only accepts real PNG/JPG/WAV/TXT/JSON/CSV outputs")
+        if p in files:
+            continue  # Same actual output selected through multiple result controls.
         size = p.stat().st_size
         total += size
         if total > max_bytes:
             raise ValueError("Result ZIP exceeds 256 MiB. Preserve large originals separately.")
-        if p not in files:
-            files.append(p)
+        files.append(p)
     if not files:
         raise ValueError("No real analysis output files to export")
     dest = Path(destination).expanduser()
