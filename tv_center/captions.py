@@ -9,6 +9,7 @@ import os
 import re
 import subprocess
 import tempfile
+import time
 from pathlib import Path
 
 SUPPORTED = ("de", "en", "tr")
@@ -206,14 +207,21 @@ def decode_segment(ts: bytes, *, mode="auto", page=150, source="de",
         p.write_bytes(ts)
         original, used, error = "", "", None
         speech_diagnostics = {}
+        timing_started = time.perf_counter()
+        teletext_ms = 0
+        asr_ms = 0
+        translation_ms = 0
         if mode in ("teletext", "page", "auto"):
             # Automatic captions must use *actual* subtitle pages signaled by
             # the broadcaster, not arbitrary Teletext news/information pages.
             selected_page = page if mode == "page" else "subtitle"
+            teletext_start = time.perf_counter()
             original = teletext_from_clip(p, selected_page, service_id)
+            teletext_ms = round((time.perf_counter()-teletext_start)*1000)
             used = (f"teletext_page_{page}" if selected_page != "subtitle"
                     else "broadcaster_teletext_subtitles") if original else ""
         if not original and mode in ("asr", "auto"):
+            asr_start = time.perf_counter()
             try:
                 original = asr_from_clip(p, source, model, service_id,
                                          diagnostics=speech_diagnostics)
@@ -223,19 +231,28 @@ def decode_segment(ts: bytes, *, mode="auto", page=150, source="de",
                 used = "local_asr" if original else ""
             except (RuntimeError, OSError, subprocess.TimeoutExpired) as exc:
                 error = str(exc)[:180]
+            finally:
+                asr_ms = round((time.perf_counter()-asr_start)*1000)
         translations = {}
         errors = {}
         if original:
+            translate_start = time.perf_counter()
             for language in targets:
                 phrase, failed = translate(original, source, language)
                 if phrase:
                     translations[language] = phrase
                 if failed:
                     errors[language] = failed
+            translation_ms = round((time.perf_counter()-translate_start)*1000)
         translated = translations.get(target)
         return {"original": original, "translated": translated, "translations": translations,
                 "asr_backend": speech_diagnostics.get("backend"),
                 "asr_model": speech_diagnostics.get("model"),
+                "processing_ms": {
+                    "teletext":teletext_ms,"asr":asr_ms,
+                    "translation":translation_ms,
+                    "total":round((time.perf_counter()-timing_started)*1000)
+                },
                 "translation_errors": errors, "source": used,
                 "source_language": source, "target_language": target,
                 "target_languages": list(targets), "page": page,
