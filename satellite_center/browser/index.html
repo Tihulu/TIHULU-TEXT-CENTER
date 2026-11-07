@@ -24,7 +24,7 @@
 </section>
 <section id="auto-workflow" class="notice" aria-label="Satellite automatic reception workflow">
 <h2>Satellite Auto-Capture &amp; Decode — three steps</h2>
-<p class="hint">One click predicts and arms real ISS/Meteor passes; later analyze actual recordings and open verified extraction results. Browser auto capture requires previously granted RTL-SDR access and a visible, awake tab. An optional native companion can record while the browser is closed.</p>
+<p class="hint">One click predicts and arms real ISS/Meteor passes; later analyze actual recordings and open verified extraction results. Choose total seconds or minutes: requests over 60 s are split automatically into separate 60 s-or-shorter calendar tasks and separately downloaded CU8/WAV files, with brief unrecorded gaps. Browser auto capture requires previously granted RTL-SDR access and a visible, awake tab. An optional native companion can record while the browser is closed.</p>
 <div class="line">
 <label>Auto-target group<select id="auto-mode">
 <option value="iss-images">ISS SSTV ONLY · Series 35 (9–16 Nov 2026) · 437.550 MHz Robot36</option>
@@ -33,7 +33,8 @@
 <option value="voice">ISS FM voice / audio candidate</option>
 <option value="all">Images + text + voice (single receiver; no overlapping scans)</option>
 </select></label>
-<label>Browser recording seconds (8–60)<input id="auto-browser-seconds" type="number" min="8" max="60" step="1" value="60" inputmode="numeric"></label>
+<label>Total automatic recording length<input id="auto-browser-seconds" type="number" min="8" max="900" step="1" value="60" inputmode="numeric"></label>
+<label>Length unit<select id="auto-browser-unit"><option value="seconds">Seconds</option><option value="minutes">Minutes</option></select></label>
 <label>Recording goal<select id="auto-coverage">
 <option value="full" selected>Prefer useful complete data (long image passes require native receiver)</option>
 <option value="sample">Quick RF sample · up to 60 seconds (may be incomplete)</option>
@@ -91,7 +92,8 @@
 <option value="1620000000">Iridium L-band energy sample · 1620.000 MHz</option>
 </select>
 <div class="line"><label>Sample rate<select id="rate"><option value="1024000">1.024 MS/s</option><option value="2048000">2.048 MS/s</option></select></label>
-<label>RF sample length · seconds (manual 1–900)<input type="number" id="duration" min="1" max="900" step="1" value="15" inputmode="numeric"></label></div>
+<label>RF sample length<input type="number" id="duration" min="1" max="900" step="1" value="15" inputmode="numeric"></label>
+<label>Length unit<select id="duration-unit"><option value="seconds">Seconds</option><option value="minutes">Minutes</option></select></label></div>
 <fieldset class="capture-format-picker" id="manual-format-picker">
 <legend>Recording file formats · select one or both</legend>
 <div class="capture-format-options">
@@ -184,7 +186,7 @@ All location methods are optional. City suggestions are offline by default; GPS 
 </section>
 <section id="schedule-center"><h2>4 · Scheduled reception &amp; RF sample analysis</h2>
 <p class="hint">To schedule: <strong>1.</strong> Calculate passes → <strong>2.</strong> select <em>Schedule / configure</em> on a pass → <strong>3.</strong> choose the exact local date/minute, seconds, frequency and recording → <strong>4.</strong> confirm → <strong>5.</strong> grant USB access once and keep this browser tab <strong>open, visible and awake</strong> until the scheduled time.</p>
-<p class="hint">At the selected time the browser will attempt to reopen a <em>previously permitted</em> RTL-SDR, sample raw I/Q and calculate genuine relative power statistics. An optional IQ file download is attempted. This is <strong>not</strong> Meteor image decoding, APRS text decoding or identification of an individual satellite. An antenna and an active transmission are needed for real reception.</p>
+<p class="hint">At the selected time the browser will attempt to reopen a <em>previously permitted</em> RTL-SDR, sample raw I/Q and calculate genuine relative power statistics. Longer requested total durations are split into individually timed downloads in the calendar (up to 900 s requested RF time; real time includes small reset gaps). An optional IQ file download is attempted. This is <strong>not</strong> Meteor image decoding, APRS text decoding or identification of an individual satellite. An antenna and an active transmission are needed for real reception.</p>
 <div class="line"><button id="schedule-check" class="secondary" type="button">Check scheduled-scan readiness</button>
 <button id="schedule-wake" class="secondary" type="button">Request screen wake lock</button></div>
 <p id="schedule-readiness" class="status" role="status">No scan armed. WebUSB permission, tab visibility and receiver availability have not been checked.</p>
@@ -193,7 +195,7 @@ All location methods are optional. City suggestions are offline by default; GPS 
 <div id="jobs" class="scheduled-jobs" aria-live="polite">No scheduled browser captures.</div>
 <section id="browser-schedule-calendar" class="sat-calendar-panel" aria-labelledby="browser-calendar-title">
 <h3 id="browser-calendar-title">My reception calendar · 24-hour timeline</h3>
-<p class="hint">Browser schedules run only while this tab stays open, visible and awake. Edit time, frequency, duration or cancel each pending job here. The native companion can preserve unattended jobs while its service is running.</p>
+<p class="hint">Browser schedules run only while this tab stays open, visible and awake. For a total longer than 60 s, the planner automatically creates separate calendar entries (one CU8/WAV file per segment, max 60 s at 1.024 MS/s or 32 s at 2.048 MS/s when saving CU8). A 2 s receiver reset gap is reserved between entries; these are NOT continuous IQ samples. Edit time, frequency and total seconds/minutes by editing a segment series. Browser downloads may require permission for multiple files. The native companion can preserve unattended jobs while its service is running.</p>
 <div class="line"><label>Date<input id="browser-calendar-date" type="date"></label>
 <button id="browser-calendar-prev" class="secondary" type="button">Previous day</button>
 <button id="browser-calendar-next" class="secondary" type="button">Next day</button></div>
@@ -410,4 +412,4 @@ These provider viewers offer maps/imagery independently of your RTL-SDR.</p>
 <details><summary>What requires more than a browser?</summary><p>Windows may require WinUSB driver setup; Linux may require releasing the kernel DVB driver or adjusting permissions. To record a pass while the browser is closed, the optional local companion must remain running. The companion still supports offline SatDump and multimon-ng where installed.</p></details>
 <h3>Activity log</h3><pre id="log" aria-live="polite">Ready. USB idle. No fabricated RF data.</pre></section>
 <footer>Receive-only. The page never transmits RF, uploads I/Q files or silently scans. Page closing releases browser-owned USB access; an unexpected OS/browser crash cannot be guaranteed to cleanly close every device state. Browser client uses <a href="https://www.npmjs.com/package/@jtarrio/webrtlsdr" rel="noopener noreferrer" target="_blank">@jtarrio/webrtlsdr</a> from a version-pinned module CDN (requires Internet to load initially).</footer>
-</main><script type="module" src="./browser.js?v=20261107-iss-band-diagnostic-v1"></script></body></html>
+</main><script type="module" src="./browser.js?v=20261107-segments-v1"></script></body></html>
