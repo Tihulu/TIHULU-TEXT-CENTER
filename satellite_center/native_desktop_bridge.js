@@ -37,6 +37,9 @@
     }
   };
   const setHardwareLabels=()=>{
+    for(const id of ['connect','usb-live-test','disconnect','start','stop']){
+      if($(id))$(id).disabled=false;
+    }
     if($('connect'))$('connect').textContent='Connect & verify physical RTL-SDR';
     if($('usb-live-test'))$('usb-live-test').textContent='Test real USB + IQ (native)';
     if($('disconnect')){
