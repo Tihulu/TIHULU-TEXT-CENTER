@@ -42,9 +42,44 @@ git clone --depth 1 --branch feature/tv-center-native-teletext-asr-2026-11-07 ht
 
 The script installs Debian packages including w-scan-cpp, builds an unsigned dev .deb and installs the native app. Review the script before running. Model downloads are never automatic.
 
+## Kaffeine-style reception, scanning and playback UI (experimental)
+
+The native desktop now uses a clearer **channel list → selected DVB source →
+live scan → real MPEG-TS player** workflow. This is an original Qt Widgets
+interface informed by Kaffeine's DVBv5 scan/source architecture, not a copy of
+Kaffeine source code or visual assets.
+
+- **Watch TV:** search channels by name/frequency and filter by all, favorites,
+  television, radio or free-to-air. Favorites and included/excluded choices
+  remain in the owner preferences file. Historical imports are explicitly
+  unverified until a real scan or tune confirms them.
+- **Source / channel scan:** select the real USB DVB adapter and delivery type,
+  run a full w_scan_cpp sweep or explicitly select an existing local DVBv5
+  regional frequency file (the same model of scan source used in Kaffeine).
+  Both methods use the actual tuner; a tuning table is never presented as
+  a discovered signal. Failure retains the prior successful channel list.
+- **Live scan diagnostics:** the monitoring dialog shows only frequencies and
+  lock/CNR/signal/UCB values reported by the real scanner, plus confirmed
+  services. No fake progress percentage or invented station names.
+- **Watch selected channel:** dvbv5-zap now receives a *single-service*
+  temporary DVBv5 file selected by frequency and SERVICE_ID, so duplicate
+  display names cannot silently tune the wrong multiplex. The file retains
+  modulation and PLP parameters from the original scan. MPV input is
+  explicitly MPEG-TS; PAT/PMT validation remains required.
+- **Reception diagnostics:** distinct tuner/TS statuses and persistent
+  playback errors, plus a one-click X11 compatible-renderer retry and
+  bounded native dvbv5-zap/MPV log viewer. Settings and caption AI occupy
+  a separate tab; the actual video area is larger.
+
+**Hardware acceptance is still required.** A detected WinTV-soloHD is not
+proof of DVB-T2 RF lock. If no transport packets arrive, verify the tuned
+transmitter, antenna placement, signal strength, BER/UCB and whether Kaffeine
+can lock the *same* multiplex on this USB dongle. No internet/DVB stream is
+substituted for the local antenna.
+
 ## Country-aware full automatic scanning
 
-Select Germany (DE) or Türkiye (TR), choose antenna (DVB-T/T2) or cable (DVB-C), then click **Automatic full channel scan**. The app runs w_scan_cpp for real frequency discovery followed by dvbv5-scan for service names/IDs, including radio and encrypted service discovery. The **Cancel running scan** button stops it. Earlier results are preserved if a new scan finds no channels. Previously saved 538/586/626 MHz entries remain labeled as historical imports until refreshed.
+Select Germany (DE) or Türkiye (TR), choose antenna (DVB-T/T2) or cable (DVB-C), then click **Scan all local frequencies**. The app runs w_scan_cpp for real frequency discovery followed by dvbv5-scan for service names/IDs, including radio and encrypted service discovery. The **Cancel running scan** button stops it. Earlier results are preserved if a new scan finds no channels. Previously saved 538/586/626 MHz entries remain labeled as historical imports until refreshed.
 
 Reception depends on local transmitter availability, antenna quality, broadcaster standards and frontend compatibility. The country choice selects a search plan; it does not invent channels.
 
@@ -79,9 +114,11 @@ It runs `dvbv5-zap -a 0 -c ... -p -P -r "Channel name"`, reads only
 `/dev/dvb/adapter0/dvr0`, and feeds the live MPEG transport stream to embedded MPV
 using the DVB service ID. Other DVB owners (Kaffeine/Tvheadend) must be stopped first.
 
-A manual scan button accepts a genuine initial transponder file from
-`/usr/share/dvb/dvb-t/`. It runs `dvbv5-scan` explicitly and writes
-`~/.config/tihulu-tv-center/channels.conf`.
+The **Scan with DVBv5 regional source file** action accepts an existing
+local initial frequency table, runs the same real tuner via dvbv5-scan,
+then atomically saves its results as
+`~/.config/tihulu-tv-center/channels-DE-t.conf` (or the selected
+country/delivery profile). Old scans remain intact when no services decode.
 Country-aware full auto-scanning is implemented for DE/TR and DVB-T/T2 or DVB-C with
 w-scan-cpp. EPG service indexing and hardware acceptance remain incomplete.
 
