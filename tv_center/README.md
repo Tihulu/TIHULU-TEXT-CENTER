@@ -24,13 +24,36 @@ NooElec NESDR and protected RTL-SDR allocations are not touched.
   but automatic subtitle selection and page 150 were unreliable.
 - RF reception must be improved: this app cannot repair missing DVB frames.
 
+## One-line installation
+
+**Debian / Ubuntu / Pop!_OS / Raspberry Pi OS (ARM64)** — experimental development build.
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Tihulu/TIHULU-TEXT-CENTER/feature/tv-center-native-teletext-asr-2026-11-07/tv_center/install.sh | bash
+```
+
+Git clone + local installer (same source):
+
+```bash
+git clone --depth 1 --branch feature/tv-center-native-teletext-asr-2026-11-07 https://github.com/Tihulu/TIHULU-TEXT-CENTER.git ~/tihulu-tv-dev && bash ~/tihulu-tv-dev/tv_center/install.sh --local
+```
+
+The script installs Debian packages including w-scan-cpp, builds an unsigned dev .deb and installs the native app. Review the script before running. Model downloads are never automatic.
+
+## Country-aware full automatic scanning
+
+Select Germany (DE) or Türkiye (TR), choose antenna (DVB-T/T2) or cable (DVB-C), then click **Automatic full channel scan**. The app runs w_scan_cpp for real frequency discovery followed by dvbv5-scan for service names/IDs, including radio and encrypted service discovery. The **Cancel running scan** button stops it. Earlier results are preserved if a new scan finds no channels. Previously saved 538/586/626 MHz entries remain labeled as historical imports until refreshed.
+
+Reception depends on local transmitter availability, antenna quality, broadcaster standards and frontend compatibility. The country choice selects a search plan; it does not invent channels.
+
+
 ## Run native (development checkout)
 
 Install distro dependencies (nothing in the install process is silently downloaded by the app):
 
 ```bash
 sudo apt update
-sudo apt install python3 python3-pyqt5 dvb-tools mpv ffmpeg psmisc
+sudo apt install python3 python3-pyqt5 dvb-tools w-scan-cpp mpv ffmpeg psmisc
 # In repository root:
 python3 -m tv_center doctor
 QT_QPA_PLATFORM=xcb python3 -m tv_center

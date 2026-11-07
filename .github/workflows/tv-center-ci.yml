@@ -29,7 +29,9 @@ jobs:
           python -m compileall -q tv_center tests
           python -m unittest tests.test_tv_center -v
       - name: Check static web companion
-        run: node --check tv_center/web/app.js
+        run: |
+          bash -n tv_center/install.sh
+          node --check tv_center/web/app.js
 
   preview-deb:
     runs-on: ubuntu-latest
