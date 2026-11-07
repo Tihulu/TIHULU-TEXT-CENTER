@@ -142,6 +142,89 @@ forcing ABI-incompatible libraries or replacing system libQt5Gui.
 The source-build CI proves it works with Ubuntu 24.04 distro Qt;
 a particular desktop still needs runtime and DVB hardware testing.
 
+## Synchronized live subtitles, embedded on-video OSD and Apply / Reset
+
+In Kaffeine choose **TIHULU AI → Live Teletext / Whisper subtitles**.
+The companion remains on top for caption diagnostics, but the subtitles
+are now **also drawn natively inside Kaffeine's actual video widget**
+without replacing libVLC or Kaffeine's existing EPG/Teletext OSD.
+
+- Source modes: broadcaster-marked Teletext subtitles first with Whisper
+  fallback, Teletext-only, Whisper-only, and explicit manual Teletext page.
+- Language: German, English, Turkish, optional disabled translation.
+  Both spoken words and translation can be shown together on the video.
+- Video overlay: toggle on/off, original/translated line switches, position
+  top/bottom, font size and black background opacity.
+- **Apply** commits all pending control changes atomically and drops
+  stale cues from a previous source/language. **Reset** restores controls,
+  then **Apply** makes them active.
+- **Caption offset:** -10 to +10 seconds. Positive makes text appear
+  later; negative requests earlier text, but recognition cannot predict
+  speech before a segment has finished decoding.
+- **TV playback buffer:** 0–8 seconds. The native Kaffeine MPEG-TS FIFO
+  keeps **audio and video together** and optionally delays both behind
+  the immediate RF/Whisper capture. This enables more realistic alignment
+  without shifting audio relative to the picture. The delay queue is
+  bounded to 64 MiB. Kaffeine timeshift is already a separate playback
+  mode and is not double-buffered.
+
+Whisper operates on approximately **4-second audio segments** (plus
+inference/translation time); it is not truly simultaneous word-by-word
+ASR. A 3–6 second broadcast delay may help where machine processing
+is fast enough. Use the live **ASR+translate latency** and
+**Caption lateness** readouts to choose a buffer. Default playback
+buffer and caption offset are both **0** to preserve live TV and
+minimize Pi 5 RAM use.
+
+Subtitles are transferred only via a private 0600 file under the
+current user's XDG_RUNTIME_DIR. Untrusted remote clients cannot
+write captions. They expire automatically, and all temporary OSD and
+buffer settings are removed when the caption controller closes.
+
+### Real translation model detection
+
+The offline Argos translator can live in TIHULU's isolated AI runtime
+virtual environment even when the KDE/Qt5 caption process uses system
+Python. Caption processing now explicitly invokes that private runtime
+with bounded JSON input. It does not fetch translation models at
+inference time. Missing German/English/Turkish packages are reported
+with an actionable Model Market prompt rather than a generic label.
+
+### Pop!_OS error-log corrections
+
+Previous logs had:
+- **QObject::connect: No such slot DvbTab::showFullScanDialog():** Full
+  Antenna Scan now connects through Qt's compile-time-checked function
+  pointer, not an unchecked string-based slot name. The actual C++
+  source is compiled in CI.
+- **software-no-audio + Using NVIDIA VDPAU:** the software profile now
+  removes conflicting saved libVLC `--avcodec-hw` flags and forces
+  `--avcodec-hw=none` both at instance and media level. The fallback
+  VLC initialization also preserves software decoding and the
+  no-audio diagnostic.
+- **kf.i18n: Using an empty domain:** Kaffeine's static EPG genre
+  translations are now initialized on first use, after the KDE
+  translation domain is configured, not during global initialization.
+- **QCommandLineParser: already having an option named h/help-all/v:**
+  Qt help and version options are registered once by KAboutData.
+- **KServiceTypeTrader: ThumbCreator not found:** missing optional
+  KDE thumbnail service; not a DVB/decoder error and no privileged
+  system packages are changed to mask it.
+- **libEGL / VA-API / VDPAU:** the software decoder profile avoids
+  hardware video decode, but this does not fix every graphics output
+  driver or RF continuity error. Test on the actual Pop!_OS host.
+
+To verify after updating and fully quitting older Kaffeine windows:
+
+~~~bash
+~/.local/bin/tihulu-kaffeine --software-video 2>&1 | tee ~/tihulu-tv-video-test.log
+grep -E 'TIHULU playback|Using NVIDIA VDPAU|picture allocation failed|avcodec_send_packet' ~/tihulu-tv-video-test.log
+~~~
+
+The log should report an enforced software profile; **any remaining**
+NVIDIA VDPAU decoder line or frozen picture needs more diagnosis rather
+than a false success claim.
+
 ## Live video freezes or stalls — Pop!_OS / COSMIC / NVIDIA
 
 The tuner and Kaffeine must not be replaced with another scanner. There
