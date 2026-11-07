@@ -975,13 +975,200 @@ class SatelliteWindow(QMainWindow):
         self.auto_schedule()
 
     def _home_select_station(self,*_):
-        city=self.home_station.currentData()
-        if city in LOCATIONS:
-            lat,lon=LOCATIONS[city]
-            self.lat.setValue(lat)
-            self.lon.setValue(lon)
-            self.statusBar().showMessage(
-                "Ground station: "+str(city)+" · TLE pass calculations only",8000)
+        selected=self.home_station.currentData()
+        if not hasattr(self,"city"):
+            return
+        if selected in LOCATIONS:
+            self.city.setCurrentText(selected)
+            self.home_city_info.setText(
+                "Preset ground station "+selected+" · editable latitude/longitude.")
+        elif selected=="offline":
+            self.home_city_search.setFocus()
+        elif selected=="online":
+            self.home_city_search.setFocus()
+            self.home_city_info.setText(
+                "Enter any worldwide city, then click Search worldwide online. "
+                "The query is sent only when you click.")
+        else:
+            self.city.setCurrentText("Custom coordinates")
+            self.home_lat.setFocus()
+            self.home_city_info.setText(
+                "Custom latitude and longitude can describe any Earth location.")
+
+    def _home_update_regions(self,*_):
+        if not hasattr(self,"_offline_cities"):
+            return
+        selected_country=self.home_country.currentData() or "all"
+        self.home_region.blockSignals(True)
+        self.home_region.clear()
+        self.home_region.addItem("All states / provinces",None)
+        for region in regions_for(self._offline_cities,selected_country):
+            self.home_region.addItem(region,region)
+        self.home_region.blockSignals(False)
+        self._home_find_city()
+
+    def _home_find_city(self,*_):
+        if not hasattr(self,"_offline_cities"):
+            return
+        query=self.home_city_search.text().strip()
+        cc=self.home_country.currentData() or "all"
+        region=self.home_region.currentData()
+        rows=search_locations(self._offline_cities,query,cc,limit=18,region=region)
+        self.home_city_results.blockSignals(True)
+        self.home_city_results.clear()
+        for row in rows:
+            item=QListWidgetItem(city_label(row))
+            item.setData(Qt.UserRole,row)
+            self.home_city_results.addItem(item)
+        self.home_city_results.blockSignals(False)
+        if len(query)<2:
+            self.home_city_info.setText(
+                "Choose Germany/Türkiye and a state/province, then type at least "
+                "2 characters to search 8,084 offline towns/cities.")
+        elif rows:
+            self.home_city_info.setText(
+                str(len(rows))+" matching place(s) · select one to apply coordinates. "
+                "Source provides states/provinces + towns; not a complete district registry.")
+        else:
+            self.home_city_info.setText(
+                "No offline city/town match in this region. Try All states, "
+                "custom coordinates or worldwide online search.")
+
+    def _home_apply_first_city(self):
+        item=self.home_city_results.currentItem()
+        if item is None and self.home_city_results.count():
+            item=self.home_city_results.item(0)
+        if item is not None:
+            self._home_apply_city_item(item)
+
+    def _home_apply_city_item(self,item):
+        row=item.data(Qt.UserRole)
+        if not row or len(row)!=5:return
+        self.home_station.blockSignals(True)
+        self.home_station.setCurrentIndex(self.home_station.findData("offline"))
+        self.home_station.blockSignals(False)
+        self.city.setCurrentText("Custom coordinates")
+        self.lat.setValue(float(row[3]))
+        self.lon.setValue(float(row[4]))
+        self.city_search.setText(city_label(row))
+        self.home_city_info.setText(
+            "Selected offline ground station: "+city_label(row)+
+            f" · {row[3]:.5f}°, {row[4]:.5f}°. Recalculate passes.")
+
+    def _home_coordinates_changed(self,*_):
+        if not hasattr(self,"lat"):
+            return
+        self.city.setCurrentText("Custom coordinates")
+        self.lat.setValue(self.home_lat.value())
+        self.lon.setValue(self.home_lon.value())
+        self.home_city_info.setText(
+            "Custom coordinates applied to the shared pass planner and native maps. "
+            "Recalculate passes after edits.")
+
+    def _home_planning_range_changed(self,*_):
+        if hasattr(self,"hours"):
+            self.hours.setValue(self.home_hours.value())
+            self.elev.setValue(self.home_elev.value())
+
+    def _sync_home_from_planner(self,*_):
+        if not hasattr(self,"lat") or not hasattr(self,"home_lat"):
+            return
+        for home,target in (
+            (self.home_lat,self.lat.value()),
+            (self.home_lon,self.lon.value()),
+            (self.home_hours,self.hours.value()),
+            (self.home_elev,self.elev.value()),
+        ):
+            home.blockSignals(True)
+            home.setValue(target)
+            home.blockSignals(False)
+
+    def _home_worldwide_lookup(self):
+        self.home_city_info.setText(
+            "Searching the online worldwide city catalog on explicit request…")
+        self._search_online_city(self.home_city_search.text().strip())
+
+    def _render_home_passes(self,*_):
+        if not hasattr(self,"home_pass_results"):
+            return
+        old=self.home_pass_results.currentItem()
+        selected=old.data(0,Qt.UserRole) if old else None
+        all_rows=list(self.passes.values())
+        rows=sort_filter_passes(
+            all_rows,search=self.home_pass_search.text(),
+            family=self.home_pass_family.currentData() or "all",
+            medium=self.home_pass_media.currentData() or "All",
+            order=self.home_pass_sort.currentData() or "soonest")
+        self.home_pass_results.blockSignals(True)
+        self.home_pass_results.clear()
+        selected_item=None
+        for row in rows[:150]:
+            kinds=kinds_for_pass(row)
+            item=QTreeWidgetItem([
+                str(row.get("name","?"))+" · "+str(row.get("norad","?")),
+                local_time(row["aos"]),
+                str(row.get("max_elevation_deg","?"))+"°",
+                " / ".join(kinds) if kinds else "RF unknown"
+            ])
+            item.setData(0,Qt.UserRole,row["id"])
+            item.setToolTip(0,
+                "TLE-derived orbital prediction only. No signal or media received.")
+            self.home_pass_results.addTopLevelItem(item)
+            if row["id"]==selected:selected_item=item
+        self.home_pass_results.blockSignals(False)
+        if selected_item is not None:
+            self.home_pass_results.setCurrentItem(selected_item)
+        elif rows:
+            self.home_pass_results.setCurrentItem(self.home_pass_results.topLevelItem(0))
+        else:
+            self._home_pass_selected()
+        if all_rows:
+            self.home_pass_summary.setText(
+                f"{len(rows)} match(es) / {len(all_rows)} predicted pass(es)"
+                +(" · first 150 shown" if len(rows)>150 else "")+
+                " · TLE geometry only, no RF verified.")
+
+    def _home_pass_selected(self):
+        item=self.home_pass_results.currentItem()
+        row=self.passes.get(item.data(0,Qt.UserRole)) if item else None
+        self.home_plan_button.setEnabled(bool(row))
+        if not row:
+            self.home_pass_detail.setText(
+                "No pass selected. Calculate passes or clear the filters.")
+            return
+        self.home_pass_detail.setText(
+            str(row["name"])+" · NORAD "+str(row.get("norad","?"))+
+            " · "+local_time(row["aos"])+" → "+local_time(row["los"])+
+            " · "+str(row.get("max_elevation_deg","?"))+"° peak · "+
+            " / ".join(kinds_for_pass(row))+
+            " (candidate formats, not received files)")
+
+    def _home_open_selected_pass(self):
+        item=self.home_pass_results.currentItem()
+        if item is None:return
+        pass_id=item.data(0,Qt.UserRole)
+        # The same data underlies both views. Clear hidden detailed filters
+        # so a home-selected satellite cannot disappear when navigating.
+        self.pass_search.clear()
+        self.pass_family_filter.setCurrentIndex(0)
+        self.pass_media_filter.setCurrentIndex(0)
+        self.pass_sort.setCurrentIndex(
+            max(0,self.pass_sort.findData(self.home_pass_sort.currentData())))
+        self._render_pass_results()
+        target=None
+        for i in range(self.pass_list.topLevelItemCount()):
+            candidate=self.pass_list.topLevelItem(i)
+            if candidate.data(0,Qt.UserRole)==pass_id:
+                target=candidate
+                break
+        if target is None:
+            return QMessageBox.warning(
+                self,"Satellite pass","The selected pass is no longer available.")
+        self.pass_list.setCurrentItem(target)
+        self.pass_list.scrollToItem(target)
+        self._open_native_tab("Passes & Data")
+        self._reveal_pass_schedule()
+
 
     def _home_auto(self):
         if self._open_native_tab("Auto reception"):
@@ -1053,11 +1240,17 @@ class SatelliteWindow(QMainWindow):
         controls.addRow("Look ahead · hours",self.hours)
         controls.addRow("Minimum elevation · degrees",self.elev)
         self._preset_location()
+        self.lat.valueChanged.connect(self._sync_home_from_planner)
+        self.lon.valueChanged.connect(self._sync_home_from_planner)
+        self.hours.valueChanged.connect(self._sync_home_from_planner)
+        self.elev.valueChanged.connect(self._sync_home_from_planner)
+        self._sync_home_from_planner()
+        self._home_update_regions()
         parent.addWidget(group)
 
-    def _search_online_city(self):
+    def _search_online_city(self, query=None):
         """Explicit opt-in Open-Meteo city name search, not live GPS."""
-        query=self.city_search.text().strip()
+        query=(self.city_search.text() if query is None else query).strip()
         if len(query)<2 or len(query)>100:
             return QMessageBox.information(
                 self,"Worldwide city search",
@@ -1103,6 +1296,9 @@ class SatelliteWindow(QMainWindow):
         self.city_info.setText(
             "Online city selected: "+name+". Coordinates applied. "
             "Orbit calculations are local; recalculate passes.")
+        self.home_city_info.setText(
+            "Worldwide online result: "+name+
+            f" ({lat:.5f}°, {lon:.5f}°). Shared station updated; recalculate passes.")
 
     def _request_system_location(self):
         if QMessageBox.question(
@@ -1141,6 +1337,9 @@ class SatelliteWindow(QMainWindow):
         self.city_info.setText(
             f"One-time OS device position applied: {lat:.5f}°, {lon:.5f}°. "
             "No RF/GPS acquisition was inferred from satellite tracking. "
+            "Recalculate passes.")
+        self.home_city_info.setText(
+            "OS location applied to shared station (user authorized). "
             "Recalculate passes.")
 
     def _preset_location(self, *_):
