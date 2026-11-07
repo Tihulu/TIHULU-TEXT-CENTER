@@ -172,6 +172,12 @@ def main(argv=None):
     if len(argv) != 2 or argv[0] != "--socket":
         raise SystemExit("Usage: tihulu-tv-center kaffeine-captions --socket $XDG_RUNTIME_DIR/tihulu-dvb-PID.sock")
     endpoint = validate_socket(argv[1])
+    from .caption_control import CaptionServiceControl
+    pid = int(endpoint.stem.rsplit("-", 1)[-1])
+    if CaptionServiceControl.request_show(endpoint.parent, pid):
+        # Reopening the TIHULU AI menu focuses the existing controller.
+        # Do not create a competing DVB/Whisper reader.
+        return 0
     from .caption_timing import (CaptionConfig, CueQueue, KaffeineOSD,
                                  AutoSyncEstimator, AutoSyncController)
     from PyQt5.QtCore import Qt, QTimer
@@ -179,7 +185,20 @@ def main(argv=None):
         QLabel, QComboBox, QPushButton, QSpinBox, QDoubleSpinBox,
         QCheckBox, QGroupBox, QFormLayout)
     app = QApplication.instance() or QApplication(["TIHULU Kaffeine Live Captions"])
-    window = QWidget()
+    # Hiding the only QWidget must NOT quit the Qt event loop: audio capture,
+    # auto-sync and video-overlay publishing continue independently of UI.
+    app.setQuitOnLastWindowClosed(False)
+
+    class CaptionSettingsWindow(QWidget):
+        terminating = False
+        def closeEvent(self, event):
+            if self.terminating:
+                event.accept()
+                return
+            self.hide()
+            event.ignore()
+
+    window = CaptionSettingsWindow()
     window.setWindowTitle("TIHULU · Live captions / Whisper / Translator")
     window.setMinimumWidth(780)
     window.setStyleSheet(
@@ -265,6 +284,18 @@ def main(argv=None):
     pending = QLabel("Applied: broadcaster auto · German → Turkish · video captions ON")
     buttons.addWidget(apply); buttons.addWidget(reset); buttons.addWidget(pending, 1)
     root.addLayout(buttons)
+    behavior = QHBoxLayout()
+    hide_panel = QPushButton("Hide settings · keep subtitles")
+    stop_subtitles = QPushButton("Stop subtitles & Exit")
+    behavior.addWidget(hide_panel)
+    behavior.addWidget(stop_subtitles)
+    root.addLayout(behavior)
+    persistence = QLabel("Closing this settings panel keeps on-video subtitles, "
+                         "Whisper and translation running. Reopen with Kaffeine → "
+                         "TIHULU AI → Live Teletext / Whisper subtitles. "
+                         "Only Stop subtitles & Exit ends the service.")
+    persistence.setWordWrap(True)
+    root.addWidget(persistence)
 
     original = QLabel("Waiting for real Kaffeine DVB stream…")
     original.setObjectName("subtitle"); original.setWordWrap(True)
@@ -288,8 +319,13 @@ def main(argv=None):
     lan_note.setWordWrap(True)
     root.addWidget(phone); root.addWidget(video); root.addWidget(lan_note)
 
-    pid = int(endpoint.stem.rsplit("-",1)[-1])
     ipc = KaffeineOSD(pid, runtime=endpoint.parent)
+    events = queue.Queue(maxsize=32)
+    control = CaptionServiceControl(endpoint.parent, pid, events)
+    try:
+        control.start()
+    except (OSError, RuntimeError) as exc:
+        raise RuntimeError("Cannot start private caption controller: " + str(exc)) from exc
     lock = threading.Lock()
     applied = CaptionConfig().validate()
     cues = CueQueue()
@@ -308,13 +344,13 @@ def main(argv=None):
     def options():
         with lock:
             return applied.options()
-    events = queue.Queue(maxsize=32)
     from .mobile import KaffeineMobile
     mobile = KaffeineMobile(options, lambda msg: events.put(("warning", str(msg))))
     tap = CaptionTap(str(endpoint), options, events, packet_sink=mobile.receive)
     try:
         tap.start()
     except (OSError, RuntimeError) as exc:
+        control.close()
         status.setText("Cannot receive Kaffeine DVB stream: "+str(exc))
         window.show()
         return app.exec_()
@@ -431,6 +467,16 @@ def main(argv=None):
     def pump():
         nonlocal current_cue, current_text, current_until, last_published
         nonlocal applied, last_service_id
+        # Kaffeine is the DVB owner. Terminate sidecar when it disappears,
+        # including when the settings window has been hidden.
+        try:
+            os.kill(pid, 0)
+        except ProcessLookupError:
+            window.terminating = True
+            app.quit()
+            return
+        except PermissionError:
+            pass
         mobile.expire_if_idle()
         now = time.monotonic()
         # Never reuse an ASR processing estimate across distinct TV services.
@@ -445,7 +491,11 @@ def main(argv=None):
                 kind, data = events.get_nowait()
             except queue.Empty:
                 break
-            if kind == "remote_page":
+            if kind == "show_settings":
+                window.showNormal()
+                window.raise_()
+                window.activateWindow()
+            elif kind == "remote_page":
                 mode.setCurrentIndex(3)
                 page.setValue(int(data))
                 apply_settings()
@@ -531,10 +581,41 @@ def main(argv=None):
     timer = QTimer(window)
     timer.timeout.connect(pump)
     timer.start(120)
+    # The small status area or tray can reopen a hidden panel; the main
+    # Kaffeine menu can always do this even on COSMIC without a system tray.
+    from PyQt5.QtGui import QIcon
+    from PyQt5.QtWidgets import QSystemTrayIcon, QMenu, QApplication as QtApplication, QStyle
+    tray = None
+    if QSystemTrayIcon.isSystemTrayAvailable():
+        tray = QSystemTrayIcon(QIcon.fromTheme("video-display",
+            app.style().standardIcon(QStyle.SP_MediaPlay)), window)
+        tray.setToolTip("TIHULU subtitles active · click to reopen settings")
+        menu = QMenu()
+        reopen_action = menu.addAction("Show subtitle settings")
+        reopen_action.triggered.connect(
+            lambda: (window.showNormal(), window.raise_(), window.activateWindow()))
+        quit_action = menu.addAction("Stop subtitles & Exit")
+        quit_action.triggered.connect(app.quit)
+        tray.setContextMenu(menu)
+        tray.activated.connect(lambda reason: (
+            window.showNormal(), window.raise_(), window.activateWindow())
+            if reason == QSystemTrayIcon.Trigger else None)
+        tray.show()
+
+    def stop_caption_service():
+        window.terminating = True
+        app.quit()
+
+    hide_panel.clicked.connect(window.hide)
+    stop_subtitles.clicked.connect(stop_caption_service)
+
     def cleanup():
+        if tray:
+            tray.hide()
         mobile.close()
         tap.close()
         ipc.close()
+        control.close()
     app.aboutToQuit.connect(cleanup)
     window.show()
     return app.exec_()
