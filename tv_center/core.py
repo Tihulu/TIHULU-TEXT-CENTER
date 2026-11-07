@@ -9,7 +9,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 import fcntl
+import json
 import os
+import socket
 import queue
 import re
 import select
@@ -78,7 +80,7 @@ def zap_argv(channel: Channel, adapter: int = 0) -> list[str]:
     return ["dvbv5-zap", "-a", str(adapter), "-c", str(channel.path),
             "-p", "-P", "-r", channel.name]
 
-def player_argv(channel: Channel, window_id: int, hwdec: str = "no") -> list[str]:
+def player_argv(channel: Channel, window_id: int, hwdec: str = "no", ipc_path: str | None = None) -> list[str]:
     if hwdec not in ("no", "auto-safe"):
         raise ValueError("Unsupported hardware decoding mode")
     if not isinstance(window_id, int) or window_id < 1:
@@ -86,8 +88,10 @@ def player_argv(channel: Channel, window_id: int, hwdec: str = "no") -> list[str
     args = ["mpv", "--no-config", "--no-terminal", "--force-window=no",
             "--cache=yes", "--cache-secs=2", "--hwdec=" + hwdec,
             "--wid=" + str(window_id), "--audio-spdif=no"]
-    if channel.service_id is not None:
-        args.append("--program=" + str(channel.service_id))
+    # MPV's MPEG-TS 'program' is a runtime write-only property, NOT a CLI
+    # --program option. Select it using the local JSON IPC socket on startup.
+    if ipc_path:
+        args.append("--input-ipc-server=" + ipc_path)
     return args + ["-"]
 
 def receiver_status(adapter: int = 0) -> dict:
@@ -129,6 +133,7 @@ class TVCapture:
         self._pending = False
         self._player_queue = queue.Queue(maxsize=24)
         self._writer_thread = None
+        self._ipc_dir = None
 
     def emit(self, kind, value):
         try:
@@ -182,9 +187,15 @@ class TVCapture:
             time.sleep(0.8)
             if self.zap.poll() is not None:
                 raise RuntimeError("dvbv5-zap exited before tuning; inspect channel and tuner")
-            self.player = subprocess.Popen(player_argv(channel, window_id, hwdec),
+            self._ipc_dir = tempfile.TemporaryDirectory(prefix="tihulu-tv-mpv-")
+            sock_path = str(Path(self._ipc_dir.name) / "mpv.sock")
+            self.player = subprocess.Popen(player_argv(channel, window_id, hwdec, sock_path),
                               stdin=subprocess.PIPE, stdout=subprocess.DEVNULL,
                               stderr=subprocess.DEVNULL, start_new_session=True)
+            if channel.service_id is not None:
+                threading.Thread(target=self._select_program,
+                                 args=(channel.service_id, sock_path),
+                                 daemon=True, name="tihulu-tv-program").start()
             os.set_blocking(self.player.stdin.fileno(), False)
             self._player_queue = queue.Queue(maxsize=24)
             self._writer_thread = threading.Thread(target=self._write_player, daemon=True,
@@ -196,6 +207,27 @@ class TVCapture:
         except BaseException:
             self.stop()
             raise
+
+    def _select_program(self, service_id: int, sock_path: str):
+        """Choose DVB service by its actual MPEG-TS program ID, not list order."""
+        until = time.monotonic() + 12
+        while time.monotonic() < until and not self.stop_flag.is_set():
+            if self.player and self.player.poll() is not None:
+                return
+            try:
+                with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as client:
+                    client.settimeout(1.2)
+                    client.connect(sock_path)
+                    client.sendall((json.dumps({"command": ["set_property", "program", service_id]}) + "\\n").encode())
+                    message = client.recv(8192).decode("utf-8", "replace")
+                    if '"error":"success"' in message.replace(" ", ""):
+                        self.emit("status", f"Selected MPEG-TS service {service_id}")
+                        return
+            except (OSError, ValueError):
+                pass
+            time.sleep(0.4)
+        if not self.stop_flag.is_set():
+            self.emit("warning", "MPV program switch not confirmed; verify video matches selected channel")
 
     def _write_player(self):
         """Write *all* bytes of a TS chunk or explicitly report a dropped queue.
@@ -310,6 +342,9 @@ class TVCapture:
                     proc.kill()
                     proc.wait(timeout=1)
         self.player, self.zap = None, None
+        if self._ipc_dir:
+            self._ipc_dir.cleanup()
+            self._ipc_dir = None
         if self.thread and self.thread.is_alive() and threading.current_thread() != self.thread:
             self.thread.join(timeout=1.0)
         if self._writer_thread and self._writer_thread.is_alive() and threading.current_thread() != self._writer_thread:

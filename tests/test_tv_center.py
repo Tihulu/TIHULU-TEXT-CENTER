@@ -15,7 +15,9 @@ class NativeTVTests(unittest.TestCase):
             self.assertEqual([c.name for c in channels], ["arte HD", "KiKA HD"])
             self.assertEqual(channels[0].service_id, 100)
             self.assertEqual(zap_argv(channels[0])[-1], "arte HD")
-            self.assertIn("--program=100", player_argv(channels[0], 42))
+            self.assertNotIn("--program=100", player_argv(channels[0], 42))
+            self.assertIn("--input-ipc-server=/tmp/tv.sock",
+                          player_argv(channels[0], 42, ipc_path="/tmp/tv.sock"))
             self.assertIn("--hwdec=no", player_argv(channels[0], 42))
             with self.assertRaises(ValueError):
                 player_argv(channels[0], 0)
