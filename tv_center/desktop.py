@@ -18,6 +18,12 @@ from .core import TVCapture, discover_channels, read_channels, receiver_status, 
 from .bridge import TVBridge
 from .captions import install_argos_pack
 from .scanner import AutoScanner, ScanError, PROFILES, MODES
+from .satellite import SATELLITES, satellite_hardware_note
+from .channel_prefs import ChannelPreferences, profile_key
+from .ai_settings import AISettings
+from .channels_ui import edit_channels
+from .settings_ui import open_ai_settings
+from .scan_ui import ScanMonitor
 
 def main():
     if os.environ.get("WAYLAND_DISPLAY"):
@@ -40,6 +46,10 @@ def main():
             self.resize(1280, 795)
             self.capture = TVCapture()
             self.scanner = AutoScanner()
+            self.ai = AISettings()
+            self.ai.configure_environment()
+            self.preferences = ChannelPreferences()
+            self.scan_monitor = None
             self.bridge = None
             self.latest = {"original": "", "translated": "", "source": "none"}
             self.channels = []
@@ -94,8 +104,21 @@ def main():
             self.delivery = QComboBox()
             self.delivery.addItem("Antenna · DVB-T / DVB-T2", "t")
             self.delivery.addItem("Cable · DVB-C", "c")
-            self.delivery.currentIndexChanged.connect(self.refresh_channels)
+            self.delivery.addItem("Satellite dish · DVB-S/S2", "s")
+            self.delivery.currentIndexChanged.connect(self.update_delivery)
             l.addWidget(self.delivery)
+            self.satellite = QComboBox()
+            for orbital, label in SATELLITES.items():
+                self.satellite.addItem(label, orbital)
+            self.satellite.currentIndexChanged.connect(self.refresh_channels)
+            l.addWidget(self.satellite)
+            self.diseqc = QComboBox()
+            self.diseqc.addItem("LNB direct · no DiSEqC switch", None)
+            for port in range(4):
+                self.diseqc.addItem("DiSEqC port " + str(port + 1), port)
+            l.addWidget(self.diseqc)
+            self.satellite.setVisible(False)
+            self.diseqc.setVisible(False)
             scan_btn = QPushButton("🔎 Automatic full channel scan")
             scan_btn.clicked.connect(self.scan_channels)
             l.addWidget(scan_btn)
@@ -106,6 +129,9 @@ def main():
             self.list_origin = QLabel("Previously saved frequencies. Run automatic scan to verify.")
             self.list_origin.setWordWrap(True)
             l.addWidget(self.list_origin)
+            manager_btn = QPushButton("Manage scanned channels · ★ Favorites")
+            manager_btn.clicked.connect(self.open_channel_manager)
+            l.addWidget(manager_btn)
             manual_btn = QPushButton("Advanced · Scan from frequency file")
             manual_btn.clicked.connect(self.scan_from_file)
             l.addWidget(manual_btn)
@@ -136,6 +162,9 @@ def main():
             self.subtitle.setAlignment(Qt.AlignHCenter | Qt.AlignVCenter)
             self.subtitle.setMinimumHeight(70)
             r.addWidget(self.subtitle)
+            self.settings_button = QPushButton("Settings · Model Market · CPU / GPU / NPU")
+            self.settings_button.clicked.connect(self.open_ai_settings)
+            r.addWidget(self.settings_button)
             controls = QGroupBox("Broadcast subtitles · Interactive Teletext · Offline speech / translation")
             r.addWidget(controls, 3)
             form = QFormLayout(controls)
@@ -156,7 +185,7 @@ def main():
             self.lang_out.addItems(["tr", "de", "en"])
             self.lang_out.currentIndexChanged.connect(self.apply_mode)
             form.addRow("Subtitle output language", self.lang_out)
-            self.model = QLineEdit(os.environ.get("TIHULU_WHISPER_MODEL", ""))
+            self.model = QLineEdit(self.ai.values["model_path"])
             self.model.setPlaceholderText("Select an installed multilingual GGML Whisper model")
             self.model.editingFinished.connect(self.apply_mode)
             browse = QPushButton("Choose offline ASR model…")
@@ -226,30 +255,63 @@ def main():
                 self.capture.emit("measurement", parse_signal_log(raw))
             threading.Thread(target=worker, daemon=True, name="tihulu-tv-signal").start()
 
+        def update_delivery(self, *_):
+            satellite = self.delivery.currentData() == "s"
+            self.satellite.setVisible(satellite)
+            self.diseqc.setVisible(satellite)
+            self.refresh_channels()
+
+        def current_profile(self):
+            country, medium = self.country.currentData(), self.delivery.currentData()
+            return profile_key(country, medium, self.satellite.currentData() if medium == "s" else "")
+
         def refresh_channels(self, *_):
-            country = self.country.currentData() or "DE"
-            medium = self.delivery.currentData() or "t"
-            expected = Path.home() / ".config/tihulu-tv-center" / f"channels-{country}-{medium}.conf"
+            country, medium = self.country.currentData(), self.delivery.currentData()
+            profile = self.current_profile()
+            expected = Path.home() / ".config/tihulu-tv-center" / ("channels-" + profile + ".conf")
             if expected.is_file():
-                self.channels = read_channels([expected])
-                source_label = f"Verified saved scan · {PROFILES[country]['name']} · {MODES[medium]}"
+                scanned = read_channels([expected])
+                source_label = f"Saved verified scan · {profile}"
             elif country == "DE" and medium == "t":
-                # Preserve the user's previous genuine Kaffeine/dvbv5 results, but
-                # prominently label them as *saved*, not a completed auto scan.
-                self.channels = discover_channels()
-                source_label = "Imported historical Germany scans · NOT a fresh automatic scan"
+                scanned = discover_channels()
+                source_label = "Historical Germany channel imports · NOT a fresh automatic scan"
             else:
-                self.channels = []
-                source_label = f"No saved {PROFILES[country]['name']} {MODES[medium]} scan — press Automatic full channel scan"
-            self.channels = sorted(self.channels, key=lambda c: (c.frequency, c.name.casefold()))
+                scanned = []
+                source_label = f"No scan for {profile} — run Automatic full channel scan"
+            self.all_channels = sorted(scanned, key=lambda c: (c.frequency, c.name.casefold()))
+            curated = self.preferences.rows(profile, self.all_channels)
+            self.current_rows = curated
+            self.visible_rows = [r for r in curated if r["included"]]
+            self.channels = [r["channel"] for r in self.visible_rows]
             self.channel_list.clear()
-            for c in self.channels:
-                mhz = c.frequency / 1e6
-                encrypted = " · ENCRYPTED" if c.encrypted else ""
-                self.channel_list.addItem(f"{c.name} · {mhz:g} MHz{encrypted}")
-            self.list_origin.setText(f"{source_label} | {len(self.channels)} services")
+            for row in self.visible_rows:
+                c = row["channel"]
+                freq_unit = "GHz" if c.frequency > 1_000_000_000 else "MHz"
+                freq = c.frequency / (1e9 if freq_unit == "GHz" else 1e6)
+                star = "★ " if row["favorite"] else ""
+                category = "RADIO" if row["kind"] == "radio" else "TV"
+                encrypted = " 🔒" if c.encrypted else ""
+                self.channel_list.addItem(f"{star}{c.name} · {category} · {freq:g} {freq_unit}{encrypted}")
+            new_count = sum(1 for r in curated if r["new"])
+            self.list_origin.setText(f"{source_label}\n{len(self.all_channels)} scanned · "
+                                     f"{len(self.channels)} included · {new_count} awaiting review")
             if not self.scanner.running:
                 self.statusbar.setText(source_label)
+
+        def open_channel_manager(self):
+            if not getattr(self, "all_channels", []):
+                QMessageBox.information(self, "No channels", "Scan first or import an existing channel file.")
+                return
+            if edit_channels(self, self.preferences, self.current_profile(), self.all_channels):
+                self.refresh_channels()
+
+        def open_ai_settings(self):
+            open_ai_settings(self, self.ai, self.sync_ai_settings)
+
+        def sync_ai_settings(self):
+            self.model.setText(self.ai.values["model_path"])
+            self.apply_mode()
+            self.statusbar.setText("AI settings saved. Transcription/translation operate only when enabled.")
 
         def import_channels(self):
             file, _ = QFileDialog.getOpenFileName(
@@ -265,31 +327,38 @@ def main():
             self.refresh_channels()
 
         def scan_channels(self):
-            """Full country-aware on-air sweep, without asking for a frequency file."""
             if self.scanner.running:
-                QMessageBox.information(self, "Scan running", "A full scan is already active.")
+                QMessageBox.information(self, "Scan running", "A scan is already active.")
                 return
             if self.capture.thread and self.capture.thread.is_alive():
                 QMessageBox.warning(self, "Receiver busy", "Stop live TV before scanning.")
                 return
-            country = self.country.currentData()
-            medium = self.delivery.currentData()
+            country, medium = self.country.currentData(), self.delivery.currentData()
+            satellite = self.satellite.currentData() if medium == "s" else "S42E0"
+            port = self.diseqc.currentData() if medium == "s" else None
             adapter = self.capture.adapter
-            label = f"{PROFILES[country]['name']} · {MODES[medium]}"
+            label = (SATELLITES[satellite] + " · DVB-S/S2" if medium == "s" else
+                     f"{PROFILES[country]['name']} · {MODES[medium]}")
+            if medium == "s":
+                question = (label + "\n\n" + satellite_hardware_note() +
+                            "\n\nOnly continue with a dedicated DVB-S/S2 tuner connected to the LNB.")
+            else:
+                question = (label + "\n\nScan the real connected antenna/cable now?")
             if QMessageBox.question(self, "Automatic full scan",
-                f"Scan actual {label} broadcasts on DVB adapter {adapter}?\n\n"
-                "This may take several minutes, requires the tuner exclusively, "
-                "and will preserve any earlier saved channel lists if no new channels are found."
+                question + "\n\nExisting channels and favorites are preserved if no results are found."
             ) != QMessageBox.Yes:
                 return
             self.stop_scan_btn.setEnabled(True)
-            self.statusbar.setText(f"{label}: preparing automatic scan")
+            self.scan_monitor = ScanMonitor(self, self.cancel_scan, label)
+            self.scan_monitor.show()
+            self.statusbar.setText(label + " · scanning")
             def worker():
                 try:
-                    result = self.scanner.run(country, medium, adapter,
-                           notify=lambda text: self.capture.emit("scan_progress", f"{label} · {text}"))
-                    self.capture.emit("scan", (True, f"{result['channels']} services / "
-                                               f"{result['frequencies']} frequencies in {label}"))
+                    result = self.scanner.run(
+                        country, medium, adapter, satellite=satellite, diseqc_port=port,
+                        notify=lambda obj: self.capture.emit("scan_progress", obj))
+                    self.capture.emit("scan", (True, f"{result['channels']} services on "
+                                        f"{result['frequencies']} real frequencies ({label})"))
                 except (ScanError, ValueError, OSError, RuntimeError) as exc:
                     self.capture.emit("scan", (False, str(exc)))
             threading.Thread(target=worker, daemon=True, name="tihulu-tv-auto-scan").start()
@@ -300,6 +369,10 @@ def main():
             self.statusbar.setText("Cancelling scan; existing channel lists remain preserved")
 
         def scan_from_file(self):
+            if self.delivery.currentData() == "s":
+                QMessageBox.information(self, "Satellite scanning",
+                    "Use the Satellite automatic scan so LNB/DiSEqC settings are applied.")
+                return
             if self.scanner.running or (self.capture.thread and self.capture.thread.is_alive()):
                 QMessageBox.warning(self, "Receiver busy", "Stop TV or automatic scan first.")
                 return
@@ -349,6 +422,8 @@ def main():
             file, _ = QFileDialog.getOpenFileName(self, "Select installed multilingual Whisper GGML model", str(Path.home()), "Whisper GGML models (*.bin);;All files (*)")
             if file:
                 self.model.setText(file)
+                self.ai.update({"model_path": file})
+                self.ai.configure_environment()
                 self.apply_mode()
 
         def install_pack(self):
@@ -365,8 +440,14 @@ def main():
 
         def apply_mode(self, *_):
             modes = ["off", "teletext", "asr", "auto", "page"]
-            self.capture.set_captions(modes[self.mode.currentIndex()], self.page.value(),
-                                      self.lang_in.currentText(), self.lang_out.currentText(),
+            mode = modes[self.mode.currentIndex()]
+            if mode in ("asr", "auto") and not self.ai.values["asr_enabled"]:
+                self.statusbar.setText("ASR is optional and OFF. Enable in Settings → Model Market.")
+                mode = "off" if mode == "asr" else "teletext"
+            target = (self.lang_out.currentText() if self.ai.values["translation_enabled"]
+                      else self.lang_in.currentText())
+            self.capture.set_captions(mode, self.page.value(),
+                                      self.lang_in.currentText(), target,
                                       self.model.text())
 
         def snapshot(self):
@@ -408,12 +489,21 @@ def main():
                     self.subtitle.setText((info.get("translated") or info["original"])
                                           + "\n" + ("Source: " + info.get("source", "unknown")))
                 elif kind == "scan_progress":
-                    self.statusbar.setText(str(info))
+                    if isinstance(info, dict) and self.scan_monitor:
+                        self.scan_monitor.feed(info)
+                        if info.get("kind") == "status":
+                            self.statusbar.setText(info.get("text", "Scanning…"))
                 elif kind == "scan":
                     ok, message = info
                     self.stop_scan_btn.setEnabled(False)
+                    if self.scan_monitor:
+                        self.scan_monitor.feed({"kind": "complete" if ok else "failed",
+                                                "count": len(getattr(self.scan_monitor, "seen", [])),
+                                                "text": message})
                     self.refresh_channels()
                     self.statusbar.setText("Scan: " + ("completed" if ok else "failed") + " — " + message)
+                    if ok:
+                        self.open_channel_manager()
                 elif kind == "measurement":
                     if "error" in info:
                         self.signal_result.setText("Signal tool error: " + info["error"])

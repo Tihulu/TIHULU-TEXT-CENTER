@@ -142,3 +142,28 @@ connection must be verified on real devices before a stable release.
 
 No background tuner activity, no auto RF or AI sessions, no network or
 model download without user action, no automatic SDR preemption.
+
+## Satellite dishes, custom channel lists and model marketplace (development preview)
+
+**DVB-S/S2:** Select `Satellite dish · DVB-S/S2` with a real dedicated Linux DVB-S2
+receiver. Türksat 42°E is available, plus Hot Bird 13°E, Astra 19.2°E and
+Eutelsat 7°E profiles. Choose the right Universal LNB and optional DiSEqC port.
+The existing Hauppauge WinTV-soloHD DVB-T2/C tuner cannot receive a dish.
+**Never connect LNB coax to Raspberry Pi GPIO or any Pi port directly.**
+Read [Satellite / Pi 5 connection guide](docs/SATELLITE_PI5_DISH.md).
+
+**Full scan:** A live scan monitor shows real scanner logs, newly discovered
+services and, where available, frontend lock/C/N/UCB. Progress is indeterminate
+until the hardware scanner completes; unavailable signal readings are shown as
+unavailable, never invented. TV/radio services, encrypted status, favorites,
+inclusion/exclusion and manual reordering live in **Channel Manager**. On a
+rescan, new channels await explicit review and previous selections survive.
+
+**Settings → Model Market:** ASR and translation default OFF and are individually
+optional. A curated multilingual Whisper Tiny/Small GGML list uses verified
+SHA-256 integrity during explicit downloads; user-selected local models may
+also be used. Argos DE/EN/TR pack catalog refresh/install/removal requires the
+Argos Python runtime and explicit consent. Models can live on an external SSD.
+Compute selection is Auto/CPU/GPU/NPU; only an actually compatible runtime
+and installed model are treated as ready. Disabling the feature stops its
+related worker but does not uninstall system-level inference libraries.

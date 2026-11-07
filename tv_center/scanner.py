@@ -38,7 +38,7 @@ def scan_commands(country: str, medium: str, adapter: int,
                                         diseqc_port=diseqc_port))
     return (
         ["w_scan_cpp", "-f", medium, "-c", country, "-a", str(adapter),
-         "-R", "1", "-T", "1", "-E", "1", "-x"],
+         "-R", "1", "-T", "1", "-E", "1", "-x", "-v"],
         ["dvbv5-scan", "-a", str(adapter), "-C", country,
          "-T", "5", "-o", str(channel_file), str(transponder_file)],
     )

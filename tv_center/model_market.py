@@ -188,5 +188,8 @@ def argos_remove(source, target):
                  if p.from_code == source and p.to_code == target]
     if len(installed) != 1:
         raise ModelError("Expected exactly one installed Argos package for this language pair")
+    location = Path(installed[0].package_path).resolve()
+    if not location.is_relative_to(Path.home().resolve()):
+        raise ModelError("Refusing to uninstall Argos package outside the user's home directory")
     package.uninstall(installed[0])
     return f"{source} -> {target}"
