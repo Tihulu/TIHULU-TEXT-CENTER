@@ -428,6 +428,7 @@ class SatelliteWindow(QMainWindow):
         scroll=QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QFrame.NoFrame)
+        self.home_scroll=scroll
         host.addWidget(scroll)
         page=QWidget()
         body=QVBoxLayout(page)
@@ -1006,6 +1007,41 @@ class SatelliteWindow(QMainWindow):
             self.home_region.addItem(region,region)
         self.home_region.blockSignals(False)
         self._home_find_city()
+        self._sync_home_region_to_detail()
+
+    def _sync_home_region_to_detail(self):
+        """One country/region filter state, not two contradictory selectors."""
+        if not hasattr(self,"city_country") or not hasattr(self,"city_region"):
+            return
+        cc=self.home_country.currentData() or "all"
+        if self.city_country.currentData()!=cc:
+            self.city_country.blockSignals(True)
+            self.city_country.setCurrentIndex(self.city_country.findData(cc))
+            self.city_country.blockSignals(False)
+            self._refresh_city_regions()
+        region=self.home_region.currentData()
+        index=self.city_region.findData(region)
+        if index>=0 and self.city_region.currentIndex()!=index:
+            self.city_region.blockSignals(True)
+            self.city_region.setCurrentIndex(index)
+            self.city_region.blockSignals(False)
+        self._refresh_city_search()
+
+    def _sync_detail_region_to_home(self,*_):
+        if not hasattr(self,"home_country") or not hasattr(self,"home_region"):
+            return
+        cc=self.city_country.currentData() or "all"
+        if self.home_country.currentData()!=cc:
+            self.home_country.blockSignals(True)
+            self.home_country.setCurrentIndex(self.home_country.findData(cc))
+            self.home_country.blockSignals(False)
+            self._home_update_regions()
+        index=self.home_region.findData(self.city_region.currentData())
+        if index>=0 and self.home_region.currentIndex()!=index:
+            self.home_region.blockSignals(True)
+            self.home_region.setCurrentIndex(index)
+            self.home_region.blockSignals(False)
+        self._home_find_city()
 
     def _home_find_city(self,*_):
         if not hasattr(self,"_offline_cities"):
@@ -1014,6 +1050,8 @@ class SatelliteWindow(QMainWindow):
         cc=self.home_country.currentData() or "all"
         region=self.home_region.currentData()
         rows=search_locations(self._offline_cities,query,cc,limit=18,region=region)
+        if hasattr(self,"city_country") and hasattr(self,"city_region"):
+            self._sync_home_region_to_detail()
         self.home_city_results.blockSignals(True)
         self.home_city_results.clear()
         for row in rows:
@@ -1058,6 +1096,10 @@ class SatelliteWindow(QMainWindow):
     def _home_coordinates_changed(self,*_):
         if not hasattr(self,"lat"):
             return
+        if self.home_station.currentData()!="custom":
+            self.home_station.blockSignals(True)
+            self.home_station.setCurrentIndex(self.home_station.findData("custom"))
+            self.home_station.blockSignals(False)
         self.city.setCurrentText("Custom coordinates")
         self.lat.setValue(self.home_lat.value())
         self.lon.setValue(self.home_lon.value())
@@ -1212,6 +1254,7 @@ class SatelliteWindow(QMainWindow):
         self.city_region=QComboBox()
         self.city_region.addItem("All states / provinces",None)
         self.city_region.currentIndexChanged.connect(self._refresh_city_search)
+        self.city_region.currentIndexChanged.connect(self._sync_detail_region_to_home)
         self.city_search=QLineEdit()
         self.city_search.setPlaceholderText(
             "Search 8,084 cities · Hürth, Aachen, İzmir, Karaburun…")
@@ -1296,6 +1339,9 @@ class SatelliteWindow(QMainWindow):
         if not ok:return
         idx=labels.index(chosen)
         name,lat,lon=rows[idx]
+        self.home_station.blockSignals(True)
+        self.home_station.setCurrentIndex(self.home_station.findData("online"))
+        self.home_station.blockSignals(False)
         self.city.setCurrentText("Custom coordinates")
         self.lat.setValue(lat);self.lon.setValue(lon)
         self.city_info.setText(
@@ -1337,6 +1383,9 @@ class SatelliteWindow(QMainWindow):
         coordinate=info.coordinate()
         lat,lon=coordinate.latitude(),coordinate.longitude()
         if not -90<=lat<=90 or not -180<=lon<=180:return
+        self.home_station.blockSignals(True)
+        self.home_station.setCurrentIndex(self.home_station.findData("custom"))
+        self.home_station.blockSignals(False)
         self.city.setCurrentText("Custom coordinates")
         self.lat.setValue(lat);self.lon.setValue(lon)
         self.city_info.setText(
@@ -1366,6 +1415,7 @@ class SatelliteWindow(QMainWindow):
             self.city_region.addItem(region,region)
         self.city_region.blockSignals(False)
         self._refresh_city_search()
+        self._sync_detail_region_to_home()
 
     def _refresh_city_search(self, *_):
         if hasattr(self,"city_search"):
@@ -3937,6 +3987,8 @@ def main(argv=None):
             region_index=window.home_region.findData("North Rhine-Westphalia")
             assert region_index>=0, "Offline German Bundesland missing"
             window.home_region.setCurrentIndex(region_index)
+            assert window.city_country.currentData()=="DE"
+            assert window.city_region.currentData()=="North Rhine-Westphalia"
             window.home_city_search.setText("huerth")
             assert window.home_city_results.count()>0, "Home offline place search failed"
             assert "Hürth" in window.home_city_results.item(0).text()
@@ -4028,6 +4080,10 @@ def main(argv=None):
                        for f in content["features"])
             window.show()
             app.processEvents()
+            window._open_native_tab("Overview")
+            app.processEvents()
+            assert window.home_scroll.horizontalScrollBar().maximum()==0, (
+                "Home must fit inside 1320 px without global horizontal scrolling")
             # Optional CI screenshots use synthetic orbital positions, never RF
             # or a fabricated received picture. They are visual QA artifacts.
             snapshot_dir=os.environ.get("TIHULU_UI_SNAPSHOT_DIR")
