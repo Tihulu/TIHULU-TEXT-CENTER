@@ -1,7 +1,7 @@
 import tempfile
 from pathlib import Path
 import unittest
-from tv_center.core import read_channels, zap_argv, player_argv, Channel, parse_signal_log
+from tv_center.core import read_channels, zap_argv, player_argv, Channel, parse_signal_log, isolated_channel_file
 from tv_center.captions import ass_text, decode_segment
 from tv_center.bridge import TVBridge
 from tv_center.lan import MobileLAN
@@ -26,6 +26,28 @@ class NativeTVTests(unittest.TestCase):
             self.assertIn("--vo=x11", player_argv(channels[0], 42, renderer="x11-compat"))
             with self.assertRaises(ValueError):
                 player_argv(channels[0], 0)
+
+    def test_exact_service_config_with_duplicate_channel_names(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            conf=Path(tmp)/"channels.conf"
+            conf.write_text(
+                "[Same Name]\\nFREQUENCY = 538000000\\nSERVICE_ID = 100\\n"
+                "DELIVERY_SYSTEM = DVBT2\\nSTREAM_ID = 1\\n\\n"
+                "[Same Name]\\nFREQUENCY = 586000000\\nSERVICE_ID = 201\\n"
+                "DELIVERY_SYSTEM = DVBT2\\nSTREAM_ID = 3\\n\\n")
+            second=read_channels([conf])[1]
+            isolated=isolated_channel_file(second,Path(tmp)/"single.conf")
+            self.assertEqual(isolated.name,"Same Name")
+            self.assertEqual(isolated.service_id,201)
+            text=isolated.path.read_text()
+            self.assertIn("FREQUENCY = 586000000",text)
+            self.assertIn("STREAM_ID = 3",text)
+            self.assertNotIn("538000000",text)
+            self.assertEqual(text.count("[Same Name]"),1)
+            self.assertIn("--demuxer-lavf-format=mpegts",player_argv(second,42))
+            wrong=Channel(second.name,conf,626000000,second.service_id)
+            with self.assertRaisesRegex(RuntimeError,"exactly one"):
+                isolated_channel_file(wrong,Path(tmp)/"none.conf")
 
     def test_ass_parser_uses_only_real_dialogue(self):
         raw = "Header\nDialogue: 0,0:00:01,0:00:05,Default,,0,0,0,,{\\i1}Guten Tag\\Nzusammen\n"
