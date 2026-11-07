@@ -118,6 +118,19 @@
         }
       }
     }
+    // Browser-only troubleshooting copy is inaccurate in the native build.
+    // The device lifecycle is verified with rtl_test/rtl_sdr, not a chooser.
+    const usbHints=document.querySelectorAll('details');
+    for(const details of usbHints){
+      const body=details.textContent||'';
+      if(body.includes('USB not connecting?') && body.includes('browser will show')){
+        details.querySelectorAll('p').forEach(p=>{
+          if(/browser will show|WebUSB|Chrome|chooser/i.test(p.textContent||'')){
+            p.textContent='Native Linux receiver diagnostics use rtl_test and rtl_sdr. If the device is busy, inspect readsb, other SDR applications and DVB kernel drivers. Disconnect only releases processes owned by this app.';
+          }
+        });
+      }
+    }
     const status=$('usb-live-test-report');
     if(status)status.textContent='The desktop tests real IQ using rtl_sdr, not browser WebUSB.';
     const state=document.createElement('p');
@@ -326,6 +339,11 @@
           else waiter.reject(Error(response.error||'Native command rejected'));
         }catch(error){waiter.reject(error);}
       });
+      // The installed custom-scheme page cannot rely on cross-origin browser
+      // fetch for world geocoding. Route opt-in queries through OS HTTPS.
+      // Reuse the exact same location widget, validation and provider data.
+      window.nativeLocationLookup=(name,country='all')=>
+        lookup('geocode',{name,country});
       setHardwareLabels();
       window.nativeWebBridgeReady=true;
       window.nativeRFTransport='rtl_sdr';
