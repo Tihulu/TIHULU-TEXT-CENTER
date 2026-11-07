@@ -44,7 +44,7 @@ package="$(find "$WORK/source/dist" -maxdepth 1 -type f \
 [[ "$(dpkg-deb --field "$package" Package)" == 'tihulu-satellite-center' ]] ||
   fail "Package name mismatch."
 version="$(dpkg-deb --field "$package" Version)"
-[[ "$version" == '0.3.0~preview9' ]] ||
+[[ "$version" == '0.3.0~preview10' ]] ||
   fail "Expected verified preview9 package, got $version."
 printf 'Package: %s\nSHA256: ' "$version"
 sha256sum "$package"
