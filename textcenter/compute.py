@@ -39,7 +39,18 @@ def detect_devices(*, executable_lookup=None, device_root=None,
     devices=[{"id":"cpu","name":platform.processor() or platform.machine() or "System CPU",
               "detected":True,"runtime_ready":True,
               "detail":"Always available for ordinary computation; speech model may be missing"}]
-    nvidia = run(["nvidia-smi","--query-gpu=name","--format=csv,noheader,nounits"]) if lookup("nvidia-smi") else ""
+    smi = lookup("nvidia-smi") or next(
+        (p for p in ("/usr/bin/nvidia-smi","/bin/nvidia-smi")
+         if Path(p).is_file()), None)
+    nvidia = run([smi,"--query-gpu=name","--format=csv,noheader,nounits"]) if smi else ""
+    if not nvidia and device_root is None and command_runner is None:
+        try:
+            from tv_center.hardware_market import detect_hardware
+            hardware = detect_hardware()
+            if hardware["gpu"]["detected"]:
+                nvidia = hardware["gpu"]["name"]
+        except (ImportError,OSError,ValueError):
+            pass
     if nvidia.strip():
         devices.append({"id":"gpu","name":nvidia.strip().splitlines()[0][:100],
                         "detected":True,"runtime_ready":False,
@@ -113,6 +124,20 @@ def detect_devices(*, executable_lookup=None, device_root=None,
             cuda_count=0
     gpu_ready=bool(cuda_count and gpu_model and gpu_model.is_dir() and
                    (gpu_model/"model.bin").is_file() and (gpu_model/"config.json").is_file())
+    gpu_engine = "faster_whisper" if gpu_ready else None
+    gpu_executable = None
+    # The native Kaffeine market can compile whisper.cpp with GGML_CUDA=ON
+    # into a user-owned executable. Those models are GGML .bin, not CT2 dirs.
+    try:
+        from tv_center.whisper_engine import WhisperRuntime
+        managed = WhisperRuntime()
+        if nvidia.strip() and managed.ready_gpu() and model and model.is_file() and model.stat().st_size>1024:
+            gpu_ready = True
+            gpu_engine = "whisper_cpp_cuda"
+            gpu_executable = str(managed.cuda_binary)
+            gpu_model = model
+    except (ImportError,OSError,ValueError):
+        pass
     speech_ready=bool(executable and model and model.is_file() and model.stat().st_size>1024)
     argos=importlib.util.find_spec("argostranslate") is not None
     return {
@@ -129,6 +154,8 @@ def detect_devices(*, executable_lookup=None, device_root=None,
             "hailo_npy_dir":str(hnpy) if hnpy else None,
             "npu_model_path":str(ov_model) if ov_model else None,
             "gpu_model_path":str(gpu_model) if gpu_model else None,
+            "gpu_engine":gpu_engine,
+            "gpu_executable":gpu_executable,
             "note":"whisper.cpp model must already be installed; configured with TIHULU_WHISPER_MODEL. No inference can be claimed without real capture and model."
         },
         "translation":{

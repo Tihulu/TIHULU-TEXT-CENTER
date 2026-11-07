@@ -126,7 +126,7 @@ def transcribe_pcm(pcm:bytes,language:str,backend:str,profile:dict)->str:
             return text[:3000]
         except (ImportError,RuntimeError,ValueError,OSError,TypeError) as exc:
             raise SpeechError("OpenVINO NPU transcription failed: "+str(exc)[:200]) from exc
-    if backend=="gpu":
+    if backend=="gpu" and profile["speech"].get("gpu_engine") != "whisper_cpp_cuda":
         if importlib.util.find_spec("faster_whisper") is None:
             raise SpeechError("faster-whisper CUDA package is not installed")
         try:
@@ -144,7 +144,8 @@ def transcribe_pcm(pcm:bytes,language:str,backend:str,profile:dict)->str:
                 return " ".join(s.text.strip() for s in segments).strip()[:3000]
         except (ImportError,OSError,RuntimeError) as exc:
             raise SpeechError("CUDA speech backend failed: "+str(exc)[:150]) from exc
-    executable=profile["speech"]["executable"]
+    executable=(profile["speech"].get("gpu_executable")
+                if backend=="gpu" else profile["speech"]["executable"])
     if not executable:
         raise SpeechError("whisper.cpp CLI executable unavailable")
     with tempfile.TemporaryDirectory() as tmp:

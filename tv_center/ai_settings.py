@@ -54,6 +54,10 @@ class AISettings:
         managed = WhisperRuntime()
         if managed.ready():
             os.environ["TIHULU_WHISPER_CLI"] = str(managed.binary)
+        if managed.ready_gpu():
+            os.environ["TIHULU_WHISPER_CUDA_CLI"] = str(managed.cuda_binary)
+        else:
+            os.environ.pop("TIHULU_WHISPER_CUDA_CLI", None)
         if not self.values["asr_enabled"]:
             os.environ.pop("TIHULU_WHISPER_MODEL", None)
             os.environ["TIHULU_TV_ASR_BACKEND"] = "off"
