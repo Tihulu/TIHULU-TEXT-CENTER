@@ -719,7 +719,8 @@ class Station:
         b = clock.from_datetime(t_start+timedelta(hours=hours))
         events = []
         warnings = []
-        for source in (*SOURCE_URLS, "manual"):
+        processed_norad=set()
+        for source in ("manual", *SOURCE_URLS):
             file = self.directory/(source+".tle")
             if not file.is_file():
                 warnings.append(f"{source}: orbit data not downloaded")
@@ -736,10 +737,11 @@ class Station:
             if source == "manual":
                 entries = entries[:30]
             for item in entries:
-                if not selectable(source, item):
+                if not selectable(source, item) or item["id"] in processed_norad:
                     continue
                 try:
                     sat = EarthSatellite(item["l1"], item["l2"], item["name"], clock)
+                    processed_norad.add(item["id"])
                     times, codes = sat.find_events(observer, a, b, altitude_degrees=float(elevation))
                     rising = peak = None
                     for event_time, code in zip(times, codes):
