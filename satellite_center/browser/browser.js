@@ -89,7 +89,8 @@ async function nativeScheduledPass(pass,{when,durationSeconds,frequency,sampleRa
    events=await predict();target=matched();
  }
  if(!target)throw Error("Native TLE pass differs from browser estimate. Refresh catalog and recalculate.");
- return nativeRequest("/api/schedule",{pass_id:target.id,profile,mode:saveRaw?"iq":saveWav?"sstv_audio":"survey",
+ const endpoint=durationSeconds>180?"/api/schedule-series":"/api/schedule";
+ return nativeRequest(endpoint,{pass_id:target.id,profile,mode:saveRaw?"iq":saveWav?"sstv_audio":"survey",
    run_at:new Date(when).toISOString(),duration_seconds:durationSeconds},state.csrf);
 }
 
@@ -184,10 +185,10 @@ function wireDurationUnit(input,unit,maxSeconds=900){
    const oldSeconds=Number(input.value)*(previous==="minutes"?60:1);
    if(Number.isFinite(oldSeconds)&&oldSeconds>=0){
      input.value=unit.value==="minutes"?
-       String(Number((oldSeconds/60).toFixed(4))):String(Math.round(oldSeconds));
+       String(Number((oldSeconds/60).toFixed(6))):String(Math.round(oldSeconds));
    }
    previous=unit.value;
-   input.step=unit.value==="minutes"?"0.01666667":"1";
+   input.step=unit.value==="minutes"?"0.000001":"1";
    input.max=unit.value==="minutes"?String(maxSeconds/60):String(maxSeconds);
    input.dispatchEvent(new Event("change",{bubbles:true}));
  });
@@ -1090,10 +1091,12 @@ function appendPass(pass){
           when:selectedTime,durationSeconds:seconds,frequency:Number(frequency.value),
           sampleRate:chosenRate,saveRaw:raw.checked,saveWav:wav.checked
         });
-        alert.textContent="Debian local SDR scheduled "+job.satellite+" · "+
-          new Date(job.run_at).toLocaleString()+" · "+job.capture_seconds+" seconds · "+
-          (job.estimated_bytes/1e6).toFixed(0)+" MB estimated. The native app must remain running; the browser may close.";
-        log("Native job "+job.id+" armed; RTL-SDR stays idle until start time.");
+        const count=job.scheduled_count||1;
+        alert.textContent="Native receiver armed "+count+" separate calendar capture(s) for "+
+          seconds+" s total"+(count>1?" · "+job.unrecorded_gap_seconds+
+          " s of receiver reset gaps.":"")+
+          ". The Qt/native service must remain running; browser may close.";
+        log("Native scheduler armed "+count+" RF job(s); SDR remains free until start.");
         return;
       }
       const batch=scheduleBrowserSegments(pass,{
