@@ -41,10 +41,10 @@ test("full browser ISS auto workflow exposes user-selected both formats and two-
  const html=source("index.html"),js=source("browser.js");
  for(const id of ["auto-save-raw","auto-save-wav","auto-format-summary"])
    assert.match(html,new RegExp('id="'+id+'"'),id);
- assert.match(js,/saveRaw:item\.missionId==='iss-sstv'\?autoRaw/);
- assert.match(js,/saveWav:item\.missionId==='iss-sstv'\?autoWav/);
- assert.match(js,/job\.saveRaw\?item\.durationSeconds\*item\.sampleRate\*2:0/);
- assert.match(js,/job\.saveWav\?wavOutputPlan\(item\.durationSeconds,true\)\.estimatedBytes:0/);
+ assert.match(js,/selectedRaw=item\.missionId==='iss-sstv'\?autoRaw/);
+ assert.match(js,/selectedWav=item\.missionId==='iss-sstv'\?autoWav/);
+ assert.match(js,/planChainedCapture\(/);
+ assert.match(js,/estimatedWavBytes/);
 });
 
 test("Satellite Images & Data transfers both choices to the main WebUSB planner",()=>{
