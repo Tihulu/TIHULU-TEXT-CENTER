@@ -40,7 +40,7 @@ def scan_commands(country: str, medium: str, adapter: int,
         ["w_scan_cpp", "-f", medium, "-c", country, "-a", str(adapter),
          "-R", "1", "-T", "1", "-E", "1", "-x", "-v"],
         ["dvbv5-scan", "-a", str(adapter), "-C", country,
-         "-T", "5", "-o", str(channel_file), str(transponder_file)],
+         "-T", "2", "-o", str(channel_file), str(transponder_file)],
     )
 
 
@@ -74,10 +74,21 @@ def parse_scan_progress(line: str):
         value = float(mhz.group(1))
         if 40 <= value <= 3000:
             frequency = f"{value:.3f} MHz"
+    # dvbv5-scan prints "Scanning frequency #1 573000000" and
+    # "Service Foo, provider Bar", not merely "frequency=...".
+    if frequency is None:
+        scan_hz = re.search(r"\bScanning frequency #\d+\s+(\d{8,10})\b", line, re.I)
+        if scan_hz and 40 <= int(scan_hz.group(1))/1000000 <= 3000:
+            frequency = f"{int(scan_hz.group(1))/1000000:.3f} MHz"
     name = re.search(r"(?:new channel|service(?:_name)?|channel|program)\s*[:=]\s*(.{2,90})", line, re.I)
+    if not name:
+        name = re.search(r"^Service\s+(.{2,90}?)(?:,\s*provider\b|:\s*(?:digital|radio)|$)", line, re.I)
+    lock = re.search(r"\bLock\s*\((0x[0-9a-f]+)\)", line, re.I)
+    lock_mask = int(lock.group(1),16) if lock else None
     return {"kind": "log", "text": line,
             "frequency_reported": frequency,
-            "service_reported": name.group(1).strip() if name else None}
+            "service_reported": name.group(1).strip() if name else None,
+            "demod_lock": bool(lock_mask & 0x10) if lock_mask is not None else None}
 
 
 class IncrementalScanLog:
@@ -210,6 +221,67 @@ class AutoScanner:
                     try: proc.wait(timeout=3)
                     except subprocess.TimeoutExpired: proc.kill(); proc.wait()
 
+    def run_from_initial_file(self, path, country="DE", medium="t",
+                              adapter=0, directory=None, notify=None):
+        """Kaffeine-style scan source: scan an operator-selected DVBv5 table.
+
+        A region/scanfile is only *tuning input*: never present the
+        frequencies/services as received until dvbv5-scan decodes them.
+        Save the same profile file as the automatic scan, atomically.
+        """
+        from .core import read_channels
+        if self.running:
+            raise ScanError("Another scan is already active")
+        if country not in PROFILES or medium not in ("t","c") or type(adapter) is not int or not 0<=adapter<=15:
+            raise ValueError("Invalid DVB source profile")
+        source=Path(path).expanduser()
+        if not source.is_file() or not 0<source.stat().st_size<=2_000_000:
+            raise ScanError("Select a valid local DVBv5 initial tuning file (up to 2 MB)")
+        required=("dvbv5-scan","fuser")
+        missing=[x for x in required if not shutil.which(x)]
+        if missing:
+            raise ScanError("Missing DVB scanning dependencies: "+", ".join(missing))
+        frontend=f"/dev/dvb/adapter{adapter}/frontend0"
+        if not Path(frontend).exists():
+            raise ScanError("Selected Linux DVB frontend missing")
+        if subprocess.run(["fuser","-s",frontend],timeout=3,check=False).returncode==0:
+            raise ScanError("Tuner busy: stop live TV/Kaffeine/Tvheadend before scanning")
+        output=Path(directory or Path.home()/".config/tihulu-tv-center").expanduser()
+        output.mkdir(parents=True,exist_ok=True)
+        target=output/("channels-"+country+"-"+medium+".conf")
+        self.running=True
+        self.cancelled.clear()
+        try:
+            with tempfile.TemporaryDirectory(prefix="tihulu-dvb-source-") as tmp:
+                root=Path(tmp)
+                staged=root/"channels.conf"
+                if notify:notify({"stage":1,"kind":"status","text":
+                    "Scanning actual tuner using selected DVBv5 source: "+source.name})
+                argv=["dvbv5-scan","-a",str(adapter),"-C",country,
+                      "-T","2","-o",str(staged),str(source)]
+                self._stage(argv,root/"scan.stdout",root/"scan.log",900,
+                            notify,1,adapter,staged)
+                scanned=read_channels([staged])
+                if not scanned:
+                    raise ScanError("No services decoded from selected scan source. "
+                                    "This is not a channel list: check antenna, "
+                                    "transmitter region, DVB mode and RF lock.")
+                for pos,c in enumerate(scanned):
+                    if notify:notify({"stage":2,"kind":"found","channel":c.name,
+                                      "frequency":c.frequency,"delivery":c.delivery,
+                                      "count":pos+1})
+                # Never clobber the user's previous successful scan on failure.
+                atomic=output/(target.name+".staging")
+                atomic.write_bytes(staged.read_bytes())
+                os.replace(atomic,target)
+                if notify:notify({"stage":3,"kind":"complete","count":len(scanned)})
+                return {"country":country,"medium":medium,"path":str(target),
+                        "channels":len(scanned),
+                        "frequencies":len({c.frequency for c in scanned}),
+                        "method":"operator-selected-dvbv5-source"}
+        finally:
+            self.running=False
+
     def run(self, country="DE", medium="t", adapter=0, directory=None, notify=None,
             satellite="S42E0", diseqc_port=None):
         if self.running:
@@ -246,14 +318,19 @@ class AutoScanner:
                 if notify: notify({"stage":1, "kind":"status", "text":"Discovering real RF transponders"})
                 self._stage(first, initial, root/"search.log", 1200, notify, 1, adapter)
                 if not initial.is_file() or initial.stat().st_size < 20:
-                    raise ScanError("No real transponders detected. Prior channels retained.")
+                    raise ScanError("No RF transponders found by w_scan_cpp. "
+                                    "Check antenna connection, broadcast coverage, "
+                                    "DVB-T/T2 delivery mode and frontend lock. "
+                                    "Previous channel list preserved.")
                 if notify: notify({"stage":2, "kind":"status", "text":"Resolving services from discovered transponders"})
                 self._stage(second, root/"channels.stdout", root/"channels.log", 900,
                             notify, 2, adapter, channels_file)
                 from .core import read_channels
                 discovered = read_channels([channels_file])
                 if not discovered:
-                    raise ScanError("No DVB service list created; prior channels retained")
+                    raise ScanError("dvbv5-scan did not decode any real services. "
+                                    "Review scan log, local coverage and antenna; "
+                                    "previous channel list retained.")
                 for n, c in enumerate(discovered):
                     if notify: notify({"stage":2, "kind":"found", "channel":c.name,
                                        "frequency":c.frequency, "delivery":c.delivery,
