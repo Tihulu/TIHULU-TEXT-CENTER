@@ -12,7 +12,7 @@ describe that separate legacy workflow, not the installed desktop app.
 Install the Debian package downloaded from GitHub Actions, then run:
 
 ```bash
-sudo apt install ./tihulu-satellite-center_0.3.0~preview2_all.deb
+sudo apt install ./tihulu-satellite-center_0.3.0~preview3_all.deb
 tihulu-satellite-center
 ```
 
@@ -132,6 +132,39 @@ Both manual receiver start and selected pass schedule entries support WAV, CU8 o
 
 
 ---
+
+### Native Maps, RF intelligence and Robot36 outputs — 0.3.0 preview3
+
+- **Maps & Live:** actual native Qt Earth and polar-sky widgets with
+  built-in Natural Earth land geometry, optional opt-in viewport-only
+  OpenStreetMap street tiles, TLE-based positions/pointing updates once
+  per second, local station, selected ground tracks and simulated timeline.
+  Orbits are geometric predictions, **not RF detections**.
+- **Pass reception:** named voice FM WAV, ISS SSTV WAV (event-only),
+  APRS/AX.25, raw CU8 IQ and bounded spectrum survey are selectable
+  from supported pass-specific profiles. Actual disk-streamed IQ supports
+  up to 900 s; the survey is intentionally limited to 180 s.
+- **Analysis:** native CU8 spectrum/waterfall, candidate RF power-region
+  discovery, actual FM-to-PCM WAV extraction, Robot36 synchronization
+  decoding of real WAV into **PNG images**, and SatDump Meteor decoding
+  when installed. A frequency hint or recorded WAV never guarantees
+  satellite identity or real imagery.
+- **Save results:** Robot36 is an **SSTV mode**, not a separate file
+  extension. On valid frame sync, the decoder creates a genuine PNG in
+  the local archive, retains the WAV and writes a JSON provenance report.
+  The Qt results list previews saved files; **Save decoded PNG / WAV**
+  copies the actual output to a user-selected path. **Save real results
+  ZIP** packages PNG/WAV/JSON together. Without valid sync, no image
+  is generated, but the WAV and failed-sync report remain available.
+  GPU and NPU decoding are attempted only with implemented/verified
+  compute backends; unavailable accelerators must report errors.
+- **Known parity gaps:** The native Qt app does not yet implement every
+  browser-only visual inspector and custom user-protocol editor. Web
+  version remains available separately, and the Qt frontend must never
+  embed it as a WebView. Test physical RTL-SDR and actual SSTV/LRPT
+  reception before describing any output as a verified satellite result.
+
+
 ## Historical web/localhost companion documentation (legacy v0.2.3)
 
 ## One-click Satellite Auto-Capture & Decode (2026-11-06 draft)
