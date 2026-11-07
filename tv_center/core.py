@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+from .ts import ServiceFilter
 import fcntl
 import json
 import os
@@ -80,14 +81,21 @@ def zap_argv(channel: Channel, adapter: int = 0) -> list[str]:
     return ["dvbv5-zap", "-a", str(adapter), "-c", str(channel.path),
             "-p", "-P", "-r", channel.name]
 
-def player_argv(channel: Channel, window_id: int, hwdec: str = "no", ipc_path: str | None = None) -> list[str]:
+def player_argv(channel: Channel, window_id: int, hwdec: str = "no", ipc_path: str | None = None, renderer: str = "x11-gpu") -> list[str]:
     if hwdec not in ("no", "auto-safe"):
         raise ValueError("Unsupported hardware decoding mode")
     if not isinstance(window_id, int) or window_id < 1:
         raise ValueError("A native X11 window ID is required")
+    if renderer not in ("x11-gpu", "x11-compat"):
+        raise ValueError("Unknown native renderer")
+    # Wayland-native MPV may ignore a Qt/XWayland XID and make another window.
+    # Force the *same* X11 display backend that owns QWidget.winId().
+    vo = (["--vo=gpu", "--gpu-api=opengl", "--gpu-context=x11"]
+          if renderer == "x11-gpu" else ["--vo=x11", "--profile=sw-fast"])
     args = ["mpv", "--no-config", "--no-terminal", "--force-window=no",
-            "--cache=yes", "--cache-secs=2", "--hwdec=" + hwdec,
-            "--wid=" + str(window_id), "--audio-spdif=no"]
+            "--no-border", "--osc=no", "--cache=yes", "--cache-secs=4",
+            "--cache-pause-wait=0.3", "--hwdec=" + hwdec,
+            "--wid=" + str(window_id), "--audio-spdif=no", *vo]
     # MPV's MPEG-TS 'program' is a runtime write-only property, NOT a CLI
     # --program option. Select it using the local JSON IPC socket on startup.
     if ipc_path:
@@ -207,7 +215,7 @@ class TVCapture:
             raise ReceiverBusy("Another TIHULU TV session owns this adapter") from exc
         self.lockfile = fd
 
-    def start(self, channel: Channel, window_id: int, hwdec: str = "no"):
+    def start(self, channel: Channel, window_id: int, hwdec: str = "no", renderer: str = "x11-gpu"):
         if self.thread and self.thread.is_alive():
             raise ReceiverBusy("Stop the current TV session before changing channel")
         st = receiver_status(self.adapter)
@@ -226,15 +234,20 @@ class TVCapture:
                 raise RuntimeError("dvbv5-zap exited before tuning; inspect channel and tuner")
             self._ipc_dir = tempfile.TemporaryDirectory(prefix="tihulu-tv-mpv-")
             sock_path = str(Path(self._ipc_dir.name) / "mpv.sock")
-            self.player = subprocess.Popen(player_argv(channel, window_id, hwdec, sock_path),
+            env = os.environ.copy()
+            env.pop("WAYLAND_DISPLAY", None)
+            env["XDG_SESSION_TYPE"] = "x11"
+            env["SDL_VIDEODRIVER"] = "x11"
+            env["GDK_BACKEND"] = "x11"
+            self.player = subprocess.Popen(player_argv(channel, window_id, hwdec, sock_path, renderer),
                               stdin=subprocess.PIPE, stdout=subprocess.DEVNULL,
-                              stderr=subprocess.DEVNULL, start_new_session=True)
+                              stderr=subprocess.DEVNULL, start_new_session=True, env=env)
             if channel.service_id is not None:
                 threading.Thread(target=self._select_program,
                                  args=(channel.service_id, sock_path),
                                  daemon=True, name="tihulu-tv-program").start()
             os.set_blocking(self.player.stdin.fileno(), False)
-            self._player_queue = queue.Queue(maxsize=24)
+            self._player_queue = queue.Queue(maxsize=128)
             self._writer_thread = threading.Thread(target=self._write_player, daemon=True,
                                                     name="tihulu-tv-mpv-writer")
             self._writer_thread.start()
@@ -299,6 +312,7 @@ class TVCapture:
         dvr = None
         try:
             dvr = os.open(f"/dev/dvb/adapter{self.adapter}/dvr0", os.O_RDONLY | os.O_NONBLOCK)
+            service_filter = ServiceFilter(self.channel.service_id if self.channel else None)
             with tempfile.TemporaryDirectory(prefix="tihulu-tv-") as tmp:
                 clip = None
                 start = time.monotonic()
@@ -313,6 +327,9 @@ class TVCapture:
                         buf = os.read(dvr, 188 * 512)
                     except BlockingIOError:
                         continue
+                    if not buf:
+                        continue
+                    buf = service_filter.feed(buf)
                     if not buf:
                         continue
                     if self.player and self.player.poll() is None:

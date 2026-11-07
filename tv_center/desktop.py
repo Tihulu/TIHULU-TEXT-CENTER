@@ -149,6 +149,9 @@ def main():
             self.hw = QComboBox()
             self.hw.addItems(["no", "auto-safe"])
             form.addRow("MPV hardware decode (next tune)", self.hw)
+            self.renderer = QComboBox()
+            self.renderer.addItems(["x11-gpu", "x11-compat"])
+            form.addRow("Embedded video renderer", self.renderer)
             self.bridge_toggle = QCheckBox("Enable token-protected local web bridge")
             self.bridge_toggle.toggled.connect(self.toggle_bridge)
             form.addRow("GitHub Pages / local web", self.bridge_toggle)
@@ -252,7 +255,8 @@ def main():
                 return
             self.stop()
             try:
-                self.capture.start(self.channels[idx], int(self.video.winId()), self.hw.currentText())
+                self.capture.start(self.channels[idx], int(self.video.winId()), self.hw.currentText(),
+                                   self.renderer.currentText())
                 self.apply_mode()
             except (RuntimeError, OSError, ValueError) as exc:
                 QMessageBox.warning(self, "TV receiver", str(exc))
