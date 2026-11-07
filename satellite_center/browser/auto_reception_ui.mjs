@@ -9,7 +9,7 @@ import {parseRecordingName} from "./satellite_imagery.mjs";
 import {decodeRobot36WithCompute} from "./compute_backends.mjs";
 import {initComputeSelector} from "./compute_selector.mjs";
 import {initStationLocationUI} from "./location_search.mjs";
-import {localDayKey,shiftCalendarDay,renderSatelliteCalendar} from "./satellite_calendar.mjs?v=20261106-calendar-zip-v2";
+import {localDayKey,shiftCalendarDay,renderSatelliteCalendar} from "./satellite_calendar.mjs?v=20261107-segments-v1";
 import {createResultsZip} from "./results_zip.mjs";
 import {durationToSeconds} from "./segmented_capture.mjs?v=20261107-segments-v1";
 
