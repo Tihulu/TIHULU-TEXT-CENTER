@@ -185,6 +185,10 @@ def transform(files):
 \t\t\tQMessageBox::Yes | QMessageBox::No, QMessageBox::No) != QMessageBox::Yes)
 \t\t\treturn;
 \t\tmediaWidget->stop();
+\t\t// Give Kaffeine's asynchronous player status updates one event
+\t\t// loop turn to release the DVB frontend before the scan dialog opens.
+\t\tQTimer::singleShot(0, this, SLOT(showChannelDialog()));
+\t\treturn;
 \t}
 \tshowChannelDialog();
 }
