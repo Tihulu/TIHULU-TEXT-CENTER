@@ -38,7 +38,7 @@
 <div class="actions"><button id="connect">Connect</button><button id="disconnect" class="secondary" disabled>Disconnect</button></div>
 <p id="connection-note">GitHub Pages cannot directly access Linux DVB hardware. Browser loopback permissions may vary.</p>
 </section>
-<section class="panel"><h2>Interactive Teletext</h2>
+<div id="web-control-root"></div><section class="panel"><h2>Interactive Teletext</h2>
 <p>Choose a real broadcast page, including 100 (index), 150 (ARD/ARTE captions) or 777 (some ZDF captions).</p>
 <div class="actions"><input id="page" type="number" min="100" max="899" step="1" value="150">
 <button id="open-page" disabled>Request page</button></div>
@@ -70,5 +70,5 @@
 </section>
 </aside></main>
 <footer>WEBUSB DETECTION · NATIVE DVB RECEIVER OPTIONAL · WEBGPU/WASM READINESS · NO AUTOSTART RF</footer>
-</div><script src="./app.js"></script><script type="module" src="./browser-ai-ui.js"></script>
+</div><script src="./app.js"></script><script src="./web-controls.js"></script><script type="module" src="./browser-ai-ui.js"></script>
 </body></html>
