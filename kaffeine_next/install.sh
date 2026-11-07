@@ -67,7 +67,14 @@ qt_link_diagnostics() {
   echo "Check apt-cache policy libqt5gui5 libqt5waylandclient5." >&2
 }
 temp="$(mktemp -d)"
-trap 'rm -rf "$temp"' EXIT
+BUILDSRC=""
+cleanup() {
+  if [[ -n "$BUILDSRC" && -e "$BUILDSRC/.git" && -d "$SOURCE/.git" ]]; then
+    git -C "$SOURCE" worktree remove --force "$BUILDSRC" >/dev/null 2>&1 || true
+  fi
+  rm -rf "$temp"
+}
+trap cleanup EXIT
 
 git clone --depth 1 --branch architecture/kaffeine-core-tv-2026-11-07 \
   https://github.com/Tihulu/TIHULU-TEXT-CENTER.git "$temp/tihulu"
@@ -81,11 +88,18 @@ if [[ "$CURRENT_SHA" != "$UPSTREAM_SHA" ]]; then
   echo "Unexpected upstream revision: $CURRENT_SHA (expected $UPSTREAM_SHA)" >&2
   exit 1
 fi
-python3 "$temp/tihulu/kaffeine_next/patch_upstream.py" "$SOURCE"
-git -C "$SOURCE" diff --check
+# Never patch a previously modified Kaffeine source tree in-place.
+# Users may already have the older patch, and a second patch could
+# duplicate scan menus or produce a partially working build.
+# Detached worktrees provide a fresh, reproducible upstream checkout
+# while preserving local edits and existing user configuration.
+BUILDSRC="$temp/kaffeine-source"
+git -C "$SOURCE" worktree add --detach "$BUILDSRC" "$UPSTREAM_SHA"
+python3 "$temp/tihulu/kaffeine_next/patch_upstream.py" "$BUILDSRC"
+git -C "$BUILDSRC" diff --check
 
-echo "Configuring with isolated /usr/bin/cmake (ignores Conda Qt and old CMakeCache)"
-if ! "${SYSTEM_BUILD_ENV[@]}" /usr/bin/cmake --fresh -S "$SOURCE" -B "$BUILD" \
+echo "Configuring clean Kaffeine native DVB scanner with isolated system Qt5"
+if ! "${SYSTEM_BUILD_ENV[@]}" /usr/bin/cmake --fresh -S "$BUILDSRC" -B "$BUILD" \
   -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF \
   -DCMAKE_INSTALL_PREFIX="$PREFIX" 2>&1 | tee "$LOGDIR/configure.log"; then
   qt_link_diagnostics
