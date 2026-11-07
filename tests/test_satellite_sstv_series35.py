@@ -56,11 +56,14 @@ class Robot36Series35Test(unittest.TestCase):
                 wav.setsampwidth(2)
                 wav.setframerate(rate)
                 wav.writeframes(pcm)
-            result = extract_robot36_wav(source)
+            export = Path(directory)/"exports"
+            result = extract_robot36_wav(source,output_dir=export)
             self.assertEqual(result["status"], "robot36_sync_candidates_decoded")
             self.assertGreaterEqual(len(result["images"]), 1)
             self.assertFalse(result["images"][0]["satellite_identity_verified"])
-            self.assertTrue((Path(directory)/result["images"][0]["file"]).read_bytes().startswith(b"\x89PNG"))
+            self.assertTrue((export/result["images"][0]["file"]).read_bytes().startswith(b"\x89PNG"))
+            again = extract_robot36_wav(source,output_dir=export)
+            self.assertNotEqual(result["images"][0]["file"],again["images"][0]["file"])
 
     def test_invalid_wav_rejected_without_fabrication(self):
         with tempfile.TemporaryDirectory() as directory:

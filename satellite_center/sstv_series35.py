@@ -177,7 +177,8 @@ def _decode_window(raw: bytes, sample_rate: int, trace_backend: str = "python-cp
 
 
 def extract_robot36_wav(path: str | Path, *, max_images: int = MAX_IMAGES,
-                        compute_mode: str = "auto", compute_targets=None) -> dict:
+                        compute_mode: str = "auto", compute_targets=None,
+                        output_dir: str | Path | None = None) -> dict:
     """Attempt automatic PNG candidates from a genuine 48 kHz mono PCM WAV.
 
     Never treats signal strength, a known ISS pass, or a WAV filename as
@@ -185,8 +186,13 @@ def extract_robot36_wav(path: str | Path, *, max_images: int = MAX_IMAGES,
     at least MIN_ALIGNED_LINES repeated line syncs.
     """
     source = Path(path)
-    if source.suffix.lower() != ".wav" or not source.is_file():
+    if source.suffix.lower() != ".wav" or not source.is_file() or source.is_symlink():
         raise ValueError("Choose an existing real WAV capture")
+    result_dir = Path(output_dir).expanduser() if output_dir is not None else source.parent
+    if output_dir is not None:
+        result_dir.mkdir(parents=True,exist_ok=True)
+    if not result_dir.is_dir():
+        raise ValueError("Robot36 PNG result directory is unavailable")
     if not 1 <= max_images <= MAX_IMAGES:
         raise ValueError("Maximum output image count must be 1-12")
     result = {
@@ -247,8 +253,17 @@ def extract_robot36_wav(path: str | Path, *, max_images: int = MAX_IMAGES,
             candidates.append(candidate)
     candidates.sort(key=lambda candidate: candidate["recording_offset_seconds"])
     for index, candidate in enumerate(candidates[:max_images], start=1):
-        output = source.with_name(source.stem + "_ROBOT36_" + f"{index:02d}" + ".png")
-        output.write_bytes(candidate.pop("png"))
+        stem = source.stem[:75] + "_ROBOT36_" + f"{index:02d}"
+        output = result_dir/(stem+".png")
+        suffix = 2
+        while output.exists():
+            if suffix>9999:
+                raise ValueError("Too many outputs for this recording")
+            output=result_dir/(stem+"_"+str(suffix)+".png")
+            suffix+=1
+        # xb avoids quietly replacing a saved received image.
+        with output.open("xb") as f:
+            f.write(candidate.pop("png"))
         result["images"].append({
             "file": output.name,
             "time_offset_seconds": candidate["recording_offset_seconds"],
