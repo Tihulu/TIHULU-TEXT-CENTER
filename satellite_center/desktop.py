@@ -428,6 +428,7 @@ class SatelliteWindow(QMainWindow):
         scroll=QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QFrame.NoFrame)
+        self.home_scroll=scroll
         host.addWidget(scroll)
         page=QWidget()
         body=QVBoxLayout(page)
@@ -3957,6 +3958,10 @@ def main(argv=None):
                        for f in content["features"])
             window.show()
             app.processEvents()
+            window._open_native_tab("Overview")
+            app.processEvents()
+            assert window.home_scroll.horizontalScrollBar().maximum()==0, (
+                "Home must fit inside 1320 px without global horizontal scrolling")
             # Optional CI screenshots use synthetic orbital positions, never RF
             # or a fabricated received picture. They are visual QA artifacts.
             snapshot_dir=os.environ.get("TIHULU_UI_SNAPSHOT_DIR")
