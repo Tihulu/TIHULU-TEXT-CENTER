@@ -2265,9 +2265,9 @@ def main(argv=None):
             assert window.map_track_scope.findData("none")>=0
             assert callable(window.map_earth.fit_satellites)
             assert callable(window._map_export_geojson)
-            assert window.home_auto.text().startswith("1 ")
-            assert window.home_analyze.text().startswith("2 ")
-            assert window.home_extract.text().startswith("3 ")
+            assert window.home_auto.text().startswith("2 ")
+            assert window.home_analyze.text().startswith("3 ")
+            assert window.home_extract.text().startswith("4 ")
             assert window.files.headerItem().text(1)=="Data type · format"
             assert window.output_files.headerItem().text(1)=="Data type · format"
             assert not window.auto_settings.isVisible()
