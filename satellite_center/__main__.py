@@ -716,6 +716,41 @@ class Station:
                 "above_5_degrees":visible[:160], "warnings":warnings,
                 "note":"Geometric position only; RF presence, antenna visibility and transmissions are unverified"}
 
+    def import_tle(self, path, source="amateur"):
+        """Explicit local, bounded TLE import, shared with native predictions.
+
+        User imports for a named catalog source replace only that source's
+        cached orbit text. No USB capture or Internet access.
+        """
+        if source not in SOURCE_URLS:
+            raise ValueError("Choose a supported orbit family/source")
+        file=Path(path).expanduser()
+        if not file.is_file() or file.stat().st_size>1048576:
+            raise ValueError("TLE file missing or larger than 1 MiB")
+        data=file.read_text(encoding="utf-8",errors="replace")
+        entries=parse_tle(data,limit=200)
+        if not entries:
+            raise ValueError("No matching two-line orbital element pairs in file")
+        expected={"iss":25544,"meteor3":57166,"meteor4":59051}
+        if source in expected and not any(row["id"]==expected[source] for row in entries):
+            raise ValueError("Selected satellite family does not match TLE NORAD ID")
+        target=self.directory/(source+".tle")
+        temporary=target.with_suffix(".tle.import")
+        try:
+            with temporary.open("x",encoding="utf-8") as output:
+                output.write(data)
+            os.chmod(temporary,0o600)
+            temporary.replace(target)
+        finally:
+            temporary.unlink(missing_ok=True)
+        return {
+            "source":source,"tle_count":len(entries),
+            "norad_ids":[row["id"] for row in entries[:20]],
+            "cache":str(target),"provenance":"user_imported_orbital_elements",
+            "radio_signal_verified":False,
+            "note":"Import only updates orbital elements. Recalculate passes; an orbit is not a received signal."
+        }
+
     def save_jobs(self):
         safe_write(self.directory/"schedule.json", self.jobs[-150:])
 
