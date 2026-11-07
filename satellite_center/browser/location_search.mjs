@@ -165,7 +165,9 @@ export function initStationLocationUI({onStationChanged,log=()=>{},ids={}}={}){
    if(automatic&&!onlineToggle.checked)return;
    if(inFlight){inFlight.abort();inFlight=null;}
    const countryCode=country.value;
-   const key=typed.toLocaleLowerCase()+"|"+countryCode;
+   // Typo recovery resolves via actual Open-Meteo coordinates; never guess.
+   const requestedName=aliasNames[foldCityName(typed)]||typed;
+   const key=requestedName.toLocaleLowerCase()+"|"+countryCode;
    const token=++latestSearchToken;
    if(cache.has(key)){
      const cached=cache.get(key);if(typed!==query.value.trim())return;
