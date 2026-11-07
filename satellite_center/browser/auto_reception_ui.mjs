@@ -3,6 +3,7 @@
  * Decoding is local to this browser, except for explicitly authorized
  * companion SatDump/APRS archived products on localhost.
  */
+import {secondsFromEntry,humanCountdown} from "./chained_capture.mjs?v=20261107-chained-v1";
 import {AUTO_PRESETS} from "./auto_mission.mjs?v=20261106-iss-npu-release-v1";
 import {discoverCu8Contents,discoveryReportJson} from "./signal_discovery.mjs";
 import {parseRecordingName} from "./satellite_imagery.mjs";
@@ -238,11 +239,9 @@ export function initAutoReceptionUI({getSelectedFile=()=>null,fileInput=$("local
       const hours=Number($("auto-hours").value),elevation=Number($("auto-elev").value);
       if(!nativeHost()){
         const rawSeconds=$("auto-recording-seconds").value.trim();
-        const requestedSeconds=rawSeconds?Number(rawSeconds):60;
-        if(!Number.isInteger(requestedSeconds)||requestedSeconds<8||requestedSeconds>900)
-          throw Error("Choose 8–900 whole seconds or leave blank for automatic duration.");
-        if(requestedSeconds>60)
-          throw Error("Automatic browser WebUSB jobs remain limited to 60 s. For long unattended image/data passes use native receiver; for foreground browser I/Q use Calculate Passes with a user-selected streamed CU8 disk file. Nothing was armed.");
+        const requestedSeconds=rawSeconds?
+          secondsFromEntry(rawSeconds,$("auto-recording-unit").value):60;
+        if(requestedSeconds<8)throw Error("Select at least 8 seconds.");
         const {raw,wav}=selectedFormats();
         message("Opening the browser RF scheduler. ISS selected files: "+
           (raw&&wav?"CU8 + WAV (two separate files)":raw?"CU8 only":wav?"WAV only":"none")+
@@ -260,6 +259,7 @@ export function initAutoReceptionUI({getSelectedFile=()=>null,fileInput=$("local
           }));
           sessionStorage.setItem("tihulu-auto-coverage-goal",$("auto-coverage-goal").value);
           sessionStorage.setItem("tihulu-auto-browser-seconds",String(requestedSeconds));
+          sessionStorage.setItem("tihulu-auto-browser-unit","seconds");
           const format=selectedFormats();
           if(["iss-images","images","all"].includes(mode)&&!format.raw&&!format.wav)
             throw Error("Select WAV, CU8, or both for ISS SSTV reception.");
@@ -273,11 +273,12 @@ export function initAutoReceptionUI({getSelectedFile=()=>null,fileInput=$("local
       }
       message("Requesting fresh-or-cached TLE geometry and checking native decoder availability…");
       const requested=$("auto-recording-seconds").value.trim();
-      const duration_seconds=requested?Number(requested):null;
-      if(requested&&(!Number.isInteger(duration_seconds)||duration_seconds<8||duration_seconds>900))
-        throw Error("Select 8–900 whole seconds or leave blank for automatic duration.");
+      const duration_seconds=requested?
+        secondsFromEntry(requested,$("auto-recording-unit").value):null;
+      if(duration_seconds!==null&&duration_seconds<8)
+        throw Error("Select at least 8 seconds.");
       if($("auto-coverage-goal").value==="sample"&&duration_seconds>60)
-        throw Error("Quick sample is limited to 60 s; use full coverage for longer captures.");
+        throw Error("Quick sample is limited to 60 s; choose full coverage for a sequential recording chain.");
       await computeSelector.ready;
       await computeSelector.plan(180); // reject explicitly unavailable GPU/NPU
       const processing=computeSelector.getSelection();
