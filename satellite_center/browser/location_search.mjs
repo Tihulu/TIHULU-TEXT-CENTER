@@ -17,7 +17,8 @@ const aliasNames=Object.freeze({
   "cologne":"köln","koln":"köln","munich":"münchen",
   "nuremberg":"nürnberg","izmir":"izmir","istanbul":"istanbul",
   "eskisehir":"eskişehir","sanliurfa":"şanlıurfa","antep":"gaziantep",
-  "huerth":"hürth","hurth":"hürth","duesseldorf":"düsseldorf","dusseldorf":"düsseldorf"
+  "huerth":"hürth","hurth":"hürth","duesseldorf":"düsseldorf","dusseldorf":"düsseldorf",
+  "syney":"sydney"
 });
 export function offlineCityMatches(rows,query,country="all",limit=12){
   if(!Array.isArray(rows))return [];
