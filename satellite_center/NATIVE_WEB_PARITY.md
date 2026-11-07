@@ -2,6 +2,33 @@
 
 Last source audit: 2026-11-07. Development branch: `feature/satellite-auto-discovery-integrated-2026-11-06` (PR #18). **Do not merge into `main` as an untested hardware release.**
 
+## Preview10 · Pixel-level web design reuse, native RF
+
+Default desktop startup now uses Qt WebEngine to load the **identical
+bundled website HTML/CSS/JS modules**, in an installed desktop window.
+This is a renderer and necessarily Chromium-based; prior claims that
+the default is browser-engine-free only describe the optional
+`desktop-widgets` fallback.
+
+The runtime WebChannel allows only named hardware actions to reach
+`Station`, and never invokes WebUSB. The actual operating-system RTL-SDR
+tools open/read/release the physical receiver, schedule local captures,
+write long IQ directly to disk, and run native decoders. HTML/JS display
+functions (orbit, maps, file inspection and NASA imagery) reuse the same
+web sources, not separate Qt Widgets approximations.
+
+For security the exact web UI loads from locally bundled assets through a
+path-constrained custom secure Qt URL scheme. It has no localhost server;
+external links open in the system browser. QWebChannel operations are
+bound to the privileged desktop instance, not any arbitrary remote page.
+A browser-free Qt Widgets fallback remains available by explicit command.
+
+Native-only hardware text and capabilities may differ (no WebUSB grant
+dialog, true IQ rates/disk budgets, native USB lease and OS-only tool
+dependencies). Pixel parity remains contingent on installed Chromium/
+QtWebEngine version, font selection, OS scale and remote CDN availability.
+No physical RF acceptance is claimed from a CI screen rendering.
+
 ## Preview9 · Home and full planner use one real pass model
 
 **Fixed from user screenshot:** The Home Satellite pass planner now visibly
