@@ -16,6 +16,8 @@ def open_ai_settings(parent, ai, after_save=None):
     from .runtime import AIRuntime, RuntimeErrorAI
     from .whisper_engine import WhisperRuntime, WhisperRuntimeError
     from .ai_provision import StarterAI
+    from .hardware_market import detect_hardware, model_fit
+    from .translation_market import TranslationModelMarket, LICENSE as NLLB_LICENSE
 
     class Manager(QDialog):
         def __init__(self):
@@ -26,6 +28,8 @@ def open_ai_settings(parent, ai, after_save=None):
             self.work = queue.Queue()
             self.running = False
             self.library = ModelLibrary(ai.values["model_dir"] or None)
+            self.hardware = detect_hardware()
+            self.translation_market = TranslationModelMarket()
             outer = QVBoxLayout(self)
             scroll = QScrollArea()
             scroll.setWidgetResizable(True)
@@ -68,6 +72,12 @@ def open_ai_settings(parent, ai, after_save=None):
             refresh_compute = QPushButton("Refresh CPU / GPU / NPU readiness")
             refresh_compute.clicked.connect(self.inspect_compute)
             form.addRow(refresh_compute)
+            self.install_cuda = QPushButton("Install CUDA whisper.cpp for NVIDIA GPU")
+            self.install_cuda.clicked.connect(self.install_cuda_runtime)
+            form.addRow(self.install_cuda)
+            self.cuda_status = QLabel("")
+            self.cuda_status.setWordWrap(True)
+            form.addRow("GPU acceleration",self.cuda_status)
             self.model_path = QLineEdit(ai.values["model_path"])
             self.model_path.setPlaceholderText("No active Whisper model selected")
             form.addRow("Active model (CPU GGML or runtime-specific)", self.model_path)
@@ -95,8 +105,22 @@ def open_ai_settings(parent, ai, after_save=None):
             models = QGroupBox("Whisper model market · multilingual DE / EN / TR")
             root.addWidget(models)
             models_layout = QVBoxLayout(models)
+            search_row = QHBoxLayout()
+            self.online_query = QLineEdit()
+            self.online_query.setPlaceholderText(
+                "Search official Whisper GGML models: turbo, large, medium…")
+            self.search_online = QPushButton("Search online / refresh verified catalog")
+            self.search_online.clicked.connect(self.refresh_online_models)
+            search_row.addWidget(self.online_query,1)
+            search_row.addWidget(self.search_online)
+            models_layout.addLayout(search_row)
+            self.online_state = QLabel(
+                "Market lists local models immediately. Online search only on request; "
+                "official Hugging Face GGML models with SHA-256 checksums.")
+            self.online_state.setWordWrap(True)
+            models_layout.addWidget(self.online_state)
             self.models = QListWidget()
-            self.models.setMaximumHeight(128)
+            self.models.setMaximumHeight(260)
             models_layout.addWidget(self.models)
             line = QHBoxLayout()
             self.download = QPushButton("Download & install selected")
@@ -142,6 +166,26 @@ def open_ai_settings(parent, ai, after_save=None):
             trans_layout.addLayout(controls)
             self.pairs = QLabel("Installed pairs: not inspected")
             trans_layout.addWidget(self.pairs)
+            quality = QGroupBox("Higher-capacity translator · NLLB-200 distilled 600M")
+            quality_layout = QVBoxLayout(quality)
+            self.translation_choice = QComboBox()
+            self.translation_choice.addItem("Argos Translate · compact offline language packs","argos")
+            self.translation_choice.addItem("NLLB-200 600M · larger multilingual DE / EN / TR","nllb")
+            self.translation_choice.setCurrentIndex(
+                1 if ai.values.get("translation_model")=="nllb" else 0)
+            quality_layout.addWidget(self.translation_choice)
+            self.nllb_status = QLabel("")
+            self.nllb_status.setWordWrap(True)
+            quality_layout.addWidget(self.nllb_status)
+            nllb_buttons = QHBoxLayout()
+            nllb_install = QPushButton("Download & install NLLB")
+            nllb_install.clicked.connect(self.install_nllb_model)
+            nllb_remove = QPushButton("Remove managed NLLB model")
+            nllb_remove.clicked.connect(self.remove_nllb_model)
+            nllb_buttons.addWidget(nllb_install); nllb_buttons.addWidget(nllb_remove)
+            quality_layout.addLayout(nllb_buttons)
+            trans_layout.addWidget(quality)
+            self.inspect_nllb()
 
             self.feedback = QLabel("No active downloads.")
             self.feedback.setWordWrap(True)
@@ -199,6 +243,56 @@ def open_ai_settings(parent, ai, after_save=None):
             self.whisper_state.setText("CPU whisper-cli ready: " + str(whisper.binary) if whisper.ready()
                                        else "Not installed. Requires git, cmake, C++ compiler when built.")
 
+        def install_cuda_runtime(self):
+            capability = self.hardware["gpu"]
+            if not capability["detected"]:
+                QMessageBox.warning(self,"CUDA Whisper","No NVIDIA GPU was detected. "
+                   "Check NVIDIA driver and nvidia-smi before installing.")
+                return
+            if not capability["cuda_compile_possible"]:
+                QMessageBox.warning(self,"CUDA toolkit unavailable",capability["reason"])
+                return
+            if QMessageBox.question(self,"Build CUDA Whisper",
+                f"Build separate GPU-accelerated whisper.cpp for {capability['name']}?\n"
+                "This requires a compatible CUDA toolkit and may compile for several minutes. "
+                "The original CPU motor, models and TV tuner remain unchanged.") != QMessageBox.Yes:
+                return
+            self.begin("Building NVIDIA CUDA Whisper engine…",WhisperRuntime().install_gpu)
+
+        def inspect_nllb(self):
+            state = self.translation_market.status()
+            self.nllb_status.setText(
+                ("INSTALLED" if state["installed"] else "NOT INSTALLED") +
+                " · optional ~2.5 GB model + Python/PyTorch dependencies" +
+                " · " + NLLB_LICENSE +
+                " · CPU can be slow; requires ~6 GB+ RAM for practical use. "
+                "GPU inference only when compatible PyTorch CUDA is actually available.")
+
+        def install_nllb_model(self):
+            if QMessageBox.question(self, "Optional NLLB license and large download",
+                "Download NLLB-200 distilled 600M from Meta/Hugging Face?\n"
+                "License: CC-BY-NC-4.0 — NON-COMMERCIAL USE only.\n"
+                "Approximately 2.5 GB of model weights, plus substantial "
+                "PyTorch/Transformers dependencies. Model may be slower than Argos "
+                "for live subtitles, especially on Raspberry Pi 5.\n"
+                "Do you agree to install this optional model?") != QMessageBox.Yes:
+                return
+            self.begin("Installing larger NLLB multilingual translation model…",
+                       self.translation_market.install)
+
+        def remove_nllb_model(self):
+            if QMessageBox.question(self,"Remove NLLB",
+                "Remove only TIHULU-managed NLLB model files? "
+                "Argos packs and Whisper models are preserved.") != QMessageBox.Yes:
+                return
+            self.begin("Removing NLLB weights…",self.translation_market.remove)
+
+        def refresh_online_models(self):
+            query = self.online_query.text().strip()
+            self.begin("Searching official online Whisper GGML model catalog…",
+                       lambda: "Verified model entries: " +
+                       ", ".join(self.library.refresh_online(query)))
+
         def install_whisper_runtime(self):
             if QMessageBox.question(self, "Build optional Whisper CPU engine",
                 "Download the pinned whisper.cpp v1.9.5 source from GitHub and "
@@ -239,8 +333,10 @@ def open_ai_settings(parent, ai, after_save=None):
             from PyQt5.QtWidgets import QListWidgetItem
             for model in self.library.installed():
                 key = model["id"]
-                state = "INSTALLED" if model["installed"] else "not installed"
-                item = QListWidgetItem(f"{model['name']} · approx {model['size_mb']} MB · {state}")
+                state = "INSTALLED" if model["installed"] else "download available"
+                fit = model_fit(key,model["size_mb"],self.hardware)
+                item = QListWidgetItem(
+                    f"{model['name']} · ~{model['size_mb']} MB · {state}\n   {fit}")
                 item.setData(Qt.UserRole, key)
                 self.models.addItem(item)
                 if key == old:
@@ -251,13 +347,27 @@ def open_ai_settings(parent, ai, after_save=None):
 
         def inspect_compute(self):
             try:
+                self.hardware = detect_hardware()
                 p = detect_devices()
-                parts = [x["id"].upper() + " " + ("detected" if x["detected"] else "absent")
-                         for x in p["devices"]]
-                ready = [key.upper() for key in ("cpu", "gpu", "npu")
-                         if p["speech"].get("ready_" + key)]
-                self.compute.setText(" | ".join(parts) + " · Ready speech runtimes: " +
-                                     (", ".join(ready) if ready else "none"))
+                gpu = self.hardware["gpu"]
+                npu = self.hardware["npu"]
+                ram = self.hardware["ram_mib"]
+                available = [key.upper() for key in ("cpu","gpu","npu")
+                             if p["speech"].get("ready_"+key)]
+                self.compute.setText(
+                    "CPU: " + self.hardware["cpu"] +
+                    (" · RAM ~"+str(round(ram/1024,1))+" GiB" if ram else "") +
+                    "\nGPU: " + gpu["name"] +
+                    (" · VRAM "+str(gpu["vram_mib"])+" MiB" if gpu["vram_mib"] else "") +
+                    "\nNPU: " + (", ".join(npu["devices"]) if npu["detected"]
+                                  else "not detected") +
+                    "\nSpeech runtime READY: " + (", ".join(available) if available else "none") +
+                    "\nDetected hardware is NOT proof of usable CUDA/NPU model.")
+                self.cuda_status.setText(
+                    "CUDA compiler: " + (gpu["cuda_version"] or "not installed") +
+                    " · GPU whisper.cpp built: " +
+                    ("YES" if WhisperRuntime().ready_gpu() else "NO") +
+                    "\n" + gpu["reason"])
             except (ImportError, OSError, ValueError) as exc:
                 self.compute.setText("Hardware inference discovery failed: " + str(exc)[:140])
 
@@ -296,6 +406,8 @@ def open_ai_settings(parent, ai, after_save=None):
                     self.inspect_argos()
                     self.inspect_runtime()
                     self.inspect_starter()
+                    self.inspect_nllb()
+                    self.inspect_compute()
                     if after_save:
                         after_save()
                 else:
@@ -304,8 +416,8 @@ def open_ai_settings(parent, ai, after_save=None):
 
         def download_model(self):
             key = self.selected_model()
-            if key not in CATALOG: return
-            desc = CATALOG[key]
+            if key not in self.library.catalog: return
+            desc = self.library.catalog[key]
             if QMessageBox.question(self, "Download model",
                   f"Download {desc['name']} (~{desc['size_mb']} MB) to {self.library.root}?\n"
                   "Model file is verified using SHA-256. No background download.") != QMessageBox.Yes:
@@ -318,7 +430,7 @@ def open_ai_settings(parent, ai, after_save=None):
 
         def use_model(self):
             key = self.selected_model()
-            if key in CATALOG and self.library._path(key).is_file():
+            if key in self.library.catalog and self.library._path(key).is_file():
                 self.model_path.setText(str(self.library._path(key)))
                 self.feedback.setText("Model selected. Click Save settings to activate.")
             else:
@@ -326,7 +438,7 @@ def open_ai_settings(parent, ai, after_save=None):
 
         def remove_model(self):
             key = self.selected_model()
-            if key not in CATALOG: return
+            if key not in self.library.catalog: return
             path = self.library._path(key)
             if not path.is_file(): return
             if QMessageBox.question(self, "Delete managed model",
@@ -384,6 +496,7 @@ def open_ai_settings(parent, ai, after_save=None):
                     "asr_enabled": self.asr.isChecked(),
                     "translation_enabled": self.translator.isChecked(),
                     "backend": self.backend.currentText(),
+                    "translation_model": self.translation_choice.currentData(),
                     "model_path": self.model_path.text().strip(),
                     "model_dir": str(self.library.root)
                 })
