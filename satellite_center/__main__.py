@@ -1319,8 +1319,11 @@ class Station:
             raise RuntimeError("Receiver disabled in Hardware. Connect & verify USB to enable RF.")
         if type(sample_rate) is not int or sample_rate not in (1024000,2048000):
             raise ValueError("IQ sample rate must be 1.024 or 2.048 MS/s")
-        if mode in ("iq","iq_and_fm_wav") and 2*sample_rate*seconds>MAX_IQ_BYTES:
-            raise ValueError("Selected IQ duration/rate exceeds safe 2 GB disk limit")
+        if mode in ("iq","iq_and_fm_wav"):
+            bytes_per_second=2*sample_rate + (64000 if mode=="iq_and_fm_wav" else 0)
+            if bytes_per_second*seconds>MAX_IQ_BYTES:
+                raise ValueError(
+                    "Selected IQ/WAV duration and rate exceed safe 2 GB total disk limit")
         if mode == "iq_and_fm_wav":
             return self.capture_dual(profile,seconds,scheduled,owner,satellite,sample_rate)
         # Explicit manual requests use the same 8–900 s/2 GB native disk
