@@ -13,6 +13,7 @@ import sys
 
 ROOT = Path.home() / ".local/share/tihulu-tv-center/ai-runtime"
 MARKER = ".tihulu-owned-ai-runtime"
+ARGOS_READY = ".tihulu-argos-ready"
 
 class RuntimeErrorAI(RuntimeError):
     pass
@@ -24,7 +25,8 @@ class AIRuntime:
 
     def status(self):
         py = self.root / "bin/python3"
-        return {"installed": self.marker.is_file() and py.is_file(),
+        return {"installed": self.marker.is_file() and py.is_file()
+                and (self.root / ARGOS_READY).is_file(),
                 "python": str(py), "path": str(self.root)}
 
     def _guard(self):
@@ -58,6 +60,9 @@ class AIRuntime:
             if result.returncode != 0:
                 raise RuntimeErrorAI("Argos installation failed: " +
                     result.stderr.decode("utf-8", "replace")[-600:])
+            # The directory marker alone does not mean an interrupted pip
+            # installation is usable. Mark readiness only after success.
+            (self.root / ARGOS_READY).write_text("argos installed\n", encoding="utf-8")
         except (OSError, subprocess.SubprocessError) as exc:
             raise RuntimeErrorAI("Optional runtime installation failed: " + str(exc)[:300]) from exc
         return "Argos installed in "+str(self.root)+". Restart TV Center to activate."
