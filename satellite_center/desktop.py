@@ -193,7 +193,7 @@ class SatelliteWindow(QMainWindow):
 
     def _style(self):
         self.setStyleSheet("""
-          QMainWindow,QWidget{background:#0b1626;color:#eaf4ff;font-size:12px;font-family:"Noto Sans"}
+          QMainWindow,QWidget{background:#0b1626;color:#eaf4ff;font-size:13px;font-family:"Noto Sans"}
           QFrame#passDetail{background:#142840;border:1px solid #345a78;border-radius:12px}
           QLabel#passTitle{font-size:17px;font-weight:700;color:#f1f9ff}
           QLabel#passSubtitle{font-size:12px;color:#a9c5dd}
@@ -214,6 +214,7 @@ class SatelliteWindow(QMainWindow):
           QMenu::item{padding:10px 24px}
           QMenu::item:selected{background:#26547b}
           QFrame#workflowCard{border:1px solid #42637f;border-radius:13px;background:#142c45}
+          QFrame#workflowCard QLabel{background:transparent;border:0}
           QLabel#workflowStep{font-size:14px;font-weight:750;color:#e9f6ff}
           QLabel#workflowDescription{color:#afc9e2;font-size:12px}
           QLabel#homeTagline{font-size:15px;color:#b8d8ea}
@@ -269,7 +270,7 @@ class SatelliteWindow(QMainWindow):
             ("Auto receive","Auto reception"),
             ("Recordings & results","Recordings & results"),
         ):
-            button=QPushButton(label)
+            button=QPushButton(label.replace("&","&&"))
             button.setObjectName("primaryNav")
             button.setCheckable(True)
             button.clicked.connect(
@@ -314,7 +315,7 @@ class SatelliteWindow(QMainWindow):
                                  else "More: "+name+"  ▾")
 
     def _panel(self, title, parent):
-        group=QGroupBox(title)
+        group=QGroupBox(title.replace("&","&&"))
         group.setLayout(QVBoxLayout())
         parent.addWidget(group)
         return group.layout()
@@ -326,7 +327,7 @@ class SatelliteWindow(QMainWindow):
         layout.addLayout(row)
 
     def _button(self, label, callback, tooltip=None):
-        button=QPushButton(label)
+        button=QPushButton(label.replace("&","&&"))
         button.clicked.connect(callback)
         if tooltip: button.setToolTip(tooltip)
         return button
@@ -608,7 +609,8 @@ class SatelliteWindow(QMainWindow):
             "LOS · local","Peak","Family"])
         self.pass_list.setUniformRowHeights(False)
         self.pass_list.setRootIsDecorated(False)
-        self.pass_list.setMinimumHeight(225)
+        self.pass_list.setMinimumHeight(155)
+        self.pass_list.setMaximumHeight(290)
         self.pass_list.setAlternatingRowColors(False)
         self.pass_list.setSelectionMode(QTreeWidget.SingleSelection)
         self.pass_list.setSortingEnabled(False) # AOS order is preserved
@@ -617,7 +619,7 @@ class SatelliteWindow(QMainWindow):
         for col in (2,3,4,5):
             self.pass_list.header().setSectionResizeMode(col,QHeaderView.ResizeToContents)
         self.pass_list.itemSelectionChanged.connect(self.pass_selected)
-        body.addWidget(self.pass_list,3)
+        body.addWidget(self.pass_list)
 
         self.pass_detail=QFrame()
         self.pass_detail.setObjectName("passDetail")
@@ -1278,7 +1280,7 @@ class SatelliteWindow(QMainWindow):
             step=QWidget()
             inner=QVBoxLayout(step)
             inner.setSpacing(10)
-            self.result_steps.addTab(step,title)
+            self.result_steps.addTab(step,title.replace("&","&&"))
         browse=self.result_steps.widget(0).layout()
         analyze=self.result_steps.widget(1).layout()
         extract=self.result_steps.widget(2).layout()
@@ -1288,14 +1290,15 @@ class SatelliteWindow(QMainWindow):
                   self._button("Open existing file…",self.import_file),
                   self._button("Reveal recordings folder",self.open_archive_folder))
         self.files=QTreeWidget()
-        self.files.setMinimumHeight(160)
+        self.files.setMinimumHeight(125)
+        self.files.setMaximumHeight(260)
         self.files.setHeaderLabels(["Actual local file","Data type · format","Size","Modified · local"])
         self.files.header().setSectionResizeMode(0,QHeaderView.Stretch)
         self.files.header().setSectionResizeMode(1,QHeaderView.ResizeToContents)
         self.files.header().setSectionResizeMode(2,QHeaderView.ResizeToContents)
         self.files.header().setSectionResizeMode(3,QHeaderView.ResizeToContents)
         self.files.itemSelectionChanged.connect(self._file_selected)
-        browse.addWidget(self.files,1)
+        browse.addWidget(self.files)
         self.browse_file_info=self._hint(
             "Pick an actual local file. Its data format will be displayed; "
             "a file name or format header cannot authenticate a satellite.")
