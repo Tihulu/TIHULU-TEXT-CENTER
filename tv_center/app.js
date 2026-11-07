@@ -72,6 +72,8 @@
       $("translated").textContent=data.caption?.translated||"";
       $("caption-source").textContent=data.caption?.source||"none";
       $("page").value=data.teletext_page||150;
+      const hw=data.receiver||{};
+      const tunerReady=Boolean(hw.frontend_present && hw.dvr_present);
       const live=data.source==="live_native_dvb";
       $("video-start").disabled=!live;
       $("video-stop").disabled=!data.mobile_video;
@@ -80,8 +82,10 @@
           ?"Live HLS encoder is on. Use Watch video to play the real local broadcast."
           :"Channel tuned. Enable live web video when needed (CPU intensive)."
         :"Tune a real channel from the channel list to enable video.";
-      state(live?"LIVE DVB · LOCAL":"LOCAL TV CONNECTED");
-      note("Connected automatically on localhost. No token or pairing required on this computer.");
+      state(live?"LIVE DVB · LOCAL":tunerReady?"LOCAL DVB READY":"LOCAL APP · TUNER MISSING");
+      note(tunerReady
+        ? "Local TV connected. DVB adapter "+(hw.adapter??0)+" detected; choose a channel or scan. No token required."
+        : "Local TV service connected, but no Linux DVB frontend/DVR was detected. Check the USB receiver and the native app's Hardware status.");
     }catch(err){
       reset("Native receiver stopped: "+err.message);
     }finally{busy=false;}
@@ -89,14 +93,21 @@
 
   async function initialize(){
     if(!local){
-      state("WEBUSB / BROWSER AI");
-      note("GitHub Pages needs no token. To scan/watch DVB, open the token-free local web app on this computer.");
+      state("BROWSER ONLY · DVB VIA LOCAL APP");
+      $("channel").textContent="Open Local TV to watch broadcast channels";
+      $("source").textContent="The public GitHub Pages site cannot control Linux DVB. WebUSB hardware diagnostics and browser AI remain available here.";
+      $("original").textContent="TV captions are available after opening the local TV app. Browser AI can run independently here.";
+      $("video-status").textContent="Click Open Local TV to tune channels, scan frequencies and watch HLS on this computer.";
+      note("Start tihulu-tv-center on the computer with the tuner, then choose Open Local TV. No token or PIN.");
       try{
         await health();
         state("LOCAL TV FOUND");
-        note("Local TV Center detected. Open it with the link above; no token or login.");
+        note("Local TV service detected. Opening same-origin token-free TV controls…");
+        if(!new URLSearchParams(location.search).has("browser-only")){
+          location.replace(LOOPBACK+"/");
+        }
       }catch(err){
-        note("Local receiver not detected or browser blocked localhost discovery. Start tihulu-tv-center, then click Open Local TV. No token is needed.");
+        note("Direct Pages-to-localhost discovery was unavailable (browser security may block it). Click Open Local TV manually; if it does not open, update/start the native TV Center.");
       }
       return;
     }

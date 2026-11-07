@@ -43,15 +43,17 @@ export function scanTitle(request) {
 }
 
 export function scanControls({connected=false, medium="t", scanning=false,
-    playing=false, pending=false, signal="", scanMessage=""} = {}) {
+    playing=false, pending=false, signal="", scanMessage="",
+    frontendAvailable=true} = {}) {
   const fields = scanFields(medium);
   const nativeReady = Boolean(connected);
+  const tunerReady = nativeReady && Boolean(frontendAvailable);
   const isScanning = nativeReady && Boolean(scanning);
   const isPlaying = nativeReady && Boolean(playing);
   return {
     ...fields,
     connected:nativeReady,
-    scanEnabled:nativeReady && !isScanning && !isPlaying && !pending,
+    scanEnabled:tunerReady && !isScanning && !isPlaying && !pending,
     cancelEnabled:nativeReady && isScanning && !pending,
     stopEnabled:nativeReady && isPlaying && !pending,
     refreshEnabled:nativeReady && !pending,
@@ -59,14 +61,17 @@ export function scanControls({connected=false, medium="t", scanning=false,
     countryEnabled:!isScanning && !pending && fields.showCountry,
     satelliteEnabled:!isScanning && !pending && fields.showSatellite,
     deliveryEnabled:!isScanning && !pending,
-    backendText:nativeReady
-      ? "Native Linux/Pi DVB connected · real RF scanning available when tuner is idle"
-      : "No native DVB receiver connected · WebUSB diagnostics do not enable RF scanning",
-    statusText:!nativeReady ? "Connect or pair with native TV Center to scan."
+    backendText:!nativeReady
+      ? "Local TV service not connected — open Local TV on this computer"
+      : tunerReady
+      ? "Native TV service connected · Linux DVB frontend ready"
+      : "Local TV service connected · DVB frontend/DVR not detected",
+    statusText:!nativeReady ? "Open Local TV at http://127.0.0.1:8768/ to scan (no token)."
+      : !tunerReady ? "No usable Linux DVB frontend detected. Check USB/firmware and the selected adapter."
       : isScanning ? "Scanning actual DVB frequencies · " + (scanMessage || "waiting for receiver")
       : isPlaying ? "TV is playing. Stop the tuner before starting a full scan."
       : (scanMessage || "Receiver connected · ready to scan"),
-    signalText:!nativeReady ? "No RF readings — receiver disconnected."
+    signalText:!tunerReady ? "No RF measurement: local TV frontend unavailable."
       : signal || "No RF readings yet (driver may not expose them).",
     explanation:nativeReady ? "Scan controls use your native DVB tuner, not browser WebUSB."
       : NATIVE_ONLY

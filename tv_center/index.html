@@ -9,7 +9,7 @@
 <body>
 <div class="shell">
 <header><div><div class="eyebrow">TIHULU / MEDIA</div><h1>TV Center <span>Web Companion</span></h1></div>
-<div class="state" id="state">DISCONNECTED</div></header>
+<div class="state" id="state">CHECKING LOCAL TV</div></header>
 <main>
 <section class="hero">
 <div class="eyebrow">RECEIVER SESSION</div>
@@ -28,6 +28,16 @@
 <p id="translated" class="translated"></p><small id="caption-source">No transcript received</small></section>
 </section>
 <aside>
+<section class="panel" id="local-tv-panel"><h2>3 · Open Local TV — No token</h2>
+<p>For real TV channels, scanning, favorites, Teletext and HLS video, run <strong>TIHULU TV Center</strong> on this computer. It starts a token-free local web companion at <code>127.0.0.1:8768</code>. No account, copied token or pairing required on the same machine.</p>
+<div class="actions">
+<a id="local-tv-link" class="link-button" href="http://127.0.0.1:8768/" target="_blank" rel="noopener noreferrer">Open Local TV</a>
+<button id="connect" class="secondary">Check local receiver</button>
+</div>
+<p id="connection-note" role="status">GitHub Pages supports browser AI and WebUSB diagnostics directly. Use the local link for full native DVB controls.</p>
+<small>Browser security may block automatic localhost discovery from GitHub Pages. Opening the local URL directly avoids cross-origin and mixed-content restrictions. Remote phones continue using the separately enabled PIN-paired LAN app.</small>
+</section>
+
 <section class="panel" id="webusb-dvb">
 <h2>1 · Hauppauge WebUSB · Direct driver laboratory</h2>
 <p><strong>WinTV-soloHD 2040:8268 / Empia EM28178</strong>: direct USB descriptor and read-only chip-ID diagnostics are implemented. An experimental exclusive bulk-IN transfer can analyze real MPEG-TS packets if the device is already delivering them. <strong>This is NOT a functioning DVB-T2 tuner or scan driver yet.</strong></p>
@@ -45,15 +55,7 @@
 <p>Plug the DVB-T2 USB tuner into the host computer or Raspberry Pi. In native TV Center, tune a channel, enable <b>Allow phone / tablet on trusted Wi-Fi</b>, then on the phone open the displayed <code>http://HOST-IP:8769/</code>. Enter the six-digit pairing code shown on the host; no long token is needed. Enable <b>Share live H.264/AAC video</b> on the host for an optional real TV stream.</p>
 <p>Safari on iPhone plays HLS natively; Android Chrome uses hls.js. The host and phone must share trusted Wi-Fi. Never expose HTTP port 8769 to the public Internet.</p>
 </section>
-<section class="panel" id="local-tv-panel"><h2>3 · Open Local TV — No token</h2>
-<p>For real TV channels, scanning, favorites, Teletext and HLS video, run <strong>TIHULU TV Center</strong> on this computer. It starts a token-free local web companion at <code>127.0.0.1:8768</code>. No account, copied token or pairing required on the same machine.</p>
-<div class="actions">
-<a id="local-tv-link" class="link-button" href="http://127.0.0.1:8768/" target="_blank" rel="noopener noreferrer">Open Local TV</a>
-<button id="connect" class="secondary">Check local receiver</button>
-</div>
-<p id="connection-note" role="status">GitHub Pages supports browser AI and WebUSB diagnostics directly. Use the local link for full native DVB controls.</p>
-<small>Browser security may block automatic localhost discovery from GitHub Pages. Opening the local URL directly avoids cross-origin and mixed-content restrictions. Remote phones continue using the separately enabled PIN-paired LAN app.</small>
-</section>
+
 <div id="web-control-root"></div><section class="panel"><h2>Interactive Teletext</h2>
 <p>Choose a real broadcast page, including 100 (index), 150 (ARD/ARTE captions) or 777 (some ZDF captions).</p>
 <div class="actions"><input id="page" type="number" min="100" max="899" step="1" value="150">
@@ -86,5 +88,5 @@
 </section>
 </aside></main>
 <footer>TOKEN-FREE LOCAL DVB · OPTIONAL PIN FOR LAN · WEBUSB DIAGNOSTICS · WEBGPU/WASM AI</footer>
-</div><script src="https://cdn.jsdelivr.net/npm/hls.js@1.7.3/dist/hls.min.js"></script><script src="./app.js?v=3"></script><script type="module" src="./web-controls.js?v=2"></script><script type="module" src="./webusb-ui.js"></script><script type="module" src="./browser-ai-ui.js"></script>
+</div><script src="https://cdn.jsdelivr.net/npm/hls.js@1.7.3/dist/hls.min.js"></script><script src="./app.js?v=4"></script><script type="module" src="./web-controls.js?v=4"></script><script type="module" src="./webusb-ui.js"></script><script type="module" src="./browser-ai-ui.js"></script>
 </body></html>

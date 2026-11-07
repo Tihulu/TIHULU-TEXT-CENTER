@@ -1,8 +1,8 @@
 {
   "source_branch": "feature/tv-center-native-teletext-asr-2026-11-07",
-  "source_sha": "6de8a93d5dda03d1472f1d2c2660b53cbd07fae8",
-  "interface": "Token-free local TV companion (127.0.0.1:8768)",
-  "pages_behavior": "Public Pages checks non-sensitive localhost health and links to tokenless same-origin local TV, without elevated cross-origin DVB API privileges",
-  "tuner": "Native Linux DVB required for TV; direct browser WebUSB receiver still experimental diagnostics",
-  "mobile": "LAN requires explicit PIN pairing"
+  "source_sha": "0ca04531041b268098c9d67616030d17b3c9f191",
+  "ui": "GitHub Pages redirects to tokenless local TV when allowed; otherwise offers first-card same-host launcher; hide unusable native scan controls",
+  "native": "Local TV server and real DVB frontend shown separately; /api/status receiver.frontend_present controls scan readiness",
+  "webusb": "hardware diagnostics only; direct DVB-T2 tuning not implemented",
+  "mobile": "separate PIN-paired LAN session"
 }

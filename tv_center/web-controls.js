@@ -6,6 +6,18 @@ import {scanFields,scanRequest,scanTitle,scanControls} from "./scan-ui-state.js"
 (() => {
   const root=document.getElementById("web-control-root");
   if(!root)return;
+  // Public GitHub Pages has no privileges to operate the native DVB tuner.
+  // Do not render dead scan buttons or a misleading "receiver disconnected".
+  if(location.hostname==="tihulu.github.io"){
+    root.innerHTML=`
+      <section class="panel" id="web-pages-tv-launch">
+        <h2>Real TV channels &amp; scanning · Local TV</h2>
+        <p>GitHub Pages runs WebUSB diagnostics and browser AI, but cannot tune Linux DVB by itself. The full TV interface runs on the computer connected to the receiver.</p>
+        <a class="link-button" href="http://127.0.0.1:8768/" rel="noopener">Open Local TV — no token</a>
+        <small>Start <code>tihulu-tv-center</code> first. For a phone, open the PIN-paired LAN address shown by the native app instead.</small>
+      </section>`;
+    return;
+  }
   root.innerHTML=`
     <section class="panel" id="web-channels-panel">
       <h2>Real TV / Radio · Favorites</h2>
@@ -23,7 +35,7 @@ import {scanFields,scanRequest,scanTitle,scanControls} from "./scan-ui-state.js"
     </section>
     <section class="panel" id="web-scan-panel">
       <h2>Automatic DVB scan <span class="web-mini-subtitle">Native receiver</span></h2>
-      <p id="web-scan-backend" class="web-scan-backend">Native DVB receiver disconnected.</p>
+      <p id="web-scan-backend" class="web-scan-backend">Checking the native DVB frontend…</p>
       <p id="web-scan-context">Select an antenna or cable profile. Real RF scanning needs a native Linux/Pi tuner; WebUSB device diagnostics cannot scan TV channels.</p>
       <div class="web-scan-field" id="web-delivery-field">
         <label for="web-medium">Reception type</label>
@@ -55,7 +67,7 @@ import {scanFields,scanRequest,scanTitle,scanControls} from "./scan-ui-state.js"
       <div class="actions">
         <button id="web-stop" class="secondary" disabled>Stop playing / release tuner</button>
       </div>
-      <p id="web-scan-state" role="status">Connect or pair with native TV Center to scan.</p>
+      <p id="web-scan-state" role="status">Checking the local TV service and connected DVB tuner…</p>
       <p id="web-signal">No RF readings — receiver disconnected.</p>
       <div class="web-channel-log" id="web-scan-log" aria-label="Real-time scan log"></div>
       <small id="web-scan-limitation">WebUSB permission alone never enables Start full scan. Native DVB hardware is required.</small>
@@ -83,11 +95,12 @@ import {scanFields,scanRequest,scanTitle,scanControls} from "./scan-ui-state.js"
     if(cls)el.className=cls;return el;
   };
   let channels=[], channelBusy=false, pending=false, scanning=false;
-  let playing=false, signal="", scanMessage="", prevConnected=false, profileDirty=false;
+  let playing=false, signal="", scanMessage="", frontendAvailable=true, prevConnected=false, profileDirty=false;
   let profileSyncNeeded=true;
 
   function resetDisconnected(){
     channels=[];scanning=false;playing=false;signal="";scanMessage="";
+    frontendAvailable=false;
     show("web-channel-origin","Connect or pair with native TV Center to see actual scanned services.");
     show("web-channel-msg","");
     show("web-model-info","Native model status needs a paired receiver. Browser AI Studio works independently.");
@@ -96,7 +109,7 @@ import {scanFields,scanRequest,scanTitle,scanControls} from "./scan-ui-state.js"
   }
   function paint(){
     const state=scanControls({connected:connected(),medium:$("web-medium").value,
-      scanning,playing,pending,signal,scanMessage});
+      scanning,playing,pending,signal,scanMessage,frontendAvailable});
     const satField=$("web-satellite-field"), countryField=$("web-country-field");
     satField.hidden=!state.showSatellite;
     countryField.hidden=!state.showCountry;
@@ -200,6 +213,12 @@ import {scanFields,scanRequest,scanTitle,scanControls} from "./scan-ui-state.js"
       const data=await connector().get("/api/status");
       if(!connected())return;
       playing=data.source==="live_native_dvb";
+      if(data.receiver){
+        frontendAvailable=Boolean(data.receiver.frontend_present&&data.receiver.dvr_present);
+        show("web-channel-origin",frontendAvailable
+          ? "Local TV connected · DVB frontend "+(data.receiver.adapter??0)+" detected"
+          : "Local TV connected · DVB hardware missing. Check USB/driver and tuner adapter.");
+      }
       paint();
     }catch(err){
       if(connected())show("web-channel-msg","TV status unavailable: "+err.message);
