@@ -24,7 +24,7 @@
 </section>
 <section id="auto-workflow" class="notice" aria-label="Satellite automatic reception workflow">
 <h2>Satellite Auto-Capture &amp; Decode — three steps</h2>
-<p class="hint">One click predicts and arms real ISS/Meteor passes; later analyze actual recordings and open verified extraction results. Browser auto capture requires previously granted RTL-SDR access and a visible, awake tab. An optional native companion can record while the browser is closed.</p>
+<p class="hint">One click predicts and arms real ISS/Meteor passes; later analyze actual recordings and open verified extraction results. Long WebUSB recordings are scheduled as consecutive <=60-second calendar segments (and <=128 MiB per CU8 file), each with its own actual data file and status. Reconnecting the SDR creates gaps: this is not continuous I/Q. Browser capture requires a visible, awake tab; the native companion can record while the browser is closed.</p>
 <div class="line">
 <label>Auto-target group<select id="auto-mode">
 <option value="iss-images">ISS SSTV ONLY · Series 35 (9–16 Nov 2026) · 437.550 MHz Robot36</option>
@@ -33,7 +33,7 @@
 <option value="voice">ISS FM voice / audio candidate</option>
 <option value="all">Images + text + voice (single receiver; no overlapping scans)</option>
 </select></label>
-<label>Browser recording seconds (8–60)<input id="auto-browser-seconds" type="number" min="8" max="60" step="1" value="60" inputmode="numeric"></label>
+<label>Auto capture length<input id="auto-browser-seconds" type="number" min="8" max="7200" step="1" value="60" inputmode="numeric"></label><label>Length unit<select id="auto-browser-unit"><option value="seconds">Seconds</option><option value="minutes">Minutes</option></select></label>
 <label>Recording goal<select id="auto-coverage">
 <option value="full" selected>Prefer useful complete data (long image passes require native receiver)</option>
 <option value="sample">Quick RF sample · up to 60 seconds (may be incomplete)</option>
@@ -193,7 +193,7 @@ All location methods are optional. City suggestions are offline by default; GPS 
 <div id="jobs" class="scheduled-jobs" aria-live="polite">No scheduled browser captures.</div>
 <section id="browser-schedule-calendar" class="sat-calendar-panel" aria-labelledby="browser-calendar-title">
 <h3 id="browser-calendar-title">My reception calendar · 24-hour timeline</h3>
-<p class="hint">Browser schedules run only while this tab stays open, visible and awake. Edit time, frequency, duration or cancel each pending job here. The native companion can preserve unattended jobs while its service is running.</p>
+<p class="hint">Long captures become independent time-stamped calendar segments, 6 seconds apart. Every part has its own status, CU8/WAV downloads and measured RF evidence; there may be additional USB re-tune/download gaps. Edit or cancel an entire chain from any pending segment. Browser schedules run only while this tab is open, visible and awake. The native companion schedules persist while its service runs.</p>
 <div class="line"><label>Date<input id="browser-calendar-date" type="date"></label>
 <button id="browser-calendar-prev" class="secondary" type="button">Previous day</button>
 <button id="browser-calendar-next" class="secondary" type="button">Next day</button></div>
@@ -410,4 +410,4 @@ These provider viewers offer maps/imagery independently of your RTL-SDR.</p>
 <details><summary>What requires more than a browser?</summary><p>Windows may require WinUSB driver setup; Linux may require releasing the kernel DVB driver or adjusting permissions. To record a pass while the browser is closed, the optional local companion must remain running. The companion still supports offline SatDump and multimon-ng where installed.</p></details>
 <h3>Activity log</h3><pre id="log" aria-live="polite">Ready. USB idle. No fabricated RF data.</pre></section>
 <footer>Receive-only. The page never transmits RF, uploads I/Q files or silently scans. Page closing releases browser-owned USB access; an unexpected OS/browser crash cannot be guaranteed to cleanly close every device state. Browser client uses <a href="https://www.npmjs.com/package/@jtarrio/webrtlsdr" rel="noopener noreferrer" target="_blank">@jtarrio/webrtlsdr</a> from a version-pinned module CDN (requires Internet to load initially).</footer>
-</main><script type="module" src="./browser.js?v=20261107-iss-band-diagnostic-v1"></script></body></html>
+</main><script type="module" src="./browser.js?v=20261107-chained-capture-v1"></script></body></html>
