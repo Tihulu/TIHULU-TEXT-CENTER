@@ -8,6 +8,9 @@ from .whisper_engine import WhisperRuntime
 from .runtime import AIRuntime
 
 def main():
+    if len(sys.argv) >= 2 and sys.argv[1] == "ai-check":
+        from .ai_diagnostics import main as diagnose_ai
+        return diagnose_ai()
     if len(sys.argv) >= 2 and sys.argv[1] == "ai-market":
         from .settings_ui import open_ai_settings
         from PyQt5.QtWidgets import QApplication
@@ -63,7 +66,7 @@ def main():
         arguments = sys.argv[2:] if len(sys.argv) > 1 else []
         os.execv(str(launcher), [str(launcher), "--lastchannel", *arguments])
     print("Unknown command. Use: tv, ai-market, ai, doctor, "
-          "kaffeine-captions, kaffeine-doctor, legacy-player", file=sys.stderr)
+          "kaffeine-captions, kaffeine-doctor, ai-check, legacy-player", file=sys.stderr)
     return 2
 
 if __name__ == "__main__":
