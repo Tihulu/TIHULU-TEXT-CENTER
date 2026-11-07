@@ -1291,7 +1291,7 @@ function showCalendarEdit(job,card){
 }
 function paintBrowserCalendar(force=false){
  const day=browserCalendarDay.value;
- const signature=day+'|'+jobs.map(j=>[j.id,j.when,j.state,j.frequency,j.durationSeconds].join(':')).join('|');
+ const signature=day+'|'+jobs.map(j=>[j.id,j.when,j.state,j.frequency,j.durationSeconds,j.segmentIndex,j.segmentCount].join(':')).join('|');
  const editingCard=$('browser-calendar-grid').querySelector('.calendar-edit')?.closest('.sat-calendar-job');
  const editedJob=jobs.find(j=>j.id===editingCard?.dataset.jobId);
  if(!force&&editingCard&&editedJob?.state==='armed')return;
@@ -1319,7 +1319,8 @@ $('browser-calendar-next').addEventListener('click',()=>{
 let lastRenderedJobCardsSignature='';
 function jobCardsSignature(){
  return JSON.stringify(jobs.map(j=>[j.id,j.state,j.when,j.until,j.frequency,
-   j.durationSeconds,j.sampleRate,j.saveRaw,j.message,j.downloadAvailable,
+   j.durationSeconds,j.sampleRate,j.saveRaw,j.saveWav,j.segmentIndex,j.segmentCount,
+   j.message,j.downloadAvailable,
    j.report,lastScheduledFile?.jobId===j.id]));
 }
 function renderJobs(){
@@ -1347,14 +1348,17 @@ function renderJobs(){
  for(const job of [...jobs].sort((a,b)=>a.when-b.when)){
    const panel=document.createElement('div');panel.className='scheduled-job';
    panel.dataset.state=job.state;panel.dataset.jobId=job.id;
-   const title=document.createElement('h4');title.textContent=job.name+' · '+(job.frequency/1e6).toFixed(3)+' MHz';
+   const title=document.createElement('h4');title.textContent=job.name+' · '+(job.frequency/1e6).toFixed(3)+' MHz'+
+     (job.segmentCount?' · Part '+job.segmentIndex+'/'+job.segmentCount:'');
    const statusLine=document.createElement('p');statusLine.className='job-state';
    statusLine.textContent=readableJobState(job,now);
    const timings=document.createElement('p');
    timings.textContent='Scheduled start (local): '+fmtTime(job.when)+
      ' · pass ends '+fmtTime(job.until)+
      ' · '+job.durationSeconds+' s · '+(job.sampleRate/1e6)+' MS/s'+
-     ' · '+(job.saveRaw?'Raw IQ + power analysis':'Power analysis only');
+     (job.segmentCount?' · PART '+job.segmentIndex+'/'+job.segmentCount+
+       ' · ends '+fmtTime(job.when+job.durationSeconds*1000):'')+
+     ' · '+outputSelectionText(job.saveRaw,job.saveWav);
    const message=document.createElement('p');
    message.textContent=job.message||'Waiting for browser scheduler.';
    const controls=document.createElement('div');controls.className='line';
