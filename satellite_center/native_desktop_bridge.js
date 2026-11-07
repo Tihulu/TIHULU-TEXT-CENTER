@@ -491,6 +491,7 @@
       window.nativeOrbitSnapshot=(lat,lon,at_ms,tracks=false)=>
         lookup('orbit_snapshot',{lat,lon,at_ms,tracks});
       window.nativeWorldOutline=()=>lookup('world_outline');
+      window.nativeImportTle=text=>lookup('tle_import',{text});
       setHardwareLabels();
       window.nativeWebBridgeReady=true;
       window.nativeRFTransport='rtl_sdr';
