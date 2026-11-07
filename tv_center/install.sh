@@ -17,6 +17,11 @@ echo "Installing native DVB/MPV dependencies; existing TV scans are preserved."
 root_cmd apt-get update
 root_cmd apt-get install -y --no-install-recommends \
   ca-certificates git python3 python3-pyqt5 dvb-tools mpv ffmpeg psmisc dpkg
+if apt-cache show w-scan-cpp >/dev/null 2>&1; then
+  root_cmd apt-get install -y --no-install-recommends w-scan-cpp
+else
+  echo "Warning: w-scan-cpp unavailable. Automatic full-frequency scan will need a compatible package source."
+fi
 tempdir="$(mktemp -d)"
 trap 'rm -rf "$tempdir"' EXIT
 if [[ "$1" == "--local" ]]; then
