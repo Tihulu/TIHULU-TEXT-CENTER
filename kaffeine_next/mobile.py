@@ -6,6 +6,7 @@ is only for trusted LAN; do not forward the exposed port.
 """
 from __future__ import annotations
 from threading import RLock
+import time
 from .mpegts import current_program_id
 from tv_center.lan import MobileLAN
 from tv_center.streaming import HLSStreamer
@@ -16,12 +17,14 @@ class KaffeineMobile:
         self.notify = notify
         self.caption = caption or {"original":"", "translated":"", "source":"none"}
         self.service_id = None
+        self.last_packet_at = 0.0
         self.http = None
         self.hls = None
         self.lock = RLock()
 
     def receive(self, datagram: bytes):
         pid = current_program_id(datagram)
+        self.last_packet_at = time.monotonic()
         stream_to_stop = None
         with self.lock:
             if pid is not None and self.service_id != pid:
@@ -40,11 +43,12 @@ class KaffeineMobile:
     def snapshot(self):
         with self.lock:
             sid = self.service_id
-            streaming = self.hls is not None and self.hls.get_dir() is not None
+            live = bool(sid and time.monotonic() - self.last_packet_at < 8)
+            streaming = live and self.hls is not None and self.hls.get_dir() is not None
             caption = dict(self.caption)
         return {
-            "source": "live_native_dvb" if sid else "offline",
-            "channel": "Kaffeine DVB service "+str(sid) if sid else None,
+            "source": "live_native_dvb" if live else "offline",
+            "channel": "Kaffeine DVB service "+str(sid) if live else None,
             "caption": caption,
             "mobile_video": streaming,
             "subtitle_mode": self.options()["mode"],
@@ -71,8 +75,8 @@ class KaffeineMobile:
         with self.lock:
             if self.http is None:
                 raise RuntimeError("Enable trusted Wi-Fi sharing before video")
-            if not self.service_id:
-                raise RuntimeError("Watch a TV channel first; no genuine MPEG-TS PAT detected")
+            if not self.service_id or time.monotonic() - self.last_packet_at >= 8:
+                raise RuntimeError("Watch a TV channel first; no current MPEG-TS service detected")
             if self.hls is not None:
                 return
             runner = HLSStreamer(lambda kind, detail: self.notify(str(detail)))
@@ -85,6 +89,16 @@ class KaffeineMobile:
             self.hls = None
         if runner:
             runner.stop()
+
+    def expire_if_idle(self):
+        with self.lock:
+            stale = self.service_id is not None and (time.monotonic() - self.last_packet_at >= 12)
+            has_stream = self.hls is not None
+            if stale:
+                self.service_id = None
+        if stale and has_stream:
+            self.stop_video()
+            self.notify("Kaffeine TS ended or signal lost; mobile HLS stopped")
 
     def stream_dir(self):
         with self.lock:

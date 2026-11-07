@@ -16,6 +16,7 @@ def main():
             os.environ.setdefault("QT_QPA_PLATFORM", "xcb")
         app = QApplication.instance() or QApplication(["TIHULU Whisper / Translator Market"])
         ai = AISettings()
+        ai.configure_environment()
         open_ai_settings(None, ai)
         return 0
     if len(sys.argv) >= 2 and sys.argv[1] == "kaffeine-captions":
