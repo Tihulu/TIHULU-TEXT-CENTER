@@ -1,5 +1,25 @@
 # TIHULU Satellite Center 0.3.0~preview7 — native desktop application
 
+## One-line GitHub native install — Debian / Ubuntu / Pop!_OS
+
+Runs on a Linux machine with `curl`, `tar`, `dpkg-deb` and `apt`.
+The installer fetches the public preview branch from GitHub, builds the
+genuine native Qt `.deb` from source, verifies package name/version,
+and installs it through `apt`. No `gh` account, Releases download,
+browser, npm, or Electron is needed. It uses `sudo` only for `apt`.
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Tihulu/TIHULU-TEXT-CENTER/feature/satellite-auto-discovery-integrated-2026-11-06/satellite_center/install/install-deb.sh | bash
+```
+
+Then launch `tihulu-satellite-center` or open the Applications menu.
+Check hardware dependencies with `tihulu-satellite-center doctor`
+without starting an RF capture. `main` is not changed while preview7
+remains in draft review. For a review-before-execute workflow, open
+[`install-deb.sh`](install/install-deb.sh) in the repo before running.
+The older `install/install.sh` creates a separate user-local Python
+environment and is **not** the recommended Debian system package installer.
+
 **Native Qt UI refresh · preview7:** The desktop is no longer eight exposed
 technical tabs. Five main sections follow the browser's user tasks: **Home**,
 **Find satellites**, **Maps & live**, **Auto receive**, and **Recordings & results**.
