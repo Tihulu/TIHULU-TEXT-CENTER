@@ -75,6 +75,9 @@ export function createSatelliteMaps({getTles,getSatLib,getPasses,getLastCapture,
  let trackSlot=null;
  const trackCache=new Map();
  let mapStarted=false,view="sky",loading=null;
+ // Installed desktop uses native Skyfield; web/PWA keeps browser satellite.js.
+ let nativeSnapshotPending=false,nativeTrackAt=0;
+ const nativeTrackCache=new Map();
  let lastVisibleMarkerCount=0,initialCatalogFitDone=false;
  const status=text=>$("map-state").textContent=String(text);
  const observer=()=>{
@@ -400,6 +403,7 @@ export function createSatelliteMaps({getTles,getSatLib,getPasses,getLastCapture,
    if(nearest&&nearest.dist<20)choose(nearest.id);
  });
  function trackCoordinates(s,when,station){
+   if(Array.isArray(s.nativeTrackCoordinates))return s.nativeTrackCoordinates;
    // Orbital ground paths change smoothly. Re-evaluate the expensive ±45min
    // propagation only once per 15 seconds, while marker positions and the
    // coverage footprint update every second in live mode.
@@ -693,6 +697,8 @@ export function createSatelliteMaps({getTles,getSatLib,getPasses,getLastCapture,
  }
  async function refresh(){
   if(!mapStarted)return;
+  const native=typeof window.nativeOrbitSnapshot==='function';
+  if(native&&nativeSnapshotPending)return; // prevent overlapping 1 Hz native jobs
   const token=++run;
   let o;try{o=observer();}catch(e){status(e.message);return;}
   const catalog=getTles();
@@ -701,22 +707,56 @@ export function createSatelliteMaps({getTles,getSatLib,getPasses,getLastCapture,
    status("No TLE catalog loaded. Click Refresh orbit data or import a local TLE file.");
    return;
   }
-  let lib;try{lib=await getSatLib();}catch(e){status("Orbital library unavailable: "+e.message);return;}
-  if(token!==run)return;
   const dt=mapDate(),rows=[];
-  // Reuse parsed TLE records across successive 1-second live frames.
-  // Replace cached records immediately when refreshed orbit lines change.
-  for(const item of catalog.slice(0,30)){
+  if(native){
+   nativeSnapshotPending=true;
    try{
-    const id=String(item.id);
-    const saved=satrecMap.get(id);
-    const rec=saved&&saved.l1===item.l1&&saved.l2===item.l2?
-      saved.rec:lib.twoline2satrec(item.l1,item.l2);
-    if(rec!==saved?.rec)satrecMap.set(id,{l1:item.l1,l2:item.l2,rec});
-    const pos=propagate(lib,rec,dt,o.station);if(!pos)continue;
-    const age=Number.isFinite(rec.jdsatepoch)?Math.abs(Date.now()-(rec.jdsatepoch-2440587.5)*86400000)/86400000:null;
-    rows.push({...item,...pos,rec,lib,ageDays:age});
-   }catch(e){/* bad TLE, no fictional coordinate fallback */}
+    const tracksDue=Date.now()-nativeTrackAt>=15000;
+    const snapshot=await window.nativeOrbitSnapshot(o.lat,o.lon,dt.getTime(),tracksDue);
+    if(token!==run)return;
+    if(tracksDue){
+     nativeTrackAt=Date.now();
+     nativeTrackCache.clear();
+     for(const [id,path] of Object.entries(snapshot.track_paths_by_norad||{})){
+      if(Array.isArray(path))nativeTrackCache.set(String(id),path);
+     }
+    }
+    const byId=new Map(catalog.map(record=>[String(record.id),record]));
+    for(const sat of snapshot.satellites||[]){
+     const item=byId.get(String(sat.norad));
+     if(!item)continue; // never invent a satellite absent from loaded TLEs
+     if(![sat.lat,sat.lon,sat.el,sat.az,sat.alt_km,sat.range_km].every(Number.isFinite))continue;
+     rows.push({...item,lat:sat.lat,lon:sat.lon,el:sat.el,az:sat.az,
+       altKm:sat.alt_km,rangeKm:sat.range_km,
+       ageDays:sat.tle_age_days,
+       nativeTrackCoordinates:nativeTrackCache.get(String(sat.norad))||[]});
+    }
+    if(!rows.length&&catalog.length){
+     status("No native Skyfield positions matched the TLE cache. Refresh orbit data; imported browser-only TLEs may need a refreshed native catalog.");
+    }
+   }catch(e){
+    status("Native orbit map unavailable: "+String(e?.message||e)+
+      ". Verify downloaded TLEs and installed Skyfield; USB is not required.");
+    return;
+   }finally{nativeSnapshotPending=false;}
+  }else{
+   let lib;try{lib=await getSatLib();}
+   catch(e){status("Orbital library unavailable: "+e.message);return;}
+   if(token!==run)return;
+   // Browser edition retains the same local JS orbital propagation.
+   for(const item of catalog.slice(0,30)){
+    try{
+     const id=String(item.id);
+     const saved=satrecMap.get(id);
+     const rec=saved&&saved.l1===item.l1&&saved.l2===item.l2?
+       saved.rec:lib.twoline2satrec(item.l1,item.l2);
+     if(rec!==saved?.rec)satrecMap.set(id,{l1:item.l1,l2:item.l2,rec});
+     const pos=propagate(lib,rec,dt,o.station);if(!pos)continue;
+     const age=Number.isFinite(rec.jdsatepoch)?
+       Math.abs(Date.now()-(rec.jdsatepoch-2440587.5)*86400000)/86400000:null;
+     rows.push({...item,...pos,rec,lib,ageDays:age});
+    }catch(e){/* malformed TLE, no invented satellite position */}
+   }
   }
   current=rows;
   if(!rows.some(x=>String(x.id)===String(selectedId)))selectedId=rows[0]?.id??null;
@@ -726,10 +766,14 @@ export function createSatelliteMaps({getTles,getSatLib,getPasses,getLastCapture,
   drawList();drawDetail();
   if(view==="sky")drawSky();else drawEarth();
   lastUpdate=Date.now();
-  if(earthMap && view==="earth" && !initialCatalogFitDone && rows.length)fitTrackedEarth();
-  status(rows.length+" TLE-derived satellites · "+rows.filter(s=>s.el>=0).length+" above local horizon"+
-   (rows.some(s=>s.ageDays>7)?" · WARNING: stale orbital elements":"")+
-   " · No received satellite signals verified");
+  if(earthMap&&view==="earth"&&!initialCatalogFitDone&&rows.length)fitTrackedEarth();
+  if(rows.length){
+   status(rows.length+" TLE-derived satellites · "+
+     rows.filter(s=>s.el>=0).length+" above local horizon"+
+     (rows.some(s=>s.ageDays>7)?" · WARNING: stale orbital elements":"")+
+     (native?" · Native Skyfield; no browser CDN":" · Browser orbital calculation")+
+     " · No received satellite signals verified");
+  }
  }
  for(const kind of ["sky","earth"]){
   $("map-tab-"+kind).addEventListener("click",()=>{
