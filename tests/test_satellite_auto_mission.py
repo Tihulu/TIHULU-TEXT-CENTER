@@ -93,7 +93,10 @@ class AutoMissionTests(unittest.TestCase):
         self.assertTrue(all(j["capture_seconds"]<=180 for j in outcome["scheduled"]))
         self.assertEqual(outcome["receiver_claimed"], False)
         self.assertTrue(all(j["capture_seconds"] > 60 for j in outcome["scheduled"]))
-        self.assertTrue(all(j["coverage"] == "full-pass-attempt" for j in outcome["scheduled"]))
+        self.assertTrue(all(j["coverage"] in ("full-pass-attempt","partial-pass")
+                            for j in outcome["scheduled"]))
+        # Restart gaps can require a shorter effective full-pass capture.
+        self.assertTrue(any(j["coverage"]=="partial-pass" for j in outcome["scheduled"]))
         self.assertIsNone(self.station.device_lock)
 
     def test_user_selected_duration_persists_and_is_bounded(self):
