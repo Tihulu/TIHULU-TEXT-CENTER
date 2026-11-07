@@ -43,6 +43,24 @@ class NativeAnalysisTests(unittest.TestCase):
                 self.assertIn("manifest.json",bundle.namelist())
                 self.assertFalse(__import__("json").loads(bundle.read("manifest.json"))["spacecraft_verified"])
 
+    def test_csv_spectrum_and_png_are_real_zip_outputs(self):
+        import json
+        import zipfile
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td)
+            spectrum=root/"actual_rf_spectrum.csv"
+            spectrum.write_text("frequency_hz,relative_spectrum_db_uncalibrated\\n137900000,-29.2\\n")
+            real_png=root/"actual_robot36.png"
+            # A genuine signed PNG header, no fabricated image content in application.
+            real_png.write_bytes(b"\\x89PNG\\r\\n\\x1a\\n")
+            bundle=export_results_zip([spectrum,real_png],root/"outputs.zip")
+            with zipfile.ZipFile(bundle) as output:
+                files=output.namelist()
+                self.assertTrue(any(name.endswith(".csv") for name in files))
+                self.assertTrue(any(name.endswith(".png") for name in files))
+                manifest=json.loads(output.read("manifest.json"))
+                self.assertFalse(manifest["spacecraft_verified"])
+
     def test_refuse_raw_iq_inside_zip(self):
         with tempfile.TemporaryDirectory() as td:
             src=Path(td)/"raw.cu8"

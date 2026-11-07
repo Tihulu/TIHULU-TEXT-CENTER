@@ -6,6 +6,7 @@ started. Satellite RF uses the existing receive-only Station/rtl_sdr backend.
 from __future__ import annotations
 
 from datetime import datetime, timezone, timedelta
+import csv
 import json
 import math
 import re
@@ -13,6 +14,7 @@ import shutil
 from pathlib import Path
 import sys
 import wave
+import uuid
 
 from PyQt5.QtCore import Qt, QDate, QDateTime, QPointF, QRectF, QObject, QRunnable, QThreadPool, QTimer, pyqtSignal, QUrl, QSize, QStringListModel
 from PyQt5.QtGui import QColor, QFont, QPainter, QPen, QPolygonF, QPixmap, QDesktopServices, QImage, QIcon
@@ -148,6 +150,7 @@ class SatelliteWindow(QMainWindow):
         self.decoded_paths = []
         self.robot36_report = None
         self.robot36_source_wav = None
+        self.extra_visual_outputs=[]
         self.imported_path = None
         self.selected_path = None
         self.active = True
@@ -945,7 +948,10 @@ class SatelliteWindow(QMainWindow):
         robot.addWidget(self._button("Decode WAV → Robot36 PNG",self.decode_robot36_native))
         robot.addWidget(self._button("Save decoded PNG / WAV…",self.save_selected_output))
         body.addLayout(robot)
-        self._row(body,self._button("Save real results ZIP",self.save_results_zip))
+        self._row(body,
+                  self._button("Export actual spectrum/waterfall PNG",self.export_spectrum_png),
+                  self._button("Export spectrum CSV",self.export_spectrum_csv),
+                  self._button("Save real results ZIP",self.save_results_zip))
         self.output_files=QTreeWidget()
         self.output_files.setHeaderLabels(["Generated file","Format","Saved directory"])
         self.output_files.setMaximumHeight(130)
@@ -1456,7 +1462,7 @@ class SatelliteWindow(QMainWindow):
             if not pix.isNull():
                 self.image.setPixmap(pix.scaled(
                     720,250,Qt.KeepAspectRatio,Qt.SmoothTransformation))
-        elif path.suffix.lower() in (".txt",".json") and path.stat().st_size<1_000_000:
+        elif path.suffix.lower() in (".txt",".json",".csv") and path.stat().st_size<1_000_000:
             self.file_details.setPlainText(
                 path.read_text(encoding="utf-8",errors="replace")[:12000])
         elif path.suffix.lower()==".wav":
@@ -1505,6 +1511,39 @@ class SatelliteWindow(QMainWindow):
                        source,compute_mode=mode,compute_targets=targets,
                        output_dir=self.station.archive),completed)
 
+    def export_spectrum_png(self):
+        """Save a rendering of the actually analyzed RF spectrum, never an ISS image."""
+        if self.last_analysis is None:
+            return QMessageBox.information(
+                self,"Export","Analyze a real CU8 recording first.")
+        suffix=uuid.uuid4().hex[:8]
+        dest=self.station.archive/("actual_rf_spectrum_"+suffix+".png")
+        if not self.spectrum.grab().save(str(dest),"PNG"):
+            return QMessageBox.warning(self,"Export","Unable to save measured RF plot.")
+        self.extra_visual_outputs.append(dest)
+        self._register_output_files([dest])
+        self.statusBar().showMessage(
+            "Saved uncalibrated RF spectrum (not satellite image): "+str(dest),10000)
+
+    def export_spectrum_csv(self):
+        """Export literal frequency/relative dB pairs from the actual RF analyzer."""
+        report=self.last_analysis
+        if report is None:
+            return QMessageBox.information(
+                self,"Export","Analyze a real CU8 recording first.")
+        frequencies=report.get("frequencies_hz",[])
+        power=report.get("relative_spectrum_db",[])
+        if not frequencies or len(frequencies)!=len(power):
+            return QMessageBox.warning(self,"Export","RF spectrum contains no valid bin data.")
+        dest=self.station.archive/("actual_rf_spectrum_"+uuid.uuid4().hex[:8]+".csv")
+        with dest.open("x",newline="",encoding="utf-8") as f:
+            writer=csv.writer(f)
+            writer.writerow(["frequency_hz","relative_spectrum_db_uncalibrated"])
+            writer.writerows(zip(frequencies,power))
+        self.extra_visual_outputs.append(dest)
+        self._register_output_files([dest])
+        self.statusBar().showMessage("Saved real relative RF data as CSV: "+str(dest),10000)
+
     def save_selected_output(self):
         """Native Save As for an actual decoded PNG, WAV, report or imported result."""
         paths=[p for p in reversed(self.decoded_paths) if p.is_file()]
@@ -1514,6 +1553,7 @@ class SatelliteWindow(QMainWindow):
             paths.append(Path(self.preview_wav))
         if self.robot36_report and self.robot36_report.is_file():
             paths.append(self.robot36_report)
+        paths += [p for p in self.extra_visual_outputs if p.is_file()]
         if self.selected_path and Path(self.selected_path).is_file() and (
                 Path(self.selected_path).suffix.lower() in (".png",".jpg",".jpeg",".wav",".txt",".json")):
             paths.append(Path(self.selected_path))
@@ -1556,6 +1596,7 @@ class SatelliteWindow(QMainWindow):
         sources += [p for p in self.decoded_paths if p.is_file()]
         if self.robot36_report and self.robot36_report.is_file():
             sources.append(self.robot36_report)
+        sources += [p for p in self.extra_visual_outputs if p.is_file()]
         if self.robot36_source_wav and self.robot36_source_wav.is_file():
             sources.append(self.robot36_source_wav)
         if self.selected_path and Path(self.selected_path).suffix.lower() in (

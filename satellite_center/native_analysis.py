@@ -15,7 +15,7 @@ import zipfile
 
 MAX_IQ_BYTES = 2_000_000_000
 MAX_RESULTS_BYTES = 256 * 1024 * 1024
-ALLOWED_RESULTS = {".json", ".txt", ".png", ".jpg", ".jpeg", ".wav"}
+ALLOWED_RESULTS = {".json", ".txt", ".csv", ".png", ".jpg", ".jpeg", ".wav"}
 
 
 def _file(path):
@@ -151,7 +151,7 @@ def export_results_zip(outputs, destination, *, source=None, max_bytes=MAX_RESUL
     for original in outputs:
         p = _file(original)
         if p.suffix.lower() not in ALLOWED_RESULTS:
-            raise ValueError("Result ZIP only accepts real PNG/JPG/WAV/TXT/JSON outputs")
+            raise ValueError("Result ZIP only accepts real PNG/JPG/WAV/TXT/JSON/CSV outputs")
         size = p.stat().st_size
         total += size
         if total > max_bytes:
