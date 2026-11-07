@@ -1981,12 +1981,24 @@ def main():
     if args.command == "cleanup-shortcuts":
         from .desktop_shortcuts import cleanup
         return cleanup(apply=args.apply)
-    if args.command == "desktop":
-        # Native Qt Widgets only. No HTTP listener, browser, Chromium or WebView.
+    if args.command in ("desktop","desktop-web"):
+        # Default: exact SAME bundled web UI assets, embedded Qt WebEngine
+        # renderer, in-process OS-native SDR transport. No WebUSB or HTTP
+        # listener. Explicit desktop-widgets remains for browser-free usage.
+        try:
+            from .native_web_shell import main as launch_exact
+        except ImportError as exc:
+            raise SystemExit(
+                "Exact desktop UI needs Qt WebEngine/WebChannel. Install "
+                "python3-pyqt5.qtwebengine, or run 'tihulu-satellite-center "
+                "desktop-widgets' for the fully Qt-painted browser-free UI."
+            ) from exc
+        return launch_exact()
+    if args.command=="desktop-widgets":
         try:
             from .desktop import main as launch_native
         except ImportError as exc:
-            raise SystemExit("Native Qt GUI requires PyQt5. Debian/Pop!_OS: sudo apt install python3-pyqt5 python3-numpy") from exc
+            raise SystemExit("Native widgets mode needs PyQt5 and python3-numpy") from exc
         return launch_native()
     station = Station()
     if args.command == "doctor":
