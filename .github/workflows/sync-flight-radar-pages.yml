@@ -1,5 +1,5 @@
 name: Publish Browser-only Flight Radar inside TIHULU Applications
-# Re-sync Flight Radar 0.3.2.dev2 full tar1090-first browser assets (2026-11-06).
+# Canonical Flight Radar release source is main; legacy 0.3.1 stays preserved in the source repository.
 # Re-sync corrected I/R markers, source checkboxes and information panel spacing across both origins.
 # Sync Flight Radar 0.3.2.dev4 Satellite Center-style DE/TR offline location catalog and chooser.
 # Canonical source: pinned dev4 preview with local Qt search preference persistence and tar1090 selector.
@@ -32,7 +32,7 @@ jobs:
           repository: Tihulu/tihulu-flight-radar
           # Follow the reviewed single source; do not leave a hard-coded commit
           # pinned after new Flight Radar changes.
-          ref: feature/github-pages-local-bridge-2026-11-06
+          ref: main
           path: flight-radar-source
           persist-credentials: false
       - uses: actions/setup-node@v4
@@ -45,18 +45,19 @@ jobs:
           node --check tihulu_flight_radar/web/multi_sources.js
           node --check tihulu_flight_radar/web/flight_location_ui.mjs
           node --check tihulu_flight_radar/web/location_search.mjs
+          test -s tihulu_flight_radar/web/install.html
           node --check tihulu_flight_radar/web/app.js
           # Regression gate: public Pages must start genuine Internet aircraft without USB.
           grep -q 'const startPagesInternet=' tihulu_flight_radar/web/app.js
           node --check tihulu_flight_radar/web/browser_usb.mjs
           node --check tihulu_flight_radar/web/adsb_worker.mjs
           node --check tihulu_flight_radar/web/tar1090-adapter.js
-          node --test tests/web_bridge.test.cjs tests/pages_tar.test.cjs tests/browser_adsb.test.cjs tests/browser_source.test.cjs tests/aircraft_visuals.test.cjs tests/webusb_sampleblock.test.cjs tests/internet_sources.test.cjs tests/multi_sources.test.cjs tests/tar_layers_regression.test.cjs tests/location_selector.test.cjs tests/tar_full_browser.test.cjs
+          node --test tests/web_bridge.test.cjs tests/pages_tar.test.cjs tests/browser_adsb.test.cjs tests/browser_source.test.cjs tests/aircraft_visuals.test.cjs tests/webusb_sampleblock.test.cjs tests/internet_sources.test.cjs tests/multi_sources.test.cjs tests/tar_layers_regression.test.cjs tests/location_selector.test.cjs tests/release_main.test.cjs tests/tar_full_browser.test.cjs
       - name: Stamp canonical source SHA, identical to standalone Flight Radar
         run: |
           set -euo pipefail
           sha="$(git -C flight-radar-source rev-parse HEAD)"
-          printf '{"repo":"Tihulu/tihulu-flight-radar","source_ref":"feature/github-pages-local-bridge-2026-11-06","source_sha":"%s"}\n' "$sha" > flight-radar-source/tihulu_flight_radar/web/source-revision.json
+          printf '{"repo":"Tihulu/tihulu-flight-radar","source_ref":"main","source_sha":"%s"}\n' "$sha" > flight-radar-source/tihulu_flight_radar/web/source-revision.json
           echo "Canonical Flight Radar SHA: $sha"
       - name: Bundle original full tar1090 UI and aircraft metadata
         run: cd flight-radar-source && bash scripts/build-web-tar1090.sh
@@ -79,6 +80,7 @@ jobs:
           test -s pages/flight_radar/CITY_DATA_LICENSE.md
           test -s pages/flight_radar/adsb_worker.mjs
           test -s pages/flight_radar/index.html
+          test -s pages/flight_radar/install.html
           test -s pages/flight_radar/tar1090/index.html
           test -s pages/flight_radar/tar1090/tihulu-browser-bridge.js
           grep -q 'tihulu-browser-bridge.js' pages/flight_radar/tar1090/index.html
