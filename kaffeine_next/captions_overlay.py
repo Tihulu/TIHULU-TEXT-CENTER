@@ -351,6 +351,11 @@ def main(argv=None):
         tap.start()
     except (OSError, RuntimeError) as exc:
         control.close()
+        # No receiver means nothing to preserve in the background.
+        # Let the error window close normally instead of leaving an
+        # invisible Qt process running forever with no subtitle source.
+        window.terminating = True
+        app.setQuitOnLastWindowClosed(True)
         status.setText("Cannot receive Kaffeine DVB stream: "+str(exc))
         window.show()
         return app.exec_()
