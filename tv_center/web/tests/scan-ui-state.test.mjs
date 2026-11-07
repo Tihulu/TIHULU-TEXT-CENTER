@@ -34,7 +34,7 @@ test("disconnected native tuner makes all RF, model and scan commands unavailabl
       assert.equal(s[key],false,key);
     }
     assert.match(s.statusText,/Open Local TV/i);
-    assert.match(s.signalText,/No RF readings/i);
+    assert.match(s.signalText,/No RF measurement/i);
     assert.match(s.explanation,/WebUSB/i);
   }
 });
