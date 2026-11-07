@@ -119,6 +119,10 @@ def main():
             l.addWidget(self.diseqc)
             self.satellite.setVisible(False)
             self.diseqc.setVisible(False)
+            self.satellite_help = QPushButton("Dish / Raspberry Pi 5 setup guide")
+            self.satellite_help.clicked.connect(self.show_satellite_guide)
+            self.satellite_help.setVisible(False)
+            l.addWidget(self.satellite_help)
             scan_btn = QPushButton("🔎 Automatic full channel scan")
             scan_btn.clicked.connect(self.scan_channels)
             l.addWidget(scan_btn)
@@ -259,7 +263,24 @@ def main():
             satellite = self.delivery.currentData() == "s"
             self.satellite.setVisible(satellite)
             self.diseqc.setVisible(satellite)
+            self.satellite_help.setVisible(satellite)
             self.refresh_channels()
+
+        def show_satellite_guide(self):
+            from PyQt5.QtWidgets import QDialog, QTextBrowser
+            dialogue = QDialog(self)
+            dialogue.setWindowTitle("Dish satellite / Raspberry Pi 5 connection guide")
+            dialogue.resize(780, 620)
+            lay = QVBoxLayout(dialogue)
+            viewer = QTextBrowser(dialogue)
+            path = Path(__file__).parent / "docs/SATELLITE_PI5_DISH.md"
+            viewer.setMarkdown(path.read_text(encoding="utf-8") if path.is_file()
+                               else satellite_hardware_note())
+            lay.addWidget(viewer)
+            close = QPushButton("Close")
+            close.clicked.connect(dialogue.accept)
+            lay.addWidget(close)
+            dialogue.exec_()
 
         def current_profile(self):
             country, medium = self.country.currentData(), self.delivery.currentData()
