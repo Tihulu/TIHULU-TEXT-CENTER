@@ -242,8 +242,9 @@ def transform(files):
 \t\tconst QByteArray profile = qgetenv("TIHULU_VLC_PROFILE");
 \t\tif (profile == "software" || profile == "software-no-audio") {
 \t\t\tconst char *fallbackArgs[] = { "--avcodec-hw=none",
-\t\t\t\t"--no-video-title-show" };
-\t\t\tvlcInstance = libvlc_new(2, fallbackArgs);
+\t\t\t\t"--no-video-title-show", "--no-audio" };
+\t\t\tvlcInstance = libvlc_new(
+\t\t\t\tprofile == "software-no-audio" ? 3 : 2, fallbackArgs);
 \t\t\tif (vlcInstance)
 \t\t\t\tqCWarning(logVlc,
 \t\t\t\t\t"TIHULU: extra VLC arguments rejected; safe software decoder still enforced");
