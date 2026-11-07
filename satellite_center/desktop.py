@@ -4054,9 +4054,9 @@ def main(argv=None):
             assert not window.pass_settings.isVisible()
             assert window.auto_compute.count()==5
             assert window.auto_compute.currentData()[0]=="auto"
-            # Initial pass-mode can be survey/none; rate-aware maxima vary.
-            # The recorded IQ mode below is separately tested at 2.048 MS/s.
-            assert 8<=window.pass_seconds.maximum()<=900
+            # The pass planner allows 1–7200 s via native chained captures.
+            # The individual IQ disk file still has its own 2 GB bound.
+            assert window.pass_seconds.maximum()==7200
             assert window.pass_sample_rate.count()==2
             assert window.capture_sample_rate.count()==2
             assert window.home_capture_rate.count()==2
