@@ -235,12 +235,14 @@ def main(argv=None):
         window.show()
         return app.exec_()
     def pump():
+        mobile.expire_if_idle()
         for _ in range(5):
             try:
                 kind, data = events.get_nowait()
             except queue.Empty:
                 break
             if kind == "remote_page":
+                mode.setCurrentIndex(3)  # explicit Teletext page viewer, not subtitle auto
                 page.setValue(int(data))
             elif kind == "caption":
                 mobile.set_caption(data)
