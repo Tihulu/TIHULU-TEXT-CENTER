@@ -265,6 +265,7 @@ class SatelliteWindow(QMainWindow):
         nav.setSpacing(3)
         for label,target in (
             ("Home","Overview"),
+            ("Hardware","Hardware"),
             ("Find satellites","Passes & Data"),
             ("Maps & live","Maps & Live"),
             ("Auto receive","Auto reception"),
@@ -299,6 +300,7 @@ class SatelliteWindow(QMainWindow):
         self.setCentralWidget(root)
 
         self._dashboard_tab()
+        self._hardware_tab()
         self._passes_tab()
         self._maps_tab()
         self._auto_tab()
@@ -396,6 +398,8 @@ class SatelliteWindow(QMainWindow):
             steps.addWidget(frame,1)
         body.addLayout(steps)
         actions=QHBoxLayout()
+        actions.addWidget(self._button("Connect / disconnect USB hardware",
+                                     lambda:self._open_native_tab("Hardware")))
         actions.addWidget(self._button("Open live Earth / Sky map",
                                      lambda:self._open_native_tab("Maps & Live")))
         actions.addWidget(self.home_extract)
@@ -412,12 +416,129 @@ class SatelliteWindow(QMainWindow):
             receiver.addWidget(label)
         self._row(receiver,
                   self._button("Refresh receiver status",self.refresh_status),
-                  self._button("Test attached RTL-SDR",self.usb_test))
+                  self._button("Open Hardware controls",lambda:self._open_native_tab("Hardware")))
         body.addWidget(self._hint(
             "Live map dots are orbital predictions, not measured signals. "
             "Images and decoded packets appear only after genuine local decoding. "
             "Advanced calendar, manual IQ and protocol editors are under More tools."))
         body.addStretch(1)
+
+
+    def _hardware_tab(self):
+        """Native USB panel: physical presence != RF lease != app enable."""
+        host=self._new_tab("Hardware")
+        scroll=QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.NoFrame)
+        host.addWidget(scroll)
+        page=QWidget()
+        body=QVBoxLayout(page)
+        body.setSpacing(12)
+        scroll.setWidget(page)
+        heading=QLabel("USB receivers · connect, test and release")
+        heading.setObjectName("passTitle")
+        body.addWidget(heading)
+        body.addWidget(self._hint(
+            "1. Plug in the physical USB device and antenna. "
+            "2. Refresh to see it on this computer. "
+            "3. Connect & verify to actually open it briefly with rtl_test. "
+            "4. Disconnect to stop this app's RF processes and disable future captures."))
+
+        card=QFrame()
+        card.setObjectName("workflowCard")
+        state=QVBoxLayout(card)
+        self.hardware_presence=QLabel("USB presence: not checked yet")
+        self.hardware_presence.setObjectName("passTitle")
+        self.hardware_access=self._hint("Physical USB-open test has not been run.")
+        self.hardware_mode=self._hint("Application RF state: checking…")
+        self.hardware_lease=self._hint("Receiver release: checking…")
+        self.hardware_busy=self._hint("External receiver programs: checking…")
+        self.hardware_schedules=self._hint("Pending RF jobs: checking…")
+        for item in (self.hardware_presence,self.hardware_access,self.hardware_mode,
+                     self.hardware_lease,self.hardware_busy,self.hardware_schedules):
+            item.setWordWrap(True)
+            state.addWidget(item)
+        body.addWidget(card)
+
+        actions=QHBoxLayout()
+        self.hardware_refresh_button=self._button("↻  Refresh devices",self.refresh_status)
+        self.hardware_test_button=self._button("Test USB only",self.usb_test)
+        self.hardware_connect_button=self._button("Connect & enable RF",self.connect_receiver)
+        self.hardware_disconnect_button=self._button("Stop & disconnect RF",self.disconnect_receiver)
+        for button in (self.hardware_refresh_button,self.hardware_test_button,
+                       self.hardware_connect_button,self.hardware_disconnect_button):
+            actions.addWidget(button)
+        body.addLayout(actions)
+        self.hardware_feedback=self._hint(
+            "No test yet. 'Detected' means a USB ID was seen; it does not prove the receiver can be opened.")
+        self.hardware_feedback.setObjectName("fileBanner")
+        body.addWidget(self.hardware_feedback)
+
+        body.addWidget(QLabel("USB hardware discovered on this computer"))
+        self.hardware_devices=QTreeWidget()
+        self.hardware_devices.setHeaderLabels(["Hardware / model","Receiver type","USB ID","System path"])
+        self.hardware_devices.setRootIsDecorated(False)
+        self.hardware_devices.setMaximumHeight(170)
+        self.hardware_devices.header().setSectionResizeMode(0,QHeaderView.Stretch)
+        for col in (1,2,3):
+            self.hardware_devices.header().setSectionResizeMode(col,QHeaderView.ResizeToContents)
+        body.addWidget(self.hardware_devices)
+        self.hardware_inventory_key=None
+        self.hardware_log=QPlainTextEdit()
+        self.hardware_log.setReadOnly(True)
+        self.hardware_log.setMaximumHeight(110)
+        self.hardware_log.setPlainText(
+            "No USB diagnostics yet. Only explicit Test or Connect opens an SDR.")
+        body.addWidget(self.hardware_log)
+        body.addWidget(self._hint(
+            "Disconnect is a software RF safety control: it stops only Satellite Center's "
+            "owned processes, releases its SDR lock, and remembers RF disabled after restart. "
+            "Future scheduled recordings are paused until you explicitly Connect again. "
+            "It cannot electrically power off, physically eject or unplug USB hardware, "
+            "and it never terminates readsb, Gqrx or another application's receiver. "
+            "Hauppauge DVB-T2 hardware is listed separately; it is not a general IQ SDR."))
+        body.addStretch(1)
+
+    def connect_receiver(self):
+        self.hardware_feedback.setText("Checking real USB access with rtl_test…")
+        self._task("Connect SDR",self.station.connect_receiver,
+                   self._connected_receiver)
+
+    def _connected_receiver(self,result):
+        self.hardware_feedback.setText(
+            "USB opened successfully, then the test released it. RF is enabled for future "
+            "explicit recordings; no USB handle stays open while idle.")
+        self.hardware_log.setPlainText(json.dumps(result,indent=2,default=str))
+        self.refresh_status()
+
+    def disconnect_receiver(self):
+        with self.station.lock:
+            active=bool(self.station.session.get("active") or self.station.launching)
+            pending=sum(j.get("state")=="pending" for j in self.station.jobs)
+        if active or pending:
+            warning=("Stop only this application's RF capture and keep RF disabled "
+                     "until the next verified Connect?\n\n")
+            if pending:
+                warning+=f"{pending} pending recording(s) will be PAUSED, not deleted.\n"
+            warning+="The USB device itself will remain physically plugged in."
+            if QMessageBox.question(self,"Disconnect and disarm SDR",warning,
+                                    QMessageBox.Yes|QMessageBox.No)!=QMessageBox.Yes:
+                return
+        self.hardware_feedback.setText(
+            "Disabling RF and stopping owned receiver processes. Confirming release…")
+        self._task("Disconnect SDR",self.station.disconnect_receiver,
+                   self._disconnected_receiver)
+
+    def _disconnected_receiver(self,result):
+        if result.get("app_released"):
+            message=("RF DISABLED · Satellite Center owns no live SDR process or receiver lock. "
+                     f"{result.get('pending_jobs_paused',0)} pending job(s) paused.")
+        else:
+            message=("RF DISABLED · stop requested, but release is not yet verified. "
+                     "Refresh and check for remaining owned processes.")
+        self.hardware_feedback.setText(message)
+        self.hardware_log.setPlainText(json.dumps(result,indent=2,default=str))
+        self.refresh_status()
 
     def _open_native_tab(self,name):
         for index in range(self.tabs.count()):
