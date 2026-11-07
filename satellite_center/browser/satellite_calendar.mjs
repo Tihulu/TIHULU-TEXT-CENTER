@@ -110,10 +110,7 @@ export function renderSatelliteCalendar(host,jobs,day,{onEdit=null,onCancel=null
    if(job?.id)card.dataset.jobId=String(job.id);
    const lineTitle=document.createElement("strong");
    const title=String(job.satellite||job.name||job.mission_id||"Unattributed satellite");
-   const part=job.segmentIndex||job.segment_index;
-   const count=job.segmentCount||job.segment_count;
-   lineTitle.textContent=title+(part&&count?" · Part "+part+"/"+count:"")+
-     (firstSegment?"":" · continues");
+   lineTitle.textContent=title+(firstSegment?"":" · continues");
    const range=document.createElement("time");
    range.className="sat-job-range";range.textContent=jobTimeRange(job);
    card.append(lineTitle,range);
@@ -130,8 +127,7 @@ export function renderSatelliteCalendar(host,jobs,day,{onEdit=null,onCancel=null
     const explicitDuration=Number(job.capture_seconds??job.durationSeconds??job.duration_seconds)>0;
     details.textContent=(explicitDuration?"Planned capture: ":"Predicted pass window: ")+
       formatDuration(duration)+" · status: "+String(job.state||"planned")+
-      (job.coverage?" · "+job.coverage:"")+
-      (count&&count>1?" · "+count+" separate RF files · receiver restart gaps unrecorded":"");
+      (job.coverage?" · "+job.coverage:"");
     card.append(details);
     const kinds=dataKinds(job);
     const caps=document.createElement("div");caps.className="pass-capability-list";
@@ -154,12 +150,12 @@ export function renderSatelliteCalendar(host,jobs,day,{onEdit=null,onCancel=null
     }
     if(typeof onEdit==="function"&&["pending","armed"].includes(job.state)){
      const edit=document.createElement("button");edit.type="button";edit.className="secondary";
-     edit.textContent=count>1?"Edit entire "+count+"-part series":"Edit time / duration / protocol";
+     edit.textContent="Edit time / duration / protocol";
      edit.addEventListener("click",()=>onEdit(job,card));card.append(edit);
     }
     if(typeof onCancel==="function"&&["pending","armed"].includes(job.state)){
      const cancel=document.createElement("button");cancel.type="button";cancel.className="secondary";
-     cancel.textContent=count>1?"Cancel this part":"Cancel job";cancel.addEventListener("click",()=>onCancel(job));card.append(cancel);
+     cancel.textContent="Cancel job";cancel.addEventListener("click",()=>onCancel(job));card.append(cancel);
     }
    }
    column.append(card);

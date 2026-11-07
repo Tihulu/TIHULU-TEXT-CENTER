@@ -34,8 +34,8 @@ export function selectAutomaticPasses(passes,{mode="images",now=Date.now(),maxJo
     throw Error("Invalid automatic scheduling limits");
   if(!Array.isArray(passes)||!Array.isArray(existingJobs))throw Error("Invalid pass/job data");
   if(!["full","sample"].includes(goal))throw Error("Unknown reception coverage goal");
-  if(!Number.isInteger(durationSeconds)||durationSeconds<8||durationSeconds>900)
-    throw Error("Total browser recording must be 8–900 seconds and will be segmented into safe clips");
+  if(!Number.isInteger(durationSeconds)||durationSeconds<8||durationSeconds>60)
+    throw Error("Browser WebUSB recording must be 8–60 seconds");
   const chosen=AUTO_PRESETS[mode],scheduled=[],skipped=[],recommendations=[];
   // If both ISS APRS and SSTV are requested, alternate them across separate
   // passes; one receiver cannot sample two simultaneous downlinks.
@@ -53,9 +53,9 @@ export function selectAutomaticPasses(passes,{mode="images",now=Date.now(),maxJo
       skipped.push({name:pass.name,reason:"ISS Series 35 SSTV is scheduled only for 9–16 November 2026; exact activation times still TBD"});
     }
     if(!eligible.length)continue;
-    // Each individual WebUSB CU8 clip is ≤60 s / 128 MiB.
-    // Longer Meteor LRPT acquisition requests create multiple recordings
-    // with real SDR-reset gaps, never a seamless full-pass RF claim.
+    // WebUSB stores a bounded 60 s / 128 MiB clip in memory. A Meteor LRPT
+    // image normally needs >60 s; choosing FULL never treats such a clip as
+    // a complete scene. An explicit SAMPLE request can still save RF evidence.
     const viable=eligible.filter(key=>goal==="sample"||AUTO_TARGETS[key].minimumSeconds<=durationSeconds);
     if(!viable.length){
       skipped.push({name:pass.name,reason:"Meteor LRPT image needs longer than browser 60 s; use native SatDump and full-pass disk recording"});
@@ -65,17 +65,17 @@ export function selectAutomaticPasses(passes,{mode="images",now=Date.now(),maxJo
     const matched=viable.sort((a,b)=>counts[a]-counts[b])[0];
     const start=Math.max(pass.aos-10000,now+30000);
     const until=Number(pass.los);
-    // The browser splits long captures; budget actual receiver restart gaps.
-    const resetSeconds=2*Math.max(0,Math.ceil(durationSeconds/60)-1);
-    if(start+(durationSeconds+resetSeconds)*1000>until){skipped.push({name:pass.name,reason:"Pass too short or begins too soon"});continue;}
+    // The browser capture itself lasts 60 s. A 45 s remaining pass is NOT
+    // sufficient; never silently record beyond predicted line-of-sight loss.
+    if(start+durationSeconds*1000>until){skipped.push({name:pass.name,reason:"Pass too short or begins too soon"});continue;}
     if(blocked.some(([a,b])=>start<b+20000&&until>a-20000)){
       skipped.push({name:pass.name,reason:"Single receiver conflict with an armed pass"});continue;
     }
     const target=AUTO_TARGETS[matched];
     const windowSeconds=Math.floor((until-start)/1000);
-    const coverage=windowSeconds<=durationSeconds+resetSeconds?"full-pass-attempt-with-gaps":"partial-pass";
+    const coverage=windowSeconds<=durationSeconds?"full-pass-attempt":"partial-pass";
     const limitation=target.minimumSeconds>60?
-      "Meteor may need full continuous LRPT; separate RF clips contain unrecorded receiver-restart gaps":
+      "RF sample only: a complete Meteor LRPT image cannot be claimed":
       target.dataKind==="text"?
       "Browser can capture packet RF but cannot validate APRS text without a native decoder":
       "Recording is only a downlink candidate; complete decoded media is not guaranteed";
@@ -89,5 +89,5 @@ export function selectAutomaticPasses(passes,{mode="images",now=Date.now(),maxJo
     counts[matched]++;
   }
   return {scheduled,skipped,recommendations,requestedTargets:[...chosen],
-    note:"Browser divides up to 900 s of requested RF time into separate ≤60 s CU8 clips with 2 s unrecorded SDR restart gaps. Multiple downloads need browser permission. Continuous Meteor LRPT image reconstruction is NOT guaranteed; native single-file capture is recommended for best results."};
+    note:"Browser records up to 60 s / ~117 MiB at 1.024 MS/s (128 MiB hard RAM cap). Full Meteor imagery needs native long disk capture; a full geometric window does not guarantee all transmitted data."};
 }
