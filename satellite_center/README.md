@@ -1,4 +1,24 @@
-# TIHULU Satellite Center 0.3.0~preview6 — native desktop application
+# TIHULU Satellite Center 0.3.0~preview7 — native desktop application
+
+**Native Qt UI refresh · preview7:** The desktop is no longer eight exposed
+technical tabs. Five main sections follow the browser's user tasks: **Home**,
+**Find satellites**, **Maps & live**, **Auto receive**, and **Recordings & results**.
+**More tools** keeps the reception calendar, manual RF and custom protocol editor
+available without overwhelming a new user. The home screen gives explicit steps
+to select satellite/passes, schedule actual receive-only RF, open a recording,
+and inspect actual decoded outputs. The results workspace now has three steps
+(choose local file, analyze CU8/RF, decode & save). The Earth map opens first,
+with visible opt-in OpenStreetMap and collapsed advanced orbit overlays.
+Automatic reception and pass recording show their results in the same page,
+rather than quietly writing into an unrelated analysis pane. No features
+are removed, and no WebView or browser is introduced.
+
+**Visual QA evidence:** The GitHub Actions `Satellite Center native Debian package`
+run uploads a separate `tihulu-satellite-center-native-ui-preview7` artifact
+with five *real offscreen Qt screenshots* of Home, Passes, Earth Map, Auto
+reception, and Recordings. Any orbit example in those CI images is synthetic,
+not a radio observation. This verifies Qt rendering paths, **not** Pop!_OS
+COSMIC mouse usability or actual SDR hardware.
 
 **Qt desktop/browser parity audit:** [NATIVE_WEB_PARITY.md](NATIVE_WEB_PARITY.md)
 tracks shipped features, their receive-only evidence limitations and
@@ -23,7 +43,7 @@ describe that separate legacy workflow, not the installed desktop app.
 Install the Debian package downloaded from GitHub Actions, then run:
 
 ```bash
-sudo apt install ./tihulu-satellite-center_0.3.0~preview6_all.deb
+sudo apt install ./tihulu-satellite-center_0.3.0~preview7_all.deb
 tihulu-satellite-center
 ```
 
@@ -143,7 +163,7 @@ Both manual receiver start and selected pass schedule entries support WAV, CU8 o
 
 ---
 
-### Native Maps, RF intelligence and Robot36 outputs — 0.3.0 preview6
+### Native Maps, RF intelligence and Robot36 outputs — 0.3.0 preview7
 
 - **Maps & Live:** actual native Qt Earth and polar-sky widgets with
   built-in Natural Earth land geometry, optional opt-in viewport-only
