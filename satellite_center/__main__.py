@@ -1326,9 +1326,11 @@ class Station:
                 nearest["state"] = "running"
                 self.save_jobs()
             try:
+                kwargs = {}
+                if int(nearest.get("sample_rate") or 1024000) != 1024000:
+                    kwargs["sample_rate"] = int(nearest["sample_rate"])
                 result = self.capture(nearest["profile"], nearest["mode"], duration,
-                        scheduled=True, satellite=nearest.get("satellite"),
-                        sample_rate=int(nearest.get("sample_rate") or 1024000))
+                        scheduled=True, satellite=nearest.get("satellite"), **kwargs)
                 # The receiver is already released by capture(). A full-pass
                 # ISS SSTV WAV can contain several separate Robot36 images.
                 # Decode only actual PCM samples; never infer imagery from
