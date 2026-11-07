@@ -701,6 +701,7 @@ class SatelliteWindow(QMainWindow):
         self.pass_time.setDisplayFormat("yyyy-MM-dd HH:mm:ss")
         pass_duration,self.pass_seconds,self.pass_unit=native_duration_control(60,8,900)
         self.pass_seconds.valueChanged.connect(self._pass_budget)
+        self.pass_unit.currentIndexChanged.connect(self._pass_budget)
         self.pass_mode.currentIndexChanged.connect(self._pass_budget)
         self.pass_cost=self._hint("Choose a predicted pass")
         form.addRow("Receiver profile",self.pass_profile)
@@ -1288,6 +1289,7 @@ class SatelliteWindow(QMainWindow):
         self.capture_budget=self._hint("Long captures write real CU8 directly to disk.")
         self.capture_mode.currentIndexChanged.connect(self._capture_budget)
         self.capture_seconds.valueChanged.connect(self._capture_budget)
+        self.capture_unit.currentIndexChanged.connect(self._capture_budget)
         form.addRow("Receiver frequency / band",self.capture_profile)
         form.addRow("Hardware mode",self.capture_mode)
         form.addRow("Total sample length · seconds / minutes",capture_duration)
@@ -1732,7 +1734,8 @@ class SatelliteWindow(QMainWindow):
             self.pass_time.setDateTime(native_datetime(row["aos"]))
             remaining=(datetime.fromisoformat(row["los"])-
                        datetime.fromisoformat(row["aos"])).total_seconds()
-            self.pass_seconds.setValue(max(8,min(900,int(remaining)-25)))
+            set_duration_seconds(self.pass_seconds,self.pass_unit,
+                                 max(8,min(900,int(remaining)-25)))
         else:
             self.pass_title.setText("No pass selected")
             self.pass_subtitle.setText("Choose a candidate from the list or clear your filters.")
@@ -1764,16 +1767,13 @@ class SatelliteWindow(QMainWindow):
 
     def _pass_budget(self):
         mode=self.pass_mode.currentData()
-        if mode=="survey" and self.pass_seconds.maximum()!=180:
-            self.pass_seconds.setMaximum(180)
-        elif mode!="survey" and self.pass_seconds.maximum()!=900:
-            self.pass_seconds.setMaximum(900)
-        seconds=self.pass_seconds.value()
+        seconds=duration_seconds(self.pass_seconds,self.pass_unit)
         if mode=="iq":
             self.pass_cost.setText(
-                f"~{seconds*2.048:.1f} MB raw CU8 · true streamed disk recording, max 900 s")
+                f"~{seconds*2.048:.1f} MB raw CU8. >180 s can be split into separate ≤180 s files; single continuous IQ still supported.")
         elif mode=="survey":
-            self.pass_cost.setText("Real rtl_power spectrum survey · 8–180 s (not image decoding)")
+            self.pass_cost.setText("Real rtl_power spectrum survey: "+str(seconds)+
+                " s total, split into ≤180 s calendar files with 2 s restart gaps (not image decoding)")
         elif mode in ("sstv_audio","fm_audio"):
             self.pass_cost.setText(
                 f"~{seconds*.096:.1f} MB estimated WAV · native FM demodulation, activity unverified")
@@ -1788,7 +1788,7 @@ class SatelliteWindow(QMainWindow):
         key=item.data(0,Qt.UserRole)
         profile=self.pass_profile.currentData()
         mode=self.pass_mode.currentData()
-        seconds=self.pass_seconds.value()
+        seconds=duration_seconds(self.pass_seconds,self.pass_unit)
         start=datetime.fromtimestamp(self.pass_time.dateTime().toSecsSinceEpoch(),timezone.utc).isoformat()
         def completed(job):
             text=("Scheduled "+str(job.get("satellite","satellite"))+
@@ -1797,13 +1797,16 @@ class SatelliteWindow(QMainWindow):
             self.pass_feedback.setText(text)
             self.statusBar().showMessage(text,12000)
             self.refresh_status()
-        self._task("Arm scheduled RF",lambda:self.station.schedule(key,profile,mode,start,seconds),
+        self._task("Arm scheduled RF",
+                   lambda:self.station.schedule_series(key,profile,mode,start,seconds,
+                                                        segment_seconds=180)
+                   if seconds>180 else self.station.schedule(key,profile,mode,start,seconds),
                    completed)
 
     def auto_schedule(self):
         missions=[mid for mid,box in self.mission_boxes.items() if box.isChecked()]
         if not missions:return QMessageBox.information(self,"Auto reception","Select at least one satellite mode.")
-        seconds=self.auto_seconds.value() or None
+        seconds=duration_seconds(self.auto_seconds,self.auto_unit) or None
         coverage=self.coverage.currentData()
         compute_mode,compute_targets=self.auto_compute.currentData()
         params={"lat":self.lat.value(),"lon":self.lon.value(),"hours":self.hours.value(),
@@ -1936,22 +1939,18 @@ class SatelliteWindow(QMainWindow):
 
     def _capture_budget(self):
         mode=self.capture_mode.currentData()
-        if mode=="survey" and self.capture_seconds.maximum()!=180:
-            self.capture_seconds.setMaximum(180)
-        elif mode!="survey" and self.capture_seconds.maximum()!=900:
-            self.capture_seconds.setMaximum(900)
-        secs=self.capture_seconds.value()
+        secs=duration_seconds(self.capture_seconds,self.capture_unit)
         self.capture_budget.setText(
             f"~{secs*2.048:.1f} MB raw CU8 on local disk · actual samples, no WebUSB"
             if mode=="iq" else
-            "Native rtl_power records for exactly requested seconds (8–180)"
+            "Native rtl_power survey can split >180 s into separate ≤180 s captures; real gaps are recorded in report"
             if mode=="survey" else
             "Native receiver saves actual packet/audio output, no browser involved")
 
     def start_capture(self):
         key=self.capture_profile.currentData()
         mode=self.capture_mode.currentData()
-        secs=self.capture_seconds.value()
+        secs=duration_seconds(self.capture_seconds,self.capture_unit)
         if not key or not mode:return
         if QMessageBox.question(self,"Receive-only capture",
                  f"Acquire the real RTL-SDR for {secs} seconds at {PROFILES[key]['label']}?\n"
