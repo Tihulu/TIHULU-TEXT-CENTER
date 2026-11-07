@@ -141,7 +141,7 @@ All real receiver operations require explicit operator action and USB ownership.
 ## Debian / Pop!_OS
 
 Install the latest successful PR #18 **Satellite Center native Debian package** GitHub Actions artifact.
-Run `sudo apt install ./tihulu-satellite-center_0.3.0~preview9_all.deb`,
+Run `sudo apt install ./tihulu-satellite-center_0.3.0~preview10_all.deb`,
 then open **TIHULU Satellite Center (System)** from COSMIC's app menu.
 It starts the Qt window directly. Only explicit `tihulu-satellite-center serve`
 runs the old optional HTTP compatibility server. If the older user-local
