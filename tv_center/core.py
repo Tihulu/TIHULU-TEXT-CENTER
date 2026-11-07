@@ -439,6 +439,7 @@ class TVCapture:
 
     def _pump(self):
         dvr = None
+        failure = False
         try:
             dvr = os.open(f"/dev/dvb/adapter{self.adapter}/dvr0", os.O_RDONLY | os.O_NONBLOCK)
             service_filter = ServiceFilter(self.channel.service_id if self.channel else None)
@@ -520,11 +521,16 @@ class TVCapture:
                 if clip:
                     clip.close()
         except (OSError, RuntimeError) as exc:
+            failure = True
             self.emit("error", str(exc))
         finally:
             if dvr is not None:
                 os.close(dvr)
-            self.emit("status", "TV capture ended")
+            # Do NOT overwrite a meaningful no-lock/PAT/PMT/MPV error with
+            # the old generic "TV capture ended" message.
+            if not failure:
+                self.emit("status", "TV capture stopped" if self.stop_flag.is_set()
+                          else "TV stream closed; inspect tuner and playback logs")
 
     def _decode(self, data, mode, page, source, target, model, service_id):
         try:
