@@ -635,7 +635,11 @@ def main(argv=None):
                     cue = cues.add(data, applied,
                                    data["captured_start"],data["captured_end"],
                                    data["decoded_at"])
-                    status.setText("Real "+data.get("source","unknown")+
+                    actual_backend = data.get("asr_backend")
+                    backend_info = (" | Whisper: "+actual_backend.upper() +
+                                    " · "+str(data.get("asr_model") or "unknown model")
+                                    if actual_backend else "")
+                    status.setText("Real "+data.get("source","unknown")+backend_info+
                         " | ASR+translate latency: "+
                         f"{int((data['decoded_at']-data['captured_end'])*1000)}ms" +
                         " | Caption lateness vs buffered TV: "+
