@@ -596,6 +596,38 @@ class Station:
                 result[key] = {"error": str(exc)[:150], "cached": False}
         return result
 
+    def plan_passes(self, **kwargs):
+        """Desktop-only explicit planning with truthful first-run TLE readiness.
+
+        Fresh local TLEs always win (including user-imported offline TLEs).
+        Only when *none* are usable does the operator's Calculate action
+        attempt an on-demand public refresh. Never silently invent passes.
+        """
+        now_time=time.time()
+        fresh=[]
+        for source in SOURCE_URLS:
+            target=self.directory/(source+".tle")
+            try:
+                if target.is_file() and now_time-target.stat().st_mtime <= 7*86400:
+                    fresh.append(source)
+            except OSError:
+                continue
+        refresh_result = None
+        if not fresh:
+            refresh_result=self.refresh()
+        report=self.passes(**kwargs)
+        if refresh_result is not None:
+            report["automatic_tle_refresh"]=refresh_result
+            if not report.get("predictions"):
+                report["warnings"].append(
+                    "No passes predicted after on-demand TLE refresh. "
+                    "Check HTTPS access, source errors, location/time filters, "
+                    "or import a local .tle file.")
+        if not report.get("predictions") and not report.get("warnings"):
+            report["warnings"]=["No above-horizon passes in the selected period. "
+                                "Try a longer lookahead or lower elevation."]
+        return report
+
     def passes(self, *, city="Cologne", lat=None, lon=None, hours=24, elevation=15):
         try:
             from skyfield.api import EarthSatellite, load, wgs84
