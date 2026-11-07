@@ -92,7 +92,7 @@
 <button type="button" id="auto-mission-stop" class="secondary">Cancel Auto Missions</button>
 </div>
 <p id="auto-mission-status" class="status" role="status" aria-live="polite">No pass scheduled; no recording selected or analyzed.</p>
-<p id="auto-budget-status" class="hint" role="status">Automatic WebUSB scheduling is still capped at 60 s. For long browser recordings use the manual pass planner with explicit CU8 disk streaming, or native unattended scheduling. Full capture estimate: 1.024 MS/s I/Q ≈ 2.048 MB per second; 10 minutes ≈ 1.23 GB. Native records up to 900 s / 2 GB on disk if enough storage; browser-only clips are capped at 60 s / 128 MiB. A full visibility window does not guarantee all satellite data or successful decoding.</p>
+<p id="auto-budget-status" class="hint" role="status">WebUSB scheduling creates <=60 s calendar chunks (or shorter chunks for high-rate CU8 at the 128 MiB memory limit). A 300-second request becomes multiple separately downloaded files, not continuous I/Q. Browser must remain visible. Native unattended scheduling uses <=180 s per file when chained. Full capture estimate: 1.024 MS/s I/Q ≈ 2.048 MB per second; 10 minutes ≈ 1.23 GB. Native records up to 900 s / 2 GB on disk if enough storage; browser-only clips are capped at 60 s / 128 MiB. A full visibility window does not guarantee all satellite data or successful decoding.</p>
 <div id="auto-mission-jobs" class="mission-job-list" aria-live="polite"></div>
 <section id="auto-calendar" class="sat-calendar-panel" aria-labelledby="auto-calendar-title">
 <h3 id="auto-calendar-title">Reception timeline · local start–end time and duration</h3>
@@ -110,7 +110,7 @@
 </div>
 <p id="auto-mission-zip-status" class="hint" role="status" aria-live="polite">Analyze real recorded files first, then preview results with Step 3. ZIP contains extracted outputs and provenance manifest, not huge raw IQ files.</p>
 <div id="auto-mission-output" class="mission-extraction" aria-live="polite"></div>
-<p class="hint">Manual RF sample length in the pass planner accepts up to 900 seconds in secure Chromium browsers using an explicitly chosen local .cu8 file; other browsers require the native companion for long IQ. At 1.024 MS/s the receiver writes about 2.048 MB/s, at 2.048 MS/s about 4.096 MB/s, with a 2 GB cap. For actual full-pass Meteor LRPT image reconstruction, the native companion needs SatDump and a free RTL-SDR. A 60-second browser CU8 sample may not contain a full Earth scan. Raw I/Q cannot be interpreted as human messages without a protocol decoder and validated packet frames.</p>
+<p class="hint">Manual RF length accepts seconds or minutes and schedules separate <=60 s WebUSB files instead of buffering a large single CU8. Other browsers require the native companion for real USB acquisition. At 1.024 MS/s the receiver writes about 2.048 MB/s, at 2.048 MS/s about 4.096 MB/s, with a 2 GB cap. For actual full-pass Meteor LRPT image reconstruction, the native companion needs SatDump and a free RTL-SDR. A 60-second browser CU8 sample may not contain a full Earth scan. Raw I/Q cannot be interpreted as human messages without a protocol decoder and validated packet frames.</p>
 </section>
 <section aria-labelledby="file-title">
 <h2 id="file-title">Recorded files · Open image, audio, video, text or I/Q</h2>
