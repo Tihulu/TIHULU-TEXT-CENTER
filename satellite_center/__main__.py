@@ -77,7 +77,7 @@ PROFILES = {
     "iridium": {"label": "Iridium L-band RF survey", "range": "1616M:1626.5M:50k", "freq": None, "family": "iridium"},
     "iridium_rf_iq": {"label": "Iridium L-band 1620 MHz raw IQ candidate only; no message decode", "range": "1616M:1626.5M:50k", "freq": 1620000000, "family": "iridium"},
 }
-MODES = ("survey", "iq", "aprs", "sstv_audio", "fm_audio")
+MODES = ("survey", "iq", "iq_and_fm_wav", "aprs", "sstv_audio", "fm_audio")
 
 
 def now():
@@ -149,6 +149,8 @@ def profiles_for(fam):
 
 def allowed_mode(profile, mode):
     return mode == "survey" or (mode == "iq" and PROFILES[profile]["freq"] is not None) or (
+        mode == "iq_and_fm_wav" and profile in ("iss_voice","iss_sstv","iss_uhf")
+        ) or (
         profile in ("iss_aprs", "iss_aprs_uhf") and mode == "aprs"
     ) or (profile in ("iss_voice", "iss_sstv") and mode == "sstv_audio") or (profile in ("iss_voice", "iss_uhf") and mode == "fm_audio")
 
@@ -220,6 +222,43 @@ def detect_busy():
         return _linux_receiver_processes()
 
 
+def _linux_usb_receiver_inventory(sysfs=Path("/sys/bus/usb/devices")):
+    """Passive user-readable hardware IDs. Never opens USB or detaches drivers.
+
+    RTL2832U and Hauppauge DVB-T/T2 devices are kept distinct; a TV tuner
+    is NOT represented as a generic RTL-SDR raw I/Q receiver.
+    """
+    result = []
+    try:
+        devices = list(sysfs.iterdir())
+    except OSError:
+        return result
+    for device in devices:
+        try:
+            vid = (device/"idVendor").read_text(encoding="ascii").strip().lower()
+            pid = (device/"idProduct").read_text(encoding="ascii").strip().lower()
+        except (OSError, UnicodeError):
+            continue
+        rtl = (vid, pid) in (("0bda","2838"), ("0bda","2832"))
+        television = vid == "2040"
+        if not rtl and not television:
+            continue
+        def read_label(field):
+            try:
+                return (device/field).read_text(encoding="utf-8",errors="replace").strip()[:70]
+            except OSError:
+                return ""
+        result.append({
+            "vendor_id":vid, "product_id":pid,
+            "name":read_label("product") or ("RTL2832U compatible SDR" if rtl else "Hauppauge TV tuner"),
+            "manufacturer":read_label("manufacturer"),
+            "sysfs_device":device.name[:30],
+            "receiver_type":"rtl_sdr" if rtl else "dvb_tv_not_generic_iq",
+            "usb_present":True,
+        })
+    return result[:12]
+
+
 def _linux_rtl_usb_count(sysfs=Path("/sys/bus/usb/devices")):
     """Read-only Linux sysfs enumeration; no USB reset or driver detach."""
     count = 0
@@ -278,10 +317,21 @@ class Station:
             if j.get("state") == "running":
                 j.update(state="interrupted", result="Server restarted during capture; check archive")
         self.launching = False
+        saved_hardware = safe_read(self.directory/"hardware.json", {})
+        if not isinstance(saved_hardware, dict):
+            saved_hardware = {}
+        # Preserve existing opt-in schedules on upgraded installations.
+        # A user's explicit Disconnect is persisted and overrides auto jobs
+        # until another positive physical USB test enables capture.
+        self.receiver_enabled = saved_hardware.get("receiver_enabled", True) is True
+        self.receiver_generation = 0
+        self.receiver_test = None
+        self.receiver_last_sample = None
+        self.receiver_last_release = None
         self.predicted = {}
         self.wake = threading.Event()
         self.scheduler_thread = None
-        if any(j.get("state") == "pending" for j in self.jobs):
+        if self.receiver_enabled and any(j.get("state") == "pending" for j in self.jobs):
             self.start_scheduler()
 
     def status(self):
@@ -298,10 +348,175 @@ class Station:
                     "busy": detect_busy(), "tools": {n: bool(shutil.which(n)) for n in
                     ("rtl_test", "rtl_power", "rtl_sdr", "rtl_fm", "multimon-ng", "satdump", "qsstv")},
                     "compute": compute_capabilities(),
+                    "hardware": {
+                        "receiver_enabled": self.receiver_enabled,
+                        "usb_rtl_count": _linux_rtl_usb_count() if platform.system() == "Linux" else None,
+                        "usb_devices": _linux_usb_receiver_inventory() if platform.system() == "Linux" else [],
+                        "lease_held": self.device_lock is not None,
+                        "opening": self.launching,
+                        "owned_processes_running": sum(p.poll() is None for p in self.owned_processes),
+                        "app_released": (self.device_lock is None and
+                                         not self.launching and
+                                         not self.session.get("active") and
+                                         all(p.poll() is not None for p in self.owned_processes)),
+                        "last_usb_test": self.receiver_test,
+                        "last_real_sample": self.receiver_last_sample,
+                        "last_disconnect": self.receiver_last_release,
+                        "pending_schedules": sum(j.get("state") == "pending" for j in self.jobs),
+                        "usb_power_control": False,
+                    },
                     "orbit_cache": cached, "location_presets": LOCATIONS,
                     "profiles": PROFILES, "session": dict(self.session),
                     "jobs": [dict(j) for j in self.jobs[-100:]],
                     "archive": self.records()}
+
+    def sample_test(self, frequency_hz=137900000):
+        """Explicit real-IQ probe. Does NOT create a recording or decode a satellite.
+
+        Independent of a normal capture, temporary rtl_sdr process and receiver
+        lock are released in every outcome. No USB power/reset is attempted.
+        """
+        hz=int(frequency_hz)
+        if hz not in {137900000,137100000,145800000,145825000,
+                      437550000,437800000,437825000,1620000000}:
+            raise ValueError("Select a published receive-only diagnostic frequency")
+        tool=shutil.which("rtl_sdr")
+        if not tool:
+            raise RuntimeError("rtl_sdr not installed. Install rtl-sdr tools.")
+        with self.lock:
+            if self.closed.is_set() or self.session.get("active") or self.launching:
+                raise RuntimeError("Receiver in use; stop current activity before sampling")
+            self.launching=True
+            proc=None
+            try:
+                self.stopping.clear()
+                self._acquire()
+                # Exactly 524288 complex samples = 1 MiB unsigned CU8; bounded.
+                proc=self._launch_receiver([
+                    tool,"-d","0","-f",str(hz),"-s","1024000",
+                    "-n","524288","-"
+                ],stdin=subprocess.DEVNULL,stdout=subprocess.PIPE,
+                   stderr=subprocess.PIPE)
+                self.process=proc
+            except BaseException:
+                self.launching=False
+                self._release()
+                raise
+        try:
+            try:
+                raw,errors=proc.communicate(timeout=8)
+            except subprocess.TimeoutExpired as exc:
+                stop_process(proc)
+                raise RuntimeError("Physical SDR sample test timed out") from exc
+            if proc.returncode != 0 or len(raw) < 32768 or len(raw)%2:
+                message=errors.decode("utf-8","replace")[-320:]
+                raise RuntimeError(
+                    "Physical SDR did not produce usable complex IQ samples. "+
+                    re.sub(r"[\x00-\x1f\x7f]+"," ",message))
+            # Efficient bounded subsampling; voltage-relative digital metrics.
+            counts=raw[::64]
+            minimum=min(counts);maximum=max(counts)
+            mean=sum(counts)/len(counts)
+            rms=(sum((v-127.5)**2 for v in counts)/len(counts))**0.5
+            clipped=sum(v<3 or v>252 for v in counts)
+            with self.lock:
+                self.receiver_last_sample={
+                    "verified_at":stamp(),"frequency_hz":hz,
+                    "sample_bytes":len(raw)}
+            return {
+                "state":"real_iq_samples_received",
+                "sample_bytes":len(raw),
+                "complex_samples":len(raw)//2,
+                "frequency_hz":hz, "sample_rate_sps":1024000,
+                "digital_min":minimum,"digital_max":maximum,
+                "digital_mean":round(mean,2),
+                "digital_rms_from_midpoint":round(rms,2),
+                "sampled_clip_fraction":round(clipped/len(counts),5),
+                "signal_decoded":False,"satellite_identified":False,
+                "evidence":"physical rtl_sdr process emitted CU8 complex I/Q bytes",
+                "note":"Actual USB IQ acquisition verified. No calibrated dBm, station identity, usable antenna or satellite signal implied."
+            }
+        finally:
+            stop_process(proc)
+            with self.lock:
+                if self.process is proc:self.process=None
+                self.owned_processes.discard(proc)
+                self.launching=False
+                self._release()
+
+    def connect_receiver(self):
+        """Prove physical RTL-SDR open, release it, then arm future RF jobs.
+
+        Enabling is forbidden without a positive rtl_test result. The device is
+        not held open when idle; 'connected' means verified availability.
+        """
+        with self.lock:
+            if self.closed.is_set():
+                raise RuntimeError("Satellite Center is closing")
+            generation = self.receiver_generation
+        result = self.usb_test()
+        if result.get("state") != "usb_receiver_opened":
+            raise RuntimeError("No successful physical USB-open evidence")
+        sampling = self.sample_test()
+        if sampling.get("state") != "real_iq_samples_received":
+            raise RuntimeError("Physical USB opened, but no real IQ samples were verified")
+        with self.lock:
+            if self.closed.is_set() or self.receiver_generation != generation:
+                raise RuntimeError("Receiver was disconnected while verifying; RF stays disabled")
+            self.receiver_enabled = True
+            self.receiver_test = {"state": "usb_and_iq_verified_then_released",
+                                  "verified_at": stamp(),
+                                  "sample_bytes": sampling["sample_bytes"],
+                                  "evidence": sampling["evidence"]}
+            safe_write(self.directory/"hardware.json", {"receiver_enabled": True})
+            if any(j.get("state") == "pending" for j in self.jobs):
+                self.start_scheduler()
+                self.wake.set()
+        return {"receiver_enabled": True, "usb_test": result,
+                "sample_test": sampling,
+                "connection": "usb_and_iq_verified_then_released",
+                "note": "Physical rtl_test and rtl_sdr sample acquisition succeeded. Both processes/leases released; no SDR remains open while idle."}
+
+    def disconnect_receiver(self):
+        """Explicit persistent RF disarm; only Satellite Center's own children.
+
+        Pending jobs are *paused*, never silently executed after disconnect
+        (including after application restart). No USB power/reset occurs.
+        """
+        with self.lock:
+            self.receiver_enabled = False
+            self.receiver_generation += 1
+            safe_write(self.directory/"hardware.json", {"receiver_enabled": False})
+            self.wake.set()
+        requested = self.request_stop()
+        # Workers still unwinding may briefly retain the cooperative lock.
+        # Never report released until *all* owned processes and lease exit.
+        deadline = time.monotonic() + 5.0
+        while time.monotonic() < deadline:
+            with self.lock:
+                released = (not self.session.get("active") and not self.launching and
+                            self.device_lock is None and
+                            all(p.poll() is not None for p in self.owned_processes))
+                if released:
+                    self.receiver_last_release = stamp()
+                    break
+            time.sleep(0.05)
+        with self.lock:
+            if not released:
+                # Preserve the disarm, but truthfully report incomplete release.
+                self.receiver_last_release = None
+            return {
+                "receiver_enabled": False,
+                "app_released": released,
+                "owned_processes_stop_requested": requested["owned_processes_stop_requested"],
+                "pending_jobs_paused": sum(j.get("state") == "pending" for j in self.jobs),
+                "usb_still_physically_present": tuner_present() if platform.system()=="Linux" else None,
+                "last_disconnect": self.receiver_last_release,
+                "note": ("Satellite Center released its SDR processes and lock. "
+                         "USB remains plugged/powered; unrelated SDR apps are untouched."
+                         if released else
+                         "RF disarmed, but an owned process/lease is still stopping. Check status again.")
+            }
 
     def usb_test(self):
         """Opt-in bounded USB *open* test; does not tune to a station or transmit.
@@ -380,6 +595,38 @@ class Station:
             except (OSError, ValueError, UnicodeError) as exc:
                 result[key] = {"error": str(exc)[:150], "cached": False}
         return result
+
+    def plan_passes(self, **kwargs):
+        """Desktop-only explicit planning with truthful first-run TLE readiness.
+
+        Fresh local TLEs always win (including user-imported offline TLEs).
+        Only when *none* are usable does the operator's Calculate action
+        attempt an on-demand public refresh. Never silently invent passes.
+        """
+        now_time=time.time()
+        fresh=[]
+        for source in SOURCE_URLS:
+            target=self.directory/(source+".tle")
+            try:
+                if target.is_file() and now_time-target.stat().st_mtime <= 7*86400:
+                    fresh.append(source)
+            except OSError:
+                continue
+        refresh_result = None
+        if not fresh:
+            refresh_result=self.refresh()
+        report=self.passes(**kwargs)
+        if refresh_result is not None:
+            report["automatic_tle_refresh"]=refresh_result
+            if not report.get("predictions"):
+                report["warnings"].append(
+                    "No passes predicted after on-demand TLE refresh. "
+                    "Check HTTPS access, source errors, location/time filters, "
+                    "or import a local .tle file.")
+        if not report.get("predictions") and not report.get("warnings"):
+            report["warnings"]=["No above-horizon passes in the selected period. "
+                                "Try a longer lookahead or lower elevation."]
+        return report
 
     def passes(self, *, city="Cologne", lat=None, lon=None, hours=24, elevation=15):
         try:
@@ -507,10 +754,45 @@ class Station:
                 "above_5_degrees":visible[:160], "warnings":warnings,
                 "note":"Geometric position only; RF presence, antenna visibility and transmissions are unverified"}
 
+    def import_tle(self, path, source="amateur"):
+        """Explicit local, bounded TLE import, shared with native predictions.
+
+        User imports for a named catalog source replace only that source's
+        cached orbit text. No USB capture or Internet access.
+        """
+        if source not in SOURCE_URLS:
+            raise ValueError("Choose a supported orbit family/source")
+        file=Path(path).expanduser()
+        if not file.is_file() or file.stat().st_size>1048576:
+            raise ValueError("TLE file missing or larger than 1 MiB")
+        data=file.read_text(encoding="utf-8",errors="replace")
+        entries=parse_tle(data,limit=200)
+        if not entries:
+            raise ValueError("No matching two-line orbital element pairs in file")
+        expected={"iss":25544,"meteor3":57166,"meteor4":59051}
+        if source in expected and not any(row["id"]==expected[source] for row in entries):
+            raise ValueError("Selected satellite family does not match TLE NORAD ID")
+        target=self.directory/(source+".tle")
+        temporary=target.with_suffix(".tle.import")
+        try:
+            with temporary.open("x",encoding="utf-8") as output:
+                output.write(data)
+            os.chmod(temporary,0o600)
+            temporary.replace(target)
+        finally:
+            temporary.unlink(missing_ok=True)
+        return {
+            "source":source,"tle_count":len(entries),
+            "norad_ids":[row["id"] for row in entries[:20]],
+            "cache":str(target),"provenance":"user_imported_orbital_elements",
+            "radio_signal_verified":False,
+            "note":"Import only updates orbital elements. Recalculate passes; an orbit is not a received signal."
+        }
+
     def save_jobs(self):
         safe_write(self.directory/"schedule.json", self.jobs[-150:])
 
-    def schedule(self, pass_id, profile, mode, run_at=None, seconds=None, *, automatic=False):
+    def schedule(self, pass_id, profile, mode, run_at=None, seconds=None, *, automatic=False, sample_rate=1024000):
         """Explicit native RF pass schedule (Firefox-compatible, no WebUSB/FSA).
 
         Enforces server-predicted public TLE event/profile and local disk
@@ -519,7 +801,11 @@ class Station:
         """
         if type(seconds) is not int and seconds is not None:
             raise ValueError("Capture seconds must be a whole number")
+        if type(sample_rate) is not int or sample_rate not in (1024000,2048000):
+            raise ValueError("IQ sample rate must be 1.024 or 2.048 MS/s")
         with self.lock:
+            if not self.receiver_enabled:
+                raise RuntimeError("Receiver disabled in Hardware. Connect & verify USB before scheduling RF.")
             event = self.predicted.get(pass_id)
             if not event:
                 raise ValueError("Pass not in native prediction results; refresh local TLE and recalculate")
@@ -566,7 +852,8 @@ class Station:
             free = shutil.disk_usage(self.archive).free
             reserve = sum(int(other.get("estimated_bytes") or 0) for other in self.jobs
                           if other.get("state") in ("pending","running"))
-            estimate = (2*1024000*duration if mode == "iq"
+            estimate = ((2*sample_rate+64000)*duration if mode == "iq_and_fm_wav"
+                        else 2*sample_rate*duration if mode == "iq"
                         else 96_000*duration if mode in ("sstv_audio", "fm_audio")
                         else 1_000_000)
             if estimate>MAX_IQ_BYTES or free-reserve<estimate+200_000_000:
@@ -585,6 +872,7 @@ class Station:
                    "profile": profile, "mode": mode,
                    "aos": event["aos"], "los": event["los"],
                    "run_at": stamp(chosen), "capture_seconds": duration,
+                   "sample_rate": sample_rate,
                    "estimated_bytes": estimate,
                    "data_kind": "raw RF energy" if event["family"]=="iridium" else "unclassified IQ",
                    "coverage": "full-pass-attempt" if chosen+timedelta(seconds=duration)>=los-timedelta(seconds=END_MARGIN_SECONDS+5) else "partial-pass",
@@ -596,13 +884,16 @@ class Station:
             return dict(job)
 
     def schedule_chain(self, pass_id, profile, mode, run_at=None, seconds=None,
-                       *, max_part_seconds=180, gap_seconds=21):
+                       *, max_part_seconds=180, gap_seconds=21,
+                       sample_rate=1024000, automatic=False):
         """Explicit receive-only native file chain with separately persisted jobs.
 
         Every part is independently recorded and may have receiver re-tune gaps.
         A validated single receiver reservation is enforced for every part.
         No satellite transmission or gap-free recording is claimed.
         """
+        if type(sample_rate) is not int or sample_rate not in (1024000,2048000):
+            raise ValueError("Unsupported native IQ sample rate")
         if type(seconds) is not int or not 8 <= seconds <= 7200:
             raise ValueError("Chained RF recording must be 8–7200 whole seconds")
         if type(max_part_seconds) is not int or not 8 <= max_part_seconds <= 180:
@@ -640,7 +931,12 @@ class Station:
             created = []
             try:
                 for at, take in planned:
-                    created.append(self.schedule(pass_id, profile, mode, stamp(at), take))
+                    if sample_rate==1024000:
+                        created.append(self.schedule(pass_id, profile, mode, stamp(at),
+                                                     take, automatic=automatic))
+                    else:
+                        created.append(self.schedule(pass_id, profile, mode, stamp(at),
+                                                     take, automatic=automatic, sample_rate=sample_rate))
                 group_id = uuid.uuid4().hex[:12]
                 for idx, job in enumerate(created, 1):
                     live = next(row for row in self.jobs if row["id"] == job["id"])
@@ -667,13 +963,17 @@ class Station:
     def auto_schedule(self, mission_ids, *, city="Cologne", lat=None, lon=None,
                       hours=24, elevation=20, max_jobs=6, coverage_goal="full",
                       duration_seconds=None, compute_mode="auto", compute_targets=None,
-                      event_window_only=False):
+                      event_window_only=False, iss_record_format="wav"):
         """Explicit one-click receive-only mission planning with a single RTL-SDR.
 
         TLE passes are geometry, never proof of active transmitters. Mutating
         schedules is opt-in and uses the same persisted scheduler as manual jobs.
         """
         candidates = AUTO_DOWNLINK_PROFILES
+        if iss_record_format not in ("wav","cu8","both"):
+            raise ValueError("ISS recording choice must be wav, cu8 or both")
+        if not self.receiver_enabled:
+            raise RuntimeError("Receiver disabled in Hardware. Connect & verify USB first.")
         if not isinstance(mission_ids, list) or not mission_ids or len(mission_ids) > len(candidates):
             raise ValueError("Select one to five supported public downlink targets")
         if any(not isinstance(mid, str) or mid not in candidates for mid in mission_ids):
@@ -699,7 +999,8 @@ class Station:
         missing_per_mission = {}
         for mid in chosen:
             _norad, _profile, required_mode = candidates[mid]
-            required = (["rtl_sdr"] if required_mode == "iq" else
+            required = (["rtl_sdr"] if required_mode == "iq" or
+                        (mid == "iss-sstv" and iss_record_format in ("cu8","both")) else
                         ["rtl_fm", "multimon-ng"] if required_mode == "aprs" else
                         ["rtl_fm"])
             absent = [tool for tool in required if not shutil.which(tool)]
@@ -771,66 +1072,73 @@ class Station:
                 mission_counts[mid], eligible.index(mid)))
             plan = dict(plans[mission])
             _, profile, mode = candidates[mission]
-            # Full-pass time budgets did not previously reserve receiver restart
-            # slots. For chained jobs, fit BOTH captured seconds and 21-s
-            # inter-file gaps before LOS instead of silently overrunning it.
+            # Reserve per-part restart time inside the geometric pass before
+            # writing any native RF file. A geometric pass is not RF reception.
             if plan["capture_seconds"] > 180:
                 initial_seconds = int(plan["capture_seconds"])
-                maximum_wall = max(0, int((los-aos).total_seconds())-END_MARGIN_SECONDS)
+                maximum_wall = max(0,int((los-aos).total_seconds())-END_MARGIN_SECONDS)
                 safe_seconds = initial_seconds
-                while (safe_seconds>0 and safe_seconds+
-                       max(0,(safe_seconds+179)//180-1)*21>maximum_wall):
+                while safe_seconds>0 and safe_seconds + max(0,(safe_seconds+179)//180-1)*21 > maximum_wall:
                     safe_seconds-=1
-                if safe_seconds < 8:
-                    skipped.append(event["name"]+": no full segment fits with native receiver restart gaps")
+                if safe_seconds<8:
+                    skipped.append(event["name"]+": insufficient LOS time including receiver restarts")
                     continue
-                if safe_seconds < initial_seconds:
+                if safe_seconds<initial_seconds:
                     plan["capture_seconds"]=safe_seconds
                     plan["estimated_bytes"]=plan["estimated_bytes"]*safe_seconds//initial_seconds
                     plan["shortfall_seconds"]=int(plan.get("shortfall_seconds") or 0)+initial_seconds-safe_seconds
                     plan["coverage"]="partial-pass"
                     plan["note"]=(str(plan.get("note") or "")+
-                        "; "+str(initial_seconds-safe_seconds)+" s reserved for native file restart gaps")
+                        "; "+str(initial_seconds-safe_seconds)+" s reserved for file restarts")
+            estimate_for_mode=plan["estimated_bytes"]
+            if mission=="iss-sstv" and iss_record_format!="wav":
+                mode="iq" if iss_record_format=="cu8" else "iq_and_fm_wav"
+                estimate_for_mode=((2048000+64000) if iss_record_format=="both"
+                                   else 2048000)*plan["capture_seconds"]
+                if estimate_for_mode>MAX_IQ_BYTES or free_on_disk-reserved_bytes<estimate_for_mode+200_000_000:
+                    skipped.append(event["name"]+": insufficient disk for selected CU8/WAV outputs")
+                    continue
             try:
-                if plan["capture_seconds"] > 180:
-                    batch = self.schedule_chain(event["id"], profile, mode,
-                        stamp(aos), plan["capture_seconds"])
-                    created_jobs = batch["scheduled"]
+                if plan["capture_seconds"]>180:
+                    batch=self.schedule_chain(event["id"],profile,mode,stamp(aos),
+                        plan["capture_seconds"],automatic=True)
+                    created_jobs=batch["scheduled"]
                 else:
-                    created_jobs = [self.schedule(event["id"], profile, mode,
+                    created_jobs=[self.schedule(event["id"],profile,mode,
                         stamp(aos-timedelta(seconds=10)),
-                        plan["capture_seconds"], automatic=True)]
-            except (ValueError, RuntimeError) as error:
+                        plan["capture_seconds"],automatic=True)]
+            except (ValueError,RuntimeError) as error:
                 skipped.append(event["name"]+": "+str(error)[:100])
                 continue
             for job in created_jobs:
-                job.update(
-                    mission_id=mission,
-                    estimated_bytes=(plan["estimated_bytes"]*int(job["capture_seconds"])//
-                                     max(1,int(plan["capture_seconds"]))),
+                fraction=int(job["capture_seconds"])/max(1,int(plan["capture_seconds"]))
+                job.update(mission_id=mission,
                     requested_seconds=duration_seconds,
-                    coverage=plan["coverage"], data_kind=plan["data_kind"],
+                    estimated_bytes=int(estimate_for_mode*fraction),
+                    coverage=plan["coverage"],data_kind=plan["data_kind"],
                     target_seconds=plan["target_seconds"],
                     shortfall_seconds=plan["shortfall_seconds"],
                     pass_visible_seconds=plan["pass_visible_seconds"],
-                    coverage_goal=coverage_goal, capture_note=plan["note"],
-                    compute_mode=compute_mode, compute_targets=compute_plan["requested_targets"],
-                    event_window_only=event_window_only)
+                    coverage_goal=coverage_goal,capture_note=plan["note"],
+                    compute_mode=compute_mode,compute_targets=compute_plan["requested_targets"],
+                    event_window_only=event_window_only,
+                    iss_record_format=iss_record_format)
                 with self.lock:
-                    for stored in self.jobs:
-                        if stored["id"] == job["id"]:
-                            stored.update({key: job[key] for key in (
-                                "mission_id", "estimated_bytes", "requested_seconds", "coverage", "data_kind",
-                                "target_seconds", "shortfall_seconds", "pass_visible_seconds",
-                                "coverage_goal", "capture_note", "compute_mode", "compute_targets",
-                                "event_window_only")})
+                    stored=next((j for j in self.jobs if j["id"]==job["id"]),None)
+                    if stored:
+                        stored.update({key:job[key] for key in (
+                            "mission_id","requested_seconds","estimated_bytes",
+                            "coverage","data_kind","target_seconds","shortfall_seconds",
+                            "pass_visible_seconds","coverage_goal","capture_note",
+                            "compute_mode","compute_targets","event_window_only",
+                            "iss_record_format")})
                     self.save_jobs()
                 new_jobs.append(dict(job))
             if plan["coverage"] != "full-pass-attempt":
                 skipped.append(event["name"]+": "+str(plan["shortfall_seconds"])+
                                " seconds of predicted coverage missing; partial data only")
             mission_counts[mission] += 1
-            reserved_bytes += plan["estimated_bytes"]
+            reserved_bytes += estimate_for_mode
             existing.append((aos, los))
         return {"scheduled": new_jobs, "scheduled_count": len(new_jobs),
                 "skipped": skipped[:20], "requested_targets": requested_targets,
@@ -961,6 +1269,11 @@ class Station:
                 pending = [j for j in self.jobs if j["state"] == "pending"]
                 if not pending:
                     return
+                if not self.receiver_enabled:
+                    # Explicit disconnect pauses even scheduled captures.
+                    disarmed = True
+                else:
+                    disarmed = False
                 pending.sort(key=lambda j: j.get("run_at") or j["aos"])
                 nearest = pending[0]
                 target = datetime.fromisoformat(nearest.get("run_at") or nearest["aos"])
@@ -968,6 +1281,10 @@ class Station:
                 # Only old manual jobs without run_at start 10 s before AOS.
                 lead = 0 if nearest.get("run_at") else 10
                 delay = (target-now()).total_seconds()-lead
+            if disarmed:
+                self.wake.wait(60)
+                self.wake.clear()
+                continue
             if delay > 0:
                 self.wake.wait(min(delay, 60))
                 self.wake.clear()
@@ -975,7 +1292,7 @@ class Station:
             with self.lock:
                 if self.closed.is_set():
                     return
-                if nearest["state"] != "pending":
+                if not self.receiver_enabled or nearest["state"] != "pending":
                     continue
                 remaining = int((datetime.fromisoformat(nearest["los"])-now()).total_seconds())-END_MARGIN_SECONDS
                 duration = min(MAX_CAPTURE_SECONDS, remaining,
@@ -987,17 +1304,21 @@ class Station:
                 nearest["state"] = "running"
                 self.save_jobs()
             try:
+                kwargs = {}
+                if int(nearest.get("sample_rate") or 1024000) != 1024000:
+                    kwargs["sample_rate"] = int(nearest["sample_rate"])
                 result = self.capture(nearest["profile"], nearest["mode"], duration,
-                        scheduled=True, satellite=nearest.get("satellite"))
+                        scheduled=True, satellite=nearest.get("satellite"), **kwargs)
                 # The receiver is already released by capture(). A full-pass
                 # ISS SSTV WAV can contain several separate Robot36 images.
                 # Decode only actual PCM samples; never infer imagery from
                 # a predicted pass, filename, or RF level alone.
-                if (nearest.get("mission_id") == "iss-sstv"
-                        and result.get("file", "").endswith(".wav")):
+                wav_name = result.get("wav") or (
+                    result.get("file") if str(result.get("file","")).endswith(".wav") else None)
+                if nearest.get("mission_id") == "iss-sstv" and wav_name:
                     try:
                         result["sstv"] = extract_robot36_wav(
-                            self.archive / result["file"],
+                            self.archive / wav_name,
                             compute_mode=nearest.get("compute_mode", "auto"),
                             compute_targets=nearest.get("compute_targets"))
                     except Exception as exc:
@@ -1094,11 +1415,50 @@ class Station:
                 thread.join(timeout=4)
         self.request_stop()
 
-    def capture(self, profile, mode="survey", seconds=18, scheduled=False, owner=None, satellite=None):
+    def capture_dual(self,profile,seconds=60,scheduled=False,owner=None,satellite=None,
+                     sample_rate=1024000):
+        """Receive physical CU8 once, then demodulate its *same samples* to WAV.
+
+        Native hardware backend, not WebUSB. The 32-kHz WAV is a derived
+        FM-demodulated audio track; a saved WAV does not prove speech or SSTV.
+        Never hide/lose a valid CU8 file on a decoder error.
+        """
+        if profile not in ("iss_voice","iss_sstv","iss_uhf"):
+            raise ValueError("Dual CU8 + FM WAV requires a catalogued ISS audio profile")
+        iq=self.capture(profile,"iq",seconds,scheduled=scheduled,owner=owner,
+                        satellite=satellite,sample_rate=sample_rate)
+        from .native_signal_tools import fm_to_wav
+        try:
+            report=fm_to_wav(
+                self.archive/iq["file"],self.archive,sample_rate,
+                int(PROFILES[profile]["freq"]),0)
+            iq["wav"]=Path(report["output_wav"]).name
+            iq["wav_format"]="32kHz 16-bit PCM mono (native CPU demodulation after RF capture)"
+            iq["audio_authenticity"]="unverified_fm_demodulation_from_same_real_iq"
+            iq["mode"]="iq_and_fm_wav"
+        except (OSError,ValueError,RuntimeError) as exc:
+            iq["wav_error"]=str(exc)[:240]
+            iq["mode"]="iq_and_fm_wav_partial"
+            iq["note"]="Real CU8 preserved; derived FM WAV failed"
+        return iq
+
+    def capture(self, profile, mode="survey", seconds=18, scheduled=False, owner=None,
+                satellite=None, sample_rate=1024000):
         if profile not in PROFILES or mode not in MODES or not allowed_mode(profile, mode):
             raise ValueError("Unsupported capture preset")
         if type(seconds) is not int or not 8 <= seconds <= MAX_CAPTURE_SECONDS:
             raise ValueError("Capture duration must be 8–900 seconds")
+        if not self.receiver_enabled:
+            raise RuntimeError("Receiver disabled in Hardware. Connect & verify USB to enable RF.")
+        if type(sample_rate) is not int or sample_rate not in (1024000,2048000):
+            raise ValueError("IQ sample rate must be 1.024 or 2.048 MS/s")
+        if mode in ("iq","iq_and_fm_wav"):
+            bytes_per_second=2*sample_rate + (64000 if mode=="iq_and_fm_wav" else 0)
+            if bytes_per_second*seconds>MAX_IQ_BYTES:
+                raise ValueError(
+                    "Selected IQ/WAV duration and rate exceed safe 2 GB total disk limit")
+        if mode == "iq_and_fm_wav":
+            return self.capture_dual(profile,seconds,scheduled,owner,satellite,sample_rate)
         # Explicit manual requests use the same 8–900 s/2 GB native disk
         # safety budget as scheduled captures. No browser IQ memory buffer.
         if mode == "survey" and seconds > 180:
@@ -1112,6 +1472,8 @@ class Station:
         with self.lock:
             if self.closed.is_set():
                 raise RuntimeError("Satellite Center is shutting down")
+            if not self.receiver_enabled:
+                raise RuntimeError("Receiver disabled in Hardware. Connect & verify USB to enable RF.")
             if self.session.get("active"):
                 raise RuntimeError("Satellite capture already running")
             self.stopping.clear()
@@ -1126,7 +1488,7 @@ class Station:
             frequency = int(PROFILES[profile]["freq"] or 0)
             target = self.archive/recording_name(
                 satellite=candidate, timestamp=now(), frequency_hz=frequency,
-                sample_rate=1024000 if mode == "iq" else 48000 if mode in ("sstv_audio", "fm_audio") else None,
+                sample_rate=sample_rate if mode == "iq" else 48000 if mode in ("sstv_audio", "fm_audio") else None,
                 kind={"survey":"SURVEY","iq":"IQ","aprs":"APRS","sstv_audio":"SSTV-AUDIO","fm_audio":"VOICE-AUDIO"}[mode],
                 extension=suffix)
             if target.exists():
@@ -1169,8 +1531,8 @@ class Station:
                             source="rtl_power/physical_usb", satellite_verified=False)
                 safe_write(target, data)
             elif mode == "iq":
-                rate = 1024000
-                count = min(seconds * rate, MAX_IQ_BYTES//2)
+                rate = sample_rate
+                count = seconds*rate
                 if shutil.disk_usage(self.archive).free < 2*count+200_000_000:
                     raise RuntimeError("Insufficient free disk space for bounded IQ capture")
                 command = [shutil.which("rtl_sdr"), "-d", "0", "-f", str(PROFILES[profile]["freq"]),
@@ -1208,6 +1570,7 @@ class Station:
                 raise RuntimeError("No actual RF data captured")
             size = target.stat().st_size
             result = {"file": target.name, "bytes": size, "mode": mode,
+                      "sample_rate":sample_rate if mode=="iq" else None,
                       "profile": profile, "observed_at": stamp(),
                       "status": "recorded_unverified_rf"}
             if mode == "survey": result["status"] = "relative_spectrum_measurement"
@@ -1268,7 +1631,10 @@ class Station:
     def records(self):
         result = []
         for path in sorted(self.archive.iterdir(), reverse=True)[:100]:
-            if path.is_file() and path.suffix in (".json", ".cu8", ".txt", ".wav", ".png", ".jpg"):
+            if path.is_file() and path.suffix.lower() in (
+                ".json", ".cu8", ".txt", ".wav", ".png", ".jpg", ".jpeg",
+                ".mp4", ".m4v", ".mov", ".webm", ".gif", ".webp",
+                ".mp3", ".ogg", ".flac", ".csv", ".geojson"):
                 result.append({"file": path.name, "bytes": path.stat().st_size,
                                "modified": datetime.fromtimestamp(path.stat().st_mtime, UTC).isoformat(timespec="seconds")})
         return result
@@ -1521,8 +1887,9 @@ class Handler(BaseHTTPRequestHandler):
                 result = app.schedule(data.get("pass_id"), data.get("profile"), data.get("mode"),
                                       data.get("run_at"), data.get("duration_seconds"))
             elif route == "/api/schedule-chain":
-                result = app.schedule_chain(data.get("pass_id"), data.get("profile"),
-                    data.get("mode"), data.get("run_at"), data.get("duration_seconds"))
+                result = app.schedule_chain(data.get("pass_id"),data.get("profile"),
+                    data.get("mode"),data.get("run_at"),data.get("duration_seconds"),
+                    sample_rate=data.get("sample_rate",1024000))
             elif route == "/api/auto-schedule":
                 result = app.auto_schedule(data.get("missions"), city=data.get("city", "Cologne"),
                     lat=data.get("lat"), lon=data.get("lon"),

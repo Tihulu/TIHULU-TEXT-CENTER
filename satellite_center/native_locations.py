@@ -38,15 +38,30 @@ def load_locations(path=CITIES_JSON):
             result.append((cc,name,region,float(lat),float(lon)))
     return result
 
-def search_locations(rows,query,country="all",limit=12):
+def regions_for(rows,country="all"):
+    """Distinct existing Länder / provinces only; do not invent district coverage."""
+    if country not in ("all","DE","TR"):
+        return []
+    return sorted({region for cc,_,region,_,_ in rows
+                   if country=="all" or cc==country},key=fold)
+
+
+def search_locations(rows,query,country="all",limit=12,*,region=None):
+    """Search the bundled offline state/province + city/town directory.
+
+    The source does not provide a complete separate county/district hierarchy.
+    Named districts/towns are searchable only when included as source places.
+    """
     query=fold(query)
     query=ALIASES.get(query,query)
     if len(query)<2 or country not in ("all","DE","TR"):
         return []
+    selected_region=fold(region) if region else None
     found=[]
     for row in rows:
         cc,name,region,lat,lon=row
         if country!="all" and cc!=country:continue
+        if selected_region and fold(region)!=selected_region:continue
         key=fold(name)
         if key==query:priority=0
         elif key.startswith(query):priority=1

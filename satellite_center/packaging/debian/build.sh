@@ -4,7 +4,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/../../.."
 if ! command -v dpkg-deb >/dev/null; then echo "dpkg-deb is required" >&2; exit 1; fi
-VERSION="${TIHULU_DEB_VERSION:-0.3.0~preview7}"
+VERSION="${TIHULU_DEB_VERSION:-0.3.0~preview9}"
 case "$VERSION" in *[!a-zA-Z0-9.+:~-]*|"") echo "Invalid Debian package version" >&2; exit 1;; esac
 ROOT="$(mktemp -d)"
 trap 'rm -rf "$ROOT"' EXIT

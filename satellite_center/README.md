@@ -1,4 +1,101 @@
-# TIHULU Satellite Center 0.3.0~preview7 — native desktop application
+# TIHULU Satellite Center 0.3.0~preview9 — native desktop application
+
+## Preview9 · full home satellite pass planning (2026-11-07)
+
+Following desktop feedback, the **Home → 3 · Satellite pass planner** is
+no longer only a Cologne quick-preset. Home now directly contains:
+country selection **Germany / Türkiye**, state/province (Bundesland/il)
+filter, offline city/town/**named district when present** search from the
+same 8,084-place catalog, clickable search results, global opt-in
+Open-Meteo online city lookup, optional user-permitted QtPositioning,
+free manual latitude/longitude, lookahead hours and minimum elevation.
+
+Home and **Pass planner** operate on **the same coordinates, hours,
+elevation, TLE predictions and cached satellite passes**. Changes to
+numeric station coordinates and lookahead reflect in both views. The
+Home satellite list now supports NORAD/name search, satellite families,
+IMAGE/AUDIO/TEXT/RF format labels, seven actual sorting modes,
+selection and direct navigation to the editable pass recording panel.
+Selecting **Calculate passes** with no fresh local TLE source performs
+an **on-demand HTTPS refresh** before the native Skyfield calculation;
+it does not silently return an empty list. Any missing/expired source,
+network failure, zero predicted passes, decoder limitation or
+unavailable physical RF is reported explicitly. Refresh or imported
+offline TLE remains manually available.
+
+The offline dataset provides German **state + town** and Turkish
+**province + locality** names, including Hürth in Nordrhein-Westfalen
+and Karaburun/Bornova in İzmir. It is **not a complete additional
+county/subdistrict administrative registry**, and should not be
+described as such. User-selected coordinates remain on the computer
+unless explicit online geocoding is requested.
+
+The independent Qt Debian artifact is version **0.3.0~preview9**.
+Re-running the one-line installation replaces the previous native
+package; it never installs a WebView or WebUSB frontend. PR remains Draft,
+and actual RF/Pop!_OS verification still requires real local hardware.
+
+## Preview8 · Web-style UI and physical USB parity (2026-11-07)
+
+The native Qt application now follows the **same seven-sections-in-order**
+layout as the browser: automatic reception workflow, receiver hardware,
+physical sample recording, satellite pass planner, calendar, Earth/Sky maps,
+Signal Intelligence and Satellite Images & Data. The UI shares the web's
+dark backgrounds, blue action buttons, rounded controls and provenance
+descriptions. This is a **native PyQt5 Widgets implementation**; no browser,
+WebUSB, Electron, localhost service or WebView participates in desktop
+acquisition. Exact pixel-for-pixel browser CSS rendering is **not** claimed.
+
+The **Hardware / USB** page passively lists USB IDs and device models
+(including DVB TV as separate from SDR), identifies interfering SDR processes,
+shows actual lock/process state and has **Refresh, USB open test,
+Real CU8/IQ sample test, Connect & enable, Stop & disconnect** actions.
+Connect requires successful short `rtl_test` opening and a separate **real,
+1 MiB** `rtl_sdr` I/Q acquisition before enabling future captures. It never
+interprets raw power as a satellite identity. Disconnect stops only this
+program's receiver children, verifies its own receiver lock and child exit,
+and **persists RF disabled across application restarts**. Pending scheduled
+captures are paused, not deleted, until a new verified Connect. Disconnect
+does **not** electrically turn off or unplug the USB device or kill readsb.
+
+The manual, auto-ISS and pass schedule workflows offer genuine CU8, WAV or
+both where receiver/decoder mode permits. CU8+WAV records real IQ once
+and creates a **32 kHz WAV** from the same I/Q afterward; the web's
+simultaneous 48 kHz WAV path is a *different implementation*.
+IQ rates 1.024 / 2.048 MS/s are selectable and a strict 2 GB cap shortens
+maximum recording length at higher rates. During an actual CU8 capture, the
+Qt UI reads a small tail of the *real saved file* every second for a
+relative digital dBFS graph without opening another USB session.
+
+Native pass planning now has sorting, family/media filtering and explicit
+local TLE import. Location offers 8,084 offline DE/TR places, manual
+coordinates, **optional user-clicked worldwide online geocoding** and
+optional OS-permitted QtPositioning. Satellite Images & Data has real
+recording previews, Robot36/Meteor decoder actions and separate on-demand
+NASA EPIC/ISS photo galleries. NASA photos are labeled online sources,
+**never** claimed as radio-received images. A physical RTL-SDR,
+Pop!_OS/COSMIC mouse/driver test and real ISS/Meteor downlink remain
+unverified; CI uses synthetic orbital examples but no fabricated RF.
+
+## One-line GitHub native install — Debian / Ubuntu / Pop!_OS
+
+Runs on a Linux machine with `curl`, `tar`, `dpkg-deb` and `apt`.
+The installer fetches the public preview branch from GitHub, builds the
+genuine native Qt `.deb` from source, verifies package name/version,
+and installs it through `apt`. No `gh` account, Releases download,
+browser, npm, or Electron is needed. It uses `sudo` only for `apt`.
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Tihulu/TIHULU-TEXT-CENTER/feature/satellite-auto-discovery-integrated-2026-11-06/satellite_center/install/install-deb.sh | bash
+```
+
+Then launch `tihulu-satellite-center` or open the Applications menu.
+Check hardware dependencies with `tihulu-satellite-center doctor`
+without starting an RF capture. `main` is not changed while preview8
+remains in draft review. For a review-before-execute workflow, open
+[`install-deb.sh`](install/install-deb.sh) in the repo before running.
+The older `install/install.sh` creates a separate user-local Python
+environment and is **not** the recommended Debian system package installer.
 
 **Native Qt UI refresh · preview7:** The desktop is no longer eight exposed
 technical tabs. Five main sections follow the browser's user tasks: **Home**,
@@ -43,7 +140,7 @@ describe that separate legacy workflow, not the installed desktop app.
 Install the Debian package downloaded from GitHub Actions, then run:
 
 ```bash
-sudo apt install ./tihulu-satellite-center_0.3.0~preview7_all.deb
+sudo apt install ./tihulu-satellite-center_0.3.0~preview9_all.deb
 tihulu-satellite-center
 ```
 
@@ -206,9 +303,9 @@ Both manual receiver start and selected pass schedule entries support WAV, CU8 o
 
 ### Adjustable recording durations, timeline, result archive
 
-- **Chained capture and recording duration:** The browser manual receiver, pass scheduler, auto-passes and calendar editor accept seconds or minutes. A requested 300 s at 1.024 MS/s CU8 becomes five independently scheduled 60 s RF recordings (~122.88 MB each) with four 6 s reserved gaps. At 2.048 MS/s the planner uses <=32-second parts to remain under the 128 MiB raw-IQ memory budget. Every part appears on the calendar, has its own downloadable CU8 and optional demodulated WAV, and is labelled with its position in the chain. Browser `Stop & release` cancels all future manual parts; editing/cancelling a pending chain acts on the whole pending chain. File downloads require Chromium's permission for multiple automatic downloads. USB reopen/retune and saving can cause more gaps than the reserved 6 s, so split CU8 files are **not a lossless continuous Meteor LRPT baseband**. A visible awake foreground Chromium tab and real RTL-SDR permission remain mandatory.
+- **Actual RF sample length (Calculate Passes):** Manual per-pass scheduling now uses an editable 1–900-second number field instead of a fixed 60-second dropdown. Secure-origin Chromium browsers with File System Access can save long I/Q directly to a user-selected CU8 file, streaming individual received blocks with a 2 GB byte ceiling. A 2.048 MS/s recording has a shorter cap than 1.024 MS/s. Permission to save is obtained while explicitly scheduling the pass; the browser must remain open and visible. Firefox/Safari and unsupported browsers need a native companion for long data. Neither a geometrical pass nor a saved file proves full image reception.
 
-- Browser WebUSB remains limited to **<=60 seconds per file and <=128 MiB per CU8**. Requests up to 120 minutes are split into individually scheduled files only where the complete chain fits the predicted pass, with explicit gaps and truthful partial results. Native per-file scheduling uses **<=180-second** pieces with **21-second reserved gaps**, persisting every piece in the Qt and local API calendar. Automatic native full-pass scheduling reserves these gaps and marks truncated windows as partial; continuous/native direct disk capture remains a better option for Meteor LRPT decoding when possible. The actual downlink, suitable antenna and compatible SatDump decoding must still succeed.
+- User can choose a native 8–900 second clip (or leave blank for automatic pass-fitting). Browser WebUSB remains 8–60 seconds / 128 MiB because of foreground/memory limits. Large Meteor LRPT imaging requires the local disk-streamed SDR workflow; the actual downlink, sufficient antenna reception and SatDump decoding must still succeed.
 - The shared calendar hides cancelled jobs while preserving them in native audit records. Every visible job is labeled with local start–end time, actual planned clip duration, media type and estimated disk size; long jobs continue across hourly rows. Pending native tasks can edit time, protocol and recording duration.
 - Step 2 analyzes existing real files, Step 3 previews decoded image candidates, audio and text/data. **Save analyzed results as ZIP** packages actual output PNG/WAV/text/evidence JSON, manifest and warnings without uploading files. A safe ZIP limit of 256 MiB applies; raw IQ files are preserved separately for download and re-analysis, not embedded in ZIP. No decoding or source authenticity is fabricated.
 
@@ -544,3 +641,9 @@ The Linux one-line installer installs/updates two separate Applications entries 
 - **TIHULU Satellite Center (Local Companion):** optional local decoding/scheduled recording server; opens localhost in the default browser, including Firefox.
 
 On Pop!_OS/COSMIC, open Applications, right-click the Satellite Center entry and **Pin to Dock**. If an old generic gear icon remains pinned, unpin it and pin the new browser entry. A COSMIC/Chromium window-class issue can affect live dock grouping; the static Applications icon is explicitly installed to `~/.local/share/icons/hicolor/` and can be refreshed by running the installer again. Firefox's normal windows may still appear under the Firefox dock icon.
+
+### Chained capture durations · web/PWA and native Qt (7 November 2026)
+
+- Browser manual receiver, automatic pass planner, pass scheduling and calendar editing accept **seconds or minutes**. For 300 seconds of Meteor I/Q at 1.024 MS/s, the website schedules five real 60-second CU8 jobs, one downloadable RF file per job, with 6-second reserved restart slots. At 2.048 MS/s the per-file 128 MiB CU8 memory ceiling reduces clips to at most 32 seconds. User-selected WAV and CU8 may be recorded together, with separate outputs. All chunks appear independently with countdowns, part indices and measured-signal status.
+- Browser clips are **not continuous**: WebUSB re-open, transfer, file-download permissions and hidden tabs can cause additional data gaps. Keep Chromium visible and awake. Never merge disjoint IQ parts without representing missing samples; native continuous disk acquisition is recommended where an uninterrupted Meteor LRPT stream is required.
+- Native Qt manual pass scheduling and the local companion `/api/schedule-chain` split recordings longer than 180 s into separately persisted jobs (up to 180 s per file, 21-second reserved gaps) while checking the complete satellite visibility window and single-receiver conflicts. Native auto pass planning reserves time for the gaps and marks truncated recordings **partial**. Qt pass/auto/manual recording forms provide seconds/minutes controls and the reception calendar shows a live `days hours minutes seconds` countdown. The local app remains the native Qt process, not a WebView.
