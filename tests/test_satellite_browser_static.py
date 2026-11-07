@@ -33,6 +33,20 @@ class SatelliteBrowserStaticTests(unittest.TestCase):
         self.assertNotIn('fetch("http://127.0.0.1:8791', js)
         self.assertNotIn("127.0.0.1:8791/api/capture", js)
 
+    def test_native_webengine_compatibility_avoids_new_js_builtins(self):
+        # Qt WebEngine bundled on older Debian/Pop!_OS releases can lack
+        # Object.hasOwn and Array.prototype.at. A successful native TLE fetch
+        # must not fail in boundedCatalog() after the HTTPS request succeeded.
+        for asset in ROOT.glob("*.mjs"):
+            code = asset.read_text(encoding="utf-8")
+            self.assertNotIn("Object.hasOwn(", code, str(asset))
+        for asset in ROOT.glob("*.js"):
+            code = asset.read_text(encoding="utf-8")
+            self.assertNotIn("Object.hasOwn(", code, str(asset))
+        planner = (ROOT / "browser.js").read_text(encoding="utf-8")
+        self.assertIn("Object.prototype.hasOwnProperty.call(caps,family)", planner)
+        self.assertNotIn("chain.jobs.at(-1)", planner)
+
     def test_cross_platform_satellite_images_data_tab(self):
         reception=(ROOT / "reception.html").read_text(encoding="utf-8")
         html=(ROOT / "index.html").read_text(encoding="utf-8")
