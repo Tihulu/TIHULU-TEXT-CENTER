@@ -66,5 +66,52 @@
   for (const btn of document.querySelectorAll("[data-page]")) {
     btn.onclick = () => { $("page").value = btn.dataset.page; if (connected) $("open-page").click(); };
   }
+
+  // WebUSB permission is optional and never used as evidence of TV reception.
+  const usbStatus = message => { $("usb-status").textContent = message; };
+  const matchesWinTV = device => device.vendorId === 0x2040 && device.productId === 0x8268;
+  if (!("usb" in navigator)) {
+    $("webusb-select").disabled = true;
+    $("webusb-check").disabled = true;
+    usbStatus("WebUSB unavailable in this browser. Use Chromium for device selection, or the optional native DVB bridge.");
+  }
+  $("webusb-select").onclick = async () => {
+    if (!navigator.usb) return;
+    try {
+      const device = await navigator.usb.requestDevice({
+        filters: [{vendorId: 0x2040, productId: 0x8268}]
+      });
+      if (!matchesWinTV(device)) {
+        usbStatus("Selected USB device does not match the Hauppauge WinTV-soloHD profile.");
+        return;
+      }
+      usbStatus("USB permission granted: " + (device.productName || "Hauppauge device") +
+        " (2040:8268). Detection only — a DVB-T2 WebUSB tuner driver, firmware loader, transport decoder and browser video pipeline are NOT implemented. Continue with the native bridge for live TV.");
+    } catch (e) {
+      usbStatus(e.name === "NotFoundError" ? "No matching receiver chosen or permission dismissed." :
+        "WebUSB permission failed: " + e.message);
+    }
+  };
+  $("webusb-check").onclick = async () => {
+    if (!navigator.usb) return;
+    try {
+      const devices = (await navigator.usb.getDevices()).filter(matchesWinTV);
+      usbStatus(devices.length ?
+        "Previously permitted WinTV-soloHD USB detected (" + devices.length +
+        "). DVB-T2 decoding is not yet available in-browser." :
+        "No previously permitted Hauppauge WinTV-soloHD USB receiver found.");
+    } catch(e) { usbStatus("Unable to read permitted USB devices: " + e.message); }
+  };
+  $("check-compute").onclick = async () => {
+    const availableWasm = typeof WebAssembly !== "undefined";
+    let gpu = "unavailable";
+    if (navigator.gpu) {
+      try { gpu = (await navigator.gpu.requestAdapter()) ? "adapter available" : "no compatible adapter"; }
+      catch(e) { gpu = "adapter check failed"; }
+    }
+    $("compute-status").textContent = "WebAssembly: " + (availableWasm ? "supported" : "unavailable") +
+      " | WebGPU: " + gpu +
+      ". No speech/translation model is installed or running in this page. Capability is not live ASR.";
+  };
   window.addEventListener("pagehide", reset);
 })();

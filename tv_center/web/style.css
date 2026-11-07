@@ -14,3 +14,5 @@ button.secondary{background:#293c4b}.shortcuts{display:flex;gap:6px;margin-top:9
 label{font-size:13px;color:#9db1c6}#page{max-width:140px}.panel a{color:#7ecfe1}
 footer{margin-top:28px;font-size:11px;color:#8099b1;letter-spacing:.13em}
 @media(max-width:850px){.shell{padding:14px}main{grid-template-columns:1fr}.video{min-height:200px}h1{font-size:24px}h1 span{display:block}.hero h2{font-size:23px}}
+
+#usb-status,#compute-status{border-left:2px solid #4f9cbc;padding-left:10px;line-height:1.5}small{display:block;line-height:1.5}
