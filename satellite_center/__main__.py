@@ -754,7 +754,7 @@ class Station:
     def save_jobs(self):
         safe_write(self.directory/"schedule.json", self.jobs[-150:])
 
-    def schedule(self, pass_id, profile, mode, run_at=None, seconds=None, *, automatic=False):
+    def schedule(self, pass_id, profile, mode, run_at=None, seconds=None, *, automatic=False, sample_rate=1024000):
         """Explicit native RF pass schedule (Firefox-compatible, no WebUSB/FSA).
 
         Enforces server-predicted public TLE event/profile and local disk
@@ -763,6 +763,8 @@ class Station:
         """
         if type(seconds) is not int and seconds is not None:
             raise ValueError("Capture seconds must be a whole number")
+        if type(sample_rate) is not int or sample_rate not in (1024000,2048000):
+            raise ValueError("IQ sample rate must be 1.024 or 2.048 MS/s")
         with self.lock:
             if not self.receiver_enabled:
                 raise RuntimeError("Receiver disabled in Hardware. Connect & verify USB before scheduling RF.")
@@ -812,8 +814,8 @@ class Station:
             free = shutil.disk_usage(self.archive).free
             reserve = sum(int(other.get("estimated_bytes") or 0) for other in self.jobs
                           if other.get("state") in ("pending","running"))
-            estimate = ((2*1024000+64000)*duration if mode == "iq_and_fm_wav"
-                        else 2*1024000*duration if mode == "iq"
+            estimate = ((2*sample_rate+64000)*duration if mode == "iq_and_fm_wav"
+                        else 2*sample_rate*duration if mode == "iq"
                         else 96_000*duration if mode in ("sstv_audio", "fm_audio")
                         else 1_000_000)
             if estimate>MAX_IQ_BYTES or free-reserve<estimate+200_000_000:
@@ -832,6 +834,7 @@ class Station:
                    "profile": profile, "mode": mode,
                    "aos": event["aos"], "los": event["los"],
                    "run_at": stamp(chosen), "capture_seconds": duration,
+                   "sample_rate": sample_rate,
                    "estimated_bytes": estimate,
                    "data_kind": "raw RF energy" if event["family"]=="iridium" else "unclassified IQ",
                    "coverage": "full-pass-attempt" if chosen+timedelta(seconds=duration)>=los-timedelta(seconds=END_MARGIN_SECONDS+5) else "partial-pass",
@@ -1163,7 +1166,8 @@ class Station:
                 self.save_jobs()
             try:
                 result = self.capture(nearest["profile"], nearest["mode"], duration,
-                        scheduled=True, satellite=nearest.get("satellite"))
+                        scheduled=True, satellite=nearest.get("satellite"),
+                        sample_rate=int(nearest.get("sample_rate") or 1024000))
                 # The receiver is already released by capture(). A full-pass
                 # ISS SSTV WAV can contain several separate Robot36 images.
                 # Decode only actual PCM samples; never infer imagery from
@@ -1270,7 +1274,8 @@ class Station:
                 thread.join(timeout=4)
         self.request_stop()
 
-    def capture_dual(self,profile,seconds=60,scheduled=False,owner=None,satellite=None):
+    def capture_dual(self,profile,seconds=60,scheduled=False,owner=None,satellite=None,
+                     sample_rate=1024000):
         """Receive physical CU8 once, then demodulate its *same samples* to WAV.
 
         Native hardware backend, not WebUSB. The 32-kHz WAV is a derived
@@ -1280,11 +1285,11 @@ class Station:
         if profile not in ("iss_voice","iss_sstv","iss_uhf"):
             raise ValueError("Dual CU8 + FM WAV requires a catalogued ISS audio profile")
         iq=self.capture(profile,"iq",seconds,scheduled=scheduled,owner=owner,
-                        satellite=satellite)
+                        satellite=satellite,sample_rate=sample_rate)
         from .native_signal_tools import fm_to_wav
         try:
             report=fm_to_wav(
-                self.archive/iq["file"],self.archive,1024000,
+                self.archive/iq["file"],self.archive,sample_rate,
                 int(PROFILES[profile]["freq"]),0)
             iq["wav"]=Path(report["output_wav"]).name
             iq["wav_format"]="32kHz 16-bit PCM mono (native CPU demodulation after RF capture)"
@@ -1296,15 +1301,20 @@ class Station:
             iq["note"]="Real CU8 preserved; derived FM WAV failed"
         return iq
 
-    def capture(self, profile, mode="survey", seconds=18, scheduled=False, owner=None, satellite=None):
+    def capture(self, profile, mode="survey", seconds=18, scheduled=False, owner=None,
+                satellite=None, sample_rate=1024000):
         if profile not in PROFILES or mode not in MODES or not allowed_mode(profile, mode):
             raise ValueError("Unsupported capture preset")
         if type(seconds) is not int or not 8 <= seconds <= MAX_CAPTURE_SECONDS:
             raise ValueError("Capture duration must be 8–900 seconds")
         if not self.receiver_enabled:
             raise RuntimeError("Receiver disabled in Hardware. Connect & verify USB to enable RF.")
+        if type(sample_rate) is not int or sample_rate not in (1024000,2048000):
+            raise ValueError("IQ sample rate must be 1.024 or 2.048 MS/s")
+        if mode in ("iq","iq_and_fm_wav") and 2*sample_rate*seconds>MAX_IQ_BYTES:
+            raise ValueError("Selected IQ duration/rate exceeds safe 2 GB disk limit")
         if mode == "iq_and_fm_wav":
-            return self.capture_dual(profile,seconds,scheduled,owner,satellite)
+            return self.capture_dual(profile,seconds,scheduled,owner,satellite,sample_rate)
         # Explicit manual requests use the same 8–900 s/2 GB native disk
         # safety budget as scheduled captures. No browser IQ memory buffer.
         if mode == "survey" and seconds > 180:
@@ -1334,7 +1344,7 @@ class Station:
             frequency = int(PROFILES[profile]["freq"] or 0)
             target = self.archive/recording_name(
                 satellite=candidate, timestamp=now(), frequency_hz=frequency,
-                sample_rate=1024000 if mode == "iq" else 48000 if mode in ("sstv_audio", "fm_audio") else None,
+                sample_rate=sample_rate if mode == "iq" else 48000 if mode in ("sstv_audio", "fm_audio") else None,
                 kind={"survey":"SURVEY","iq":"IQ","aprs":"APRS","sstv_audio":"SSTV-AUDIO","fm_audio":"VOICE-AUDIO"}[mode],
                 extension=suffix)
             if target.exists():
@@ -1377,8 +1387,8 @@ class Station:
                             source="rtl_power/physical_usb", satellite_verified=False)
                 safe_write(target, data)
             elif mode == "iq":
-                rate = 1024000
-                count = min(seconds * rate, MAX_IQ_BYTES//2)
+                rate = sample_rate
+                count = seconds*rate
                 if shutil.disk_usage(self.archive).free < 2*count+200_000_000:
                     raise RuntimeError("Insufficient free disk space for bounded IQ capture")
                 command = [shutil.which("rtl_sdr"), "-d", "0", "-f", str(PROFILES[profile]["freq"]),
@@ -1416,6 +1426,7 @@ class Station:
                 raise RuntimeError("No actual RF data captured")
             size = target.stat().st_size
             result = {"file": target.name, "bytes": size, "mode": mode,
+                      "sample_rate":sample_rate if mode=="iq" else None,
                       "profile": profile, "observed_at": stamp(),
                       "status": "recorded_unverified_rf"}
             if mode == "survey": result["status"] = "relative_spectrum_measurement"
