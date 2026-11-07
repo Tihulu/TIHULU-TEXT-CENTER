@@ -17,6 +17,21 @@
   let bridge=null,seq=0;
   const callbacks=new Map();
   const hardwareState={enabled:false,verified:false,actualIQ:false};
+  const showNativeStatus=(response)=>{
+    const hw=response?.hardware||{};
+    const present=(hw.usb_devices||[]).some(d=>d.receiver_type==='rtl_sdr') ||
+      Number(hw.usb_rtl_count)>0;
+    hardwareState.enabled=hw.receiver_enabled===true;
+    hardwareState.verified=hardwareState.enabled;
+    say('native-receiver-status',hardwareState.enabled
+      ? 'RF ENABLED · native capture armed; USB released between jobs'
+      : present?'RTL-SDR DETECTED · click Connect & verify to enable real RF recording'
+               :'RTL-SDR NOT FOUND · check physical USB and Linux permissions');
+    if($('start'))$('start').disabled=!hardwareState.enabled;
+    if($('disconnect'))$('disconnect').disabled=!hardwareState.enabled;
+    return response;
+  };
+  const refreshNativeStatus=async()=>showNativeStatus(await lookup('status'));
   const lookup = (command,args={}) => new Promise((resolve,reject)=>{
     if(!bridge) return reject(Error('Qt native bridge is not available'));
     const id='q'+String(++seq);
@@ -138,6 +153,10 @@
     state.id='native-receiver-status';
     state.textContent='Same web UI · OS-native SDR · no WebUSB · no radio capture on startup';
     $('device-status')?.after(state);
+    const help=document.createElement('p');
+    help.className='hint';
+    help.textContent='USB open test does not enable capture. Connect & verify must acquire real IQ successfully, then arms native recording. The SDR is intentionally released while idle.';
+    state.after(help);
     // Never insert fake coordinates, imagery or signal levels.
   };
   const duration=(id,unitId)=>{
@@ -159,12 +178,20 @@
   const execute = async (id) => {
     switch(id){
       case 'connect': {
-        const result=await invoke('connect',{},'device-status');
-        hardwareState.enabled=true;hardwareState.verified=true;
-        say('device-status','PASS · physical USB and actual CU8 samples tested, then released. Native RF armed.');
-        say('usb-live-test-report','Physical receiver tested; no app-owned USB handle remains open while idle.');
-        $('disconnect').disabled=false;
-        return result;
+        if($('connect'))$('connect').disabled=true;
+        try{
+          const result=await invoke('connect',{},'device-status');
+          if(result.receiver_enabled!==true ||
+             result.sample_test?.state!=='real_iq_samples_received')
+            throw Error('Backend did not confirm both real IQ capture and enabled RF');
+          say('device-status','RF ENABLED · '+result.sample_test.sample_bytes+
+            ' physical IQ bytes verified. PLL and actual satellite reception remain unverified.');
+          say('usb-live-test-report','Real IQ verified; RTL-SDR is released while idle.');
+          return result;
+        }finally{
+          if($('connect'))$('connect').disabled=false;
+          await refreshNativeStatus();
+        }
       }
       case 'usb-live-test': {
         const result=await invoke('sample',{frequency:selectedFrequency()},'usb-live-test-report');
@@ -204,8 +231,9 @@
         say('device-status',result.app_released?
           'RF DISABLED · application SDR process and lock RELEASED. USB remains physically plugged in.':
           'RF DISABLED · release still pending; check process status.');
-        say('native-receiver-status','RF disabled · '+result.pending_jobs_paused+
-          ' pending scheduled jobs paused');
+        await refreshNativeStatus();
+        say('device-status','RF disabled · '+result.pending_jobs_paused+
+          ' pending jobs paused. Receiver released: '+Boolean(result.app_released));
         return;
       }
       case 'stop': {
@@ -215,17 +243,24 @@
         return result;
       }
       case 'start': {
+        const check=await refreshNativeStatus();
+        if(check.hardware?.receiver_enabled!==true)
+          throw Error('RF disabled. Click Connect & verify physical RTL-SDR before starting a recording.');
         const raw=Boolean($('record')?.checked),wav=Boolean($('wav-record')?.checked);
         const params={frequency:selectedFrequency(),
           seconds:duration('duration','duration-unit'),
           rate:Number($('rate')?.value||1024000),raw,wav};
-        const result=await invoke('capture',params,'device-status');
-        say('device-status','Actual native file saved: '+String(result.file||'unknown')+
-          (result.wav?' · plus WAV: '+result.wav:'')+
-          '. Source and decoded content not verified.');
-        say('native-receiver-status','Native capture completed · '+params.seconds+
-          ' s · local disk, no browser memory limit or WebUSB');
-        return;
+        if(!raw&&!wav)throw Error('Select CU8, WAV or both');
+        try{
+          const result=await invoke('capture',params,'device-status');
+          if(!result.file||!Number(result.bytes))
+            throw Error('Native recorder did not confirm a nonempty saved file');
+          say('device-status','SAVED REAL RF · '+result.file+' · '+
+            Number(result.bytes).toLocaleString()+' bytes. Satellite source not verified.');
+          return result;
+        }finally{
+          await refreshNativeStatus();
+        }
       }
       case 'auto-plan': {
         const raw=Boolean($('auto-save-raw')?.checked),
@@ -348,13 +383,10 @@
       window.nativeWebBridgeReady=true;
       window.nativeRFTransport='rtl_sdr';
       log('Exact bundled web UI ready · native Qt SDR WebChannel · WebUSB DISABLED');
-      lookup('status').then(result=>{
-        const hw=result.hardware||{};
-        say('device-status',hw.receiver_enabled?
-          'Physical receiver idle · use Connect to verify actual I/Q samples':
-          'RF disabled. Use Connect to test physical USB and enable recordings.');
-        say('native-receiver-status','Native OS SDR · no browser USB · '+
-          (hw.app_released?'receiver released':'receiver status pending'));
+      refreshNativeStatus().then(result=>{
+        say('device-status',result.hardware?.receiver_enabled?
+          'Native RF enabled · press Start native RF capture to record':
+          'RF disabled · press Connect & verify physical RTL-SDR to arm real recording');
       }).catch(error=>log('Passive USB status: '+error.message));
     });
   };
