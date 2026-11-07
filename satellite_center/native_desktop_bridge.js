@@ -57,6 +57,18 @@
       if(hints[1])hints[1].textContent=
         'Real USB connection and RF acquisition use OS-native SDR binaries (no WebUSB).';
     }
+    // Web-style worldwide city suggestions should work while typing in the
+    // *installed* desktop by default. No location data is requested at startup:
+    // actual Open-Meteo requests occur only after user types >=3 characters,
+    // with the same web debounce/fair-use/cancel logic. The checkbox remains
+    // visible and user-controlled; turning it off restores offline-only typing.
+    const onlineSuggest=$('city-online-toggle');
+    if(onlineSuggest){
+      onlineSuggest.checked=true;
+      onlineSuggest.dispatchEvent(new Event('change',{bubbles:true}));
+      const label=onlineSuggest.closest('label');
+      if(label)label.title='Native desktop: worldwide suggestions are enabled while typing. Uncheck to keep searches offline.';
+    }
     const install=document.querySelector('#desktop-install');
     if(install)install.hidden=true; // PWA install is browser-only, desktop is installed.
     for(const id of ['connect','usb-live-test','disconnect','start','stop']){
