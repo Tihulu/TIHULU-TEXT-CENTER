@@ -36,3 +36,15 @@ footer{margin-top:28px;font-size:11px;color:#8099b1;letter-spacing:.13em}
 #web-scan-state,#web-signal{font-size:13px;line-height:1.5}
 #web-scan-limitation{display:block;margin-top:12px}
 #web-control-root .actions button:disabled{opacity:.40}
+
+/* Tokenless local TV navigation; never conceal that Pages is a static app. */
+.link-button{display:inline-flex;align-items:center;justify-content:center;
+  background:#246985;border:1px solid #398eac;border-radius:6px;
+  padding:11px 16px;color:#ecf9ff!important;text-decoration:none;
+  font-size:13px;font-weight:600;white-space:nowrap;cursor:pointer}
+.link-button:hover{background:#328eae}
+#local-tv-panel .actions{align-items:center;flex-wrap:wrap}
+#video-box{display:flex;flex-direction:column;gap:9px}
+#video-box video{border-radius:7px}
+#local-tv-panel code{overflow-wrap:anywhere}
+@media(max-width:480px){.link-button{width:100%}}

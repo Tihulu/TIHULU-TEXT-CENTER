@@ -14,8 +14,15 @@
 <section class="hero">
 <div class="eyebrow">RECEIVER SESSION</div>
 <h2 id="channel">No local receiver connected</h2>
-<p id="source">This GitHub Pages interface contains no antenna driver and shows no simulated broadcast.</p>
-<div class="video"><span>Live video is available in the native Linux application and through its explicitly enabled PIN-paired LAN web app. GitHub Pages itself is static and cannot stream your USB tuner.</span></div>
+<p id="source">This web interface does not fake reception. Open Local TV for real Linux DVB, or use WebUSB diagnostics/Browser AI directly.</p>
+<div class="video" id="video-box">
+<video id="tv" controls playsinline preload="none" style="display:block;width:100%;max-height:52vh;background:black;min-height:160px"></video>
+<div style="width:100%">
+<p id="video-status">Open local TV on the host to watch real DVB via opt-in HLS video. GitHub Pages itself has no tuner access.</p>
+<div class="actions" style="justify-content:center;flex-wrap:wrap">
+<button id="video-start" disabled>Enable &amp; watch local video</button>
+<button id="video-stop" class="secondary" disabled>Stop video encoder</button>
+</div></div></div>
 <section class="captions"><div class="eyebrow">LIVE CAPTIONS / TRANSLATION</div>
 <p id="original">Connect to a local TV Center session to receive actual decoded text.</p>
 <p id="translated" class="translated"></p><small id="caption-source">No transcript received</small></section>
@@ -38,12 +45,14 @@
 <p>Plug the DVB-T2 USB tuner into the host computer or Raspberry Pi. In native TV Center, tune a channel, enable <b>Allow phone / tablet on trusted Wi-Fi</b>, then on the phone open the displayed <code>http://HOST-IP:8769/</code>. Enter the six-digit pairing code shown on the host; no long token is needed. Enable <b>Share live H.264/AAC video</b> on the host for an optional real TV stream.</p>
 <p>Safari on iPhone plays HLS natively; Android Chrome uses hls.js. The host and phone must share trusted Wi-Fi. Never expose HTTP port 8769 to the public Internet.</p>
 </section>
-<section class="panel"><h2>3 · Local receiver bridge (optional)</h2>
-<p>For real DVB-T2 reception, live subtitles and Teletext, run TIHULU TV Center on Debian / Pop!_OS / Pi OS, enable its bridge only when desired and paste the temporary session token. It does not use browser WebUSB.</p>
-<label for="token">Session token</label>
-<input id="token" autocomplete="off" type="password" placeholder="Paste token from desktop TV Center">
-<div class="actions"><button id="connect">Connect</button><button id="disconnect" class="secondary" disabled>Disconnect</button></div>
-<p id="connection-note">GitHub Pages cannot directly access Linux DVB hardware. Browser loopback permissions may vary.</p>
+<section class="panel" id="local-tv-panel"><h2>3 · Open Local TV — No token</h2>
+<p>For real TV channels, scanning, favorites, Teletext and HLS video, run <strong>TIHULU TV Center</strong> on this computer. It starts a token-free local web companion at <code>127.0.0.1:8768</code>. No account, copied token or pairing required on the same machine.</p>
+<div class="actions">
+<a id="local-tv-link" class="link-button" href="http://127.0.0.1:8768/" target="_blank" rel="noopener noreferrer">Open Local TV</a>
+<button id="connect" class="secondary">Check local receiver</button>
+</div>
+<p id="connection-note" role="status">GitHub Pages supports browser AI and WebUSB diagnostics directly. Use the local link for full native DVB controls.</p>
+<small>Browser security may block automatic localhost discovery from GitHub Pages. Opening the local URL directly avoids cross-origin and mixed-content restrictions. Remote phones continue using the separately enabled PIN-paired LAN app.</small>
 </section>
 <div id="web-control-root"></div><section class="panel"><h2>Interactive Teletext</h2>
 <p>Choose a real broadcast page, including 100 (index), 150 (ARD/ARTE captions) or 777 (some ZDF captions).</p>
@@ -76,6 +85,6 @@
 <a href="https://github.com/Tihulu/TIHULU-TEXT-CENTER/tree/feature/tv-center-native-teletext-asr-2026-11-07/tv_center">Project sources and setup</a>
 </section>
 </aside></main>
-<footer>WEBUSB TRANSPORT LAB · DIRECT TUNING NOT YET IMPLEMENTED · WEBGPU/WASM READINESS · NO AUTOSTART RF</footer>
-</div><script src="./app.js"></script><script type="module" src="./web-controls.js?v=2"></script><script type="module" src="./webusb-ui.js"></script><script type="module" src="./browser-ai-ui.js"></script>
+<footer>TOKEN-FREE LOCAL DVB · OPTIONAL PIN FOR LAN · WEBUSB DIAGNOSTICS · WEBGPU/WASM AI</footer>
+</div><script src="https://cdn.jsdelivr.net/npm/hls.js@1.7.3/dist/hls.min.js"></script><script src="./app.js?v=3"></script><script type="module" src="./web-controls.js?v=2"></script><script type="module" src="./webusb-ui.js"></script><script type="module" src="./browser-ai-ui.js"></script>
 </body></html>

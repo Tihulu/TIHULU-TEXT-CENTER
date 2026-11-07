@@ -1,8 +1,8 @@
 {
   "source_branch": "feature/tv-center-native-teletext-asr-2026-11-07",
-  "source_sha": "33efea7b5136a08efff3d6d714ae360be41401a1",
-  "mode": "GitHub Pages web app; native Linux/Pi required for actual DVB scanning",
-  "fix": "Country-frequency plan and satellite position are mutually exclusive; scan/stop/cancel disabled when unsupported or receiver disconnected",
-  "webusb": "EM28178 read-only diagnostics only; no browser DVB-T2 tuner driver",
-  "browserAI": "on-demand WebGPU/WASM Whisper"
+  "source_sha": "6de8a93d5dda03d1472f1d2c2660b53cbd07fae8",
+  "interface": "Token-free local TV companion (127.0.0.1:8768)",
+  "pages_behavior": "Public Pages checks non-sensitive localhost health and links to tokenless same-origin local TV, without elevated cross-origin DVB API privileges",
+  "tuner": "Native Linux DVB required for TV; direct browser WebUSB receiver still experimental diagnostics",
+  "mobile": "LAN requires explicit PIN pairing"
 }
