@@ -888,6 +888,12 @@ class SatelliteWindow(QMainWindow):
         controls.addRow("Quick preset",self.city)
         controls.addRow("Country",self.city_country)
         controls.addRow("Offline city search",self.city_search)
+        lookup=QHBoxLayout()
+        lookup.addWidget(self._button("Worldwide online lookup (opt-in)",
+                                      self._search_online_city))
+        lookup.addWidget(self._button("Ask OS for GPS location",
+                                      self._request_system_location))
+        controls.addRow(lookup)
         controls.addRow("",self.city_info)
         controls.addRow("Latitude",self.lat)
         controls.addRow("Longitude",self.lon)
@@ -895,6 +901,94 @@ class SatelliteWindow(QMainWindow):
         controls.addRow("Minimum elevation · degrees",self.elev)
         self._preset_location()
         parent.addWidget(group)
+
+    def _search_online_city(self):
+        """Explicit opt-in Open-Meteo city name search, not live GPS."""
+        query=self.city_search.text().strip()
+        if len(query)<2 or len(query)>100:
+            return QMessageBox.information(
+                self,"Worldwide city search",
+                "Enter at least two city-name characters before online lookup.")
+        from urllib.parse import urlencode
+        from urllib.request import urlopen,Request
+        url=("https://geocoding-api.open-meteo.com/v1/search?"+
+             urlencode({"name":query,"count":10,"language":"en","format":"json"}))
+        def work():
+            with urlopen(Request(url,headers={
+                "User-Agent":"TIHULU-Satellite-Center-native/0.3"
+            }),timeout=12) as response:
+                data=response.read(500001)
+            if len(data)>500000:raise ValueError("Geocoding response too large")
+            records=json.loads(data).get("results") or []
+            rows=[]
+            for row in records[:10]:
+                try:
+                    lat,lon=float(row["latitude"]),float(row["longitude"])
+                except (KeyError,ValueError,TypeError):continue
+                if not -90<=lat<=90 or not -180<=lon<=180:continue
+                label=", ".join(str(row.get(part) or "")[:65] for part in
+                                ("name","admin1","country") if row.get(part))
+                rows.append((label,lat,lon))
+            return rows
+        self.city_info.setText("Contacting Open-Meteo only for the city name you entered…")
+        self._task("Worldwide geocoding",work,self._apply_online_cities)
+
+    def _apply_online_cities(self,rows):
+        if not rows:
+            self.city_info.setText("No online city result. Offline search or manual coordinates remain available.")
+            return
+        from PyQt5.QtWidgets import QInputDialog
+        labels=[f"{name}  ({lat:.4f}°, {lon:.4f}°)" for name,lat,lon in rows]
+        chosen,ok=QInputDialog.getItem(
+            self,"Choose online city / ground station",
+            "Online Open-Meteo result",labels,0,False)
+        if not ok:return
+        idx=labels.index(chosen)
+        name,lat,lon=rows[idx]
+        self.city.setCurrentText("Custom coordinates")
+        self.lat.setValue(lat);self.lon.setValue(lon)
+        self.city_info.setText(
+            "Online city selected: "+name+". Coordinates applied. "
+            "Orbit calculations are local; recalculate passes.")
+
+    def _request_system_location(self):
+        if QMessageBox.question(
+            self,"System location consent",
+            "Ask the operating system for a one-time approximate device position? "
+            "This may prompt for OS location-service permission. "
+            "No location will be sent to online city search. Continue?",
+            QMessageBox.Yes|QMessageBox.No)!=QMessageBox.Yes:
+            return
+        try:
+            from PyQt5.QtPositioning import QGeoPositionInfoSource
+        except ImportError:
+            return QMessageBox.information(
+                self,"Optional Qt Positioning support",
+                "QtPositioning is not installed. Optionally install "
+                "python3-pyqt5.qtpositioning and enable your OS location service, "
+                "or choose a city/manual latitude and longitude.")
+        source=QGeoPositionInfoSource.createDefaultSource(self)
+        if source is None:
+            return QMessageBox.information(
+                self,"No system location provider",
+                "No OS-approved GPS / Wi-Fi positioning provider is available. "
+                "Use offline city search or manual coordinates.")
+        self._position_source=source
+        source.positionUpdated.connect(self._system_position_received)
+        source.requestUpdate(12000)
+        self.city_info.setText("Waiting for the OS-approved one-time location request…")
+
+    def _system_position_received(self,info):
+        if not info.isValid():return
+        coordinate=info.coordinate()
+        lat,lon=coordinate.latitude(),coordinate.longitude()
+        if not -90<=lat<=90 or not -180<=lon<=180:return
+        self.city.setCurrentText("Custom coordinates")
+        self.lat.setValue(lat);self.lon.setValue(lon)
+        self.city_info.setText(
+            f"One-time OS device position applied: {lat:.5f}°, {lon:.5f}°. "
+            "No RF/GPS acquisition was inferred from satellite tracking. "
+            "Recalculate passes.")
 
     def _preset_location(self, *_):
         place=LOCATIONS.get(self.city.currentText())
@@ -2338,6 +2432,8 @@ class SatelliteWindow(QMainWindow):
                     self.pass_feedback.setText("Recording not scheduled: "+message)
                 elif key=="Local TLE import":
                     self.tle_import_feedback.setText("TLE import failed: "+message)
+                elif key=="Worldwide geocoding":
+                    self.city_info.setText("Online city lookup failed: "+message)
                 elif key in ("Connect SDR","Disconnect SDR","USB diagnostic","Real RF sample test"):
                     self.hardware_feedback.setText(key+" failed: "+message)
                     self.refresh_status()
