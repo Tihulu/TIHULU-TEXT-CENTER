@@ -46,7 +46,7 @@
   <label class="check"><input id="auto-save-raw" type="checkbox"> CU8 · original RF/IQ for re-analysis</label>
  </div>
  <p id="auto-format-summary" class="capture-format-summary" role="status" aria-live="polite">Selected: WAV only · 1 file. Tick CU8 to record both files from the same WebUSB capture.</p>
- <p class="hint">WebUSB only: ISS recording formats can be selected independently. Browser auto captures are limited to 60 seconds and require an open visible tab. Native unattended ISS jobs currently create WAV only.</p>
+ <p class="hint">WebUSB only: ISS recording formats can be selected independently. Every WebUSB capture PART is limited to 60 seconds / 128 MiB; longer ISS plans schedule separate sequential WAV/CU8 jobs. The browser must remain open and visible. Native unattended ISS mode currently writes WAV files.</p>
 </fieldset>
 <div class="line">
 <button id="auto-plan" type="button">1 · Auto Schedule &amp; Capture</button>
@@ -56,8 +56,8 @@
 </div>
 <p id="auto-plan-status" class="status" role="status" aria-live="polite">No automatic passes armed. Nothing is scanning.</p>
 <p class="hint" id="auto-budget-help">Capture feasibility: 1.024 MS/s unsigned IQ needs about 2.048 MB per second (60 seconds ≈ 123 MB). This browser keeps at most 128 MiB in memory; full Meteor LRPT weather images generally need longer native disk recordings with free space and SatDump. Complete coverage is never a guarantee of a complete transmitted dataset.</p>
-<p class="hint"><strong>ISS Series 35 · 9–16 November 2026:</strong> 437.550 MHz FM ± Doppler, Robot36 (36 s picture / 120 s break); start/end UTC times TBD. ARISS currently has a Robot 35/36 wording discrepancy; confirm <a href="https://www.ariss.org/upcoming-sstv-events.html" target="_blank" rel="noopener noreferrer">the current ARISS event notice</a>. The native receiver attempts complete WAV passes and now extracts every validated Robot36 frame to PNG. Browser WebUSB 60 s sampling does not guarantee an image and Firefox requires the native companion.</p>
-<p class="hint">Browser capture limits: 60 s / 128 MiB per pass, potentially insufficient for an entire Meteor LRPT Earth image. The native service can schedule longer recordings, but SatDump/APRS decoders must actually be installed. No device is claimed until authorized, and images/messages are never inferred from a TLE pass alone.</p>
+<p class="hint"><strong>ISS Series 35 · 9–16 November 2026:</strong> 437.550 MHz FM ± Doppler, Robot36 (36 s picture / 120 s break); start/end UTC times TBD. ARISS currently has a Robot 35/36 wording discrepancy; confirm <a href="https://www.ariss.org/upcoming-sstv-events.html" target="_blank" rel="noopener noreferrer">the current ARISS event notice</a>. The native receiver attempts complete WAV passes and now extracts every validated Robot36 frame to PNG. Each Browser WebUSB file is <=60 s; consecutive files contain restart gaps and do not guarantee an image and Firefox requires the native companion.</p>
+<p class="hint">Browser capture limits: 60 s / 128 MiB per recording part. Longer passes are divided into separate calendar files; radio re-tuning introduces gaps, so do not claim a continuous Meteor LRPT Earth-image dataset. The native service can schedule longer recordings, but SatDump/APRS decoders must actually be installed. No device is claimed until authorized, and images/messages are never inferred from a TLE pass alone.</p>
 </section>
 
 <section class="notice" id="desktop-install"><strong>Show Satellite Center in Applications / Dock:</strong> in Chrome, Edge or Brave choose <em>Install this site as an app</em> from the browser menu or address bar, then pin it in your operating system's dock. The installed app uses the new radio V-dipole icon and opens its own window. <button id="install-app" hidden>Install web app</button>
@@ -108,7 +108,7 @@
 </fieldset>
 <p id="capture-budget" class="hint" role="status">Up to 60 seconds per WebUSB file, with a 128 MiB CU8 cap. Longer requests become multiple calendar jobs, each with separate downloads. Restart gaps are possible.</p>
 <div class="line"><button id="start" disabled>Start real USB capture</button><button id="stop" class="secondary" disabled>Stop &amp; release</button></div>
-<p class="hint">Measures uncalibrated digital sample levels, not dBm or proof of a satellite. RF samples can exceed 60 seconds (maximum 900 s / 2 GB) where the Chromium browser supports user-authorized disk streaming. You choose the local .cu8 file. On Firefox/Safari or unsupported browsers, use the optional native companion. Larger raw IQ requires space; actual Earth-image decoding needs a genuine downlink and decoder.</p>
+<p class="hint">Measures uncalibrated digital sample levels, not dBm or proof of a satellite. RF requests exceeding 60 seconds now automatically become separate <=60 s downloads and calendar jobs (with a 128 MiB CU8 cap per file). Manual uninterrupted disk-streaming is not guaranteed by this segmented mode. On Firefox/Safari or unsupported browsers, use the optional native companion. Larger raw IQ requires space; actual Earth-image decoding needs a genuine downlink and decoder.</p>
 <canvas id="level-chart" width="760" height="180" aria-label="Measured relative raw SDR sample level history"></canvas>
 <p id="sample-state" class="status" role="status">No RF samples measured.</p>
 <a class="iq-jump-link" href="#iq-analysis">Analyze .cu8 recording inside Satellite Center · spectrum / waterfall / level over time</a>
