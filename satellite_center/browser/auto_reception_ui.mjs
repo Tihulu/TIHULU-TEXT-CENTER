@@ -232,7 +232,7 @@ export function initAutoReceptionUI({getSelectedFile=()=>null,fileInput=$("local
 
   $("auto-mission-arm").addEventListener("click",async()=>{
     const mode=$("auto-mission-group").value;
-    if(!Object.hasOwn(AUTO_PRESETS,mode))return;
+    if(!Object.prototype.hasOwnProperty.call(AUTO_PRESETS,mode))return;
     const btn=$("auto-mission-arm");btn.disabled=true;
     try{
       const {lat,lon}=station();
