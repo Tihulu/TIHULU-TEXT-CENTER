@@ -31,10 +31,10 @@ class NativeTVTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             conf=Path(tmp)/"channels.conf"
             conf.write_text(
-                "[Same Name]\\nFREQUENCY = 538000000\\nSERVICE_ID = 100\\n"
-                "DELIVERY_SYSTEM = DVBT2\\nSTREAM_ID = 1\\n\\n"
-                "[Same Name]\\nFREQUENCY = 586000000\\nSERVICE_ID = 201\\n"
-                "DELIVERY_SYSTEM = DVBT2\\nSTREAM_ID = 3\\n\\n")
+                "[Same Name]\nFREQUENCY = 538000000\nSERVICE_ID = 100\n"
+                "DELIVERY_SYSTEM = DVBT2\nSTREAM_ID = 1\n\n"
+                "[Same Name]\nFREQUENCY = 586000000\nSERVICE_ID = 201\n"
+                "DELIVERY_SYSTEM = DVBT2\nSTREAM_ID = 3\n\n")
             second=read_channels([conf])[1]
             isolated=isolated_channel_file(second,Path(tmp)/"single.conf")
             self.assertEqual(isolated.name,"Same Name")
