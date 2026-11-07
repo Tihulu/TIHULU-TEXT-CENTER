@@ -1,5 +1,5 @@
 import unittest
-from satellite_center.native_locations import load_locations,search_locations,city_label
+from satellite_center.native_locations import load_locations,search_locations,city_label,regions_for
 
 class NativeCitySearchTests(unittest.TestCase):
     @classmethod
@@ -20,3 +20,16 @@ class NativeCitySearchTests(unittest.TestCase):
         self.assertEqual(search_locations(self.rows,"i"),[])
         self.assertEqual(search_locations(self.rows,"izmir","DE"),[])
         self.assertLessEqual(len(search_locations(self.rows,"ber","all")),12)
+
+    def test_country_state_province_city_combination(self):
+        nrw="North Rhine-Westphalia"
+        self.assertIn(nrw,regions_for(self.rows,"DE"))
+        self.assertNotIn(nrw,regions_for(self.rows,"TR"))
+        cities=search_locations(self.rows,"Hürth","DE",region=nrw)
+        self.assertTrue(cities)
+        self.assertTrue(all(row[0]=="DE" and row[2]==nrw for row in cities))
+        self.assertFalse(search_locations(self.rows,"Hürth","DE",region="Bavaria"))
+        izmir=search_locations(self.rows,"Izmir","TR")
+        self.assertTrue(izmir)
+        self.assertTrue(all(row[0]=="TR" for row in izmir))
+        self.assertFalse(search_locations(self.rows,"Köln","TR"))
