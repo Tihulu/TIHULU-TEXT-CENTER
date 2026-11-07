@@ -13,16 +13,25 @@ export function supportedUSB(device){
 export function endpointsOf(device){
   if(!supportedUSB(device))throw Error("Unsupported TV USB device ID");
   const configurations = device.configurations || (device.configuration?[device.configuration]:[]);
-  return configurations.flatMap(cfg=>(cfg.interfaces||[]).flatMap(iface=>
-    (iface.alternates||[]).flatMap(alt=> (alt.endpoints||[]).map(ep=>({
-      configuration:cfg.configurationValue,
-      interface:iface.interfaceNumber,
-      alternate:alt.alternateSetting,
-      type:ep.type,
-      direction:ep.direction,
-      number:ep.endpointNumber,
-      packetSize:ep.packetSize
-    }))));
+  const results=[];
+  for(const cfg of configurations){
+    for(const iface of (cfg.interfaces||[])){
+      for(const alt of (iface.alternates||[])){
+        for(const ep of (alt.endpoints||[])){
+          results.push({
+            configuration:cfg.configurationValue,
+            interface:iface.interfaceNumber,
+            alternate:alt.alternateSetting,
+            type:ep.type,
+            direction:ep.direction,
+            number:ep.endpointNumber,
+            packetSize:ep.packetSize
+          });
+        }
+      }
+    }
+  }
+  return results;
 }
 export function bulkCandidates(device){
   return endpointsOf(device).filter(e=>e.type==="bulk"&&e.direction==="in");
