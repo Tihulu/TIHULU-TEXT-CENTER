@@ -449,7 +449,7 @@ class Station:
                         raise RuntimeError(
                             "Physical SDR sample test failed: " + reason +
                             ". Receiver access does not prove IQ reception. " +
-                            re.sub(r"[\\x00-\\x1f\\x7f]+", " ", errors[-250:]))
+                            re.sub(r"[\x00-\x1f\x7f]+", " ", errors[-250:]))
                     with iq_file.open("rb") as handle:
                         raw = handle.read(target_bytes)
                     if len(raw) != target_bytes or len(raw) % 2:
