@@ -135,16 +135,20 @@ class CaptionTap:
                     raise RuntimeError("Whisper disabled. Enable in AI Model Market.")
                 selected = "teletext"
             source = options["source"]
-            want_translate = options["target"] != source
-            target = options["target"] if ai.values["translation_enabled"] else source
+            targets = tuple(options.get("targets", ()))
+            enabled = targets if ai.values["translation_enabled"] else ()
+            primary = targets[0] if targets else source
             result = decode_segment(capture, mode=selected, page=options["page"],
-                source=source, target=target, model=ai.values["model_path"],
-                service_id=None)
-            if want_translate and not ai.values["translation_enabled"]:
-                result["translation_error"] = "Translation disabled; enable it in Model Market."
-            elif want_translate and not result.get("translated"):
+                source=source, target=primary, targets=enabled,
+                model=ai.values["model_path"], service_id=None)
+            if targets and not ai.values["translation_enabled"]:
+                result["translation_errors"] = {
+                    lang: "Translation disabled in Model Market." for lang in targets}
+            if targets and not result.get("translations"):
                 result["translation_error"] = (
-                    result.get("error") or "Translation package unavailable; open Model Market.")
+                    next(iter(result.get("translation_errors", {}).values()), None)
+                    or result.get("error") or
+                    "Language packs unavailable. Install via Model Market.")
             result["captured_start"] = captured_start
             result["captured_end"] = captured_end
             result["decoded_at"] = time.monotonic()
@@ -222,16 +226,33 @@ def main(argv=None):
     mode.addItem("Manual Teletext page", "page")
     mode.addItem("Off", "off")
     source = QComboBox(); source.addItems(LANGS); source.setCurrentText("de")
-    target = QComboBox(); target.addItem("Off (original only)", "off")
-    for lang in ("tr", "en", "de"):
-        target.addItem(lang, lang)
-    target.setCurrentIndex(1)
     page = QSpinBox(); page.setRange(100, 899); page.setValue(150)
-    for name, widget in (("Source",mode),("Spoken",source),
-                         ("Translate",target),("Teletext",page)):
-        row.addWidget(QLabel(name))
-        row.addWidget(widget, 1)
+    for name, widget in (("Source",mode),("Spoken",source),("Teletext",page)):
+        row.addWidget(QLabel(name)); row.addWidget(widget, 1)
     settings_layout.addRow(row)
+    output_row = QHBoxLayout()
+    display_mode = QComboBox()
+    display_mode.addItem("Original only", "original")
+    display_mode.addItem("Original + translations", "both")
+    display_mode.addItem("Translations only", "translated")
+    display_mode.setCurrentIndex(1)
+    output_row.addWidget(QLabel("Display"))
+    output_row.addWidget(display_mode, 2)
+    output_row.addWidget(QLabel("Translate to"))
+    language_boxes = {lang: QCheckBox(lang.upper()) for lang in LANGS}
+    for lang, check in language_boxes.items():
+        check.setChecked(lang == "tr")
+        output_row.addWidget(check)
+    settings_layout.addRow(output_row)
+    def update_language_choices(*_):
+        for lang, check in language_boxes.items():
+            if lang == source.currentText():
+                check.setChecked(False)
+                check.setEnabled(False)
+            else:
+                check.setEnabled(True)
+    source.currentIndexChanged.connect(update_language_choices)
+    update_language_choices()
     root.addWidget(settings)
 
     timing = QGroupBox("Synchronization & video overlay")
@@ -267,13 +288,15 @@ def main(argv=None):
     timing_layout.addRow(sync_estimate)
     visibility = QHBoxLayout()
     show_video = QCheckBox("On-video subtitles"); show_video.setChecked(True)
-    show_original = QCheckBox("Original"); show_original.setChecked(True)
-    show_translation = QCheckBox("Translation"); show_translation.setChecked(True)
     position = QComboBox(); position.addItems(("bottom", "top"))
     font = QSpinBox(); font.setRange(16, 44); font.setValue(25)
     opacity = QSpinBox(); opacity.setRange(0, 100); opacity.setValue(70); opacity.setSuffix("%")
-    for widget in (show_video,show_original,show_translation): visibility.addWidget(widget)
-    for name, widget in (("Position",position),("Size",font),("Background",opacity)):
+    text_opacity = QSpinBox()
+    text_opacity.setRange(0, 100); text_opacity.setValue(100)
+    text_opacity.setSuffix("%")
+    visibility.addWidget(show_video)
+    for name, widget in (("Position",position),("Size",font),
+                         ("Background",opacity),("Text",text_opacity)):
         visibility.addWidget(QLabel(name)); visibility.addWidget(widget)
     timing_layout.addRow(visibility)
     root.addWidget(timing)
@@ -366,27 +389,33 @@ def main(argv=None):
     current_cue = None
 
     def from_controls():
-        translation = target.currentData()
+        spoken = source.currentText()
+        target_langs = tuple(lang for lang, check in language_boxes.items()
+                             if check.isChecked() and lang != spoken)
+        output = display_mode.currentData()
         return CaptionConfig(
-            mode=mode.currentData(), source=source.currentText(),
-            target=(source.currentText() if translation == "off" else translation),
+            mode=mode.currentData(), source=spoken,
+            target=target_langs[0] if target_langs else spoken,
+            target_languages=target_langs if output != "original" else (),
             page=page.value(),
             offset_ms=round(caption_offset.value()*1000),
             playback_delay_ms=round(playback_delay.value()*1000),
             automatic_sync=automatic.isChecked(),
-            on_video=show_video.isChecked(), show_original=show_original.isChecked(),
-            show_translation=show_translation.isChecked(),
-            position=position.currentText(),font_px=font.value(),opacity=opacity.value()
+            on_video=show_video.isChecked(),
+            show_original=output in ("original","both"),
+            show_translation=output in ("translated","both"),
+            position=position.currentText(),font_px=font.value(),
+            opacity=opacity.value(),text_opacity=text_opacity.value()
         ).validate()
 
     def set_pending(*_):
         pending.setText("Unsaved changes — press Apply")
         pending.setStyleSheet("color:#f7bf6e")
-    for w in (mode,source,target,position):
+    for w in (mode,source,display_mode,position):
         w.currentIndexChanged.connect(set_pending)
-    for w in (page,caption_offset,playback_delay,font,opacity):
+    for w in (page,caption_offset,playback_delay,font,opacity,text_opacity):
         w.valueChanged.connect(set_pending)
-    for w in (show_video,show_original,show_translation,automatic):
+    for w in (show_video,automatic,*language_boxes.values()):
         w.toggled.connect(set_pending)
 
     def apply_settings():
@@ -395,7 +424,7 @@ def main(argv=None):
             selected = from_controls()
             previous = applied
             if selected.mode != previous.mode or selected.source != previous.source or (
-                    selected.target != previous.target):
+                    selected.target_languages != previous.target_languages):
                 estimator.clear()
             # Switching automatic control ON starts the calibration afresh.
             if selected.automatic_sync != previous.automatic_sync:
@@ -430,13 +459,15 @@ def main(argv=None):
 
     def reset_settings():
         mode.setCurrentIndex(0)
-        source.setCurrentText("de"); target.setCurrentIndex(1)
+        source.setCurrentText("de"); display_mode.setCurrentIndex(1)
+        for lang, check in language_boxes.items():
+            check.setChecked(lang == "tr")
         page.setValue(150)
         caption_offset.setValue(0.0); playback_delay.setValue(0.0)
         automatic.setChecked(False)
-        show_video.setChecked(True); show_original.setChecked(True)
-        show_translation.setChecked(True)
-        position.setCurrentText("bottom"); font.setValue(25); opacity.setValue(70)
+        show_video.setChecked(True)
+        position.setCurrentText("bottom"); font.setValue(25)
+        opacity.setValue(70); text_opacity.setValue(100)
         set_pending()
     apply.clicked.connect(apply_settings)
     reset.clicked.connect(reset_settings)
@@ -567,10 +598,15 @@ def main(argv=None):
             current_text = applied.render(result)
             current_until = cue["expires"]
             original.setText("ORIGINAL: "+result.get("original", ""))
-            translated.setText("TRANSLATED: "+(result.get("translated") or
-                         ("Not requested" if applied.source == applied.target else
-                          result.get("translation_error") or result.get("error") or
-                          "Argos DE/EN/TR pack not installed · open Market")))
+            translations = result.get("translations", {})
+            if applied.show_translation and applied.target_languages:
+                translated.setText("TRANSLATIONS: " + (
+                    " · ".join(lang.upper()+": "+translations[lang]
+                             for lang in applied.target_languages if lang in translations)
+                    or result.get("translation_error") or result.get("error")
+                    or "No translated phrase yet · open Model Market"))
+            else:
+                translated.setText("Translations not selected")
             ipc.publish(current_text,applied,ttl_ms=3000)
             last_published = now
         elif current_cue and now >= current_until:
