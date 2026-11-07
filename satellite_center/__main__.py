@@ -454,13 +454,18 @@ class Station:
                         raw = handle.read(target_bytes)
                     if len(raw) != target_bytes or len(raw) % 2:
                         raise RuntimeError("Physical IQ file was truncated or not interleaved CU8")
-                    counts = raw[::64]
+                    # Sample each I and Q channel independently. Strides
+                    # 31/33 complex pairs reduce periodic aliasing and ensure
+                    # that a constant complex value is not mistaken for RF.
+                    sample_i = raw[0::62] + raw[0::66]
+                    sample_q = raw[1::62] + raw[1::66]
+                    counts = sample_i + sample_q
                     minimum, maximum = min(counts), max(counts)
                     mean = sum(counts)/len(counts)
                     rms = (sum((v-127.5)**2 for v in counts)/len(counts))**0.5
                     clipped = sum(v < 3 or v > 252 for v in counts)
-                    if minimum == maximum:
-                        raise RuntimeError("Physical IQ acquisition contained constant data")
+                    if min(sample_i) == max(sample_i) and min(sample_q) == max(sample_q):
+                        raise RuntimeError("Physical IQ acquisition contained constant I/Q data")
                     pll_warning = "pll not locked" in errors.lower()
                     with self.lock:
                         self.receiver_last_sample = {
