@@ -205,6 +205,22 @@ class TVCapture:
         self._writer_thread = None
         self._ipc_dir = None
         self.mobile_stream = None
+        self.mpv_log_path = None
+        self.zap_log_path = None
+        self._mpv_log_handle = None
+        self._zap_log_handle = None
+        self._queue_drop_count = 0
+
+    def _log_dir(self):
+        folder = Path.home() / ".cache" / "tihulu-tv-center"
+        folder.mkdir(mode=0o700, parents=True, exist_ok=True)
+        return folder
+
+    def _mpv_exit_error(self):
+        code = self.player.poll() if self.player else None
+        return (f"MPV exited ({code}). Check playback log: {self.mpv_log_path}. "
+                "Inspect antenna C/N and UCB as well; an absent DVB lock can "
+                "produce the same input-stream error.")
 
     def start_mobile_video(self):
         if not self.channel or not self.zap or self.zap.poll() is not None:
@@ -274,12 +290,19 @@ class TVCapture:
         self.channel = channel
         self.hwdec = hwdec
         try:
+            logs = self._log_dir()
+            self.mpv_log_path = logs / "mpv.log"
+            self.zap_log_path = logs / "dvbv5-zap.log"
+            self._mpv_log_handle = self.mpv_log_path.open("wb", buffering=0)
+            self._zap_log_handle = self.zap_log_path.open("wb", buffering=0)
+            self._mpv_log_handle.write(("Opening service: " + channel.name + "\n").encode("utf-8"))
+            self._zap_log_handle.write(("Tuning service: " + channel.name + "\n").encode("utf-8"))
             self.zap = subprocess.Popen(zap_argv(channel, self.adapter),
                               stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
-                              stderr=subprocess.DEVNULL, start_new_session=True)
+                              stderr=self._zap_log_handle, start_new_session=True)
             time.sleep(0.8)
             if self.zap.poll() is not None:
-                raise RuntimeError("dvbv5-zap exited before tuning; inspect channel and tuner")
+                raise RuntimeError(f"dvbv5-zap exited before tuning. Inspect: {self.zap_log_path}")
             self._ipc_dir = tempfile.TemporaryDirectory(prefix="tihulu-tv-mpv-")
             sock_path = str(Path(self._ipc_dir.name) / "mpv.sock")
             env = os.environ.copy()
@@ -289,7 +312,7 @@ class TVCapture:
             env["GDK_BACKEND"] = "x11"
             self.player = subprocess.Popen(player_argv(channel, window_id, hwdec, sock_path, renderer),
                               stdin=subprocess.PIPE, stdout=subprocess.DEVNULL,
-                              stderr=subprocess.DEVNULL, start_new_session=True, env=env)
+                              stderr=self._mpv_log_handle, start_new_session=True, env=env)
             if channel.service_id is not None:
                 threading.Thread(target=self._select_program,
                                  args=(channel.service_id, sock_path),
@@ -351,7 +374,8 @@ class TVCapture:
                     except BlockingIOError:
                         select.select([], [fd], [], 0.25)
             except (BrokenPipeError, OSError, ValueError):
-                self.emit("error", "MPV input closed or stopped")
+                if not self.stop_flag.is_set():
+                    self.emit("error", self._mpv_exit_error())
                 break
             finally:
                 self._player_queue.task_done()
@@ -361,13 +385,25 @@ class TVCapture:
         try:
             dvr = os.open(f"/dev/dvb/adapter{self.adapter}/dvr0", os.O_RDONLY | os.O_NONBLOCK)
             service_filter = ServiceFilter(self.channel.service_id if self.channel else None)
+            self._queue_drop_count = 0
+            started = time.monotonic()
             with tempfile.TemporaryDirectory(prefix="tihulu-tv-") as tmp:
                 clip = None
                 start = time.monotonic()
                 total = 0
                 while not self.stop_flag.is_set():
                     if self.zap.poll() is not None:
-                        raise RuntimeError("DVB tuner process stopped")
+                        raise RuntimeError(f"DVB tuner process stopped. Log: {self.zap_log_path}")
+                    if self.player and self.player.poll() is not None:
+                        raise RuntimeError(self._mpv_exit_error())
+                    if time.monotonic() - started > 15:
+                        if service_filter.seen_packets == 0:
+                            raise RuntimeError("No MPEG-TS packets received in 15 seconds. "
+                                               "Check DVB lock/antenna and " + str(self.zap_log_path))
+                        if not service_filter.ready:
+                            raise RuntimeError("Selected DVB service ID not found in PAT/PMT "
+                                               "after 15 seconds. Rescan this frequency or "
+                                               "check channel SERVICE_ID. MPV log: " + str(self.mpv_log_path))
                     readable, _, _ = select.select([dvr], [], [], 0.25)
                     if not readable:
                         continue
@@ -387,7 +423,10 @@ class TVCapture:
                             self._player_queue.put_nowait(buf)
                         except queue.Full:
                             # Never block DVR reads; make packet loss explicit.
-                            self.emit("warning", "Player too slow; TS queue overflow, packets dropped")
+                            self._queue_drop_count += 1
+                            if self._queue_drop_count == 1 or self._queue_drop_count % 100 == 0:
+                                self.emit("warning", f"MPV TS queue overflow: {self._queue_drop_count} chunks dropped. "
+                                                     f"Check {self.mpv_log_path} and receiver UCB; try x11-compat.")
                     with self._lock:
                         mode, page = self.caption_mode, self.page
                         source, target, model = self.source_lang, self.target_lang, self.model
@@ -447,6 +486,11 @@ class TVCapture:
                     proc.kill()
                     proc.wait(timeout=1)
         self.player, self.zap = None, None
+        for attr in ("_mpv_log_handle", "_zap_log_handle"):
+            handle = getattr(self, attr)
+            if handle:
+                handle.close()
+                setattr(self, attr, None)
         if self._ipc_dir:
             self._ipc_dir.cleanup()
             self._ipc_dir = None

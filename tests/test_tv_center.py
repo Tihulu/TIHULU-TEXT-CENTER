@@ -6,7 +6,7 @@ from tv_center.captions import ass_text, decode_segment
 from tv_center.bridge import TVBridge
 from tv_center.lan import MobileLAN
 from tv_center.streaming import hls_command
-from tv_center.ts import ServiceFilter
+from tv_center.ts import ServiceFilter, mpeg2_crc32
 
 class NativeTVTests(unittest.TestCase):
     def test_dvbv5_channels_and_commands(self):
@@ -69,6 +69,36 @@ class NativeTVTests(unittest.TestCase):
         self.assertEqual(result, [0, 0x100, 0x200, 0x201, 0x202])
         self.assertTrue(filt.ready)
         self.assertEqual(filt.filtered_packets, 1)
+        # The output must not advertise other services whose PMTs and PIDs
+        # were removed. A stale full-multiplex PAT can break MPV probing.
+        rewritten_pat = output[:188]
+        self.assertEqual(rewritten_pat[:4], bytes([0x47, 0x40, 0x00, 0x10]))
+        self.assertEqual(rewritten_pat[4], 0)  # PSI pointer field
+        table = rewritten_pat[5:21]  # PAT section: 3+13 bytes
+        self.assertEqual(table[2], 13)
+        self.assertEqual(table[8:10], bytes([0, 100]))
+        self.assertEqual(table[10:12], bytes([0xE1, 0]))
+        self.assertEqual(mpeg2_crc32(table), 0)
+        self.assertNotIn(bytes([0, 101, 0xE1, 1]), table)
+        self.assertEqual(len(output) % 188, 0)
+
+    def test_crc32_mpeg2_reference(self):
+        # Standard check value CRC-32/MPEG-2 on ASCII 123456789.
+        self.assertEqual(mpeg2_crc32(b"123456789"), 0x0376E6E7)
+
+    def test_filtered_service_has_no_second_program_in_pat(self):
+        # Two neighboring services share a multiplex; select second.
+        pat = bytes.fromhex("00 b0 11 00 01 c1 00 00 00 64 e1 00 00 65 e1 01 00 00 00 00")
+        def pkt(pid, payload, pusi=True):
+            return bytes([0x47, ((pid >> 8)&31) | (0x40 if pusi else 0),
+                          pid&255, 0x10]) + payload + bytes([255])*(184-len(payload))
+        filt = ServiceFilter(101)
+        result = filt.feed(pkt(0, bytes([0])+pat))
+        self.assertEqual(len(result), 188)
+        section = result[5:21]
+        self.assertEqual(section[8:10], bytes([0, 101]))
+        self.assertEqual(section[10:12], bytes([0xE1, 1]))
+        self.assertEqual(mpeg2_crc32(section), 0)
 
     def test_hls_is_bound_to_selected_dvb_service(self):
         with tempfile.TemporaryDirectory() as root:

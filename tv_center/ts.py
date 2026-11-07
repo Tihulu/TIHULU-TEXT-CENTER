@@ -14,6 +14,36 @@ from __future__ import annotations
 
 PACKET_SIZE = 188
 
+def mpeg2_crc32(data: bytes) -> int:
+    """CRC-32/MPEG-2 for PSI sections (no reflected bits or final XOR)."""
+    crc = 0xFFFFFFFF
+    for value in data:
+        crc ^= value << 24
+        for _ in range(8):
+            crc = ((crc << 1) ^ (0x04C11DB7 if crc & 0x80000000 else 0)) & 0xFFFFFFFF
+    return crc
+
+
+def selected_pat(section: bytes, service_id: int, pmt_pid: int) -> bytes:
+    """Produce a valid single-service PAT packet for a filtered transport stream.
+
+    Copying the original full-multiplex PAT while discarding other services'
+    PMTs advertises non-existent programs to FFmpeg/MPV and can provoke
+    'Error in input stream'. PAT rewriting requires a fresh MPEG-2 CRC.
+    """
+    if len(section) < 12 or section[0] != 0:
+        raise ValueError("Invalid PAT section")
+    if not 1 <= service_id <= 65535 or not 0x10 <= pmt_pid <= 0x1FFE:
+        raise ValueError("Invalid service or PMT PID")
+    table = bytes([0x00, 0xB0, 0x0D]) + section[3:6] + bytes([
+        0x00, 0x00, (service_id >> 8) & 0xFF, service_id & 0xFF,
+        0xE0 | ((pmt_pid >> 8) & 0x1F), pmt_pid & 0xFF
+    ])
+    complete = table + mpeg2_crc32(table).to_bytes(4, "big")
+    payload = bytes([0]) + complete
+    return bytes([0x47, 0x40, 0x00, 0x10]) + payload + bytes([0xFF]) * (184 - len(payload))
+
+
 
 class ServiceFilter:
     def __init__(self, service_id: int | None):
@@ -26,6 +56,8 @@ class ServiceFilter:
         self.invalid_packets = 0
         self.filtered_packets = 0
         self.seen_packets = 0
+        self._selected_pat = None
+        self._selected_pat_packets = 0
 
     def _section(self, pid: int, payload: bytes, start: bool) -> bytes | None:
         if start:
@@ -65,6 +97,7 @@ class ServiceFilter:
                     self.pmt_pid = pid
                     self.allowed = {0, pid}
                     self.ready = False
+                self._selected_pat = selected_pat(section, self.service_id, pid)
                 return
 
     def _parse_pmt(self, section: bytes):
@@ -130,7 +163,18 @@ class ServiceFilter:
             pkt = buf[offset:offset + PACKET_SIZE]
             self.seen_packets += 1
             if self._packet(pkt):
-                retained.append(pkt)
+                if self.service_id is not None and (pkt[1] & 0x1F) == 0 and pkt[2] == 0:
+                    # Never pass through a PAT advertising programs whose
+                    # PMT/elementary PIDs were intentionally dropped.
+                    if self._selected_pat and (pkt[1] & 0x40):
+                        # Preserve actual PAT continuity counter.
+                        rewritten = self._selected_pat[:3] + bytes([0x10 | (pkt[3] & 15)]) + self._selected_pat[4:]
+                        retained.append(rewritten)
+                        self._selected_pat_packets += 1
+                    else:
+                        self.filtered_packets += 1
+                else:
+                    retained.append(pkt)
             else:
                 self.filtered_packets += 1
             offset += PACKET_SIZE

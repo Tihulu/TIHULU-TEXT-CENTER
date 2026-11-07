@@ -196,3 +196,31 @@ deletes the managed build and leaves downloaded Whisper models untouched.
 GPU and NPU need their own compatible, independently installed backends and
 models (CUDA faster-whisper, Intel OpenVINO or supported Hailo runtime); the
 presence of an accelerator alone does not imply inference is ready.
+
+## Troubleshooting: "Error in input stream" (MPV)
+
+The native TV player now rewrites the MPEG-TS PAT for the selected DVB service,
+including a valid CRC-32/MPEG-2, rather than forwarding a multiplex PAT that
+advertises discarded programs. This prevents one possible player demux failure.
+It does **not** cure physical DVB reception errors or guarantee that MPV will
+decode every broadcaster's video/audio codec.
+
+If the video still displays `Error in input stream`, check the new persistent
+playback logs (the files are overwritten at each tune):
+
+```bash
+tail -n 80 ~/.cache/tihulu-tv-center/mpv.log
+tail -n 60 ~/.cache/tihulu-tv-center/dvbv5-zap.log
+tihulu-tv-center doctor
+```
+
+If MPV exits early, the UI points to its log rather than only reporting an
+unexplained input-stream failure. If no TS packets arrive for 15 seconds, or
+the saved `SERVICE_ID` cannot be found in PAT/PMT, the native app reports
+that specific condition. Check lock/C/N/UCB in the signal monitor. A stable
+DVB lock and near-zero **new** UCB errors are preferable to raw signal power.
+Try `x11-compat` if the GPU/XWayland output fails.
+
+The original `~/tv-*-channels.conf` files and Kaffeine settings are not
+changed by this fix. Do not reset the antenna or rescan unless actual lock
+or service information proves that is necessary.
