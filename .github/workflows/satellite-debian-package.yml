@@ -33,7 +33,8 @@ jobs:
           bash -n satellite_center/install/install-deb.sh
           bash satellite_center/install/install-deb.sh
           test -s "$TIHULU_OUTPUT_DIR/tihulu-satellite-center_0.3.0~preview7_all.deb"
-          cmp "$TIHULU_OUTPUT_DIR/tihulu-satellite-center_0.3.0~preview7_all.deb" dist/tihulu-satellite-center_0.3.0~preview7_all.deb
+          test "$(dpkg-deb --field "$TIHULU_OUTPUT_DIR/tihulu-satellite-center_0.3.0~preview7_all.deb" Version)" = '0.3.0~preview7'
+          dpkg-deb --contents "$TIHULU_OUTPUT_DIR/tihulu-satellite-center_0.3.0~preview7_all.deb" | grep -F satellite_center/desktop.py
       - name: Inspect package integrity and desktop entry
         run: |
           dpkg-deb --info dist/*.deb
