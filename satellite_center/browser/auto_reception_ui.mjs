@@ -3,15 +3,15 @@
  * Decoding is local to this browser, except for explicitly authorized
  * companion SatDump/APRS archived products on localhost.
  */
+import {secondsFromEntry,humanCountdown} from "./chained_capture.mjs?v=20261107-chained-v1";
 import {AUTO_PRESETS} from "./auto_mission.mjs?v=20261106-iss-npu-release-v1";
 import {discoverCu8Contents,discoveryReportJson} from "./signal_discovery.mjs";
 import {parseRecordingName} from "./satellite_imagery.mjs";
 import {decodeRobot36WithCompute} from "./compute_backends.mjs";
 import {initComputeSelector} from "./compute_selector.mjs";
 import {initStationLocationUI} from "./location_search.mjs";
-import {localDayKey,shiftCalendarDay,renderSatelliteCalendar} from "./satellite_calendar.mjs?v=20261107-segments-v1";
+import {localDayKey,shiftCalendarDay,renderSatelliteCalendar} from "./satellite_calendar.mjs?v=20261106-calendar-zip-v2";
 import {createResultsZip} from "./results_zip.mjs";
-import {durationToSeconds} from "./segmented_capture.mjs?v=20261107-segments-v1";
 
 const $=id=>document.getElementById(id);
 const nativeHost=()=>window.location.protocol==="http:" && window.location.port==="8791" && ["127.0.0.1","localhost"].includes(window.location.hostname);
@@ -50,24 +50,6 @@ export function initAutoReceptionUI({getSelectedFile=()=>null,fileInput=$("local
   const releasePreviews=()=>{for(const url of audioPreviewUrls)URL.revokeObjectURL(url);audioPreviewUrls.length=0;};
   window.addEventListener("pagehide",releasePreviews);
   const state={discovery:[],actualImages:[],nativeDecodeReports:[],packetText:[],audioFiles:[],warnings:[],name:""};
-  const autoLength=$("auto-recording-seconds"),autoUnit=$("auto-recording-unit");
-  let priorLengthUnit="seconds";
-  autoUnit.addEventListener("change",()=>{
-    const raw=autoLength.value.trim();
-    if(raw){
-      const previous=Number(raw)*(priorLengthUnit==="minutes"?60:1);
-      autoLength.value=autoUnit.value==="minutes"?
-        String(Number((previous/60).toFixed(6))):String(Math.round(previous));
-    }
-    priorLengthUnit=autoUnit.value;
-    autoLength.max=autoUnit.value==="minutes"?"15":"900";
-    autoLength.min=autoUnit.value==="minutes"?"0.133334":"8";
-    autoLength.step=autoUnit.value==="minutes"?"0.000001":"1";
-  });
-  const readAutoLength=({blank=null}={})=>{
-    const raw=autoLength.value.trim();
-    return raw?durationToSeconds(raw,autoUnit.value,{min:8,max:900}):blank;
-  };
   const message=value=>{$("auto-mission-status").textContent=String(value);};
   const jobs=$("auto-mission-jobs"),output=$("auto-mission-output");
   const computeSelector=initComputeSelector("auto",{
@@ -171,10 +153,7 @@ export function initAutoReceptionUI({getSelectedFile=()=>null,fileInput=$("local
     if(old){old.remove();return;}
     const form=document.createElement("form");form.className="calendar-edit";
     const when=document.createElement("input");when.type="datetime-local";when.required=true;
-    const siblings=job.segment_group?
-      calendarJobs.filter(j=>j.segment_group===job.segment_group):[job];
-    const first=siblings.reduce((a,j)=>new Date(j.run_at)<new Date(a.run_at)?j:a,siblings[0]);
-    when.value=startLocal(first.run_at||first.aos);
+    when.value=startLocal(job.run_at||job.aos);
     const protocols=document.createElement("select");
     for(const [id,label] of calendarChoices[String(job.pass_id||"").split(":")[0]]||[]){
       const option=document.createElement("option");option.value=id;option.textContent=label;
@@ -189,33 +168,11 @@ export function initAutoReceptionUI({getSelectedFile=()=>null,fileInput=$("local
     lbl("Published receiver protocol",protocols);
     const seconds=document.createElement("input");seconds.type="number";seconds.min="8";seconds.max="900";
     seconds.step="1";seconds.inputMode="numeric";
-    seconds.placeholder="Auto: remaining pass";
-    const currentTotal=job.requested_seconds==null?
-      (siblings.length>1?siblings.reduce((n,j)=>n+Number(j.capture_seconds||0),0):null):
-      Number(job.requested_seconds);
-    seconds.value=currentTotal==null?"":String(currentTotal);
-    lbl("Total recording duration · seconds/minutes",seconds);
-    const unit=document.createElement("select");
-    for(const [value,label] of [["seconds","Seconds"],["minutes","Minutes"]]){
-      const option=document.createElement("option");option.value=value;option.textContent=label;unit.append(option);
-    }
-    lbl("Length unit",unit);
-    let last="seconds";
-    unit.addEventListener("change",()=>{
-      if(seconds.value.trim()){
-        const amount=Number(seconds.value)*(last==="minutes"?60:1);
-        seconds.value=unit.value==="minutes"?
-          String(Number((amount/60).toFixed(6))):String(Math.round(amount));
-      }
-      last=unit.value;seconds.max=last==="minutes"?"15":"900";
-      seconds.min=last==="minutes"?"0.133334":"8";
-      seconds.step=last==="minutes"?"0.000001":"1";
-    });
+    seconds.placeholder="Auto: remaining pass";seconds.value=job.requested_seconds==null?"":String(job.requested_seconds);
+    lbl("Record duration · 8–900 seconds, empty = auto",seconds);
     const note=document.createElement("small");
     note.textContent="Original pass: "+new Date(job.aos).toLocaleTimeString()+"–"+
-      new Date(job.los).toLocaleTimeString()+" (local). Changing satellite requires a new pass."+
-      (siblings.length>1?" This edits the FULL "+siblings.length+"-file native series atomically; "+
-        "each receiver restart has an unrecorded interval.":"");
+      new Date(job.los).toLocaleTimeString()+" (local). Changing satellite requires a new pass.";
     form.append(note);
     const save=document.createElement("button");save.type="submit";save.textContent="Save changes";form.append(save);
     const error=document.createElement("p");error.className="status";error.setAttribute("role","status");form.append(error);
@@ -225,7 +182,9 @@ export function initAutoReceptionUI({getSelectedFile=()=>null,fileInput=$("local
         const date=new Date(when.value);
         if(!Number.isFinite(date.getTime()))throw Error("Invalid local start time");
         const raw=seconds.value.trim();
-        const duration_seconds=raw?durationToSeconds(raw,unit.value,{min:8,max:900}):null;
+        const duration_seconds=raw?Number(raw):null;
+        if(raw&&(!Number.isInteger(duration_seconds)||duration_seconds<8||duration_seconds>900))
+          throw Error("Choose 8–900 whole seconds or blank for auto.");
         await nativeApi("/api/auto-edit",{
           job_id:job.id,run_at:date.toISOString(),mission_id:protocols.value,
           duration_seconds
@@ -279,7 +238,10 @@ export function initAutoReceptionUI({getSelectedFile=()=>null,fileInput=$("local
       const {lat,lon}=station();
       const hours=Number($("auto-hours").value),elevation=Number($("auto-elev").value);
       if(!nativeHost()){
-        const requestedSeconds=readAutoLength({blank:60});
+        const rawSeconds=$("auto-recording-seconds").value.trim();
+        const requestedSeconds=rawSeconds?
+          secondsFromEntry(rawSeconds,$("auto-recording-unit").value):60;
+        if(requestedSeconds<8)throw Error("Select at least 8 seconds.");
         const {raw,wav}=selectedFormats();
         message("Opening the browser RF scheduler. ISS selected files: "+
           (raw&&wav?"CU8 + WAV (two separate files)":raw?"CU8 only":wav?"WAV only":"none")+
@@ -297,6 +259,7 @@ export function initAutoReceptionUI({getSelectedFile=()=>null,fileInput=$("local
           }));
           sessionStorage.setItem("tihulu-auto-coverage-goal",$("auto-coverage-goal").value);
           sessionStorage.setItem("tihulu-auto-browser-seconds",String(requestedSeconds));
+          sessionStorage.setItem("tihulu-auto-browser-unit","seconds");
           const format=selectedFormats();
           if(["iss-images","images","all"].includes(mode)&&!format.raw&&!format.wav)
             throw Error("Select WAV, CU8, or both for ISS SSTV reception.");
@@ -309,9 +272,13 @@ export function initAutoReceptionUI({getSelectedFile=()=>null,fileInput=$("local
         return;
       }
       message("Requesting fresh-or-cached TLE geometry and checking native decoder availability…");
-      const duration_seconds=readAutoLength({blank:null});
+      const requested=$("auto-recording-seconds").value.trim();
+      const duration_seconds=requested?
+        secondsFromEntry(requested,$("auto-recording-unit").value):null;
+      if(duration_seconds!==null&&duration_seconds<8)
+        throw Error("Select at least 8 seconds.");
       if($("auto-coverage-goal").value==="sample"&&duration_seconds>60)
-        throw Error("Quick sample is limited to 60 s; use full coverage for longer captures.");
+        throw Error("Quick sample is limited to 60 s; choose full coverage for a sequential recording chain.");
       await computeSelector.ready;
       await computeSelector.plan(180); // reject explicitly unavailable GPU/NPU
       const processing=computeSelector.getSelection();
