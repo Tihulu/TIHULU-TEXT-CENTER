@@ -57,7 +57,7 @@ class OrbitEngine:
         from skyfield.api import load,EarthSatellite
         from .__main__ import SOURCE_URLS,parse_tle,selectable
         key=[]
-        for source in SOURCE_URLS:
+        for source in (*SOURCE_URLS, "manual"):
             f=self.station.directory/(source+".tle")
             try:
                 st=f.stat();key.append((source,st.st_mtime_ns,st.st_size))
@@ -74,6 +74,7 @@ class OrbitEngine:
             if age>7*86400:
                 self.warnings.append(source+": stale TLE over 7 days");continue
             records=parse_tle(f.read_text(encoding="ascii",errors="replace"),limit=200)
+            if source=="manual":records=records[:30]
             for item in records:
                 if not selectable(source,item):continue
                 if source=="amateur" and sum(x[1]=="amateur" for x in self.records)>=15:break
