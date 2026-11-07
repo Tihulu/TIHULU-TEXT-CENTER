@@ -777,34 +777,42 @@ class Station:
             plan = plans[mission]
             _, profile, mode = candidates[mission]
             try:
-                job = self.schedule(event["id"], profile, mode,
-                                    stamp(aos-timedelta(seconds=10)),
-                                    plan["capture_seconds"], automatic=True)
+                if plan["capture_seconds"] > NATIVE_PART_SECONDS:
+                    # The same 180 s cap applies to desktop and local-service
+                    # automatic missions. Each part gets its own calendar row.
+                    batch = self.schedule_series(event["id"],profile,mode,
+                        stamp(aos-timedelta(seconds=10)),plan["capture_seconds"],
+                        automatic=True,segment_seconds=NATIVE_PART_SECONDS)
+                    entries=batch["scheduled"]
+                else:
+                    entries=[self.schedule(event["id"],profile,mode,
+                        stamp(aos-timedelta(seconds=10)),
+                        plan["capture_seconds"],automatic=True)]
             except (ValueError, RuntimeError) as error:
                 skipped.append(event["name"]+": "+str(error)[:90])
                 continue
-            job.update(run_at=stamp(aos-timedelta(seconds=10)),
-                       mission_id=mission, capture_seconds=plan["capture_seconds"],
-                       requested_seconds=duration_seconds,
-                       estimated_bytes=plan["estimated_bytes"], coverage=plan["coverage"],
-                       data_kind=plan["data_kind"], target_seconds=plan["target_seconds"],
-                       shortfall_seconds=plan["shortfall_seconds"],
-                       pass_visible_seconds=plan["pass_visible_seconds"],
-                       coverage_goal=coverage_goal, capture_note=plan["note"],
-                       compute_mode=compute_mode, compute_targets=compute_plan["requested_targets"],
-                       event_window_only=event_window_only)
+            for job in entries:
+                job.update(mission_id=mission,requested_seconds=duration_seconds,
+                           coverage=("segmented-"+plan["coverage"] if len(entries)>1 else plan["coverage"]),
+                           data_kind=plan["data_kind"], target_seconds=plan["target_seconds"],
+                           shortfall_seconds=plan["shortfall_seconds"],
+                           pass_visible_seconds=plan["pass_visible_seconds"],
+                           coverage_goal=coverage_goal, capture_note=plan["note"]+
+                             (" Independent receiver restarts; gaps are not sampled." if len(entries)>1 else ""),
+                           compute_mode=compute_mode, compute_targets=compute_plan["requested_targets"],
+                           event_window_only=event_window_only)
             with self.lock:
+                lookup={j["id"]:j for j in entries}
                 for stored in self.jobs:
-                    if stored["id"] == job["id"]:
-                        stored.update({key: job[key] for key in (
-                            "mission_id", "run_at", "capture_seconds",
-                            "requested_seconds", "estimated_bytes",
-                            "coverage", "data_kind", "target_seconds",
-                            "shortfall_seconds", "pass_visible_seconds",
-                            "coverage_goal", "capture_note", "compute_mode", "compute_targets",
-                            "event_window_only")})
+                    if stored["id"] in lookup:
+                        job=lookup[stored["id"]]
+                        stored.update({key:job[key] for key in (
+                            "mission_id","requested_seconds","coverage","data_kind",
+                            "target_seconds","shortfall_seconds","pass_visible_seconds",
+                            "coverage_goal","capture_note","compute_mode",
+                            "compute_targets","event_window_only")})
                 self.save_jobs()
-            new_jobs.append(dict(job))
+            new_jobs.extend(dict(job) for job in entries)
             if plan["coverage"] != "full-pass-attempt":
                 skipped.append(event["name"]+": "+str(plan["shortfall_seconds"])+
                                " seconds of predicted coverage missing; partial data only")
@@ -1499,6 +1507,10 @@ class Handler(BaseHTTPRequestHandler):
             elif route == "/api/schedule":
                 result = app.schedule(data.get("pass_id"), data.get("profile"), data.get("mode"),
                                       data.get("run_at"), data.get("duration_seconds"))
+            elif route == "/api/schedule-series":
+                result = app.schedule_series(data.get("pass_id"), data.get("profile"),
+                    data.get("mode"),data.get("run_at"),
+                    data.get("duration_seconds"),segment_seconds=180)
             elif route == "/api/auto-schedule":
                 result = app.auto_schedule(data.get("missions"), city=data.get("city", "Cologne"),
                     lat=data.get("lat"), lon=data.get("lon"),
