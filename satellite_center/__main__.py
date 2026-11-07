@@ -1969,7 +1969,7 @@ class Server(ThreadingHTTPServer):
 
 def main():
     ap = argparse.ArgumentParser(description="Native Qt Widgets SDR desktop (legacy HTTP service opt-in)")
-    ap.add_argument("command", nargs="?", choices=("desktop", "serve", "doctor", "cleanup-shortcuts"), default="desktop")
+    ap.add_argument("command", nargs="?", choices=("desktop", "desktop-web", "desktop-widgets", "serve", "doctor", "cleanup-shortcuts"), default="desktop")
     ap.add_argument("--host", default="127.0.0.1")
     ap.add_argument("--port", type=int, default=8791)
     ap.add_argument("--open-browser", action="store_true", help="Open desktop browser after the local server starts")
