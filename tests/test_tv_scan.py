@@ -1,6 +1,7 @@
 import unittest
+import tempfile
 from pathlib import Path
-from tv_center.scanner import PROFILES, MODES, scan_commands
+from tv_center.scanner import PROFILES, MODES, scan_commands, parse_scan_progress, IncrementalScanLog
 
 class CountryAutoScanTest(unittest.TestCase):
     def test_de_terrestrial(self):
@@ -19,3 +20,32 @@ class CountryAutoScanTest(unittest.TestCase):
         for country, medium, adapter in [("FR", "t", 0), ("TR", "x", 0), ("DE", "c", -1), ("DE", "t", 100)]:
             with self.subTest(country=country, medium=medium, adapter=adapter), self.assertRaises(ValueError):
                 scan_commands(country, medium, adapter, Path("/tmp/a"), Path("/tmp/b"))
+
+    def test_progress_rejects_cpp_code_line_and_version_as_rf_frequency(self):
+        logs = [
+            "w_scan_cpp Version 20231015",
+            "21:34:08 int COUNTRY::choose_country(std::string):386 DVB aerial",
+            "21:34:08 cDevice* GetPreferredDevice(TChannel*):100 testing",
+        ]
+        for line in logs:
+            with self.subTest(line=line):
+                self.assertIsNone(parse_scan_progress(line)["frequency_reported"])
+
+    def test_progress_recognizes_genuine_frequency(self):
+        self.assertEqual(parse_scan_progress("538000: (time: 00:52.000)")["frequency_reported"],
+                         "538.000 MHz")
+        self.assertEqual(parse_scan_progress("signal ok: QAM_AUTO f = 626000 kHz")["frequency_reported"],
+                         "626.000 MHz")
+
+    def test_scan_logs_are_not_replayed(self):
+        with tempfile.TemporaryDirectory() as temp:
+            path = Path(temp) / "scan.log"
+            path.write_bytes(b"w_scan_cpp Version 20231015\\n21:34:08 scan started\\n")
+            reader = IncrementalScanLog(path)
+            first = reader.poll()
+            self.assertEqual(len(first), 2)
+            self.assertEqual(reader.poll(), [])
+            with path.open("ab") as f:
+                f.write(b"538000: (time: 00:51.0)\\r")
+            self.assertEqual(reader.poll(), ["538000: (time: 00:51.0)"])
+            self.assertEqual(reader.poll(), [])
