@@ -163,7 +163,7 @@ class NativeReceiver(QObject):
         if method not in {
             "status","connect","usb_open","sample","disconnect","stop",
             "capture","auto","auto_cancel","schedule","refresh","passes","geocode",
-            "tle_catalog","orbit_snapshot","tle_custom",
+            "tle_catalog","orbit_snapshot","tle_custom","world_outline",
         }:
             self.reply.emit(request_id,json.dumps({
                 "ok":False,"error":"Native command is not allowlisted"}))
@@ -224,6 +224,16 @@ class NativeReceiver(QObject):
             data=st.status()
             data["native_webui"]=True
             data["hardware_transport"]="OS rtl_sdr/rtl_fm, not WebUSB"
+            return data
+        if command=="world_outline":
+            # Load the packaged public-domain world map directly from disk.
+            # This is needed when Chromium disallows fetch() from tihulu://.
+            path=ASSETS/"natural-earth-land-110m.geojson"
+            if not path.is_file() or path.stat().st_size>350000:
+                raise RuntimeError("Bundled Natural Earth land map missing or oversized")
+            data=json.loads(path.read_text(encoding="utf-8"))
+            if data.get("type")!="FeatureCollection" or not isinstance(data.get("features"),list) or len(data["features"])<100:
+                raise ValueError("Bundled Natural Earth map data is invalid")
             return data
         if command=="tle_catalog":
             # The desktop is NOT a website: never fetch CelesTrak from a
