@@ -17,3 +17,19 @@ class NativeMapMathTests(unittest.TestCase):
  def test_track_antimeridian(self):
   a=dateline_segments([{"lon":170},{"lon":179},{"lon":-179},{"lon":-170}])
   self.assertEqual([len(x) for x in a],[2,2])
+
+ def test_cursor_zoom_keeps_point_under_pointer(self):
+  from satellite_center.native_orbit import cursor_anchored_zoom
+  for lat,lon in [(50.87,6.87),(38.42,27.14),(30.0,179.4)]:
+   old,new=5,8
+   dx,dy=125,-93
+   cx,cy=mercator_xy(lat,lon,old)
+   before=mercator_reverse(cx+dx,cy+dy,old)
+   updated=cursor_anchored_zoom(lat,lon,old,new,dx,dy)
+   nx,ny=mercator_xy(*updated,new)
+   after=mercator_reverse(nx+dx,ny+dy,new)
+   self.assertAlmostEqual(before[0],after[0],places=5)
+   self.assertAlmostEqual((before[1]-after[1]+180)%360-180,0,places=5)
+ def test_invalid_native_zoom_rejected(self):
+  from satellite_center.native_orbit import cursor_anchored_zoom
+  self.assertRaises(ValueError,cursor_anchored_zoom,50,7,1,20,100,50)

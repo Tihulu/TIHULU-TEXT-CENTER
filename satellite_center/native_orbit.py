@@ -19,6 +19,21 @@ def mercator_xy(lat,lon,z):
 def mercator_reverse(x,y,z):
     n=256*2**z
     return math.degrees(math.atan(math.sinh(math.pi*(1-2*max(0,min(n,y))/n)))), (x%n)/n*360-180
+def cursor_anchored_zoom(lat,lon,old_zoom,new_zoom,offset_x,offset_y):
+    """Preserve geographic position under cursor across native Qt zoom.
+
+    offset_x/y are cursor pixels relative to the map viewport center.
+    Wraps longitude at ±180 and clamps Mercator poles.
+    """
+    if not valid(lat,lon) or not all(isinstance(z,int) and 2<=z<=11 for z in (old_zoom,new_zoom)):
+        raise ValueError("Invalid cursor-zoom origin")
+    if not all(isinstance(p,(int,float)) and math.isfinite(p) for p in (offset_x,offset_y)):
+        raise ValueError("Invalid cursor offsets")
+    cx,cy=mercator_xy(lat,lon,old_zoom)
+    under_lat,under_lon=mercator_reverse(cx+offset_x,cy+offset_y,old_zoom)
+    fx,fy=mercator_xy(under_lat,under_lon,new_zoom)
+    return mercator_reverse(fx-offset_x,fy-offset_y,new_zoom)
+
 def dateline_segments(points):
     result=[];batch=[]
     for p in points:

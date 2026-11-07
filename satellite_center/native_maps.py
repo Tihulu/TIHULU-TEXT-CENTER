@@ -5,7 +5,7 @@ from pathlib import Path
 from PyQt5.QtCore import Qt,QPointF,QRectF,pyqtSignal,QTimer
 from PyQt5.QtGui import QColor,QPen,QPainter,QPolygonF
 from PyQt5.QtWidgets import QWidget
-from .native_orbit import mercator_xy,mercator_reverse,sky_xy,footprint_deg
+from .native_orbit import mercator_xy,mercator_reverse,sky_xy,footprint_deg,cursor_anchored_zoom
 from .native_osm_tiles import VisibleTileCache,visible_tiles
 
 LAND=Path(__file__).parent/"browser"/"natural-earth-land-110m.geojson"
@@ -263,7 +263,15 @@ class OrbitCanvas(QWidget):
         self._press=None;self._dragged=False
     def wheelEvent(self,event):
         if self.mode=="earth":
-            self.zoom=max(2,min(11,self.zoom+(1 if event.angleDelta().y()>0 else -1)))
-            self._sync_tiles();self.update()
+            dy=event.angleDelta().y()
+            if not dy:return
+            new_zoom=max(2,min(11,self.zoom+(1 if dy>0 else -1)))
+            if new_zoom!=self.zoom:
+                self.center_lat,self.center_lon=cursor_anchored_zoom(
+                    self.center_lat,self.center_lon,self.zoom,new_zoom,
+                    event.pos().x()-self.width()/2,event.pos().y()-self.height()/2)
+                self.zoom=new_zoom
+                self._sync_tiles();self.update()
+            event.accept()
     def resizeEvent(self,event):
         if self.tiles:QTimer.singleShot(220,self._sync_tiles)
