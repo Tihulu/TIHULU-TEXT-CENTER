@@ -723,7 +723,8 @@ class Station:
         for source in ("manual", *SOURCE_URLS):
             file = self.directory/(source+".tle")
             if not file.is_file():
-                warnings.append(f"{source}: orbit data not downloaded")
+                if source!="manual":
+                    warnings.append(f"{source}: orbit data not downloaded")
                 continue
             age = (time.time()-file.stat().st_mtime)/86400
             if age > 7:
