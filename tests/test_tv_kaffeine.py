@@ -13,7 +13,9 @@ from kaffeine_next.patch_upstream import REVISION, PATHS
 class KaffeineCaptionTapTests(TestCase):
     def test_upstream_release_is_immutable(self):
         self.assertEqual(REVISION, "e7ea15b86dafed3b20b151cbcb080578ab8e2d5c")
-        self.assertEqual(len(PATHS), 3)
+        self.assertEqual(len(PATHS), 5)
+        self.assertIn("src/dvb/dvbmanager.cpp", PATHS)
+        self.assertIn("src/dvb/dvbtab.cpp", PATHS)
 
     def test_socket_accepts_only_private_kaffeine_endpoint(self):
         with tempfile.TemporaryDirectory() as root:
