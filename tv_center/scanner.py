@@ -85,10 +85,16 @@ def parse_scan_progress(line: str):
         name = re.search(r"^Service\s+(.{2,90}?)(?:,\s*provider\b|:\s*(?:digital|radio)|$)", line, re.I)
     lock = re.search(r"\bLock\s*\((0x[0-9a-f]+)\)", line, re.I)
     lock_mask = int(lock.group(1),16) if lock else None
+    cn = re.search(r"\bC/N=\s*(-?[0-9.]+)\s*dB",line,re.I)
+    strength = re.search(r"\bSignal=\s*(-?[0-9.]+)\s*(dBm|%)",line,re.I)
+    ucb = re.search(r"\bUCB=\s*(\d+)",line,re.I)
     return {"kind": "log", "text": line,
             "frequency_reported": frequency,
             "service_reported": name.group(1).strip() if name else None,
-            "demod_lock": bool(lock_mask & 0x10) if lock_mask is not None else None}
+            "demod_lock": bool(lock_mask & 0x10) if lock_mask is not None else None,
+            "cn_db": float(cn.group(1)) if cn else None,
+            "signal_reading": (strength.group(1)+" "+strength.group(2)) if strength else None,
+            "uncorrected_blocks": int(ucb.group(1)) if ucb else None}
 
 
 class IncrementalScanLog:
