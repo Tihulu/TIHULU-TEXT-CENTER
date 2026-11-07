@@ -117,13 +117,15 @@ class OrbitEngine:
                     orbit_sources[row["norad"]]=sat
             except (ValueError,RuntimeError,OverflowError,ArithmeticError):continue
         rows.sort(key=lambda p:(-p["el"],p["name"]))
-        track=[];choices=[]
+        track=[];choices=[];track_paths_by_norad={}
         if with_track:
             # All visible tracks is bounded to avoid 100s of propagations on
             # every Qt frame; 12 objects at most, updated by map timer cache.
             if track_scope=="all":
+                # Include globally tracked satellites, even when below
+                # the local horizon. Visible map markers are not RF evidence.
                 choices=[(row["norad"],orbit_sources[row["norad"]])
-                         for row in rows if row["el"]>=0][:12]
+                         for row in rows][:12]
             elif selected:
                 choices=[(selected[0]["norad"],selected[1])]
             sample_times=[
@@ -140,8 +142,10 @@ class OrbitEngine:
                     except (ValueError,OverflowError,RuntimeError,ArithmeticError):
                         continue
                 track.extend(dateline_segments(samples))
+                track_paths_by_norad[str(_norad)] = [[p["lat"],p["lon"]] for p in samples]
         return dict(at_utc=at.isoformat(),observer={"lat":lat,"lon":lon},satellites=rows,
                     selected=selected[0] if selected else None,track_segments=track,
                     track_scope=track_scope,track_object_count=len(choices),
+                    track_paths_by_norad=track_paths_by_norad,
                     total_loaded=len(self.records),warnings=list(self.warnings),
                     note="TLE geometry only. No actual RF reception or satellite data verified.")
