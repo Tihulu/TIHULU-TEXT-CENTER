@@ -18,6 +18,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 import re
 import sys
+import tempfile
 from urllib.parse import unquote, urlencode
 from urllib.request import Request, urlopen
 
@@ -163,7 +164,7 @@ class NativeReceiver(QObject):
         if method not in {
             "status","connect","usb_open","sample","disconnect","stop",
             "capture","auto","auto_cancel","schedule","refresh","passes","geocode",
-            "tle_catalog","orbit_snapshot","tle_custom","world_outline",
+            "tle_catalog","orbit_snapshot","tle_custom","world_outline","tle_import",
         }:
             self.reply.emit(request_id,json.dumps({
                 "ok":False,"error":"Native command is not allowlisted"}))
@@ -181,7 +182,7 @@ class NativeReceiver(QObject):
             return
         try:
             args=json.loads(payload)
-            if not isinstance(args,dict) or len(payload)>2048:
+            if not isinstance(args,dict) or len(payload)>(400000 if method=="tle_import" else 2048):
                 raise ValueError("Native request must be a small JSON object")
         except (ValueError,TypeError) as exc:
             self.reply.emit(request_id,json.dumps({"ok":False,"error":str(exc)}))
@@ -218,6 +219,40 @@ class NativeReceiver(QObject):
             self.radio_request=None
         self.reply.emit(request_id,result)
 
+    def _cache_manual_tles(self,text):
+        """Bounded, explicitly operator-imported TLEs; never antenna evidence."""
+        if not isinstance(text,str) or not text or len(text.encode("utf-8"))>350000:
+            raise ValueError("Imported local TLE text must be 1–350000 bytes")
+        incoming=parse_tle(text,limit=200)
+        if not incoming:raise ValueError("No valid matching TLE line pairs found")
+        target=self.station.directory/"manual.tle"
+        with self.station.lock:
+            previous=[]
+            if target.is_file() and target.stat().st_size<=350000:
+                previous=parse_tle(target.read_text(encoding="ascii",errors="replace"),limit=200)
+            chosen={}
+            for record in incoming+previous:
+                chosen.setdefault(record["id"],record)
+                if len(chosen)>=30:break
+            content="".join(row["name"]+"\\n"+row["l1"]+"\\n"+row["l2"]+"\\n"
+                            for row in chosen.values())
+            tmp=None
+            try:
+                with tempfile.NamedTemporaryFile(
+                    mode="w",encoding="ascii",dir=self.station.directory,
+                    prefix=".manual-tle-",delete=False
+                ) as handle:
+                    tmp=Path(handle.name)
+                    handle.write(content)
+                os.chmod(tmp,0o600)
+                os.replace(tmp,target)
+            finally:
+                if tmp is not None:tmp.unlink(missing_ok=True)
+        self.orbit_engine.invalidate()
+        return {"count":len(incoming),"cached_norad_ids":list(chosen.keys()),
+                "source":"operator-imported-local-TLE",
+                "note":"Local orbital catalog only. Does not receive RF or identify satellites via antenna."}
+
     def execute(self,command,args):
         st=self.station
         if command=="status":
@@ -225,6 +260,8 @@ class NativeReceiver(QObject):
             data["native_webui"]=True
             data["hardware_transport"]="OS rtl_sdr/rtl_fm, not WebUSB"
             return data
+        if command=="tle_import":
+            return self._cache_manual_tles(args.get("text"))
         if command=="world_outline":
             # Load the packaged public-domain world map directly from disk.
             # This is needed when Chromium disallows fetch() from tihulu://.
@@ -272,6 +309,15 @@ class NativeReceiver(QObject):
                 if report.get("error"):
                     errors.append(source+": native HTTPS failed; using last valid cache ("+
                                   str(report["error"])[:90]+")")
+            manual=st.directory/"manual.tle"
+            if manual.is_file() and manual.stat().st_size<=350000:
+                age_days=max(0,(time.time()-manual.stat().st_mtime)/86400)
+                sources["manual"]={"downloaded":False,"cached":True,
+                                   "age_days":round(age_days,2),"error":None}
+                if age_days<=7:
+                    for item in parse_tle(manual.read_text(encoding="ascii",errors="replace"),limit=30):
+                        result.append({**item,"family":family("manual",item)})
+                else:errors.append("manual: imported TLE cache is over 7 days old")
             self.orbit_engine.invalidate()
             return {"entries":result,"sources":sources,"warnings":errors,
                     "source":"native_https_celestrak_and_disk_cache",
@@ -289,7 +335,8 @@ class NativeReceiver(QObject):
             rows=[row for row in parse_tle(content.decode("ascii","strict"),limit=100)
                   if row["id"]==norad]
             if not rows:raise ValueError("No matching current TLE at CelesTrak")
-            return {"entries":[{**row,"family":"cubesat"} for row in rows[:1]],
+            self._cache_manual_tles(content.decode("ascii","strict"))
+            return {"entries":[{**row,"family":family("manual",row)} for row in rows[:1]],
                     "source":"native_celestrak_custom_norad"}
         if command=="orbit_snapshot":
             lat=float(args.get("lat"))
