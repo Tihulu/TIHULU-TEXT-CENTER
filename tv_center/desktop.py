@@ -388,38 +388,38 @@ def main():
             self.statusbar.setText("Cancelling scan; existing channel lists remain preserved")
 
         def scan_from_file(self):
+            """Kaffeine-style regional DVBv5 scan source; real tuner still scans."""
             if self.delivery.currentData() == "s":
                 QMessageBox.information(self, "Satellite scanning",
-                    "Use the Satellite automatic scan so LNB/DiSEqC settings are applied.")
+                    "Select a satellite and its LNB/DiSEqC source above, then use automatic satellite scan.")
                 return
             if self.scanner.running or (self.capture.thread and self.capture.thread.is_alive()):
-                QMessageBox.warning(self, "Receiver busy", "Stop TV or automatic scan first.")
+                QMessageBox.warning(self, "Receiver busy", "Stop TV or an existing scan first.")
                 return
             initial, _ = QFileDialog.getOpenFileName(
-                self, "Choose genuine initial transponder file (advanced mode)",
-                "/usr/share/dvb", "Initial scan data (*);;All files (*)")
+                self, "Kaffeine-style DVBv5 initial frequency table — choose local transmitter",
+                "/usr/share/dvb", "DVBv5 scan tables (*)")
             if not initial:
                 return
-            target = Path.home() / ".config/tihulu-tv-center/channels.conf"
-            target.parent.mkdir(parents=True, exist_ok=True)
-            country, adapter = self.country.currentData(), self.capture.adapter
-            self.statusbar.setText("Advanced scan in progress (existing results preserved on failure)")
+            country, medium = self.country.currentData(), self.delivery.currentData()
+            label = f"{PROFILES[country]['name']} · {MODES[medium]} · {Path(initial).name}"
+            self.scan_monitor = ScanMonitor(self, self.cancel_scan, label)
+            self.scan_monitor.show()
+            self.stop_scan_btn.setEnabled(True)
+            self.statusbar.setText("Scanning real tuner with " + str(Path(initial).name))
+            adapter = self.capture.adapter
             def worker():
                 try:
-                    with tempfile.TemporaryDirectory(prefix="tihulu-tv-manual-") as tmp:
-                        staged = Path(tmp) / "channels.conf"
-                        p = subprocess.run(["dvbv5-scan", "-a", str(adapter), "-C", country,
-                                            "-T", "5", "-o", str(staged), initial],
-                                           capture_output=True, text=True, timeout=600, check=False)
-                        if p.returncode != 0 or not read_channels([staged]):
-                            self.capture.emit("scan", (False, p.stderr[-500:] or "No channels found"))
-                        else:
-                            import shutil
-                            shutil.copyfile(staged, target)
-                            self.capture.emit("scan", (True, "Advanced scan saved " + str(target)))
-                except (OSError, subprocess.TimeoutExpired) as exc:
+                    result = self.scanner.run_from_initial_file(
+                        initial, country, medium, adapter,
+                        notify=lambda obj: self.capture.emit("scan_progress", obj))
+                    self.capture.emit("scan", (True,
+                        f"{result['channels']} services decoded on "
+                        f"{result['frequencies']} frequencies from {Path(initial).name}"))
+                except (ScanError, ValueError, OSError, RuntimeError) as exc:
                     self.capture.emit("scan", (False, str(exc)))
-            threading.Thread(target=worker, daemon=True).start()
+            threading.Thread(target=worker, daemon=True,
+                             name="tihulu-tv-region-scan").start()
 
         def play(self):
             idx = self.channel_list.currentRow()
