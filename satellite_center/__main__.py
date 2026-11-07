@@ -326,6 +326,7 @@ class Station:
         self.receiver_enabled = saved_hardware.get("receiver_enabled", True) is True
         self.receiver_generation = 0
         self.receiver_test = None
+        self.receiver_last_sample = None
         self.receiver_last_release = None
         self.predicted = {}
         self.wake = threading.Event()
@@ -359,6 +360,7 @@ class Station:
                                          not self.session.get("active") and
                                          all(p.poll() is not None for p in self.owned_processes)),
                         "last_usb_test": self.receiver_test,
+                        "last_real_sample": self.receiver_last_sample,
                         "last_disconnect": self.receiver_last_release,
                         "pending_schedules": sum(j.get("state") == "pending" for j in self.jobs),
                         "usb_power_control": False,
@@ -417,6 +419,10 @@ class Station:
             mean=sum(counts)/len(counts)
             rms=(sum((v-127.5)**2 for v in counts)/len(counts))**0.5
             clipped=sum(v<3 or v>252 for v in counts)
+            with self.lock:
+                self.receiver_last_sample={
+                    "verified_at":stamp(),"frequency_hz":hz,
+                    "sample_bytes":len(raw)}
             return {
                 "state":"real_iq_samples_received",
                 "sample_bytes":len(raw),
