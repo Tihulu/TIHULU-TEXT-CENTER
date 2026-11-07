@@ -789,8 +789,8 @@ class Station:
                     plan["estimated_bytes"]=plan["estimated_bytes"]*safe_seconds//initial_seconds
                     plan["shortfall_seconds"]=int(plan.get("shortfall_seconds") or 0)+initial_seconds-safe_seconds
                     plan["coverage"]="partial-pass"
-                    plan["note"]=str(plan.get("note") or "")+
-                        "; "+str(initial_seconds-safe_seconds)+" s reserved for native file restart gaps"
+                    plan["note"]=(str(plan.get("note") or "")+
+                        "; "+str(initial_seconds-safe_seconds)+" s reserved for native file restart gaps")
             try:
                 if plan["capture_seconds"] > 180:
                     batch = self.schedule_chain(event["id"], profile, mode,
