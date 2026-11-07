@@ -44,8 +44,24 @@ def main():
             }
         }, indent=2, ensure_ascii=False))
         return 0
-    from .desktop import main as desktop
-    return desktop()
+    # Kaffeine owns normal TV, scanning and playback. Python only supplies
+    # AI, Teletext decoding and optional mobile access.
+    if len(sys.argv) >= 2 and sys.argv[1] == "legacy-player":
+        from .desktop import main as desktop
+        return desktop()
+    if len(sys.argv) == 1 or sys.argv[1] in ("tv", "watch"):
+        from pathlib import Path
+        import os
+        launcher = Path.home() / ".local/bin/tihulu-kaffeine"
+        if not launcher.is_file():
+            print("Kaffeine core not installed: run kaffeine_next/install.sh. "
+                  "No fallback scanner will start.", file=sys.stderr)
+            return 2
+        arguments = sys.argv[2:] if len(sys.argv) > 1 else []
+        os.execv(str(launcher), [str(launcher), "--lastchannel", *arguments])
+    print("Unknown command. Use: tv, ai-market, ai, doctor, "
+          "kaffeine-captions, legacy-player", file=sys.stderr)
+    return 2
 
 if __name__ == "__main__":
     raise SystemExit(main())

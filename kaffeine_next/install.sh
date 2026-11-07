@@ -102,7 +102,7 @@ fi
 "${SYSTEM_BUILD_ENV[@]}" /usr/bin/cmake --install "$BUILD"
 test -x "$PREFIX/bin/kaffeine"
 
-bash "$temp/tihulu/tv_center/packaging/build-deb.sh" "$temp/debs"
+TIHULU_KAFFEINE_PRIMARY=1 bash "$temp/tihulu/tv_center/packaging/build-deb.sh" "$temp/debs"
 sudo apt-get install -y "$temp/debs/tihulu-tv-center_0.1.0~dev1_all.deb"
 
 cat > "$HOME/.local/bin/tihulu-kaffeine" <<'LAUNCH'
@@ -110,6 +110,9 @@ cat > "$HOME/.local/bin/tihulu-kaffeine" <<'LAUNCH'
 # XWayland avoids the broken NVIDIA / COSMIC embedded surface path.
 if [ -n "$WAYLAND_DISPLAY" ]; then export QT_QPA_PLATFORM=xcb; fi
 # The launcher also avoids mixing system Kaffeine Qt5 with Conda Qt libraries.
+if [ "$#" -eq 0 ]; then
+  set -- --lastchannel
+fi
 exec env -u LD_LIBRARY_PATH -u LD_PRELOAD -u QT_PLUGIN_PATH \
   -u QT_QPA_PLATFORM_PLUGIN_PATH -u QML2_IMPORT_PATH -u QML_IMPORT_PATH \
   "$HOME/.local/opt/tihulu-kaffeine/bin/kaffeine" "$@"

@@ -37,15 +37,31 @@ fi
 exec "$PYTHON" -m tv_center "$@"
 LAUNCH
 chmod 755 "$TMP/usr/bin/tihulu-tv-center"
-cat > "$TMP/usr/share/applications/tihulu-tv-center.desktop" <<'DESKTOP'
+# With the Kaffeine core active, publish only its native TV launcher.
+# No second TV player appears in the desktop app list.
+if [[ "${TIHULU_KAFFEINE_PRIMARY:-0}" == "1" ]]; then
+  cat > "$TMP/usr/share/applications/tihulu-tv-center.desktop" <<'DESKTOP'
 [Desktop Entry]
 Type=Application
-Name=TIHULU TV Center
-Comment=Native DVB TV, subtitles and interactive Teletext
-Exec=tihulu-tv-center
+Name=TIHULU AI Companion (Kaffeine)
+Comment=Optional Whisper and Translator tools for native Kaffeine
+Exec=tihulu-tv-center ai-market
+Icon=kaffeine
+NoDisplay=true
+Terminal=false
+Categories=AudioVideo;Video;TV;
+DESKTOP
+else
+  cat > "$TMP/usr/share/applications/tihulu-tv-center.desktop" <<'DESKTOP'
+[Desktop Entry]
+Type=Application
+Name=TIHULU TV Center (legacy preview)
+Comment=Standalone experimental DVB client, not Kaffeine
+Exec=tihulu-tv-center legacy-player
 Icon=video-display
 Terminal=false
 Categories=AudioVideo;Video;TV;
 DESKTOP
+fi
 dpkg-deb --build --root-owner-group "$TMP" "$OUT/tihulu-tv-center_0.1.0~dev1_all.deb"
 echo "Built package at $OUT/tihulu-tv-center_0.1.0~dev1_all.deb"
