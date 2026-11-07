@@ -74,8 +74,10 @@ def parse_scan_progress(line: str):
         value = float(mhz.group(1))
         if 40 <= value <= 3000:
             frequency = f"{value:.3f} MHz"
+    name = re.search(r"(?:new channel|service(?:_name)?|channel|program)\s*[:=]\s*(.{2,90})", line, re.I)
     return {"kind": "log", "text": line,
-            "frequency_reported": frequency, "service_reported": None}
+            "frequency_reported": frequency,
+            "service_reported": name.group(1).strip() if name else None}
 
 
 class IncrementalScanLog:
