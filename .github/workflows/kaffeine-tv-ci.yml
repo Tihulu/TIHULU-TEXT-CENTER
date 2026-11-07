@@ -46,9 +46,18 @@ jobs:
           git -C "$RUNNER_TEMP/kaffeine" diff --check
       - name: Configure and compile patched Kaffeine DVB host
         run: |
-          cmake -S "$RUNNER_TEMP/kaffeine" -B "$RUNNER_TEMP/build" \
+          # Simulate a broken Conda shell. Exactly the same environment
+          # isolation as the user-facing Pop!_OS installer must survive.
+          export CONDA_PREFIX="$RUNNER_TEMP/fake-miniconda"
+          export LD_LIBRARY_PATH="$RUNNER_TEMP/nonexistent-libs"
+          export CMAKE_PREFIX_PATH="$RUNNER_TEMP/nonexistent-cmake"
+          export QT_PLUGIN_PATH="$RUNNER_TEMP/nonexistent-qt-plugins"
+          clean_env=(env -i "HOME=$HOME" "USER=$(id -un)"
+            "PATH=/usr/bin:/bin:/usr/sbin:/sbin" "LANG=C.UTF-8")
+          "${clean_env[@]}" /usr/bin/cmake --fresh \
+            -S "$RUNNER_TEMP/kaffeine" -B "$RUNNER_TEMP/build" \
             -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF
-          cmake --build "$RUNNER_TEMP/build" --parallel 2
+          "${clean_env[@]}" /usr/bin/cmake --build "$RUNNER_TEMP/build" --parallel 2
           test -x "$RUNNER_TEMP/build/src/kaffeine"
       - name: Package Python AI companion without DVB hardware
         run: |
