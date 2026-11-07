@@ -23,7 +23,8 @@ from PyQt5.QtWidgets import (
     QFileDialog, QFormLayout, QGroupBox, QHBoxLayout, QLabel, QMainWindow,
     QMessageBox, QPlainTextEdit, QPushButton, QSpinBox, QSplitter, QTabWidget,
     QTableWidget, QTableWidgetItem, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget,
-    QLineEdit, QFrame, QHeaderView, QSizePolicy, QCompleter, QScrollArea, QSlider
+    QLineEdit, QFrame, QHeaderView, QSizePolicy, QCompleter, QScrollArea, QSlider,
+    QDialog, QDialogButtonBox
 )
 
 from .__main__ import Station, PROFILES, LOCATIONS, AUTO_DOWNLINK_PROFILES, allowed_mode
@@ -38,6 +39,8 @@ from .native_map_parity import (
     filter_orbit_snapshot, export_orbit_geojson)
 from .native_signal_tools import discover_channels, fm_to_wav
 from .sstv_series35 import extract_robot36_wav
+from .native_protocols import (load_profiles, save_profiles, import_profiles,
+                               export_profiles, parse_user_protocol, match_user_hints)
 
 
 def local_time(value):
@@ -235,6 +238,7 @@ class SatelliteWindow(QMainWindow):
         self._calendar_tab()
         self._capture_tab()
         self._results_tab()
+        self._protocols_tab()
 
     def _panel(self, title, parent):
         group=QGroupBox(title)
@@ -1119,6 +1123,168 @@ class SatelliteWindow(QMainWindow):
         body.addWidget(self.file_details,1)
         self.file_details.setPlainText("Select a real recording or import a local .cu8, WAV, PNG or text file.")
 
+    def _protocols_tab(self):
+        """Manual public downlink catalog, independent of receiver allowlist."""
+        body=self._new_tab("Saved protocols")
+        body.addWidget(self._hint(
+            "Same JSON schema as the web Satellite Center. Up to 32 manual "
+            "NORAD/frequency/image/audio/text/video references, saved privately on disk. "
+            "These are user-supplied hypotheses, not verified transmitters, "
+            "working decoders or automatic RF jobs."))
+        self.protocol_list=QTreeWidget()
+        self.protocol_list.setHeaderLabels(
+            ["NORAD","Possible media","Frequency","Protocol label","Reference HTTPS"])
+        self.protocol_list.setRootIsDecorated(False)
+        self.protocol_list.header().setSectionResizeMode(3,QHeaderView.Stretch)
+        self.protocol_list.itemSelectionChanged.connect(self._protocol_selected)
+        body.addWidget(self.protocol_list,1)
+        self.protocol_details=self._hint(
+            "Add your own radio profile or import browser-exported JSON. "
+            "No RF acquisition happens.")
+        body.addWidget(self.protocol_details)
+        first=QHBoxLayout()
+        first.addWidget(self._button("Add user protocol…",lambda:self._edit_protocol(None)))
+        first.addWidget(self._button("Edit selected…",self._protocol_edit_selected))
+        first.addWidget(self._button("Remove selected…",self._protocol_remove_selected))
+        body.addLayout(first)
+        second=QHBoxLayout()
+        second.addWidget(self._button("Import browser protocol JSON…",self._protocol_import))
+        second.addWidget(self._button("Export portable protocol JSON…",self._protocol_export))
+        second.addWidget(self._button("Use center frequency in CU8 analyzer",
+                                      self._protocol_to_analyzer))
+        body.addLayout(second)
+        self._protocol_refresh()
+
+    def _protocol_refresh(self):
+        try:rows=load_profiles(self.station.directory)
+        except (OSError,ValueError,TypeError,json.JSONDecodeError) as error:
+            self.protocol_details.setText(
+                "Cannot read saved protocol catalog safely: "+str(error))
+            return
+        self.protocol_list.clear()
+        for profile in rows:
+            item=QTreeWidgetItem([
+                str(profile["norad"]),profile["kind"].upper(),
+                f'{profile["frequencyHz"]/1e6:.6f} MHz',
+                profile["protocol"],profile["source"]])
+            item.setData(0,Qt.UserRole,profile)
+            item.setToolTip(0,"User-supplied and unverified NORAD/protocol data")
+            self.protocol_list.addTopLevelItem(item)
+        self.protocol_details.setText(
+            f'{len(rows)} custom references saved locally · no decoder or '
+            'unattended scan enabled by these references')
+
+    def _protocol_selected(self):
+        item=self.protocol_list.currentItem()
+        if item:
+            profile=item.data(0,Qt.UserRole)
+            self.protocol_details.setText(
+                f'USER-SUPPLIED / NOT VERIFIED · NORAD {profile["norad"]} · '+
+                profile["protocol"]+" · "+profile["kind"].upper()+
+                " · never auto-tunes a receiver or starts an unknown decoder.")
+
+    def _protocol_edit_selected(self):
+        item=self.protocol_list.currentItem()
+        if item:self._edit_protocol(item.data(0,Qt.UserRole))
+        else:QMessageBox.information(self,"Protocol catalog","Select a saved protocol first.")
+
+    def _edit_protocol(self,current):
+        dialog=QDialog(self)
+        dialog.setWindowTitle("Receive-only user protocol · UNVERIFIED")
+        form=QFormLayout(dialog)
+        norad=QSpinBox();norad.setRange(1000,9999999)
+        norad.setValue(int(current["norad"]) if current else 59051)
+        freq=QDoubleSpinBox();freq.setDecimals(6)
+        freq.setRange(24,1750);freq.setSingleStep(0.0125)
+        freq.setSuffix(" MHz")
+        freq.setValue(current["frequencyHz"]/1e6 if current else 137.9)
+        kind=QComboBox()
+        for name in ("image","audio","text","video"):
+            kind.addItem(name.upper(),name)
+        if current:kind.setCurrentIndex(kind.findData(current["kind"]))
+        protocol=QLineEdit(current["protocol"] if current else "")
+        protocol.setMaxLength(64)
+        protocol.setPlaceholderText("e.g. LRPT / AFSK / SSTV · your published reference")
+        source=QLineEdit(current["source"] if current else "https://db.satnogs.org/")
+        source.setMaxLength(300)
+        form.addRow("NORAD number",norad)
+        form.addRow("Receive-only RF frequency",freq)
+        form.addRow("Potential output",kind)
+        form.addRow("Protocol name",protocol)
+        form.addRow("HTTPS source reference",source)
+        form.addRow(self._hint("Only a user-provided reference is saved. "
+                              "No radio, satellite or decoder is activated."))
+        controls=QDialogButtonBox(QDialogButtonBox.Ok|QDialogButtonBox.Cancel)
+        controls.accepted.connect(dialog.accept)
+        controls.rejected.connect(dialog.reject)
+        form.addRow(controls)
+        if dialog.exec_()!=QDialog.Accepted:return
+        try:
+            row=parse_user_protocol({
+                "norad":norad.value(),
+                "frequencyHz":round(freq.value()*1e6),
+                "kind":kind.currentData(),
+                "protocol":protocol.text(),"source":source.text()})
+            existing=load_profiles(self.station.directory)
+            existing=[p for p in existing if p["id"] not in (
+                row["id"],current["id"] if current else row["id"])]
+            save_profiles(self.station.directory,existing+[row])
+            self._protocol_refresh()
+        except (OSError,ValueError) as error:
+            QMessageBox.warning(self,"Cannot save protocol",str(error))
+
+    def _protocol_remove_selected(self):
+        item=self.protocol_list.currentItem()
+        if not item:return
+        profile=item.data(0,Qt.UserRole)
+        if QMessageBox.question(
+                self,"Remove local protocol",
+                "Archive of RF data will NOT be modified. Remove this "
+                "user-supplied reference?",
+                QMessageBox.Yes|QMessageBox.No)!=QMessageBox.Yes:return
+        try:
+            save_profiles(self.station.directory,[
+                p for p in load_profiles(self.station.directory)
+                if p["id"]!=profile["id"]])
+            self._protocol_refresh()
+        except (OSError,ValueError) as error:
+            QMessageBox.warning(self,"Protocol deletion",str(error))
+
+    def _protocol_import(self):
+        path,_=QFileDialog.getOpenFileName(
+            self,"Import user-supplied Satellite Center web profiles",
+            str(Path.home()),"Protocol JSON (*.json)")
+        if not path:return
+        try:
+            import_profiles(self.station.directory,path)
+            self._protocol_refresh()
+        except (OSError,ValueError,json.JSONDecodeError) as error:
+            QMessageBox.warning(self,"Protocol import rejected",str(error))
+
+    def _protocol_export(self):
+        path,_=QFileDialog.getSaveFileName(
+            self,"Export portable user protocol JSON",
+            str(Path.home()/"TIHULU_satellite_user_profiles.json"),
+            "Protocol JSON (*.json)")
+        if not path:return
+        try:
+            export_profiles(self.station.directory,path)
+            self.statusBar().showMessage(
+                "User reference JSON saved · no RF recordings exported",11000)
+        except (OSError,ValueError) as error:
+            QMessageBox.warning(self,"Protocol export",str(error))
+
+    def _protocol_to_analyzer(self):
+        item=self.protocol_list.currentItem()
+        if not item:return
+        profile=item.data(0,Qt.UserRole)
+        self.center.setValue(profile["frequencyHz"]/1e6)
+        if self._open_native_tab("Recordings & results"):
+            self.statusBar().showMessage(
+                "Analysis center frequency from UNVERIFIED user reference: "+
+                f'{profile["frequencyHz"]/1e6:.6f} MHz. '+
+                "Select actual CU8 with correct acquisition metadata.",13000)
+
     def _task(self, key, function, completed=None, silent=False):
         if not self.active or key in self.tasks:
             return
@@ -1531,6 +1697,7 @@ class SatelliteWindow(QMainWindow):
             else:
                 report=analyze_cu8(source,rate,hz,mode="overview")
             result=discover_channels(report)
+            match_user_hints(result,load_profiles(self.station.directory))
             outfile=self.station.archive/(Path(source).stem[:85]+"_candidates.json")
             outfile.write_text(json.dumps(result,indent=2),encoding="utf-8")
             return report,result,outfile
@@ -1806,7 +1973,9 @@ def main(argv=None):
         with TemporaryDirectory(prefix="tihulu-native-smoke-") as td:
             station=Station(Path(td))
             window=SatelliteWindow(station,auto_poll=False)
-            assert window.tabs.count()==7, "Native tabs not built"
+            assert window.tabs.count()==8, "Native tabs not built"
+            assert window.protocol_list.topLevelItemCount()==0
+            assert window.tabs.tabText(7)=="Saved protocols"
             assert window.map_sky.mode=="sky"
             assert window.map_earth.mode=="earth"
             assert not window.map_osm.isChecked()
