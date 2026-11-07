@@ -33,6 +33,27 @@ class NativeMapParityTests(unittest.TestCase):
         self.assertEqual(len(filter_orbit_snapshot(snapshot,"Image",True)["satellites"]),1)
         self.assertEqual(len(filter_orbit_snapshot(snapshot,"RF only")["satellites"]),1)
         self.assertEqual(len(filter_orbit_snapshot(snapshot,"All",query="met")["satellites"]),1)
+    def test_installed_desktop_uses_native_orbits_and_bundled_world_map(self):
+        root=Path(__file__).resolve().parents[1]/"satellite_center"
+        frontend=(root/"native_desktop_bridge.js").read_text(encoding="utf-8")
+        backend=(root/"native_web_shell.py").read_text(encoding="utf-8")
+        planner=(root/"browser"/"browser.js").read_text(encoding="utf-8")
+        maps=(root/"browser"/"satellite_maps.mjs").read_text(encoding="utf-8")
+        for name in ("nativeOrbitCatalog", "nativeOrbitPasses",
+                     "nativeOrbitSnapshot", "nativeWorldOutline"):
+            self.assertIn("window."+name,frontend)
+        for op in ('"tle_catalog"','"orbit_snapshot"','"world_outline"'):
+            self.assertIn(op,backend)
+        self.assertIn("with_track=with_tracks",backend)
+        self.assertIn("typeof window.nativeOrbitCatalog==='function'",planner)
+        self.assertIn("typeof window.nativeOrbitPasses==='function'",planner)
+        self.assertIn("typeof window.nativeOrbitSnapshot==='function'",maps)
+        self.assertIn("typeof window.nativeWorldOutline==='function'",maps)
+        self.assertIn("await getSatLib()",maps) # browser/PWA fallback remains
+        geo=json.loads((root/"browser"/"natural-earth-land-110m.geojson").read_text())
+        self.assertEqual(geo["type"],"FeatureCollection")
+        self.assertGreater(len(geo["features"]),100)
+
     def test_geojson_source_and_utc_provenance(self):
         sample={"satellites":[row(59051,"meteor","METEOR")],
                 "observer":{"lat":50.87,"lon":6.86},"at_utc":"2026-11-07T12:00:00+00:00",
