@@ -128,11 +128,6 @@ class NativeReceiver(QObject):
         self.pool.setMaxThreadCount(4)
         self.completed.connect(self._finish)
         self.in_flight=set()
-        self.resultsReady=pyqtSignal if False else None
-
-    @pyqtSignal(str,str)
-    def dummy(self):pass
-
     reply=pyqtSignal(str,str)
 
     @pyqtSlot(str,str,str)
