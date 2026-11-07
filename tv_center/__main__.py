@@ -19,6 +19,9 @@ def main():
         ai.configure_environment()
         open_ai_settings(None, ai)
         return 0
+    if len(sys.argv) >= 2 and sys.argv[1] == "kaffeine-doctor":
+        from kaffeine_next.diagnostics import main as diagnose
+        return diagnose(sys.argv[2:])
     if len(sys.argv) >= 2 and sys.argv[1] == "kaffeine-captions":
         from kaffeine_next.captions_overlay import main as captions_main
         return captions_main(sys.argv[2:])
@@ -60,7 +63,7 @@ def main():
         arguments = sys.argv[2:] if len(sys.argv) > 1 else []
         os.execv(str(launcher), [str(launcher), "--lastchannel", *arguments])
     print("Unknown command. Use: tv, ai-market, ai, doctor, "
-          "kaffeine-captions, legacy-player", file=sys.stderr)
+          "kaffeine-captions, kaffeine-doctor, legacy-player", file=sys.stderr)
     return 2
 
 if __name__ == "__main__":
