@@ -1861,6 +1861,25 @@ def main(argv=None):
             window.map_earth.set_snapshot(map_test)
             window.map_sky.set_selected(59051)
             window.map_earth.set_selected(59051)
+            # Real native map controls: search, media, zoom fit and exports.
+            window.map_search.setText("SYNTHETIC")
+            window._apply_map_snapshot(map_test,True)
+            assert window.map_satellites.topLevelItemCount()==1
+            window.map_media.setCurrentIndex(window.map_media.findData("Text"))
+            window._apply_map_snapshot(map_test,False)
+            assert window.map_satellites.topLevelItemCount()==0
+            window.map_media.setCurrentIndex(window.map_media.findData("Image"))
+            window._apply_map_snapshot(map_test,True)
+            assert window.map_satellites.topLevelItemCount()==1
+            assert window.map_earth.fit_satellites()
+            assert 2<=window.map_earth.zoom<=11
+            export_test=Path(td)/"orbit-test.geojson"
+            export_orbit_geojson(window.map_last_snapshot,export_test)
+            content=json.loads(export_test.read_text(encoding="utf-8"))
+            assert content["type"]=="FeatureCollection"
+            assert content["properties"]["has_rf_evidence"] is False
+            assert any(f["properties"].get("status")=="ORBITAL_POSITION_ONLY"
+                       for f in content["features"])
             window.show()
             assert not window.map_sky.grab().isNull()
             assert not window.map_earth.grab().isNull()
