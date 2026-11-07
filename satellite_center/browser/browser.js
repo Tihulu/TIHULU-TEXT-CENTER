@@ -977,9 +977,13 @@ function appendPass(pass){
   const durationLabel=document.createElement('label');
   durationLabel.textContent='Actual RF sample length · manual seconds';
   const duration=document.createElement('input');
-  duration.type='number';duration.min='1';duration.max='900';duration.step='1';
-  duration.inputMode='numeric';duration.value='15';duration.required=true;
+  duration.type='number';duration.min='1';duration.max='7200';duration.step='1';
+  duration.inputMode='numeric';duration.value='60';duration.required=true;
   durationLabel.append(duration);
+  const unitLabel=document.createElement('label');unitLabel.textContent='Length unit';
+  const lengthUnit=document.createElement('select');
+  lengthUnit.innerHTML='<option value="seconds">Seconds</option><option value="minutes">Minutes</option>';
+  unitLabel.append(lengthUnit);
   const rateLabel=document.createElement('label');rateLabel.textContent='Sample rate';
   const rate=document.createElement('select');
   for(const hz of [1024000,2048000]){
@@ -1005,7 +1009,7 @@ function appendPass(pass){
   localLink.rel="noopener noreferrer";localLink.target="_blank";
   localLink.textContent="Debian / Firefox alternative: use the local RTL-SDR app (no WebUSB or browser file limit)";
   const explanation=document.createElement('p');explanation.className='hint schedule-wide';
-  explanation.textContent='Local device time. Choose 1–900 seconds, limited by pass length and 2 GB raw IQ file cap. Above 128 MiB you must select a writable local .cu8 file now in Chromium; other browsers need the optional native receiver. A scheduled capture only runs with this browser OPEN, VISIBLE and AWAKE.';
+  explanation.textContent='Choose seconds or minutes. WebUSB recordings over 60 seconds (or the 128 MiB RAM cap) are automatically split into independent <=60 s files with 6-second reserved gaps. The calendar displays every part. This is not continuous I/Q: USB reopen/download can add gaps. A visible awake Chromium tab and prior RTL-SDR permission are still required.';
   const alert=document.createElement('p');alert.className='pass-schedule-error schedule-wide';alert.setAttribute('role','status');
   const confirm=document.createElement('button');confirm.type='submit';confirm.textContent='Confirm scheduled RF scan';
   const budgetLabel=document.createElement('p');
@@ -1013,26 +1017,27 @@ function appendPass(pass){
   budgetLabel.setAttribute('role','status');
   const refreshBudget=()=>{
     try{
-      const plan=inspectCaptureStorage(Number(duration.value),Number(rate.value),raw.checked,wav.checked);
-      budgetLabel.textContent=(plan.rawDisk||plan.wavDisk?
-        "Select local "+(plan.rawDisk&&plan.wavDisk?"folder":"file")+" NOW for scheduled recording. ":
-        "Short outputs saved in memory/downloads. ")+
-        (raw.checked?"CU8 "+(plan.iq.estimatedBytes/1e6).toFixed(0)+" MB. ":"")+
-        (wav.checked?"Real FM WAV "+(plan.audio.estimatedBytes/1e6).toFixed(1)+" MB. ":"")+
-        "Browser tab must remain visible and awake.";
+      const total=secondsFromEntry(duration.value,lengthUnit.value);
+      const plan=planChainedCapture({startMs:Date.now()+60000,totalSeconds:total,
+        rate:Number(rate.value),raw:raw.checked,wav:wav.checked});
+      budgetLabel.textContent=plan.segments.length+' separate calendar recording(s) · '+
+        total+' s captured over '+plan.elapsedSeconds+' s · '+
+        (plan.segments.reduce((n,x)=>n+x.estimatedRawBytes+x.estimatedWavBytes,0)/1e6).toFixed(1)+
+        ' MB total · up to '+plan.segments[0].durationSeconds+
+        ' s/part. No large RAM buffer or file picker. Downloads require browser permission. '+plan.warning;
     }catch(error){budgetLabel.textContent=String(error?.message||error);}
   };
-  for(const element of [duration,rate,raw,wav])element.addEventListener('change',refreshBudget);
+  for(const element of [duration,rate,raw,wav,lengthUnit])element.addEventListener('change',refreshBudget);
   duration.addEventListener('input',refreshBudget);rate.addEventListener('input',refreshBudget);
   refreshBudget();
-  form.append(timeLabel,frequencyLabel,durationLabel,rateLabel,saveLabel,wavLabel,budgetLabel,localLink,explanation,alert,confirm);
+  form.append(timeLabel,frequencyLabel,durationLabel,unitLabel,rateLabel,saveLabel,wavLabel,budgetLabel,localLink,explanation,alert,confirm);
   form.addEventListener('submit',async event=>{
     event.preventDefault();
     let prepared=null;
     confirm.disabled=true;
     try{
       const selectedTime=parseLocalScheduleTime(input.value);
-      const seconds=Number(duration.value),chosenRate=Number(rate.value);
+      const seconds=secondsFromEntry(duration.value,lengthUnit.value),chosenRate=Number(rate.value);
       if(nativeLocal()){
         const job=await nativeScheduledPass(pass,{
           when:selectedTime,durationSeconds:seconds,frequency:Number(frequency.value),
@@ -1044,38 +1049,18 @@ function appendPass(pass){
         log("Native job "+job.id+" armed; RTL-SDR stays idle until start time.");
         return;
       }
-      const plan=inspectCaptureStorage(seconds,chosenRate,raw.checked,wav.checked);
-      const newJob=createScheduledPass(pass,{
-        when:selectedTime,durationSeconds:seconds,
-        sampleRate:chosenRate,frequency:Number(frequency.value),
-        saveRaw:raw.checked,saveWav:wav.checked,
-        diskStreamPrepared:plan.rawDisk,wavDiskPrepared:plan.wavDisk
-      });
-      if(jobs.some(j=>j.id===newJob.id&&j.state==='armed'))
-        throw Error('This satellite/date/frequency is already scheduled.');
-      for(const other of jobs){
-        if(!['armed','starting','running'].includes(other.state))continue;
-        if(newJob.when<other.when+other.durationSeconds*1000+20000&&
-           newJob.when+newJob.durationSeconds*1000>other.when-20000)
-          throw Error('The single SDR is already reserved for an overlapping capture.');
-      }
-      // Pick the disk file NOW, during the form-submit gesture, never at a
-      // later unattended scheduled start when a new chooser is impossible.
-      if(plan.rawDisk||plan.wavDisk){
-        prepared=await selectRecordingFiles(seconds,chosenRate,raw.checked,wav.checked,{
-          job:newJob,at:new Date(newJob.when),freq:newJob.frequency
-        });
-      }
-      jobs.push(newJob);
-      if(prepared)preparedLongStreams.set(newJob.id,prepared);
-      prepared=null;
-      jobs.sort((a,b)=>a.when-b.when);
-      alert.textContent='Scheduled '+fmtTime(newJob.when)+' for '+seconds+
-        ' s · '+(newJob.frequency/1e6).toFixed(3)+' MHz'+
-        ((plan.rawDisk||plan.wavDisk)?'. Local disk output selected; do not close this tab.':'.')+
-        ' See calendar for exact end time.';
-      log('User armed '+newJob.name+' for '+fmtTime(newJob.when)+
-        ' · '+seconds+' s · CU8 '+plan.iq.mode+' / WAV '+plan.audio.mode+'. No RF capture started yet.');
+      const totalSeconds=secondsFromEntry(duration.value,lengthUnit.value);
+      const chain=buildBrowserChain(pass,{when:selectedTime,totalSeconds,
+        rate:chosenRate,frequency:Number(frequency.value),raw:raw.checked,wav:wav.checked});
+      addBrowserChain(chain.jobs);
+      alert.textContent='Scheduled '+chain.jobs.length+' sequential RF files · '+
+        totalSeconds+' s recording / '+chain.plan.elapsedSeconds+
+        ' s including '+chain.plan.totalGapSeconds+
+        ' s reserved gaps. First '+fmtTime(chain.jobs[0].when)+
+        ', last '+fmtTime(chain.jobs.at(-1).when+chain.jobs.at(-1).durationSeconds*1000)+
+        '. See the calendar; keep this tab visible. Browser downloads may require permission.';
+      log('Operator armed '+chain.jobs.length+' independent CU8/WAV jobs for '+pass.name+
+        '; no radio has been claimed. '+chain.plan.warning);
       renderJobs();
       if(device&&!capturePromise){
         await closeDevice(); // do not monopolize USB while waiting
