@@ -810,13 +810,15 @@ class Station:
     def auto_schedule(self, mission_ids, *, city="Cologne", lat=None, lon=None,
                       hours=24, elevation=20, max_jobs=6, coverage_goal="full",
                       duration_seconds=None, compute_mode="auto", compute_targets=None,
-                      event_window_only=False):
+                      event_window_only=False, iss_record_format="wav"):
         """Explicit one-click receive-only mission planning with a single RTL-SDR.
 
         TLE passes are geometry, never proof of active transmitters. Mutating
         schedules is opt-in and uses the same persisted scheduler as manual jobs.
         """
         candidates = AUTO_DOWNLINK_PROFILES
+        if iss_record_format not in ("wav","cu8","both"):
+            raise ValueError("ISS recording choice must be wav, cu8 or both")
         if not self.receiver_enabled:
             raise RuntimeError("Receiver disabled in Hardware. Connect & verify USB first.")
         if not isinstance(mission_ids, list) or not mission_ids or len(mission_ids) > len(candidates):
@@ -844,7 +846,8 @@ class Station:
         missing_per_mission = {}
         for mid in chosen:
             _norad, _profile, required_mode = candidates[mid]
-            required = (["rtl_sdr"] if required_mode == "iq" else
+            required = (["rtl_sdr"] if required_mode == "iq" or
+                        (mid == "iss-sstv" and iss_record_format in ("cu8","both")) else
                         ["rtl_fm", "multimon-ng"] if required_mode == "aprs" else
                         ["rtl_fm"])
             absent = [tool for tool in required if not shutil.which(tool)]
@@ -916,6 +919,14 @@ class Station:
                 mission_counts[mid], eligible.index(mid)))
             plan = plans[mission]
             _, profile, mode = candidates[mission]
+            estimate_for_mode = plan["estimated_bytes"]
+            if mission == "iss-sstv" and iss_record_format != "wav":
+                mode = "iq" if iss_record_format == "cu8" else "iq_and_fm_wav"
+                estimate_for_mode = ((2048000+64000) if iss_record_format == "both"
+                                     else 2048000)*plan["capture_seconds"]
+                if estimate_for_mode>MAX_IQ_BYTES or free_on_disk-reserved_bytes<estimate_for_mode+200_000_000:
+                    skipped.append(event["name"]+": insufficient disk for selected CU8/WAV outputs")
+                    continue
             try:
                 job = self.schedule(event["id"], profile, mode,
                                     stamp(aos-timedelta(seconds=10)),
@@ -926,13 +937,14 @@ class Station:
             job.update(run_at=stamp(aos-timedelta(seconds=10)),
                        mission_id=mission, capture_seconds=plan["capture_seconds"],
                        requested_seconds=duration_seconds,
-                       estimated_bytes=plan["estimated_bytes"], coverage=plan["coverage"],
+                       estimated_bytes=estimate_for_mode, coverage=plan["coverage"],
                        data_kind=plan["data_kind"], target_seconds=plan["target_seconds"],
                        shortfall_seconds=plan["shortfall_seconds"],
                        pass_visible_seconds=plan["pass_visible_seconds"],
                        coverage_goal=coverage_goal, capture_note=plan["note"],
                        compute_mode=compute_mode, compute_targets=compute_plan["requested_targets"],
-                       event_window_only=event_window_only)
+                       event_window_only=event_window_only,
+                       iss_record_format=iss_record_format)
             with self.lock:
                 for stored in self.jobs:
                     if stored["id"] == job["id"]:
@@ -942,14 +954,14 @@ class Station:
                             "coverage", "data_kind", "target_seconds",
                             "shortfall_seconds", "pass_visible_seconds",
                             "coverage_goal", "capture_note", "compute_mode", "compute_targets",
-                            "event_window_only")})
+                            "event_window_only","iss_record_format")})
                 self.save_jobs()
             new_jobs.append(dict(job))
             if plan["coverage"] != "full-pass-attempt":
                 skipped.append(event["name"]+": "+str(plan["shortfall_seconds"])+
                                " seconds of predicted coverage missing; partial data only")
             mission_counts[mission] += 1
-            reserved_bytes += plan["estimated_bytes"]
+            reserved_bytes += estimate_for_mode
             existing.append((aos, los))
         return {"scheduled": new_jobs, "scheduled_count": len(new_jobs),
                 "skipped": skipped[:20], "requested_targets": requested_targets,
