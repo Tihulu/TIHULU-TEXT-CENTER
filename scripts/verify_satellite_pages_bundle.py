@@ -40,6 +40,7 @@ ASSETS = (
     "compute_selector.mjs",
     "compute_backends.mjs",
     "sstv_robot36.mjs",
+    "sstv_capture_diagnostics.mjs",
 )
 
 
