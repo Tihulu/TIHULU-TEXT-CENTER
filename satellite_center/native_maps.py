@@ -72,6 +72,37 @@ class OrbitCanvas(QWidget):
         self.center_lon=self.data["observer"]["lon"]
         self.zoom=5
         self._sync_tiles();self.update()
+
+    def fit_satellites(self):
+        """Fit visible predicted subpoints using the shortest longitude arc.
+
+        This handles satellites near both sides of ±180° (no false global
+        bbox) and never triggers OSM requests unless user enabled streets.
+        """
+        if self.mode!="earth":return False
+        rows=[p for p in self.data.get("satellites",[])
+              if not self.above_only or p["el"]>=0]
+        if not rows:return False
+        latitudes=[p["lat"] for p in rows]
+        lons=[math.radians(p["lon"]) for p in rows]
+        mean=math.atan2(sum(math.sin(a) for a in lons),
+                        sum(math.cos(a) for a in lons))
+        middle=(math.degrees(mean)+180)%360-180
+        latitude=(min(latitudes)+max(latitudes))/2
+        width=max(100,self.width()-90)
+        height=max(100,self.height()-105)
+        for zoom in range(11,1,-1):
+            cx,cy=mercator_xy(latitude,middle,zoom)
+            world=256*2**zoom
+            coords=[mercator_xy(p["lat"],p["lon"],zoom) for p in rows]
+            px=[((x-cx+world/2)%world-world/2) for x,y in coords]
+            py=[y-cy for x,y in coords]
+            if max(px)-min(px)<=width and max(py)-min(py)<=height:
+                self.zoom=zoom;break
+        else:self.zoom=2
+        self.center_lat=latitude;self.center_lon=middle
+        self._sync_tiles();self.update()
+        return True
     def _sync_tiles(self):
         if self.tiles:
             self.tiles.set_view(self.center_lat,self.center_lon,self.zoom,
