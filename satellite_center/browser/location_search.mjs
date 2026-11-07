@@ -185,9 +185,17 @@ export function initStationLocationUI({onStationChanged,log=()=>{},ids={}}={}){
      url.searchParams.set("name",requestedName);url.searchParams.set("count","10");
      url.searchParams.set("language","en");url.searchParams.set("format","json");
      if(countryCode!=="all")url.searchParams.set("countryCode",countryCode);
-     const resp=await fetch(url.href,{mode:"cors",signal:controller.signal,cache:"default"});
-     if(!resp.ok)throw Error("HTTP "+resp.status);
-     const data=await resp.json();
+     // Native desktop uses OS HTTPS via the allowlisted Qt WebChannel.
+     // The website/PWA still uses its normal browser CORS fetch.
+     let data;
+     if(typeof window.nativeLocationLookup==="function"){
+       data=await window.nativeLocationLookup(requestedName,countryCode);
+       if(controller.signal.aborted)return;
+     }else{
+       const resp=await fetch(url.href,{mode:"cors",signal:controller.signal,cache:"default"});
+       if(!resp.ok)throw Error("HTTP "+resp.status);
+       data=await resp.json();
+     }
      if(data?.error)throw Error(String(data.reason||"Provider error"));
      const rows=onlineCityMatches(data,countryCode);
      if(cache.size>=30)cache.delete(cache.keys().next().value);
