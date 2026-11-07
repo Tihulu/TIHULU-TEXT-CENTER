@@ -57,7 +57,7 @@ def describe_local_file(source):
             valid=len(header)>=12 and header[4:8]==b"ftyp"
             media="VIDEO · "+suffix[1:].upper()
         elif suffix==".webm":
-            valid=header.startswith(b"\\x1a\\x45\\xdf\\xa3")
+            valid=header.startswith(bytes((0x1a,0x45,0xdf,0xa3)))
             media="VIDEO · WEBM"
         elif suffix==".gif":
             valid=header[:6] in (b"GIF87a",b"GIF89a")
