@@ -96,6 +96,6 @@ test("web UI exposes manual, scheduled and automatic ISS WAV modes",()=>{
  assert.match(app,/createStreamingFmWavEncoder/);
  assert.match(app,/await finalizeWav\(\)/);
  assert.match(app,/wavDiskPrepared/);
- assert.match(app,/saveWav:item\.missionId==='iss-sstv'/);
+ assert.match(app,/selectedWav=item\.missionId==='iss-sstv'/);
  assert.match(native,/wavOutputPlan/);
 });
