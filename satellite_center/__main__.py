@@ -786,6 +786,8 @@ class Station:
             for job in created_jobs:
                 job.update(
                     mission_id=mission,
+                    estimated_bytes=(plan["estimated_bytes"]*int(job["capture_seconds"])//
+                                     max(1,int(plan["capture_seconds"]))),
                     requested_seconds=duration_seconds,
                     coverage=plan["coverage"], data_kind=plan["data_kind"],
                     target_seconds=plan["target_seconds"],
@@ -798,7 +800,7 @@ class Station:
                     for stored in self.jobs:
                         if stored["id"] == job["id"]:
                             stored.update({key: job[key] for key in (
-                                "mission_id", "requested_seconds", "coverage", "data_kind",
+                                "mission_id", "estimated_bytes", "requested_seconds", "coverage", "data_kind",
                                 "target_seconds", "shortfall_seconds", "pass_visible_seconds",
                                 "coverage_goal", "capture_note", "compute_mode", "compute_targets",
                                 "event_window_only")})
