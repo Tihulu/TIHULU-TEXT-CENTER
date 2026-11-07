@@ -99,7 +99,7 @@ class NativeHardwareTests(unittest.TestCase):
 
     def test_explicit_test_does_not_enable_receiver_and_releases_it(self):
         self.station.disconnect_receiver()
-        real_iq = bytes([120, 140] * 524288)
+        real_iq = bytes([120, 140, 123, 138, 127, 144, 116, 136] * 131072)
 
         def native_file_capture(command, **_kwargs):
             # A native rtl_sdr child writes to disk, not a pipe or JS buffer.
