@@ -744,6 +744,11 @@ class Station:
         reserved_bytes = sum(int(j.get("estimated_bytes") or 0) for j in self.jobs
                              if j.get("state") in ("pending", "running"))
         events = prediction["predictions"]
+        # Real predictions from passes() must remain accessible to the
+        # transactional grouped scheduler even after a refresh/cache hit.
+        with self.lock:
+            self.predicted.update({e["id"]:e for e in events
+                                   if isinstance(e,dict) and e.get("id")})
         for event in events:
             if len(new_jobs) >= max_jobs:
                 break
@@ -778,11 +783,18 @@ class Station:
             _, profile, mode = candidates[mission]
             try:
                 if plan["capture_seconds"] > NATIVE_PART_SECONDS:
-                    # The same 180 s cap applies to desktop and local-service
-                    # automatic missions. Each part gets its own calendar row.
+                    # Auto-fit must reserve unsampled receiver restart time;
+                    # do not silently overrun LOS. Explicit requested seconds
+                    # still fail if the complete requested schedule cannot fit.
+                    start_at=aos-timedelta(seconds=10)
+                    available=int((los-start_at).total_seconds())-END_MARGIN_SECONDS
+                    total=plan["capture_seconds"]
+                    if duration_seconds is None:
+                        while total>180 and total+2*(math.ceil(total/180)-1)>available:
+                            total-=1
                     batch = self.schedule_series(event["id"],profile,mode,
-                        stamp(aos-timedelta(seconds=10)),plan["capture_seconds"],
-                        automatic=True,segment_seconds=NATIVE_PART_SECONDS)
+                        stamp(start_at),total,automatic=True,
+                        segment_seconds=NATIVE_PART_SECONDS)
                     entries=batch["scheduled"]
                 else:
                     entries=[self.schedule(event["id"],profile,mode,
