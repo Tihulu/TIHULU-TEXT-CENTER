@@ -2,6 +2,28 @@
 
 Last source audit: 2026-11-07. Development branch: `feature/satellite-auto-discovery-integrated-2026-11-06` (PR #18). **Do not merge into `main` as an untested hardware release.**
 
+## Preview9 · Home and full planner use one real pass model
+
+**Fixed from user screenshot:** The Home Satellite pass planner now visibly
+offers country (DE/TR), Bundesland/il, city/ilçe/town search on 8,084
+offline entries, editable latitude/longitude, lookahead, min elevation,
+worldwide online name lookup and optional OS GPS. Clicking a local place
+sets the SAME coordinates as the detailed pass planner; editing either
+planner's numeric coordinates or time/elevation updates the other view.
+
+The Home predicted-pass table is real Qt `QTreeWidget` data from
+`Station.plan_passes`, not a decorative table or fabricated RF.
+Seven sort orders, name/NORAD search and satellite family/media filters
+use the *same shared filtering function* as Passes & Data. Selecting a
+pass opens the very same detailed entry and editable local capture
+schedule, then 24h calendar. A first-run calculation with no fresh TLE
+cache explicitly attempts source retrieval; errors/no results are shown
+in the Home panel instead of silently leaving an empty list.
+
+The local catalog has state/province and named municipality/district
+localities, not a verified exhaustive multi-level county directory.
+No actual RF reception or live satellite transmission is inferred.
+
 ## Preview8 · browser information architecture, native hardware transport
 
 The **default installed desktop stays PyQt5 Qt Widgets**. The page hierarchy
@@ -119,7 +141,7 @@ All real receiver operations require explicit operator action and USB ownership.
 ## Debian / Pop!_OS
 
 Install the latest successful PR #18 **Satellite Center native Debian package** GitHub Actions artifact.
-Run `sudo apt install ./tihulu-satellite-center_0.3.0~preview8_all.deb`,
+Run `sudo apt install ./tihulu-satellite-center_0.3.0~preview9_all.deb`,
 then open **TIHULU Satellite Center (System)** from COSMIC's app menu.
 It starts the Qt window directly. Only explicit `tihulu-satellite-center serve`
 runs the old optional HTTP compatibility server. If the older user-local
