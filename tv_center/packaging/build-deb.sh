@@ -6,7 +6,7 @@ TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 mkdir -p "$OUT" "$TMP/DEBIAN" "$TMP/usr/share/tihulu-tv-center" \
   "$TMP/usr/bin" "$TMP/usr/share/applications"
-cp -a "$ROOT/tv_center" "$ROOT/textcenter" "$TMP/usr/share/tihulu-tv-center/"
+cp -a "$ROOT/tv_center" "$ROOT/textcenter" "$ROOT/kaffeine_next" "$TMP/usr/share/tihulu-tv-center/"
 find "$TMP/usr/share/tihulu-tv-center" -type d -name __pycache__ -prune -exec rm -rf '{}' +
 cat > "$TMP/DEBIAN/control" <<'CONTROL'
 Package: tihulu-tv-center

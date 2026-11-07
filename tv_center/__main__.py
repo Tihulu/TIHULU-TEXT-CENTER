@@ -8,6 +8,19 @@ from .whisper_engine import WhisperRuntime
 from .runtime import AIRuntime
 
 def main():
+    if len(sys.argv) >= 2 and sys.argv[1] == "ai-market":
+        from .settings_ui import open_ai_settings
+        from PyQt5.QtWidgets import QApplication
+        import os
+        if os.environ.get("WAYLAND_DISPLAY"):
+            os.environ.setdefault("QT_QPA_PLATFORM", "xcb")
+        app = QApplication.instance() or QApplication(["TIHULU Whisper / Translator Market"])
+        ai = AISettings()
+        open_ai_settings(None, ai)
+        return 0
+    if len(sys.argv) >= 2 and sys.argv[1] == "kaffeine-captions":
+        from kaffeine_next.captions_overlay import main as captions_main
+        return captions_main(sys.argv[2:])
     if len(sys.argv) >= 2 and sys.argv[1] == "ai":
         from .ai_provision import main as ai_main
         return ai_main(sys.argv[2:])
