@@ -37,6 +37,8 @@ TYPES={
     ".js":b"text/javascript; charset=utf-8",
     ".mjs":b"text/javascript; charset=utf-8",
     ".json":b"application/json",
+    ".geojson":b"application/geo+json",
+    ".webmanifest":b"application/manifest+json",
     ".svg":b"image/svg+xml",
     ".png":b"image/png",
     ".jpg":b"image/jpeg",
