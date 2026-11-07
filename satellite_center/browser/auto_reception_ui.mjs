@@ -11,6 +11,7 @@ import {initComputeSelector} from "./compute_selector.mjs";
 import {initStationLocationUI} from "./location_search.mjs";
 import {localDayKey,shiftCalendarDay,renderSatelliteCalendar} from "./satellite_calendar.mjs?v=20261106-calendar-zip-v2";
 import {createResultsZip} from "./results_zip.mjs";
+import {durationToSeconds} from "./segmented_capture.mjs?v=20261107-segments-v1";
 
 const $=id=>document.getElementById(id);
 const nativeHost=()=>window.location.protocol==="http:" && window.location.port==="8791" && ["127.0.0.1","localhost"].includes(window.location.hostname);
@@ -49,6 +50,24 @@ export function initAutoReceptionUI({getSelectedFile=()=>null,fileInput=$("local
   const releasePreviews=()=>{for(const url of audioPreviewUrls)URL.revokeObjectURL(url);audioPreviewUrls.length=0;};
   window.addEventListener("pagehide",releasePreviews);
   const state={discovery:[],actualImages:[],nativeDecodeReports:[],packetText:[],audioFiles:[],warnings:[],name:""};
+  const autoLength=$("auto-recording-seconds"),autoUnit=$("auto-recording-unit");
+  let priorLengthUnit="seconds";
+  autoUnit.addEventListener("change",()=>{
+    const raw=autoLength.value.trim();
+    if(raw){
+      const previous=Number(raw)*(priorLengthUnit==="minutes"?60:1);
+      autoLength.value=autoUnit.value==="minutes"?
+        String(Number((previous/60).toFixed(6))):String(Math.round(previous));
+    }
+    priorLengthUnit=autoUnit.value;
+    autoLength.max=autoUnit.value==="minutes"?"15":"900";
+    autoLength.min=autoUnit.value==="minutes"?"0.133334":"8";
+    autoLength.step=autoUnit.value==="minutes"?"0.000001":"1";
+  });
+  const readAutoLength=({blank=null}={})=>{
+    const raw=autoLength.value.trim();
+    return raw?durationToSeconds(raw,autoUnit.value,{min:8,max:900}):blank;
+  };
   const message=value=>{$("auto-mission-status").textContent=String(value);};
   const jobs=$("auto-mission-jobs"),output=$("auto-mission-output");
   const computeSelector=initComputeSelector("auto",{
@@ -237,12 +256,7 @@ export function initAutoReceptionUI({getSelectedFile=()=>null,fileInput=$("local
       const {lat,lon}=station();
       const hours=Number($("auto-hours").value),elevation=Number($("auto-elev").value);
       if(!nativeHost()){
-        const rawSeconds=$("auto-recording-seconds").value.trim();
-        const requestedSeconds=rawSeconds?Number(rawSeconds):60;
-        if(!Number.isInteger(requestedSeconds)||requestedSeconds<8||requestedSeconds>900)
-          throw Error("Choose 8–900 whole seconds or leave blank for automatic duration.");
-        if(requestedSeconds>60)
-          throw Error("Automatic browser WebUSB jobs remain limited to 60 s. For long unattended image/data passes use native receiver; for foreground browser I/Q use Calculate Passes with a user-selected streamed CU8 disk file. Nothing was armed.");
+        const requestedSeconds=readAutoLength({blank:60});
         const {raw,wav}=selectedFormats();
         message("Opening the browser RF scheduler. ISS selected files: "+
           (raw&&wav?"CU8 + WAV (two separate files)":raw?"CU8 only":wav?"WAV only":"none")+
@@ -272,10 +286,7 @@ export function initAutoReceptionUI({getSelectedFile=()=>null,fileInput=$("local
         return;
       }
       message("Requesting fresh-or-cached TLE geometry and checking native decoder availability…");
-      const requested=$("auto-recording-seconds").value.trim();
-      const duration_seconds=requested?Number(requested):null;
-      if(requested&&(!Number.isInteger(duration_seconds)||duration_seconds<8||duration_seconds>900))
-        throw Error("Select 8–900 whole seconds or leave blank for automatic duration.");
+      const duration_seconds=readAutoLength({blank:null});
       if($("auto-coverage-goal").value==="sample"&&duration_seconds>60)
         throw Error("Quick sample is limited to 60 s; use full coverage for longer captures.");
       await computeSelector.ready;
