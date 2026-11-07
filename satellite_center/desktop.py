@@ -2382,7 +2382,7 @@ def main(argv=None):
             window._apply_map_snapshot(map_test,True)
             assert window.map_satellites.topLevelItemCount()==1
             assert window.map_earth.fit_satellites()
-            assert 2<=window.map_earth.zoom<=11
+            assert 2<=window.map_earth.zoom<=5, "Satellite fit must remain a readable regional view"
             export_test=Path(td)/"orbit-test.geojson"
             export_orbit_geojson(window.map_last_snapshot,export_test)
             content=json.loads(export_test.read_text(encoding="utf-8"))
