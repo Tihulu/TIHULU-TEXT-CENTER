@@ -774,8 +774,7 @@ class SatelliteWindow(QMainWindow):
         self.map_live_button.setCheckable(True)
         self.map_live_button.setChecked(True)
         self.map_live_button.clicked.connect(self._toggle_map_live)
-        for widget in (self.map_family,self.map_media,self.map_above,
-                       self.map_follow,self.map_live_button):
+        for widget in (self.map_family,self.map_media,self.map_live_button):
             line.addWidget(widget)
         body.addLayout(line)
         self.map_search=QLineEdit()
@@ -796,7 +795,11 @@ class SatelliteWindow(QMainWindow):
         timebar.addWidget(self.map_offset,2)
         timebar.addWidget(self.map_clock,1)
         body.addLayout(timebar)
-        opts=QHBoxLayout()
+        self.map_extra_button=QPushButton("Advanced map overlays  ▸")
+        self.map_extra_button.setCheckable(True)
+        self.map_extra=QWidget()
+        opts=QHBoxLayout(self.map_extra)
+        opts.setContentsMargins(0,0,0,0)
         self.map_coverage=QComboBox()
         for name,value in (("Coverage · selected","selected"),
                            ("Coverage · all visible","all"),
@@ -813,12 +816,22 @@ class SatelliteWindow(QMainWindow):
         self.map_osm=QCheckBox("OpenStreetMap streets · online")
         self.map_osm.setToolTip("User-triggered visible viewport tiles only; no offline bulk download.")
         self.map_osm.toggled.connect(self._map_osm_toggled)
+        quick=QHBoxLayout()
+        quick.addWidget(self.map_osm)
+        quick.addWidget(self._button("Center ground station",self._map_center_station))
+        quick.addWidget(self._button("Fit visible satellites",self._map_fit_tracked))
+        quick.addWidget(self.map_extra_button)
+        body.addLayout(quick)
         opts.addWidget(self.map_coverage)
         opts.addWidget(self.map_track_scope)
-        opts.addWidget(self.map_osm)
-        opts.addWidget(self._button("Center ground station",self._map_center_station))
-        opts.addWidget(self._button("Fit tracked TLE objects",self._map_fit_tracked))
-        body.addLayout(opts)
+        opts.addWidget(self.map_above)
+        opts.addWidget(self.map_follow)
+        self.map_extra.setVisible(False)
+        self.map_extra_button.toggled.connect(self.map_extra.setVisible)
+        self.map_extra_button.toggled.connect(
+            lambda visible:self.map_extra_button.setText(
+                "Advanced map overlays  ▾" if visible else "Advanced map overlays  ▸"))
+        body.addWidget(self.map_extra)
 
         split=QSplitter(Qt.Horizontal)
         self.map_views=QTabWidget()
@@ -826,6 +839,7 @@ class SatelliteWindow(QMainWindow):
         self.map_earth=OrbitCanvas("earth")
         self.map_views.addTab(self.map_sky,"Sky · Azimuth/Elevation")
         self.map_views.addTab(self.map_earth,"Earth · OSM/Offline")
+        self.map_views.setCurrentIndex(1)
         self.map_views.currentChanged.connect(self._map_view_switched)
         self.map_sky.selected.connect(self._map_choose_satellite)
         self.map_earth.selected.connect(self._map_choose_satellite)
@@ -2289,6 +2303,8 @@ def main(argv=None):
             assert window.tabs.tabText(7)=="Saved protocols"
             assert window.map_sky.mode=="sky"
             assert window.map_earth.mode=="earth"
+            assert window.map_views.currentIndex()==1, "Default map should be Earth"
+            assert window.map_extra.isHidden(), "Beginner map overlays must be collapsed"
             assert not window.map_osm.isChecked()
             assert window.map_earth._land, "Offline Natural Earth is required"
             assert window.map_media.findData("Image")>=0
