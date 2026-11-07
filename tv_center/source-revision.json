@@ -1,6 +1,7 @@
 {
   "source_branch": "feature/tv-center-native-teletext-asr-2026-11-07",
-  "source_sha": "1e5ff2c286d13b66e1b38abe274c81a9437761dd",
-  "mode": "optional WebUSB hardware permission (no direct DVB driver); native channel/scan/Teletext bridge; opt-in WebGPU/WASM Whisper/translation",
-  "release_status": "experimental"
+  "source_sha": "3a31876f48c4688337a45addd089495badbea227",
+  "webusb": "experimental EM28178 read-only register and bulk-IN TS diagnostics; NOT DVB-T2 tuning",
+  "nativeBridge": "optional PIN/token authenticated DVB capture",
+  "browserAI": "opt-in WebGPU/WASM Whisper and translation"
 }
