@@ -105,7 +105,7 @@ def asr_from_clip(path: Path, language: str, model: str,
 
 def translate(text: str, source: str, target: str) -> tuple[str | None, str | None]:
     if source == target:
-        return text, None
+        return None, None  # no translation attempted, preserve original independently
     try:
         from textcenter.transcripts import translate_offline
         return translate_offline(text, source, target), None

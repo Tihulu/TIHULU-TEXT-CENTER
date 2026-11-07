@@ -28,14 +28,29 @@ class SpeechError(RuntimeError):
     pass
 
 
-def _wav_bytes(pcm:bytes)->bytes:
+def _wav_bytes(pcm:bytes,sample_rate:int=SAMPLE_RATE)->bytes:
     with io.BytesIO() as b:
         with wave.open(b,"wb") as wf:
             wf.setnchannels(1)
             wf.setsampwidth(2)
-            wf.setframerate(SAMPLE_RATE)
+            wf.setframerate(sample_rate)
             wf.writeframes(pcm)
         return b.getvalue()
+
+
+def _whisper_cli_wav(pcm:bytes)->bytes:
+    """Convert existing signed 16-bit 32-kHz mono PCM to CLI-required 16 kHz.
+
+    Adjacent-sample averaging provides a minimal low-pass stage rather than
+    simply relabeling sample rate or dropping samples with no filtering.
+    """
+    from array import array
+    samples=array("h")
+    samples.frombytes(pcm[:len(pcm)-(len(pcm)%2)])
+    count=len(samples)-(len(samples)%2)
+    downsampled=array("h",((int(samples[i])+int(samples[i+1]))//2
+                            for i in range(0,count,2)))
+    return _wav_bytes(downsampled.tobytes(),sample_rate=16000)
 
 
 def _whisper_model(profile):
@@ -136,7 +151,7 @@ def transcribe_pcm(pcm:bytes,language:str,backend:str,profile:dict)->str:
         root=Path(tmp)
         src=root/"speech.wav"
         out=root/"transcript"
-        src.write_bytes(_wav_bytes(pcm))
+        src.write_bytes(_whisper_cli_wav(pcm))
         argv=[executable,"-m",model,"-f",str(src),"-l",language,
               "-nt","-otxt","-of",str(out)]
         try:

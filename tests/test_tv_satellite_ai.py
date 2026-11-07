@@ -1,4 +1,6 @@
 import hashlib
+import io
+import wave
 import tempfile
 from pathlib import Path
 import unittest
@@ -9,6 +11,7 @@ from tv_center.ai_settings import AISettings
 from tv_center.model_market import ModelLibrary, ModelError, CATALOG
 from tv_center.scanner import scan_commands, parse_scan_progress
 from tv_center.core import Channel, read_channels, parse_signal_log, format_frequency, zap_argv
+from textcenter.speech import _whisper_cli_wav
 
 class SatelliteAndAISettingsTests(unittest.TestCase):
     def test_satellite_scan_is_not_terrestrial_country(self):
@@ -25,6 +28,15 @@ class SatelliteAndAISettingsTests(unittest.TestCase):
             satellite_scan_args(0, "made-up-satellite")
         with self.assertRaises(ValueError):
             satellite_scan_args(0, "S42E0", 7)
+
+    def test_cli_wav_32k_to_16k(self):
+        # Existing radio/TV PCM pipeline uses 32 kHz; whisper.cpp needs 16 kHz.
+        raw = (100).to_bytes(2, "little", signed=True) * 32000
+        encoded = _whisper_cli_wav(raw)
+        with wave.open(io.BytesIO(encoded), "rb") as audio:
+            self.assertEqual(audio.getframerate(), 16000)
+            self.assertEqual(audio.getnframes(), 16000)
+            self.assertEqual(audio.getnchannels(), 1)
 
     def test_real_signal_power_cnr_ucb(self):
         sample = ("Lock (0x1f) Signal= -63.00dBm C/N= 21.25dB UCB= 100\n"
