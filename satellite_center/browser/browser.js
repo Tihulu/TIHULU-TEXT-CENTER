@@ -910,6 +910,57 @@ function scheduleFrequencyChoices(family,pass=null){
   }
   return options;
 }
+function scheduleBrowserSegments(pass,choices){
+ const plan=segmentedCapturePlan({
+   startMs:choices.when,totalSeconds:choices.durationSeconds,
+   rate:choices.sampleRate,saveRaw:choices.saveRaw,saveWav:choices.saveWav,
+   passEndMs:pass.los
+ });
+ const groupId=String(pass.id)+":"+String(choices.frequency)+":"+plan.groupId;
+ const entries=plan.segments.map(part=>{
+   const job=createScheduledPass(pass,{
+     ...choices,when:part.when,durationSeconds:part.durationSeconds,
+     diskStreamPrepared:false,wavDiskPrepared:false
+   });
+   if(plan.segmentCount>1){
+     job.groupId=groupId;job.segmentIndex=part.index;
+     job.segmentCount=part.count;job.requestedSeconds=plan.requestedSeconds;
+     job.unrecordedGapSeconds=plan.unrecordedGapSeconds;
+     job.message='Segment '+part.index+'/'+part.count+
+       ' · '+part.durationSeconds+' s, '+(part.estimatedBytes/1e6).toFixed(1)+
+       ' MB. '+plan.unrecordedGapSeconds+
+       ' s total unrecorded RF reset gaps. Files are separate, not contiguous baseband.';
+   }
+   job.estimatedBytes=part.estimatedBytes;
+   return job;
+ });
+ return {plan,jobs:entries};
+}
+function assertNoCaptureConflicts(proposed,excludeIds=[]){
+ const ignored=new Set(excludeIds);
+ for(const candidate of proposed){
+   if(jobs.some(j=>!ignored.has(j.id)&&['armed','starting','running'].includes(j.state)&&
+     (j.id===candidate.id||
+      candidate.when<j.when+j.durationSeconds*1000+20000&&
+      candidate.when+candidate.durationSeconds*1000>j.when-20000)))
+     throw Error('Single RTL-SDR is already reserved by a different capture. Change the time.');
+ }
+}
+function addScheduledBatch(batch){
+ // Transactional: prevalidate every segment before mutating the live calendar.
+ assertNoCaptureConflicts(batch.jobs);
+ for(const job of batch.jobs)jobs.push(job);
+ jobs.sort((a,b)=>a.when-b.when);
+ return batch.jobs.length;
+}
+function scheduleBatchText(batch){
+ return batch.plan.segmentCount===1?
+   batch.plan.requestedSeconds+' s · one output per selected format':
+   batch.plan.requestedSeconds+' s total as '+
+   batch.plan.segmentCount+' calendar entries (each ≤'+batch.plan.capacitySeconds+
+   ' s), '+batch.plan.unrecordedGapSeconds+
+   ' s of unrecorded receiver resets. Allow multiple downloads in Chromium.';
+}
 function appendPass(pass){
   const item=document.createElement('div');item.className='pass';
   const strong=document.createElement('strong');strong.textContent=pass.name+' · '+pass.family.toUpperCase();
