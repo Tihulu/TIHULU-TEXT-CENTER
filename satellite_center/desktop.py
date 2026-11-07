@@ -568,6 +568,7 @@ class SatelliteWindow(QMainWindow):
         body.setSpacing(10)
         scroll.setWidget(page)
         host.addWidget(scroll)
+        self.pass_scroll=scroll
         top=QHBoxLayout();body.addLayout(top)
         self._station_controls(top)
         group=QGroupBox("Satellite reception planner")
@@ -639,9 +640,14 @@ class SatelliteWindow(QMainWindow):
         detail.addWidget(self.pass_subtitle)
         detail.addWidget(self.pass_media_bar)
         detail.addWidget(self.pass_requirements)
+        self.pass_schedule_button=self._button(
+            "Plan recording for this pass  →",self._reveal_pass_schedule)
+        self.pass_schedule_button.setEnabled(False)
+        detail.addWidget(self.pass_schedule_button)
         body.addWidget(self.pass_detail,1)
 
-        settings=QGroupBox("Plan a real RF recording · native receiver")
+        settings=QGroupBox("Recording details · selected pass")
+        self.pass_settings=settings
         form=QFormLayout(settings)
         self.pass_profile=QComboBox()
         self.pass_profile.currentIndexChanged.connect(self._pass_modes)
@@ -661,7 +667,16 @@ class SatelliteWindow(QMainWindow):
         self.arm_pass=self._button("Arm selected RF capture",self.schedule_selected_pass)
         form.addRow(self.arm_pass)
         body.addWidget(settings)
+        settings.setVisible(False)
         self._render_pass_results()
+
+    def _reveal_pass_schedule(self):
+        if not self.pass_list.currentItem():
+            return QMessageBox.information(self,"Plan recording",
+                                           "Select a satellite pass first.")
+        self.pass_settings.setVisible(True)
+        self.pass_scroll.ensureWidgetVisible(self.pass_settings)
+        self.pass_profile.setFocus()
 
     def _set_pass_media_bar(self, kinds):
         layout=self.pass_media_bar.layout()
@@ -1064,50 +1079,98 @@ class SatelliteWindow(QMainWindow):
         self.statusBar().showMessage(
             "Saved TLE-based GeoJSON with explicit no-RF provenance: "+str(file),14000)
 
+
     def _auto_tab(self):
-        body=self._new_tab("Auto reception")
-        body.addWidget(self._hint("Choose only the modes you intend to receive. Actual activity, "
-            "satellite identification and complete imagery are never guaranteed by a geometric pass."))
+        host=self._new_tab("Auto reception")
+        scroll=QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.NoFrame)
+        host.addWidget(scroll)
+        panel=QWidget()
+        body=QVBoxLayout(panel)
+        body.setSpacing(12)
+        scroll.setWidget(panel)
+        title=QLabel("Automatically capture selected satellite passes")
+        title.setObjectName("passTitle")
+        body.addWidget(title)
+        body.addWidget(self._hint(
+            "Select only what you want to receive. The app estimates suitable passes and "
+            "writes real data locally if an RTL-SDR is available. No capture starts just by opening this page."))
+
+        mission_panel=QGroupBox("1 · Choose the data to receive")
+        missions=QVBoxLayout(mission_panel)
         self.mission_boxes={}
         for mid, (norad, profile, mode) in AUTO_DOWNLINK_PROFILES.items():
-            label={"iss-sstv":"ISS SSTV · event only · WAV",
-                   "iss-aprs":"ISS APRS · text/packets",
-                   "iss-voice":"ISS voice · WAV",
-                   "meteor-m2-3":"Meteor-M2-3 LRPT · raw IQ image candidate",
-                   "meteor-m2-4":"Meteor-M2-4 LRPT · raw IQ image candidate"}.get(mid,mid)
+            label={
+                "iss-sstv":"IMAGE · ISS SSTV · event only · WAV",
+                "iss-aprs":"TEXT · ISS public APRS packets",
+                "iss-voice":"AUDIO · ISS voice FM · WAV",
+                "meteor-m2-3":"IMAGE · Meteor-M2-3 weather · raw CU8",
+                "meteor-m2-4":"IMAGE · Meteor-M2-4 weather · raw CU8",
+            }.get(mid,mid)
             item=QCheckBox(label)
             if mid.startswith("meteor"):item.setChecked(True)
             self.mission_boxes[mid]=item
-            body.addWidget(item)
-        options=QGroupBox("Automatic local capture scheduling")
-        form=QFormLayout(options)
-        self.coverage=QComboBox();self.coverage.addItem("Full predicted window","full")
+            missions.addWidget(item)
+        body.addWidget(mission_panel)
+
+        basic=QGroupBox("2 · Plan the reception")
+        form=QFormLayout(basic)
+        self.coverage=QComboBox()
+        self.coverage.addItem("Prefer full visible pass","full")
         self.coverage.addItem("Quick RF sample","sample")
-        self.auto_seconds=QSpinBox();self.auto_seconds.setRange(0,900)
+        form.addRow("Recording goal",self.coverage)
+        self.auto_schedule_button=self._button(
+            "Calculate passes & schedule recordings",self.auto_schedule)
+        form.addRow(self.auto_schedule_button)
+        body.addWidget(basic)
+
+        self.auto_expand=QPushButton("Advanced recording settings  ▸")
+        self.auto_expand.setCheckable(True)
+        self.auto_expand.setAccessibleName("Show advanced reception parameters")
+        body.addWidget(self.auto_expand)
+        self.auto_settings=QGroupBox("Advanced · capture and processing")
+        advanced=QFormLayout(self.auto_settings)
+        self.auto_seconds=QSpinBox()
+        self.auto_seconds.setRange(0,900)
         self.auto_seconds.setSpecialValueText("Auto · fit pass")
         self.auto_seconds.setValue(0)
-        self.auto_jobs=QSpinBox();self.auto_jobs.setRange(1,12);self.auto_jobs.setValue(6)
-        self.auto_elev=QDoubleSpinBox();self.auto_elev.setRange(5,75);self.auto_elev.setValue(20)
+        self.auto_jobs=QSpinBox()
+        self.auto_jobs.setRange(1,12)
+        self.auto_jobs.setValue(6)
+        self.auto_elev=QDoubleSpinBox()
+        self.auto_elev.setRange(5,75)
+        self.auto_elev.setValue(20)
         self.auto_compute=QComboBox()
         for title,mode,targets in (
-            ("Auto (native capability detection)","auto",[]),
+            ("Auto · detect available backend","auto",[]),
             ("CPU only","custom",["cpu"]),
-            ("CPU + GPU (only if backend available)","custom",["cpu","gpu"]),
-            ("CPU + NPU (only if backend available)","custom",["cpu","npu"]),
-            ("CPU + GPU + NPU (only if backend available)",
-             "custom",["cpu","gpu","npu"])):
+            ("CPU + GPU (if supported)","custom",["cpu","gpu"]),
+            ("CPU + NPU (if supported)","custom",["cpu","npu"]),
+            ("CPU + GPU + NPU (if supported)","custom",["cpu","gpu","npu"]),
+        ):
             self.auto_compute.addItem(title,(mode,targets))
         self.auto_compute.setToolTip(
-            "GPU/NPU selection requests installed compute backends. It does "
-            "not claim hardware acceleration or change RF acquisition.")
-        form.addRow("Coverage priority",self.coverage)
-        form.addRow("Capture length · s",self.auto_seconds)
-        form.addRow("Maximum future jobs",self.auto_jobs)
-        form.addRow("Minimum elevation",self.auto_elev)
-        form.addRow("Image/SSTV analysis compute",self.auto_compute)
-        form.addRow(self._button("Auto Schedule & Capture · native",self.auto_schedule))
-        body.addWidget(options)
-        body.addWidget(self._button("Cancel pending AUTO jobs only",self.cancel_automatic))
+            "Selecting GPU/NPU is a request, not evidence of real accelerator use.")
+        advanced.addRow("Duration · 0 = fit pass",self.auto_seconds)
+        advanced.addRow("Maximum jobs",self.auto_jobs)
+        advanced.addRow("Minimum elevation (°)",self.auto_elev)
+        advanced.addRow("Analysis hardware",self.auto_compute)
+        self.auto_settings.setVisible(False)
+        self.auto_expand.toggled.connect(self.auto_settings.setVisible)
+        self.auto_expand.toggled.connect(
+            lambda visible:self.auto_expand.setText(
+                "Advanced recording settings  ▾" if visible else "Advanced recording settings  ▸"))
+        body.addWidget(self.auto_settings)
+        body.addWidget(self._hint(
+            "Scheduling needs valid TLEs, free disk space and one free SDR. "
+            "IMAGE labels are protocol candidates; an image appears only if decoding succeeds."))
+        actions=QHBoxLayout()
+        actions.addWidget(self._button("View reception calendar",
+                                     lambda:self._open_native_tab("Reception calendar")))
+        actions.addWidget(self._button("Cancel pending AUTO jobs",self.cancel_automatic))
+        actions.addStretch(1)
+        body.addLayout(actions)
         body.addStretch(1)
 
     def _calendar_tab(self):
@@ -1567,6 +1630,7 @@ class SatelliteWindow(QMainWindow):
         self.pass_profile.blockSignals(True)
         self.pass_profile.clear()
         self.arm_pass.setEnabled(bool(row))
+        self.pass_schedule_button.setEnabled(bool(row))
         if row:
             kinds=kinds_for_pass(row)
             self.pass_title.setText(row["name"]+"  ·  NORAD "+str(row.get("norad","?")))
@@ -2206,6 +2270,8 @@ def main(argv=None):
             assert window.home_extract.text().startswith("3 ")
             assert window.files.headerItem().text(1)=="Data type · format"
             assert window.output_files.headerItem().text(1)=="Data type · format"
+            assert not window.auto_settings.isVisible()
+            assert not window.pass_settings.isVisible()
             assert window.auto_compute.count()==5
             assert window.auto_compute.currentData()[0]=="auto"
             assert window.pass_seconds.maximum()==900
