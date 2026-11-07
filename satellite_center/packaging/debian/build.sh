@@ -28,7 +28,7 @@ Section: hamradio
 Priority: optional
 Architecture: all
 Maintainer: TIHULU Project <noreply@github.com>
-Depends: python3 (>= 3.11), python3-pyqt5, python3-numpy, python3-skyfield, rtl-sdr, xdg-utils
+Depends: python3 (>= 3.11), python3-pyqt5, python3-pyqt5.qtwebengine, python3-numpy, python3-skyfield, rtl-sdr, xdg-utils
 Recommends: multimon-ng, qtwayland5, python3-pyqt5.qtmultimedia
 Description: TIHULU Satellite Center real native Qt desktop for Debian
  Independent Qt Widgets SDR desktop (no browser or embedded WebView),
