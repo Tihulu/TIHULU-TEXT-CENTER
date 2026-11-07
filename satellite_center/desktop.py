@@ -1928,17 +1928,24 @@ class SatelliteWindow(QMainWindow):
         from PyQt5.QtWidgets import QDialog, QDialogButtonBox
         dialog=QDialog(self);dialog.setWindowTitle("Edit native automatic reception")
         form=QFormLayout(dialog)
-        clock=QDateTimeEdit(native_datetime(job["run_at"]))
+        group=[j for j in self._calendar_jobs if
+               job.get("segment_group") and j.get("segment_group")==job["segment_group"]]
+        first=min(group,key=lambda j:j["run_at"]) if group else job
+        clock=QDateTimeEdit(native_datetime(first["run_at"]))
         clock.setCalendarPopup(True);clock.setDisplayFormat("yyyy-MM-dd HH:mm:ss")
-        dur=QSpinBox();dur.setRange(0,900);dur.setSpecialValueText("Auto (fit pass)")
-        dur.setValue(int(job.get("requested_seconds") or 0))
+        total=(job.get("requested_seconds") if job.get("requested_seconds") is not None else
+               sum(int(j.get("capture_seconds") or 0) for j in group)
+               if group else 0)
+        durationWidget,dur,durUnit=native_duration_control(int(total or 0),0,900)
+        dur.setSpecialValueText("Auto (fit pass)")
         options=QComboBox()
         norad=str(job.get("pass_id","")).split(":")[0]
         for mid,(num,_,_) in AUTO_DOWNLINK_PROFILES.items():
             if str(num)==norad:options.addItem(mid,mid)
         index=options.findData(job["mission_id"])
         if index>=0:options.setCurrentIndex(index)
-        form.addRow("Start time · local",clock);form.addRow("Duration",dur)
+        form.addRow("Series start · local",clock)
+        form.addRow("Total length · seconds/minutes",durationWidget)
         form.addRow("Published RF protocol",options)
         buttons=QDialogButtonBox(QDialogButtonBox.Ok|QDialogButtonBox.Cancel)
         buttons.accepted.connect(dialog.accept);buttons.rejected.connect(dialog.reject)
@@ -1946,7 +1953,7 @@ class SatelliteWindow(QMainWindow):
         if dialog.exec_()!=QDialog.Accepted:return
         start=datetime.fromtimestamp(clock.dateTime().toSecsSinceEpoch(),timezone.utc).isoformat()
         self._task("Edit automatic pass",lambda:self.station.edit_auto_schedule(
-            job["id"],start,options.currentData(),dur.value() or None),
+            job["id"],start,options.currentData(),duration_seconds(dur,durUnit) or None),
             lambda result:self.refresh_status())
 
     def _capture_modes(self):
