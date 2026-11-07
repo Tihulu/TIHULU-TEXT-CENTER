@@ -32,9 +32,9 @@ jobs:
         run: |
           bash -n satellite_center/install/install-deb.sh
           bash satellite_center/install/install-deb.sh
-          test -s "$TIHULU_OUTPUT_DIR/tihulu-satellite-center_0.3.0~preview8_all.deb"
-          test "$(dpkg-deb --field "$TIHULU_OUTPUT_DIR/tihulu-satellite-center_0.3.0~preview8_all.deb" Version)" = '0.3.0~preview8'
-          dpkg-deb --contents "$TIHULU_OUTPUT_DIR/tihulu-satellite-center_0.3.0~preview8_all.deb" | grep -F satellite_center/desktop.py
+          test -s "$TIHULU_OUTPUT_DIR/tihulu-satellite-center_0.3.0~preview9_all.deb"
+          test "$(dpkg-deb --field "$TIHULU_OUTPUT_DIR/tihulu-satellite-center_0.3.0~preview9_all.deb" Version)" = '0.3.0~preview9'
+          dpkg-deb --contents "$TIHULU_OUTPUT_DIR/tihulu-satellite-center_0.3.0~preview9_all.deb" | grep -F satellite_center/desktop.py
       - name: Inspect package integrity and desktop entry
         run: |
           dpkg-deb --info dist/*.deb
@@ -64,7 +64,7 @@ jobs:
           '
       - uses: actions/upload-artifact@v4
         with:
-          name: tihulu-satellite-center-native-ui-preview8
+          name: tihulu-satellite-center-native-ui-preview9
           path: dist/ui-preview/*.png
           if-no-files-found: error
           retention-days: 30
