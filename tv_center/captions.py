@@ -59,9 +59,11 @@ def ass_text(raw: str) -> str:
             lines.append(txt)
     return "\n".join(lines[-6:])[:1600]
 
-def teletext_from_clip(path: Path, page: int, service_id: int | None = None) -> str:
-    if not 100 <= page <= 899:
-        raise ValueError("Teletext page must be 100-899")
+def teletext_from_clip(path: Path, page: int | str, service_id: int | None = None) -> str:
+    # 'subtitle' is FFmpeg/libzvbi's special selector for broadcaster-marked
+    # caption pages. Never treat arbitrary Teletext page 150 news as speech.
+    if page != "subtitle" and (type(page) is not int or not 100 <= page <= 899):
+        raise ValueError("Teletext page must be 100-899 or 'subtitle'")
     idx = _sub_stream(path, service_id)
     if idx is None:
         return ""
@@ -125,8 +127,12 @@ def decode_segment(ts: bytes, *, mode="auto", page=150, source="de",
         p.write_bytes(ts)
         original, used, error = "", "", None
         if mode in ("teletext", "page", "auto"):
-            original = teletext_from_clip(p, page, service_id)
-            used = f"teletext_page_{page}" if original else ""
+            # Automatic captions must use *actual* subtitle pages signaled by
+            # the broadcaster, not arbitrary Teletext news/information pages.
+            selected_page = page if mode == "page" else "subtitle"
+            original = teletext_from_clip(p, selected_page, service_id)
+            used = (f"teletext_page_{page}" if selected_page != "subtitle"
+                    else "broadcaster_teletext_subtitles") if original else ""
         if not original and mode in ("asr", "auto"):
             try:
                 original = asr_from_clip(p, source, model, service_id)
