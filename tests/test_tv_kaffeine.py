@@ -11,6 +11,19 @@ from kaffeine_next.captions_overlay import CaptionTap, validate_socket
 from kaffeine_next.patch_upstream import REVISION, PATHS
 
 class KaffeineCaptionTapTests(TestCase):
+    def test_native_kaffeine_scanner_keeps_single_receiver_and_typed_frequency(self):
+        from kaffeine_next.patch_upstream import transform
+        # Source-patching regression check without opening a real tuner.
+        # C++ build CI checks the same patch against pristine KDE Kaffeine.
+        import inspect
+        source = inspect.getsource(transform)
+        self.assertIn("DvbTransponderBase::DvbT2", source)
+        self.assertIn("DvbT2Transponder::Bandwidth8MHz", source)
+        self.assertIn("538000000, 586000000, 626000000", source)
+        self.assertIn("Channels / Antenna Scan", source)
+        self.assertNotIn("w_scan_cpp", source)
+        self.assertNotIn("dvbv5-scan", source)
+
     def test_kaffeine_receiver_diagnostics_do_not_open_frontend(self):
         from kaffeine_next.diagnostics import inspect
         with tempfile.TemporaryDirectory() as root:
