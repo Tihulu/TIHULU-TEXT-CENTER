@@ -1184,9 +1184,12 @@ function showCalendarEdit(job,card){
  }
  freq.value=String(job.frequency);addField('Known downlink frequency',freq);
  const seconds=document.createElement('input');seconds.type='number';
- seconds.min='1';seconds.max='900';seconds.step='1';seconds.inputMode='numeric';
- seconds.value=String(job.durationSeconds);
- addField('RF sample length · seconds (1–900, disk file for longer IQ)',seconds);
+ seconds.min='1';seconds.max='7200';seconds.step='1';seconds.inputMode='numeric';
+ seconds.value=String(job.chainId?job.chainCaptureTotal:job.durationSeconds);
+ addField('Total RF capture length',seconds);
+ const unit=document.createElement('select');
+ unit.innerHTML='<option value="seconds">Seconds</option><option value="minutes">Minutes</option>';
+ addField('Length unit',unit);
  const rate=document.createElement('select');
  for(const value of [1024000,2048000]){
    const o=document.createElement('option');o.value=String(value);o.textContent=(value/1e6).toFixed(3)+' MS/s';rate.append(o);
@@ -1197,7 +1200,7 @@ function showCalendarEdit(job,card){
  const wavToggle=document.createElement('input');wavToggle.type='checkbox';wavToggle.checked=Boolean(job.saveWav);
  addField('Record real FM WAV (48 kHz PCM)',wavToggle);
  const note=document.createElement('p');note.className='hint';
- note.textContent='Edits must fit the predicted pass and SDR availability. Long CU8/WAV edits require selecting a new local file/folder now, while the tab is visible.';
+ note.textContent='Editing one part of a chained recording replaces all future armed parts of that chain. WebUSB clips automatically split into <=60 s files and allow 6-second gaps. These are separate files, NOT uninterrupted RF.';
  form.append(note);
  const save=document.createElement('button');save.type='submit';save.textContent='Save job changes';form.append(save);
  const error=document.createElement('p');error.className='status';error.setAttribute('role','status');form.append(error);
@@ -1205,40 +1208,30 @@ function showCalendarEdit(job,card){
    event.preventDefault();save.disabled=true;
    let newPrepared=null;
    try{
-     const durationSeconds=Number(seconds.value),sampleRate=Number(rate.value);
-     const plan=inspectCaptureStorage(durationSeconds,sampleRate,rawToggle.checked,wavToggle.checked);
+     const totalSeconds=secondsFromEntry(seconds.value,unit.value),
+           sampleRate=Number(rate.value);
      const pass={id:job.passId,name:job.name,family:job.family,
        aos:job.passAos,los:job.passLos};
-     const next=createScheduledPass(pass,{
-       when:parseLocalScheduleTime(time.value),durationSeconds,
-       sampleRate,frequency:Number(freq.value),
-       saveRaw:rawToggle.checked,saveWav:wavToggle.checked,
-       diskStreamPrepared:plan.rawDisk,wavDiskPrepared:plan.wavDisk
-     });
-     for(const other of jobs){
-       if(other===job||!['armed','starting','running'].includes(other.state))continue;
-       if(next.when<other.when+other.durationSeconds*1000+20000&&
-          next.when+next.durationSeconds*1000>other.when-20000)
-         throw Error('Single receiver conflict with another capture');
-     }
-     if(plan.rawDisk||plan.wavDisk)
-       newPrepared=await selectRecordingFiles(durationSeconds,sampleRate,rawToggle.checked,wavToggle.checked,{
-         job:next,at:new Date(next.when),freq:next.frequency
-       });
-     const previousId=job.id;
-     releaseScheduledStream(job);
+     const oldGroup=jobs.filter(x=>x.id===job.id||
+       (job.chainId&&x.chainId===job.chainId&&x.state==='armed'));
+     if(oldGroup.some(x=>x.state!=='armed'))
+       throw Error('A chained part has already started; cancel remaining parts and create a new schedule.');
+     const chain=buildBrowserChain(pass,{
+       when:parseLocalScheduleTime(time.value),totalSeconds,rate:sampleRate,
+       frequency:Number(freq.value),raw:rawToggle.checked,wav:wavToggle.checked,
+       excludeIds:oldGroup.map(x=>x.id)});
+     for(const old of oldGroup){releaseScheduledStream(old);old.state='cancelled';
+       old.message='Replaced by edited recording chain.';}
      const mission=Object.entries(AUTO_TARGETS).find(([_,x])=>
-       x.frequencyHz===next.frequency&&x.norad===Number(job.passId));
-     Object.assign(job,next,{
-       createdAt:job.createdAt,missionId:mission?.[0]||undefined,
-       message:'Edited by operator. Browser must remain visible and awake.'
-     });
-     if(newPrepared){preparedLongStreams.set(job.id,newPrepared);newPrepared=null;}
-     jobs.sort((a,b)=>a.when-b.when);
+       x.frequencyHz===Number(freq.value)&&x.norad===Number(job.passId));
+     for(const next of chain.jobs)next.missionId=mission?.[0]||undefined;
+     addBrowserChain(chain.jobs);
      form.remove();
      browserCalendarSignature='';renderJobs();
-     status('schedule-readiness',"Updated "+previousId+" to "+durationSeconds+
-       " seconds; SDR remains released.");
+     status('schedule-readiness','Replaced '+oldGroup.length+
+       ' pending job(s) with '+chain.jobs.length+' parts · '+totalSeconds+
+       ' s of RF and '+chain.plan.totalGapSeconds+
+       ' s reserved inter-part gaps. Browser must remain visible.');
    }catch(error){
      if(newPrepared?.writable||newPrepared?.wavWritable)await abortLongCapture(newPrepared);
      error.textContent='Changes not saved: '+String(error?.message||error);
