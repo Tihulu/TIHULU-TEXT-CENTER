@@ -171,7 +171,10 @@ export function initAutoReceptionUI({getSelectedFile=()=>null,fileInput=$("local
     if(old){old.remove();return;}
     const form=document.createElement("form");form.className="calendar-edit";
     const when=document.createElement("input");when.type="datetime-local";when.required=true;
-    when.value=startLocal(job.run_at||job.aos);
+    const siblings=job.segment_group?
+      calendarJobs.filter(j=>j.segment_group===job.segment_group):[job];
+    const first=siblings.reduce((a,j)=>new Date(j.run_at)<new Date(a.run_at)?j:a,siblings[0]);
+    when.value=startLocal(first.run_at||first.aos);
     const protocols=document.createElement("select");
     for(const [id,label] of calendarChoices[String(job.pass_id||"").split(":")[0]]||[]){
       const option=document.createElement("option");option.value=id;option.textContent=label;
@@ -186,11 +189,33 @@ export function initAutoReceptionUI({getSelectedFile=()=>null,fileInput=$("local
     lbl("Published receiver protocol",protocols);
     const seconds=document.createElement("input");seconds.type="number";seconds.min="8";seconds.max="900";
     seconds.step="1";seconds.inputMode="numeric";
-    seconds.placeholder="Auto: remaining pass";seconds.value=job.requested_seconds==null?"":String(job.requested_seconds);
-    lbl("Record duration · 8–900 seconds, empty = auto",seconds);
+    seconds.placeholder="Auto: remaining pass";
+    const currentTotal=job.requested_seconds==null?
+      (siblings.length>1?siblings.reduce((n,j)=>n+Number(j.capture_seconds||0),0):null):
+      Number(job.requested_seconds);
+    seconds.value=currentTotal==null?"":String(currentTotal);
+    lbl("Total recording duration · seconds/minutes",seconds);
+    const unit=document.createElement("select");
+    for(const [value,label] of [["seconds","Seconds"],["minutes","Minutes"]]){
+      const option=document.createElement("option");option.value=value;option.textContent=label;unit.append(option);
+    }
+    lbl("Length unit",unit);
+    let last="seconds";
+    unit.addEventListener("change",()=>{
+      if(seconds.value.trim()){
+        const amount=Number(seconds.value)*(last==="minutes"?60:1);
+        seconds.value=unit.value==="minutes"?
+          String(Number((amount/60).toFixed(6))):String(Math.round(amount));
+      }
+      last=unit.value;seconds.max=last==="minutes"?"15":"900";
+      seconds.min=last==="minutes"?"0.133334":"8";
+      seconds.step=last==="minutes"?"0.000001":"1";
+    });
     const note=document.createElement("small");
     note.textContent="Original pass: "+new Date(job.aos).toLocaleTimeString()+"–"+
-      new Date(job.los).toLocaleTimeString()+" (local). Changing satellite requires a new pass.";
+      new Date(job.los).toLocaleTimeString()+" (local). Changing satellite requires a new pass."+
+      (siblings.length>1?" This edits the FULL "+siblings.length+"-file native series atomically; "+
+        "each receiver restart has an unrecorded interval.":"");
     form.append(note);
     const save=document.createElement("button");save.type="submit";save.textContent="Save changes";form.append(save);
     const error=document.createElement("p");error.className="status";error.setAttribute("role","status");form.append(error);
@@ -200,9 +225,7 @@ export function initAutoReceptionUI({getSelectedFile=()=>null,fileInput=$("local
         const date=new Date(when.value);
         if(!Number.isFinite(date.getTime()))throw Error("Invalid local start time");
         const raw=seconds.value.trim();
-        const duration_seconds=raw?Number(raw):null;
-        if(raw&&(!Number.isInteger(duration_seconds)||duration_seconds<8||duration_seconds>900))
-          throw Error("Choose 8–900 whole seconds or blank for auto.");
+        const duration_seconds=raw?durationToSeconds(raw,unit.value,{min:8,max:900}):null;
         await nativeApi("/api/auto-edit",{
           job_id:job.id,run_at:date.toISOString(),mission_id:protocols.value,
           duration_seconds
