@@ -890,14 +890,21 @@ $('saved-tle-fetch').addEventListener('click',async()=>{
       await Promise.all(supported.slice(index,index+3).map(async id=>{
         const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),8000);
         try{
-          const uri='https://celestrak.org/NORAD/elements/gp.php?CATNR='+id+'&FORMAT=TLE';
-          const result=await fetch(uri,{mode:'cors',cache:'no-store',signal:controller.signal});
-          if(!result.ok)throw Error('HTTP '+result.status);
-          const txt=await result.text();
-          if(txt.length>70000)throw Error('TLE response oversized');
-          const rows=parseTle(txt,'custom').filter(p=>p.id===id);
-          if(!rows.length)throw Error('No valid matching TLE');
-          loaded.push(...rows);
+          if(typeof window.nativeCustomTle==='function'){
+            const answer=await window.nativeCustomTle(id);
+            const rows=(answer.entries||[]).filter(p=>p.id===id);
+            if(!rows.length)throw Error('No valid matching native TLE');
+            loaded.push(...rows);
+          }else{
+            const uri='https://celestrak.org/NORAD/elements/gp.php?CATNR='+id+'&FORMAT=TLE';
+            const result=await fetch(uri,{mode:'cors',cache:'no-store',signal:controller.signal});
+            if(!result.ok)throw Error('HTTP '+result.status);
+            const txt=await result.text();
+            if(txt.length>70000)throw Error('TLE response oversized');
+            const rows=parseTle(txt,'custom').filter(p=>p.id===id);
+            if(!rows.length)throw Error('No valid matching TLE');
+            loaded.push(...rows);
+          }
         }catch(e){errors.push('NORAD '+id+': '+e.message);}
         finally{clearTimeout(timeout);}
       }));
@@ -917,6 +924,34 @@ $('saved-tle-fetch').addEventListener('click',async()=>{
 async function refreshOrbitalCatalog(){
   if(tleEntries.length && lastTleFetchAt && Date.now()-lastTleFetchAt < 2*3600000) {
     status('orbit-state','Keeping '+tleEntries.length+' TLE candidates from this tab\'s recent download. CelesTrak GP data is not refreshed more often than every two hours.');
+    return;
+  }
+  if(typeof window.nativeOrbitCatalog==='function'){
+    status('orbit-state','Downloading CelesTrak orbit data with native HTTPS, then reading local TLE cache…');
+    try{
+      const answer=await window.nativeOrbitCatalog();
+      const records=(answer.entries||[]).filter(item=>
+        Number.isInteger(item.id)&&typeof item.l1==='string'&&
+        typeof item.l2==='string'&&typeof item.name==='string'&&
+        ['iss','meteor','cubesat','iridium'].includes(item.family));
+      if(records.length){
+        tleEntries=boundedCatalog(records);
+        lastTleFetchAt=Date.now();
+        passes=[];
+        visiblePassCount=40;
+        renderPasses();
+        notifyMaps();
+      }
+      const diagnostics=(answer.warnings||[]).slice(0,4).join(' · ');
+      status('orbit-state',records.length
+        ? 'Native CelesTrak + disk cache: '+tleEntries.length+
+          ' real TLE candidates ready. '+(diagnostics||'Orbit data received.')+
+          ' Recalculate passes. Positions are orbital predictions, not received RF.'
+        : 'Native CelesTrak returned no usable TLEs. '+(diagnostics||'Inspect HTTPS, local cache or import a .tle file.'));
+    }catch(error){
+      status('orbit-state','Native orbit refresh failed: '+String(error?.message||error)+
+        '. Check computer HTTPS access or import a local TLE file.');
+    }
     return;
   }
   status('orbit-state','Requesting whitelisted CelesTrak TLEs…');
@@ -1189,6 +1224,32 @@ async function calculateOrbitalPasses(){
   if(!tleEntries.length){status('orbit-state','Load orbit TLEs from CelesTrak or an uploaded file first.');return;}
   const lat=Number($('lat').value),lon=Number($('lon').value),hours=Number($('hours').value),minimum=Number($('elev').value);
   if(!$('lat').value.trim()||!$('lon').value.trim()||!Number.isFinite(lat)||!Number.isFinite(lon)||lat<-90||lat>90||lon<-180||lon>180){status('orbit-state','Enter valid latitude (−90…90) and longitude (−180…180) before calculating passes.');return;}
+  if(typeof window.nativeOrbitPasses==='function'){
+    status('orbit-state','Calculating genuine orbital passes with native Skyfield (no USB or browser CDN)…');
+    try{
+      const answer=await window.nativeOrbitPasses(lat,lon,hours,minimum);
+      const found=(answer.predictions||[]).map(row=>({
+        id:Number(row.norad),name:String(row.name||'NORAD '+row.norad),
+        family:String(row.family||'cubesat'),
+        aos:Date.parse(row.aos),los:Date.parse(row.los),
+        maximum:Number(row.max_elevation_deg)
+      })).filter(row=>Number.isInteger(row.id)&&Number.isFinite(row.aos)&&
+        Number.isFinite(row.los)&&Number.isFinite(row.maximum)&&row.los>row.aos);
+      found.sort((a,b)=>a.aos-b.aos);
+      passes=found;
+      visiblePassCount=40;
+      renderPasses();
+      notifyMaps();
+      const warns=(answer.warnings||[]).slice(0,2).join(' · ');
+      status('orbit-state','Native Skyfield calculated '+found.length+
+        ' geometric passes for '+lat.toFixed(3)+', '+lon.toFixed(3)+
+        '. '+warns+' No satellite radio signals claimed.');
+    }catch(error){
+      status('orbit-state','Native orbit calculation failed: '+String(error?.message||error)+
+        '. Verify locally cached TLE data and Python Skyfield installation.');
+    }
+    return;
+  }
   status('orbit-state','Computing geometry locally in this browser (no RF reception implied)…');
   try{
     const satlib=await getOrbitalLibrary();
