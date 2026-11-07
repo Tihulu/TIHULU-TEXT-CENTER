@@ -33,6 +33,9 @@ from .media_catalog import (MEDIA_COLORS, MEDIA_SYMBOLS, kinds_for_pass, filter_
 from .native_locations import load_locations, search_locations, city_label
 from .native_orbit import OrbitEngine
 from .native_maps import OrbitCanvas
+from .native_map_parity import (
+    map_satellite_capabilities, map_satellite_protocols,
+    filter_orbit_snapshot, export_orbit_geojson)
 from .native_signal_tools import discover_channels, fm_to_wav
 from .sstv_series35 import extract_robot36_wav
 
@@ -579,6 +582,13 @@ class SatelliteWindow(QMainWindow):
                            ("Iridium","iridium")):
             self.map_family.addItem(name,value)
         self.map_family.currentIndexChanged.connect(self._map_options_changed)
+        self.map_media=QComboBox()
+        for label,kind in (
+            ("All media","All"),("▧ Image candidates","Image"),
+            ("♫ Audio candidates","Audio"),("≡ Text/AX.25","Text"),
+            ("◈ RF data","RF data"),("RF-only / unknown","RF only")):
+            self.map_media.addItem(label,kind)
+        self.map_media.currentIndexChanged.connect(self._map_options_changed)
         self.map_above=QCheckBox("Above local horizon only")
         self.map_above.toggled.connect(self._map_options_changed)
         self.map_follow=QCheckBox("Follow selected satellite")
@@ -587,9 +597,15 @@ class SatelliteWindow(QMainWindow):
         self.map_live_button.setCheckable(True)
         self.map_live_button.setChecked(True)
         self.map_live_button.clicked.connect(self._toggle_map_live)
-        for widget in (self.map_family,self.map_above,self.map_follow,self.map_live_button):
+        for widget in (self.map_family,self.map_media,self.map_above,
+                       self.map_follow,self.map_live_button):
             line.addWidget(widget)
         body.addLayout(line)
+        self.map_search=QLineEdit()
+        self.map_search.setPlaceholderText("Find satellite by name or NORAD · local TLE search")
+        self.map_search.setClearButtonEnabled(True)
+        self.map_search.textChanged.connect(self._map_options_changed)
+        body.addWidget(self.map_search)
         timebar=QHBoxLayout()
         timebar.addWidget(QLabel("Orbit time"))
         self.map_offset=QSlider(Qt.Horizontal)
@@ -638,9 +654,12 @@ class SatelliteWindow(QMainWindow):
         side.setContentsMargins(8,2,4,2)
         side.addWidget(QLabel("Predicted satellites · click map pin or list row"))
         self.map_satellites=QTreeWidget()
-        self.map_satellites.setHeaderLabels(["TLE satellite","Elevation"])
+        self.map_satellites.setHeaderLabels(
+            ["TLE satellite","Elevation","Possible formats"])
         self.map_satellites.setRootIsDecorated(False)
         self.map_satellites.header().setSectionResizeMode(0,QHeaderView.Stretch)
+        self.map_satellites.header().setSectionResizeMode(1,QHeaderView.ResizeToContents)
+        self.map_satellites.header().setSectionResizeMode(2,QHeaderView.ResizeToContents)
         self.map_satellites.itemSelectionChanged.connect(self._map_list_selected)
         side.addWidget(self.map_satellites,3)
         self.map_details=QPlainTextEdit()
@@ -651,10 +670,18 @@ class SatelliteWindow(QMainWindow):
         side.addWidget(self.map_details,2)
         side.addWidget(self._button("Use selected family receiver preset",
                                   self._map_tune_receiver))
+        side.addWidget(self._button("Find next predicted pass for selected satellite",
+                                  self._map_find_next_pass))
         split.addWidget(panel)
         split.setStretchFactor(0,4)
         split.setStretchFactor(1,2)
         body.addWidget(split,1)
+        export_row=QHBoxLayout()
+        export_row.addWidget(self._button("Save visible map PNG…",self._map_export_png))
+        export_row.addWidget(self._button("Export orbit pins/tracks GeoJSON…",
+                                           self._map_export_geojson))
+        export_row.addStretch(1)
+        body.addLayout(export_row)
         self.map_status=QLabel(
             "No TLE trajectory loaded. Earth map opens offline without network.")
         self.map_status.setWordWrap(True)
@@ -736,6 +763,9 @@ class SatelliteWindow(QMainWindow):
             self.map_last_track_at=time.monotonic()
         elif self.map_track_segments:
             view["track_segments"]=self.map_track_segments
+        view=filter_orbit_snapshot(
+            view,self.map_media.currentData() or "All",
+            self.map_above.isChecked(),self.map_search.text())
         self.map_last_snapshot=view
         self.map_sky.set_snapshot(view);self.map_earth.set_snapshot(view)
         self.map_sky.set_selected(self.map_selected_norad)
@@ -747,7 +777,12 @@ class SatelliteWindow(QMainWindow):
         active=None
         for sat in view["satellites"]:
             if self.map_above.isChecked() and sat["el"]<0:continue
-            item=QTreeWidgetItem([sat["name"],f'{sat["el"]:+.1f}°'])
+            kinds=map_satellite_capabilities(sat)
+            formats="  ".join(
+                "▧ IMG" if k=="Image" else "♫ WAV" if k=="Audio" else
+                "≡ TEXT" if k=="Text" else "◈ RF" for k in kinds)
+            item=QTreeWidgetItem([sat["name"],f'{sat["el"]:+.1f}°',formats])
+            item.setToolTip(2,"Published receiver candidates, not verified RF/media")
             item.setData(0,Qt.UserRole,sat["norad"])
             self.map_satellites.addTopLevelItem(item)
             if sat["norad"]==before:active=item
@@ -755,7 +790,8 @@ class SatelliteWindow(QMainWindow):
         self.map_satellites.blockSignals(False)
         self._update_map_details()
         self.map_status.setText(
-            f'{len(view["satellites"])} orbital candidates · {view["total_loaded"]} local TLE objects · '+
+            f'{len(view["satellites"])} shown / {view.get("unfiltered_orbital_candidates",0)} '
+            f'orbital candidates · {view["total_loaded"]} local TLE objects · '+
             (view["warnings"][0] if view["warnings"] else "Current cached orbital data")+
             " · Map pins are not RF detections")
         if self.map_follow.isChecked() and view.get("selected"):
@@ -785,7 +821,9 @@ class SatelliteWindow(QMainWindow):
             f'Latitude {sat["lat"]}° · Longitude {sat["lon"]}°\n'
             f'Altitude {sat["alt_km"]} km · Range {sat["range_km"]} km\n'
             f'TLE age {sat["tle_age_days"]} d · status ORBITAL_POSITION_ONLY\n'
-            "No physical RF reception or image decoded from map position.")
+            "Potential formats: "+", ".join(map_satellite_capabilities(sat))+"\n"+
+            "\n".join(map_satellite_protocols(sat))+"\n"
+            "Orbital geometry only: no actual RF reception or decoded imagery.")
     def _map_tune_receiver(self):
         sat=next((s for s in (self.map_last_snapshot or {}).get("satellites",[])
                   if s["norad"]==self.map_selected_norad),None)
@@ -802,6 +840,49 @@ class SatelliteWindow(QMainWindow):
             self.capture_profile.setCurrentIndex(idx)
             self.tabs.setCurrentIndex(5)
             self.statusBar().showMessage("Receiver preset selected. No USB scan started.",9000)
+
+    def _map_find_next_pass(self):
+        norad=self.map_selected_norad
+        if norad is None:
+            return QMessageBox.information(
+                self,"Select satellite","Choose an orbital pin/list row first.")
+        self.map_pending_pass_norad=norad
+        self.tabs.setCurrentIndex(1)
+        self.calculate_passes()
+        self.statusBar().showMessage(
+            "Searching predicted passes for NORAD "+str(norad)+
+            " · no receiver was activated.",10000)
+
+    def _map_export_png(self):
+        canvas=self.map_sky if self.map_views.currentIndex()==0 else self.map_earth
+        target,_=QFileDialog.getSaveFileName(
+            self,"Save current orbital map (not satellite imagery)",
+            str(Path.home()/"TIHULU_predicted_orbit_map.png"),"PNG image (*.png)")
+        if not target:return
+        path=Path(target).expanduser()
+        if path.suffix.lower()!=".png":
+            return QMessageBox.warning(self,"Map export","Use .png for this export.")
+        if path.exists() or path.is_symlink():
+            return QMessageBox.warning(self,"Map export","Existing file: no overwrite.")
+        if not canvas.grab().save(str(path),"PNG"):
+            return QMessageBox.warning(self,"Map export","Qt could not save the displayed map.")
+        self.statusBar().showMessage(
+            "Predicted orbit map saved (not a received satellite photo): "+str(path),14000)
+
+    def _map_export_geojson(self):
+        if not self.map_last_snapshot:
+            return QMessageBox.information(
+                self,"Map export","Calculate orbital positions before export.")
+        target,_=QFileDialog.getSaveFileName(
+            self,"Save actual computed orbit pins and selected track",
+            str(Path.home()/"TIHULU_orbit_prediction.geojson"),
+            "GeoJSON (*.geojson)")
+        if not target:return
+        try:file=export_orbit_geojson(self.map_last_snapshot,target)
+        except (OSError,ValueError) as error:
+            return QMessageBox.warning(self,"Map export",str(error))
+        self.statusBar().showMessage(
+            "Saved TLE-based GeoJSON with explicit no-RF provenance: "+str(file),14000)
 
     def _auto_tab(self):
         body=self._new_tab("Auto reception")
@@ -1044,6 +1125,16 @@ class SatelliteWindow(QMainWindow):
         rows=data.get("predictions",[])
         self.passes={r["id"]:r for r in rows}
         self._render_pass_results()
+        target=getattr(self,"map_pending_pass_norad",None)
+        if target is not None:
+            self.map_pending_pass_norad=None
+            for i in range(self.pass_list.topLevelItemCount()):
+                item=self.pass_list.topLevelItem(i)
+                row=self.passes.get(item.data(0,Qt.UserRole))
+                if row and int(row.get("norad",-1))==int(target):
+                    self.pass_list.setCurrentItem(item)
+                    self.pass_list.scrollToItem(item)
+                    break
         warning=" · ".join(data.get("warnings",[])[:2])
         self.statusBar().showMessage(
             str(len(rows))+" orbital passes (not RF detections)"+
