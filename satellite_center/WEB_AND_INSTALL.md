@@ -4,6 +4,20 @@ This additive companion is not merged into Text Center or Survival Kit yet.
 It uses port **8791** only on **127.0.0.1**, without starting a receiver or
 fetching TLE data in the background. It cannot control USB directly from Pages.
 
+## Preferred 2026-11-07 Linux install — native Qt preview7
+
+Use this for Debian/Ubuntu/Pop!_OS **native desktop**, not the older
+`install.sh` user-local venv or browser companion:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Tihulu/TIHULU-TEXT-CENTER/feature/satellite-auto-discovery-integrated-2026-11-06/satellite_center/install/install-deb.sh | bash
+```
+
+The script downloads public GitHub source, builds the `0.3.0~preview7`
+Debian package and uses `apt` for installation; no GitHub CLI login is
+required. It will not start the receiver, poll TLEs, or create background
+services. The application launcher is `tihulu-satellite-center`.
+
 ## v0.15 — Satellite Images and source-attributed recordings (2026-11-06)
 
 **Satellite Images** in the browser-only/Pages app offers two distinct,
