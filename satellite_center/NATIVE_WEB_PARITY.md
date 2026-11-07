@@ -36,6 +36,7 @@ All real receiver operations require explicit operator action and USB ownership.
 | ISS SSTV | Actual saved FM WAV → Robot36 synchronization → PNG only on successful decode | Implemented conditional pipeline; physical ISS RF not yet verified |
 | Meteor imagery | Actual 137 MHz IQ → externally installed SatDump decoder if usable | Supported conditionally; full successful LRPT/FEC/image not yet verified |
 | Results | View imported PNG/WAV/TXT/JSON, emit spectrum PNG/CSV, selected file Save As, ZIP of real outputs with provenance | Implemented, size-limited |
+| Local file format visibility | Recordings and decoded-results lists label raw CU8 vs PNG/JPEG/WAV/TXT/JSON/CSV/GeoJSON; PNG/JPEG/WAV headers checked and invalid/unreadable files flagged | Implemented; file signature is not complete decode or source authentication |
 | User protocol catalog | Up to 32 NORAD/24–1750 MHz/image/audio/text/video references, Qt editor, import/export same web JSON | Implemented as **unverified reference only** |
 | Custom receiver/decoder execution | Custom saved profiles do not automatically start arbitrary hardware or unknown decoders | Intentionally limited for data integrity |
 | CPU/GPU/NPU selection | Qt ISS Robot36 and native Auto reception compute menus offer Auto, CPU, CPU+GPU, CPU+NPU, CPU+GPU+NPU; capability resolver checks actual backend | UI/policy implemented; do not claim accelerated throughput without backend/device proof |
@@ -46,7 +47,7 @@ All real receiver operations require explicit operator action and USB ownership.
 ## Debian / Pop!_OS
 
 Install the latest successful PR #18 **Satellite Center native Debian package** GitHub Actions artifact.
-Run `sudo apt install ./tihulu-satellite-center_0.3.0~preview5_all.deb`,
+Run `sudo apt install ./tihulu-satellite-center_0.3.0~preview6_all.deb`,
 then open **TIHULU Satellite Center (System)** from COSMIC's app menu.
 It starts the Qt window directly. Only explicit `tihulu-satellite-center serve`
 runs the old optional HTTP compatibility server. If the older user-local
