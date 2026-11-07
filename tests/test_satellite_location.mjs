@@ -66,3 +66,15 @@ test('UI static contract: browser GPS only on button, manual coords not overwrit
  assert.ok(js.includes('select.value="Custom"'));
  assert.ok(js.includes('if(automatic&&!onlineToggle.checked)return'));
 });
+
+test('desktop exact web UI enables worldwide inline suggestions and typo-aware query without WebUSB',()=>{
+ const locationSource=fs.readFileSync(new URL('../satellite_center/browser/location_search.mjs',import.meta.url),'utf8');
+ const native=fs.readFileSync(new URL('../satellite_center/native_desktop_bridge.js',import.meta.url),'utf8');
+ assert.ok(locationSource.includes('"syney":"sydney"'));
+ assert.ok(locationSource.includes('url.searchParams.set("name",requestedName)'));
+ assert.ok(native.includes("onlineSuggest.checked=true"));
+ assert.ok(native.includes("onlineSuggest.dispatchEvent(new Event('change'"));
+ assert.ok(native.includes('Qt native bridge'));
+ assert.ok(native.includes('stopImmediatePropagation()'));
+ assert.ok(native.includes('window.nativeRFTransport=\'rtl_sdr\''));
+});
