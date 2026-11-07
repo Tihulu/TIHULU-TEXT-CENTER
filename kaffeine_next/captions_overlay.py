@@ -41,6 +41,9 @@ class CaptionTap:
         self.sock = None
         self.packet_count = 0
         self.bad_packets = 0
+        self._rate_start = None
+        self._rate_bytes = 0
+        self.bytes_per_second = None
 
     def start(self):
         if self.path.exists():
@@ -73,6 +76,20 @@ class CaptionTap:
                 self.bad_packets += 1
                 continue
             self.packet_count += len(data) // 188
+            rate_now = time.monotonic()
+            if self._rate_start is None:
+                self._rate_start = rate_now
+            self._rate_bytes += len(data)
+            if rate_now - self._rate_start >= 8.0:
+                measured_rate = self._rate_bytes / (rate_now - self._rate_start)
+                # Smooth the actual forwarded selected-service TS bitrate;
+                # overhead and bursts mean this is only a safety estimate.
+                if self.bytes_per_second is None:
+                    self.bytes_per_second = measured_rate
+                else:
+                    self.bytes_per_second = 0.7 * self.bytes_per_second + 0.3 * measured_rate
+                self._rate_start = rate_now
+                self._rate_bytes = 0
             if self.packet_sink:
                 try:
                     self.packet_sink(data)
@@ -155,7 +172,8 @@ def main(argv=None):
     if len(argv) != 2 or argv[0] != "--socket":
         raise SystemExit("Usage: tihulu-tv-center kaffeine-captions --socket $XDG_RUNTIME_DIR/tihulu-dvb-PID.sock")
     endpoint = validate_socket(argv[1])
-    from .caption_timing import CaptionConfig, CueQueue, KaffeineOSD
+    from .caption_timing import (CaptionConfig, CueQueue, KaffeineOSD,
+                                 AutoSyncEstimator, AutoSyncController)
     from PyQt5.QtCore import Qt, QTimer
     from PyQt5.QtWidgets import (QApplication, QWidget, QVBoxLayout, QHBoxLayout,
         QLabel, QComboBox, QPushButton, QSpinBox, QDoubleSpinBox,
@@ -215,6 +233,19 @@ def main(argv=None):
     offsets.addWidget(QLabel("TV playback buffer"))
     offsets.addWidget(playback_delay)
     timing_layout.addRow(offsets)
+    auto_row = QHBoxLayout()
+    automatic = QCheckBox("Automatic sync · detect caption lag & adjust safe TV buffer")
+    automatic.setChecked(False)
+    automatic.setToolTip(
+        "OFF by default. After 3 real Whisper samples, estimates speech-caption "
+        "availability and suggests a conservative delay. When enabled and Applied, "
+        "adjusts TV delay gradually. Does not detect exact spoken-word timestamps.")
+    auto_row.addWidget(automatic)
+    timing_layout.addRow(auto_row)
+    sync_estimate = QLabel("Automatic timing: collecting real ASR samples (0/3). "
+                           "Live TV and manually entered delay are unchanged.")
+    sync_estimate.setWordWrap(True)
+    timing_layout.addRow(sync_estimate)
     visibility = QHBoxLayout()
     show_video = QCheckBox("On-video subtitles"); show_video.setChecked(True)
     show_original = QCheckBox("Original"); show_original.setChecked(True)
@@ -262,6 +293,18 @@ def main(argv=None):
     lock = threading.Lock()
     applied = CaptionConfig().validate()
     cues = CueQueue()
+    # A Raspberry Pi 5 may be CPU/memory constrained. Automatic buffering
+    # is limited to 4 seconds there; generic Linux uses at most 6 seconds.
+    pi5 = False
+    try:
+        model = Path("/proc/device-tree/model")
+        pi5 = model.is_file() and "Raspberry Pi 5" in model.read_bytes().decode(
+            "utf-8", "replace")
+    except OSError:
+        pass
+    estimator = AutoSyncEstimator(ceiling_ms=4000 if pi5 else 6000)
+    auto_controller = AutoSyncController()
+    last_service_id = None
     def options():
         with lock:
             return applied.options()
@@ -289,6 +332,7 @@ def main(argv=None):
             page=page.value(),
             offset_ms=round(caption_offset.value()*1000),
             playback_delay_ms=round(playback_delay.value()*1000),
+            automatic_sync=automatic.isChecked(),
             on_video=show_video.isChecked(), show_original=show_original.isChecked(),
             show_translation=show_translation.isChecked(),
             position=position.currentText(),font_px=font.value(),opacity=opacity.value()
@@ -301,15 +345,23 @@ def main(argv=None):
         w.currentIndexChanged.connect(set_pending)
     for w in (page,caption_offset,playback_delay,font,opacity):
         w.valueChanged.connect(set_pending)
-    for w in (show_video,show_original,show_translation):
+    for w in (show_video,show_original,show_translation,automatic):
         w.toggled.connect(set_pending)
 
     def apply_settings():
         nonlocal applied, current_text, current_until, current_cue
         try:
             selected = from_controls()
+            previous = applied
+            if selected.mode != previous.mode or selected.source != previous.source or (
+                    selected.target != previous.target):
+                estimator.clear()
+            # Switching automatic control ON starts the calibration afresh.
+            if selected.automatic_sync != previous.automatic_sync:
+                auto_controller.reset()
             with lock:
-                applied = __import__("dataclasses").replace(selected, revision=applied.revision+1)
+                applied = __import__("dataclasses").replace(
+                    selected, revision=applied.revision+1)
             cues.clear()
             current_cue = None
             current_text = ""
@@ -318,6 +370,13 @@ def main(argv=None):
             translated.setText("")
             ipc.publish("",applied)
             ipc.set_playback_delay(applied)
+            automatic_active = applied.automatic_sync and applied.mode not in ("off","page","teletext")
+            sync_estimate.setText(
+                ("Automatic timing enabled · collecting live Whisper samples ("
+                 + str(len(estimator.values)) + "/3); conservative maximum "
+                 + str(estimator.ceiling_ms / 1000) + " s.")
+                if automatic_active else
+                "Automatic timing OFF; measured recommendations will not change playback.")
             pending.setText("Applied · " + applied.mode + " · " + applied.source.upper() +
                             " → " + applied.target.upper() +
                             " · playback buffer " + str(applied.playback_delay_ms/1000) + " s")
@@ -333,6 +392,7 @@ def main(argv=None):
         source.setCurrentText("de"); target.setCurrentIndex(1)
         page.setValue(150)
         caption_offset.setValue(0.0); playback_delay.setValue(0.0)
+        automatic.setChecked(False)
         show_video.setChecked(True); show_original.setChecked(True)
         show_translation.setChecked(True)
         position.setCurrentText("bottom"); font.setValue(25); opacity.setValue(70)
@@ -370,8 +430,16 @@ def main(argv=None):
 
     def pump():
         nonlocal current_cue, current_text, current_until, last_published
+        nonlocal applied, last_service_id
         mobile.expire_if_idle()
         now = time.monotonic()
+        # Never reuse an ASR processing estimate across distinct TV services.
+        if mobile.service_id != last_service_id:
+            if last_service_id is not None:
+                estimator.clear()
+                auto_controller.reset()
+                sync_estimate.setText("Channel changed · recalibrating automatic sync.")
+            last_service_id = mobile.service_id
         for _ in range(8):
             try:
                 kind, data = events.get_nowait()
@@ -385,6 +453,42 @@ def main(argv=None):
                 if data.get("revision") != applied.revision:
                     continue
                 if data.get("original"):
+                    real_source = data.get("source", "")
+                    estimator.observe(
+                        data["captured_start"], data["captured_end"],
+                        data["decoded_at"], real_source)
+                    recommendation = estimator.recommend(
+                        bytes_per_second=tap.bytes_per_second)
+                    if recommendation:
+                        sync_estimate.setText(
+                            recommendation.summary +
+                            (" · AUTO ACTIVE" if applied.automatic_sync else
+                             " · automatic OFF; manual playback unchanged") +
+                            " · This is a chunk-based estimate, not exact word alignment.")
+                        active_auto = applied.automatic_sync and applied.mode in ("asr","auto")
+                        desired = auto_controller.next_delay(
+                            recommendation, applied.playback_delay_ms, now, active_auto)
+                        if desired is not None:
+                            revised = __import__("dataclasses").replace(
+                                applied, playback_delay_ms=desired)
+                            try:
+                                ipc.set_playback_delay(revised)
+                            except OSError as error:
+                                status.setText("Automatic playback adjustment failed: " + str(error))
+                            else:
+                                with lock:
+                                    applied = revised
+                                # The text field mirrors the *active* delay,
+                                # not an uncommitted manual change.
+                                playback_delay.blockSignals(True)
+                                playback_delay.setValue(desired / 1000)
+                                playback_delay.blockSignals(False)
+                                pending.setText("Auto sync active · TV buffer " +
+                                                f"{desired/1000:.1f} s")
+                    else:
+                        sync_estimate.setText(
+                            f"Automatic timing: {len(estimator.values)}/3 real Whisper "
+                            "samples. No recommendation yet; playback unchanged.")
                     cue = cues.add(data, applied,
                                    data["captured_start"],data["captured_end"],
                                    data["decoded_at"])
