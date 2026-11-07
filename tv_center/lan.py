@@ -35,10 +35,11 @@ def lan_ip():
         return "127.0.0.1"
 
 class MobileLAN:
-    def __init__(self, snapshot, change_page, stream_dir, port=8769):
+    def __init__(self, snapshot, change_page, stream_dir, port=8769, commands=None):
         self.snapshot = snapshot
         self.change_page = change_page
         self.stream_dir = stream_dir
+        self.commands = commands
         self.port = port
         self.pin = f"{secrets.randbelow(1000000):06d}"
         self.clients = {}
@@ -146,10 +147,18 @@ class MobileLAN:
 
             def do_GET(self):
                 url = urlsplit(self.path).path
-                if url == "/api/status":
+                if url in ("/api/status", "/api/channels", "/api/scan", "/api/models"):
                     if not self.allowed():
                         return self.reply(401, {"error": "Pair with the host first"})
-                    return self.reply(200, owner.snapshot())
+                    if url == "/api/status":
+                        return self.reply(200, owner.snapshot())
+                    if not owner.commands:
+                        return self.reply(503, {"error": "Native web controls unavailable"})
+                    action={"/api/channels":"channels","/api/scan":"scan_status",
+                            "/api/models":"models"}[url]
+                    try: return self.reply(200, owner.commands(action,{}))
+                    except (RuntimeError,ValueError,TimeoutError) as exc:
+                        return self.reply(503, {"error": str(exc)[:250]})
                 if url == "/api/capabilities":
                     return self.reply(200, {"pairing_required": True,
                         "mobile_source": "native_host_dvb", "pin_required": True,
@@ -173,7 +182,7 @@ class MobileLAN:
 
             def do_POST(self):
                 url = urlsplit(self.path).path
-                if url not in ("/api/pair", "/api/teletext"):
+                if url not in ("/api/pair", "/api/teletext", "/api/command"):
                     return self.reply(404, {"error": "No such route"})
                 # Same-origin browser requests only, for protection against
                 # drive-by form submission and cross-site reading.
@@ -195,10 +204,22 @@ class MobileLAN:
                     return self.reply(200, {"paired": True}, ticket)
                 if not self.allowed():
                     return self.reply(401, {"error": "Pair before changing Teletext"})
+                if url == "/api/command":
+                    if not owner.commands:
+                        return self.reply(503, {"error": "Native TV control unavailable"})
+                    action,params=body.get("action"),body.get("params",{})
+                    if not isinstance(action,str) or not isinstance(params,dict):
+                        return self.reply(400, {"error": "Expected action and params"})
+                    try: return self.reply(200, {"ok":True,
+                        "result":owner.commands(action,params)})
+                    except (RuntimeError,ValueError,TimeoutError,KeyError) as exc:
+                        return self.reply(422, {"error": str(exc)[:250]})
                 page = body.get("page")
                 if type(page) is not int or not (100 <= page <= 899):
                     return self.reply(400, {"error": "Page must be integer 100–899"})
-                owner.change_page(page)
+                try: owner.change_page(page)
+                except (RuntimeError,ValueError,TimeoutError) as exc:
+                    return self.reply(503, {"error": str(exc)[:250]})
                 return self.reply(200, {"page": page})
 
         self.httpd = ThreadingHTTPServer(("0.0.0.0", self.port), Handler)
