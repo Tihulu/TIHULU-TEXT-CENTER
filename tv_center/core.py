@@ -29,6 +29,8 @@ class Channel:
     frequency: int
     service_id: int | None
     encrypted: bool = False
+    delivery: str = ""
+    kind: str = "tv"
 
 def read_channels(files: list[Path]) -> list[Channel]:
     result = []
@@ -47,13 +49,17 @@ def read_channels(files: list[Path]) -> list[Channel]:
                 sid = int(attrs["SERVICE_ID"], 0) if "SERVICE_ID" in attrs else None
             except ValueError:
                 return
-            if freq < 40_000_000 or freq > 1_000_000_000:
+            if freq < 40_000_000 or freq > 20_000_000_000:
                 return
-            key = (freq, sid, name)
+            delivery = attrs.get("DELIVERY_SYSTEM", "").upper()
+            service_type = attrs.get("SERVICE_TYPE", "").upper()
+            radio = ("RADIO" in service_type or service_type in ("2", "0X02", "10", "0X0A"))
+            key = (freq, sid, name, delivery)
             if key not in seen:
                 seen.add(key)
                 result.append(Channel(name, path, freq, sid,
-                          attrs.get("SCRAMBLED", "0") not in ("0", "FALSE", "NO")))
+                          attrs.get("SCRAMBLED", "0").upper() not in ("0", "FALSE", "NO"),
+                          delivery, "radio" if radio else "tv"))
         for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
             s = line.strip()
             if s.startswith("[") and s.endswith("]") and len(s) < 140:

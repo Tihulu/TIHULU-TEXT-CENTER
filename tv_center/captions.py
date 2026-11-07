@@ -75,8 +75,11 @@ def asr_from_clip(path: Path, language: str, model: str,
                   service_id: int | None = None) -> str:
     if language not in SUPPORTED:
         raise ValueError("Unsupported transcription language")
-    if not model or not Path(model).expanduser().is_file():
-        raise RuntimeError("Whisper model not installed. Select a local multilingual GGML model.")
+    selected_backend = os.environ.get("TIHULU_TV_ASR_BACKEND", "auto")
+    if selected_backend == "off":
+        raise RuntimeError("Offline transcription disabled in Settings")
+    if selected_backend not in ("auto", "cpu", "gpu", "npu"):
+        raise RuntimeError("Invalid offline speech backend")
     streams = _program_streams(path, service_id)
     audio_index = next((s["index"] for s in streams if s.get("codec_type") == "audio"), None)
     if audio_index is None:
@@ -91,9 +94,13 @@ def asr_from_clip(path: Path, language: str, model: str,
     from textcenter.compute import detect_devices, choose_backend
     from textcenter.speech import transcribe_pcm
     profile = detect_devices()
-    selected = choose_backend(profile, "auto")
+    selected = choose_backend(profile, selected_backend)
     if not selected.get("ready"):
         raise RuntimeError(selected.get("reason", "Offline speech engine unavailable"))
+    if selected["selected"] == "cpu":
+        if not model or not Path(model).expanduser().is_file():
+            raise RuntimeError("CPU Whisper model missing. Install/select a multilingual GGML model.")
+        profile["speech"]["model_path"] = str(Path(model).expanduser())
     return transcribe_pcm(audio.stdout, language, selected["selected"], profile).strip()
 
 def translate(text: str, source: str, target: str) -> tuple[str | None, str | None]:
