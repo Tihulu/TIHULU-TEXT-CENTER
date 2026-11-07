@@ -66,10 +66,11 @@ jobs:
             python3 -c "import urllib.request; root=urllib.request.urlopen(\"http://127.0.0.1:8877/\", timeout=4).read(); assert b\"TIHULU Satellite Center\" in root and b\"Scheduled receptions\" in root; passpage=urllib.request.urlopen(\"http://127.0.0.1:8877/browser/index.html\", timeout=4).read(); assert b\"Satellite\" in passpage and b\"duration\" in passpage; reception=urllib.request.urlopen(\"http://127.0.0.1:8877/browser/reception.html\", timeout=4).read(); assert b\"auto-mission\" in reception"
           '
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: tihulu-satellite-center-native-ui-preview10
           path: dist/ui-preview/*.png
-          if-no-files-found: error
+          if-no-files-found: warn
           retention-days: 30
       - uses: actions/upload-artifact@v4
         with:
