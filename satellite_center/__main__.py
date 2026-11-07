@@ -959,9 +959,10 @@ class Station:
             # schedule_series removes any partially created new jobs itself.
             backup={j["id"]:j for j in previous}
             for entry in self.jobs:
-                if entry["id"] in backup:
+                prior=backup.get(entry["id"])
+                if prior:
                     entry.clear()
-                    entry.update(backup[entry["id"]])
+                    entry.update(prior)
             self.save_jobs()
             self.wake.set()
             raise
