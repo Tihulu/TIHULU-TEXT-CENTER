@@ -57,7 +57,7 @@ class OrbitEngine:
         from skyfield.api import load,EarthSatellite
         from .__main__ import SOURCE_URLS,parse_tle,selectable
         key=[]
-        for source in (*SOURCE_URLS, "manual"):
+        for source in ("manual", *SOURCE_URLS):
             f=self.station.directory/(source+".tle")
             try:
                 st=f.stat();key.append((source,st.st_mtime_ns,st.st_size))
@@ -65,7 +65,7 @@ class OrbitEngine:
         if tuple(key)==self.keys:return
         self.keys=tuple(key)
         self.ts=load.timescale(builtin=True)
-        self.records=[];self.warnings=[]
+        self.records=[];self.warnings=[];seen_norad=set()
         for source,_,_ in key:
             f=self.station.directory/(source+".tle")
             if not f.is_file():
@@ -76,11 +76,12 @@ class OrbitEngine:
             records=parse_tle(f.read_text(encoding="ascii",errors="replace"),limit=200)
             if source=="manual":records=records[:30]
             for item in records:
-                if not selectable(source,item):continue
+                if item["id"] in seen_norad or not selectable(source,item):continue
                 if source=="amateur" and sum(x[1]=="amateur" for x in self.records)>=15:break
                 try:sat=EarthSatellite(item["l1"],item["l2"],item["name"],self.ts)
                 except (RuntimeError,ValueError):continue
                 self.records.append((item,source,sat,age/86400))
+                seen_norad.add(item["id"])
                 if len(self.records)>=160:return
     def snapshot(self,lat,lon,at=None,*,family_filter="all",minimum_el=-90,
                  selected_norad=None,with_track=False,track_scope="selected"):
