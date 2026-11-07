@@ -53,10 +53,13 @@ known to receive the three DVB-T2 multiplexes:
    This targeted source uses the frequencies previously detected on the
    owner's antenna, not fabricated channel entries. It is optional and
    not a claim about other cities in Germany.
-3. Choose **Television → Channels / Antenna Scan** and select
-   **Terrestrial (T2)** as Source. Start Scan. Kaffeine itself tunes and
-   obtains channel service tables. When services appear, select TV/free-to-air
-   filters as desired, **Add Filtered** or **Add Selected**, then OK.
+3. Choose **Television → Full Antenna Scan...**. If video is playing,
+   confirm that Kaffeine may stop live playback temporarily: this releases
+   the frontend for a full frequency sweep rather than restricting the
+   normal **Channels** editor to the currently playing transponder.
+   Select **Terrestrial (T2)** as Source, then Start Scan. Kaffeine itself
+   tunes and obtains real channel service tables. When services appear,
+   choose TV/free-to-air filters, **Add Filtered** or **Add Selected**, then OK.
 4. Alternatively use Kaffeine's own **Autoscan** DVB-T2 source for a
    broader real frequency sweep. It can take longer and may fail to
    resolve services if RF signal or PLP selection is unstable.
