@@ -15,6 +15,7 @@ def open_ai_settings(parent, ai, after_save=None):
     from textcenter.compute import detect_devices, choose_backend
     from .runtime import AIRuntime, RuntimeErrorAI
     from .whisper_engine import WhisperRuntime, WhisperRuntimeError
+    from .ai_provision import StarterAI
 
     class Manager(QDialog):
         def __init__(self):
@@ -32,10 +33,21 @@ def open_ai_settings(parent, ai, after_save=None):
             root = QVBoxLayout(body)
             scroll.setWidget(body)
             outer.addWidget(scroll)
-            self.info = QLabel("All models are optional. Downloads occur only after you choose and confirm. "
-                               "No AI processing runs while subtitles are off.")
+            self.info = QLabel("AI Model Market · Ready-to-use offline Whisper and Translator suites. "
+                               "No speech processing occurs until you select subtitles.")
             self.info.setWordWrap(True)
             root.addWidget(self.info)
+            quick = QGroupBox("STARTER BUNDLE  ·  Whisper + DE / EN / TR translator")
+            quick_layout = QVBoxLayout(quick)
+            self.starter_state = QLabel("Checking installed Whisper and translation packages…")
+            self.starter_state.setWordWrap(True)
+            quick_layout.addWidget(self.starter_state)
+            self.install_starter = QPushButton("Install / Repair complete starter bundle")
+            self.install_starter.clicked.connect(self.setup_starter)
+            quick_layout.addWidget(self.install_starter)
+            quick_layout.addWidget(QLabel("Downloads verified multilingual Tiny (~78 MB), builds local "
+                 "Whisper CPU engine and installs four Argos language packs. Everything is removable."))
+            root.addWidget(quick)
 
             settings = QGroupBox("AI features & compute backend")
             root.addWidget(settings)
@@ -149,6 +161,34 @@ def open_ai_settings(parent, ai, after_save=None):
             self.inspect_compute()
             self.inspect_argos()
             self.inspect_runtime()
+            self.inspect_starter()
+
+        def inspect_starter(self):
+            try:
+                state = StarterAI(self.ai, self.library).status()
+                self.starter_state.setText(
+                    "Whisper engine: " + ("READY" if state["whisper_engine_ready"] else "missing") +
+                    "  |  multilingual Tiny: " + ("READY" if state["tiny_model_ready"] else "missing") +
+                    "  |  DE/EN/TR translation: " + (
+                        "READY" if state["translation_three_languages_ready"] else "missing packs") +
+                    "\nInstalled directions: " + (
+                        ", ".join(state["installed_pairs"]) or "none") +
+                    "\nASR: " + ("ENABLED" if state["enabled_asr"] else "OFF") +
+                    "  /  Translation: " + ("ENABLED" if state["enabled_translation"] else "OFF"))
+            except (ImportError, OSError, RuntimeError) as exc:
+                self.starter_state.setText("Starter status unavailable: " + str(exc)[:160])
+
+        def setup_starter(self):
+            if QMessageBox.question(self, "Install complete offline AI starter",
+                "Download Whisper Tiny multilingual (~78 MB), build whisper.cpp CPU, "
+                "install user-owned Argos engine and translation models for "
+                "German, English and Turkish? Internet and disk are required now; "
+                "the models work offline afterward and remain removable.") != QMessageBox.Yes:
+                return
+            def task():
+                bundle = StarterAI(self.ai, self.library)
+                return bundle.install(progress=lambda value: self.work.put(("progress", value)))
+            self.begin("Provisioning the complete offline starter bundle…", task)
 
         def inspect_runtime(self):
             runtime = AIRuntime()
@@ -206,6 +246,8 @@ def open_ai_settings(parent, ai, after_save=None):
                 if key == old:
                     self.models.setCurrentItem(item)
             self.storage_label.setText("Managed models: " + str(self.library.root))
+            if hasattr(self, "starter_state"):
+                self.inspect_starter()
 
         def inspect_compute(self):
             try:
@@ -253,6 +295,9 @@ def open_ai_settings(parent, ai, after_save=None):
                     self.populate_models()
                     self.inspect_argos()
                     self.inspect_runtime()
+                    self.inspect_starter()
+                    if after_save:
+                        after_save()
                 else:
                     self.running = False
                     self.feedback.setText("Failed: " + str(data))

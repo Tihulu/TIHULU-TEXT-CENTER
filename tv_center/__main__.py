@@ -8,6 +8,9 @@ from .whisper_engine import WhisperRuntime
 from .runtime import AIRuntime
 
 def main():
+    if len(sys.argv) >= 2 and sys.argv[1] == "ai":
+        from .ai_provision import main as ai_main
+        return ai_main(sys.argv[2:])
     if len(sys.argv) >= 2 and sys.argv[1] == "doctor":
         ai = AISettings()
         print(json.dumps({
@@ -22,7 +25,8 @@ def main():
                 "translation_enabled": ai.values["translation_enabled"],
                 "requested_backend": ai.values["backend"],
                 "whisper_cpu_engine_installed": WhisperRuntime().ready(),
-                "argos_runtime": AIRuntime().status()["installed"]
+                "argos_runtime": AIRuntime().status()["installed"],
+                "starter_bundle": __import__("tv_center.ai_provision", fromlist=["StarterAI"]).StarterAI(ai).status()
             }
         }, indent=2, ensure_ascii=False))
         return 0

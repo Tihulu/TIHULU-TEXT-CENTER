@@ -84,6 +84,31 @@ Select Germany (DE) or Türkiye (TR), choose antenna (DVB-T/T2) or cable (DVB-C)
 Reception depends on local transmitter availability, antenna quality, broadcaster standards and frontend compatibility. The country choice selects a search plan; it does not invent channels.
 
 
+## Built-in Whisper + translator starter bundle
+
+The **standard one-line installer now provisions the offline AI starter** in
+addition to the native TV app (requires internet and available disk during
+installation). It builds a user-owned CPU-only whisper.cpp runtime from a
+verified upstream tag, downloads the SHA-256-verified multilingual **Whisper
+Tiny ~78 MB**, creates an isolated Argos Python runtime, and installs
+**German ↔ English** and **English ↔ Turkish** translator packs so DE↔TR can
+work via English where the Argos runtime supports pivot translations.
+
+After initial provisioning both engines operate offline. Caption processing
+remains idle unless you choose Live transcription / Teletext fallback. The
+built-in **Subtitles & AI → AI MODEL MARKET** includes a one-click
+**Install / Repair complete starter bundle** action, Tiny/Small models,
+individual translator language packs, model activation/removal, external SSD
+storage and Auto/CPU/GPU/NPU *capability checks*. Detecting an NPU does not
+prove inference compatibility. GPU/NPU are never silently required.
+
+If first-time model installation cannot finish (network, disk, build tools,
+PyPI or upstream packages), the TV app remains installed, and the Market
+displays which pieces are missing. Retry with `tihulu-tv-center ai install`.
+`tihulu-tv-center ai status` shows exact readiness. For a smaller
+TV-only install run the installer with `--tv-only`; AI packages can always
+be removed from the marketplace independently of TV or channel lists.
+
 ## Run native (development checkout)
 
 Install distro dependencies (nothing in the install process is silently downloaded by the app):

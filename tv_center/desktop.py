@@ -242,9 +242,13 @@ def main():
             self.details_tabs.addTab(reception_tab,"Reception & diagnostics")
             captions_tab = QWidget()
             captions_layout = QVBoxLayout(captions_tab)
-            self.settings_button = QPushButton("Settings · Model Market · CPU / GPU / NPU")
+            self.settings_button = QPushButton("AI MODEL MARKET  ·  Whisper + Translator  ·  Install / Remove")
             self.settings_button.clicked.connect(self.open_ai_settings)
             captions_layout.addWidget(self.settings_button)
+            self.ai_banner = QLabel("Installed AI status: checking…")
+            self.ai_banner.setWordWrap(True)
+            captions_layout.addWidget(self.ai_banner)
+            self.refresh_ai_banner()
             controls = QGroupBox("Broadcast subtitles · Teletext · Offline speech / translation")
             captions_layout.addWidget(controls)
             self.details_tabs.addTab(captions_tab,"Subtitles & AI")
@@ -436,7 +440,22 @@ def main():
         def open_ai_settings(self):
             open_ai_settings(self, self.ai, self.sync_ai_settings)
 
+        def refresh_ai_banner(self):
+            try:
+                from .ai_provision import StarterAI
+                state = StarterAI(self.ai).status()
+                ready = (state["whisper_engine_ready"] and state["tiny_model_ready"]
+                         and state["translation_three_languages_ready"])
+                self.ai_banner.setText(
+                    ("Offline AI ready · Whisper + DE/EN/TR Translator"
+                     if ready else "Offline AI incomplete · Open AI Model Market to install starter pack")
+                    + " · ASR " + ("ON" if self.ai.values["asr_enabled"] else "OFF")
+                    + " / Translation " + ("ON" if self.ai.values["translation_enabled"] else "OFF"))
+            except (ImportError, OSError, RuntimeError) as exc:
+                self.ai_banner.setText("AI setup check failed: " + str(exc)[:120])
+
         def sync_ai_settings(self):
+            self.refresh_ai_banner()
             self.model.setText(self.ai.values["model_path"])
             self.apply_mode()
             self.statusbar.setText("AI settings saved. Transcription/translation operate only when enabled.")
