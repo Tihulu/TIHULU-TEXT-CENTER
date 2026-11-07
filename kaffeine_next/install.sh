@@ -36,7 +36,36 @@ sudo apt-get install -y --no-install-recommends \
 APPROOT="$HOME/.local/share/tihulu-kaffeine"
 SOURCE="$APPROOT/upstream-v2.0.19"
 PREFIX="$HOME/.local/opt/tihulu-kaffeine"
-mkdir -p "$APPROOT" "$HOME/.local/bin" "$HOME/.local/share/applications"
+BUILD="$APPROOT/build-system-qt5"
+LOGDIR="$APPROOT/logs"
+mkdir -p "$APPROOT" "$LOGDIR" "$HOME/.local/bin" "$HOME/.local/share/applications"
+
+# A running Conda/Miniconda "base" shell can inject another Qt5 at link time.
+# CMake's path search, pkg-config and the ELF linker must all use the same
+# distro Qt5 / KF5 libraries. A clean environment also bypasses stale
+# LD_LIBRARY_PATH, CMAKE_PREFIX_PATH and QT_PLUGIN_PATH settings.
+SYSTEM_BUILD_ENV=(env -i "HOME=$HOME" "USER=$(id -un)"
+  "PATH=/usr/bin:/bin:/usr/sbin:/sbin" "LANG=C.UTF-8")
+if [[ -n "${CONDA_PREFIX:-}" || -n "${LD_LIBRARY_PATH:-}" ||
+      -n "${CMAKE_PREFIX_PATH:-}" || -n "${QT_PLUGIN_PATH:-}" ]]; then
+  echo "Conda/custom Qt environment detected; build will use only system Qt5."
+fi
+
+qt_link_diagnostics() {
+  echo "=== Qt5 link diagnostics (read-only) ===" >&2
+  dpkg-query -W -f='${binary:Package} ${Version}\n' \
+    libqt5core5a libqt5gui5 libqt5waylandclient5 qtbase5-dev 2>/dev/null || true
+  local qtlib
+  qtlib="$(/sbin/ldconfig -p 2>/dev/null | awk '$1=="libQt5WaylandClient.so.5" {print $NF; exit}')"
+  if [[ -n "$qtlib" ]]; then
+    echo "Checking $qtlib against distro Qt5Gui:" >&2
+    "${SYSTEM_BUILD_ENV[@]}" /usr/bin/ldd -r "$qtlib" 2>&1 |
+      grep -E 'undefined symbol|not found' | head -30 || true
+  fi
+  echo "If symbols remain unresolved, system Qt5Gui and Qt5WaylandClient" >&2
+  echo "may come from incompatible repositories or installed versions." >&2
+  echo "Check apt-cache policy libqt5gui5 libqt5waylandclient5." >&2
+}
 temp="$(mktemp -d)"
 trap 'rm -rf "$temp"' EXIT
 
@@ -55,10 +84,22 @@ fi
 python3 "$temp/tihulu/kaffeine_next/patch_upstream.py" "$SOURCE"
 git -C "$SOURCE" diff --check
 
-cmake -S "$SOURCE" -B "$APPROOT/build" -DCMAKE_BUILD_TYPE=Release \
-  -DBUILD_TESTING=OFF -DCMAKE_INSTALL_PREFIX="$PREFIX"
-cmake --build "$APPROOT/build" --parallel 2
-cmake --install "$APPROOT/build"
+echo "Configuring with isolated /usr/bin/cmake (ignores Conda Qt and old CMakeCache)"
+if ! "${SYSTEM_BUILD_ENV[@]}" /usr/bin/cmake --fresh -S "$SOURCE" -B "$BUILD" \
+  -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF \
+  -DCMAKE_INSTALL_PREFIX="$PREFIX" 2>&1 | tee "$LOGDIR/configure.log"; then
+  qt_link_diagnostics
+  echo "CMake configuration failed; see $LOGDIR/configure.log" >&2
+  exit 1
+fi
+if ! "${SYSTEM_BUILD_ENV[@]}" /usr/bin/cmake --build "$BUILD" --parallel 2 \
+    2>&1 | tee "$LOGDIR/build.log"; then
+  qt_link_diagnostics
+  echo "Kaffeine build failed; see $LOGDIR/build.log" >&2
+  echo "The launcher is deliberately not installed until the build succeeds." >&2
+  exit 1
+fi
+"${SYSTEM_BUILD_ENV[@]}" /usr/bin/cmake --install "$BUILD"
 test -x "$PREFIX/bin/kaffeine"
 
 bash "$temp/tihulu/tv_center/packaging/build-deb.sh" "$temp/debs"
@@ -68,7 +109,10 @@ cat > "$HOME/.local/bin/tihulu-kaffeine" <<'LAUNCH'
 #!/bin/sh
 # XWayland avoids the broken NVIDIA / COSMIC embedded surface path.
 if [ -n "$WAYLAND_DISPLAY" ]; then export QT_QPA_PLATFORM=xcb; fi
-exec "$HOME/.local/opt/tihulu-kaffeine/bin/kaffeine" "$@"
+# The launcher also avoids mixing system Kaffeine Qt5 with Conda Qt libraries.
+exec env -u LD_LIBRARY_PATH -u LD_PRELOAD -u QT_PLUGIN_PATH \
+  -u QT_QPA_PLATFORM_PLUGIN_PATH -u QML2_IMPORT_PATH -u QML_IMPORT_PATH \
+  "$HOME/.local/opt/tihulu-kaffeine/bin/kaffeine" "$@"
 LAUNCH
 chmod 755 "$HOME/.local/bin/tihulu-kaffeine"
 cat > "$HOME/.local/share/applications/tihulu-kaffeine.desktop" <<DESKTOP
