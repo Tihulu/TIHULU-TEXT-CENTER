@@ -141,6 +141,54 @@ class SpectrumView(QWidget):
         painter.end()
 
 
+class NativeIqLevelView(QWidget):
+    """Read-only chart of actual locally captured CU8 sample bytes."""
+
+    def __init__(self,parent=None):
+        super().__init__(parent)
+        self.levels=[]
+        self.setMinimumHeight(125)
+        self.setAccessibleName("Actual relative CU8 receiver sample power history")
+
+    def push(self,dbfs):
+        if not math.isfinite(dbfs):
+            return
+        self.levels.append(max(-80.,min(0.,float(dbfs))))
+        self.levels=self.levels[-120:]
+        self.update()
+
+    def paintEvent(self,event):
+        painter=QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing,True)
+        rect=self.rect()
+        painter.fillRect(rect,QColor("#091523"))
+        painter.setPen(QColor("#a9c6e0"))
+        painter.drawText(12,20,"Real IQ sample level · relative digital dBFS (NOT calibrated dBm)")
+        left,right=47,max(56,rect.width()-12)
+        top,bottom=31,max(40,rect.height()-17)
+        for db in (-80,-60,-40,-20,0):
+            y=top+int((db+80)/80*(bottom-top))
+            y=bottom-(y-top)
+            painter.setPen(QColor("#294863"))
+            painter.drawLine(left,y,right,y)
+            painter.setPen(QColor("#93b4d2"))
+            painter.drawText(7,y+4,str(db))
+        if len(self.levels)<2:
+            painter.setPen(QColor("#a6bdd6"))
+            painter.drawText(left+12,top+30,"No real CU8 sample measurements yet")
+            return
+        count=len(self.levels)
+        coords=[]
+        for i,level in enumerate(self.levels):
+            x=left+(right-left)*i/max(1,count-1)
+            y=bottom-(bottom-top)*(level+80)/80.
+            coords.append(QPointF(x,y))
+        painter.setPen(QPen(QColor("#55d6c9"),2))
+        painter.drawPolyline(QPolygonF(coords))
+        painter.setPen(QColor("#f2f7ff"))
+        painter.drawText(max(left,right-95),top+14,f"{self.levels[-1]:.1f} dBFS")
+
+
 class SatelliteWindow(QMainWindow):
     """Only native Qt5 controls; controls are not replaced during timed updates."""
     def __init__(self, station=None, auto_poll=True):
@@ -185,6 +233,10 @@ class SatelliteWindow(QMainWindow):
         self._update_nav_selection(self.tabs.currentIndex())
         if auto_poll:self.map_timer.start()
         self.statusBar().showMessage("Native Qt window. No browser, WebUSB or HTTP server.")
+        self.level_timer=QTimer(self)
+        self.level_timer.setInterval(1000)
+        self.level_timer.timeout.connect(self._refresh_live_iq_level)
+        if auto_poll:self.level_timer.start()
         self.timer=QTimer(self)
         self.timer.setInterval(5000)
         self.timer.timeout.connect(self.refresh_status)
@@ -484,6 +536,10 @@ class SatelliteWindow(QMainWindow):
         buttons.addWidget(self._button("Start native RF capture",self._home_capture_now))
         buttons.addWidget(self._button("Stop recording",self.stop_capture))
         ml.addLayout(buttons)
+        self.home_sample_state=self._hint("No live CU8 file is being recorded.")
+        ml.addWidget(self.home_sample_state)
+        self.home_level_chart=NativeIqLevelView()
+        ml.addWidget(self.home_level_chart)
         ml.addWidget(self._hint(
             "CU8 stores original IQ, WAV stores actual FM-demodulated audio. "
             "CU8+WAV captures the same RF data once and derives the WAV afterward. "
@@ -1675,6 +1731,11 @@ class SatelliteWindow(QMainWindow):
         self._row(body,
                   self._button("Start physical RF capture",self.start_capture),
                   self._button("Stop my current capture",self.stop_capture))
+        self.capture_live_state=self._hint(
+            "Relative real CU8 power chart appears during a physical recording.")
+        body.addWidget(self.capture_live_state)
+        self.capture_level_chart=NativeIqLevelView()
+        body.addWidget(self.capture_level_chart)
         body.addWidget(self._hint("Only the actual attached RTL2832U SDR is used. "
             "A busy readsb/Gqrx device is not stolen or forcibly terminated. "
             "Long recordings are written locally without browser memory caps."))
@@ -2290,6 +2351,38 @@ class SatelliteWindow(QMainWindow):
         worker.signals.error.connect(on_error)
         worker.signals.finished.connect(on_finished)
         self.pool.start(worker)
+
+    def _refresh_live_iq_level(self):
+        """Read only a bounded tail of Station's actual on-disk IQ stream.
+
+        No extra USB consumer is opened. Does not run a radio test on its own.
+        """
+        with self.station.lock:
+            session=dict(self.station.session)
+        if not session.get("active") or session.get("mode")!="iq":
+            return
+        rawname=session.get("path")
+        if not isinstance(rawname,str) or not rawname.endswith(".cu8"):
+            return
+        source=self.station.archive/rawname
+        try:
+            size=source.stat().st_size
+            if size<8192:return
+            with source.open("rb") as stream:
+                stream.seek(max(0,size-65536))
+                data=stream.read(65536)
+        except OSError:
+            return
+        sample=data[::32]
+        if len(sample)<128:return
+        rms=math.sqrt(sum((v-127.5)**2 for v in sample)/len(sample))
+        if rms<=0:return
+        dbfs=20*math.log10(rms/127.5)
+        self.home_level_chart.push(dbfs)
+        self.capture_level_chart.push(dbfs)
+        description=f"ACTUAL CU8 RF samples · {dbfs:.1f} relative dBFS · {size} bytes saved"
+        self.home_sample_state.setText(description)
+        self.capture_live_state.setText(description)
 
     def refresh_status(self):
         self._task("status",self.station.status,self._apply_status,silent=True)
@@ -3093,6 +3186,7 @@ class SatelliteWindow(QMainWindow):
         self.active=False
         self.timer.stop()
         self.map_timer.stop()
+        self.level_timer.stop()
         self.stop_audio()
         self.station.close()
         event.accept()
@@ -3120,6 +3214,8 @@ def main(argv=None):
             assert window._open_native_tab("Hardware")
             assert window.tabs.tabText(window.tabs.currentIndex())=="Hardware"
             assert window.hardware_connect_button.text()=="Connect && enable RF"
+            assert len(window.home_level_chart.levels)==0
+            assert len(window.capture_level_chart.levels)==0
             assert window.hardware_disconnect_button.text()=="Stop && disconnect RF"
             window._open_native_tab("Overview")
             assert window.nav_buttons["Overview"].isChecked()
