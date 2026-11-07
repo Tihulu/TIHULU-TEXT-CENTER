@@ -108,7 +108,12 @@ def asr_from_clip(path: Path, language: str, model: str,
 def translate(text: str, source: str, target: str) -> tuple[str | None, str | None]:
     if source == target:
         return None, None  # no translation attempted, preserve original independently
+    selected_translation_engine = os.environ.get("TIHULU_TRANSLATOR_MODEL","argos")
     try:
+        if selected_translation_engine == "nllb":
+            # Always use managed Python; system Qt Python need not install
+            # huge torch/transformers dependencies.
+            raise RuntimeError("NLLB requires managed local translation runtime")
         from textcenter.transcripts import translate_offline
         return translate_offline(text, source, target), None
     except (ImportError, RuntimeError, ValueError, KeyError) as exc:

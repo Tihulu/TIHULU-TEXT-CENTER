@@ -8,6 +8,7 @@ import tempfile
 DEFAULTS = {
     "version": 1, "asr_enabled": False, "translation_enabled": False,
     "backend": "auto", "model_path": "", "model_dir": "",
+    "translation_model": "argos",
 }
 
 class AISettings:
@@ -31,6 +32,8 @@ class AISettings:
             raise ValueError("AI toggles must be boolean")
         if updated["backend"] not in ("auto", "cpu", "gpu", "npu"):
             raise ValueError("Unsupported AI backend")
+        if updated["translation_model"] not in ("argos", "nllb"):
+            raise ValueError("Unsupported translation model")
         for field in ("model_path", "model_dir"):
             if not isinstance(updated[field], str) or len(updated[field]) > 1024:
                 raise ValueError("Model paths must be strings")
@@ -51,6 +54,7 @@ class AISettings:
     def configure_environment(self):
         """Bridge existing TEXT CENTER runtime without loading model unless enabled."""
         from .whisper_engine import WhisperRuntime
+        os.environ["TIHULU_TRANSLATOR_MODEL"] = self.values["translation_model"]
         managed = WhisperRuntime()
         if managed.ready():
             os.environ["TIHULU_WHISPER_CLI"] = str(managed.binary)

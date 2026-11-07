@@ -16,8 +16,16 @@ def main():
         source not in ("de","en","tr") or target not in ("de","en","tr") or
         source == target):
         raise ValueError("Invalid offline translation request")
-    from textcenter.transcripts import translate_offline
-    translated = translate_offline(text, source, target, backend="cpu")
+    import os
+    engine = os.environ.get("TIHULU_TRANSLATOR_MODEL", "argos")
+    if engine == "nllb":
+        from .translation_market import run_nllb
+        translated = run_nllb(text, source, target)
+    elif engine == "argos":
+        from textcenter.transcripts import translate_offline
+        translated = translate_offline(text, source, target, backend="cpu")
+    else:
+        raise ValueError("Unknown translation backend")
     print(json.dumps({"translated":translated}, ensure_ascii=False), flush=True)
 
 if __name__ == "__main__":
