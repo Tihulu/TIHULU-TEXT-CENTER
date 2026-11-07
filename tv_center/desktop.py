@@ -13,7 +13,7 @@ import sys
 import threading
 
 from . import __version__
-from .core import TVCapture, discover_channels, read_channels, receiver_status, Channel
+from .core import TVCapture, discover_channels, read_channels, receiver_status, parse_signal_log, Channel
 from .bridge import TVBridge
 from .captions import install_argos_pack
 
@@ -68,6 +68,15 @@ def main():
             self.devices = QLabel("Receiver status pending")
             self.devices.setWordWrap(True)
             l.addWidget(self.devices)
+            self.adapter_choice = QComboBox()
+            available = sorted(Path("/dev/dvb").glob("adapter*/frontend0"))
+            for path in available:
+                number = int(path.parent.name.replace("adapter", ""))
+                self.adapter_choice.addItem("DVB adapter " + str(number), number)
+            if not available:
+                self.adapter_choice.addItem("DVB adapter 0 (not detected)", 0)
+            self.adapter_choice.currentIndexChanged.connect(self.change_adapter)
+            l.addWidget(self.adapter_choice)
             self.channel_list = QListWidget()
             self.channel_list.itemDoubleClicked.connect(lambda *_: self.play())
             l.addWidget(self.channel_list, 1)
@@ -77,6 +86,16 @@ def main():
             scan_btn = QPushButton("Scan from initial transponder file")
             scan_btn.clicked.connect(self.scan_channels)
             l.addWidget(scan_btn)
+            self.country = QComboBox()
+            self.country.addItem("Germany (DE)", "DE")
+            self.country.addItem("Türkiye (TR)", "TR")
+            l.addWidget(self.country)
+            self.signal_btn = QPushButton("Measure current signal · 15 s")
+            self.signal_btn.clicked.connect(self.measure_signal)
+            l.addWidget(self.signal_btn)
+            self.signal_result = QLabel("C/N and UCB: not yet measured")
+            self.signal_result.setWordWrap(True)
+            l.addWidget(self.signal_result)
             self.play_btn = QPushButton("▶  Play selected channel")
             self.play_btn.clicked.connect(self.play)
             l.addWidget(self.play_btn)
@@ -148,10 +167,42 @@ def main():
             self.timer.start(250)
 
         def update_device_status(self):
-            s = receiver_status()
+            s = receiver_status(self.capture.adapter)
             self.devices.setText("DVB frontend: " + ("connected" if s["frontend_present"] else "missing")
+                                 + "  |  WinTV USB 2040:8268: " + ("detected" if s["win_tv_solohd_usb_present"] else "not seen")
+                                 + "  |  Si2168 D60 firmware: " + ("yes" if s["si2168_d60_firmware_present"] else "no")
                                  + "  |  MPV: " + ("yes" if s["mpv"] else "no")
                                  + "  |  ffmpeg: " + ("yes" if s["ffmpeg"] else "no"))
+
+        def change_adapter(self):
+            if self.capture.thread and self.capture.thread.is_alive():
+                self.statusbar.setText("Stop playback before switching the DVB adapter.")
+                return
+            self.capture.adapter = int(self.adapter_choice.currentData() or 0)
+            self.update_device_status()
+
+        def measure_signal(self):
+            if not (self.capture.zap and self.capture.zap.poll() is None):
+                self.signal_result.setText("Tune a live DVB channel before measuring.")
+                return
+            if not receiver_status(self.capture.adapter)["frontend_present"]:
+                self.signal_result.setText("DVB frontend unavailable.")
+                return
+            self.signal_result.setText("Measuring receiver… do not move antenna during each comparison.")
+            adapter = self.capture.adapter
+            def worker():
+                try:
+                    p = subprocess.run(["dvb-fe-tool", "-a", str(adapter), "-m"],
+                                       stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                                       timeout=15, check=False)
+                    raw = p.stdout.decode("utf-8", "replace")
+                except subprocess.TimeoutExpired as exc:
+                    raw = (exc.stdout or b"").decode("utf-8", "replace")
+                except OSError as exc:
+                    self.capture.emit("measurement", {"error": str(exc)})
+                    return
+                self.capture.emit("measurement", parse_signal_log(raw))
+            threading.Thread(target=worker, daemon=True, name="tihulu-tv-signal").start()
 
         def refresh_channels(self):
             self.channels = discover_channels()
@@ -186,7 +237,7 @@ def main():
             self.statusbar.setText("Scanning: receiver cannot be used for TV during scan.")
             def worker():
                 try:
-                    p = subprocess.run(["dvbv5-scan", "-a", "0", "-C", "DE", "-F", "-T", "5",
+                    p = subprocess.run(["dvbv5-scan", "-a", str(self.capture.adapter), "-C", self.country.currentData(), "-F", "-T", "5",
                                         "-o", str(dest), initial],
                                        capture_output=True, text=True, timeout=300, check=False)
                     self.capture.emit("scan", (p.returncode == 0, p.stderr[-600:]))
@@ -275,6 +326,15 @@ def main():
                     ok, message = info
                     self.refresh_channels()
                     self.statusbar.setText("Scan: " + ("completed" if ok else "failed") + " — " + message)
+                elif kind == "measurement":
+                    if "error" in info:
+                        self.signal_result.setText("Signal tool error: " + info["error"])
+                    else:
+                        self.signal_result.setText(
+                            f"C/N: {info['cn_min_db']}–{info['cn_max_db']} dB | "
+                            f"UCB change: {info['ucb_delta']} | "
+                            f"Loss indications: {info['loss_indications']} | "
+                            f"Readings: {info['lock_readings']}")
                 elif kind in ("status", "warning", "error"):
                     self.statusbar.setText(str(info))
 

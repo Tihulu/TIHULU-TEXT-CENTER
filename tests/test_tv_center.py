@@ -1,7 +1,7 @@
 import tempfile
 from pathlib import Path
 import unittest
-from tv_center.core import read_channels, zap_argv, player_argv, Channel
+from tv_center.core import read_channels, zap_argv, player_argv, Channel, parse_signal_log
 from tv_center.captions import ass_text, decode_segment
 from tv_center.bridge import TVBridge
 
@@ -29,6 +29,15 @@ class NativeTVTests(unittest.TestCase):
     def test_missing_stream_is_not_fabricated(self):
         result = decode_segment(b"", mode="auto", page=150)
         self.assertEqual(result["original"], "")
+
+    def test_real_signal_parser(self):
+        text = ("Lock   (0x1f) Signal= -64.00dBm C/N= 18.50dB UCB= 900 postBER= 1e-6\n"
+                "Carrier(0x03) Signal= -64.00dBm\n"
+                "Lock   (0x1f) Signal= -64.00dBm C/N= 21.50dB UCB= 915 postBER= 0\n")
+        result = parse_signal_log(text)
+        self.assertEqual(result["ucb_delta"], 15)
+        self.assertEqual(result["loss_indications"], 1)
+        self.assertEqual(result["cn_max_db"], 21.5)
 
     def test_bridge_refuses_lan_listener(self):
         with self.assertRaises(ValueError):

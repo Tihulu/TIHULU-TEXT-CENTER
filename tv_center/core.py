@@ -97,7 +97,21 @@ def player_argv(channel: Channel, window_id: int, hwdec: str = "no", ipc_path: s
 def receiver_status(adapter: int = 0) -> dict:
     root = Path(f"/dev/dvb/adapter{adapter}")
     frontend, dvr = root / "frontend0", root / "dvr0"
+    hauppauge = False
+    usbroot = Path("/sys/bus/usb/devices")
+    if usbroot.is_dir():
+        for dev in usbroot.iterdir():
+            try:
+                if ((dev / "idVendor").read_text().strip().lower() == "2040" and
+                    (dev / "idProduct").read_text().strip().lower() == "8268"):
+                    hauppauge = True
+                    break
+            except OSError:
+                continue
     return {
+        "win_tv_solohd_usb_present": hauppauge,
+        "usb_identity_does_not_prove_frontend_ownership": True,
+        "si2168_d60_firmware_present": Path("/lib/firmware/dvb-demod-si2168-d60-01.fw").is_file(),
         "adapter": adapter,
         "frontend": str(frontend),
         "frontend_present": frontend.exists(),
@@ -109,6 +123,29 @@ def receiver_status(adapter: int = 0) -> dict:
         "other_sdr_touched": False,
         "dvb_firmware_note": "For WinTV-soloHD verify em28xx/Si2168-D60 and dvb-demod-si2168-d60-01.fw."
     }
+
+def parse_signal_log(raw: str) -> dict:
+    """Summarize actual dvb-fe-tool -m readings (no fabricated signal values)."""
+    if not isinstance(raw, str):
+        raise ValueError("Monitor output must be text")
+    locks = [line for line in raw.splitlines() if line.startswith("Lock")]
+    cn, ucb = [], []
+    for line in locks:
+        match_cn = re.search(r"C/N=\s*([\d.]+)dB", line)
+        match_ucb = re.search(r"UCB=\s*(\d+)", line)
+        if match_cn:
+            cn.append(float(match_cn.group(1)))
+        if match_ucb:
+            ucb.append(int(match_ucb.group(1)))
+    no_lock = sum(("Carrier(0x03)" in line or "(0x00)" in line)
+                  for line in raw.splitlines())
+    return {"lock_readings": len(locks), "loss_indications": no_lock,
+            "cn_min_db": min(cn) if cn else None,
+            "cn_max_db": max(cn) if cn else None,
+            "cn_last_db": cn[-1] if cn else None,
+            "ucb_first": ucb[0] if ucb else None,
+            "ucb_last": ucb[-1] if ucb else None,
+            "ucb_delta": ucb[-1] - ucb[0] if len(ucb) >= 2 else None}
 
 class ReceiverBusy(RuntimeError):
     pass
