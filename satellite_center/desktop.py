@@ -911,6 +911,17 @@ class SatelliteWindow(QMainWindow):
         actions=QVBoxLayout(group)
         actions.addWidget(self._button("↻  Update public orbital TLEs",self.refresh_tles))
         actions.addWidget(self._button("◉  Calculate satellite passes",self.calculate_passes))
+        self.tle_source=QComboBox()
+        for label,code in (
+            ("Amateur / CubeSats","amateur"),("ISS","iss"),
+            ("Meteor M2-3","meteor3"),("Meteor M2-4","meteor4"),
+            ("Iridium orbital elements","iridium")):
+            self.tle_source.addItem(label,code)
+        actions.addWidget(self.tle_source)
+        actions.addWidget(self._button("Import local TLE file…",self.import_tle))
+        self.tle_import_feedback=self._hint(
+            "You may import orbital elements offline. Recalculate passes afterward.")
+        actions.addWidget(self.tle_import_feedback)
         actions.addWidget(self._hint("Geometry from local TLEs is not evidence of RF. "
                                     "Media tags describe supported *candidate formats*, "
                                     "not files already available onboard or received."))
@@ -929,9 +940,30 @@ class SatelliteWindow(QMainWindow):
             ("◈  RF data","RF data"),("RF-only satellites","RF only")]:
             self.pass_media_filter.addItem(title,key)
         self.pass_media_filter.currentIndexChanged.connect(self._render_pass_results)
+        self.pass_family_filter=QComboBox()
+        for label,key in (
+            ("All satellite families","all"),("ISS","iss"),
+            ("Meteor-M","meteor"),("CubeSats","cubesat"),
+            ("Iridium","iridium")):
+            self.pass_family_filter.addItem(label,key)
+        self.pass_family_filter.currentIndexChanged.connect(self._render_pass_results)
+        self.pass_sort=QComboBox()
+        for label,key in (
+            ("Soonest passes","soonest"),("Latest passes","latest"),
+            ("Highest elevation","high"),("Lowest elevation","low"),
+            ("Longest pass","duration-long"),("Shortest pass","duration-short"),
+            ("Satellite name A–Z","name")):
+            self.pass_sort.addItem(label,key)
+        self.pass_sort.currentIndexChanged.connect(self._render_pass_results)
         searchRow.addWidget(self.pass_search,3)
         searchRow.addWidget(self.pass_media_filter,1)
+        searchRow.addWidget(self.pass_family_filter,1)
         body.addLayout(searchRow)
+        sorter=QHBoxLayout()
+        sorter.addWidget(QLabel("Sort passes"))
+        sorter.addWidget(self.pass_sort)
+        sorter.addStretch(1)
+        body.addLayout(sorter)
 
         self.pass_overview=QLabel("Calculate passes to discover candidate image, audio, text and RF profiles.")
         self.pass_overview.setObjectName("passSubtitle")
@@ -1064,6 +1096,30 @@ class SatelliteWindow(QMainWindow):
                   if kinds_for_pass(row)==["RF data"]]
         else:
             rows=filter_passes(all_rows,kind,search)
+        family=self.pass_family_filter.currentData() or "all"
+        if family!="all":
+            rows=[row for row in rows if row.get("family")==family]
+        order=self.pass_sort.currentData() or "soonest"
+        def duration(row):
+            try:
+                return (datetime.fromisoformat(row["los"])-
+                        datetime.fromisoformat(row["aos"])).total_seconds()
+            except (KeyError,ValueError,TypeError):
+                return 0
+        if order=="latest":
+            rows.sort(key=lambda row:row.get("aos",""),reverse=True)
+        elif order=="high":
+            rows.sort(key=lambda row:float(row.get("max_elevation_deg",0)),reverse=True)
+        elif order=="low":
+            rows.sort(key=lambda row:float(row.get("max_elevation_deg",0)))
+        elif order=="duration-long":
+            rows.sort(key=duration,reverse=True)
+        elif order=="duration-short":
+            rows.sort(key=duration)
+        elif order=="name":
+            rows.sort(key=lambda row:row.get("name","").casefold())
+        else:
+            rows.sort(key=lambda row:row.get("aos",""))
         self.pass_list.blockSignals(True)
         self.pass_list.clear()
         selected_item=None
@@ -2206,6 +2262,8 @@ class SatelliteWindow(QMainWindow):
                     self.auto_feedback.setText("Could not schedule: "+message)
                 elif key=="Arm scheduled RF":
                     self.pass_feedback.setText("Recording not scheduled: "+message)
+                elif key=="Local TLE import":
+                    self.tle_import_feedback.setText("TLE import failed: "+message)
                 elif key in ("Connect SDR","Disconnect SDR","USB diagnostic","Real RF sample test"):
                     self.hardware_feedback.setText(key+" failed: "+message)
                     self.refresh_status()
@@ -2295,6 +2353,15 @@ class SatelliteWindow(QMainWindow):
             for key,val in state.get("orbit_cache",{}).items()))
         self.disk_label.setText("Recordings: "+str(len(state.get("archive",[])))+
                                 " actual local files · "+str(self.station.archive))
+        self.home_jobs_status.setText(
+            str(hardware.get("pending_schedules",0))+" scheduled future RF capture(s). "+
+            ("RF DISABLED · pending jobs paused." if not enabled
+             else "Native receiver jobs run only while this Qt program remains open."))
+        self.home_usb_state.setText(
+            "RF DISABLED · lease released" if not enabled and released else
+            "RF DISABLED · release incomplete" if not enabled else
+            "USB IQ VERIFIED · idle ready" if hardware.get("last_usb_test") else
+            "USB not yet verified by real IQ capture; open Hardware / USB.")
         self._calendar_jobs=state.get("jobs",[])
         jobs_key=json.dumps([(j.get("id"),j.get("state"),j.get("run_at"),j.get("result"),
                               j.get("capture_seconds"),j.get("mission_id"))
@@ -2329,6 +2396,21 @@ class SatelliteWindow(QMainWindow):
         return {"lat":self.lat.value(),"lon":self.lon.value(),
                 "hours":self.hours.value(),"elevation":self.elev.value()}
 
+    def import_tle(self):
+        source=self.tle_source.currentData()
+        path,_=QFileDialog.getOpenFileName(
+            self,"Import locally saved orbital TLE elements",
+            str(Path.home()),"TLE orbit text (*.tle *.txt);;All files (*)")
+        if not path:return
+        self.tle_import_feedback.setText("Validating locally saved orbital elements…")
+        def finished(report):
+            self.tle_import_feedback.setText(
+                "Imported "+str(report["tle_count"])+" validated TLE pair(s) for "+
+                source+". Click Calculate satellite passes.")
+            self.refresh_status()
+        self._task("Local TLE import",
+                   lambda:self.station.import_tle(path,source),finished)
+
     def calculate_passes(self):
         self._task("Predict satellite passes",
                    lambda:self.station.passes(**self._station_kwargs()),
@@ -2338,6 +2420,11 @@ class SatelliteWindow(QMainWindow):
         rows=data.get("predictions",[])
         self.passes={r["id"]:r for r in rows}
         self._render_pass_results()
+        if hasattr(self,"home_pass_summary"):
+            self.home_pass_summary.setText(
+                str(len(rows))+" predicted orbital pass(es). "
+                "Find satellites has sorting, media filters, and individually editable RF schedules. "
+                "Prediction ≠ received RF.")
         target=getattr(self,"map_pending_pass_norad",None)
         if target is not None:
             self.map_pending_pass_norad=None
@@ -3077,6 +3164,9 @@ def main(argv=None):
                 "los":(aos+timedelta(minutes=9)).isoformat(),
                 "max_elevation_deg":44.0,"profiles":["meteor"]}]})
             assert window.pass_list.topLevelItemCount()==1
+            assert window.pass_sort.count()==7
+            assert window.pass_family_filter.findData("meteor")>=0
+            assert window.tle_source.findData("amateur")>=0
             assert window.pass_map_button.isEnabled()
             assert "image" in window.pass_overview.text().lower()
             assert "LRPT" in window.pass_requirements.text()
