@@ -3916,6 +3916,8 @@ def main(argv=None):
             region_index=window.home_region.findData("North Rhine-Westphalia")
             assert region_index>=0, "Offline German Bundesland missing"
             window.home_region.setCurrentIndex(region_index)
+            assert window.city_country.currentData()=="DE"
+            assert window.city_region.currentData()=="North Rhine-Westphalia"
             window.home_city_search.setText("huerth")
             assert window.home_city_results.count()>0, "Home offline place search failed"
             assert "Hürth" in window.home_city_results.item(0).text()
