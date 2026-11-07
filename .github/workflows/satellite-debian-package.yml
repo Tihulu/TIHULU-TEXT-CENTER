@@ -25,6 +25,16 @@ jobs:
       - uses: actions/checkout@v4
       - name: Build independent Debian native app
         run: bash satellite_center/packaging/debian/build.sh
+      - name: Verify one-line GitHub installer download and independent build
+        env:
+          TIHULU_BUILD_ONLY: '1'
+          TIHULU_OUTPUT_DIR: ${{ runner.temp }}/tihulu-one-line-check
+        run: |
+          bash -n satellite_center/install/install-deb.sh
+          bash satellite_center/install/install-deb.sh
+          test -s "$TIHULU_OUTPUT_DIR/tihulu-satellite-center_0.3.0~preview7_all.deb"
+          test "$(dpkg-deb --field "$TIHULU_OUTPUT_DIR/tihulu-satellite-center_0.3.0~preview7_all.deb" Version)" = '0.3.0~preview7'
+          dpkg-deb --contents "$TIHULU_OUTPUT_DIR/tihulu-satellite-center_0.3.0~preview7_all.deb" | grep -F satellite_center/desktop.py
       - name: Inspect package integrity and desktop entry
         run: |
           dpkg-deb --info dist/*.deb
