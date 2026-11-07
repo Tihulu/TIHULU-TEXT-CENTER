@@ -946,6 +946,11 @@ class SatelliteWindow(QMainWindow):
         robot.addWidget(self._button("Save decoded PNG / WAV…",self.save_selected_output))
         body.addLayout(robot)
         self._row(body,self._button("Save real results ZIP",self.save_results_zip))
+        self.output_files=QTreeWidget()
+        self.output_files.setHeaderLabels(["Generated file","Format","Saved directory"])
+        self.output_files.setMaximumHeight(130)
+        self.output_files.itemSelectionChanged.connect(self._output_file_selected)
+        body.addWidget(self.output_files)
         self.candidate_label=self._hint("RF discovery is based on energy above a local noise estimate. A peak alone is not a decoded packet or picture.")
         body.addWidget(self.candidate_label)
         self.spectrum=SpectrumView()
@@ -1321,6 +1326,7 @@ class SatelliteWindow(QMainWindow):
         def done(value):
             report,path=value
             self.last_analysis=report;self.last_report_path=path
+            self._register_output_files([path])
             self.spectrum.set_report(report)
             summary={k:v for k,v in report.items() if k not in
                      ("frequencies_hz","relative_spectrum_db","waterfall_db")}
@@ -1348,6 +1354,7 @@ class SatelliteWindow(QMainWindow):
             report,result,filepath=value
             self.last_analysis=report
             self.last_candidate_report=filepath
+            self._register_output_files([filepath])
             self.spectrum.set_report(report)
             self.candidate_label.setText(
                 str(len(result["candidates"]))+
@@ -1367,6 +1374,8 @@ class SatelliteWindow(QMainWindow):
             self.candidate_label.setText(
                 "Real 32 kHz PCM WAV saved; FM audio content is UNVERIFIED.")
             self.file_details.setPlainText(json.dumps(report,indent=2))
+            self._register_output_files([report["output_wav"],
+                Path(report["output_wav"]).with_suffix(".json")])
             self.refresh_status()
         self._task("Extract real FM audio",lambda:fm_to_wav(
             source,self.station.archive,rate,center,offset),completed)
@@ -1406,6 +1415,34 @@ class SatelliteWindow(QMainWindow):
                    lambda:self.station.decode_meteor(name,variant),done)
 
 
+    def _register_output_files(self,paths):
+        """List only genuine saved outputs without changing current recording."""
+        for raw in paths:
+            path=Path(raw)
+            if not path.is_file():continue
+            if not any(self.output_files.topLevelItem(i).data(0,Qt.UserRole)==str(path)
+                       for i in range(self.output_files.topLevelItemCount())):
+                item=QTreeWidgetItem([path.name,path.suffix.upper().lstrip("."),str(path.parent)])
+                item.setData(0,Qt.UserRole,str(path))
+                self.output_files.addTopLevelItem(item)
+
+    def _output_file_selected(self):
+        item=self.output_files.currentItem()
+        if item is None:return
+        path=Path(item.data(0,Qt.UserRole))
+        if not path.is_file():return
+        if path.suffix.lower() in (".png",".jpg",".jpeg") and path.stat().st_size<20_000_000:
+            pix=QPixmap(str(path))
+            if not pix.isNull():
+                self.image.setPixmap(pix.scaled(
+                    720,250,Qt.KeepAspectRatio,Qt.SmoothTransformation))
+        elif path.suffix.lower() in (".txt",".json") and path.stat().st_size<1_000_000:
+            self.file_details.setPlainText(
+                path.read_text(encoding="utf-8",errors="replace")[:12000])
+        elif path.suffix.lower()==".wav":
+            self.file_details.setPlainText("Actual WAV saved: "+str(path))
+        # Never call _choose_path, which resets analysis/export state.
+
     def decode_robot36_native(self):
         """Decode an actual local PCM WAV: a PNG is emitted only after real sync."""
         source=(self.selected_path if self.selected_path and
@@ -1417,16 +1454,19 @@ class SatelliteWindow(QMainWindow):
         def completed(report):
             self.robot36_source_wav=Path(source)
             self.decoded_paths.extend(
-                Path(source).with_name(item["file"])
+                self.station.archive/item["file"]
                 for item in report.get("images",[])
-                if Path(source).with_name(item["file"]).is_file())
+                if (self.station.archive/item["file"]).is_file())
             # Persist processing metadata even on no-sync. Never fake an image.
             safe_stem=re.sub(r"[^A-Za-z0-9_-]+","_",Path(source).stem)[:80]
             dest=self.station.archive/(safe_stem+"_robot36_report.json")
             dest.write_text(json.dumps(report,indent=2,default=str),encoding="utf-8")
             self.robot36_report=dest
+            self._register_output_files(
+                [source,dest]+[self.station.archive/item["file"]
+                               for item in report.get("images",[])])
             if report.get("images"):
-                actual=Path(source).with_name(report["images"][0]["file"])
+                actual=self.station.archive/report["images"][0]["file"]
                 pixmap=QPixmap(str(actual))
                 if not pixmap.isNull():
                     self.image.setPixmap(pixmap.scaled(
@@ -1442,7 +1482,8 @@ class SatelliteWindow(QMainWindow):
             self.refresh_status()
         self._task("Actual Robot36 WAV decoder",
                    lambda:extract_robot36_wav(
-                       source,compute_mode=mode,compute_targets=targets),completed)
+                       source,compute_mode=mode,compute_targets=targets,
+                       output_dir=self.station.archive),completed)
 
     def save_selected_output(self):
         """Native Save As for an actual decoded PNG, WAV, report or imported result."""
