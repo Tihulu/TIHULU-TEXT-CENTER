@@ -102,6 +102,55 @@ def zap_argv(channel: Channel, adapter: int = 0) -> list[str]:
     return ["dvbv5-zap", "-a", str(adapter), "-c", str(channel.path),
             "-p", "-P", "-r", channel.name]
 
+def isolated_channel_file(channel: Channel, destination: Path) -> Channel:
+    """Give dvbv5-zap exactly one real service, not a duplicate display name.
+
+    A scan source can contain identical channel names on several frequencies.
+    dvbv5-zap's name lookup would otherwise tune the first match. Preserve
+    *all* modulation/PLP/PID properties from the selected source section.
+    """
+    if not channel.path or not Path(channel.path).is_file():
+        raise RuntimeError("Selected channel has no readable DVBv5 scan file; rescan or import one")
+    source=Path(channel.path)
+    if source.stat().st_size>2_000_000:
+        raise RuntimeError("DVB channel file exceeds the 2 MB safety limit")
+    matches=[]
+    title=None
+    block=[]
+    def accept():
+        if title!=channel.name or not block:
+            return
+        attrs={}
+        for line in block:
+            if "=" in line:
+                key,value=line.split("=",1)
+                attrs[key.strip().upper()]=value.strip()
+        try:
+            frequency=int(attrs.get("FREQUENCY","0"),0)
+            sid=int(attrs.get("SERVICE_ID","-1"),0)
+        except ValueError:
+            return
+        if frequency==channel.frequency and (channel.service_id is None or sid==channel.service_id):
+            matches.append("["+title+"]\\n"+"\\n".join(block)+"\\n")
+    for line in source.read_text(encoding="utf-8",errors="replace").splitlines():
+        item=line.strip()
+        if item.startswith("[") and item.endswith("]"):
+            accept()
+            title=item[1:-1].strip()
+            block=[]
+        elif title is not None:
+            block.append(line)
+    accept()
+    if len(matches)!=1:
+        raise RuntimeError("Expected exactly one matching DVB service in scan file "
+                           f"({len(matches)} found for {channel.name!r} "
+                           f"on {channel.frequency} Hz). Rescan this source.")
+    destination=Path(destination)
+    destination.write_text(matches[0].replace("\\n","\\n"),encoding="utf-8")
+    return Channel(channel.name,destination,channel.frequency,channel.service_id,
+                   channel.encrypted,channel.delivery,channel.kind)
+
+
 def player_argv(channel: Channel, window_id: int, hwdec: str = "no", ipc_path: str | None = None, renderer: str = "x11-gpu") -> list[str]:
     if hwdec not in ("no", "auto-safe"):
         raise ValueError("Unsupported hardware decoding mode")
@@ -115,6 +164,7 @@ def player_argv(channel: Channel, window_id: int, hwdec: str = "no", ipc_path: s
           if renderer == "x11-gpu" else ["--vo=x11", "--profile=sw-fast"])
     args = ["mpv", "--no-config", "--no-terminal", "--force-window=no",
             "--no-border", "--osc=no", "--cache=yes", "--cache-secs=4",
+            "--demuxer-lavf-format=mpegts",
             "--cache-pause-wait=0.3", "--hwdec=" + hwdec,
             "--wid=" + str(window_id), "--audio-spdif=no", *vo]
     # MPV's MPEG-TS 'program' is a runtime write-only property, NOT a CLI
@@ -210,6 +260,7 @@ class TVCapture:
         self._mpv_log_handle = None
         self._zap_log_handle = None
         self._queue_drop_count = 0
+        self._stream_verified = False
 
     def _log_dir(self):
         folder = Path.home() / ".cache" / "tihulu-tv-center"
@@ -289,6 +340,7 @@ class TVCapture:
         self.stop_flag.clear()
         self.channel = channel
         self.hwdec = hwdec
+        self._stream_verified = False
         try:
             logs = self._log_dir()
             self.mpv_log_path = logs / "mpv.log"
@@ -297,13 +349,17 @@ class TVCapture:
             self._zap_log_handle = self.zap_log_path.open("wb", buffering=0)
             self._mpv_log_handle.write(("Opening service: " + channel.name + "\n").encode("utf-8"))
             self._zap_log_handle.write(("Tuning service: " + channel.name + "\n").encode("utf-8"))
-            self.zap = subprocess.Popen(zap_argv(channel, self.adapter),
+            self._ipc_dir = tempfile.TemporaryDirectory(prefix="tihulu-tv-mpv-")
+            # Match the exact scanned service including frequency and
+            # SERVICE_ID. Duplicate public channel names are common.
+            exact = isolated_channel_file(
+                channel, Path(self._ipc_dir.name) / "selected-channel.conf")
+            self.zap = subprocess.Popen(zap_argv(exact, self.adapter),
                               stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
                               stderr=self._zap_log_handle, start_new_session=True)
             time.sleep(0.8)
             if self.zap.poll() is not None:
                 raise RuntimeError(f"dvbv5-zap exited before tuning. Inspect: {self.zap_log_path}")
-            self._ipc_dir = tempfile.TemporaryDirectory(prefix="tihulu-tv-mpv-")
             sock_path = str(Path(self._ipc_dir.name) / "mpv.sock")
             env = os.environ.copy()
             env.pop("WAYLAND_DISPLAY", None)
@@ -313,10 +369,10 @@ class TVCapture:
             self.player = subprocess.Popen(player_argv(channel, window_id, hwdec, sock_path, renderer),
                               stdin=subprocess.PIPE, stdout=subprocess.DEVNULL,
                               stderr=self._mpv_log_handle, start_new_session=True, env=env)
-            if channel.service_id is not None:
-                threading.Thread(target=self._select_program,
-                                 args=(channel.service_id, sock_path),
-                                 daemon=True, name="tihulu-tv-program").start()
+            # The ServiceFilter rewrites PAT to advertise only the selected
+            # service. Forcing MPV's program property before the first PAT/PMT
+            # is parsed can fail prematurely, so let it auto-select the one
+            # service from the verified filtered stream.
             os.set_blocking(self.player.stdin.fileno(), False)
             self._player_queue = queue.Queue(maxsize=128)
             self._writer_thread = threading.Thread(target=self._write_player, daemon=True,
@@ -324,7 +380,8 @@ class TVCapture:
             self._writer_thread.start()
             self.thread = threading.Thread(target=self._pump, daemon=True, name="tihulu-tv-dvb")
             self.thread.start()
-            self.emit("status", "Tuned to " + channel.name + "; receiving live transport stream")
+            self.emit("status", "Tuning " + channel.name +
+                      " · waiting for actual MPEG-TS packets, PAT and PMT")
         except BaseException:
             self.stop()
             raise
@@ -414,6 +471,15 @@ class TVCapture:
                     if not buf:
                         continue
                     buf = service_filter.feed(buf)
+                    if not self._stream_verified and service_filter.ready and service_filter.seen_packets:
+                        self._stream_verified = True
+                        self.emit("verified_stream", {
+                            "channel":self.channel.name,
+                            "service_id":self.channel.service_id,
+                            "packets":service_filter.seen_packets,
+                            "note":"Real DVB transport packets and service tables observed. "
+                                   "Video/audio decoding not independently confirmed."
+                        })
                     if not buf:
                         continue
                     if self.mobile_stream is not None:
