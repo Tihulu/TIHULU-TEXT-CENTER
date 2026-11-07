@@ -54,6 +54,34 @@ class KaffeineCaptionTapTests(TestCase):
             self.assertEqual(state["expected_test_multiplexes_mhz"], [538, 586, 626])
             self.assertEqual(state["frontend_busy"], "unknown")
 
+    def test_kaffeine_saved_channel_sources_are_read_only(self):
+        from kaffeine_next.diagnostics import inspect
+        with tempfile.TemporaryDirectory() as root:
+            home = Path(root) / "home"
+            dev = Path(root) / "dvb"
+            (home / ".local/share/kaffeine").mkdir(parents=True)
+            cfg = home / ".local/share/kaffeine/config.dvb"
+            content = ("[device]\\nfrontendName=Silicon Labs Si2168\\n"
+                       "[config]\\nname=Terrestrial (T2)\\n"
+                       "scanSource=TIHULU tested: 538 / 586 / 626 MHz\\n")
+            cfg.write_text(content.replace("\\\\n", "\\n"))
+            with mock.patch("kaffeine_next.diagnostics.shutil.which", return_value=None):
+                result = inspect(home, dev)
+            saved = result["configured_sources"]["devices"][0]
+            self.assertEqual(saved["frontend_name"], "Silicon Labs Si2168")
+            self.assertEqual(saved["sources"][0]["name"], "Terrestrial (T2)")
+            self.assertEqual(saved["sources"][0]["scan_source"],
+                             "TIHULU tested: 538 / 586 / 626 MHz")
+            self.assertEqual(cfg.read_text(), content.replace("\\\\n", "\\n"))
+
+    def test_dvb_failure_reports_connected_sources_not_just_generic_permission_error(self):
+        from kaffeine_next.patch_upstream import transform
+        import inspect
+        source = inspect.getsource(transform)
+        self.assertIn("TIHULU no usable DVB frontend:", source)
+        self.assertIn("requested channel source=", source)
+        self.assertIn("configured channel sources=", source)
+
     def test_upstream_release_is_immutable(self):
         self.assertEqual(REVISION, "e7ea15b86dafed3b20b151cbcb080578ab8e2d5c")
         self.assertEqual(len(PATHS), 13)
