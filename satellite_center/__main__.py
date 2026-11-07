@@ -1081,6 +1081,32 @@ class Station:
                 thread.join(timeout=4)
         self.request_stop()
 
+    def capture_series(self, profile, mode, total_seconds, *, segment_seconds=180,
+                       gap_seconds=NATIVE_RESET_SECONDS):
+        """User-initiated local receive-only sequence, no browser or fake IQ continuity."""
+        parts=capture_parts(total_seconds,cap_seconds=segment_seconds,
+                            gap_seconds=gap_seconds)
+        outputs=[]
+        for part in parts:
+            if outputs and self.stopping.is_set():
+                break
+            if outputs and gap_seconds:
+                # Leave tuner lease free; operator Stop also works between files.
+                deadline=time.monotonic()+gap_seconds
+                while time.monotonic()<deadline and not self.stopping.is_set() and not self.closed.is_set():
+                    time.sleep(min(.1,deadline-time.monotonic()))
+                if self.stopping.is_set() or self.closed.is_set():
+                    break
+            captured=self.capture(profile,mode,part["duration_seconds"])
+            outputs.append({**captured, "segment_index":part["index"],
+                            "segment_count":part["count"],
+                            "requested_total_seconds":total_seconds})
+        return {"scheduled":False,"mode":mode,"requested_seconds":total_seconds,
+                "segment_count":len(parts),"completed_segments":len(outputs),
+                "unrecorded_gap_seconds":gap_seconds*max(0,len(outputs)-1),
+                "recordings":outputs,
+                "note":"Each file is an independent real RF acquisition. Receiver restarts are unrecorded."}
+
     def capture(self, profile, mode="survey", seconds=18, scheduled=False, owner=None, satellite=None):
         if profile not in PROFILES or mode not in MODES or not allowed_mode(profile, mode):
             raise ValueError("Unsupported capture preset")
