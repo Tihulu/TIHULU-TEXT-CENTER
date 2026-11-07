@@ -10,6 +10,8 @@ displayed as soon as possible, never deceptively described as sample-accurate.
 """
 from __future__ import annotations
 from dataclasses import dataclass, replace
+from collections import deque
+from statistics import median
 import json
 import os
 from pathlib import Path
@@ -29,6 +31,7 @@ class CaptionConfig:
     page: int = 150
     offset_ms: int = 0
     playback_delay_ms: int = 0
+    automatic_sync: bool = False
     on_video: bool = True
     show_original: bool = True
     show_translation: bool = True
@@ -52,7 +55,7 @@ class CaptionConfig:
             raise ValueError("Font size must be 16–44 pixels")
         if type(self.opacity) is not int or not 0 <= self.opacity <= 100:
             raise ValueError("Opacity must be 0–100%")
-        for key in ("on_video", "show_original", "show_translation"):
+        for key in ("automatic_sync", "on_video", "show_original", "show_translation"):
             if type(getattr(self, key)) is not bool:
                 raise ValueError("Caption display toggles must be boolean")
         return self
@@ -116,6 +119,129 @@ class CueQueue:
 
     def clear(self):
         self.items.clear()
+
+
+@dataclass(frozen=True)
+class SyncRecommendation:
+    """Coarse caption-availability timing, *not* word-aligned lip sync."""
+    samples: int
+    observed_lag_ms: int
+    safe_min_ms: int
+    safe_max_ms: int
+    suggested_delay_ms: int
+    safety_cap_ms: int
+    saturated: bool
+
+    @property
+    def summary(self):
+        band = f"{self.safe_min_ms / 1000:.1f}–{self.safe_max_ms / 1000:.1f} s"
+        suffix = (" · processing exceeds safe TV buffer; late text is possible"
+                  if self.saturated else "")
+        return (f"Estimated caption availability lag: "
+                f"{self.observed_lag_ms / 1000:.1f} s · "
+                f"safe playback delay: {band} · "
+                f"suggested: {self.suggested_delay_ms / 1000:.1f} s "
+                f"({self.samples} live ASR samples){suffix}")
+
+
+class AutoSyncEstimator:
+    """Measure real Whisper+translation completion vs sampled DVB timeline.
+
+    The spoken-word start inside a multi-second chunk is unknown. This only
+    estimates *when the caption becomes available*, not the precise phoneme
+    offset. Native Teletext captions should not train an ASR estimate.
+    """
+    def __init__(self, minimum=3, maximum=12, ceiling_ms=6000):
+        if not 1 <= minimum <= maximum or not 0 <= ceiling_ms <= 8000:
+            raise ValueError("Invalid automatic sync limits")
+        self.minimum = minimum
+        self.ceiling_ms = ceiling_ms
+        self.values = deque(maxlen=maximum)
+
+    def clear(self):
+        self.values.clear()
+
+    def observe(self, captured_start, captured_end, decoded_at, source):
+        if source != "local_asr":
+            return False
+        try:
+            start = float(captured_start)
+            end = float(captured_end)
+            done = float(decoded_at)
+        except (TypeError, ValueError):
+            return False
+        # Unrealistic or discontinuous segment durations must not teach
+        # automatic buffering or silently adjust a live DVB player.
+        if not 0.5 <= end - start <= 12 or not end <= done <= end + 30:
+            return False
+        self.values.append(round((done - start) * 1000))
+        return True
+
+    def recommend(self, *, bytes_per_second=None, platform_cap_ms=None):
+        if len(self.values) < self.minimum:
+            return None
+        cap = self.ceiling_ms
+        if platform_cap_ms is not None:
+            cap = min(cap, max(0, int(platform_cap_ms)))
+        # Native delayed MPEG-TS queue is capped at 64 MiB; reserve 16 MiB
+        # for bursts/other TV buffers. The byte-rate is a coarse estimate.
+        if bytes_per_second is not None and bytes_per_second > 0:
+            cap = min(cap, max(0, int(48 * 1024 * 1024 * 1000 /
+                                       float(bytes_per_second))))
+        cap = max(0, min(8000, (cap // 500) * 500))
+        ordered = sorted(self.values)
+        med = int(median(ordered))
+        p80 = ordered[int(round(0.8 * (len(ordered) - 1)))]
+        def up500(value):
+            return max(0, ((max(0, int(value)) + 499) // 500) * 500)
+        lower = min(cap, up500(med + 250))
+        upper = min(cap, max(lower, up500(p80 + 850)))
+        suggested = min(cap, max(lower, up500(p80 + 350)))
+        return SyncRecommendation(
+            samples=len(ordered), observed_lag_ms=med,
+            safe_min_ms=lower, safe_max_ms=upper,
+            suggested_delay_ms=suggested, safety_cap_ms=cap,
+            saturated=(p80 + 350 > cap),
+        )
+
+
+class AutoSyncController:
+    """Keep live playback stable: opt-in + initial settle + slow adjustments.
+
+    A user-specified caption offset remains manual fine-tuning because chunk
+    timestamps do not identify individual words in a sentence.
+    """
+    def __init__(self, cooldown_seconds=30, deadband_ms=750, step_ms=500):
+        self.cooldown_seconds = cooldown_seconds
+        self.deadband_ms = deadband_ms
+        self.step_ms = step_ms
+        self.last_change_at = None
+        self.has_applied = False
+
+    def reset(self):
+        self.last_change_at = None
+        self.has_applied = False
+
+    def next_delay(self, recommendation, current_ms, now, enabled):
+        if not enabled or recommendation is None:
+            return None
+        desired = recommendation.suggested_delay_ms
+        if not self.has_applied:
+            self.has_applied = True
+            self.last_change_at = now
+            return desired if desired != current_ms else None
+        if self.last_change_at is not None and (
+                now - self.last_change_at < self.cooldown_seconds):
+            return None
+        if abs(desired - current_ms) < self.deadband_ms:
+            return None
+        delta = max(-self.step_ms, min(self.step_ms, desired - current_ms))
+        next_ms = max(0, min(recommendation.safety_cap_ms,
+                             round((current_ms + delta) / 500) * 500))
+        if next_ms == current_ms:
+            return None
+        self.last_change_at = now
+        return next_ms
 
 
 class KaffeineOSD:
