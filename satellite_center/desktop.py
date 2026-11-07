@@ -2773,13 +2773,18 @@ class SatelliteWindow(QMainWindow):
     def _pass_budget(self):
         mode=self.pass_mode.currentData()
         seconds=duration_seconds(self.pass_seconds,self.pass_unit)
+        rate=int(self.pass_sample_rate.currentData() or 1024000)
+        is_iq=mode in ("iq","iq_and_fm_wav")
+        maximum=min(900,MAX_IQ_BYTES//(2*rate)) if is_iq else 900
+        self.pass_sample_rate.setEnabled(is_iq)
+        self.pass_seconds.setMaximum(maximum/60 if self.pass_unit.currentData()=="minutes" else maximum)
         if mode=="iq_and_fm_wav":
             self.pass_cost.setText(
                 f"~{seconds*(2*rate/1e6+.064):.1f} MB · raw CU8 then derived 32-kHz FM WAV. "
                 "Both are genuine samples; FM content remains unverified.")
         elif mode=="iq":
             self.pass_cost.setText(
-                f"~{seconds*2.048:.1f} MB raw CU8. >180 s can be split into separate ≤180 s files; single continuous IQ still supported.")
+                f"~{seconds*2*rate/1e6:.1f} MB raw CU8 at {rate/1e6:.3f} MS/s. Single continuous native IQ is supported.")
         elif mode=="survey":
             self.pass_cost.setText("Real rtl_power spectrum survey: "+str(seconds)+
                 " s total, split into ≤180 s calendar files with 2 s restart gaps (not image decoding)")
@@ -2975,12 +2980,17 @@ class SatelliteWindow(QMainWindow):
     def _capture_budget(self):
         mode=self.capture_mode.currentData()
         secs=duration_seconds(self.capture_seconds,self.capture_unit)
+        rate=int(self.capture_sample_rate.currentData() or 1024000)
+        is_iq=mode in ("iq","iq_and_fm_wav")
+        maximum=min(900,MAX_IQ_BYTES//(2*rate)) if is_iq else 900
+        self.capture_sample_rate.setEnabled(is_iq)
+        self.capture_seconds.setMaximum(maximum/60 if self.capture_unit.currentData()=="minutes" else maximum)
         self.capture_budget.setText(
             f"~{secs*2*rate/1e6:.1f} MB raw CU8 on local disk · maximum {maximum}s at {rate/1e6:.3f} MS/s"
             if mode=="iq" else
             "Native rtl_power survey can split >180 s into separate ≤180 s captures; real gaps are recorded in report"
             if mode=="survey" else
-            f"~{secs*2.112:.1f} MB CU8 + FM WAV from the same physical IQ recording"
+            f"~{secs*(2*rate/1e6+.064):.1f} MB CU8 + FM WAV from the same physical IQ recording"
             if mode=="iq_and_fm_wav" else
             "Native receiver saves actual packet/audio output, no browser involved")
 
