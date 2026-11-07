@@ -58,7 +58,7 @@ jobs:
             dpkg -i /checkout/dist/*.deb
             tihulu-satellite-center doctor | grep -F "\"platform\": \"Linux\""
             TIHULU_UI_SNAPSHOT_DIR=/ui-preview QT_QPA_PLATFORM=offscreen PYTHONPATH=/usr/share/tihulu-satellite-center /usr/bin/python3 -m satellite_center.desktop --smoke
-            QTWEBENGINE_DISABLE_SANDBOX=1 QTWEBENGINE_CHROMIUM_FLAGS="--disable-gpu --no-sandbox --disable-dev-shm-usage" QT_QPA_PLATFORM=offscreen PYTHONPATH=/usr/share/tihulu-satellite-center /usr/bin/python3 -m satellite_center.native_web_shell --smoke --screenshot=/ui-preview/08-exact-web.png
+            QTWEBENGINE_DISABLE_SANDBOX=1 LIBGL_ALWAYS_SOFTWARE=1 QTWEBENGINE_CHROMIUM_FLAGS="--disable-gpu --no-sandbox --disable-dev-shm-usage" QT_QPA_PLATFORM=xcb PYTHONPATH=/usr/share/tihulu-satellite-center xvfb-run -a -s "-screen 0 1365x950x24" /usr/bin/python3 -m satellite_center.native_web_shell --smoke --screenshot=/ui-preview/08-exact-web.png
             tihulu-satellite-center serve --port 8877 >/tmp/satellite.log 2>&1 &
             pid=$!
             trap "kill $pid 2>/dev/null || true" EXIT
