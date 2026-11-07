@@ -142,6 +142,50 @@ forcing ABI-incompatible libraries or replacing system libQt5Gui.
 The source-build CI proves it works with Ubuntu 24.04 distro Qt;
 a particular desktop still needs runtime and DVB hardware testing.
 
+## Live video freezes or stalls — Pop!_OS / COSMIC / NVIDIA
+
+The tuner and Kaffeine must not be replaced with another scanner. There
+are **two independent causes** of a frozen live picture:
+
+- **RF loss:** the previous Hauppauge WinTV-soloHD tests showed real
+  uncorrected blocks (UCB) and MPEG-TS continuity errors. Software
+  cannot reconstruct missing DVB packets. Reposition the indoor aerial
+  and compare a free-to-air channel at 538/586 MHz; keep other DVB apps
+  closed during TV playback.
+- **HEVC/AAC-LATM/libVLC decoder:** NVIDIA + Wayland/COSMIC previously
+  produced VA-API/VDPAU initialization failures. libVLC may also emit
+  AAC-LATM unsupported subframe warnings. A good signal is not proof that
+  the decoder is healthy.
+
+The Kaffeine-native app now has three per-session playback profiles,
+without changing system Kaffeine, AI settings, channel lists or the tuner:
+
+- Normal launcher: `~/.local/bin/tihulu-kaffeine`. On NVIDIA **and**
+  Wayland it selects a software decoder profile by default. On Pi 5 and
+  other systems it leaves Kaffeine's original libVLC selection alone.
+- `~/.local/bin/tihulu-kaffeine --software-video`: explicitly disables
+  libVLC accelerated decoding and applies 1500ms file FIFO caching.
+  Requires more CPU; compare a known free-to-air HEVC channel.
+- `~/.local/bin/tihulu-kaffeine --auto-video`: return to Kaffeine's
+  original hardware-decoding preferences for performance comparison.
+- `~/.local/bin/tihulu-kaffeine --diagnose-no-audio`: same software video
+  path, temporarily disable audio, to isolate the previous AAC-LATM
+  issue. This is *diagnostic only*, not a replacement for audio support.
+
+Kaffeine **Settings → Configure Kaffeine → libVLC arguments** continues
+to take precedence if you explicitly set hardware decoding or caching
+flags there. The profiles apply at process startup, so quit Kaffeine
+fully before switching. Logging can be captured with:
+
+~~~bash
+~/.local/bin/tihulu-kaffeine --software-video 2>&1 | tee ~/tihulu-tv-playback.log
+~~~
+
+Do **not** assume the new profile fixes antenna signal loss. Look for
+VLC decoder failures and compare with DVB signal lock/UCB changes. When
+TV plays normally but the caption panel stutters, close the AI consumer
+temporarily to distinguish Whisper CPU saturation from playback.
+
 ## Known limitations and cautions
 
 Kaffeine itself uses **libVLC**. Existing VA-API/VDPAU, AAC-LATM, HEVC
