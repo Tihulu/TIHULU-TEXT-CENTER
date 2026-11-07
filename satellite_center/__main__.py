@@ -449,20 +449,25 @@ class Station:
         result = self.usb_test()
         if result.get("state") != "usb_receiver_opened":
             raise RuntimeError("No successful physical USB-open evidence")
+        sampling = self.sample_test()
+        if sampling.get("state") != "real_iq_samples_received":
+            raise RuntimeError("Physical USB opened, but no real IQ samples were verified")
         with self.lock:
             if self.closed.is_set() or self.receiver_generation != generation:
                 raise RuntimeError("Receiver was disconnected while verifying; RF stays disabled")
             self.receiver_enabled = True
-            self.receiver_test = {"state": "usb_opened_then_released",
+            self.receiver_test = {"state": "usb_and_iq_verified_then_released",
                                   "verified_at": stamp(),
-                                  "evidence": result.get("evidence", "rtl_test")}
+                                  "sample_bytes": sampling["sample_bytes"],
+                                  "evidence": sampling["evidence"]}
             safe_write(self.directory/"hardware.json", {"receiver_enabled": True})
             if any(j.get("state") == "pending" for j in self.jobs):
                 self.start_scheduler()
                 self.wake.set()
         return {"receiver_enabled": True, "usb_test": result,
-                "connection": "verified_then_released",
-                "note": "USB test succeeded and its handle was closed. No SDR is held open while idle."}
+                "sample_test": sampling,
+                "connection": "usb_and_iq_verified_then_released",
+                "note": "Physical rtl_test and rtl_sdr sample acquisition succeeded. Both processes/leases released; no SDR remains open while idle."}
 
     def disconnect_receiver(self):
         """Explicit persistent RF disarm; only Satellite Center's own children.
