@@ -40,16 +40,20 @@ class NativeMapParityTests(unittest.TestCase):
         planner=(root/"browser"/"browser.js").read_text(encoding="utf-8")
         maps=(root/"browser"/"satellite_maps.mjs").read_text(encoding="utf-8")
         for name in ("nativeOrbitCatalog", "nativeOrbitPasses",
-                     "nativeOrbitSnapshot", "nativeWorldOutline"):
+                     "nativeOrbitSnapshot", "nativeWorldOutline",
+                     "nativeImportTle", "nativeCustomTle"):
             self.assertIn("window."+name,frontend)
-        for op in ('"tle_catalog"','"orbit_snapshot"','"world_outline"'):
+        for op in ('"tle_catalog"','"orbit_snapshot"','"world_outline"',
+                   '"tle_import"','"tle_custom"'):
             self.assertIn(op,backend)
         self.assertIn("with_track=with_tracks",backend)
         self.assertIn("typeof window.nativeOrbitCatalog==='function'",planner)
         self.assertIn("typeof window.nativeOrbitPasses==='function'",planner)
+        self.assertIn("typeof window.nativeImportTle==='function'",planner)
         self.assertIn("typeof window.nativeOrbitSnapshot==='function'",maps)
         self.assertIn("typeof window.nativeWorldOutline==='function'",maps)
         self.assertIn("await getSatLib()",maps) # browser/PWA fallback remains
+        self.assertIn('"manual"',(root/"native_orbit.py").read_text(encoding="utf-8"))
         geo=json.loads((root/"browser"/"natural-earth-land-110m.geojson").read_text())
         self.assertEqual(geo["type"],"FeatureCollection")
         self.assertGreater(len(geo["features"]),100)
