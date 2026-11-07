@@ -180,3 +180,19 @@ Use **Remove managed AI runtime** (from an instance started with system Python)
 or close the app and run `tihulu-tv-center remove-runtime` to uninstall it.
 Model files and TV channels stay untouched. This feature is opt-in and not
 hardware-validated on Raspberry Pi 5.
+
+### Install / remove optional whisper.cpp CPU engine
+
+In **Settings → Model Market**, use **Install CPU Whisper engine (source build)**
+to explicitly clone official `ggml-org/whisper.cpp` release `v1.9.5`, verify
+the expected release commit prefix and compile a CPU-only `whisper-cli` in
+`~/.local/share/tihulu-tv-center/whisper-runtime`. This is **not performed
+by the one-line installer**. Requires `git`, `cmake`, and a C++ compiler;
+install missing build tools yourself, for example
+`sudo apt install git cmake g++`. Raspberry Pi 5 compilation and runtime
+performance remain unverified. The **Remove managed Whisper engine** control
+deletes the managed build and leaves downloaded Whisper models untouched.
+
+GPU and NPU need their own compatible, independently installed backends and
+models (CUDA faster-whisper, Intel OpenVINO or supported Hailo runtime); the
+presence of an accelerator alone does not imply inference is ready.

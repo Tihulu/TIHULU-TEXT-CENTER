@@ -50,6 +50,10 @@ class AISettings:
 
     def configure_environment(self):
         """Bridge existing TEXT CENTER runtime without loading model unless enabled."""
+        from .whisper_engine import WhisperRuntime
+        managed = WhisperRuntime()
+        if managed.ready():
+            os.environ["TIHULU_WHISPER_CLI"] = str(managed.binary)
         if not self.values["asr_enabled"]:
             os.environ.pop("TIHULU_WHISPER_MODEL", None)
             os.environ["TIHULU_TV_ASR_BACKEND"] = "off"

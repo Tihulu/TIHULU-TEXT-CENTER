@@ -98,7 +98,10 @@ def detect_devices(*, executable_lookup=None, device_root=None,
                     "detail":("Hailo local HEF/NPY Whisper model configured" if hailo_ready else
                               "OpenVINO NPU Whisper model locally configured" if ov_ready
                               else "NPU device alone is insufficient; compatible model/runtime missing.")})
-    executable=lookup("whisper-cli") or lookup("main")
+    explicit_cli = os.environ.get("TIHULU_WHISPER_CLI", "")
+    executable=(explicit_cli if explicit_cli and
+                Path(explicit_cli).is_file() and os.access(explicit_cli, os.X_OK)
+                else lookup("whisper-cli") or lookup("main"))
     gpu_model_dir=os.environ.get("TIHULU_FASTER_WHISPER_MODEL","")
     gpu_model=Path(gpu_model_dir).expanduser() if gpu_model_dir else None
     cuda_count=0

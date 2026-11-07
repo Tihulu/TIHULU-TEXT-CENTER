@@ -8,12 +8,13 @@ def open_ai_settings(parent, ai, after_save=None):
     from PyQt5.QtCore import Qt, QTimer
     from PyQt5.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QGroupBox,
         QFormLayout, QCheckBox, QComboBox, QLabel, QListWidget, QPushButton,
-        QFileDialog, QMessageBox, QLineEdit)
+        QFileDialog, QMessageBox, QLineEdit, QWidget, QScrollArea)
 
     from .model_market import (CATALOG, ModelLibrary, ModelError,
         argos_available_pairs, argos_installed_pairs, argos_install, argos_remove)
     from textcenter.compute import detect_devices, choose_backend
     from .runtime import AIRuntime, RuntimeErrorAI
+    from .whisper_engine import WhisperRuntime, WhisperRuntimeError
 
     class Manager(QDialog):
         def __init__(self):
@@ -24,7 +25,13 @@ def open_ai_settings(parent, ai, after_save=None):
             self.work = queue.Queue()
             self.running = False
             self.library = ModelLibrary(ai.values["model_dir"] or None)
-            root = QVBoxLayout(self)
+            outer = QVBoxLayout(self)
+            scroll = QScrollArea()
+            scroll.setWidgetResizable(True)
+            body = QWidget()
+            root = QVBoxLayout(body)
+            scroll.setWidget(body)
+            outer.addWidget(scroll)
             self.info = QLabel("All models are optional. Downloads occur only after you choose and confirm. "
                                "No AI processing runs while subtitles are off.")
             self.info.setWordWrap(True)
@@ -52,6 +59,16 @@ def open_ai_settings(parent, ai, after_save=None):
             self.model_path = QLineEdit(ai.values["model_path"])
             self.model_path.setPlaceholderText("No active Whisper model selected")
             form.addRow("Active model (CPU GGML or runtime-specific)", self.model_path)
+            whisper_buttons = QHBoxLayout()
+            self.install_whisper = QPushButton("Install CPU Whisper engine (source build)")
+            self.install_whisper.clicked.connect(self.install_whisper_runtime)
+            self.delete_whisper = QPushButton("Remove managed Whisper engine")
+            self.delete_whisper.clicked.connect(self.remove_whisper_runtime)
+            whisper_buttons.addWidget(self.install_whisper)
+            whisper_buttons.addWidget(self.delete_whisper)
+            form.addRow(whisper_buttons)
+            self.whisper_state = QLabel("")
+            form.addRow("Whisper CPU engine", self.whisper_state)
             self.engine_state = QLabel("")
             form.addRow("Optional AI Python runtime", self.engine_state)
             engine_buttons = QHBoxLayout()
@@ -138,6 +155,24 @@ def open_ai_settings(parent, ai, after_save=None):
             status = runtime.status()
             self.engine_state.setText("Installed in " + status["path"] if status["installed"]
                                       else "Not installed. Argos package downloads need an engine.")
+            whisper = WhisperRuntime()
+            self.whisper_state.setText("CPU whisper-cli ready: " + str(whisper.binary) if whisper.ready()
+                                       else "Not installed. Requires git, cmake, C++ compiler when built.")
+
+        def install_whisper_runtime(self):
+            if QMessageBox.question(self, "Build optional Whisper CPU engine",
+                "Download the pinned whisper.cpp v1.9.5 source from GitHub and "
+                "compile CPU-only on this device? Requires git/cmake/g++; it may "
+                "use significant CPU, time and storage. Nothing installs globally.") != QMessageBox.Yes:
+                return
+            self.begin("Compiling optional Whisper CPU engine…", WhisperRuntime().install)
+
+        def remove_whisper_runtime(self):
+            if QMessageBox.question(self, "Remove managed Whisper CPU runtime",
+                "Delete only the user-owned whisper.cpp build folder? "
+                "GGML models and other TV settings are preserved.") != QMessageBox.Yes:
+                return
+            self.begin("Removing CPU Whisper engine…", WhisperRuntime().remove)
 
         def install_engine_runtime(self):
             if QMessageBox.question(self, "Install optional translator runtime",
