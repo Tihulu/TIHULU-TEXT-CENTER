@@ -115,6 +115,10 @@ def transform(files):
 		if (writeFd >= 0) {
 			buffers.append(buffer);
 ''')
+    # DvbManager only forward-declares DvbConfig; the diagnostic iterates
+    # QList<DvbConfig> so include the complete shared-pointer definition.
+    change(live, '#include "dvbdevice.h"\n',
+           '#include "dvbdevice.h"\n#include "dvbconfig.h"\n')
     # The upstream "Didn't find a device with valid settings..." message
     # conflates disconnected USB, an unassigned channel source, another
     # active consumer and permission-denied. Emit actionable *read-only*
