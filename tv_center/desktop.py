@@ -231,6 +231,14 @@ def main():
             self.playback_diagnostics.setPlaceholderText(
                 "Tuner, service tables, live MPEG-TS and playback errors appear here.")
             reception_layout.addWidget(self.playback_diagnostics, 1)
+            diagnostics_actions=QHBoxLayout()
+            compat=QPushButton("Retry selected channel · compatible renderer")
+            compat.clicked.connect(self.retry_compat)
+            diagnostics_actions.addWidget(compat)
+            logs=QPushButton("View actual tuner / MPV logs")
+            logs.clicked.connect(self.open_playback_logs)
+            diagnostics_actions.addWidget(logs)
+            reception_layout.addLayout(diagnostics_actions)
             self.details_tabs.addTab(reception_tab,"Reception & diagnostics")
             captions_tab = QWidget()
             captions_layout = QVBoxLayout(captions_tab)
@@ -560,6 +568,42 @@ def main():
             if hasattr(self,"playback_detail") and not self.last_playback_error:
                 self.playback_detail.setText(
                     "Receiver stopped · USB/DVB device released by this application")
+
+        def retry_compat(self):
+            """Explicit fallback for XWayland/GL renderer problems."""
+            self.renderer.setCurrentText("x11-compat")
+            self.play()
+
+        def open_playback_logs(self):
+            from PyQt5.QtWidgets import QDialog
+            dialog=QDialog(self)
+            dialog.setWindowTitle("Real DVB tuning and MPV logs")
+            dialog.resize(800,540)
+            layout=QVBoxLayout(dialog)
+            viewer=QTextEdit(dialog)
+            viewer.setReadOnly(True)
+            parts=[]
+            for name,path in (("DVBv5 tuner",self.capture.zap_log_path),
+                              ("MPV player",self.capture.mpv_log_path)):
+                if not path or not Path(path).is_file():
+                    parts.append(name+": No log file for this session")
+                else:
+                    try:
+                        # Read only a bounded tail; never claim success based
+                        # on process startup or a historical channel name.
+                        with Path(path).open("rb") as stream:
+                            stream.seek(0,2)
+                            stream.seek(max(0,stream.tell()-16000))
+                            txt=stream.read(16000).decode("utf-8","replace")
+                        parts.append(name+" · "+str(path)+"\\n"+txt)
+                    except OSError as exc:
+                        parts.append(name+": "+str(exc))
+            viewer.setPlainText("\\n\\n".join(parts))
+            layout.addWidget(viewer)
+            close=QPushButton("Close")
+            close.clicked.connect(dialog.accept)
+            layout.addWidget(close)
+            dialog.exec_()
 
         def choose_model(self):
             file, _ = QFileDialog.getOpenFileName(self, "Select installed multilingual Whisper GGML model", str(Path.home()), "Whisper GGML models (*.bin);;All files (*)")
