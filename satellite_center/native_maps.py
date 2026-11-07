@@ -91,7 +91,10 @@ class OrbitCanvas(QWidget):
         latitude=(min(latitudes)+max(latitudes))/2
         width=max(100,self.width()-90)
         height=max(100,self.height()-105)
-        for zoom in range(11,1,-1):
+        # A single TLE marker is not a street address. Keep orbital "fit"
+        # geographically informative with visible coastlines/countries; users
+        # may still wheel-zoom the native Qt/OSM map up to street zoom 11.
+        for zoom in range(5,1,-1):
             cx,cy=mercator_xy(latitude,middle,zoom)
             world=256*2**zoom
             coords=[mercator_xy(p["lat"],p["lon"],zoom) for p in rows]
