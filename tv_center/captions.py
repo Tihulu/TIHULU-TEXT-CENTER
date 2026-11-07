@@ -106,7 +106,7 @@ def choose_audio_stream(streams, language):
 
 
 def asr_from_clip(path: Path, language: str, model: str,
-                  service_id: int | None = None) -> str:
+                  service_id: int | None = None, diagnostics=None) -> str:
     if language not in SUPPORTED:
         raise ValueError("Unsupported transcription language")
     selected_backend = os.environ.get("TIHULU_TV_ASR_BACKEND", "auto")
@@ -129,6 +129,10 @@ def asr_from_clip(path: Path, language: str, model: str,
     from textcenter.speech import transcribe_pcm
     profile = detect_devices()
     selected = choose_backend(profile, selected_backend)
+    if diagnostics is not None:
+        diagnostics["backend"] = selected.get("selected", "unknown")
+        diagnostics["model"] = Path(model).name if model else "not configured"
+        diagnostics["ready"] = bool(selected.get("ready"))
     if not selected.get("ready"):
         raise RuntimeError(selected.get("reason", "Offline speech engine unavailable"))
     if selected["selected"] == "cpu":
@@ -201,6 +205,7 @@ def decode_segment(ts: bytes, *, mode="auto", page=150, source="de",
         p = Path(tmp) / "broadcast.ts"
         p.write_bytes(ts)
         original, used, error = "", "", None
+        speech_diagnostics = {}
         if mode in ("teletext", "page", "auto"):
             # Automatic captions must use *actual* subtitle pages signaled by
             # the broadcaster, not arbitrary Teletext news/information pages.
@@ -210,7 +215,8 @@ def decode_segment(ts: bytes, *, mode="auto", page=150, source="de",
                     else "broadcaster_teletext_subtitles") if original else ""
         if not original and mode in ("asr", "auto"):
             try:
-                original = asr_from_clip(p, source, model, service_id)
+                original = asr_from_clip(p, source, model, service_id,
+                                         diagnostics=speech_diagnostics)
                 if original and previous_text:
                     from kaffeine_next.continuous_captions import remove_repeated_prefix
                     original = remove_repeated_prefix(previous_text, original)
@@ -228,6 +234,8 @@ def decode_segment(ts: bytes, *, mode="auto", page=150, source="de",
                     errors[language] = failed
         translated = translations.get(target)
         return {"original": original, "translated": translated, "translations": translations,
+                "asr_backend": speech_diagnostics.get("backend"),
+                "asr_model": speech_diagnostics.get("model"),
                 "translation_errors": errors, "source": used,
                 "source_language": source, "target_language": target,
                 "target_languages": list(targets), "page": page,
