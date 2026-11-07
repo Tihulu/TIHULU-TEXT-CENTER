@@ -54,7 +54,7 @@ jobs:
           mkdir -p dist/ui-preview
           docker run --rm -v "$PWD:/checkout:ro" -v "$PWD/dist/ui-preview:/ui-preview" debian:bookworm bash -euc '
             apt-get -qq update
-            DEBIAN_FRONTEND=noninteractive apt-get -qq install -y python3-pyqt5 python3-pyqt5.qtwebengine python3-numpy python3-skyfield rtl-sdr xdg-utils >/dev/null
+            DEBIAN_FRONTEND=noninteractive apt-get -qq install -y python3-pyqt5 python3-pyqt5.qtwebengine python3-numpy python3-skyfield rtl-sdr xdg-utils xvfb xauth libgl1-mesa-dri libegl1 >/dev/null
             dpkg -i /checkout/dist/*.deb
             tihulu-satellite-center doctor | grep -F "\"platform\": \"Linux\""
             TIHULU_UI_SNAPSHOT_DIR=/ui-preview QT_QPA_PLATFORM=offscreen PYTHONPATH=/usr/share/tihulu-satellite-center /usr/bin/python3 -m satellite_center.desktop --smoke
