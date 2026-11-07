@@ -49,10 +49,10 @@ class NativeAnalysisTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             root=Path(td)
             spectrum=root/"actual_rf_spectrum.csv"
-            spectrum.write_text("frequency_hz,relative_spectrum_db_uncalibrated\\n137900000,-29.2\\n")
+            spectrum.write_text("frequency_hz,relative_spectrum_db_uncalibrated\n137900000,-29.2\n")
             real_png=root/"actual_robot36.png"
-            # A genuine signed PNG header, no fabricated image content in application.
-            real_png.write_bytes(b"\\x89PNG\\r\\n\\x1a\\n")
+            from satellite_center.sstv_series35 import _png
+            real_png.write_bytes(_png(2,1,bytes([1,2,3,4,5,6])))
             bundle=export_results_zip([spectrum,real_png],root/"outputs.zip")
             with zipfile.ZipFile(bundle) as output:
                 files=output.namelist()
