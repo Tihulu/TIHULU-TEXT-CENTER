@@ -490,6 +490,7 @@
         lookup('passes',{lat,lon,hours,elevation});
       window.nativeOrbitSnapshot=(lat,lon,at_ms,tracks=false)=>
         lookup('orbit_snapshot',{lat,lon,at_ms,tracks});
+      window.nativeWorldOutline=()=>lookup('world_outline');
       setHardwareLabels();
       window.nativeWebBridgeReady=true;
       window.nativeRFTransport='rtl_sdr';
