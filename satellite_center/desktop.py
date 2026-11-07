@@ -646,7 +646,13 @@ class SatelliteWindow(QMainWindow):
         self.pass_schedule_button=self._button(
             "Plan recording for this pass  →",self._reveal_pass_schedule)
         self.pass_schedule_button.setEnabled(False)
-        detail.addWidget(self.pass_schedule_button)
+        self.pass_map_button=self._button(
+            "Show selected satellite on map",self._pass_to_map)
+        self.pass_map_button.setEnabled(False)
+        actions=QHBoxLayout()
+        actions.addWidget(self.pass_schedule_button)
+        actions.addWidget(self.pass_map_button)
+        detail.addLayout(actions)
         body.addWidget(self.pass_detail,1)
 
         settings=QGroupBox("Recording details · selected pass")
@@ -674,6 +680,18 @@ class SatelliteWindow(QMainWindow):
         body.addWidget(settings)
         settings.setVisible(False)
         self._render_pass_results()
+
+    def _pass_to_map(self):
+        item=self.pass_list.currentItem()
+        row=self.passes.get(item.data(0,Qt.UserRole)) if item else None
+        if not row:return
+        norad=int(row["norad"])
+        self._open_native_tab("Maps & Live")
+        self.map_search.setText(str(norad))
+        self._map_choose_satellite(norad)
+        self.statusBar().showMessage(
+            "Showing predicted orbit for NORAD "+str(norad)+
+            " · this does not start a radio receiver.",10000)
 
     def _reveal_pass_schedule(self):
         if not self.pass_list.currentItem():
@@ -1663,6 +1681,7 @@ class SatelliteWindow(QMainWindow):
         self.pass_profile.clear()
         self.arm_pass.setEnabled(bool(row))
         self.pass_schedule_button.setEnabled(bool(row))
+        self.pass_map_button.setEnabled(bool(row))
         if row:
             kinds=kinds_for_pass(row)
             self.pass_title.setText(row["name"]+"  ·  NORAD "+str(row.get("norad","?")))
@@ -2348,6 +2367,7 @@ def main(argv=None):
                 "los":(aos+timedelta(minutes=9)).isoformat(),
                 "max_elevation_deg":44.0,"profiles":["meteor"]}]})
             assert window.pass_list.topLevelItemCount()==1
+            assert window.pass_map_button.isEnabled()
             assert "image" in window.pass_overview.text().lower()
             assert "LRPT" in window.pass_requirements.text()
             window.pass_media_filter.setCurrentIndex(
