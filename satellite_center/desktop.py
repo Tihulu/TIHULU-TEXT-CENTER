@@ -270,6 +270,9 @@ class SatelliteWindow(QMainWindow):
           QMenu::item:selected{background:#26547b}
           QFrame#workflowCard{border:1px solid #324966;border-radius:14px;background:#1b2a43}
           QFrame#workflowCard QLabel{background:transparent;border:0}
+          QGroupBox QLabel{background:transparent;border:0}
+          QScrollArea QLabel{background:transparent;border:0}
+          QLabel#fileBanner{background:#122e45;border:1px solid #345c79}
           QLabel#workflowStep{font-size:14px;font-weight:750;color:#e9f6ff}
           QLabel#workflowDescription{color:#afc9e2;font-size:12px}
           QLabel#homeTagline{font-size:15px;color:#b8d8ea}
@@ -439,7 +442,7 @@ class SatelliteWindow(QMainWindow):
             "All radio access uses native rtl_sdr/rtl_fm tools and your attached USB SDR. "
             "No WebUSB, browser, server or embedded website."))
 
-        workflow=QGroupBox("Satellite Auto-Capture & Decode — three steps")
+        workflow=QGroupBox("Satellite Auto-Capture && Decode — three steps")
         w=QVBoxLayout(workflow)
         w.addWidget(self._hint(
             "Select a published image, text or voice target and schedule real local RF acquisition. "
@@ -575,7 +578,7 @@ class SatelliteWindow(QMainWindow):
                                   lambda:self._open_native_tab("Passes & Data")))
         right.addWidget(planner)
 
-        calendar=QGroupBox("4 · Scheduled reception & recorded data")
+        calendar=QGroupBox("4 · Scheduled reception && recorded data")
         cl=QVBoxLayout(calendar)
         self.home_jobs_status=self._hint("No native RF jobs checked yet.")
         cl.addWidget(self.home_jobs_status)
