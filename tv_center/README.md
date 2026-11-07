@@ -3,9 +3,11 @@
 **Status: experimental v0.1, untested on actual Raspberry Pi 5 and not a finished stable release.**
 
 A standalone, native Qt Widgets + MPV DVB-T/T2 television frontend for **Debian, Ubuntu,
-Pop!_OS COSMIC and 64-bit Raspberry Pi OS on Raspberry Pi 5**. The receiver runs locally:
-the browser is **not** asked to use WebUSB. A separate GitHub Pages client can view
-real captions and request Teletext pages through an **opt-in token-protected loopback bridge**.
+Pop!_OS COSMIC and 64-bit Raspberry Pi OS on Raspberry Pi 5**. The native receiver runs locally.
+The GitHub Pages companion can request optional WebUSB permission for the specific Hauppauge
+USB ID, but **does not yet implement a browser DVB-T2 tuner driver or live video decoder**.
+Real captions and page requests use an optional, token-protected loopback bridge.
+WebGPU/WebAssembly capability detection is included, but browser AI inference is not yet implemented.
 
 The project lives beside the existing TEXT CENTER services. TV and offline AI workers
 reuse the already implemented `textcenter.speech`, `textcenter.compute` and
@@ -80,7 +82,8 @@ using the DVB service ID. Other DVB owners (Kaffeine/Tvheadend) must be stopped 
 A manual scan button accepts a genuine initial transponder file from
 `/usr/share/dvb/dvb-t/`. It runs `dvbv5-scan` explicitly and writes
 `~/.config/tihulu-tv-center/channels.conf`.
-Country-specific scanning profiles/EPG service indexing are not implemented in v0.1.
+Country-aware full auto-scanning is implemented for DE/TR and DVB-T/T2 or DVB-C with
+w-scan-cpp. EPG service indexing and hardware acceptance remain incomplete.
 
 ## Captions, Teletext and installable languages
 
@@ -103,9 +106,10 @@ English** selectable independently as source and target. Install
 `--system-site-packages`) and use the **Install local .argosmodel** button.
 Missing language pairs show a real error; no invented translations.
 
-This first decoding path parses the first discovered Teletext/audio stream in
-the selected TS multiplex. On multi-service multiplexes the mapping to the
-current service still needs a hardware-stream acceptance test.
+This experimental decoding path selects Teletext/audio streams using the selected
+program's service ID when available, so neighboring multiplex services should
+not be mistaken for the current channel. Real-stream PID changes, DVB subtitle
+formats and audio mapping still require hardware acceptance testing.
 
 ## Web companion / GitHub Pages
 
@@ -122,11 +126,12 @@ request. Browser localhost/private-network protections may prevent the
 connection. To access a Pi across the LAN, a separate authenticated TLS
 reverse proxy with owner isolation is required; it is NOT bundled.
 
-**Video playback in the Pages companion is not implemented.** Raw DVB MPEG-TS/
-HEVC is not reliably supported by ordinary browser media elements. A properly
-secured, demand-started browser-compatible video relay would need additional
-transcoding/buffering and Pi hardware testing. Do not mislabel the web preview
-as a working remote television player.
+**Video playback in the public GitHub Pages companion is not implemented.**
+WebUSB permission is only detection: raw DVB MPEG-TS/HEVC is not reliably supported
+by ordinary browser media elements, nor can WebGPU substitute for the missing
+DVB tuner driver. The experimental separate native LAN/HLS modules require
+further UI integration, pairing/stream testing and Pi hardware validation
+before they can be described as a supported remote TV solution.
 
 ## Acceptance criteria and current gaps
 
