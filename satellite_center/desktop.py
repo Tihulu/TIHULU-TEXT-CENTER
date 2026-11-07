@@ -1068,7 +1068,7 @@ class SatelliteWindow(QMainWindow):
     def _home_coordinates_changed(self,*_):
         if not hasattr(self,"lat"):
             return
-        if self.home_station.currentData() not in ("custom","offline","online"):
+        if self.home_station.currentData()!="custom":
             self.home_station.blockSignals(True)
             self.home_station.setCurrentIndex(self.home_station.findData("custom"))
             self.home_station.blockSignals(False)
