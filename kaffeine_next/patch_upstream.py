@@ -15,7 +15,7 @@ PATHS = ("src/mainwindow.cpp", "src/dvb/dvbliveview.cpp",
          "src/dvb/dvbliveview_p.h", "src/dvb/dvbmanager.cpp", "src/dvb/dvbtab.cpp",
          "src/dvb/dvbtab.h", "src/backend-vlc/vlcmediawidget.cpp",
          "src/mediawidget.cpp", "src/mediawidget.h", "src/osdwidget.cpp",
-         "src/osdwidget.h")
+         "src/osdwidget.h", "src/main.cpp", "src/dvb/dvbepg.cpp")
 
 def transform(files):
     files = dict(files)
@@ -422,13 +422,13 @@ void OsdWidget::showObject(OsdObject *osdObject_, int duration)
     # provides "Current Transponder" when the live view owns the tuner.
     # Add an explicit, confirmation-protected full scanner instead.
     change(tab, '#include <QMenu>\n',
-           '#include <QMenu>\n#include <QMessageBox>\n')
+           '#include <QMenu>\n#include <QMessageBox>\n#include <QTimer>\n')
     change(tab, '''\tmenu->addAction(collection->addAction(QLatin1String("dvb_channels"), channelsAction));
 ''', '''\tmenu->addAction(collection->addAction(QLatin1String("dvb_channels"), channelsAction));
 \tQAction *fullScanAction = new QAction(
 \t\tQIcon::fromTheme(QLatin1String("edit-find")),
 \t\ti18n("Full Antenna Scan..."), this);
-\tconnect(fullScanAction, SIGNAL(triggered(bool)), this, SLOT(showFullScanDialog()));
+\tconnect(fullScanAction, &QAction::triggered, this, &DvbTab::showFullScanDialog);
 \tmenu->addAction(collection->addAction(QLatin1String("tihulu_dvb_full_scan"), fullScanAction));
 ''')
     change(tab, '''void DvbTab::showChannelDialog()
@@ -447,7 +447,7 @@ void OsdWidget::showObject(OsdObject *osdObject_, int duration)
 \t\tmediaWidget->stop();
 \t\t// Give Kaffeine's asynchronous player status updates one event
 \t\t// loop turn to release the DVB frontend before the scan dialog opens.
-\t\tQTimer::singleShot(0, this, SLOT(showChannelDialog()));
+\t\tQTimer::singleShot(100, this, [this]() { showChannelDialog(); });
 \t\treturn;
 \t}
 \tshowChannelDialog();
@@ -460,6 +460,44 @@ void DvbTab::showChannelDialog()
     tabhdr = "src/dvb/dvbtab.h"
     change(tabhdr, '\tvoid showChannelDialog();',
            '\tvoid showChannelDialog();\n\tvoid showFullScanDialog();')
+
+    # KAboutData already registers --help/--help-all/--version; avoid
+    # duplicate h, help-all and v aliases observed in the user's logs.
+    appmain = "src/main.cpp"
+    change(appmain, '''\tapp.parser.addVersionOption();
+\tapp.parser.addHelpOption();
+\taboutData->setupCommandLine(&app.parser);''',
+    '''\t// KAboutData registers Qt help/version aliases exactly once.
+\taboutData->setupCommandLine(&app.parser);''')
+
+    # Global EPG category tables previously executed kli18n().toString()
+    # BEFORE main initialized KLocalizedString's application domain.
+    # Lazy function-local statics preserve all existing translations.
+    epg = "src/dvb/dvbepg.cpp"
+    source_epg = files[epg]
+    for name, dimensions in (
+        ("contentStr", "[16][16]"),
+        ("nibble1Str", "[16]"),
+        ("braNibble1Str", "[16]"),
+        ("braNibble2Str", "[16][16]"),
+    ):
+        qualifier = "const " if name != "braNibble2Str" else ""
+        declaration = "static " + qualifier + "QByteArray " + name + dimensions + " = {"
+        first = source_epg.find(declaration)
+        if first < 0:
+            raise ValueError("Missing EPG genre table: " + name)
+        close = source_epg.find("};", first)
+        if close < 0:
+            raise ValueError("Unterminated EPG genre table: " + name)
+        original = source_epg[first:close+2]
+        function = ("static " + qualifier + "QByteArray (&" + name + "())" +
+            dimensions + "\n{\n\tstatic " + qualifier + "QByteArray values" +
+            dimensions + " = {" + original.split("= {",1)[1][:-2] +
+            "};\n\treturn values;\n}")
+        source_epg = source_epg[:first] + function + source_epg[close+2:]
+        source_epg = source_epg.replace(name + "[nibble1]", name + "()[nibble1]")
+    files[epg] = source_epg
+
     return files
 
 def apply(root: Path):
