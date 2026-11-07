@@ -21,7 +21,12 @@ LANG = {"de":"deu_Latn","en":"eng_Latn","tr":"tur_Latn"}
 
 class TranslationModelMarket:
     def __init__(self, root=None):
-        self.root=Path(root or Path.home()/".local/share/tihulu-tv-center/translator-models").expanduser()
+        if root is None:
+            from .ai_settings import AISettings
+            selected = AISettings().values.get("model_dir", "")
+            root = (Path(selected) / "translator-models" if selected else
+                    Path.home()/".local/share/tihulu-tv-center/translator-models")
+        self.root=Path(root).expanduser()
         self.model=self.root/"nllb-600m"
         self.marker=self.model/".tihulu-nllb-ready"
 
@@ -43,8 +48,10 @@ class TranslationModelMarket:
             runtime.install_argos()
         python=runtime.status()["python"]
         self.root.mkdir(parents=True,exist_ok=True)
-        if not self.root.resolve().is_relative_to(Path.home().resolve()):
-            raise RuntimeError("Managed translator files must remain under the user's home")
+        if self.root.is_symlink() or self.root.resolve() == Path("/"):
+            raise RuntimeError("Refusing unsafe translator storage path")
+        if self.model.resolve().parent != self.root.resolve():
+            raise RuntimeError("Unsafe nested translator model path")
         if self.model.is_symlink():
             raise RuntimeError("Refusing symlink model directory")
         packages=["transformers>=4.44,<5","torch>=2.7","sentencepiece",
@@ -85,8 +92,8 @@ class TranslationModelMarket:
     def remove(self):
         if self.model.is_symlink() or not self.marker.is_file():
             raise RuntimeError("Refusing to remove unverified translator model")
-        if not self.model.resolve().is_relative_to(Path.home().resolve()):
-            raise RuntimeError("Translator model outside home; removal refused")
+        if self.model.resolve().parent != self.root.resolve() or self.root.resolve() == Path("/"):
+            raise RuntimeError("Translator model storage path unsafe; removal refused")
         shutil.rmtree(self.model)
         return "Managed NLLB translator removed; Argos packages preserved"
 
