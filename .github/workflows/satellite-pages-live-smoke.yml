@@ -1,0 +1,35 @@
+name: Satellite Center public Pages release smoke
+
+on:
+  push:
+    branches:
+      - feature/satellite-auto-discovery-integrated-2026-11-06
+    paths:
+      - 'scripts/check_satellite_pages_live.py'
+      - '.github/workflows/satellite-pages-live-smoke.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  published-web:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate published Pages HTML and JS (no SDR hardware)
+        shell: bash
+        run: |
+          for attempt in $(seq 1 18); do
+            echo "Checking actual HTTPS Pages deployment, attempt $attempt / 18"
+            if python3 scripts/check_satellite_pages_live.py; then
+              echo "GitHub Pages web preview6 static release verified."
+              exit 0
+            fi
+            if [ "$attempt" -eq 18 ]; then
+              echo "Pages remained unavailable/stale. Do not claim live site PASS." >&2
+              exit 1
+            fi
+            sleep 10
+          done
