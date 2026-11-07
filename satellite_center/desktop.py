@@ -1003,26 +1003,37 @@ class SatelliteWindow(QMainWindow):
             self.auto_iss_format.findData(self.home_iss_format.currentData()))
         self.auto_schedule()
 
+
     def _home_select_station(self,*_):
         selected=self.home_station.currentData()
         if not hasattr(self,"city"):
             return
         if selected in LOCATIONS:
+            self.home_search_timer.stop()
             self.city.setCurrentText(selected)
             self.home_city_info.setText(
-                "Preset ground station "+selected+" · editable latitude/longitude.")
+                "Preset: "+selected+" · change station any time, then recalculate passes.")
         elif selected=="offline":
+            self.home_auto_online.setChecked(False)
             self.home_city_search.setFocus()
+            self._home_find_city()
         elif selected=="online":
+            # Worldwide is a deliberate search preference and user permission
+            # to send the current query through Open-Meteo after debounce.
+            self.home_auto_online.setChecked(True)
+            self.home_country.setCurrentIndex(self.home_country.findData("all"))
             self.home_city_search.setFocus()
             self.home_city_info.setText(
-                "Enter any worldwide city, then click Search worldwide online. "
-                "The query is sent only when you click.")
+                "Worldwide online search selected. Type Sydney or another city; "
+                "suggestions will appear below without a second button.")
+            self._home_find_city()
         else:
+            self.home_search_timer.stop()
             self.city.setCurrentText("Custom coordinates")
+            self.home_advanced_button.setChecked(True)
             self.home_lat.setFocus()
             self.home_city_info.setText(
-                "Custom latitude and longitude can describe any Earth location.")
+                "Custom coordinates can describe any location on Earth.")
 
     def _home_update_regions(self,*_):
         if not hasattr(self,"_offline_cities"):
@@ -1071,55 +1082,143 @@ class SatelliteWindow(QMainWindow):
             self.home_region.blockSignals(False)
         self._home_find_city()
 
+
     def _home_find_city(self,*_):
         if not hasattr(self,"_offline_cities"):
             return
+        self.home_geocode_generation += 1
+        self.home_search_timer.stop()
         query=self.home_city_search.text().strip()
         cc=self.home_country.currentData() or "all"
         region=self.home_region.currentData()
-        rows=search_locations(self._offline_cities,query,cc,limit=18,region=region)
+        online_mode=self.home_station.currentData()=="online"
+        self.home_offline_results=[] if online_mode else search_locations(
+            self._offline_cities,query,cc,limit=12,region=region)
+        self.home_remote_results=[]
         if hasattr(self,"city_country") and hasattr(self,"city_region"):
             self._sync_home_region_to_detail()
+        self._home_render_location_results()
+        if len(query)<2:
+            self.home_city_info.setText(
+                "Type a city or town. Offline DE/TR results work without internet.")
+            return
+        automatic=online_mode or self.home_auto_online.isChecked()
+        if automatic and len(query)>=3:
+            self.home_city_info.setText(
+                "Searching worldwide after a short pause (Open-Meteo opt-in)…")
+            self.home_search_timer.start()
+        elif self.home_offline_results:
+            self.home_city_info.setText(
+                f"{len(self.home_offline_results)} local match(es) · select a location.")
+        else:
+            self.home_city_info.setText(
+                "No offline match. Use worldwide online search or custom coordinates.")
+
+    def _home_render_location_results(self):
+        choices=list(self.home_offline_results)[:12]+list(self.home_remote_results)[:10]
         self.home_city_results.blockSignals(True)
         self.home_city_results.clear()
-        for row in rows:
-            item=QListWidgetItem(city_label(row))
+        for row in choices:
+            online=isinstance(row,dict)
+            label=row["label"] if online else city_label(row)+" · Offline"
+            item=QListWidgetItem(label)
             item.setData(Qt.UserRole,row)
             self.home_city_results.addItem(item)
         self.home_city_results.blockSignals(False)
-        if len(query)<2:
-            self.home_city_info.setText(
-                "Choose Germany/Türkiye and a state/province, then type at least "
-                "2 characters to search 8,084 offline towns/cities.")
-        elif rows:
-            self.home_city_info.setText(
-                str(len(rows))+" matching place(s) · select one to apply coordinates. "
-                "Source provides states/provinces + towns; not a complete district registry.")
-        else:
-            self.home_city_info.setText(
-                "No offline city/town match in this region. Try All states, "
-                "custom coordinates or worldwide online search.")
+        self.home_city_results.setVisible(bool(choices))
+
+    def _home_online_option_changed(self,enabled):
+        if not enabled:
+            self.home_search_timer.stop()
+            self.home_remote_results=[]
+            self.home_geocode_generation+=1
+        self._home_find_city()
+
+    def _home_online_auto_search(self):
+        query=self.home_city_search.text().strip()
+        if len(query)<3 or not (
+            self.home_auto_online.isChecked() or self.home_station.currentData()=="online"):
+            return
+        self._home_request_online(query)
+
+    def _home_request_online(self,query):
+        if "Home worldwide geocoding" in self.tasks:
+            # In-flight remote query may be stale; retry with newest query after
+            # it has completed rather than returning a mismatched old city.
+            self.home_search_timer.start(350)
+            return
+        cc="all" if self.home_station.currentData()=="online" else (
+            self.home_country.currentData() or "all")
+        cache_key=(query.casefold(),cc)
+        if cache_key in self.home_geocode_cache:
+            self._home_online_results(query,cc,self.home_geocode_cache[cache_key])
+            return
+        self.home_city_info.setText(
+            "Looking up "+query+" worldwide… Only this search term is sent.")
+        self._task(
+            "Home worldwide geocoding",
+            lambda:search_worldwide(query,cc),
+            lambda rows:self._home_online_results(query,cc,rows))
+
+    def _home_online_results(self,query,country,rows):
+        key=(query.casefold(),country)
+        if len(self.home_geocode_cache)>=25:
+            self.home_geocode_cache.pop(next(iter(self.home_geocode_cache)))
+        self.home_geocode_cache[key]=rows
+        if query!=self.home_city_search.text().strip():
+            self.home_search_timer.start(100)
+            return
+        self.home_remote_results=rows
+        self._home_render_location_results()
+        self.home_city_info.setText(
+            f"{len(rows)} worldwide city match(es). "
+            "Select the correct name, region and country to update the station."
+            if rows else
+            "Worldwide geocoder returned no matches. Check spelling or use custom coordinates.")
+
 
     def _home_apply_first_city(self):
         item=self.home_city_results.currentItem()
         if item is None and self.home_city_results.count():
             item=self.home_city_results.item(0)
         if item is not None:
-            self._home_apply_city_item(item)
+            return self._home_apply_city_item(item)
+        if len(self.home_city_search.text().strip())>=2:
+            return self._home_worldwide_lookup()
 
     def _home_apply_city_item(self,item):
         row=item.data(Qt.UserRole)
-        if not row or len(row)!=5:return
+        online=isinstance(row,dict)
+        if online:
+            lat,lon=float(row["lat"]),float(row["lon"])
+            label=row["label"]
+            mode="online"
+            query=row["name"]
+        elif isinstance(row,(tuple,list)) and len(row)==5:
+            lat,lon=float(row[3]),float(row[4])
+            label=city_label(row)
+            mode="offline"
+            query=row[1]
+        else:
+            return
+        if not -90<=lat<=90 or not -180<=lon<=180:return
+        self.home_search_timer.stop()
         self.home_station.blockSignals(True)
-        self.home_station.setCurrentIndex(self.home_station.findData("offline"))
+        self.home_station.setCurrentIndex(self.home_station.findData(mode))
         self.home_station.blockSignals(False)
+        self.home_city_search.blockSignals(True)
+        self.home_city_search.setText(query)
+        self.home_city_search.blockSignals(False)
+        self.home_city_results.setVisible(False)
+        self.home_offline_results=[]
+        self.home_remote_results=[]
         self.city.setCurrentText("Custom coordinates")
-        self.lat.setValue(float(row[3]))
-        self.lon.setValue(float(row[4]))
-        self.city_search.setText(city_label(row))
+        self.lat.setValue(lat)
+        self.lon.setValue(lon)
+        self.city_search.setText(label)
         self.home_city_info.setText(
-            "Selected offline ground station: "+city_label(row)+
-            f" · {row[3]:.5f}°, {row[4]:.5f}°. Recalculate passes.")
+            "Selected: "+label+f" · {lat:.5f}°, {lon:.5f}°. "
+            "Ready for Calculate passes. Typing alone never changes coordinates.")
 
     def _home_coordinates_changed(self,*_):
         if not hasattr(self,"lat"):
@@ -1153,10 +1252,19 @@ class SatelliteWindow(QMainWindow):
             home.setValue(target)
             home.blockSignals(False)
 
+
     def _home_worldwide_lookup(self):
-        self.home_city_info.setText(
-            "Searching the online worldwide city catalog on explicit request…")
-        self._search_online_city(self.home_city_search.text().strip())
+        query=self.home_city_search.text().strip()
+        if len(query)<2:
+            return QMessageBox.information(
+                self,"Worldwide location lookup",
+                "Type at least 2 characters to search worldwide.")
+        self.home_station.blockSignals(True)
+        self.home_station.setCurrentIndex(self.home_station.findData("online"))
+        self.home_station.blockSignals(False)
+        self.home_country.setCurrentIndex(self.home_country.findData("all"))
+        self.home_auto_online.setChecked(True)
+        self._home_request_online(query)
 
     def _render_home_passes(self,*_):
         if not hasattr(self,"home_pass_results"):
@@ -1324,60 +1432,17 @@ class SatelliteWindow(QMainWindow):
         self._refresh_city_regions()
         parent.addWidget(group)
 
-    def _search_online_city(self, query=None):
-        """Explicit opt-in Open-Meteo city name search, not live GPS."""
-        query=(self.city_search.text() if query is None else query).strip()
-        if len(query)<2 or len(query)>100:
-            return QMessageBox.information(
-                self,"Worldwide city search",
-                "Enter at least two city-name characters before online lookup.")
-        from urllib.parse import urlencode
-        from urllib.request import urlopen,Request
-        url=("https://geocoding-api.open-meteo.com/v1/search?"+
-             urlencode({"name":query,"count":10,"language":"en","format":"json"}))
-        def work():
-            with urlopen(Request(url,headers={
-                "User-Agent":"TIHULU-Satellite-Center-native/0.3"
-            }),timeout=12) as response:
-                data=response.read(500001)
-            if len(data)>500000:raise ValueError("Geocoding response too large")
-            records=json.loads(data).get("results") or []
-            rows=[]
-            for row in records[:10]:
-                try:
-                    lat,lon=float(row["latitude"]),float(row["longitude"])
-                except (KeyError,ValueError,TypeError):continue
-                if not -90<=lat<=90 or not -180<=lon<=180:continue
-                label=", ".join(str(row.get(part) or "")[:65] for part in
-                                ("name","admin1","country") if row.get(part))
-                rows.append((label,lat,lon))
-            return rows
-        self.city_info.setText("Contacting Open-Meteo only for the city name you entered…")
-        self._task("Worldwide geocoding",work,self._apply_online_cities)
 
-    def _apply_online_cities(self,rows):
-        if not rows:
-            self.city_info.setText("No online city result. Offline search or manual coordinates remain available.")
-            return
-        from PyQt5.QtWidgets import QInputDialog
-        labels=[f"{name}  ({lat:.4f}°, {lon:.4f}°)" for name,lat,lon in rows]
-        chosen,ok=QInputDialog.getItem(
-            self,"Choose online city / ground station",
-            "Online Open-Meteo result",labels,0,False)
-        if not ok:return
-        idx=labels.index(chosen)
-        name,lat,lon=rows[idx]
-        self.home_station.blockSignals(True)
-        self.home_station.setCurrentIndex(self.home_station.findData("online"))
-        self.home_station.blockSignals(False)
-        self.city.setCurrentText("Custom coordinates")
-        self.lat.setValue(lat);self.lon.setValue(lon)
-        self.city_info.setText(
-            "Online city selected: "+name+". Coordinates applied. "
-            "Orbit calculations are local; recalculate passes.")
-        self.home_city_info.setText(
-            "Worldwide online result: "+name+
-            f" ({lat:.5f}°, {lon:.5f}°). Shared station updated; recalculate passes.")
+    def _search_online_city(self, query=None):
+        # Detailed planner routes to the SAME inline results as Home.
+        # A Qt clicked(bool) signal is not a literal search string.
+        typed=query if isinstance(query,str) else self.city_search.text().strip()
+        if len(typed)<2:
+            return QMessageBox.information(
+                self,"Worldwide city search","Enter a city name first.")
+        self.home_city_search.setText(typed)
+        self._open_native_tab("Overview")
+        self._home_worldwide_lookup()
 
     def _request_system_location(self):
         if QMessageBox.question(
