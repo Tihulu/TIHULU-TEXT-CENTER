@@ -261,3 +261,41 @@ Try `x11-compat` if the GPU/XWayland output fails.
 The original `~/tv-*-channels.conf` files and Kaffeine settings are not
 changed by this fix. Do not reset the antenna or rescan unless actual lock
 or service information proves that is necessary.
+
+## Browser TV functionality (November 2026 development preview)
+
+The static GitHub Pages client now includes a fully opt-in `Browser AI Studio`
+using multilingual `onnx-community/whisper-tiny` or `whisper-small` through
+Transformers.js 3.8.1. It requests microphone or shared-tab audio (when the
+browser exposes an audio track), processes approximately 10-second chunks,
+performs local Whisper transcription using WebGPU or WASM fallback, and can
+translate via additional local ONNX models. First use downloads model weights
+from Hugging Face, with explicit confirmation. Model caching is managed by the
+browser, and a cache-clearing control is provided. DE↔EN and TR→EN models are
+published; EN→TR uses an experimental community export that may not work in
+all browsers. Native Argos translation remains the reliable alternative.
+
+**No WebUSB DVB driver:** WebUSB can request permission for Hauppauge USB
+2040:8268 but cannot yet tune demodulators, load firmware or extract a TV
+transport stream. WebGPU and WASM do not provide missing USB protocol
+semantics. Native Linux DVB remains required for *real* TV tuning and scanning.
+
+For real DVB viewing on a phone, explicitly enable **Allow phone / tablet on
+trusted Wi-Fi** in the native Settings panel. The host shows a six-digit PIN
+and a local `http://HOST:8769/` URL; navigate to that URL on the phone,
+pair, then optionally enable the CPU-intensive **Share live H.264/AAC video**
+checkbox. iPhone Safari can use HLS; Android typically needs hls.js.
+The same authenticated mobile interface exposes scanned TV/radio channels,
+favorites/inclusion/order, starting and cancelling a country/satellite scan,
+real signal and scan logs, subtitle mode and Teletext. Native source files
+and channel preferences are preserved when scans yield no services.
+
+GitHub Pages now shows these remote controls too, but only after an explicit
+local token bridge is enabled; some browsers reject HTTPS Pages to an HTTP
+loopback bridge under their Private Network Access policies. Pages does *not*
+carry video. The phone app intentionally serves from the trusted native host.
+Do not forward port 8769 to the public Internet: HTTP pairing cookies and
+live TV are not encrypted, and local Wi-Fi still requires care.
+
+All above integrations are experimental and subject to real DVB tuner, browser,
+codec, Pi 5 throughput and security acceptance testing before release.
