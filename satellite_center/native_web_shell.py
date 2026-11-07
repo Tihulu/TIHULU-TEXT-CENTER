@@ -121,8 +121,8 @@ class RFWork(QRunnable):
 
 class NativeReceiver(QObject):
     completed=pyqtSignal(str,str)
-    def __init__(self,station):
-        super().__init__()
+    def __init__(self,station,parent=None):
+        super().__init__(parent)
         self.station=station
         self.pool=QThreadPool(self)
         self.pool.setMaxThreadCount(4)
@@ -152,6 +152,26 @@ class NativeReceiver(QObject):
         except (ValueError,TypeError) as exc:
             self.reply.emit(request_id,json.dumps({"ok":False,"error":str(exc)}))
             return
+        # A remote JS import cannot silently cause hardware acquisition:
+        # every operation that enables/starts or schedules physical receiver
+        # acquisition requires an actual OS-native user confirmation.
+        if method in ("connect","capture","auto","schedule"):
+            description={
+                "connect":"Verify USB + real IQ and enable future RF reception",
+                "capture":"Start physical radio acquisition and write local data",
+                "auto":"Schedule future automatic real SDR recordings",
+                "schedule":"Schedule a specific TLE-backed RF pass recording",
+            }[method]
+            if QMessageBox.question(
+                self.parent(),"Native RTL-SDR authorization",
+                description+"?\n\nThis uses OS tools and local storage, "
+                "not WebUSB or an Internet receiver.\n"
+                "No satellite transmission or decoded media is presumed.",
+                QMessageBox.Yes|QMessageBox.No,QMessageBox.No
+            )!=QMessageBox.Yes:
+                self.reply.emit(request_id,json.dumps({
+                    "ok":False,"error":"Native RF action canceled by operator"}))
+                return
         self.in_flight.add(request_id)
         self.pool.start(RFWork(self,request_id,method,args))
 
@@ -255,7 +275,7 @@ class ExactWebWindow(QMainWindow):
         self.profile.installUrlSchemeHandler(SCHEME,self.assets)
         self.page=RestrictedPage(self.profile,self.web)
         self.web.setPage(self.page)
-        self.receiver=NativeReceiver(self.station)
+        self.receiver=NativeReceiver(self.station,self)
         self.channel=QWebChannel(self.page)
         self.channel.registerObject("nativeReceiver",self.receiver)
         self.page.setWebChannel(self.channel)
