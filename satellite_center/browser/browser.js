@@ -11,6 +11,7 @@ import {readUserProfiles} from './saved_satellite_protocols.mjs';
 import { selectAutomaticPasses, AUTO_TARGETS } from './auto_mission.mjs?v=20261106-iss-npu-release-v1';
 import {localDayKey,shiftCalendarDay,renderSatelliteCalendar} from './satellite_calendar.mjs?v=20261106-calendar-zip-v2';
 import { localDateInput, parseLocalScheduleTime, createScheduledPass, evaluateScheduledJob, secondsToJob, captureLevelSummary } from './schedule_controller.mjs?v=20261106-direct-fm-wav-v1';
+import {planChainedCapture,secondsFromEntry,humanCountdown,scheduledOverlap} from './chained_capture.mjs?v=20261107-chained-v1';
 import {captureBudget,formatCaptureBudget,STREAM_IQ_BYTES} from './capture_duration.mjs?v=20261106-stream-v1';
 import {createStreamingFmWavEncoder,createPcmWavHeader,wavOutputPlan} from './fm_wav_record.mjs?v=20261106-web-fm-wav-v1';
 // TIHULU Satellite Center — no-local-install receive-only browser mode.
@@ -51,6 +52,7 @@ let imageCandidateTarget=null;
 const notifyMaps = () => { if(satelliteMaps) void satelliteMaps.refresh().catch(e=>log('Map refresh: '+e.message)); };
 const maxRecordBytes = 128 * 1024 * 1024;
 const preparedLongStreams=new Map();
+const CHAIN_SEGMENT_GAP_SECONDS=6;
 const diskStreamingAvailable=()=>Boolean(window.isSecureContext&&typeof window.showSaveFilePicker==="function");
 const nativeLocal=()=>location.protocol==="http:"&&["localhost","127.0.0.1"].includes(location.hostname);
 async function nativeRequest(route,payload=null,csrf=null){
@@ -151,6 +153,34 @@ function releaseScheduledStream(job){
  if(!prepared)return;
  preparedLongStreams.delete(job.id);
  void abortLongCapture(prepared);
+}
+function buildBrowserChain(pass,{when,totalSeconds,rate,frequency,raw,wav,excludeIds=[]}){
+ const plan=planChainedCapture({startMs:when,totalSeconds,rate,raw,wav,untilMs:pass.los});
+ const groupId='chain:'+pass.id+':'+when+':'+frequency+':'+Math.random().toString(36).slice(2,8);
+ const batch=plan.segments.map(segment=>{
+   const job=createScheduledPass(pass,{when:segment.when,durationSeconds:segment.durationSeconds,
+     sampleRate:rate,frequency,saveRaw:raw,saveWav:wav,
+     diskStreamPrepared:false,wavDiskPrepared:false});
+   job.chainId=groupId;job.chainIndex=segment.index;job.chainTotal=plan.segments.length;
+   job.chainCaptureTotal=totalSeconds;
+   job.estimatedBytes=segment.estimatedRawBytes+segment.estimatedWavBytes;
+   job.message='Part '+segment.index+'/'+plan.segments.length+
+     ' · '+segment.durationSeconds+' s · '+(job.estimatedBytes/1e6).toFixed(1)+
+     ' MB · independent RF file. Possible inter-part gaps; not continuous I/Q.';
+   return job;
+ });
+ for(const candidate of batch){
+   if(jobs.some(other=>!excludeIds.includes(other.id)&&
+       ['armed','starting','running'].includes(other.state)&&
+       (other.id===candidate.id||scheduledOverlap(candidate,other,{guardSeconds:0}))))
+     throw Error('Single receiver conflict: another armed or running recording overlaps this capture chain.');
+ }
+ return {jobs:batch,plan};
+}
+function addBrowserChain(batch){
+ jobs.push(...batch);
+ jobs.sort((a,b)=>a.when-b.when);
+ renderJobs();
 }
 function outputSelectionText(raw,wav){
  if(raw&&wav)return 'CU8 + WAV selected · 2 separate files from the same RF recording';
@@ -1144,7 +1174,7 @@ function readableJobState(job,now=Date.now()){
  if(action==='waiting-receiver')return 'due / waiting for free receiver';
  if(action==='start')return 'due now';
  if(action==='missed')return 'expired';
- return 'armed / '+secondsToJob(job,now)+' s remaining';
+ return 'armed / '+humanCountdown(secondsToJob(job,now))+' remaining';
 }
 let browserCalendarSignature="";
 const browserCalendarDay=$('browser-calendar-date');
@@ -1233,7 +1263,7 @@ function showCalendarEdit(job,card){
 }
 function paintBrowserCalendar(force=false){
  const day=browserCalendarDay.value;
- const signature=day+'|'+jobs.map(j=>[j.id,j.when,j.state,j.frequency,j.durationSeconds].join(':')).join('|');
+ const signature=day+'|'+jobs.map(j=>[j.id,j.when,j.state,j.frequency,j.durationSeconds,j.chainId,j.chainIndex].join(':')).join('|');
  const editingCard=$('browser-calendar-grid').querySelector('.calendar-edit')?.closest('.sat-calendar-job');
  const editedJob=jobs.find(j=>j.id===editingCard?.dataset.jobId);
  if(!force&&editingCard&&editedJob?.state==='armed')return;
@@ -1243,8 +1273,11 @@ function paintBrowserCalendar(force=false){
    onEdit:showCalendarEdit,
    onCancel:job=>{
      if(job.state==='armed'){
-       releaseScheduledStream(job);
-     job.state='cancelled';job.message='Cancelled explicitly by operator. No RF capture started.';
+       for(const related of jobs.filter(j=>j.id===job.id||(job.chainId&&j.chainId===job.chainId))){
+         if(related.state!=='armed')continue;
+         releaseScheduledStream(related);
+         related.state='cancelled';related.message='Cancelled by operator with recording chain. No RF capture started.';
+       }
        browserCalendarSignature='';renderJobs();
      }
    }
@@ -1261,7 +1294,7 @@ $('browser-calendar-next').addEventListener('click',()=>{
 let lastRenderedJobCardsSignature='';
 function jobCardsSignature(){
  return JSON.stringify(jobs.map(j=>[j.id,j.state,j.when,j.until,j.frequency,
-   j.durationSeconds,j.sampleRate,j.saveRaw,j.message,j.downloadAvailable,
+   j.durationSeconds,j.sampleRate,j.saveRaw,j.saveWav,j.chainIndex,j.chainId,j.message,j.downloadAvailable,
    j.report,lastScheduledFile?.jobId===j.id]));
 }
 function renderJobs(){
@@ -1295,7 +1328,7 @@ function renderJobs(){
    const timings=document.createElement('p');
    timings.textContent='Scheduled start (local): '+fmtTime(job.when)+
      ' · pass ends '+fmtTime(job.until)+
-     ' · '+job.durationSeconds+' s · '+(job.sampleRate/1e6)+' MS/s'+
+     ' · '+job.durationSeconds+' s'+(job.chainId?' · PART '+job.chainIndex+'/'+job.chainTotal:'')+' · '+(job.sampleRate/1e6)+' MS/s'+
      ' · '+(job.saveRaw?'Raw IQ + power analysis':'Power analysis only');
    const message=document.createElement('p');
    message.textContent=job.message||'Waiting for browser scheduler.';
@@ -1304,8 +1337,11 @@ function renderJobs(){
      const cancel=document.createElement('button');cancel.type='button';
      cancel.className='secondary';cancel.textContent='Cancel scheduled scan';
      cancel.addEventListener('click',()=>{
-       releaseScheduledStream(job);
-     job.state='cancelled';job.message='Cancelled by user. No RF capture started.';
+       for(const related of jobs.filter(j=>j.id===job.id||(job.chainId&&j.chainId===job.chainId))){
+         if(related.state!=='armed')continue;
+         releaseScheduledStream(related);
+         related.state='cancelled';related.message='Cancelled by operator with recording chain.';
+       }
        renderJobs();
      });controls.append(cancel);
    }
