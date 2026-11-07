@@ -16,7 +16,8 @@ import os
 from pathlib import Path
 import re
 import sys
-from urllib.parse import unquote
+from urllib.parse import unquote, urlencode
+from urllib.request import Request, urlopen
 
 from PyQt5.QtCore import (
     QObject,QBuffer,QIODevice,QThreadPool,QRunnable,pyqtSignal,pyqtSlot,QUrl,QTimer,Qt,
@@ -156,7 +157,7 @@ class NativeReceiver(QObject):
             return
         if method not in {
             "status","connect","usb_open","sample","disconnect","stop",
-            "capture","auto","auto_cancel","schedule","refresh","passes",
+            "capture","auto","auto_cancel","schedule","refresh","passes","geocode",
         }:
             self.reply.emit(request_id,json.dumps({
                 "ok":False,"error":"Native command is not allowlisted"}))
@@ -207,6 +208,30 @@ class NativeReceiver(QObject):
             data["native_webui"]=True
             data["hardware_transport"]="OS rtl_sdr/rtl_fm, not WebUSB"
             return data
+        if command=="geocode":
+            # Explicit operator-initiated worldwide search; no GPS lookup.
+            # Provider coordinates are passed through, never inferred.
+            name=args.get("name")
+            country=args.get("country","all")
+            if not isinstance(name,str) or not 2<=len(name.strip())<=100:
+                raise ValueError("Geocoding requires a place name (2–100 characters)")
+            if not isinstance(country,str) or country not in ("all","DE","TR"):
+                raise ValueError("Unsupported geocoding country filter")
+            params={"name":name.strip(),"count":10,"language":"en","format":"json"}
+            if country!="all":params["countryCode"]=country
+            url="https://geocoding-api.open-meteo.com/v1/search?"+urlencode(params)
+            request=Request(url,headers={"User-Agent":"TIHULU-Satellite-Center/0.3"})
+            try:
+                with urlopen(request,timeout=9) as response:
+                    if response.status!=200:raise ValueError("Geocoding HTTP "+str(response.status))
+                    raw=response.read(131073)
+                if len(raw)>131072:raise ValueError("Geocoding response too large")
+                payload=json.loads(raw.decode("utf-8"))
+            except Exception as exc:
+                raise ValueError("Open-Meteo geocoding HTTPS request failed: "+str(exc)[:180]) from exc
+            if not isinstance(payload,dict):raise ValueError("Invalid geocoding response")
+            if payload.get("error"):raise ValueError(str(payload.get("reason","Geocoding provider error"))[:180])
+            return {"results":payload.get("results",[])[:10]}
         if command=="connect":return st.connect_receiver()
         if command=="usb_open":return st.usb_test()
         if command=="sample":
