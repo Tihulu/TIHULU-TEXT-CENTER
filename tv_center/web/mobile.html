@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="referrer" content="no-referrer"><meta name="theme-color" content="#0a1019">
+<title>TIHULU TV Center — Local TV</title><link rel="stylesheet" href="/style.css"></head>
+<body><div class="shell">
+<header><div><div class="eyebrow">TIHULU / LOCAL MEDIA</div><h1>TV Center <span>Mobile</span></h1></div><div class="state" id="state">NOT PAIRED</div></header>
+<main><section class="hero">
+<div class="eyebrow">LIVE DVB-T2</div><h2 id="channel">Receiver not yet connected</h2>
+<p id="source">Pair with the Linux host that has the physical DVB tuner plugged in.</p>
+<div class="video" id="video-box"><video id="tv" controls playsinline style="width:100%;height:auto;max-height:60vh;background:black"></video>
+<p id="video-status">Live video requires TV tuned and mobile streaming enabled on the host.</p>
+<button id="start-video" disabled>Watch live TV</button></div>
+<section class="captions"><div class="eyebrow">REAL BROADCAST CAPTIONS / TRANSLATION</div>
+<p id="original">Waiting for DVB Teletext or offline speech captions.</p><p id="translated" class="translated"></p>
+<small id="caption-source">No decoded caption yet</small></section></section>
+<aside><section class="panel"><h2>Pair with the host</h2>
+<p>Open TIHULU TV Center on the computer or Raspberry Pi with the USB tuner. Enable <b>Allow mobile access</b>. Enter the six-digit code shown there.</p>
+<label for="pin">One-time pairing code</label><input id="pin" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="one-time-code" placeholder="000000">
+<div class="actions"><button id="pair">Pair device</button><button id="leave" class="secondary" disabled>Disconnect</button></div><p id="pair-note">Nothing is transmitted to GitHub or a cloud AI service. Use only on trusted Wi-Fi.</p></section>
+<section class="panel"><h2>Interactive Teletext</h2><p>Enter a page number or choose a shortcut to view live broadcast subtitles or Teletext text.</p>
+<div class="actions"><input id="page" type="number" min="100" max="899" value="150"><button id="open-page" disabled>Open page</button></div>
+<div class="shortcuts"><button data-page="100">100</button><button data-page="150">150</button><button data-page="777">777</button></div><p id="teletext-result">Connect to a tuned receiver first.</p></section>
+<section class="panel"><h2>Languages / performance</h2><p>German, Turkish and English use the host's installed Whisper/Argos packages. Subtitles can be delayed by offline processing. Pi 5 480p HLS transcoding is experimental.</p>
+<p>iPhone Safari plays HLS natively. Android Chrome uses hls.js; Internet access may be needed to load that player library on first use.</p></section></aside></main>
+<footer>LOCAL HOST STREAM · PHYSICAL DVB TUNER · OPTIONAL AI · NO CLOUD REQUIRED FOR IOS SAFARI</footer>
+</div><script src="https://cdn.jsdelivr.net/npm/hls.js@1.7.3/dist/hls.min.js"></script>
+<script src="/mobile.js"></script></body></html>
