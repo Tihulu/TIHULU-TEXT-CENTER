@@ -26,7 +26,7 @@ from PyQt5.QtWidgets import (
     QMessageBox, QPlainTextEdit, QPushButton, QSpinBox, QSplitter, QTabWidget,
     QTableWidget, QTableWidgetItem, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget,
     QLineEdit, QFrame, QHeaderView, QSizePolicy, QCompleter, QScrollArea, QSlider,
-    QDialog, QDialogButtonBox, QToolButton, QMenu
+    QDialog, QDialogButtonBox, QToolButton, QMenu, QListWidget, QListWidgetItem
 )
 
 from .__main__ import Station, PROFILES, LOCATIONS, AUTO_DOWNLINK_PROFILES, allowed_mode
@@ -35,7 +35,8 @@ from .native_analysis import analyze_cu8, save_spectrum_report, export_results_z
 from .native_data_labels import describe_local_file
 from .media_catalog import (MEDIA_COLORS, MEDIA_SYMBOLS, kinds_for_pass, filter_passes,
                             media_summary, capabilities_for_pass)
-from .native_locations import load_locations, search_locations, city_label
+from .native_locations import load_locations, search_locations, city_label, regions_for
+from .native_pass_filters import sort_filter_passes
 from .native_orbit import OrbitEngine
 from .native_maps import OrbitCanvas
 from .native_map_parity import (
@@ -565,24 +566,153 @@ class SatelliteWindow(QMainWindow):
 
         planner=QGroupBox("3 · Satellite pass planner")
         pl=QVBoxLayout(planner)
+        pl.setSpacing(9)
         pl.addWidget(self._hint(
-            "Pass predictions use TLE geometry, not an RF measurement. "
-            "Choose a station, then calculate passes."))
+            "Find a ground station locally (Germany / Türkiye), anywhere online, "
+            "or enter coordinates. Orbit predictions are TLE geometry, not radio signals."))
         self.home_station=QComboBox()
         for city in ("Cologne","Berlin","Hamburg","Izmir","Istanbul","Ankara"):
             if city in LOCATIONS:self.home_station.addItem(city,city)
+        self.home_station.addItem("Custom coordinates (anywhere)","custom")
+        self.home_station.addItem("Search offline city / district / town","offline")
+        self.home_station.addItem("Search any city worldwide (online)","online")
         self.home_station.currentIndexChanged.connect(self._home_select_station)
         pl.addWidget(self.home_station)
+
+        location_filters=QHBoxLayout()
+        self.home_country=QComboBox()
+        for title,key in (("Germany + Türkiye","all"),("Germany","DE"),
+                          ("Türkiye","TR")):
+            self.home_country.addItem(title,key)
+        self.home_region=QComboBox()
+        self.home_region.addItem("All states / provinces",None)
+        self.home_country.currentIndexChanged.connect(self._home_update_regions)
+        self.home_region.currentIndexChanged.connect(self._home_find_city)
+        location_filters.addWidget(self.home_country,1)
+        location_filters.addWidget(self.home_region,2)
+        pl.addLayout(location_filters)
+
+        self.home_city_search=QLineEdit()
+        self.home_city_search.setPlaceholderText(
+            "Search city, district or town · Hürth, Köln, İzmir, Karaburun…")
+        self.home_city_search.setClearButtonEnabled(True)
+        self.home_city_search.textChanged.connect(self._home_find_city)
+        self.home_city_search.returnPressed.connect(self._home_apply_first_city)
+        pl.addWidget(self.home_city_search)
+        self.home_city_results=QListWidget()
+        self.home_city_results.setMaximumHeight(110)
+        self.home_city_results.setMinimumHeight(56)
+        self.home_city_results.itemClicked.connect(self._home_apply_city_item)
+        self.home_city_results.itemActivated.connect(self._home_apply_city_item)
+        pl.addWidget(self.home_city_results)
+        self.home_city_info=self._hint(
+            "8,084 bundled DE/TR places · choose country/state and type a name. "
+            "No internet or GPS access occurs while typing.")
+        pl.addWidget(self.home_city_info)
+        online_actions=QHBoxLayout()
+        online_actions.addWidget(self._button(
+            "Search worldwide online",self._home_worldwide_lookup))
+        online_actions.addWidget(self._button(
+            "Use OS location (ask permission)",self._request_system_location))
+        pl.addLayout(online_actions)
+
+        coordinates=QHBoxLayout()
+        self.home_lat=QDoubleSpinBox()
+        self.home_lat.setDecimals(5);self.home_lat.setRange(-90,90)
+        self.home_lat.setValue(50.938)
+        self.home_lon=QDoubleSpinBox()
+        self.home_lon.setDecimals(5);self.home_lon.setRange(-180,180)
+        self.home_lon.setValue(6.960)
+        self.home_lat.valueChanged.connect(self._home_coordinates_changed)
+        self.home_lon.valueChanged.connect(self._home_coordinates_changed)
+        coordinates.addWidget(QLabel("Latitude"))
+        coordinates.addWidget(self.home_lat,1)
+        coordinates.addWidget(QLabel("Longitude"))
+        coordinates.addWidget(self.home_lon,1)
+        pl.addLayout(coordinates)
+
+        lookahead=QHBoxLayout()
+        self.home_hours=QSpinBox()
+        self.home_hours.setRange(1,72);self.home_hours.setValue(24)
+        self.home_elev=QDoubleSpinBox()
+        self.home_elev.setRange(5,75);self.home_elev.setValue(15)
+        self.home_hours.valueChanged.connect(self._home_planning_range_changed)
+        self.home_elev.valueChanged.connect(self._home_planning_range_changed)
+        lookahead.addWidget(QLabel("Lookahead · h"))
+        lookahead.addWidget(self.home_hours,1)
+        lookahead.addWidget(QLabel("Min elevation · °"))
+        lookahead.addWidget(self.home_elev,1)
+        pl.addLayout(lookahead)
+
         stationrow=QHBoxLayout()
         stationrow.addWidget(self._button("Refresh orbit data",self.refresh_tles))
         stationrow.addWidget(self._button("Calculate passes",self.calculate_passes))
         pl.addLayout(stationrow)
         self.home_pass_summary=self._hint(
-            "No passes calculated. City search, custom coordinates, media filters "
-            "and detailed schedules are available in the pass planner.")
+            "No passes calculated. On the first calculation the app requests "
+            "public TLEs if no usable local orbit files exist.")
         pl.addWidget(self.home_pass_summary)
-        pl.addWidget(self._button("View passes · IMAGE / AUDIO / TEXT / RF",
-                                  lambda:self._open_native_tab("Passes & Data")))
+
+        self.home_pass_search=QLineEdit()
+        self.home_pass_search.setPlaceholderText("Filter satellite name or NORAD ID…")
+        self.home_pass_search.setClearButtonEnabled(True)
+        self.home_pass_search.textChanged.connect(self._render_home_passes)
+        pl.addWidget(self.home_pass_search)
+        filters=QHBoxLayout()
+        self.home_pass_family=QComboBox()
+        for label,value in (("All satellite families","all"),("ISS","iss"),
+                            ("Meteor","meteor"),("CubeSat","cubesat"),
+                            ("Iridium","iridium")):
+            self.home_pass_family.addItem(label,value)
+        self.home_pass_media=QComboBox()
+        for label,value in (("All formats","All"),("Image","Image"),
+                            ("Audio","Audio"),("Text/packets","Text"),
+                            ("RF data","RF data"),("RF only","RF only")):
+            self.home_pass_media.addItem(label,value)
+        self.home_pass_family.currentIndexChanged.connect(self._render_home_passes)
+        self.home_pass_media.currentIndexChanged.connect(self._render_home_passes)
+        filters.addWidget(self.home_pass_family)
+        filters.addWidget(self.home_pass_media)
+        pl.addLayout(filters)
+
+        self.home_pass_sort=QComboBox()
+        for label,value in (("Soonest","soonest"),("Latest","latest"),
+                            ("Highest elevation","high"),("Lowest elevation","low"),
+                            ("Longest duration","duration-long"),
+                            ("Shortest duration","duration-short"),
+                            ("Name A–Z","name")):
+            self.home_pass_sort.addItem(label,value)
+        self.home_pass_sort.currentIndexChanged.connect(self._render_home_passes)
+        sorter=QHBoxLayout()
+        sorter.addWidget(QLabel("Sort satellite passes"))
+        sorter.addWidget(self.home_pass_sort,1)
+        pl.addLayout(sorter)
+
+        self.home_pass_results=QTreeWidget()
+        self.home_pass_results.setHeaderLabels(
+            ["Satellite · NORAD","AOS · local","Peak","Formats"])
+        self.home_pass_results.setRootIsDecorated(False)
+        self.home_pass_results.setMaximumHeight(225)
+        self.home_pass_results.setMinimumHeight(120)
+        self.home_pass_results.header().setSectionResizeMode(0,QHeaderView.Stretch)
+        self.home_pass_results.header().setSectionResizeMode(1,QHeaderView.ResizeToContents)
+        for col in (2,3):
+            self.home_pass_results.header().setSectionResizeMode(
+                col,QHeaderView.ResizeToContents)
+        self.home_pass_results.itemSelectionChanged.connect(self._home_pass_selected)
+        pl.addWidget(self.home_pass_results)
+        self.home_pass_detail=self._hint(
+            "Select a predicted pass to see its timing and open the editable schedule.")
+        pl.addWidget(self.home_pass_detail)
+        pass_actions=QHBoxLayout()
+        self.home_plan_button=self._button(
+            "Plan selected pass",self._home_open_selected_pass)
+        self.home_plan_button.setEnabled(False)
+        pass_actions.addWidget(self.home_plan_button)
+        pass_actions.addWidget(self._button(
+            "Full pass planner / calendar",
+            lambda:self._open_native_tab("Passes & Data")))
+        pl.addLayout(pass_actions)
         right.addWidget(planner)
 
         calendar=QGroupBox("4 · Scheduled reception && recorded data")
