@@ -119,7 +119,7 @@ def transform(files):
     # before Kaffeine's existing FIFO -> libVLC. The AI tap above stays
     # pre-delay so Whisper can finish nearer to delayed playback.
     # A capped 64 MiB queue prevents uncontrolled memory growth on Pi 5.
-    change(hdr, '#include <QList>\n', '#include <QList>\n#include <QPair>\n')
+    change(hdr, '#include <QFile>\n', '#include <QFile>\n#include <QPair>\n')
     change(hdr, '''\tQString tihuluCaptionSocketPath;
 \tint tihuluCaptionFd;
 ''', '''\tQString tihuluCaptionSocketPath;
