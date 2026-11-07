@@ -115,6 +115,37 @@ def transform(files):
 		if (writeFd >= 0) {
 			buffers.append(buffer);
 ''')
+    # The upstream "Didn't find a device with valid settings..." message
+    # conflates disconnected USB, an unassigned channel source, another
+    # active consumer and permission-denied. Emit actionable *read-only*
+    # source diagnostics without changing device ownership or channel DB.
+    change(live, '''\tif (device == NULL) {
+\t\tchannel = DvbSharedChannel();
+\t\tmediaWidget->stop();
+
+\t\tif (manager->getRecordingModel()->hasActiveRecordings()) {''',
+    '''\tif (device == NULL) {
+\t\tconst QString requestedSource = channel->source;
+\t\tQStringList usableSources;
+\t\tint connectedDvbFrontends = 0;
+\t\tfor (const DvbDeviceConfig &entry : manager->getDeviceConfigs()) {
+\t\t\tif (entry.device == NULL) continue;
+\t\t\t++connectedDvbFrontends;
+\t\t\tfor (const DvbConfig &configured : entry.configs)
+\t\t\t\tif (!configured->name.isEmpty())
+\t\t\t\t\tusableSources.append(configured->name);
+\t\t}
+\t\tqCWarning(logDvb,
+\t\t\t"TIHULU no usable DVB frontend: requested channel source='%s'; "
+\t\t\t"connected receivers=%d; configured channel sources='%s'. "
+\t\t\t"Check Configure Television, USB ownership and access permissions.",
+\t\t\tqPrintable(requestedSource), connectedDvbFrontends,
+\t\t\tqPrintable(usableSources.join(QLatin1String(", "))));
+\t\tchannel = DvbSharedChannel();
+\t\tmediaWidget->stop();
+
+\t\tif (manager->getRecordingModel()->hasActiveRecordings()) {''')
+
     # Delay *both* audio and video by buffering already-filtered TS bytes
     # before Kaffeine's existing FIFO -> libVLC. The AI tap above stays
     # pre-delay so Whisper can finish nearer to delayed playback.
