@@ -376,87 +376,125 @@ class Station:
                     "archive": self.records()}
 
     def sample_test(self, frequency_hz=137900000):
-        """Explicit real-IQ probe. Does NOT create a recording or decode a satellite.
+        """Prove real IQ acquisition using a bounded local file, not stdout.
 
-        Independent of a normal capture, temporary rtl_sdr process and receiver
-        lock are released in every outcome. No USB power/reset is attempted.
+        readsb in Flight Radar and manual rtl_sdr captures use a native child
+        with file-backed output. A live rtl_sdr stream need not exit merely
+        because its initial sample threshold was reached: waiting on
+        communicate() could incorrectly time out a perfectly healthy tuner.
+        Instead stop this *owned* child as soon as >= 1 MiB of real CU8
+        samples have landed on disk, and verify those bytes before arming RF.
         """
-        hz=int(frequency_hz)
-        if hz not in {137900000,137100000,145800000,145825000,
-                      437550000,437800000,437825000,1620000000}:
+        import tempfile
+
+        hz = int(frequency_hz)
+        if hz not in {137900000, 137100000, 145800000, 145825000,
+                      437550000, 437800000, 437825000, 1620000000}:
             raise ValueError("Select a published receive-only diagnostic frequency")
-        tool=shutil.which("rtl_sdr")
+        tool = shutil.which("rtl_sdr")
         if not tool:
             raise RuntimeError("rtl_sdr not installed. Install rtl-sdr tools.")
-        with self.lock:
-            if self.closed.is_set() or self.session.get("active") or self.launching:
-                raise RuntimeError("Receiver in use; stop current activity before sampling")
-            self.launching=True
-            proc=None
-            try:
-                self.stopping.clear()
-                self._acquire()
-                # Real CU8 data, just under 1 MiB. Avoid the rtl_sdr async
-                # -n block-boundary termination bug (exact 524288 pairs).
-                proc=self._launch_receiver([
-                    tool,"-d","0","-f",str(hz),"-s","1024000",
-                    "-n",str(NATIVE_IQ_PROBE_SAMPLES),"-"
-                ],stdin=subprocess.DEVNULL,stdout=subprocess.PIPE,
-                   stderr=subprocess.PIPE)
-                self.process=proc
-            except BaseException:
-                self.launching=False
-                self._release()
-                raise
-        try:
-            try:
-                raw,errors=proc.communicate(timeout=15)
-            except subprocess.TimeoutExpired as exc:
-                stop_process(proc)
-                details=exc.stderr or b""
-                if isinstance(details,bytes):
-                    details=details.decode("utf-8","replace")
-                details=re.sub(r"[\\x00-\\x1f\\x7f]+"," ",str(details)[-260:]).strip()
-                raise RuntimeError(
-                    "Physical SDR IQ probe did not terminate within 15 seconds. "
-                    "Check USB availability, tuner PLL warnings, and SDR process state."
-                    +(" rtl_sdr: "+details if details else "")
-                ) from exc
-            if proc.returncode != 0 or len(raw) < 32768 or len(raw)%2:
-                message=errors.decode("utf-8","replace")[-320:]
-                raise RuntimeError(
-                    "Physical SDR did not produce usable complex IQ samples. "+
-                    re.sub(r"[\x00-\x1f\x7f]+"," ",message))
-            # Efficient bounded subsampling; voltage-relative digital metrics.
-            counts=raw[::64]
-            minimum=min(counts);maximum=max(counts)
-            mean=sum(counts)/len(counts)
-            rms=(sum((v-127.5)**2 for v in counts)/len(counts))**0.5
-            clipped=sum(v<3 or v>252 for v in counts)
-            with self.lock:
-                self.receiver_last_sample={
-                    "verified_at":stamp(),"frequency_hz":hz,
-                    "sample_bytes":len(raw)}
-            return {
-                "state":"real_iq_samples_received",
-                "sample_bytes":len(raw),
-                "complex_samples":len(raw)//2,
-                "frequency_hz":hz, "sample_rate_sps":1024000,
-                "digital_min":minimum,"digital_max":maximum,
-                "digital_mean":round(mean,2),
-                "digital_rms_from_midpoint":round(rms,2),
-                "sampled_clip_fraction":round(clipped/len(counts),5),
-                "signal_decoded":False,"satellite_identified":False,
-                "evidence":"physical rtl_sdr process emitted CU8 complex I/Q bytes",
-                "note":"Actual USB IQ acquisition verified. No calibrated dBm, station identity, usable antenna or satellite signal implied."
-            }
-        finally:
-            stop_process(proc)
-            with self.lock:
-                if self.process is proc:self.process=None
-                self.owned_processes.discard(proc)
-                self.launching=False
-                self._release()
+        target_bytes = 1048576
+        with tempfile.TemporaryDirectory(prefix="tihulu-native-iq-") as work:
+            iq_file = Path(work)/"probe.cu8"
+            log_file = Path(work)/"rtl_sdr.log"
+            proc = None
+            with log_file.open("wb") as error_log:
+                with self.lock:
+                    if self.closed.is_set() or self.session.get("active") or self.launching:
+                        raise RuntimeError("Receiver in use; stop current activity before sampling")
+                    self.launching = True
+                    try:
+                        self.stopping.clear()
+                        self._acquire()
+                        # File backed I/Q avoids stdout pipe stalls and accurately
+                        # matches the working standalone native capture path.
+                        proc = self._launch_receiver([
+                            tool, "-d", "0", "-f", str(hz), "-s", "1024000",
+                            "-g", "28", "-n", "524288", str(iq_file)
+                        ], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                           stderr=error_log)
+                        self.process = proc
+                    except BaseException:
+                        self.launching = False
+                        self._release()
+                        raise
+                try:
+                    deadline = time.monotonic() + 12.0
+                    bytes_written = 0
+                    while time.monotonic() < deadline and not self.stopping.is_set():
+                        try:
+                            bytes_written = iq_file.stat().st_size
+                        except FileNotFoundError:
+                            bytes_written = 0
+                        if bytes_written >= target_bytes or proc.poll() is not None:
+                            break
+                        time.sleep(0.12)
+
+                    # Do not rely on a decoder's normal exit for a live stream.
+                    # SIGTERM is sent to our child/process-group only; never
+                    # affect readsb, Flight Radar, or unrelated SDR software.
+                    stop_process(proc)
+                    error_log.flush()
+                    try:
+                        bytes_written = iq_file.stat().st_size
+                    except FileNotFoundError:
+                        bytes_written = 0
+                    errors = log_file.read_text(encoding="utf-8", errors="replace")[-700:]
+                    if self.stopping.is_set():
+                        raise RuntimeError("Physical SDR IQ test canceled")
+                    if bytes_written < target_bytes:
+                        reason = ("no IQ bytes produced" if bytes_written == 0
+                                  else f"only {bytes_written} of {target_bytes} IQ bytes written")
+                        raise RuntimeError(
+                            "Physical SDR sample test failed: " + reason +
+                            ". Receiver access does not prove IQ reception. " +
+                            re.sub(r"[\\x00-\\x1f\\x7f]+", " ", errors[-250:]))
+                    with iq_file.open("rb") as handle:
+                        raw = handle.read(target_bytes)
+                    if len(raw) != target_bytes or len(raw) % 2:
+                        raise RuntimeError("Physical IQ file was truncated or not interleaved CU8")
+                    counts = raw[::64]
+                    minimum, maximum = min(counts), max(counts)
+                    mean = sum(counts)/len(counts)
+                    rms = (sum((v-127.5)**2 for v in counts)/len(counts))**0.5
+                    clipped = sum(v < 3 or v > 252 for v in counts)
+                    if minimum == maximum:
+                        raise RuntimeError("Physical IQ acquisition contained constant data")
+                    pll_warning = "pll not locked" in errors.lower()
+                    with self.lock:
+                        self.receiver_last_sample = {
+                            "verified_at": stamp(), "frequency_hz": hz,
+                            "sample_bytes": len(raw),
+                            "pll_warning": pll_warning}
+                    return {
+                        "state": "real_iq_samples_received",
+                        "sample_bytes": len(raw),
+                        "complex_samples": len(raw)//2,
+                        "frequency_hz": hz, "sample_rate_sps": 1024000,
+                        "digital_min": minimum, "digital_max": maximum,
+                        "digital_mean": round(mean, 2),
+                        "digital_rms_from_midpoint": round(rms, 2),
+                        "sampled_clip_fraction": round(clipped/len(counts), 5),
+                        "pll_warning": pll_warning,
+                        "tuner_lock_verified": False,
+                        "signal_decoded": False, "satellite_identified": False,
+                        "evidence": "physical rtl_sdr child wrote >= 1 MiB CU8 IQ to a temporary local file",
+                        "note": ("Actual USB IQ bytes verified from a file. "
+                                 "PLL warning detected; tuned frequency is not independently verified."
+                                 if pll_warning else
+                                 "Actual USB IQ bytes verified from a file; PLL lock and "
+                                 "satellite reception are not independently verified.")
+                    }
+                finally:
+                    stop_process(proc)
+                    with self.lock:
+                        if self.process is proc:
+                            self.process = None
+                        if proc is not None:
+                            self.owned_processes.discard(proc)
+                        self.launching = False
+                        self._release()
 
     def connect_receiver(self):
         """Prove physical RTL-SDR open, release it, then arm future RF jobs.
