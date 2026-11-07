@@ -809,7 +809,8 @@ class SatelliteWindow(QMainWindow):
         mode=self.home_capture_mode.currentData()
         rate=int(self.home_capture_rate.currentData() or 1024000)
         is_iq=mode in ("iq","iq_and_fm_wav")
-        cap=min(900,MAX_IQ_BYTES//(2*rate)) if is_iq else 180 if mode=="survey" else 900
+        cap=(min(900,MAX_IQ_BYTES//(2*rate+(64000 if mode=="iq_and_fm_wav" else 0)))
+             if is_iq else 180 if mode=="survey" else 900)
         self.home_capture_length.setMaximum(max(8,cap))
         self.home_capture_rate.setEnabled(is_iq)
         seconds=self.home_capture_length.value()
@@ -2737,7 +2738,8 @@ class SatelliteWindow(QMainWindow):
         mode=self.pass_mode.currentData()
         rate=int(self.pass_sample_rate.currentData() or 1024000)
         is_iq=mode in ("iq","iq_and_fm_wav")
-        maximum=min(900,MAX_IQ_BYTES//(2*rate)) if is_iq else 180 if mode=="survey" else 900
+        maximum=(min(900,MAX_IQ_BYTES//(2*rate+(64000 if mode=="iq_and_fm_wav" else 0)))
+                 if is_iq else 180 if mode=="survey" else 900)
         self.pass_seconds.setMaximum(max(8,maximum))
         self.pass_sample_rate.setEnabled(is_iq)
         seconds=self.pass_seconds.value()
@@ -2920,7 +2922,8 @@ class SatelliteWindow(QMainWindow):
         mode=self.capture_mode.currentData()
         rate=int(self.capture_sample_rate.currentData() or 1024000)
         is_iq=mode in ("iq","iq_and_fm_wav")
-        maximum=min(900,MAX_IQ_BYTES//(2*rate)) if is_iq else 180 if mode=="survey" else 900
+        maximum=(min(900,MAX_IQ_BYTES//(2*rate+(64000 if mode=="iq_and_fm_wav" else 0)))
+                 if is_iq else 180 if mode=="survey" else 900)
         self.capture_seconds.setMaximum(max(8,maximum))
         self.capture_sample_rate.setEnabled(is_iq)
         secs=self.capture_seconds.value()
