@@ -33,10 +33,37 @@
       Number(hw.usb_rtl_count)>0;
     hardwareState.enabled=hw.receiver_enabled===true;
     hardwareState.verified=hardwareState.enabled;
-    say('native-receiver-status',hardwareState.enabled
-      ? 'RF ENABLED · native capture armed; USB released between jobs'
-      : present?'RTL-SDR DETECTED · click Connect & verify to enable real RF recording'
-               :'RTL-SDR NOT FOUND · check physical USB and Linux permissions');
+    const receiver=(hw.usb_devices||[]).find(d=>d.receiver_type==='rtl_sdr');
+    const active=response?.session?.active===true;
+    const phase=active?'RECORDING · native SDR process running':
+      hardwareState.enabled?'READY · real IQ tested; receiver armed':
+      present?'DETECTED · press Connect to verify actual IQ':'NO COMPATIBLE SDR DETECTED';
+    say('native-receiver-status',phase);
+    say('native-rx-phase',phase);
+    say('native-rx-device',receiver?.name||'No RTL-SDR hardware detected');
+    say('native-rx-driver',receiver
+      ? 'Physical USB '+receiver.vendor_id+':'+receiver.product_id+
+        ' · OS native rtl_sdr · no WebUSB'
+      : 'No usable USB RTL-SDR interface found; DVB TV cards are separate');
+    say('native-rx-usb',receiver?'Detected via Linux USB':'Not detected');
+    say('native-rx-iq',hw.last_real_sample?.sample_bytes
+      ? hw.last_real_sample.sample_bytes.toLocaleString()+' physical CU8 bytes verified'
+      : 'Not verified in this session');
+    say('native-rx-capture',active?'Recording in progress':
+      hardwareState.enabled?'Armed; click Start direct native RF capture':
+      'Disabled until USB + IQ verification succeeds');
+    say('native-rx-release',hw.app_released
+      ? 'Released while idle · available for other SDR apps'
+      : active?'Owned by Satellite Center recording':
+               'Busy, connecting or release not yet confirmed');
+    say('native-rx-pll',hw.last_real_sample?.pll_warning===true
+      ? 'PLL warning observed · tuner lock not proven'
+      : 'PLL lock not independently verified');
+    if($('native-hardware-card')){
+      const card=$('native-hardware-card');
+      card.dataset.state=active?'recording':hardwareState.enabled?'ready':
+        present?'detected':'missing';
+    }
     updateRadioControls();
     if($('disconnect'))$('disconnect').disabled=!hardwareState.enabled;
     return response;
@@ -58,6 +85,8 @@
       const message=String(error?.message || error);
       say(statusElement,command+' failed: '+message);
       log(command+' FAILED: '+message);
+      if(command==='connect'||command==='sample')
+        say('native-rx-phase','CONNECT FAILED · '+message);
       throw error;
     }
   };
@@ -163,10 +192,50 @@
     state.id='native-receiver-status';
     state.textContent='Same web UI · OS-native SDR · no WebUSB · no radio capture on startup';
     $('device-status')?.after(state);
+    const card=document.createElement('div');
+    card.id='native-hardware-card';
+    card.className='native-hardware-card';
+    card.setAttribute('role','group');
+    card.setAttribute('aria-label','Direct receiver hardware dashboard');
+    card.innerHTML=`
+      <div class="native-hardware-heading">
+        <strong>Receiver status</strong>
+        <small>Flight Radar-style native lifecycle · direct RTL-SDR</small>
+      </div>
+      <p id="native-rx-phase" class="native-hardware-phase">Checking USB inventory…</p>
+      <strong id="native-rx-device">Receiver information pending</strong>
+      <p id="native-rx-driver" class="native-hardware-sub">OS device enumeration</p>
+      <div class="native-hardware-grid">
+        <div><small>USB hardware</small><span id="native-rx-usb">Checking</span></div>
+        <div><small>Actual I/Q sample</small><span id="native-rx-iq">Not yet tested</span></div>
+        <div><small>RF recording</small><span id="native-rx-capture">Not armed</span></div>
+        <div><small>Resource ownership</small><span id="native-rx-release">Checking</span></div>
+        <div><small>Tuner lock</small><span id="native-rx-pll">Not independently verified</span></div>
+      </div>
+      <p class="native-hardware-sub">Connect verifies real bytes and arms recording; USB access check alone never enables RF. No Internet data is labelled as radio reception.</p>`;
+    const style=document.createElement('style');
+    style.textContent=`
+      .native-hardware-card{margin:12px 0 16px;padding:16px;border:1px solid #506c83;
+        border-radius:14px;background:linear-gradient(135deg,rgba(19,48,64,.55),rgba(20,30,45,.18))}
+      .native-hardware-heading{display:flex;flex-wrap:wrap;gap:8px;
+        justify-content:space-between;align-items:center}
+      .native-hardware-heading small,.native-hardware-sub{font-size:.82em;opacity:.78}
+      .native-hardware-phase{font-weight:700;font-size:1.03em;margin:12px 0;
+        padding:8px 12px;border-radius:8px;background:rgba(128,145,165,.12)}
+      .native-hardware-card[data-state=ready] .native-hardware-phase{color:#52c7a8}
+      .native-hardware-card[data-state=recording] .native-hardware-phase{color:#fbbf67}
+      .native-hardware-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(175px,1fr));
+        gap:8px;margin:12px 0}
+      .native-hardware-grid>div{padding:9px;border:1px solid rgba(145,165,184,.22);
+        border-radius:9px;min-width:0}
+      .native-hardware-grid small{display:block;opacity:.75;font-size:.75em;margin-bottom:5px}
+      .native-hardware-grid span{display:block;overflow-wrap:anywhere;font-size:.9em}`;
+    document.head.appendChild(style);
+    state.after(card);
     const help=document.createElement('p');
     help.className='hint';
     help.textContent='To record from your Nooelec NESDR, use the FIRST blue button: Connect & enable RF (USB + real IQ). USB access check and IQ test are diagnostics ONLY and do not enable recording. The SDR is intentionally released while idle.';
-    state.after(help);
+    card.after(help);
     // Never insert fake coordinates, imagery or signal levels.
   };
   const duration=(id,unitId)=>{
