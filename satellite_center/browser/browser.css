@@ -294,3 +294,11 @@ border:1px solid #375471;border-radius:8px;margin:0;background:#081727}
 .capture-format-actions button{font-size:12px;min-height:36px;padding:8px 11px}
 .capture-format-summary{margin:9px 0 4px;color:#dcf0ff;background:#18344f;border-left:3px solid #72c5ff;border-radius:5px;padding:9px 12px;font-size:13px;line-height:1.45;overflow-wrap:anywhere}
 @media(max-width:560px){.capture-format-options{display:block}.capture-format-actions button{flex:1 1 100%}}
+
+/* Web/PWA is a separate surface from the native Qt desktop. */
+.web-runtime-strip{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;padding:11px 15px;
+ margin:12px 0 18px;border:1px solid #3e6485;border-radius:10px;background:#102940;color:#d4e9f9;font-size:.84rem}
+.web-runtime-strip strong{color:#93f0ca;white-space:nowrap}
+.web-runtime-strip span{flex:1 1 270px;min-width:180px}
+.web-runtime-strip a{color:#9fd7ff;font-weight:650}
+@media(max-width:560px){.web-runtime-strip{padding:10px;gap:10px}.web-runtime-strip span{flex-basis:100%}}
