@@ -118,10 +118,16 @@ class CaptionTap:
                     raise RuntimeError("Whisper disabled. Enable in AI Model Market.")
                 selected = "teletext"
             source = options["source"]
+            want_translate = options["target"] != source
             target = options["target"] if ai.values["translation_enabled"] else source
             result = decode_segment(capture, mode=selected, page=options["page"],
                 source=source, target=target, model=ai.values["model_path"],
                 service_id=None)
+            if want_translate and not ai.values["translation_enabled"]:
+                result["translation_error"] = "Translation disabled; enable it in Model Market."
+            elif want_translate and not result.get("translated"):
+                result["translation_error"] = (
+                    result.get("error") or "Translation package unavailable; open Model Market.")
             result["captured_start"] = captured_start
             result["captured_end"] = captured_end
             result["decoded_at"] = time.monotonic()
@@ -179,8 +185,8 @@ def main(argv=None):
     mode.addItem("Manual Teletext page", "page")
     mode.addItem("Off", "off")
     source = QComboBox(); source.addItems(LANGS); source.setCurrentText("de")
-    target = QComboBox(); target.addItem("Off (original only)", "de")
-    for lang in ("tr", "en"):
+    target = QComboBox(); target.addItem("Off (original only)", "off")
+    for lang in ("tr", "en", "de"):
         target.addItem(lang, lang)
     target.setCurrentIndex(1)
     page = QSpinBox(); page.setRange(100, 899); page.setValue(150)
@@ -279,7 +285,8 @@ def main(argv=None):
         translation = target.currentData()
         return CaptionConfig(
             mode=mode.currentData(), source=source.currentText(),
-            target=translation, page=page.value(),
+            target=(source.currentText() if translation == "off" else translation),
+            page=page.value(),
             offset_ms=round(caption_offset.value()*1000),
             playback_delay_ms=round(playback_delay.value()*1000),
             on_video=show_video.isChecked(), show_original=show_original.isChecked(),
@@ -403,7 +410,8 @@ def main(argv=None):
             original.setText("ORIGINAL: "+result.get("original", ""))
             translated.setText("TRANSLATED: "+(result.get("translated") or
                          ("Not requested" if applied.source == applied.target else
-                          result.get("error") or "Argos DE/EN/TR pack not installed · open Market")))
+                          result.get("translation_error") or result.get("error") or
+                          "Argos DE/EN/TR pack not installed · open Market")))
             ipc.publish(current_text,applied,ttl_ms=3000)
             last_published = now
         elif current_cue and now >= current_until:
