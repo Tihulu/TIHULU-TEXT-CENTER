@@ -6,6 +6,7 @@ local model and installed package. An NPU node alone is NOT a valid ASR engine.
 """
 from __future__ import annotations
 import importlib.util
+from functools import lru_cache
 import io
 import os
 from pathlib import Path
@@ -13,7 +14,7 @@ import queue
 import re
 import subprocess
 import tempfile
-from threading import Event,Thread
+from threading import Event,Thread,Lock
 import wave
 
 from .compute import choose_backend,detect_devices,validate_language
@@ -56,6 +57,18 @@ def _whisper_cli_wav(pcm:bytes)->bytes:
 def _whisper_model(profile):
     p=profile["speech"]["model_path"]
     return str(p) if p else None
+
+
+# Keep a single loaded CTranslate2 Whisper model across short live DVB chunks.
+# Creating WhisperModel on every 6-second clip reloaded model weights and
+# caused avoidable multi-second stalls even with an RTX GPU.
+_faster_whisper_lock = Lock()
+
+@lru_cache(maxsize=1)
+def _cached_cuda_whisper(model_path: str):
+    from faster_whisper import WhisperModel
+    return WhisperModel(model_path,device="cuda",compute_type="float16",
+                        local_files_only=True)
 
 
 def transcribe_pcm(pcm:bytes,language:str,backend:str,profile:dict)->str:
@@ -133,15 +146,15 @@ def transcribe_pcm(pcm:bytes,language:str,backend:str,profile:dict)->str:
             import ctranslate2
             if ctranslate2.get_cuda_device_count()<1:
                 raise SpeechError("CUDA ASR runtime not available")
-            from faster_whisper import WhisperModel
             with tempfile.TemporaryDirectory() as tmp:
                 path=Path(tmp)/"speech.wav"
-                path.write_bytes(_wav_bytes(pcm))
-                decoder=WhisperModel(model,device="cuda",compute_type="float16",
-                                     local_files_only=True)
-                segments,_=decoder.transcribe(str(path),language=language,beam_size=3,
-                                             vad_filter=True)
-                return " ".join(s.text.strip() for s in segments).strip()[:3000]
+                path.write_bytes(_whisper_cli_wav(pcm))
+                with _faster_whisper_lock:
+                    decoder=_cached_cuda_whisper(str(model))
+                    segments,_=decoder.transcribe(str(path),language=language,
+                                                 beam_size=3,vad_filter=True)
+                    # Faster-Whisper decodes lazily; iterate under the lock.
+                    return " ".join(s.text.strip() for s in segments).strip()[:3000]
         except (ImportError,OSError,RuntimeError) as exc:
             raise SpeechError("CUDA speech backend failed: "+str(exc)[:150]) from exc
     executable=(profile["speech"].get("gpu_executable")
