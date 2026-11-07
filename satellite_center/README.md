@@ -1,4 +1,39 @@
-# TIHULU Satellite Center 0.3.0~preview8 — native desktop application
+# TIHULU Satellite Center 0.3.0~preview9 — native desktop application
+
+## Preview9 · full home satellite pass planning (2026-11-07)
+
+Following desktop feedback, the **Home → 3 · Satellite pass planner** is
+no longer only a Cologne quick-preset. Home now directly contains:
+country selection **Germany / Türkiye**, state/province (Bundesland/il)
+filter, offline city/town/**named district when present** search from the
+same 8,084-place catalog, clickable search results, global opt-in
+Open-Meteo online city lookup, optional user-permitted QtPositioning,
+free manual latitude/longitude, lookahead hours and minimum elevation.
+
+Home and **Pass planner** operate on **the same coordinates, hours,
+elevation, TLE predictions and cached satellite passes**. Changes to
+numeric station coordinates and lookahead reflect in both views. The
+Home satellite list now supports NORAD/name search, satellite families,
+IMAGE/AUDIO/TEXT/RF format labels, seven actual sorting modes,
+selection and direct navigation to the editable pass recording panel.
+Selecting **Calculate passes** with no fresh local TLE source performs
+an **on-demand HTTPS refresh** before the native Skyfield calculation;
+it does not silently return an empty list. Any missing/expired source,
+network failure, zero predicted passes, decoder limitation or
+unavailable physical RF is reported explicitly. Refresh or imported
+offline TLE remains manually available.
+
+The offline dataset provides German **state + town** and Turkish
+**province + locality** names, including Hürth in Nordrhein-Westfalen
+and Karaburun/Bornova in İzmir. It is **not a complete additional
+county/subdistrict administrative registry**, and should not be
+described as such. User-selected coordinates remain on the computer
+unless explicit online geocoding is requested.
+
+The independent Qt Debian artifact is version **0.3.0~preview9**.
+Re-running the one-line installation replaces the previous native
+package; it never installs a WebView or WebUSB frontend. PR remains Draft,
+and actual RF/Pop!_OS verification still requires real local hardware.
 
 ## Preview8 · Web-style UI and physical USB parity (2026-11-07)
 
@@ -105,7 +140,7 @@ describe that separate legacy workflow, not the installed desktop app.
 Install the Debian package downloaded from GitHub Actions, then run:
 
 ```bash
-sudo apt install ./tihulu-satellite-center_0.3.0~preview8_all.deb
+sudo apt install ./tihulu-satellite-center_0.3.0~preview9_all.deb
 tihulu-satellite-center
 ```
 
