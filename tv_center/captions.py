@@ -151,11 +151,17 @@ def translate(text: str, source: str, target: str) -> tuple[str | None, str | No
             return None, "Offline translator could not run: " + str(error)[:120]
 
 def decode_segment(ts: bytes, *, mode="auto", page=150, source="de",
-                   target="tr", model="", service_id: int | None = None) -> dict:
+                   target="tr", targets=None, model="", service_id: int | None = None) -> dict:
     if mode not in ("teletext", "page", "asr", "auto"):
         raise ValueError("Unsupported caption source")
     if not 100 <= page <= 899 or source not in SUPPORTED or target not in SUPPORTED:
         raise ValueError("Invalid language or page")
+    if targets is None:
+        targets = (target,) if target != source else ()
+    if (not isinstance(targets, (tuple,list)) or len(targets)>3 or
+            len(set(targets)) != len(targets) or
+            any(t not in SUPPORTED or t==source for t in targets)):
+        raise ValueError("Unsupported or duplicate translation language")
     if not ts:
         return {"original": "", "source": mode, "error": "No live TS data"}
     with tempfile.TemporaryDirectory(prefix="tihulu-tv-captions-") as tmp:
@@ -175,10 +181,21 @@ def decode_segment(ts: bytes, *, mode="auto", page=150, source="de",
                 used = "local_asr" if original else ""
             except (RuntimeError, OSError, subprocess.TimeoutExpired) as exc:
                 error = str(exc)[:180]
-        translated, translation_error = translate(original, source, target) if original else (None, None)
-        return {"original": original, "translated": translated, "source": used,
+        translations = {}
+        errors = {}
+        if original:
+            for language in targets:
+                phrase, failed = translate(original, source, language)
+                if phrase:
+                    translations[language] = phrase
+                if failed:
+                    errors[language] = failed
+        translated = translations.get(target)
+        return {"original": original, "translated": translated, "translations": translations,
+                "translation_errors": errors, "source": used,
                 "source_language": source, "target_language": target,
-                "page": page, "error": error or translation_error}
+                "target_languages": list(targets), "page": page,
+                "error": error or (next(iter(errors.values()), None))}
 
 def install_argos_pack(filename: str) -> str:
     p = Path(filename).expanduser()

@@ -28,6 +28,7 @@ class CaptionConfig:
     mode: str = "auto"
     source: str = "de"
     target: str = "tr"
+    target_languages: tuple[str, ...] = ("tr",)
     page: int = 150
     offset_ms: int = 0
     playback_delay_ms: int = 0
@@ -38,6 +39,7 @@ class CaptionConfig:
     position: str = "bottom"
     font_px: int = 25
     opacity: int = 70
+    text_opacity: int = 100
     revision: int = 0
 
     def validate(self):
@@ -49,12 +51,23 @@ class CaptionConfig:
             raise ValueError("Caption offset must be -10 to +10 seconds")
         if type(self.playback_delay_ms) is not int or not 0 <= self.playback_delay_ms <= 8000:
             raise ValueError("Playback buffering must be 0–8 seconds")
+        if (not isinstance(self.target_languages, tuple) or
+                len(self.target_languages) > 3 or
+                len(set(self.target_languages)) != len(self.target_languages) or
+                any(lang not in LANGS or lang == self.source
+                    for lang in self.target_languages)):
+            raise ValueError("Translation languages must be distinct and differ from spoken language")
+        if not self.show_original and (not self.show_translation or
+                                       not self.target_languages):
+            raise ValueError("Select transcript or at least one translation")
         if self.position not in ("bottom", "top"):
             raise ValueError("Unknown caption position")
         if type(self.font_px) is not int or not 16 <= self.font_px <= 44:
             raise ValueError("Font size must be 16–44 pixels")
         if type(self.opacity) is not int or not 0 <= self.opacity <= 100:
-            raise ValueError("Opacity must be 0–100%")
+            raise ValueError("Background opacity must be 0–100%")
+        if type(self.text_opacity) is not int or not 0 <= self.text_opacity <= 100:
+            raise ValueError("Text opacity must be 0–100%")
         for key in ("automatic_sync", "on_video", "show_original", "show_translation"):
             if type(getattr(self, key)) is not bool:
                 raise ValueError("Caption display toggles must be boolean")
@@ -62,18 +75,29 @@ class CaptionConfig:
 
     def options(self):
         return {"mode":self.mode,"source":self.source,
-                "target":self.target,"page":self.page,"revision":self.revision}
+                "target":self.target,"targets":self.target_languages,
+                "page":self.page,"revision":self.revision}
 
     def render(self, result):
+        """Produce independently selectable original/translated subtitle lines."""
         original = (result.get("original") or "").strip()
-        translated = (result.get("translated") or "").strip()
+        raw = result.get("translations")
+        translated = raw if isinstance(raw, dict) else {}
         lines = []
         if self.show_original and original:
-            lines.append(original)
-        if self.show_translation and translated and translated != original:
-            lines.append(translated)
+            prefix = f"[{self.source.upper()}] " if translated else ""
+            lines.append(prefix + original)
+        if self.show_translation:
+            if translated:
+                for language in self.target_languages:
+                    phrase = translated.get(language)
+                    if isinstance(phrase, str) and phrase.strip() and phrase.strip() != original:
+                        lines.append(f"[{language.upper()}] " + phrase.strip())
+            else:
+                legacy = (result.get("translated") or "").strip()
+                if legacy and legacy != original:
+                    lines.append(legacy)
         return "\n".join(lines)[:1100]
-
 
 def cue_window(started, ended, finished, config: CaptionConfig):
     """Schedule a chunk relative to the *captured* audio, not decoder finish.
@@ -273,6 +297,7 @@ class KaffeineOSD:
             text = ""
         obj = {"text":str(text)[:1100], "position":config.position,
                "size":config.font_px, "opacity":config.opacity,
+               "text_opacity":config.text_opacity,
                "enabled":bool(config.on_video and config.mode != "off"),
                "expires_ms":int(time.time()*1000) + min(max(int(ttl_ms),0),15000)}
         self._atomic(self.path, json.dumps(obj,ensure_ascii=False,separators=(",",":")))
