@@ -280,12 +280,49 @@ class SatelliteWindow(QMainWindow):
         self._row(panel,
                   self._button("Refresh hardware status",self.refresh_status),
                   self._button("Test my USB receiver",self.usb_test))
+        workflow=self._panel("Satellite reception · three-step native workflow",body)
+        workflow.addWidget(self._hint(
+            "1. Pick and arm an actual pass · 2. Inspect saved RF · "
+            "3. Extract only genuine audio/image/text and export it. "
+            "No WebUSB, browser, or receiver startup is needed for opening these screens."))
+        self.home_auto=self._button("1  Auto Schedule & Capture",self._home_auto)
+        self.home_analyze=self._button("2  Analyze Recordings",self._home_analyze)
+        self.home_extract=self._button("3  Extract / Inspect / Save Results",self._home_extract)
+        self._row(workflow,self.home_auto,self.home_analyze,self.home_extract)
         body.addWidget(self._hint(
             "This is a native Qt Widgets window, NOT a website, embedded browser, or localhost "
             "WebView. USB readout uses installed rtl_sdr/rtl_fm/rtl_power tools. "
             "No scan or network TLE download begins without an explicit click. "
             "A predicted pass does not mean a real radio signal was received."))
         body.addStretch(1)
+
+    def _open_native_tab(self,name):
+        for index in range(self.tabs.count()):
+            if self.tabs.tabText(index)==name:
+                self.tabs.setCurrentIndex(index)
+                return True
+        self.statusBar().showMessage("Native section unavailable: "+name,10000)
+        return False
+
+    def _home_auto(self):
+        if self._open_native_tab("Auto reception"):
+            self.statusBar().showMessage(
+                "Select published satellite formats, set full-pass duration, "
+                "then explicitly arm native captures.",12000)
+
+    def _home_analyze(self):
+        if self._open_native_tab("Recordings & results"):
+            self.files.setFocus()
+            self.statusBar().showMessage(
+                "Select an actual CU8, then analyze the complete file or "
+                "detect relative RF peaks. No recording is fabricated.",12000)
+
+    def _home_extract(self):
+        if self._open_native_tab("Recordings & results"):
+            self.output_files.setFocus()
+            self.statusBar().showMessage(
+                "Use real FM WAV, Robot36, SatDump, spectrum and result ZIP tools. "
+                "PNG is only available after a real decoder succeeds.",14000)
 
     def _station_controls(self,parent):
         group=QGroupBox("Ground station · offline Germany / Türkiye")
@@ -976,12 +1013,21 @@ class SatelliteWindow(QMainWindow):
         self._capture_modes()
 
     def _results_tab(self):
-        body=self._new_tab("Recordings & results")
+        outer=self._new_tab("Recordings & results")
+        scroll=QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.NoFrame)
+        panel=QWidget()
+        body=QVBoxLayout(panel)
+        body.setSpacing(8)
+        scroll.setWidget(panel)
+        outer.addWidget(scroll)
         self._row(body,
                   self._button("Refresh local recordings",self.refresh_status),
                   self._button("Open existing file…",self.import_file),
                   self._button("Reveal recordings folder",self.open_archive_folder))
         self.files=QTreeWidget()
+        self.files.setMinimumHeight(160)
         self.files.setHeaderLabels(["Actual local file","Size","Modified · local"])
         self.files.itemSelectionChanged.connect(self._file_selected)
         body.addWidget(self.files,1)
@@ -1041,6 +1087,7 @@ class SatelliteWindow(QMainWindow):
         self.candidate_label=self._hint("RF discovery is based on energy above a local noise estimate. A peak alone is not a decoded packet or picture.")
         body.addWidget(self.candidate_label)
         self.spectrum=SpectrumView()
+        self.spectrum.setMinimumHeight(260)
         body.addWidget(self.spectrum,2)
         self.image=QLabel()
         self.image.setMinimumHeight(90)
