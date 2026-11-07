@@ -864,11 +864,19 @@ $('tle-file').addEventListener('change',async e=>{
   if(!file)return;
   if(file.size>350000){status('orbit-state','TLE file exceeds 350 kB cap');return;}
   try{
-    const rows=parseTle(await file.text(),'uploaded');
+    const text=await file.text();
+    const rows=parseTle(text,'uploaded');
     if(!rows.length)throw Error('No valid two-line elements (TLE) found');
-    tleEntries=boundedCatalog([...tleEntries,...rows]);
+    let nativeNote='';
+    if(typeof window.nativeImportTle==='function'){
+      const saved=await window.nativeImportTle(text);
+      nativeNote=' Native Skyfield cache updated ('+saved.count+' records); available for offline Earth/Sky and pass calculations.';
+    }
+    tleEntries=boundedCatalog([...rows,...tleEntries]);
+    passes=[];visiblePassCount=40;renderPasses();
     notifyMaps();
-    status('orbit-state','Imported '+rows.length+' valid TLE records locally; '+tleEntries.length+' candidates selected. These are ephemerides, not live radio signals.');
+    status('orbit-state','Imported '+rows.length+' valid TLE records locally; '+tleEntries.length+
+      ' candidates selected.'+nativeNote+' These are orbital data, not received RF.');
   }catch(err){status('orbit-state','TLE import failed: '+err.message);}
 });
 $('saved-tle-fetch').addEventListener('click',async()=>{
