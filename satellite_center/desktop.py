@@ -2812,7 +2812,7 @@ class SatelliteWindow(QMainWindow):
             self.refresh_status()
         self._task("Arm scheduled RF",
                    lambda:self.station.schedule_series(key,profile,mode,start,seconds,
-                                                        segment_seconds=180)
+                                                        segment_seconds=180,sample_rate=sample_rate)
                    if seconds>180 else self.station.schedule(key,profile,mode,start,seconds,sample_rate=sample_rate),
                    completed)
 
