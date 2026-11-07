@@ -38,7 +38,7 @@ All real receiver operations require explicit operator action and USB ownership.
 | Results | View imported PNG/WAV/TXT/JSON, emit spectrum PNG/CSV, selected file Save As, ZIP of real outputs with provenance | Implemented, size-limited |
 | User protocol catalog | Up to 32 NORAD/24–1750 MHz/image/audio/text/video references, Qt editor, import/export same web JSON | Implemented as **unverified reference only** |
 | Custom receiver/decoder execution | Custom saved profiles do not automatically start arbitrary hardware or unknown decoders | Intentionally limited for data integrity |
-| CPU/GPU/NPU selection | Qt ISS Robot36 compute targets exposed, native backend decides actual available hardware | UI/policy implemented; do not claim accelerated throughput without backend/device proof |
+| CPU/GPU/NPU selection | Qt ISS Robot36 and native Auto reception compute menus offer Auto, CPU, CPU+GPU, CPU+NPU, CPU+GPU+NPU; capability resolver checks actual backend | UI/policy implemented; do not claim accelerated throughput without backend/device proof |
 | Browser direct WebUSB/PWA lifecycle | Separate web-only capability; native desktop uses OS RTL-SDR tools instead | Different transport by design, not a missing native WebView |
 | Google Play/Windows/macOS installers | Not supplied by the Linux native `.deb` | **Not yet native-release parity** |
 | Physical Nooelec long capture / live ISS and Meteor | Requires user-owned SDR hardware and real pass tests | **Unverified** |
@@ -46,7 +46,7 @@ All real receiver operations require explicit operator action and USB ownership.
 ## Debian / Pop!_OS
 
 Install the latest successful PR #18 **Satellite Center native Debian package** GitHub Actions artifact.
-Run `sudo apt install ./tihulu-satellite-center_0.3.0~preview4_all.deb`,
+Run `sudo apt install ./tihulu-satellite-center_0.3.0~preview5_all.deb`,
 then open **TIHULU Satellite Center (System)** from COSMIC's app menu.
 It starts the Qt window directly. Only explicit `tihulu-satellite-center serve`
 runs the old optional HTTP compatibility server. If the older user-local
