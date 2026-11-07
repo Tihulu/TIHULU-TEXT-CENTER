@@ -48,3 +48,9 @@ footer{margin-top:28px;font-size:11px;color:#8099b1;letter-spacing:.13em}
 #video-box video{border-radius:7px}
 #local-tv-panel code{overflow-wrap:anywhere}
 @media(max-width:480px){.link-button{width:100%}}
+
+/* Public Pages: actionable local receiver entry point before driver diagnostics. */
+#local-tv-panel{border-color:#497e91;background:linear-gradient(145deg,#173145,#132330)}
+#web-pages-tv-launch{border-color:#497e91}
+#web-pages-tv-launch .link-button{margin:8px 0 12px}
+#web-pages-tv-launch code{overflow-wrap:anywhere}

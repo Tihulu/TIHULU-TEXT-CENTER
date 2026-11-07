@@ -33,11 +33,18 @@ test("disconnected native tuner makes all RF, model and scan commands unavailabl
     for(const key of ["scanEnabled","cancelEnabled","stopEnabled","refreshEnabled","captionEnabled"]){
       assert.equal(s[key],false,key);
     }
-    assert.match(s.statusText,/Connect or pair/i);
+    assert.match(s.statusText,/Open Local TV/i);
     assert.match(s.signalText,/No RF readings/i);
     assert.match(s.explanation,/WebUSB/i);
   }
 });
+test("connected local app without DVB hardware must not enable scan",()=>{
+  const state=scanControls({connected:true,frontendAvailable:false,medium:"t"});
+  assert.equal(state.scanEnabled,false);
+  assert.match(state.backendText,/frontend\/DVR not detected/i);
+  assert.match(state.statusText,/Check USB\/firmware/i);
+});
+
 test("idle native tuner allows a scan, without inventing signal measurements",()=>{
   const s=scanControls({connected:true,medium:"t",scanning:false,playing:false});
   assert.equal(s.scanEnabled,true);
@@ -80,5 +87,6 @@ test("both web clients use the same reactive module and clear their state on dis
   assert.match(controls,/\$\("web-scan-start"\)\.disabled=!state\.scanEnabled/);
   assert.match(controls,/tihulu-tv-disconnected/);
   assert.match(pagesBridge,/tihulu-tv-disconnected/);
+  assert.match(pagesBridge,/location\.replace\(LOOPBACK/);
   assert.match(mobileBridge,/tihulu-tv-disconnected/);
 });

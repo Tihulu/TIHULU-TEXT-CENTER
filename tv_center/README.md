@@ -404,3 +404,19 @@ either port to the Internet.
 The browser's independent WebUSB EM28178 experiment still lacks a
 complete Si2168/Si2157 DVB-T2 tuner driver. Running the local Linux
 bridge does not pretend that direct WebUSB video works.
+
+### Why GitHub Pages shows a disconnected receiver
+
+The public GitHub Pages origin does **not** have native Linux DVB privileges.
+The TV controls therefore live in the **same-origin local application**
+`http://127.0.0.1:8768/`, which requires the current desktop build.
+When the browser permits its health probe, Pages now redirects to the local
+app automatically unless `?browser-only` is supplied. When blocked by
+browser mixed-content/private-network restrictions, choose **Open Local TV**
+(the first, prominent card); this direct top-level navigation needs no token.
+The disconnected scan controls are deliberately **not rendered on Pages**.
+
+The local TV page also distinguishes a *running web service* from a *present
+DVB frontend*: it reports Linux frontend/DVR availability separately.
+A running server with no attached DVB adapter cannot start a scan. For
+that case check `tihulu-tv-center doctor` and the native hardware status.

@@ -672,7 +672,14 @@ def main():
                                       self.model.text())
 
         def snapshot(self):
-            return {"source": "live_native_dvb" if self.capture.zap and self.capture.zap.poll() is None else "offline",
+            from .core import receiver_status
+            detected = receiver_status(self.capture.adapter)
+            return {"receiver": {
+                        "adapter": detected["adapter"],
+                        "frontend_present": detected["frontend_present"],
+                        "dvr_present": detected["dvr_present"],
+                        "win_tv_solohd_usb_present": detected["win_tv_solohd_usb_present"]},
+                    "source": "live_native_dvb" if self.capture.zap and self.capture.zap.poll() is None else "offline",
                     "channel": self.capture.channel.name if self.capture.channel else None,
                     "caption": dict(self.latest),
                     "subtitle_mode": self.capture.caption_mode,

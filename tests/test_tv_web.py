@@ -143,6 +143,8 @@ class BrowserTVTests(unittest.TestCase):
         for name in ("browser-ai-ui.js","browser-ai-worker.js","web-controls.js"):
             self.assertTrue((root/name).is_file())
         self.assertIn("Open Local TV",pages)
+        self.assertIn("BROWSER ONLY", (root/"app.js").read_text(encoding="utf-8"))
+        self.assertIn("GitHub Pages", (root/"web-controls.js").read_text(encoding="utf-8"))
         self.assertNotIn('id="token"',pages)
         controls=(root/"app.js").read_text(encoding="utf-8")
         self.assertIn('tokenless_loopback',controls)
