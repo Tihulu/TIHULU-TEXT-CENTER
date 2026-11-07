@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import {readFileSync} from "node:fs";
 import {PUBLIC_DOWNLINKS,noradFromPass,protocolsForPass,protocolCategories,
   passesFilteredByContent,protocolIsDecodableNow} from "../satellite_center/browser/pass_protocol_catalog.mjs";
 import {localDayKey,shiftCalendarDay,scheduleForDay,calendarHourBuckets,jobStart}
@@ -40,4 +41,54 @@ test("24-hour schedule is based on genuine job times and local day",()=>{
  assert.equal(buckets[13].jobs.length,0);
  assert.equal(buckets.reduce((sum,b)=>sum+b.jobs.length,0),1);
  assert.throws(()=>scheduleForDay([],"invalid"),/Invalid/);
+});
+
+test("Cancelled jobs are absent from the calendar, not deleted from the audit source",()=>{
+ const day="2026-11-06";
+ const at=new Date(day+"T11:23:00").getTime();
+ const jobs=[
+  {id:"cancelled",when:at,state:"cancelled",durationSeconds:60},
+  {id:"US-spelling",when:at,state:"canceled",durationSeconds:60},
+  {id:"live",when:at,state:"armed",durationSeconds:600,missionId:"meteor-m2-4"},
+ ];
+ assert.deepEqual(scheduleForDay(jobs,day).map(j=>j.id),["live"]);
+ assert.equal(calendarHourBuckets(jobs,day)[11].jobs.length,1);
+ assert.equal(jobs.length,3);
+});
+test("Long captures span multiple hours and show exact end with duration",async()=>{
+ const {jobEnd,jobTimeRange,jobDurationSeconds,formatDuration}=
+   await import("../satellite_center/browser/satellite_calendar.mjs");
+ const day="2026-11-06";
+ const a=new Date(day+"T11:54:15"),j={when:a.getTime(),durationSeconds:900,state:"armed"};
+ assert.equal(jobDurationSeconds(j),900);
+ assert.equal(jobEnd(j).getTime(),a.getTime()+900000);
+ assert.equal(formatDuration(900),"15m");
+ assert.equal(calendarHourBuckets([j],day)[11].jobs.length,1);
+ assert.equal(calendarHourBuckets([j],day)[12].jobs.length,1);
+ assert.match(jobTimeRange(j),/11:54:15.*12:09:15/);
+});
+test("Midnight crossings appear on both local days, without cancelled entries",async()=>{
+ const {jobTimeRange}=await import("../satellite_center/browser/satellite_calendar.mjs");
+ const j={id:"overnight",when:new Date("2026-11-06T23:57:30").getTime(),
+  durationSeconds:600,state:"completed"};
+ assert.deepEqual(scheduleForDay([j],"2026-11-07"),[j]);
+ assert.deepEqual(calendarHourBuckets([j],"2026-11-07")[0].jobs,[j]);
+ assert.match(jobTimeRange(j),/next day/);
+ const untilHour=new Date("2026-11-06T12:00:00").getTime();
+ const exact={when:new Date("2026-11-06T11:59:00").getTime(),durationSeconds:60,state:"armed"};
+ assert.equal(calendarHourBuckets([exact],"2026-11-06")[12].jobs.length,0);
+});
+
+test("Calendar rows cannot shrink under tall capture cards and overlap other hours",()=>{
+ const fs=requireCss();
+ assert.match(fs,/\.sat-calendar-grid>\.sat-hour-row\s*\{[^}]*flex:0 0 auto/s);
+ assert.match(fs,/\.sat-calendar-grid \.sat-calendar-job\s*\{[^}]*height:auto/s);
+});
+function requireCss(){
+ return readFileSync(new URL("../satellite_center/browser/browser.css",import.meta.url),"utf8");
+}
+
+test("Calendar cards are keyed to their live job identifiers",()=>{
+ const js=readFileSync(new URL("../satellite_center/browser/satellite_calendar.mjs",import.meta.url),"utf8");
+ assert.match(js,/card\.dataset\.jobId=String\(job\.id\)/);
 });
