@@ -278,10 +278,20 @@ class Station:
             if j.get("state") == "running":
                 j.update(state="interrupted", result="Server restarted during capture; check archive")
         self.launching = False
+        saved_hardware = safe_read(self.directory/"hardware.json", {})
+        if not isinstance(saved_hardware, dict):
+            saved_hardware = {}
+        # Preserve existing opt-in schedules on upgraded installations.
+        # A user's explicit Disconnect is persisted and overrides auto jobs
+        # until another positive physical USB test enables capture.
+        self.receiver_enabled = saved_hardware.get("receiver_enabled", True) is True
+        self.receiver_generation = 0
+        self.receiver_test = None
+        self.receiver_last_release = None
         self.predicted = {}
         self.wake = threading.Event()
         self.scheduler_thread = None
-        if any(j.get("state") == "pending" for j in self.jobs):
+        if self.receiver_enabled and any(j.get("state") == "pending" for j in self.jobs):
             self.start_scheduler()
 
     def status(self):
@@ -298,10 +308,94 @@ class Station:
                     "busy": detect_busy(), "tools": {n: bool(shutil.which(n)) for n in
                     ("rtl_test", "rtl_power", "rtl_sdr", "rtl_fm", "multimon-ng", "satdump", "qsstv")},
                     "compute": compute_capabilities(),
+                    "hardware": {
+                        "receiver_enabled": self.receiver_enabled,
+                        "usb_rtl_count": _linux_rtl_usb_count() if platform.system() == "Linux" else None,
+                        "lease_held": self.device_lock is not None,
+                        "opening": self.launching,
+                        "owned_processes_running": sum(p.poll() is None for p in self.owned_processes),
+                        "app_released": (self.device_lock is None and
+                                         not self.launching and
+                                         not self.session.get("active") and
+                                         all(p.poll() is not None for p in self.owned_processes)),
+                        "last_usb_test": self.receiver_test,
+                        "last_disconnect": self.receiver_last_release,
+                        "pending_schedules": sum(j.get("state") == "pending" for j in self.jobs),
+                        "usb_power_control": False,
+                    },
                     "orbit_cache": cached, "location_presets": LOCATIONS,
                     "profiles": PROFILES, "session": dict(self.session),
                     "jobs": [dict(j) for j in self.jobs[-100:]],
                     "archive": self.records()}
+
+    def connect_receiver(self):
+        """Prove physical RTL-SDR open, release it, then arm future RF jobs.
+
+        Enabling is forbidden without a positive rtl_test result. The device is
+        not held open when idle; 'connected' means verified availability.
+        """
+        with self.lock:
+            if self.closed.is_set():
+                raise RuntimeError("Satellite Center is closing")
+            generation = self.receiver_generation
+        result = self.usb_test()
+        if result.get("state") != "usb_receiver_opened":
+            raise RuntimeError("No successful physical USB-open evidence")
+        with self.lock:
+            if self.closed.is_set() or self.receiver_generation != generation:
+                raise RuntimeError("Receiver was disconnected while verifying; RF stays disabled")
+            self.receiver_enabled = True
+            self.receiver_test = {"state": "usb_opened_then_released",
+                                  "verified_at": stamp(),
+                                  "evidence": result.get("evidence", "rtl_test")}
+            safe_write(self.directory/"hardware.json", {"receiver_enabled": True})
+            if any(j.get("state") == "pending" for j in self.jobs):
+                self.start_scheduler()
+                self.wake.set()
+        return {"receiver_enabled": True, "usb_test": result,
+                "connection": "verified_then_released",
+                "note": "USB test succeeded and its handle was closed. No SDR is held open while idle."}
+
+    def disconnect_receiver(self):
+        """Explicit persistent RF disarm; only Satellite Center's own children.
+
+        Pending jobs are *paused*, never silently executed after disconnect
+        (including after application restart). No USB power/reset occurs.
+        """
+        with self.lock:
+            self.receiver_enabled = False
+            self.receiver_generation += 1
+            safe_write(self.directory/"hardware.json", {"receiver_enabled": False})
+            self.wake.set()
+        requested = self.request_stop()
+        # Workers still unwinding may briefly retain the cooperative lock.
+        # Never report released until *all* owned processes and lease exit.
+        deadline = time.monotonic() + 5.0
+        while time.monotonic() < deadline:
+            with self.lock:
+                released = (not self.session.get("active") and not self.launching and
+                            self.device_lock is None and
+                            all(p.poll() is not None for p in self.owned_processes))
+                if released:
+                    self.receiver_last_release = stamp()
+                    break
+            time.sleep(0.05)
+        with self.lock:
+            if not released:
+                # Preserve the disarm, but truthfully report incomplete release.
+                self.receiver_last_release = None
+            return {
+                "receiver_enabled": False,
+                "app_released": released,
+                "owned_processes_stop_requested": requested["owned_processes_stop_requested"],
+                "pending_jobs_paused": sum(j.get("state") == "pending" for j in self.jobs),
+                "usb_still_physically_present": tuner_present() if platform.system()=="Linux" else None,
+                "last_disconnect": self.receiver_last_release,
+                "note": ("Satellite Center released its SDR processes and lock. "
+                         "USB remains plugged/powered; unrelated SDR apps are untouched."
+                         if released else
+                         "RF disarmed, but an owned process/lease is still stopping. Check status again.")
+            }
 
     def usb_test(self):
         """Opt-in bounded USB *open* test; does not tune to a station or transmit.
@@ -520,6 +614,8 @@ class Station:
         if type(seconds) is not int and seconds is not None:
             raise ValueError("Capture seconds must be a whole number")
         with self.lock:
+            if not self.receiver_enabled:
+                raise RuntimeError("Receiver disabled in Hardware. Connect & verify USB before scheduling RF.")
             event = self.predicted.get(pass_id)
             if not event:
                 raise ValueError("Pass not in native prediction results; refresh local TLE and recalculate")
@@ -605,6 +701,8 @@ class Station:
         schedules is opt-in and uses the same persisted scheduler as manual jobs.
         """
         candidates = AUTO_DOWNLINK_PROFILES
+        if not self.receiver_enabled:
+            raise RuntimeError("Receiver disabled in Hardware. Connect & verify USB first.")
         if not isinstance(mission_ids, list) or not mission_ids or len(mission_ids) > len(candidates):
             raise ValueError("Select one to five supported public downlink targets")
         if any(not isinstance(mid, str) or mid not in candidates for mid in mission_ids):
@@ -866,6 +964,11 @@ class Station:
                 pending = [j for j in self.jobs if j["state"] == "pending"]
                 if not pending:
                     return
+                if not self.receiver_enabled:
+                    # Explicit disconnect pauses even scheduled captures.
+                    disarmed = True
+                else:
+                    disarmed = False
                 pending.sort(key=lambda j: j.get("run_at") or j["aos"])
                 nearest = pending[0]
                 target = datetime.fromisoformat(nearest.get("run_at") or nearest["aos"])
@@ -873,6 +976,10 @@ class Station:
                 # Only old manual jobs without run_at start 10 s before AOS.
                 lead = 0 if nearest.get("run_at") else 10
                 delay = (target-now()).total_seconds()-lead
+            if disarmed:
+                self.wake.wait(60)
+                self.wake.clear()
+                continue
             if delay > 0:
                 self.wake.wait(min(delay, 60))
                 self.wake.clear()
@@ -880,7 +987,7 @@ class Station:
             with self.lock:
                 if self.closed.is_set():
                     return
-                if nearest["state"] != "pending":
+                if not self.receiver_enabled or nearest["state"] != "pending":
                     continue
                 remaining = int((datetime.fromisoformat(nearest["los"])-now()).total_seconds())-END_MARGIN_SECONDS
                 duration = min(MAX_CAPTURE_SECONDS, remaining,
@@ -1017,6 +1124,8 @@ class Station:
         with self.lock:
             if self.closed.is_set():
                 raise RuntimeError("Satellite Center is shutting down")
+            if not self.receiver_enabled:
+                raise RuntimeError("Receiver disabled in Hardware. Connect & verify USB to enable RF.")
             if self.session.get("active"):
                 raise RuntimeError("Satellite capture already running")
             self.stopping.clear()
