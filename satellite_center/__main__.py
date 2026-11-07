@@ -78,6 +78,11 @@ PROFILES = {
     "iridium_rf_iq": {"label": "Iridium L-band 1620 MHz raw IQ candidate only; no message decode", "range": "1616M:1626.5M:50k", "freq": 1620000000, "family": "iridium"},
 }
 MODES = ("survey", "iq", "iq_and_fm_wav", "aprs", "sstv_audio", "fm_audio")
+# IMPORTANT: rtl_sdr async capture versions only stop when remaining bytes
+# are LESS than a callback buffer. An exact 1 MiB request (524288 pairs)
+# is divisible by the default 262144-byte block and can run indefinitely.
+# An odd pair count forces a partial final callback (1 MiB minus two bytes).
+NATIVE_IQ_PROBE_SAMPLES = 524287
 
 
 def now():
@@ -391,10 +396,11 @@ class Station:
             try:
                 self.stopping.clear()
                 self._acquire()
-                # Exactly 524288 complex samples = 1 MiB unsigned CU8; bounded.
+                # Real CU8 data, just under 1 MiB. Avoid the rtl_sdr async
+                # -n block-boundary termination bug (exact 524288 pairs).
                 proc=self._launch_receiver([
                     tool,"-d","0","-f",str(hz),"-s","1024000",
-                    "-n","524288","-"
+                    "-n",str(NATIVE_IQ_PROBE_SAMPLES),"-"
                 ],stdin=subprocess.DEVNULL,stdout=subprocess.PIPE,
                    stderr=subprocess.PIPE)
                 self.process=proc
@@ -404,10 +410,18 @@ class Station:
                 raise
         try:
             try:
-                raw,errors=proc.communicate(timeout=8)
+                raw,errors=proc.communicate(timeout=15)
             except subprocess.TimeoutExpired as exc:
                 stop_process(proc)
-                raise RuntimeError("Physical SDR sample test timed out") from exc
+                details=exc.stderr or b""
+                if isinstance(details,bytes):
+                    details=details.decode("utf-8","replace")
+                details=re.sub(r"[\\x00-\\x1f\\x7f]+"," ",str(details)[-260:]).strip()
+                raise RuntimeError(
+                    "Physical SDR IQ probe did not terminate within 15 seconds. "
+                    "Check USB availability, tuner PLL warnings, and SDR process state."
+                    +(" rtl_sdr: "+details if details else "")
+                ) from exc
             if proc.returncode != 0 or len(raw) < 32768 or len(raw)%2:
                 message=errors.decode("utf-8","replace")[-320:]
                 raise RuntimeError(
