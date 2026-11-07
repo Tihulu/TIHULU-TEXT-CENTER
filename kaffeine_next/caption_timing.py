@@ -85,7 +85,8 @@ class CaptionConfig:
         translated = raw if isinstance(raw, dict) else {}
         lines = []
         if self.show_original and original:
-            prefix = f"[{self.source.upper()}] " if translated else ""
+            prefix = (f"[{self.source.upper()}] " if
+                      self.show_translation and self.target_languages and translated else "")
             lines.append(prefix + original)
         if self.show_translation:
             if translated:
