@@ -30,6 +30,7 @@ from PyQt5.QtWidgets import (
 
 from .__main__ import Station, PROFILES, LOCATIONS, AUTO_DOWNLINK_PROFILES, allowed_mode
 from .native_analysis import analyze_cu8, save_spectrum_report, export_results_zip
+from .native_data_labels import describe_local_file
 from .media_catalog import (MEDIA_COLORS, MEDIA_SYMBOLS, kinds_for_pass, filter_passes,
                             media_summary, capabilities_for_pass)
 from .native_locations import load_locations, search_locations, city_label
@@ -1066,7 +1067,11 @@ class SatelliteWindow(QMainWindow):
                   self._button("Reveal recordings folder",self.open_archive_folder))
         self.files=QTreeWidget()
         self.files.setMinimumHeight(160)
-        self.files.setHeaderLabels(["Actual local file","Size","Modified · local"])
+        self.files.setHeaderLabels(["Actual local file","Data type · format","Size","Modified · local"])
+        self.files.header().setSectionResizeMode(0,QHeaderView.Stretch)
+        self.files.header().setSectionResizeMode(1,QHeaderView.ResizeToContents)
+        self.files.header().setSectionResizeMode(2,QHeaderView.ResizeToContents)
+        self.files.header().setSectionResizeMode(3,QHeaderView.ResizeToContents)
         self.files.itemSelectionChanged.connect(self._file_selected)
         body.addWidget(self.files,1)
         analyze_controls=QHBoxLayout()
@@ -1118,7 +1123,9 @@ class SatelliteWindow(QMainWindow):
                   self._button("Export spectrum CSV",self.export_spectrum_csv),
                   self._button("Save real results ZIP",self.save_results_zip))
         self.output_files=QTreeWidget()
-        self.output_files.setHeaderLabels(["Generated file","Format","Saved directory"])
+        self.output_files.setHeaderLabels(["Generated file","Data type · format","Saved directory"])
+        self.output_files.header().setSectionResizeMode(0,QHeaderView.Stretch)
+        self.output_files.header().setSectionResizeMode(1,QHeaderView.ResizeToContents)
         self.output_files.setMaximumHeight(130)
         self.output_files.itemSelectionChanged.connect(self._output_file_selected)
         body.addWidget(self.output_files)
@@ -1628,9 +1635,12 @@ class SatelliteWindow(QMainWindow):
         self.files.clear()
         for record in archives:
             path=self.station.archive/record["file"]
-            item=QTreeWidgetItem([record["file"],small_bytes(record["bytes"]),
+            label, explanation = describe_local_file(path)
+            item=QTreeWidgetItem([record["file"],label,small_bytes(record["bytes"]),
                                   local_time(record["modified"])])
             item.setData(0,Qt.UserRole,str(path))
+            item.setToolTip(0, "Actual local file; transmitter/source not authenticated")
+            item.setToolTip(1, explanation)
             self.files.addTopLevelItem(item)
             if str(path)==old:self.files.setCurrentItem(item)
 
@@ -1655,7 +1665,10 @@ class SatelliteWindow(QMainWindow):
         if not p.is_file():
             self.file_details.setPlainText("File no longer exists")
             return
-        self.file_details.setPlainText(str(p)+"\n"+small_bytes(p.stat().st_size)+
+        media_label, media_explanation = describe_local_file(p)
+        self.file_details.setPlainText(
+            str(p)+"\n"+small_bytes(p.stat().st_size)+
+            "\nData type: "+media_label+"\n"+media_explanation+
             "\nSource identity unverified. No data automatically uploaded.")
         suffix=p.suffix.lower()
         self.image.clear()
@@ -1789,8 +1802,10 @@ class SatelliteWindow(QMainWindow):
             if not path.is_file():continue
             if not any(self.output_files.topLevelItem(i).data(0,Qt.UserRole)==str(path)
                        for i in range(self.output_files.topLevelItemCount())):
-                item=QTreeWidgetItem([path.name,path.suffix.upper().lstrip("."),str(path.parent)])
+                label, explanation = describe_local_file(path)
+                item=QTreeWidgetItem([path.name,label,str(path.parent)])
                 item.setData(0,Qt.UserRole,str(path))
+                item.setToolTip(1,explanation)
                 self.output_files.addTopLevelItem(item)
 
     def _output_file_selected(self):
@@ -2005,6 +2020,8 @@ def main(argv=None):
             assert window.home_auto.text().startswith("1 ")
             assert window.home_analyze.text().startswith("2 ")
             assert window.home_extract.text().startswith("3 ")
+            assert window.files.headerItem().text(1)=="Data type · format"
+            assert window.output_files.headerItem().text(1)=="Data type · format"
             assert window.auto_compute.count()==5
             assert window.auto_compute.currentData()[0]=="auto"
             assert window.pass_seconds.maximum()==900
