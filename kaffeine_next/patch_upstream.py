@@ -13,7 +13,7 @@ TAG = "v2.0.19"
 REVISION = "e7ea15b86dafed3b20b151cbcb080578ab8e2d5c"
 PATHS = ("src/mainwindow.cpp", "src/dvb/dvbliveview.cpp",
          "src/dvb/dvbliveview_p.h", "src/dvb/dvbmanager.cpp", "src/dvb/dvbtab.cpp",
-         "src/dvb/dvbtab.h")
+         "src/dvb/dvbtab.h", "src/backend-vlc/vlcmediawidget.cpp")
 
 def transform(files):
     files = dict(files)
@@ -113,6 +113,29 @@ def transform(files):
 		if (writeFd >= 0) {
 			buffers.append(buffer);
 ''')
+    # Keep Kaffeine's native libVLC rendering but offer explicit recovery
+    # profiles for broken VA-API/VDPAU/NVIDIA paths and bad live FIFO caching.
+    # Every platform remains configurable: original Kaffeine settings take
+    # priority whenever user explicitly supplies an equivalent option.
+    vlc = "src/backend-vlc/vlcmediawidget.cpp"
+    change(vlc, '''\tQString args = Configuration::instance()->getLibVlcArguments();
+\tQStringList argList;''', '''\tQString args = Configuration::instance()->getLibVlcArguments();
+\tconst QByteArray tihuluProfile = qgetenv("TIHULU_VLC_PROFILE");
+\tif (tihuluProfile == "software" || tihuluProfile == "software-no-audio") {
+\t\tif (!args.contains(QLatin1String("--avcodec-hw")))
+\t\t\targs.append(QLatin1String(" --avcodec-hw=none"));
+\t\tif (!args.contains(QLatin1String("--file-caching")))
+\t\t\targs.append(QLatin1String(" --file-caching=1500"));
+\t\tif (!args.contains(QLatin1String("--no-video-title-show")))
+\t\t\targs.append(QLatin1String(" --no-video-title-show"));
+\t\tif (tihuluProfile == "software-no-audio" &&
+\t\t    !args.contains(QLatin1String("--no-audio")))
+\t\t\targs.append(QLatin1String(" --no-audio"));
+\t\tqCInfo(logVlc, "TIHULU playback troubleshooting: %s",
+\t\t       tihuluProfile.constData());
+\t}
+\tQStringList argList;''')
+
     # Use Kaffeine's OWN DVB scan engine; absolutely no w_scan_cpp,
     # dvbv5-scan background child, or second frontend ownership. These
     # multiplexes were physically detected on the original local setup.
