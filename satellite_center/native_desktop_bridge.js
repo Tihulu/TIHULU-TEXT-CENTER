@@ -69,6 +69,24 @@
       const label=onlineSuggest.closest('label');
       if(label)label.title='Native desktop: worldwide suggestions are enabled while typing. Uncheck to keep searches offline.';
     }
+    // Do not claim the native local-disk capture uses WebUSB 60-second
+    // segmenting. Keep the exact controls/layout but correct device copy.
+    const formatSummary=$('auto-format-summary');
+    if(formatSummary){
+      formatSummary.textContent=formatSummary.textContent
+        .replace(/WebUSB automatic jobs/g,'native RTL-SDR automatic jobs')
+        .replace(/WebUSB/g,'native SDR');
+    }
+    const misleading=document.querySelectorAll(
+      'a[href^="http://127.0.0.1:8791/"]');
+    for(const link of misleading){
+      // Optional localhost helper belongs to the browser edition only.
+      link.title='Optional legacy browser companion; not needed for native desktop';
+      const parent=link.closest('p.hint');
+      if(parent && /Firefox|WebUSB|browser/i.test(parent.textContent||'')){
+        parent.hidden=true;
+      }
+    }
     const install=document.querySelector('#desktop-install');
     if(install)install.hidden=true; // PWA install is browser-only, desktop is installed.
     for(const id of ['connect','usb-live-test','disconnect','start','stop']){
