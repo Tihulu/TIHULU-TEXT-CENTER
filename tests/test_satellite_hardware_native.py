@@ -5,7 +5,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from satellite_center.__main__ import (
-    Station, _linux_usb_receiver_inventory,
+    Station, _linux_usb_receiver_inventory, NATIVE_IQ_PROBE_SAMPLES,
 )
 
 
@@ -14,8 +14,10 @@ class _FakeProcess:
 
     def __init__(self, data):
         self.data = data
+        self.last_timeout = None
 
     def communicate(self, timeout=None):
+        self.last_timeout = timeout
         return self.data, b"Found Rafael Micro tuner\n"
 
     def poll(self):
@@ -97,19 +99,46 @@ class NativeHardwareTests(unittest.TestCase):
 
     def test_explicit_test_does_not_enable_receiver_and_releases_it(self):
         self.station.disconnect_receiver()
-        fake = _FakeProcess(bytes([120, 140] * 524288))
+        self.assertEqual(NATIVE_IQ_PROBE_SAMPLES, 524287)
+        # Regression for rtl_sdr async -n: a whole default 262144-byte
+        # block multiple can never trigger its final partial callback.
+        self.assertNotEqual((NATIVE_IQ_PROBE_SAMPLES * 2) % (16 * 16384), 0)
+        fake = _FakeProcess(bytes([120, 140] * NATIVE_IQ_PROBE_SAMPLES))
         with patch("satellite_center.__main__.shutil.which", return_value="/usr/bin/rtl_sdr"), patch.object(
             self.station, "_acquire"
-        ), patch.object(self.station, "_release"), patch.object(
+        ), patch.object(self.station, "_release") as release, patch.object(
             self.station, "_launch_receiver", return_value=fake
-        ), patch("satellite_center.__main__.stop_process"):
+        ) as launch, patch("satellite_center.__main__.stop_process"):
             result = self.station.sample_test(137900000)
-        self.assertEqual(result["sample_bytes"], 1048576)
-        self.assertEqual(result["complex_samples"], 524288)
+        command = launch.call_args.args[0]
+        self.assertEqual(command[command.index("-n") + 1],
+                         str(NATIVE_IQ_PROBE_SAMPLES))
+        self.assertEqual(command[-1], "-")
+        self.assertEqual(fake.last_timeout, 15)
+        self.assertEqual(result["sample_bytes"], NATIVE_IQ_PROBE_SAMPLES * 2)
+        self.assertEqual(result["complex_samples"], NATIVE_IQ_PROBE_SAMPLES)
         self.assertFalse(result["satellite_identified"])
         self.assertFalse(self.station.launching)
         self.assertIsNone(self.station.process)
         self.assertFalse(self.station.receiver_enabled)
+        release.assert_called_once()
+
+    def test_connect_arms_real_rf_after_bounded_native_iq_probe(self):
+        self.station.disconnect_receiver()
+        fake = _FakeProcess(bytes([120, 140] * NATIVE_IQ_PROBE_SAMPLES))
+        with patch.object(self.station, "usb_test", return_value={
+            "state": "usb_receiver_opened", "evidence": "rtl_test device access"
+        }), patch("satellite_center.__main__.shutil.which", return_value="/usr/bin/rtl_sdr"), patch.object(
+            self.station, "_acquire"
+        ), patch.object(self.station, "_release"), patch.object(
+            self.station, "_launch_receiver", return_value=fake
+        ), patch("satellite_center.__main__.stop_process"):
+            result = self.station.connect_receiver()
+        self.assertTrue(result["receiver_enabled"])
+        self.assertEqual(result["sample_test"]["state"], "real_iq_samples_received")
+        self.assertEqual(result["sample_test"]["sample_bytes"],
+                         NATIVE_IQ_PROBE_SAMPLES * 2)
+        self.assertTrue(self.station.status()["hardware"]["receiver_enabled"])
 
     def test_dual_native_capture_uses_same_iq_file_for_real_fm_conversion(self):
         report={"output_wav":str(self.station.archive/"from_real_iq_fm.wav")}
