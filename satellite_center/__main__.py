@@ -220,6 +220,43 @@ def detect_busy():
         return _linux_receiver_processes()
 
 
+def _linux_usb_receiver_inventory(sysfs=Path("/sys/bus/usb/devices")):
+    """Passive user-readable hardware IDs. Never opens USB or detaches drivers.
+
+    RTL2832U and Hauppauge DVB-T/T2 devices are kept distinct; a TV tuner
+    is NOT represented as a generic RTL-SDR raw I/Q receiver.
+    """
+    result = []
+    try:
+        devices = list(sysfs.iterdir())
+    except OSError:
+        return result
+    for device in devices:
+        try:
+            vid = (device/"idVendor").read_text(encoding="ascii").strip().lower()
+            pid = (device/"idProduct").read_text(encoding="ascii").strip().lower()
+        except (OSError, UnicodeError):
+            continue
+        rtl = (vid, pid) in (("0bda","2838"), ("0bda","2832"))
+        television = vid == "2040"
+        if not rtl and not television:
+            continue
+        def read_label(field):
+            try:
+                return (device/field).read_text(encoding="utf-8",errors="replace").strip()[:70]
+            except OSError:
+                return ""
+        result.append({
+            "vendor_id":vid, "product_id":pid,
+            "name":read_label("product") or ("RTL2832U compatible SDR" if rtl else "Hauppauge TV tuner"),
+            "manufacturer":read_label("manufacturer"),
+            "sysfs_device":device.name[:30],
+            "receiver_type":"rtl_sdr" if rtl else "dvb_tv_not_generic_iq",
+            "usb_present":True,
+        })
+    return result[:12]
+
+
 def _linux_rtl_usb_count(sysfs=Path("/sys/bus/usb/devices")):
     """Read-only Linux sysfs enumeration; no USB reset or driver detach."""
     count = 0
@@ -311,6 +348,7 @@ class Station:
                     "hardware": {
                         "receiver_enabled": self.receiver_enabled,
                         "usb_rtl_count": _linux_rtl_usb_count() if platform.system() == "Linux" else None,
+                        "usb_devices": _linux_usb_receiver_inventory() if platform.system() == "Linux" else [],
                         "lease_held": self.device_lock is not None,
                         "opening": self.launching,
                         "owned_processes_running": sum(p.poll() is None for p in self.owned_processes),
