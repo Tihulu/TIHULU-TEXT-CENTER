@@ -16,3 +16,5 @@ footer{margin-top:28px;font-size:11px;color:#8099b1;letter-spacing:.13em}
 @media(max-width:850px){.shell{padding:14px}main{grid-template-columns:1fr}.video{min-height:200px}h1{font-size:24px}h1 span{display:block}.hero h2{font-size:23px}}
 
 #usb-status,#compute-status{border-left:2px solid #4f9cbc;padding-left:10px;line-height:1.5}small{display:block;line-height:1.5}
+
+#browser-ai-panel select{width:100%;background:#0a1522;border:1px solid #49637b;border-radius:6px;padding:11px;color:#fff;margin:6px 0 13px}#browser-ai-panel label{display:block;margin:12px 0 3px}#browser-ai-panel .checkboxline{display:flex;align-items:center;gap:8px}#browser-ai-panel input[type=checkbox]{width:auto}#browser-ai-panel .actions{flex-wrap:wrap}#browser-ai-status{border-left:2px solid #62c0a6;padding:8px 10px}#browser-ai-panel .muted{font-size:12px}#browser-ai-panel .captions{margin:16px 0}

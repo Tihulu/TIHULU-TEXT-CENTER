@@ -45,6 +45,21 @@
 <div class="shortcuts"><button data-page="100">100</button><button data-page="150">150</button><button data-page="777">777</button></div>
 <p id="teletext-result">Requires an active local receiver and caption decoding.</p>
 </section>
+<section class="panel" id="browser-ai-panel"><h2>Browser AI Studio · WebGPU / WASM</h2>
+<p>Run multilingual Whisper locally with your microphone or a browser-shared tab's audio, where supported. Models download only on request. Approximate 10-second recognition windows; neither zero-latency nor a fake feed.</p>
+<label for="browser-model">Whisper model</label>
+<select id="browser-model"><option value="tiny">Multilingual Tiny (lighter)</option><option value="small">Multilingual Small (larger)</option></select>
+<label for="browser-backend">Inference device</label><select id="browser-backend"><option value="auto">Auto: WebGPU then WASM</option><option value="webgpu">WebGPU only</option><option value="wasm">WASM / CPU</option></select>
+<div class="actions"><button id="browser-ai-load">Download / load model</button><button class="secondary" id="browser-ai-release">Unload model</button></div>
+<div class="actions"><button id="browser-ai-mic" disabled>Use microphone</button><button id="browser-ai-tab" disabled>Capture tab audio</button><button class="secondary" id="browser-ai-stop" disabled>Stop</button></div>
+<label for="browser-source-lang">Speech language</label><select id="browser-source-lang"><option value="de">German</option><option value="tr">Turkish</option><option value="en">English</option></select>
+<label for="browser-target-lang">Translation language</label><select id="browser-target-lang"><option value="tr">Turkish</option><option value="de">German</option><option value="en">English</option></select>
+<label class="checkboxline"><input type="checkbox" id="browser-translation-toggle"> Enable offline translation</label>
+<div class="captions"><div class="eyebrow">BROWSER-LOCAL CAPTIONS</div><p id="browser-ai-original">No browser transcription yet.</p><p class="translated" id="browser-ai-translated"></p><small id="browser-ai-caption"></small></div>
+<p role="status" id="browser-ai-status">AI is OFF. Select a model and explicitly load it.</p>
+<button class="secondary" id="browser-ai-cache">Clear Transformers.js model cache (confirm)</button>
+<p class="muted">DE ↔ EN and TR → EN models have ONNX support. EN → TR relies on an experimental community model that may fail; host-installed Argos remains an alternative. Microphone and tab audio require browser permission.</p>
+</section>
 <section class="panel"><h2>WebGPU · WebAssembly · languages</h2>
 <p>WebAssembly can run CPU inference in the browser; WebGPU can accelerate compatible multilingual speech models. Neither technology replaces a Hauppauge DVB-T2 tuner driver. No browser AI model has been bundled or downloaded yet.</p>
 <button id="check-compute">Check browser AI capabilities</button>
@@ -55,5 +70,5 @@
 </section>
 </aside></main>
 <footer>WEBUSB DETECTION · NATIVE DVB RECEIVER OPTIONAL · WEBGPU/WASM READINESS · NO AUTOSTART RF</footer>
-</div><script src="./app.js"></script>
+</div><script src="./app.js"></script><script type="module" src="./browser-ai-ui.js"></script>
 </body></html>
