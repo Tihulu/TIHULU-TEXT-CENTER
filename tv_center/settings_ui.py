@@ -18,6 +18,7 @@ def open_ai_settings(parent, ai, after_save=None):
     from .ai_provision import StarterAI
     from .hardware_market import detect_hardware, model_fit
     from .translation_market import TranslationModelMarket, LICENSE as NLLB_LICENSE
+    from .argos_market_bridge import run as run_argos_market
 
     class Manager(QDialog):
         def __init__(self):
@@ -348,7 +349,7 @@ def open_ai_settings(parent, ai, after_save=None):
         def inspect_compute(self):
             try:
                 self.hardware = detect_hardware()
-                p = detect_devices()
+                p = detect_devices(model_path=self.model_path.text().strip())
                 gpu = self.hardware["gpu"]
                 npu = self.hardware["npu"]
                 ram = self.hardware["ram_mib"]
@@ -373,9 +374,13 @@ def open_ai_settings(parent, ai, after_save=None):
 
         def inspect_argos(self):
             try:
-                pairs = argos_installed_pairs()
+                if AIRuntime().status()["installed"]:
+                    pairs = run_argos_market("installed")
+                else:
+                    pairs = []
                 self.pairs.setText("Installed Argos: " + (", ".join(
-                    p["source"] + "→" + p["target"] for p in pairs) if pairs else "none"))
+                    p["source"] + "→" + p["target"] for p in pairs) if pairs else
+                    "none — install starter bundle to manage language packs"))
             except (ImportError, OSError, ValueError) as exc:
                 self.pairs.setText("Argos runtime unavailable: " + str(exc)[:100])
 
@@ -466,10 +471,10 @@ def open_ai_settings(parent, ai, after_save=None):
                 self.feedback.setText("Storage folder selected; current models remain in their original location.")
 
         def refresh_argos_catalog(self):
-            self.begin("Refreshing official Argos language package catalog…",
-                       lambda: "Available pairs: " + ", ".join(
+            self.begin("Searching live official Argos language package catalog…",
+                       lambda: "Available official Argos pairs: " + ", ".join(
                            x["source"] + "→" + x["target"]
-                           for x in argos_available_pairs(refresh=True)))
+                           for x in run_argos_market("catalog")))
 
         def install_argos(self):
             a, b = self.source.currentText(), self.target.currentText()
@@ -477,7 +482,8 @@ def open_ai_settings(parent, ai, after_save=None):
             if QMessageBox.question(self, "Download language pack",
                   f"Download and install Argos {a} → {b} from its configured package index?") != QMessageBox.Yes:
                 return
-            self.begin("Installing Argos " + a + " → " + b, lambda: argos_install(a, b))
+            self.begin("Installing Argos " + a + " → " + b,
+                       lambda: run_argos_market("install", a, b))
 
         def uninstall_argos(self):
             a, b = self.source.currentText(), self.target.currentText()
@@ -485,7 +491,8 @@ def open_ai_settings(parent, ai, after_save=None):
             if QMessageBox.question(self, "Uninstall language pack",
                   f"Uninstall local Argos {a} → {b}?") != QMessageBox.Yes:
                 return
-            self.begin("Removing Argos language pack", lambda: argos_remove(a, b))
+            self.begin("Removing Argos language pack",
+                       lambda: run_argos_market("remove", a, b))
 
         def save(self):
             if self.running:
