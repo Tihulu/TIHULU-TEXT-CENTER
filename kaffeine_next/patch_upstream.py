@@ -119,6 +119,7 @@ def transform(files):
     # before Kaffeine's existing FIFO -> libVLC. The AI tap above stays
     # pre-delay so Whisper can finish nearer to delayed playback.
     # A capped 64 MiB queue prevents uncontrolled memory growth on Pi 5.
+    change(hdr, '#include <QList>\n', '#include <QList>\n#include <QPair>\n')
     change(hdr, '''\tQString tihuluCaptionSocketPath;
 \tint tihuluCaptionFd;
 ''', '''\tQString tihuluCaptionSocketPath;
@@ -163,7 +164,8 @@ def transform(files):
 \t}
 \tif (!timeShiftFile.isOpen()) {
 \t\tif (writeFd >= 0) {
-\t\t\tif (tihuluVideoDelayMs > 0) {
+\t\t\tconst bool queuedCurrent = (tihuluVideoDelayMs > 0);
+\t\t\tif (queuedCurrent) {
 \t\t\t\ttihuluDelayed.append(qMakePair(now, buffer));
 \t\t\t\ttihuluDelayedBytes += buffer.size();
 \t\t\t\tif (tihuluDelayedBytes > 64LL * 1024 * 1024) {
@@ -178,7 +180,7 @@ def transform(files):
 \t\t\t\ttihuluDelayedBytes -= chunk.size();
 \t\t\t\tbuffers.append(chunk);
 \t\t\t}
-\t\t\tif (tihuluVideoDelayMs == 0)
+\t\t\tif (!queuedCurrent)
 \t\t\t\tbuffers.append(buffer);
 \t\t\tif (!buffers.isEmpty())
 \t\t\t\twriteToPipe();
