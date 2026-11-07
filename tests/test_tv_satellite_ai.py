@@ -48,7 +48,7 @@ class SatelliteAndAISettingsTests(unittest.TestCase):
             channels = read_channels([path])
             self.assertEqual(len(channels), 1)
             self.assertEqual(channels[0].frequency, 11508500)
-            self.assertEqual(format_frequency(channels[0]), "11.509 GHz")
+            self.assertEqual(format_frequency(channels[0]), "11.5085 GHz")
             self.assertEqual(zap_argv(channels[0])[-1], "TRT Çocuk: Uydu & HD")
 
     def test_satellite_frequency_and_radio_type(self):
