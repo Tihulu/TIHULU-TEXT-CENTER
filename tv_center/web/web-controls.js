@@ -184,7 +184,8 @@ import {scanFields,scanRequest,scanTitle,scanControls} from "./scan-ui-state.js"
       show("web-channel-origin",(data.profile||"Native profile")+" · "+
         channels.length+" genuinely scanned services");
       if((forceProfileSync||profileSyncNeeded)&&!profileDirty){
-        if(["DE","TR"].includes(data.country))$("web-country").value=data.country;
+        if(data.medium!=="s" && ["DE","TR"].includes(data.country))
+          $("web-country").value=data.country;
         if(["t","c","s"].includes(data.medium))$("web-medium").value=data.medium;
         if(typeof data.satellite==="string")$("web-satellite").value=data.satellite;
         profileSyncNeeded=false;
