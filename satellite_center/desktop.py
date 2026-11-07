@@ -2058,6 +2058,7 @@ class SatelliteWindow(QMainWindow):
         local_buttons=QHBoxLayout()
         local_buttons.addWidget(self._button("Refresh saved files",self.refresh_status))
         local_buttons.addWidget(self._button("Open any local file",self._image_import))
+        local_buttons.addWidget(self._button("Play selected audio/video",self._play_local_media))
         local_buttons.addWidget(self._button("Open recordings folder",self.open_archive_folder))
         local_layout.addLayout(local_buttons)
         self.native_image_files=QTreeWidget()
@@ -2075,6 +2076,7 @@ class SatelliteWindow(QMainWindow):
         self.native_local_preview.setAlignment(Qt.AlignCenter)
         self.native_local_preview.setMinimumHeight(85)
         local_layout.addWidget(self.native_local_preview)
+        self.native_selected_media=None
         self.native_local_status=self._hint(
             "No file chosen. Source identity cannot be inferred from filename alone.")
         local_layout.addWidget(self.native_local_status)
@@ -2136,9 +2138,10 @@ class SatelliteWindow(QMainWindow):
         path,_=QFileDialog.getOpenFileName(
             self,"Open actual local RF / image / audio / text",
             str(self.station.archive),
-            "Supported files (*.cu8 *.wav *.png *.jpg *.jpeg *.txt *.json *.csv);;All files (*)")
+            "Supported files (*.cu8 *.wav *.mp3 *.ogg *.flac *.mp4 *.m4v *.mov *.webm *.png *.jpg *.jpeg *.gif *.webp *.txt *.json *.csv);;All files (*)")
         if not path:return
         self._choose_path(path)
+        self.native_selected_media=Path(path)
         self._image_show_local(Path(path))
 
     def _image_decode_sstv(self):
@@ -2150,6 +2153,7 @@ class SatelliteWindow(QMainWindow):
         item=self.native_image_files.currentItem()
         if item is None:return
         path=Path(str(item.data(0,Qt.UserRole)))
+        self.native_selected_media=path
         self._image_show_local(path)
 
     def _image_show_local(self,path):
@@ -2168,7 +2172,70 @@ class SatelliteWindow(QMainWindow):
                 return
         self.native_local_preview.setText(
             path.name+"  ·  "+label+"\nUse Signal analysis for CU8 FFT, "
-            "WAV playback, text and decoder outputs.")
+            "the Play audio/video button for supported local media, "
+            "or real decoder tools for RF files.")
+
+    def _play_local_media(self):
+        """Native QtMedia playback only; never an embedded browser or URL."""
+        source=self.native_selected_media
+        if source is None or not source.is_file():
+            return QMessageBox.information(
+                self,"Play local media","Choose or import an actual audio/video file first.")
+        suffix=source.suffix.lower()
+        audio={".wav",".mp3",".ogg",".flac"}
+        video={".mp4",".m4v",".mov",".webm"}
+        if suffix not in audio|video:
+            return QMessageBox.information(
+                self,"Play local media","This source is not a supported audio/video file.")
+        from .native_data_labels import describe_local_file
+        label,_=describe_local_file(source)
+        if label.startswith(("INVALID?","UNREADABLE")):
+            return QMessageBox.warning(self,"Local media","File signature could not be verified.")
+        try:
+            from PyQt5.QtMultimedia import QMediaPlayer,QMediaContent
+        except ImportError:
+            return QMessageBox.information(
+                self,"Optional native Qt Multimedia",
+                "Install python3-pyqt5.qtmultimedia for local audio/video playback. "
+                "No WebUSB/HTML is needed.")
+        if suffix in audio:
+            self.preview_wav=str(source) if suffix==".wav" else self.preview_wav
+            if self.media_player is None:self.media_player=QMediaPlayer(self)
+            self.media_player.setMedia(QMediaContent(QUrl.fromLocalFile(str(source))))
+            self.media_player.play()
+            self.native_local_status.setText(
+                "Playing actual local audio via native Qt backend: "+source.name+
+                ". Codec support depends on the OS. No satellite identity proved.")
+            return
+        try:
+            from PyQt5.QtMultimediaWidgets import QVideoWidget
+        except ImportError:
+            return QMessageBox.information(
+                self,"Optional native video backend",
+                "Install python3-pyqt5.qtmultimedia and Qt video backend to preview local video.")
+        dialog=QDialog(self)
+        dialog.setWindowTitle("Native local video · "+source.name)
+        dialog.resize(840,570)
+        layout=QVBoxLayout(dialog)
+        labelWidget=QLabel(
+            "Actual LOCAL video file · "+source.name+
+            " · This is not evidence of a satellite downlink")
+        labelWidget.setWordWrap(True)
+        layout.addWidget(labelWidget)
+        screen=QVideoWidget(dialog)
+        layout.addWidget(screen,1)
+        player=QMediaPlayer(dialog)
+        player.setVideoOutput(screen)
+        player.setMedia(QMediaContent(QUrl.fromLocalFile(str(source))))
+        row=QHBoxLayout()
+        row.addWidget(self._button("Play",player.play))
+        row.addWidget(self._button("Pause",player.pause))
+        row.addWidget(self._button("Stop",player.stop))
+        row.addWidget(self._button("Close",dialog.accept))
+        layout.addLayout(row)
+        player.play()
+        try:dialog.exec_()
+        finally:player.stop()
 
     def _update_native_image_files(self,archive):
         selected=(self.native_image_files.currentItem().data(0,Qt.UserRole)
