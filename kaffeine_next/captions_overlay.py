@@ -16,7 +16,11 @@ import sys
 import threading
 import time
 
-CHUNK_SECONDS = 4
+# Longer contiguous phrases improve Whisper context; overlap covers words
+# spanning boundaries. Queued capture lets CPU inference finish without
+# *immediately* discarding the next 6-second segment.
+CHUNK_SECONDS = 6
+OVERLAP_SECONDS = 1.0
 MAX_TS_BYTES = 24 * 1024 * 1024
 LANGS = ("de", "en", "tr")
 
@@ -36,8 +40,14 @@ class CaptionTap:
         self.current_options = current_options
         self.events = events
         self.stop = threading.Event()
-        self.busy = threading.Event()
+        from .continuous_captions import BufferedCaptionQueue
+        self.work_queue = BufferedCaptionQueue(
+            maximum_bytes=(48 if Path("/proc/device-tree/model").is_file()
+                           else 96) * 1024 * 1024, max_clips=24)
         self.thread = None
+        self.worker = None
+        self.previous_original = ""
+        self.previous_revision = -1
         self.sock = None
         self.packet_count = 0
         self.bad_packets = 0
@@ -55,11 +65,34 @@ class CaptionTap:
         self.thread = threading.Thread(target=self._reader, name="tihulu-kaffeine-ts",
                                        daemon=True)
         self.thread.start()
+        self.worker = threading.Thread(target=self._worker,
+            name="tihulu-kaffeine-caption-worker", daemon=True)
+        self.worker.start()
+
+    def _worker(self):
+        from .continuous_captions import remove_repeated_prefix
+        while not self.stop.is_set():
+            clip = self.work_queue.get(timeout=0.3)
+            if clip is None:
+                continue
+            try:
+                self._decode(clip.data, clip.options, clip.started, clip.ended)
+            except Exception as error:
+                self._note_warning("Caption worker failed: "+str(error)[:120])
+
+    def _note_warning(self, message):
+        try:
+            self.events.put_nowait(("warning", str(message)[:240]))
+        except queue.Full:
+            pass
 
     def _reader(self):
         chunks = bytearray()
         last = time.monotonic()
         last_revision = -1
+        previous_segment = b""
+        previous_duration = 0.0
+        from .continuous_captions import CapturedClip, prepended_overlap
         while not self.stop.is_set():
             try:
                 data = self.sock.recv(188 * 32)
@@ -98,30 +131,41 @@ class CaptionTap:
             options = self.current_options()
             if options.get("revision", 0) != last_revision:
                 chunks.clear()
+                self.work_queue.clear()
                 last_revision = options.get("revision", 0)
                 last = time.monotonic()
+                previous_segment = b""
+                previous_duration = 0.0
             if options["mode"] == "off":
                 chunks.clear()
                 last = time.monotonic()
                 continue
             if len(chunks) + len(data) > MAX_TS_BYTES:
                 chunks.clear()
-                self.events.put(("warning", "Caption buffer overflow; live TV remains unaffected"))
+                self._note_warning(
+                    "RF caption capture exceeded 24 MiB; audio may be incomplete")
                 last = time.monotonic()
+                previous_segment = b""
+                previous_duration = 0.0
             chunks.extend(data)
             now = time.monotonic()
             if now - last >= CHUNK_SECONDS and len(chunks) >= 188 * 300:
-                capture = bytes(chunks)
-                started = last
+                raw = bytes(chunks)
+                capture = prepended_overlap(
+                    raw, previous_segment, previous_duration, OVERLAP_SECONDS)
+                started = last - (OVERLAP_SECONDS if previous_segment else 0)
+                previous_segment = raw
+                previous_duration = max(0.5, now-last)
                 chunks.clear()
                 last = now
-                if not self.busy.is_set():
-                    self.busy.set()
-                    threading.Thread(target=self._decode,
-                        args=(capture, options, started, now),
-                        name="tihulu-caption-decode", daemon=True).start()
-                else:
-                    self.events.put(("warning", "ASR slower than real time; skipping one segment"))
+                queued = self.work_queue.offer(
+                    CapturedClip(capture, dict(options), started, now))
+                if not queued:
+                    health = self.work_queue.snapshot()
+                    self._note_warning(
+                        "Whisper slower than live TV: queue full; "
+                        f"{health['missed_seconds']:.1f} s of captions could not "
+                        "be retained. Select CUDA GPU/smaller model or fewer translations.")
 
     def _decode(self, capture, options, captured_start, captured_end):
         try:
@@ -138,9 +182,17 @@ class CaptionTap:
             targets = tuple(options.get("targets", ()))
             enabled = targets if ai.values["translation_enabled"] else ()
             primary = targets[0] if targets else source
+            previous = (self.previous_original
+                        if self.previous_revision == options.get("revision", 0)
+                        else "")
             result = decode_segment(capture, mode=selected, page=options["page"],
                 source=source, target=primary, targets=enabled,
-                model=ai.values["model_path"], service_id=None)
+                model=ai.values["model_path"], service_id=None,
+                previous_text=previous)
+            if result.get("source") == "local_asr" and result.get("original"):
+                # The decoder must remove duplicated overlap before translation.
+                self.previous_original = result["original"]
+                self.previous_revision = options.get("revision", 0)
             if targets and not ai.values["translation_enabled"]:
                 result["translation_errors"] = {
                     lang: "Translation disabled in Model Market." for lang in targets}
@@ -153,18 +205,22 @@ class CaptionTap:
             result["captured_end"] = captured_end
             result["decoded_at"] = time.monotonic()
             result["revision"] = options.get("revision", 0)
-            self.events.put(("caption", result))
+            try:
+                self.events.put_nowait(("caption", result))
+            except queue.Full:
+                self._note_warning("Caption UI event backlog full; output delayed")
         except (OSError, RuntimeError, ImportError, ValueError) as error:
-            self.events.put(("warning", str(error)[:180]))
-        finally:
-            self.busy.clear()
+            self._note_warning(str(error)[:180])
 
     def close(self):
         self.stop.set()
         if self.sock:
             self.sock.close()
+        self.work_queue.close()
         if self.thread and self.thread.is_alive():
             self.thread.join(timeout=2)
+        if self.worker and self.worker.is_alive():
+            self.worker.join(timeout=2)
         # Only unlink our own previously bound socket.
         try:
             self.path.unlink(missing_ok=True)
@@ -325,7 +381,7 @@ def main(argv=None):
     translated = QLabel("")
     translated.setObjectName("subtitle"); translated.setWordWrap(True)
     root.addWidget(original); root.addWidget(translated)
-    status = QLabel("Whisper captions use 4-second audio chunks plus processing time. "
+    status = QLabel("Whisper captions use 6-second overlapping audio chunks plus processing time. "
                     "Audio and video remain synchronized with each other.")
     status.setWordWrap(True)
     root.addWidget(status)
@@ -583,7 +639,9 @@ def main(argv=None):
                         f"{int((data['decoded_at']-data['captured_end'])*1000)}ms" +
                         " | Caption lateness vs buffered TV: "+
                         str(cue["lateness_ms"])+"ms" +
-                        " | DVB TS packets: "+str(tap.packet_count))
+                        " | DVB TS packets: "+str(tap.packet_count) +
+                        " | Backlog: "+str(tap.work_queue.snapshot()["queued_clips"]) +
+                        " clips ("+str(tap.work_queue.snapshot()["queued_mib"])+" MiB)")
                     if data.get("error"):
                         status.setText(status.text()+"\n"+data["error"])
                 elif data.get("error"):
