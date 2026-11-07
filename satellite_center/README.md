@@ -1,4 +1,4 @@
-# TIHULU Satellite Center 0.3.0~preview9 — native desktop application
+# TIHULU Satellite Center 0.3.0~preview10 — exact web UI + native SDR desktop
 
 ## Preview9 · full home satellite pass planning (2026-11-07)
 
