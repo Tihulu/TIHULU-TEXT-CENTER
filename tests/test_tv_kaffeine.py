@@ -61,10 +61,13 @@ class KaffeineCaptionTapTests(TestCase):
             dev = Path(root) / "dvb"
             (home / ".local/share/kaffeine").mkdir(parents=True)
             cfg = home / ".local/share/kaffeine/config.dvb"
-            content = ("[device]\\nfrontendName=Silicon Labs Si2168\\n"
-                       "[config]\\nname=Terrestrial (T2)\\n"
-                       "scanSource=TIHULU tested: 538 / 586 / 626 MHz\\n")
-            cfg.write_text(content.replace("\\\\n", "\\n"))
+            content = """[device]
+frontendName=Silicon Labs Si2168
+[config]
+name=Terrestrial (T2)
+scanSource=TIHULU tested: 538 / 586 / 626 MHz
+"""
+            cfg.write_text(content)
             with mock.patch("kaffeine_next.diagnostics.shutil.which", return_value=None):
                 result = inspect(home, dev)
             saved = result["configured_sources"]["devices"][0]
@@ -72,7 +75,7 @@ class KaffeineCaptionTapTests(TestCase):
             self.assertEqual(saved["sources"][0]["name"], "Terrestrial (T2)")
             self.assertEqual(saved["sources"][0]["scan_source"],
                              "TIHULU tested: 538 / 586 / 626 MHz")
-            self.assertEqual(cfg.read_text(), content.replace("\\\\n", "\\n"))
+            self.assertEqual(cfg.read_text(), content)
 
     def test_dvb_failure_reports_connected_sources_not_just_generic_permission_error(self):
         from kaffeine_next.patch_upstream import transform
