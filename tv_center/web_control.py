@@ -19,7 +19,7 @@ class WebCall:
 class WebCommandQueue:
     ACTIONS = frozenset({
         "channels","scan_status","scan_start","scan_cancel","play",
-        "stop","channel_update","teletext","models","set_captions"
+        "stop","video_start","video_stop","channel_update","teletext","models","set_captions"
     })
 
     def __init__(self):

@@ -24,12 +24,14 @@ from .ai_settings import AISettings
 from .channels_ui import edit_channels
 from .settings_ui import open_ai_settings
 from .scan_ui import ScanMonitor
+from .web_desktop import TVWebMixin
 
 def main():
     if os.environ.get("WAYLAND_DISPLAY"):
         os.environ.setdefault("QT_QPA_PLATFORM", "xcb")
     try:
-        from PyQt5.QtCore import Qt, QTimer
+        from PyQt5.QtCore import Qt, QTimer, QUrl
+        from PyQt5.QtGui import QDesktopServices
         from PyQt5.QtWidgets import (
             QApplication, QMainWindow, QWidget, QHBoxLayout, QVBoxLayout, QLabel,
             QPushButton, QListWidget, QComboBox, QSpinBox, QFileDialog, QLineEdit,
@@ -40,7 +42,7 @@ def main():
         print("Qt desktop dependency missing: sudo apt install python3-pyqt5", file=sys.stderr)
         return 2
 
-    class Window(QMainWindow):
+    class Window(QMainWindow, TVWebMixin):
         def __init__(self):
             super().__init__()
             self.setWindowTitle("TIHULU TV Center · Native DVB")
@@ -290,13 +292,17 @@ def main():
             self.renderer = QComboBox()
             self.renderer.addItems(["x11-gpu", "x11-compat"])
             form.addRow("Embedded video renderer", self.renderer)
-            self.bridge_toggle = QCheckBox("Enable token-protected local web bridge")
+            self.bridge_toggle = QCheckBox("Local browser TV · token-free, this computer only")
             self.bridge_toggle.toggled.connect(self.toggle_bridge)
-            form.addRow("GitHub Pages / local web", self.bridge_toggle)
-            self.bridge_token = QLineEdit()
-            self.bridge_token.setReadOnly(True)
-            self.bridge_token.setPlaceholderText("Bridge OFF — no local server")
-            form.addRow("Temporary bridge token", self.bridge_token)
+            form.addRow("Local web companion (127.0.0.1 only)", self.bridge_toggle)
+            self.bridge_location = QLabel("Starting local web companion...")
+            self.bridge_location.setWordWrap(True)
+            form.addRow("Local web address", self.bridge_location)
+            self.open_browser = QPushButton("Open Local TV in browser — no token")
+            self.open_browser.clicked.connect(
+                lambda: QDesktopServices.openUrl(QUrl("http://127.0.0.1:8768/")))
+            form.addRow(self.open_browser)
+            self.setup_mobile_ui(form)
             self.statusbar = QLabel("Idle. No active tuner or AI worker.")
             self.statusbar.setWordWrap(True)
             outer.addWidget(self.statusbar)
@@ -306,6 +312,9 @@ def main():
             self.timer = QTimer(self)
             self.timer.timeout.connect(self.poll)
             self.timer.start(250)
+            # Only listens on this computer; never exposes /dev/dvb to the LAN.
+            # A separate PIN-paired Wi-Fi server stays OFF until explicitly enabled.
+            self.bridge_toggle.setChecked(True)
 
         def update_device_status(self):
             s = receiver_status(self.capture.adapter)
@@ -478,7 +487,7 @@ def main():
                 copyfile(file, target)
             self.refresh_channels()
 
-        def scan_channels(self):
+        def scan_channels(self, confirmed=False):
             if self.scanner.running:
                 QMessageBox.information(self, "Scan running", "A scan is already active.")
                 return
@@ -496,7 +505,7 @@ def main():
                             "\n\nOnly continue with a dedicated DVB-S/S2 tuner connected to the LNB.")
             else:
                 question = (label + "\n\nScan the real connected antenna/cable now?")
-            if QMessageBox.question(self, "Automatic full scan",
+            if not confirmed and QMessageBox.question(self, "Automatic full scan",
                 question + "\n\nExisting channels and favorites are preserved if no results are found."
             ) != QMessageBox.Yes:
                 return
@@ -586,6 +595,7 @@ def main():
 
         def stop(self):
             self.capture.stop()
+            self.reset_mobile_video_ui()
             if hasattr(self,"player_hint"):
                 self.player_hint.setText("Receiver stopped · select a channel to watch")
                 self.player_hint.show()
@@ -668,29 +678,41 @@ def main():
                     "subtitle_mode": self.capture.caption_mode,
                     "teletext_page": self.capture.page,
                     "supported_languages": ["tr", "de", "en"],
-                    "web_video": "not_available_in_pages_preview",
+                    "web_video": "local_hls_optional_not_automatically_started",
+                    "mobile_video": bool(self.capture.mobile_stream_dir()),
                     "pi5_hardware_verified": False}
 
         def toggle_bridge(self, enabled):
             if enabled:
                 try:
-                    self.bridge = TVBridge(self.snapshot, lambda p: self.capture.set_captions(
-                        "page", p, self.lang_in.currentText(), self.lang_out.currentText(), self.model.text()),
-                        commands=self.web_commands.submit)
+                    self.bridge = TVBridge(
+                        self.snapshot,
+                        lambda p: self.web_commands.submit("teletext", {"page": p}),
+                        commands=self.web_commands.submit,
+                        stream_dir=self.capture.mobile_stream_dir)
                     info = self.bridge.start()
-                    self.bridge_token.setText(info["token"])
-                    self.statusbar.setText("Local bridge: " + info["url"] + " — loopback only")
-                except OSError as exc:
+                    self.bridge_location.setText(
+                        info["url"] + " · No token · Only this computer")
+                    self.open_browser.setEnabled(True)
+                    self.statusbar.setText("Local TV web app ready: " + info["url"])
+                except (OSError, RuntimeError) as exc:
+                    if self.bridge:
+                        self.bridge.stop()
+                    self.bridge = None
                     self.bridge_toggle.blockSignals(True)
                     self.bridge_toggle.setChecked(False)
                     self.bridge_toggle.blockSignals(False)
-                    QMessageBox.warning(self, "Web bridge", str(exc))
+                    self.bridge_location.setText("Local web unavailable: " + str(exc))
+                    self.open_browser.setEnabled(False)
+                    QMessageBox.warning(self, "Local Web TV", str(exc))
             elif self.bridge:
                 self.bridge.stop()
                 self.bridge = None
-                self.bridge_token.clear()
+                self.bridge_location.setText("Local web server stopped; no listener.")
+                self.open_browser.setEnabled(False)
 
         def poll(self):
+            self.web_commands.drain(self.web_action, limit=12)
             for _ in range(15):
                 try:
                     kind, info = self.capture.events.get_nowait()
@@ -707,12 +729,17 @@ def main():
                         body = original
                     self.subtitle.setText(body + "\nSource: " + info.get("source", "unknown"))
                 elif kind == "scan_progress":
+                    if isinstance(info, dict):
+                        self.web_scan_events.append(info)
+                        self.web_scan_events = self.web_scan_events[-120:]
                     if isinstance(info, dict) and self.scan_monitor:
                         self.scan_monitor.feed(info)
                         if info.get("kind") == "status":
                             self.statusbar.setText(info.get("text", "Scanning…"))
                 elif kind == "scan":
                     ok, message = info
+                    self.web_scan_events.append(
+                        {"kind": "complete" if ok else "failed", "text": message})
                     self.stop_scan_btn.setEnabled(False)
                     if self.scan_monitor:
                         self.scan_monitor.feed({"kind": "complete" if ok else "failed",
@@ -766,6 +793,8 @@ def main():
             self.scanner.cancel()
             if self.bridge:
                 self.bridge.stop()
+                self.bridge = None
+            self.close_mobile()
             self.stop()
             event.accept()
 

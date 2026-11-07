@@ -6,7 +6,8 @@ A standalone, native Qt Widgets + MPV DVB-T/T2 television frontend for **Debian,
 Pop!_OS COSMIC and 64-bit Raspberry Pi OS on Raspberry Pi 5**. The native receiver runs locally.
 The GitHub Pages companion can request optional WebUSB permission for the specific Hauppauge
 USB ID, but **does not yet implement a browser DVB-T2 tuner driver or live video decoder**.
-Real captions and page requests use an optional, token-protected loopback bridge.
+Real TV, live captions, scan controls and Teletext use a token-free same-origin
+local web companion, started on 127.0.0.1:8768 when the native desktop opens.
 WebGPU/WebAssembly capability detection is included, but browser AI inference is not yet implemented.
 
 The project lives beside the existing TEXT CENTER services. TV and offline AI workers
@@ -180,9 +181,12 @@ published at `https://tihulu.github.io/TIHULU-TEXT-CENTER/tv_center/`
 **after** the repo's Pages build includes that directory (do not replace
 the existing TEXT CENTER, Flight Radar or Satellite pages).
 
-The desktop app starts **no HTTP service by default**. Enable its local bridge
-manually; paste the session token into the Pages interface. The bridge binds
-only to `127.0.0.1:8768`, allows exactly the project Pages origin for CORS,
+The native desktop starts the local web companion on **127.0.0.1:8768**
+automatically. Open **http://127.0.0.1:8768/** directly, or choose
+**Open Local TV** on GitHub Pages. There is **no token or PIN to enter on
+the same computer**. The browser uses the same-origin TV API; it is never
+publicly exposed. The Pages site may only query the non-sensitive
+`/api/health` endpoint for a connection hint,
 and exposes real read-only status/captions plus an explicit Teletext page
 request. Browser localhost/private-network protections may prevent the
 connection. To access a Pi across the LAN, a separate authenticated TLS
@@ -315,10 +319,14 @@ favorites/inclusion/order, starting and cancelling a country/satellite scan,
 real signal and scan logs, subtitle mode and Teletext. Native source files
 and channel preferences are preserved when scans yield no services.
 
-GitHub Pages now shows these remote controls too, but only after an explicit
-local token bridge is enabled; some browsers reject HTTPS Pages to an HTTP
-loopback bridge under their Private Network Access policies. Pages does *not*
-carry video. The phone app intentionally serves from the trusted native host.
+GitHub Pages now shows the same panels, but privileged native control remains
+on the dedicated **token-free same-origin local TV app** at
+`http://127.0.0.1:8768/`. Pages exposes a one-click link; its only remote
+probe is non-sensitive `/api/health`. This avoids relying on fragile browser
+Private Network Access workarounds and keeps arbitrary web sites from issuing
+tuner commands. The local site can play explicitly enabled H.264/AAC HLS;
+the public GitHub Pages copy cannot. Phones use the separately enabled
+PIN-paired LAN app and never receive anonymous tuner access.
 Do not forward port 8769 to the public Internet: HTTP pairing cookies and
 live TV are not encrypted, and local Wi-Fi still requires care.
 
@@ -365,3 +373,34 @@ Primary implementation references:
 - https://kernel.googlesource.com/pub/scm/linux/kernel/git/torvalds/linux/+/f4cdf7ca9a1fdcca413157df19753f388a5a224e/drivers/media/usb/em28xx/em28xx-dvb.c
 - https://kernel.googlesource.com/pub/scm/linux/kernel/git/torvalds/linux/+/e5c91aac491def6ab3f90c4cc246e3fcb0f8f058/drivers/media/usb/em28xx/em28xx-core.c
 
+
+## Tokenless local web TV (current implementation)
+
+**Start `tihulu-tv-center`, then visit `http://127.0.0.1:8768/`.**
+The desktop starts a lightweight HTTP server automatically, only on
+127.0.0.1. The local browser requires **no token, login or PIN**. It can
+request native live channels, favorite/update lists, full RF scans,
+Teletext/subtitle modes, and an optional HLS web player when a genuine
+free-to-air broadcast is tuned. HLS is CPU intensive and must be
+explicitly enabled by the user from the browser, never silently started.
+A checkbox in the desktop UI can stop/re-enable the local server.
+
+The public GitHub Pages URL remains useful for direct WebUSB hardware
+diagnostics and browser-local WebGPU/WASM Whisper. It only tests
+`/api/health` to show whether the local app is available, and links
+to the local address. It never obtains a DVB control permission just
+because an origin matches. Some browsers block cross-origin health
+checks; clicking **Open Local TV** works without that probe.
+
+**Security boundaries:** the local companion rejects invalid Host
+headers (DNS-rebinding prevention), foreign Origin and cross-site
+requests on all privileged endpoints. No wildcard CORS and no LAN
+listener. The only CORS exception is the non-sensitive health check
+for `https://tihulu.github.io`. The separate mobile/Pi LAN server
+on port 8769 stays OFF by default and continues requiring an explicit
+six-digit PIN pairing with a trusted Wi-Fi host. Do not port-forward
+either port to the Internet.
+
+The browser's independent WebUSB EM28178 experiment still lacks a
+complete Si2168/Si2157 DVB-T2 tuner driver. Running the local Linux
+bridge does not pretend that direct WebUSB video works.

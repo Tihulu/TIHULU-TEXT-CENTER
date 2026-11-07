@@ -37,7 +37,89 @@ class BrowserTVTests(unittest.TestCase):
         self.assertTrue(controller.authorized("tihulu_tv="+ticket))
         self.assertFalse(controller.authorized(""))
 
-    def test_pages_token_remains_opt_in_and_localhost_only(self):
+    def test_tokenless_companion_is_loopback_and_same_origin(self):
+        import json
+        import urllib.request
+        import urllib.error
+        bridge=TVBridge(lambda:{"source":"offline","channel":None}, lambda p:None,
+                        port=0,commands=lambda action,args:{"action":action,"params":args})
+        info=bridge.start()
+        url=info["url"].rstrip("/")
+        self.assertEqual(info["mode"],"tokenless_loopback")
+        self.assertNotIn("token",info)
+        try:
+            def get(path, headers=None):
+                req=urllib.request.Request(url+path,headers=headers or {})
+                return urllib.request.urlopen(req,timeout=5)
+            with get("/api/health") as resp:
+                health=json.load(resp)
+                self.assertEqual(health["mode"],"tokenless_loopback")
+            with get("/") as resp:
+                body=resp.read().decode("utf-8")
+                self.assertIn("Open Local TV",body)
+                self.assertNotIn('id="token"',body)
+            with get("/api/status") as resp:
+                self.assertEqual(json.load(resp)["source"],"offline")
+            with get("/api/channels") as resp:
+                self.assertEqual(json.load(resp)["action"],"channels")
+            request=urllib.request.Request(url+"/api/command",
+                data=json.dumps({"action":"channels","params":{}}).encode("utf-8"),
+                method="POST",headers={"Content-Type":"application/json",
+                "Origin":url})
+            with urllib.request.urlopen(request,timeout=5) as resp:
+                self.assertTrue(json.load(resp)["ok"])
+            # Pages may only do a non-sensitive health check.
+            with get("/api/health",{"Origin":"https://tihulu.github.io"}) as resp:
+                self.assertEqual(resp.headers.get("Access-Control-Allow-Origin"),
+                                 "https://tihulu.github.io")
+            with self.assertRaises(urllib.error.HTTPError) as err:
+                get("/api/channels",{"Origin":"https://tihulu.github.io"})
+            self.assertEqual(err.exception.code,403)
+            with self.assertRaises(urllib.error.HTTPError) as err:
+                get("/api/channels",{"Host":"evil.example:1234"})
+            self.assertEqual(err.exception.code,403)
+            request=urllib.request.Request(url+"/api/command",
+                data=b'{"action":"stop","params":{}}',method="POST",
+                headers={"Content-Type":"application/json",
+                         "Origin":"https://tihulu.github.io"})
+            with self.assertRaises(urllib.error.HTTPError) as err:
+                urllib.request.urlopen(request,timeout=5)
+            self.assertEqual(err.exception.code,403)
+            req=urllib.request.Request(url+"/api/command",
+                headers={"Origin":"https://tihulu.github.io",
+                         "Access-Control-Request-Method":"POST"},method="OPTIONS")
+            with self.assertRaises(urllib.error.HTTPError) as err:
+                urllib.request.urlopen(req,timeout=5)
+            self.assertEqual(err.exception.code,403)
+            req=urllib.request.Request(url+"/api/health",
+                headers={"Origin":"https://tihulu.github.io",
+                         "Access-Control-Request-Private-Network":"true"},method="OPTIONS")
+            with urllib.request.urlopen(req,timeout=5) as resp:
+                self.assertEqual(resp.status,204)
+                self.assertEqual(resp.headers.get("Access-Control-Allow-Private-Network"),"true")
+        finally:
+            bridge.stop()
+
+    def test_local_hls_serves_only_own_playlist_not_arbitrary_files(self):
+        import tempfile
+        import urllib.request
+        import urllib.error
+        with tempfile.TemporaryDirectory() as folder:
+            path=Path(folder)
+            (path/"index.m3u8").write_text("#EXTM3U\n",encoding="utf-8")
+            bridge=TVBridge(lambda:{},lambda p:None,port=0,
+                stream_dir=lambda: path,commands=lambda action,args:{})
+            address=bridge.start()["url"].rstrip("/")
+            try:
+                with urllib.request.urlopen(address+"/hls/index.m3u8",timeout=5) as response:
+                    self.assertEqual(response.read(),b"#EXTM3U\n")
+                for target in ("/hls/secrets.txt","/hls/../../etc/passwd"):
+                    with self.assertRaises(urllib.error.HTTPError):
+                        urllib.request.urlopen(address+target,timeout=5)
+            finally:
+                bridge.stop()
+
+    def test_local_loopback_only_and_lan_pin_still_required(self):
         bridge=TVBridge(lambda:{},lambda p:None,commands=lambda name,args:{})
         self.assertIsNotNone(bridge.commands)
         with self.assertRaises(ValueError):
@@ -60,6 +142,11 @@ class BrowserTVTests(unittest.TestCase):
         self.assertIn("browser-ai-ui.js",pages)
         for name in ("browser-ai-ui.js","browser-ai-worker.js","web-controls.js"):
             self.assertTrue((root/name).is_file())
+        self.assertIn("Open Local TV",pages)
+        self.assertNotIn('id="token"',pages)
+        controls=(root/"app.js").read_text(encoding="utf-8")
+        self.assertIn('tokenless_loopback',controls)
+        self.assertNotIn('"Authorization"',controls)
 
 if __name__=="__main__":
     unittest.main()

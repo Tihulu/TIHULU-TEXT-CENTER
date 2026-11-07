@@ -1,5 +1,15 @@
 # TIHULU TEXT CENTER
 
+## Token-free local TV web interface
+
+Run `tihulu-tv-center` and open **http://127.0.0.1:8768/**.
+No tokens or PINs on the same computer. GitHub Pages has an **Open Local TV**
+link; it retains WebUSB diagnostics and WebGPU/WASM Whisper. Real DVB tuning,
+favorite channels, scanning and optional HLS video operate through the
+loopback-only native receiver; remote phones still require explicit
+PIN pairing. [Full guide](tv_center/README.md).
+
+
 ## Native TV Center — one-line installer
 
 Experimental DVB-T2/C receiver client with real Teletext, offline subtitle and translation integrations, and country-aware channel scans. [Draft PR #35](https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/35).

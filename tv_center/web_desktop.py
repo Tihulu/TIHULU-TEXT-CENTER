@@ -108,9 +108,22 @@ class TVWebMixin:
             match=next((i for i,r in enumerate(self.visible_rows) if r["key"]==key),None)
             if match is None:
                 raise ValueError("Channel not included in active DVB profile")
+            self.channel_search.clear()
+            self.channel_filter.setCurrentText("All")
+            match=next((i for i,r in enumerate(self.visible_rows) if r["key"]==key),None)
+            if match is None:
+                raise ValueError("Channel hidden by current desktop filters")
             self.channel_list.setCurrentRow(match)
             self.play()
             return {"tuning_requested":True,"channel":self.channels[match].name}
+        if action=="video_start":
+            self.capture.start_mobile_video()
+            return {"streaming":bool(self.capture.mobile_stream_dir()),
+                    "playlist":"/hls/index.m3u8"}
+        if action=="video_stop":
+            self.capture.stop_mobile_video()
+            self.reset_mobile_video_ui()
+            return {"streaming":False}
         if action=="stop":
             self.stop()
             self.reset_mobile_video_ui()
