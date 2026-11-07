@@ -15,6 +15,7 @@ ASSETS = (
     "reception.html",
     "reception.css",
     "reception.mjs",
+    "file_format_inspector.mjs",
     "user_protocol_ui.mjs",
     "saved_satellite_protocols.mjs",
     "satellite_calendar.mjs",
