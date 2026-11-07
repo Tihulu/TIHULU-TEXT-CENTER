@@ -451,7 +451,6 @@ class SatelliteWindow(QMainWindow):
             "Then inspect saved files and decode only what the signal actually contains."))
         top=QHBoxLayout()
         self.home_auto_mode=QComboBox()
-        self.home_auto_mode.setSizePolicy(QSizePolicy.Ignored,QSizePolicy.Fixed)
         for name,ids in (
             ("ISS SSTV · event only",["iss-sstv"]),
             ("Earth weather images + ISS SSTV",["meteor-m2-3","meteor-m2-4","iss-sstv"]),
@@ -502,11 +501,6 @@ class SatelliteWindow(QMainWindow):
         right.setContentsMargins(0,0,0,0)
         left.setSpacing(13)
         right.setSpacing(13)
-        # Prevent long receiver labels/choices from forcing a global
-        # horizontal scrollbar on 1280–1366 px laptops.
-        for column in (left_widget,right_widget):
-            column.setMinimumWidth(0)
-            column.setSizePolicy(QSizePolicy.Expanding,QSizePolicy.Preferred)
         columns.addWidget(left_widget,1)
         columns.addWidget(right_widget,1)
         body.addLayout(columns)
@@ -528,17 +522,14 @@ class SatelliteWindow(QMainWindow):
         buttonrow.addWidget(self._button("Release USB / RF",self.disconnect_receiver))
         ul.addLayout(buttonrow)
         ul.addWidget(self._button(
-            "Hardware details / diagnostics →",
-            lambda:self._open_native_tab("Hardware"),
-            "USB model, physical open/sample tests, busy processes and receiver locks"))
+            "Hardware diagnostics · USB tests, model, process and lock status",
+            lambda:self._open_native_tab("Hardware")))
         left.addWidget(usb)
 
         manual=QGroupBox("2 · Receive satellite-band samples")
         ml=QVBoxLayout(manual)
         manual_form=QFormLayout()
         self.home_capture_profile=QComboBox()
-        self.home_capture_profile.setSizePolicy(
-            QSizePolicy.Ignored,QSizePolicy.Fixed)
         for key,info in PROFILES.items():
             self.home_capture_profile.addItem(info["label"],key)
         self.home_capture_profile.currentIndexChanged.connect(self._home_capture_modes)
@@ -1625,7 +1616,11 @@ class SatelliteWindow(QMainWindow):
         self.pass_time=QDateTimeEdit(QDateTime.currentDateTime())
         self.pass_time.setCalendarPopup(True)
         self.pass_time.setDisplayFormat("yyyy-MM-dd HH:mm:ss")
-        self.pass_seconds=QSpinBox();self.pass_seconds.setRange(8,900);self.pass_seconds.setValue(60)
+        self.pass_seconds=QSpinBox();self.pass_seconds.setRange(8,7200);self.pass_seconds.setValue(60)
+        self.pass_length_unit=QComboBox()
+        self.pass_length_unit.addItem("Seconds","seconds")
+        self.pass_length_unit.addItem("Minutes","minutes")
+        self.pass_length_unit.currentIndexChanged.connect(self._pass_unit_changed)
         self.pass_seconds.valueChanged.connect(self._pass_budget)
         self.pass_mode.currentIndexChanged.connect(self._pass_budget)
         self.pass_cost=self._hint("Choose a predicted pass")
@@ -1633,7 +1628,9 @@ class SatelliteWindow(QMainWindow):
         form.addRow("RF output mode",self.pass_mode)
         form.addRow("IQ sampling rate",self.pass_sample_rate)
         form.addRow("Local start time",self.pass_time)
-        form.addRow("Actual RF duration · seconds",self.pass_seconds)
+        form.addRow("Total recording length",self.pass_seconds)
+        form.addRow("Length unit",self.pass_length_unit)
+        form.addRow(self._hint("Over 180 seconds, this creates <=180 s native calendar files with 21 s reserved gaps. RF is NOT continuous."))
         form.addRow("Estimated disk space",self.pass_cost)
         self.arm_pass=self._button("Arm selected RF capture",self.schedule_selected_pass)
         form.addRow(self.arm_pass)
@@ -2138,6 +2135,10 @@ class SatelliteWindow(QMainWindow):
         advanced=QFormLayout(self.auto_settings)
         self.auto_seconds=QSpinBox()
         self.auto_seconds.setRange(0,900)
+        self.auto_length_unit=QComboBox()
+        self.auto_length_unit.addItem("Seconds","seconds")
+        self.auto_length_unit.addItem("Minutes","minutes")
+        self.auto_length_unit.currentIndexChanged.connect(self._auto_unit_changed)
         self.auto_seconds.setSpecialValueText("Auto · fit pass")
         self.auto_seconds.setValue(0)
         self.auto_jobs=QSpinBox()
@@ -2158,6 +2159,7 @@ class SatelliteWindow(QMainWindow):
         self.auto_compute.setToolTip(
             "Selecting GPU/NPU is a request, not evidence of real accelerator use.")
         advanced.addRow("Duration · 0 = fit pass",self.auto_seconds)
+        advanced.addRow("Length unit",self.auto_length_unit)
         advanced.addRow("Maximum jobs",self.auto_jobs)
         advanced.addRow("Minimum elevation (°)",self.auto_elev)
         advanced.addRow("Analysis hardware",self.auto_compute)
@@ -2210,6 +2212,35 @@ class SatelliteWindow(QMainWindow):
                   self._button("Cancel selected pending job",self.cancel_job),
                   self._button("Edit selected automatic job",self.edit_auto_job))
         self._calendar_jobs=[]
+        self.calendar_countdown=self._hint("Next scheduled RF job: none")
+        body.addWidget(self.calendar_countdown)
+        self.calendar_clock=QTimer(self)
+        self.calendar_clock.timeout.connect(self._update_calendar_countdown)
+        self.calendar_clock.start(1000)
+
+    def _update_calendar_countdown(self):
+        if not hasattr(self,"calendar_countdown"):return
+        current=datetime.now(timezone.utc)
+        pending=[]
+        for j in self._calendar_jobs:
+            if j.get("state") not in ("pending","armed"):continue
+            try:
+                start=datetime.fromisoformat(j.get("run_at") or j["aos"]).astimezone(timezone.utc)
+            except (TypeError,ValueError,KeyError):continue
+            if start>=current:pending.append((start,j))
+        if not pending:
+            self.calendar_countdown.setText("Next scheduled RF job: none")
+            return
+        start,j=min(pending,key=lambda item:item[0])
+        seconds=max(0,int((start-current).total_seconds()))
+        days,seconds=divmod(seconds,86400)
+        hours,seconds=divmod(seconds,3600)
+        minutes,seconds=divmod(seconds,60)
+        part=(f" · part {j['chain_index']}/{j['chain_total']}"
+              if j.get("chain_index") else "")
+        self.calendar_countdown.setText(
+            f"Next RF: {j.get('satellite','Satellite')}{part} · "
+            f"{days}d {hours:02d}h {minutes:02d}m {seconds:02d}s remaining")
 
     def _capture_tab(self):
         body=self._new_tab("Manual RF capture")
@@ -2225,6 +2256,10 @@ class SatelliteWindow(QMainWindow):
         self.capture_sample_rate.currentIndexChanged.connect(self._capture_budget)
         self.capture_seconds=QSpinBox();self.capture_seconds.setRange(8,900)
         self.capture_seconds.setValue(60)
+        self.capture_length_unit=QComboBox()
+        self.capture_length_unit.addItem("Seconds","seconds")
+        self.capture_length_unit.addItem("Minutes","minutes")
+        self.capture_length_unit.currentIndexChanged.connect(self._capture_unit_changed)
         self.capture_budget=self._hint("Long captures write real CU8 directly to disk.")
         self.capture_mode.currentIndexChanged.connect(self._capture_budget)
         self.capture_seconds.valueChanged.connect(self._capture_budget)
@@ -2232,6 +2267,7 @@ class SatelliteWindow(QMainWindow):
         form.addRow("Hardware mode",self.capture_mode)
         form.addRow("IQ sample rate",self.capture_sample_rate)
         form.addRow("Actual sample length",self.capture_seconds)
+        form.addRow("Length unit",self.capture_length_unit)
         form.addRow("Estimated disk budget",self.capture_budget)
         body.addLayout(form)
         self._row(body,
@@ -3225,31 +3261,38 @@ class SatelliteWindow(QMainWindow):
         self.pass_mode.blockSignals(False)
         self._pass_budget()
 
+    def _pass_unit_changed(self):
+        minute=self.pass_length_unit.currentData()=="minutes"
+        current=self.pass_seconds.value()
+        self.pass_seconds.blockSignals(True)
+        self.pass_seconds.setRange(1,120) if minute else self.pass_seconds.setRange(8,7200)
+        self.pass_seconds.setValue(max(1,(current+59)//60) if minute else max(8,current*60))
+        self.pass_seconds.blockSignals(False)
+        self._pass_budget()
+
     def _pass_budget(self):
         mode=self.pass_mode.currentData()
         rate=int(self.pass_sample_rate.currentData() or 1024000)
-        is_iq=mode in ("iq","iq_and_fm_wav")
-        maximum=(min(900,MAX_IQ_BYTES//(2*rate+(64000 if mode=="iq_and_fm_wav" else 0)))
-                 if is_iq else 180 if mode=="survey" else 900)
-        self.pass_seconds.setMaximum(max(8,maximum))
-        self.pass_sample_rate.setEnabled(is_iq)
-        seconds=self.pass_seconds.value()
+        self.pass_sample_rate.setEnabled(mode in ("iq","iq_and_fm_wav"))
+        seconds=self.pass_seconds.value()*(60 if self.pass_length_unit.currentData()=="minutes" else 1)
+        parts=max(1,(seconds+179)//180)
+        gaps=max(0,parts-1)*21
         if mode=="iq_and_fm_wav":
-            self.pass_cost.setText(
-                f"~{seconds*(2*rate/1e6+.064):.1f} MB · raw CU8 then derived 32-kHz FM WAV. "
-                "Both are genuine samples; FM content remains unverified.")
+            estimate=seconds*(2*rate/1e6+.064)
+            label="CU8 + actual FM WAV, same RF; both unverified"
         elif mode=="iq":
-            self.pass_cost.setText(
-                f"~{seconds*2*rate/1e6:.1f} MB raw CU8 · real disk streaming, max {maximum} s at this rate")
-        elif mode=="survey":
-            self.pass_cost.setText("Real rtl_power spectrum survey · 8–180 s (not image decoding)")
+            estimate=seconds*2*rate/1e6
+            label="raw CU8 on disk"
         elif mode in ("sstv_audio","fm_audio"):
-            self.pass_cost.setText(
-                f"~{seconds*.096:.1f} MB estimated WAV · native FM demodulation, activity unverified")
-        elif mode=="aprs":
-            self.pass_cost.setText("Real AX.25/APRS receiver · decoded packet checks required")
+            estimate=seconds*.096
+            label="real FM WAV audio"
         else:
-            self.pass_cost.setText("Select a supported receive-only output mode")
+            estimate=0
+            label="approved local spectrum / packet receiver"
+        self.pass_cost.setText(
+            f"~{estimate:.1f} MB · {parts} separate RF file(s) · "
+            f"{seconds+gaps} s total elapsed ({gaps} s reserved gaps). "
+            "No lossless continuity; receiver must be free and visible pass must fit.")
 
     def schedule_selected_pass(self):
         item=self.pass_list.currentItem()
@@ -3257,23 +3300,35 @@ class SatelliteWindow(QMainWindow):
         key=item.data(0,Qt.UserRole)
         profile=self.pass_profile.currentData()
         mode=self.pass_mode.currentData()
-        seconds=self.pass_seconds.value()
+        seconds=self.pass_seconds.value()*(60 if self.pass_length_unit.currentData()=="minutes" else 1)
         sample_rate=int(self.pass_sample_rate.currentData() or 1024000)
         start=datetime.fromtimestamp(self.pass_time.dateTime().toSecsSinceEpoch(),timezone.utc).isoformat()
         def completed(job):
-            text=("Scheduled "+str(job.get("satellite","satellite"))+
-                  " · "+str(job.get("capture_seconds",seconds))+" seconds. "
-                  "The Qt app must be running to execute this job.")
+            n=job.get("scheduled_count",1)
+            text=(str(n)+" native capture file(s) scheduled · "+str(seconds)+" s RF. "+
+                  (str(job.get("total_gap_seconds",0))+" s reserved gaps. " if n>1 else "")+
+                  "The native Qt app must remain running.")
             self.pass_feedback.setText(text)
             self.statusBar().showMessage(text,12000)
             self.refresh_status()
-        self._task("Arm scheduled RF",lambda:self.station.schedule(
-            key,profile,mode,start,seconds,sample_rate=sample_rate),completed)
+        self._task("Arm scheduled RF",
+                   lambda:self.station.schedule_chain(key,profile,mode,start,seconds,
+                       sample_rate=sample_rate) if seconds>180 else
+                   self.station.schedule(key,profile,mode,start,seconds,
+                       sample_rate=sample_rate),completed)
+
+    def _auto_unit_changed(self):
+        minute=self.auto_length_unit.currentData()=="minutes"
+        current=self.auto_seconds.value()
+        self.auto_seconds.blockSignals(True)
+        self.auto_seconds.setRange(0,15 if minute else 900)
+        self.auto_seconds.setValue((current+59)//60 if minute else current*60)
+        self.auto_seconds.blockSignals(False)
 
     def auto_schedule(self):
         missions=[mid for mid,box in self.mission_boxes.items() if box.isChecked()]
         if not missions:return QMessageBox.information(self,"Auto reception","Select at least one satellite mode.")
-        seconds=self.auto_seconds.value() or None
+        seconds=self.auto_seconds.value()*(60 if self.auto_length_unit.currentData()=="minutes" else 1) or None
         coverage=self.coverage.currentData()
         compute_mode,compute_targets=self.auto_compute.currentData()
         params={"lat":self.lat.value(),"lon":self.lon.value(),"hours":self.hours.value(),
@@ -3409,28 +3464,44 @@ class SatelliteWindow(QMainWindow):
         self.capture_mode.blockSignals(False)
         self._capture_budget()
 
+    def _capture_unit_changed(self):
+        minute=self.capture_length_unit.currentData()=="minutes"
+        current=self.capture_seconds.value()
+        self.capture_seconds.blockSignals(True)
+        limit=180 if self.capture_mode.currentData()=="survey" else 900
+        rate=int(self.capture_sample_rate.currentData() or 1024000)
+        if self.capture_mode.currentData() in ("iq","iq_and_fm_wav"):
+            limit=min(900,MAX_IQ_BYTES//(2*rate+(64000 if self.capture_mode.currentData()=="iq_and_fm_wav" else 0)))
+        self.capture_seconds.setRange(1,(limit+59)//60) if minute else self.capture_seconds.setRange(8,limit)
+        self.capture_seconds.setValue((current+59)//60 if minute else current*60)
+        self.capture_seconds.blockSignals(False)
+        self._capture_budget()
+
     def _capture_budget(self):
         mode=self.capture_mode.currentData()
         rate=int(self.capture_sample_rate.currentData() or 1024000)
         is_iq=mode in ("iq","iq_and_fm_wav")
         maximum=(min(900,MAX_IQ_BYTES//(2*rate+(64000 if mode=="iq_and_fm_wav" else 0)))
                  if is_iq else 180 if mode=="survey" else 900)
-        self.capture_seconds.setMaximum(max(8,maximum))
+        minute=self.capture_length_unit.currentData()=="minutes"
+        max_display=(maximum+59)//60 if minute else maximum
+        if self.capture_seconds.maximum()!=max_display:
+            self.capture_seconds.setMaximum(max(1,max_display))
         self.capture_sample_rate.setEnabled(is_iq)
-        secs=self.capture_seconds.value()
+        secs=self.capture_seconds.value()*(60 if minute else 1)
         self.capture_budget.setText(
-            f"~{secs*2*rate/1e6:.1f} MB raw CU8 on local disk · maximum {maximum}s at {rate/1e6:.3f} MS/s"
+            f"~{secs*2*rate/1e6:.1f} MB raw CU8 · maximum {maximum}s at {rate/1e6:.3f} MS/s"
             if mode=="iq" else
             f"~{secs*(2*rate/1e6+.064):.1f} MB CU8 + FM WAV from same IQ recording"
             if mode=="iq_and_fm_wav" else
-            "Native rtl_power records for exactly requested seconds (8–180)"
+            "Native rtl_power surveys limited to 180 s per manual file; schedule a chain for longer."
             if mode=="survey" else
-            "Native receiver saves actual packet/audio output, no browser involved")
+            "Native receiver saves actual packet/audio output. Long scheduled runs split into files.")
 
     def start_capture(self):
         key=self.capture_profile.currentData()
         mode=self.capture_mode.currentData()
-        secs=self.capture_seconds.value()
+        secs=self.capture_seconds.value()*(60 if self.capture_length_unit.currentData()=="minutes" else 1)
         rate=int(self.capture_sample_rate.currentData() or 1024000)
         if not key or not mode:return
         if QMessageBox.question(self,"Receive-only capture",

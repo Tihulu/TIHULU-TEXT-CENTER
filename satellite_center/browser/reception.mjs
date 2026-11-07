@@ -1,7 +1,7 @@
 import {MISSIONS, missionById, localFileKind, fileEvidence} from "./reception_catalog.mjs";
 import {inspectLocalFormat} from "./file_format_inspector.mjs";
 import {initSatelliteImageUI} from "./satellite_images_ui.mjs?v=20261107-iss-band-diagnostic-v1";
-import {initAutoReceptionUI} from "./auto_reception_ui.mjs?v=20261107-cu8-wav-multiselect-v1";
+import {initAutoReceptionUI} from "./auto_reception_ui.mjs?v=20261107-chained-v2";
 import {initSavedProtocolUI} from "./user_protocol_ui.mjs";
 
 const byId=id=>document.getElementById(id);

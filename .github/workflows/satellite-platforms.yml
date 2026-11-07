@@ -72,6 +72,9 @@ jobs:
           node --test tests/test_satellite_capture_duration.mjs
           node --check satellite_center/browser/schedule_controller.mjs
           node --test tests/test_satellite_pass_schedule.mjs
+          node --check satellite_center/browser/chained_capture.mjs
+          node --test tests/test_satellite_chained_capture.mjs
+          node --check satellite_center/browser/browser.js
           node --check satellite_center/browser/usb_live_probe.mjs
           node --test tests/test_satellite_real_usb.mjs
           node --test tests/test_satellite_leaflet_css.mjs

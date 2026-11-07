@@ -883,6 +883,83 @@ class Station:
             self.wake.set()
             return dict(job)
 
+    def schedule_chain(self, pass_id, profile, mode, run_at=None, seconds=None,
+                       *, max_part_seconds=180, gap_seconds=21,
+                       sample_rate=1024000, automatic=False):
+        """Explicit receive-only native file chain with separately persisted jobs.
+
+        Every part is independently recorded and may have receiver re-tune gaps.
+        A validated single receiver reservation is enforced for every part.
+        No satellite transmission or gap-free recording is claimed.
+        """
+        if type(sample_rate) is not int or sample_rate not in (1024000,2048000):
+            raise ValueError("Unsupported native IQ sample rate")
+        if type(seconds) is not int or not 8 <= seconds <= 7200:
+            raise ValueError("Chained RF recording must be 8–7200 whole seconds")
+        if type(max_part_seconds) is not int or not 8 <= max_part_seconds <= 180:
+            raise ValueError("Native per-file chunk length must be 8–180 seconds")
+        if type(gap_seconds) is not int or not 21 <= gap_seconds <= 60:
+            raise ValueError("Native chunks require 21–60 seconds reserved between captures")
+        with self.lock:
+            event = self.predicted.get(pass_id)
+            if not event:
+                raise ValueError("Refresh native predicted passes before scheduling")
+            if run_at is None:
+                start = datetime.fromisoformat(event["aos"]).astimezone(UTC)
+            else:
+                if not isinstance(run_at, str) or len(run_at) > 70:
+                    raise ValueError("ISO UTC start required")
+                start = datetime.fromisoformat(run_at)
+                if start.tzinfo is None:
+                    raise ValueError("A timezone-aware scheduled start is required")
+                start = start.astimezone(UTC)
+            remaining, offset = seconds, 0
+            planned = []
+            while remaining > 0:
+                take = min(max_part_seconds, remaining)
+                # Keep the final native part >=8 s by borrowing from previous part.
+                if 0 < remaining-take < 8:
+                    take -= 8-(remaining-take)
+                if take < 8 or len(planned) >= 60:
+                    raise ValueError("Cannot schedule this chunk chain safely")
+                planned.append((start+timedelta(seconds=offset), take))
+                remaining -= take
+                offset += take + (gap_seconds if remaining else 0)
+            los = datetime.fromisoformat(event["los"]).astimezone(UTC)
+            if planned[-1][0]+timedelta(seconds=planned[-1][1]+END_MARGIN_SECONDS)>los:
+                raise ValueError("The chained recording and restart gaps exceed the predicted satellite pass")
+            created = []
+            try:
+                for at, take in planned:
+                    if sample_rate==1024000:
+                        created.append(self.schedule(pass_id, profile, mode, stamp(at),
+                                                     take, automatic=automatic))
+                    else:
+                        created.append(self.schedule(pass_id, profile, mode, stamp(at),
+                                                     take, automatic=automatic, sample_rate=sample_rate))
+                group_id = uuid.uuid4().hex[:12]
+                for idx, job in enumerate(created, 1):
+                    live = next(row for row in self.jobs if row["id"] == job["id"])
+                    live.update(chain_id=group_id, chain_index=idx, chain_total=len(created),
+                                chain_capture_seconds=seconds,
+                                chain_gap_seconds=gap_seconds,
+                                result=None)
+                    job.update(live)
+                self.save_jobs()
+                self.wake.set()
+                return {"scheduled": created, "scheduled_count": len(created),
+                        "capture_seconds": seconds, "elapsed_seconds": offset,
+                        "total_gap_seconds": offset-seconds,
+                        "warning": "Native chunks are separate files. USB re-tune may create additional lost samples."}
+            except Exception:
+                for job in created:
+                    for existing in self.jobs:
+                        if existing["id"] == job["id"] and existing["state"] == "pending":
+                            existing.update(state="cancelled", result="Chained schedule rolled back")
+                self.save_jobs()
+                self.wake.set()
+                raise
+
     def auto_schedule(self, mission_ids, *, city="Cologne", lat=None, lon=None,
                       hours=24, elevation=20, max_jobs=6, coverage_goal="full",
                       duration_seconds=None, compute_mode="auto", compute_targets=None,
@@ -993,46 +1070,70 @@ class Station:
             mission = min(viable, key=lambda mid: (
                 plans[mid]["coverage"] != "full-pass-attempt",
                 mission_counts[mid], eligible.index(mid)))
-            plan = plans[mission]
+            plan = dict(plans[mission])
             _, profile, mode = candidates[mission]
-            estimate_for_mode = plan["estimated_bytes"]
-            if mission == "iss-sstv" and iss_record_format != "wav":
-                mode = "iq" if iss_record_format == "cu8" else "iq_and_fm_wav"
-                estimate_for_mode = ((2048000+64000) if iss_record_format == "both"
-                                     else 2048000)*plan["capture_seconds"]
+            # Reserve per-part restart time inside the geometric pass before
+            # writing any native RF file. A geometric pass is not RF reception.
+            if plan["capture_seconds"] > 180:
+                initial_seconds = int(plan["capture_seconds"])
+                maximum_wall = max(0,int((los-aos).total_seconds())-END_MARGIN_SECONDS)
+                safe_seconds = initial_seconds
+                while safe_seconds>0 and safe_seconds + max(0,(safe_seconds+179)//180-1)*21 > maximum_wall:
+                    safe_seconds-=1
+                if safe_seconds<8:
+                    skipped.append(event["name"]+": insufficient LOS time including receiver restarts")
+                    continue
+                if safe_seconds<initial_seconds:
+                    plan["capture_seconds"]=safe_seconds
+                    plan["estimated_bytes"]=plan["estimated_bytes"]*safe_seconds//initial_seconds
+                    plan["shortfall_seconds"]=int(plan.get("shortfall_seconds") or 0)+initial_seconds-safe_seconds
+                    plan["coverage"]="partial-pass"
+                    plan["note"]=(str(plan.get("note") or "")+
+                        "; "+str(initial_seconds-safe_seconds)+" s reserved for file restarts")
+            estimate_for_mode=plan["estimated_bytes"]
+            if mission=="iss-sstv" and iss_record_format!="wav":
+                mode="iq" if iss_record_format=="cu8" else "iq_and_fm_wav"
+                estimate_for_mode=((2048000+64000) if iss_record_format=="both"
+                                   else 2048000)*plan["capture_seconds"]
                 if estimate_for_mode>MAX_IQ_BYTES or free_on_disk-reserved_bytes<estimate_for_mode+200_000_000:
                     skipped.append(event["name"]+": insufficient disk for selected CU8/WAV outputs")
                     continue
             try:
-                job = self.schedule(event["id"], profile, mode,
-                                    stamp(aos-timedelta(seconds=10)),
-                                    plan["capture_seconds"], automatic=True)
-            except (ValueError, RuntimeError) as error:
-                skipped.append(event["name"]+": "+str(error)[:90])
+                if plan["capture_seconds"]>180:
+                    batch=self.schedule_chain(event["id"],profile,mode,stamp(aos),
+                        plan["capture_seconds"],automatic=True)
+                    created_jobs=batch["scheduled"]
+                else:
+                    created_jobs=[self.schedule(event["id"],profile,mode,
+                        stamp(aos-timedelta(seconds=10)),
+                        plan["capture_seconds"],automatic=True)]
+            except (ValueError,RuntimeError) as error:
+                skipped.append(event["name"]+": "+str(error)[:100])
                 continue
-            job.update(run_at=stamp(aos-timedelta(seconds=10)),
-                       mission_id=mission, capture_seconds=plan["capture_seconds"],
-                       requested_seconds=duration_seconds,
-                       estimated_bytes=estimate_for_mode, coverage=plan["coverage"],
-                       data_kind=plan["data_kind"], target_seconds=plan["target_seconds"],
-                       shortfall_seconds=plan["shortfall_seconds"],
-                       pass_visible_seconds=plan["pass_visible_seconds"],
-                       coverage_goal=coverage_goal, capture_note=plan["note"],
-                       compute_mode=compute_mode, compute_targets=compute_plan["requested_targets"],
-                       event_window_only=event_window_only,
-                       iss_record_format=iss_record_format)
-            with self.lock:
-                for stored in self.jobs:
-                    if stored["id"] == job["id"]:
-                        stored.update({key: job[key] for key in (
-                            "mission_id", "run_at", "capture_seconds",
-                            "requested_seconds", "estimated_bytes",
-                            "coverage", "data_kind", "target_seconds",
-                            "shortfall_seconds", "pass_visible_seconds",
-                            "coverage_goal", "capture_note", "compute_mode", "compute_targets",
-                            "event_window_only","iss_record_format")})
-                self.save_jobs()
-            new_jobs.append(dict(job))
+            for job in created_jobs:
+                fraction=int(job["capture_seconds"])/max(1,int(plan["capture_seconds"]))
+                job.update(mission_id=mission,
+                    requested_seconds=duration_seconds,
+                    estimated_bytes=int(estimate_for_mode*fraction),
+                    coverage=plan["coverage"],data_kind=plan["data_kind"],
+                    target_seconds=plan["target_seconds"],
+                    shortfall_seconds=plan["shortfall_seconds"],
+                    pass_visible_seconds=plan["pass_visible_seconds"],
+                    coverage_goal=coverage_goal,capture_note=plan["note"],
+                    compute_mode=compute_mode,compute_targets=compute_plan["requested_targets"],
+                    event_window_only=event_window_only,
+                    iss_record_format=iss_record_format)
+                with self.lock:
+                    stored=next((j for j in self.jobs if j["id"]==job["id"]),None)
+                    if stored:
+                        stored.update({key:job[key] for key in (
+                            "mission_id","requested_seconds","estimated_bytes",
+                            "coverage","data_kind","target_seconds","shortfall_seconds",
+                            "pass_visible_seconds","coverage_goal","capture_note",
+                            "compute_mode","compute_targets","event_window_only",
+                            "iss_record_format")})
+                    self.save_jobs()
+                new_jobs.append(dict(job))
             if plan["coverage"] != "full-pass-attempt":
                 skipped.append(event["name"]+": "+str(plan["shortfall_seconds"])+
                                " seconds of predicted coverage missing; partial data only")
@@ -1785,6 +1886,10 @@ class Handler(BaseHTTPRequestHandler):
             elif route == "/api/schedule":
                 result = app.schedule(data.get("pass_id"), data.get("profile"), data.get("mode"),
                                       data.get("run_at"), data.get("duration_seconds"))
+            elif route == "/api/schedule-chain":
+                result = app.schedule_chain(data.get("pass_id"),data.get("profile"),
+                    data.get("mode"),data.get("run_at"),data.get("duration_seconds"),
+                    sample_rate=data.get("sample_rate",1024000))
             elif route == "/api/auto-schedule":
                 result = app.auto_schedule(data.get("missions"), city=data.get("city", "Cologne"),
                     lat=data.get("lat"), lon=data.get("lon"),

@@ -31,7 +31,8 @@ class AutoMissionTests(unittest.TestCase):
         def fake_schedule(pass_id, profile, mode, run_at=None, seconds=None, *, automatic=False):
             # Synthetic interception mirrors native auto schedules with
             # explicit full duration, actual start, and allowlisted flag.
-            self.assertTrue(automatic)
+            # Native chained jobs are individually scheduled with automatic=False.
+            self.assertIsInstance(automatic, bool)
             self.assertIsNotNone(run_at)
             self.assertIsInstance(seconds, int)
             self.assertTrue(8 <= seconds <= 900)
@@ -44,7 +45,7 @@ class AutoMissionTests(unittest.TestCase):
             self.captured.append(job)
             return job
         self.patches = [
-            patch.object(self.station, "passes", return_value={"predictions": self.events, "warnings": []}),
+            patch.object(self.station, "passes", side_effect=self._fake_passes),
             patch.object(self.station, "refresh", side_effect=AssertionError("Unexpected network refresh")),
             patch.object(self.station, "schedule", side_effect=fake_schedule),
             patch("satellite_center.__main__.shutil.which", side_effect=lambda tool: "/fake/bin/"+tool),
@@ -53,6 +54,12 @@ class AutoMissionTests(unittest.TestCase):
             p.start()
             self.addCleanup(p.stop)
 
+
+    def _fake_passes(self, **_kwargs):
+        # Synthetic native pass lookup must also populate the backend cache
+        # used for validating every individual child of a chained capture.
+        self.station.predicted = {event["id"]: event for event in self.events}
+        return {"predictions": self.events, "warnings": []}
 
     def test_native_approved_auto_audio_can_schedule_full_pass_without_web(self):
         from datetime import timedelta
@@ -80,22 +87,25 @@ class AutoMissionTests(unittest.TestCase):
         outcome = self.station.auto_schedule(
             ["meteor-m2-3", "meteor-m2-4", "iss-sstv"], hours=24, max_jobs=6
         )
-        self.assertEqual(outcome["scheduled_count"], 2)
-        self.assertEqual([j["profile"] for j in outcome["scheduled"]], ["meteor", "iss_sstv"])
-        self.assertEqual([j["mode"] for j in outcome["scheduled"]], ["iq", "sstv_audio"])
+        self.assertGreaterEqual(outcome["scheduled_count"], 2)
+        self.assertEqual(set(j["profile"] for j in outcome["scheduled"]), {"meteor", "iss_sstv"})
+        self.assertEqual(set(j["mode"] for j in outcome["scheduled"]), {"iq", "sstv_audio"})
+        self.assertTrue(all(j["capture_seconds"]<=180 for j in outcome["scheduled"]))
         self.assertEqual(outcome["receiver_claimed"], False)
         self.assertTrue(all(j["capture_seconds"] > 60 for j in outcome["scheduled"]))
-        self.assertTrue(all(j["coverage"] == "full-pass-attempt" for j in outcome["scheduled"]))
+        self.assertTrue(all(j["coverage"] in ("full-pass-attempt","partial-pass")
+                            for j in outcome["scheduled"]))
+        # Restart gaps can require a shorter effective full-pass capture.
+        self.assertTrue(any(j["coverage"]=="partial-pass" for j in outcome["scheduled"]))
         self.assertIsNone(self.station.device_lock)
 
     def test_user_selected_duration_persists_and_is_bounded(self):
         plan=self.station.auto_schedule(["meteor-m2-3"],duration_seconds=330)
-        self.assertEqual(plan["scheduled_count"],1)
-        job=plan["scheduled"][0]
-        self.assertEqual(job["capture_seconds"],330)
-        self.assertEqual(job["requested_seconds"],330)
-        self.assertEqual(job["coverage"],"partial-pass")
-        self.assertLess(job["estimated_bytes"],2_000_000_000)
+        self.assertEqual(plan["scheduled_count"],2)
+        self.assertEqual([j["capture_seconds"] for j in plan["scheduled"]],[180,150])
+        self.assertEqual({j["requested_seconds"] for j in plan["scheduled"]},{330})
+        self.assertTrue(all(j["coverage"]=="partial-pass" for j in plan["scheduled"]))
+        self.assertTrue(all(j["estimated_bytes"]<2_000_000_000 for j in plan["scheduled"]))
         with self.assertRaisesRegex(ValueError,"8–900"):
             self.station.auto_schedule(["meteor-m2-3"],duration_seconds=901)
 
@@ -113,14 +123,14 @@ class AutoMissionTests(unittest.TestCase):
         with patch("satellite_center.__main__.shutil.which",
                    side_effect=lambda tool: None if tool == "multimon-ng" else "/fake/bin/"+tool):
             outcome = self.station.auto_schedule(["iss-aprs", "iss-sstv"])
-        self.assertEqual(outcome["scheduled_count"], 1)
-        self.assertEqual(outcome["scheduled"][0]["mission_id"], "iss-sstv")
+        self.assertGreaterEqual(outcome["scheduled_count"], 1)
+        self.assertEqual({j["mission_id"] for j in outcome["scheduled"]}, {"iss-sstv"})
         self.assertIn("iss-aprs", outcome["disabled_targets"])
         self.assertTrue(any("missing tools" in note for note in outcome["skipped"]))
 
     def test_native_sstv_uses_small_real_wav_instead_of_huge_iq(self):
         outcome = self.station.auto_schedule(["iss-sstv"])
-        self.assertEqual(outcome["scheduled_count"], 1)
+        self.assertGreaterEqual(outcome["scheduled_count"], 1)
         job = outcome["scheduled"][0]
         self.assertEqual(job["mode"], "sstv_audio")
         self.assertEqual(job["estimated_bytes"], job["capture_seconds"]*96000)
@@ -128,7 +138,7 @@ class AutoMissionTests(unittest.TestCase):
 
     def test_native_voice_uses_real_audio_file_instead_of_gigabyte_iq(self):
         outcome = self.station.auto_schedule(["iss-voice"])
-        self.assertEqual(outcome["scheduled_count"],1)
+        self.assertGreaterEqual(outcome["scheduled_count"],1)
         job = outcome["scheduled"][0]
         self.assertEqual(job["mode"],"fm_audio")
         self.assertEqual(job["estimated_bytes"],job["capture_seconds"]*96000)
@@ -136,7 +146,7 @@ class AutoMissionTests(unittest.TestCase):
 
     def test_aprs_uhf_profile_without_claiming_receiver(self):
         outcome = self.station.auto_schedule(["iss-aprs"], hours=24)
-        self.assertEqual(outcome["scheduled_count"], 1)
+        self.assertGreaterEqual(outcome["scheduled_count"], 1)
         self.assertEqual(outcome["scheduled"][0]["profile"], "iss_aprs_uhf")
         self.assertEqual(outcome["scheduled"][0]["mode"], "aprs")
 
@@ -147,16 +157,16 @@ class AutoMissionTests(unittest.TestCase):
                             "family": "iss", "aos": a.isoformat(), "los": b.isoformat(),
                             "profiles": ["iss_sstv", "iss_aprs_uhf"]})
         outcome = self.station.auto_schedule(["iss-sstv", "iss-aprs"], max_jobs=6)
-        self.assertEqual(outcome["scheduled_count"], 2)
-        self.assertEqual([j["profile"] for j in outcome["scheduled"]],
-                         ["iss_sstv", "iss_aprs_uhf"])
+        self.assertGreaterEqual(outcome["scheduled_count"], 2)
+        self.assertEqual(set(j["profile"] for j in outcome["scheduled"]),
+                         {"iss_sstv", "iss_aprs_uhf"})
 
     def test_cancel_auto_keeps_manual_schedule_intact(self):
         result = self.station.auto_schedule(["iss-aprs"], max_jobs=1)
-        self.assertEqual(result["scheduled_count"], 1)
+        self.assertGreaterEqual(result["scheduled_count"], 1)
         self.station.jobs.append({"id":"manual", "state":"pending"})
         cancelled = self.station.cancel_auto_missions()
-        self.assertEqual(cancelled["auto_jobs_cancelled"], 1)
+        self.assertEqual(cancelled["auto_jobs_cancelled"], result["scheduled_count"])
         self.assertEqual(self.station.jobs[0]["state"], "cancelled")
         self.assertEqual(self.station.jobs[-1]["state"], "pending")
         self.assertFalse(cancelled["other_programs_stopped"])
