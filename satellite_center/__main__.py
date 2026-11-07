@@ -77,7 +77,7 @@ PROFILES = {
     "iridium": {"label": "Iridium L-band RF survey", "range": "1616M:1626.5M:50k", "freq": None, "family": "iridium"},
     "iridium_rf_iq": {"label": "Iridium L-band 1620 MHz raw IQ candidate only; no message decode", "range": "1616M:1626.5M:50k", "freq": 1620000000, "family": "iridium"},
 }
-MODES = ("survey", "iq", "aprs", "sstv_audio", "fm_audio")
+MODES = ("survey", "iq", "iq_and_fm_wav", "aprs", "sstv_audio", "fm_audio")
 
 
 def now():
@@ -149,6 +149,8 @@ def profiles_for(fam):
 
 def allowed_mode(profile, mode):
     return mode == "survey" or (mode == "iq" and PROFILES[profile]["freq"] is not None) or (
+        mode == "iq_and_fm_wav" and profile in ("iss_voice","iss_sstv","iss_uhf")
+        ) or (
         profile in ("iss_aprs", "iss_aprs_uhf") and mode == "aprs"
     ) or (profile in ("iss_voice", "iss_sstv") and mode == "sstv_audio") or (profile in ("iss_voice", "iss_uhf") and mode == "fm_audio")
 
@@ -775,7 +777,8 @@ class Station:
             free = shutil.disk_usage(self.archive).free
             reserve = sum(int(other.get("estimated_bytes") or 0) for other in self.jobs
                           if other.get("state") in ("pending","running"))
-            estimate = (2*1024000*duration if mode == "iq"
+            estimate = ((2*1024000+64000)*duration if mode == "iq_and_fm_wav"
+                        else 2*1024000*duration if mode == "iq"
                         else 96_000*duration if mode in ("sstv_audio", "fm_audio")
                         else 1_000_000)
             if estimate>MAX_IQ_BYTES or free-reserve<estimate+200_000_000:
@@ -1118,11 +1121,12 @@ class Station:
                 # ISS SSTV WAV can contain several separate Robot36 images.
                 # Decode only actual PCM samples; never infer imagery from
                 # a predicted pass, filename, or RF level alone.
-                if (nearest.get("mission_id") == "iss-sstv"
-                        and result.get("file", "").endswith(".wav")):
+                wav_name = result.get("wav") or (
+                    result.get("file") if str(result.get("file","")).endswith(".wav") else None)
+                if nearest.get("mission_id") == "iss-sstv" and wav_name:
                     try:
                         result["sstv"] = extract_robot36_wav(
-                            self.archive / result["file"],
+                            self.archive / wav_name,
                             compute_mode=nearest.get("compute_mode", "auto"),
                             compute_targets=nearest.get("compute_targets"))
                     except Exception as exc:
@@ -1219,11 +1223,39 @@ class Station:
                 thread.join(timeout=4)
         self.request_stop()
 
+    def capture_dual(self,profile,seconds=60,scheduled=False,owner=None,satellite=None):
+        """Receive physical CU8 once, then demodulate its *same samples* to WAV.
+
+        Native hardware backend, not WebUSB. The 32-kHz WAV is a derived
+        FM-demodulated audio track; a saved WAV does not prove speech or SSTV.
+        Never hide/lose a valid CU8 file on a decoder error.
+        """
+        if profile not in ("iss_voice","iss_sstv","iss_uhf"):
+            raise ValueError("Dual CU8 + FM WAV requires a catalogued ISS audio profile")
+        iq=self.capture(profile,"iq",seconds,scheduled=scheduled,owner=owner,
+                        satellite=satellite)
+        from .native_signal_tools import fm_to_wav
+        try:
+            report=fm_to_wav(
+                self.archive/iq["file"],self.archive,1024000,
+                int(PROFILES[profile]["freq"]),0)
+            iq["wav"]=Path(report["output_wav"]).name
+            iq["wav_format"]="32kHz 16-bit PCM mono (native CPU demodulation after RF capture)"
+            iq["audio_authenticity"]="unverified_fm_demodulation_from_same_real_iq"
+            iq["mode"]="iq_and_fm_wav"
+        except (OSError,ValueError,RuntimeError) as exc:
+            iq["wav_error"]=str(exc)[:240]
+            iq["mode"]="iq_and_fm_wav_partial"
+            iq["note"]="Real CU8 preserved; derived FM WAV failed"
+        return iq
+
     def capture(self, profile, mode="survey", seconds=18, scheduled=False, owner=None, satellite=None):
         if profile not in PROFILES or mode not in MODES or not allowed_mode(profile, mode):
             raise ValueError("Unsupported capture preset")
         if type(seconds) is not int or not 8 <= seconds <= MAX_CAPTURE_SECONDS:
             raise ValueError("Capture duration must be 8–900 seconds")
+        if mode == "iq_and_fm_wav":
+            return self.capture_dual(profile,seconds,scheduled,owner,satellite)
         # Explicit manual requests use the same 8–900 s/2 GB native disk
         # safety budget as scheduled captures. No browser IQ memory buffer.
         if mode == "survey" and seconds > 180:
