@@ -37,6 +37,20 @@ class CountryAutoScanTest(unittest.TestCase):
         self.assertEqual(parse_scan_progress("signal ok: QAM_AUTO f = 626000 kHz")["frequency_reported"],
                          "626.000 MHz")
 
+    def test_dvbv5_sweep_reports_real_frequency_services_and_lock(self):
+        sample=parse_scan_progress("Scanning frequency #1 573000000")
+        self.assertEqual(sample["frequency_reported"],"573.000 MHz")
+        service=parse_scan_progress("Service KiKA HD, provider ZDF: digital television")
+        self.assertEqual(service["service_reported"],"KiKA HD")
+        self.assertIs(parse_scan_progress("Lock   (0x1f) Quality= Good")["demod_lock"],True)
+        self.assertIs(parse_scan_progress("Lock   (0x03) Quality= Poor")["demod_lock"],False)
+
+    def test_operator_source_scan_is_available_without_w_scan_cpp(self):
+        from tv_center.scanner import AutoScanner
+        self.assertTrue(callable(AutoScanner.run_from_initial_file))
+        cmd,stage2=scan_commands("DE","t",0,Path("/tmp/initial"),Path("/tmp/list"))
+        self.assertEqual(stage2[stage2.index("-T")+1],"2")
+
     def test_scan_logs_are_not_replayed(self):
         with tempfile.TemporaryDirectory() as temp:
             path = Path(temp) / "scan.log"
