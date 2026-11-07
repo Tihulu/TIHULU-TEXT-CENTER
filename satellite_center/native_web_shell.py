@@ -93,6 +93,12 @@ class BundledAssets(QWebEngineUrlSchemeHandler):
             job.fail(job.RequestFailed)
 
 class RestrictedPage(QWebEnginePage):
+    def javaScriptConsoleMessage(self,level,message,line,source):
+        # Actionable GUI CI messages, including missing JS modules or
+        # WebChannel transport. Native RF bytes never enter this log.
+        print("TIHULU-WEB-UI JS",int(level),str(source)[-130:],
+              line,str(message)[:450],flush=True)
+
     def acceptNavigationRequest(self,url,nav_type,is_main_frame):
         if url.scheme()=="tihulu" and url.host()==HOST:
             return True
@@ -290,6 +296,7 @@ class ExactWebWindow(QMainWindow):
         self.web.setUrl(QUrl("tihulu://desktop/index.html"))
 
     def _load_finished(self,ok):
+        print("TIHULU-WEB-UI loaded",bool(ok),flush=True)
         self.load_ok=bool(ok)
         if not ok:
             QMessageBox.warning(self,"TIHULU native web UI",
@@ -316,21 +323,39 @@ def main(argv=None):
     window.show()
     if not opts.smoke:return app.exec_()
     outcome={"ok":False}
+    check_script="""JSON.stringify({
+        loaded:document.readyState,
+        title:document.title,
+        url:location.href,
+        auto:!!document.getElementById('auto-workflow'),
+        city:!!document.getElementById('city-query'),
+        passes:!!document.getElementById('passes'),
+        nativeReady:!!window.nativeWebBridgeReady,
+        transport:!!window.qt?.webChannelTransport,
+        channelScript:!!window.QWebChannel,
+        log:document.getElementById('log')?.textContent?.slice(0,900)
+    })"""
     def inspect():
-        window.page.runJavaScript(
-            "Boolean(document.querySelector('#auto-workflow') && "
-            "document.querySelector('#city-query') && "
-            "document.querySelector('#passes') && window.nativeWebBridgeReady)",
-            lambda result:complete(bool(result)))
+        window.page.runJavaScript(check_script,report)
+    def report(serialized):
+        if outcome.get("done"):return
+        try:data=json.loads(serialized)
+        except (TypeError,ValueError):data={"error":"empty JS response","raw":str(serialized)}
+        print("TIHULU-WEB-UI diagnostics",json.dumps(data),flush=True)
+        ready=all(data.get(k) is True for k in
+                  ("auto","city","passes","nativeReady","transport","channelScript"))
+        if ready:
+            complete(True)
     def complete(ok):
         if outcome.get("done"):return
         outcome["done"]=True;outcome["ok"]=ok
-        if ok and opts.screenshot:
+        if opts.screenshot:
             window.grab().save(opts.screenshot,"PNG")
+            print("TIHULU-WEB-UI screenshot",opts.screenshot,flush=True)
         app.exit(0 if ok else 1)
-    # The bundled scheme may load before the window is shown; schedule the
-    # check independently of loadFinished to avoid race-dependent CI failures.
-    QTimer.singleShot(3500,inspect)
+    QTimer.singleShot(2500,inspect)
+    QTimer.singleShot(5500,inspect)
+    QTimer.singleShot(11000,inspect)
     QTimer.singleShot(14000,lambda:complete(False))
     return app.exec_()
 
