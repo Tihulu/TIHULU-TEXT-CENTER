@@ -194,16 +194,17 @@ class SatelliteWindow(QMainWindow):
 
     def _style(self):
         self.setStyleSheet("""
-          QMainWindow,QWidget{background:#0b1626;color:#eaf4ff;font-size:13px;font-family:"Noto Sans"}
-          QFrame#passDetail{background:#142840;border:1px solid #345a78;border-radius:12px}
+          QMainWindow,QWidget{background:#080f1b;color:#e7effa;font-size:13px;font-family:"Noto Sans"}
+          QFrame#passDetail{background:#112038;border:1px solid #324966;border-radius:14px}
           QLabel#passTitle{font-size:17px;font-weight:700;color:#f1f9ff}
           QLabel#passSubtitle{font-size:12px;color:#a9c5dd}
           QLabel#passSectionTitle{font-size:13px;font-weight:650;color:#c8e3f9}
           QLabel#dataHint{color:#9cb8d2;font-size:11px}
-          QLineEdit{background:#152d47;color:#f4fbff;border:1px solid #3c6182;border-radius:7px;padding:9px}
+          QLineEdit{background:#162d49;color:#f3f7ff;border:1px solid #436080;border-radius:8px;padding:9px}
           QLineEdit:focus,QComboBox:focus{border:1px solid #65c9e5}
-          QGroupBox{border:1px solid #325370;border-radius:9px;margin-top:12px;padding:14px 8px 8px;font-weight:600}
-          QGroupBox::title{subcontrol-origin:margin;left:14px;padding:0 5px;color:#b6d9f9}
+          QGroupBox{border:1px solid #324966;border-radius:14px;margin-top:14px;
+                     padding:20px 12px 12px;background:#112038;font-weight:650}
+          QGroupBox::title{subcontrol-origin:margin;left:17px;padding:0 7px;color:#dcecff}
           QTabWidget::pane{border:1px solid #31526f;border-radius:10px}
           QPushButton#primaryNav{background:transparent;border:0;border-bottom:3px solid transparent;
                    color:#b4d1e5;border-radius:0;font-size:13px;font-weight:650;padding:10px 12px}
@@ -214,7 +215,7 @@ class SatelliteWindow(QMainWindow):
           QMenu{background:#11263e;border:1px solid #3b607d;color:#e6f3ff}
           QMenu::item{padding:10px 24px}
           QMenu::item:selected{background:#26547b}
-          QFrame#workflowCard{border:1px solid #42637f;border-radius:13px;background:#142c45}
+          QFrame#workflowCard{border:1px solid #324966;border-radius:14px;background:#1b2a43}
           QFrame#workflowCard QLabel{background:transparent;border:0}
           QLabel#workflowStep{font-size:14px;font-weight:750;color:#e9f6ff}
           QLabel#workflowDescription{color:#afc9e2;font-size:12px}
@@ -226,18 +227,23 @@ class SatelliteWindow(QMainWindow):
           QTabBar::tab{padding:10px 18px;background:#172c46;border:1px solid #2a4865}
           QTabBar::tab:selected{background:#24547d;color:#fff}
           QComboBox,QSpinBox,QDoubleSpinBox,QDateTimeEdit,QDateEdit,QPlainTextEdit,
-          QTreeWidget,QTableWidget{background:#132843;color:#eff7ff;border:1px solid #426181;
-                                 border-radius:5px;padding:5px;selection-background-color:#376c9d}
+          QTreeWidget,QTableWidget{background:#162d49;color:#f3f7ff;border:1px solid #436080;
+                                 border-radius:8px;padding:8px;selection-background-color:#2873cf}
           QComboBox QAbstractItemView{background:#132843;color:#eff7ff;selection-background-color:#376c9d}
-          QPushButton{background:#254d74;border:1px solid #49759d;border-radius:5px;padding:8px 13px}
-          QPushButton:hover{background:#326a9a}
+          QPushButton{background:#2873cf;color:#ffffff;border:1px solid #3b84dc;
+                      border-radius:9px;padding:10px 14px;font-weight:600}
+          QPushButton:hover{background:#3583e1}
+          QPushButton#secondaryAction{background:#253b57;border-color:#54749d}
+          QPushButton#dangerAction{background:#502e3e;border-color:#ac6378}
+          QPushButton#dangerAction:hover{background:#704254}
           QPushButton:disabled{color:#6f88a3;background:#17283b}
           QHeaderView::section{background:#1a344f;color:#d9ebff;padding:9px;border:0;border-bottom:1px solid #34536e;font-weight:600}
           QTreeWidget::item{padding:6px}
           QTreeWidget::item:selected{background:#294c70;color:#ffffff}
           QScrollBar:vertical{width:11px;background:#101f34}
           QScrollBar::handle:vertical{background:#345d80;min-height:26px;border-radius:5px}
-          QLabel#headline{font-size:22px;font-weight:bold;color:#f1faff}
+          QLabel#headline{font-size:26px;font-weight:750;color:#f1faff}
+          QLabel#eyebrow{font-size:11px;font-weight:700;color:#87bdef}
           QLabel#hint{color:#a7bfd7}
         """)
 
@@ -248,9 +254,14 @@ class SatelliteWindow(QMainWindow):
         layout.setContentsMargins(15,12,15,10)
         layout.setSpacing(10)
         header=QHBoxLayout()
-        title=QLabel("TIHULU SATELLITE CENTER")
+        brand=QVBoxLayout()
+        eyebrow=QLabel("TIHULU SATELLITE CENTER  ·  DIRECT NATIVE USB")
+        eyebrow.setObjectName("eyebrow")
+        brand.addWidget(eyebrow)
+        title=QLabel("Satellite Center")
         title.setObjectName("headline")
-        header.addWidget(title)
+        brand.addWidget(title)
+        header.addLayout(brand)
         header.addStretch(1)
         self.top_status=QLabel("Receive-only · SDR not acquired")
         header.addWidget(self.top_status)
@@ -583,6 +594,7 @@ class SatelliteWindow(QMainWindow):
         actions=QHBoxLayout()
         self.hardware_refresh_button=self._button("↻  Refresh devices",self.refresh_status)
         self.hardware_test_button=self._button("Test USB only",self.usb_test)
+        self.hardware_test_button.setObjectName("secondaryAction")
         sample_actions=QHBoxLayout()
         self.hardware_test_frequency=QComboBox()
         for name,hz in (
@@ -597,6 +609,7 @@ class SatelliteWindow(QMainWindow):
             "Test real RF / IQ samples (0.5 sec)",self.sample_receiver)
         self.hardware_connect_button=self._button("Connect & enable RF",self.connect_receiver)
         self.hardware_disconnect_button=self._button("Stop & disconnect RF",self.disconnect_receiver)
+        self.hardware_disconnect_button.setObjectName("dangerAction")
         for button in (self.hardware_refresh_button,self.hardware_test_button,
                        self.hardware_connect_button,self.hardware_disconnect_button):
             actions.addWidget(button)
