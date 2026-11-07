@@ -28,6 +28,7 @@ import wave
 
 from . import __version__
 from .capture_naming import recording_name, PROFILE_TARGETS, meteor_capture
+from .native_segments import capture_parts, total_wall_seconds, NATIVE_PART_SECONDS, NATIVE_RESET_SECONDS
 from .capture_budget import (MAX_IQ_BYTES, MAX_CAPTURE_SECONDS,
                              plan_capture_budget, END_MARGIN_SECONDS)
 from .sstv_series35 import extract_robot36_wav
@@ -510,7 +511,9 @@ class Station:
     def save_jobs(self):
         safe_write(self.directory/"schedule.json", self.jobs[-150:])
 
-    def schedule(self, pass_id, profile, mode, run_at=None, seconds=None, *, automatic=False):
+    def schedule(self, pass_id, profile, mode, run_at=None, seconds=None, *, automatic=False,
+                 segment_group=None, segment_index=None, segment_count=None,
+                 requested_total_seconds=None, restart_gap_seconds=0):
         """Explicit native RF pass schedule (Firefox-compatible, no WebUSB/FSA).
 
         Enforces server-predicted public TLE event/profile and local disk
@@ -578,7 +581,10 @@ class Station:
                     continue
                 a=datetime.fromisoformat(other.get("run_at") or other["aos"]).astimezone(UTC)
                 b=a+timedelta(seconds=int(other.get("capture_seconds") or 900))
-                if chosen<b+timedelta(seconds=20) and chosen+timedelta(seconds=duration)>a-timedelta(seconds=20):
+                # Sibling captures within one explicitly scheduled series are
+                # allowed back-to-back; independent jobs retain a 20 s guard.
+                padding = 0 if segment_group and other.get("segment_group")==segment_group else 20
+                if chosen<b+timedelta(seconds=padding) and chosen+timedelta(seconds=duration)>a-timedelta(seconds=padding):
                     raise ValueError("Single RTL-SDR already reserved for overlapping capture")
             job = {"id": uuid.uuid4().hex[:12], "pass_id": pass_id,
                    "satellite": event["name"], "family": event["family"],
@@ -589,11 +595,79 @@ class Station:
                    "data_kind": "raw RF energy" if event["family"]=="iridium" else "unclassified IQ",
                    "coverage": "full-pass-attempt" if chosen+timedelta(seconds=duration)>=los-timedelta(seconds=END_MARGIN_SECONDS+5) else "partial-pass",
                    "state": "pending", "created_at": stamp(), "result": None}
+            if segment_group:
+                job.update(segment_group=segment_group,
+                           segment_index=segment_index, segment_count=segment_count,
+                           requested_total_seconds=requested_total_seconds,
+                           restart_gap_seconds=restart_gap_seconds)
             self.jobs.append(job)
             self.save_jobs()
             self.start_scheduler()
             self.wake.set()
             return dict(job)
+
+    def schedule_series(self, pass_id, profile, mode, run_at=None, total_seconds=60, *,
+                        automatic=False, segment_seconds=NATIVE_PART_SECONDS,
+                        gap_seconds=NATIVE_RESET_SECONDS):
+        """Atomically arm independent native RF jobs for a single public pass.
+
+        A 300-second spectrum survey becomes two 150-second captures with a
+        documented 2-second receiver restart gap, not a fabricated continuous
+        300-second RF stream. The native IQ mode can instead use schedule()
+        directly for one uninterrupted ≤900 s file.
+        """
+        parts = capture_parts(total_seconds, cap_seconds=segment_seconds,
+                              gap_seconds=gap_seconds)
+        if len(parts)==1:
+            job = self.schedule(pass_id, profile, mode, run_at,
+                                total_seconds, automatic=automatic)
+            return {"scheduled":[job],"scheduled_count":1,
+                    "group_id":None,"requested_seconds":total_seconds,
+                    "unrecorded_gap_seconds":0}
+        with self.lock:
+            event = self.predicted.get(pass_id)
+            if not event:
+                raise ValueError("Refresh native TLE predictions before arming series")
+            aos = datetime.fromisoformat(event["aos"]).astimezone(UTC)
+            los = datetime.fromisoformat(event["los"]).astimezone(UTC)
+            if run_at is None:
+                chosen=aos
+            else:
+                try:
+                    chosen=datetime.fromisoformat(run_at)
+                except (TypeError, ValueError) as exc:
+                    raise ValueError("Invalid native series start") from exc
+                if chosen.tzinfo is None:
+                    raise ValueError("Native series start requires a timezone offset")
+                chosen=chosen.astimezone(UTC)
+                if not automatic and aos-timedelta(seconds=120)<=chosen<aos:
+                    chosen=aos
+            if chosen+timedelta(seconds=total_wall_seconds(parts)+END_MARGIN_SECONDS)>los:
+                raise ValueError("Series does not fit the predicted pass including receiver restart gaps")
+            if chosen<now()+timedelta(seconds=12):
+                raise ValueError("Plan segmented capture at least 12 seconds before start")
+            group_id=uuid.uuid4().hex[:12]
+            appended=[]
+            try:
+                for part in parts:
+                    when=chosen+timedelta(seconds=part["offset_seconds"])
+                    job=self.schedule(pass_id,profile,mode,stamp(when),
+                        part["duration_seconds"],automatic=automatic,
+                        segment_group=group_id,segment_index=part["index"],
+                        segment_count=part["count"],
+                        requested_total_seconds=total_seconds,
+                        restart_gap_seconds=gap_seconds)
+                    appended.append(job)
+            except Exception:
+                ids={j["id"] for j in appended}
+                self.jobs=[j for j in self.jobs if j["id"] not in ids]
+                self.save_jobs()
+                self.wake.set()
+                raise
+            return {"scheduled":appended,"scheduled_count":len(appended),
+                    "group_id":group_id,"requested_seconds":total_seconds,
+                    "unrecorded_gap_seconds":gap_seconds*(len(parts)-1),
+                    "note":"Each native capture is a distinct receiver acquisition; restart intervals are not recorded."}
 
     def auto_schedule(self, mission_ids, *, city="Cologne", lat=None, lon=None,
                       hours=24, elevation=20, max_jobs=6, coverage_goal="full",
