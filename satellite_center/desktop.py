@@ -1568,6 +1568,10 @@ class SatelliteWindow(QMainWindow):
         def on_error(message):
             if self.active:
                 self.statusBar().showMessage(key+": "+message,15000)
+                if key=="Auto mission planning":
+                    self.auto_feedback.setText("Could not schedule: "+message)
+                elif key=="Arm scheduled RF":
+                    self.pass_feedback.setText("Recording not scheduled: "+message)
                 if not silent:
                     QMessageBox.warning(self,"Satellite Center",message)
         def on_finished():
