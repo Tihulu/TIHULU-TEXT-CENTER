@@ -59,7 +59,9 @@ jobs:
         run: python -m satellite_center doctor
       - name: Static browser-only JS syntax (no hardware)
         shell: bash
-        run: node --input-type=module --check < satellite_center/browser/browser.js
+        run: |
+          node --input-type=module --check < satellite_center/browser/browser.js
+          node --check satellite_center/native_desktop_bridge.js
       - name: Earth and sky tracker tests (no hardware)
         shell: bash
         run: |
