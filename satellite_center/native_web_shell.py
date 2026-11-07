@@ -149,6 +149,7 @@ class NativeReceiver(QObject):
         self.pool.setMaxThreadCount(4)
         self.completed.connect(self._finish)
         self.in_flight=set()
+        self.radio_request=None
     reply=pyqtSignal(str,str)
 
     @pyqtSlot(str,str,str)
@@ -161,6 +162,13 @@ class NativeReceiver(QObject):
         }:
             self.reply.emit(request_id,json.dumps({
                 "ok":False,"error":"Native command is not allowlisted"}))
+            return
+        radio_methods={"connect","usb_open","sample","capture","auto","schedule"}
+        if method in radio_methods and self.radio_request is not None:
+            self.reply.emit(request_id,json.dumps({
+                "ok":False,"error":"Another native SDR operation is still running. "
+                "Finish Connect/Verify before opening a second USB test. "
+                "Use Stop if necessary, then refresh receiver status."}))
             return
         if request_id in self.in_flight or len(self.in_flight)>=8:
             self.reply.emit(request_id,json.dumps({
@@ -194,11 +202,15 @@ class NativeReceiver(QObject):
                     "ok":False,"error":"Native RF action canceled by operator"}))
                 return
         self.in_flight.add(request_id)
+        if method in radio_methods:
+            self.radio_request=request_id
         self.pool.start(RFWork(self,request_id,method,args))
 
     @pyqtSlot(str,str)
     def _finish(self,request_id,result):
         self.in_flight.discard(request_id)
+        if self.radio_request==request_id:
+            self.radio_request=None
         self.reply.emit(request_id,result)
 
     def execute(self,command,args):
