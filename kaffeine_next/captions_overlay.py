@@ -16,7 +16,7 @@ import sys
 import threading
 import time
 
-CHUNK_SECONDS = 10
+CHUNK_SECONDS = 4
 MAX_TS_BYTES = 24 * 1024 * 1024
 LANGS = ("de", "en", "tr")
 
@@ -56,6 +56,7 @@ class CaptionTap:
     def _reader(self):
         chunks = bytearray()
         last = time.monotonic()
+        last_revision = -1
         while not self.stop.is_set():
             try:
                 data = self.sock.recv(188 * 32)
@@ -78,6 +79,10 @@ class CaptionTap:
                 except (OSError, RuntimeError, ValueError) as exc:
                     self.events.put(("warning", "Mobile packet relay: " + str(exc)[:100]))
             options = self.current_options()
+            if options.get("revision", 0) != last_revision:
+                chunks.clear()
+                last_revision = options.get("revision", 0)
+                last = time.monotonic()
             if options["mode"] == "off":
                 chunks.clear()
                 last = time.monotonic()
@@ -87,18 +92,21 @@ class CaptionTap:
                 self.events.put(("warning", "Caption buffer overflow; live TV remains unaffected"))
                 last = time.monotonic()
             chunks.extend(data)
-            if time.monotonic() - last >= CHUNK_SECONDS and len(chunks) >= 188 * 300:
+            now = time.monotonic()
+            if now - last >= CHUNK_SECONDS and len(chunks) >= 188 * 300:
                 capture = bytes(chunks)
+                started = last
                 chunks.clear()
-                last = time.monotonic()
+                last = now
                 if not self.busy.is_set():
                     self.busy.set()
-                    threading.Thread(target=self._decode, args=(capture, options),
+                    threading.Thread(target=self._decode,
+                        args=(capture, options, started, now),
                         name="tihulu-caption-decode", daemon=True).start()
                 else:
                     self.events.put(("warning", "ASR slower than real time; skipping one segment"))
 
-    def _decode(self, capture, options):
+    def _decode(self, capture, options, captured_start, captured_end):
         try:
             from tv_center.ai_settings import AISettings
             from tv_center.captions import decode_segment
@@ -114,6 +122,10 @@ class CaptionTap:
             result = decode_segment(capture, mode=selected, page=options["page"],
                 source=source, target=target, model=ai.values["model_path"],
                 service_id=None)
+            result["captured_start"] = captured_start
+            result["captured_end"] = captured_end
+            result["decoded_at"] = time.monotonic()
+            result["revision"] = options.get("revision", 0)
             self.events.put(("caption", result))
         except (OSError, RuntimeError, ImportError, ValueError) as error:
             self.events.put(("warning", str(error)[:180]))
@@ -137,130 +149,281 @@ def main(argv=None):
     if len(argv) != 2 or argv[0] != "--socket":
         raise SystemExit("Usage: tihulu-tv-center kaffeine-captions --socket $XDG_RUNTIME_DIR/tihulu-dvb-PID.sock")
     endpoint = validate_socket(argv[1])
+    from .caption_timing import CaptionConfig, CueQueue, KaffeineOSD
     from PyQt5.QtCore import Qt, QTimer
     from PyQt5.QtWidgets import (QApplication, QWidget, QVBoxLayout, QHBoxLayout,
-        QLabel, QComboBox, QPushButton, QSpinBox, QCheckBox)
+        QLabel, QComboBox, QPushButton, QSpinBox, QDoubleSpinBox,
+        QCheckBox, QGroupBox, QFormLayout)
     app = QApplication.instance() or QApplication(["TIHULU Kaffeine Live Captions"])
     window = QWidget()
-    window.setWindowTitle("TIHULU · Live TV captions / Whisper / Translator")
-    window.setMinimumWidth(720)
-    window.setWindowFlags(window.windowFlags() | Qt.WindowStaysOnTopHint)
-    window.setStyleSheet("QWidget{background:#0c1722;color:#ebf6fa;font-size:14px}"
-        "QComboBox,QSpinBox,QPushButton{background:#183347;border:1px solid #35718b;"
-        "border-radius:6px;padding:7px} QLabel#subtitle{font-size:21px;}")
-    layout = QVBoxLayout(window)
+    window.setWindowTitle("TIHULU · Live captions / Whisper / Translator")
+    window.setMinimumWidth(780)
+    window.setStyleSheet(
+        "QWidget{background:#0c1722;color:#e8f3fa;font-size:13px}"
+        "QGroupBox{border:1px solid #304b63;border-radius:8px;margin-top:14px;padding:10px}"
+        "QGroupBox::title{subcontrol-origin:margin;left:12px;padding:0 5px}"
+        "QComboBox,QSpinBox,QDoubleSpinBox,QPushButton{background:#173449;"
+        "border:1px solid #356784;border-radius:6px;padding:7px}"
+        "QPushButton#apply{background:#207796;font-weight:700}"
+        "QLabel#subtitle{font-size:20px}"
+    )
+    root = QVBoxLayout(window)
+
+    settings = QGroupBox("Live caption source & language")
+    settings_layout = QFormLayout(settings)
     row = QHBoxLayout()
     mode = QComboBox()
-    mode.addItem("Teletext → Whisper fallback", "auto")
-    mode.addItem("Broadcast Teletext only", "teletext")
+    mode.addItem("Teletext subtitles → Whisper fallback", "auto")
+    mode.addItem("Broadcaster Teletext subtitles", "teletext")
     mode.addItem("Whisper live transcription", "asr")
-    mode.addItem("Teletext page only", "page")
-    mode.addItem("Off (zero AI work)", "off")
-    source = QComboBox(); source.addItems(LANGS)
-    target = QComboBox(); target.addItems(("tr", "en", "de"))
+    mode.addItem("Manual Teletext page", "page")
+    mode.addItem("Off", "off")
+    source = QComboBox(); source.addItems(LANGS); source.setCurrentText("de")
+    target = QComboBox(); target.addItem("Off (original only)", "de")
+    for lang in ("tr", "en"):
+        target.addItem(lang, lang)
+    target.setCurrentIndex(1)
     page = QSpinBox(); page.setRange(100, 899); page.setValue(150)
-    for label, widget in (("Source", mode), ("Spoken", source),
-                           ("Translate to", target), ("Teletext page", page)):
-        row.addWidget(QLabel(label)); row.addWidget(widget)
-    layout.addLayout(row)
-    original = QLabel("Waiting for Kaffeine's live DVB transport stream…")
+    for name, widget in (("Source",mode),("Spoken",source),
+                         ("Translate",target),("Teletext",page)):
+        row.addWidget(QLabel(name))
+        row.addWidget(widget, 1)
+    settings_layout.addRow(row)
+    root.addWidget(settings)
+
+    timing = QGroupBox("Synchronization & video overlay")
+    timing_layout = QFormLayout(timing)
+    offsets = QHBoxLayout()
+    caption_offset = QDoubleSpinBox()
+    caption_offset.setRange(-10.0, 10.0)
+    caption_offset.setSingleStep(0.1)
+    caption_offset.setSuffix(" s")
+    caption_offset.setToolTip("Positive = later subtitle; negative = earlier. Cannot show before decoding completes.")
+    playback_delay = QDoubleSpinBox()
+    playback_delay.setRange(0.0, 8.0)
+    playback_delay.setSingleStep(0.5)
+    playback_delay.setSuffix(" s")
+    playback_delay.setToolTip("Buffers both video and audio together. This uses memory and must be retested on Pi 5.")
+    offsets.addWidget(QLabel("Caption offset"))
+    offsets.addWidget(caption_offset)
+    offsets.addWidget(QLabel("TV playback buffer"))
+    offsets.addWidget(playback_delay)
+    timing_layout.addRow(offsets)
+    visibility = QHBoxLayout()
+    show_video = QCheckBox("On-video subtitles"); show_video.setChecked(True)
+    show_original = QCheckBox("Original"); show_original.setChecked(True)
+    show_translation = QCheckBox("Translation"); show_translation.setChecked(True)
+    position = QComboBox(); position.addItems(("bottom", "top"))
+    font = QSpinBox(); font.setRange(16, 44); font.setValue(25)
+    opacity = QSpinBox(); opacity.setRange(0, 100); opacity.setValue(70); opacity.setSuffix("%")
+    for widget in (show_video,show_original,show_translation): visibility.addWidget(widget)
+    for name, widget in (("Position",position),("Size",font),("Background",opacity)):
+        visibility.addWidget(QLabel(name)); visibility.addWidget(widget)
+    timing_layout.addRow(visibility)
+    root.addWidget(timing)
+    buttons = QHBoxLayout()
+    apply = QPushButton("Apply")
+    apply.setObjectName("apply")
+    reset = QPushButton("Reset")
+    pending = QLabel("Applied: broadcaster auto · German → Turkish · video captions ON")
+    buttons.addWidget(apply); buttons.addWidget(reset); buttons.addWidget(pending, 1)
+    root.addLayout(buttons)
+
+    original = QLabel("Waiting for real Kaffeine DVB stream…")
     original.setObjectName("subtitle"); original.setWordWrap(True)
-    translated = QLabel(""); translated.setObjectName("subtitle")
-    translated.setWordWrap(True)
-    layout.addWidget(original)
-    layout.addWidget(translated)
-    status = QLabel("Kaffeine retains tuner ownership. Only the selected TV service is sampled.")
+    translated = QLabel("")
+    translated.setObjectName("subtitle"); translated.setWordWrap(True)
+    root.addWidget(original); root.addWidget(translated)
+    status = QLabel("Whisper captions use 4-second audio chunks plus processing time. "
+                    "Audio and video remain synchronized with each other.")
     status.setWordWrap(True)
-    layout.addWidget(status)
+    root.addWidget(status)
+
     market = QPushButton("Whisper + Translator Model Market")
-    market.clicked.connect(lambda: __import__("subprocess").Popen(
-        ["tihulu-tv-center", "ai-market"], close_fds=True))
-    layout.addWidget(market)
+    def launch_market():
+        import subprocess
+        subprocess.Popen(["tihulu-tv-center","ai-market"],close_fds=True)
+    market.clicked.connect(launch_market)
+    root.addWidget(market)
     phone = QCheckBox("Allow phone/tablet on trusted Wi-Fi (OFF by default)")
     video = QCheckBox("Share the live channel as H.264/AAC HLS (CPU intensive)")
     lan_note = QLabel("Mobile access OFF. No network listener.")
     lan_note.setWordWrap(True)
-    layout.addWidget(phone)
-    layout.addWidget(video)
-    layout.addWidget(lan_note)
-    state_lock = threading.Lock()
-    current = {"mode":"auto","source":"de","target":"tr","page":150}
-    def update(*_):
-        with state_lock:
-            current.update(mode=mode.currentData(), source=source.currentText(),
-                 target=target.currentText(), page=page.value())
-    for w in (mode, source, target):
-        w.currentIndexChanged.connect(update)
-    page.valueChanged.connect(update)
+    root.addWidget(phone); root.addWidget(video); root.addWidget(lan_note)
+
+    pid = int(endpoint.stem.rsplit("-",1)[-1])
+    ipc = KaffeineOSD(pid, runtime=endpoint.parent)
+    lock = threading.Lock()
+    applied = CaptionConfig().validate()
+    cues = CueQueue()
     def options():
-        with state_lock:
-            return dict(current)
-    events = queue.Queue(maxsize=30)
+        with lock:
+            return applied.options()
+    events = queue.Queue(maxsize=32)
     from .mobile import KaffeineMobile
     mobile = KaffeineMobile(options, lambda msg: events.put(("warning", str(msg))))
     tap = CaptionTap(str(endpoint), options, events, packet_sink=mobile.receive)
+    try:
+        tap.start()
+    except (OSError, RuntimeError) as exc:
+        status.setText("Cannot receive Kaffeine DVB stream: "+str(exc))
+        window.show()
+        return app.exec_()
+
+    current_text = ""
+    current_until = 0.0
+    last_published = 0.0
+    current_cue = None
+
+    def from_controls():
+        translation = target.currentData()
+        return CaptionConfig(
+            mode=mode.currentData(), source=source.currentText(),
+            target=translation, page=page.value(),
+            offset_ms=round(caption_offset.value()*1000),
+            playback_delay_ms=round(playback_delay.value()*1000),
+            on_video=show_video.isChecked(), show_original=show_original.isChecked(),
+            show_translation=show_translation.isChecked(),
+            position=position.currentText(),font_px=font.value(),opacity=opacity.value()
+        ).validate()
+
+    def set_pending(*_):
+        pending.setText("Unsaved changes — press Apply")
+        pending.setStyleSheet("color:#f7bf6e")
+    for w in (mode,source,target,position):
+        w.currentIndexChanged.connect(set_pending)
+    for w in (page,caption_offset,playback_delay,font,opacity):
+        w.valueChanged.connect(set_pending)
+    for w in (show_video,show_original,show_translation):
+        w.toggled.connect(set_pending)
+
+    def apply_settings():
+        nonlocal applied, current_text, current_until, current_cue
+        try:
+            selected = from_controls()
+            with lock:
+                applied = __import__("dataclasses").replace(selected, revision=applied.revision+1)
+            cues.clear()
+            current_cue = None
+            current_text = ""
+            current_until = 0.0
+            original.setText("Waiting for captions under the new settings…")
+            translated.setText("")
+            ipc.publish("",applied)
+            ipc.set_playback_delay(applied)
+            pending.setText("Applied · " + applied.mode + " · " + applied.source.upper() +
+                            " → " + applied.target.upper() +
+                            " · playback buffer " + str(applied.playback_delay_ms/1000) + " s")
+            pending.setStyleSheet("color:#9ed7ba")
+            status.setText("Applied. Caption offset: "+str(applied.offset_ms/1000)+
+                           "s; TV playback buffer: "+str(applied.playback_delay_ms/1000)+
+                           "s. Real ASR timing varies with model CPU/GPU performance.")
+        except (ValueError, OSError) as exc:
+            status.setText("Settings were not applied: " + str(exc))
+
+    def reset_settings():
+        mode.setCurrentIndex(0)
+        source.setCurrentText("de"); target.setCurrentIndex(1)
+        page.setValue(150)
+        caption_offset.setValue(0.0); playback_delay.setValue(0.0)
+        show_video.setChecked(True); show_original.setChecked(True)
+        show_translation.setChecked(True)
+        position.setCurrentText("bottom"); font.setValue(25); opacity.setValue(70)
+        set_pending()
+    apply.clicked.connect(apply_settings)
+    reset.clicked.connect(reset_settings)
 
     def set_phone(enabled):
         if enabled:
             try:
-                data = mobile.enable_lan(lambda num: events.put(("remote_page", int(num))))
-                lan_note.setText("Phone: " + data["url"] + "  |  Pairing code: " + data["pin"]
-                    + "\nTrusted Wi-Fi only; HTTP is not encrypted. Never port-forward.")
+                data = mobile.enable_lan(lambda num: events.put(("remote_page",int(num))))
+                lan_note.setText("Phone: "+data["url"]+" | Pair: "+data["pin"]+
+                                  "\nTrusted Wi-Fi only; HTTP is not encrypted.")
             except (OSError, RuntimeError) as exc:
                 phone.blockSignals(True); phone.setChecked(False); phone.blockSignals(False)
-                lan_note.setText("LAN sharing unavailable: " + str(exc))
+                lan_note.setText("LAN sharing unavailable: "+str(exc))
         else:
             mobile.stop_lan()
             video.blockSignals(True); video.setChecked(False); video.blockSignals(False)
-            lan_note.setText("Mobile access OFF. All paired sessions revoked.")
+            lan_note.setText("Mobile access OFF; phone sessions revoked.")
 
     def set_video(enabled):
         if enabled:
             try:
                 mobile.enable_video()
-                lan_note.setText(lan_note.text() + "\nLive HLS on. iPhone Safari supports native playback.")
-            except (RuntimeError, OSError, ValueError) as exc:
+                lan_note.setText(lan_note.text()+"\nLive HLS enabled for paired phones.")
+            except (RuntimeError,OSError,ValueError) as exc:
                 video.blockSignals(True); video.setChecked(False); video.blockSignals(False)
-                lan_note.setText("Cannot share live video: " + str(exc))
+                lan_note.setText("Mobile HLS unavailable: "+str(exc))
         else:
             mobile.stop_video()
-
     phone.toggled.connect(set_phone)
     video.toggled.connect(set_video)
+    apply_settings()
 
-    try:
-        tap.start()
-    except (OSError, RuntimeError) as exc:
-        status.setText("Cannot connect to live Kaffeine DVB stream: "+str(exc))
-        window.show()
-        return app.exec_()
     def pump():
+        nonlocal current_cue, current_text, current_until, last_published
         mobile.expire_if_idle()
-        for _ in range(5):
+        now = time.monotonic()
+        for _ in range(8):
             try:
                 kind, data = events.get_nowait()
             except queue.Empty:
                 break
             if kind == "remote_page":
-                mode.setCurrentIndex(3)  # explicit Teletext page viewer, not subtitle auto
+                mode.setCurrentIndex(3)
                 page.setValue(int(data))
+                apply_settings()
             elif kind == "caption":
-                mobile.set_caption(data)
+                if data.get("revision") != applied.revision:
+                    continue
                 if data.get("original"):
-                    original.setText("ORIGINAL: " + data["original"])
-                    translated.setText("TRANSLATED: " + (data.get("translated") or
-                        "(source language or translator unavailable)"))
-                    status.setText("Source: " + data.get("source", "unknown") +
-                        " · " + str(tap.packet_count) + " TS packets received")
+                    cue = cues.add(data, applied,
+                                   data["captured_start"],data["captured_end"],
+                                   data["decoded_at"])
+                    status.setText("Real "+data.get("source","unknown")+
+                        " | ASR+translate latency: "+
+                        f"{int((data['decoded_at']-data['captured_end'])*1000)}ms" +
+                        " | Caption lateness vs buffered TV: "+
+                        str(cue["lateness_ms"])+"ms" +
+                        " | DVB TS packets: "+str(tap.packet_count))
+                    if data.get("error"):
+                        status.setText(status.text()+"\n"+data["error"])
                 elif data.get("error"):
-                    status.setText("Caption decode: " + data["error"])
+                    status.setText("Caption/translator: "+data["error"])
             elif kind == "warning":
                 status.setText(str(data))
+        cue = cues.poll(now, applied.revision)
+        if cue:
+            current_cue = cue
+            result = cue["result"]
+            mobile.set_caption(result)
+            current_text = applied.render(result)
+            current_until = cue["expires"]
+            original.setText("ORIGINAL: "+result.get("original", ""))
+            translated.setText("TRANSLATED: "+(result.get("translated") or
+                         ("Not requested" if applied.source == applied.target else
+                          result.get("error") or "Argos DE/EN/TR pack not installed · open Market")))
+            ipc.publish(current_text,applied,ttl_ms=3000)
+            last_published = now
+        elif current_cue and now >= current_until:
+            current_cue = None
+            current_text = ""
+            ipc.publish("",applied)
+            original.setText("Waiting for next live phrase…")
+            translated.setText("")
+        elif current_cue and now-last_published >= 2.0:
+            ipc.publish(current_text,applied,ttl_ms=3000)
+            last_published = now
+
     timer = QTimer(window)
     timer.timeout.connect(pump)
-    timer.start(250)
-    app.aboutToQuit.connect(mobile.close)
-    app.aboutToQuit.connect(tap.close)
+    timer.start(120)
+    def cleanup():
+        mobile.close()
+        tap.close()
+        ipc.close()
+    app.aboutToQuit.connect(cleanup)
     window.show()
     return app.exec_()
 
