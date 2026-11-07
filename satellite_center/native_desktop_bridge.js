@@ -481,6 +481,15 @@
       // Reuse the exact same location widget, validation and provider data.
       window.nativeLocationLookup=(name,country='all')=>
         lookup('geocode',{name,country});
+      // Desktop orbital data never uses blocked cross-origin fetch in the
+      // embedded custom-scheme page. Python fetches whitelisted HTTPS TLEs,
+      // Skyfield computes real TLE geometry; website keeps its own JS path.
+      window.nativeOrbitCatalog=()=>lookup('tle_catalog');
+      window.nativeCustomTle=norad=>lookup('tle_custom',{norad});
+      window.nativeOrbitPasses=(lat,lon,hours,elevation)=>
+        lookup('passes',{lat,lon,hours,elevation});
+      window.nativeOrbitSnapshot=(lat,lon,at_ms,tracks=false)=>
+        lookup('orbit_snapshot',{lat,lon,at_ms,tracks});
       setHardwareLabels();
       window.nativeWebBridgeReady=true;
       window.nativeRFTransport='rtl_sdr';
