@@ -61,5 +61,8 @@ jobs:
           test -x "$RUNNER_TEMP/build/src/kaffeine"
       - name: Package Python AI companion without DVB hardware
         run: |
-          bash tv_center/packaging/build-deb.sh "$RUNNER_TEMP/packages"
+          TIHULU_KAFFEINE_PRIMARY=1 bash tv_center/packaging/build-deb.sh "$RUNNER_TEMP/packages"
           dpkg-deb --info "$RUNNER_TEMP/packages/tihulu-tv-center_0.1.0~dev1_all.deb"
+          mkdir -p "$RUNNER_TEMP/deb-root"
+          dpkg-deb -x "$RUNNER_TEMP/packages/tihulu-tv-center_0.1.0~dev1_all.deb" "$RUNNER_TEMP/deb-root"
+          grep -Fx "NoDisplay=true" "$RUNNER_TEMP/deb-root/usr/share/applications/tihulu-tv-center.desktop"
