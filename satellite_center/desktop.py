@@ -9,6 +9,7 @@ from datetime import datetime, timezone, timedelta
 import json
 import math
 import re
+import shutil
 from pathlib import Path
 import sys
 import wave
@@ -31,6 +32,7 @@ from .native_locations import load_locations, search_locations, city_label
 from .native_orbit import OrbitEngine
 from .native_maps import OrbitCanvas
 from .native_signal_tools import discover_channels, fm_to_wav
+from .sstv_series35 import extract_robot36_wav
 
 
 def local_time(value):
@@ -144,6 +146,8 @@ class SatelliteWindow(QMainWindow):
         self.preview_wav = None
         self.media_player = None
         self.decoded_paths = []
+        self.robot36_report = None
+        self.robot36_source_wav = None
         self.imported_path = None
         self.selected_path = None
         self.active = True
@@ -928,6 +932,19 @@ class SatelliteWindow(QMainWindow):
         analog.addWidget(self._button("Play selected / extracted WAV",self.play_audio))
         analog.addWidget(self._button("Stop audio",self.stop_audio))
         body.addLayout(analog)
+        robot=QHBoxLayout()
+        self.sstv_compute=QComboBox()
+        for label,mode,targets in (
+            ("SSTV compute · Auto","auto",[]),
+            ("CPU","custom",["cpu"]),
+            ("CPU + GPU","custom",["cpu","gpu"]),
+            ("CPU + NPU","custom",["cpu","npu"]),
+            ("CPU + GPU + NPU","custom",["cpu","gpu","npu"])):
+            self.sstv_compute.addItem(label,(mode,targets))
+        robot.addWidget(self.sstv_compute)
+        robot.addWidget(self._button("Decode WAV → Robot36 PNG",self.decode_robot36_native))
+        robot.addWidget(self._button("Save decoded PNG / WAV…",self.save_selected_output))
+        body.addLayout(robot)
         self._row(body,self._button("Save real results ZIP",self.save_results_zip))
         self.candidate_label=self._hint("RF discovery is based on energy above a local noise estimate. A peak alone is not a decoded packet or picture.")
         body.addWidget(self.candidate_label)
@@ -1388,6 +1405,86 @@ class SatelliteWindow(QMainWindow):
         self._task("SatDump Meteor "+variant,
                    lambda:self.station.decode_meteor(name,variant),done)
 
+
+    def decode_robot36_native(self):
+        """Decode an actual local PCM WAV: a PNG is emitted only after real sync."""
+        source=(self.selected_path if self.selected_path and
+                Path(self.selected_path).suffix.lower()==".wav" else self.preview_wav)
+        if not source or not Path(source).is_file():
+            return QMessageBox.information(
+                self,"Robot36 SSTV","Choose a recorded WAV, or demodulate a CU8 into WAV first.")
+        mode,targets=self.sstv_compute.currentData()
+        def completed(report):
+            self.robot36_source_wav=Path(source)
+            self.decoded_paths.extend(
+                Path(source).with_name(item["file"])
+                for item in report.get("images",[])
+                if Path(source).with_name(item["file"]).is_file())
+            # Persist processing metadata even on no-sync. Never fake an image.
+            safe_stem=re.sub(r"[^A-Za-z0-9_-]+","_",Path(source).stem)[:80]
+            dest=self.station.archive/(safe_stem+"_robot36_report.json")
+            dest.write_text(json.dumps(report,indent=2,default=str),encoding="utf-8")
+            self.robot36_report=dest
+            if report.get("images"):
+                actual=Path(source).with_name(report["images"][0]["file"])
+                pixmap=QPixmap(str(actual))
+                if not pixmap.isNull():
+                    self.image.setPixmap(pixmap.scaled(
+                        720,250,Qt.KeepAspectRatio,Qt.SmoothTransformation))
+                self.candidate_label.setText(
+                    "Real Robot36 sync candidate decoded · PNG saved next to source WAV. "
+                    "ISS origin is not verified. Use Save decoded PNG / WAV or ZIP.")
+            else:
+                self.candidate_label.setText(
+                    "No valid Robot36 line synchronization: no PNG was produced. "
+                    "Source WAV remains available to save.")
+            self.file_details.setPlainText(json.dumps(report,indent=2,default=str))
+            self.refresh_status()
+        self._task("Actual Robot36 WAV decoder",
+                   lambda:extract_robot36_wav(
+                       source,compute_mode=mode,compute_targets=targets),completed)
+
+    def save_selected_output(self):
+        """Native Save As for an actual decoded PNG, WAV, report or imported result."""
+        paths=[p for p in reversed(self.decoded_paths) if p.is_file()]
+        if self.robot36_source_wav and self.robot36_source_wav.is_file():
+            paths.append(self.robot36_source_wav)
+        if self.preview_wav and Path(self.preview_wav).is_file():
+            paths.append(Path(self.preview_wav))
+        if self.robot36_report and self.robot36_report.is_file():
+            paths.append(self.robot36_report)
+        if self.selected_path and Path(self.selected_path).is_file() and (
+                Path(self.selected_path).suffix.lower() in (".png",".jpg",".jpeg",".wav",".txt",".json")):
+            paths.append(Path(self.selected_path))
+        if not paths:
+            return QMessageBox.information(
+                self,"Save result","No real decoded image, WAV or result file exists.")
+        from PyQt5.QtWidgets import QInputDialog
+        labels=[p.name+" — "+str(p.parent) for p in paths]
+        label,ok=QInputDialog.getItem(self,"Select actual result to save",
+                                      "Generated / imported file",labels,0,False)
+        if not ok:return
+        source=paths[labels.index(label)]
+        dest,_=QFileDialog.getSaveFileName(
+            self,"Save actual "+source.suffix.upper().lstrip(".")+" output",
+            str(Path.home()/source.name),
+            "Same file type (*"+source.suffix+")")
+        if not dest:return
+        target=Path(dest).expanduser()
+        if target.suffix.lower()!=source.suffix.lower():
+            return QMessageBox.warning(
+                self,"Save result","Keep the original result format "+source.suffix+".")
+        if target.resolve()==source.resolve():
+            self.statusBar().showMessage("Original result is already saved: "+str(source),10000)
+            return
+        if target.exists():
+            return QMessageBox.warning(
+                self,"Save result","Destination already exists; refusing to overwrite.")
+        self._task("Save decoded output",
+                   lambda:shutil.copy2(source,target),
+                   lambda path:self.statusBar().showMessage(
+                       "Actual result copied to "+str(path),12000))
+
     def save_results_zip(self):
         sources=[]
         if self.last_report_path and self.last_report_path.is_file():sources.append(self.last_report_path)
@@ -1396,6 +1493,10 @@ class SatelliteWindow(QMainWindow):
         if self.preview_wav and Path(self.preview_wav).is_file():
             sources.append(Path(self.preview_wav))
         sources += [p for p in self.decoded_paths if p.is_file()]
+        if self.robot36_report and self.robot36_report.is_file():
+            sources.append(self.robot36_report)
+        if self.robot36_source_wav and self.robot36_source_wav.is_file():
+            sources.append(self.robot36_source_wav)
         if self.selected_path and Path(self.selected_path).suffix.lower() in (
             ".png",".jpg",".jpeg",".wav",".txt",".json"):
             sources.append(Path(self.selected_path))
