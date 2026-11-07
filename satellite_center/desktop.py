@@ -500,7 +500,7 @@ class SatelliteWindow(QMainWindow):
         pl.addWidget(self.home_pass_summary)
         pl.addWidget(self._button("View passes · IMAGE / AUDIO / TEXT / RF",
                                   lambda:self._open_native_tab("Passes & Data")))
-        right.addWidget(pl)
+        right.addWidget(planner)
 
         calendar=QGroupBox("4 · Scheduled reception & recorded data")
         cl=QVBoxLayout(calendar)
