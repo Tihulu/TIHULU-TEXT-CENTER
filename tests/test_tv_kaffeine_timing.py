@@ -21,9 +21,7 @@ class KaffeineTimingTests(unittest.TestCase):
                   "kaffeine_next" / "captions_overlay.py").read_text()
         self.assertIn('QCheckBox("Automatic sync', source)
         self.assertIn("automatic_sync=automatic.isChecked()", source)
-        self.assertIn("automatic.toggled.connect(set_pending)", source) if (
-            "automatic.toggled.connect(set_pending)" in source) else self.assertIn(
-                "(show_video,show_original,show_translation,automatic)",source)
+        self.assertIn("(show_video,automatic,*language_boxes.values())", source)
         self.assertIn("auto_controller.next_delay(", source)
         self.assertIn("ipc.set_playback_delay(revised)", source)
 
