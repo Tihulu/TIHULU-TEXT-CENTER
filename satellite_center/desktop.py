@@ -450,6 +450,7 @@ class SatelliteWindow(QMainWindow):
             "Then inspect saved files and decode only what the signal actually contains."))
         top=QHBoxLayout()
         self.home_auto_mode=QComboBox()
+        self.home_auto_mode.setSizePolicy(QSizePolicy.Ignored,QSizePolicy.Fixed)
         for name,ids in (
             ("ISS SSTV · event only",["iss-sstv"]),
             ("Earth weather images + ISS SSTV",["meteor-m2-3","meteor-m2-4","iss-sstv"]),
@@ -500,6 +501,11 @@ class SatelliteWindow(QMainWindow):
         right.setContentsMargins(0,0,0,0)
         left.setSpacing(13)
         right.setSpacing(13)
+        # Prevent long receiver labels/choices from forcing a global
+        # horizontal scrollbar on 1280–1366 px laptops.
+        for column in (left_widget,right_widget):
+            column.setMinimumWidth(0)
+            column.setSizePolicy(QSizePolicy.Expanding,QSizePolicy.Preferred)
         columns.addWidget(left_widget,1)
         columns.addWidget(right_widget,1)
         body.addLayout(columns)
@@ -521,14 +527,17 @@ class SatelliteWindow(QMainWindow):
         buttonrow.addWidget(self._button("Release USB / RF",self.disconnect_receiver))
         ul.addLayout(buttonrow)
         ul.addWidget(self._button(
-            "Hardware diagnostics · USB tests, model, process and lock status",
-            lambda:self._open_native_tab("Hardware")))
+            "Hardware details / diagnostics →",
+            lambda:self._open_native_tab("Hardware"),
+            "USB model, physical open/sample tests, busy processes and receiver locks"))
         left.addWidget(usb)
 
         manual=QGroupBox("2 · Receive satellite-band samples")
         ml=QVBoxLayout(manual)
         manual_form=QFormLayout()
         self.home_capture_profile=QComboBox()
+        self.home_capture_profile.setSizePolicy(
+            QSizePolicy.Ignored,QSizePolicy.Fixed)
         for key,info in PROFILES.items():
             self.home_capture_profile.addItem(info["label"],key)
         self.home_capture_profile.currentIndexChanged.connect(self._home_capture_modes)
