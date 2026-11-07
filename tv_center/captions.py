@@ -73,6 +73,38 @@ def teletext_from_clip(path: Path, page: int | str, service_id: int | None = Non
     proc = _run(cmd, timeout=25)
     return ass_text(proc.stdout.decode("utf-8", "replace")) if proc.returncode == 0 else ""
 
+def choose_audio_stream(streams, language):
+    """Prefer the real program's matching, non-descriptive speech track.
+
+    German DTV broadcasts can contain accessibility/AD or English audio.
+    Transcribing an AD or English track as German can corrupt the captions.
+    This does not retune the channel or pick a different TV service.
+    """
+    languages = {"de":("deu","ger","de"), "en":("eng","en"),
+                 "tr":("tur","tr")}
+    candidates = []
+    for stream in streams:
+        if stream.get("codec_type") != "audio":
+            continue
+        tags = stream.get("tags") or {}
+        if not isinstance(tags, dict):
+            tags = {}
+        lang = str(tags.get("language","")).lower()
+        description = " ".join(str(tags.get(k,"")) for k in ("title","handler_name"))
+        disposition = stream.get("disposition") or {}
+        bad = any(k in description.lower() for k in
+                  ("audio description","audiodeskription","hörfilm","descriptive"))
+        bad = bad or bool(disposition.get("visual_impaired"))
+        preferred = lang in languages.get(language, ())
+        # Prefer known audio descriptions only when there is no normal track.
+        candidates.append((4 if preferred else 0, -10 if bad else 0,
+                           stream.get("index")))
+    candidates = [x for x in candidates if type(x[2]) is int]
+    if not candidates:
+        return None
+    return max(candidates, key=lambda x:(x[0]+x[1],-x[2]))[2]
+
+
 def asr_from_clip(path: Path, language: str, model: str,
                   service_id: int | None = None) -> str:
     if language not in SUPPORTED:
@@ -83,7 +115,7 @@ def asr_from_clip(path: Path, language: str, model: str,
     if selected_backend not in ("auto", "cpu", "gpu", "npu"):
         raise RuntimeError("Invalid offline speech backend")
     streams = _program_streams(path, service_id)
-    audio_index = next((s["index"] for s in streams if s.get("codec_type") == "audio"), None)
+    audio_index = choose_audio_stream(streams, language)
     if audio_index is None:
         raise RuntimeError("No audio track in the selected TV service")
     audio = _run(["ffmpeg", "-hide_banner", "-loglevel", "error", "-i", str(path),
@@ -151,7 +183,8 @@ def translate(text: str, source: str, target: str) -> tuple[str | None, str | No
             return None, "Offline translator could not run: " + str(error)[:120]
 
 def decode_segment(ts: bytes, *, mode="auto", page=150, source="de",
-                   target="tr", targets=None, model="", service_id: int | None = None) -> dict:
+                   target="tr", targets=None, model="", service_id: int | None = None,
+                   previous_text: str = "") -> dict:
     if mode not in ("teletext", "page", "asr", "auto"):
         raise ValueError("Unsupported caption source")
     if not 100 <= page <= 899 or source not in SUPPORTED or target not in SUPPORTED:
@@ -178,6 +211,9 @@ def decode_segment(ts: bytes, *, mode="auto", page=150, source="de",
         if not original and mode in ("asr", "auto"):
             try:
                 original = asr_from_clip(p, source, model, service_id)
+                if original and previous_text:
+                    from kaffeine_next.continuous_captions import remove_repeated_prefix
+                    original = remove_repeated_prefix(previous_text, original)
                 used = "local_asr" if original else ""
             except (RuntimeError, OSError, subprocess.TimeoutExpired) as exc:
                 error = str(exc)[:180]
