@@ -47,7 +47,7 @@ test("minutes and seconds represent exact intended RF acquisition lengths",()=>{
  assert.throws(()=>plan(901),/900/);
 });
 test("series refuses to record beyond predicted pass or overlap arbitrary unsafe caps",()=>{
- assert.throws(()=>plan(300,1024000,{passEndMs:t+307000}),/restart gaps/);
+ assert.throws(()=>plan(300,1024000,{passEndMs:t+307000}),/receiver reset gaps/);
  assert.throws(()=>plan(300,1024000,{gapSeconds:-1}),/gap/);
  assert.throws(()=>plan(300,123456),/sample rate/);
 });
