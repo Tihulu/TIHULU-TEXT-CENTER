@@ -41,6 +41,9 @@ class CaptionTap:
         self.events = events
         self.stop = threading.Event()
         from .continuous_captions import BufferedCaptionQueue
+        from .transport_health import TransportContinuityMeter
+        self.transport_health = TransportContinuityMeter()
+        self.recv_buffer_bytes = None
         self.work_queue = BufferedCaptionQueue(
             maximum_bytes=(48 if Path("/proc/device-tree/model").is_file()
                            else 96) * 1024 * 1024, max_clips=24)
@@ -62,6 +65,13 @@ class CaptionTap:
         self.sock = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
         self.sock.bind(str(self.path))
         os.chmod(self.path, 0o600)
+        # No sysctl changes: Linux clamps SO_RCVBUF to a safe local maximum.
+        try:
+            self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 4*1024*1024)
+        except OSError:
+            pass
+        self.recv_buffer_bytes = self.sock.getsockopt(
+            socket.SOL_SOCKET, socket.SO_RCVBUF)
         self.sock.settimeout(0.3)
         self.thread = threading.Thread(target=self._reader, name="tihulu-kaffeine-ts",
                                        daemon=True)
@@ -111,6 +121,7 @@ class CaptionTap:
                 self.bad_packets += 1
                 continue
             self.packet_count += len(data) // 188
+            self.transport_health.inspect(data)
             rate_now = time.monotonic()
             if self._rate_start is None:
                 self._rate_start = rate_now
@@ -137,6 +148,7 @@ class CaptionTap:
                     previous_duration = 0.0
                     self.previous_original = ""
                     self.previous_revision = -1
+                    self.transport_health.reset()
                     self._note_warning(
                         "TV service changed; cleared previous-channel ASR queue.")
                 self.program_id = observed_program
@@ -664,6 +676,16 @@ def main(argv=None):
                         " | DVB TS packets: "+str(tap.packet_count) +
                         " | Backlog: "+str(tap.work_queue.snapshot()["queued_clips"]) +
                         " clips ("+str(tap.work_queue.snapshot()["queued_mib"])+" MiB)")
+                    timing = data.get("processing_ms") or {}
+                    if timing:
+                        status.setText(status.text() +
+                            " | Stages: TT "+str(timing.get("teletext",0))+"ms"+
+                            " / ASR "+str(timing.get("asr",0))+"ms"+
+                            " / translation "+str(timing.get("translation",0))+"ms")
+                    ts_health = tap.transport_health.snapshot()
+                    status.setText(status.text()+
+                        " | TS continuity gaps: "+str(ts_health["continuity_gaps"])+
+                        " (RF or nonblocking sidecar loss; not distinguished)")
                     if data.get("error"):
                         status.setText(status.text()+"\n"+data["error"])
                 elif data.get("error"):
