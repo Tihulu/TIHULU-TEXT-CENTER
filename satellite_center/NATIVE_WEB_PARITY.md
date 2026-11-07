@@ -2,6 +2,50 @@
 
 Last source audit: 2026-11-07. Development branch: `feature/satellite-auto-discovery-integrated-2026-11-06` (PR #18). **Do not merge into `main` as an untested hardware release.**
 
+## Preview8 · browser information architecture, native hardware transport
+
+The **default installed desktop stays PyQt5 Qt Widgets**. The page hierarchy
+now mirrors the browser's same numbered receiver-to-results sequence rather
+than an unrelated engineering dashboard:
+
+1. Automatic satellite recording (target, recording goal, auto seconds)
+2. Choose USB receiver (named physical inventory, direct Connect/Test/Release)
+3. Receive satellite-band samples (receiver profile, hardware mode, sample
+   rate, duration, real CU8/WAV/BOTH, actual sample-level graph)
+4. Satellite pass planner (city, local/online lookup and opt-in OS location,
+   local TLE import, sort/family/media tags, individual schedule)
+5. Scheduled reception + calendar and saved archives
+6. Earth/Sky maps, OSM opt-in, time slider, selectable satellites and exports
+7. Signal Intelligence and Satellite Images & Data (actual local decoders,
+   NASA EPIC/ISS separate archival imagery, editable user protocols)
+
+**Hardware presence is never called a successful connection.** A physical
+`rtl_test` interface open followed by **actual nonempty CU8 bytes from
+`rtl_sdr`** is the native Connect acceptance requirement. USB-only and
+sample-only tests are available independently. Disconnect requests shutdown
+of *this Station's* child processes, verifies their exit and its cooperative
+receiver lock release, persists disabled state, and prevents scheduled RF
+capture from restarting until another successful physical Connect. It does
+not unpower USB, detach kernel drivers or kill unrelated receivers.
+
+**Native-only difference:** No WebUSB, no browser/PWA memory quota, no
+embedded site. IQ is written by OS `rtl_sdr` to local disk (1.024/2.048 MS/s,
+strict 2 GB safety budget); when CU8+WAV is chosen, a CPU-derived **32-kHz**
+FM WAV is saved *from that same physical CU8* after recording. This differs
+technically from the web's real-time 48-kHz WAV writer and must not be
+represented as byte-identical. One-second live IQ dBFS history comes from
+genuine growing files; it is not calibrated signal strength or RF attribution.
+Internet-only NASA imagery is fetched via bounded HTTPS requests on user
+action; never labeled as an SDR downlink.
+
+**Known gaps:** Native Qt Widgets replicate the web's information architecture
+and essential UI/task controls but are **not an exact CSS/pixel-for-pixel DOM
+render**, which would require embedding a browser (explicitly forbidden).
+Some WebUSB-specific browser permissions, File System Access dialogs and PWA
+lifecycle behaviors have no reason to exist in a native desktop. Exact
+OrbitCanvas vs browser Leaflet gestures, optional GPS service and physical
+Pop!_OS driver/access behavior require real user/host verification.
+
 ## Preview7 · native user-facing navigation parity
 
 The web and native Qt editions still use independent technology stacks: no
@@ -39,7 +83,14 @@ All real receiver operations require explicit operator action and USB ownership.
 
 | Browser/PWA capability | Native Qt desktop implementation | Honest status |
 |---|---|---|
+| Browser-style seven-stage dashboard | Native Qt Home contains same seven numbered tasks with direct, functional capture/schedule/map/analysis links | Implemented in Qt, not pixel-identical HTML/CSS |
 | Three primary steps | Overview → Auto Schedule & Capture, Analyze Recordings, Extract / Save Results | Implemented, real Qt navigation |
+| Physical receiver open/test/disconnect | Named RTL-SDR/TV USB inventory, rtl_test access, bounded actual IQ test, persistent RF disarm and owned-process/lease release verification | Implemented in code; actual Nooelec acceptance pending |
+| Website's CU8 + WAV choice | Native 1.024 / 2.048 MS/s CU8, native FM WAV or derived 32-kHz WAV from same capture, disk size caps | Implemented, WebUSB's 48-kHz live WAV differs |
+| Online NASA official imagery | On-demand source-labeled EPIC & historical ISS archive, Qt local preview and source JSON sidecar | Implemented; Internet/API dependent |
+| Live RF sample meter | Qt real growing-CU8 file tail relative dBFS meter, no synthetic/extra USB read | Implemented on active physical IQ recordings |
+| Local TLE import and pass sorting | Local validated TLE cache import, name/elevation/duration/time sorting and family/media filtering | Implemented |
+| Online worldwide cities and GPS | Explicit Open-Meteo name lookup and optional user-permitted QtPositioning source | Implemented conditionally; OS provider optional |
 | City/location picker | Same bundled 8,084 Germany/Türkiye cities, custom latitude/longitude, QCompleter | Implemented offline |
 | Orbital passes | Native Skyfield with cached public CelesTrak TLEs, start/LOS, max elevation, NORAD | Implemented; no RF verification |
 | Image/audio/text/RF pass tags | Native media capability chips, search/filter, per-pass protocol and decoder requirements | Implemented as **candidates**, not promises |
@@ -68,7 +119,7 @@ All real receiver operations require explicit operator action and USB ownership.
 ## Debian / Pop!_OS
 
 Install the latest successful PR #18 **Satellite Center native Debian package** GitHub Actions artifact.
-Run `sudo apt install ./tihulu-satellite-center_0.3.0~preview7_all.deb`,
+Run `sudo apt install ./tihulu-satellite-center_0.3.0~preview8_all.deb`,
 then open **TIHULU Satellite Center (System)** from COSMIC's app menu.
 It starts the Qt window directly. Only explicit `tihulu-satellite-center serve`
 runs the old optional HTTP compatibility server. If the older user-local

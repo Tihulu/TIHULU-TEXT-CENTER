@@ -29,6 +29,12 @@ def _https_bytes(url, cap):
         raise ValueError("Image URL is not an approved NASA host")
     request = Request(url, headers={"User-Agent": "TIHULU-Satellite-Center-native/0.3"})
     with urlopen(request, timeout=14) as response:
+        final = urlsplit(response.geturl())
+        if final.scheme != "https" or final.hostname not in {
+            "api.nasa.gov", "images-api.nasa.gov",
+            "images.nasa.gov", "images-assets.nasa.gov",
+        }:
+            raise ValueError("NASA response redirected outside approved HTTPS hosts")
         payload = response.read(cap+1)
     if len(payload)>cap:
         raise ValueError("NASA response exceeded bounded memory budget")

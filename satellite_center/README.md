@@ -1,4 +1,46 @@
-# TIHULU Satellite Center 0.3.0~preview7 — native desktop application
+# TIHULU Satellite Center 0.3.0~preview8 — native desktop application
+
+## Preview8 · Web-style UI and physical USB parity (2026-11-07)
+
+The native Qt application now follows the **same seven-sections-in-order**
+layout as the browser: automatic reception workflow, receiver hardware,
+physical sample recording, satellite pass planner, calendar, Earth/Sky maps,
+Signal Intelligence and Satellite Images & Data. The UI shares the web's
+dark backgrounds, blue action buttons, rounded controls and provenance
+descriptions. This is a **native PyQt5 Widgets implementation**; no browser,
+WebUSB, Electron, localhost service or WebView participates in desktop
+acquisition. Exact pixel-for-pixel browser CSS rendering is **not** claimed.
+
+The **Hardware / USB** page passively lists USB IDs and device models
+(including DVB TV as separate from SDR), identifies interfering SDR processes,
+shows actual lock/process state and has **Refresh, USB open test,
+Real CU8/IQ sample test, Connect & enable, Stop & disconnect** actions.
+Connect requires successful short `rtl_test` opening and a separate **real,
+1 MiB** `rtl_sdr` I/Q acquisition before enabling future captures. It never
+interprets raw power as a satellite identity. Disconnect stops only this
+program's receiver children, verifies its own receiver lock and child exit,
+and **persists RF disabled across application restarts**. Pending scheduled
+captures are paused, not deleted, until a new verified Connect. Disconnect
+does **not** electrically turn off or unplug the USB device or kill readsb.
+
+The manual, auto-ISS and pass schedule workflows offer genuine CU8, WAV or
+both where receiver/decoder mode permits. CU8+WAV records real IQ once
+and creates a **32 kHz WAV** from the same I/Q afterward; the web's
+simultaneous 48 kHz WAV path is a *different implementation*.
+IQ rates 1.024 / 2.048 MS/s are selectable and a strict 2 GB cap shortens
+maximum recording length at higher rates. During an actual CU8 capture, the
+Qt UI reads a small tail of the *real saved file* every second for a
+relative digital dBFS graph without opening another USB session.
+
+Native pass planning now has sorting, family/media filtering and explicit
+local TLE import. Location offers 8,084 offline DE/TR places, manual
+coordinates, **optional user-clicked worldwide online geocoding** and
+optional OS-permitted QtPositioning. Satellite Images & Data has real
+recording previews, Robot36/Meteor decoder actions and separate on-demand
+NASA EPIC/ISS photo galleries. NASA photos are labeled online sources,
+**never** claimed as radio-received images. A physical RTL-SDR,
+Pop!_OS/COSMIC mouse/driver test and real ISS/Meteor downlink remain
+unverified; CI uses synthetic orbital examples but no fabricated RF.
 
 ## One-line GitHub native install — Debian / Ubuntu / Pop!_OS
 
@@ -14,7 +56,7 @@ curl -fsSL https://raw.githubusercontent.com/Tihulu/TIHULU-TEXT-CENTER/feature/s
 
 Then launch `tihulu-satellite-center` or open the Applications menu.
 Check hardware dependencies with `tihulu-satellite-center doctor`
-without starting an RF capture. `main` is not changed while preview7
+without starting an RF capture. `main` is not changed while preview8
 remains in draft review. For a review-before-execute workflow, open
 [`install-deb.sh`](install/install-deb.sh) in the repo before running.
 The older `install/install.sh` creates a separate user-local Python
@@ -63,7 +105,7 @@ describe that separate legacy workflow, not the installed desktop app.
 Install the Debian package downloaded from GitHub Actions, then run:
 
 ```bash
-sudo apt install ./tihulu-satellite-center_0.3.0~preview7_all.deb
+sudo apt install ./tihulu-satellite-center_0.3.0~preview8_all.deb
 tihulu-satellite-center
 ```
 
