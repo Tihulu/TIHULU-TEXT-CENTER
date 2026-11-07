@@ -30,8 +30,9 @@ def validate_socket(path: str) -> Path:
     return p
 
 class CaptionTap:
-    def __init__(self, path, current_options, events):
+    def __init__(self, path, current_options, events, packet_sink=None):
         self.path = validate_socket(path)
+        self.packet_sink = packet_sink
         self.current_options = current_options
         self.events = events
         self.stop = threading.Event()
@@ -71,6 +72,11 @@ class CaptionTap:
                 self.bad_packets += 1
                 continue
             self.packet_count += len(data) // 188
+            if self.packet_sink:
+                try:
+                    self.packet_sink(data)
+                except (OSError, RuntimeError, ValueError) as exc:
+                    self.events.put(("warning", "Mobile packet relay: " + str(exc)[:100]))
             options = self.current_options()
             if options["mode"] == "off":
                 chunks.clear()
@@ -133,7 +139,7 @@ def main(argv=None):
     endpoint = validate_socket(argv[1])
     from PyQt5.QtCore import Qt, QTimer
     from PyQt5.QtWidgets import (QApplication, QWidget, QVBoxLayout, QHBoxLayout,
-        QLabel, QComboBox, QPushButton, QSpinBox)
+        QLabel, QComboBox, QPushButton, QSpinBox, QCheckBox)
     app = QApplication.instance() or QApplication(["TIHULU Kaffeine Live Captions"])
     window = QWidget()
     window.setWindowTitle("TIHULU · Live TV captions / Whisper / Translator")
@@ -170,6 +176,13 @@ def main(argv=None):
     market.clicked.connect(lambda: __import__("subprocess").Popen(
         ["tihulu-tv-center", "ai-market"], close_fds=True))
     layout.addWidget(market)
+    phone = QCheckBox("Allow phone/tablet on trusted Wi-Fi (OFF by default)")
+    video = QCheckBox("Share the live channel as H.264/AAC HLS (CPU intensive)")
+    lan_note = QLabel("Mobile access OFF. No network listener.")
+    lan_note.setWordWrap(True)
+    layout.addWidget(phone)
+    layout.addWidget(video)
+    layout.addWidget(lan_note)
     state_lock = threading.Lock()
     current = {"mode":"auto","source":"de","target":"tr","page":150}
     def update(*_):
@@ -183,7 +196,38 @@ def main(argv=None):
         with state_lock:
             return dict(current)
     events = queue.Queue(maxsize=30)
-    tap = CaptionTap(str(endpoint), options, events)
+    from .mobile import KaffeineMobile
+    mobile = KaffeineMobile(options, lambda msg: events.put(("warning", str(msg))))
+    tap = CaptionTap(str(endpoint), options, events, packet_sink=mobile.receive)
+
+    def set_phone(enabled):
+        if enabled:
+            try:
+                data = mobile.enable_lan(lambda num: events.put(("remote_page", int(num))))
+                lan_note.setText("Phone: " + data["url"] + "  |  Pairing code: " + data["pin"]
+                    + "\nTrusted Wi-Fi only; HTTP is not encrypted. Never port-forward.")
+            except (OSError, RuntimeError) as exc:
+                phone.blockSignals(True); phone.setChecked(False); phone.blockSignals(False)
+                lan_note.setText("LAN sharing unavailable: " + str(exc))
+        else:
+            mobile.stop_lan()
+            video.blockSignals(True); video.setChecked(False); video.blockSignals(False)
+            lan_note.setText("Mobile access OFF. All paired sessions revoked.")
+
+    def set_video(enabled):
+        if enabled:
+            try:
+                mobile.enable_video()
+                lan_note.setText(lan_note.text() + "\nLive HLS on. iPhone Safari supports native playback.")
+            except (RuntimeError, OSError, ValueError) as exc:
+                video.blockSignals(True); video.setChecked(False); video.blockSignals(False)
+                lan_note.setText("Cannot share live video: " + str(exc))
+        else:
+            mobile.stop_video()
+
+    phone.toggled.connect(set_phone)
+    video.toggled.connect(set_video)
+
     try:
         tap.start()
     except (OSError, RuntimeError) as exc:
@@ -196,7 +240,10 @@ def main(argv=None):
                 kind, data = events.get_nowait()
             except queue.Empty:
                 break
-            if kind == "caption":
+            if kind == "remote_page":
+                page.setValue(int(data))
+            elif kind == "caption":
+                mobile.set_caption(data)
                 if data.get("original"):
                     original.setText("ORIGINAL: " + data["original"])
                     translated.setText("TRANSLATED: " + (data.get("translated") or
@@ -210,6 +257,7 @@ def main(argv=None):
     timer = QTimer(window)
     timer.timeout.connect(pump)
     timer.start(250)
+    app.aboutToQuit.connect(mobile.close)
     app.aboutToQuit.connect(tap.close)
     window.show()
     return app.exec_()
