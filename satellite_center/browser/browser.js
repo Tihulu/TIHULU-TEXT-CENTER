@@ -12,6 +12,8 @@ import { selectAutomaticPasses, AUTO_TARGETS } from './auto_mission.mjs?v=202611
 import {localDayKey,shiftCalendarDay,renderSatelliteCalendar} from './satellite_calendar.mjs?v=20261106-calendar-zip-v2';
 import { localDateInput, parseLocalScheduleTime, createScheduledPass, evaluateScheduledJob, secondsToJob, captureLevelSummary } from './schedule_controller.mjs?v=20261106-direct-fm-wav-v1';
 import {captureBudget,formatCaptureBudget,STREAM_IQ_BYTES} from './capture_duration.mjs?v=20261106-stream-v1';
+import {durationToSeconds,formatCountdown,segmentedCapturePlan,
+  browserClipCap} from './segmented_capture.mjs?v=20261107-segments-v1';
 import {createStreamingFmWavEncoder,createPcmWavHeader,wavOutputPlan} from './fm_wav_record.mjs?v=20261106-web-fm-wav-v1';
 // TIHULU Satellite Center — no-local-install receive-only browser mode.
 // The RTL-SDR device is opened only after a direct user gesture.
@@ -176,13 +178,32 @@ for(const id of ['auto-save-raw','auto-save-wav']){
  $(id).addEventListener('input',refreshAutoOutputSummary);
 }
 refreshAutoOutputSummary();
+function wireDurationUnit(input,unit,maxSeconds=900){
+ let previous="seconds";
+ unit.addEventListener('change',()=>{
+   const oldSeconds=Number(input.value)*(previous==="minutes"?60:1);
+   if(Number.isFinite(oldSeconds)&&oldSeconds>=0){
+     input.value=unit.value==="minutes"?
+       String(Number((oldSeconds/60).toFixed(4))):String(Math.round(oldSeconds));
+   }
+   previous=unit.value;
+   input.step=unit.value==="minutes"?"0.01666667":"1";
+   input.max=unit.value==="minutes"?String(maxSeconds/60):String(maxSeconds);
+   input.dispatchEvent(new Event("change",{bubbles:true}));
+ });
+}
+wireDurationUnit($('duration'),$('duration-unit'));
+wireDurationUnit($('auto-browser-seconds'),$('auto-browser-unit'));
+const readManualSeconds=()=>durationToSeconds($('duration').value,$('duration-unit').value);
+const readAutoSeconds=()=>durationToSeconds($('auto-browser-seconds').value,
+  $('auto-browser-unit').value,{min:8,max:900});
 function updateManualCaptureBudget(){
  const label=$('capture-budget');
  const summary=$('capture-format-summary');
  summary.textContent=outputSelectionText($('record').checked,$('wav-record').checked)+
    '. Checking both boxes saves both formats independently; unchecking both records levels only.';
  try{
-   const seconds=Number($('duration').value),rate=Number($('rate').value);
+   const seconds=readManualSeconds(),rate=Number($('rate').value);
    const opts=inspectCaptureStorage(seconds,rate,$('record').checked,$('wav-record').checked);
    label.dataset.feasible="true";
    label.textContent=(opts.iq.mode==='levels-only'?'No raw CU8. ':
@@ -199,7 +220,7 @@ $('preset').addEventListener('change',()=>{
  const iss=Number($('preset').value)===437550000;
  setManualOutputSelection(!iss,iss);
 });
-for(const id of ['duration','rate','record','wav-record']){
+for(const id of ['duration','duration-unit','rate','record','wav-record']){
  $(id).addEventListener('input',updateManualCaptureBudget);
  $(id).addEventListener('change',updateManualCaptureBudget);
 }
@@ -486,7 +507,7 @@ async function startCapture(job=null,prepared=null) {
   if(capturePromise || usbTestRunning || !device)throw Error('Choose the RTL-SDR and finish any hardware test before capturing.');
   const freq=job?job.frequency:Number($('preset').value);
   const rate=job?job.sampleRate:Number($('rate').value);
-  const limit=job?job.durationSeconds:Number($('duration').value);
+  const limit=job?job.durationSeconds:readManualSeconds();
   const recording=job?job.saveRaw:$('record').checked;
   const recordingWav=job?Boolean(job.saveWav):$('wav-record').checked;
   const budget=captureBudget(limit,rate,recording,{fileStreaming:Boolean(prepared?.writable)});
@@ -696,7 +717,7 @@ $('start').addEventListener('click',()=>{
  void (async()=>{
    let prepared=null;
    try{
-     prepared=await selectRecordingFiles(Number($('duration').value),Number($('rate').value),
+     prepared=await selectRecordingFiles(readManualSeconds(),Number($('rate').value),
        $('record').checked,$('wav-record').checked,
        {at:new Date(),freq:Number($('preset').value)});
      await startCapture(null,prepared);
@@ -1144,7 +1165,7 @@ function readableJobState(job,now=Date.now()){
  if(action==='waiting-receiver')return 'due / waiting for free receiver';
  if(action==='start')return 'due now';
  if(action==='missed')return 'expired';
- return 'armed / '+secondsToJob(job,now)+' s remaining';
+ return 'armed / '+formatCountdown(job.when-now)+' remaining';
 }
 let browserCalendarSignature="";
 const browserCalendarDay=$('browser-calendar-date');
