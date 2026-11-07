@@ -1179,6 +1179,7 @@ class SatelliteWindow(QMainWindow):
         self.auto_length_unit=QComboBox()
         self.auto_length_unit.addItem("Seconds","seconds")
         self.auto_length_unit.addItem("Minutes","minutes")
+        self.auto_length_unit.currentIndexChanged.connect(self._auto_unit_changed)
         self.auto_seconds.setSpecialValueText("Auto · fit pass")
         self.auto_seconds.setValue(0)
         self.auto_jobs=QSpinBox()
@@ -1253,6 +1254,35 @@ class SatelliteWindow(QMainWindow):
                   self._button("Cancel selected pending job",self.cancel_job),
                   self._button("Edit selected automatic job",self.edit_auto_job))
         self._calendar_jobs=[]
+        self.calendar_countdown=self._hint("Next scheduled RF job: none")
+        body.addWidget(self.calendar_countdown)
+        self.calendar_clock=QTimer(self)
+        self.calendar_clock.timeout.connect(self._update_calendar_countdown)
+        self.calendar_clock.start(1000)
+
+    def _update_calendar_countdown(self):
+        if not hasattr(self,"calendar_countdown"):return
+        current=datetime.now(timezone.utc)
+        pending=[]
+        for j in self._calendar_jobs:
+            if j.get("state") not in ("pending","armed"):continue
+            try:
+                start=datetime.fromisoformat(j.get("run_at") or j["aos"]).astimezone(timezone.utc)
+            except (TypeError,ValueError,KeyError):continue
+            if start>=current:pending.append((start,j))
+        if not pending:
+            self.calendar_countdown.setText("Next scheduled RF job: none")
+            return
+        start,j=min(pending,key=lambda item:item[0])
+        seconds=max(0,int((start-current).total_seconds()))
+        days,seconds=divmod(seconds,86400)
+        hours,seconds=divmod(seconds,3600)
+        minutes,seconds=divmod(seconds,60)
+        part=(f" · part {j['chain_index']}/{j['chain_total']}"
+              if j.get("chain_index") else "")
+        self.calendar_countdown.setText(
+            f"Next RF: {j.get('satellite','Satellite')}{part} · "
+            f"{days}d {hours:02d}h {minutes:02d}m {seconds:02d}s remaining")
 
     def _capture_tab(self):
         body=self._new_tab("Manual RF capture")
@@ -1264,12 +1294,17 @@ class SatelliteWindow(QMainWindow):
         self.capture_mode=QComboBox()
         self.capture_seconds=QSpinBox();self.capture_seconds.setRange(8,900)
         self.capture_seconds.setValue(60)
+        self.capture_length_unit=QComboBox()
+        self.capture_length_unit.addItem("Seconds","seconds")
+        self.capture_length_unit.addItem("Minutes","minutes")
+        self.capture_length_unit.currentIndexChanged.connect(self._capture_unit_changed)
         self.capture_budget=self._hint("Long captures write real CU8 directly to disk.")
         self.capture_mode.currentIndexChanged.connect(self._capture_budget)
         self.capture_seconds.valueChanged.connect(self._capture_budget)
         form.addRow("Receiver frequency / band",self.capture_profile)
         form.addRow("Hardware mode",self.capture_mode)
-        form.addRow("Actual sample length · 8–900 s",self.capture_seconds)
+        form.addRow("Actual sample length",self.capture_seconds)
+        form.addRow("Length unit",self.capture_length_unit)
         form.addRow("Estimated disk budget",self.capture_budget)
         body.addLayout(form)
         self._row(body,
@@ -1791,6 +1826,14 @@ class SatelliteWindow(QMainWindow):
                    if seconds>180 else self.station.schedule(key,profile,mode,start,seconds),
                    completed)
 
+    def _auto_unit_changed(self):
+        minute=self.auto_length_unit.currentData()=="minutes"
+        current=self.auto_seconds.value()
+        self.auto_seconds.blockSignals(True)
+        self.auto_seconds.setRange(0,15 if minute else 900)
+        self.auto_seconds.setValue((current+59)//60 if minute else current*60)
+        self.auto_seconds.blockSignals(False)
+
     def auto_schedule(self):
         missions=[mid for mid,box in self.mission_boxes.items() if box.isChecked()]
         if not missions:return QMessageBox.information(self,"Auto reception","Select at least one satellite mode.")
@@ -1925,24 +1968,37 @@ class SatelliteWindow(QMainWindow):
         self.capture_mode.blockSignals(False)
         self._capture_budget()
 
+    def _capture_unit_changed(self):
+        minute=self.capture_length_unit.currentData()=="minutes"
+        current=self.capture_seconds.value()
+        limit=180 if self.capture_mode.currentData()=="survey" else 900
+        self.capture_seconds.blockSignals(True)
+        self.capture_seconds.setRange(1,(limit+59)//60) if minute else self.capture_seconds.setRange(8,limit)
+        self.capture_seconds.setValue((current+59)//60 if minute else current*60)
+        self.capture_seconds.blockSignals(False)
+        self._capture_budget()
+
     def _capture_budget(self):
         mode=self.capture_mode.currentData()
-        if mode=="survey" and self.capture_seconds.maximum()!=180:
-            self.capture_seconds.setMaximum(180)
-        elif mode!="survey" and self.capture_seconds.maximum()!=900:
-            self.capture_seconds.setMaximum(900)
-        secs=self.capture_seconds.value()
+        minute=self.capture_length_unit.currentData()=="minutes"
+        limit=180 if mode=="survey" else 900
+        max_display=(limit+59)//60 if minute else limit
+        if self.capture_seconds.maximum()!=max_display:
+            self.capture_seconds.setMaximum(max_display)
+        secs=self.capture_seconds.value()*(60 if minute else 1)
         self.capture_budget.setText(
             f"~{secs*2.048:.1f} MB raw CU8 on local disk · actual samples, no WebUSB"
             if mode=="iq" else
-            "Native rtl_power records for exactly requested seconds (8–180)"
+            "Native rtl_power surveys are limited to 180 seconds per manual capture. "
+            "For longer surveys, use the scheduled pass chain."
             if mode=="survey" else
-            "Native receiver saves actual packet/audio output, no browser involved")
+            "Native receiver saves actual packet/audio output. "
+            "For consecutive timed files use the Reception calendar scheduler.")
 
     def start_capture(self):
         key=self.capture_profile.currentData()
         mode=self.capture_mode.currentData()
-        secs=self.capture_seconds.value()
+        secs=self.capture_seconds.value()*(60 if self.capture_length_unit.currentData()=="minutes" else 1)
         if not key or not mode:return
         if QMessageBox.question(self,"Receive-only capture",
                  f"Acquire the real RTL-SDR for {secs} seconds at {PROFILES[key]['label']}?\n"
