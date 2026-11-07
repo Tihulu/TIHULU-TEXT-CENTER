@@ -66,10 +66,11 @@ async function nativeRequest(route,payload=null,csrf=null){
 async function nativeScheduledPass(pass,{when,durationSeconds,frequency,sampleRate,saveRaw,saveWav=false}){
  if(!nativeLocal())throw Error("Start the Debian app and open http://127.0.0.1:8791/browser/index.html");
  if(sampleRate!==1024000)throw Error("Native rtl_sdr uses 1.024 MS/s; select that sample rate.");
- if(!Number.isInteger(durationSeconds)||durationSeconds<8||durationSeconds>900)
-   throw Error("Native capture must be 8–900 whole seconds.");
+ if(!Number.isInteger(durationSeconds)||durationSeconds<8||durationSeconds>7200)
+   throw Error("Native capture chain must be 8–7200 whole seconds and fit the predicted pass.");
  if(saveRaw&&saveWav)throw Error("One native scheduled receiver mode can write either CU8 or WAV; for both choose browser dual-format recording.");
- if(!saveRaw&&!saveWav&&durationSeconds>180)throw Error("Native spectrum-only survey is limited to 180 s; choose CU8/WAV for longer recordings.");
+ // Native survey is limited to 180 s PER FILE. Longer jobs use the same
+ // opt-in backend chain scheduler, each part a separately persisted file.
  const state=await nativeRequest("/api/status");
  if(!state.csrf||!state.profiles)throw Error("Local SDR server not available");
  const profile=Object.entries(state.profiles).find(([,p])=>p.family===pass.family&&Number(p.freq)===frequency)?.[0];
@@ -89,7 +90,9 @@ async function nativeScheduledPass(pass,{when,durationSeconds,frequency,sampleRa
    events=await predict();target=matched();
  }
  if(!target)throw Error("Native TLE pass differs from browser estimate. Refresh catalog and recalculate.");
- return nativeRequest("/api/schedule",{pass_id:target.id,profile,mode:saveRaw?"iq":saveWav?"sstv_audio":"survey",
+ const endpoint=durationSeconds>180?"/api/schedule-chain":"/api/schedule";
+ return nativeRequest(endpoint,{pass_id:target.id,profile,
+   mode:saveRaw?"iq":saveWav?"sstv_audio":"survey",
    run_at:new Date(when).toISOString(),duration_seconds:durationSeconds},state.csrf);
 }
 
@@ -1043,10 +1046,14 @@ function appendPass(pass){
           when:selectedTime,durationSeconds:seconds,frequency:Number(frequency.value),
           sampleRate:chosenRate,saveRaw:raw.checked,saveWav:wav.checked
         });
-        alert.textContent="Debian local SDR scheduled "+job.satellite+" · "+
-          new Date(job.run_at).toLocaleString()+" · "+job.capture_seconds+" seconds · "+
-          (job.estimated_bytes/1e6).toFixed(0)+" MB estimated. The native app must remain running; the browser may close.";
-        log("Native job "+job.id+" armed; RTL-SDR stays idle until start time.");
+        alert.textContent=job.scheduled_count?
+          "Native companion: "+job.scheduled_count+" separate calendar files queued · "+
+          seconds+" s of radio recording / "+job.elapsed_seconds+
+          " s with "+job.total_gap_seconds+" s reserved gaps. "+
+          "The native scheduler remains active while the app runs; data is not gap-free.":
+          "Native companion: "+job.satellite+" · "+new Date(job.run_at).toLocaleString()+
+          " · "+job.capture_seconds+" s scheduled. Keep native receiver running.";
+        log("Native "+(job.scheduled_count||1)+" scheduled RF file(s) armed; RTL-SDR idle until start.");
         return;
       }
       const totalSeconds=secondsFromEntry(duration.value,lengthUnit.value);
