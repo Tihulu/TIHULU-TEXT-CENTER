@@ -1068,6 +1068,10 @@ class SatelliteWindow(QMainWindow):
     def _home_coordinates_changed(self,*_):
         if not hasattr(self,"lat"):
             return
+        if self.home_station.currentData() not in ("custom","offline","online"):
+            self.home_station.blockSignals(True)
+            self.home_station.setCurrentIndex(self.home_station.findData("custom"))
+            self.home_station.blockSignals(False)
         self.city.setCurrentText("Custom coordinates")
         self.lat.setValue(self.home_lat.value())
         self.lon.setValue(self.home_lon.value())
@@ -1306,6 +1310,9 @@ class SatelliteWindow(QMainWindow):
         if not ok:return
         idx=labels.index(chosen)
         name,lat,lon=rows[idx]
+        self.home_station.blockSignals(True)
+        self.home_station.setCurrentIndex(self.home_station.findData("online"))
+        self.home_station.blockSignals(False)
         self.city.setCurrentText("Custom coordinates")
         self.lat.setValue(lat);self.lon.setValue(lon)
         self.city_info.setText(
@@ -1347,6 +1354,9 @@ class SatelliteWindow(QMainWindow):
         coordinate=info.coordinate()
         lat,lon=coordinate.latitude(),coordinate.longitude()
         if not -90<=lat<=90 or not -180<=lon<=180:return
+        self.home_station.blockSignals(True)
+        self.home_station.setCurrentIndex(self.home_station.findData("custom"))
+        self.home_station.blockSignals(False)
         self.city.setCurrentText("Custom coordinates")
         self.lat.setValue(lat);self.lon.setValue(lon)
         self.city_info.setText(
