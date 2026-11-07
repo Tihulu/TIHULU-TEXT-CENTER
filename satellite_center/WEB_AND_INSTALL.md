@@ -4,7 +4,7 @@ This additive companion is not merged into Text Center or Survival Kit yet.
 It uses port **8791** only on **127.0.0.1**, without starting a receiver or
 fetching TLE data in the background. It cannot control USB directly from Pages.
 
-## Preferred 2026-11-07 Linux install — native Qt preview7
+## Preferred 2026-11-07 Linux install — native Qt preview8
 
 Use this for Debian/Ubuntu/Pop!_OS **native desktop**, not the older
 `install.sh` user-local venv or browser companion:
@@ -13,7 +13,7 @@ Use this for Debian/Ubuntu/Pop!_OS **native desktop**, not the older
 curl -fsSL https://raw.githubusercontent.com/Tihulu/TIHULU-TEXT-CENTER/feature/satellite-auto-discovery-integrated-2026-11-06/satellite_center/install/install-deb.sh | bash
 ```
 
-The script downloads public GitHub source, builds the `0.3.0~preview7`
+The script downloads public GitHub source, builds the `0.3.0~preview8`
 Debian package and uses `apt` for installation; no GitHub CLI login is
 required. It will not start the receiver, poll TLEs, or create background
 services. The application launcher is `tihulu-satellite-center`.
@@ -54,17 +54,15 @@ recordings remain openable. The most recent browser I/Q recording
 is available for local FFT analysis and optional experimental SSTV
 decode, without uploading samples.
 
-**Shared cross-platform UI:** The installed Python local companion
-on Debian/Ubuntu/Pop!_OS, Raspberry Pi OS, Windows x64 and macOS Apple
-Silicon now exposes **Open live map and Satellite Images**, loading the
-exact same browser sources as GitHub Pages from its local
-`/browser/index.html` route. The 1-second LIVE TLE view, Pause, Sky,
-Earth map, and image gallery thus share one implementation.
-The embedded web interface is only loaded when requested and releases
-its own USB session on close. Two SDR frontends cannot own the same
-physical dongle simultaneously. Page-only WebUSB requires a compatible
-desktop Chromium-family browser; the desktop companion uses its native
-RTL-SDR tools for its own capture workflows.
+**Historical optional browser/localhost companion:** The legacy
+`serve` command can expose a separate browser page on localhost if
+explicitly started. This is NOT the modern installed desktop application.
+**The default preview8 desktop is native PyQt5 Qt Widgets**, with its own
+Earth/Sky map, pass planner, source-labeled NASA gallery, IQ waterfall,
+Hardware USB management and real RF capture via OS command-line drivers.
+No browser/HTML engine/WebUSB is embedded or required. As in every
+single RTL-SDR configuration, another program must release the dongle
+before native capture can claim it.
 
 **Verification limits:** Core browser JS parses, UI controls are wired,
 image-naming metadata round-trips, and synthetic 240-scan-line Robot36
