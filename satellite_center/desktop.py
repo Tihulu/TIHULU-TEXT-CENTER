@@ -663,16 +663,21 @@ class SatelliteWindow(QMainWindow):
                            ("Coverage · off","none")):
             self.map_coverage.addItem(name,value)
         self.map_coverage.currentIndexChanged.connect(self._map_options_changed)
-        self.map_tracks=QCheckBox("±45 min track")
-        self.map_tracks.setChecked(True)
-        self.map_tracks.toggled.connect(self._map_options_changed)
+        self.map_track_scope=QComboBox()
+        for title,mode in (
+            ("Orbit path · selected","selected"),
+            ("Orbit paths · visible (max 12)","all"),
+            ("Orbit paths · off","none")):
+            self.map_track_scope.addItem(title,mode)
+        self.map_track_scope.currentIndexChanged.connect(self._map_options_changed)
         self.map_osm=QCheckBox("OpenStreetMap streets · online")
         self.map_osm.setToolTip("User-triggered visible viewport tiles only; no offline bulk download.")
         self.map_osm.toggled.connect(self._map_osm_toggled)
         opts.addWidget(self.map_coverage)
-        opts.addWidget(self.map_tracks)
+        opts.addWidget(self.map_track_scope)
         opts.addWidget(self.map_osm)
         opts.addWidget(self._button("Center ground station",self._map_center_station))
+        opts.addWidget(self._button("Fit tracked TLE objects",self._map_fit_tracked))
         body.addLayout(opts)
 
         split=QSplitter(Qt.Horizontal)
@@ -739,11 +744,15 @@ class SatelliteWindow(QMainWindow):
         if self.active:self.refresh_orbit_map()
     def _map_center_station(self):
         self.map_earth.center_station()
+    def _map_fit_tracked(self):
+        if not self.map_earth.fit_satellites():
+            self.statusBar().showMessage(
+                "No TLE subpoints match the current map filter.",8000)
     def _map_options_changed(self,*_):
         self.map_sky.above_only=self.map_above.isChecked()
         self.map_earth.above_only=self.map_above.isChecked()
         self.map_earth.coverage_scope=self.map_coverage.currentData()
-        self.map_earth.tracks_visible=self.map_tracks.isChecked()
+        self.map_earth.tracks_visible=self.map_track_scope.currentData()!="none"
         self.map_sky.update();self.map_earth.update()
         if self.active and self.tabs.currentIndex()==self.map_index:
             self.refresh_orbit_map()
@@ -785,17 +794,23 @@ class SatelliteWindow(QMainWindow):
             ("LIVE · " if self.map_live else "SIMULATED · ")+
             at.astimezone().strftime("%H:%M:%S · %d %b %Y"))
         selected=self.map_selected_norad
-        want_track=(selected is not None and self.map_tracks.isChecked() and
-                    (not self.map_track_segments or self.map_live is False or
+        track_scope=self.map_track_scope.currentData()
+        want_track=(track_scope!="none" and
+                    (track_scope=="all" or selected is not None) and
+                    (not self.map_track_segments or not self.map_live or
                      (time.monotonic()-self.map_last_track_at)>15))
         options={"family_filter":fam,"minimum_el":-90,
-                 "selected_norad":selected,"with_track":want_track}
+                 "selected_norad":selected,"with_track":want_track,
+                 "track_scope":track_scope if track_scope!="none" else "selected"}
         def calculate():
             return self.orbit_engine.snapshot(latitude,longitude,at,**options)
         self._task("map-orbit",calculate,
                    lambda value:self._apply_map_snapshot(value,want_track),silent=True)
     def _apply_map_snapshot(self,view,track_refreshed):
-        if track_refreshed:
+        if self.map_track_scope.currentData()=="none":
+            self.map_track_segments=[]
+            view["track_segments"]=[]
+        elif track_refreshed:
             self.map_track_segments=view.get("track_segments",[])
             self.map_last_track_at=time.monotonic()
         elif self.map_track_segments:
