@@ -595,6 +595,75 @@ class Station:
             self.wake.set()
             return dict(job)
 
+    def schedule_chain(self, pass_id, profile, mode, run_at=None, seconds=None,
+                       *, max_part_seconds=180, gap_seconds=21):
+        """Explicit receive-only native file chain with separately persisted jobs.
+
+        Every part is independently recorded and may have receiver re-tune gaps.
+        A validated single receiver reservation is enforced for every part.
+        No satellite transmission or gap-free recording is claimed.
+        """
+        if type(seconds) is not int or not 8 <= seconds <= 7200:
+            raise ValueError("Chained RF recording must be 8–7200 whole seconds")
+        if type(max_part_seconds) is not int or not 8 <= max_part_seconds <= 180:
+            raise ValueError("Native per-file chunk length must be 8–180 seconds")
+        if type(gap_seconds) is not int or not 21 <= gap_seconds <= 60:
+            raise ValueError("Native chunks require 21–60 seconds reserved between captures")
+        with self.lock:
+            event = self.predicted.get(pass_id)
+            if not event:
+                raise ValueError("Refresh native predicted passes before scheduling")
+            if run_at is None:
+                start = datetime.fromisoformat(event["aos"]).astimezone(UTC)
+            else:
+                if not isinstance(run_at, str) or len(run_at) > 70:
+                    raise ValueError("ISO UTC start required")
+                start = datetime.fromisoformat(run_at)
+                if start.tzinfo is None:
+                    raise ValueError("A timezone-aware scheduled start is required")
+                start = start.astimezone(UTC)
+            remaining, offset = seconds, 0
+            planned = []
+            while remaining > 0:
+                take = min(max_part_seconds, remaining)
+                # Keep the final native part >=8 s by borrowing from previous part.
+                if 0 < remaining-take < 8:
+                    take -= 8-(remaining-take)
+                if take < 8 or len(planned) >= 60:
+                    raise ValueError("Cannot schedule this chunk chain safely")
+                planned.append((start+timedelta(seconds=offset), take))
+                remaining -= take
+                offset += take + (gap_seconds if remaining else 0)
+            los = datetime.fromisoformat(event["los"]).astimezone(UTC)
+            if planned[-1][0]+timedelta(seconds=planned[-1][1]+END_MARGIN_SECONDS)>los:
+                raise ValueError("The chained recording and restart gaps exceed the predicted satellite pass")
+            created = []
+            try:
+                for at, take in planned:
+                    created.append(self.schedule(pass_id, profile, mode, stamp(at), take))
+                group_id = uuid.uuid4().hex[:12]
+                for idx, job in enumerate(created, 1):
+                    live = next(row for row in self.jobs if row["id"] == job["id"])
+                    live.update(chain_id=group_id, chain_index=idx, chain_total=len(created),
+                                chain_capture_seconds=seconds,
+                                chain_gap_seconds=gap_seconds,
+                                result=None)
+                    job.update(live)
+                self.save_jobs()
+                self.wake.set()
+                return {"scheduled": created, "scheduled_count": len(created),
+                        "capture_seconds": seconds, "elapsed_seconds": offset,
+                        "total_gap_seconds": offset-seconds,
+                        "warning": "Native chunks are separate files. USB re-tune may create additional lost samples."}
+            except Exception:
+                for job in created:
+                    for existing in self.jobs:
+                        if existing["id"] == job["id"] and existing["state"] == "pending":
+                            existing.update(state="cancelled", result="Chained schedule rolled back")
+                self.save_jobs()
+                self.wake.set()
+                raise
+
     def auto_schedule(self, mission_ids, *, city="Cologne", lat=None, lon=None,
                       hours=24, elevation=20, max_jobs=6, coverage_goal="full",
                       duration_seconds=None, compute_mode="auto", compute_targets=None,
@@ -1425,6 +1494,9 @@ class Handler(BaseHTTPRequestHandler):
             elif route == "/api/schedule":
                 result = app.schedule(data.get("pass_id"), data.get("profile"), data.get("mode"),
                                       data.get("run_at"), data.get("duration_seconds"))
+            elif route == "/api/schedule-chain":
+                result = app.schedule_chain(data.get("pass_id"), data.get("profile"),
+                    data.get("mode"), data.get("run_at"), data.get("duration_seconds"))
             elif route == "/api/auto-schedule":
                 result = app.auto_schedule(data.get("missions"), city=data.get("city", "Cologne"),
                     lat=data.get("lat"), lon=data.get("lon"),
