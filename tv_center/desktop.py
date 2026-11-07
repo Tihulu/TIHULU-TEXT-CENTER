@@ -354,34 +354,66 @@ def main():
             country, medium = self.country.currentData(), self.delivery.currentData()
             return profile_key(country, medium, self.satellite.currentData() if medium == "s" else "")
 
-        def refresh_channels(self, *_):
-            country, medium = self.country.currentData(), self.delivery.currentData()
-            profile = self.current_profile()
-            expected = Path.home() / ".config/tihulu-tv-center" / ("channels-" + profile + ".conf")
-            if expected.is_file():
-                scanned = read_channels([expected])
-                source_label = f"Saved verified scan · {profile}"
-            elif country == "DE" and medium == "t":
-                scanned = discover_channels()
-                source_label = "Historical Germany channel imports · NOT a fresh automatic scan"
-            else:
-                scanned = []
-                source_label = f"No scan for {profile} — run Automatic full channel scan"
-            self.all_channels = sorted(scanned, key=lambda c: (c.frequency, c.name.casefold()))
-            curated = self.preferences.rows(profile, self.all_channels)
-            self.current_rows = curated
-            self.visible_rows = [r for r in curated if r["included"]]
-            self.channels = [r["channel"] for r in self.visible_rows]
+        def display_channels(self, *_):
+            """Filter the owner-curated channel list without losing scan data."""
+            rows=getattr(self,"current_rows",[])
+            query=self.channel_search.text().strip().casefold()
+            filter_name=self.channel_filter.currentText()
+            selected=self.channel_list.currentItem()
+            current_key=selected.data(Qt.UserRole) if selected else None
+            self.visible_rows=[row for row in rows if row["included"] and
+                (not query or query in row["name"].casefold() or
+                 query in format_frequency(row["channel"]).casefold()) and
+                (filter_name=="All" or
+                 (filter_name=="Favorites" and row["favorite"]) or
+                 (filter_name=="Television" and row["kind"]=="tv") or
+                 (filter_name=="Radio" and row["kind"]=="radio") or
+                 (filter_name=="Free-to-air" and not row["encrypted"]))]
+            self.channels=[row["channel"] for row in self.visible_rows]
             self.channel_list.clear()
-            for row in self.visible_rows:
-                c = row["channel"]
-                star = "★ " if row["favorite"] else ""
-                category = "RADIO" if row["kind"] == "radio" else "TV"
-                encrypted = " 🔒" if c.encrypted else ""
-                self.channel_list.addItem(f"{star}{c.name} · {category} · {format_frequency(c)}{encrypted}")
-            new_count = sum(1 for r in curated if r["new"])
-            self.list_origin.setText(f"{source_label}\n{len(self.all_channels)} scanned · "
-                                     f"{len(self.channels)} included · {new_count} awaiting review")
+            restore=None
+            for idx,row in enumerate(self.visible_rows):
+                channel=row["channel"]
+                label=("★ " if row["favorite"] else "")+channel.name
+                label+=("  🔒" if channel.encrypted else "")
+                entry=QListWidgetItem(label)
+                entry.setToolTip(("Radio" if row["kind"]=="radio" else "Television")+
+                    " · "+format_frequency(channel)+
+                    " · service ID "+str(channel.service_id)+
+                    (" · Encrypted" if channel.encrypted else ""))
+                entry.setData(Qt.UserRole,row["key"])
+                self.channel_list.addItem(entry)
+                if row["key"]==current_key:restore=idx
+            if restore is not None:self.channel_list.setCurrentRow(restore)
+            self.channel_list.setToolTip(
+                "Double-click a channel to tune. Only verified scan results "
+                "prove actual service discovery; old imported lists are unverified.")
+
+        def refresh_channels(self, *_):
+            country,medium=self.country.currentData(),self.delivery.currentData()
+            profile=self.current_profile()
+            expected=Path.home()/".config/tihulu-tv-center"/("channels-"+profile+".conf")
+            if expected.is_file():
+                scanned=read_channels([expected])
+                source_label="Saved DVBv5 scan · "+profile
+            elif country=="DE" and medium=="t":
+                scanned=discover_channels()
+                source_label="Historical Germany imports · UNVERIFIED"
+            else:
+                scanned=[]
+                source_label="No scanned services for "+profile
+            self.all_channels=sorted(scanned,key=lambda c:(c.frequency,c.name.casefold()))
+            curated=self.preferences.rows(profile,self.all_channels)
+            self.current_rows=curated
+            self.display_channels()
+            new_count=sum(1 for r in curated if r["new"])
+            self.list_origin.setText(
+                source_label+"\\n"+
+                str(len(self.all_channels))+" stored · "+
+                str(len(self.channels))+" visible · "+
+                str(new_count)+" awaiting review"+
+                ("\\nOld channel names are not evidence of current RF lock."
+                 if "UNVERIFIED" in source_label else ""))
             if not self.scanner.running:
                 self.statusbar.setText(source_label)
 
