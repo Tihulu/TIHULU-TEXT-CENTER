@@ -769,8 +769,28 @@ class Station:
             mission = min(viable, key=lambda mid: (
                 plans[mid]["coverage"] != "full-pass-attempt",
                 mission_counts[mid], eligible.index(mid)))
-            plan = plans[mission]
+            plan = dict(plans[mission])
             _, profile, mode = candidates[mission]
+            # Full-pass time budgets did not previously reserve receiver restart
+            # slots. For chained jobs, fit BOTH captured seconds and 21-s
+            # inter-file gaps before LOS instead of silently overrunning it.
+            if plan["capture_seconds"] > 180:
+                initial_seconds = int(plan["capture_seconds"])
+                maximum_wall = max(0, int((los-aos).total_seconds())-END_MARGIN_SECONDS)
+                safe_seconds = initial_seconds
+                while (safe_seconds>0 and safe_seconds+
+                       max(0,(safe_seconds+179)//180-1)*21>maximum_wall):
+                    safe_seconds-=1
+                if safe_seconds < 8:
+                    skipped.append(event["name"]+": no full segment fits with native receiver restart gaps")
+                    continue
+                if safe_seconds < initial_seconds:
+                    plan["capture_seconds"]=safe_seconds
+                    plan["estimated_bytes"]=plan["estimated_bytes"]*safe_seconds//initial_seconds
+                    plan["shortfall_seconds"]=int(plan.get("shortfall_seconds") or 0)+initial_seconds-safe_seconds
+                    plan["coverage"]="partial-pass"
+                    plan["note"]=str(plan.get("note") or "")+
+                        "; "+str(initial_seconds-safe_seconds)+" s reserved for native file restart gaps"
             try:
                 if plan["capture_seconds"] > 180:
                     batch = self.schedule_chain(event["id"], profile, mode,
