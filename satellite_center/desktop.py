@@ -1178,7 +1178,30 @@ class SatelliteWindow(QMainWindow):
         body.setSpacing(8)
         scroll.setWidget(panel)
         outer.addWidget(scroll)
-        self._row(body,
+        intro=self._hint(
+            "Open a recording → Analyze its contents → Inspect and export genuine outputs. "
+            "Raw RF is not automatically an image or speech.")
+        body.addWidget(intro)
+        self.results_file_banner=QLabel("No recording selected. Start with Step 1.")
+        self.results_file_banner.setObjectName("fileBanner")
+        self.results_file_banner.setWordWrap(True)
+        body.addWidget(self.results_file_banner)
+        self.result_steps=QTabWidget()
+        self.result_steps.setObjectName("resultSteps")
+        for title in (
+            "1 · Choose recording",
+            "2 · Analyze RF",
+            "3 · Decode & save",
+        ):
+            step=QWidget()
+            inner=QVBoxLayout(step)
+            inner.setSpacing(10)
+            self.result_steps.addTab(step,title)
+        browse=self.result_steps.widget(0).layout()
+        analyze=self.result_steps.widget(1).layout()
+        extract=self.result_steps.widget(2).layout()
+        body.addWidget(self.result_steps)
+        self._row(browse,
                   self._button("Refresh local recordings",self.refresh_status),
                   self._button("Open existing file…",self.import_file),
                   self._button("Reveal recordings folder",self.open_archive_folder))
@@ -1190,7 +1213,16 @@ class SatelliteWindow(QMainWindow):
         self.files.header().setSectionResizeMode(2,QHeaderView.ResizeToContents)
         self.files.header().setSectionResizeMode(3,QHeaderView.ResizeToContents)
         self.files.itemSelectionChanged.connect(self._file_selected)
-        body.addWidget(self.files,1)
+        browse.addWidget(self.files,1)
+        self.browse_file_info=self._hint(
+            "Pick an actual local file. Its data format will be displayed; "
+            "a file name or format header cannot authenticate a satellite.")
+        browse.addWidget(self.browse_file_info)
+        self._row(browse,
+                  self._button("Continue to analysis  →",
+                               lambda:self.result_steps.setCurrentIndex(1)),
+                  self._button("See generated results  →",
+                               lambda:self.result_steps.setCurrentIndex(2)))
         analyze_controls=QHBoxLayout()
         self.rate=QComboBox()
         self.rate.addItem("1.024 MS/s",1024000)
@@ -1204,10 +1236,17 @@ class SatelliteWindow(QMainWindow):
         for widget in [QLabel("Rate"),self.rate,QLabel("Center"),self.center,
                        QLabel("Analysis"),self.analysis_mode]:
             analyze_controls.addWidget(widget)
-        body.addLayout(analyze_controls)
-        self._row(body,
+        analyze.addWidget(self._hint(
+            "For raw CU8, enter the original sample rate and center frequency. "
+            "Spectrum peaks are uncalibrated RF evidence, not a verified transmitter."))
+        analyze.addLayout(analyze_controls)
+        self._row(analyze,
                   self._button("Analyze real CU8",self.analyze_file),
-                  self._button("Auto-discover RF candidates",self.discover_signals),
+                  self._button("Auto-discover RF candidates",self.discover_signals))
+        extract.addWidget(self._hint(
+            "Decoder results appear only from actual saved data. "
+            "Meteor requires a compatible external SatDump installation."))
+        self._row(extract,
                   self._button("Decode Meteor 72k",lambda:self.decode_meteor("72k")),
                   self._button("Decode Meteor 80k",lambda:self.decode_meteor("80k")))
         analog=QHBoxLayout()
@@ -1221,7 +1260,7 @@ class SatelliteWindow(QMainWindow):
         analog.addWidget(self._button("CU8 → genuine FM WAV",self.demodulate_fm))
         analog.addWidget(self._button("Play selected / extracted WAV",self.play_audio))
         analog.addWidget(self._button("Stop audio",self.stop_audio))
-        body.addLayout(analog)
+        analyze.addLayout(analog)
         robot=QHBoxLayout()
         self.sstv_compute=QComboBox()
         for label,mode,targets in (
@@ -1234,9 +1273,9 @@ class SatelliteWindow(QMainWindow):
         robot.addWidget(self.sstv_compute)
         robot.addWidget(self._button("Decode WAV → Robot36 PNG",self.decode_robot36_native))
         robot.addWidget(self._button("Save decoded PNG / WAV…",self.save_selected_output))
-        body.addLayout(robot)
-        self._row(body,
-                  self._button("Export actual spectrum/waterfall PNG",self.export_spectrum_png),
+        extract.addLayout(robot)
+        self._row(extract,
+                  self._button("Export spectrum/waterfall PNG",self.export_spectrum_png),
                   self._button("Export spectrum CSV",self.export_spectrum_csv),
                   self._button("Save real results ZIP",self.save_results_zip))
         self.output_files=QTreeWidget()
@@ -1245,21 +1284,31 @@ class SatelliteWindow(QMainWindow):
         self.output_files.header().setSectionResizeMode(1,QHeaderView.ResizeToContents)
         self.output_files.setMaximumHeight(130)
         self.output_files.itemSelectionChanged.connect(self._output_file_selected)
-        body.addWidget(self.output_files)
+        extract.addWidget(self.output_files)
         self.candidate_label=self._hint("RF discovery is based on energy above a local noise estimate. A peak alone is not a decoded packet or picture.")
-        body.addWidget(self.candidate_label)
+        analyze.addWidget(self.candidate_label)
         self.spectrum=SpectrumView()
         self.spectrum.setMinimumHeight(260)
-        body.addWidget(self.spectrum,2)
+        analyze.addWidget(self.spectrum,2)
         self.image=QLabel()
         self.image.setMinimumHeight(90)
         self.image.setAlignment(Qt.AlignCenter)
-        body.addWidget(self.image,1)
+        extract.addWidget(self.image,1)
         self.file_details=QPlainTextEdit()
         self.file_details.setReadOnly(True)
         self.file_details.setMaximumHeight(125)
-        body.addWidget(self.file_details,1)
+        analyze.addWidget(self.file_details,1)
         self.file_details.setPlainText("Select a real recording or import a local .cu8, WAV, PNG or text file.")
+        self._row(analyze,
+                  self._button("←  Choose another file",
+                               lambda:self.result_steps.setCurrentIndex(0)),
+                  self._button("View decoded outputs  →",
+                               lambda:self.result_steps.setCurrentIndex(2)))
+        self._row(extract,
+                  self._button("←  Back to signal analysis",
+                               lambda:self.result_steps.setCurrentIndex(1)),
+                  self._button("Choose another file",
+                               lambda:self.result_steps.setCurrentIndex(0)))
 
     def _protocols_tab(self):
         """Manual public downlink catalog, independent of receiver allowlist."""
@@ -1418,6 +1467,7 @@ class SatelliteWindow(QMainWindow):
         profile=item.data(0,Qt.UserRole)
         self.center.setValue(profile["frequencyHz"]/1e6)
         if self._open_native_tab("Recordings & results"):
+            self.result_steps.setCurrentIndex(1)
             self.statusBar().showMessage(
                 "Analysis center frequency from UNVERIFIED user reference: "+
                 f'{profile["frequencyHz"]/1e6:.6f} MHz. '+
@@ -1779,10 +1829,15 @@ class SatelliteWindow(QMainWindow):
             self.spectrum.set_report(None)
         self.selected_path=path
         p=Path(path)
+        self.results_file_banner.setText(
+            "Selected file: "+p.name+"  ·  Not independently attributed to a satellite")
         if not p.is_file():
             self.file_details.setPlainText("File no longer exists")
             return
         media_label, media_explanation = describe_local_file(p)
+        self.results_file_banner.setText(
+            "Selected: "+p.name+"  ·  "+media_label)
+        self.browse_file_info.setText(media_explanation)
         self.file_details.setPlainText(
             str(p)+"\n"+small_bytes(p.stat().st_size)+
             "\nData type: "+media_label+"\n"+media_explanation+
@@ -2121,7 +2176,19 @@ def main(argv=None):
         with TemporaryDirectory(prefix="tihulu-native-smoke-") as td:
             station=Station(Path(td))
             window=SatelliteWindow(station,auto_poll=False)
-            assert window.tabs.count()==8, "Native tabs not built"
+            assert window.tabs.count()==8, "Native pages not built"
+            assert window.tabs.tabBar().isHidden(), "Expose guided primary navigation"
+            assert len(window.nav_buttons)==5
+            assert window.nav_buttons["Overview"].isChecked()
+            assert window.result_steps.count()==3
+            assert window.result_steps.tabText(0).startswith("1 ")
+            assert window.result_steps.tabText(2).startswith("3 ")
+            window._home_analyze()
+            assert window.tabs.tabText(window.tabs.currentIndex())=="Recordings & results"
+            assert window.result_steps.currentIndex()==0
+            window._home_extract()
+            assert window.result_steps.currentIndex()==2
+            window._open_native_tab("Overview")
             assert window.protocol_list.topLevelItemCount()==0
             assert window.tabs.tabText(7)=="Saved protocols"
             assert window.map_sky.mode=="sky"
