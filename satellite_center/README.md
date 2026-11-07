@@ -1,5 +1,53 @@
 # TIHULU Satellite Center 0.3.0~preview10 — exact web UI + native SDR desktop
 
+## Preview10 · Exact website presentation with direct OS-native SDR
+
+The installed desktop now opens the **actual same bundled** `browser/index.html`,
+CSS, images and browser JavaScript used by the public website. There is no
+separately drawn Qt imitation. This requires **Qt WebEngine (an embedded
+Chromium renderer)** to match the original web design; the visual UI *is*
+HTML/CSS, but SDR acquisition is **not WebUSB**. A tightly allowlisted
+**in-process Qt WebChannel** sends user-triggered receiver actions straight
+to the existing `Station` backend and Linux `rtl_sdr`/`rtl_fm` tools.
+No localhost HTTP server, externally opened browser or USB permission chooser
+is launched by the installed desktop. All bundled UI assets are local.
+
+Commands:
+
+- `tihulu-satellite-center` or `tihulu-satellite-center desktop`:
+  exact web presentation, native radio backend (default).
+- `tihulu-satellite-center desktop-widgets`:
+  old **fully Qt-painted, browser-engine-free** fallback.
+- `tihulu-satellite-center doctor`:
+  passive USB/process and dependency diagnostics; no RF opened.
+
+**Explicit trade-off:** if *zero Chromium/WebEngine components* are mandatory,
+use `desktop-widgets`; pixel-for-pixel reuse of the website layout is
+otherwise impossible using only independent Qt Widgets. The WebEngine
+is a renderer, **not a WebUSB acquisition path**. Browser-specific memory
+limits and permissions are bypassed by direct native disk streaming.
+
+The bundled browser UI keeps the current pass planning, maps, images, data
+inspection and protocol editor. Its native bridge intercepts explicit
+**Connect, physical IQ Test, Disconnect, manual CU8/WAV/BOTH capture, auto
+mission schedule and selected-pass schedule** controls before the browser's
+WebUSB event listeners. Each native action validates receiver profiles,
+disk quotas and actual TLE geometry; received imagery/speech is never made up.
+Hardware can only be claimed if the OS device and real sample tests pass.
+
+The older independent Qt Widgets UI is retained and now has inline offline/
+online city results with optional debounced Open-Meteo lookup: mistyping
+`syney` queries the provider for **Sydney**, not imaginary coordinates.
+The same alias applies in the bundled web picker. Online lookup remains
+an explicit opt-in; no location is uploaded merely by opening the app.
+
+**Limits:** Exact HTML/CSS reuse does not prove all webpage features have
+been hardware-tested. Qt WebEngine Chromium version, installed fonts, OS
+scale factors and platform integration can cause small rendering differences.
+The native dual-format path derives 32 kHz FM WAV from CU8 after capture
+whereas the browser WebUSB writer can produce 48 kHz concurrently. OS-driver
+access and true Meteor/ISS reception require real Pop!_OS/Nooelec acceptance.
+
 ## Preview9 · full home satellite pass planning (2026-11-07)
 
 Following desktop feedback, the **Home → 3 · Satellite pass planner** is
