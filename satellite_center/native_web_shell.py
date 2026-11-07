@@ -234,7 +234,8 @@ class NativeReceiver(QObject):
             for record in incoming+previous:
                 chosen.setdefault(record["id"],record)
                 if len(chosen)>=30:break
-            content="".join(row["name"]+"\n"+row["l1"]+"\n"+row["l2"]+"\n"
+            content="".join(row["name"].encode("ascii","replace").decode("ascii")+"\n"+
+                            row["l1"]+"\n"+row["l2"]+"\n"
                             for row in chosen.values())
             tmp=None
             try:
