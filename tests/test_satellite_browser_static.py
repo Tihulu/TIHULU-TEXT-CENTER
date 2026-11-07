@@ -10,7 +10,7 @@ class SatelliteBrowserStaticTests(unittest.TestCase):
     def test_page_has_direct_webusb_controls_and_clear_limits(self):
         html = (ROOT / "index.html").read_text(encoding="utf-8")
         for phrase in ("Choose RTL-SDR (WebUSB)", "Release USB", "Start real USB capture",
-                       "browser.js", "Browser-only", "Shared Web + Desktop UI",
+                       "browser.js", "Browser-only", "Web / PWA · 0.3.0 preview6",
                        "in-browser APRS/Meteor LRPT decoding is not implemented"):
             self.assertIn(phrase, html)
         # The pass planner is shared by the installed companion and Pages/PWA.
@@ -51,6 +51,11 @@ class SatelliteBrowserStaticTests(unittest.TestCase):
             self.assertIn('id="' + id + '"', html)
         self.assertIn("initStationLocationUI", (ROOT / "auto_reception_ui.mjs").read_text(encoding="utf-8"))
         self.assertIn("initSavedProtocolUI", script)
+        self.assertIn("inspectLocalFormat", script)
+        self.assertIn('id="file-title"', reception)
+        self.assertIn("Local format labels:", reception)
+        self.assertIn("Web / PWA", html)
+        self.assertIn("native Qt desktop", html)
         self.assertIn("renderSatelliteCalendar", (ROOT / "auto_reception_ui.mjs").read_text(encoding="utf-8"))
         self.assertIn('route == "/api/auto-edit"', (ROOT.parent / "__main__.py").read_text(encoding="utf-8"))
 
