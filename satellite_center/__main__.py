@@ -867,7 +867,7 @@ class Station:
 
     def schedule_series(self, pass_id, profile, mode, run_at=None, total_seconds=60, *,
                         automatic=False, segment_seconds=NATIVE_PART_SECONDS,
-                        gap_seconds=NATIVE_RESET_SECONDS):
+                        gap_seconds=NATIVE_RESET_SECONDS,sample_rate=1024000):
         """Atomically arm independent native RF jobs for a single public pass.
 
         A 300-second spectrum survey becomes two 150-second captures with a
@@ -879,7 +879,7 @@ class Station:
                               gap_seconds=gap_seconds)
         if len(parts)==1:
             job = self.schedule(pass_id, profile, mode, run_at,
-                                total_seconds, automatic=automatic)
+                                total_seconds, automatic=automatic,sample_rate=sample_rate)
             return {"scheduled":[job],"scheduled_count":1,
                     "group_id":None,"requested_seconds":total_seconds,
                     "unrecorded_gap_seconds":0}
@@ -915,7 +915,7 @@ class Station:
                         segment_group=group_id,segment_index=part["index"],
                         segment_count=part["count"],
                         requested_total_seconds=total_seconds,
-                        restart_gap_seconds=gap_seconds)
+                        restart_gap_seconds=gap_seconds,sample_rate=sample_rate)
                     appended.append(job)
             except Exception:
                 ids={j["id"] for j in appended}
