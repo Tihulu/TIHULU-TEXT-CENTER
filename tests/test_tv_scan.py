@@ -40,12 +40,12 @@ class CountryAutoScanTest(unittest.TestCase):
     def test_scan_logs_are_not_replayed(self):
         with tempfile.TemporaryDirectory() as temp:
             path = Path(temp) / "scan.log"
-            path.write_bytes(b"w_scan_cpp Version 20231015\\n21:34:08 scan started\\n")
+            path.write_bytes(b"w_scan_cpp Version 20231015\n21:34:08 scan started\n")
             reader = IncrementalScanLog(path)
             first = reader.poll()
             self.assertEqual(len(first), 2)
             self.assertEqual(reader.poll(), [])
             with path.open("ab") as f:
-                f.write(b"538000: (time: 00:51.0)\\r")
+                f.write(b"538000: (time: 00:51.0)\r")
             self.assertEqual(reader.poll(), ["538000: (time: 00:51.0)"])
             self.assertEqual(reader.poll(), [])
