@@ -366,6 +366,76 @@ class Station:
                     "jobs": [dict(j) for j in self.jobs[-100:]],
                     "archive": self.records()}
 
+    def sample_test(self, frequency_hz=137900000):
+        """Explicit real-IQ probe. Does NOT create a recording or decode a satellite.
+
+        Independent of a normal capture, temporary rtl_sdr process and receiver
+        lock are released in every outcome. No USB power/reset is attempted.
+        """
+        hz=int(frequency_hz)
+        if hz not in {137900000,137100000,145800000,145825000,
+                      437550000,437800000,437825000,1620000000}:
+            raise ValueError("Select a published receive-only diagnostic frequency")
+        tool=shutil.which("rtl_sdr")
+        if not tool:
+            raise RuntimeError("rtl_sdr not installed. Install rtl-sdr tools.")
+        with self.lock:
+            if self.closed.is_set() or self.session.get("active") or self.launching:
+                raise RuntimeError("Receiver in use; stop current activity before sampling")
+            self.launching=True
+            proc=None
+            try:
+                self.stopping.clear()
+                self._acquire()
+                # Exactly 524288 complex samples = 1 MiB unsigned CU8; bounded.
+                proc=self._launch_receiver([
+                    tool,"-d","0","-f",str(hz),"-s","1024000",
+                    "-n","524288","-"
+                ],stdin=subprocess.DEVNULL,stdout=subprocess.PIPE,
+                   stderr=subprocess.PIPE)
+                self.process=proc
+            except BaseException:
+                self.launching=False
+                self._release()
+                raise
+        try:
+            try:
+                raw,errors=proc.communicate(timeout=8)
+            except subprocess.TimeoutExpired as exc:
+                stop_process(proc)
+                raise RuntimeError("Physical SDR sample test timed out") from exc
+            if proc.returncode != 0 or len(raw) < 32768 or len(raw)%2:
+                message=errors.decode("utf-8","replace")[-320:]
+                raise RuntimeError(
+                    "Physical SDR did not produce usable complex IQ samples. "+
+                    re.sub(r"[\x00-\x1f\x7f]+"," ",message))
+            # Efficient bounded subsampling; voltage-relative digital metrics.
+            counts=raw[::64]
+            minimum=min(counts);maximum=max(counts)
+            mean=sum(counts)/len(counts)
+            rms=(sum((v-127.5)**2 for v in counts)/len(counts))**0.5
+            clipped=sum(v<3 or v>252 for v in counts)
+            return {
+                "state":"real_iq_samples_received",
+                "sample_bytes":len(raw),
+                "complex_samples":len(raw)//2,
+                "frequency_hz":hz, "sample_rate_sps":1024000,
+                "digital_min":minimum,"digital_max":maximum,
+                "digital_mean":round(mean,2),
+                "digital_rms_from_midpoint":round(rms,2),
+                "sampled_clip_fraction":round(clipped/len(counts),5),
+                "signal_decoded":False,"satellite_identified":False,
+                "evidence":"physical rtl_sdr process emitted CU8 complex I/Q bytes",
+                "note":"Actual USB IQ acquisition verified. No calibrated dBm, station identity, usable antenna or satellite signal implied."
+            }
+        finally:
+            stop_process(proc)
+            with self.lock:
+                if self.process is proc:self.process=None
+                self.owned_processes.discard(proc)
+                self.launching=False
+                self._release()
+
     def connect_receiver(self):
         """Prove physical RTL-SDR open, release it, then arm future RF jobs.
 
