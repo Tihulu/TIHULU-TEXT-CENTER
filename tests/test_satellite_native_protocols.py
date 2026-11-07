@@ -55,3 +55,15 @@ class NativeUserProtocolsTests(unittest.TestCase):
             import_profiles(td,target)
             self.assertEqual(len(load_profiles(td)),1)
             self.assertFalse(any(x.name.endswith(".cu8") for x in Path(td).iterdir()))
+
+    def test_malformed_json_shapes_rejected_without_crashing_gui(self):
+        with tempfile.TemporaryDirectory() as td:
+            path=Path(td)/"invalid.json"
+            for bad in (42, True, "123", {"profiles":"not a list"}):
+                path.write_text(json.dumps(bad),encoding="utf-8")
+                with self.assertRaises(ValueError):
+                    import_profiles(td,path)
+            path.unlink()
+            (Path(td)/"user_downlinks.json").write_text("99",encoding="utf-8")
+            with self.assertRaises(ValueError):
+                load_profiles(td)

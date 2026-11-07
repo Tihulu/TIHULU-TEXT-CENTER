@@ -69,6 +69,8 @@ def load_profiles(directory):
     if path.is_symlink() or path.stat().st_size>IMPORT_LIMIT:
         raise ValueError("Local protocol catalog is unsafe or oversized")
     doc=json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(doc,dict):
+        raise ValueError("Local user protocol document must be a JSON object")
     return validate_profiles(doc.get("profiles",[]))
 
 def save_profiles(directory,profiles):
@@ -94,7 +96,12 @@ def import_profiles(directory,file):
     if not path.is_file() or path.is_symlink() or path.stat().st_size>IMPORT_LIMIT:
         raise ValueError("Choose a regular <=40KB protocol JSON file")
     doc=json.loads(path.read_text(encoding="utf-8"))
-    rows=doc if isinstance(doc,list) else doc.get("profiles")
+    if isinstance(doc,list):
+        rows=doc
+    elif isinstance(doc,dict):
+        rows=doc.get("profiles")
+    else:
+        raise ValueError("User protocol import must be a list or a JSON object")
     data=validate_profiles(rows)
     old=load_profiles(directory)
     merged={r["id"]:r for r in old+data}
