@@ -13,7 +13,7 @@ Use this for Debian/Ubuntu/Pop!_OS **native desktop**, not the older
 curl -fsSL https://raw.githubusercontent.com/Tihulu/TIHULU-TEXT-CENTER/feature/satellite-auto-discovery-integrated-2026-11-06/satellite_center/install/install-deb.sh | bash
 ```
 
-The script downloads public GitHub source, builds the `0.3.0~preview9`
+The script downloads public GitHub source, builds the `0.3.0~preview10`
 Debian package and uses `apt` for installation; no GitHub CLI login is
 required. It will not start the receiver, poll TLEs, or create background
 services. The application launcher is `tihulu-satellite-center`.
