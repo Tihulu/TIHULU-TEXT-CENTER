@@ -860,6 +860,14 @@ class Station:
                         and j.get("mission_id") and j.get("state") == "pending"), None)
             if not job:
                 raise ValueError("Editable pending automatic task not found")
+            # Editing any part of a multi-part mission replaces the ENTIRE
+            # pending group, never a single segment left in an inconsistent
+            # schedule. Also upgrade a one-part job to a series if length >180.
+            if job.get("segment_group") or (
+                    duration_seconds is not None and duration_seconds>180):
+                return self._edit_segmented_auto_group(
+                    job,selected,mission_id,duration_seconds,
+                    target_norad,target_profile,target_mode)
             pass_norad = int(str(job["pass_id"]).split(":")[0])
             if target_norad != pass_norad:
                 raise ValueError("Protocol belongs to another spacecraft; recalculate its pass first")
@@ -902,6 +910,61 @@ class Station:
             self.save_jobs()
             self.wake.set()
             return dict(job)
+
+    def _edit_segmented_auto_group(self, job, selected, mission_id,
+                                   duration_seconds, target_norad,
+                                   target_profile, target_mode):
+        """Replace an entire pending native group under the receiver lock.
+
+        The caller holds self.lock (RLock). Failed re-planning restores every
+        previous pending job; another application's SDR work is untouched.
+        """
+        group_id=job.get("segment_group")
+        original=[j for j in self.jobs if
+                  (j.get("segment_group")==group_id if group_id else j is job)]
+        if not original or any(j.get("state")!="pending" for j in original):
+            raise ValueError("Only fully pending capture series can be edited")
+        if int(str(job["pass_id"]).split(":")[0])!=target_norad:
+            raise ValueError("Edited radio protocol belongs to another spacecraft")
+        original.sort(key=lambda j:j.get("run_at",""))
+        aos=datetime.fromisoformat(job["aos"]).astimezone(UTC)
+        los=datetime.fromisoformat(job["los"]).astimezone(UTC)
+        if not (max(aos-timedelta(seconds=10),now()+timedelta(seconds=12))
+                <=selected<=los-timedelta(seconds=12)):
+            raise ValueError("Edited series must start inside the future predicted pass")
+        total=(duration_seconds if duration_seconds is not None else
+               sum(int(j["capture_seconds"]) for j in original))
+        previous=[dict(j) for j in original]
+        for j in original:
+            j.update(state="cancelled",result="Replaced by edited capture series")
+        self.save_jobs()
+        try:
+            batch=self.schedule_series(job["pass_id"],target_profile,target_mode,
+               stamp(selected),total,automatic=True,segment_seconds=180)
+            for added in batch["scheduled"]:
+                added.update(mission_id=mission_id,requested_seconds=duration_seconds,
+                    coverage_goal=job.get("coverage_goal","full"),
+                    compute_mode=job.get("compute_mode","auto"),
+                    compute_targets=job.get("compute_targets"),
+                    event_window_only=job.get("event_window_only",False),
+                    data_kind=job.get("data_kind","unclassified IQ"))
+            lookup={j["id"]:j for j in batch["scheduled"]}
+            for stored in self.jobs:
+                if stored["id"] in lookup:
+                    stored.update(lookup[stored["id"]])
+            self.save_jobs()
+            self.wake.set()
+            return batch
+        except Exception:
+            # schedule_series removes any partially created new jobs itself.
+            backup={j["id"]:j for j in previous}
+            for entry in self.jobs:
+                if entry["id"] in backup:
+                    entry.clear()
+                    entry.update(backup[entry["id"]])
+            self.save_jobs()
+            self.wake.set()
+            raise
 
     def cancel_auto_missions(self):
         """Cancel only this app's explicitly auto-armed pending/running jobs."""
