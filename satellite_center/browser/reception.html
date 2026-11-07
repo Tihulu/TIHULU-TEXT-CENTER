@@ -6,14 +6,14 @@
 <meta name="referrer" content="strict-origin-when-cross-origin">
 <title>Satellite Images &amp; Data | TIHULU Satellite Center</title>
 <link rel="icon" href="./icon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="./browser.css?v=20261107-cu8-wav-multiselect-v1">
-<link rel="stylesheet" href="./reception.css?v=20261106-calendar-protocol-v2">
+<link rel="stylesheet" href="./browser.css?v=20261107-web-preflight-v2">
+<link rel="stylesheet" href="./reception.css?v=20261107-web-preflight-v2">
 </head>
 <body>
 <header><div class="wrap">
-<p class="eyebrow">TIHULU SATELLITE CENTER · ONE SHARED WEB / DESKTOP INTERFACE</p>
+<p class="eyebrow">TIHULU SATELLITE CENTER · WEB / PWA · 0.3.0 PREVIEW6</p>
 <h1>Satellite Images &amp; Data</h1>
-<p>Receive open transmissions, decode when possible, inspect your own recording files, and keep online archives separate from RF measurements. No transmit capability.</p>
+<p>Browser/PWA edition: inspect local RF, audio, images and reports, decode supported formats, and separate online imagery from measured radio signals. Direct WebUSB needs compatible Chromium; the native Qt desktop application is a separate program. No transmit capability.</p>
 <nav class="reception-nav" aria-label="Satellite Center sections">
 <a href="./index.html">Receiver &amp; pass planner</a>
 <a href="./reception.html" aria-current="page">Images &amp; Data</a>
@@ -115,6 +115,7 @@
 </section>
 <section aria-labelledby="file-title">
 <h2 id="file-title">Recorded files · Open image, audio, video, text or I/Q</h2>
+<p class="file-format-key"><strong>Local format labels:</strong> RAW RF · CU8, IMAGE · PNG/JPEG, AUDIO · WAV, VIDEO, TEXT and DATA. Supported media headers are checked before preview. A matching header is not proof of a real satellite transmission, complete decode or authenticated source.</p>
 <p>Preview actual local files without uploading them. An imported image is <strong>user-supplied</strong>, not verified as received from a satellite. CU8 is raw I/Q and needs its original center frequency and sample rate for correct analysis.</p>
 <div class="reception-controls">
 <label>Choose your file<input id="local-file" type="file" accept=".png,.jpg,.jpeg,.webp,.gif,.wav,.mp3,.ogg,.flac,.m4a,.mp4,.webm,.mov,.txt,.json,.csv,.tle,.log,.aprs,.cu8,.iq,.u8,.cfile"></label>
@@ -255,7 +256,7 @@
 <a href="https://worldview.earthdata.nasa.gov/" target="_blank" rel="noopener noreferrer">NASA Worldview</a>
 </div>
 </section>
-<footer>Same bundled page on GitHub Pages, installed PWA, Linux, Raspberry Pi OS, Windows and macOS native companion. This tab never opens USB, uploads RF samples or fabricates satellite pictures; use the existing verified capture/decoder controls when available.</footer>
+<footer>This is the web/PWA edition. The independent Linux Qt desktop uses native operating-system RF capture tools and is not an embedded browser. This tab does not automatically open USB, upload RF samples or fabricate satellite pictures; real reception and decoder success require actual evidence.</footer>
 </main>
-<script type="module" src="./reception.mjs?v=20261107-cu8-wav-multiselect-v1"></script>
+<script type="module" src="./reception.mjs?v=20261107-web-format-inspection-v2"></script>
 </body></html>
