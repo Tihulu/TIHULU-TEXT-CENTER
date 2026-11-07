@@ -669,7 +669,7 @@ class SatelliteWindow(QMainWindow):
             ("Orbit paths · visible (max 12)","all"),
             ("Orbit paths · off","none")):
             self.map_track_scope.addItem(title,mode)
-        self.map_track_scope.currentIndexChanged.connect(self._map_options_changed)
+        self.map_track_scope.currentIndexChanged.connect(self._map_track_scope_changed)
         self.map_osm=QCheckBox("OpenStreetMap streets · online")
         self.map_osm.setToolTip("User-triggered visible viewport tiles only; no offline bulk download.")
         self.map_osm.toggled.connect(self._map_osm_toggled)
@@ -748,6 +748,11 @@ class SatelliteWindow(QMainWindow):
         if not self.map_earth.fit_satellites():
             self.statusBar().showMessage(
                 "No TLE subpoints match the current map filter.",8000)
+    def _map_track_scope_changed(self,*_):
+        # Invalidate previously sampled selected/all orbit paths immediately.
+        self.map_track_segments=[]
+        self.map_last_track_at=0
+        self._map_options_changed()
     def _map_options_changed(self,*_):
         self.map_sky.above_only=self.map_above.isChecked()
         self.map_earth.above_only=self.map_above.isChecked()
@@ -1806,6 +1811,15 @@ def main(argv=None):
             assert window.map_earth.mode=="earth"
             assert not window.map_osm.isChecked()
             assert window.map_earth._land, "Offline Natural Earth is required"
+            assert window.map_media.findData("Image")>=0
+            assert window.map_media.findData("Text")>=0
+            assert window.map_track_scope.findData("all")>=0
+            assert window.map_track_scope.findData("none")>=0
+            assert callable(window.map_earth.fit_satellites)
+            assert callable(window._map_export_geojson)
+            assert window.home_auto.text().startswith("1 ")
+            assert window.home_analyze.text().startswith("2 ")
+            assert window.home_extract.text().startswith("3 ")
             assert window.pass_seconds.maximum()==900
             assert window.capture_seconds.maximum()==900
             assert len(window._offline_cities)==8084
