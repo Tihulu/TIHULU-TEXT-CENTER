@@ -10,6 +10,7 @@
     return data;
   };
   function disconnect() {
+    const wasConnected = connected;
     connected = false;
     clearInterval(ticker); ticker = null;
     if (hls) { hls.destroy(); hls = null; }
@@ -17,6 +18,12 @@
     el("pair").disabled = false; el("leave").disabled = true;
     el("start-video").disabled = true; el("open-page").disabled = true;
     el("state").textContent = "NOT PAIRED";
+    el("channel").textContent = "Receiver not connected";
+    el("source").textContent = "Pair with your native DVB host to see real signals.";
+    el("original").textContent = "No active broadcaster captions.";
+    el("translated").textContent = "";
+    el("caption-source").textContent = "No decoded caption";
+    if (wasConnected) document.dispatchEvent(new Event("tihulu-tv-disconnected"));
     // Session cookie remains until host expiry or restart; browser cannot
     // delete it because it is HttpOnly. A host reset revokes sessions.
   }

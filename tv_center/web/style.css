@@ -22,3 +22,17 @@ footer{margin-top:28px;font-size:11px;color:#8099b1;letter-spacing:.13em}
 #web-control-root{display:grid;gap:16px}#web-control-root select{background:#0b1827;border:1px solid #415b72;border-radius:6px;color:#eff6fb;padding:9px;margin:7px 0;max-width:100%}#web-control-root label{display:block;margin:11px 0 2px}#web-control-root .actions{flex-wrap:wrap}.web-channel-list{max-height:330px;overflow:auto}.web-channel-item{display:grid;gap:5px;border-top:1px solid #304357;padding:10px 0}.web-channel-item button{padding:5px 7px;font-size:12px}.web-channel-log{max-height:180px;overflow:auto;font-family:monospace;font-size:12px;line-height:1.5;overflow-wrap:anywhere;color:#93afbd}#web-channel-msg{font-size:12px;color:#8bd1c0}
 
 #webusb-dvb .actions{flex-wrap:wrap}#webusb-dvb details{border:1px solid #31495a;border-radius:7px;padding:12px;margin:15px 0}#webusb-dvb summary{cursor:pointer;color:#85c2cf}#webusb-dvb pre{font-size:11px;max-height:300px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;color:#b3d1d9}#webusb-ts-import{font-size:12px;margin-top:8px}#webusb-dvb strong{color:#d7f2fd}
+
+/* Unified native DVB scan policy: do not show irrelevant satellite/country fields. */
+.web-scan-field[hidden]{display:none!important}
+#web-scan-panel .actions{flex-wrap:wrap}
+#web-scan-panel .web-mini-subtitle{display:inline;font-size:12px;font-weight:500;color:#8b9fb3}
+#web-scan-panel .web-scan-field{margin:16px 0 8px}
+#web-scan-panel .web-scan-field label{display:block;font-weight:600;margin:0 0 6px}
+#web-scan-panel .web-scan-field select{width:100%;max-width:360px}
+#web-scan-panel .web-scan-field small{display:block;margin-top:6px}
+#web-scan-panel .web-scan-backend{border-left:2px solid #607c90;padding-left:11px;color:#b4c7d8;font-size:13px}
+#web-scan-panel[data-connected="false"] #web-scan-backend{border-color:#8192a2}
+#web-scan-state,#web-signal{font-size:13px;line-height:1.5}
+#web-scan-limitation{display:block;margin-top:12px}
+#web-control-root .actions button:disabled{opacity:.40}
