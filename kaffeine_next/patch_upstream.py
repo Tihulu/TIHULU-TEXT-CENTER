@@ -192,7 +192,7 @@ def transform(files):
 \t\tif (settings.open(QIODevice::ReadOnly) && settings.size() < 16) {
 \t\t\tbool ok = false;
 \t\t\tint requested = settings.readAll().trimmed().toInt(&ok);
-\t\t\tif (ok && requested >= 0 && requested <= 8000)
+\t\t\tif (ok && requested >= 0 && requested <= 20000)
 \t\t\t\tvalue = requested;
 \t\t}
 \t\ttihuluVideoDelayMs = value;

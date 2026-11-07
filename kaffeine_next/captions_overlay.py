@@ -320,10 +320,11 @@ def main(argv=None):
     caption_offset.setSuffix(" s")
     caption_offset.setToolTip("Positive = later subtitle; negative = earlier. Cannot show before decoding completes.")
     playback_delay = QDoubleSpinBox()
-    playback_delay.setRange(0.0, 8.0)
+    playback_delay.setRange(0.0, 20.0)
     playback_delay.setSingleStep(0.5)
     playback_delay.setSuffix(" s")
-    playback_delay.setToolTip("Buffers both video and audio together. This uses memory and must be retested on Pi 5.")
+    playback_delay.setToolTip("Buffers audio and video together (0–20 s). Long buffers consume RAM; "
+                               "use CUDA models to reduce lag rather than excessive buffering.")
     offsets.addWidget(QLabel("Caption offset"))
     offsets.addWidget(caption_offset)
     offsets.addWidget(QLabel("TV playback buffer"))
@@ -417,7 +418,7 @@ def main(argv=None):
             "utf-8", "replace")
     except OSError:
         pass
-    estimator = AutoSyncEstimator(ceiling_ms=4000 if pi5 else 6000)
+    estimator = AutoSyncEstimator(ceiling_ms=6000 if pi5 else 12000)
     auto_controller = AutoSyncController()
     last_service_id = None
     def options():

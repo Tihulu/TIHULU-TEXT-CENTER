@@ -49,8 +49,8 @@ class CaptionConfig:
             raise ValueError("Teletext page must be an integer 100–899")
         if type(self.offset_ms) is not int or not -10000 <= self.offset_ms <= 10000:
             raise ValueError("Caption offset must be -10 to +10 seconds")
-        if type(self.playback_delay_ms) is not int or not 0 <= self.playback_delay_ms <= 8000:
-            raise ValueError("Playback buffering must be 0–8 seconds")
+        if type(self.playback_delay_ms) is not int or not 0 <= self.playback_delay_ms <= 20000:
+            raise ValueError("Playback buffering must be 0–20 seconds")
         if (not isinstance(self.target_languages, tuple) or
                 len(self.target_languages) > 3 or
                 len(set(self.target_languages)) != len(self.target_languages) or
@@ -176,7 +176,7 @@ class AutoSyncEstimator:
     offset. Native Teletext captions should not train an ASR estimate.
     """
     def __init__(self, minimum=3, maximum=12, ceiling_ms=6000):
-        if not 1 <= minimum <= maximum or not 0 <= ceiling_ms <= 8000:
+        if not 1 <= minimum <= maximum or not 0 <= ceiling_ms <= 20000:
             raise ValueError("Invalid automatic sync limits")
         self.minimum = minimum
         self.ceiling_ms = ceiling_ms
@@ -212,7 +212,7 @@ class AutoSyncEstimator:
         if bytes_per_second is not None and bytes_per_second > 0:
             cap = min(cap, max(0, int(48 * 1024 * 1024 * 1000 /
                                        float(bytes_per_second))))
-        cap = max(0, min(8000, (cap // 500) * 500))
+        cap = max(0, min(20000, (cap // 500) * 500))
         ordered = sorted(self.values)
         med = int(median(ordered))
         p80 = ordered[int(round(0.8 * (len(ordered) - 1)))]
