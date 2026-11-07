@@ -1,4 +1,4 @@
-# TIHULU Satellite Center 0.3.0 — NATIVE desktop application
+# TIHULU Satellite Center 0.3.0~preview6 — native desktop application
 
 **Qt desktop/browser parity audit:** [NATIVE_WEB_PARITY.md](NATIVE_WEB_PARITY.md)
 tracks shipped features, their receive-only evidence limitations and
@@ -23,7 +23,7 @@ describe that separate legacy workflow, not the installed desktop app.
 Install the Debian package downloaded from GitHub Actions, then run:
 
 ```bash
-sudo apt install ./tihulu-satellite-center_0.3.0~preview3_all.deb
+sudo apt install ./tihulu-satellite-center_0.3.0~preview6_all.deb
 tihulu-satellite-center
 ```
 
@@ -72,13 +72,12 @@ conflicts. The Iridium 1620 MHz preset is RF energy recording only;
 no private messages or satellite identity are decoded.
 
 
-The **preferred Linux desktop launcher** is now the local RTL-SDR receiver
-(`tihulu-satellite-center` from the Debian package, or `tihulu-satellite`
-from the user-local source installer), not the WebUSB-only website. It
-serves the existing Satellite Center UI at `http://127.0.0.1:8791/`,
-which opens in your normal browser **including Firefox**. RF capture
-runs through native `rtl_sdr` / `rtl_fm` tools; it does **not** depend
-on Firefox's missing File System Access or WebUSB APIs.
+**Historical v0.2.4 localhost compatibility mode only:** To run the old
+browser-accessible local server explicitly, use `tihulu-satellite-center serve
+--port 8791`. This is **not** the current default Linux application. The
+normal `tihulu-satellite-center` launcher opens genuine native Qt Widgets
+and does not start an HTTP server. Both modes use OS RTL-SDR utilities for
+physical RF; the optional browser-only Pages edition remains separate.
 
 A native Debian `.deb` (source + shared UI + icons, using Debian's own
 `python3-skyfield` and `rtl-sdr` packages) is built and smoke-tested
@@ -144,7 +143,7 @@ Both manual receiver start and selected pass schedule entries support WAV, CU8 o
 
 ---
 
-### Native Maps, RF intelligence and Robot36 outputs — 0.3.0 preview3
+### Native Maps, RF intelligence and Robot36 outputs — 0.3.0 preview6
 
 - **Maps & Live:** actual native Qt Earth and polar-sky widgets with
   built-in Natural Earth land geometry, optional opt-in viewport-only
@@ -169,11 +168,16 @@ Both manual receiver start and selected pass schedule entries support WAV, CU8 o
   is generated, but the WAV and failed-sync report remain available.
   GPU and NPU decoding are attempted only with implemented/verified
   compute backends; unavailable accelerators must report errors.
-- **Known parity gaps:** The native Qt app does not yet implement every
-  browser-only visual inspector and custom user-protocol editor. Web
-  version remains available separately, and the Qt frontend must never
-  embed it as a WebView. Test physical RTL-SDR and actual SSTV/LRPT
-  reception before describing any output as a verified satellite result.
+- **Native archive data-type clarity (preview6):** The Recordings and
+  generated-results tables now label raw CU8, PNG/JPEG, WAV, TXT, JSON,
+  CSV and map/archive formats separately, with per-file explanations.
+  PNG/JPEG/WAV use a short actual file-header check. A matching header
+  does not establish a complete valid decode or confirm spacecraft origin.
+- **Remaining acceptance gates:** Browser/PWA and native Qt use different
+  receiver transports by design. Physical RTL-SDR, 900-second IQ throughput,
+  actual ISS SSTV/Meteor reception, Pop!_OS COSMIC visual acceptance and
+  native Windows/macOS installers remain unverified or unshipped.
+  Do not infer successful reception from a TLE pass or a file extension.
 
 
 ## Historical web/localhost companion documentation (legacy v0.2.3)
