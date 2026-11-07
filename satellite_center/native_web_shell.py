@@ -13,6 +13,8 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import time
+from datetime import datetime, timezone
 from pathlib import Path
 import re
 import sys
@@ -27,7 +29,8 @@ from PyQt5.QtGui import QDesktopServices
 from PyQt5.QtWebChannel import QWebChannel
 from PyQt5.QtWebEngineCore import QWebEngineUrlScheme,QWebEngineUrlSchemeHandler
 from PyQt5.QtWebEngineWidgets import QWebEngineView,QWebEnginePage,QWebEngineProfile
-from .__main__ import Station, PROFILES
+from .__main__ import Station, PROFILES, SOURCE_URLS, parse_tle, family, selectable
+from .native_orbit import OrbitEngine
 
 ASSETS=Path(__file__).resolve().parent/"browser"
 SCHEME=b"tihulu"
@@ -145,6 +148,7 @@ class NativeReceiver(QObject):
     def __init__(self,station,parent=None):
         super().__init__(parent)
         self.station=station
+        self.orbit_engine=OrbitEngine(station)
         self.pool=QThreadPool(self)
         self.pool.setMaxThreadCount(4)
         self.completed.connect(self._finish)
@@ -159,6 +163,7 @@ class NativeReceiver(QObject):
         if method not in {
             "status","connect","usb_open","sample","disconnect","stop",
             "capture","auto","auto_cancel","schedule","refresh","passes","geocode",
+            "tle_catalog","orbit_snapshot","tle_custom",
         }:
             self.reply.emit(request_id,json.dumps({
                 "ok":False,"error":"Native command is not allowlisted"}))
@@ -220,6 +225,75 @@ class NativeReceiver(QObject):
             data["native_webui"]=True
             data["hardware_transport"]="OS rtl_sdr/rtl_fm, not WebUSB"
             return data
+        if command=="tle_catalog":
+            # The desktop is NOT a website: never fetch CelesTrak from a
+            # tihulu:// web page. Use bounded native HTTPS and local cache.
+            refresh_report=st.refresh()  # explicit user action only
+            result=[]
+            errors=[]
+            sources={}
+            caps={"iss":1,"meteor3":1,"meteor4":1,
+                  "amateur":24,"iridium":14}
+            for source in SOURCE_URLS:
+                path=st.directory/(source+".tle")
+                report=refresh_report.get(source,{})
+                age_days=None
+                if path.is_file():
+                    age_days=max(0,(time.time()-path.stat().st_mtime)/86400)
+                sources[source]={"downloaded":bool(report.get("cached")),
+                                 "cached":path.is_file(),
+                                 "age_days":round(age_days,2) if age_days is not None else None,
+                                 "error":report.get("error")}
+                if not path.is_file() or (age_days is not None and age_days>7):
+                    errors.append(source+": no fresh orbital elements available")
+                    continue
+                try:
+                    text=path.read_text(encoding="ascii",errors="replace")
+                    items=parse_tle(text,limit=200)
+                    accepted=0
+                    for item in items:
+                        if not selectable(source,item):continue
+                        result.append({**item,"family":family(source,item)})
+                        accepted+=1
+                        if accepted>=caps[source]:break
+                    if accepted==0:errors.append(source+": no eligible TLEs")
+                except (OSError,ValueError) as exc:
+                    errors.append(source+": "+str(exc)[:100])
+                if report.get("error"):
+                    errors.append(source+": native HTTPS failed; using last valid cache ("+
+                                  str(report["error"])[:90]+")")
+            self.orbit_engine.invalidate()
+            return {"entries":result,"sources":sources,"warnings":errors,
+                    "source":"native_https_celestrak_and_disk_cache",
+                    "note":"Orbital predictions only. No RF data or satellite images were received."}
+        if command=="tle_custom":
+            norad=args.get("norad")
+            if type(norad) is not int or not 1000<=norad<=99999:
+                raise ValueError("Native custom TLE lookup requires a five-digit NORAD ID")
+            url="https://celestrak.org/NORAD/elements/gp.php?CATNR="+str(norad)+"&FORMAT=TLE"
+            with urlopen(Request(url,headers={"User-Agent":"TIHULU-Satellite-Center/0.3"}),timeout=10) as response:
+                if response.geturl().split("/")[2].lower() not in ("celestrak.org","www.celestrak.org"):
+                    raise ValueError("Unapproved CelesTrak redirect")
+                content=response.read(70001)
+            if len(content)>70000:raise ValueError("Custom TLE response exceeds 70 kB")
+            rows=[row for row in parse_tle(content.decode("ascii","strict"),limit=100)
+                  if row["id"]==norad]
+            if not rows:raise ValueError("No matching current TLE at CelesTrak")
+            return {"entries":[{**row,"family":"cubesat"} for row in rows[:1]],
+                    "source":"native_celestrak_custom_norad"}
+        if command=="orbit_snapshot":
+            lat=float(args.get("lat"))
+            lon=float(args.get("lon"))
+            at_ms=args.get("at_ms")
+            if type(at_ms) not in (int,float) or not -86400000*365*1000<at_ms<4102444800000:
+                raise ValueError("Invalid orbital observation timestamp")
+            if abs(time.time()*1000-at_ms)>86400000*2:
+                raise ValueError("Orbit simulation limited to ±48 hours from current UTC")
+            at=datetime.fromtimestamp(at_ms/1000,timezone.utc)
+            with_tracks=args.get("tracks") is True
+            return self.orbit_engine.snapshot(
+                lat,lon,at,family_filter="all",minimum_el=-90,
+                with_track=with_tracks,track_scope="all")
         if command=="geocode":
             # Explicit operator-initiated worldwide search; no GPS lookup.
             # Provider coordinates are passed through, never inferred.
