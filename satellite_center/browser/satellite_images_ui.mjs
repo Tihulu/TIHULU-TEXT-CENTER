@@ -2,6 +2,7 @@
  * honest local files. Nothing downloads on page load or acquires the SDR.
  */
 import { IMAGE_TARGETS, recordingName, parseRecordingName, epicEntries, nasaIssEntries } from "./satellite_imagery.mjs?v=20261106-images-v15";
+import {robot36CaptureHint} from "./sstv_capture_diagnostics.mjs?v=20261107-iss-band-diagnostic-v1";
 import { cu8ToFmAudio } from "./fm_iq_demod.mjs?v=20261106-images-v15";
 import { decodeRobot36Audio } from "./sstv_robot36.mjs?v=20261106-images-v15";
 const $=id=>document.getElementById(id);
@@ -166,7 +167,8 @@ export function initSatelliteImageUI({onTune=()=>{},onTargetChange=()=>{},log=()
      finally{await context.close();}
      drawDecodedAudio(decoded.getChannelData(0),decoded.sampleRate,file,"user WAV FM-demodulated audio");
    }catch(error){errorText("image-decode-status",
-     "No credible Robot36 SSTV image produced: "+String(error?.message||error));}
+     "No credible Robot36 SSTV image produced: "+String(error?.message||error)+
+     "\nDiagnosis: "+robot36CaptureHint(file.name));}
    finally{btn.disabled=false;}
  }
  $("image-decode-sstv").addEventListener("click",async()=>{
@@ -193,7 +195,7 @@ export function initSatelliteImageUI({onTune=()=>{},onTargetChange=()=>{},log=()
    }catch(error){
      errorText("image-decode-status","No credible Robot36 image obtained from RF CU8: "+
        String(error?.message||error)+
-       ". Verify ISS SSTV event, sample rate, receiving frequency, FM quality and antenna.");
+       "\nDiagnosis: "+robot36CaptureHint(name));
    }finally{
      $("image-decode-cuiq").disabled=false;
      $("image-decode-last").disabled=!lastCu8Blob;

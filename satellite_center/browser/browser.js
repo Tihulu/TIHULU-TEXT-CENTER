@@ -1,7 +1,7 @@
 import { platformFamily, webUsbHelp, permissionReport, usbInterfaceClaimProbe } from './usb_diagnostics.mjs?v=20261106-dvb-unbind-v09';
 import { createSatelliteMaps } from './satellite_maps.mjs?v=20261106-live-v14';
 import { initIqAnalysisUI } from './iq_analysis_ui.mjs?v=20261106-iss-npu-release-v1';
-import { initSatelliteImageUI } from './satellite_images_ui.mjs?v=20261106-direct-fm-wav-v1';
+import { initSatelliteImageUI } from './satellite_images_ui.mjs?v=20261107-iss-band-diagnostic-v1';
 import { recordingName } from './satellite_imagery.mjs?v=20261106-images-v15';
 import { initStationLocationUI } from './location_search.mjs';
 import { probeUsbSamples, sampleBytes } from './usb_live_probe.mjs?v=20261106-map-usb-v07';

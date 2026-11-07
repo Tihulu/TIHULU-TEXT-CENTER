@@ -83,7 +83,7 @@
 <option value="137900000">Meteor-M LRPT primary · 137.900 MHz</option>
 <option value="137100000">Meteor-M LRPT alternate · 137.100 MHz</option>
 <option value="437550000">ISS SSTV · 437.550 MHz (Robot36, event only; verify ARISS)</option>
-<option value="145800000">ISS VHF voice/SSTV vicinity · 145.800 MHz (verify active mode)</option>
+<option value="145800000">ISS VHF voice/contact · 145.800 MHz (NOT Series 35 SSTV; use 437.550 MHz)</option>
 <option value="145825000">ISS APRS vicinity · 145.825 MHz</option>
 <option value="437825000">ISS UHF APRS · 437.825 MHz (check current ARISS status)</option>
 <option value="437800000">ISS UHF vicinity · 437.800 MHz</option>
@@ -410,4 +410,4 @@ These provider viewers offer maps/imagery independently of your RTL-SDR.</p>
 <details><summary>What requires more than a browser?</summary><p>Windows may require WinUSB driver setup; Linux may require releasing the kernel DVB driver or adjusting permissions. To record a pass while the browser is closed, the optional local companion must remain running. The companion still supports offline SatDump and multimon-ng where installed.</p></details>
 <h3>Activity log</h3><pre id="log" aria-live="polite">Ready. USB idle. No fabricated RF data.</pre></section>
 <footer>Receive-only. The page never transmits RF, uploads I/Q files or silently scans. Page closing releases browser-owned USB access; an unexpected OS/browser crash cannot be guaranteed to cleanly close every device state. Browser client uses <a href="https://www.npmjs.com/package/@jtarrio/webrtlsdr" rel="noopener noreferrer" target="_blank">@jtarrio/webrtlsdr</a> from a version-pinned module CDN (requires Internet to load initially).</footer>
-</main><script type="module" src="./browser.js?v=20261107-web-preflight-v2"></script></body></html>
+</main><script type="module" src="./browser.js?v=20261107-iss-band-diagnostic-v1"></script></body></html>
