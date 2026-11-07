@@ -417,11 +417,11 @@ def main():
             self.display_channels()
             new_count=sum(1 for r in curated if r["new"])
             self.list_origin.setText(
-                source_label+"\\n"+
+                source_label+"\n"+
                 str(len(self.all_channels))+" stored · "+
                 str(len(self.channels))+" visible · "+
                 str(new_count)+" awaiting review"+
-                ("\\nOld channel names are not evidence of current RF lock."
+                ("\nOld channel names are not evidence of current RF lock."
                  if "UNVERIFIED" in source_label else ""))
             if not self.scanner.running:
                 self.statusbar.setText(source_label)
@@ -540,7 +540,7 @@ def main():
             self.stop()
             self.last_playback_error=False
             self.player_hint.setText(
-                "Tuning "+channel.name+"…\\nWaiting for real DVB transport packets")
+                "Tuning "+channel.name+"…\nWaiting for real DVB transport packets")
             self.player_hint.show()
             self.playback_detail.setText(
                 "TUNE REQUESTED · "+channel.name+" · "+
@@ -595,10 +595,10 @@ def main():
                             stream.seek(0,2)
                             stream.seek(max(0,stream.tell()-16000))
                             txt=stream.read(16000).decode("utf-8","replace")
-                        parts.append(name+" · "+str(path)+"\\n"+txt)
+                        parts.append(name+" · "+str(path)+"\n"+txt)
                     except OSError as exc:
                         parts.append(name+": "+str(exc))
-            viewer.setPlainText("\\n\\n".join(parts))
+            viewer.setPlainText("\n\n".join(parts))
             layout.addWidget(viewer)
             close=QPushButton("Close")
             close.clicked.connect(dialog.accept)
