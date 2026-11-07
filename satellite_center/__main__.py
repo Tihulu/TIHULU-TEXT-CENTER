@@ -1266,6 +1266,8 @@ class Station:
             raise ValueError("Unsupported capture preset")
         if type(seconds) is not int or not 8 <= seconds <= MAX_CAPTURE_SECONDS:
             raise ValueError("Capture duration must be 8–900 seconds")
+        if not self.receiver_enabled:
+            raise RuntimeError("Receiver disabled in Hardware. Connect & verify USB to enable RF.")
         if mode == "iq_and_fm_wav":
             return self.capture_dual(profile,seconds,scheduled,owner,satellite)
         # Explicit manual requests use the same 8–900 s/2 GB native disk
