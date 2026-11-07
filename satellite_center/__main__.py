@@ -526,11 +526,11 @@ class Station:
             if profile not in event["profiles"] or mode not in MODES or not allowed_mode(profile, mode):
                 raise ValueError("Unsupported pass/profile/mode combination")
             if mode not in ("iq", "survey"):
-                if not automatic or (profile, mode) not in {
-                    (candidate_profile, candidate_mode)
-                    for _, candidate_profile, candidate_mode in AUTO_DOWNLINK_PROFILES.values()
-                }:
-                    raise ValueError("Packet/audio scheduling requires a named approved automatic mission")
+                # Manual users may explicitly choose the catalogued pass
+                # receiver profile and the matching approved audio/packet
+                # mode. This is still receive-only, not arbitrary USB code.
+                if not allowed_mode(profile, mode):
+                    raise ValueError("Unsupported named audio/packet receiver mode")
             aos = datetime.fromisoformat(event["aos"]).astimezone(UTC)
             los = datetime.fromisoformat(event["los"]).astimezone(UTC)
             if aos < now()+timedelta(seconds=12) or aos > now()+timedelta(days=3):

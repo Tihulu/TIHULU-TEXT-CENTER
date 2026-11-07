@@ -65,13 +65,12 @@ class AutoMissionTests(unittest.TestCase):
                 "family":"iss","norad":25544,"profiles":["iss_sstv","iss_aprs_uhf"],
                 "aos":stamp(aos),"los":stamp(los)}}
             try:
-                with self.assertRaisesRegex(ValueError,"requires a named approved"):
-                    app.schedule("25544:synthetic","iss_sstv","sstv_audio",stamp(aos),120)
                 with patch("satellite_center.__main__.shutil.disk_usage") as disk:
                     disk.return_value.free=8_000_000_000
                     job=app.schedule("25544:synthetic","iss_sstv","sstv_audio",
-                                     stamp(aos-timedelta(seconds=10)),290,automatic=True)
+                                     stamp(aos),290)
                 self.assertEqual(job["capture_seconds"],290)
+                self.assertEqual(job["mode"],"sstv_audio")
                 self.assertEqual(job["estimated_bytes"],290*96000)
                 self.assertEqual(job["profile"],"iss_sstv")
                 self.assertEqual(job["state"],"pending")

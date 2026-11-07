@@ -1080,19 +1080,39 @@ class SatelliteWindow(QMainWindow):
         current=self.pass_mode.currentData()
         self.pass_mode.blockSignals(True)
         self.pass_mode.clear()
-        for mode in ("iq","survey"):
+        mode_labels={
+            "iq":"Raw IQ · CU8 disk (8–900 s)",
+            "survey":"RF spectrum survey (8–180 s)",
+            "sstv_audio":"SSTV FM audio · WAV (event-only)",
+            "fm_audio":"Voice / FM audio · WAV",
+            "aprs":"AX.25 APRS text · real decoder required"}
+        for mode in ("iq","sstv_audio","fm_audio","aprs","survey"):
             if key and allowed_mode(key,mode):
-                self.pass_mode.addItem("Raw CU8 · disk" if mode=="iq" else "RF energy survey",mode)
+                self.pass_mode.addItem(mode_labels[mode],mode)
         index=self.pass_mode.findData(current)
         if index>=0:self.pass_mode.setCurrentIndex(index)
         self.pass_mode.blockSignals(False)
         self._pass_budget()
 
     def _pass_budget(self):
-        if self.pass_mode.currentData()=="iq":
-            self.pass_cost.setText(f"~{self.pass_seconds.value()*2.048:.1f} MB raw IQ on disk · 1.024 MS/s")
+        mode=self.pass_mode.currentData()
+        if mode=="survey" and self.pass_seconds.maximum()!=180:
+            self.pass_seconds.setMaximum(180)
+        elif mode!="survey" and self.pass_seconds.maximum()!=900:
+            self.pass_seconds.setMaximum(900)
+        seconds=self.pass_seconds.value()
+        if mode=="iq":
+            self.pass_cost.setText(
+                f"~{seconds*2.048:.1f} MB raw CU8 · true streamed disk recording, max 900 s")
+        elif mode=="survey":
+            self.pass_cost.setText("Real rtl_power spectrum survey · 8–180 s (not image decoding)")
+        elif mode in ("sstv_audio","fm_audio"):
+            self.pass_cost.setText(
+                f"~{seconds*.096:.1f} MB estimated WAV · native FM demodulation, activity unverified")
+        elif mode=="aprs":
+            self.pass_cost.setText("Real AX.25/APRS receiver · decoded packet checks required")
         else:
-            self.pass_cost.setText("Native bounded spectrum survey · 180 seconds maximum")
+            self.pass_cost.setText("Select a supported receive-only output mode")
 
     def schedule_selected_pass(self):
         item=self.pass_list.currentItem()
