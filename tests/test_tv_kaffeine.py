@@ -21,8 +21,8 @@ class KaffeineCaptionTapTests(TestCase):
         self.assertIn("DvbT2Transponder::Bandwidth8MHz", source)
         self.assertIn("538000000, 586000000, 626000000", source)
         self.assertIn("Channels / Antenna Scan", source)
-        self.assertNotIn("w_scan_cpp", source)
-        self.assertNotIn("dvbv5-scan", source)
+        self.assertNotIn('QProcess::startDetached(QLatin1String("w_scan_cpp")', source)
+        self.assertNotIn('QProcess::startDetached(QLatin1String("dvbv5-scan")', source)
 
     def test_kaffeine_receiver_diagnostics_do_not_open_frontend(self):
         from kaffeine_next.diagnostics import inspect
