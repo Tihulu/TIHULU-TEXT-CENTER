@@ -1717,6 +1717,9 @@ class SatelliteWindow(QMainWindow):
                     self.auto_feedback.setText("Could not schedule: "+message)
                 elif key=="Arm scheduled RF":
                     self.pass_feedback.setText("Recording not scheduled: "+message)
+                elif key in ("Connect SDR","Disconnect SDR","USB diagnostic"):
+                    self.hardware_feedback.setText(key+" failed: "+message)
+                    self.refresh_status()
                 if not silent:
                     QMessageBox.warning(self,"Satellite Center",message)
         def on_finished():
@@ -1731,8 +1734,64 @@ class SatelliteWindow(QMainWindow):
 
     def _apply_status(self,state):
         session=state.get("session",{})
-        self.top_status.setText("RTL-SDR: "+("recording" if session.get("active") else
-                                           "available" if state.get("tuner_present") else "not detected"))
+        hardware=state.get("hardware") or {}
+        enabled=hardware.get("receiver_enabled",True)
+        released=hardware.get("app_released",False)
+        present=state.get("tuner_present")
+        self.top_status.setText(
+            "RF DISABLED · receiver released" if not enabled and released else
+            "RF DISABLED · release pending" if not enabled else
+            "RTL-SDR: recording" if session.get("active") else
+            "RTL-SDR: detected · idle" if present else "RTL-SDR: not detected")
+        usb_count=hardware.get("usb_rtl_count")
+        devices=hardware.get("usb_devices") or []
+        self.hardware_presence.setText(
+            ("RTL-SDR USB detected · "+str(usb_count)+" device(s)" if usb_count else
+             "RTL-SDR not seen in USB inventory" if usb_count==0 else
+             "USB enumeration unavailable on this platform"))
+        last_test=hardware.get("last_usb_test") or {}
+        self.hardware_access.setText(
+            "USB opened and released by rtl_test · verified "+
+            str(last_test.get("verified_at","unknown")) if last_test else
+            "USB access NOT verified in this session · run Connect or Test USB")
+        self.hardware_mode.setText(
+            "RF acquisition: ENABLED for explicit captures and pending jobs" if enabled
+            else "RF acquisition: DISABLED · survives restart; no new scheduled capture")
+        self.hardware_lease.setText(
+            "Application SDR handle: RELEASED · no owned process or receiver lock" if released
+            else "Application SDR handle: IN USE / STARTING / RELEASING · see status")
+        busy=state.get("busy") or []
+        self.hardware_busy.setText(
+            "Active SDR-related processes (may be ours or other apps): "+
+            ", ".join(str(e.get("process","?"))+" (PID "+str(e.get("pid","?"))+")"
+                      for e in busy[:6]) if busy else
+            "No known competing SDR process detected (passive scan)")
+        self.hardware_schedules.setText(
+            str(hardware.get("pending_schedules",0))+
+            (" pending RF job(s) · PAUSED while disabled" if not enabled
+             else " pending RF job(s) · may run when scheduled"))
+        inv_key=json.dumps(devices,sort_keys=True)
+        if inv_key!=self.hardware_inventory_key:
+            self.hardware_inventory_key=inv_key
+            self.hardware_devices.clear()
+            for device in devices:
+                kind=("RTL-SDR · raw IQ capable"
+                      if device.get("receiver_type")=="rtl_sdr" else
+                      "DVB television · not RTL-SDR")
+                item=QTreeWidgetItem([
+                    str(device.get("name") or "USB receiver"),
+                    kind,
+                    str(device.get("vendor_id","?"))+":"+
+                    str(device.get("product_id","?")),
+                    str(device.get("sysfs_device","?"))])
+                self.hardware_devices.addTopLevelItem(item)
+            if not devices:
+                self.hardware_devices.addTopLevelItem(QTreeWidgetItem(
+                    ["No supported USB SDR/TV hardware detected","—","—","—"]))
+        self.hardware_connect_button.setEnabled(
+            not session.get("active") and not hardware.get("opening",False))
+        self.hardware_test_button.setEnabled(
+            not session.get("active") and not hardware.get("opening",False))
         self.device_label.setText("Receiver: "+(
             "RTL2832U USB detected (passive)" if state.get("tuner_present") else
             "No RTL2832U detected passively. Verify device/udev and rtl_test."))
@@ -1757,12 +1816,14 @@ class SatelliteWindow(QMainWindow):
             self._render_files(state.get("archive",[]))
 
     def usb_test(self):
+        self.hardware_feedback.setText("Testing physical USB access without enabling capture…")
         def completed(report):
             message=json.dumps(report,indent=2,default=str)
-            self.file_details.setPlainText(message)
-            QMessageBox.information(
-                self,"RTL-SDR diagnostic · read-only",
-                "This test does not record radio samples.\n\n"+message[:2800])
+            self.hardware_log.setPlainText(message)
+            self.hardware_feedback.setText(
+                "USB successfully opened and released for test. "
+                "No RF was captured, and RF enable state was not changed.")
+            self.refresh_status()
         self._task("USB diagnostic",self.station.usb_test,completed)
 
     def refresh_tles(self):
@@ -2437,9 +2498,15 @@ def main(argv=None):
         with TemporaryDirectory(prefix="tihulu-native-smoke-") as td:
             station=Station(Path(td))
             window=SatelliteWindow(station,auto_poll=False)
-            assert window.tabs.count()==8, "Native pages not built"
+            assert window.tabs.count()==9, "Native pages not built"
             assert window.tabs.tabBar().isHidden(), "Expose guided primary navigation"
-            assert len(window.nav_buttons)==5
+            assert len(window.nav_buttons)==6
+            assert "Hardware" in window.nav_buttons
+            assert window._open_native_tab("Hardware")
+            assert window.tabs.tabText(window.tabs.currentIndex())=="Hardware"
+            assert window.hardware_connect_button.text()=="Connect && enable RF"
+            assert window.hardware_disconnect_button.text()=="Stop && disconnect RF"
+            window._open_native_tab("Overview")
             assert window.nav_buttons["Overview"].isChecked()
             assert window.result_steps.count()==3
             assert window.result_steps.tabText(0).startswith("1 ")
@@ -2451,7 +2518,7 @@ def main(argv=None):
             assert window.result_steps.currentIndex()==2
             window._open_native_tab("Overview")
             assert window.protocol_list.topLevelItemCount()==0
-            assert window.tabs.tabText(7)=="Saved protocols"
+            assert window.tabs.tabText(8)=="Saved protocols"
             assert window.map_sky.mode=="sky"
             assert window.map_earth.mode=="earth"
             assert window.map_views.currentIndex()==1, "Default map should be Earth"
@@ -2544,6 +2611,7 @@ def main(argv=None):
                 root.mkdir(parents=True,exist_ok=True)
                 for name,filename in (
                     ("Overview","01-home.png"),
+                    ("Hardware","06-hardware.png"),
                     ("Passes & Data","02-find-satellites.png"),
                     ("Maps & Live","03-earth-map.png"),
                     ("Auto reception","04-auto-receive.png"),
