@@ -32,10 +32,13 @@ ASSETS=Path(__file__).resolve().parent/"browser"
 SCHEME=b"tihulu"
 HOST="desktop"
 TYPES={
-    ".html":b"text/html; charset=utf-8",
-    ".css":b"text/css; charset=utf-8",
-    ".js":b"text/javascript; charset=utf-8",
-    ".mjs":b"text/javascript; charset=utf-8",
+    # Qt WebEngine UrlRequestJob.reply takes a bare MIME type, not an
+    # HTTP Content-Type header with parameters. With 'charset=utf-8'
+    # appended, Qt rendered HTML as source text instead of a DOM.
+    ".html":b"text/html",
+    ".css":b"text/css",
+    ".js":b"text/javascript",
+    ".mjs":b"text/javascript",
     ".json":b"application/json",
     ".geojson":b"application/geo+json",
     ".webmanifest":b"application/manifest+json",
