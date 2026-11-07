@@ -182,7 +182,7 @@ export function initStationLocationUI({onStationChanged,log=()=>{},ids={}}={}){
    const watchdog=setTimeout(()=>controller.abort(),9000);
    try{
      const url=new URL("https://geocoding-api.open-meteo.com/v1/search");
-     url.searchParams.set("name",typed);url.searchParams.set("count","10");
+     url.searchParams.set("name",requestedName);url.searchParams.set("count","10");
      url.searchParams.set("language","en");url.searchParams.set("format","json");
      if(countryCode!=="all")url.searchParams.set("countryCode",countryCode);
      const resp=await fetch(url.href,{mode:"cors",signal:controller.signal,cache:"default"});
