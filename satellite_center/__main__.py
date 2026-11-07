@@ -1498,7 +1498,10 @@ class Station:
     def records(self):
         result = []
         for path in sorted(self.archive.iterdir(), reverse=True)[:100]:
-            if path.is_file() and path.suffix in (".json", ".cu8", ".txt", ".wav", ".png", ".jpg"):
+            if path.is_file() and path.suffix.lower() in (
+                ".json", ".cu8", ".txt", ".wav", ".png", ".jpg", ".jpeg",
+                ".mp4", ".m4v", ".mov", ".webm", ".gif", ".webp",
+                ".mp3", ".ogg", ".flac", ".csv", ".geojson"):
                 result.append({"file": path.name, "bytes": path.stat().st_size,
                                "modified": datetime.fromtimestamp(path.stat().st_mtime, UTC).isoformat(timespec="seconds")})
         return result
