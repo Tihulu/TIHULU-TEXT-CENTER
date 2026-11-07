@@ -305,6 +305,9 @@ class SatelliteWindow(QMainWindow):
           QMenu::item:selected{background:#26547b}
           QFrame#workflowCard{border:1px solid #324966;border-radius:14px;background:#1b2a43}
           QFrame#workflowCard QLabel{background:transparent;border:0}
+          QGroupBox QLabel{background:transparent;border:0}
+          QScrollArea QLabel{background:transparent;border:0}
+          QLabel#fileBanner{background:#122e45;border:1px solid #345c79}
           QLabel#workflowStep{font-size:14px;font-weight:750;color:#e9f6ff}
           QLabel#workflowDescription{color:#afc9e2;font-size:12px}
           QLabel#homeTagline{font-size:15px;color:#b8d8ea}
