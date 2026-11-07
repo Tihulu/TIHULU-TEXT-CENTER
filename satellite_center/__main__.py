@@ -128,6 +128,12 @@ def parse_tle(text, limit=200):
 
 
 def family(source, item):
+    if source == "manual":
+        name = item["name"].upper()
+        if item["id"] == 25544:return "iss"
+        if item["id"] in (57166,59051) or "METEOR" in name:return "meteor"
+        if "IRIDIUM" in name:return "iridium"
+        return "cubesat"
     if source == "iridium":
         return "iridium"
     if source in ("meteor3", "meteor4"):
@@ -666,7 +672,7 @@ class Station:
         """
         now_time=time.time()
         fresh=[]
-        for source in SOURCE_URLS:
+        for source in (*SOURCE_URLS, "manual"):
             target=self.directory/(source+".tle")
             try:
                 if target.is_file() and now_time-target.stat().st_mtime <= 7*86400:
@@ -713,7 +719,7 @@ class Station:
         b = clock.from_datetime(t_start+timedelta(hours=hours))
         events = []
         warnings = []
-        for source in SOURCE_URLS:
+        for source in (*SOURCE_URLS, "manual"):
             file = self.directory/(source+".tle")
             if not file.is_file():
                 warnings.append(f"{source}: orbit data not downloaded")
@@ -727,6 +733,8 @@ class Station:
             entries = parse_tle(file.read_text(encoding="ascii", errors="ignore"))
             if source == "amateur":
                 entries = [it for it in entries if selectable(source, it)][:15]
+            if source == "manual":
+                entries = entries[:30]
             for item in entries:
                 if not selectable(source, item):
                     continue
@@ -755,7 +763,8 @@ class Station:
                                          "max_elevation_deg": round(peak_elevation, 1),
                                          "profiles": profiles_for(family(source, item)),
                                          "status": "PREDICTED_GEOMETRY_NOT_SIGNAL",
-                                         "tle_source": SOURCE_URLS[source], "tle_age_days": round(age, 2)}
+                                         "tle_source": SOURCE_URLS.get(source,"user-imported local TLE"),
+                                         "tle_age_days": round(age, 2)}
                                 events.append(event)
                             rising = None
                 except (ValueError, OverflowError, RuntimeError):
