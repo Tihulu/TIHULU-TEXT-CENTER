@@ -11,6 +11,22 @@ from kaffeine_next.captions_overlay import CaptionTap, validate_socket
 from kaffeine_next.patch_upstream import REVISION, PATHS
 
 class KaffeineCaptionTapTests(TestCase):
+    def test_kaffeine_receiver_diagnostics_do_not_open_frontend(self):
+        from kaffeine_next.diagnostics import inspect
+        with tempfile.TemporaryDirectory() as root:
+            home = Path(root) / "home"
+            dev = Path(root) / "dvb"
+            home.mkdir()
+            (dev / "adapter0").mkdir(parents=True)
+            frontend = dev / "adapter0" / "frontend0"
+            frontend.touch()
+            with mock.patch("kaffeine_next.diagnostics.shutil.which", return_value=None):
+                state = inspect(home, dev)
+            self.assertEqual(state["frontend_devices"], [str(frontend)])
+            self.assertTrue(state["checked_device_files_without_opening"])
+            self.assertEqual(state["expected_test_multiplexes_mhz"], [538, 586, 626])
+            self.assertEqual(state["frontend_busy"], "unknown")
+
     def test_upstream_release_is_immutable(self):
         self.assertEqual(REVISION, "e7ea15b86dafed3b20b151cbcb080578ab8e2d5c")
         self.assertEqual(len(PATHS), 5)
