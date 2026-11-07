@@ -33,7 +33,8 @@ def main():
         from PyQt5.QtWidgets import (
             QApplication, QMainWindow, QWidget, QHBoxLayout, QVBoxLayout, QLabel,
             QPushButton, QListWidget, QComboBox, QSpinBox, QFileDialog, QLineEdit,
-            QMessageBox, QSplitter, QGroupBox, QFormLayout, QCheckBox, QInputDialog
+            QMessageBox, QSplitter, QGroupBox, QFormLayout, QCheckBox, QInputDialog,
+            QTabWidget, QScrollArea, QTextEdit, QListWidgetItem
         )
     except ImportError:
         print("Qt desktop dependency missing: sudo apt install python3-pyqt5", file=sys.stderr)
@@ -54,28 +55,47 @@ def main():
             self.latest = {"original": "", "translated": "", "source": "none"}
             self.channels = []
             self.setStyleSheet("""
-                QMainWindow, QWidget { background: #111827; color: #e2e8f0; font-size: 13px; }
-                QGroupBox { border: 1px solid #334155; border-radius: 7px; margin-top: 12px;
-                            padding-top: 12px; font-weight: bold; }
-                QPushButton { background: #243448; border: 1px solid #36516c; border-radius: 5px;
-                              padding: 7px 11px; color: #f1f5f9; }
-                QPushButton:hover { background: #385473; }
-                QComboBox, QLineEdit, QSpinBox, QListWidget {
-                    background: #192535; border: 1px solid #39485a; padding: 5px;
-                    selection-background-color: #1e749a; color: #e2e8f0; }
-                QLabel#caption { background: #080f1b; border-radius: 6px; padding: 12px;
-                                 color: #fff; font-size: 17px; }
+                QMainWindow, QWidget {background:#101823;color:#e5edf4;font-family:Sans;font-size:13px}
+                QLabel {background:transparent}
+                QGroupBox {border:1px solid #334658;border-radius:10px;margin-top:14px;
+                           padding:14px 8px 8px;font-weight:600}
+                QGroupBox::title {subcontrol-origin:margin;left:13px;padding:0 7px;color:#a7d2e9}
+                QPushButton {background:#24374b;border:1px solid #39536a;border-radius:8px;
+                             padding:9px 12px;color:#eaf5ff}
+                QPushButton:hover {background:#30506c;border-color:#5488a6}
+                QPushButton:pressed {background:#19354d}
+                QPushButton:disabled {color:#8291a3;background:#182332;border-color:#273545}
+                QPushButton#primary {background:#166d91;color:white;border:1px solid #249ec7;font-weight:600}
+                QPushButton#primary:hover {background:#1d85ae}
+                QComboBox, QLineEdit, QSpinBox, QListWidget, QTextEdit {
+                    background:#172637;border:1px solid #33485c;border-radius:7px;
+                    padding:6px;color:#eaf1f8;selection-background-color:#196c8d}
+                QListWidget {alternate-background-color:#1d2d3e;outline:0}
+                QListWidget::item {padding:7px 5px;border-radius:4px}
+                QListWidget::item:selected {background:#246c8a;color:white}
+                QTabWidget::pane {border:1px solid #314557;border-radius:8px;background:#142130}
+                QTabBar::tab {background:#1a2b3c;padding:9px 16px;margin:3px 3px 0 0;
+                              border-top-left-radius:7px;border-top-right-radius:7px}
+                QTabBar::tab:selected {background:#265873;color:white}
+                QLabel#caption {background:#152435;border:1px solid #314759;
+                                border-radius:8px;padding:10px;color:#f4f8fb;font-size:14px}
+                QLabel#receiverNotice {color:#b2c8d8;padding:5px;font-size:12px}
+                QLabel#playerHint {background:#070d14;color:#b9c8d6;font-size:18px;padding:20px}
             """)
             root = QWidget()
             self.setCentralWidget(root)
             outer = QVBoxLayout(root)
             title = QLabel("TIHULU  /  TV CENTER")
-            title.setStyleSheet("font-size: 23px; font-weight: bold; color: #70d6ed;")
+            title.setStyleSheet("font-size:22px;font-weight:700;color:#76d6ee;padding:4px 2px")
             outer.addWidget(title)
+            description = QLabel("LIVE DIGITAL TV   /   LOCAL DVBv5   /   NO WEBUSB")
+            description.setObjectName("receiverNotice")
+            outer.addWidget(description)
             splitter = QSplitter(Qt.Horizontal)
             outer.addWidget(splitter, 1)
             left = QWidget()
-            left.setMaximumWidth(325)
+            left.setMinimumWidth(280)
+            left.setMaximumWidth(390)
             splitter.addWidget(left)
             l = QVBoxLayout(left)
             self.devices = QLabel("Receiver status pending")
@@ -90,62 +110,87 @@ def main():
                 self.adapter_choice.addItem("DVB adapter 0 (not detected)", 0)
             self.adapter_choice.currentIndexChanged.connect(self.change_adapter)
             l.addWidget(self.adapter_choice)
+            channel_search_row = QHBoxLayout()
+            self.channel_search = QLineEdit()
+            self.channel_search.setPlaceholderText("Find channel or frequency…")
+            self.channel_search.textChanged.connect(self.display_channels)
+            channel_search_row.addWidget(self.channel_search,3)
+            self.channel_filter = QComboBox()
+            self.channel_filter.addItems(["All","Favorites","Television","Radio","Free-to-air"])
+            self.channel_filter.currentIndexChanged.connect(self.display_channels)
+            channel_search_row.addWidget(self.channel_filter,2)
+            l.addLayout(channel_search_row)
             self.channel_list = QListWidget()
+            self.channel_list.setAlternatingRowColors(True)
             self.channel_list.itemDoubleClicked.connect(lambda *_: self.play())
-            l.addWidget(self.channel_list, 1)
-            import_btn = QPushButton("Import DVBv5 channel file")
+            l.addWidget(self.channel_list, 2)
+            source_card = QGroupBox("SOURCE / CHANNEL SCAN")
+            l.addWidget(source_card, 2)
+            scan_scroll = QScrollArea()
+            scan_scroll.setWidgetResizable(True)
+            scan_scroll.setFrameShape(QScrollArea.NoFrame)
+            source_layout = QVBoxLayout()
+            source_host = QWidget()
+            source_host.setLayout(source_layout)
+            scan_scroll.setWidget(source_host)
+            source_card_layout = QVBoxLayout(source_card)
+            source_card_layout.setContentsMargins(5,7,5,5)
+            source_card_layout.addWidget(scan_scroll)
+            import_btn = QPushButton("Import existing DVBv5 channels.conf")
             import_btn.clicked.connect(self.import_channels)
-            l.addWidget(import_btn)
+            source_layout.addWidget(import_btn)
             self.country = QComboBox()
             self.country.addItem("Germany (DE)", "DE")
             self.country.addItem("Türkiye (TR)", "TR")
             self.country.currentIndexChanged.connect(self.refresh_channels)
-            l.addWidget(self.country)
+            source_layout.addWidget(self.country)
             self.delivery = QComboBox()
             self.delivery.addItem("Antenna · DVB-T / DVB-T2", "t")
             self.delivery.addItem("Cable · DVB-C", "c")
             self.delivery.addItem("Satellite dish · DVB-S/S2", "s")
             self.delivery.currentIndexChanged.connect(self.update_delivery)
-            l.addWidget(self.delivery)
+            source_layout.addWidget(self.delivery)
             self.satellite = QComboBox()
             for orbital, label in SATELLITES.items():
                 self.satellite.addItem(label, orbital)
             self.satellite.currentIndexChanged.connect(self.refresh_channels)
-            l.addWidget(self.satellite)
+            source_layout.addWidget(self.satellite)
             self.diseqc = QComboBox()
             self.diseqc.addItem("LNB direct · no DiSEqC switch", None)
             for port in range(4):
                 self.diseqc.addItem("DiSEqC port " + str(port + 1), port)
-            l.addWidget(self.diseqc)
+            source_layout.addWidget(self.diseqc)
             self.satellite.setVisible(False)
             self.diseqc.setVisible(False)
             self.satellite_help = QPushButton("Dish / Raspberry Pi 5 setup guide")
             self.satellite_help.clicked.connect(self.show_satellite_guide)
             self.satellite_help.setVisible(False)
-            l.addWidget(self.satellite_help)
-            scan_btn = QPushButton("🔎 Automatic full channel scan")
+            source_layout.addWidget(self.satellite_help)
+            scan_btn = QPushButton("Scan all local frequencies")
+            scan_btn.setObjectName("primary")
             scan_btn.clicked.connect(self.scan_channels)
-            l.addWidget(scan_btn)
+            source_layout.addWidget(scan_btn)
             self.stop_scan_btn = QPushButton("Cancel running scan")
             self.stop_scan_btn.setEnabled(False)
             self.stop_scan_btn.clicked.connect(self.cancel_scan)
-            l.addWidget(self.stop_scan_btn)
+            source_layout.addWidget(self.stop_scan_btn)
             self.list_origin = QLabel("Previously saved frequencies. Run automatic scan to verify.")
             self.list_origin.setWordWrap(True)
-            l.addWidget(self.list_origin)
+            source_layout.addWidget(self.list_origin)
             manager_btn = QPushButton("Manage scanned channels · ★ Favorites")
             manager_btn.clicked.connect(self.open_channel_manager)
-            l.addWidget(manager_btn)
-            manual_btn = QPushButton("Advanced · Scan from frequency file")
+            source_layout.addWidget(manager_btn)
+            manual_btn = QPushButton("Scan with DVBv5 regional source file")
             manual_btn.clicked.connect(self.scan_from_file)
-            l.addWidget(manual_btn)
-            self.signal_btn = QPushButton("Measure current signal · 15 s")
+            source_layout.addWidget(manual_btn)
+            self.signal_btn = QPushButton("Measure current signal / C/N")
             self.signal_btn.clicked.connect(self.measure_signal)
-            l.addWidget(self.signal_btn)
+            source_layout.addWidget(self.signal_btn)
             self.signal_result = QLabel("C/N and UCB: not yet measured")
             self.signal_result.setWordWrap(True)
-            l.addWidget(self.signal_result)
-            self.play_btn = QPushButton("▶  Play selected channel")
+            source_layout.addWidget(self.signal_result)
+            self.play_btn = QPushButton("▶  Watch selected channel")
+            self.play_btn.setObjectName("primary")
             self.play_btn.clicked.connect(self.play)
             l.addWidget(self.play_btn)
             stop_btn = QPushButton("■  Stop / release tuner")
