@@ -21,6 +21,7 @@ class CaptionServiceControl:
             raise ValueError("Expected the current user's private runtime directory")
         self.path = self.root / f"tihulu-captions-control-{kaffeine_pid}.sock"
         self.events = events
+        self.pid = kaffeine_pid
         self.sock = None
         self.stop = threading.Event()
         self.reader = None
@@ -47,8 +48,8 @@ class CaptionServiceControl:
             request.close()
 
     def start(self):
-        if self.path.lexists() if hasattr(self.path,"lexists") else os.path.lexists(self.path):
-            if self.request_show(self.root, self.kaffeine_pid):
+        if os.path.lexists(self.path):
+            if self.request_show(self.root, self.pid):
                 raise RuntimeError("Caption settings are already running; shown existing panel")
             meta = self.path.lstat()
             if meta.st_uid != os.getuid() or not stat.S_ISSOCK(meta.st_mode):
