@@ -16,9 +16,9 @@ Priority: optional
 Architecture: all
 Maintainer: Tihulu Project <noreply@github.com>
 Depends: python3 (>= 3.11), python3-pyqt5, dvb-tools, mpv, ffmpeg, psmisc
-Description: Native DVB television, Teletext and optional offline subtitles
- Experimental Linux TV client for compatible DVB-T2 adapters. Model packs
- and whisper.cpp are optional owner-installed dependencies.
+Description: TIHULU television AI caption and translation tools
+ Provides offline Whisper, Argos and Teletext tools for native Kaffeine
+ television. A standalone experimental player remains for debugging only.
 CONTROL
 cat > "$TMP/usr/bin/tihulu-tv-center" <<'LAUNCH'
 #!/bin/sh

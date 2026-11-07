@@ -117,7 +117,9 @@ fi
 test -x "$PREFIX/bin/kaffeine"
 
 TIHULU_KAFFEINE_PRIMARY=1 bash "$temp/tihulu/tv_center/packaging/build-deb.sh" "$temp/debs"
-sudo apt-get install -y "$temp/debs/tihulu-tv-center_0.1.0~dev1_all.deb"
+# The AI sidecar may already be installed at the same preview version.
+# Force reinstall so the previously visible legacy player is hidden.
+sudo apt-get install -y --reinstall "$temp/debs/tihulu-tv-center_0.1.0~dev1_all.deb"
 
 cat > "$HOME/.local/bin/tihulu-kaffeine" <<'LAUNCH'
 #!/bin/sh
