@@ -1993,7 +1993,9 @@ def main():
                 "python3-pyqt5.qtwebengine, or run 'tihulu-satellite-center "
                 "desktop-widgets' for the fully Qt-painted browser-free UI."
             ) from exc
-        return launch_exact()
+        # The outer CLI already parsed 'desktop'; avoid handing that
+        # positional command to the inner graphical-only argparse parser.
+        return launch_exact([])
     if args.command=="desktop-widgets":
         try:
             from .desktop import main as launch_native
