@@ -43,6 +43,7 @@ from .native_map_parity import (
     filter_orbit_snapshot, export_orbit_geojson)
 from .native_signal_tools import discover_channels, fm_to_wav
 from .sstv_series35 import extract_robot36_wav
+from .native_imagery import list_official_images, fetch_official_image
 from .native_protocols import (load_profiles, save_profiles, import_profiles,
                                export_profiles, parse_user_protocol, match_user_hints)
 
@@ -175,6 +176,54 @@ class SpectrumView(QWidget):
         painter.end()
 
 
+class NativeIqLevelView(QWidget):
+    """Read-only chart of actual locally captured CU8 sample bytes."""
+
+    def __init__(self,parent=None):
+        super().__init__(parent)
+        self.levels=[]
+        self.setMinimumHeight(125)
+        self.setAccessibleName("Actual relative CU8 receiver sample power history")
+
+    def push(self,dbfs):
+        if not math.isfinite(dbfs):
+            return
+        self.levels.append(max(-80.,min(0.,float(dbfs))))
+        self.levels=self.levels[-120:]
+        self.update()
+
+    def paintEvent(self,event):
+        painter=QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing,True)
+        rect=self.rect()
+        painter.fillRect(rect,QColor("#091523"))
+        painter.setPen(QColor("#a9c6e0"))
+        painter.drawText(12,20,"Real IQ sample level · relative digital dBFS (NOT calibrated dBm)")
+        left,right=47,max(56,rect.width()-12)
+        top,bottom=31,max(40,rect.height()-17)
+        for db in (-80,-60,-40,-20,0):
+            y=top+int((db+80)/80*(bottom-top))
+            y=bottom-(y-top)
+            painter.setPen(QColor("#294863"))
+            painter.drawLine(left,y,right,y)
+            painter.setPen(QColor("#93b4d2"))
+            painter.drawText(7,y+4,str(db))
+        if len(self.levels)<2:
+            painter.setPen(QColor("#a6bdd6"))
+            painter.drawText(left+12,top+30,"No real CU8 sample measurements yet")
+            return
+        count=len(self.levels)
+        coords=[]
+        for i,level in enumerate(self.levels):
+            x=left+(right-left)*i/max(1,count-1)
+            y=bottom-(bottom-top)*(level+80)/80.
+            coords.append(QPointF(x,y))
+        painter.setPen(QPen(QColor("#55d6c9"),2))
+        painter.drawPolyline(QPolygonF(coords))
+        painter.setPen(QColor("#f2f7ff"))
+        painter.drawText(max(left,right-95),top+14,f"{self.levels[-1]:.1f} dBFS")
+
+
 class SatelliteWindow(QMainWindow):
     """Only native Qt5 controls; controls are not replaced during timed updates."""
     def __init__(self, station=None, auto_poll=True):
@@ -219,6 +268,10 @@ class SatelliteWindow(QMainWindow):
         self._update_nav_selection(self.tabs.currentIndex())
         if auto_poll:self.map_timer.start()
         self.statusBar().showMessage("Native Qt window. No browser, WebUSB or HTTP server.")
+        self.level_timer=QTimer(self)
+        self.level_timer.setInterval(1000)
+        self.level_timer.timeout.connect(self._refresh_live_iq_level)
+        if auto_poll:self.level_timer.start()
         self.timer=QTimer(self)
         self.timer.setInterval(5000)
         self.timer.timeout.connect(self.refresh_status)
@@ -228,16 +281,17 @@ class SatelliteWindow(QMainWindow):
 
     def _style(self):
         self.setStyleSheet("""
-          QMainWindow,QWidget{background:#0b1626;color:#eaf4ff;font-size:13px;font-family:"Noto Sans"}
-          QFrame#passDetail{background:#142840;border:1px solid #345a78;border-radius:12px}
+          QMainWindow,QWidget{background:#080f1b;color:#e7effa;font-size:13px;font-family:"Noto Sans"}
+          QFrame#passDetail{background:#112038;border:1px solid #324966;border-radius:14px}
           QLabel#passTitle{font-size:17px;font-weight:700;color:#f1f9ff}
           QLabel#passSubtitle{font-size:12px;color:#a9c5dd}
           QLabel#passSectionTitle{font-size:13px;font-weight:650;color:#c8e3f9}
           QLabel#dataHint{color:#9cb8d2;font-size:11px}
-          QLineEdit{background:#152d47;color:#f4fbff;border:1px solid #3c6182;border-radius:7px;padding:9px}
+          QLineEdit{background:#162d49;color:#f3f7ff;border:1px solid #436080;border-radius:8px;padding:9px}
           QLineEdit:focus,QComboBox:focus{border:1px solid #65c9e5}
-          QGroupBox{border:1px solid #325370;border-radius:9px;margin-top:12px;padding:14px 8px 8px;font-weight:600}
-          QGroupBox::title{subcontrol-origin:margin;left:14px;padding:0 5px;color:#b6d9f9}
+          QGroupBox{border:1px solid #324966;border-radius:14px;margin-top:14px;
+                     padding:20px 12px 12px;background:#112038;font-weight:650}
+          QGroupBox::title{subcontrol-origin:margin;left:17px;padding:0 7px;color:#dcecff}
           QTabWidget::pane{border:1px solid #31526f;border-radius:10px}
           QPushButton#primaryNav{background:transparent;border:0;border-bottom:3px solid transparent;
                    color:#b4d1e5;border-radius:0;font-size:13px;font-weight:650;padding:10px 12px}
@@ -248,7 +302,7 @@ class SatelliteWindow(QMainWindow):
           QMenu{background:#11263e;border:1px solid #3b607d;color:#e6f3ff}
           QMenu::item{padding:10px 24px}
           QMenu::item:selected{background:#26547b}
-          QFrame#workflowCard{border:1px solid #42637f;border-radius:13px;background:#142c45}
+          QFrame#workflowCard{border:1px solid #324966;border-radius:14px;background:#1b2a43}
           QFrame#workflowCard QLabel{background:transparent;border:0}
           QLabel#workflowStep{font-size:14px;font-weight:750;color:#e9f6ff}
           QLabel#workflowDescription{color:#afc9e2;font-size:12px}
@@ -260,18 +314,23 @@ class SatelliteWindow(QMainWindow):
           QTabBar::tab{padding:10px 18px;background:#172c46;border:1px solid #2a4865}
           QTabBar::tab:selected{background:#24547d;color:#fff}
           QComboBox,QSpinBox,QDoubleSpinBox,QDateTimeEdit,QDateEdit,QPlainTextEdit,
-          QTreeWidget,QTableWidget{background:#132843;color:#eff7ff;border:1px solid #426181;
-                                 border-radius:5px;padding:5px;selection-background-color:#376c9d}
+          QTreeWidget,QTableWidget{background:#162d49;color:#f3f7ff;border:1px solid #436080;
+                                 border-radius:8px;padding:8px;selection-background-color:#2873cf}
           QComboBox QAbstractItemView{background:#132843;color:#eff7ff;selection-background-color:#376c9d}
-          QPushButton{background:#254d74;border:1px solid #49759d;border-radius:5px;padding:8px 13px}
-          QPushButton:hover{background:#326a9a}
+          QPushButton{background:#2873cf;color:#ffffff;border:1px solid #3b84dc;
+                      border-radius:9px;padding:10px 14px;font-weight:600}
+          QPushButton:hover{background:#3583e1}
+          QPushButton#secondaryAction{background:#253b57;border-color:#54749d}
+          QPushButton#dangerAction{background:#502e3e;border-color:#ac6378}
+          QPushButton#dangerAction:hover{background:#704254}
           QPushButton:disabled{color:#6f88a3;background:#17283b}
           QHeaderView::section{background:#1a344f;color:#d9ebff;padding:9px;border:0;border-bottom:1px solid #34536e;font-weight:600}
           QTreeWidget::item{padding:6px}
           QTreeWidget::item:selected{background:#294c70;color:#ffffff}
           QScrollBar:vertical{width:11px;background:#101f34}
           QScrollBar::handle:vertical{background:#345d80;min-height:26px;border-radius:5px}
-          QLabel#headline{font-size:22px;font-weight:bold;color:#f1faff}
+          QLabel#headline{font-size:26px;font-weight:750;color:#f1faff}
+          QLabel#eyebrow{font-size:11px;font-weight:700;color:#87bdef}
           QLabel#hint{color:#a7bfd7}
         """)
 
@@ -282,9 +341,14 @@ class SatelliteWindow(QMainWindow):
         layout.setContentsMargins(15,12,15,10)
         layout.setSpacing(10)
         header=QHBoxLayout()
-        title=QLabel("TIHULU SATELLITE CENTER")
+        brand=QVBoxLayout()
+        eyebrow=QLabel("TIHULU SATELLITE CENTER  ·  DIRECT NATIVE USB")
+        eyebrow.setObjectName("eyebrow")
+        brand.addWidget(eyebrow)
+        title=QLabel("Satellite Center")
         title.setObjectName("headline")
-        header.addWidget(title)
+        brand.addWidget(title)
+        header.addLayout(brand)
         header.addStretch(1)
         self.top_status=QLabel("Receive-only · SDR not acquired")
         header.addWidget(self.top_status)
@@ -299,11 +363,12 @@ class SatelliteWindow(QMainWindow):
         nav=QHBoxLayout()
         nav.setSpacing(3)
         for label,target in (
-            ("Home","Overview"),
-            ("Find satellites","Passes & Data"),
-            ("Maps & live","Maps & Live"),
-            ("Auto receive","Auto reception"),
-            ("Recordings & results","Recordings & results"),
+            ("Receiver & planner","Overview"),
+            ("Hardware / USB","Hardware"),
+            ("Satellite Images & Data","Satellite Images & Data"),
+            ("Earth / Sky","Maps & Live"),
+            ("Signal analysis","Recordings & results"),
+            ("Pass planner","Passes & Data"),
         ):
             button=QPushButton(label.replace("&","&&"))
             button.setObjectName("primaryNav")
@@ -319,6 +384,7 @@ class SatelliteWindow(QMainWindow):
         self.more_button.setPopupMode(QToolButton.InstantPopup)
         tools=QMenu(self.more_button)
         for label,target in (
+            ("Auto reception","Auto reception"),
             ("Reception calendar","Reception calendar"),
             ("Manual RF capture","Manual RF capture"),
             ("Saved protocols","Saved protocols"),
@@ -334,12 +400,14 @@ class SatelliteWindow(QMainWindow):
         self.setCentralWidget(root)
 
         self._dashboard_tab()
+        self._hardware_tab()
         self._passes_tab()
         self._maps_tab()
         self._auto_tab()
         self._calendar_tab()
         self._capture_tab()
         self._results_tab()
+        self._images_tab()
         self._protocols_tab()
 
     def _update_nav_selection(self,index):
@@ -382,6 +450,10 @@ class SatelliteWindow(QMainWindow):
 
 
     def _dashboard_tab(self):
+        """Same seven-section receiver-to-results information architecture as web.
+
+        All controls are native Qt Widgets; never embed HTML or WebUSB.
+        """
         host=self._new_tab("Overview")
         scroll=QScrollArea()
         scroll.setWidgetResizable(True)
@@ -389,70 +461,340 @@ class SatelliteWindow(QMainWindow):
         host.addWidget(scroll)
         page=QWidget()
         body=QVBoxLayout(page)
-        body.setSpacing(15)
+        body.setSpacing(14)
+        body.setContentsMargins(12,11,12,16)
         scroll.setWidget(page)
 
-        heading=QLabel("Find a satellite. Record real radio. Explore your data.")
+        heading=QLabel("Satellite Center  ·  Native desktop")
         heading.setObjectName("passTitle")
         body.addWidget(heading)
-        sub=self._hint("Start with a predicted pass or an existing recording. Maps and offline analysis "
-                       "work without a USB receiver; actual radio reception needs your SDR and antenna.")
-        sub.setObjectName("homeTagline")
-        body.addWidget(sub)
+        body.addWidget(self._hint(
+            "The same receiver & planner workflow as the web edition. "
+            "All radio access uses native rtl_sdr/rtl_fm tools and your attached USB SDR. "
+            "No WebUSB, browser, server or embedded website."))
 
+        workflow=QGroupBox("Satellite Auto-Capture & Decode — three steps")
+        w=QVBoxLayout(workflow)
+        w.addWidget(self._hint(
+            "Select a published image, text or voice target and schedule real local RF acquisition. "
+            "Then inspect saved files and decode only what the signal actually contains."))
+        top=QHBoxLayout()
+        self.home_auto_mode=QComboBox()
+        for name,ids in (
+            ("ISS SSTV · event only",["iss-sstv"]),
+            ("Earth weather images + ISS SSTV",["meteor-m2-3","meteor-m2-4","iss-sstv"]),
+            ("ISS APRS · public packet text",["iss-aprs"]),
+            ("ISS voice · FM audio candidate",["iss-voice"]),
+            ("Images + text + voice",list(AUTO_DOWNLINK_PROFILES)),
+        ):
+            self.home_auto_mode.addItem(name,ids)
+        self.home_auto_length=QSpinBox()
+        self.home_auto_length.setRange(0,900)
+        self.home_auto_length.setSpecialValueText("Auto · fit pass")
+        self.home_auto_goal=QComboBox()
+        self.home_auto_goal.addItem("Prefer full predicted pass","full")
+        self.home_auto_goal.addItem("Quick sample","sample")
+        top.addWidget(QLabel("Auto target"))
+        top.addWidget(self.home_auto_mode,3)
+        top.addWidget(QLabel("Seconds"))
+        top.addWidget(self.home_auto_length,1)
+        top.addWidget(self.home_auto_goal,2)
+        w.addLayout(top)
         steps=QHBoxLayout()
-        steps.setSpacing(12)
         self.home_auto=self._button("2   Auto schedule & capture",self._home_auto)
         self.home_analyze=self._button("3   Open & analyze a recording",self._home_analyze)
         self.home_extract=self._button("View decoded results",self._home_extract)
-        for title,description,button in (
-            ("1  Find a satellite",
-             "Choose location, calculate passes, inspect IMAGE / AUDIO / TEXT / RF capabilities.",
-             self._button("Explore satellite passes",lambda:self._open_native_tab("Passes & Data"))),
-            ("2  Capture real RF",
-             "Select a published receive mode and plan actual on-disk acquisition.",
-             self.home_auto),
-            ("3  Analyze a file",
-             "Open CU8, WAV or image. Detect signal candidates and extract only real outputs.",
-             self.home_analyze),
-        ):
-            frame=QFrame()
-            frame.setObjectName("workflowCard")
-            inner=QVBoxLayout(frame)
-            name=QLabel(title)
-            name.setObjectName("workflowStep")
-            desc=QLabel(description)
-            desc.setObjectName("workflowDescription")
-            desc.setWordWrap(True)
-            inner.addWidget(name)
-            inner.addWidget(desc)
-            inner.addStretch(1)
-            inner.addWidget(button)
-            steps.addWidget(frame,1)
-        body.addLayout(steps)
-        actions=QHBoxLayout()
-        actions.addWidget(self._button("Open live Earth / Sky map",
-                                     lambda:self._open_native_tab("Maps & Live")))
-        actions.addWidget(self.home_extract)
-        actions.addStretch(1)
-        body.addLayout(actions)
+        steps.addWidget(self._button("1 · Auto Schedule & Capture",self._home_schedule_now))
+        steps.addWidget(self.home_analyze)
+        steps.addWidget(self.home_extract)
+        w.addLayout(steps)
+        self.home_auto_status=self._hint(
+            "No RF capture scheduled here. Native scheduling needs a confirmed receiver.")
+        w.addWidget(self.home_auto_status)
+        body.addWidget(workflow)
 
-        receiver=self._panel("Receiver & storage · read-only status",body)
-        self.device_label=self._hint("Checking Linux RTL-SDR without opening USB…")
-        self.session_label=QLabel("Idle")
-        self.disk_label=self._hint("Recordings are stored locally.")
-        self.cache_label=self._hint("No orbit download occurs on startup.")
-        for label in (self.device_label,self.session_label,self.disk_label,self.cache_label):
+        columns=QHBoxLayout()
+        columns.setSpacing(14)
+        left_widget=QWidget()
+        right_widget=QWidget()
+        left=QVBoxLayout(left_widget)
+        right=QVBoxLayout(right_widget)
+        left.setContentsMargins(0,0,0,0)
+        right.setContentsMargins(0,0,0,0)
+        left.setSpacing(13)
+        right.setSpacing(13)
+        columns.addWidget(left_widget,1)
+        columns.addWidget(right_widget,1)
+        body.addLayout(columns)
+
+        usb=QGroupBox("1 · Choose USB receiver")
+        ul=QVBoxLayout(usb)
+        self.device_label=self._hint("Checking physical RTL-SDR USB presence…")
+        self.session_label=QLabel("Idle · no receiver in use")
+        self.disk_label=self._hint("Local recordings directory not yet checked")
+        self.cache_label=self._hint("No TLE data fetched automatically")
+        for label in (self.device_label,self.session_label):
             label.setWordWrap(True)
-            receiver.addWidget(label)
-        self._row(receiver,
-                  self._button("Refresh receiver status",self.refresh_status),
-                  self._button("Test attached RTL-SDR",self.usb_test))
+            ul.addWidget(label)
+        self.home_usb_state=self._hint(
+            "USB identity is not the same as a physical IQ sample test.")
+        ul.addWidget(self.home_usb_state)
+        buttonrow=QHBoxLayout()
+        buttonrow.addWidget(self._button("Connect & verify",self.connect_receiver))
+        buttonrow.addWidget(self._button("Release USB / RF",self.disconnect_receiver))
+        ul.addLayout(buttonrow)
+        ul.addWidget(self._button(
+            "Hardware diagnostics · USB tests, model, process and lock status",
+            lambda:self._open_native_tab("Hardware")))
+        left.addWidget(usb)
+
+        manual=QGroupBox("2 · Receive satellite-band samples")
+        ml=QVBoxLayout(manual)
+        manual_form=QFormLayout()
+        self.home_capture_profile=QComboBox()
+        for key,info in PROFILES.items():
+            self.home_capture_profile.addItem(info["label"],key)
+        self.home_capture_profile.currentIndexChanged.connect(self._home_capture_modes)
+        self.home_capture_mode=QComboBox()
+        self.home_capture_length=QSpinBox()
+        self.home_capture_length.setRange(8,900)
+        self.home_capture_length.setValue(60)
+        self.home_capture_mode.currentIndexChanged.connect(self._home_capture_budget)
+        self.home_capture_length.valueChanged.connect(self._home_capture_budget)
+        manual_form.addRow("Receive profile",self.home_capture_profile)
+        manual_form.addRow("Save format",self.home_capture_mode)
+        manual_form.addRow("Recording length · seconds",self.home_capture_length)
+        ml.addLayout(manual_form)
+        self.home_capture_cost=self._hint("Local disk recording · estimated space")
+        ml.addWidget(self.home_capture_cost)
+        buttons=QHBoxLayout()
+        buttons.addWidget(self._button("Start native RF capture",self._home_capture_now))
+        buttons.addWidget(self._button("Stop recording",self.stop_capture))
+        ml.addLayout(buttons)
+        self.home_sample_state=self._hint("No live CU8 file is being recorded.")
+        ml.addWidget(self.home_sample_state)
+        self.home_level_chart=NativeIqLevelView()
+        ml.addWidget(self.home_level_chart)
+        ml.addWidget(self._hint(
+            "CU8 stores original IQ, WAV stores actual FM-demodulated audio. "
+            "CU8+WAV captures the same RF data once and derives the WAV afterward. "
+            "No image/speech or satellite identity is assumed."))
+        left.addWidget(manual)
+        left.addStretch(1)
+
+        planner=QGroupBox("3 · Satellite pass planner")
+        pl=QVBoxLayout(planner)
+        pl.addWidget(self._hint(
+            "Pass predictions use TLE geometry, not an RF measurement. "
+            "Choose a station, then calculate passes."))
+        self.home_station=QComboBox()
+        for city in ("Cologne","Berlin","Hamburg","Izmir","Istanbul","Ankara"):
+            if city in LOCATIONS:self.home_station.addItem(city,city)
+        self.home_station.currentIndexChanged.connect(self._home_select_station)
+        pl.addWidget(self.home_station)
+        stationrow=QHBoxLayout()
+        stationrow.addWidget(self._button("Refresh orbit data",self.refresh_tles))
+        stationrow.addWidget(self._button("Calculate passes",self.calculate_passes))
+        pl.addLayout(stationrow)
+        self.home_pass_summary=self._hint(
+            "No passes calculated. City search, custom coordinates, media filters "
+            "and detailed schedules are available in the pass planner.")
+        pl.addWidget(self.home_pass_summary)
+        pl.addWidget(self._button("View passes · IMAGE / AUDIO / TEXT / RF",
+                                  lambda:self._open_native_tab("Passes & Data")))
+        right.addWidget(planner)
+
+        calendar=QGroupBox("4 · Scheduled reception & recorded data")
+        cl=QVBoxLayout(calendar)
+        self.home_jobs_status=self._hint("No native RF jobs checked yet.")
+        cl.addWidget(self.home_jobs_status)
+        cl.addWidget(self.disk_label)
+        cl.addWidget(self.cache_label)
+        calbuttons=QHBoxLayout()
+        calbuttons.addWidget(self._button("Open 24-hour calendar",
+                                         lambda:self._open_native_tab("Reception calendar")))
+        calbuttons.addWidget(self._button("Open saved data",self._home_analyze))
+        cl.addLayout(calbuttons)
+        right.addWidget(calendar)
+        right.addStretch(1)
+
+        for title,description,action in (
+            ("5 · Satellite maps · Earth & sky",
+             "Live TLE ground tracks, selectable satellites, native Earth/Sky, "
+             "optional OpenStreetMap and PNG/GeoJSON exports.",
+             lambda:self._open_native_tab("Maps & Live")),
+            ("6 · Signal Intelligence · CU8 I/Q analysis",
+             "Whole-file FFT, time-frequency waterfall, candidate signals, "
+             "real FM audio previews and independent local file analysis.",
+             self._home_analyze),
+            ("7 · Satellite Images & Data",
+             "Real Robot36 PNG / Meteor LRPT decoding, local WAV/text previews, "
+             "protocol profiles, results ZIP and original online imagery.",
+             lambda:self._open_native_tab("Satellite Images & Data")),
+        ):
+            card=QGroupBox(title)
+            layout=QHBoxLayout(card)
+            caption=QLabel(description)
+            caption.setObjectName("hint")
+            caption.setWordWrap(True)
+            layout.addWidget(caption,3)
+            layout.addWidget(self._button("Open section  →",action),1)
+            body.addWidget(card)
         body.addWidget(self._hint(
-            "Live map dots are orbital predictions, not measured signals. "
-            "Images and decoded packets appear only after genuine local decoding. "
-            "Advanced calendar, manual IQ and protocol editors are under More tools."))
+            "Native application: receiver ownership is explicit. Disconnect keeps RF "
+            "disabled until the next successful physical USB + IQ verification. "
+            "USB hardware remains electrically connected until unplugged."))
+        self._home_capture_modes()
+
+    def _hardware_tab(self):
+        """Native USB panel: physical presence != RF lease != app enable."""
+        host=self._new_tab("Hardware")
+        scroll=QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.NoFrame)
+        host.addWidget(scroll)
+        page=QWidget()
+        body=QVBoxLayout(page)
+        body.setSpacing(12)
+        scroll.setWidget(page)
+        heading=QLabel("USB receivers · connect, test and release")
+        heading.setObjectName("passTitle")
+        body.addWidget(heading)
+        body.addWidget(self._hint(
+            "1. Plug in the physical USB device and antenna. "
+            "2. Refresh to see it on this computer. "
+            "3. Connect & verify to actually open it briefly with rtl_test. "
+            "4. Disconnect to stop this app's RF processes and disable future captures."))
+
+        card=QFrame()
+        card.setObjectName("workflowCard")
+        state=QVBoxLayout(card)
+        self.hardware_presence=QLabel("USB presence: not checked yet")
+        self.hardware_presence.setObjectName("passTitle")
+        self.hardware_access=self._hint("Physical USB-open test has not been run.")
+        self.hardware_mode=self._hint("Application RF state: checking…")
+        self.hardware_lease=self._hint("Receiver release: checking…")
+        self.hardware_busy=self._hint("External receiver programs: checking…")
+        self.hardware_schedules=self._hint("Pending RF jobs: checking…")
+        for item in (self.hardware_presence,self.hardware_access,self.hardware_mode,
+                     self.hardware_lease,self.hardware_busy,self.hardware_schedules):
+            item.setWordWrap(True)
+            state.addWidget(item)
+        body.addWidget(card)
+
+        actions=QHBoxLayout()
+        self.hardware_refresh_button=self._button("↻  Refresh devices",self.refresh_status)
+        self.hardware_test_button=self._button("Test USB only",self.usb_test)
+        self.hardware_test_button.setObjectName("secondaryAction")
+        sample_actions=QHBoxLayout()
+        self.hardware_test_frequency=QComboBox()
+        for name,hz in (
+            ("Meteor 137.900 MHz",137900000),
+            ("Meteor 137.100 MHz",137100000),
+            ("ISS VHF 145.800 MHz",145800000),
+            ("ISS SSTV 437.550 MHz",437550000),
+            ("ISS APRS 145.825 MHz",145825000),
+            ("Iridium RF 1620 MHz",1620000000)):
+            self.hardware_test_frequency.addItem(name,hz)
+        self.hardware_sample_button=self._button(
+            "Test real RF / IQ samples (0.5 sec)",self.sample_receiver)
+        self.hardware_connect_button=self._button("Connect & enable RF",self.connect_receiver)
+        self.hardware_disconnect_button=self._button("Stop & disconnect RF",self.disconnect_receiver)
+        self.hardware_disconnect_button.setObjectName("dangerAction")
+        for button in (self.hardware_refresh_button,self.hardware_test_button,
+                       self.hardware_connect_button,self.hardware_disconnect_button):
+            actions.addWidget(button)
+        body.addLayout(actions)
+        sample_actions.addWidget(QLabel("Test frequency"))
+        sample_actions.addWidget(self.hardware_test_frequency)
+        sample_actions.addWidget(self.hardware_sample_button)
+        body.addLayout(sample_actions)
+        self.hardware_feedback=self._hint(
+            "No test yet. 'Detected' means a USB ID was seen; it does not prove the receiver can be opened.")
+        self.hardware_feedback.setObjectName("fileBanner")
+        body.addWidget(self.hardware_feedback)
+
+        body.addWidget(QLabel("USB hardware discovered on this computer"))
+        self.hardware_devices=QTreeWidget()
+        self.hardware_devices.setHeaderLabels(["Hardware / model","Receiver type","USB ID","System path"])
+        self.hardware_devices.setRootIsDecorated(False)
+        self.hardware_devices.setMaximumHeight(170)
+        self.hardware_devices.header().setSectionResizeMode(0,QHeaderView.Stretch)
+        for col in (1,2,3):
+            self.hardware_devices.header().setSectionResizeMode(col,QHeaderView.ResizeToContents)
+        body.addWidget(self.hardware_devices)
+        self.hardware_inventory_key=None
+        self.hardware_log=QPlainTextEdit()
+        self.hardware_log.setReadOnly(True)
+        self.hardware_log.setMaximumHeight(110)
+        self.hardware_log.setPlainText(
+            "No USB diagnostics yet. Only explicit Test or Connect opens an SDR.")
+        body.addWidget(self.hardware_log)
+        body.addWidget(self._hint(
+            "Disconnect is a software RF safety control: it stops only Satellite Center's "
+            "owned processes, releases its SDR lock, and remembers RF disabled after restart. "
+            "Future scheduled recordings are paused until you explicitly Connect again. "
+            "It cannot electrically power off, physically eject or unplug USB hardware, "
+            "and it never terminates readsb, Gqrx or another application's receiver. "
+            "Hauppauge DVB-T2 hardware is listed separately; it is not a general IQ SDR."))
         body.addStretch(1)
+
+    def sample_receiver(self):
+        frequency=self.hardware_test_frequency.currentData()
+        self.hardware_feedback.setText(
+            "Reading actual CU8 I/Q samples from the connected receiver…")
+        self._task("Real RF sample test",
+                   lambda:self.station.sample_test(int(frequency)),
+                   self._sample_receiver_done)
+
+    def _sample_receiver_done(self,report):
+        self.hardware_log.setPlainText(json.dumps(report,indent=2,default=str))
+        self.hardware_feedback.setText(
+            "PASS: "+str(report["complex_samples"])+" real complex I/Q samples received "
+            "at "+str(report["frequency_hz"]/1e6)+" MHz. "
+            "Test process and lock released. Signal identity remains unknown.")
+        self.refresh_status()
+
+    def connect_receiver(self):
+        self.hardware_feedback.setText("Checking USB with rtl_test and reading real IQ bytes…")
+        self._task("Connect SDR",self.station.connect_receiver,
+                   self._connected_receiver)
+
+    def _connected_receiver(self,result):
+        self.hardware_feedback.setText(
+            "USB OPEN + ACTUAL IQ SAMPLES PASS. RTL-SDR is ready for explicit "
+            "recordings. Both test handles and lock were released while idle.")
+        self.hardware_log.setPlainText(json.dumps(result,indent=2,default=str))
+        self.refresh_status()
+
+    def disconnect_receiver(self):
+        with self.station.lock:
+            active=bool(self.station.session.get("active") or self.station.launching)
+            pending=sum(j.get("state")=="pending" for j in self.station.jobs)
+        if active or pending:
+            warning=("Stop only this application's RF capture and keep RF disabled "
+                     "until the next verified Connect?\n\n")
+            if pending:
+                warning+=f"{pending} pending recording(s) will be PAUSED, not deleted.\n"
+            warning+="The USB device itself will remain physically plugged in."
+            if QMessageBox.question(self,"Disconnect and disarm SDR",warning,
+                                    QMessageBox.Yes|QMessageBox.No)!=QMessageBox.Yes:
+                return
+        self.hardware_feedback.setText(
+            "Disabling RF and stopping owned receiver processes. Confirming release…")
+        self._task("Disconnect SDR",self.station.disconnect_receiver,
+                   self._disconnected_receiver)
+
+    def _disconnected_receiver(self,result):
+        if result.get("app_released"):
+            message=("RF DISABLED · Satellite Center owns no live SDR process or receiver lock. "
+                     f"{result.get('pending_jobs_paused',0)} pending job(s) paused.")
+        else:
+            message=("RF DISABLED · stop requested, but release is not yet verified. "
+                     "Refresh and check for remaining owned processes.")
+        self.hardware_feedback.setText(message)
+        self.hardware_log.setPlainText(json.dumps(result,indent=2,default=str))
+        self.refresh_status()
 
     def _open_native_tab(self,name):
         for index in range(self.tabs.count()):
@@ -461,6 +803,67 @@ class SatelliteWindow(QMainWindow):
                 return True
         self.statusBar().showMessage("Native section unavailable: "+name,10000)
         return False
+
+    def _home_capture_modes(self,*_):
+        key=self.home_capture_profile.currentData()
+        previous=self.home_capture_mode.currentData()
+        self.home_capture_mode.blockSignals(True)
+        self.home_capture_mode.clear()
+        for mode,label in (
+            ("iq","CU8 · original RF/IQ"),
+            ("iq_and_fm_wav","CU8 + WAV · same physical RF samples"),
+            ("sstv_audio","WAV · FM/SSTV"),
+            ("fm_audio","WAV · FM voice"),
+            ("aprs","TXT · AX.25 / APRS"),
+            ("survey","JSON · RF spectrum survey"),
+        ):
+            if key and allowed_mode(key,mode):
+                self.home_capture_mode.addItem(label,mode)
+        old=self.home_capture_mode.findData(previous)
+        if old>=0:self.home_capture_mode.setCurrentIndex(old)
+        self.home_capture_mode.blockSignals(False)
+        self._home_capture_budget()
+
+    def _home_capture_budget(self,*_):
+        mode=self.home_capture_mode.currentData()
+        if mode=="survey" and self.home_capture_length.maximum()!=180:
+            self.home_capture_length.setMaximum(180)
+        elif mode!="survey" and self.home_capture_length.maximum()!=900:
+            self.home_capture_length.setMaximum(900)
+        seconds=self.home_capture_length.value()
+        estimate=2.112 if mode=="iq_and_fm_wav" else 2.048 if mode=="iq" else .096
+        self.home_capture_cost.setText(
+            "Estimated local disk: ~"+f"{seconds*estimate:.1f}"+" MB. "
+            "Native RTL-SDR receiver, no WebUSB. Source identity unverified.")
+
+    def _home_capture_now(self):
+        profile=self.home_capture_profile.currentData()
+        mode=self.home_capture_mode.currentData()
+        if not profile or not mode:return
+        self.capture_profile.setCurrentIndex(
+            self.capture_profile.findData(profile))
+        mode_index=self.capture_mode.findData(mode)
+        if mode_index>=0:self.capture_mode.setCurrentIndex(mode_index)
+        self.capture_seconds.setValue(self.home_capture_length.value())
+        self.start_capture()
+
+    def _home_schedule_now(self):
+        targets=self.home_auto_mode.currentData() or []
+        for mid,box in self.mission_boxes.items():
+            box.setChecked(mid in targets)
+        self.coverage.setCurrentIndex(self.coverage.findData(
+            self.home_auto_goal.currentData()))
+        self.auto_seconds.setValue(self.home_auto_length.value())
+        self.auto_schedule()
+
+    def _home_select_station(self,*_):
+        city=self.home_station.currentData()
+        if city in LOCATIONS:
+            lat,lon=LOCATIONS[city]
+            self.lat.setValue(lat)
+            self.lon.setValue(lon)
+            self.statusBar().showMessage(
+                "Ground station: "+str(city)+" · TLE pass calculations only",8000)
 
     def _home_auto(self):
         if self._open_native_tab("Auto reception"):
@@ -520,6 +923,12 @@ class SatelliteWindow(QMainWindow):
         controls.addRow("Quick preset",self.city)
         controls.addRow("Country",self.city_country)
         controls.addRow("Offline city search",self.city_search)
+        lookup=QHBoxLayout()
+        lookup.addWidget(self._button("Worldwide online lookup (opt-in)",
+                                      self._search_online_city))
+        lookup.addWidget(self._button("Ask OS for GPS location",
+                                      self._request_system_location))
+        controls.addRow(lookup)
         controls.addRow("",self.city_info)
         controls.addRow("Latitude",self.lat)
         controls.addRow("Longitude",self.lon)
@@ -527,6 +936,94 @@ class SatelliteWindow(QMainWindow):
         controls.addRow("Minimum elevation · degrees",self.elev)
         self._preset_location()
         parent.addWidget(group)
+
+    def _search_online_city(self):
+        """Explicit opt-in Open-Meteo city name search, not live GPS."""
+        query=self.city_search.text().strip()
+        if len(query)<2 or len(query)>100:
+            return QMessageBox.information(
+                self,"Worldwide city search",
+                "Enter at least two city-name characters before online lookup.")
+        from urllib.parse import urlencode
+        from urllib.request import urlopen,Request
+        url=("https://geocoding-api.open-meteo.com/v1/search?"+
+             urlencode({"name":query,"count":10,"language":"en","format":"json"}))
+        def work():
+            with urlopen(Request(url,headers={
+                "User-Agent":"TIHULU-Satellite-Center-native/0.3"
+            }),timeout=12) as response:
+                data=response.read(500001)
+            if len(data)>500000:raise ValueError("Geocoding response too large")
+            records=json.loads(data).get("results") or []
+            rows=[]
+            for row in records[:10]:
+                try:
+                    lat,lon=float(row["latitude"]),float(row["longitude"])
+                except (KeyError,ValueError,TypeError):continue
+                if not -90<=lat<=90 or not -180<=lon<=180:continue
+                label=", ".join(str(row.get(part) or "")[:65] for part in
+                                ("name","admin1","country") if row.get(part))
+                rows.append((label,lat,lon))
+            return rows
+        self.city_info.setText("Contacting Open-Meteo only for the city name you entered…")
+        self._task("Worldwide geocoding",work,self._apply_online_cities)
+
+    def _apply_online_cities(self,rows):
+        if not rows:
+            self.city_info.setText("No online city result. Offline search or manual coordinates remain available.")
+            return
+        from PyQt5.QtWidgets import QInputDialog
+        labels=[f"{name}  ({lat:.4f}°, {lon:.4f}°)" for name,lat,lon in rows]
+        chosen,ok=QInputDialog.getItem(
+            self,"Choose online city / ground station",
+            "Online Open-Meteo result",labels,0,False)
+        if not ok:return
+        idx=labels.index(chosen)
+        name,lat,lon=rows[idx]
+        self.city.setCurrentText("Custom coordinates")
+        self.lat.setValue(lat);self.lon.setValue(lon)
+        self.city_info.setText(
+            "Online city selected: "+name+". Coordinates applied. "
+            "Orbit calculations are local; recalculate passes.")
+
+    def _request_system_location(self):
+        if QMessageBox.question(
+            self,"System location consent",
+            "Ask the operating system for a one-time approximate device position? "
+            "This may prompt for OS location-service permission. "
+            "No location will be sent to online city search. Continue?",
+            QMessageBox.Yes|QMessageBox.No)!=QMessageBox.Yes:
+            return
+        try:
+            from PyQt5.QtPositioning import QGeoPositionInfoSource
+        except ImportError:
+            return QMessageBox.information(
+                self,"Optional Qt Positioning support",
+                "QtPositioning is not installed. Optionally install "
+                "python3-pyqt5.qtpositioning and enable your OS location service, "
+                "or choose a city/manual latitude and longitude.")
+        source=QGeoPositionInfoSource.createDefaultSource(self)
+        if source is None:
+            return QMessageBox.information(
+                self,"No system location provider",
+                "No OS-approved GPS / Wi-Fi positioning provider is available. "
+                "Use offline city search or manual coordinates.")
+        self._position_source=source
+        source.positionUpdated.connect(self._system_position_received)
+        source.requestUpdate(12000)
+        self.city_info.setText("Waiting for the OS-approved one-time location request…")
+
+    def _system_position_received(self,info):
+        if not info.isValid():return
+        coordinate=info.coordinate()
+        lat,lon=coordinate.latitude(),coordinate.longitude()
+        if not -90<=lat<=90 or not -180<=lon<=180:return
+        self.city.setCurrentText("Custom coordinates")
+        self.lat.setValue(lat);self.lon.setValue(lon)
+        self.city_info.setText(
+            f"One-time OS device position applied: {lat:.5f}°, {lon:.5f}°. "
+            "No RF/GPS acquisition was inferred from satellite tracking. "
+            "Recalculate passes.")
 
     def _preset_location(self, *_):
         place=LOCATIONS.get(self.city.currentText())
@@ -612,6 +1109,17 @@ class SatelliteWindow(QMainWindow):
         actions=QVBoxLayout(group)
         actions.addWidget(self._button("↻  Update public orbital TLEs",self.refresh_tles))
         actions.addWidget(self._button("◉  Calculate satellite passes",self.calculate_passes))
+        self.tle_source=QComboBox()
+        for label,code in (
+            ("Amateur / CubeSats","amateur"),("ISS","iss"),
+            ("Meteor M2-3","meteor3"),("Meteor M2-4","meteor4"),
+            ("Iridium orbital elements","iridium")):
+            self.tle_source.addItem(label,code)
+        actions.addWidget(self.tle_source)
+        actions.addWidget(self._button("Import local TLE file…",self.import_tle))
+        self.tle_import_feedback=self._hint(
+            "You may import orbital elements offline. Recalculate passes afterward.")
+        actions.addWidget(self.tle_import_feedback)
         actions.addWidget(self._hint("Geometry from local TLEs is not evidence of RF. "
                                     "Media tags describe supported *candidate formats*, "
                                     "not files already available onboard or received."))
@@ -630,9 +1138,30 @@ class SatelliteWindow(QMainWindow):
             ("◈  RF data","RF data"),("RF-only satellites","RF only")]:
             self.pass_media_filter.addItem(title,key)
         self.pass_media_filter.currentIndexChanged.connect(self._render_pass_results)
+        self.pass_family_filter=QComboBox()
+        for label,key in (
+            ("All satellite families","all"),("ISS","iss"),
+            ("Meteor-M","meteor"),("CubeSats","cubesat"),
+            ("Iridium","iridium")):
+            self.pass_family_filter.addItem(label,key)
+        self.pass_family_filter.currentIndexChanged.connect(self._render_pass_results)
+        self.pass_sort=QComboBox()
+        for label,key in (
+            ("Soonest passes","soonest"),("Latest passes","latest"),
+            ("Highest elevation","high"),("Lowest elevation","low"),
+            ("Longest pass","duration-long"),("Shortest pass","duration-short"),
+            ("Satellite name A–Z","name")):
+            self.pass_sort.addItem(label,key)
+        self.pass_sort.currentIndexChanged.connect(self._render_pass_results)
         searchRow.addWidget(self.pass_search,3)
         searchRow.addWidget(self.pass_media_filter,1)
+        searchRow.addWidget(self.pass_family_filter,1)
         body.addLayout(searchRow)
+        sorter=QHBoxLayout()
+        sorter.addWidget(QLabel("Sort passes"))
+        sorter.addWidget(self.pass_sort)
+        sorter.addStretch(1)
+        body.addLayout(sorter)
 
         self.pass_overview=QLabel("Calculate passes to discover candidate image, audio, text and RF profiles.")
         self.pass_overview.setObjectName("passSubtitle")
@@ -766,6 +1295,30 @@ class SatelliteWindow(QMainWindow):
                   if kinds_for_pass(row)==["RF data"]]
         else:
             rows=filter_passes(all_rows,kind,search)
+        family=self.pass_family_filter.currentData() or "all"
+        if family!="all":
+            rows=[row for row in rows if row.get("family")==family]
+        order=self.pass_sort.currentData() or "soonest"
+        def duration(row):
+            try:
+                return (datetime.fromisoformat(row["los"])-
+                        datetime.fromisoformat(row["aos"])).total_seconds()
+            except (KeyError,ValueError,TypeError):
+                return 0
+        if order=="latest":
+            rows.sort(key=lambda row:row.get("aos",""),reverse=True)
+        elif order=="high":
+            rows.sort(key=lambda row:float(row.get("max_elevation_deg",0)),reverse=True)
+        elif order=="low":
+            rows.sort(key=lambda row:float(row.get("max_elevation_deg",0)))
+        elif order=="duration-long":
+            rows.sort(key=duration,reverse=True)
+        elif order=="duration-short":
+            rows.sort(key=duration)
+        elif order=="name":
+            rows.sort(key=lambda row:row.get("name","").casefold())
+        else:
+            rows.sort(key=lambda row:row.get("aos",""))
         self.pass_list.blockSignals(True)
         self.pass_list.clear()
         selected_item=None
@@ -1193,6 +1746,14 @@ class SatelliteWindow(QMainWindow):
         self.coverage.addItem("Prefer full visible pass","full")
         self.coverage.addItem("Quick RF sample","sample")
         form.addRow("Recording goal",self.coverage)
+        self.auto_iss_format=QComboBox()
+        self.auto_iss_format.addItem("WAV · FM audio only", "wav")
+        self.auto_iss_format.addItem("CU8 · full IQ data only", "cu8")
+        self.auto_iss_format.addItem("CU8 + WAV · from same physical capture", "both")
+        self.auto_iss_format.setToolTip(
+            "Native CU8 + WAV records actual IQ first, then derives 32-kHz "
+            "FM audio from that same IQ. It does not use WebUSB.")
+        form.addRow("ISS SSTV recording files",self.auto_iss_format)
         self.auto_schedule_button=self._button(
             "Calculate passes & schedule recordings",self.auto_schedule)
         form.addRow(self.auto_schedule_button)
@@ -1298,6 +1859,11 @@ class SatelliteWindow(QMainWindow):
         self._row(body,
                   self._button("Start physical RF capture",self.start_capture),
                   self._button("Stop my current capture",self.stop_capture))
+        self.capture_live_state=self._hint(
+            "Relative real CU8 power chart appears during a physical recording.")
+        body.addWidget(self.capture_live_state)
+        self.capture_level_chart=NativeIqLevelView()
+        body.addWidget(self.capture_level_chart)
         body.addWidget(self._hint("Only the actual attached RTL2832U SDR is used. "
             "A busy readsb/Gqrx device is not stolen or forcibly terminated. "
             "Long recordings are written locally without browser memory caps."))
@@ -1450,6 +2016,274 @@ class SatelliteWindow(QMainWindow):
                                lambda:self.result_steps.setCurrentIndex(1)),
                   self._button("Choose another file",
                                lambda:self.result_steps.setCurrentIndex(0)))
+
+    def _images_tab(self):
+        """Native equivalent of Satellite Images & Data, never a WebView."""
+        host=self._new_tab("Satellite Images & Data")
+        scroll=QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.NoFrame)
+        host.addWidget(scroll)
+        page=QWidget()
+        body=QVBoxLayout(page)
+        body.setSpacing(12)
+        scroll.setWidget(page)
+        heading=QLabel("Satellite Images & Data")
+        heading.setObjectName("passTitle")
+        body.addWidget(heading)
+        body.addWidget(self._hint(
+            "Decode only genuinely recorded SSTV / Meteor data, browse your local files, "
+            "or request official NASA photographs separately. "
+            "An online NASA image is NEVER a picture received by your RTL-SDR."))
+
+        receiver=QGroupBox("1 · Real RF imagery · ISS SSTV / Meteor LRPT")
+        controls=QVBoxLayout(receiver)
+        controls.addWidget(self._hint(
+            "ISS Robot36 needs an actually recorded WAV; Meteor LRPT needs raw CU8 "
+            "and the installed SatDump decoder. No invented PNG is created."))
+        actions=QHBoxLayout()
+        actions.addWidget(self._button("Select ISS SSTV receiver",self._image_tune_iss))
+        actions.addWidget(self._button("Open recorded WAV / CU8",self._image_import))
+        controls.addLayout(actions)
+        decoders=QHBoxLayout()
+        decoders.addWidget(self._button("Decode WAV → Robot36 PNG",self._image_decode_sstv))
+        decoders.addWidget(self._button("Meteor 72k",lambda:self.decode_meteor("72k")))
+        decoders.addWidget(self._button("Meteor 80k",lambda:self.decode_meteor("80k")))
+        controls.addLayout(decoders)
+        controls.addWidget(self._button("Inspect decoded result files / ZIP",
+                                        self._home_extract))
+        body.addWidget(receiver)
+
+        local=QGroupBox("2 · Recorded files · PNG, WAV, CU8, text and JSON")
+        local_layout=QVBoxLayout(local)
+        local_buttons=QHBoxLayout()
+        local_buttons.addWidget(self._button("Refresh saved files",self.refresh_status))
+        local_buttons.addWidget(self._button("Open any local file",self._image_import))
+        local_buttons.addWidget(self._button("Open recordings folder",self.open_archive_folder))
+        local_layout.addLayout(local_buttons)
+        self.native_image_files=QTreeWidget()
+        self.native_image_files.setHeaderLabels(
+            ["Saved file","Data type / format","Bytes"])
+        self.native_image_files.setMaximumHeight(185)
+        self.native_image_files.header().setSectionResizeMode(0,QHeaderView.Stretch)
+        self.native_image_files.header().setSectionResizeMode(1,QHeaderView.ResizeToContents)
+        self.native_image_files.itemSelectionChanged.connect(self._image_local_selected)
+        local_layout.addWidget(self.native_image_files)
+        self.native_local_preview=QLabel(
+            "Choose a real local image/WAV/text file to inspect it. "
+            "Only actual PNG/JPEG images are drawn here.")
+        self.native_local_preview.setWordWrap(True)
+        self.native_local_preview.setAlignment(Qt.AlignCenter)
+        self.native_local_preview.setMinimumHeight(85)
+        local_layout.addWidget(self.native_local_preview)
+        self.native_local_status=self._hint(
+            "No file chosen. Source identity cannot be inferred from filename alone.")
+        local_layout.addWidget(self.native_local_status)
+        body.addWidget(local)
+
+        nasa=QGroupBox("3 · Online NASA Earth imagery · NOT received by SDR")
+        online=QVBoxLayout(nasa)
+        nasa_toolbar=QHBoxLayout()
+        self.online_provider=QComboBox()
+        self.online_provider.addItem("NASA DSCOVR EPIC · whole Earth","epic")
+        self.online_provider.addItem("NASA ISS Earth photo archive","iss")
+        nasa_toolbar.addWidget(self.online_provider)
+        nasa_toolbar.addWidget(self._button("Fetch official image catalog",
+                                            self._image_fetch_catalog))
+        online.addLayout(nasa_toolbar)
+        self.online_image_status=self._hint(
+            "Online imagery is optional, fetched only on click over HTTPS. "
+            "No RF recording, WebUSB or embedded browser required.")
+        online.addWidget(self.online_image_status)
+        self.online_image_files=QTreeWidget()
+        self.online_image_files.setHeaderLabels(["NASA image","UTC / archive time","Source"])
+        self.online_image_files.setMaximumHeight(180)
+        self.online_image_files.header().setSectionResizeMode(0,QHeaderView.Stretch)
+        self.online_image_files.itemSelectionChanged.connect(self._image_online_selected)
+        online.addWidget(self.online_image_files)
+        self.online_image_preview=QLabel(
+            "Select an official NASA item and click Preview to download it.")
+        self.online_image_preview.setWordWrap(True)
+        self.online_image_preview.setMinimumHeight(130)
+        self.online_image_preview.setAlignment(Qt.AlignCenter)
+        online.addWidget(self.online_image_preview)
+        self.online_records=[]
+        self.online_selected=None
+        self.online_image_bytes=None
+        self.online_image_format=None
+        downloads=QHBoxLayout()
+        downloads.addWidget(self._button("Preview selected NASA image",
+                                         self._image_preview_online))
+        downloads.addWidget(self._button("Save NASA image with source label",
+                                         self._image_save_online))
+        online.addLayout(downloads)
+        body.addWidget(nasa)
+        body.addWidget(self._button(
+            "Explore satellite signal / user-saved protocol profiles",
+            lambda:self._open_native_tab("Saved protocols")))
+        body.addStretch(1)
+
+    def _image_tune_iss(self):
+        key="iss_sstv"
+        self.home_capture_profile.setCurrentIndex(
+            self.home_capture_profile.findData(key))
+        self.capture_profile.setCurrentIndex(self.capture_profile.findData(key))
+        self._open_native_tab("Overview")
+        self.statusBar().showMessage(
+            "ISS SSTV candidate 437.550 MHz selected for native RF acquisition. "
+            "Check current ARISS event before recording.",12000)
+
+    def _image_import(self):
+        path,_=QFileDialog.getOpenFileName(
+            self,"Open actual local RF / image / audio / text",
+            str(self.station.archive),
+            "Supported files (*.cu8 *.wav *.png *.jpg *.jpeg *.txt *.json *.csv);;All files (*)")
+        if not path:return
+        self._choose_path(path)
+        self._image_show_local(Path(path))
+
+    def _image_decode_sstv(self):
+        self._open_native_tab("Recordings & results")
+        self.result_steps.setCurrentIndex(2)
+        self.decode_robot36_native()
+
+    def _image_local_selected(self):
+        item=self.native_image_files.currentItem()
+        if item is None:return
+        path=Path(str(item.data(0,Qt.UserRole)))
+        self._image_show_local(path)
+
+    def _image_show_local(self,path):
+        if not path.is_file():
+            self.native_local_status.setText("File removed or unavailable: "+str(path))
+            return
+        label,why=describe_local_file(path)
+        self.native_local_status.setText(
+            str(path)+"  ·  "+label+"  ·  "+why)
+        self.native_local_preview.clear()
+        if path.suffix.lower() in (".png",".jpg",".jpeg") and path.stat().st_size<20_000_000:
+            pixmap=QPixmap(str(path))
+            if not pixmap.isNull():
+                self.native_local_preview.setPixmap(
+                    pixmap.scaled(700,255,Qt.KeepAspectRatio,Qt.SmoothTransformation))
+                return
+        self.native_local_preview.setText(
+            path.name+"  ·  "+label+"\nUse Signal analysis for CU8 FFT, "
+            "WAV playback, text and decoder outputs.")
+
+    def _update_native_image_files(self,archive):
+        selected=(self.native_image_files.currentItem().data(0,Qt.UserRole)
+                  if self.native_image_files.currentItem() is not None else None)
+        self.native_image_files.blockSignals(True)
+        self.native_image_files.clear()
+        for item in archive:
+            name=item.get("file","")
+            path=self.station.archive/name
+            if not path.is_file():continue
+            label,_=describe_local_file(path)
+            row=QTreeWidgetItem([name,label,str(item.get("bytes",0))])
+            row.setData(0,Qt.UserRole,str(path))
+            self.native_image_files.addTopLevelItem(row)
+            if str(path)==selected:
+                self.native_image_files.setCurrentItem(row)
+        self.native_image_files.blockSignals(False)
+
+    def _image_fetch_catalog(self):
+        provider=self.online_provider.currentData()
+        self.online_image_status.setText("Requesting official NASA catalog over HTTPS…")
+        self._task("NASA image catalog",
+                   lambda:list_official_images(provider),
+                   self._image_catalog_done)
+
+    def _image_catalog_done(self,rows):
+        self.online_records=rows
+        self.online_image_bytes=None
+        self.online_selected=None
+        self.online_image_preview.clear()
+        self.online_image_files.clear()
+        for index,record in enumerate(rows):
+            item=QTreeWidgetItem([
+                str(record.get("caption","NASA image"))[:105],
+                str(record.get("time","unknown")),
+                str(record.get("provider","NASA"))])
+            item.setData(0,Qt.UserRole,index)
+            self.online_image_files.addTopLevelItem(item)
+        self.online_image_status.setText(
+            f"{len(rows)} official NASA archive item(s), NONE received over RF. "
+            "Select one to preview.")
+
+    def _image_online_selected(self):
+        item=self.online_image_files.currentItem()
+        if item is None:return
+        index=item.data(0,Qt.UserRole)
+        if not isinstance(index,int) or not 0<=index<len(self.online_records):return
+        self.online_selected=self.online_records[index]
+        self.online_image_bytes=None
+        self.online_image_preview.setText(
+            str(self.online_selected["caption"])+"\n"+
+            str(self.online_selected["time"])+"\nSource: "+
+            str(self.online_selected["provider"])+" (ONLINE ONLY, not RF)")
+
+    def _image_preview_online(self):
+        if self.online_selected is None:
+            return QMessageBox.information(self,"NASA preview",
+                "Choose an official NASA image from the list first.")
+        item=dict(self.online_selected)
+        self.online_image_status.setText("Downloading selected NASA image preview…")
+        self._task("NASA image preview",lambda:fetch_official_image(item),
+                   lambda data:self._image_preview_done(item,data))
+
+    def _image_preview_done(self,item,data):
+        if self.online_selected is None or item.get("url")!=self.online_selected.get("url"):
+            return
+        pixmap=QPixmap()
+        if not pixmap.loadFromData(data):
+            self.online_image_status.setText("NASA image is not readable by local Qt.")
+            return
+        self.online_image_bytes=data
+        self.online_image_format=".png" if data.startswith(b"\x89PNG") else ".jpg"
+        self.online_image_preview.setPixmap(pixmap.scaled(
+            760,330,Qt.KeepAspectRatio,Qt.SmoothTransformation))
+        self.online_image_status.setText(
+            f"Official online NASA image downloaded ({len(data)} bytes); "
+            "not an RF reception, ISS downlink or local SDR acquisition.")
+
+    def _image_save_online(self):
+        if self.online_image_bytes is None or self.online_selected is None:
+            return QMessageBox.information(self,"Save NASA image",
+                "First select and preview a real official NASA image.")
+        import re as _re
+        basename=_re.sub(r"[^A-Za-z0-9_-]","_",
+                         str(self.online_selected.get("id") or "nasa_earth"))[:50]
+        filename="NASA_ONLINE_"+basename+(self.online_image_format or ".jpg")
+        path,_=QFileDialog.getSaveFileName(
+            self,"Save official online NASA photo (NOT RF)",
+            str(Path.home()/filename),
+            "Images (*.jpg *.png)")
+        if not path:return
+        target=Path(path).expanduser()
+        if target.exists():
+            return QMessageBox.warning(self,"Save NASA image",
+                                       "Destination already exists; not overwriting.")
+        # Keep original verified format and provenance in sidecar metadata.
+        if target.suffix.lower() != self.online_image_format:
+            return QMessageBox.warning(self,"Save NASA image",
+                                       "Keep original NASA PNG/JPEG file extension.")
+        manifest=target.with_suffix(target.suffix+".source.json")
+        if manifest.exists():
+            return QMessageBox.warning(self,"Save NASA image",
+                                       "Provenance metadata already exists; choose another name.")
+        try:
+            with target.open("xb") as stream:
+                stream.write(self.online_image_bytes)
+            manifest.write_text(json.dumps({
+                **self.online_selected,"source_medium":"ONLINE_HTTPS_NOT_RF",
+                "saved_at":datetime.now(timezone.utc).isoformat()
+            },indent=2),encoding="utf-8")
+        except OSError as error:
+            return QMessageBox.warning(self,"Save NASA image",str(error))
+        self.online_image_status.setText(
+            "Saved NASA ONLINE image and provenance JSON to "+str(target))
 
     def _protocols_tab(self):
         """Manual public downlink catalog, independent of receiver allowlist."""
@@ -1630,6 +2464,15 @@ class SatelliteWindow(QMainWindow):
                     self.auto_feedback.setText("Could not schedule: "+message)
                 elif key=="Arm scheduled RF":
                     self.pass_feedback.setText("Recording not scheduled: "+message)
+                elif key=="Local TLE import":
+                    self.tle_import_feedback.setText("TLE import failed: "+message)
+                elif key=="Worldwide geocoding":
+                    self.city_info.setText("Online city lookup failed: "+message)
+                elif key in ("Connect SDR","Disconnect SDR","USB diagnostic","Real RF sample test"):
+                    self.hardware_feedback.setText(key+" failed: "+message)
+                    self.refresh_status()
+                if key.startswith("NASA "):
+                    self.online_image_status.setText(key+" failed: "+message)
                 if not silent:
                     QMessageBox.warning(self,"Satellite Center",message)
         def on_finished():
@@ -1639,13 +2482,103 @@ class SatelliteWindow(QMainWindow):
         worker.signals.finished.connect(on_finished)
         self.pool.start(worker)
 
+    def _refresh_live_iq_level(self):
+        """Read only a bounded tail of Station's actual on-disk IQ stream.
+
+        No extra USB consumer is opened. Does not run a radio test on its own.
+        """
+        with self.station.lock:
+            session=dict(self.station.session)
+        if not session.get("active") or session.get("mode")!="iq":
+            return
+        rawname=session.get("path")
+        if not isinstance(rawname,str) or not rawname.endswith(".cu8"):
+            return
+        source=self.station.archive/rawname
+        try:
+            size=source.stat().st_size
+            if size<8192:return
+            with source.open("rb") as stream:
+                stream.seek(max(0,size-65536))
+                data=stream.read(65536)
+        except OSError:
+            return
+        sample=data[::32]
+        if len(sample)<128:return
+        rms=math.sqrt(sum((v-127.5)**2 for v in sample)/len(sample))
+        if rms<=0:return
+        dbfs=20*math.log10(rms/127.5)
+        self.home_level_chart.push(dbfs)
+        self.capture_level_chart.push(dbfs)
+        description=f"ACTUAL CU8 RF samples · {dbfs:.1f} relative dBFS · {size} bytes saved"
+        self.home_sample_state.setText(description)
+        self.capture_live_state.setText(description)
+
     def refresh_status(self):
         self._task("status",self.station.status,self._apply_status,silent=True)
 
     def _apply_status(self,state):
         session=state.get("session",{})
-        self.top_status.setText("RTL-SDR: "+("recording" if session.get("active") else
-                                           "available" if state.get("tuner_present") else "not detected"))
+        hardware=state.get("hardware") or {}
+        enabled=hardware.get("receiver_enabled",True)
+        released=hardware.get("app_released",False)
+        present=state.get("tuner_present")
+        self.top_status.setText(
+            "RF DISABLED · receiver released" if not enabled and released else
+            "RF DISABLED · release pending" if not enabled else
+            "RTL-SDR: recording" if session.get("active") else
+            "RTL-SDR: detected · idle" if present else "RTL-SDR: not detected")
+        usb_count=hardware.get("usb_rtl_count")
+        devices=hardware.get("usb_devices") or []
+        self.hardware_presence.setText(
+            ("RTL-SDR USB detected · "+str(usb_count)+" device(s)" if usb_count else
+             "RTL-SDR not seen in USB inventory" if usb_count==0 else
+             "USB enumeration unavailable on this platform"))
+        last_test=hardware.get("last_usb_test") or {}
+        self.hardware_access.setText(
+            "Verified physical USB + real IQ acquisition · "+
+            str(last_test.get("verified_at","unknown")) if last_test else
+            "USB sample reception NOT verified · run Connect or Test real RF")
+        self.hardware_mode.setText(
+            "RF acquisition: ENABLED for explicit captures and pending jobs" if enabled
+            else "RF acquisition: DISABLED · survives restart; no new scheduled capture")
+        self.hardware_lease.setText(
+            "Application SDR handle: RELEASED · no owned process or receiver lock" if released
+            else "Application SDR handle: IN USE / STARTING / RELEASING · see status")
+        busy=state.get("busy") or []
+        self.hardware_busy.setText(
+            "Active SDR-related processes (may be ours or other apps): "+
+            ", ".join(str(e.get("process","?"))+" (PID "+str(e.get("pid","?"))+")"
+                      for e in busy[:6]) if busy else
+            "No known competing SDR process detected (passive scan)")
+        self.hardware_schedules.setText(
+            str(hardware.get("pending_schedules",0))+
+            (" pending RF job(s) · PAUSED while disabled" if not enabled
+             else " pending RF job(s) · may run when scheduled"))
+        inv_key=json.dumps(devices,sort_keys=True)
+        if inv_key!=self.hardware_inventory_key:
+            self.hardware_inventory_key=inv_key
+            self.hardware_devices.clear()
+            for device in devices:
+                kind=("RTL-SDR · raw IQ capable"
+                      if device.get("receiver_type")=="rtl_sdr" else
+                      "DVB television · not RTL-SDR")
+                item=QTreeWidgetItem([
+                    str(device.get("name") or "USB receiver"),
+                    kind,
+                    str(device.get("vendor_id","?"))+":"+
+                    str(device.get("product_id","?")),
+                    str(device.get("sysfs_device","?"))])
+                self.hardware_devices.addTopLevelItem(item)
+            if not devices:
+                self.hardware_devices.addTopLevelItem(QTreeWidgetItem(
+                    ["No supported USB SDR/TV hardware detected","—","—","—"]))
+        self.hardware_connect_button.setEnabled(
+            not session.get("active") and not hardware.get("opening",False))
+        self.hardware_test_button.setEnabled(
+            not session.get("active") and not hardware.get("opening",False))
+        self.hardware_sample_button.setEnabled(
+            not session.get("active") and not hardware.get("opening",False))
         self.device_label.setText("Receiver: "+(
             "RTL2832U USB detected (passive)" if state.get("tuner_present") else
             "No RTL2832U detected passively. Verify device/udev and rtl_test."))
@@ -1656,6 +2589,15 @@ class SatelliteWindow(QMainWindow):
             for key,val in state.get("orbit_cache",{}).items()))
         self.disk_label.setText("Recordings: "+str(len(state.get("archive",[])))+
                                 " actual local files · "+str(self.station.archive))
+        self.home_jobs_status.setText(
+            str(hardware.get("pending_schedules",0))+" scheduled future RF capture(s). "+
+            ("RF DISABLED · pending jobs paused." if not enabled
+             else "Native receiver jobs run only while this Qt program remains open."))
+        self.home_usb_state.setText(
+            "RF DISABLED · lease released" if not enabled and released else
+            "RF DISABLED · release incomplete" if not enabled else
+            "USB IQ VERIFIED · idle ready" if hardware.get("last_usb_test") else
+            "USB not yet verified by real IQ capture; open Hardware / USB.")
         self._calendar_jobs=state.get("jobs",[])
         jobs_key=json.dumps([(j.get("id"),j.get("state"),j.get("run_at"),j.get("result"),
                               j.get("capture_seconds"),j.get("mission_id"))
@@ -1679,14 +2621,17 @@ class SatelliteWindow(QMainWindow):
         if archive_key!=self.last_archive_key:
             self.last_archive_key=archive_key
             self._render_files(state.get("archive",[]))
+            self._update_native_image_files(state.get("archive",[]))
 
     def usb_test(self):
+        self.hardware_feedback.setText("Testing physical USB access without enabling capture…")
         def completed(report):
             message=json.dumps(report,indent=2,default=str)
-            self.file_details.setPlainText(message)
-            QMessageBox.information(
-                self,"RTL-SDR diagnostic · read-only",
-                "This test does not record radio samples.\n\n"+message[:2800])
+            self.hardware_log.setPlainText(message)
+            self.hardware_feedback.setText(
+                "USB successfully opened and released for test. "
+                "No RF was captured, and RF enable state was not changed.")
+            self.refresh_status()
         self._task("USB diagnostic",self.station.usb_test,completed)
 
     def refresh_tles(self):
@@ -1698,6 +2643,21 @@ class SatelliteWindow(QMainWindow):
         return {"lat":self.lat.value(),"lon":self.lon.value(),
                 "hours":self.hours.value(),"elevation":self.elev.value()}
 
+    def import_tle(self):
+        source=self.tle_source.currentData()
+        path,_=QFileDialog.getOpenFileName(
+            self,"Import locally saved orbital TLE elements",
+            str(Path.home()),"TLE orbit text (*.tle *.txt);;All files (*)")
+        if not path:return
+        self.tle_import_feedback.setText("Validating locally saved orbital elements…")
+        def finished(report):
+            self.tle_import_feedback.setText(
+                "Imported "+str(report["tle_count"])+" validated TLE pair(s) for "+
+                source+". Click Calculate satellite passes.")
+            self.refresh_status()
+        self._task("Local TLE import",
+                   lambda:self.station.import_tle(path,source),finished)
+
     def calculate_passes(self):
         self._task("Predict satellite passes",
                    lambda:self.station.passes(**self._station_kwargs()),
@@ -1707,6 +2667,11 @@ class SatelliteWindow(QMainWindow):
         rows=data.get("predictions",[])
         self.passes={r["id"]:r for r in rows}
         self._render_pass_results()
+        if hasattr(self,"home_pass_summary"):
+            self.home_pass_summary.setText(
+                str(len(rows))+" predicted orbital pass(es). "
+                "Find satellites has sorting, media filters, and individually editable RF schedules. "
+                "Prediction ≠ received RF.")
         target=getattr(self,"map_pending_pass_norad",None)
         if target is not None:
             self.map_pending_pass_norad=None
@@ -1764,11 +2729,12 @@ class SatelliteWindow(QMainWindow):
         self.pass_mode.clear()
         mode_labels={
             "iq":"Raw IQ · CU8 disk (8–900 s)",
+            "iq_and_fm_wav":"CU8 + derived FM WAV · same capture",
             "survey":"RF spectrum survey (8–180 s)",
             "sstv_audio":"SSTV FM audio · WAV (event-only)",
             "fm_audio":"Voice / FM audio · WAV",
             "aprs":"AX.25 APRS text · real decoder required"}
-        for mode in ("iq","sstv_audio","fm_audio","aprs","survey"):
+        for mode in ("iq","iq_and_fm_wav","sstv_audio","fm_audio","aprs","survey"):
             if key and allowed_mode(key,mode):
                 self.pass_mode.addItem(mode_labels[mode],mode)
         index=self.pass_mode.findData(current)
@@ -1779,7 +2745,11 @@ class SatelliteWindow(QMainWindow):
     def _pass_budget(self):
         mode=self.pass_mode.currentData()
         seconds=duration_seconds(self.pass_seconds,self.pass_unit)
-        if mode=="iq":
+        if mode=="iq_and_fm_wav":
+            self.pass_cost.setText(
+                f"~{seconds*2.112:.1f} MB · raw CU8 then derived 32-kHz FM WAV. "
+                "Both are genuine samples; FM content remains unverified.")
+        elif mode=="iq":
             self.pass_cost.setText(
                 f"~{seconds*2.048:.1f} MB raw CU8. >180 s can be split into separate ≤180 s files; single continuous IQ still supported.")
         elif mode=="survey":
@@ -1829,7 +2799,8 @@ class SatelliteWindow(QMainWindow):
         params={"lat":self.lat.value(),"lon":self.lon.value(),"hours":self.hours.value(),
                 "elevation":self.auto_elev.value(),"max_jobs":self.auto_jobs.value(),
                 "coverage_goal":coverage,"duration_seconds":seconds,
-                "compute_mode":compute_mode,"compute_targets":compute_targets}
+                "compute_mode":compute_mode,"compute_targets":compute_targets,
+                "iss_record_format":self.auto_iss_format.currentData()}
         self.auto_feedback.setText("Calculating local satellite passes and checking receiver feasibility…")
         self._task("Auto mission planning",lambda:self.station.auto_schedule(missions,**params),
                    self._auto_schedule_finished)
@@ -1843,6 +2814,8 @@ class SatelliteWindow(QMainWindow):
         if disabled:text+=" Some selected decoders are unavailable: "+", ".join(map(str,disabled))
         if not count:text="No feasible capture job scheduled. "+(" ".join(map(str,skipped[:2])) or "Check TLEs, elevation and receiver tools.")
         self.auto_feedback.setText(text)
+        if hasattr(self,"home_auto_status"):
+            self.home_auto_status.setText(text)
         self.refresh_status()
         self.statusBar().showMessage(text[:220],14000)
 
@@ -1960,9 +2933,11 @@ class SatelliteWindow(QMainWindow):
         key=self.capture_profile.currentData()
         self.capture_mode.blockSignals(True)
         self.capture_mode.clear()
-        for mode in ("iq","survey","aprs","sstv_audio","fm_audio"):
+        for mode in ("iq","iq_and_fm_wav","survey","aprs","sstv_audio","fm_audio"):
             if key and allowed_mode(key,mode):
-                self.capture_mode.addItem({"iq":"Save raw CU8 IQ","survey":"RF spectrum survey",
+                self.capture_mode.addItem({"iq":"Save raw CU8 IQ",
+                     "iq_and_fm_wav":"Save both CU8 + derived FM WAV",
+                     "survey":"RF spectrum survey",
                      "aprs":"AX.25 APRS (if actual data)","sstv_audio":"SSTV audio WAV",
                      "fm_audio":"FM voice WAV"}[mode],mode)
         self.capture_mode.blockSignals(False)
@@ -1976,6 +2951,8 @@ class SatelliteWindow(QMainWindow):
             if mode=="iq" else
             "Native rtl_power survey can split >180 s into separate ≤180 s captures; real gaps are recorded in report"
             if mode=="survey" else
+            f"~{secs*2.112:.1f} MB CU8 + FM WAV from the same physical IQ recording"
+            if mode=="iq_and_fm_wav" else
             "Native receiver saves actual packet/audio output, no browser involved")
 
     def start_capture(self):
@@ -1990,8 +2967,17 @@ class SatelliteWindow(QMainWindow):
         self._task("Physical SDR capture",
                    lambda:self.station.capture_series(key,mode,secs,segment_seconds=180)
                    if mode=="survey" and secs>180 else self.station.capture(key,mode,secs),
-                   lambda result:(self.file_details.setPlainText(json.dumps(result,indent=2)),
-                                  self.refresh_status()))
+                   self._manual_capture_completed)
+
+    def _manual_capture_completed(self,result):
+        self.file_details.setPlainText(json.dumps(result,indent=2,default=str))
+        if result.get("wav"):
+            self.preview_wav=str(self.station.archive/result["wav"])
+            self._register_output_files([self.station.archive/result["wav"]])
+        if result.get("wav_error"):
+            self.statusBar().showMessage(
+                "Raw CU8 saved, but WAV conversion failed: "+result["wav_error"],14000)
+        self.refresh_status()
 
     def stop_capture(self):
         self._task("Stop owned receiver",self.station.request_stop,
@@ -2360,6 +3346,7 @@ class SatelliteWindow(QMainWindow):
         self.active=False
         self.timer.stop()
         self.map_timer.stop()
+        self.level_timer.stop()
         self.stop_audio()
         self.station.close()
         event.accept()
@@ -2380,9 +3367,17 @@ def main(argv=None):
         with TemporaryDirectory(prefix="tihulu-native-smoke-") as td:
             station=Station(Path(td))
             window=SatelliteWindow(station,auto_poll=False)
-            assert window.tabs.count()==8, "Native pages not built"
+            assert window.tabs.count()==10, "Native pages not built"
             assert window.tabs.tabBar().isHidden(), "Expose guided primary navigation"
-            assert len(window.nav_buttons)==5
+            assert len(window.nav_buttons)==6
+            assert "Hardware" in window.nav_buttons
+            assert window._open_native_tab("Hardware")
+            assert window.tabs.tabText(window.tabs.currentIndex())=="Hardware"
+            assert window.hardware_connect_button.text()=="Connect && enable RF"
+            assert len(window.home_level_chart.levels)==0
+            assert len(window.capture_level_chart.levels)==0
+            assert window.hardware_disconnect_button.text()=="Stop && disconnect RF"
+            window._open_native_tab("Overview")
             assert window.nav_buttons["Overview"].isChecked()
             assert window.result_steps.count()==3
             assert window.result_steps.tabText(0).startswith("1 ")
@@ -2394,7 +3389,11 @@ def main(argv=None):
             assert window.result_steps.currentIndex()==2
             window._open_native_tab("Overview")
             assert window.protocol_list.topLevelItemCount()==0
-            assert window.tabs.tabText(7)=="Saved protocols"
+            assert window.tabs.tabText(9)=="Saved protocols"
+            assert window._open_native_tab("Satellite Images & Data")
+            assert window.online_provider.count()==2
+            assert window.native_image_files.topLevelItemCount()==0
+            window._open_native_tab("Overview")
             assert window.map_sky.mode=="sky"
             assert window.map_earth.mode=="earth"
             assert window.map_views.currentIndex()==1, "Default map should be Earth"
@@ -2434,6 +3433,9 @@ def main(argv=None):
                 "los":(aos+timedelta(minutes=9)).isoformat(),
                 "max_elevation_deg":44.0,"profiles":["meteor"]}]})
             assert window.pass_list.topLevelItemCount()==1
+            assert window.pass_sort.count()==7
+            assert window.pass_family_filter.findData("meteor")>=0
+            assert window.tle_source.findData("amateur")>=0
             assert window.pass_map_button.isEnabled()
             assert "image" in window.pass_overview.text().lower()
             assert "LRPT" in window.pass_requirements.text()
@@ -2487,6 +3489,8 @@ def main(argv=None):
                 root.mkdir(parents=True,exist_ok=True)
                 for name,filename in (
                     ("Overview","01-home.png"),
+                    ("Hardware","06-hardware.png"),
+                    ("Satellite Images & Data","07-satellite-images.png"),
                     ("Passes & Data","02-find-satellites.png"),
                     ("Maps & Live","03-earth-map.png"),
                     ("Auto reception","04-auto-receive.png"),
