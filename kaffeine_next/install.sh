@@ -124,11 +124,28 @@ sudo apt-get install -y --reinstall "$temp/debs/tihulu-tv-center_0.1.0~dev1_all.
 cat > "$HOME/.local/bin/tihulu-kaffeine" <<'LAUNCH'
 #!/bin/sh
 # XWayland avoids the broken NVIDIA / COSMIC embedded surface path.
-if [ -n "$WAYLAND_DISPLAY" ]; then export QT_QPA_PLATFORM=xcb; fi
-# The launcher also avoids mixing system Kaffeine Qt5 with Conda Qt libraries.
+if [ -n "${WAYLAND_DISPLAY:-}" ]; then export QT_QPA_PLATFORM=xcb; fi
+# Native DVB playback uses Kaffeine/libVLC. On the known NVIDIA + Wayland
+# combination, safely use software HEVC decoding first; never force this
+# CPU-intensive profile on Pi 5 or systems without NVIDIA.
+if [ -z "${TIHULU_VLC_PROFILE:-}" ]; then
+  if [ -n "${WAYLAND_DISPLAY:-}" ] && [ -r /proc/driver/nvidia/version ]; then
+    TIHULU_VLC_PROFILE=software
+  else
+    TIHULU_VLC_PROFILE=auto
+  fi
+fi
+# Explicit per-session overrides for isolating decoder vs AAC audio faults.
+case "${1:-}" in
+  --software-video) TIHULU_VLC_PROFILE=software; shift ;;
+  --auto-video) TIHULU_VLC_PROFILE=auto; shift ;;
+  --diagnose-no-audio) TIHULU_VLC_PROFILE=software-no-audio; shift ;;
+esac
+export TIHULU_VLC_PROFILE
 if [ "$#" -eq 0 ]; then
   set -- --lastchannel
 fi
+# Avoid mixing native system libVLC/Qt5 with the user's Conda installation.
 exec env -u LD_LIBRARY_PATH -u LD_PRELOAD -u QT_PLUGIN_PATH \
   -u QT_QPA_PLATFORM_PLUGIN_PATH -u QML2_IMPORT_PATH -u QML_IMPORT_PATH \
   "$HOME/.local/opt/tihulu-kaffeine/bin/kaffeine" "$@"
