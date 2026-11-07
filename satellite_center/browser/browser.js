@@ -8,10 +8,12 @@ import { probeUsbSamples, sampleBytes } from './usb_live_probe.mjs?v=20261106-ma
 import { sortPassList } from './pass_sort.mjs';
 import { protocolsForPass, protocolCategories, passesFilteredByContent } from './pass_protocol_catalog.mjs';
 import {readUserProfiles} from './saved_satellite_protocols.mjs';
-import { selectAutomaticPasses, AUTO_TARGETS } from './auto_mission.mjs?v=20261106-iss-npu-release-v1';
-import {localDayKey,shiftCalendarDay,renderSatelliteCalendar} from './satellite_calendar.mjs?v=20261106-calendar-zip-v2';
+import { selectAutomaticPasses, AUTO_TARGETS } from './auto_mission.mjs?v=20261107-segments-v1';
+import {localDayKey,shiftCalendarDay,renderSatelliteCalendar} from './satellite_calendar.mjs?v=20261107-segments-v1';
 import { localDateInput, parseLocalScheduleTime, createScheduledPass, evaluateScheduledJob, secondsToJob, captureLevelSummary } from './schedule_controller.mjs?v=20261106-direct-fm-wav-v1';
 import {captureBudget,formatCaptureBudget,STREAM_IQ_BYTES} from './capture_duration.mjs?v=20261106-stream-v1';
+import {durationToSeconds,formatCountdown,segmentedCapturePlan,
+  browserClipCap} from './segmented_capture.mjs?v=20261107-segments-v1';
 import {createStreamingFmWavEncoder,createPcmWavHeader,wavOutputPlan} from './fm_wav_record.mjs?v=20261106-web-fm-wav-v1';
 // TIHULU Satellite Center — no-local-install receive-only browser mode.
 // The RTL-SDR device is opened only after a direct user gesture.
@@ -87,7 +89,8 @@ async function nativeScheduledPass(pass,{when,durationSeconds,frequency,sampleRa
    events=await predict();target=matched();
  }
  if(!target)throw Error("Native TLE pass differs from browser estimate. Refresh catalog and recalculate.");
- return nativeRequest("/api/schedule",{pass_id:target.id,profile,mode:saveRaw?"iq":saveWav?"sstv_audio":"survey",
+ const endpoint=durationSeconds>180?"/api/schedule-series":"/api/schedule";
+ return nativeRequest(endpoint,{pass_id:target.id,profile,mode:saveRaw?"iq":saveWav?"sstv_audio":"survey",
    run_at:new Date(when).toISOString(),duration_seconds:durationSeconds},state.csrf);
 }
 
@@ -176,13 +179,32 @@ for(const id of ['auto-save-raw','auto-save-wav']){
  $(id).addEventListener('input',refreshAutoOutputSummary);
 }
 refreshAutoOutputSummary();
+function wireDurationUnit(input,unit,maxSeconds=900){
+ let previous="seconds";
+ unit.addEventListener('change',()=>{
+   const oldSeconds=Number(input.value)*(previous==="minutes"?60:1);
+   if(Number.isFinite(oldSeconds)&&oldSeconds>=0){
+     input.value=unit.value==="minutes"?
+       String(Number((oldSeconds/60).toFixed(6))):String(Math.round(oldSeconds));
+   }
+   previous=unit.value;
+   input.step=unit.value==="minutes"?"0.000001":"1";
+   input.max=unit.value==="minutes"?String(maxSeconds/60):String(maxSeconds);
+   input.dispatchEvent(new Event("change",{bubbles:true}));
+ });
+}
+wireDurationUnit($('duration'),$('duration-unit'));
+wireDurationUnit($('auto-browser-seconds'),$('auto-browser-unit'));
+const readManualSeconds=()=>durationToSeconds($('duration').value,$('duration-unit').value);
+const readAutoSeconds=()=>durationToSeconds($('auto-browser-seconds').value,
+  $('auto-browser-unit').value,{min:8,max:900});
 function updateManualCaptureBudget(){
  const label=$('capture-budget');
  const summary=$('capture-format-summary');
  summary.textContent=outputSelectionText($('record').checked,$('wav-record').checked)+
    '. Checking both boxes saves both formats independently; unchecking both records levels only.';
  try{
-   const seconds=Number($('duration').value),rate=Number($('rate').value);
+   const seconds=readManualSeconds(),rate=Number($('rate').value);
    const opts=inspectCaptureStorage(seconds,rate,$('record').checked,$('wav-record').checked);
    label.dataset.feasible="true";
    label.textContent=(opts.iq.mode==='levels-only'?'No raw CU8. ':
@@ -199,7 +221,7 @@ $('preset').addEventListener('change',()=>{
  const iss=Number($('preset').value)===437550000;
  setManualOutputSelection(!iss,iss);
 });
-for(const id of ['duration','rate','record','wav-record']){
+for(const id of ['duration','duration-unit','rate','record','wav-record']){
  $(id).addEventListener('input',updateManualCaptureBudget);
  $(id).addEventListener('change',updateManualCaptureBudget);
 }
@@ -486,7 +508,7 @@ async function startCapture(job=null,prepared=null) {
   if(capturePromise || usbTestRunning || !device)throw Error('Choose the RTL-SDR and finish any hardware test before capturing.');
   const freq=job?job.frequency:Number($('preset').value);
   const rate=job?job.sampleRate:Number($('rate').value);
-  const limit=job?job.durationSeconds:Number($('duration').value);
+  const limit=job?job.durationSeconds:readManualSeconds();
   const recording=job?job.saveRaw:$('record').checked;
   const recordingWav=job?Boolean(job.saveWav):$('wav-record').checked;
   const budget=captureBudget(limit,rate,recording,{fileStreaming:Boolean(prepared?.writable)});
@@ -696,7 +718,7 @@ $('start').addEventListener('click',()=>{
  void (async()=>{
    let prepared=null;
    try{
-     prepared=await selectRecordingFiles(Number($('duration').value),Number($('rate').value),
+     prepared=await selectRecordingFiles(readManualSeconds(),Number($('rate').value),
        $('record').checked,$('wav-record').checked,
        {at:new Date(),freq:Number($('preset').value)});
      await startCapture(null,prepared);
@@ -889,6 +911,57 @@ function scheduleFrequencyChoices(family,pass=null){
   }
   return options;
 }
+function scheduleBrowserSegments(pass,choices){
+ const plan=segmentedCapturePlan({
+   startMs:choices.when,totalSeconds:choices.durationSeconds,
+   rate:choices.sampleRate,saveRaw:choices.saveRaw,saveWav:choices.saveWav,
+   passEndMs:pass.los
+ });
+ const groupId=String(pass.id)+":"+String(choices.frequency)+":"+plan.groupId;
+ const entries=plan.segments.map(part=>{
+   const job=createScheduledPass(pass,{
+     ...choices,when:part.when,durationSeconds:part.durationSeconds,
+     diskStreamPrepared:false,wavDiskPrepared:false
+   });
+   if(plan.segmentCount>1){
+     job.groupId=groupId;job.segmentIndex=part.index;
+     job.segmentCount=part.count;job.requestedSeconds=plan.requestedSeconds;
+     job.unrecordedGapSeconds=plan.unrecordedGapSeconds;
+     job.message='Segment '+part.index+'/'+part.count+
+       ' · '+part.durationSeconds+' s, '+(part.estimatedBytes/1e6).toFixed(1)+
+       ' MB. '+plan.unrecordedGapSeconds+
+       ' s total unrecorded RF reset gaps. Files are separate, not contiguous baseband.';
+   }
+   job.estimatedBytes=part.estimatedBytes;
+   return job;
+ });
+ return {plan,jobs:entries};
+}
+function assertNoCaptureConflicts(proposed,excludeIds=[]){
+ const ignored=new Set(excludeIds);
+ for(const candidate of proposed){
+   if(jobs.some(j=>!ignored.has(j.id)&&['armed','starting','running'].includes(j.state)&&
+     (j.id===candidate.id||
+      candidate.when<j.when+j.durationSeconds*1000+20000&&
+      candidate.when+candidate.durationSeconds*1000>j.when-20000)))
+     throw Error('Single RTL-SDR is already reserved by a different capture. Change the time.');
+ }
+}
+function addScheduledBatch(batch){
+ // Transactional: prevalidate every segment before mutating the live calendar.
+ assertNoCaptureConflicts(batch.jobs);
+ for(const job of batch.jobs)jobs.push(job);
+ jobs.sort((a,b)=>a.when-b.when);
+ return batch.jobs.length;
+}
+function scheduleBatchText(batch){
+ return batch.plan.segmentCount===1?
+   batch.plan.requestedSeconds+' s · one output per selected format':
+   batch.plan.requestedSeconds+' s total as '+
+   batch.plan.segmentCount+' calendar entries (each ≤'+batch.plan.capacitySeconds+
+   ' s), '+batch.plan.unrecordedGapSeconds+
+   ' s of unrecorded receiver resets. Allow multiple downloads in Chromium.';
+}
 function appendPass(pass){
   const item=document.createElement('div');item.className='pass';
   const strong=document.createElement('strong');strong.textContent=pass.name+' · '+pass.family.toUpperCase();
@@ -945,11 +1018,17 @@ function appendPass(pass){
   }
   frequencyLabel.append(frequency);
   const durationLabel=document.createElement('label');
-  durationLabel.textContent='Actual RF sample length · manual seconds';
+  durationLabel.textContent='Total RF recording length';
   const duration=document.createElement('input');
   duration.type='number';duration.min='1';duration.max='900';duration.step='1';
   duration.inputMode='numeric';duration.value='15';duration.required=true;
   durationLabel.append(duration);
+  const unitLabel=document.createElement('label');unitLabel.textContent='Length unit';
+  const unit=document.createElement('select');
+  for(const [key,label] of [['seconds','Seconds'],['minutes','Minutes']]){
+    const option=document.createElement('option');option.value=key;option.textContent=label;unit.append(option);
+  }
+  unitLabel.append(unit);wireDurationUnit(duration,unit);
   const rateLabel=document.createElement('label');rateLabel.textContent='Sample rate';
   const rate=document.createElement('select');
   for(const hz of [1024000,2048000]){
@@ -975,7 +1054,7 @@ function appendPass(pass){
   localLink.rel="noopener noreferrer";localLink.target="_blank";
   localLink.textContent="Debian / Firefox alternative: use the local RTL-SDR app (no WebUSB or browser file limit)";
   const explanation=document.createElement('p');explanation.className='hint schedule-wide';
-  explanation.textContent='Local device time. Choose 1–900 seconds, limited by pass length and 2 GB raw IQ file cap. Above 128 MiB you must select a writable local .cu8 file now in Chromium; other browsers need the optional native receiver. A scheduled capture only runs with this browser OPEN, VISIBLE and AWAKE.';
+  explanation.textContent='Enter total seconds or minutes (up to 15 min). Foreground Chromium splits long browser recordings into separate ≤60 s RF files in the calendar (≤32 s for 2.048 MS/s CU8). A 2 s unrecorded receiver-restart gap is scheduled between parts. Browser may require permission for multiple downloads. Native desktop survey mode uses ≤180 s segments. Keep this tab OPEN, VISIBLE and AWAKE.';
   const alert=document.createElement('p');alert.className='pass-schedule-error schedule-wide';alert.setAttribute('role','status');
   const confirm=document.createElement('button');confirm.type='submit';confirm.textContent='Confirm scheduled RF scan';
   const budgetLabel=document.createElement('p');
@@ -983,69 +1062,54 @@ function appendPass(pass){
   budgetLabel.setAttribute('role','status');
   const refreshBudget=()=>{
     try{
-      const plan=inspectCaptureStorage(Number(duration.value),Number(rate.value),raw.checked,wav.checked);
-      budgetLabel.textContent=(plan.rawDisk||plan.wavDisk?
-        "Select local "+(plan.rawDisk&&plan.wavDisk?"folder":"file")+" NOW for scheduled recording. ":
-        "Short outputs saved in memory/downloads. ")+
-        (raw.checked?"CU8 "+(plan.iq.estimatedBytes/1e6).toFixed(0)+" MB. ":"")+
-        (wav.checked?"Real FM WAV "+(plan.audio.estimatedBytes/1e6).toFixed(1)+" MB. ":"")+
-        "Browser tab must remain visible and awake.";
+      const seconds=durationToSeconds(duration.value,unit.value);
+      const rateHz=Number(rate.value);
+      const start=parseLocalScheduleTime(input.value);
+      const plan=segmentedCapturePlan({
+        startMs:start,totalSeconds:seconds,rate:rateHz,
+        saveRaw:raw.checked,saveWav:wav.checked,passEndMs:pass.los
+      });
+      budgetLabel.textContent=scheduleBatchText({plan})+
+        " · "+(plan.estimatedBytes/1e6).toFixed(1)+
+        " MB total (separate files). Each part is planned at its exact local time. "+
+        (nativeLocal()?"Native app may record a single longer continuous IQ file; surveys split at 180 s.":
+        "This tab must stay visible; allow multiple automatic downloads.");
     }catch(error){budgetLabel.textContent=String(error?.message||error);}
   };
-  for(const element of [duration,rate,raw,wav])element.addEventListener('change',refreshBudget);
+  for(const element of [duration,unit,rate,raw,wav,input])element.addEventListener('change',refreshBudget);
   duration.addEventListener('input',refreshBudget);rate.addEventListener('input',refreshBudget);
   refreshBudget();
-  form.append(timeLabel,frequencyLabel,durationLabel,rateLabel,saveLabel,wavLabel,budgetLabel,localLink,explanation,alert,confirm);
+  form.append(timeLabel,frequencyLabel,durationLabel,unitLabel,rateLabel,saveLabel,wavLabel,budgetLabel,localLink,explanation,alert,confirm);
   form.addEventListener('submit',async event=>{
     event.preventDefault();
-    let prepared=null;
     confirm.disabled=true;
     try{
       const selectedTime=parseLocalScheduleTime(input.value);
-      const seconds=Number(duration.value),chosenRate=Number(rate.value);
+      const seconds=durationToSeconds(duration.value,unit.value),chosenRate=Number(rate.value);
       if(nativeLocal()){
         const job=await nativeScheduledPass(pass,{
           when:selectedTime,durationSeconds:seconds,frequency:Number(frequency.value),
           sampleRate:chosenRate,saveRaw:raw.checked,saveWav:wav.checked
         });
-        alert.textContent="Debian local SDR scheduled "+job.satellite+" · "+
-          new Date(job.run_at).toLocaleString()+" · "+job.capture_seconds+" seconds · "+
-          (job.estimated_bytes/1e6).toFixed(0)+" MB estimated. The native app must remain running; the browser may close.";
-        log("Native job "+job.id+" armed; RTL-SDR stays idle until start time.");
+        const count=job.scheduled_count||1;
+        alert.textContent="Native receiver armed "+count+" separate calendar capture(s) for "+
+          seconds+" s total"+(count>1?" · "+job.unrecorded_gap_seconds+
+          " s of receiver reset gaps.":"")+
+          ". The Qt/native service must remain running; browser may close.";
+        log("Native scheduler armed "+count+" RF job(s); SDR remains free until start.");
         return;
       }
-      const plan=inspectCaptureStorage(seconds,chosenRate,raw.checked,wav.checked);
-      const newJob=createScheduledPass(pass,{
+      const batch=scheduleBrowserSegments(pass,{
         when:selectedTime,durationSeconds:seconds,
         sampleRate:chosenRate,frequency:Number(frequency.value),
-        saveRaw:raw.checked,saveWav:wav.checked,
-        diskStreamPrepared:plan.rawDisk,wavDiskPrepared:plan.wavDisk
+        saveRaw:raw.checked,saveWav:wav.checked
       });
-      if(jobs.some(j=>j.id===newJob.id&&j.state==='armed'))
-        throw Error('This satellite/date/frequency is already scheduled.');
-      for(const other of jobs){
-        if(!['armed','starting','running'].includes(other.state))continue;
-        if(newJob.when<other.when+other.durationSeconds*1000+20000&&
-           newJob.when+newJob.durationSeconds*1000>other.when-20000)
-          throw Error('The single SDR is already reserved for an overlapping capture.');
-      }
-      // Pick the disk file NOW, during the form-submit gesture, never at a
-      // later unattended scheduled start when a new chooser is impossible.
-      if(plan.rawDisk||plan.wavDisk){
-        prepared=await selectRecordingFiles(seconds,chosenRate,raw.checked,wav.checked,{
-          job:newJob,at:new Date(newJob.when),freq:newJob.frequency
-        });
-      }
-      jobs.push(newJob);
-      if(prepared)preparedLongStreams.set(newJob.id,prepared);
-      prepared=null;
-      jobs.sort((a,b)=>a.when-b.when);
-      alert.textContent='Scheduled '+fmtTime(newJob.when)+' for '+seconds+
-        ' s · '+(newJob.frequency/1e6).toFixed(3)+' MHz'+
-        ((plan.rawDisk||plan.wavDisk)?'. Local disk output selected; do not close this tab.':'.')+
-        ' See calendar for exact end time.';
-      log('User armed '+newJob.name+' for '+fmtTime(newJob.when)+
-        ' · '+seconds+' s · CU8 '+plan.iq.mode+' / WAV '+plan.audio.mode+'. No RF capture started yet.');
+      const count=addScheduledBatch(batch);
+      alert.textContent='Armed '+count+' calendar task(s) · '+scheduleBatchText(batch)+
+        ' · '+(batch.plan.estimatedBytes/1e6).toFixed(1)+
+        ' MB. Each task produces its own file; receiver reset gaps are NOT captured.';
+      log('User armed '+count+' separate RF capture(s) for '+pass.name+
+        ': '+scheduleBatchText(batch));
       renderJobs();
       if(device&&!capturePromise){
         await closeDevice(); // do not monopolize USB while waiting
@@ -1053,7 +1117,6 @@ function appendPass(pass){
       }
       document.getElementById('schedule-center')?.scrollIntoView({behavior:'smooth',block:'nearest'});
     }catch(error){
-      if(prepared?.writable||prepared?.wavWritable)await abortLongCapture(prepared);
       alert.textContent='Could not schedule: '+String(error?.message||error)+
         (nativeLocal()?'':'. In Firefox open the Debian native app on http://127.0.0.1:8791/browser/index.html to record without WebUSB/File System Access.');
     }finally{confirm.disabled=false;}
@@ -1144,7 +1207,7 @@ function readableJobState(job,now=Date.now()){
  if(action==='waiting-receiver')return 'due / waiting for free receiver';
  if(action==='start')return 'due now';
  if(action==='missed')return 'expired';
- return 'armed / '+secondsToJob(job,now)+' s remaining';
+ return 'armed / '+formatCountdown(job.when-now)+' remaining';
 }
 let browserCalendarSignature="";
 const browserCalendarDay=$('browser-calendar-date');
@@ -1153,87 +1216,82 @@ function showCalendarEdit(job,card){
  if(job.state!=='armed')return;
  const existing=card.querySelector('.calendar-edit');
  if(existing){existing.remove();return;}
+ const series=job.groupId?jobs.filter(j=>j.groupId===job.groupId):[job];
+ if(series.some(j=>j.state!=='armed')){
+   status('schedule-readiness','A segment of this series has already begun. Only pending segments may be cancelled individually.');
+   return;
+ }
+ const base=series.reduce((a,j)=>j.when<a.when?j:a,series[0]);
+ const total=series.reduce((n,j)=>n+j.durationSeconds,0);
  const form=document.createElement('form');form.className='calendar-edit';
  const addField=(name,control)=>{
    const label=document.createElement('label');label.textContent=name;label.append(control);form.append(label);
  };
  const time=document.createElement('input');time.type='datetime-local';
- time.required=true;time.value=localDateInput(job.when);
- addField('Start · device local time',time);
+ time.required=true;time.value=localDateInput(base.when);
+ addField('Series start · device local time',time);
  const freq=document.createElement('select');
- const choices=scheduleFrequencyChoices(job.family,{id:job.passId});
- if(!choices.some(v=>v[0]===job.frequency))choices.unshift([job.frequency,'Current: '+(job.frequency/1e6).toFixed(3)+' MHz']);
+ const choices=scheduleFrequencyChoices(base.family,{id:base.passId});
+ if(!choices.some(v=>v[0]===base.frequency))choices.unshift([base.frequency,'Current: '+(base.frequency/1e6).toFixed(3)+' MHz']);
  for(const [hz,name] of choices){
    if(hz<24000000||hz>1750000000)continue;
    const o=document.createElement('option');o.value=String(hz);o.textContent=name;freq.append(o);
  }
- freq.value=String(job.frequency);addField('Known downlink frequency',freq);
+ freq.value=String(base.frequency);addField('Downlink frequency',freq);
  const seconds=document.createElement('input');seconds.type='number';
  seconds.min='1';seconds.max='900';seconds.step='1';seconds.inputMode='numeric';
- seconds.value=String(job.durationSeconds);
- addField('RF sample length · seconds (1–900, disk file for longer IQ)',seconds);
+ seconds.value=String(total);
+ addField('Total recording length (all segments)',seconds);
+ const unit=document.createElement('select');
+ for(const [key,label] of [['seconds','Seconds'],['minutes','Minutes']]){
+   const o=document.createElement('option');o.value=key;o.textContent=label;unit.append(o);
+ }
+ addField('Length unit',unit);wireDurationUnit(seconds,unit);
  const rate=document.createElement('select');
  for(const value of [1024000,2048000]){
    const o=document.createElement('option');o.value=String(value);o.textContent=(value/1e6).toFixed(3)+' MS/s';rate.append(o);
  }
- rate.value=String(job.sampleRate);addField('Sample rate',rate);
- const rawToggle=document.createElement('input');rawToggle.type='checkbox';rawToggle.checked=Boolean(job.saveRaw);
+ rate.value=String(base.sampleRate);addField('Sample rate',rate);
+ const rawToggle=document.createElement('input');rawToggle.type='checkbox';rawToggle.checked=Boolean(base.saveRaw);
  addField('Record raw CU8',rawToggle);
- const wavToggle=document.createElement('input');wavToggle.type='checkbox';wavToggle.checked=Boolean(job.saveWav);
+ const wavToggle=document.createElement('input');wavToggle.type='checkbox';wavToggle.checked=Boolean(base.saveWav);
  addField('Record real FM WAV (48 kHz PCM)',wavToggle);
  const note=document.createElement('p');note.className='hint';
- note.textContent='Edits must fit the predicted pass and SDR availability. Long CU8/WAV edits require selecting a new local file/folder now, while the tab is visible.';
+ note.textContent='Editing this series replaces all '+series.length+
+   ' pending entries atomically with ≤60 s clips (≤32 s at 2.048 MS/s CU8). '+
+   'Receiver restarts cause brief gaps. Each clip is saved as an independent file.';
  form.append(note);
- const save=document.createElement('button');save.type='submit';save.textContent='Save job changes';form.append(save);
+ const save=document.createElement('button');save.type='submit';
+ save.textContent='Replan '+series.length+' task(s)';form.append(save);
  const error=document.createElement('p');error.className='status';error.setAttribute('role','status');form.append(error);
- form.addEventListener('submit',async event=>{
+ form.addEventListener('submit',event=>{
    event.preventDefault();save.disabled=true;
-   let newPrepared=null;
    try{
-     const durationSeconds=Number(seconds.value),sampleRate=Number(rate.value);
-     const plan=inspectCaptureStorage(durationSeconds,sampleRate,rawToggle.checked,wavToggle.checked);
-     const pass={id:job.passId,name:job.name,family:job.family,
-       aos:job.passAos,los:job.passLos};
-     const next=createScheduledPass(pass,{
-       when:parseLocalScheduleTime(time.value),durationSeconds,
-       sampleRate,frequency:Number(freq.value),
-       saveRaw:rawToggle.checked,saveWav:wavToggle.checked,
-       diskStreamPrepared:plan.rawDisk,wavDiskPrepared:plan.wavDisk
+     const totalSeconds=durationToSeconds(seconds.value,unit.value);
+     const pass={id:base.passId,name:base.name,family:base.family,
+       aos:base.passAos,los:base.passLos};
+     const next=scheduleBrowserSegments(pass,{
+       when:parseLocalScheduleTime(time.value),durationSeconds:totalSeconds,
+       sampleRate:Number(rate.value),frequency:Number(freq.value),
+       saveRaw:rawToggle.checked,saveWav:wavToggle.checked
      });
-     for(const other of jobs){
-       if(other===job||!['armed','starting','running'].includes(other.state))continue;
-       if(next.when<other.when+other.durationSeconds*1000+20000&&
-          next.when+next.durationSeconds*1000>other.when-20000)
-         throw Error('Single receiver conflict with another capture');
-     }
-     if(plan.rawDisk||plan.wavDisk)
-       newPrepared=await selectRecordingFiles(durationSeconds,sampleRate,rawToggle.checked,wavToggle.checked,{
-         job:next,at:new Date(next.when),freq:next.frequency
-       });
-     const previousId=job.id;
-     releaseScheduledStream(job);
-     const mission=Object.entries(AUTO_TARGETS).find(([_,x])=>
-       x.frequencyHz===next.frequency&&x.norad===Number(job.passId));
-     Object.assign(job,next,{
-       createdAt:job.createdAt,missionId:mission?.[0]||undefined,
-       message:'Edited by operator. Browser must remain visible and awake.'
-     });
-     if(newPrepared){preparedLongStreams.set(job.id,newPrepared);newPrepared=null;}
-     jobs.sort((a,b)=>a.when-b.when);
-     form.remove();
-     browserCalendarSignature='';renderJobs();
-     status('schedule-readiness',"Updated "+previousId+" to "+durationSeconds+
-       " seconds; SDR remains released.");
-   }catch(error){
-     if(newPrepared?.writable||newPrepared?.wavWritable)await abortLongCapture(newPrepared);
-     error.textContent='Changes not saved: '+String(error?.message||error);
-   }finally{save.disabled=false;}
+     const originalIds=series.map(j=>j.id);
+     assertNoCaptureConflicts(next.jobs,originalIds);
+     for(const old of series)releaseScheduledStream(old);
+     const oldIds=new Set(originalIds);
+     jobs=jobs.filter(j=>!oldIds.has(j.id));
+     jobs.push(...next.jobs);jobs.sort((a,b)=>a.when-b.when);
+     form.remove();browserCalendarSignature='';renderJobs();
+     status('schedule-readiness','Replanned '+next.jobs.length+
+       ' RF clip(s) · '+scheduleBatchText(next)+' · SDR remains released.');
+   }catch(err){error.textContent='Replan not saved: '+String(err?.message||err);}
+   finally{save.disabled=false;}
  });
  card.append(form);
 }
 function paintBrowserCalendar(force=false){
  const day=browserCalendarDay.value;
- const signature=day+'|'+jobs.map(j=>[j.id,j.when,j.state,j.frequency,j.durationSeconds].join(':')).join('|');
+ const signature=day+'|'+jobs.map(j=>[j.id,j.when,j.state,j.frequency,j.durationSeconds,j.segmentIndex,j.segmentCount].join(':')).join('|');
  const editingCard=$('browser-calendar-grid').querySelector('.calendar-edit')?.closest('.sat-calendar-job');
  const editedJob=jobs.find(j=>j.id===editingCard?.dataset.jobId);
  if(!force&&editingCard&&editedJob?.state==='armed')return;
@@ -1261,7 +1319,8 @@ $('browser-calendar-next').addEventListener('click',()=>{
 let lastRenderedJobCardsSignature='';
 function jobCardsSignature(){
  return JSON.stringify(jobs.map(j=>[j.id,j.state,j.when,j.until,j.frequency,
-   j.durationSeconds,j.sampleRate,j.saveRaw,j.message,j.downloadAvailable,
+   j.durationSeconds,j.sampleRate,j.saveRaw,j.saveWav,j.segmentIndex,j.segmentCount,
+   j.message,j.downloadAvailable,
    j.report,lastScheduledFile?.jobId===j.id]));
 }
 function renderJobs(){
@@ -1289,14 +1348,17 @@ function renderJobs(){
  for(const job of [...jobs].sort((a,b)=>a.when-b.when)){
    const panel=document.createElement('div');panel.className='scheduled-job';
    panel.dataset.state=job.state;panel.dataset.jobId=job.id;
-   const title=document.createElement('h4');title.textContent=job.name+' · '+(job.frequency/1e6).toFixed(3)+' MHz';
+   const title=document.createElement('h4');title.textContent=job.name+' · '+(job.frequency/1e6).toFixed(3)+' MHz'+
+     (job.segmentCount?' · Part '+job.segmentIndex+'/'+job.segmentCount:'');
    const statusLine=document.createElement('p');statusLine.className='job-state';
    statusLine.textContent=readableJobState(job,now);
    const timings=document.createElement('p');
    timings.textContent='Scheduled start (local): '+fmtTime(job.when)+
      ' · pass ends '+fmtTime(job.until)+
      ' · '+job.durationSeconds+' s · '+(job.sampleRate/1e6)+' MS/s'+
-     ' · '+(job.saveRaw?'Raw IQ + power analysis':'Power analysis only');
+     (job.segmentCount?' · PART '+job.segmentIndex+'/'+job.segmentCount+
+       ' · ends '+fmtTime(job.when+job.durationSeconds*1000):'')+
+     ' · '+outputSelectionText(job.saveRaw,job.saveWav);
    const message=document.createElement('p');
    message.textContent=job.message||'Waiting for browser scheduler.';
    const controls=document.createElement('div');controls.className='line';
@@ -1502,45 +1564,55 @@ async function runAutoMission({mode=$('auto-mode').value,goal=$('auto-coverage')
     if(!tleEntries.length)await refreshOrbitalCatalog();
     if(!tleEntries.length)throw Error('Could not load TLEs. Import a TLE text file, then retry.');
     if(!passes.length)await calculateOrbitalPasses();
-    const durationSeconds=Number($('auto-browser-seconds').value);
-    if(!Number.isInteger(durationSeconds)||durationSeconds<8||durationSeconds>60)
-      throw Error('Choose a browser capture length between 8 and 60 seconds.');
+    const durationSeconds=readAutoSeconds();
     const autoRaw=$('auto-save-raw').checked,autoWav=$('auto-save-wav').checked;
     if(['iss-images','images','all'].includes(mode)&&!autoRaw&&!autoWav)
       throw Error('Choose at least CU8 or WAV for automatic ISS SSTV image capture. Both are allowed.');
     const proposal=selectAutomaticPasses(passes,{
       mode,goal,durationSeconds,now:Date.now(),maxJobs:6,existingJobs:jobs
     });
-    let armed=0;
+    let armed=0,groups=0;
+    const skipped=[...proposal.skipped];
     for(const item of proposal.scheduled) {
-      const job=createScheduledPass(item.pass,{
+      const choices={
         when:item.when,durationSeconds:item.durationSeconds,
         sampleRate:item.sampleRate,frequency:item.frequency,
-       saveRaw:item.missionId==='iss-sstv'?autoRaw:item.saveRaw,
-       saveWav:item.missionId==='iss-sstv'?autoWav:false
-      });
-      if(jobs.some(j=>j.id===job.id&&['armed','starting','running'].includes(j.state)))continue;
-      job.missionId=item.missionId;
-      job.coverage=item.coverage;
-      job.dataKind=item.dataKind;
-      job.estimatedBytes=(item.missionId==='iss-sstv')?
-        (job.saveRaw?item.durationSeconds*item.sampleRate*2:0)+
-        (job.saveWav?wavOutputPlan(item.durationSeconds,true).estimatedBytes:0):
-        item.estimatedBytes;
-      job.shortfallSeconds=item.shortfallSeconds;
-      job.message='Plan: '+item.durationSeconds+' s · ~'+Math.round(job.estimatedBytes/1e6)+
-        ' MB · '+item.dataKind+' · '+
-        (item.missionId==='iss-sstv'?outputSelectionText(job.saveRaw,job.saveWav)+' · ':'')+
-        item.coverage+'; '+item.limitation;
-      jobs.push(job);armed++;
+        saveRaw:item.missionId==='iss-sstv'?autoRaw:item.saveRaw,
+        saveWav:item.missionId==='iss-sstv'?autoWav:false
+      };
+      try{
+        const batch=scheduleBrowserSegments(item.pass,choices);
+        assertNoCaptureConflicts(batch.jobs);
+        for(const job of batch.jobs){
+          job.missionId=item.missionId;
+          job.coverage=item.coverage;
+          job.dataKind=item.dataKind;
+          job.shortfallSeconds=item.shortfallSeconds;
+          job.message=(job.segmentCount?
+            'Part '+job.segmentIndex+'/'+job.segmentCount+' · ':'')+
+            'Plan: '+job.durationSeconds+' s · ~'+
+            Math.round(job.estimatedBytes/1e6)+' MB · '+
+            item.dataKind+' · '+item.coverage+'; '+item.limitation+
+            (job.segmentCount?' Separate file; RF restart gaps are not recorded.':'');
+        }
+        jobs.push(...batch.jobs);
+        armed+=batch.jobs.length;groups++;
+      }catch(error){
+        skipped.push({name:item.pass.name,reason:String(error?.message||error)});
+      }
     }
     jobs.sort((a,b)=>a.when-b.when);
     renderJobs();
     statusBox.textContent=armed?
-      'Armed '+armed+' non-overlapping RF candidate pass(es). ISS selected outputs: '+
-      outputSelectionText(autoRaw,autoWav)+'. USB is released while waiting. Browser clips max out at 60 s / 128 MiB; Meteor full imagery requires a native disk capture. '+proposal.skipped.length+' skipped; '+proposal.skipped.map(x=>x.reason).slice(0,2).join(' · ')+' Keep this tab VISIBLE and AWAKE.':
-      'No feasible passes for this data goal. '+proposal.skipped.map(x=>x.reason).slice(0,3).join(' · ')+' You can choose Quick RF sample or use the optional local receiver for full-pass imaging.';
-    log('Automatic mission plan: '+armed+' RF recording jobs armed, '+proposal.skipped.length+' skipped; no device is currently in use.');
+      'Armed '+armed+' SEPARATE RF files/calendar tasks in '+groups+
+      ' satellite pass(es). ISS outputs: '+outputSelectionText(autoRaw,autoWav)+
+      '. Each CU8 clip is ≤60 s (≤32 s at 2.048 MS/s). Gaps between files are NOT recorded; allow multiple Chromium downloads. '+
+      skipped.length+' skipped; '+skipped.map(x=>x.reason).slice(0,2).join(' · ')+
+      ' Keep tab VISIBLE, OPEN and AWAKE.':
+      'No feasible passes for this data goal. '+skipped.map(x=>x.reason).slice(0,3).join(' · ')+
+      ' Reduce duration, choose Quick RF sample, or use the native receiver for continuous IQ.';
+    log('Automatic segmented mission plan: '+armed+' independent RF jobs for '+groups+
+      ' passes, '+skipped.length+' skipped; no device is currently in use.');
     if(armed)document.getElementById('schedule-center')?.scrollIntoView({behavior:'smooth',block:'nearest'});
   }catch(error){
     statusBox.textContent='Auto schedule not armed: '+String(error?.message||error)+
@@ -1590,7 +1662,7 @@ try {
   const transferredSeconds=sessionStorage.getItem('tihulu-auto-browser-seconds');
   sessionStorage.removeItem('tihulu-auto-browser-seconds');
   if(transferredSeconds!==null&&Number.isInteger(Number(transferredSeconds))&&
-     Number(transferredSeconds)>=8&&Number(transferredSeconds)<=60)
+     Number(transferredSeconds)>=8&&Number(transferredSeconds)<=900)
     $('auto-browser-seconds').value=transferredSeconds;
 } catch(_error) { /* Storage unavailable: keep safe full-data default. */ }
 // Same-tab transfer from the Images & Data recording-formats picker.
