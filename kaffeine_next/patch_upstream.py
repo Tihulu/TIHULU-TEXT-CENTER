@@ -161,8 +161,8 @@ def transform(files):
     # playing mux. Kaffeine's original Channels dialog deliberately
     # provides "Current Transponder" when the live view owns the tuner.
     # Add an explicit, confirmation-protected full scanner instead.
-    change(tab, '#include <QMenu>\\n',
-           '#include <QMenu>\\n#include <QMessageBox>\\n')
+    change(tab, '#include <QMenu>\n',
+           '#include <QMenu>\n#include <QMessageBox>\n')
     change(tab, '''\tmenu->addAction(collection->addAction(QLatin1String("dvb_channels"), channelsAction));
 ''', '''\tmenu->addAction(collection->addAction(QLatin1String("dvb_channels"), channelsAction));
 \tQAction *fullScanAction = new QAction(
