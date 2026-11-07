@@ -79,7 +79,11 @@ def approved_asset(url):
 
 class BundledAssets(QWebEngineUrlSchemeHandler):
     def requestStarted(self,job):
-        path=approved_asset(job.requestUrl())
+        source=job.requestUrl()
+        path=approved_asset(source)
+        print("TIHULU-ASSET",source.toString(), "host="+source.host(),
+              "path="+source.path(),
+              "file="+str(path) if path else "BLOCKED",flush=True)
         if path is None:
             job.fail(job.UrlNotFound)
             return
@@ -88,8 +92,10 @@ class BundledAssets(QWebEngineUrlSchemeHandler):
             buffer=QBuffer(job)
             buffer.setData(data)
             buffer.open(QIODevice.ReadOnly)
+            print("TIHULU-ASSET reply",len(data),str(path.suffix),flush=True)
             job.reply(TYPES[path.suffix.lower()],buffer)
-        except OSError:
+        except OSError as exc:
+            print("TIHULU-ASSET failure",str(exc),flush=True)
             job.fail(job.RequestFailed)
 
 class RestrictedPage(QWebEnginePage):
@@ -326,6 +332,8 @@ def main(argv=None):
     check_script="""JSON.stringify({
         loaded:document.readyState,
         title:document.title,
+        htmlLen:document.documentElement?.outerHTML?.length || 0,
+        bodyLen:document.body?.innerHTML?.length || 0,
         url:location.href,
         auto:!!document.getElementById('auto-workflow'),
         city:!!document.getElementById('city-query'),
