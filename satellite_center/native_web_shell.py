@@ -47,6 +47,9 @@ TYPES={
 def register_scheme():
     scheme=QWebEngineUrlScheme(SCHEME)
     scheme.setSyntax(QWebEngineUrlScheme.Syntax.HostAndPort)
+    # Qt 5.15 refuses HostAndPort schemes without a default port.
+    # This port is internal URL parsing only; NO TCP/HTTP listener exists.
+    scheme.setDefaultPort(443)
     scheme.setFlags(QWebEngineUrlScheme.SecureScheme|
                     QWebEngineUrlScheme.LocalScheme|
                     QWebEngineUrlScheme.CorsEnabled|
