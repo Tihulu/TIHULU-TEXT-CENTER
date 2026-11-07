@@ -28,5 +28,28 @@ def main():
         raise ValueError("Unknown translation backend")
     print(json.dumps({"translated":translated}, ensure_ascii=False), flush=True)
 
+def serve_nllb():
+    from .translation_market import run_nllb
+    for line in sys.stdin:
+        if not line.strip():
+            continue
+        try:
+            if len(line) > 10000:
+                raise ValueError("Translation request is too long")
+            payload=json.loads(line)
+            text=payload["text"]
+            source=payload["source"]
+            target=payload["target"]
+            if not isinstance(text,str) or not 0 < len(text) <= 1600:
+                raise ValueError("Invalid caption")
+            result={"translated":run_nllb(text,source,target)}
+        except (KeyError,TypeError,ValueError,RuntimeError,OSError) as err:
+            result={"error":str(err)[:300]}
+        print(json.dumps(result,ensure_ascii=False),flush=True)
+
+
 if __name__ == "__main__":
-    main()
+    if sys.argv[1:] == ["--serve-nllb"]:
+        serve_nllb()
+    else:
+        main()

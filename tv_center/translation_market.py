@@ -98,29 +98,38 @@ class TranslationModelMarket:
         return "Managed NLLB translator removed; Argos packages preserved"
 
 
-def run_nllb(text,source,target):
-    """Invoked inside the optional AI venv, no HTTP requests during inference."""
+from functools import lru_cache
+
+@lru_cache(maxsize=1)
+def _load_nllb():
     from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
     import torch
     location=TranslationModelMarket()
     if not location.status()["installed"]:
         raise RuntimeError("NLLB translation weights not installed")
-    if source not in LANG or target not in LANG:
-        raise ValueError("Unsupported language")
     tokenizer=AutoTokenizer.from_pretrained(
-        str(location.model),src_lang=LANG[source],
-        local_files_only=True,trust_remote_code=False)
+        str(location.model),local_files_only=True,trust_remote_code=False)
     model=AutoModelForSeq2SeqLM.from_pretrained(
         str(location.model),local_files_only=True,
         use_safetensors=True,trust_remote_code=False)
     model.eval()
     device="cuda" if torch.cuda.is_available() else "cpu"
     model.to(device)
+    return model,tokenizer,device,torch
+
+
+def run_nllb(text,source,target):
+    """Local model cached once per persistent worker, never per sentence."""
+    if source not in LANG or target not in LANG:
+        raise ValueError("Unsupported language")
+    model,tokenizer,device,torch=_load_nllb()
+    tokenizer.src_lang=LANG[source]
     data=tokenizer(text[:1600],return_tensors="pt",truncation=True,
                    max_length=256).to(device)
-    output=model.generate(**data,
-        forced_bos_token_id=tokenizer.convert_tokens_to_ids(LANG[target]),
-        max_new_tokens=180,num_beams=3)
+    with torch.inference_mode():
+        output=model.generate(**data,
+            forced_bos_token_id=tokenizer.convert_tokens_to_ids(LANG[target]),
+            max_new_tokens=180,num_beams=3)
     return tokenizer.batch_decode(output,skip_special_tokens=True)[0].strip()
 
 
