@@ -289,17 +289,17 @@ valid recommendation is applied to Kaffeine's existing audio+video MPEG-TS
 buffer; later changes have a 30-second cooldown, 0.75-second hysteresis and
 at most 0.5-second adjustment to avoid rapid playback stalls.
 
-Automatic TV delay is limited to **12 seconds** on normal Linux systems,
+Automatic TV delay is limited to **15 seconds** on normal Linux systems,
 **6 seconds** on Raspberry Pi 5 and a stricter value if the current
 transport-stream bitrate would consume more than roughly **48 MiB**.
-Manual playback delay continues to support 0–8 seconds. When the
+Manual playback delay supports 0–20 seconds; the 64 MiB native queue still limits what the hardware can safely buffer. When the
 observed lag is above the safe maximum, the UI warns that speech/text
 can remain late rather than pushing the buffer past its memory budget.
 
 **Accuracy limitation:** this is an *availability-lag estimator*, not
 speaker diarization, word-level Whisper timestamps or an independent
 audio/video lip-sync meter. It cannot reconstruct the exact position of
-each word inside a four-second audio chunk. Manual **Caption offset**
+each word inside a six-second audio chunk (with a short overlap). Manual **Caption offset**
 remains available for visual fine-tuning; automatic mode does not
 fabricate a precise text offset. Broadcaster Teletext is not used to
 train Whisper latency and changing the DVB service clears measurements.
@@ -348,6 +348,50 @@ VLC decoder failures and compare with DVB signal lock/UCB changes. When
 TV plays normally but the caption panel stutters, close the AI consumer
 temporarily to distinguish Whisper CPU saturation from playback.
 
+## Diagnosing missing words vs GPU inference
+
+This version has independent end-to-end timing and transport telemetry.
+
+- **Stage timings:** Teletext extraction, Whisper ASR, translation and
+  total duration are reported separately. A 6-second Whisper chunk
+  can take *longer than 6 seconds* when the CPU is too slow.
+- **Backlog:** remaining queued capture clips and MiB are shown. Workers
+  process clips in chronological order with a one-second overlapping
+  tail; a full queue reports missed seconds rather than silently claiming
+  there is no loss.
+- **TS continuity gaps:** the sidecar now measures MPEG-TS discontinuities
+  and requests a larger private UNIX socket receive buffer. Gaps can
+  originate from antenna reception **or from Kaffeine's nonblocking
+  sidecar packet sends**. This metric alone cannot blame the antenna.
+- **Faster-Whisper on CUDA:** when the optional CUDA Faster-Whisper
+  model/runtime is actually present, its large model is cached in GPU
+  memory for subsequent short clips instead of loading weights anew
+  for every clip. The whisper.cpp CLI path still starts an executable
+  for every chunk and can have substantial loading overhead.
+
+Use the read-only health command **without acquiring the DVB frontend**:
+
+~~~bash
+tihulu-tv-center ai-check
+~~~
+
+This prints the RTX/GPU/NPU discovery, selected backend, installed model,
+CUDA-runtime readiness and translator backend separately. A detected
+RTX 5080 is *not* proof that Whisper inference runs on the GPU.
+
+For the settings UI, use `tihulu-tv-center ai-market`. Install a
+multilingual GGML model and a compatible CUDA whisper.cpp runtime, choose
+**Auto** or **GPU** in the market, save the settings, and reopen Kaffeine's
+captions controller. If the output reports CPU, adjust the backend or
+model rather than increasing TV playback delay indefinitely.
+
+**Sync:** Automatic sync is optional (default OFF). Three real ASR
+samples are required before it recommends delaying both video and audio.
+The safe recommendation respects the current MPEG-TS bitrate and the
+native 64 MiB bounded FIFO. Speech cannot be aligned earlier than
+Whisper/translation finishes, and longer buffering is not a cure for
+missing or corrupt incoming TS packets.
+
 ## Known limitations and cautions
 
 Kaffeine itself uses **libVLC**. Existing VA-API/VDPAU, AAC-LATM, HEVC
@@ -366,7 +410,9 @@ native DVB/BDA backends are not implemented. iPhone/Android/browser
 access to the Linux receiver is cross-platform. Actual WinTV-soloHD
 and Raspberry Pi 5 acceptance tests remain pending.
 
-The caption controller is a separate always-on-top window; an embedded
-Kaffeine video OSD is a later UI improvement. Verify current KiKA/ARTE
-Teletext, German speech, translated Turkish subtitles, switching
-channels, and iPhone HLS before calling this a stable release.
+Kaffeine now includes the **experimental native on-video subtitle
+OSD**. Closing the separate settings panel does not stop the caption
+worker; use **Stop subtitles & Exit** to end it. This is source-build
+tested, but not yet accepted on the user's live WinTV-soloHD hardware.
+Verify current KiKA/ARTE Teletext, German speech, Turkish/English
+translation, switching channels, and iPhone HLS before a stable release.
