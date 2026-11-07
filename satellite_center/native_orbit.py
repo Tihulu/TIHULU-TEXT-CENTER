@@ -69,7 +69,9 @@ class OrbitEngine:
         for source,_,_ in key:
             f=self.station.directory/(source+".tle")
             if not f.is_file():
-                self.warnings.append(source+": missing cached TLE");continue
+                if source!="manual":
+                    self.warnings.append(source+": missing cached TLE")
+                continue
             age=time.time()-f.stat().st_mtime
             if age>7*86400:
                 self.warnings.append(source+": stale TLE over 7 days");continue
