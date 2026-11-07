@@ -34,8 +34,7 @@
 <option value="voice">ISS FM voice / audio (station mode dependent)</option>
 <option value="all">Images + text + voice (one receiver, no overlaps)</option>
 </select></label>
-<label>Native capture duration · seconds (8–900, blank = automatically fit pass)
-<input id="auto-recording-seconds" type="number" min="8" max="900" step="1" inputmode="numeric" placeholder="Auto: use visible pass"></label>
+<label>Recording length (empty = fit pass)<input id="auto-recording-seconds" type="number" min="8" max="7200" step="1" inputmode="numeric" placeholder="Auto: use visible pass"></label><label>Length unit<select id="auto-recording-unit"><option value="seconds">Seconds</option><option value="minutes">Minutes</option></select></label>
 <label>Recording goal<select id="auto-coverage-goal">
 <option value="full" selected>Capture as much of each visible pass as possible · prefer complete results</option>
 <option value="sample">Quick 60-second RF evidence samples · may omit images</option>
@@ -258,5 +257,5 @@
 </section>
 <footer>This is the web/PWA edition. The independent Linux Qt desktop uses native operating-system RF capture tools and is not an embedded browser. This tab does not automatically open USB, upload RF samples or fabricate satellite pictures; real reception and decoder success require actual evidence.</footer>
 </main>
-<script type="module" src="./reception.mjs?v=20261107-iss-band-diagnostic-v1"></script>
+<script type="module" src="./reception.mjs?v=20261107-chained-capture-v1"></script>
 </body></html>
