@@ -9,6 +9,7 @@ from datetime import datetime, timezone, timedelta
 import csv
 import json
 import math
+import os
 import re
 import shutil
 from pathlib import Path
@@ -2383,6 +2384,29 @@ def main(argv=None):
             assert any(f["properties"].get("status")=="ORBITAL_POSITION_ONLY"
                        for f in content["features"])
             window.show()
+            app.processEvents()
+            # Optional CI screenshots use synthetic orbital positions, never RF
+            # or a fabricated received picture. They are visual QA artifacts.
+            snapshot_dir=os.environ.get("TIHULU_UI_SNAPSHOT_DIR")
+            if snapshot_dir:
+                root=Path(snapshot_dir)
+                root.mkdir(parents=True,exist_ok=True)
+                for name,filename in (
+                    ("Overview","01-home.png"),
+                    ("Passes & Data","02-find-satellites.png"),
+                    ("Maps & Live","03-earth-map.png"),
+                    ("Auto reception","04-auto-receive.png"),
+                    ("Recordings & results","05-recordings.png"),
+                ):
+                    assert window._open_native_tab(name)
+                    if name=="Recordings & results":
+                        window.result_steps.setCurrentIndex(0)
+                    window.statusBar().showMessage(
+                        "UI PREVIEW ONLY · synthetic orbital example; NO physical RF acquisition")
+                    app.processEvents()
+                    assert window.grab().save(str(root/filename),"PNG"),filename
+                window._open_native_tab("Overview")
+                app.processEvents()
             assert not window.map_sky.grab().isNull()
             assert not window.map_earth.grab().isNull()
             QTimer.singleShot(100,app.quit)
