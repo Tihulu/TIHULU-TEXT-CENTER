@@ -33,6 +33,44 @@ system Kaffeine executable and personal channel database are preserved.
 Both Kaffeine builds may share settings, so back up settings before
 experimenting; close the original Kaffeine before starting the fork.
 
+## Kaffeine-style player and native antenna scan
+
+**There is now only one default television interface:** Kaffeine's original
+channel sidebar, live player, normal playback controls, EPG, channel editor,
+Teletext and recording UI. Opening either `tihulu-tv-center` or
+`tihulu-kaffeine` launches **Kaffeine's Television tab**. The separate
+Python player and w_scan_cpp scanner have been withdrawn from the default
+route; the old preview is available explicitly through
+`tihulu-tv-center legacy-player` for debugging only.
+
+To use the **actual native Kaffeine antenna scanner** on a device already
+known to receive the three DVB-T2 multiplexes:
+
+1. Quit any other Kaffeine or DVR program which owns the same DVB frontend.
+2. Open **Television → Configure Television → Device 1 → DVB-T2**.
+   Ensure **DVB-C Source = No Source** for an aerial antenna, and select
+   **Source = TIHULU tested: 538 / 586 / 626 MHz** for DVB-T2.
+   This targeted source uses the frequencies previously detected on the
+   owner's antenna, not fabricated channel entries. It is optional and
+   not a claim about other cities in Germany.
+3. Choose **Television → Channels / Antenna Scan** and select
+   **Terrestrial (T2)** as Source. Start Scan. Kaffeine itself tunes and
+   obtains channel service tables. When services appear, select TV/free-to-air
+   filters as desired, **Add Filtered** or **Add Selected**, then OK.
+4. Alternatively use Kaffeine's own **Autoscan** DVB-T2 source for a
+   broader real frequency sweep. It can take longer and may fail to
+   resolve services if RF signal or PLP selection is unstable.
+
+The targeted scan source is implemented *inside Kaffeine's own
+DvbManager::getTransponders* so it continues working even if the optional
+scanfile.dvb is missing or stale. This does not use w_scan_cpp, dvbv5-scan,
+Python USB access or WebUSB, and does not touch saved channel databases.
+
+For separate receiver health diagnostics (which must **not** take the tuner
+away from Kaffeine), run `tihulu-tv-center kaffeine-doctor`. Lock and
+C/N/UCB cannot be honestly measured while Kaffeine owns the tuner; use
+Kaffeine's own scanning UI metrics instead.
+
 ## Feature architecture
 
 - **Real TV:** upstream Kaffeine owns USB DVB device, discovery/scanning,
