@@ -4,6 +4,8 @@ import unittest
 from tv_center.core import read_channels, zap_argv, player_argv, Channel, parse_signal_log
 from tv_center.captions import ass_text, decode_segment
 from tv_center.bridge import TVBridge
+from tv_center.lan import MobileLAN
+from tv_center.streaming import hls_command
 from tv_center.ts import ServiceFilter
 
 class NativeTVTests(unittest.TestCase):
@@ -67,6 +69,27 @@ class NativeTVTests(unittest.TestCase):
         self.assertEqual(result, [0, 0x100, 0x200, 0x201, 0x202])
         self.assertTrue(filt.ready)
         self.assertEqual(filt.filtered_packets, 1)
+
+    def test_hls_is_bound_to_selected_dvb_service(self):
+        with tempfile.TemporaryDirectory() as root:
+            cmd = hls_command(771, Path(root))
+            self.assertIn("0:p:771:v:0", cmd)
+            self.assertIn("0:p:771:a:0", cmd)
+            self.assertIn("libx264", cmd)
+            with self.assertRaises(ValueError):
+                hls_command(0, Path(root))
+
+    def test_mobile_pairing_is_rate_limited(self):
+        lan = MobileLAN(lambda: {}, lambda p: None, lambda: None)
+        self.assertEqual(len(lan.pin), 6)
+        ticket, err = lan.accept_pin("192.168.1.1", lan.pin)
+        self.assertIsNone(err)
+        self.assertTrue(lan.authorized("tihulu_tv="+ticket))
+        self.assertFalse(lan.authorized(""))
+        other = MobileLAN(lambda: {}, lambda p: None, lambda: None)
+        for _ in range(5):
+            self.assertIsNotNone(other.accept_pin("192.168.1.2", "bad")[1])
+        self.assertIn("Too many", other.accept_pin("192.168.1.2", other.pin)[1])
 
     def test_bridge_refuses_lan_listener(self):
         with self.assertRaises(ValueError):
