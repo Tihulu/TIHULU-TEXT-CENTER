@@ -56,7 +56,7 @@ cat > "$PKG/usr/share/applications/tihulu-satellite-center.desktop" <<'EOF'
 Type=Application
 Name=TIHULU Satellite Center
 GenericName=Satellite SDR Receiver
-Comment=Native Qt Widgets SDR recording, planning and analysis
+Comment=Exact bundled website UI with OS-native USB SDR backend
 Exec=tihulu-satellite-center desktop
 Icon=tihulu-satellite
 Terminal=false
