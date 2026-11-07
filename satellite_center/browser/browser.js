@@ -159,7 +159,7 @@ function releaseScheduledStream(job){
 }
 function buildBrowserChain(pass,{when,totalSeconds,rate,frequency,raw,wav,excludeIds=[]}){
  const plan=planChainedCapture({startMs:when,totalSeconds,rate,raw,wav,untilMs:pass.los});
- const groupId='chain:'+pass.id+':'+when+':'+frequency+':'+Math.random().toString(36).slice(2,8);
+ const groupId='chain:'+pass.id+':'+when+':'+frequency+':'+String(++sessionCounter);
  const batch=plan.segments.map(segment=>{
    const job=createScheduledPass(pass,{when:segment.when,durationSeconds:segment.durationSeconds,
      sampleRate:rate,frequency,saveRaw:raw,saveWav:wav,
@@ -751,7 +751,7 @@ $('start').addEventListener('click',()=>{
      if(totalSeconds>60||(raw&&totalSeconds*rate*2>maxRecordBytes)){
        if(!device)throw Error('Connect the RTL-SDR before scheduling manual consecutive captures.');
        const plan=planChainedCapture({startMs:Date.now()+1500,totalSeconds,rate,raw,wav});
-       const groupId='manual:'+Date.now()+':'+Math.random().toString(36).slice(2,8);
+       const groupId='manual:'+Date.now()+':'+String(++sessionCounter);
        const chain=plan.segments.map(seg=>({
          id:groupId+':'+seg.index,chainId:groupId,
          chainIndex:seg.index,chainTotal:plan.segments.length,
