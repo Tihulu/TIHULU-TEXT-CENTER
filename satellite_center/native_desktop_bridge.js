@@ -233,10 +233,10 @@
         const armed=status.hardware?.receiver_enabled===true;
         say('usb-claim-result',
           'USB ACCESS DIAGNOSTIC PASS · '+String(result.state)+
-          '\\nOnly USB open/release was tested; no IQ sample was acquired by this action.'+
-          '\\nRF recording: '+(armed?'already enabled from a separate Connect action':
+          '\nOnly USB open/release was tested; no IQ sample was acquired by this action.'+
+          '\nRF recording: '+(armed?'already enabled from a separate Connect action':
             'DISABLED. Press the FIRST blue Connect & enable RF (USB + real IQ) button to activate.')+
-          '\\n\\nRaw USB evidence:\\n'+JSON.stringify(result,null,2));
+          '\n\nRaw USB evidence:\n'+JSON.stringify(result,null,2));
         say('device-status',armed
           ? 'USB open check passed · RF already enabled from prior Connect.'
           : 'USB open check passed · RF is still DISABLED. Click Connect & enable RF above.');
