@@ -367,7 +367,7 @@ class SatelliteWindow(QMainWindow):
         steps.setSpacing(12)
         self.home_auto=self._button("2   Auto schedule & capture",self._home_auto)
         self.home_analyze=self._button("3   Open & analyze a recording",self._home_analyze)
-        self.home_extract=self._button("4   Inspect & save results",self._home_extract)
+        self.home_extract=self._button("View decoded results",self._home_extract)
         for title,description,button in (
             ("1  Find a satellite",
              "Choose location, calculate passes, inspect IMAGE / AUDIO / TEXT / RF capabilities.",
@@ -666,6 +666,8 @@ class SatelliteWindow(QMainWindow):
         form.addRow("Estimated disk space",self.pass_cost)
         self.arm_pass=self._button("Arm selected RF capture",self.schedule_selected_pass)
         form.addRow(self.arm_pass)
+        self.pass_feedback=self._hint("Not scheduled yet.")
+        form.addRow(self.pass_feedback)
         body.addWidget(settings)
         settings.setVisible(False)
         self._render_pass_results()
@@ -1162,6 +1164,8 @@ class SatelliteWindow(QMainWindow):
             lambda visible:self.auto_expand.setText(
                 "Advanced recording settings  ▾" if visible else "Advanced recording settings  ▸"))
         body.addWidget(self.auto_settings)
+        self.auto_feedback=self._hint("Nothing scheduled yet. Select data above and press Calculate & schedule.")
+        body.addWidget(self.auto_feedback)
         body.addWidget(self._hint(
             "Scheduling needs valid TLEs, free disk space and one free SDR. "
             "IMAGE labels are protocol candidates; an image appears only if decoding succeeds."))
@@ -1281,9 +1285,10 @@ class SatelliteWindow(QMainWindow):
             "Pick an actual local file. Its data format will be displayed; "
             "a file name or format header cannot authenticate a satellite.")
         browse.addWidget(self.browse_file_info)
-        self._row(browse,
-                  self._button("Continue to analysis  →",
-                               lambda:self.result_steps.setCurrentIndex(1)),
+        self.continue_analysis=self._button(
+            "Continue to analysis  →",lambda:self.result_steps.setCurrentIndex(1))
+        self.continue_analysis.setEnabled(False)
+        self._row(browse,self.continue_analysis,
                   self._button("See generated results  →",
                                lambda:self.result_steps.setCurrentIndex(2)))
         analyze_controls=QHBoxLayout()
@@ -1588,8 +1593,13 @@ class SatelliteWindow(QMainWindow):
             self._render_files(state.get("archive",[]))
 
     def usb_test(self):
-        self._task("USB diagnostic",self.station.usb_test,
-                   lambda report:self.file_details.setPlainText(json.dumps(report,indent=2,default=str)))
+        def completed(report):
+            message=json.dumps(report,indent=2,default=str)
+            self.file_details.setPlainText(message)
+            QMessageBox.information(
+                self,"RTL-SDR diagnostic · read-only",
+                "This test does not record radio samples.\n\n"+message[:2800])
+        self._task("USB diagnostic",self.station.usb_test,completed)
 
     def refresh_tles(self):
         self._task("Public TLE refresh",self.station.refresh,
@@ -1704,9 +1714,15 @@ class SatelliteWindow(QMainWindow):
         mode=self.pass_mode.currentData()
         seconds=self.pass_seconds.value()
         start=datetime.fromtimestamp(self.pass_time.dateTime().toSecsSinceEpoch(),timezone.utc).isoformat()
+        def completed(job):
+            text=("Scheduled "+str(job.get("satellite","satellite"))+
+                  " · "+str(job.get("capture_seconds",seconds))+" seconds. "
+                  "The Qt app must be running to execute this job.")
+            self.pass_feedback.setText(text)
+            self.statusBar().showMessage(text,12000)
+            self.refresh_status()
         self._task("Arm scheduled RF",lambda:self.station.schedule(key,profile,mode,start,seconds),
-                   lambda job:(self.statusBar().showMessage("Armed native job "+job["id"]+
-                       "; browser not required",12000),self.refresh_status()))
+                   completed)
 
     def auto_schedule(self):
         missions=[mid for mid,box in self.mission_boxes.items() if box.isChecked()]
@@ -1718,9 +1734,21 @@ class SatelliteWindow(QMainWindow):
                 "elevation":self.auto_elev.value(),"max_jobs":self.auto_jobs.value(),
                 "coverage_goal":coverage,"duration_seconds":seconds,
                 "compute_mode":compute_mode,"compute_targets":compute_targets}
+        self.auto_feedback.setText("Calculating local satellite passes and checking receiver feasibility…")
         self._task("Auto mission planning",lambda:self.station.auto_schedule(missions,**params),
-                   lambda result:(self.file_details.setPlainText(json.dumps(result,indent=2,default=str)),
-                                  self.refresh_status()))
+                   self._auto_schedule_finished)
+
+    def _auto_schedule_finished(self,result):
+        count=int(result.get("scheduled_count",0))
+        skipped=result.get("skipped") or []
+        disabled=result.get("disabled_targets") or []
+        text=f"{count} real RF capture job(s) scheduled locally."
+        if skipped:text+=" "+str(len(skipped))+" candidate(s) skipped; "+str(skipped[0])
+        if disabled:text+=" Some selected decoders are unavailable: "+", ".join(map(str,disabled))
+        if not count:text="No feasible capture job scheduled. "+(" ".join(map(str,skipped[:2])) or "Check TLEs, elevation and receiver tools.")
+        self.auto_feedback.setText(text)
+        self.refresh_status()
+        self.statusBar().showMessage(text[:220],14000)
 
     def cancel_automatic(self):
         self._task("Cancel auto jobs",self.station.cancel_auto_missions,
@@ -1896,9 +1924,11 @@ class SatelliteWindow(QMainWindow):
         self.results_file_banner.setText(
             "Selected file: "+p.name+"  ·  Not independently attributed to a satellite")
         if not p.is_file():
+            self.continue_analysis.setEnabled(False)
             self.file_details.setPlainText("File no longer exists")
             return
         media_label, media_explanation = describe_local_file(p)
+        self.continue_analysis.setEnabled(True)
         self.results_file_banner.setText(
             "Selected: "+p.name+"  ·  "+media_label)
         self.browse_file_info.setText(media_explanation)
@@ -2016,7 +2046,9 @@ class SatelliteWindow(QMainWindow):
         if self.media_player is not None:self.media_player.stop()
 
     def decode_meteor(self,variant):
-        if not self.selected_path:return
+        if not self.selected_path:
+            return QMessageBox.information(
+                self,"Meteor decoding","Choose a real CU8 recording first.")
         name=Path(self.selected_path).name
         def done(result):
             self.decoded_paths=[self.station.archive/p for p in result.get("images",[])]
@@ -2267,7 +2299,7 @@ def main(argv=None):
             assert callable(window._map_export_geojson)
             assert window.home_auto.text().startswith("2 ")
             assert window.home_analyze.text().startswith("3 ")
-            assert window.home_extract.text().startswith("4 ")
+            assert window.home_extract.text()=="View decoded results"
             assert window.files.headerItem().text(1)=="Data type · format"
             assert window.output_files.headerItem().text(1)=="Data type · format"
             assert not window.auto_settings.isVisible()
