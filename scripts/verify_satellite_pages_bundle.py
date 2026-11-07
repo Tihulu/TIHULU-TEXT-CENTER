@@ -25,6 +25,7 @@ ASSETS = (
     "auto_reception_ui.mjs",
     "results_zip.mjs",
     "capture_duration.mjs",
+    "segmented_capture.mjs",
     "browser.js",
     "browser.css",
     "manifest.webmanifest",
