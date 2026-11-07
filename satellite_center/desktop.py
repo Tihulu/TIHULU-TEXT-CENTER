@@ -3845,6 +3845,33 @@ def main(argv=None):
             window.capture_sample_rate.setCurrentIndex(0)
             assert window.capture_seconds.maximum()==900
             assert len(window._offline_cities)==8084
+            # Same station state in Home and full planner: offline DE/TR
+            # country > real region > local city, then manual coordinates.
+            assert window.home_country.count()==3
+            assert window.home_station.findData("custom")>=0
+            assert window.home_station.findData("online")>=0
+            assert window.home_pass_sort.count()==7
+            assert window.home_pass_family.findData("meteor")>=0
+            assert window.home_pass_media.findData("Image")>=0
+            window.home_country.setCurrentIndex(window.home_country.findData("DE"))
+            region_index=window.home_region.findData("North Rhine-Westphalia")
+            assert region_index>=0, "Offline German Bundesland missing"
+            window.home_region.setCurrentIndex(region_index)
+            window.home_city_search.setText("huerth")
+            assert window.home_city_results.count()>0, "Home offline place search failed"
+            assert "Hürth" in window.home_city_results.item(0).text()
+            window._home_apply_city_item(window.home_city_results.item(0))
+            assert abs(window.lat.value()-50.87079)<0.0001
+            assert abs(window.home_lat.value()-window.lat.value())<0.00001
+            window.home_lon.setValue(7.12345)
+            assert abs(window.lon.value()-7.12345)<0.00001
+            window.lat.setValue(49.12345)
+            assert abs(window.home_lat.value()-49.12345)<0.00001
+            window.home_hours.setValue(48)
+            window.home_elev.setValue(25)
+            assert window._station_kwargs()["hours"]==48
+            assert window._station_kwargs()["elevation"]==25
+            assert window.city_region.findData("North Rhine-Westphalia")>=0
             # Native city search and station selection without geocoding.
             window.city_search.setText("huerth")
             window._search_offline_city("huerth")
@@ -3860,6 +3887,19 @@ def main(argv=None):
                 "los":(aos+timedelta(minutes=9)).isoformat(),
                 "max_elevation_deg":44.0,"profiles":["meteor"]}]})
             assert window.pass_list.topLevelItemCount()==1
+            assert window.home_pass_results.topLevelItemCount()==1
+            assert "METEOR" in window.home_pass_results.topLevelItem(0).text(0).upper()
+            window.home_pass_sort.setCurrentIndex(window.home_pass_sort.findData("high"))
+            assert window.home_pass_results.topLevelItemCount()==1
+            window.home_pass_media.setCurrentIndex(window.home_pass_media.findData("Text"))
+            assert window.home_pass_results.topLevelItemCount()==0
+            window.home_pass_media.setCurrentIndex(window.home_pass_media.findData("Image"))
+            assert window.home_pass_results.topLevelItemCount()==1
+            window._home_open_selected_pass()
+            assert window.tabs.tabText(window.tabs.currentIndex())=="Passes & Data"
+            assert window.pass_list.currentItem().data(0,Qt.UserRole)=="59051:synthetic"
+            assert not window.pass_settings.isHidden(), "Home pass must open editable schedule"
+            window._open_native_tab("Overview")
             assert window.pass_sort.count()==7
             assert window.pass_family_filter.findData("meteor")>=0
             assert window.tle_source.findData("amateur")>=0
