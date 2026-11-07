@@ -48,6 +48,7 @@ class CaptionTap:
         self.worker = None
         self.previous_original = ""
         self.previous_revision = -1
+        self.program_id = None
         self.sock = None
         self.packet_count = 0
         self.bad_packets = 0
@@ -93,6 +94,7 @@ class CaptionTap:
         previous_segment = b""
         previous_duration = 0.0
         from .continuous_captions import CapturedClip, prepended_overlap
+        from .mpegts import current_program_id
         while not self.stop.is_set():
             try:
                 data = self.sock.recv(188 * 32)
@@ -123,11 +125,26 @@ class CaptionTap:
                     self.bytes_per_second = 0.7 * self.bytes_per_second + 0.3 * measured_rate
                 self._rate_start = rate_now
                 self._rate_bytes = 0
+            # Kaffeine may switch services without reopening this sidecar.
+            # Never concatenate clips or deduplicate speech across TV channels.
+            observed_program = current_program_id(data)
+            if observed_program and observed_program != self.program_id:
+                if self.program_id is not None:
+                    chunks.clear()
+                    self.work_queue.clear()
+                    last = time.monotonic()
+                    previous_segment = b""
+                    previous_duration = 0.0
+                    self.previous_original = ""
+                    self.previous_revision = -1
+                    self._note_warning(
+                        "TV service changed; cleared previous-channel ASR queue.")
+                self.program_id = observed_program
             if self.packet_sink:
                 try:
                     self.packet_sink(data)
                 except (OSError, RuntimeError, ValueError) as exc:
-                    self.events.put(("warning", "Mobile packet relay: " + str(exc)[:100]))
+                    self._note_warning("Mobile packet relay: "+str(exc)[:100])
             options = self.current_options()
             if options.get("revision", 0) != last_revision:
                 chunks.clear()
