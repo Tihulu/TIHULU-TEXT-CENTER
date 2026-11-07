@@ -42,7 +42,7 @@ def describe_local_file(source):
             )
         return (
             kind,
-            "File signature matches. Actual media content is present on disk; "
+            "File header matches; complete media decoding is not checked. "
             "satellite origin and decoder authenticity are not independently verified.",
         )
     if suffix == ".txt":
