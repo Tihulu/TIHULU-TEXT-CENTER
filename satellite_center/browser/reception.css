@@ -48,3 +48,8 @@
 .reception-station h3{margin:0 0 10px;font-size:1rem}
 .reception-station .location-results{z-index:10}
 .reception-station .location-picker{width:100%}
+
+/* Local formats: show actual type while keeping provenance/verification separate. */
+.file-format-key{padding:10px 13px;border:1px solid #3b6487;border-radius:9px;background:#102b42;font-size:.9rem}
+.file-format-label{display:inline-block;font-weight:750;color:#bff0df;background:#16443d;border:1px solid #398b76;border-radius:8px;padding:5px 10px;font-size:.89rem}
+.file-format-explanation{color:#a8c8e4;font-size:.88rem}

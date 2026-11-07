@@ -2,7 +2,7 @@
 # User-local install: Debian/Ubuntu/Pop!_OS, Raspberry Pi OS, macOS arm64/x86_64.
 set -euo pipefail
 REPO="https://github.com/Tihulu/TIHULU-TEXT-CENTER.git"
-CHANNEL="${TIHULU_CHANNEL:-feature/satellite-center-standalone-2026-11-06}"
+CHANNEL="${TIHULU_CHANNEL:-feature/satellite-auto-discovery-integrated-2026-11-06}"
 APP_DIR="${TIHULU_APP_DIR:-$HOME/.local/share/tihulu-satellite-center-app}"
 BIN_DIR="$HOME/.local/bin"
 if ! command -v git >/dev/null; then echo "git is required; install git and rerun." >&2; exit 1; fi
@@ -20,17 +20,17 @@ fi
 if ! python3 -m venv "$APP_DIR/.venv-satellite"; then
   echo "Python venv missing. Debian/Raspberry Pi OS: sudo apt install python3-venv" >&2; exit 1
 fi
-"$APP_DIR/.venv-satellite/bin/python" -m pip install --disable-pip-version-check 'skyfield>=1.49,<2'
+"$APP_DIR/.venv-satellite/bin/python" -m pip install --disable-pip-version-check 'skyfield>=1.49,<2' 'PyQt5>=5.15,<6' 'numpy>=1.24,<3'
 mkdir -p "$BIN_DIR"
 cat > "$BIN_DIR/tihulu-satellite" <<EOF
 #!/bin/sh
 cd "$APP_DIR"
-exec "$APP_DIR/.venv-satellite/bin/python" -m satellite_center serve --port 8791 --open-browser
+exec "$APP_DIR/.venv-satellite/bin/python" -m satellite_center desktop
 EOF
 chmod 755 "$BIN_DIR/tihulu-satellite"
 
-# Standalone WebUSB window is the primary desktop shortcut; no local backend
-# is launched by it. Kept separate from the optional local companion command.
+# Browser-only WebUSB is secondary. On Debian/Firefox the PRIMARY launcher
+# starts the native loopback SDR backend; this avoids File System Access limits.
 WEB_URL="https://tihulu.github.io/TIHULU-TEXT-CENTER/satellite_center/browser/"
 WEB_LAUNCH="$BIN_DIR/tihulu-satellite-web"
 cat > "$WEB_LAUNCH" <<'EOF'
@@ -69,11 +69,29 @@ case "$(uname -s)" in
     mkdir -p "$HOME/.local/share/applications" "$icon_dir" "$png_dir"
     cp "$APP_DIR/satellite_center/assets/tihulu-satellite.svg" "$icon_dir/tihulu-satellite.svg"
     cp "$APP_DIR/satellite_center/assets/tihulu-satellite.png" "$png_dir/tihulu-satellite.png"
-    cat > "$HOME/.local/share/applications/tihulu-satellite-web.desktop" <<EOF
+    # The native Qt system .deb owns the single default menu icon.
+    if dpkg -s tihulu-satellite-center 2>/dev/null | grep -q "^Status: install ok installed"; then
+      echo "Qt system package installed: keep its System icon, skip user-local duplicate."
+    else
+      cat > "$HOME/.local/share/applications/tihulu-satellite.desktop" <<EOF
 [Desktop Entry]
 Type=Application
 Name=TIHULU Satellite Center
-Comment=WebUSB satellite receiver in a standalone Chromium window
+Comment=Native Qt Widgets SDR desktop, no browser needed
+Exec=$BIN_DIR/tihulu-satellite
+Icon=tihulu-satellite
+Terminal=false
+StartupNotify=true
+Categories=Education;Science;HamRadio;
+EOF
+    fi
+    # Browser/PWA icon is opt-in and never added by the normal installer.
+    if [ "${TIHULU_INSTALL_WEB_SHORTCUT:-0}" = "1" ]; then
+      cat > "$HOME/.local/share/applications/tihulu-satellite-web.desktop" <<EOF
+[Desktop Entry]
+Type=Application
+Name=TIHULU Satellite Center (Browser WebUSB)
+Comment=Optional separate Chromium WebUSB planner
 Exec=$WEB_LAUNCH
 Icon=tihulu-satellite
 Terminal=false
@@ -82,22 +100,12 @@ StartupWMClass=tihulu-satellite-web
 Categories=Education;Science;HamRadio;
 Keywords=RTL-SDR;Satellite;ISS;Meteor;WebUSB;
 EOF
-    cat > "$HOME/.local/share/applications/tihulu-satellite.desktop" <<EOF
-[Desktop Entry]
-Type=Application
-Name=TIHULU Satellite Center (Local Companion)
-Comment=Optional localhost radio decoding and scheduled satellite captures
-Exec=$BIN_DIR/tihulu-satellite
-Icon=tihulu-satellite
-Terminal=false
-StartupNotify=true
-Categories=Education;Science;HamRadio;
-EOF
+    fi
     command -v gtk-update-icon-cache >/dev/null 2>&1 && gtk-update-icon-cache -f "$HOME/.local/share/icons/hicolor" >/dev/null 2>&1 || true
-    echo "App icons registered: TIHULU Satellite Center (browser) and Local Companion."
-    echo "Pin the TIHULU Satellite Center launcher to the COSMIC dock from the Applications menu."
-    echo "If Chromium isn't installed, Firefox can show the planner, but cannot directly open WebUSB."
-    echo "Optional RTL-SDR CLI tools for the local companion: sudo apt install rtl-sdr multimon-ng"
+    echo "Qt desktop launcher kept/installed; duplicate WebUSB icon is not created by default."
+    echo "Preview old shortcuts: $APP_DIR/.venv-satellite/bin/python -m satellite_center cleanup-shortcuts"
+    echo "Archive unwanted Local/PWA shortcuts after review: append --apply"
+    echo "Opt-in browser shortcut: TIHULU_INSTALL_WEB_SHORTCUT=1 bash install.sh"
     ;;
   Darwin)
     mkdir -p "$HOME/Applications"
@@ -107,7 +115,7 @@ EOF
     ;;
   *) echo "Use Windows install.ps1 on Windows." >&2; exit 1;;
 esac
-echo "WebUSB browser application: $WEB_LAUNCH (no local SDR service)"
-echo "Optional local decoder companion: $BIN_DIR/tihulu-satellite"
-echo "Local dashboard: http://127.0.0.1:8791/"
-echo "No USB driver, RF capture, remote listener or background daemon was silently activated."
+echo "Native Qt SDR app: $BIN_DIR/tihulu-satellite (no browser required)"
+echo "Optional browser WebUSB: $WEB_LAUNCH (separate Chromium workflow)"
+echo "Optional legacy HTTP service: python3 -m satellite_center serve"
+echo "No USB capture or background daemon was silently activated."

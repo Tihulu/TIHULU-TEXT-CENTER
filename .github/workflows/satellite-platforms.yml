@@ -7,12 +7,14 @@ on:
       - 'docs/satellite/**'
       - 'tests/test_satellite_*.py'
       - 'tests/test_satellite_*.mjs'
+      - 'scripts/verify_satellite_pages_bundle.py'
       - '.github/workflows/satellite-platforms.yml'
   push:
     paths:
       - 'satellite_center/**'
       - 'docs/satellite/**'
       - 'tests/test_satellite_*.py'
+      - 'scripts/verify_satellite_pages_bundle.py'
       - '.github/workflows/satellite-platforms.yml'
 
 jobs:
@@ -57,7 +59,9 @@ jobs:
         run: python -m satellite_center doctor
       - name: Static browser-only JS syntax (no hardware)
         shell: bash
-        run: node --input-type=module --check < satellite_center/browser/browser.js
+        run: |
+          node --input-type=module --check < satellite_center/browser/browser.js
+          node --check satellite_center/native_desktop_bridge.js
       - name: Earth and sky tracker tests (no hardware)
         shell: bash
         run: |
@@ -66,8 +70,13 @@ jobs:
           node --check satellite_center/browser/location_search.mjs
           node --test tests/test_satellite_location.mjs
           node --check satellite_center/browser/pass_sort.mjs
+          node --check satellite_center/browser/capture_duration.mjs
+          node --test tests/test_satellite_capture_duration.mjs
           node --check satellite_center/browser/schedule_controller.mjs
           node --test tests/test_satellite_pass_schedule.mjs
+          node --check satellite_center/browser/chained_capture.mjs
+          node --test tests/test_satellite_chained_capture.mjs
+          node --check satellite_center/browser/browser.js
           node --check satellite_center/browser/usb_live_probe.mjs
           node --test tests/test_satellite_real_usb.mjs
           node --test tests/test_satellite_leaflet_css.mjs
@@ -75,12 +84,17 @@ jobs:
           node --check satellite_center/browser/iq_analysis.mjs
           node --check satellite_center/browser/iq_analysis_ui.mjs
           node --test tests/test_satellite_iq_analysis.mjs
+          node --check satellite_center/browser/iq_intelligence.mjs
+          node --check satellite_center/browser/signal_discovery.mjs
+          node --test tests/test_satellite_iq_intelligence.mjs tests/test_satellite_signal_discovery.mjs
           node --check satellite_center/browser/orbit_clock.mjs
           node --test tests/test_satellite_live_clock.mjs
           node --check satellite_center/browser/reception_catalog.mjs
           node --check satellite_center/browser/reception.mjs
           node --check satellite_center/browser/auto_mission.mjs
           node --check satellite_center/browser/auto_reception_ui.mjs
+          node --check satellite_center/browser/results_zip.mjs
+          node --test tests/test_satellite_results_zip.mjs
           node --check satellite_center/browser/pass_protocol_catalog.mjs
           node --check satellite_center/browser/satellite_calendar.mjs
           node --test tests/test_satellite_calendar.mjs
@@ -88,11 +102,29 @@ jobs:
           node --check satellite_center/browser/user_protocol_ui.mjs
           node --test tests/test_satellite_user_protocols.mjs
           node --test tests/test_satellite_auto_mission.mjs
+          node --check satellite_center/browser/compute_backends.mjs
+          node --check satellite_center/browser/compute_selector.mjs
+          node --test tests/test_satellite_compute_backends.mjs
           node --test tests/test_satellite_reception.mjs
           node --check satellite_center/browser/satellite_imagery.mjs
           node --check satellite_center/browser/satellite_images_ui.mjs
           node --check satellite_center/browser/sstv_robot36.mjs
+          node --check satellite_center/browser/sstv_capture_diagnostics.mjs
+          node --test tests/test_satellite_sstv_capture_diagnostics.mjs
           node --check satellite_center/browser/fm_iq_demod.mjs
+          node --check satellite_center/browser/fm_wav_record.mjs
+          node --test tests/test_satellite_fm_wav_record.mjs
+          node --test tests/test_satellite_recording_formats.mjs
+          node --check satellite_center/browser/file_format_inspector.mjs
+          node --test tests/test_satellite_file_format_inspector.mjs
           node --test tests/test_satellite_images.mjs
           python -c "import json; from pathlib import Path; p=Path('satellite_center/browser/natural-earth-land-110m.geojson'); d=json.loads(p.read_text()); assert d['type']=='FeatureCollection' and len(d['features'])>100"
 
+  pages-source-parity:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch published Pages branch
+        run: git fetch --no-tags --depth=1 origin +refs/heads/gh-pages:refs/remotes/origin/gh-pages
+      - name: Verify reviewed browser/PWA assets match published Pages
+        run: python scripts/verify_satellite_pages_bundle.py

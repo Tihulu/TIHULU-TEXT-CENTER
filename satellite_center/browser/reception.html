@@ -6,14 +6,14 @@
 <meta name="referrer" content="strict-origin-when-cross-origin">
 <title>Satellite Images &amp; Data | TIHULU Satellite Center</title>
 <link rel="icon" href="./icon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="./browser.css?v=20261106-calendar-protocol-v2">
-<link rel="stylesheet" href="./reception.css?v=20261106-calendar-protocol-v2">
+<link rel="stylesheet" href="./browser.css?v=20261107-web-preflight-v2">
+<link rel="stylesheet" href="./reception.css?v=20261107-web-preflight-v2">
 </head>
 <body>
 <header><div class="wrap">
-<p class="eyebrow">TIHULU SATELLITE CENTER · ONE SHARED WEB / DESKTOP INTERFACE</p>
+<p class="eyebrow">TIHULU SATELLITE CENTER · WEB / PWA · 0.3.0 PREVIEW6</p>
 <h1>Satellite Images &amp; Data</h1>
-<p>Receive open transmissions, decode when possible, inspect your own recording files, and keep online archives separate from RF measurements. No transmit capability.</p>
+<p>Browser/PWA edition: inspect local RF, audio, images and reports, decode supported formats, and separate online imagery from measured radio signals. Direct WebUSB needs compatible Chromium; the native Qt desktop application is a separate program. No transmit capability.</p>
 <nav class="reception-nav" aria-label="Satellite Center sections">
 <a href="./index.html">Receiver &amp; pass planner</a>
 <a href="./reception.html" aria-current="page">Images &amp; Data</a>
@@ -24,17 +24,45 @@
 <section id="auto-mission-center" aria-labelledby="auto-mission-title">
 <div class="receiver-readiness" role="status" aria-live="polite"><span id="auto-runtime">Checking platform…</span><span id="auto-receiver">No receiver activated</span><span id="auto-decoders">Decoder availability depends on this device</span></div>
 <h2 id="auto-mission-title">Automatic satellite reception — three buttons</h2>
+<p class="hint"><strong>ARISS Series 35 / Space Memories · 9–16 November 2026:</strong> 437.550 MHz FM (±10 kHz Doppler), Robot36, nominal 36 s/image + 120 s silent. Exact start/end times are still TBD. ARISS web text has a Robot 35/36 discrepancy; <a href="https://www.ariss.org/upcoming-sstv-events.html" rel="noopener noreferrer" target="_blank">verify before receiving</a>. Choose <strong>ISS SSTV ONLY</strong> and <strong>Full pass</strong> with local companion for automatic WAV-to-PNG extraction of multiple genuine synchronization candidates. This is not live ISS video or confirmation of origin.</p>
 <p class="hint">Select supported public downlinks, then arm the nearest non-overlapping passes. It never activates a transmitter, claims the SDR in the background or pretends every predicted pass contains data. Native companion schedules persist while its service runs; browser-only WebUSB requires an open visible tab.</p>
 <div class="reception-controls">
 <label>Receive<select id="auto-mission-group">
+<option value="iss-images">ISS SSTV ONLY · 9–16 Nov Series 35 · Robot36</option>
 <option value="images">Earth weather images + ISS SSTV (event-dependent)</option>
 <option value="messages">ISS public APRS messages (station mode dependent)</option>
 <option value="voice">ISS FM voice / audio (station mode dependent)</option>
 <option value="all">Images + text + voice (one receiver, no overlaps)</option>
 </select></label>
+<label>Recording length (empty = fit pass)<input id="auto-recording-seconds" type="number" min="8" max="7200" step="1" inputmode="numeric" placeholder="Auto: use visible pass"></label><label>Length unit<select id="auto-recording-unit"><option value="seconds">Seconds</option><option value="minutes">Minutes</option></select></label>
+<label>Recording goal<select id="auto-coverage-goal">
+<option value="full" selected>Capture as much of each visible pass as possible · prefer complete results</option>
+<option value="sample">Quick 60-second RF evidence samples · may omit images</option>
+</select></label>
 <label>Next passes<select id="auto-hours"><option value="12">12 h</option><option value="24" selected>24 h</option><option value="48">48 h</option></select></label>
 <label>Minimum elevation<select id="auto-elev"><option value="5">5°</option><option value="15">15°</option><option value="20" selected>20°</option><option value="30">30°</option></select></label>
 </div>
+<fieldset class="capture-format-picker" id="reception-browser-formats">
+ <legend>ISS SSTV browser recording files · choose one or BOTH</legend>
+ <div class="capture-format-options">
+  <label class="check"><input type="checkbox" id="reception-auto-wav" checked> WAV · real FM audio for Robot36</label>
+  <label class="check"><input type="checkbox" id="reception-auto-raw"> CU8 · original raw RF / IQ</label>
+ </div>
+ <p id="reception-format-summary" class="capture-format-summary" role="status" aria-live="polite">Selected: WAV only · 1 file. Tick CU8 for simultaneous CU8 + WAV recording.</p>
+ <p class="hint">These two independent options are transferred to the WebUSB pass planner when you click Auto Schedule &amp; Capture. Both selected = two files recorded from the same signal. Native unattended ISS auto mode currently records WAV only.</p>
+</fieldset>
+<p class="hint" id="reception-native-format-note" hidden>Native ISS auto capture records WAV. To save WAV and CU8 simultaneously from WebUSB, open the Receiver &amp; planner in a compatible Chromium browser and select both recording formats.</p>
+<section class="notice" aria-label="Satellite decoding compute hardware">
+ <label>Processing hardware
+  <select id="auto-compute-mode"><option value="auto" selected>Auto — optimized for this device (recommended)</option><option value="custom">Custom CPU / GPU / NPU multi-select</option></select>
+ </label>
+ <fieldset class="line"><legend>Choose multiple devices when compatible</legend>
+  <label><input type="checkbox" id="auto-compute-cpu" checked> CPU</label>
+  <label><input type="checkbox" id="auto-compute-gpu"> GPU</label>
+  <label><input type="checkbox" id="auto-compute-npu"> NPU</label>
+ </fieldset>
+ <p id="auto-compute-status" class="hint" role="status">Probing available, compatible acceleration backends…</p>
+</section>
 <div class="location-picker reception-station">
 <h3>Ground station · Search / GPS / Manual coordinates</h3>
 <div class="location-search-row">
@@ -58,16 +86,17 @@
 </div>
 <div class="reception-actions">
 <button type="button" id="auto-mission-arm">1 · Auto Schedule &amp; Capture</button>
-<button type="button" id="auto-mission-analyze" class="secondary">2 · Analyze Recordings</button>
+<button type="button" id="auto-mission-analyze" class="secondary">2 · Preview Auto-Decoded PNGs / Analyze WAV</button>
 <button type="button" id="auto-mission-extract" class="secondary" disabled>3 · Extract Results</button>
 <button type="button" id="auto-mission-cancel" class="secondary" disabled>Stop analysis</button>
 <button type="button" id="auto-mission-stop" class="secondary">Cancel Auto Missions</button>
 </div>
 <p id="auto-mission-status" class="status" role="status" aria-live="polite">No pass scheduled; no recording selected or analyzed.</p>
+<p id="auto-budget-status" class="hint" role="status">WebUSB scheduling creates <=60 s calendar chunks (or shorter chunks for high-rate CU8 at the 128 MiB memory limit). A 300-second request becomes multiple separately downloaded files, not continuous I/Q. Browser must remain visible. Native unattended scheduling uses <=180 s per file when chained. Full capture estimate: 1.024 MS/s I/Q ≈ 2.048 MB per second; 10 minutes ≈ 1.23 GB. Native records up to 900 s / 2 GB on disk if enough storage; browser-only clips are capped at 60 s / 128 MiB. A full visibility window does not guarantee all satellite data or successful decoding.</p>
 <div id="auto-mission-jobs" class="mission-job-list" aria-live="polite"></div>
 <section id="auto-calendar" class="sat-calendar-panel" aria-labelledby="auto-calendar-title">
-<h3 id="auto-calendar-title">Reception calendar · hour by hour</h3>
-<p class="hint">Automatically generated tasks can be edited or cancelled individually. Times are shown in your local time zone. Editing is allowed only within the satellite's predicted pass; no other receiver is commandeered.</p>
+<h3 id="auto-calendar-title">Reception timeline · local start–end time and duration</h3>
+<p class="hint">Exact start/end hours and planned duration appear in each job. Multi-hour captures continue into subsequent rows. Cancelled jobs disappear from the calendar but stay in historical audit records. Edit time, data type or recording seconds for pending jobs; never outside real pass and receiver limits.</p>
 <div class="reception-actions">
 <label for="auto-calendar-date">Date<input type="date" id="auto-calendar-date"></label>
 <button id="auto-calendar-prev" class="secondary" type="button">Previous day</button>
@@ -76,11 +105,16 @@
 </div>
 <div id="auto-calendar-grid" class="sat-calendar-grid" aria-live="polite">No scheduled jobs loaded.</div>
 </section>
+<div class="reception-actions">
+<button type="button" id="auto-mission-zip" class="secondary" disabled>Save analyzed results as ZIP · PNG / WAV / text / JSON</button>
+</div>
+<p id="auto-mission-zip-status" class="hint" role="status" aria-live="polite">Analyze real recorded files first, then preview results with Step 3. ZIP contains extracted outputs and provenance manifest, not huge raw IQ files.</p>
 <div id="auto-mission-output" class="mission-extraction" aria-live="polite"></div>
-<p class="hint">For actual full-pass Meteor LRPT image reconstruction, the native companion needs SatDump and a free RTL-SDR. A 60-second browser CU8 sample may not contain a full Earth scan. Raw I/Q cannot be interpreted as human messages without a protocol decoder and validated packet frames.</p>
+<p class="hint">Manual RF length accepts seconds or minutes and schedules separate <=60 s WebUSB files instead of buffering a large single CU8. Other browsers require the native companion for real USB acquisition. At 1.024 MS/s the receiver writes about 2.048 MB/s, at 2.048 MS/s about 4.096 MB/s, with a 2 GB cap. For actual full-pass Meteor LRPT image reconstruction, the native companion needs SatDump and a free RTL-SDR. A 60-second browser CU8 sample may not contain a full Earth scan. Raw I/Q cannot be interpreted as human messages without a protocol decoder and validated packet frames.</p>
 </section>
 <section aria-labelledby="file-title">
 <h2 id="file-title">Recorded files · Open image, audio, video, text or I/Q</h2>
+<p class="file-format-key"><strong>Local format labels:</strong> RAW RF · CU8, IMAGE · PNG/JPEG, AUDIO · WAV, VIDEO, TEXT and DATA. Supported media headers are checked before preview. A matching header is not proof of a real satellite transmission, complete decode or authenticated source.</p>
 <p>Preview actual local files without uploading them. An imported image is <strong>user-supplied</strong>, not verified as received from a satellite. CU8 is raw I/Q and needs its original center frequency and sample rate for correct analysis.</p>
 <div class="reception-controls">
 <label>Choose your file<input id="local-file" type="file" accept=".png,.jpg,.jpeg,.webp,.gif,.wav,.mp3,.ogg,.flac,.m4a,.mp4,.webm,.mov,.txt,.json,.csv,.tle,.log,.aprs,.cu8,.iq,.u8,.cfile"></label>
@@ -161,6 +195,7 @@
 </details>
 <section id="receive-decode" aria-labelledby="receive-decode-title">
 <h2 id="receive-decode-title">Manual decoder workspace · Real SSTV / Meteor and NASA imagery</h2>
+<p class="hint">Direct FM WAV recording is available on the <a href="./index.html">Receiver &amp; planner</a> page: choose ISS SSTV 437.550 MHz, then Record FM-demodulated WAV. The browser converts actual WebUSB samples to 48 kHz mono PCM while capturing; long WAV recordings use a user-selected disk file. To decode later, open the resulting .wav here. Actual ISS SSTV line synchronization is not guaranteed.</p>
 <p class="hint"><strong>Actual RF:</strong> the same shared Robot36 SSTV / CU8 engine used by the main Satellite Center. <strong>Weather images:</strong> Meteor LRPT currently needs optional native SatDump. <strong>Internet:</strong> NASA photos are separately labeled and never called antenna receptions.</p>
 <div class="image-sources">
 <div class="image-source-panel">
@@ -220,7 +255,7 @@
 <a href="https://worldview.earthdata.nasa.gov/" target="_blank" rel="noopener noreferrer">NASA Worldview</a>
 </div>
 </section>
-<footer>Same bundled page on GitHub Pages, installed PWA, Linux, Raspberry Pi OS, Windows and macOS native companion. This tab never opens USB, uploads RF samples or fabricates satellite pictures; use the existing verified capture/decoder controls when available.</footer>
+<footer>This is the web/PWA edition. The independent Linux Qt desktop uses native operating-system RF capture tools and is not an embedded browser. This tab does not automatically open USB, upload RF samples or fabricate satellite pictures; real reception and decoder success require actual evidence.</footer>
 </main>
-<script type="module" src="./reception.mjs?v=20261106-calendar-protocol-v2"></script>
+<script type="module" src="./reception.mjs?v=20261107-chained-capture-v1"></script>
 </body></html>

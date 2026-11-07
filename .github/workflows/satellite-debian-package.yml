@@ -1,0 +1,80 @@
+name: Satellite Center native Debian package
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - 'feature/satellite-auto-discovery-integrated-2026-11-06'
+    paths:
+      - 'satellite_center/**'
+      - 'tests/test_satellite_*.py'
+      - '.github/workflows/satellite-debian-package.yml'
+  pull_request:
+    paths:
+      - 'satellite_center/**'
+      - '.github/workflows/satellite-debian-package.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  debian-native:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build independent Debian native app
+        run: bash satellite_center/packaging/debian/build.sh
+      - name: Verify one-line GitHub installer download and independent build
+        env:
+          TIHULU_BUILD_ONLY: '1'
+          TIHULU_OUTPUT_DIR: ${{ runner.temp }}/tihulu-one-line-check
+        run: |
+          bash -n satellite_center/install/install-deb.sh
+          bash satellite_center/install/install-deb.sh
+          test -s "$TIHULU_OUTPUT_DIR/tihulu-satellite-center_0.3.0~preview10_all.deb"
+          test "$(dpkg-deb --field "$TIHULU_OUTPUT_DIR/tihulu-satellite-center_0.3.0~preview10_all.deb" Version)" = '0.3.0~preview10'
+          dpkg-deb --contents "$TIHULU_OUTPUT_DIR/tihulu-satellite-center_0.3.0~preview10_all.deb" | grep -F satellite_center/desktop.py
+      - name: Inspect package integrity and desktop entry
+        run: |
+          dpkg-deb --info dist/*.deb
+          dpkg-deb --contents dist/*.deb | grep -E 'tihulu-satellite-center.desktop|satellite_center/browser/reception.html|satellite_center/__main__.py'
+          temp="$(mktemp -d)"
+          dpkg-deb --extract dist/*.deb "$temp"
+          test -x "$temp/usr/bin/tihulu-satellite-center"
+          test -s "$temp/usr/share/tihulu-satellite-center/satellite_center/desktop.py"
+          test -s "$temp/usr/share/tihulu-satellite-center/satellite_center/native_web_shell.py"
+          test -s "$temp/usr/share/tihulu-satellite-center/satellite_center/native_desktop_bridge.js"
+          grep -q 'set -- desktop' "$temp/usr/bin/tihulu-satellite-center"
+          grep -q 'Exec=tihulu-satellite-center desktop' "$temp/usr/share/applications/tihulu-satellite-center.desktop"
+          test -s "$temp/usr/share/tihulu-satellite-center/satellite_center/browser/index.html"
+          test -s "$temp/usr/share/tihulu-satellite-center/satellite_center/browser/reception.html"
+      - name: Debian 12 Bookworm apt install + localhost server smoke (NO USB)
+        run: |
+          mkdir -p dist/ui-preview
+          docker run --rm -v "$PWD:/checkout:ro" -v "$PWD/dist/ui-preview:/ui-preview" debian:bookworm bash -euc '
+            apt-get -qq update
+            DEBIAN_FRONTEND=noninteractive apt-get -qq install -y python3-pyqt5 python3-pyqt5.qtwebengine python3-numpy python3-skyfield rtl-sdr xdg-utils xvfb xauth libgl1-mesa-dri libegl1 >/dev/null
+            dpkg -i /checkout/dist/*.deb
+            tihulu-satellite-center doctor | grep -F "\"platform\": \"Linux\""
+            TIHULU_UI_SNAPSHOT_DIR=/ui-preview QT_QPA_PLATFORM=offscreen PYTHONPATH=/usr/share/tihulu-satellite-center /usr/bin/python3 -m satellite_center.desktop --smoke
+            QTWEBENGINE_DISABLE_SANDBOX=1 LIBGL_ALWAYS_SOFTWARE=1 QTWEBENGINE_CHROMIUM_FLAGS="--disable-gpu --no-sandbox --disable-dev-shm-usage" QT_QPA_PLATFORM=xcb PYTHONPATH=/usr/share/tihulu-satellite-center xvfb-run -a -s "-screen 0 1365x950x24" /usr/bin/python3 -m satellite_center.native_web_shell --smoke --screenshot=/ui-preview/08-exact-web.png
+            tihulu-satellite-center serve --port 8877 >/tmp/satellite.log 2>&1 &
+            pid=$!
+            trap "kill $pid 2>/dev/null || true" EXIT
+            sleep 2
+            python3 -c "import urllib.request; root=urllib.request.urlopen(\"http://127.0.0.1:8877/\", timeout=4).read(); assert b\"TIHULU Satellite Center\" in root and b\"Scheduled receptions\" in root; passpage=urllib.request.urlopen(\"http://127.0.0.1:8877/browser/index.html\", timeout=4).read(); assert b\"Satellite\" in passpage and b\"duration\" in passpage; reception=urllib.request.urlopen(\"http://127.0.0.1:8877/browser/reception.html\", timeout=4).read(); assert b\"auto-mission\" in reception"
+          '
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: tihulu-satellite-center-native-ui-preview10
+          path: dist/ui-preview/*.png
+          if-no-files-found: warn
+          retention-days: 30
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tihulu-satellite-center-debian-native
+          path: dist/*.deb
+          if-no-files-found: error
+          retention-days: 30

@@ -20,5 +20,11 @@ jobs:
         run: python -m unittest discover -s tests -v
       - name: Check JS syntax
         run: node --check web/app.js
+      - name: Satellite RF forensic browser tests
+        run: |
+          node --check satellite_center/browser/iq_intelligence.mjs
+          node --check satellite_center/browser/iq_analysis_ui.mjs
+          node --check satellite_center/browser/signal_discovery.mjs
+          node --test tests/test_satellite_iq_analysis.mjs tests/test_satellite_iq_intelligence.mjs tests/test_satellite_signal_discovery.mjs
       - name: Verify no Python third-party dependencies
         run: python -m compileall -q textcenter tests

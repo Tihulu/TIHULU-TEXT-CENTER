@@ -18,6 +18,29 @@ captures alive after the tab closes or run native SatDump.
    geometric passes. No SDR is grabbed while waiting; one receiver = one job at
    a time. Native companion persists tasks while its service runs. Browser
    schedules require a visible, awake Chromium WebUSB tab and permission.
+   The **full coverage** goal plans the predicted pass window and disk budget
+   for the approved image/audio/text format; local native captures can run up
+   to 900 seconds/2 GB per raw IQ file with a 200 MB free-disk reserve.
+   A 10-minute raw IQ recording at 1.024 MS/s needs about 1.23 GB.
+   Quick-sample mode is explicitly capped at 60 seconds. Browser-only
+   WebUSB is limited to 60 seconds / 128 MiB, and does not assert a complete
+   Meteor LRPT image. When multiple requested formats are eligible, native
+   planning prefers a feasible complete visible-window attempt over a partial
+   image; image-only requests never silently change media category.
+   If one optional decoder is unavailable during a combined request, the
+   other operator-approved formats remain eligible and the missing target
+   is reported; no unapproved media kind is silently added.
+   All estimates refer to received time windows, not every spacecraft dataset.
+   Manual browser per-pass **Actual RF sample length** is now an editable
+   1–900-second field. Raw IQ larger than 128 MiB requires an explicitly
+   authorized local CU8 stream on Chromium File System Access, or the native
+   companion. Never silently reduce requested duration to 60 seconds.
+   The shared 24h calendar shows exact local start–end clock ranges, capture
+   duration and spanning hour tracks. Cancelled jobs are omitted from display,
+   not deleted from persisted audit JSON. In Step 3, users can preview actual
+   decoder candidates, then explicitly export them in a bounded ZIP (PNG/WAV,
+   text, analysis JSON, manifest and warnings; large CU8 preserved separately).
+   ZIP files have CRC32 integrity but do not establish RF/spacecraft identity.
 3. **Calendar**: editable local-date day picker, actual 00:00–23:00 time slots,
    state/target/format labels, per-job cancellation. For a pending native task,
    edit local start time and target's **known protocol** only inside the original
@@ -54,11 +77,11 @@ captures alive after the tab closes or run native SatDump.
 ### Decoder support (honest runtime status)
 | Public protocol | In-browser | Optional native companion |
 |---|---|---|
-| Robot36 SSTV | Experimental, requires actual full WAV/CU8 and sync | Same engine and real files |
+| Robot36 SSTV | Experimental, requires actual full WAV/CU8 and sync | Native ISS SSTV auto jobs record real FM WAV (48 kHz PCM, ~96 KB/s) for image decoding; optional alternative IQ capture remains manual |
 | PD120 and other SSTV formats | Not yet supported by built-in Robot36 decoder | External compatible SSTV decoder, not automatic here |
 | Meteor LRPT | No browser LRPT protocol decoder | SatDump 72k/80k attempt on actual captures, if installed |
 | ISS APRS / AX.25 | Not yet CRC-verified in browser | multimon-ng raw text; CRC and spacecraft origin not reverified by app |
-| FM analog voice | Candidate audio demodulation, not speech recognition | FM capture/decoder as installed |
+| FM analog voice | Candidate audio demodulation, not speech recognition | Native ISS voice auto mission writes real FM WAV (48 kHz PCM) for playback/export; speech or source is not independently verified |
 | HamTV 2395 MHz | Requires new S-band hardware | Current NESDR v5 and WinTV-soloHD **not capable** |
 | User-defined downlink | Metadata only until an actual decoder adapter exists | Metadata + explicit manual capture; no invented format support |
 

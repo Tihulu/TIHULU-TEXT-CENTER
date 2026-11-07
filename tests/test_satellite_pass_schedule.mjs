@@ -40,7 +40,14 @@ test("minute-precision capture scheduling validates real pass bounds",()=>{
  assert.equal(parseLocalScheduleTime(localDateInput(pass.aos)),pass.aos);
  assert.throws(()=>createScheduledPass(pass,{...options,when:now-60000},now),/past/);
  assert.throws(()=>createScheduledPass(pass,{...options,when:pass.los},now),/pass/);
- assert.throws(()=>createScheduledPass(pass,{...options,durationSeconds:400},now),/1–60/);
+ assert.throws(()=>createScheduledPass(pass,{...options,when:pass.los-10000},now),/finish before/);
+ assert.equal(createScheduledPass(pass,{...options,when:pass.los-30000},now).durationSeconds,30);
+ assert.throws(()=>createScheduledPass(pass,{...options,durationSeconds:400},now),/finish before/);
+ const longPass={...pass,los:pass.aos+900000};
+ assert.throws(()=>createScheduledPass(longPass,{...options,durationSeconds:600},now),/native receiver|disk saving|local disk|Long RF samples/);
+ const diskJob=createScheduledPass(longPass,{...options,durationSeconds:600,diskStreamPrepared:true},now);
+ assert.equal(diskJob.diskStreamPrepared,true);
+ assert.equal(diskJob.durationSeconds,600);
  assert.throws(()=>createScheduledPass(pass,{...options,frequency:5000000000},now),/range/);
 });
 test("browser foreground, receiver conflicts and missed passes are explicit statuses",()=>{
@@ -50,6 +57,8 @@ test("browser foreground, receiver conflicts and missed passes are explicit stat
  assert.equal(evaluateScheduledJob(job,job.when,{visible:false,receiverBusy:false}),"waiting-foreground");
  assert.equal(evaluateScheduledJob(job,job.when,{visible:true,receiverBusy:true}),"waiting-receiver");
  assert.equal(evaluateScheduledJob(job,job.when,{visible:true,receiverBusy:false}),"start");
+ assert.equal(evaluateScheduledJob(job,job.until-job.durationSeconds*1000,{visible:true,receiverBusy:false}),"start");
+ assert.equal(evaluateScheduledJob(job,job.until-job.durationSeconds*1000+1,{visible:true,receiverBusy:false}),"missed");
  assert.equal(evaluateScheduledJob(job,job.until,{visible:true,receiverBusy:false}),"missed");
 });
 test("measured I/Q summary is uncalibrated and never fabricates decoded satellites",()=>{
@@ -74,6 +83,9 @@ test("UI has pass/satellite sorting and actionable scheduler/preflight controls"
    "schedule-wake","schedule-readiness","scheduled-report","map-basemap","map-basemap-state"])
    assert.ok(html.includes('id="'+id+'"'),id+" missing");
  assert.ok(app.includes("connectDevice({silent:true})"));
+ assert.ok(app.includes("nativeScheduledPass("));
+ assert.ok(app.includes('nativeRequest(endpoint')&&app.includes('"/api/schedule-chain"'));
+ assert.ok(html.includes('href="http://127.0.0.1:8791/"'));
  assert.ok(app.includes("navigator.usb.getDevices()"));
  assert.ok(app.includes("localDateInput("));
  assert.ok(app.includes("captureLevelSummary("));
@@ -81,4 +93,25 @@ test("UI has pass/satellite sorting and actionable scheduler/preflight controls"
  assert.ok(app.includes("latest")||html.includes("Latest / farthest date first"));
  assert.ok(map.includes('natural-earth-land-110m.geojson'));
  assert.ok(map.includes('referrerPolicy:"strict-origin-when-cross-origin"'));
+});
+
+test("Repeated browser ticks update countdown in place, preserving opened controls",()=>{
+ const js=fs.readFileSync(new URL("../satellite_center/browser/browser.js",import.meta.url),"utf8");
+ assert.match(js,/signature===lastRenderedJobCardsSignature/);
+ assert.match(js,/panel\.querySelector\('\.job-state'\)/);
+ assert.match(js,/editingCard&&editedJob\?\.state==='armed'/);
+});
+
+test("Native dashboard status polling leaves unchanged options and cards mounted",()=>{
+ const native=fs.readFileSync(new URL("../satellite_center/index.html",import.meta.url),"utf8");
+ assert.match(native,/document\.activeElement===el/);
+ assert.match(native,/signature===lastNativeJobsSignature/);
+ assert.match(native,/signature===lastNativeArchiveSignature/);
+});
+
+test("Pass list waits for native selector focus to end before replacing its DOM",()=>{
+ const js=fs.readFileSync(new URL("../satellite_center/browser/browser.js",import.meta.url),"utf8");
+ assert.match(js,/passRenderDeferred=true;return/);
+ assert.match(js,/document\.activeElement\.matches\?\.\('select,input,textarea'\)/);
+ assert.match(js,/queueMicrotask\(/);
 });

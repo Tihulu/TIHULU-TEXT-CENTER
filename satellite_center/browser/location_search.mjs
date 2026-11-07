@@ -17,7 +17,8 @@ const aliasNames=Object.freeze({
   "cologne":"köln","koln":"köln","munich":"münchen",
   "nuremberg":"nürnberg","izmir":"izmir","istanbul":"istanbul",
   "eskisehir":"eskişehir","sanliurfa":"şanlıurfa","antep":"gaziantep",
-  "huerth":"hürth","hurth":"hürth","duesseldorf":"düsseldorf","dusseldorf":"düsseldorf"
+  "huerth":"hürth","hurth":"hürth","duesseldorf":"düsseldorf","dusseldorf":"düsseldorf",
+  "syney":"sydney"
 });
 export function offlineCityMatches(rows,query,country="all",limit=12){
   if(!Array.isArray(rows))return [];
@@ -164,7 +165,9 @@ export function initStationLocationUI({onStationChanged,log=()=>{},ids={}}={}){
    if(automatic&&!onlineToggle.checked)return;
    if(inFlight){inFlight.abort();inFlight=null;}
    const countryCode=country.value;
-   const key=typed.toLocaleLowerCase()+"|"+countryCode;
+   // Typo recovery resolves via actual Open-Meteo coordinates; never guess.
+   const requestedName=aliasNames[foldCityName(typed)]||typed;
+   const key=requestedName.toLocaleLowerCase()+"|"+countryCode;
    const token=++latestSearchToken;
    if(cache.has(key)){
      const cached=cache.get(key);if(typed!==query.value.trim())return;
@@ -179,12 +182,20 @@ export function initStationLocationUI({onStationChanged,log=()=>{},ids={}}={}){
    const watchdog=setTimeout(()=>controller.abort(),9000);
    try{
      const url=new URL("https://geocoding-api.open-meteo.com/v1/search");
-     url.searchParams.set("name",typed);url.searchParams.set("count","10");
+     url.searchParams.set("name",requestedName);url.searchParams.set("count","10");
      url.searchParams.set("language","en");url.searchParams.set("format","json");
      if(countryCode!=="all")url.searchParams.set("countryCode",countryCode);
-     const resp=await fetch(url.href,{mode:"cors",signal:controller.signal,cache:"default"});
-     if(!resp.ok)throw Error("HTTP "+resp.status);
-     const data=await resp.json();
+     // Native desktop uses OS HTTPS via the allowlisted Qt WebChannel.
+     // The website/PWA still uses its normal browser CORS fetch.
+     let data;
+     if(typeof window.nativeLocationLookup==="function"){
+       data=await window.nativeLocationLookup(requestedName,countryCode);
+       if(controller.signal.aborted)return;
+     }else{
+       const resp=await fetch(url.href,{mode:"cors",signal:controller.signal,cache:"default"});
+       if(!resp.ok)throw Error("HTTP "+resp.status);
+       data=await resp.json();
+     }
      if(data?.error)throw Error(String(data.reason||"Provider error"));
      const rows=onlineCityMatches(data,countryCode);
      if(cache.size>=30)cache.delete(cache.keys().next().value);

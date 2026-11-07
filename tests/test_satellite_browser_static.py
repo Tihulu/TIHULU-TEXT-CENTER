@@ -10,7 +10,7 @@ class SatelliteBrowserStaticTests(unittest.TestCase):
     def test_page_has_direct_webusb_controls_and_clear_limits(self):
         html = (ROOT / "index.html").read_text(encoding="utf-8")
         for phrase in ("Choose RTL-SDR (WebUSB)", "Release USB", "Start real USB capture",
-                       "browser.js", "Browser-only", "Shared Web + Desktop UI",
+                       "browser.js", "Browser-only", "Web / PWA · 0.3.0 preview6",
                        "in-browser APRS/Meteor LRPT decoding is not implemented"):
             self.assertIn(phrase, html)
         # The pass planner is shared by the installed companion and Pages/PWA.
@@ -33,6 +33,20 @@ class SatelliteBrowserStaticTests(unittest.TestCase):
         self.assertNotIn('fetch("http://127.0.0.1:8791', js)
         self.assertNotIn("127.0.0.1:8791/api/capture", js)
 
+    def test_native_webengine_compatibility_avoids_new_js_builtins(self):
+        # Qt WebEngine bundled on older Debian/Pop!_OS releases can lack
+        # Object.hasOwn and Array.prototype.at. A successful native TLE fetch
+        # must not fail in boundedCatalog() after the HTTPS request succeeded.
+        for asset in ROOT.glob("*.mjs"):
+            code = asset.read_text(encoding="utf-8")
+            self.assertNotIn("Object.hasOwn(", code, str(asset))
+        for asset in ROOT.glob("*.js"):
+            code = asset.read_text(encoding="utf-8")
+            self.assertNotIn("Object.hasOwn(", code, str(asset))
+        planner = (ROOT / "browser.js").read_text(encoding="utf-8")
+        self.assertIn("Object.prototype.hasOwnProperty.call(caps,family)", planner)
+        self.assertNotIn("chain.jobs.at(-1)", planner)
+
     def test_cross_platform_satellite_images_data_tab(self):
         reception=(ROOT / "reception.html").read_text(encoding="utf-8")
         html=(ROOT / "index.html").read_text(encoding="utf-8")
@@ -51,6 +65,11 @@ class SatelliteBrowserStaticTests(unittest.TestCase):
             self.assertIn('id="' + id + '"', html)
         self.assertIn("initStationLocationUI", (ROOT / "auto_reception_ui.mjs").read_text(encoding="utf-8"))
         self.assertIn("initSavedProtocolUI", script)
+        self.assertIn("inspectLocalFormat", script)
+        self.assertIn('id="file-title"', reception)
+        self.assertIn("Local format labels:", reception)
+        self.assertIn("Web / PWA", html)
+        self.assertIn("native Qt desktop", html)
         self.assertIn("renderSatelliteCalendar", (ROOT / "auto_reception_ui.mjs").read_text(encoding="utf-8"))
         self.assertIn('route == "/api/auto-edit"', (ROOT.parent / "__main__.py").read_text(encoding="utf-8"))
 
@@ -59,6 +78,19 @@ class SatelliteBrowserStaticTests(unittest.TestCase):
         for ctl in ('auto-mission-arm', 'auto-mission-analyze',
                     'auto-mission-extract', 'location-gps', 'city-query', 'auto-lat', 'auto-lon', 'auto-elev'):
             self.assertIn('id="' + ctl + '"', reception)
+        self.assertIn('id="iq-discovery-zip"', html)
+        self.assertIn('createResultsZip', (ROOT / "iq_analysis_ui.mjs").read_text(encoding="utf-8"))
+        self.assertIn('id="auto-mission-zip"', reception)
+        self.assertIn('id="auto-mission-zip-status"', reception)
+        self.assertIn('createResultsZip', (ROOT / "auto_reception_ui.mjs").read_text(encoding="utf-8"))
+        self.assertIn('showSaveFilePicker', (ROOT / "browser.js").read_text(encoding="utf-8"))
+        self.assertIn('preparedLongStreams', (ROOT / "browser.js").read_text(encoding="utf-8"))
+        self.assertIn('id="duration"', html)
+        self.assertIn('id="auto-recording-seconds"', reception)
+        self.assertIn('id="auto-browser-seconds"', html)
+        self.assertIn('id="auto-coverage-goal"', reception)
+        self.assertIn('id="auto-budget-status"', reception)
+        self.assertIn('id="auto-coverage"', html)
         for ctl in ('auto-plan', 'auto-analyze', 'auto-results', 'auto-mode'):
             self.assertIn('id="' + ctl + '"', html)
         self.assertIn('auto_reception_ui.mjs', script)
