@@ -2,6 +2,27 @@
 
 Last source audit: 2026-11-07. Development branch: `feature/satellite-auto-discovery-integrated-2026-11-06` (PR #18). **Do not merge into `main` as an untested hardware release.**
 
+## Preview7 · native user-facing navigation parity
+
+The web and native Qt editions still use independent technology stacks: no
+Qt WebView, Electron, localhost site or browser USB API is used by the installed
+desktop. The Qt primary navigation now exposes just **Home, Find satellites,
+Maps & live, Auto receive, Recordings & results**. **More tools** retains
+calendar, manual RF and custom profiles. Home presents three plain-language
+actions. The recording workspace is split into **Choose recording → Analyze RF
+→ Decode & save** rather than a single dense panel. Technical capture and map
+overlays are collapsed by default and can be expanded manually.
+
+Earth (offline by default) is the initial map view and the online OSM toggle
+remains clearly visible. Pass-recording parameters are hidden until a specific
+predicted pass is selected and the user presses *Plan recording for this pass*.
+Automatic mission scheduling and manual pass actions give direct in-pane status.
+
+**Acceptance:** headless Debian Qt smoke verifies guided navigation, three
+analysis steps, map default, and hidden advanced panels, plus five screenshots
+inside the native UI artifact. These are not a human usability study or proof
+of live RF reception. Physical COSMIC Wayland acceptance remains pending.
+
 ## Main rule
 
 The desktop application is **real PyQt5 Qt Widgets**. It does not open or embed HTML,
@@ -47,7 +68,7 @@ All real receiver operations require explicit operator action and USB ownership.
 ## Debian / Pop!_OS
 
 Install the latest successful PR #18 **Satellite Center native Debian package** GitHub Actions artifact.
-Run `sudo apt install ./tihulu-satellite-center_0.3.0~preview6_all.deb`,
+Run `sudo apt install ./tihulu-satellite-center_0.3.0~preview7_all.deb`,
 then open **TIHULU Satellite Center (System)** from COSMIC's app menu.
 It starts the Qt window directly. Only explicit `tihulu-satellite-center serve`
 runs the old optional HTTP compatibility server. If the older user-local
