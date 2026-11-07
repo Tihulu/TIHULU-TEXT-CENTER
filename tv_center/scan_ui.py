@@ -69,7 +69,17 @@ class ScanMonitor(QDialog):
             if line:
                 self.log.append(line.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;"))
             if info.get("frequency_reported"):
-                self.frequency.setText("Scanner reports frequency: " + str(info["frequency_reported"]))
+                self.frequency.setText("Scanning actual frequency: "+str(info["frequency_reported"]))
+            if info.get("demod_lock") is not None:
+                lock="LOCKED (measured)" if info["demod_lock"] else "NO LOCK (measured)"
+                parts=[lock]
+                if info.get("cn_db") is not None:
+                    parts.append("C/N "+str(info["cn_db"])+" dB")
+                if info.get("signal_reading"):
+                    parts.append("Signal "+str(info["signal_reading"]))
+                if info.get("uncorrected_blocks") is not None:
+                    parts.append("UCB "+str(info["uncorrected_blocks"]))
+                self.signal.setText("  ·  ".join(parts))
         elif kind == "signal":
             m = info.get("metrics", {})
             if not m.get("available"):
@@ -85,9 +95,11 @@ class ScanMonitor(QDialog):
             self.progress.setRange(0, 1)
             self.progress.setValue(1)
             self.cancel_button.setEnabled(False)
-            self.stage.setText("Scan completed: " + str(info.get("count", 0)) + " real services")
+            self.stage.setText("Completed · "+str(info.get("count",0))+
+                               " services decoded from actual DVB transport tables")
         elif kind == "failed":
             self.progress.setRange(0, 1)
             self.progress.setValue(0)
             self.cancel_button.setEnabled(False)
-            self.stage.setText("Scan interrupted: " + info.get("text", "Unknown error"))
+            self.stage.setText("Scan failed · "+info.get("text","Unknown error")+
+                               " · previous saved channels were preserved")
