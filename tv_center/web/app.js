@@ -48,7 +48,10 @@
     $("connect").disabled = true; $("disconnect").disabled = false;
     $("open-page").disabled = false;
     await refresh();
-    if (connected) timer = setInterval(refresh, 1500);
+    if (connected) {
+      timer = setInterval(refresh, 1500);
+      document.dispatchEvent(new Event("tihulu-tv-connected"));
+    }
   };
   $("disconnect").onclick = reset;
   $("open-page").onclick = async () => {
@@ -112,6 +115,14 @@
     $("compute-status").textContent = "WebAssembly: " + (availableWasm ? "supported" : "unavailable") +
       " | WebGPU: " + gpu +
       ". No speech/translation model is installed or running in this page. Capability is not live ASR.";
+  };
+  window.tihuluTVWeb = {
+    connected:()=>connected,
+    get: path=>api(path),
+    command:async(action,params)=>{
+      const d=await api("/api/command","POST",{action,params});
+      return d.result;
+    }
   };
   window.addEventListener("pagehide", reset);
 })();

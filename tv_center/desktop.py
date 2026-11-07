@@ -651,7 +651,8 @@ def main():
             if enabled:
                 try:
                     self.bridge = TVBridge(self.snapshot, lambda p: self.capture.set_captions(
-                        "page", p, self.lang_in.currentText(), self.lang_out.currentText(), self.model.text()))
+                        "page", p, self.lang_in.currentText(), self.lang_out.currentText(), self.model.text()),
+                        commands=self.web_commands.submit)
                     info = self.bridge.start()
                     self.bridge_token.setText(info["token"])
                     self.statusbar.setText("Local bridge: " + info["url"] + " — loopback only")

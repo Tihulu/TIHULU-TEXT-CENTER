@@ -54,7 +54,8 @@
       el("pair").disabled = true; el("leave").disabled = false;
       el("open-page").disabled = false;
       await refresh();
-      if (connected) ticker = setInterval(refresh, 1800);
+      if (connected) {ticker = setInterval(refresh, 1800);
+        document.dispatchEvent(new Event("tihulu-tv-connected"));}
     } catch (err) { el("pair-note").textContent = err.message; }
   };
   el("leave").onclick = disconnect;
@@ -88,10 +89,24 @@
   document.querySelectorAll("[data-page]").forEach(btn => {
     btn.onclick = () => {el("page").value = btn.dataset.page; if (connected) el("open-page").click();};
   });
+  window.tihuluTVWeb = {
+    connected:()=>connected,
+    get:async path=>{
+      const response=await fetch(path,{credentials:"same-origin",cache:"no-store"});
+      const data=await response.json();
+      if(!response.ok)throw Error(data.error||"HTTP "+response.status);
+      return data;
+    },
+    command:async(action,params)=>{
+      const data=await send("/api/command",{action,params});
+      return data.result;
+    }
+  };
   // Previous cookie may be valid; only the host can accept it.
   connected = true;
   refresh().then(() => {
     if (connected) {el("pair").disabled = true; el("leave").disabled = false; el("open-page").disabled = false;
-       ticker = setInterval(refresh, 1800);}
+       ticker = setInterval(refresh, 1800);
+       document.dispatchEvent(new Event("tihulu-tv-connected"));}
   });
 })();

@@ -12,12 +12,13 @@ import threading
 ORIGIN = "https://tihulu.github.io"
 
 class TVBridge:
-    def __init__(self, snapshot, change_page, host="127.0.0.1", port=8768):
+    def __init__(self, snapshot, change_page, host="127.0.0.1", port=8768, commands=None):
         if host != "127.0.0.1":
             raise ValueError("Bridge is loopback only; no unauthenticated LAN service")
         self.token = secrets.token_urlsafe(32)
         self.snapshot = snapshot
         self.change_page = change_page
+        self.commands = commands
         self.host, self.port = host, port
         self.httpd = None
         self.thread = None
@@ -60,14 +61,22 @@ class TVBridge:
                 self.end_headers()
 
             def do_GET(self):
-                if self.path != "/api/status":
+                if self.path not in ("/api/status", "/api/channels", "/api/scan", "/api/models"):
                     return self.reply(404, {"error": "Unknown route"})
                 if not self.authorized():
                     return self.reply(401, {"error": "Session token required"})
-                return self.reply(200, bridge.snapshot())
+                if self.path == "/api/status":
+                    return self.reply(200, bridge.snapshot())
+                if not bridge.commands:
+                    return self.reply(503, {"error": "Native web controller unavailable"})
+                action={"/api/channels":"channels","/api/scan":"scan_status",
+                        "/api/models":"models"}[self.path]
+                try: return self.reply(200, bridge.commands(action,{}))
+                except (RuntimeError,TimeoutError,ValueError) as exc:
+                    return self.reply(503, {"error": str(exc)[:250]})
 
             def do_POST(self):
-                if self.path != "/api/teletext":
+                if self.path not in ("/api/teletext","/api/command"):
                     return self.reply(404, {"error": "Unknown route"})
                 if not self.authorized():
                     return self.reply(401, {"error": "Session token required"})
@@ -76,12 +85,22 @@ class TVBridge:
                     return self.reply(413, {"error": "Invalid request length"})
                 try:
                     data = json.loads(self.rfile.read(int(size)))
-                    page = data["page"]
+                    if self.path == "/api/command":
+                        if not bridge.commands:
+                            return self.reply(503, {"error":"Native web controller unavailable"})
+                        action,params=data.get("action"),data.get("params",{})
+                        if not isinstance(action,str) or not isinstance(params,dict):
+                            raise ValueError("Expected action and params")
+                        result=bridge.commands(action,params)
+                        return self.reply(200,{"ok":True,"result":result})
+                    page=data["page"]
                     if type(page) is not int or not 100 <= page <= 899:
-                        raise ValueError()
+                        raise ValueError("Invalid page")
                     bridge.change_page(page)
-                except (ValueError, TypeError, KeyError, UnicodeError):
-                    return self.reply(400, {"error": "Expected integer Teletext page 100-899"})
+                except (ValueError,TypeError,KeyError,UnicodeError) as exc:
+                    return self.reply(400, {"error": "Invalid command or page: "+str(exc)[:120]})
+                except (RuntimeError,TimeoutError) as exc:
+                    return self.reply(503, {"error": str(exc)[:250]})
                 return self.reply(200, {"page": page, "status": "requested"})
 
         self.httpd = ThreadingHTTPServer((self.host, self.port), Handler)
