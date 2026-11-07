@@ -132,14 +132,21 @@ def transform(files):
 \t\tQList<DvbTransponder> known;
 \t\tconst int hz[] = { 538000000, 586000000, 626000000 };
 \t\tfor (int frequency : hz) {
-\t\t\tDvbTransponder transponder = DvbTransponder::fromString(
-\t\t\t\tQString::fromLatin1("T2 %1 8MHz AUTO AUTO AUTO AUTO AUTO AUTO 0")
-\t\t\t\t\t.arg(frequency));
-\t\t\tif (transponder.isValid())
-\t\t\t\tknown.append(transponder);
+\t\t\t// Use Kaffeine native typed DVB-T2 properties rather than
+\t\t\t// guessed scanfile text that may parse to an empty scan.
+\t\t\tDvbTransponder transponder(DvbTransponderBase::DvbT2);
+\t\t\tDvbT2Transponder *t2 = transponder.as<DvbT2Transponder>();
+\t\t\tt2->frequency = frequency;
+\t\t\tt2->bandwidth = DvbT2Transponder::Bandwidth8MHz;
+\t\t\tt2->modulation = DvbT2Transponder::ModulationAuto;
+\t\t\tt2->fecRateHigh = DvbTransponderBase::FecAuto;
+\t\t\tt2->fecRateLow = DvbTransponderBase::FecAuto;
+\t\t\tt2->transmissionMode = DvbT2Transponder::TransmissionModeAuto;
+\t\t\tt2->guardInterval = DvbT2Transponder::GuardIntervalAuto;
+\t\t\tt2->hierarchy = DvbT2Transponder::HierarchyAuto;
+\t\t\tt2->streamId = 0; // previously tested PLP 0; other PLPs require discovery
+\t\t\tknown.append(transponder);
 \t\t}
-\t\tif (known.size() != 3)
-\t\t\tqCWarning(logDvb, "TIHULU: expected three valid DVB-T2 scan transponders");
 \t\treturn known;
 \t}
 \treturn scanData.value(scanSource);
