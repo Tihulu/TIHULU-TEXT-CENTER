@@ -25,7 +25,7 @@ from PyQt5.QtWidgets import (
     QMessageBox, QPlainTextEdit, QPushButton, QSpinBox, QSplitter, QTabWidget,
     QTableWidget, QTableWidgetItem, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget,
     QLineEdit, QFrame, QHeaderView, QSizePolicy, QCompleter, QScrollArea, QSlider,
-    QDialog, QDialogButtonBox
+    QDialog, QDialogButtonBox, QToolButton, QMenu
 )
 
 from .__main__ import Station, PROFILES, LOCATIONS, AUTO_DOWNLINK_PROFILES, allowed_mode
@@ -171,7 +171,7 @@ class SatelliteWindow(QMainWindow):
         self.map_last_snapshot=None
         self.setWindowTitle("TIHULU Satellite Center · Native SDR")
         self.setWindowIcon(QIcon(str(Path(__file__).parent/"assets"/"tihulu-satellite.png")))
-        self.resize(1200,820)
+        self.resize(1320,850)
         self.setMinimumSize(900,650)
         self._build()
         self._style()
@@ -179,6 +179,8 @@ class SatelliteWindow(QMainWindow):
         self.map_timer.setInterval(1000)
         self.map_timer.timeout.connect(self.refresh_orbit_map)
         self.tabs.currentChanged.connect(self._on_tab_change)
+        self.tabs.currentChanged.connect(self._update_nav_selection)
+        self._update_nav_selection(self.tabs.currentIndex())
         if auto_poll:self.map_timer.start()
         self.statusBar().showMessage("Native Qt window. No browser, WebUSB or HTTP server.")
         self.timer=QTimer(self)
@@ -200,7 +202,24 @@ class SatelliteWindow(QMainWindow):
           QLineEdit:focus,QComboBox:focus{border:1px solid #65c9e5}
           QGroupBox{border:1px solid #325370;border-radius:9px;margin-top:12px;padding:14px 8px 8px;font-weight:600}
           QGroupBox::title{subcontrol-origin:margin;left:14px;padding:0 5px;color:#b6d9f9}
-          QTabWidget::pane{border:1px solid #31526f;border-radius:6px}
+          QTabWidget::pane{border:1px solid #31526f;border-radius:10px}
+          QPushButton#primaryNav{background:transparent;border:0;border-bottom:3px solid transparent;
+                   color:#b4d1e5;border-radius:0;font-size:13px;font-weight:650;padding:10px 12px}
+          QPushButton#primaryNav:checked{color:#ffffff;background:#183752;border-bottom-color:#55d6c9}
+          QPushButton#primaryNav:hover{background:#1a3a55}
+          QToolButton#moreNav{background:#193b59;border:1px solid #3c6282;border-radius:8px;
+                   color:#d4eafa;font-size:12px;font-weight:650;padding:9px 13px}
+          QMenu{background:#11263e;border:1px solid #3b607d;color:#e6f3ff}
+          QMenu::item{padding:10px 24px}
+          QMenu::item:selected{background:#26547b}
+          QFrame#workflowCard{border:1px solid #42637f;border-radius:13px;background:#142c45}
+          QLabel#workflowStep{font-size:14px;font-weight:750;color:#e9f6ff}
+          QLabel#workflowDescription{color:#afc9e2;font-size:12px}
+          QLabel#homeTagline{font-size:15px;color:#b8d8ea}
+          QLabel#fileBanner{padding:10px;border:1px solid #345c79;border-radius:8px;
+                            background:#122e45;color:#c5efff}
+          QTabWidget#resultSteps::pane{border:1px solid #385b7c;border-radius:9px}
+
           QTabBar::tab{padding:10px 18px;background:#172c46;border:1px solid #2a4865}
           QTabBar::tab:selected{background:#24547d;color:#fff}
           QComboBox,QSpinBox,QDoubleSpinBox,QDateTimeEdit,QDateEdit,QPlainTextEdit,
@@ -219,9 +238,12 @@ class SatelliteWindow(QMainWindow):
           QLabel#hint{color:#a7bfd7}
         """)
 
+
     def _build(self):
         root=QWidget()
         layout=QVBoxLayout(root)
+        layout.setContentsMargins(15,12,15,10)
+        layout.setSpacing(10)
         header=QHBoxLayout()
         title=QLabel("TIHULU SATELLITE CENTER")
         title.setObjectName("headline")
@@ -230,9 +252,50 @@ class SatelliteWindow(QMainWindow):
         self.top_status=QLabel("Receive-only · SDR not acquired")
         header.addWidget(self.top_status)
         layout.addLayout(header)
+
+        # Web-like primary navigation. Keep all original native pages and controls,
+        # but present only the five common tasks; no browser/WebView is involved.
         self.tabs=QTabWidget()
+        self.tabs.tabBar().hide()
+        self.tabs.setDocumentMode(True)
+        self.nav_buttons={}
+        nav=QHBoxLayout()
+        nav.setSpacing(3)
+        for label,target in (
+            ("Home","Overview"),
+            ("Find satellites","Passes & Data"),
+            ("Maps & live","Maps & Live"),
+            ("Auto receive","Auto reception"),
+            ("Recordings & results","Recordings & results"),
+        ):
+            button=QPushButton(label)
+            button.setObjectName("primaryNav")
+            button.setCheckable(True)
+            button.clicked.connect(
+                lambda checked=False, destination=target: self._open_native_tab(destination))
+            button.setAccessibleName("Open "+label)
+            self.nav_buttons[target]=button
+            nav.addWidget(button)
+        self.more_button=QToolButton()
+        self.more_button.setObjectName("moreNav")
+        self.more_button.setText("More tools  ▾")
+        self.more_button.setPopupMode(QToolButton.InstantPopup)
+        tools=QMenu(self.more_button)
+        for label,target in (
+            ("Reception calendar","Reception calendar"),
+            ("Manual RF capture","Manual RF capture"),
+            ("Saved protocols","Saved protocols"),
+        ):
+            action=tools.addAction(label)
+            action.triggered.connect(
+                lambda checked=False, destination=target: self._open_native_tab(destination))
+        self.more_button.setMenu(tools)
+        nav.addWidget(self.more_button)
+        nav.addStretch(1)
+        layout.addLayout(nav)
         layout.addWidget(self.tabs)
         self.setCentralWidget(root)
+
         self._dashboard_tab()
         self._passes_tab()
         self._maps_tab()
@@ -241,6 +304,13 @@ class SatelliteWindow(QMainWindow):
         self._capture_tab()
         self._results_tab()
         self._protocols_tab()
+
+    def _update_nav_selection(self,index):
+        name=self.tabs.tabText(index) if 0<=index<self.tabs.count() else ""
+        for key,button in self.nav_buttons.items():
+            button.setChecked(key==name)
+        self.more_button.setText("More tools  ▾" if name in self.nav_buttons
+                                 else "More: "+name+"  ▾")
 
     def _panel(self, title, parent):
         group=QGroupBox(title)
@@ -273,33 +343,78 @@ class SatelliteWindow(QMainWindow):
         self.tabs.addTab(pane,title)
         return body
 
+
     def _dashboard_tab(self):
-        body=self._new_tab("Overview")
-        panel=self._panel("Physical receiver and local storage",body)
+        host=self._new_tab("Overview")
+        scroll=QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.NoFrame)
+        host.addWidget(scroll)
+        page=QWidget()
+        body=QVBoxLayout(page)
+        body.setSpacing(15)
+        scroll.setWidget(page)
+
+        heading=QLabel("Find a satellite. Record real radio. Explore your data.")
+        heading.setObjectName("passTitle")
+        body.addWidget(heading)
+        sub=self._hint("Start with a predicted pass or an existing recording. Maps and offline analysis "
+                       "work without a USB receiver; actual radio reception needs your SDR and antenna.")
+        sub.setObjectName("homeTagline")
+        body.addWidget(sub)
+
+        steps=QHBoxLayout()
+        steps.setSpacing(12)
+        self.home_auto=self._button("2   Auto schedule & capture",self._home_auto)
+        self.home_analyze=self._button("3   Open & analyze a recording",self._home_analyze)
+        self.home_extract=self._button("4   Inspect & save results",self._home_extract)
+        for title,description,button in (
+            ("1  Find a satellite",
+             "Choose location, calculate passes, inspect IMAGE / AUDIO / TEXT / RF capabilities.",
+             self._button("Explore satellite passes",lambda:self._open_native_tab("Passes & Data"))),
+            ("2  Capture real RF",
+             "Select a published receive mode and plan actual on-disk acquisition.",
+             self.home_auto),
+            ("3  Analyze a file",
+             "Open CU8, WAV or image. Detect signal candidates and extract only real outputs.",
+             self.home_analyze),
+        ):
+            frame=QFrame()
+            frame.setObjectName("workflowCard")
+            inner=QVBoxLayout(frame)
+            name=QLabel(title)
+            name.setObjectName("workflowStep")
+            desc=QLabel(description)
+            desc.setObjectName("workflowDescription")
+            desc.setWordWrap(True)
+            inner.addWidget(name)
+            inner.addWidget(desc)
+            inner.addStretch(1)
+            inner.addWidget(button)
+            steps.addWidget(frame,1)
+        body.addLayout(steps)
+        actions=QHBoxLayout()
+        actions.addWidget(self._button("Open live Earth / Sky map",
+                                     lambda:self._open_native_tab("Maps & Live")))
+        actions.addWidget(self.home_extract)
+        actions.addStretch(1)
+        body.addLayout(actions)
+
+        receiver=self._panel("Receiver & storage · read-only status",body)
         self.device_label=self._hint("Checking Linux RTL-SDR without opening USB…")
         self.session_label=QLabel("Idle")
         self.disk_label=self._hint("Recordings are stored locally.")
         self.cache_label=self._hint("No orbit download occurs on startup.")
-        for label in [self.device_label,self.session_label,self.disk_label,self.cache_label]:
+        for label in (self.device_label,self.session_label,self.disk_label,self.cache_label):
             label.setWordWrap(True)
-            panel.addWidget(label)
-        self._row(panel,
-                  self._button("Refresh hardware status",self.refresh_status),
-                  self._button("Test my USB receiver",self.usb_test))
-        workflow=self._panel("Satellite reception · three-step native workflow",body)
-        workflow.addWidget(self._hint(
-            "1. Pick and arm an actual pass · 2. Inspect saved RF · "
-            "3. Extract only genuine audio/image/text and export it. "
-            "No WebUSB, browser, or receiver startup is needed for opening these screens."))
-        self.home_auto=self._button("1  Auto Schedule & Capture",self._home_auto)
-        self.home_analyze=self._button("2  Analyze Recordings",self._home_analyze)
-        self.home_extract=self._button("3  Extract / Inspect / Save Results",self._home_extract)
-        self._row(workflow,self.home_auto,self.home_analyze,self.home_extract)
+            receiver.addWidget(label)
+        self._row(receiver,
+                  self._button("Refresh receiver status",self.refresh_status),
+                  self._button("Test attached RTL-SDR",self.usb_test))
         body.addWidget(self._hint(
-            "This is a native Qt Widgets window, NOT a website, embedded browser, or localhost "
-            "WebView. USB readout uses installed rtl_sdr/rtl_fm/rtl_power tools. "
-            "No scan or network TLE download begins without an explicit click. "
-            "A predicted pass does not mean a real radio signal was received."))
+            "Live map dots are orbital predictions, not measured signals. "
+            "Images and decoded packets appear only after genuine local decoding. "
+            "Advanced calendar, manual IQ and protocol editors are under More tools."))
         body.addStretch(1)
 
     def _open_native_tab(self,name):
@@ -318,6 +433,7 @@ class SatelliteWindow(QMainWindow):
 
     def _home_analyze(self):
         if self._open_native_tab("Recordings & results"):
+            self.result_steps.setCurrentIndex(0)
             self.files.setFocus()
             self.statusBar().showMessage(
                 "Select an actual CU8, then analyze the complete file or "
@@ -325,6 +441,7 @@ class SatelliteWindow(QMainWindow):
 
     def _home_extract(self):
         if self._open_native_tab("Recordings & results"):
+            self.result_steps.setCurrentIndex(2)
             self.output_files.setFocus()
             self.statusBar().showMessage(
                 "Use real FM WAV, Robot36, SatDump, spectrum and result ZIP tools. "
