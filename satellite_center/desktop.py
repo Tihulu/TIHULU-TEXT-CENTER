@@ -463,12 +463,28 @@ class SatelliteWindow(QMainWindow):
         actions=QHBoxLayout()
         self.hardware_refresh_button=self._button("↻  Refresh devices",self.refresh_status)
         self.hardware_test_button=self._button("Test USB only",self.usb_test)
+        sample_actions=QHBoxLayout()
+        self.hardware_test_frequency=QComboBox()
+        for name,hz in (
+            ("Meteor 137.900 MHz",137900000),
+            ("Meteor 137.100 MHz",137100000),
+            ("ISS VHF 145.800 MHz",145800000),
+            ("ISS SSTV 437.550 MHz",437550000),
+            ("ISS APRS 145.825 MHz",145825000),
+            ("Iridium RF 1620 MHz",1620000000)):
+            self.hardware_test_frequency.addItem(name,hz)
+        self.hardware_sample_button=self._button(
+            "Test real RF / IQ samples (0.5 sec)",self.sample_receiver)
         self.hardware_connect_button=self._button("Connect & enable RF",self.connect_receiver)
         self.hardware_disconnect_button=self._button("Stop & disconnect RF",self.disconnect_receiver)
         for button in (self.hardware_refresh_button,self.hardware_test_button,
                        self.hardware_connect_button,self.hardware_disconnect_button):
             actions.addWidget(button)
         body.addLayout(actions)
+        sample_actions.addWidget(QLabel("Test frequency"))
+        sample_actions.addWidget(self.hardware_test_frequency)
+        sample_actions.addWidget(self.hardware_sample_button)
+        body.addLayout(sample_actions)
         self.hardware_feedback=self._hint(
             "No test yet. 'Detected' means a USB ID was seen; it does not prove the receiver can be opened.")
         self.hardware_feedback.setObjectName("fileBanner")
@@ -499,15 +515,31 @@ class SatelliteWindow(QMainWindow):
             "Hauppauge DVB-T2 hardware is listed separately; it is not a general IQ SDR."))
         body.addStretch(1)
 
+    def sample_receiver(self):
+        frequency=self.hardware_test_frequency.currentData()
+        self.hardware_feedback.setText(
+            "Reading actual CU8 I/Q samples from the connected receiver…")
+        self._task("Real RF sample test",
+                   lambda:self.station.sample_test(int(frequency)),
+                   self._sample_receiver_done)
+
+    def _sample_receiver_done(self,report):
+        self.hardware_log.setPlainText(json.dumps(report,indent=2,default=str))
+        self.hardware_feedback.setText(
+            "PASS: "+str(report["complex_samples"])+" real complex I/Q samples received "
+            "at "+str(report["frequency_hz"]/1e6)+" MHz. "
+            "Test process and lock released. Signal identity remains unknown.")
+        self.refresh_status()
+
     def connect_receiver(self):
-        self.hardware_feedback.setText("Checking real USB access with rtl_test…")
+        self.hardware_feedback.setText("Checking USB with rtl_test and reading real IQ bytes…")
         self._task("Connect SDR",self.station.connect_receiver,
                    self._connected_receiver)
 
     def _connected_receiver(self,result):
         self.hardware_feedback.setText(
-            "USB opened successfully, then the test released it. RF is enabled for future "
-            "explicit recordings; no USB handle stays open while idle.")
+            "USB OPEN + ACTUAL IQ SAMPLES PASS. RTL-SDR is ready for explicit "
+            "recordings. Both test handles and lock were released while idle.")
         self.hardware_log.setPlainText(json.dumps(result,indent=2,default=str))
         self.refresh_status()
 
@@ -1717,7 +1749,7 @@ class SatelliteWindow(QMainWindow):
                     self.auto_feedback.setText("Could not schedule: "+message)
                 elif key=="Arm scheduled RF":
                     self.pass_feedback.setText("Recording not scheduled: "+message)
-                elif key in ("Connect SDR","Disconnect SDR","USB diagnostic"):
+                elif key in ("Connect SDR","Disconnect SDR","USB diagnostic","Real RF sample test"):
                     self.hardware_feedback.setText(key+" failed: "+message)
                     self.refresh_status()
                 if not silent:
@@ -1751,9 +1783,9 @@ class SatelliteWindow(QMainWindow):
              "USB enumeration unavailable on this platform"))
         last_test=hardware.get("last_usb_test") or {}
         self.hardware_access.setText(
-            "USB opened and released by rtl_test · verified "+
+            "Verified physical USB + real IQ acquisition · "+
             str(last_test.get("verified_at","unknown")) if last_test else
-            "USB access NOT verified in this session · run Connect or Test USB")
+            "USB sample reception NOT verified · run Connect or Test real RF")
         self.hardware_mode.setText(
             "RF acquisition: ENABLED for explicit captures and pending jobs" if enabled
             else "RF acquisition: DISABLED · survives restart; no new scheduled capture")
@@ -1791,6 +1823,8 @@ class SatelliteWindow(QMainWindow):
         self.hardware_connect_button.setEnabled(
             not session.get("active") and not hardware.get("opening",False))
         self.hardware_test_button.setEnabled(
+            not session.get("active") and not hardware.get("opening",False))
+        self.hardware_sample_button.setEnabled(
             not session.get("active") and not hardware.get("opening",False))
         self.device_label.setText("Receiver: "+(
             "RTL2832U USB detected (passive)" if state.get("tuner_present") else
