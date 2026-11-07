@@ -31,6 +31,7 @@ from PyQt5.QtWidgets import (
 
 from .__main__ import Station, PROFILES, LOCATIONS, AUTO_DOWNLINK_PROFILES, allowed_mode
 from .native_analysis import analyze_cu8, save_spectrum_report, export_results_zip
+from .native_segments import format_native_countdown
 from .native_data_labels import describe_local_file
 from .media_catalog import (MEDIA_COLORS, MEDIA_SYMBOLS, kinds_for_pass, filter_passes,
                             media_summary, capabilities_for_pass)
@@ -59,6 +60,40 @@ def native_datetime(value):
 
 def small_bytes(count):
     return f"{count / 1048576:.1f} MiB"
+
+
+def duration_seconds(spin, unit):
+    return int(round(spin.value()*(60 if unit.currentData()=="minutes" else 1)))
+
+
+def set_duration_seconds(spin, unit, seconds):
+    spin.setValue(seconds/60 if unit.currentData()=="minutes" else seconds)
+
+
+def native_duration_control(value=60, minimum=8, maximum=900):
+    """Native Qt numerical recording length with seconds/minutes switch."""
+    spin=QDoubleSpinBox()
+    spin.setDecimals(0);spin.setSingleStep(1)
+    spin.setRange(minimum,maximum);spin.setValue(value)
+    unit=QComboBox()
+    unit.addItem("Seconds","seconds");unit.addItem("Minutes","minutes")
+    host=QWidget();layout=QHBoxLayout(host)
+    layout.setContentsMargins(0,0,0,0)
+    layout.addWidget(spin,3);layout.addWidget(unit,1)
+    previous={"unit":"seconds"}
+    def changed(_index):
+        current=unit.currentData()
+        total=spin.value()*(60 if previous["unit"]=="minutes" else 1)
+        spin.blockSignals(True)
+        spin.setDecimals(3 if current=="minutes" else 0)
+        spin.setSingleStep(.25 if current=="minutes" else 1)
+        spin.setRange(minimum/60 if current=="minutes" else minimum,
+                      maximum/60 if current=="minutes" else maximum)
+        spin.setValue(total/60 if current=="minutes" else total)
+        spin.blockSignals(False)
+        previous["unit"]=current
+    unit.currentIndexChanged.connect(changed)
+    return host,spin,unit
 
 
 class TaskSignals(QObject):
@@ -664,14 +699,14 @@ class SatelliteWindow(QMainWindow):
         self.pass_time=QDateTimeEdit(QDateTime.currentDateTime())
         self.pass_time.setCalendarPopup(True)
         self.pass_time.setDisplayFormat("yyyy-MM-dd HH:mm:ss")
-        self.pass_seconds=QSpinBox();self.pass_seconds.setRange(8,900);self.pass_seconds.setValue(60)
+        pass_duration,self.pass_seconds,self.pass_unit=native_duration_control(60,8,900)
         self.pass_seconds.valueChanged.connect(self._pass_budget)
         self.pass_mode.currentIndexChanged.connect(self._pass_budget)
         self.pass_cost=self._hint("Choose a predicted pass")
         form.addRow("Receiver profile",self.pass_profile)
         form.addRow("RF output mode",self.pass_mode)
         form.addRow("Local start time",self.pass_time)
-        form.addRow("Actual RF duration · seconds",self.pass_seconds)
+        form.addRow("Total RF duration · seconds or minutes",pass_duration)
         form.addRow("Estimated disk space",self.pass_cost)
         self.arm_pass=self._button("Arm selected RF capture",self.schedule_selected_pass)
         form.addRow(self.arm_pass)
@@ -1168,10 +1203,8 @@ class SatelliteWindow(QMainWindow):
         body.addWidget(self.auto_expand)
         self.auto_settings=QGroupBox("Advanced · capture and processing")
         advanced=QFormLayout(self.auto_settings)
-        self.auto_seconds=QSpinBox()
-        self.auto_seconds.setRange(0,900)
+        auto_duration,self.auto_seconds,self.auto_unit=native_duration_control(0,0,900)
         self.auto_seconds.setSpecialValueText("Auto · fit pass")
-        self.auto_seconds.setValue(0)
         self.auto_jobs=QSpinBox()
         self.auto_jobs.setRange(1,12)
         self.auto_jobs.setValue(6)
@@ -1189,7 +1222,7 @@ class SatelliteWindow(QMainWindow):
             self.auto_compute.addItem(title,(mode,targets))
         self.auto_compute.setToolTip(
             "Selecting GPU/NPU is a request, not evidence of real accelerator use.")
-        advanced.addRow("Duration · 0 = fit pass",self.auto_seconds)
+        advanced.addRow("Total duration · 0 = auto · s/min",auto_duration)
         advanced.addRow("Maximum jobs",self.auto_jobs)
         advanced.addRow("Minimum elevation (°)",self.auto_elev)
         advanced.addRow("Analysis hardware",self.auto_compute)
@@ -1251,14 +1284,13 @@ class SatelliteWindow(QMainWindow):
             self.capture_profile.addItem(value["label"],key)
         self.capture_profile.currentIndexChanged.connect(self._capture_modes)
         self.capture_mode=QComboBox()
-        self.capture_seconds=QSpinBox();self.capture_seconds.setRange(8,900)
-        self.capture_seconds.setValue(60)
+        capture_duration,self.capture_seconds,self.capture_unit=native_duration_control(60,8,900)
         self.capture_budget=self._hint("Long captures write real CU8 directly to disk.")
         self.capture_mode.currentIndexChanged.connect(self._capture_budget)
         self.capture_seconds.valueChanged.connect(self._capture_budget)
         form.addRow("Receiver frequency / band",self.capture_profile)
         form.addRow("Hardware mode",self.capture_mode)
-        form.addRow("Actual sample length · 8–900 s",self.capture_seconds)
+        form.addRow("Total sample length · seconds / minutes",capture_duration)
         form.addRow("Estimated disk budget",self.capture_budget)
         body.addLayout(form)
         self._row(body,
