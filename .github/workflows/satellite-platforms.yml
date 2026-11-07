@@ -108,6 +108,8 @@ jobs:
           node --check satellite_center/browser/fm_wav_record.mjs
           node --test tests/test_satellite_fm_wav_record.mjs
           node --test tests/test_satellite_recording_formats.mjs
+          node --check satellite_center/browser/file_format_inspector.mjs
+          node --test tests/test_satellite_file_format_inspector.mjs
           node --test tests/test_satellite_images.mjs
           python -c "import json; from pathlib import Path; p=Path('satellite_center/browser/natural-earth-land-110m.geojson'); d=json.loads(p.read_text()); assert d['type']=='FeatureCollection' and len(d['features'])>100"
 
