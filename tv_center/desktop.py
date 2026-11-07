@@ -89,6 +89,11 @@ def main():
             title = QLabel("TIHULU  /  TV CENTER")
             title.setStyleSheet("font-size:22px;font-weight:700;color:#76d6ee;padding:4px 2px")
             outer.addWidget(title)
+            self.header_market = QPushButton("WHISPER + TRANSLATOR  ·  AI MODEL MARKET")
+            self.header_market.setObjectName("primary")
+            self.header_market.setToolTip("Manage built-in offline model suite, German/English/Turkish packs and external SSD")
+            self.header_market.clicked.connect(self.open_ai_settings)
+            outer.addWidget(self.header_market)
             description = QLabel("LIVE DIGITAL TV   /   LOCAL DVBv5   /   NO WEBUSB")
             description.setObjectName("receiverNotice")
             outer.addWidget(description)
@@ -693,8 +698,14 @@ def main():
                     break
                 if kind == "caption":
                     self.latest = info
-                    self.subtitle.setText((info.get("translated") or info["original"])
-                                          + "\n" + ("Source: " + info.get("source", "unknown")))
+                    original = info.get("original", "")
+                    translated = info.get("translated")
+                    if translated and translated != original:
+                        body = (info.get("source_language", "Broadcast").upper() + ": " + original +
+                                "\n" + info.get("target_language", "Translation").upper() + ": " + translated)
+                    else:
+                        body = original
+                    self.subtitle.setText(body + "\nSource: " + info.get("source", "unknown"))
                 elif kind == "scan_progress":
                     if isinstance(info, dict) and self.scan_monitor:
                         self.scan_monitor.feed(info)
