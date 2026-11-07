@@ -332,6 +332,13 @@ if (!hardwareSupported) {
   });
 }
 function refreshControls() {
+  if(window.nativeWebBridgeReady){
+    // Exact Qt desktop UI handles RF through native OS bridge, never WebUSB.
+    for(const id of ['start','stop','disconnect','connect','usb-live-test']){
+      if($(id))$(id).disabled=false;
+    }
+    return;
+  }
   $('start').disabled = !device || !!capturePromise || usbTestRunning;
   $('stop').disabled = !capturePromise;
   $('disconnect').disabled = (!device && !capturePromise) || usbTestRunning;
