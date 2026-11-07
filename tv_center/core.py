@@ -88,7 +88,7 @@ def discover_channels() -> list[Channel]:
 
 def format_frequency(channel: Channel) -> str:
     if ("DVBS" in channel.delivery or "DVB-S" in channel.delivery) and channel.frequency < 100_000_000:
-        return f"{channel.frequency / 1_000_000:.3f} GHz"
+        return f"{channel.frequency / 1_000_000:g} GHz"
     if channel.frequency >= 1_000_000_000:
         return f"{channel.frequency / 1_000_000_000:.3f} GHz"
     return f"{channel.frequency / 1_000_000:g} MHz"
