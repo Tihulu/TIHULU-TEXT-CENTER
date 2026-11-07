@@ -438,8 +438,10 @@ def main(argv=None):
     lock = threading.Lock()
     applied = CaptionConfig().validate()
     cues = CueQueue()
-    # A Raspberry Pi 5 may be CPU/memory constrained. Automatic buffering
-    # is limited to 4 seconds there; generic Linux uses at most 6 seconds.
+    # A six-second Whisper clip plus inference/translation may arrive more
+    # than six seconds after speaking began. On desktop allow up to 15s,
+    # but still obey the measured 48 MiB memory budget and native FIFO cap.
+    # Raspberry Pi 5 stays at a conservative six-second maximum.
     pi5 = False
     try:
         model = Path("/proc/device-tree/model")
@@ -447,7 +449,7 @@ def main(argv=None):
             "utf-8", "replace")
     except OSError:
         pass
-    estimator = AutoSyncEstimator(ceiling_ms=6000 if pi5 else 12000)
+    estimator = AutoSyncEstimator(ceiling_ms=6000 if pi5 else 15000)
     auto_controller = AutoSyncController()
     last_service_id = None
     def options():
