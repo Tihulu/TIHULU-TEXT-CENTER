@@ -205,8 +205,21 @@ def transform(files):
 \tQStringList argList;''', '''\tQString args = Configuration::instance()->getLibVlcArguments();
 \tconst QByteArray tihuluProfile = qgetenv("TIHULU_VLC_PROFILE");
 \tif (tihuluProfile == "software" || tihuluProfile == "software-no-audio") {
-\t\tif (!args.contains(QLatin1String("--avcodec-hw")))
-\t\t\targs.append(QLatin1String(" --avcodec-hw=none"));
+\t\t// Explicit recovery mode MUST override saved --avcodec-hw=any.
+\t\t// Otherwise libVLC still loads NVIDIA VDPAU even when the user
+\t\t// requested software-no-audio, exactly as seen in the device log.
+\t\tQStringList existing = args.split(QLatin1Char(' '), Qt::SkipEmptyParts);
+\t\tfor (int n = existing.size() - 1; n >= 0; --n) {
+\t\t\tconst QString option = existing.at(n);
+\t\t\tif (option == QLatin1String("--avcodec-hw")) {
+\t\t\t\tif (n+1 < existing.size()) existing.removeAt(n+1);
+\t\t\t\texisting.removeAt(n);
+\t\t\t} else if (option.startsWith(QLatin1String("--avcodec-hw="))) {
+\t\t\t\texisting.removeAt(n);
+\t\t\t}
+\t\t}
+\t\targs = existing.join(QLatin1Char(' '));
+\t\targs.append(QLatin1String(" --avcodec-hw=none"));
 \t\tif (!args.contains(QLatin1String("--file-caching")))
 \t\t\targs.append(QLatin1String(" --file-caching=1500"));
 \t\tif (!args.contains(QLatin1String("--no-video-title-show")))
@@ -214,10 +227,40 @@ def transform(files):
 \t\tif (tihuluProfile == "software-no-audio" &&
 \t\t    !args.contains(QLatin1String("--no-audio")))
 \t\t\targs.append(QLatin1String(" --no-audio"));
-\t\tqCInfo(logVlc, "TIHULU playback troubleshooting: %s",
-\t\t       tihuluProfile.constData());
+\t\tqCInfo(logVlc, "TIHULU playback troubleshooting: %s; enforced libVLC: %s",
+\t\t       tihuluProfile.constData(), qPrintable(args));
 \t}
 \tQStringList argList;''')
+
+    # Do not silently fall back to libvlc_new(0,NULL) (which re-enables
+    # NVIDIA hardware) when the user requests a software video profile.
+    change(vlc, '''\t\targc = 0;
+\t\tvlcInstance = libvlc_new(0, NULL);
+\t\tif (vlcInstance)
+\t\t\tqCInfo(logMediaWidget, "Using libVLC without arguments");''',
+    '''\t\targc = 0;
+\t\tconst QByteArray profile = qgetenv("TIHULU_VLC_PROFILE");
+\t\tif (profile == "software" || profile == "software-no-audio") {
+\t\t\tconst char *fallbackArgs[] = { "--avcodec-hw=none",
+\t\t\t\t"--no-video-title-show" };
+\t\t\tvlcInstance = libvlc_new(2, fallbackArgs);
+\t\t\tif (vlcInstance)
+\t\t\t\tqCWarning(logVlc,
+\t\t\t\t\t"TIHULU: extra VLC arguments rejected; safe software decoder still enforced");
+\t\t} else {
+\t\t\tvlcInstance = libvlc_new(0, NULL);
+\t\t\tif (vlcInstance)
+\t\t\t\tqCInfo(logMediaWidget, "Using libVLC without arguments");
+\t\t}''')
+    mediaAnchor = '\tvlcMedia = libvlc_media_new_location(vlcInstance, typeOfDevice);'
+    if files[vlc].count(mediaAnchor) != 2:
+        raise ValueError("Unexpected libVLC media creation count")
+    files[vlc] = files[vlc].replace(mediaAnchor, mediaAnchor + '''
+\t// Per-media option reinforces the instance-level software decode
+\t// request; native television and playback controls remain unmodified.
+\tconst QByteArray appliedProfile = qgetenv("TIHULU_VLC_PROFILE");
+\tif (appliedProfile == "software" || appliedProfile == "software-no-audio")
+\t\tlibvlc_media_add_option(vlcMedia, ":avcodec-hw=none");''')
 
     # Kaffeine's OsdWidget already renders ABOVE libVLC's native video
     # surface. Reuse that mechanism in a *separate* caption OSD so the
