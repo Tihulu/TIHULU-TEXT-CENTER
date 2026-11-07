@@ -974,6 +974,10 @@ function scheduleFrequencyChoices(family,pass=null){
 }
 function appendPass(pass){
   const item=document.createElement('div');item.className='pass';
+  // Harmless source metadata for native desktop scheduling; the displayed
+  // pass still comes from genuine TLE geometry, not received RF evidence.
+  item.dataset.norad=String(pass.id);
+  item.dataset.aos=String(pass.aos);
   const strong=document.createElement('strong');strong.textContent=pass.name+' · '+pass.family.toUpperCase();
   const description=document.createElement('small');
   description.textContent=fmtTime(pass.aos)+' → '+fmtTime(pass.los)+
