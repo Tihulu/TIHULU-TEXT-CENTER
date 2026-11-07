@@ -55,7 +55,7 @@ class KaffeineCaptionTapTests(TestCase):
 
     def test_upstream_release_is_immutable(self):
         self.assertEqual(REVISION, "e7ea15b86dafed3b20b151cbcb080578ab8e2d5c")
-        self.assertEqual(len(PATHS), 7)
+        self.assertEqual(len(PATHS), 11)
         self.assertIn("src/backend-vlc/vlcmediawidget.cpp", PATHS)
         self.assertIn("src/dvb/dvbtab.h", PATHS)
         self.assertIn("src/dvb/dvbmanager.cpp", PATHS)
