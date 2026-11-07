@@ -8,7 +8,7 @@ import { probeUsbSamples, sampleBytes } from './usb_live_probe.mjs?v=20261106-ma
 import { sortPassList } from './pass_sort.mjs';
 import { protocolsForPass, protocolCategories, passesFilteredByContent } from './pass_protocol_catalog.mjs';
 import {readUserProfiles} from './saved_satellite_protocols.mjs';
-import { selectAutomaticPasses, AUTO_TARGETS } from './auto_mission.mjs?v=20261106-iss-npu-release-v1';
+import { selectAutomaticPasses, AUTO_TARGETS } from './auto_mission.mjs?v=20261107-segments-v1';
 import {localDayKey,shiftCalendarDay,renderSatelliteCalendar} from './satellite_calendar.mjs?v=20261106-calendar-zip-v2';
 import { localDateInput, parseLocalScheduleTime, createScheduledPass, evaluateScheduledJob, secondsToJob, captureLevelSummary } from './schedule_controller.mjs?v=20261106-direct-fm-wav-v1';
 import {captureBudget,formatCaptureBudget,STREAM_IQ_BYTES} from './capture_duration.mjs?v=20261106-stream-v1';
@@ -1557,45 +1557,55 @@ async function runAutoMission({mode=$('auto-mode').value,goal=$('auto-coverage')
     if(!tleEntries.length)await refreshOrbitalCatalog();
     if(!tleEntries.length)throw Error('Could not load TLEs. Import a TLE text file, then retry.');
     if(!passes.length)await calculateOrbitalPasses();
-    const durationSeconds=Number($('auto-browser-seconds').value);
-    if(!Number.isInteger(durationSeconds)||durationSeconds<8||durationSeconds>60)
-      throw Error('Choose a browser capture length between 8 and 60 seconds.');
+    const durationSeconds=readAutoSeconds();
     const autoRaw=$('auto-save-raw').checked,autoWav=$('auto-save-wav').checked;
     if(['iss-images','images','all'].includes(mode)&&!autoRaw&&!autoWav)
       throw Error('Choose at least CU8 or WAV for automatic ISS SSTV image capture. Both are allowed.');
     const proposal=selectAutomaticPasses(passes,{
       mode,goal,durationSeconds,now:Date.now(),maxJobs:6,existingJobs:jobs
     });
-    let armed=0;
+    let armed=0,groups=0;
+    const skipped=[...proposal.skipped];
     for(const item of proposal.scheduled) {
-      const job=createScheduledPass(item.pass,{
+      const choices={
         when:item.when,durationSeconds:item.durationSeconds,
         sampleRate:item.sampleRate,frequency:item.frequency,
-       saveRaw:item.missionId==='iss-sstv'?autoRaw:item.saveRaw,
-       saveWav:item.missionId==='iss-sstv'?autoWav:false
-      });
-      if(jobs.some(j=>j.id===job.id&&['armed','starting','running'].includes(j.state)))continue;
-      job.missionId=item.missionId;
-      job.coverage=item.coverage;
-      job.dataKind=item.dataKind;
-      job.estimatedBytes=(item.missionId==='iss-sstv')?
-        (job.saveRaw?item.durationSeconds*item.sampleRate*2:0)+
-        (job.saveWav?wavOutputPlan(item.durationSeconds,true).estimatedBytes:0):
-        item.estimatedBytes;
-      job.shortfallSeconds=item.shortfallSeconds;
-      job.message='Plan: '+item.durationSeconds+' s · ~'+Math.round(job.estimatedBytes/1e6)+
-        ' MB · '+item.dataKind+' · '+
-        (item.missionId==='iss-sstv'?outputSelectionText(job.saveRaw,job.saveWav)+' · ':'')+
-        item.coverage+'; '+item.limitation;
-      jobs.push(job);armed++;
+        saveRaw:item.missionId==='iss-sstv'?autoRaw:item.saveRaw,
+        saveWav:item.missionId==='iss-sstv'?autoWav:false
+      };
+      try{
+        const batch=scheduleBrowserSegments(item.pass,choices);
+        assertNoCaptureConflicts(batch.jobs);
+        for(const job of batch.jobs){
+          job.missionId=item.missionId;
+          job.coverage=item.coverage;
+          job.dataKind=item.dataKind;
+          job.shortfallSeconds=item.shortfallSeconds;
+          job.message=(job.segmentCount?
+            'Part '+job.segmentIndex+'/'+job.segmentCount+' · ':'')+
+            'Plan: '+job.durationSeconds+' s · ~'+
+            Math.round(job.estimatedBytes/1e6)+' MB · '+
+            item.dataKind+' · '+item.coverage+'; '+item.limitation+
+            (job.segmentCount?' Separate file; RF restart gaps are not recorded.':'');
+        }
+        jobs.push(...batch.jobs);
+        armed+=batch.jobs.length;groups++;
+      }catch(error){
+        skipped.push({name:item.pass.name,reason:String(error?.message||error)});
+      }
     }
     jobs.sort((a,b)=>a.when-b.when);
     renderJobs();
     statusBox.textContent=armed?
-      'Armed '+armed+' non-overlapping RF candidate pass(es). ISS selected outputs: '+
-      outputSelectionText(autoRaw,autoWav)+'. USB is released while waiting. Browser clips max out at 60 s / 128 MiB; Meteor full imagery requires a native disk capture. '+proposal.skipped.length+' skipped; '+proposal.skipped.map(x=>x.reason).slice(0,2).join(' · ')+' Keep this tab VISIBLE and AWAKE.':
-      'No feasible passes for this data goal. '+proposal.skipped.map(x=>x.reason).slice(0,3).join(' · ')+' You can choose Quick RF sample or use the optional local receiver for full-pass imaging.';
-    log('Automatic mission plan: '+armed+' RF recording jobs armed, '+proposal.skipped.length+' skipped; no device is currently in use.');
+      'Armed '+armed+' SEPARATE RF files/calendar tasks in '+groups+
+      ' satellite pass(es). ISS outputs: '+outputSelectionText(autoRaw,autoWav)+
+      '. Each CU8 clip is ≤60 s (≤32 s at 2.048 MS/s). Gaps between files are NOT recorded; allow multiple Chromium downloads. '+
+      skipped.length+' skipped; '+skipped.map(x=>x.reason).slice(0,2).join(' · ')+
+      ' Keep tab VISIBLE, OPEN and AWAKE.':
+      'No feasible passes for this data goal. '+skipped.map(x=>x.reason).slice(0,3).join(' · ')+
+      ' Reduce duration, choose Quick RF sample, or use the native receiver for continuous IQ.';
+    log('Automatic segmented mission plan: '+armed+' independent RF jobs for '+groups+
+      ' passes, '+skipped.length+' skipped; no device is currently in use.');
     if(armed)document.getElementById('schedule-center')?.scrollIntoView({behavior:'smooth',block:'nearest'});
   }catch(error){
     statusBox.textContent='Auto schedule not armed: '+String(error?.message||error)+
@@ -1645,7 +1655,7 @@ try {
   const transferredSeconds=sessionStorage.getItem('tihulu-auto-browser-seconds');
   sessionStorage.removeItem('tihulu-auto-browser-seconds');
   if(transferredSeconds!==null&&Number.isInteger(Number(transferredSeconds))&&
-     Number(transferredSeconds)>=8&&Number(transferredSeconds)<=60)
+     Number(transferredSeconds)>=8&&Number(transferredSeconds)<=900)
     $('auto-browser-seconds').value=transferredSeconds;
 } catch(_error) { /* Storage unavailable: keep safe full-data default. */ }
 // Same-tab transfer from the Images & Data recording-formats picker.
