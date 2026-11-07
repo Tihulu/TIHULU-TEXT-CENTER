@@ -213,26 +213,36 @@ function updateManualCaptureBudget(){
  const label=$('capture-budget');
  const summary=$('capture-format-summary');
  summary.textContent=outputSelectionText($('record').checked,$('wav-record').checked)+
-   '. Checking both boxes saves both formats independently; unchecking both records levels only.';
+   '. You may select both, or record uncalibrated RF levels only.';
  try{
-   const seconds=Number($('duration').value),rate=Number($('rate').value);
-   const opts=inspectCaptureStorage(seconds,rate,$('record').checked,$('wav-record').checked);
-   label.dataset.feasible="true";
-   label.textContent=(opts.iq.mode==='levels-only'?'No raw CU8. ':
-     'CU8: '+(opts.iq.estimatedBytes/1e6).toFixed(0)+' MB ('+opts.iq.mode+'). ')+
-     (opts.audio.enabled?'WAV: '+(opts.audio.estimatedBytes/1e6).toFixed(1)+' MB ('+
-       opts.audio.mode+', 48 kHz mono PCM). ':'')+
-     ((opts.rawDisk&&opts.wavDisk)?'Choose one folder for both files. ':
-       (opts.rawDisk||opts.wavDisk)?'Choose a local file before recording. ':'')+
-     'Browser must remain visible during WebUSB capture.';
- }catch(error){label.dataset.feasible="false";label.textContent=String(error?.message||error);}
+   const seconds=secondsFromEntry($('duration').value,$('duration-unit').value);
+   const rate=Number($('rate').value),raw=$('record').checked,wav=$('wav-record').checked;
+   const segmented=seconds>60||(raw&&seconds*rate*2>maxRecordBytes);
+   if(segmented){
+     const plan=planChainedCapture({startMs:Date.now()+1000,totalSeconds:seconds,rate,raw,wav});
+     label.textContent='Automatic chain: '+plan.segments.length+' separate calendar jobs · '+
+       seconds+' s total recording / '+plan.elapsedSeconds+' s elapsed · '+
+       (plan.segments.reduce((n,p)=>n+p.estimatedRawBytes+p.estimatedWavBytes,0)/1e6).toFixed(1)+
+       ' MB across downloads. Maximum '+plan.segments[0].durationSeconds+
+       ' s per file. '+plan.warning+' Multiple automatic downloads may need browser approval.';
+   }else{
+     const opts=inspectCaptureStorage(seconds,rate,raw,wav);
+     label.textContent=(opts.iq.mode==='levels-only'?'No raw CU8. ':
+       'CU8: '+(opts.iq.estimatedBytes/1e6).toFixed(0)+' MB ('+opts.iq.mode+'). ')+
+       (opts.audio.enabled?'WAV: '+(opts.audio.estimatedBytes/1e6).toFixed(1)+' MB ('+
+         opts.audio.mode+', 48 kHz mono PCM). ':'')+
+       'Single foreground WebUSB session.';
+   }
+   label.dataset.feasible='true';
+ }catch(error){label.dataset.feasible='false';label.textContent=String(error?.message||error);}
 }
+
 $('preset').addEventListener('change',()=>{
  // SSTV defaults to real FM WAV, but users may check CU8 as well.
  const iss=Number($('preset').value)===437550000;
  setManualOutputSelection(!iss,iss);
 });
-for(const id of ['duration','rate','record','wav-record']){
+for(const id of ['duration','duration-unit','rate','record','wav-record']){
  $(id).addEventListener('input',updateManualCaptureBudget);
  $(id).addEventListener('change',updateManualCaptureBudget);
 }
@@ -712,6 +722,12 @@ async function startCapture(job=null,prepared=null) {
 }
 async function stopCapture() {
   stopRequested=true;
+  for(const job of jobs){
+    if(job.state==='armed'&&String(job.chainId||'').startsWith('manual:')){
+      job.state='cancelled';
+      job.message='Remaining manual RF chain cancelled by Stop & release.';
+    }
+  }
   // Closing our own USB handle helps interrupt a stuck readSamples() transfer.
   await closeDevice();
   if(capturePromise){
@@ -729,17 +745,51 @@ $('start').addEventListener('click',()=>{
  void (async()=>{
    let prepared=null;
    try{
-     prepared=await selectRecordingFiles(Number($('duration').value),Number($('rate').value),
-       $('record').checked,$('wav-record').checked,
-       {at:new Date(),freq:Number($('preset').value)});
-     await startCapture(null,prepared);
+     const totalSeconds=secondsFromEntry($('duration').value,$('duration-unit').value);
+     const rate=Number($('rate').value),raw=$('record').checked,wav=$('wav-record').checked;
+     const frequency=Number($('preset').value);
+     if(totalSeconds>60||(raw&&totalSeconds*rate*2>maxRecordBytes)){
+       if(!device)throw Error('Connect the RTL-SDR before scheduling manual consecutive captures.');
+       const plan=planChainedCapture({startMs:Date.now()+1500,totalSeconds,rate,raw,wav});
+       const groupId='manual:'+Date.now()+':'+Math.random().toString(36).slice(2,8);
+       const chain=plan.segments.map(seg=>({
+         id:groupId+':'+seg.index,chainId:groupId,
+         chainIndex:seg.index,chainTotal:plan.segments.length,
+         chainCaptureTotal:totalSeconds,
+         name:'Manual RF · unattributed',family:'manual',passId:'manual',
+         when:seg.when,until:seg.end+6000,passAos:seg.when,passLos:seg.end+6000,
+         frequency,sampleRate:rate,durationSeconds:seg.durationSeconds,
+         saveRaw:raw,saveWav:wav,state:'armed',createdAt:Date.now(),
+         estimatedBytes:seg.estimatedRawBytes+seg.estimatedWavBytes,
+         message:'Manually requested part '+seg.index+'/'+plan.segments.length+
+           '. Not a satellite pass. Browser must remain visible; RF gaps possible.'
+       }));
+       for(const job of chain){
+         if(jobs.some(other=>['armed','starting','running'].includes(other.state)&&
+           scheduledOverlap(job,other,{guardSeconds:0})))
+           throw Error('A scheduled pass conflicts with this immediate recording chain.');
+       }
+       addBrowserChain(chain);
+       status('sample-state','Armed '+chain.length+' consecutive manually requested WebUSB files · '+
+         totalSeconds+' s total and '+plan.totalGapSeconds+
+         ' s reserved gaps. See the reception calendar for every file; keep the tab visible. '+
+         'Allow multiple browser downloads. No actual RF has been recorded yet.');
+       log('Manual browser capture chain armed: '+chain.length+
+         ' independent files. No continuous-stream guarantee.');
+       void scheduledTick();
+     }else{
+       prepared=await selectRecordingFiles(totalSeconds,rate,raw,wav,
+         {at:new Date(),freq:frequency});
+       await startCapture(null,prepared);
+     }
    }catch(error){
      if(prepared?.writable||prepared?.wavWritable)await abortLongCapture(prepared);
-     status('sample-state',"Capture not started: "+String(error?.message||error));
-     log("Capture preflight: "+String(error?.message||error));
+     status('sample-state','Capture not started: '+String(error?.message||error));
+     log('Capture preflight: '+String(error?.message||error));
    }
  })();
 });
+
 navigator.usb?.addEventListener('disconnect',e=>{
   stopRequested=true;
   if(device)log('USB disconnection detected; receiving session is stopping.');
