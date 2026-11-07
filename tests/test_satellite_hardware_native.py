@@ -71,6 +71,30 @@ class NativeHardwareTests(unittest.TestCase):
                 self.station.connect_receiver()
         self.assertFalse(self.station.receiver_enabled)
 
+    def test_usb_open_only_does_not_arm_rf_or_claim_iq(self):
+        self.station.disconnect_receiver()
+        proc = _FakeProcess(b"Using device 0: Generic RTL2832U OEM\\n")
+        with patch("satellite_center.__main__.shutil.which", return_value="/usr/bin/rtl_test"), patch.object(
+            self.station, "_acquire"
+        ), patch.object(self.station, "_release") as release, patch.object(
+            self.station, "_launch_receiver", return_value=proc
+        ), patch("satellite_center.__main__.stop_process"):
+            result = self.station.usb_test()
+        self.assertEqual(result["state"], "usb_receiver_opened")
+        self.assertFalse(self.station.receiver_enabled)
+        self.assertIsNone(self.station.receiver_last_sample)
+        self.assertFalse(self.station.launching)
+        release.assert_called_once()
+
+    def test_native_desktop_labels_separate_usb_access_from_connect(self):
+        bridge = (Path(__file__).resolve().parents[1] /
+                  "satellite_center" / "native_desktop_bridge.js").read_text(
+                      encoding="utf-8")
+        self.assertIn("Connect & enable RF (USB + real IQ)", bridge)
+        self.assertIn("USB access check only (does not enable RF)", bridge)
+        self.assertIn("USB ACCESS DIAGNOSTIC PASS", bridge)
+        self.assertIn("RF is still DISABLED", bridge)
+
     def test_explicit_test_does_not_enable_receiver_and_releases_it(self):
         self.station.disconnect_receiver()
         fake = _FakeProcess(bytes([120, 140] * 524288))
