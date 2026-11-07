@@ -45,6 +45,43 @@ def describe_local_file(source):
             "File header matches; complete media decoding is not checked. "
             "satellite origin and decoder authenticity are not independently verified.",
         )
+    if suffix in (".mp4",".m4v",".mov",".webm",".gif",".webp",
+                  ".mp3",".ogg",".flac"):
+        try:
+            with path.open("rb") as stream:
+                header=stream.read(24)
+        except OSError:
+            return ("UNREADABLE · "+suffix.lstrip(".").upper(),
+                    "Cannot read a local media header; content not verified.")
+        if suffix in (".mp4",".m4v",".mov"):
+            valid=len(header)>=12 and header[4:8]==b"ftyp"
+            media="VIDEO · "+suffix[1:].upper()
+        elif suffix==".webm":
+            valid=header.startswith(b"\\x1a\\x45\\xdf\\xa3")
+            media="VIDEO · WEBM"
+        elif suffix==".gif":
+            valid=header[:6] in (b"GIF87a",b"GIF89a")
+            media="IMAGE · GIF"
+        elif suffix==".webp":
+            valid=header[:4]==b"RIFF" and header[8:12]==b"WEBP"
+            media="IMAGE · WEBP"
+        elif suffix==".mp3":
+            valid=header.startswith(b"ID3") or (len(header)>1 and
+                   header[0]==0xff and header[1]&0xe0==0xe0)
+            media="AUDIO · MP3"
+        elif suffix==".ogg":
+            valid=header.startswith(b"OggS")
+            media="AUDIO · OGG"
+        else:
+            valid=header.startswith(b"fLaC")
+            media="AUDIO · FLAC"
+        if not valid:
+            return ("INVALID? · "+suffix.lstrip(".").upper(),
+                    "Filename extension and bounded header check disagree.")
+        return (media,
+                "Media magic-header matched. This does not verify full playback, "
+                "valid codec support, satellite origin or actual RF reception.")
+
     if suffix == ".txt":
         return ("TEXT · TXT", "Local text file; not proof of a decoded RF packet.")
     if suffix == ".json":
