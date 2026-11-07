@@ -15,6 +15,7 @@ import threading
 from . import __version__
 from .core import TVCapture, discover_channels, read_channels, receiver_status, parse_signal_log, Channel
 from .bridge import TVBridge
+from .lan import MobileLAN
 from .captions import install_argos_pack
 
 def main():
@@ -38,6 +39,7 @@ def main():
             self.resize(1280, 795)
             self.capture = TVCapture()
             self.bridge = None
+            self.mobile_lan = None
             self.latest = {"original": "", "translated": "", "source": "none"}
             self.channels = []
             self.setStyleSheet("""
@@ -159,6 +161,15 @@ def main():
             self.bridge_token.setReadOnly(True)
             self.bridge_token.setPlaceholderText("Bridge OFF — no local server")
             form.addRow("Temporary bridge token", self.bridge_token)
+            self.lan_toggle = QCheckBox("Allow phone / tablet on trusted Wi-Fi (OFF by default)")
+            self.lan_toggle.toggled.connect(self.toggle_mobile_lan)
+            form.addRow("Local Wi-Fi", self.lan_toggle)
+            self.lan_details = QLabel("Mobile access OFF — no LAN listener")
+            self.lan_details.setWordWrap(True)
+            form.addRow("Phone URL / pairing code", self.lan_details)
+            self.mobile_video_toggle = QCheckBox("Share live H.264/AAC video (CPU intensive)")
+            self.mobile_video_toggle.toggled.connect(self.toggle_mobile_video)
+            form.addRow("Mobile video", self.mobile_video_toggle)
             self.statusbar = QLabel("Idle. No active tuner or AI worker.")
             self.statusbar.setWordWrap(True)
             outer.addWidget(self.statusbar)
@@ -263,6 +274,10 @@ def main():
 
         def stop(self):
             self.capture.stop()
+            if hasattr(self, "mobile_video_toggle"):
+                self.mobile_video_toggle.blockSignals(True)
+                self.mobile_video_toggle.setChecked(False)
+                self.mobile_video_toggle.blockSignals(False)
 
         def choose_model(self):
             file, _ = QFileDialog.getOpenFileName(self, "Select installed multilingual Whisper GGML model", str(Path.home()), "Whisper GGML models (*.bin);;All files (*)")
@@ -295,8 +310,56 @@ def main():
                     "subtitle_mode": self.capture.caption_mode,
                     "teletext_page": self.capture.page,
                     "supported_languages": ["tr", "de", "en"],
-                    "web_video": "not_available_in_pages_preview",
+                    "mobile_video": self.capture.mobile_stream_dir() is not None,
+                    "web_video": "optional_local_hls_only",
                     "pi5_hardware_verified": False}
+
+        def toggle_mobile_lan(self, enabled):
+            if enabled:
+                try:
+                    self.mobile_lan = MobileLAN(self.snapshot,
+                         lambda p: self.capture.set_captions(
+                             "page", p, self.lang_in.currentText(),
+                             self.lang_out.currentText(), self.model.text()),
+                         self.capture.mobile_stream_dir)
+                    info = self.mobile_lan.start()
+                    self.lan_details.setText(
+                        f"Open on phone: {info['url']}  |  Pairing code: {info['pin']}")
+                    self.statusbar.setText("Trusted Wi-Fi web access ON. Local HTTP is not encrypted.")
+                except OSError as exc:
+                    self.lan_toggle.blockSignals(True)
+                    self.lan_toggle.setChecked(False)
+                    self.lan_toggle.blockSignals(False)
+                    self.mobile_lan = None
+                    QMessageBox.warning(self, "Mobile LAN listener", str(exc))
+            else:
+                if self.mobile_lan:
+                    self.mobile_lan.stop()
+                    self.mobile_lan = None
+                self.capture.stop_mobile_video()
+                self.mobile_video_toggle.blockSignals(True)
+                self.mobile_video_toggle.setChecked(False)
+                self.mobile_video_toggle.blockSignals(False)
+                self.lan_details.setText("Mobile access OFF — no LAN listener")
+
+        def toggle_mobile_video(self, enabled):
+            if enabled:
+                if not self.mobile_lan:
+                    QMessageBox.information(self, "Enable phone access first",
+                       "Enable Local Wi-Fi before sharing mobile HLS.")
+                    self.mobile_video_toggle.blockSignals(True)
+                    self.mobile_video_toggle.setChecked(False)
+                    self.mobile_video_toggle.blockSignals(False)
+                    return
+                try:
+                    self.capture.start_mobile_video()
+                except (RuntimeError, OSError, ValueError) as exc:
+                    self.mobile_video_toggle.blockSignals(True)
+                    self.mobile_video_toggle.setChecked(False)
+                    self.mobile_video_toggle.blockSignals(False)
+                    QMessageBox.warning(self, "Mobile HLS encoder", str(exc))
+            else:
+                self.capture.stop_mobile_video()
 
         def toggle_bridge(self, enabled):
             if enabled:
@@ -343,6 +406,8 @@ def main():
                     self.statusbar.setText(str(info))
 
         def closeEvent(self, event):
+            if self.mobile_lan:
+                self.mobile_lan.stop()
             if self.bridge:
                 self.bridge.stop()
             self.stop()
