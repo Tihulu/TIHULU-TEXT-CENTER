@@ -19,6 +19,7 @@
 #include <QNetworkRequest>
 #include <QVector>
 #include <QFile>
+#include <QFileDialog>
 #include <QFormLayout>
 #include <QGroupBox>
 #include <QHBoxLayout>
@@ -81,13 +82,24 @@ public:
 		channel_->setCurrentText(QLatin1String("11D"));
 		channel_->setToolTip(tr("European Band III blocks. No tuning until Start."));
 		header->addWidget(channel_);
+		driver_ = new QComboBox(this);
+		driver_->addItem(tr("Auto SDR"), QLatin1String("auto"));
+		driver_->addItem(tr("RTL-SDR"), QLatin1String("rtl_sdr"));
+		driver_->addItem(tr("SoapySDR"), QLatin1String("soapysdr"));
+		driver_->setToolTip(tr("Choose the DAB-capable receiver driver. "
+			"An ordinary DVB-T2 frontend alone cannot be assumed to work."));
+		header->addWidget(driver_);
 		start_ = new QPushButton(tr("Start receiver"), this);
 		start_->setToolTip(tr("Open an actual DAB-capable RTL-SDR/Soapy device on demand."));
 		stop_ = new QPushButton(tr("Stop / release SDR"), this);
+		record_ = new QPushButton(tr("Record station"), this);
+		record_->setToolTip(tr("Save selected radio service to a local MP3; "
+			"stop recording to release the file."));
 		scan_ = new QPushButton(tr("Scan all blocks"), this);
 		scan_->setToolTip(tr("Retunes across Band III blocks; can take minutes."));
 		header->addWidget(start_);
 		header->addWidget(scan_);
+		header->addWidget(record_);
 		header->addWidget(stop_);
 		root->addLayout(header);
 
@@ -162,7 +174,7 @@ public:
 		auto *lyricsRow = new QHBoxLayout();
 		lyrics_ = new QPushButton(tr("Find timed lyrics (optional internet)"), lab);
 		lyricsOffset_ = new QSlider(Qt::Horizontal, lab);
-		lyricsOffset_->setRange(-12000, 12000);
+		lyricsOffset_->setRange(-90000, 90000);
 		lyricsOffset_->setValue(0);
 		lyricsOffset_->setToolTip(tr("Manual lyric sync offset, milliseconds (-12s to +12s)."));
 		lyricsRow->addWidget(lyrics_);
@@ -193,6 +205,7 @@ public:
 
 		connect(start_, &QPushButton::clicked, this, [this](){ startReceiver(); });
 		connect(stop_, &QPushButton::clicked, this, [this](){ stopReceiver(); });
+		connect(record_, &QPushButton::clicked, this, [this](){ toggleRecording(); });
 		connect(scan_, &QPushButton::clicked, this, [this](){ beginScan(); });
 		connect(stations_, &QTreeWidget::itemDoubleClicked, this,
 			[this](QTreeWidgetItem *item, int){ selectStation(item); });
@@ -270,8 +283,12 @@ private:
 			state_->setText(tr("Invalid DAB frequency block.")); return;
 		}
 		shuttingDown_ = false;
-		backend_.start(binaryPath(), {QLatin1String("-c"),current,
-			QLatin1String("-w"),QString::number(port_)});
+		QStringList receiverArgs{QLatin1String("-c"),current,
+			QLatin1String("-w"),QString::number(port_)};
+		const QString device=driver_->currentData().toString();
+		if (device != QLatin1String("auto"))
+			receiverArgs<<QLatin1String("-F")<<device;
+		backend_.start(binaryPath(), receiverArgs);
 		if (!backend_.waitForStarted(1800)) {
 			state_->setText(tr("Could not start verified welle-cli receiver."));
 			return;
@@ -285,8 +302,10 @@ private:
 		shuttingDown_ = true;
 		scanning_ = false;
 		stopCaptioning();
+		stopRecording();
 		tick_.stop();
-		player_->stop();
+		if (!playingKey_.isEmpty()) player_->stop();
+		playingKey_.clear();
 		if (active()) {
 			backend_.terminate();
 			if (!backend_.waitForFinished(1200)) {
@@ -334,6 +353,10 @@ private:
 			.arg(fic.value(QLatin1String("numcrcerrors")).toVariant().toString())
 			.arg(hardware.value(QLatin1String("gain")).toVariant().toString())
 			.arg(hardware.value(QLatin1String("name")).toString()));
+		const auto tii=mux.value(QLatin1String("tii")).toArray();
+		if (!tii.isEmpty())
+			signal_->setToolTip(tr("welle.io TII transmitters: %1 entries")
+				.arg(tii.size()));
 		const auto stations = mux.value(QLatin1String("services")).toArray();
 		for (const QJsonValue &v : stations) {
 			const auto service = v.toObject();
@@ -365,7 +388,14 @@ private:
 					lyricPath_.clear();
 					lyricText_->setText(tr("New DLS text. Lyrics need fresh explicit lookup."));
 				}
-				dls_->setText(tr("Now playing: %1\nDLS: %2").arg(serviceLabel,dls));
+				const QJsonObject errs=service.value(
+					QLatin1String("errorcounters")).toObject();
+				const QString technical=tr("Frame / RS / AAC: %1 / %2 / %3")
+					.arg(errs.value(QLatin1String("frameerrors")).toVariant().toString())
+					.arg(errs.value(QLatin1String("rserrors")).toVariant().toString())
+					.arg(errs.value(QLatin1String("aacerrors")).toVariant().toString());
+				dls_->setText(tr("Now playing: %1\nDLS: %2\n%3")
+					.arg(serviceLabel,dls,technical));
 				requestSlide(sid);
 			}
 		}
@@ -489,6 +519,46 @@ private:
 		};
 		if (activeChannel_!=block) tune(block,play);
 		else play();
+	}
+	void toggleRecording() {
+		if (recorder_.state()!=QProcess::NotRunning) {
+			stopRecording();
+			return;
+		}
+		if (!active() || playingKey_.isEmpty()) {
+			state_->setText(tr("Select an actual DAB station before recording."));
+			return;
+		}
+		const QString filename=QFileDialog::getSaveFileName(
+			this,tr("Record live DAB station"),QDir::homePath()+QLatin1String("/Radio.mp3"),
+			tr("MP3 audio (*.mp3)"));
+		if (filename.isEmpty()) return;
+		if (QFile::exists(filename)) {
+			QMessageBox::information(this,tr("Recording"),
+				tr("Recording never overwrites an existing file. Choose another name."));
+			return;
+		}
+		const QString sid=playingKey_.section(QLatin1Char(':'),1);
+		const QString address=base()+QLatin1String("/mp3/")+sid;
+		recorder_.start(QLatin1String("ffmpeg"),
+			{QLatin1String("-nostdin"),QLatin1String("-hide_banner"),
+			 QLatin1String("-loglevel"),QLatin1String("error"),
+			 QLatin1String("-n"),QLatin1String("-i"),address,
+			 QLatin1String("-vn"),QLatin1String("-c:a"),QLatin1String("copy"),
+			 filename});
+		if (recorder_.waitForStarted(1000)) {
+			record_->setText(tr("Stop recording"));
+			state_->setText(tr("Recording real DAB audio locally to %1").arg(filename));
+		} else
+			state_->setText(tr("FFmpeg recording could not start."));
+	}
+	void stopRecording() {
+		if (recorder_.state()!=QProcess::NotRunning) {
+			recorder_.terminate();
+			if (!recorder_.waitForFinished(1500))
+				recorder_.kill();
+		}
+		if (record_) record_->setText(tr("Record station"));
 	}
 	void requestSlide(const QString &sid) {
 		if (!active() || sid.isEmpty() || slidePending_) return;
@@ -671,15 +741,17 @@ private:
 	MediaWidget *player_;
 	QWidget *playerHost_=nullptr;
 	QVBoxLayout *playerHostLayout_=nullptr;
-	QComboBox *channel_=nullptr, *speechLanguage_=nullptr, *plotKind_=nullptr;
-	QPushButton *start_=nullptr,*stop_=nullptr,*scan_=nullptr,*caption_=nullptr,
+	QComboBox *channel_=nullptr, *driver_=nullptr, *speechLanguage_=nullptr,
+		*plotKind_=nullptr;
+	QPushButton *start_=nullptr,*stop_=nullptr,*scan_=nullptr,*record_=nullptr,
+		*caption_=nullptr,
 		*stopCaption_=nullptr,*lyrics_=nullptr;
 	QTreeWidget *stations_=nullptr;
 	QLabel *state_=nullptr,*dls_=nullptr,*signal_=nullptr,*slide_=nullptr,
 		*radioCaption_=nullptr,*lyricText_=nullptr,*plot_=nullptr;
 	QCheckBox *english_=nullptr,*turkish_=nullptr,*music_=nullptr;
 	QSlider *lyricsOffset_=nullptr;
-	QProcess backend_,captionProcess_;
+	QProcess backend_,captionProcess_,recorder_{this};
 	QNetworkAccessManager network_;
 	QTimer tick_;
 	quint16 port_=0;
