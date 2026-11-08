@@ -188,6 +188,58 @@ the requested source language rather than an unrelated language or an
 accessibility audio-description track. It falls back to the existing
 program audio if no matching track exists.
 
+### Exactly what is delayed (and what is not)
+
+The native Kaffeine DVB callback **duplicates each selected-service TS packet
+before the playback buffer**. One copy is immediately sent over the
+private UNIX datagram socket to the Python caption worker. Whisper
+processes live audio in overlapping six-second windows and Argos/NLLB
+then translates the actual recognized words; neither waits for
+Kaffeine's delayed video output. The OTHER copy enters Kaffeine's
+delayed MPEG-TS FIFO, so audio and video play together after the delay.
+It is not an isolated audio track delay.
+
+For example, when a caption becomes ready approximately 7 seconds
+after speech enters the RF receiver, 10 seconds of native delayed
+playback can give 3 seconds of alignment headroom. If the CPU cannot
+process six seconds of speech inside the available playback window,
+the worker's queue will grow regardless of how long the display waits.
+The queue is bounded; missing RF packets or nonblocking-sidecar drops
+cannot be recovered by buffering the video.
+
+**Requested vs actually applied:** the native playback FIFO keeps a
+64 MiB maximum and computes a safer bitrate-limited delay with ~48 MiB
+of target capacity and 16 MiB of headroom. The caption panel reads
+Kaffeine's per-second effective MPEG-TS delay status from the user's
+private runtime directory. It shows both requested and applied seconds,
+plus the sampled incoming TS bitrate. When a high-bitrate channel,
+timeshift or a recovery cooldown reduces the effective delay, the
+panel warns rather than falsely presenting the requested time as
+what the viewer is actually watching. The number describes the native
+FIFO, not VLC's extra decoder/video-output latency. Auto-sync still
+requires live processing measurements; it does not guarantee exact
+per-word lip sync.
+
+### Broadcaster Teletext language and subtitle-channel picker
+
+The caption settings now discover actual **DVB Teletext subtitle descriptors**
+from the currently copied service's PAT/PMT tables. Choose the
+real language, PID and page in **Broadcast subtitle channel**, then
+press **Apply**. This follows Kaffeine's own subtitle menu behavior
+without inventing nonexistent language channels. It also prevents
+the old failure where both German and French captions were mixed from
+the same Teletext stream. The chosen page is fed directly to FFmpeg
+and the signalled source language is used for translation; manual
+page entry and pure Whisper transcription remain separate modes.
+
+Initially enabled offline source/target codes are German, English,
+Turkish and French. Other languages require language-catalog/runtime
+support and an installed translator model; discovery of a Teletext
+language alone does not imply it can be translated. For captions
+with original only, no translation model is required. Libre DVB
+Teletext formatting escape `\\h` is normalized to whitespace
+before display or translation.
+
 ## Synchronized live subtitles, embedded on-video OSD and Apply / Reset
 
 In Kaffeine choose **TIHULU AI → Live Teletext / Whisper subtitles**.
