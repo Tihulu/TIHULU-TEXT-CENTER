@@ -36,9 +36,12 @@ def inspect():
             "backend_ready": bool(choice.get("ready")),
             "backend_reason": choice.get("reason"),
             "runtime_cpu": whisper.ready(),
-            "runtime_cuda": whisper.ready_gpu(),
+            "runtime_cuda": bool(
+                whisper.ready_gpu() or
+                profile["speech"].get("gpu_engine") == "faster_whisper_managed"),
             "runtime_npu": bool(profile["speech"].get("ready_npu")),
             "known_gpu_engine": profile["speech"].get("gpu_engine"),
+            "gpu_model_path": profile["speech"].get("gpu_model_path"),
         },
         "hardware": {
             "cpu": hardware["cpu"],
@@ -63,7 +66,9 @@ def inspect():
         "next_step": (
             "GPU READY: test real audio inference in Kaffeine, verify actual CUDA execution."
             if choice.get("selected") == "gpu" and choice.get("ready") else
-            "RTX detected, CUDA Toolkit >=12.8 compiler not available. Check "
+            "RTX detected, CUDA Toolkit >=12.8 compiler not available. "
+            "Try the isolated Faster-Whisper CUDA installer in Model Market "
+            "(prebuilt cuBLAS/cuDNN; no nvcc needed), or check "
             "'ls /usr/local/cuda*/bin/nvcc' and install NVIDIA's cuda-toolkit-12-8 "
             "(toolkit only; do not replace the Pop!_OS NVIDIA driver), then "
             "build CUDA whisper.cpp in TIHULU Model Market."
