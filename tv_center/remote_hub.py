@@ -96,14 +96,19 @@ let now=Date.now();setTimeout(()=>{if(csrf)el.textContent=x.text||''},Math.max(0
 
 
 class RemoteHub:
-    def __init__(self,media_root,*,welle_port=None,caption_pid=None):
+    def __init__(self,media_root,*,welle_port=None,caption_pid=None,
+                 native_pid=None):
         self.root=Path(media_root).expanduser().resolve(strict=True)
         if not self.root.is_dir():
             raise ValueError("Media root must be a directory")
         self.welle_port=welle_port
+        self.native_pid=native_pid
+        if native_pid is not None and (type(native_pid)!=int or
+                not 1<=native_pid<=999999999):
+            raise ValueError("Invalid local native player PID")
         if welle_port is not None and (type(welle_port)!=int or not 1024<=welle_port<=65535):
             raise ValueError("Invalid local welle port")
-        self.caption_pid=caption_pid
+        self.caption_pid=caption_pid if caption_pid is not None else native_pid
         self.pin=f"{secrets.randbelow(100000000):08d}"
         self.sessions={}
         self.failures={}
@@ -128,10 +133,27 @@ class RemoteHub:
             found[token]=p
         return found
 
-    def dab_services(self):
-        if not self.welle_port:return []
+    def active_welle_port(self):
+        if self.welle_port:return self.welle_port
+        if self.native_pid is None:return None
+        runtime=Path(os.environ.get("XDG_RUNTIME_DIR",""))
+        if not runtime.is_absolute() or not runtime.is_dir():
+            return None
+        file=runtime/f"tihulu-welle-{self.native_pid}.port"
         try:
-            with urlopen(f"http://127.0.0.1:{self.welle_port}/mux.json",timeout=2) as r:
+            if file.is_symlink() or file.stat().st_uid!=os.getuid() or (
+                    file.stat().st_size>8):
+                return None
+            number=int(file.read_text().strip())
+            return number if 1024<=number<=65535 else None
+        except (OSError,ValueError):
+            return None
+
+    def dab_services(self):
+        port=self.active_welle_port()
+        if port is None:return []
+        try:
+            with urlopen(f"http://127.0.0.1:{port}/mux.json",timeout=2) as r:
                 data=json.loads(r.read(250000))
         except (OSError,ValueError,TimeoutError):
             return []
@@ -195,7 +217,7 @@ class RemoteHub:
             entry=next((e for e in self.dab_services() if e["sid"]==identifier),None)
             if entry is None:
                 raise ValueError("DAB service not present in live mux; cannot stream")
-            source=f"http://127.0.0.1:{self.welle_port}"+entry["url"]
+            source=f"http://127.0.0.1:{self.active_welle_port()}"+entry["url"]
             host_source=source
         else:
             raise ValueError("Unsupported source type")
@@ -402,6 +424,8 @@ def main(argv=None):
     parser.add_argument("--port",type=int,default=8788)
     parser.add_argument("--welle-port",type=int,default=None,
                         help="Already-running local welle port (does NOT own SDR)")
+    parser.add_argument("--native-pid",type=int,default=None,
+                        help="Existing TIHULU native app PID for attached DAB/AI (no USB access)")
     parser.add_argument("--caption-pid",type=int,default=None,
                         help="Explicit app PID to share radio AI caption JSON")
     parser.add_argument("--unsafe-lan",action="store_true",
@@ -411,7 +435,7 @@ def main(argv=None):
     if args.bind not in ("127.0.0.1","::1","localhost") and not args.unsafe_lan:
         parser.error("Non-loopback bind requires --unsafe-lan; prefer Tailscale HTTPS Serve")
     hub=RemoteHub(args.media_root,welle_port=args.welle_port,
-                  caption_pid=args.caption_pid)
+                  caption_pid=args.caption_pid,native_pid=args.native_pid)
     server=ThreadingHTTPServer((args.bind,args.port),create_handler(hub))
     print(f"TIHULU Remote Hub: http://{args.bind}:{args.port}",flush=True)
     print("Pairing PIN (host terminal only): "+hub.pin,flush=True)
