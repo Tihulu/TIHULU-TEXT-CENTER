@@ -55,6 +55,58 @@ def transform(files):
     hdrmain = "src/mainwindow.h"
     change(hdrmain, '\t\tDvbTabId = 3\n',
            '\t\tDvbTabId = 3,\n\t\tRadioTabId = 4\n')
+    change(hdrmain, '\tvoid playDvb();\n',
+           '\tvoid playDvb();\n\tvoid playRadio();\n')
+    change(main, '''void MainWindow::configureKeys()
+{''',
+           '''void MainWindow::playRadio()
+{
+	activateTab(RadioTabId);
+}
+
+void MainWindow::configureKeys()
+{''')
+    change(main, '''#endif /* HAVE_DVB == 1 */
+}
+
+QAbstractButton *StartTab::addShortcut''',
+           '''	button = addShortcut(i18n("&6 DAB+ Radio"),
+		QIcon::fromTheme(QLatin1String("audio-radio")), this);
+	button->setShortcut(Qt::Key_6);
+	button->setWhatsThis(i18n("Open the native TIHULU DAB+ station library."));
+	connect(button, SIGNAL(clicked()), mainWindow, SLOT(playRadio()));
+	gridLayout->addWidget(button, 1, 2);
+}
+
+QAbstractButton *StartTab::addShortcut''')
+    # Use a unique application ID and KConfig/SQLite user-data path.
+    # This is a distinctly installed app, not the system KDE Kaffeine
+    # process or a secondary window inside the existing binary.
+    appmain = "src/main.cpp"
+    change(appmain, '''		QStringLiteral("kaffeine"),
+		i18n("Kaffeine"),''',
+           '''		QStringLiteral("tihulu-media-center"),
+		i18n("TIHULU Media Center"),''')
+    change(appmain, '''		i18n("A media player by KDE with digital TV support."),''',
+           '''		i18n("TIHULU · TV, DAB+ radio, media and offline AI; built on KDE Kaffeine."),''')
+    change(appmain, '''	app.setApplicationName("kaffeine");
+	app.setOrganizationDomain("kde.org");
+	app.setWindowIcon(QIcon::fromTheme(QLatin1String("kaffeine"), QIcon(":kaffeine")));''',
+           '''	app.setApplicationName("tihulu-media-center");
+	app.setOrganizationName("TIHULU");
+	app.setOrganizationDomain("tihulu.local");
+	app.setWindowIcon(QIcon::fromTheme(QLatin1String("tihulu-media-center"),
+		QIcon(":kaffeine")));''')
+    change(main, '''	menu = new QMenu(i18n("Kaffeine"), this);''',
+           '''	menu = new QMenu(i18n("TIHULU Media Center"), this);''')
+    change(main, '''	trayIcon->setToolTip(i18n("Kaffeine"));''',
+           '''	trayIcon->setToolTip(i18n("TIHULU Media Center"));''')
+    change(main, '''	connect(mediaWidget, SIGNAL(changeCaption(QString)), this, SLOT(setWindowTitle(QString)));''',
+           '''	connect(mediaWidget, &MediaWidget::changeCaption, this,
+		[this](const QString &caption) {
+			setWindowTitle(caption.isEmpty() ? QStringLiteral("TIHULU Media Center")
+				: caption + QStringLiteral(" — TIHULU Media Center"));
+		});''')
     cmake = "src/CMakeLists.txt"
     change(cmake, 'target_link_libraries(kaffeine Qt5::Sql Qt5::X11Extras',
            'target_link_libraries(kaffeine Qt5::Network Qt5::Sql Qt5::X11Extras')
