@@ -184,50 +184,101 @@ def effective_cue_config(config: CaptionConfig, native_status: dict | None) -> C
     return replace(config, playback_delay_ms=actual)
 
 
-def cue_window(started, ended, finished, config: CaptionConfig):
-    """Schedule a chunk relative to the *captured* audio, not decoder finish.
+# The audio/video native queue reports TS buffering, not the exact
+# libVLC presentation timestamp. Bias captions slightly BEHIND speech rather
+# than revealing the next line too early while dialogue is still playing.
+CAPTION_SAFETY_HOLD_SEC = 0.55
 
-    When ASR finishes late the caption is necessarily late and the reported
-    lateness tells the user whether more TV buffering is needed.
-    """
-    cue_start = float(started) + (config.playback_delay_ms +
-                                   config.offset_ms) / 1000.0
-    duration = max(2.5, min(8.0, float(ended) - float(started) + 1.0))
+
+def cue_window(started, ended, finished, config: CaptionConfig):
+    """A stable phrase window on the observed, pre-buffer source timeline."""
+    source_due = float(started) + (
+        config.playback_delay_ms + config.offset_ms) / 1000.0
+    source_due += CAPTION_SAFETY_HOLD_SEC
+    due = max(float(finished), source_due)
+    spoken = max(0.0,float(ended)-float(started))
+    # A chunk/word snippet should be readable before replacement. A
+    # Teletext line naturally persists longer than a rapidly changing word.
+    duration = max(2.3,min(7.0, spoken+1.0))
     return {
-        "due":max(float(finished), cue_start),
-        "expires":max(float(finished), cue_start) + duration,
-        "lateness_ms":max(0, round((float(finished) - cue_start) * 1000)),
+        "due":due,
+        "expires":due+duration,
+        "lateness_ms":max(0,round((float(finished)-source_due)*1000)),
         "revision":config.revision,
     }
 
 
 class CueQueue:
-    def __init__(self, maximum=8):
+    """Monotonic, ordered, readable subtitle phrases (never latest-due jump).
+
+    A 120-ms Qt poll previously selected due[-1] and *discarded* earlier
+    phrases. Several word groups due at decoder completion therefore flashed
+    or disappeared, and nearby rolling translations repeated. Reserve a
+    minimum reading slot for each segment and retain chronological order.
+    """
+    def __init__(self, maximum=36, minimum_hold=1.75):
+        if maximum < 1 or not 0.5 <= minimum_hold <= 10:
+            raise ValueError("Invalid natural subtitle queue limits")
         self.maximum = maximum
+        self.minimum_hold = float(minimum_hold)
         self.items = []
+        self.last_shown_at = None
+        self._recent = {}
 
     def add(self, result, config, captured_start, captured_end, finished):
         when = cue_window(captured_start, captured_end, finished, config)
-        cue = {"result":dict(result), "config":config, **when}
-        self.items = [x for x in self.items
-                      if x["revision"] == config.revision and x["expires"] > finished]
+        original = str(result.get("original") or "").strip()
+        key = (" ".join(original.casefold().split()),
+               str(result.get("source") or ""))
+        # Repeated broadcaster subtitle pages or overlap in Whisper clips
+        # must not re-emit identical complete phrases. Never suppress short
+        # acknowledgements like 'ja', which can really be spoken twice.
+        # Overlap or near-immediate duplicates only, not genuine repeats
+        # many seconds later.
+        if len(key[0]) >= 12:
+            recent = self._recent.get(key)
+            if recent and (float(captured_start) <= recent[1]+1.5
+                           and float(captured_start)-recent[0] < 10):
+                return {"result":dict(result),"config":config,
+                        "skipped_duplicate":True, **when}
+            self._recent[key]=(float(captured_start),float(captured_end))
+            if len(self._recent)>80:
+                self._recent={k:v for k,v in self._recent.items()
+                              if float(captured_start)-v[1]<12}
+        self.items = [item for item in self.items if
+                      item["revision"] == config.revision and
+                      item["expires"] > float(finished)-0.1]
+        # If decoder produces 5 groups at the same timestamp, enforce
+        # stable minimum duration instead of an immediate flush/burst.
+        if self.items:
+            last = max(item["due"] for item in self.items)
+            when["due"] = max(when["due"], last+self.minimum_hold)
+            when["expires"] = max(when["expires"],
+                                  when["due"]+self.minimum_hold+0.45)
+        cue = {"result":dict(result),"config":config,**when}
         self.items.append(cue)
-        self.items.sort(key=lambda x: x["due"])
-        self.items = self.items[-self.maximum:]
+        self.items.sort(key=lambda item:item["due"])
+        # Keep *earliest* chronological cues if a background engine produces
+        # too much work; never drop every earlier phrase for the newest one.
+        self.items = self.items[:self.maximum]
         return cue
 
     def poll(self, now, revision):
-        self.items = [x for x in self.items
-                      if x["revision"] == revision and x["expires"] > now]
-        due = [x for x in self.items if x["due"] <= now]
-        if not due:
+        self.items=[item for item in self.items
+                    if item["revision"]==revision and item["expires"]>now]
+        if (self.last_shown_at is not None and
+                now-self.last_shown_at < self.minimum_hold):
             return None
-        selected = due[-1]
-        self.items = [x for x in self.items if x["due"] > now]
+        if not self.items or self.items[0]["due"]>now:
+            return None
+        selected=self.items.pop(0)
+        self.last_shown_at=float(now)
         return selected
 
     def clear(self):
         self.items.clear()
+        self.last_shown_at=None
+        self._recent.clear()
 
 
 @dataclass(frozen=True)
@@ -260,7 +311,7 @@ class AutoSyncEstimator:
     estimates *when the caption becomes available*, not the precise phoneme
     offset. Native Teletext captions should not train an ASR estimate.
     """
-    def __init__(self, minimum=3, maximum=12, ceiling_ms=6000):
+    def __init__(self, minimum=3, maximum=12, ceiling_ms=15000):
         if not 1 <= minimum <= maximum or not 0 <= ceiling_ms <= 20000:
             raise ValueError("Invalid automatic sync limits")
         self.minimum = minimum
@@ -304,13 +355,13 @@ class AutoSyncEstimator:
         def up500(value):
             return max(0, ((max(0, int(value)) + 499) // 500) * 500)
         lower = min(cap, up500(med + 250))
-        upper = min(cap, max(lower, up500(p80 + 850)))
-        suggested = min(cap, max(lower, up500(p80 + 350)))
+        upper = min(cap, max(lower, up500(p80 + 1400)))
+        suggested = min(cap, max(lower, up500(p80 + 900)))
         return SyncRecommendation(
             samples=len(ordered), observed_lag_ms=med,
             safe_min_ms=lower, safe_max_ms=upper,
             suggested_delay_ms=suggested, safety_cap_ms=cap,
-            saturated=(p80 + 350 > cap),
+            saturated=(p80 + 900 > cap),
         )
 
 
