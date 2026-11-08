@@ -78,6 +78,7 @@ export function createSatelliteMaps({getTles,getSatLib,getPasses,getLastCapture,
  // Installed desktop uses native Skyfield; web/PWA keeps browser satellite.js.
  let nativeSnapshotPending=false,nativeTrackAt=0;
  const nativeTrackCache=new Map();
+ const nativeSkyTrackCache=new Map();
  let passPreview=null,passIndex=0,passTimer=null,previewLayer=null,previewDot=null;
  const passSelect=$("map-pass-select"),passSlider=$("map-pass-time"),passStatus=$("map-pass-summary");
  const passTime=ms=>new Date(ms).toLocaleString(undefined,{dateStyle:"short",timeStyle:"medium"});
@@ -369,6 +370,18 @@ export function createSatelliteMaps({getTles,getSatLib,getPasses,getLastCapture,
     if(!p||p.el<0){started=false;continue;}
     const [x,y]=mapSkyPoint(p.az,p.el,cx,cy,R);
     if(!started){ctx.moveTo(x,y);started=true;}else ctx.lineTo(x,y);
+   }
+   ctx.stroke();
+  }
+  // Real native topocentric Skyfield track for currently selected spacecraft.
+  // Segments below the local horizon are explicitly omitted (not connected).
+  if(s&&Array.isArray(s.nativeSkyCoordinates)&&s.nativeSkyCoordinates.length>1){
+   ctx.strokeStyle="#78c9fd";ctx.lineWidth=2.5;ctx.beginPath();
+   let penDown=false;
+   for(const item of s.nativeSkyCoordinates){
+    if(!Array.isArray(item)||item.length!==2){penDown=false;continue;}
+    const [x,y]=mapSkyPoint(item[0],item[1],cx,cy,R);
+    if(!penDown){ctx.moveTo(x,y);penDown=true;}else ctx.lineTo(x,y);
    }
    ctx.stroke();
   }
@@ -896,8 +909,12 @@ export function createSatelliteMaps({getTles,getSatLib,getPasses,getLastCapture,
     if(tracksDue){
      nativeTrackAt=Date.now();
      nativeTrackCache.clear();
+     nativeSkyTrackCache.clear();
      for(const [id,path] of Object.entries(snapshot.track_paths_by_norad||{})){
       if(Array.isArray(path))nativeTrackCache.set(String(id),path);
+     }
+     for(const [id,path] of Object.entries(snapshot.sky_paths_by_norad||{})){
+      if(Array.isArray(path))nativeSkyTrackCache.set(String(id),path);
      }
     }
     const byId=new Map(catalog.map(record=>[String(record.id),record]));
@@ -908,7 +925,8 @@ export function createSatelliteMaps({getTles,getSatLib,getPasses,getLastCapture,
      rows.push({...item,lat:sat.lat,lon:sat.lon,el:sat.el,az:sat.az,
        altKm:sat.alt_km,rangeKm:sat.range_km,
        ageDays:sat.tle_age_days,
-       nativeTrackCoordinates:nativeTrackCache.get(String(sat.norad))||[]});
+       nativeTrackCoordinates:nativeTrackCache.get(String(sat.norad))||[],
+       nativeSkyCoordinates:nativeSkyTrackCache.get(String(sat.norad))||[]});
     }
     if(!rows.length&&catalog.length){
      status("No native Skyfield positions matched the TLE cache. Refresh orbit data; imported browser-only TLEs may need a refreshed native catalog.");
