@@ -8,6 +8,7 @@ A present NLLB model is labelled unverified until real translation is tested.
 from __future__ import annotations
 
 import json
+import subprocess
 from .language_codes import language_code
 
 NAMES = {
@@ -19,13 +20,18 @@ NAMES = {
     "cs":"Czech", "ro":"Romanian", "hu":"Hungarian", "bg":"Bulgarian",
 }
 
-def catalog(*, installed_pairs=None, nllb_installed=None):
+def catalog(*, installed_pairs=None, nllb_installed=None,
+            madlad_installed=None):
     errors = []
     if installed_pairs is None:
         try:
             from .argos_market_bridge import run
-            installed_pairs = run("installed")
-        except (OSError, RuntimeError, ValueError, KeyError) as exc:
+            # PyTorch/Argos cold imports can block for up to a minute in
+            # the normal Model Market. A caption language menu must not.
+            # This is a read-only, local probe with a strict short deadline.
+            installed_pairs = run("installed", installed_timeout=8.0)
+        except (OSError, RuntimeError, ValueError, KeyError,
+                subprocess.TimeoutExpired) as exc:
             installed_pairs = []
             errors.append("Argos package discovery unavailable: "+str(exc)[:150])
     if nllb_installed is None:
@@ -35,6 +41,13 @@ def catalog(*, installed_pairs=None, nllb_installed=None):
         except (OSError, RuntimeError, ValueError) as exc:
             nllb_installed = False
             errors.append("NLLB status unavailable: "+str(exc)[:120])
+    if madlad_installed is None:
+        try:
+            from .translation_madlad import MadladMarket
+            madlad_installed = bool(MadladMarket().status()["installed"])
+        except (OSError, RuntimeError, ValueError) as exc:
+            madlad_installed = False
+            errors.append("MADLAD status unavailable: "+str(exc)[:120])
     destinations = {}
     for pair in installed_pairs:
         if not isinstance(pair, dict):
@@ -50,6 +63,12 @@ def catalog(*, installed_pairs=None, nllb_installed=None):
         from .translation_market import LANG
         for code in LANG:
             destinations.setdefault(code, set()).add("NLLB (weights present)")
+    if madlad_installed:
+        # MADLAD is one multilingual checkpoint. The tokenizer must still
+        # verify <2xx> targets at real inference time; installed weights
+        # alone do not prove a working translation direction.
+        for code in NAMES:
+            destinations.setdefault(code, set()).add("MADLAD (weights present)")
     return {
         "languages":[{"code":code,"label":NAMES.get(code,code.upper()),
                       "engines":sorted(engines),
@@ -61,6 +80,7 @@ def catalog(*, installed_pairs=None, nllb_installed=None):
         "installed_argos_pairs":len([
             x for x in installed_pairs if isinstance(x,dict)]),
         "nllb_present":bool(nllb_installed),
+        "madlad_present":bool(madlad_installed),
         "errors":errors,
         "note":"A model package on disk does not prove translation for the current spoken language. No downloads.",
     }

@@ -16,12 +16,18 @@ from .language_codes import language_code, translation_language
 ACTIONS=("catalog","installed","install","remove")
 
 
-def run(action,source="de",target="tr"):
+def run(action,source="de",target="tr",*,installed_timeout=None):
     if action not in ACTIONS:
         raise ValueError("Invalid Argos Market command")
     source, target = language_code(source), language_code(target)
     if action in ("install","remove") and source==target:
         raise ValueError("Choose distinct source/target languages")
+    # Only local installed-package discovery may request a shorter
+    # deadline. Catalog/download and install/remove retain prior budgets.
+    if installed_timeout is not None and (
+            action!="installed" or type(installed_timeout) not in (int,float)
+            or not 0.5<=installed_timeout<=60):
+        raise ValueError("Invalid installed-package discovery deadline")
     from .runtime import AIRuntime
     rt=AIRuntime().status()
     if not rt["installed"]:
@@ -34,7 +40,9 @@ def run(action,source="de",target="tr"):
          "--worker",action,source,target],
         cwd=root,env=env,stdin=subprocess.DEVNULL,
         stdout=subprocess.PIPE,stderr=subprocess.PIPE,
-        timeout=1800 if action=="install" else 60,check=False)
+        timeout=(1800 if action=="install" else
+                 float(installed_timeout) if installed_timeout is not None else 60),
+        check=False)
     if proc.returncode:
         raise RuntimeError("Argos Market: "+
             proc.stderr.decode("utf-8","replace")[-400:])
