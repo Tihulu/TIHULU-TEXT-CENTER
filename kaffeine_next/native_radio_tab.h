@@ -386,25 +386,28 @@ public:
 		auto *analogCabinet=new QWidget(analogGroup);
 		auto *cabinetLayout=new QVBoxLayout(analogCabinet);
 		cabinetLayout->setContentsMargins(2,2,2,2);
-		auto *analogHead=new QHBoxLayout();
+		auto *analogHead=new QGridLayout();
 		analogBand_=new QComboBox(analogCabinet);
 		analogBand_->addItem(tr("FM · 87.5–108 MHz"),QLatin1String("fm"));
 		analogBand_->addItem(tr("AM / MW · 531–1602 kHz"),QLatin1String("mw"));
 		analogBand_->addItem(tr("LW · 150–280 kHz"),QLatin1String("lw"));
-		analogBand_->setMinimumWidth(155);
+		analogBand_->setMinimumWidth(115);
+        analogBand_->setMaximumWidth(260);
 		analogFrequency_=new QDoubleSpinBox(analogCabinet);
 		analogFrequency_->setDecimals(2);
 		analogFrequency_->setRange(87.5,108.0);
 		analogFrequency_->setValue(99.2);
 		analogFrequency_->setSuffix(tr(" MHz"));
-		analogFrequency_->setMinimumWidth(130);
+		analogFrequency_->setMinimumWidth(100);
+        analogFrequency_->setMaximumWidth(160);
 		analogDigital_=new QLabel(tr("99.20 MHz"),analogCabinet);
 		analogDigital_->setStyleSheet(QLatin1String(
 			"font: bold 20px monospace;color:#ffe1a1;background:#131916;"
 			"border:1px solid #ac8042;border-radius:6px;padding:7px;"));
-		analogHead->addWidget(analogBand_);
-		analogHead->addWidget(analogFrequency_);
-		analogHead->addWidget(analogDigital_,1);
+		analogHead->addWidget(analogBand_,0,0);
+        analogHead->addWidget(analogFrequency_,0,1);
+        analogHead->addWidget(analogDigital_,1,0,1,2);
+        analogHead->setColumnStretch(1,1);
 		cabinetLayout->addLayout(analogHead);
 		auto *analogFace=new QHBoxLayout();
 		analogScale_=new TihuluAnalogScale(analogCabinet);
@@ -423,14 +426,14 @@ public:
 		analogAudioVu_->setToolTip(tr("Actual signed-PCM audio RMS level from rtl_fm. "
 			"It does not measure SDR RSSI, DAB lock, or antenna RF power."));
 		cabinetLayout->addWidget(analogAudioVu_);
-		auto *buttons=new QHBoxLayout();
+		auto *buttons=new QGridLayout();
 		analogStart_=new QPushButton(tr("Tune / play"),analogCabinet);
 		analogStop_=new QPushButton(tr("Stop / release"),analogCabinet);
 		analogStart_->setMaximumWidth(155);
 		analogStop_->setMaximumWidth(155);
-		buttons->addWidget(analogStart_);
-		buttons->addWidget(analogStop_);
-		buttons->addWidget(new QLabel(tr("Volume"),analogCabinet));
+		buttons->addWidget(analogStart_,0,0);
+        buttons->addWidget(analogStop_,0,1);
+        buttons->addWidget(new QLabel(tr("Volume"),analogCabinet),1,0);
 		analogVolume_=new QSlider(Qt::Horizontal,analogCabinet);
 		analogVolume_->setRange(0,100);
 		analogVolume_->setValue(player_->getVolume());
@@ -439,8 +442,9 @@ public:
 			"same stream as the main TIHULU media transport."));
 		analogMute_=new QPushButton(tr("Toggle mute"),analogCabinet);
 		analogMute_->setMaximumWidth(125);
-		buttons->addWidget(analogVolume_);
-		buttons->addWidget(analogMute_);
+		buttons->addWidget(analogVolume_,1,1);
+        buttons->addWidget(analogMute_,1,2);
+        buttons->setColumnStretch(1,1);
 		buttons->addStretch(1);
 		connect(analogVolume_,&QSlider::valueChanged,player_,&MediaWidget::setVolume);
 		connect(analogMute_,&QPushButton::clicked,player_,&MediaWidget::toggleMuted);
@@ -596,7 +600,9 @@ public:
 
 		auto *lab = new QGroupBox(tr("Offline radio AI · Whisper / translation / timed lyrics"), this);
 		auto *v = new QVBoxLayout(lab);
-		auto *row = new QHBoxLayout();
+		auto *row = new QGridLayout();
+        row->setHorizontalSpacing(7);
+        row->setVerticalSpacing(5);
 		speechLanguage_ = new QComboBox(lab);
 		speechLanguage_->addItem(tr("Auto detect · GPU Whisper"),"auto");
 		speechLanguage_->addItems({"de","en","tr","fr","es","pl","ar","ja"});
@@ -624,15 +630,16 @@ public:
 		});
 		caption_ = new QPushButton(tr("Start offline live captions"), lab);
 		stopCaption_ = new QPushButton(tr("Stop AI captions"), lab);
-		row->addWidget(new QLabel(tr("Caption source:"),lab));
-		row->addWidget(captionSource_);
-		row->addWidget(new QLabel(tr("Speech language:"), lab));
-		row->addWidget(speechLanguage_);
-		row->addWidget(english_);
-		row->addWidget(german_);
-		row->addWidget(turkish_);
-		row->addWidget(music_);
-		row->addWidget(speakerLabels_);
+		row->addWidget(new QLabel(tr("Caption source:"),lab),0,0);
+        row->addWidget(captionSource_,0,1,1,2);
+        row->addWidget(new QLabel(tr("Speech language:"),lab),1,0);
+        row->addWidget(speechLanguage_,1,1,1,2);
+        row->addWidget(english_,2,0);
+        row->addWidget(german_,2,1);
+        row->addWidget(turkish_,2,2);
+        row->addWidget(music_,3,0,1,2);
+        row->addWidget(speakerLabels_,3,2);
+        row->setColumnStretch(1,1);
 		v->addLayout(row);
 		extraTargets_=new QLineEdit(lab);
 		extraTargets_->setPlaceholderText(
@@ -879,7 +886,9 @@ public:
 			column->setContentsMargins(2,2,2,2);
 			column->addWidget(new QLabel(kinds[i],frame));
 			auto *image=new QLabel(tr("Waiting for real RF samples"),frame);
-			image->setFixedSize(330,110);
+			image->setMinimumSize(180,110);
+            image->setMaximumHeight(110);
+            image->setSizePolicy(QSizePolicy::Expanding,QSizePolicy::Fixed);
 			image->setAlignment(Qt::AlignCenter);
 			image->setStyleSheet(QLatin1String("border:1px solid #456;"));
 			column->addWidget(image);
