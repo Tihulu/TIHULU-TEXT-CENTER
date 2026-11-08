@@ -73,9 +73,40 @@ class LiveSRTEngineTests(unittest.TestCase):
             ipc.publish("Hallo", cfg)
             self.assertIn('"render_mode":"native"', ipc.path.read_text())
             self.assertIn('"opacity":0', ipc.path.read_text())
+            # Native video compositor must receive the user-selected backing
+            # opacity and RGB value, not silently discard them in the GUI.
+            cfg = replace(cfg, opacity=70, background_color="#0B2540")
+            ipc.publish("Guten Morgen", cfg)
+            self.assertIn('"opacity":70', ipc.path.read_text())
+            self.assertIn('"background_color":"#0B2540"', ipc.path.read_text())
             ipc.close()
             with self.assertRaises(ValueError):
                 replace(cfg, render_mode="untrusted").validate()
+
+    def test_native_video_background_does_not_overlay_a_qt_window(self):
+        from kaffeine_next.patch_upstream import transform
+        code = inspect.getsource(transform)
+        for required in (
+            "libvlc_video_set_logo_string",
+            "libvlc_video_set_logo_int",
+            "libvlc_logo_file",
+            "libvlc_logo_position",
+            "libvlc_logo_opacity",
+            "libvlc_logo_enable",
+            "QTemporaryDir tihuluCaptionLogoDir",
+            "artwork.fill(Qt::transparent)",
+            "painter.drawRoundedRect(box, 9, 9)",
+            "backing.setAlpha(qBound(0, backgroundPercent, 100)*255/100)",
+            "ink.setAlpha(qBound(0, textOpacity, 100)*255/100)",
+            "backgroundPercent > 0",
+            "obj.value(QLatin1String(\"opacity\")).toInt(0)",
+            "obj.value(QLatin1String(\"background_color\"))",
+            "libvlc_video_set_logo_int(vlcMediaPlayer, libvlc_logo_enable, 0)",
+        ):
+            self.assertIn(required, code, required)
+        from kaffeine_next import captions_overlay
+        gui = inspect.getsource(captions_overlay.main)
+        self.assertIn("background are composited into the VLC video itself", gui)
 
 
 class CaptionWindowControlsTests(unittest.TestCase):
