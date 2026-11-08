@@ -41,13 +41,29 @@ def word_groups(result: dict, *, maximum_words: int = 6, maximum_span: float = 1
         valid.append((float(start), float(end), text.strip()))
     if not valid:
         return []
+    turns = result.get("speaker_turns") or []
+    def speaker_at(start, end):
+        midpoint = (start+end)/2
+        if not isinstance(turns,list):
+            return None
+        for turn in turns:
+            if (isinstance(turn,dict) and type(turn.get("start")) in (int,float)
+                    and type(turn.get("end")) in (int,float)
+                    and turn["start"] <= midpoint <= turn["end"]):
+                return str(turn.get("id") or "")[:40] or None
+        return None
+
     groups = []
     index = 0
     while index < len(valid):
         first = index
         finish = index
+        first_speaker = speaker_at(valid[first][0],valid[first][1])
         while finish + 1 < len(valid) and finish-first+1 < maximum_words and (
                 valid[finish+1][1]-valid[first][0] <= maximum_span):
+            next_speaker = speaker_at(valid[finish+1][0],valid[finish+1][1])
+            if first_speaker and next_speaker and first_speaker != next_speaker:
+                break
             finish += 1
             if valid[finish][2].endswith((".", "!", "?", "…")):
                 break
@@ -57,6 +73,13 @@ def word_groups(result: dict, *, maximum_words: int = 6, maximum_span: float = 1
         payload["words"] = []  # avoid nested accumulation in the UI queue
         payload["word_progress"] = {"start":first,"end":finish,"count":len(valid)}
         payload["caption_alignment"] = "ASR word timestamps"
+        if first_speaker:
+            # Community-1 assigns SPEAKER_00 ... only within each audio clip.
+            # Keep that scope visible: do not imply stable person identity
+            # or infer gender/age from voice characteristics.
+            number = first_speaker.rsplit("_",1)[-1]
+            speaker_number = int(number)+1 if number.isdigit() else number[:12]
+            payload["speaker_label"] = f"[Speaker {speaker_number} · clip]"
         # Exact target-language word timing is not supplied by translation
         # engines. Show a short reading window rather than a 6s text dump.
         fraction = (finish + 1) / len(valid)
