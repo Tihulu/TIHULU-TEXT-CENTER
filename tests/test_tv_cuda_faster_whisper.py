@@ -40,6 +40,7 @@ class CUDAModelMarketTests(unittest.TestCase):
             runtime._guard()
             self.assertFalse(runtime.installed())
             (runtime.model_dir/PARTIAL_MARKER).unlink()
+            (runtime.model_dir/"orphan.bin").write_text("unowned")
             with self.assertRaises(RuntimeError):
                 runtime._guard()
 
