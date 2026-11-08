@@ -456,6 +456,50 @@ def open_ai_settings(parent, ai, after_save=None):
                     Qt.DownArrow if checked else Qt.RightArrow)))
             speaker_layout.addStretch()
             tabs.addTab(scroll_tab(speaker_page), "Speaker separation · optional")
+            # A searchable entry point across EXISTING compatible engines.
+            # Arbitrary Hugging Face models are not automatically compatible:
+            # each backend has its own verified weights/runtime/format.
+            all_page=QWidget()
+            all_layout=QVBoxLayout(all_page)
+            all_layout.setContentsMargins(12,16,12,12)
+            all_intro=QLabel(
+                "All model components · search, inspect, install, repair or upgrade "
+                "using the compatible engine tabs. Speech GGML and Argos offer "
+                "online catalogs. CUDA, NLLB and speaker models use verified "
+                "pinned packages; do not assume every public model is runnable.")
+            all_intro.setWordWrap(True)
+            all_layout.addWidget(all_intro)
+            self.all_model_query=QLineEdit()
+            self.all_model_query.setPlaceholderText(
+                "Find Whisper, GPU, NPU, Argos, NLLB, speaker, lyric alignment…")
+            all_layout.addWidget(self.all_model_query)
+            self.all_model_list=QListWidget()
+            self.all_model_list.setMinimumHeight(280)
+            all_layout.addWidget(self.all_model_list)
+            all_actions=QHBoxLayout()
+            all_open=QPushButton("Open selected model category")
+            all_open.clicked.connect(self.open_all_model_category)
+            all_refresh=QPushButton("Refresh installed model status")
+            all_refresh.clicked.connect(self.refresh_all_models)
+            all_search=QPushButton("Search compatible online catalog")
+            all_search.clicked.connect(self.search_selected_model_catalog)
+            all_actions.addWidget(all_open)
+            all_actions.addWidget(all_refresh)
+            all_actions.addWidget(all_search)
+            all_layout.addLayout(all_actions)
+            hardware_note=QLabel(
+                "Lyrics: time-coded LRC needs no ASR. Plain lyrics use matching "
+                "to the actually transcribed radio/file vocals; compatible "
+                "larger Whisper models can improve recognition. Approximate "
+                "word matching is not WhisperX-style forced alignment. "
+                "NPU runs only with a VERIFIED matching model/runtime.")
+            hardware_note.setWordWrap(True)
+            all_layout.addWidget(hardware_note)
+            all_layout.addStretch()
+            tabs.addTab(scroll_tab(all_page), "All models · search")
+            self.all_model_query.textChanged.connect(self.refresh_all_models)
+            self.all_model_list.itemDoubleClicked.connect(
+                lambda *_:self.open_all_model_category())
             outer.addWidget(tabs,1)
             self.model_tabs = tabs
 
@@ -476,6 +520,7 @@ def open_ai_settings(parent, ai, after_save=None):
             self.timer.start(250)
             self.populate_models()
             self.inspect_compute()
+            self.refresh_all_models()
             self.inspect_argos()
             self.inspect_runtime()
             self.inspect_starter()
@@ -553,6 +598,77 @@ def open_ai_settings(parent, ai, after_save=None):
                 return
             self.begin("Removing optional speaker runtime…",
                        SpeakerMarket().remove)
+
+        def refresh_all_models(self, *_):
+            if not hasattr(self,"all_model_list"):
+                return
+            key=self.all_model_query.text().casefold().strip()
+            selected=(self.all_model_list.currentItem().data(Qt.UserRole)
+                      if self.all_model_list.currentItem() else None)
+            self.all_model_list.clear()
+            try:
+                cuda_ready=FasterWhisperCUDA().installed()
+                nllb_ready=self.translation_market.status()["installed"]
+                free_voice=FreeSpeakerMarket().status()["installed"]
+                private_voice=SpeakerMarket().status()["installed"]
+            except (OSError,RuntimeError,ValueError):
+                cuda_ready=nllb_ready=free_voice=private_voice=False
+            entries=[
+                ("speech","Whisper GGML · CPU / CUDA · model library, official search and selectable weights"),
+                ("cuda","Faster-Whisper CUDA Large-v3 Turbo · "+
+                 ("INSTALLED" if cuda_ready else "NOT INSTALLED")+" · managed GPU inference"),
+                ("argos","Argos Translate · installable source → target language packs"),
+                ("nllb","NLLB-200 600M · "+
+                 ("INSTALLED" if nllb_ready else "NOT INSTALLED")+
+                 " · multilingual translator (noncommercial license)"),
+                ("speaker","Resemblyzer · "+("INSTALLED" if free_voice else "NOT INSTALLED")+
+                 " · local voice clustering, no demographic labels"),
+                ("speaker-private","pyannote · "+
+                 ("INSTALLED" if private_voice else "NOT INSTALLED")+
+                 " · separately licensed, token-gated diarization"),
+                ("lyrics","Plain lyric alignment · existing Whisper ASR + conservative text matcher"),
+                ("npu","Dedicated NPU · runtime/model compatibility must be verified")]
+            for code,label in entries:
+                if key and key not in label.casefold():
+                    continue
+                row=QListWidgetItem(label)
+                row.setData(Qt.UserRole,code)
+                self.all_model_list.addItem(row)
+                if code==selected:
+                    self.all_model_list.setCurrentItem(row)
+
+        def open_all_model_category(self):
+            item=self.all_model_list.currentItem()
+            if item is None:
+                return
+            code=item.data(Qt.UserRole)
+            self.model_tabs.setCurrentIndex(
+                1 if code in ("argos","nllb") else
+                2 if code in ("speaker","speaker-private") else 0)
+            self.feedback.setText(
+                "Opened the compatible model controls for "+str(code)+
+                ". Online downloads occur only after explicit approval.")
+
+        def search_selected_model_catalog(self):
+            item=self.all_model_list.currentItem()
+            if item is None:
+                self.feedback.setText("Select a model category first.")
+                return
+            code=item.data(Qt.UserRole)
+            if code in ("speech","lyrics"):
+                self.model_tabs.setCurrentIndex(0)
+                self.online_query.setText(
+                    self.all_model_query.text().strip() or "large")
+                self.refresh_online_models()
+            elif code=="argos":
+                self.model_tabs.setCurrentIndex(1)
+                self.refresh_argos_catalog()
+            else:
+                self.open_all_model_category()
+                self.feedback.setText(
+                    "This backend has a pinned verified model/runtime; "
+                    "use its install, repair and real self-test controls. "
+                    "Arbitrary online weights cannot safely be installed.")
 
         def inspect_starter(self):
             try:
