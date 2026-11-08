@@ -50,10 +50,17 @@ class NLLBService:
                     ensure_ascii=False).encode("utf-8")+b"\n"
                 self.process.stdin.write(payload)
                 self.process.stdin.flush()
-                ready,_,_=select.select([self.process.stdout],[],[],80)
+                # A 6-s audio chunk with an ~11-s TV playback delay
+                # cannot tolerate an 80-s translator stall. Time out fast,
+                # stop the stale worker and let the Argos circuit-breaker
+                # take over while the original transcript continues.
+                time_budget = 10 if isinstance(self, ArgosService) else 12
+                ready,_,_=select.select([self.process.stdout],[],[],time_budget)
                 if not ready:
                     self.close_locked()
-                    raise TimeoutError("NLLB translation exceeded 80 s; try smaller Argos models")
+                    raise TimeoutError(
+                        f"Offline {type(self).__name__} exceeded {time_budget}s "
+                        "live-caption budget")
                 reply=self.process.stdout.readline(65536)
                 if not reply or not reply.endswith(b"\n"):
                     self.close_locked()
