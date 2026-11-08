@@ -170,7 +170,8 @@ def asr_from_clip(path: Path, language: str, model: str,
                   audio_pid: int | None = None,
                   speaker_enabled: bool = False,
                   speaker_provider: str = "resemblyzer",
-                  music_transcription: bool = False) -> str:
+                  music_transcription: bool = False,
+                  speech_priority: bool = False) -> str:
     # "auto" is a speech-detection MODE, not an ISO language code.
     # All existing speech backends except unverified NPUs handle it.
     if language != "auto" and language not in SUPPORTED:
@@ -212,9 +213,17 @@ def asr_from_clip(path: Path, language: str, model: str,
                 choices + ". Select another language/audio channel or use Teletext.")
     if audio_index is None:
         raise RuntimeError("No audio track in the selected TV service")
+    from .speech_focus import ffmpeg_audio_filter
+    focus_filter = ffmpeg_audio_filter(
+        speech_priority=speech_priority, music_transcription=music_transcription)
     audio = _run(["ffmpeg", "-hide_banner", "-loglevel", "error", "-i", str(path),
                   "-map", f"0:{audio_index}", "-vn", "-ar", "32000", "-ac", "1",
-                  "-f", "s16le", "-"], timeout=35)
+                  *focus_filter, "-f", "s16le", "-"], timeout=35)
+    if diagnostics is not None:
+        diagnostics["speech_priority"] = bool(focus_filter)
+        diagnostics["speech_priority_note"] = (
+            "Gentle dialogue-band ASR conditioning; TV audio unchanged. "
+            "This is not music/source separation." if focus_filter else None)
     if audio.returncode or len(audio.stdout) < 32000:
         raise RuntimeError("No usable audio stream in recorded TV segment")
     # Existing TEXT CENTER speech implementation handles local CPU/GPU selection.
@@ -253,7 +262,8 @@ def asr_from_clip(path: Path, language: str, model: str,
         from .cuda_faster_whisper import transcribe_cuda_details
         details = transcribe_cuda_details(
             audio.stdout, language, str(profile["speech"]["gpu_model_path"]),
-            music_mode=music_transcription)
+            music_mode=music_transcription,
+            speech_priority=speech_priority)
         if diagnostics is not None:
             diagnostics["words"] = details.get("words", [])
             diagnostics["detected_language"] = details.get("language")
@@ -343,7 +353,8 @@ def decode_segment(ts: bytes, *, mode="auto", page=150, source="de",
                    audio_source: str | None = None,
                    speaker_enabled: bool = False,
                    speaker_provider: str = "resemblyzer",
-                   music_transcription: bool = False) -> dict:
+                   music_transcription: bool = False,
+                   speech_priority: bool = False) -> dict:
     if mode not in ("teletext", "page", "asr", "auto"):
         raise ValueError("Unsupported caption source")
     if type(page) is not int or not 100 <= page <= 899:
@@ -398,6 +409,8 @@ def decode_segment(ts: bytes, *, mode="auto", page=150, source="de",
                     asr_kwargs["audio_pid"] = audio_pid
                 if music_transcription:
                     asr_kwargs["music_transcription"] = True
+                if speech_priority:
+                    asr_kwargs["speech_priority"] = True
                 if speaker_enabled:
                     asr_kwargs["speaker_enabled"] = True
                     asr_kwargs["speaker_provider"] = speaker_provider
@@ -482,6 +495,8 @@ def decode_segment(ts: bytes, *, mode="auto", page=150, source="de",
                 "speaker_error":speech_diagnostics.get("speaker_error"),
                 "speaker_note":speech_diagnostics.get("speaker_note"),
                 "recognition_rejected":speech_diagnostics.get("recognition_rejected"),
+                "speech_priority":speech_diagnostics.get("speech_priority", False),
+                "speech_priority_note":speech_diagnostics.get("speech_priority_note"),
                 "processing_ms": {
                     "teletext":teletext_ms,"asr":asr_ms,
                     "translation":translation_ms,
