@@ -367,34 +367,87 @@ def open_ai_settings(parent, ai, after_save=None):
 
             speaker_page = QWidget()
             speaker_layout = QVBoxLayout(speaker_page)
-            intro = QLabel(
-                "Speaker separation (OFF by default) · pyannote Community-1. "
-                "Recognizes speaker turns and labels them Speaker 1, 2, etc. "
-                "within each short audio clip. It does NOT reliably infer "
-                "woman/man/child or preserve identity across separate clips. "
-                "Voice labels only appear when enabled in Live Captions.")
-            intro.setWordWrap(True)
-            speaker_layout.addWidget(intro)
+            speaker_layout.setContentsMargins(12, 16, 12, 12)
+            speaker_layout.setSpacing(14)
+
+            public_card = QGroupBox("Recommended · Token-free local voice tracking")
+            public_layout = QVBoxLayout(public_card)
+            overview = QLabel(
+                "Resemblyzer · public Apache-2.0 model · NO Hugging Face "
+                "account, token or access approval. Install once; all TV "
+                "audio stays on this computer. Lightweight CPU inference "
+                "runs separately from the RTX 5080 Whisper GPU.")
+            overview.setWordWrap(True)
+            public_layout.addWidget(overview)
+            self.free_speaker_status = QLabel("Checking public model…")
+            self.free_speaker_status.setWordWrap(True)
+            public_layout.addWidget(self.free_speaker_status)
+            free_buttons = QHBoxLayout()
+            self.install_free_speaker_button = QPushButton(
+                "Install / repair · no token required")
+            self.install_free_speaker_button.setStyleSheet(
+                "QPushButton{background:#147d65;color:white;font-weight:700;"
+                "padding:9px;border:1px solid #319880;border-radius:7px}"
+                "QPushButton:hover{background:#1a9577}"
+                "QPushButton:disabled{background:#253c38;color:#999}")
+            self.install_free_speaker_button.clicked.connect(
+                self.install_free_speaker_model)
+            self.remove_free_speaker_button = QPushButton(
+                "Remove token-free model")
+            self.remove_free_speaker_button.clicked.connect(
+                self.remove_free_speaker_model)
+            free_buttons.addWidget(self.install_free_speaker_button,2)
+            free_buttons.addWidget(self.remove_free_speaker_button,1)
+            public_layout.addLayout(free_buttons)
+            guide = QLabel(
+                "After installation: Live Captions → Detect separate voices "
+                "→ Speaker model: Resemblyzer → Apply. Voice labels are "
+                "estimates. Short/overlapping dialogue or background music "
+                "can be mislabeled; age/gender are never inferred.")
+            guide.setWordWrap(True)
+            public_layout.addWidget(guide)
+            speaker_layout.addWidget(public_card)
+
+            advanced_button = QToolButton()
+            advanced_button.setText(
+                "Show advanced pyannote Community-1 (Hugging Face access required)")
+            advanced_button.setCheckable(True)
+            advanced_button.setChecked(False)
+            advanced_button.setArrowType(Qt.RightArrow)
+            advanced_button.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
+            speaker_layout.addWidget(advanced_button)
+
+            advanced_box = QGroupBox("Advanced · pyannote Community-1")
+            advanced_layout = QVBoxLayout(advanced_box)
             terms = QLabel(
-                'Community-1 uses CC-BY-4.0 and is gated by Hugging Face '
+                'Community-1 has separate access conditions and requires '
+                'a Hugging Face token. See the '
                 '<a href="https://huggingface.co/pyannote/'
-                'speaker-diarization-community-1">access conditions</a>. '
-                'Accept those terms and create a read token first. '
-                'The token is used only for installation, not saved.')
+                'speaker-diarization-community-1">model page</a>. '
+                'The token is used only during installation and not saved. '
+                'The token-free Resemblyzer option above works independently.')
             terms.setWordWrap(True)
             terms.setOpenExternalLinks(True)
-            speaker_layout.addWidget(terms)
+            advanced_layout.addWidget(terms)
             self.speaker_status = QLabel("")
             self.speaker_status.setWordWrap(True)
-            speaker_layout.addWidget(self.speaker_status)
+            advanced_layout.addWidget(self.speaker_status)
+            advanced_buttons = QHBoxLayout()
             install_speaker = QPushButton(
-                "Install gated offline speaker model (requires HF access token)")
+                "Install gated pyannote model")
             install_speaker.clicked.connect(self.install_speaker_model)
-            speaker_layout.addWidget(install_speaker)
-            remove_speaker = QPushButton("Remove managed speaker runtime and cache")
+            advanced_buttons.addWidget(install_speaker)
+            remove_speaker = QPushButton("Remove gated model")
             remove_speaker.clicked.connect(self.remove_speaker_model)
-            speaker_layout.addWidget(remove_speaker)
-            speaker_layout.addStretch(1)
+            advanced_buttons.addWidget(remove_speaker)
+            advanced_layout.addLayout(advanced_buttons)
+            advanced_box.setVisible(False)
+            speaker_layout.addWidget(advanced_box)
+            advanced_button.toggled.connect(lambda checked: (
+                advanced_box.setVisible(checked),
+                advanced_button.setArrowType(
+                    Qt.DownArrow if checked else Qt.RightArrow)))
+            speaker_layout.addStretch()
             tabs.addTab(scroll_tab(speaker_page), "Speaker separation · optional")
             outer.addWidget(tabs,1)
             self.model_tabs = tabs
@@ -422,6 +475,18 @@ def open_ai_settings(parent, ai, after_save=None):
             self.inspect_speaker()
 
         def inspect_speaker(self):
+            free = FreeSpeakerMarket().status()
+            self.free_speaker_status.setText(
+                ("INSTALLED & SELF-TESTED · select in Live Captions" if
+                 free["installed"] else
+                 "NOT INSTALLED · ready for owner-triggered public download") +
+                "\nStorage: " + free["path"] +
+                "\nDevice: " + free["backend"] +
+                "\nNo token needed · Approximate voice clusters only.")
+            self.install_free_speaker_button.setText(
+                "Reinstall / repair public voice model" if free["installed"]
+                else "Install public voice model · no token")
+            self.remove_free_speaker_button.setEnabled(free["installed"])
             state = SpeakerMarket().status()
             self.speaker_status.setText(
                 ("INSTALLED · offline model ready for opt-in testing" if
@@ -429,6 +494,29 @@ def open_ai_settings(parent, ai, after_save=None):
                 "\nLocation: " + state["path"] +
                 "\nLabels are local to each 6-second clip; no demographic "
                 "or permanent person identity recognition is asserted.")
+
+        def install_free_speaker_model(self):
+            if QMessageBox.question(
+                self, "Install token-free speaker model",
+                "Download public Apache-2.0 Resemblyzer weights packaged "
+                "with the Python library, plus separate CPU PyTorch "
+                "dependencies? This uses disk space and a private venv, "
+                "but NO Hugging Face account, token or live audio upload. "
+                "Existing RTX 5080 GPU speech and translator models "
+                "remain untouched.") != QMessageBox.Yes:
+                return
+            self.begin("Installing public token-free Resemblyzer runtime…",
+                       FreeSpeakerMarket().install)
+
+        def remove_free_speaker_model(self):
+            if QMessageBox.question(
+                self, "Remove public speaker model",
+                "Delete only TIHULU-owned Resemblyzer runtime and its model? "
+                "GPU Whisper, Argos, NLLB and pyannote remain untouched."
+                ) != QMessageBox.Yes:
+                return
+            self.begin("Removing token-free speaker runtime…",
+                       FreeSpeakerMarket().remove)
 
         def install_speaker_model(self):
             if QMessageBox.question(
