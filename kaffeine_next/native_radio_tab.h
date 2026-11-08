@@ -169,6 +169,9 @@ public:
 		webSource_ = new QLineEdit(webGroup);
 		webSource_->setPlaceholderText(tr("Or paste an HTTP(S) radio stream URL"));
 		webPlay_ = new QPushButton(tr("Play stream"), webGroup);
+		webAlternate_=new QPushButton(tr("Try alternate station URL"),webGroup);
+		webAlternate_->setToolTip(tr("If the resolved stream is broken, explicitly try the "
+			"station's original Radio Browser URL, when it differs."));
 		webProbeButton_=new QPushButton(tr("Test stream / codec"),webGroup);
 		webProbeButton_->setToolTip(tr("Ask local FFprobe to inspect the station URL "
 			"without opening DVB or claiming that audio is audible."));
@@ -177,6 +180,7 @@ public:
 		webPlayRow->addWidget(webSource_, 1);
 		webPlayRow->addWidget(webPlay_);
 		webPlayRow->addWidget(webProbeButton_);
+		webPlayRow->addWidget(webAlternate_);
 		webPlayRow->addWidget(webStop_);
 		webPlayRow->addWidget(webFavoritesOnly_);
 		webLayout->addLayout(webPlayRow);
@@ -655,6 +659,23 @@ public:
 		connect(webSearch_, &QLineEdit::returnPressed, this, [this](){ searchInternetRadio(); });
 		connect(webPlay_, &QPushButton::clicked, this, [this](){ playInternetRadio(webSource_->text()); });
 		connect(webProbeButton_, &QPushButton::clicked, this,[this](){probeInternetRadio();});
+		connect(webAlternate_,&QPushButton::clicked,this,[this](){
+			QTreeWidgetItem *current=webStations_->currentItem();
+			if(!current) { webStatus_->setText(tr("Choose a directory station first."));return; }
+			const QString fallback=current->data(1,Qt::UserRole+1).toString();
+			const QUrl url(fallback);
+			if(!url.isValid() || url.host().isEmpty() ||
+			   (url.scheme()!=QLatin1String("http") &&
+			    url.scheme()!=QLatin1String("https")) ||
+			   fallback==current->data(1,Qt::UserRole).toString()) {
+				webStatus_->setText(tr("No different valid alternate station URL."));
+				return;
+			}
+			webSource_->setText(fallback);
+			playInternetRadio(fallback);
+			webStatus_->setText(tr("Trying original directory URL. "
+				"Use Test stream to inspect its decoder/audio availability."));
+		});
 		connect(&internetProbe_,QOverload<int,QProcess::ExitStatus>::of(&QProcess::finished),
 			this,[this](int code,QProcess::ExitStatus status){
 				webProbeButton_->setEnabled(true);
@@ -874,6 +895,11 @@ private:
 				item->setText(2,country);
 				item->setText(3,codec);
 				item->setData(1,Qt::UserRole,link);
+				const QUrl originalUrl(station.value(QLatin1String("url")).toString());
+				if(originalUrl.isValid() && !originalUrl.host().isEmpty() &&
+				  (originalUrl.scheme()==QLatin1String("http") ||
+				   originalUrl.scheme()==QLatin1String("https")))
+					item->setData(1,Qt::UserRole+1,originalUrl.toString());
 			}
 			filterInternetStations();
 			webStatus_->setText(tr("%1 real stations discovered. Double-click to play; click ★ to save.")
@@ -2004,7 +2030,7 @@ private:
 	QLineEdit *stationSearch_=nullptr;
 	QLineEdit *webSearch_=nullptr,*webCountry_=nullptr,*webSource_=nullptr;
 	QPushButton *webSearchButton_=nullptr,*webPlay_=nullptr,*webStop_=nullptr,
-		*webProbeButton_=nullptr;
+		*webProbeButton_=nullptr,*webAlternate_=nullptr;
 	QProcess internetProbe_{this};
 	QString testedWebUrl_;
 	QTreeWidget *webStations_=nullptr;
