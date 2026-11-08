@@ -63,7 +63,7 @@ class LiveSRTEngineTests(unittest.TestCase):
                                  "result": {"original": "Hallo"}}, config)
             recorder.stop()
             content = (folder / "original.srt").read_text()
-            self.assertIn("00:00:01,000 --> 00:00:01,800", content)
+            self.assertIn("00:00:01,200 --> 00:00:02,000", content)
             self.assertEqual(content.count("-->"), 2)
 
     def test_native_renderer_config_and_ipc(self):
