@@ -87,6 +87,7 @@ test("both web clients use the same reactive module and clear their state on dis
   assert.match(controls,/\$\("web-scan-start"\)\.disabled=!state\.scanEnabled/);
   assert.match(controls,/tihulu-tv-disconnected/);
   assert.match(pagesBridge,/tihulu-tv-disconnected/);
-  assert.match(pagesBridge,/location\.replace\(LOOPBACK/);
+  assert.doesNotMatch(pagesBridge,/location\.replace\(LOOPBACK/);
+  assert.match(pagesBridge,/WEBUSB · BROWSER-ONLY/);
   assert.match(mobileBridge,/tihulu-tv-disconnected/);
 });
