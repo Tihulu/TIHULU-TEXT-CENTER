@@ -1035,10 +1035,93 @@ QAbstractButton *StartTab::addShortcut''')
 \tconst qint64 nowMs = QDateTime::currentMSecsSinceEpoch();
 \tif (requestedKey == tihuluCaptionCacheKey &&
 \t    nowMs - tihuluCaptionLastSentMs < 2000) return;
+\tconst bool changed = requestedKey != tihuluCaptionCacheKey;
 \ttihuluCaptionCacheKey = requestedKey;
 \ttihuluCaptionLastSentMs = nowMs;
 \tconst QColor rawColor(color);
 \tconst QColor safeColor = rawColor.isValid() ? rawColor : QColor(Qt::white);
+\t// VLC marquee has no background-color or background-alpha option.
+\t// For nonzero backing opacity, render BOTH the text and its background into
+\t// one transparent PNG and composite it INSIDE the native VLC video using
+\t// the logo subpicture filter. No QWidget can freeze pixels on top of DVB.
+\tif (backgroundPercent > 0 && tihuluCaptionLogoDir.isValid()) {
+\t\tif (changed || tihuluCaptionLogoActiveFile.isEmpty()) {
+\t\t\tunsigned int videoWidth = 1280, videoHeight = 720;
+\t\t\tif (libvlc_video_get_size(vlcMediaPlayer, 0, &videoWidth, &videoHeight) != 0) {
+\t\t\t\tvideoWidth = 1280; videoHeight = 720;
+\t\t\t}
+\t\t\tvideoWidth = qBound(320u, videoWidth, 3840u);
+\t\t\tvideoHeight = qBound(240u, videoHeight, 2160u);
+\t\t\tconst int maxWidth = qMin(1350, int(videoWidth * 0.86));
+\t\t\tconst int fontPx = qBound(16, fontSize, 44);
+\t\t\tQFont font;
+\t\t\tfont.setPixelSize(fontPx);
+\t\t\tfont.setBold(true);
+\t\t\tQFontMetrics metrics(font);
+\t\t\tconst QString displayText = text.left(1100);
+\t\t\tconst int maxHeight = qMin(320, qMax(60, int(videoHeight / 3)));
+\t\t\tconst QRect measured = metrics.boundingRect(
+\t\t\t\tQRect(0, 0, maxWidth - 44, maxHeight - 20),
+\t\t\t\tQt::AlignHCenter | Qt::TextWordWrap, displayText);
+\t\t\tconst int width = qBound(160, measured.width() + 44, maxWidth);
+\t\t\tconst int height = qBound(42, measured.height() + 24, maxHeight);
+\t\t\t// Transparent inset adds a small safe distance from video edges.
+\t\t\tconst int edge = 26;
+\t\t\tQImage artwork(width, height + edge, QImage::Format_ARGB32);
+\t\t\tartwork.fill(Qt::transparent);
+\t\t\t{
+\t\t\t\tQPainter painter(&artwork);
+\t\t\t\tpainter.setRenderHint(QPainter::Antialiasing, true);
+\t\t\t\tpainter.setRenderHint(QPainter::TextAntialiasing, true);
+\t\t\t\tconst QRect box(2, atTop ? edge : 0, width - 4, height);
+\t\t\t\tQColor backing(backgroundColor);
+\t\t\t\tif (!backing.isValid()) backing = QColor(Qt::black);
+\t\t\t\tbacking.setAlpha(qBound(0, backgroundPercent, 100)*255/100);
+\t\t\t\tpainter.setPen(Qt::NoPen);
+\t\t\t\tpainter.setBrush(backing);
+\t\t\t\tpainter.drawRoundedRect(box, 9, 9);
+\t\t\t\tQColor ink(safeColor);
+\t\t\t\tink.setAlpha(qBound(0, textOpacity, 100)*255/100);
+\t\t\t\tpainter.setPen(ink);
+\t\t\t\tpainter.setFont(font);
+\t\t\t\tpainter.drawText(box.adjusted(16, 9, -16, -9),
+\t\t\t\t\tQt::AlignCenter | Qt::TextWordWrap, displayText);
+\t\t\t}
+\t\t\tconst QString png = tihuluCaptionLogoDir.path()
+\t\t\t\t+ QLatin1String("/subtitle-")
+\t\t\t\t+ QString::number(++tihuluCaptionLogoSequence)
+\t\t\t\t+ QLatin1String(".png");
+\t\t\tif (artwork.save(png, "PNG")) {
+\t\t\t\ttihuluCaptionLogoFiles.append(png);
+\t\t\t\ttihuluCaptionLogoActiveFile = png;
+\t\t\t\t// Keep older PNGs through an asynchronous filter reload; bound
+\t\t\t\t// disk use even for long-running TV sessions.
+\t\t\t\twhile (tihuluCaptionLogoFiles.size() > 8)
+\t\t\t\t\tQFile::remove(tihuluCaptionLogoFiles.takeFirst());
+\t\t\t} else {
+\t\t\t\t// Do not lose speech if the private temporary folder is full.
+\t\t\t\t// The text-only marquee remains a safe fallback.
+\t\t\t\ttihuluCaptionLogoActiveFile.clear();
+\t\t\t}
+\t\t}
+\t\tif (!tihuluCaptionLogoActiveFile.isEmpty()) {
+\t\t\tlibvlc_video_set_marquee_int(vlcMediaPlayer, libvlc_marquee_Enable, 0);
+\t\t\tconst QByteArray filename = QFile::encodeName(tihuluCaptionLogoActiveFile);
+\t\t\tlibvlc_video_set_logo_string(vlcMediaPlayer, libvlc_logo_file,
+\t\t\t\tfilename.constData());
+\t\t\t// VLC subtitle/logo native placement: 4=top-centre, 8=bottom-centre.
+\t\t\tlibvlc_video_set_logo_int(vlcMediaPlayer, libvlc_logo_position,
+\t\t\t\tatTop ? 4 : 8);
+\t\t\tlibvlc_video_set_logo_int(vlcMediaPlayer, libvlc_logo_opacity, 255);
+\t\t\tlibvlc_video_set_logo_int(vlcMediaPlayer, libvlc_logo_repeat, -1);
+\t\t\tlibvlc_video_set_logo_int(vlcMediaPlayer, libvlc_logo_enable, 1);
+\t\t\treturn;
+\t\t}
+\t}
+\t// Transparently backed subtitles keep the lightweight existing native
+\t// marquee renderer. Never leave both video subtitle filters enabled.
+\tlibvlc_video_set_logo_int(vlcMediaPlayer, libvlc_logo_enable, 0);
+\ttihuluCaptionLogoActiveFile.clear();
 \t// Set subtitle text/attributes BEFORE starting the libVLC filter.
 \tlibvlc_video_set_marquee_int(vlcMediaPlayer, libvlc_marquee_Size,
 \t\tqBound(16,fontSize,44));
