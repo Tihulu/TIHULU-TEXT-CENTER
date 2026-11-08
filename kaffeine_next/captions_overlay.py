@@ -1176,6 +1176,67 @@ def main(argv=None):
     video.toggled.connect(set_video)
     apply_settings()
 
+    def set_subtitles_running(should_run):
+        nonlocal service_running, applied, current_cue, current_text, current_until
+        with lock:
+            if service_running == should_run:
+                return
+            service_running = should_run
+            # Reject in-flight decode results from an older session.
+            applied = __import__("dataclasses").replace(
+                applied, revision=applied.revision + 1)
+        cues.clear()
+        current_cue = None
+        current_text = ""
+        current_until = 0.0
+        estimator.clear()
+        auto_controller.reset()
+        ipc.publish("", applied)
+        if not should_run and srt_recorder.active:
+            recorded = srt_recorder.stop()
+            srt_status.setText("SRT saved: " + ", ".join(str(p) for p in recorded))
+            srt_start.setEnabled(True)
+            srt_stop.setEnabled(False)
+        start_subtitles.setEnabled(not should_run)
+        stop_subtitles.setEnabled(should_run)
+        original.setText("Listening for new captions…" if should_run else
+                         "Subtitles stopped · click Start to resume.")
+        translated.setText("")
+        status.setText("Caption worker active." if should_run else
+                       "Subtitle recognition paused. No new Whisper clips queued.")
+
+    def begin_srt_recording():
+        if not service_running:
+            srt_status.setText("Start subtitles before recording an SRT.")
+            return
+        destination = QFileDialog.getExistingDirectory(
+            window, "Choose private SRT subtitle folder",
+            str(Path.home() / "Videos" if (Path.home() / "Videos").is_dir()
+                else Path.home()))
+        if not destination:
+            return
+        try:
+            folder = srt_recorder.start(destination, "live-TV")
+        except (OSError, ValueError, RuntimeError) as exc:
+            srt_status.setText("Cannot create SRT: " + str(exc))
+            return
+        srt_status.setText("Recording real timed subtitles to: " + str(folder))
+        srt_start.setEnabled(False)
+        srt_stop.setEnabled(True)
+
+    def end_srt_recording():
+        paths = srt_recorder.stop()
+        srt_status.setText("SRT complete · load through Playback → Open Subtitle: " +
+                           (", ".join(str(p) for p in paths) if paths
+                            else "No spoken captions received"))
+        srt_start.setEnabled(True)
+        srt_stop.setEnabled(False)
+
+    start_subtitles.clicked.connect(lambda: set_subtitles_running(True))
+    stop_subtitles.clicked.connect(lambda: set_subtitles_running(False))
+    srt_start.clicked.connect(begin_srt_recording)
+    srt_stop.clicked.connect(end_srt_recording)
+
     def pump():
         nonlocal current_cue, current_text, current_until, last_published
         nonlocal applied, last_service_id, last_effective_check
@@ -1528,10 +1589,18 @@ def main(argv=None):
                     status.setText("Caption/translator: "+data["error"])
             elif kind == "warning":
                 status.setText(str(data))
-        cue = cues.poll(now, applied.revision)
+        cue = cues.poll(now, applied.revision) if service_running else None
         if cue:
             current_cue = cue
             result = cue["result"]
+            if srt_recorder.active:
+                try:
+                    srt_recorder.append(cue, applied)
+                    srt_status.setText("SRT recording · " +
+                                       ", ".join(str(p) for p in srt_recorder.paths))
+                except (OSError, ValueError) as error:
+                    end_srt_recording()
+                    srt_status.setText("SRT save error: " + str(error))
             mobile.set_caption(result)
             current_text = applied.render(result)
             current_until = cue["expires"]
@@ -1621,11 +1690,13 @@ def main(argv=None):
         app.quit()
 
     hide_panel.clicked.connect(window.hide)
-    stop_subtitles.clicked.connect(stop_caption_service)
+    exit_subtitles.clicked.connect(stop_caption_service)
 
     def cleanup():
         if tray:
             tray.hide()
+        if srt_recorder.active:
+            srt_recorder.stop()
         mobile.close()
         tap.close()
         ipc.close()
