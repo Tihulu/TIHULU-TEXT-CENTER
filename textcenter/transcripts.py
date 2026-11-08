@@ -16,6 +16,7 @@ import sqlite3
 import uuid
 
 from .compute import LANGUAGES,validate_language
+from tv_center.language_codes import language_code, translation_language
 from .core import Store,clean_text,utc_now
 
 
@@ -31,9 +32,9 @@ def installed_translation_pairs() -> list[dict]:
         languages=translate.get_installed_languages()
         pairs=[]
         for source in languages:
-            if source.code not in LANGUAGES:continue
+            if not translation_language(source.code):continue
             for target in languages:
-                if target.code not in LANGUAGES or target.code==source.code:
+                if not translation_language(target.code) or target.code==source.code:
                     continue
                 try:
                     source.get_translation(target)
@@ -81,7 +82,7 @@ json.dump({'translated':result},sys.stdout)
 
 
 def translate_offline(text:str,source:str,target:str,backend:str="auto")->str:
-    source,target=validate_language(source),validate_language(target)
+    source,target=language_code(source),language_code(target)
     if backend not in ("auto","cpu","gpu","npu"):
         raise ValueError("Translator backend must be auto, cpu, gpu or npu")
     if not isinstance(text,str) or not text.strip() or len(text)>12000:
