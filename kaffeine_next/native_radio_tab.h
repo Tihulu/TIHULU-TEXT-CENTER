@@ -283,7 +283,7 @@ public:
 		// Search happens only when clicked, and uses HTTPS Radio Browser API.
 		auto *webGroup = new QGroupBox(tr("Internet radio · independent of tuner"), page);
 		auto *webLayout = new QVBoxLayout(webGroup);
-		auto *webSearchRow = new QHBoxLayout();
+		auto *webSearchRow = new QGridLayout();
 		webSearch_ = new QLineEdit(webGroup);
 		webSearch_->setPlaceholderText(tr("Search station name · e.g. WDR, BBC, TRT"));
 		webCountry_ = new QComboBox(webGroup);
@@ -329,9 +329,10 @@ public:
 		webCountry_->completer()->setCaseSensitivity(Qt::CaseInsensitive);
 		webCountry_->setCurrentIndex(0);
 		webSearchButton_ = new QPushButton(tr("Find stations online"), webGroup);
-		webSearchRow->addWidget(webSearch_, 2);
-		webSearchRow->addWidget(webCountry_, 1);
-		webSearchRow->addWidget(webSearchButton_);
+		webSearchRow->addWidget(webSearch_,0,0,1,2);
+        webSearchRow->addWidget(webCountry_,1,0);
+        webSearchRow->addWidget(webSearchButton_,1,1);
+        webSearchRow->setColumnStretch(0,1);
 		webLayout->addLayout(webSearchRow);
 		webStations_ = new QTreeWidget(webGroup);
 		webStations_->setHeaderLabels({tr("★"),tr("Station"),tr("Country"),tr("Codec")});
@@ -342,7 +343,7 @@ public:
 		webStations_->header()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
 		webStations_->header()->setSectionResizeMode(1, QHeaderView::Stretch);
 		webLayout->addWidget(webStations_);
-		auto *webPlayRow = new QHBoxLayout();
+		auto *webPlayRow = new QGridLayout();
 		webSource_ = new QLineEdit(webGroup);
 		webSource_->setPlaceholderText(tr("Or paste an HTTP(S) radio stream URL"));
 		webPlay_ = new QPushButton(tr("Play stream"), webGroup);
@@ -354,12 +355,13 @@ public:
 			"without opening DVB or claiming that audio is audible."));
 		webStop_ = new QPushButton(tr("Stop stream"), webGroup);
 		webFavoritesOnly_ = new QCheckBox(tr("★ Favorites"),webGroup);
-		webPlayRow->addWidget(webSource_, 1);
-		webPlayRow->addWidget(webPlay_);
-		webPlayRow->addWidget(webProbeButton_);
-		webPlayRow->addWidget(webAlternate_);
-		webPlayRow->addWidget(webStop_);
-		webPlayRow->addWidget(webFavoritesOnly_);
+		webPlayRow->addWidget(webSource_,0,0,1,3);
+        webPlayRow->addWidget(webPlay_,1,0);
+        webPlayRow->addWidget(webProbeButton_,1,1);
+        webPlayRow->addWidget(webAlternate_,1,2);
+        webPlayRow->addWidget(webStop_,2,0);
+        webPlayRow->addWidget(webFavoritesOnly_,2,1,1,2);
+        webPlayRow->setColumnStretch(0,1);
 		webLayout->addLayout(webPlayRow);
 		webStatus_ = new QLabel(tr("Internet radio is ready. No tuner connection required."),webGroup);
 		webStatus_->setWordWrap(true);
@@ -861,7 +863,7 @@ public:
 
 		auto *diagnosticCard = new QGroupBox(tr("DAB receiver diagnostics / welle.io"),this);
 		auto *diagnosticLayout=new QVBoxLayout(diagnosticCard);
-		auto *diagnostics = new QHBoxLayout();
+		auto *diagnostics = new QGridLayout();
 		plotKind_ = new QComboBox(this);
 		plotKind_->addItem(tr("Spectrum"), "spectrum");
 		plotKind_->addItem(tr("Waterfall"), "waterfall");
@@ -879,7 +881,9 @@ public:
 		coarseCorrector_->setToolTip(tr("Toggle welle.io coarse frequency corrector "
 			"using the local receiver only."));
 		plot_ = new QLabel(tr("On-demand RF plots"), this);
-		plot_->setFixedSize(330, 110);
+		plot_->setMinimumSize(200,110);
+        plot_->setMaximumHeight(110);
+        plot_->setSizePolicy(QSizePolicy::Expanding,QSizePolicy::Fixed);
 		plot_->setAlignment(Qt::AlignCenter);
 		plot_->setStyleSheet(QLatin1String("border:1px solid #456;"));
 		auto *plotButton = new QPushButton(tr("Capture RF plot"), this);
@@ -894,10 +898,11 @@ public:
 			"Requires DAB SDR; does not show invented values."));
 		auto *detailsButton = new QPushButton(tr("Receiver / TII details"),this);
 		auto *applyRf = new QPushButton(tr("Apply RF options"),this);
-		diagnostics->addWidget(plotKind_);
-		diagnostics->addWidget(plotButton);
-		diagnostics->addWidget(livePlot_);
-		diagnostics->addWidget(plot_, 1);
+		diagnostics->addWidget(plotKind_,0,0);
+        diagnostics->addWidget(plotButton,0,1);
+        diagnostics->addWidget(livePlot_,0,2);
+        diagnostics->addWidget(plot_,1,0,1,3);
+        diagnostics->setColumnStretch(0,1);
 		diagnosticLayout->addLayout(diagnostics);
 		diagnosticLayout->addWidget(multiRf_);
 		multiPanel_=new QWidget(diagnosticCard);
@@ -921,11 +926,12 @@ public:
 		}
 		multiPanel_->setVisible(false);
 		diagnosticLayout->addWidget(multiPanel_);
-		auto *rfOptions=new QHBoxLayout();
-		rfOptions->addWidget(fftPlacement_,1);
-		rfOptions->addWidget(coarseCorrector_);
-		rfOptions->addWidget(applyRf);
-		rfOptions->addWidget(detailsButton);
+		auto *rfOptions=new QGridLayout();
+		rfOptions->addWidget(fftPlacement_,0,0);
+        rfOptions->addWidget(coarseCorrector_,0,1);
+        rfOptions->addWidget(applyRf,1,0);
+        rfOptions->addWidget(detailsButton,1,1);
+        rfOptions->setColumnStretch(0,1);
 		diagnosticLayout->addLayout(rfOptions);
         auto *rfPage=new QWidget(modes_);
         auto *rfLayout=new QVBoxLayout(rfPage);
