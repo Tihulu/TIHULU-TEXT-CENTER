@@ -60,6 +60,42 @@ class StandaloneNativePlayerTests(unittest.TestCase):
         self.assertIn("fileCacheMs",media)
         self.assertIn("lyricsOnline_",media)
 
+    def test_radio_lyrics_use_real_lrc_times_and_translate_only_known_language(self):
+        import json
+        import os
+        import tempfile
+        from tv_center.radio_ai import lyrics_lookup_to_file
+        from tv_center.lyrics_sync import LyricCue
+        with tempfile.TemporaryDirectory() as temp:
+            path=str(Path(temp)/"tihulu-radio-lyrics-900.json")
+            with patch.dict(os.environ,{"XDG_RUNTIME_DIR":temp}), (
+                    patch("tv_center.radio_ai.lookup_synced_lyrics",
+                          return_value=([LyricCue(1.0,3.0,"Hello everyone")],
+                                        {"provider":"LRCLIB","id":77}))), (
+                    patch("tv_center.captions.translate",
+                          side_effect=lambda text,src,dst:(
+                              "Hallo zusammen" if dst=="de" else "Merhaba",None))):
+                code=lyrics_lookup_to_file(
+                    artist="Test Artist",track="Test Song",output=path,
+                    online=True,source="en",targets=("en","de","tr"))
+                self.assertEqual(code,0)
+                record=json.loads(Path(path).read_text())
+                cue=record["cues"][0]
+                self.assertEqual((cue["start"],cue["end"]),(1.0,3.0))
+                self.assertNotIn("en",cue["translations"])
+                self.assertEqual(cue["translations"]["de"],"Hallo zusammen")
+                self.assertEqual(cue["translations"]["tr"],"Merhaba")
+            Path(path).unlink()
+            with patch.dict(os.environ,{"XDG_RUNTIME_DIR":temp}), (
+                    patch("tv_center.radio_ai.lookup_synced_lyrics",
+                          return_value=([LyricCue(1.0,3.0,"Hello everyone")],
+                                        {"provider":"LRCLIB","id":77}))):
+                self.assertEqual(lyrics_lookup_to_file(
+                    artist="Test Artist",track="Test Song",output=path,
+                    online=True,source="auto",targets=("de",)),0)
+                record=json.loads(Path(path).read_text())
+                self.assertNotIn("translations",record["cues"][0])
+
     def test_auto_detected_en_translates_de_and_tr_with_correct_source(self):
         profile={"speech":{"gpu_engine":"faster_whisper_managed",
                            "gpu_model_path":"/test/turbo"}}
