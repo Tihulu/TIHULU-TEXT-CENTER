@@ -46,12 +46,16 @@ if code.count(old)!=1:
 code=code.replace(old,"addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);")
 file.write_text(code)
 PY
-cmake -S "$TEMPDIR/welle" -B "$TEMPDIR/build" \
+# Avoid mixing Pop!_OS system SDR/Qt libraries with an active Conda base
+# environment (which may supply incompatible libstdc++, pkg-config or CMake).
+SYSTEM_ENV=(env -i "HOME=$HOME" "USER=$(id -un)" "LANG=C.UTF-8"
+  "PATH=/usr/bin:/bin:/usr/sbin:/sbin")
+"${SYSTEM_ENV[@]}" /usr/bin/cmake -S "$TEMPDIR/welle" -B "$TEMPDIR/build" \
   -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="$PREFIX" \
   -DBUILD_WELLE_IO=OFF -DBUILD_WELLE_CLI=ON \
   -DRTLSDR=ON -DSOAPYSDR=ON -DFLAC=ON -DAIRSPY=ON
-cmake --build "$TEMPDIR/build" --parallel 2
-cmake --install "$TEMPDIR/build"
+"${SYSTEM_ENV[@]}" /usr/bin/cmake --build "$TEMPDIR/build" --parallel 2
+"${SYSTEM_ENV[@]}" /usr/bin/cmake --install "$TEMPDIR/build"
 test -x "$PREFIX/bin/welle-cli"
 printf '%s\n' "$REVISION" > "$PREFIX/.tihulu-loopback-welle-revision"
 chmod 644 "$PREFIX/.tihulu-loopback-welle-revision"
