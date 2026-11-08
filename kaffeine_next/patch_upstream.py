@@ -235,8 +235,8 @@ QAbstractButton *StartTab::addShortcut''')
     # Single bottom-bar recorder is available across Playback, TV, Radio
     # and Internet streams. Non-DVB sources are tracked only when libVLC
     # actually receives a URL; no stale source from a previous media type.
-    change(main, '#include "tihulu_hardware_tab.h"\\n',
-           '#include "tihulu_hardware_tab.h"\\n#include "tihulu_unified_recorder.h"\\n')
+    change(main, '#include "tihulu_hardware_tab.h"\n',
+           '#include "tihulu_hardware_tab.h"\n#include "tihulu_unified_recorder.h"\n')
     change(main, '''\tstackedLayout->addWidget(hardwareTab);
 
 \tcurrentTabIndex = StartTabId;''',
