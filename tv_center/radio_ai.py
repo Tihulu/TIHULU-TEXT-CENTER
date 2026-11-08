@@ -222,6 +222,14 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
                         translated[lang]=value
                     if issue:
                         problems[lang]=issue[:180]
+            # The authorized lyrics text, not DLS metadata, is the
+            # translation source for matched song vocals. When automatic
+            # language detection is uncertain we do NOT guess translations;
+            # manual source selection can translate immediately.
+            lyric_translations=(
+                dict(translated)
+                if lyric_match and original==lyric_match.get("text")
+                   and used_language and not language_pending else {})
             write_runtime_json(location,{
                 "status":"running",
                 "source_language":used_language or "und",
@@ -236,6 +244,11 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
                 "sentence_continuation":bool(sentence_state.get("continued",False)),
                 "sentence_hops_limit":sentence_hops,
                 "lyric_match":lyric_match,
+                "lyric_translations":lyric_translations,
+                "lyric_translation_status":(
+                    "matched_song_audio" if lyric_translations else
+                    "awaiting_confident_source_language_or_installed_translator"
+                    if lyric_match else "no_verified_song_line"),
                 "unverified_song_asr_hidden":unverified_vocals_hidden,
                 "lyric_alignment":("observed_ASR_approximate" if plain_matcher
                                    else "none"),
