@@ -246,6 +246,17 @@ All location methods are optional. City suggestions are offline by default; GPS 
 <label class="pass-preview-scrubber">Pass progress
 <input id="map-pass-time" type="range" min="0" max="1" step="1" value="0" disabled></label>
 <p id="map-pass-summary" class="map-caption" role="status">Select a calculated pass to preview its north/east sky trajectory, AOS, peak and LOS. This works without SDR hardware.</p>
+<details id="map-window-settings" class="pass-window-settings">
+<summary>Estimated window view · optional obstruction sector</summary>
+<div class="pass-window-fields">
+<label class="map-check"><input type="checkbox" id="map-window-enabled"> Show estimated window sector</label>
+<label>Window facing azimuth (°)<input id="map-window-az" type="number" min="0" max="359" step="1" value="300"></label>
+<label>Half-width (°)<input id="map-window-halfwidth" type="number" min="1" max="90" step="1" value="30"></label>
+<label>Minimum elevation (°)<input id="map-window-minel" type="number" min="0" max="85" step="1" value="10"></label>
+<label>Maximum elevation (°)<input id="map-window-maxel" type="number" min="1" max="90" step="1" value="40"></label>
+</div>
+<p class="hint">These are editable starting estimates for a west-northwest-facing window, not a measured horizon mask. Buildings, walls and glazing can still block the signal.</p>
+</details>
 </div>
 <div id="map-sky-pane" role="tabpanel" aria-labelledby="map-tab-sky">
 <canvas id="sky-chart" width="760" height="620" tabindex="0" aria-label="Polar sky plot: north up, east right; click a satellite to inspect it"></canvas>
