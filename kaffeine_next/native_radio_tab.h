@@ -1934,16 +1934,23 @@ private:
 					lyricsSyncState_->setText(tr("New DLS song · awaiting audible lyric verification"));
 					plainLyricMode_=false;
 					plainLyricQueue_.clear();
-					lyricLoaded_=false;
-					lyricsEnabled_=false;
+                    // A DLS metadata change is NOT proof of new audible
+                    // song, and must not disable Stop for an offline
+                    // listening worker the user explicitly started.
+                    const bool listening=lyricsAudioFallbackActive_;
+					lyricLoaded_=listening;
+					lyricsEnabled_=listening;
 					if (lyricsProcess_.state()!=QProcess::NotRunning)
 						lyricsProcess_.kill();
-					stopLyrics_->setEnabled(false);
+					stopLyrics_->setEnabled(listening);
 					lyrics_->setEnabled(true);
 					if (!lyricPath_.isEmpty()) QFile::remove(lyricPath_);
 					lyricPath_.clear();
-					lyricText_->setText(tr("New DLS song metadata. "
-						"Automatic lookup needs opt-in; timing follows DLS estimate."));
+					lyricText_->setText(listening?
+                        tr("DLS metadata updated. Continuing offline vocal "
+                           "listening; no proven song boundary.") :
+                        tr("New DLS metadata. Automatic lookup requires opt-in; "
+                           "timing is only an estimate."));
 					if(autoLyrics_->isChecked() &&
 					   dls.contains(QLatin1String(" - "))) {
 						QTimer::singleShot(100,this,[this](){fetchLyrics(true);});
