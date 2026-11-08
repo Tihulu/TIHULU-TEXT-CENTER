@@ -14,6 +14,10 @@
 #include <QCheckBox>
 #include <QComboBox>
 #include <QDateTime>
+#include <QCoreApplication>
+#include <QDir>
+#include <QNetworkRequest>
+#include <QVector>
 #include <QFile>
 #include <QFormLayout>
 #include <QGroupBox>
@@ -246,7 +250,7 @@ private:
 		if (!prepared()) {
 			QMessageBox::information(this,tr("Optional local DAB+ receiver"),
 				tr("Install the pinned loopback-only welle-cli backend first:\n"
-				   "bash ~/.local/share/tihulu-kaffeine/kaffeine_next/install_welle.sh\n"
+				   "bash ~/.local/share/tihulu-kaffeine/install_welle.sh\n"
 				   "Or run the documented TIHULU install_welle.sh from the repo.\n\n"
 				   "A DAB-capable RTL-SDR/SoapySDR device is required."));
 			return;
@@ -356,6 +360,9 @@ private:
 					lastDls_=dls;
 					songStartMs_=QDateTime::currentMSecsSinceEpoch();
 					lyricCues_.clear();
+					lyricLoaded_=false;
+					if (!lyricPath_.isEmpty()) QFile::remove(lyricPath_);
+					lyricPath_.clear();
 					lyricText_->setText(tr("New DLS text. Lyrics need fresh explicit lookup."));
 				}
 				dls_->setText(tr("Now playing: %1\nDLS: %2").arg(serviceLabel,dls));
@@ -427,7 +434,9 @@ private:
 		scanIndex_=0;
 		scan_->setEnabled(false);
 		state_->setText(tr("Scanning real DAB Band III frequencies…"));
-		scanStep();
+		// welle-cli first opens the SDR and then starts its HTTP server.
+		// Do not send the initial frequency POST before the HTTP port exists.
+		QTimer::singleShot(1400,this,[this](){scanStep();});
 	}
 	void scanStep() {
 		if (!scanning_ || !active()) {
@@ -469,6 +478,9 @@ private:
 				.match(stream).hasMatch()) return;
 			playingKey_=key;
 			lastDls_.clear();
+			lyricLoaded_=false;
+			if (!lyricPath_.isEmpty()) QFile::remove(lyricPath_);
+			lyricPath_.clear();
 			lyricCues_.clear();
 			// Kaffeine's native libVLC audio engine, same global playback controls.
 			player_->play(QUrl(base()+stream));
