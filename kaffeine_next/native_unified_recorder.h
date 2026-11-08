@@ -26,6 +26,9 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QMessageBox>
+#include <QMainWindow>
+#include <QStatusBar>
+#include <QListWidgetItem>
 #include <QProcess>
 #include <QPushButton>
 #include <QSettings>
