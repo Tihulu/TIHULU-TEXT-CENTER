@@ -327,11 +327,27 @@ class RemoteHub:
             original=str(data.get("original",""))[:800]
             translations=data.get("translations",{})
             if not isinstance(translations,dict):translations={}
+            kind="live_radio_asr"
+            # A verified lyric may use a different language from the live
+            # presenter, so use only high-confidence ASR/lyric matches and
+            # the translations generated for THAT matched lyric.
+            observed=data.get("lyric_match")
+            lyric_translations=data.get("lyric_translations")
+            if (isinstance(observed,dict) and
+                    observed.get("kind")=="observed_ASR_chunk_match" and
+                    isinstance(observed.get("confidence"),(float,int)) and
+                    observed["confidence"]>=0.74 and
+                    isinstance(lyric_translations,dict) and
+                    lyric_translations):
+                original=str(observed.get("text") or original)[:800]
+                translations=lyric_translations
+                kind="verified_dab_lyric"
             text="\n".join([original]+[
                 "["+str(k)[:5]+"] "+str(v)[:800]
                 for k,v in list(translations.items())[:5]])
             return {"text":text[:3000],
                     "original":original,
+                    "content_type":kind,
                     "translations":{str(k)[:8]:str(v)[:800]
                                     for k,v in list(translations.items())[:5]
                                     if isinstance(v,str)},
