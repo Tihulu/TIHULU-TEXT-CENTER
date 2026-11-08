@@ -444,7 +444,7 @@ def main(argv=None):
     from PyQt5.QtWidgets import (QApplication, QWidget, QVBoxLayout, QHBoxLayout,
         QLabel, QComboBox, QPushButton, QSpinBox, QDoubleSpinBox,
         QCheckBox, QGroupBox, QFormLayout, QLineEdit, QColorDialog,
-        QScrollArea, QFrame, QGridLayout)
+        QScrollArea, QFrame, QGridLayout, QFileDialog)
     app = QApplication.instance() or QApplication(["TIHULU Kaffeine Live Captions"])
     # Hiding the only QWidget must NOT quit the Qt event loop: audio capture,
     # auto-sync and video-overlay publishing continue independently of UI.
@@ -462,7 +462,8 @@ def main(argv=None):
     window = CaptionSettingsWindow()
     window.setWindowTitle(
         "TIHULU · Live captions · GPU Whisper + translation failover")
-    window.setMinimumWidth(780)
+    window.setMinimumWidth(620)
+    window.setWindowFlag(Qt.WindowMinMaxButtonsHint, True)
     window.setStyleSheet(
         "QWidget{background:#0c1722;color:#e8f3fa;font-size:13px}"
         "QGroupBox{border:1px solid #304b63;border-radius:8px;margin-top:14px;padding:10px}"
@@ -472,7 +473,9 @@ def main(argv=None):
         "QPushButton#apply{background:#207796;font-weight:700}"
         "QLabel#subtitle{font-size:20px;max-height:86px}"
     )
-    window.resize(940, 810)
+    desktop = app.primaryScreen().availableGeometry()
+    window.resize(min(980, max(620, desktop.width()-90)),
+                  min(760, max(480, desktop.height()-100)))
     root = QVBoxLayout(window)
     root.setContentsMargins(12,10,12,10)
     root.setSpacing(8)
@@ -574,6 +577,9 @@ def main(argv=None):
 
     timing = QGroupBox("Synchronization & video overlay")
     timing_layout = QFormLayout(timing)
+    quick = QGroupBox("Quick subtitle appearance · always visible")
+    quick_layout = QFormLayout(quick)
+    quick_layout.setRowWrapPolicy(QFormLayout.WrapLongRows)
     timing_layout.setRowWrapPolicy(QFormLayout.WrapLongRows)
     timing_layout.setFieldGrowthPolicy(QFormLayout.AllNonFixedFieldsGrow)
     offsets = QHBoxLayout()
@@ -645,6 +651,13 @@ def main(argv=None):
     effective_status.setWordWrap(True)
     timing_layout.addRow(effective_status)
     visibility = QHBoxLayout()
+    renderer = QComboBox()
+    renderer.addItem("Native libVLC · video-safe (recommended)", "native")
+    renderer.addItem("Legacy Qt overlay · optional / experimental", "legacy-qt")
+    renderer.setToolTip("Native libVLC avoids frozen video frames. "
+                        "Legacy Qt supports background boxes but may be "
+                        "incompatible with native video compositing on Wayland.")
+    quick_layout.addRow("Renderer", renderer)
     show_video = QCheckBox("On-video subtitles"); show_video.setChecked(True)
     position = QComboBox(); position.addItems(("bottom", "top"))
     font = QSpinBox(); font.setRange(16, 44); font.setValue(25)
@@ -655,7 +668,7 @@ def main(argv=None):
     visibility.addWidget(show_video)
     for name, widget in (("Position",position),("Size",font)):
         visibility.addWidget(QLabel(name)); visibility.addWidget(widget)
-    timing_layout.addRow(visibility)
+    quick_layout.addRow(visibility)
     appearance_row = QGridLayout()
     appearance_row.addWidget(QLabel("Background opacity"),0,0)
     appearance_row.addWidget(opacity,0,1)
@@ -671,7 +684,7 @@ def main(argv=None):
         "Choose the text color separately from its opacity (0–100%)")
     appearance_row.addWidget(background_button,1,0,1,2)
     appearance_row.addWidget(text_button,1,2,1,2)
-    timing_layout.addRow("Subtitle appearance", appearance_row)
+    quick_layout.addRow("Subtitle appearance", appearance_row)
     preset_row = QHBoxLayout()
     presets = QComboBox()
     presets.addItem("No background · white text visible", ("#FFFFFF","#000000",0,100))
@@ -690,14 +703,20 @@ def main(argv=None):
     appearance_preview.setMinimumHeight(55)
     appearance_preview.setWordWrap(True)
     preset_row.addWidget(appearance_preview,2)
-    timing_layout.addRow("Appearance presets", preset_row)
+    quick_layout.addRow("Appearance presets", preset_row)
     transparent_help = QLabel(
         "No background = Background 0% and Text 100%. "
         "Text 0% hides the letters too. The chosen appearance is saved "
         "locally and restored next time; it does NOT change DVB subtitles "
         "drawn independently by the broadcaster.")
     transparent_help.setWordWrap(True)
-    timing_layout.addRow(transparent_help)
+    quick_layout.addRow(transparent_help)
+    native_note = QLabel("Native renderer: text color, opacity, position and size "
+                         "are supported. A colored backing box requires the "
+                         "experimental Qt renderer; native transparent means "
+                         "no video-covering Qt window.")
+    native_note.setWordWrap(True)
+    quick_layout.addRow(native_note)
     appearance_store = QSettings("TIHULU", "KaffeineCaptionAppearance")
 
     def update_appearance_preview(*_):
@@ -760,6 +779,8 @@ def main(argv=None):
         opacity.setValue(0)
         text_opacity.setValue(100)
     presets.setCurrentIndex(presets.count()-1)
+    saved_renderer = str(appearance_store.value("renderer", "native"))
+    renderer.setCurrentIndex(1 if saved_renderer == "legacy-qt" else 0)
     update_appearance_preview()
     control_layout.addWidget(timing)
     control_layout.addStretch(1)
@@ -769,6 +790,7 @@ def main(argv=None):
     control_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
     control_scroll.setWidget(control_body)
     root.addWidget(control_scroll, 1)
+    root.addWidget(quick, 0)
     buttons = QHBoxLayout()
     apply = QPushButton("Apply")
     apply.setObjectName("apply")
@@ -777,15 +799,21 @@ def main(argv=None):
     buttons.addWidget(apply); buttons.addWidget(reset); buttons.addWidget(pending, 1)
     root.addLayout(buttons)
     behavior = QHBoxLayout()
-    hide_panel = QPushButton("Hide settings · keep subtitles")
-    stop_subtitles = QPushButton("Stop subtitles & Exit")
-    behavior.addWidget(hide_panel)
+    hide_panel = QPushButton("Hide settings")
+    start_subtitles = QPushButton("Start subtitles")
+    stop_subtitles = QPushButton("Stop subtitles")
+    exit_subtitles = QPushButton("Exit caption service")
+    start_subtitles.setEnabled(False)
+    behavior.addWidget(start_subtitles)
     behavior.addWidget(stop_subtitles)
+    behavior.addWidget(hide_panel)
+    behavior.addWidget(exit_subtitles)
     root.addLayout(behavior)
     persistence = QLabel("Closing this settings panel keeps on-video subtitles, "
                          "Whisper and translation running. Reopen with Kaffeine → "
                          "TIHULU AI → Live Teletext / Whisper subtitles. "
-                         "Only Stop subtitles & Exit ends the service.")
+                         "Stop pauses ASR without closing settings; Start resumes. "
+                         "Exit closes the caption service entirely.")
     persistence.setWordWrap(True)
     root.addWidget(persistence)
 
@@ -800,6 +828,16 @@ def main(argv=None):
         "automatically uses installed Argos language packs. Model errors "
         "are never shown as captions.")
     root.addWidget(original); root.addWidget(translated)
+    srt_controls = QHBoxLayout()
+    srt_start = QPushButton("Start SRT recording")
+    srt_stop = QPushButton("Stop SRT recording")
+    srt_stop.setEnabled(False)
+    srt_controls.addWidget(srt_start)
+    srt_controls.addWidget(srt_stop)
+    root.addLayout(srt_controls)
+    srt_status = QLabel("SRT: off · originals and translations saved as separate tracks.")
+    srt_status.setWordWrap(True)
+    root.addWidget(srt_status)
     status = QLabel("Whisper captions use 6-second overlapping audio chunks plus processing time. "
                     "Audio and video remain synchronized with each other.")
     status.setWordWrap(True)
@@ -827,6 +865,9 @@ def main(argv=None):
         raise RuntimeError("Cannot start private caption controller: " + str(exc)) from exc
     lock = threading.Lock()
     applied = CaptionConfig().validate()
+    service_running = True
+    from .live_srt import LiveSRTRecorder
+    srt_recorder = LiveSRTRecorder()
     cues = CueQueue(maximum=32)
     # A six-second Whisper clip plus inference/translation may arrive more
     # than six seconds after speaking began. On desktop allow up to 15s,
@@ -847,7 +888,10 @@ def main(argv=None):
     last_sync_audit_at = 0.0
     def options():
         with lock:
-            return applied.options()
+            values = applied.options()
+            if not service_running:
+                values["mode"] = "off"  # no new Whisper jobs while paused
+            return values
     from .mobile import KaffeineMobile
     mobile = KaffeineMobile(options, lambda msg: events.put(("warning", str(msg))))
     tap = CaptionTap(str(endpoint), options, events, packet_sink=mobile.receive)
@@ -921,6 +965,7 @@ def main(argv=None):
             show_original=output in ("original","both"),
             show_translation=output in ("translated","both"),
             position=position.currentText(),font_px=font.value(),
+            render_mode=renderer.currentData(),
             opacity=opacity.value(),text_opacity=text_opacity.value(),
             text_color=active_colors["text"],
             background_color=active_colors["background"]
@@ -929,7 +974,7 @@ def main(argv=None):
     def set_pending(*_):
         pending.setText("Unsaved changes — press Apply")
         pending.setStyleSheet("color:#f7bf6e")
-    for w in (mode,source,display_mode,position,subtitle_track,
+    for w in (mode,source,display_mode,position,renderer,subtitle_track,
               audio_track,speaker_provider):
         w.currentIndexChanged.connect(set_pending)
     def subtitle_source_selected(*_):
@@ -1048,6 +1093,7 @@ def main(argv=None):
                     channel+"_color",active_colors[channel])
             appearance_store.setValue("background_opacity",applied.opacity)
             appearance_store.setValue("text_opacity",applied.text_opacity)
+            appearance_store.setValue("renderer",applied.render_mode)
             appearance_store.sync()
             pending.setText("Applied · " + applied.mode + " · " + applied.source.upper() +
                             " → " + (" + ".join(lang.upper() for lang in
@@ -1095,6 +1141,7 @@ def main(argv=None):
         speaker_provider.setCurrentIndex(0)
         show_video.setChecked(True)
         position.setCurrentText("bottom"); font.setValue(25)
+        renderer.setCurrentIndex(0)
         presets.setCurrentIndex(0)
         apply_appearance_preset()
         set_pending()
