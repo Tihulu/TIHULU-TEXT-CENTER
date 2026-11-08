@@ -35,6 +35,7 @@ class CaptionConfig:
     audio_pid: int | None = None
     audio_language: str | None = None
     speaker_enabled: bool = False
+    speaker_provider: str = "resemblyzer"
     speaker_aliases: tuple[str, ...] = ()
     offset_ms: int = 0
     playback_delay_ms: int = 0
@@ -63,6 +64,8 @@ class CaptionConfig:
             raise ValueError("Invalid selected broadcaster audio PID")
         if self.audio_language is not None:
             language_code(self.audio_language)
+        if self.speaker_provider not in ("resemblyzer", "pyannote"):
+            raise ValueError("Choose an available offline speaker backend")
         if (not isinstance(self.speaker_aliases,tuple) or
                 len(self.speaker_aliases)>4 or
                 any(not isinstance(alias,str) or len(alias)>32 or
@@ -101,6 +104,7 @@ class CaptionConfig:
                 "page":self.page,"teletext_pid":self.teletext_pid,
                 "audio_pid":self.audio_pid,"audio_source":self.audio_language,
                 "speaker_enabled":self.speaker_enabled,
+                "speaker_provider":self.speaker_provider,
                 "revision":self.revision}
 
     def render(self, result):
