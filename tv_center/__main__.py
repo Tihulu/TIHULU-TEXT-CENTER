@@ -39,9 +39,12 @@ def main():
     if len(sys.argv) >= 2 and sys.argv[1] == "media-captions-ui":
         from .media_ui import main as local_media_gui
         return local_media_gui(sys.argv[2:])
-    if len(sys.argv) >= 2 and sys.argv[1] in ("radio-captions","lyrics-lookup"):
+    if len(sys.argv) >= 2 and sys.argv[1] in ("radio-captions","lyrics-lookup","lyrics-import"):
         from .radio_ai import main as radio
         return radio(sys.argv[1:])
+    if len(sys.argv) >= 2 and sys.argv[1] == "remote-hub":
+        from .remote_hub import main as remote_main
+        return remote_main(sys.argv[2:])
     if len(sys.argv) >= 2 and sys.argv[1] == "kaffeine-doctor":
         from kaffeine_next.diagnostics import main as diagnose
         return diagnose(sys.argv[2:])
@@ -87,7 +90,7 @@ def main():
         os.execv(str(launcher), [str(launcher), "--lastchannel", *arguments])
     print("Unknown command. Use: tv, ai-market, ai, doctor, "
           "kaffeine-captions, kaffeine-doctor, ai-check, media-captions, "
-          "media-captions-ui, radio-captions, lyrics-lookup, legacy-player", file=sys.stderr)
+          "media-captions-ui, radio-captions, lyrics-lookup, lyrics-import, remote-hub, legacy-player", file=sys.stderr)
     return 2
 
 if __name__ == "__main__":
