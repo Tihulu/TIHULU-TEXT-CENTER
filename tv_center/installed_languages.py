@@ -8,6 +8,7 @@ A present NLLB model is labelled unverified until real translation is tested.
 from __future__ import annotations
 
 import json
+import subprocess
 from .language_codes import language_code
 
 NAMES = {
@@ -24,8 +25,12 @@ def catalog(*, installed_pairs=None, nllb_installed=None):
     if installed_pairs is None:
         try:
             from .argos_market_bridge import run
-            installed_pairs = run("installed")
-        except (OSError, RuntimeError, ValueError, KeyError) as exc:
+            # PyTorch/Argos cold imports can block for up to a minute in
+            # the normal Model Market. A caption language menu must not.
+            # This is a read-only, local probe with a strict short deadline.
+            installed_pairs = run("installed", installed_timeout=3.5)
+        except (OSError, RuntimeError, ValueError, KeyError,
+                subprocess.TimeoutExpired) as exc:
             installed_pairs = []
             errors.append("Argos package discovery unavailable: "+str(exc)[:150])
     if nllb_installed is None:
