@@ -724,6 +724,8 @@ def main(argv=None):
     baseline = ("en", "tr", "de", "fr")
     catalog_in_flight = False
     catalog_timed_out = False
+    language_stage = "idle"
+    known_models = {}
 
     def summarize_languages(*_):
         checked = [code.upper() for code,box in language_boxes.items()
@@ -744,7 +746,7 @@ def main(argv=None):
     def fill_languages(result, *, pending=False):
         """Rebuild the menu without clearing the user's existing choices."""
         items = result.get("languages",()) if isinstance(result,dict) else ()
-        available={}
+        available=known_models
         for item in items:
             if not isinstance(item,dict):
                 continue
@@ -752,7 +754,12 @@ def main(argv=None):
                 code=language_code(item.get("code",""),nllb=True)
             except (ValueError,TypeError):
                 continue
-            if code not in available:
+            if code in available:
+                old=available[code]
+                engines=sorted(set(old.get("engines",())) |
+                               set(item.get("engines",())))
+                available[code]={**old,**item,"engines":engines}
+            else:
                 available[code]=item
         output_menu.clear()
         language_boxes.clear()
@@ -768,9 +775,14 @@ def main(argv=None):
             label=(str(model.get("label","")) if model else
                    {"en":"English","tr":"Turkish","de":"German",
                     "fr":"French"}.get(code,code.upper()))
+            remote=[str(x) for x in engines if
+                    str(x).startswith("DeepL API")]
+            offline=[str(x) for x in engines if
+                     not str(x).startswith("DeepL API")]
             status_text=(
-                " · installed model: "+", ".join(str(x) for x in engines)
-                if engines else " · translation model not confirmed")
+                (" · local model: "+", ".join(offline) if offline else
+                 " · no offline translation pack confirmed")+
+                (" · online option: "+", ".join(remote) if remote else ""))
             cb=QCheckBox(code.upper()+" · "+label,content)
             cb.setChecked(code in requested_languages)
             cb.setToolTip(
@@ -795,8 +807,9 @@ def main(argv=None):
         summarize_languages()
         if pending:
             output_catalog_status.setText(
-                "Languages ready: EN selected by default. Checking installed "
-                "offline translation models in the background…")
+                "EN is the initial output, Spoken is Auto detect. All four "
+                "common languages can be selected immediately. Checking local "
+                "NLLB/MADLAD first; slow Argos inventory follows…")
         elif isinstance(result,dict) and result.get("errors"):
             output_catalog_status.setText(
                 "Language choices available; installed model check incomplete: "+
@@ -804,22 +817,24 @@ def main(argv=None):
                 ". Open Model Market to install/verify packs.")
         else:
             output_catalog_status.setText(
-                str(len(available))+" installed output languages found. "
-                "Available destination is not proof of a working source→target "
-                "translation. Select languages, then Apply.")
+                str(len(available))+" destination candidates from discovered "
+                "local packs and any explicitly configured ONLINE API. "
+                "Installed weights do not prove usable translation. "
+                "Select languages, then Apply.")
 
     language_process=QProcess(window)
     language_timeout=QTimer(window)
     language_timeout.setSingleShot(True)
+
     def language_catalog_finished(*_):
         nonlocal catalog_in_flight
         language_timeout.stop()
         catalog_in_flight=False
         if catalog_timed_out:
             output_catalog_status.setText(
-                "Installed-model scan timed out (11 seconds). EN/TR/DE/FR "
-                "checkboxes still work; use Refresh to try again. "
-                "A translation pack is required for actual output.")
+                "Installed-model inventory timed out (stage: "+
+                language_stage+"). Language boxes are ready; manually "
+                "refresh to retry. No model, source or channel changed.")
             return
         try:
             payload=bytes(language_process.readAllStandardOutput()).decode(
@@ -833,7 +848,14 @@ def main(argv=None):
                 raise ValueError("Invalid local model metadata")
         except (ValueError,TypeError) as exc:
             result={"languages":[],"errors":[str(exc)[:160]]}
+        # Keep all previously discovered engines, and do not reset a
+        # checkbox when the slower Argos result finally arrives.
         fill_languages(result)
+        if language_stage=="fast":
+            output_catalog_status.setText(
+                "NLLB/MADLAD and configured DeepL candidates listed. "
+                "Checking installed Argos packs without blocking selection…")
+            QTimer.singleShot(30,start_argos_catalog)
 
     def language_catalog_error(error):
         nonlocal catalog_in_flight
@@ -849,27 +871,42 @@ def main(argv=None):
         if language_process.state()!=QProcess.NotRunning:
             catalog_timed_out=True
             output_catalog_status.setText(
-                "Installed model scan exceeded 11 seconds. Language choices "
-                "remain usable; Retry after Model Market is ready.")
+                "Installed model scan exceeded its safety deadline. "
+                "EN/TR/DE/FR and already detected local models stay available.")
             language_process.kill()
 
-    def start_language_catalog():
-        nonlocal catalog_in_flight,catalog_timed_out
+    def start_argos_catalog():
+        nonlocal catalog_in_flight,language_stage,catalog_timed_out
         if catalog_in_flight or language_process.state()!=QProcess.NotRunning:
             return
         catalog_in_flight=True
         catalog_timed_out=False
+        language_stage="argos"
         output_catalog_status.setText(
-            "Language choices ready. Checking installed models (max 11 s)…")
+            "Local large-model destinations available. Optional Argos "
+            "language-pack inventory (max 11 seconds)…")
         language_process.start(sys.executable,
             ["-m","tv_center.installed_languages"])
         language_timeout.start(11000)
 
+    def start_language_catalog():
+        nonlocal catalog_in_flight,catalog_timed_out,language_stage
+        if catalog_in_flight or language_process.state()!=QProcess.NotRunning:
+            return
+        known_models.clear()
+        catalog_in_flight=True
+        catalog_timed_out=False
+        language_stage="fast"
+        output_catalog_status.setText(
+            "Languages ready. Reading local NLLB/MADLAD checkpoint metadata "
+            "and any configured DeepL key (no API request)…")
+        language_process.start(sys.executable,
+            ["-m","tv_center.installed_languages","--fast"])
+        language_timeout.start(3500)
+
     language_process.finished.connect(language_catalog_finished)
     language_process.errorOccurred.connect(language_catalog_error)
     language_timeout.timeout.connect(language_catalog_timeout)
-    # The menu is functional from the first rendered frame, even if the
-    # Argos runtime cannot import at all or the subprocess cannot start.
     fill_languages({"languages":[]},pending=True)
     QTimer.singleShot(150,start_language_catalog)
     extra_targets = QLineEdit()
