@@ -456,11 +456,13 @@
         say('auto-plan-status',JSON.stringify(result,null,2).slice(0,1200));
         say('native-receiver-status','Native auto scheduling completed; '+String(
           result.scheduled_count||0)+' actual OS-RF jobs stored locally');
+        window.dispatchEvent(new Event('tihulu-native-schedule-changed'));
         return;
       }
       case 'auto-stop': {
         const result=await invoke('auto_cancel',{},'auto-plan-status');
         say('auto-plan-status','Native auto jobs canceled: '+JSON.stringify(result));
+        window.dispatchEvent(new Event('tihulu-native-schedule-changed'));
         return;
       }
       case 'schedule-check': {
@@ -592,6 +594,7 @@
       if(warn)warn.textContent='Native TLE-backed RF capture scheduled: '+
          result.satellite+' · '+result.run_at+' · '+result.capture_seconds+
          ' s. No WebUSB and no fabricated satellite content.';
+      window.dispatchEvent(new Event('tihulu-native-schedule-changed'));
     }).catch(error=>{
       if(warn)warn.textContent='Native schedule rejected: '+String(error.message);
     });
@@ -659,11 +662,16 @@
         lookup('passes',{lat,lon,hours,elevation});
       window.nativeOrbitSnapshot=(lat,lon,at_ms,tracks=false)=>
         lookup('orbit_snapshot',{lat,lon,at_ms,tracks});
+      window.nativePassPreview=(lat,lon,norad,aos_ms,los_ms)=>
+        lookup('pass_preview',{lat,lon,norad,aos_ms,los_ms});
+      window.nativeScheduleStatus=()=>lookup('status');
+      window.nativeCancelScheduledJob=job_id=>lookup('cancel_schedule',{job_id});
       window.nativeWorldOutline=()=>lookup('world_outline');
       window.nativeImportTle=text=>lookup('tle_import',{text});
       setHardwareLabels();
       window.nativeWebBridgeReady=true;
       window.nativeRFTransport='rtl_sdr';
+      window.dispatchEvent(new Event('tihulu-native-bridge-ready'));
       log('Exact bundled web UI ready · native Qt SDR WebChannel · WebUSB DISABLED');
       refreshNativeStatus().then(result=>{
         say('device-status',result.hardware?.receiver_enabled?
