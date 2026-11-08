@@ -980,8 +980,8 @@ void DvbTab::showChannelDialog()
 		scanButtonClicked(false);
 	}
 	manager->getChannelModel()->cloneFrom(channelModel);''')
-    change(scan_cpp, '#include <QDialogButtonBox>\n',
-           '#include <QDialogButtonBox>\n#include <QSignalBlocker>\n')
+    change(scan_cpp, '#include <QComboBox>\n',
+           '#include <QComboBox>\n#include <QSignalBlocker>\n')
     change(scan_cpp, '''void DvbScanDialog::updateStatus()
 {
 	if (device->getDeviceState() != DvbDevice::DeviceIdle) {''',
