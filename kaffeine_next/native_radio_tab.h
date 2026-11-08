@@ -124,6 +124,10 @@ public:
 		receiverActions->addWidget(start_);
 		receiverActions->addWidget(scan_);
 		receiverActions->addWidget(record_);
+		subtitledRecord_=new QCheckBox(tr("Make subtitled recording"),this);
+		subtitledRecord_->setToolTip(tr("On Stop, create offline time-coded SRT from the "
+			"saved audio and mux a selectable-subtitle MKV. Never fake live synchronization."));
+		receiverActions->addWidget(subtitledRecord_);
 		receiverActions->addWidget(stop_);
 		root->addLayout(receiverActions);
 
@@ -474,6 +478,39 @@ public:
 		connect(start_, &QPushButton::clicked, this, [this](){ startReceiver(); });
 		connect(stop_, &QPushButton::clicked, this, [this](){ stopReceiver(); });
 		connect(record_, &QPushButton::clicked, this, [this](){ toggleRecording(); });
+		connect(&recordAi_,QOverload<int,QProcess::ExitStatus>::of(&QProcess::finished),
+			this,[this](int result,QProcess::ExitStatus status){
+				const QString srt=QFileInfo(recordedPath_).absolutePath()+QLatin1Char('/')+
+					QFileInfo(recordedPath_).completeBaseName()+QLatin1String(".srt");
+				if(result!=0 || status!=QProcess::NormalExit || !QFileInfo(srt).isFile()){
+					state_->setText(tr("Recording preserved, offline SRT failed: %1")
+						.arg(QString::fromUtf8(recordAi_.readAllStandardError()).right(180)));
+					return;
+				}
+				const QString output=QFileInfo(recordedPath_).absolutePath()+QLatin1Char('/')+
+					QFileInfo(recordedPath_).completeBaseName()+QLatin1String("-subtitled.mkv");
+				if(QFileInfo(output).exists()) {
+					state_->setText(tr("SRT saved; subtitled MKV destination already exists. "
+						"Existing files will not be overwritten."));
+					return;
+				}
+				recordMux_.start(QLatin1String("ffmpeg"),
+					{QLatin1String("-nostdin"),QLatin1String("-hide_banner"),
+					 QLatin1String("-loglevel"),QLatin1String("error"),
+					 QLatin1String("-n"),QLatin1String("-i"),recordedPath_,
+					 QLatin1String("-i"),srt,
+					 QLatin1String("-map"),QLatin1String("0:a:0"),
+					 QLatin1String("-map"),QLatin1String("1:0"),
+					 QLatin1String("-c:a"),QLatin1String("copy"),
+					 QLatin1String("-c:s"),QLatin1String("srt"),output});
+				state_->setText(tr("Offline SRT generated; creating MKV with subtitle track…"));
+			});
+		connect(&recordMux_,QOverload<int,QProcess::ExitStatus>::of(&QProcess::finished),
+			this,[this](int result,QProcess::ExitStatus status){
+				state_->setText(result==0 && status==QProcess::NormalExit?
+					tr("Subtitled recording complete. Audio, SRT and MKV saved.") :
+					tr("Recorded audio and SRT saved; MKV mux failed (check FFmpeg)."));
+			});
 		connect(scan_, &QPushButton::clicked, this, [this](){ beginScan(); });
 		connect(webSearchButton_, &QPushButton::clicked, this, [this](){ searchInternetRadio(); });
 		connect(webSearch_, &QLineEdit::returnPressed, this, [this](){ searchInternetRadio(); });
@@ -1184,18 +1221,45 @@ private:
 			 QLatin1String("-vn"),QLatin1String("-c:a"),QLatin1String("copy"),
 			 filename});
 		if (recorder_.waitForStarted(1000)) {
+			recordedPath_=filename;
+			recordWithSubtitles_=subtitledRecord_->isChecked();
 			record_->setText(tr("Stop recording"));
 			state_->setText(tr("Recording real DAB audio locally to %1").arg(filename));
 		} else
 			state_->setText(tr("FFmpeg recording could not start."));
 	}
 	void stopRecording() {
-		if (recorder_.state()!=QProcess::NotRunning) {
+		const bool wasRunning=recorder_.state()!=QProcess::NotRunning;
+		if (wasRunning) {
 			recorder_.terminate();
-			if (!recorder_.waitForFinished(1500))
+			if (!recorder_.waitForFinished(2200))
 				recorder_.kill();
 		}
 		if (record_) record_->setText(tr("Record station"));
+		if(!wasRunning || !recordWithSubtitles_ || recordedPath_.isEmpty() ||
+		   !QFileInfo(recordedPath_).isFile() || QFileInfo(recordedPath_).size()==0)
+			return;
+		recordWithSubtitles_=false;
+		if(recordAi_.state()!=QProcess::NotRunning) {
+			state_->setText(tr("A previous offline recording transcription is still running."));
+			return;
+		}
+		QStringList targets;
+		if(english_->isChecked()) targets<<QLatin1String("en");
+		if(german_->isChecked()) targets<<QLatin1String("de");
+		if(turkish_->isChecked()) targets<<QLatin1String("tr");
+		for(const QString &extra:extraTargets_->text().split(QLatin1Char(','),Qt::SkipEmptyParts))
+			if(!targets.contains(extra.trimmed()) && targets.size()<3)
+				targets<<extra.trimmed();
+		QStringList args{QLatin1String("media-captions"),
+			QLatin1String("--input"),recordedPath_,
+			QLatin1String("--source"),QLatin1String("auto"),
+			QLatin1String("--targets"),targets.join(QLatin1Char(','))};
+		if(music_->isChecked()) args<<QLatin1String("--music");
+		recordAi_.start(QLatin1String("tihulu-tv-center"),args);
+		if(!recordAi_.waitForStarted(850))
+			state_->setText(tr("Recording saved; could not launch offline caption worker."));
+		else state_->setText(tr("Recording saved. Creating accurate offline SRT before MKV mux…"));
 	}
 	void requestSlide(const QString &sid) {
 		if (!active() || sid.isEmpty() || slidePending_) return;
@@ -1651,7 +1715,10 @@ private:
 	QList<TimedRadioCue> cueQueue_;
 	QLineEdit *extraTargets_=nullptr;
 	QLabel *syncStatus_=nullptr;
-	QProcess backend_,captionProcess_,recorder_,lyricsProcess_;
+	QProcess backend_,captionProcess_,recorder_,lyricsProcess_,recordAi_,recordMux_;
+	QString recordedPath_;
+	bool recordWithSubtitles_=false;
+	QCheckBox *subtitledRecord_=nullptr;
 	QProcess analogDemod_{this},analogAudio_{this};
 	QNetworkAccessManager network_;
 	QTimer tick_;
