@@ -48,12 +48,13 @@ jobs:
           test -s tihulu_flight_radar/web/install.html
           node --check tihulu_flight_radar/web/app.js
           node --check tihulu_flight_radar/web/receiver_coverage.js
+          node --check tihulu_flight_radar/web/rf_timing_lab.js
           # Regression gate: public Pages must start genuine Internet aircraft without USB.
           grep -q 'const startPagesInternet=' tihulu_flight_radar/web/app.js
           node --check tihulu_flight_radar/web/browser_usb.mjs
           node --check tihulu_flight_radar/web/adsb_worker.mjs
           node --check tihulu_flight_radar/web/tar1090-adapter.js
-          node --test tests/web_bridge.test.cjs tests/pages_tar.test.cjs tests/browser_adsb.test.cjs tests/browser_source.test.cjs tests/aircraft_visuals.test.cjs tests/webusb_sampleblock.test.cjs tests/internet_sources.test.cjs tests/multi_sources.test.cjs tests/tar_layers_regression.test.cjs tests/location_selector.test.cjs tests/release_main.test.cjs tests/tar_full_browser.test.cjs tests/aircraft_popup_rf_coverage.test.cjs
+          node --test tests/web_bridge.test.cjs tests/pages_tar.test.cjs tests/browser_adsb.test.cjs tests/browser_source.test.cjs tests/aircraft_visuals.test.cjs tests/webusb_sampleblock.test.cjs tests/internet_sources.test.cjs tests/multi_sources.test.cjs tests/tar_layers_regression.test.cjs tests/location_selector.test.cjs tests/release_main.test.cjs tests/tar_full_browser.test.cjs tests/aircraft_popup_rf_coverage.test.cjs tests/rf_timing_lab.test.cjs
       - name: Stamp canonical source SHA, identical to standalone Flight Radar
         run: |
           set -euo pipefail
@@ -76,6 +77,7 @@ jobs:
           test -s pages/flight_radar/vendor/rtlsdr.mjs
           test -s pages/flight_radar/multi_sources.js
           test -s pages/flight_radar/receiver_coverage.js
+          test -s pages/flight_radar/rf_timing_lab.js
           test -s pages/flight_radar/flight_location_ui.mjs
           test -s pages/flight_radar/location_search.mjs
           test -s pages/flight_radar/cities-de-tr.json
