@@ -71,9 +71,8 @@ class CaptionConfig:
                 any(language_code(lang, nllb=True) == language_code(self.source, nllb=True)
                     for lang in self.target_languages)):
             raise ValueError("Translation languages must be distinct and differ from spoken language")
-        if not self.show_original and (not self.show_translation or
-                                       not self.target_languages):
-            raise ValueError("Select transcript or at least one translation")
+        if not self.show_original and not self.show_translation:
+            raise ValueError("Select original transcript and/or translation")
         if self.position not in ("bottom", "top"):
             raise ValueError("Unknown caption position")
         if type(self.font_px) is not int or not 16 <= self.font_px <= 44:
@@ -119,9 +118,12 @@ class CaptionConfig:
         # could translate into the selected language, never blank the screen.
         # Broadcast / Whisper original remains visible with an explicit label.
         if not lines and original and self.show_translation:
-            codes = ", ".join(self.target_languages).upper() or self.target.upper()
             actual = (result.get("source_language") or self.source).upper()
-            lines.append(f"[{actual} · original; {codes} unavailable] " + original)
+            if self.target_languages:
+                codes = ", ".join(self.target_languages).upper()
+                lines.append(f"[{actual} · original; {codes} unavailable] " + original)
+            else:
+                lines.append(f"[{actual} · original] " + original)
         return "\n".join(lines)[:1100]
 
 def effective_cue_config(config: CaptionConfig, native_status: dict | None) -> CaptionConfig:
