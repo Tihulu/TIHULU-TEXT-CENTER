@@ -59,7 +59,8 @@ def write_runtime_json(path: Path, payload: dict) -> None:
 
 
 def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,...],
-                      output: str, music: bool=False, max_chunks: int=0):
+                      output: str, music: bool=False, max_chunks: int=0,
+                      speaker_labels: bool=False):
     if type(port) is not int or not 1024 <= port <= 65535:
         raise ValueError("Invalid loopback radio port")
     if not isinstance(sid,str) or not _SID.fullmatch(sid):
@@ -110,6 +111,19 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
                             profile=profile,backend=backend,music=music,
                             detection=detection)
             original=" ".join(cue.text for cue in cues).strip()
+            # Speaker identities are relative voice clusters (Speaker 1, 2...),
+            # not inferred gender/age. Music-mode does NOT invoke diarization.
+            speaker_turns=[]
+            speaker_warning=None
+            if speaker_labels and original and not music:
+                try:
+                    from .free_speakers import FreeSpeakerMarket, diarize_pcm
+                    if FreeSpeakerMarket().status()["installed"]:
+                        speaker_turns=diarize_pcm(pcm,channel=sid)
+                    else:
+                        speaker_warning="Install the optional local speaker model in AI Market"
+                except (ImportError,RuntimeError,TimeoutError,OSError,ValueError) as exc:
+                    speaker_warning=str(exc)[:180]
             candidate=detection.get("language")
             confidence=float(detection.get("confidence") or 0.0)
             if src=="auto":
@@ -142,6 +156,11 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
                 "translation_warnings":problems,
                 "backend":backend,
                 "music_mode":bool(music),
+                "speaker_turns":speaker_turns,
+                "speaker_warning":speaker_warning,
+                "speaker_classification":(
+                    "approximate voice clustering; no age or gender inference"
+                    if speaker_labels and not music else "disabled"),
                 "lag_note":"Radio ASR reads original welle stream. Player caching "
                            "is an estimate, not a confirmed libVLC presentation clock.",
                 "captured_monotonic":captured_at,
@@ -221,6 +240,8 @@ def main(args=None):
     live.add_argument("--targets",default="en,tr")
     live.add_argument("--output",required=True)
     live.add_argument("--music",action="store_true")
+    live.add_argument("--speaker-labels",action="store_true",
+                      help="Opt-in local voice clusters; not for song/music mode")
     lookup=subs.add_parser("lyrics-lookup")
     lookup.add_argument("--track",required=True)
     lookup.add_argument("--artist",required=True)
@@ -239,7 +260,8 @@ def main(args=None):
         decode_radio_live(port=opts.port,sid=opts.sid,
             source=opts.source,
             targets=tuple(x.strip() for x in opts.targets.split(",") if x.strip()),
-            output=opts.output,music=opts.music)
+            output=opts.output,music=opts.music,
+            speaker_labels=opts.speaker_labels)
         return 0
     except (OSError,ValueError,RuntimeError,subprocess.TimeoutExpired) as exc:
         print("Offline radio AI unavailable: "+str(exc)[:250],file=sys.stderr)
