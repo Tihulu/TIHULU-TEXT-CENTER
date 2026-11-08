@@ -669,13 +669,14 @@
       // Skyfield computes real TLE geometry; website keeps its own JS path.
       window.nativeOrbitCatalog=()=>lookup('tle_catalog');
       window.nativeCustomTle=norad=>lookup('tle_custom',{norad});
-      window.nativeOrbitPasses=(lat,lon,hours,elevation)=>
-        lookup('passes',{lat,lon,hours,elevation});
+      window.nativeOrbitPasses=(lat,lon,hours,elevation,windowProfile=null)=>
+        lookup('passes',{lat,lon,hours,elevation,window:windowProfile});
       window.nativeOrbitSnapshot=(lat,lon,at_ms,tracks=false)=>
         lookup('orbit_snapshot',{lat,lon,at_ms,tracks});
       window.nativePassPreview=(lat,lon,norad,aos_ms,los_ms)=>
         lookup('pass_preview',{lat,lon,norad,aos_ms,los_ms});
       window.nativeScheduleStatus=()=>lookup('status');
+      window.nativeComputeStatus=()=>lookup('status').then(info=>info.compute);
       window.nativeCancelScheduledJob=job_id=>lookup('cancel_schedule',{job_id});
       window.nativeWorldOutline=()=>lookup('world_outline');
       window.nativeImportTle=text=>lookup('tle_import',{text});
@@ -685,6 +686,20 @@
       window.dispatchEvent(new Event('tihulu-native-bridge-ready'));
       log('Exact bundled web UI ready · native Qt SDR WebChannel · WebUSB DISABLED');
       refreshNativeStatus().then(result=>{
+        const g=result.compute?.gpu||{};
+        const label=$('native-gpu-discovery');
+        if(label){
+          label.hidden=false;
+          const devices=Array.isArray(g.devices)?g.devices:[];
+          label.textContent=g.detected?
+            'Native GPU detected: '+devices.join(' / ')+
+            (g.driver?' · NVIDIA driver '+g.driver:'')+
+            ' · CUDA/CuPy Robot36 kernel: '+(g.available?'WORKING':'NOT READY')+
+            (g.available?'':'. '+(g.reason||'')+' '+(g.action||''))+
+            '. Browser WebGPU is tested separately; I/Q FFT does not automatically run on this GPU.':
+            'No native GPU detected by nvidia-smi/lspci. '+(g.reason||'')+
+            '. Check that the NVIDIA driver and nvidia-smi are available in this application environment.';
+        }
         say('device-status',result.hardware?.receiver_enabled?
           'Native RF enabled · press Start native RF capture to record':
           'RF disabled · press Connect & verify physical RTL-SDR to arm real recording');
