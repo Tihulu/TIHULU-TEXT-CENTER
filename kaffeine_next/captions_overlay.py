@@ -999,15 +999,29 @@ def main(argv=None):
         selected_audio = audio_track.currentData()
         chosen_audio = (selected_audio if isinstance(selected_audio, dict) and
                         mode.currentData() in ("asr", "auto") else None)
-        hinted = (chosen_track.get("source_hint") or
-                  chosen_track.get("language") if chosen_track else
-                  chosen_audio.get("source_hint") or
-                  chosen_audio.get("language") if chosen_audio else None)
+        broadcast_hint = (chosen_track.get("source_hint") or
+                          chosen_track.get("language")) if chosen_track else (
+                          chosen_audio.get("source_hint") or
+                          chosen_audio.get("language")) if chosen_audio else None
+        try:
+            hinted = language_code(broadcast_hint) if broadcast_hint else None
+        except (TypeError, ValueError):
+            hinted = None
+        if hinted == "und" or (mode.currentData() in ("auto","asr") and
+                                hinted and hinted not in WHISPER_LANGUAGES and
+                                chosen_track is None):
+            hinted = None
         automatic_source = source.currentText() == "Auto detect · Whisper"
-        spoken = ("auto" if automatic_source and mode.currentData() in ("asr","auto")
-                  and chosen_track is None else
-                  language_code(hinted or ("de" if automatic_source else
-                                             source.currentText())))
+        # An explicitly selected speech language takes precedence. With Auto,
+        # use a trustworthy DVB audio/subtitle language BEFORE asking Whisper
+        # to guess from a noisy six-second chunk. With no reliable descriptor,
+        # retain real Whisper auto-detection (never quietly assume German).
+        spoken = (hinted or "auto") if automatic_source else (
+            language_code(source.currentText()))
+        if not automatic_source and mode.currentData() in ("auto","asr") and (
+                spoken not in WHISPER_LANGUAGES):
+            raise ValueError("This source language is not supported by Whisper: " +
+                             spoken.upper())
         raw_targets = [
             lang for lang, check in language_boxes.items() if check.isChecked()]
         raw_targets.extend(x.strip() for x in extra_targets.text().replace(
@@ -1025,11 +1039,8 @@ def main(argv=None):
             page=chosen_track["page"] if chosen_track else page.value(),
             teletext_pid=chosen_track["pid"] if chosen_track else None,
             audio_pid=chosen_audio["pid"] if chosen_audio else None,
-            audio_language=(language_code(chosen_audio.get("source_hint") or
-                                chosen_audio.get("language"))
-                            if chosen_audio and (chosen_audio.get("source_hint") or
-                                                 chosen_audio.get("language")) not in (None, "und")
-                            else None),
+            audio_language=(hinted if chosen_audio and
+                            hinted in WHISPER_LANGUAGES else None),
             speaker_enabled=speaker_enabled.isChecked(),
             music_transcription=music_transcription.isChecked(),
             speaker_provider=speaker_provider.currentData(),
