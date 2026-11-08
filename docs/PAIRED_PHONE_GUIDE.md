@@ -42,8 +42,11 @@ The host requested delay is never labeled *verified* unless its native
 queue-primed acknowledgement is present.
 
 **Native DVB scanning and channel management** are now available from
-the **TIHULU TV Center native Qt application** when its own six-digit
-PIN service is enabled. That Qt process drains the authenticated command
+the **legacy native Qt TV Center frontend** (launch
+`tihulu-tv-center legacy-player`) when its own six-digit PIN service
+is enabled. The default `tihulu-tv-center` launches Kaffeine instead
+and does NOT automatically inherit the legacy Qt scanner bridge. That
+Qt process drains the authenticated command
 queue and invokes the real AutoScanner with the current selected adapter.
 Remote scan prompts for confirmation, is cancelled from the same monitor
 as local scans, and publishes only actual scan progress and saved services.
