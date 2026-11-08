@@ -302,7 +302,7 @@ def open_ai_settings(parent, ai, after_save=None):
             self.installed_argos.itemSelectionChanged.connect(
                 self.select_installed_argos_pair)
             trans_layout.addWidget(self.installed_argos)
-            quality = QGroupBox("Higher-capacity translator · NLLB-200 distilled 600M")
+            quality = QGroupBox("Translation engines · Argos / NLLB / MADLAD / DeepL")
             quality_layout = QVBoxLayout(quality)
             self.translation_choice = QComboBox()
             self.translation_choice.addItem("Argos Translate · compact offline language packs","argos")
