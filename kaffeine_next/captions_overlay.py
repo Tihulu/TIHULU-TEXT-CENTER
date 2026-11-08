@@ -298,6 +298,7 @@ def main(argv=None):
     from .caption_timing import (CaptionConfig, CueQueue, KaffeineOSD,
                                  AutoSyncEstimator, AutoSyncController,
                                  effective_cue_config)
+    from .word_cues import enqueue_word_cues
     from PyQt5.QtCore import Qt, QTimer
     from PyQt5.QtWidgets import (QApplication, QWidget, QVBoxLayout, QHBoxLayout,
         QLabel, QComboBox, QPushButton, QSpinBox, QDoubleSpinBox,
@@ -326,7 +327,7 @@ def main(argv=None):
         "QComboBox,QSpinBox,QDoubleSpinBox,QPushButton{background:#173449;"
         "border:1px solid #356784;border-radius:6px;padding:7px}"
         "QPushButton#apply{background:#207796;font-weight:700}"
-        "QLabel#subtitle{font-size:20px}"
+        "QLabel#subtitle{font-size:20px;max-height:86px}"
     )
     root = QVBoxLayout(window)
 
@@ -511,7 +512,7 @@ def main(argv=None):
         raise RuntimeError("Cannot start private caption controller: " + str(exc)) from exc
     lock = threading.Lock()
     applied = CaptionConfig().validate()
-    cues = CueQueue()
+    cues = CueQueue(maximum=32)
     # A six-second Whisper clip plus inference/translation may arrive more
     # than six seconds after speaking began. On desktop allow up to 15s,
     # but still obey the measured 48 MiB memory budget and native FIFO cap.
@@ -886,9 +887,14 @@ def main(argv=None):
                     # current request; never reuse a stale channel setting.
                     cue_config = effective_cue_config(
                         applied, ipc.read_effective_delay())
-                    cue = cues.add(data, cue_config,
-                                   data["captured_start"],data["captured_end"],
-                                   data["decoded_at"])
+                    cue = enqueue_word_cues(
+                        cues, data, cue_config,
+                        data["captured_start"],data["captured_end"],
+                        data["decoded_at"])
+                    if cue is None:
+                        cue = cues.add(data, cue_config,
+                                       data["captured_start"],data["captured_end"],
+                                       data["decoded_at"])
                     delay_verified = (
                         cue_config.playback_delay_ms != applied.playback_delay_ms or
                         (ipc.read_effective_delay() or {}).get("requested_ms")
@@ -919,6 +925,12 @@ def main(argv=None):
                     status.setText(status.text()+
                         " | TS continuity gaps: "+str(ts_health["continuity_gaps"])+
                         " (RF or nonblocking sidecar loss; not distinguished)")
+                    if data.get("word_timing_source"):
+                        status.setText(status.text() +
+                            " | Speech-follow: real GPU word timestamps; "
+                            "translated word pacing is approximate")
+                    if data.get("audio_notice"):
+                        status.setText(status.text() + "\n" + data["audio_notice"])
                     if data.get("error"):
                         status.setText(status.text()+"\n"+data["error"])
                 elif data.get("error"):
