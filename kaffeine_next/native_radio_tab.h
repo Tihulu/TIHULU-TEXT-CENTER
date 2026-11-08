@@ -1480,7 +1480,7 @@ private:
 			    !QRegularExpression(QLatin1String("^/mp3/[A-Fa-f0-9x]+$"))
 			     .match(stream).hasMatch() || sid.isEmpty()) continue;
 			const QString key = ch + QLatin1Char(':') + sid;
-			if (!stationData_.contains(key)) {
+			if (!stationChannels_.contains(key)) {
 				auto *item = new QTreeWidgetItem(
 					{favorites_.contains(key)?QStringLiteral("★"):QStringLiteral("☆"),
 					 serviceLabel, ch, sid});
@@ -1578,6 +1578,7 @@ private:
 			if (ch.size()>3 || sid.size()>16 || name.size()>150 ||
 				sid.isEmpty() || ch.isEmpty() || name.isEmpty()) continue;
 			const QString key=ch+QLatin1Char(':')+sid;
+			if(stationChannels_.contains(key)) continue; // old cache may repeat services
 			auto *item = new QTreeWidgetItem(
 				{favorites_.contains(key)?QStringLiteral("★"):QStringLiteral("☆"),
 				 name,ch,sid});
@@ -1588,8 +1589,12 @@ private:
 	}
 	void saveStations() {
 		QJsonArray list;
+		QSet<QString> written;
 		for (int i=0;i<stations_->topLevelItemCount() && i<700;++i) {
 			const auto *item=stations_->topLevelItem(i);
+			const QString key=item->data(0,Qt::UserRole).toString();
+			if(written.contains(key)) continue;
+			written.insert(key);
 			QJsonObject obj;
 			obj[QLatin1String("channel")]=item->text(2);
 			obj[QLatin1String("sid")]=item->text(3);
