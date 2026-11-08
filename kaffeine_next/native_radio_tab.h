@@ -196,6 +196,17 @@ public:
             "background:#14242e;color:#f5e6bb;border:1px solid #405365;"
             "border-radius:6px;padding:7px;"));
         root->addWidget(radioCaptionBanner_);
+        // Translation diagnostics are never represented as spoken lyrics.
+        // This slim status line remains visible even when AI settings
+        // are collapsed and the radio station art occupies most of the tab.
+        radioTranslationBanner_=new QLabel(page);
+        radioTranslationBanner_->setWordWrap(true);
+        radioTranslationBanner_->setTextFormat(Qt::PlainText);
+        radioTranslationBanner_->setStyleSheet(QLatin1String(
+            "QLabel{color:#adcbe0;background:transparent;font-size:12px;"
+            "padding:4px 8px;}"));
+        radioTranslationBanner_->setVisible(false);
+        root->addWidget(radioTranslationBanner_);
         modes_=new QTabWidget(page);
         modes_->setDocumentMode(true);
         modes_->setUsesScrollButtons(true);
@@ -2894,7 +2905,25 @@ private:
                 QLatin1String("translation_warnings")).toObject();
             const QJsonObject outputLanguages=obj.value(
                 QLatin1String("translations")).toObject();
-            if(obj.value(QLatin1String("language_pending")).toBool()) {
+            const QString translationState=obj.value(
+                QLatin1String("translation_state")).toString();
+            const QString translationNote=obj.value(
+                QLatin1String("translation_note")).toString();
+            if(!translationState.isEmpty() && !translationNote.isEmpty()) {
+                if(translationState==QLatin1String("translated")) {
+                    radioTranslationBanner_->setText(tr("Translation ready · %1")
+                        .arg(outputLanguages.keys().join(QLatin1String(", ")).toUpper()));
+                } else if(translationState==QLatin1String("listening")) {
+                    radioTranslationBanner_->setText(
+                        tr("Listening for translatable speech…"));
+                } else {
+                    radioTranslationBanner_->setText(
+                        tr("Translation pending/unavailable · %1")
+                        .arg(translationNote));
+                }
+                radioTranslationBanner_->setVisible(true);
+                translationStatus_->setText(translationNote);
+            } else if(obj.value(QLatin1String("language_pending")).toBool()) {
                 translationStatus_->setText(tr("Source language uncertain: "
                     "original transcription shown; translations wait for two "
                     "consistent high-confidence detections."));
@@ -2934,6 +2963,7 @@ private:
 		}
 		if (!captionPath_.isEmpty()) QFile::remove(captionPath_);
 		captionPath_.clear();
+        if(radioTranslationBanner_) radioTranslationBanner_->setVisible(false);
         captionsStopping_=false;
 	}
     void beginLyricListening() {
@@ -3170,6 +3200,7 @@ private:
     QLabel *selectedSource_=nullptr,*selectedStationVintage_=nullptr;
 	QComboBox *lyricsSourceLanguage_=nullptr;
     QLabel *translationStatus_=nullptr;
+    QLabel *radioTranslationBanner_=nullptr;
 	QComboBox *channel_=nullptr, *driver_=nullptr, *speechLanguage_=nullptr,
 		*captionSource_=nullptr,
 		*plotKind_=nullptr, *fftPlacement_=nullptr;
