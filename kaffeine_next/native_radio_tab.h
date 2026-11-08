@@ -47,6 +47,8 @@
 #include <QPushButton>
 #include <QRegularExpression>
 #include <QSettings>
+#include <QScrollArea>
+#include <QUrlQuery>
 #include <QSlider>
 #include <QSpinBox>
 #include <QSplitter>
@@ -71,9 +73,18 @@ public:
 		  recorder_(this), lyricsProcess_(this), network_(this), tick_(this)
 	{
 		setParent(parent);
-		auto *root = new QVBoxLayout(this);
+		// Keep every radio control reachable on laptop-sized windows.
+		auto *outer = new QVBoxLayout(this);
+		outer->setContentsMargins(0, 0, 0, 0);
+		auto *scroll = new QScrollArea(this);
+		scroll->setWidgetResizable(true);
+		scroll->setFrameShape(QFrame::NoFrame);
+		outer->addWidget(scroll);
+		auto *page = new QWidget(scroll);
+		auto *root = new QVBoxLayout(page);
 		root->setContentsMargins(9, 9, 9, 9);
 		root->setSpacing(8);
+		scroll->setWidget(page);
 		auto *header = new QHBoxLayout();
 		auto *name = new QLabel(tr("Radio · DAB+ (powered by welle.io)"), this);
 		name->setStyleSheet(QLatin1String("font-weight:700;font-size:16px"));
@@ -120,7 +131,47 @@ public:
 		state_->setTextFormat(Qt::PlainText);
 		root->addWidget(state_);
 
-		auto *split = new QSplitter(Qt::Horizontal, this);
+		// Public internet radio requires no SDR, welle-cli or DVB frontend.
+		// Search happens only when clicked, and uses HTTPS Radio Browser API.
+		auto *webGroup = new QGroupBox(tr("Internet radio · independent of tuner"), page);
+		auto *webLayout = new QVBoxLayout(webGroup);
+		auto *webSearchRow = new QHBoxLayout();
+		webSearch_ = new QLineEdit(webGroup);
+		webSearch_->setPlaceholderText(tr("Search station name · e.g. WDR, BBC, TRT"));
+		webCountry_ = new QLineEdit(webGroup);
+		webCountry_->setPlaceholderText(tr("Country ISO code (optional: DE, TR...)"));
+		webCountry_->setMaximumWidth(230);
+		webSearchButton_ = new QPushButton(tr("Find stations online"), webGroup);
+		webSearchRow->addWidget(webSearch_, 2);
+		webSearchRow->addWidget(webCountry_, 1);
+		webSearchRow->addWidget(webSearchButton_);
+		webLayout->addLayout(webSearchRow);
+		webStations_ = new QTreeWidget(webGroup);
+		webStations_->setHeaderLabels({tr("★"),tr("Station"),tr("Country"),tr("Codec")});
+		webStations_->setRootIsDecorated(false);
+		webStations_->setAlternatingRowColors(true);
+		webStations_->setMinimumHeight(105);
+		webStations_->setMaximumHeight(170);
+		webStations_->header()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
+		webStations_->header()->setSectionResizeMode(1, QHeaderView::Stretch);
+		webLayout->addWidget(webStations_);
+		auto *webPlayRow = new QHBoxLayout();
+		webSource_ = new QLineEdit(webGroup);
+		webSource_->setPlaceholderText(tr("Or paste an HTTP(S) radio stream URL"));
+		webPlay_ = new QPushButton(tr("Play stream"), webGroup);
+		webStop_ = new QPushButton(tr("Stop stream"), webGroup);
+		webFavoritesOnly_ = new QCheckBox(tr("★ Favorites"),webGroup);
+		webPlayRow->addWidget(webSource_, 1);
+		webPlayRow->addWidget(webPlay_);
+		webPlayRow->addWidget(webStop_);
+		webPlayRow->addWidget(webFavoritesOnly_);
+		webLayout->addLayout(webPlayRow);
+		webStatus_ = new QLabel(tr("Internet radio is ready. No tuner connection required."),webGroup);
+		webStatus_->setWordWrap(true);
+		webLayout->addWidget(webStatus_);
+		root->addWidget(webGroup);
+
+		auto *split = new QSplitter(Qt::Horizontal, page);
 		auto *library = new QWidget(split);
 		auto *libraryLayout = new QVBoxLayout(library);
 		libraryLayout->setContentsMargins(1,1,1,1);
@@ -337,6 +388,26 @@ public:
 		connect(stop_, &QPushButton::clicked, this, [this](){ stopReceiver(); });
 		connect(record_, &QPushButton::clicked, this, [this](){ toggleRecording(); });
 		connect(scan_, &QPushButton::clicked, this, [this](){ beginScan(); });
+		connect(webSearchButton_, &QPushButton::clicked, this, [this](){ searchInternetRadio(); });
+		connect(webSearch_, &QLineEdit::returnPressed, this, [this](){ searchInternetRadio(); });
+		connect(webPlay_, &QPushButton::clicked, this, [this](){ playInternetRadio(webSource_->text()); });
+		connect(webSource_, &QLineEdit::returnPressed, this, [this](){ playInternetRadio(webSource_->text()); });
+		connect(webStop_, &QPushButton::clicked, this, [this](){ stopInternetRadio(); });
+		connect(webStations_, &QTreeWidget::itemDoubleClicked, this,
+			[this](QTreeWidgetItem *item, int column) {
+				if (column != 0 && item)
+					playInternetRadio(item->data(1,Qt::UserRole).toString());
+			});
+		connect(webStations_, &QTreeWidget::itemClicked, this,
+			[this](QTreeWidgetItem *item, int column) {
+				if (column == 0 && item) toggleInternetFavorite(item);
+				else if (item) webSource_->setText(item->data(1,Qt::UserRole).toString());
+			});
+		connect(webFavoritesOnly_, &QCheckBox::toggled, this,
+			[this](){ filterInternetStations(); });
+		QSettings webSettings(QLatin1String("TIHULU"),QLatin1String("KaffeineRadio"));
+		for (const QString &url : webSettings.value(QLatin1String("internetFavorites")).toStringList())
+			internetFavorites_.insert(url);
 		connect(stations_, &QTreeWidget::itemDoubleClicked, this,
 			[this](QTreeWidgetItem *item, int column){
 				if (column!=0) selectStation(item);
@@ -412,7 +483,112 @@ private:
 	}
 	bool active() const { return backend_.state() == QProcess::Running; }
 
+	void filterInternetStations() {
+		if (!webStations_) return;
+		for (int i=0;i<webStations_->topLevelItemCount();++i) {
+			auto *item=webStations_->topLevelItem(i);
+			const QString url=item->data(1,Qt::UserRole).toString();
+			item->setHidden(webFavoritesOnly_->isChecked() &&
+				!internetFavorites_.contains(url));
+		}
+	}
+	void toggleInternetFavorite(QTreeWidgetItem *item) {
+		const QString url=item->data(1,Qt::UserRole).toString();
+		if (url.isEmpty()) return;
+		if (internetFavorites_.contains(url)) internetFavorites_.remove(url);
+		else internetFavorites_.insert(url);
+		item->setText(0,internetFavorites_.contains(url)?QLatin1String("★"):QLatin1String("☆"));
+		QSettings settings(QLatin1String("TIHULU"),QLatin1String("KaffeineRadio"));
+		settings.setValue(QLatin1String("internetFavorites"),QStringList(internetFavorites_.values()));
+		filterInternetStations();
+	}
+	void searchInternetRadio() {
+		const QString name=webSearch_->text().trimmed();
+		const QString country=webCountry_->text().trimmed().toUpper();
+		if (name.isEmpty() && country.isEmpty()) {
+			webStatus_->setText(tr("Enter a station name or country code to search."));
+			return;
+		}
+		if (!country.isEmpty() && !QRegularExpression(QLatin1String("^[A-Z]{2}$")).match(country).hasMatch()) {
+			webStatus_->setText(tr("Country must be a two-letter ISO code, e.g. DE or TR."));
+			return;
+		}
+		QUrl url(QLatin1String("https://de1.api.radio-browser.info/json/stations/search"));
+		QUrlQuery query;
+		if (!name.isEmpty()) query.addQueryItem(QLatin1String("name"),name.left(90));
+		if (!country.isEmpty()) query.addQueryItem(QLatin1String("countrycode"),country);
+		query.addQueryItem(QLatin1String("hidebroken"),QLatin1String("true"));
+		query.addQueryItem(QLatin1String("order"),QLatin1String("votes"));
+		query.addQueryItem(QLatin1String("reverse"),QLatin1String("true"));
+		query.addQueryItem(QLatin1String("limit"),QLatin1String("40"));
+		url.setQuery(query);
+		QNetworkRequest request(url);
+		request.setRawHeader("User-Agent","TIHULU-Media-Center/0.2 (desktop; station discovery)");
+		request.setTransferTimeout(15000);
+		webSearchButton_->setEnabled(false);
+		webStatus_->setText(tr("Searching the online station directory…"));
+		QNetworkReply *reply=network_.get(request);
+		connect(reply,&QNetworkReply::finished,this,[this,reply]() {
+			webSearchButton_->setEnabled(true);
+			const QByteArray data=reply->readAll();
+			const bool ok=reply->error()==QNetworkReply::NoError && data.size()<512*1024;
+			const QString error=reply->errorString();
+			reply->deleteLater();
+			if (!ok) { webStatus_->setText(tr("Online search failed: %1").arg(error)); return; }
+			QJsonParseError parsed;
+			const QJsonDocument doc=QJsonDocument::fromJson(data,&parsed);
+			if (parsed.error!=QJsonParseError::NoError || !doc.isArray()) {
+				webStatus_->setText(tr("Invalid station directory response.")); return;
+			}
+			webStations_->clear();
+			for(const QJsonValue &value:doc.array()) {
+				const QJsonObject station=value.toObject();
+				const QString link=station.value(QLatin1String("url_resolved")).toString();
+				const QUrl stream(link);
+				if (!stream.isValid() || !stream.host().size() ||
+				    (stream.scheme()!=QLatin1String("http") && stream.scheme()!=QLatin1String("https")))
+					continue;
+				const QString name=station.value(QLatin1String("name")).toString().trimmed();
+				if (name.isEmpty()) continue;
+				const QString country=station.value(QLatin1String("countrycode")).toString();
+				const QString codec=station.value(QLatin1String("codec")).toString();
+				auto *item=new QTreeWidgetItem(webStations_);
+				item->setText(0,internetFavorites_.contains(link)?QLatin1String("★"):QLatin1String("☆"));
+				item->setText(1,name.left(120));
+				item->setText(2,country);
+				item->setText(3,codec);
+				item->setData(1,Qt::UserRole,link);
+			}
+			filterInternetStations();
+			webStatus_->setText(tr("%1 real stations discovered. Double-click to play; click ★ to save.")
+				.arg(webStations_->topLevelItemCount()));
+		});
+	}
+	void playInternetRadio(const QString &address) {
+		const QUrl url=QUrl::fromUserInput(address.trimmed());
+		if (!url.isValid() || url.host().isEmpty() ||
+		    (url.scheme()!=QLatin1String("http") && url.scheme()!=QLatin1String("https"))) {
+			webStatus_->setText(tr("Enter a valid HTTP or HTTPS stream URL.")); return;
+		}
+		// Internet playback has no reason to lock a TV/DAB tuner.
+		if (active()) stopReceiver();
+		else if (webPlaying_) player_->stop();
+		playingKey_.clear();
+		webPlaying_=true;
+		webSource_->setText(url.toString());
+		player_->play(url);
+		radioCanvas_->setText(tr("♪ Internet radio\\n%1\\nAudio uses the built-in player.")
+			.arg(url.host()));
+		webStatus_->setText(tr("Opening internet radio stream · no DVB device required."));
+	}
+	void stopInternetRadio() {
+		if (!webPlaying_) return;
+		player_->stop();
+		webPlaying_=false;
+		webStatus_->setText(tr("Internet radio stopped."));
+	}
 	void startReceiver() {
+		if (webPlaying_) stopInternetRadio();
 		if (active()) { state_->setText(tr("DAB+ receiver already running.")); return; }
 		if (!prepared()) {
 			QMessageBox::information(this,tr("Optional local DAB+ receiver"),
@@ -453,6 +629,7 @@ private:
 	}
 
 	void stopReceiver() {
+		stopInternetRadio();
 		shuttingDown_ = true;
 		scanning_ = false;
 		stopCaptioning();
@@ -684,6 +861,7 @@ private:
 		});
 	}
 	void beginScan() {
+		if (webPlaying_) stopInternetRadio();
 		if (!active()) {
 			startReceiver();
 			if (!active()) return;
@@ -1242,6 +1420,13 @@ private:
 	QTreeWidget *stations_=nullptr;
 	QComboBox *libraryBlock_=nullptr;
 	QLineEdit *stationSearch_=nullptr;
+	QLineEdit *webSearch_=nullptr,*webCountry_=nullptr,*webSource_=nullptr;
+	QPushButton *webSearchButton_=nullptr,*webPlay_=nullptr,*webStop_=nullptr;
+	QTreeWidget *webStations_=nullptr;
+	QCheckBox *webFavoritesOnly_=nullptr;
+	QLabel *webStatus_=nullptr;
+	QSet<QString> internetFavorites_;
+	bool webPlaying_=false;
 	QCheckBox *favoritesOnly_=nullptr;
 	QLabel *libraryStatus_=nullptr;
 	QSet<QString> favorites_;
