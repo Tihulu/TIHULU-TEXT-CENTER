@@ -477,7 +477,7 @@ def main(argv=None):
     from PyQt5.QtWidgets import (QApplication, QWidget, QVBoxLayout, QHBoxLayout,
         QLabel, QComboBox, QPushButton, QSpinBox, QDoubleSpinBox,
         QCheckBox, QGroupBox, QFormLayout, QLineEdit, QColorDialog,
-        QScrollArea, QFrame, QGridLayout, QFileDialog)
+        QScrollArea, QFrame, QGridLayout, QFileDialog, QTabWidget)
     app = QApplication.instance() or QApplication(["TIHULU Kaffeine Live Captions"])
     # Hiding the only QWidget must NOT quit the Qt event loop: audio capture,
     # auto-sync and video-overlay publishing continue independently of UI.
@@ -822,8 +822,20 @@ def main(argv=None):
     control_scroll.setFrameShape(QFrame.NoFrame)
     control_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
     control_scroll.setWidget(control_body)
-    root.addWidget(control_scroll, 1)
-    root.addWidget(quick, 0)
+    pages = QTabWidget()
+    appearance_scroll = QScrollArea()
+    appearance_scroll.setWidgetResizable(True)
+    appearance_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+    appearance_scroll.setWidget(quick)
+    pages.addTab(appearance_scroll, "Appearance")
+    pages.addTab(control_scroll, "Source & sync")
+    tools_page = QWidget()
+    tools_layout = QVBoxLayout(tools_page)
+    tools_layout.setContentsMargins(8, 8, 8, 8)
+    tools_layout.setSpacing(8)
+    pages.addTab(tools_page, "Diagnostics & network")
+    pages.setCurrentIndex(0)
+    root.addWidget(pages, 1)
     buttons = QHBoxLayout()
     apply = QPushButton("Apply")
     apply.setObjectName("apply")
@@ -848,7 +860,7 @@ def main(argv=None):
                          "Stop pauses ASR without closing settings; Start resumes. "
                          "Exit closes the caption service entirely.")
     persistence.setWordWrap(True)
-    root.addWidget(persistence)
+    tools_layout.addWidget(persistence)
 
     original = QLabel("Waiting for real Kaffeine DVB stream…")
     original.setObjectName("subtitle"); original.setWordWrap(True)
@@ -889,20 +901,23 @@ def main(argv=None):
     status.setWordWrap(True)
     status.setVisible(False)
     diagnostics_toggle.toggled.connect(status.setVisible)
-    root.addWidget(diagnostics_toggle)
-    root.addWidget(status)
+    tools_layout.addWidget(diagnostics_toggle)
+    tools_layout.addWidget(status)
 
     market = QPushButton("Whisper + Translator Model Market")
     def launch_market():
         import subprocess
         subprocess.Popen(["tihulu-tv-center","ai-market"],close_fds=True)
     market.clicked.connect(launch_market)
-    root.addWidget(market)
+    tools_layout.addWidget(market)
     phone = QCheckBox("Allow phone/tablet on trusted Wi-Fi (OFF by default)")
     video = QCheckBox("Share the live channel as H.264/AAC HLS (CPU intensive)")
     lan_note = QLabel("Mobile access OFF. No network listener.")
     lan_note.setWordWrap(True)
-    root.addWidget(phone); root.addWidget(video); root.addWidget(lan_note)
+    tools_layout.addWidget(phone)
+    tools_layout.addWidget(video)
+    tools_layout.addWidget(lan_note)
+    tools_layout.addStretch(1)
 
     ipc = KaffeineOSD(pid, runtime=endpoint.parent)
     events = queue.Queue(maxsize=32)
