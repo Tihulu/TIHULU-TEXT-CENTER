@@ -136,9 +136,26 @@ def choose_audio_stream(streams, language, preferred_pid=None):
     return max(candidates, key=lambda x:(x[0]+x[1],-x[2]))[2]
 
 
+def _speaker_details(pcm, transcript, diagnostics, enabled):
+    if enabled:
+        try:
+            from .speaker_market import diarize_pcm
+            turns = diarize_pcm(pcm)
+            if diagnostics is not None:
+                diagnostics["speaker_turns"] = turns
+                diagnostics["speaker_note"] = (
+                    "Speaker identities are per clip, not stable across channels "
+                    "or segments; age and gender are NOT automatically inferred.")
+        except (ImportError, RuntimeError, OSError, ValueError, TimeoutError) as exc:
+            if diagnostics is not None:
+                diagnostics["speaker_error"] = str(exc)[:180]
+    return transcript
+
+
 def asr_from_clip(path: Path, language: str, model: str,
                   service_id: int | None = None, diagnostics=None,
-                  audio_pid: int | None = None) -> str:
+                  audio_pid: int | None = None,
+                  speaker_enabled: bool = False) -> str:
     if language not in SUPPORTED:
         raise ValueError("Unsupported transcription language")
     selected_backend = os.environ.get("TIHULU_TV_ASR_BACKEND", "auto")
@@ -222,8 +239,12 @@ def asr_from_clip(path: Path, language: str, model: str,
         if diagnostics is not None:
             diagnostics["words"] = details.get("words", [])
             diagnostics["word_timing_source"] = "faster_whisper_cuda_word_timestamps"
-        return details["text"].strip()
-    return transcribe_pcm(audio.stdout, language, selected["selected"], profile).strip()
+        return _speaker_details(audio.stdout, details["text"].strip(),
+                                diagnostics, speaker_enabled)
+    transcription = transcribe_pcm(
+        audio.stdout, language, selected["selected"], profile).strip()
+    return _speaker_details(audio.stdout, transcription,
+                            diagnostics, speaker_enabled)
 
 def translate(text: str, source: str, target: str) -> tuple[str | None, str | None]:
     try:
@@ -279,7 +300,8 @@ def decode_segment(ts: bytes, *, mode="auto", page=150, source="de",
                    previous_text: str = "",
                    teletext_pid: int | None = None,
                    audio_pid: int | None = None,
-                   audio_source: str | None = None) -> dict:
+                   audio_source: str | None = None,
+                   speaker_enabled: bool = False) -> dict:
     if mode not in ("teletext", "page", "asr", "auto"):
         raise ValueError("Unsupported caption source")
     if type(page) is not int or not 100 <= page <= 899:
@@ -331,6 +353,8 @@ def decode_segment(ts: bytes, *, mode="auto", page=150, source="de",
                 asr_kwargs = {"diagnostics": speech_diagnostics}
                 if audio_pid is not None:
                     asr_kwargs["audio_pid"] = audio_pid
+                if speaker_enabled:
+                    asr_kwargs["speaker_enabled"] = True
                 speech_language = audio_source or source
                 original = asr_from_clip(p, speech_language, model, service_id,
                                          **asr_kwargs)
@@ -368,6 +392,9 @@ def decode_segment(ts: bytes, *, mode="auto", page=150, source="de",
                 "audio_notice": speech_diagnostics.get("audio_notice"),
                 "words":speech_diagnostics.get("words", []),
                 "word_timing_source":speech_diagnostics.get("word_timing_source"),
+                "speaker_turns":speech_diagnostics.get("speaker_turns", []),
+                "speaker_error":speech_diagnostics.get("speaker_error"),
+                "speaker_note":speech_diagnostics.get("speaker_note"),
                 "processing_ms": {
                     "teletext":teletext_ms,"asr":asr_ms,
                     "translation":translation_ms,
