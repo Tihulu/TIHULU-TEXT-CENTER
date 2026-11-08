@@ -1004,7 +1004,7 @@ def main(argv=None):
     offsets.addWidget(playback_delay)
     timing_layout.addRow(offsets)
     auto_row = QHBoxLayout()
-    automatic = QCheckBox("Automatic sync · detect caption lag & adjust safe TV buffer")
+    automatic = QCheckBox("Automatic sync · estimate ASR lag / TV buffer (not PTS lip-sync)")
     automatic.setChecked(False)
     automatic.setToolTip(
         "OFF by default. After 3 real Whisper samples, estimates speech-caption "
@@ -1633,8 +1633,10 @@ def main(argv=None):
                               if applied.speaker_provider == "resemblyzer"
                               else SpeakerMarket().status()["installed"])
             speaker_health.setText(
-                ("Automatic voice labels ON · installed offline " +
-                 applied.speaker_provider + " model" if (
+                ("Voice model installed · " + applied.speaker_provider +
+                 " · accurate speaker-to-text labels require usable ASR "
+                 "word timestamps; an untimed full sentence remains "
+                 "unassigned" if (
                     applied.speaker_enabled and provider_ready) else
                  "Auto labels selected, but "+applied.speaker_provider+
                  " is NOT installed: open Model Market → Speaker separation"
@@ -2545,10 +2547,20 @@ def main(argv=None):
                             " | Diarization unavailable: " +
                             str(data["speaker_error"]))
                     elif data.get("speaker_turns"):
+                        aligned = (data.get("caption_alignment") ==
+                                   "Source audio word timestamps")
+                        speaker_health.setText(
+                            "Voice clusters detected · " +
+                            str(data.get("speaker_engine") or "offline") +
+                            (" · words split by provisional speaker turns; "
+                             "unknown/ambiguous turns remain unlabelled"
+                             if aligned else
+                             " · NO usable source-word times: cannot "
+                             "attribute whole joined sentences to individuals"))
                         status.setText(status.text() +
                             " | Offline speakers: " +
-                            str(data.get("speaker_engine") or "local model") +
-                            " · provisional voice clusters")
+                            ("provisional word/voice alignment" if aligned else
+                             "unassigned voice turns; use timed CUDA ASR"))
                     if data.get("audio_notice"):
                         status.setText(status.text() + "\n" + data["audio_notice"])
                     if data.get("speech_priority_note"):
