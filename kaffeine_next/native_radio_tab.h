@@ -386,6 +386,15 @@ public:
 		auto *analogCabinet=new QWidget(analogGroup);
 		auto *cabinetLayout=new QVBoxLayout(analogCabinet);
 		cabinetLayout->setContentsMargins(2,2,2,2);
+        selectedStationVintage_=new QLabel(
+            tr("Selected station: none · analogue dial controls FM/MW/LW only"),
+            analogCabinet);
+        selectedStationVintage_->setWordWrap(true);
+        selectedStationVintage_->setTextFormat(Qt::PlainText);
+        selectedStationVintage_->setStyleSheet(QLatin1String(
+            "background:#141c1a;color:#eaca90;border:1px solid #96704a;"
+            "border-radius:5px;padding:5px;font-weight:600;"));
+        cabinetLayout->addWidget(selectedStationVintage_);
 		auto *analogHead=new QGridLayout();
 		analogBand_=new QComboBox(analogCabinet);
 		analogBand_->addItem(tr("FM · 87.5–108 MHz"),QLatin1String("fm"));
@@ -480,7 +489,13 @@ public:
 				analogBand_->currentText());
 			if(analogServer_.isListening()) analogRetune_.start();
 		});
-		connect(analogStart_,&QPushButton::clicked,this,[this](){startAnalog();});
+		connect(analogStart_,&QPushButton::clicked,this,[this](){
+            startAnalog();
+            if(analogServer_.isListening()) showSelectedSource(
+                tr("Live analogue SDR"),analogBand_->currentText(),
+                QString::number(analogFrequency_->value(),'f',2)+
+                    analogFrequency_->suffix());
+        });
 		connect(analogStop_,&QPushButton::clicked,this,[this](){stopAnalog();});
 		connect(&analogDemod_,&QProcess::readyReadStandardError,this,[this](){
 			const QString msg=QString::fromLocal8Bit(analogDemod_.readAllStandardError());
@@ -1019,7 +1034,11 @@ public:
 		connect(webStations_, &QTreeWidget::itemClicked, this,
 			[this](QTreeWidgetItem *item, int column) {
 				if (column == 0 && item) toggleInternetFavorite(item);
-				else if (item) webSource_->setText(item->data(1,Qt::UserRole).toString());
+				else if (item) {
+                    webSource_->setText(item->data(1,Qt::UserRole).toString());
+                    showSelectedSource(item->text(1),tr("Internet radio · selected"),
+                        tr("Internet stream · no FM frequency"));
+                }
 			});
 		connect(webFavoritesOnly_, &QCheckBox::toggled, this,
 			[this](){ filterInternetStations(); });
@@ -1032,7 +1051,11 @@ public:
 			});
 		connect(stations_, &QTreeWidget::itemClicked, this,
 			[this](QTreeWidgetItem *item, int column){
-				if (column==0) toggleFavorite(item);
+				if(!item)return;
+                if(column==0)toggleFavorite(item);
+                else showSelectedSource(item->text(1),tr("DAB+ · selected"),
+                    tr("Block %1 · SID %2 · double-click to tune")
+                        .arg(item->text(2),item->text(3)));
 			});
 		connect(stationSearch_, &QLineEdit::textChanged,this,
 			[this](){ filterStations(); });
@@ -1572,6 +1595,12 @@ private:
 		playingKey_.clear();
 		webPlaying_=true;
 		webSource_->setText(url.toString());
+        const QTreeWidgetItem *entry=webStations_->currentItem();
+        const QString knownName=(entry &&
+            entry->data(1,Qt::UserRole).toString()==url.toString())?
+            entry->text(1):url.host();
+        showSelectedSource(knownName,tr("Internet radio · opening"),
+            tr("Online stream · not an FM/MW/LW frequency"));
 		player_->play(url);
 		audioStartedMs_=QDateTime::currentMSecsSinceEpoch();
 		radioCanvas_->setText(tr("♪ Internet radio\\n%1\\nAudio uses the built-in player.")
@@ -2107,6 +2136,8 @@ private:
 				displayedRadioChunk_=-1;
 				pendingRadioCue_.clear();
 				playingKey_=key;
+                showSelectedSource(name,tr("DAB+ · live mux verified"),
+                    tr("Block %1 · service %2 · stream opening").arg(block,sid));
 				lastDls_.clear();
 				lyricLoaded_=false;
 				lyricCues_=QJsonArray();
@@ -2149,8 +2180,19 @@ private:
 			verifyStation(key,name,sid,requestId,attempt+1);
 		});
 	}
+	void showSelectedSource(const QString &name,const QString &mode,
+                           const QString &detail) {
+        const QString display=tr("%1 · %2 · %3")
+            .arg(mode,name.left(120),detail.left(130));
+        if(selectedSource_)selectedSource_->setText(display);
+        if(selectedStationVintage_)
+            selectedStationVintage_->setText(display+tr(
+                " · analogue dial remains independent of DAB/Internet"));
+    }
 	void selectStation(QTreeWidgetItem *item) {
 		if(!item) return;
+        showSelectedSource(item->text(1),tr("DAB+ · tuning"),
+            tr("Block %1 · SID %2").arg(item->text(2),item->text(3)));
 		const QString key=item->data(0,Qt::UserRole).toString();
 		const QString block=stationChannels_.value(key);
 		const QString name=item->text(1),sid=item->text(3);
@@ -2828,7 +2870,7 @@ private:
 	QVBoxLayout *playerHostLayout_=nullptr;
 	QTabWidget *modes_=nullptr;
     QSplitter *stationSplit_=nullptr;
-    QLabel *selectedSource_=nullptr;
+    QLabel *selectedSource_=nullptr,*selectedStationVintage_=nullptr;
 	QComboBox *channel_=nullptr, *driver_=nullptr, *speechLanguage_=nullptr,
 		*captionSource_=nullptr,
 		*plotKind_=nullptr, *fftPlacement_=nullptr;
