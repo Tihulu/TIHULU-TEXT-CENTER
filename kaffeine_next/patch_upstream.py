@@ -52,6 +52,70 @@ def transform(files):
 	stackedLayout->addWidget(radioTab);
 
 	currentTabIndex = StartTabId;''')
+    # Hardware lives as an actual native tab next to Radio, NOT a floating
+    # dialog. The UI never USB-opens to determine a device's state.
+    change(main, '#include "tihulu_radio_tab.h"\n',
+           '#include "tihulu_radio_tab.h"\n#include "tihulu_hardware_tab.h"\n')
+    change(main, '''	tabBar->addTab(QIcon::fromTheme(QLatin1String("audio-radio")),
+		i18n("Radio (DAB+)"));
+	tabBar->setShape(QTabBar::RoundedWest);''',
+    '''	tabBar->addTab(QIcon::fromTheme(QLatin1String("audio-radio")),
+		i18n("Radio (DAB+)"));
+	tabBar->addTab(QIcon::fromTheme(QLatin1String("drive-removable-media")),
+		i18n("Hardware"));
+	tabBar->setShape(QTabBar::RoundedWest);''')
+    change(main, '''	TabBase *radioTab = new TihuluRadioTab(mediaWidget, this);
+	tabs.append(radioTab);
+	stackedLayout->addWidget(radioTab);
+
+	currentTabIndex = StartTabId;''',
+    '''	TabBase *radioTab = new TihuluRadioTab(mediaWidget, this);
+	tabs.append(radioTab);
+	stackedLayout->addWidget(radioTab);
+	TabBase *hardwareTab = new TihuluHardwareTab(
+		static_cast<TihuluRadioTab *>(radioTab), dvbTab, mediaWidget,
+		[this]() { activateTab(RadioTabId); },
+		[this]() { activateTab(DvbTabId); }, this);
+	tabs.append(hardwareTab);
+	stackedLayout->addWidget(hardwareTab);
+
+	currentTabIndex = StartTabId;''')
+    hdrmain = "src/mainwindow.h"
+    change(hdrmain, '''		RadioTabId = 4
+''', '''		RadioTabId = 4,
+		HardwareTabId = 5
+''')
+    change(hdrmain, '\tvoid playRadio();\n',
+           '\tvoid playRadio();\n\tvoid playHardware();\n')
+    change(main, '''void MainWindow::playRadio()
+{
+	activateTab(RadioTabId);
+}
+
+void MainWindow::configureKeys()''',
+    '''void MainWindow::playRadio()
+{
+	activateTab(RadioTabId);
+}
+
+void MainWindow::playHardware()
+{
+	activateTab(HardwareTabId);
+}
+
+void MainWindow::configureKeys()''')
+    # An explicit shortcut supports keyboard-only use without introducing
+    # a second hardware-dialog window.
+    change(main, '''	gridLayout->addWidget(button,2,0,1,3);
+#endif /* HAVE_DVB == 1 */''',
+    '''	gridLayout->addWidget(button,2,0,1,3);
+	button = addShortcut(i18n("&8 Hardware and receiver ownership"),
+		QIcon::fromTheme(QLatin1String("drive-removable-media")),this);
+	button->setShortcut(Qt::Key_8);
+	connect(button,SIGNAL(clicked()),mainWindow,SLOT(playHardware()));
+	gridLayout->addWidget(button,3,0,1,3);
+#endif /* HAVE_DVB == 1 */''')
+
     # Keep original Playback libVLC widget. Local file AI controls live
     # INSIDE its own tab; the older launched media-captions-ui remains
     # available only as an optional legacy menu entry.
@@ -1161,6 +1225,15 @@ def apply(root: Path):
         raise RuntimeError("Refusing to overwrite unrelated native radio header")
     dest.write_text(widget.read_text(encoding="utf-8"),encoding="utf-8")
     print("Installed native Kaffeine radio page:", dest)
+    hardware = Path(__file__).with_name("native_hardware_tab.h")
+    if not hardware.is_file():
+        raise RuntimeError("Native hardware tab template missing")
+    hardware_dest = root / "src/tihulu_hardware_tab.h"
+    if hardware_dest.exists() and (
+            hardware_dest.read_text(encoding="utf-8") != hardware.read_text(encoding="utf-8")):
+        raise RuntimeError("Refusing to overwrite unrelated native hardware header")
+    hardware_dest.write_text(hardware.read_text(encoding="utf-8"),encoding="utf-8")
+    print("Installed native Hardware page:",hardware_dest)
     panel = Path(__file__).with_name("native_media_panel.h")
     if not panel.is_file():
         raise RuntimeError("In-player local media AI template is missing")
