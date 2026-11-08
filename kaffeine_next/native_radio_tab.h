@@ -74,6 +74,7 @@
 #include <cmath>
 #include <cstring>
 #include <functional>
+#include <memory>
 #include <limits>
 
 // Retuned analog radio: functional wheel/mouse QDial with a retro brass face.
@@ -1734,6 +1735,7 @@ private:
 			lastDetectedLanguage_.clear();
 		}
 		scanning_=true;
+		scanRequestId_=0;
 		scanIndex_=0;
 		scanSnrByBlock_.clear();
 		scanObserved_.clear();
@@ -1780,13 +1782,30 @@ private:
 		scanSNR_->setFormat(tr("%1 · retuning, awaiting new RF measurement").arg(block));
 		state_->setText(tr("Scanning DAB %1 (%2/%3)…")
 			.arg(block).arg(scanIndex_).arg(channel_->count()));
-		tune(block,[this,block]() {
+		const quint64 requestId=++scanRequestId_;
+		tune(block,[this,block,requestId]() {
+			if(!scanning_ || requestId!=scanRequestId_ || activeChannel_!=block) return;
+			auto completed=std::make_shared<bool>(false);
+			auto next=[this,requestId,completed](){
+				if(*completed) return;
+				*completed=true;
+				if(scanning_ && requestId==scanRequestId_)
+					QTimer::singleShot(120,this,[this,requestId](){
+						if(scanning_ && requestId==scanRequestId_) scanStep();
+					});
+			};
 			callJson(QLatin1String("/mux.json"),
-				[this,block](const QJsonObject &data){
-					consumeMux(data,block);
-					saveStations();
+				[this,block,requestId,next](const QJsonObject &data){
+					// Never attribute a late /mux.json answer to a later block:
+					// a scan can otherwise invent duplicate/stale station entries.
+					if(scanning_ && requestId==scanRequestId_ && activeChannel_==block) {
+						consumeMux(data,block);
+						saveStations();
+					}
+					next();
 				});
-			QTimer::singleShot(700,this,[this](){scanStep();});
+			// No HTTP callback (error, timeout): continue without inventing SNR.
+			QTimer::singleShot(1500,this,next);
 		});
 	}
 	void selectStation(QTreeWidgetItem *item) {
@@ -2493,6 +2512,7 @@ private:
 		lyricsEnabled_=false,
 		plotPending_=false;
 	int scanIndex_=0;
+	quint64 scanRequestId_=0;
 	qint64 songStartMs_=0,manualSongStartMs_=0;
 	QString activeChannel_,playingKey_,lastDls_,captionPath_,lyricPath_,
 		lastDetectedLanguage_;
