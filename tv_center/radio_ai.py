@@ -63,7 +63,9 @@ def write_runtime_json(path: Path, payload: dict) -> None:
 def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,...],
                       output: str, music: bool=False, max_chunks: int=0,
                       speaker_labels: bool=False, prefer_verified_lyrics: bool=False,
-                      sentence_hops: int=3):
+                      sentence_hops: int=3,
+                      host_audio_cache_ms: int=0,
+                      host_caption_offset_ms: int=0):
     if type(port) is not int or not 1024 <= port <= 65535:
         raise ValueError("Invalid loopback radio port")
     if not isinstance(sid,str) or not _SID.fullmatch(sid):
@@ -75,6 +77,12 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
         raise ValueError("Choose at most 6 translated subtitle languages")
     if type(sentence_hops) is not int or not 2 <= sentence_hops <= 5:
         raise ValueError("Radio sentence assembly must use 2–5 audio hops")
+    if (type(host_audio_cache_ms) is not int or
+            not 0<=host_audio_cache_ms<=60000):
+        raise ValueError("Radio audio cache must be 0–60000 ms")
+    if (type(host_caption_offset_ms) is not int or
+            not -12000<=host_caption_offset_ms<=12000):
+        raise ValueError("Radio caption offset must be ±12000 ms")
     location=checked_runtime_output(output,prefix="tihulu-radio-captions-")
     ai=AISettings()
     ai.configure_environment()
@@ -315,6 +323,13 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
                 "lag_note":"Radio ASR reads original welle stream. Player caching "
                            "is an estimate, not a confirmed libVLC presentation clock.",
                 "captured_monotonic":captured_at,
+                # Convert to wall-clock once, based on the same local
+                # monotonic reading; phone compensates for device clock skew.
+                "source_capture_epoch_ms":round(
+                    (time.time()+captured_at-time.monotonic())*1000),
+                "host_audio_cache_ms":host_audio_cache_ms,
+                "host_caption_offset_ms":host_caption_offset_ms,
+                "host_buffer_accuracy":"requested_not_DAC_verified",
                 "decoded_monotonic":time.monotonic(),
                 "timestamp":time.time(),
                 "station_sid":sid,
@@ -439,6 +454,10 @@ def main(args=None):
     live.add_argument("--targets",default="en,tr")
     live.add_argument("--output",required=True)
     live.add_argument("--music",action="store_true")
+    live.add_argument("--host-audio-cache-ms",type=int,default=0,
+                      help="Host REQUESTED radio cache; not measured DAC delay")
+    live.add_argument("--host-caption-offset-ms",type=int,default=0,
+                      help="Native radio caption offset milliseconds")
     live.add_argument("--sentence-hops",type=int,default=3,
                       help="2–5 Whisper 5s hops; higher buffer can preserve "
                            "longer sentences before translating")
@@ -477,7 +496,9 @@ def main(args=None):
             output=opts.output,music=opts.music,
             speaker_labels=opts.speaker_labels,
             prefer_verified_lyrics=opts.prefer_verified_lyrics,
-            sentence_hops=opts.sentence_hops)
+            sentence_hops=opts.sentence_hops,
+            host_audio_cache_ms=opts.host_audio_cache_ms,
+            host_caption_offset_ms=opts.host_caption_offset_ms)
         return 0
     except (OSError,ValueError,RuntimeError,subprocess.TimeoutExpired) as exc:
         print("Offline radio AI unavailable: "+str(exc)[:250],file=sys.stderr)
