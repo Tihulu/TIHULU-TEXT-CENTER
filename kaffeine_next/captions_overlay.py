@@ -376,7 +376,13 @@ class CaptionTap:
                     silent=not bool(observed))
                 if not joined["text"]:
                     return  # Retain the incomplete sentence, not a cut-off cue.
-                result["original"]=joined["text"]
+                # A loop may span several otherwise valid Whisper clips.
+                # Filter the FINAL assembled sentence too, after overlap
+                # removal, before the translation engine receives it.
+                from .continuous_captions import collapse_asr_repetition_loops
+                result["original"] = collapse_asr_repetition_loops(joined["text"])
+                if result["original"] != joined["text"]:
+                    result["asr_repetitions_removed"] = True
                 result["words"]=[]
                 result["word_timing_source"]=None
                 result["sentence_complete"]=bool(joined.get("complete"))
