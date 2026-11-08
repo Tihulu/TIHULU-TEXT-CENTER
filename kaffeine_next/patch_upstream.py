@@ -14,7 +14,7 @@ REVISION = "e7ea15b86dafed3b20b151cbcb080578ab8e2d5c"
 PATHS = ("src/mainwindow.cpp", "src/mainwindow.h", "src/CMakeLists.txt",
          "src/dvb/dvbliveview.cpp",
          "src/dvb/dvbliveview_p.h", "src/dvb/dvbmanager.cpp", "src/dvb/dvbtab.cpp",
-         "src/dvb/dvbtab.h", "src/dvb/dvbconfigdialog.cpp", "src/backend-vlc/vlcmediawidget.cpp",
+         "src/dvb/dvbtab.h", "src/dvb/dvbconfigdialog.cpp", "src/dvb/dvbscandialog.cpp", "src/backend-vlc/vlcmediawidget.cpp",
          "src/mediawidget.cpp", "src/mediawidget.h", "src/osdwidget.cpp",
          "src/osdwidget.h", "src/main.cpp", "src/dvb/dvbepg.cpp")
 
@@ -944,6 +944,65 @@ void DvbTab::showChannelDialog()
 	}
 	return NULL;
 }''')
+
+    # Critical guard for native scan/channel-import crashes.
+    # The pinned upstream DvbScanDialog releases its exclusive tuner *before*
+    # destroying the DvbScan worker in ~DvbScanDialog. The worker can still
+    # reference the frontend during destruction. Stop it before releasing.
+    scan_cpp = "src/dvb/dvbscandialog.cpp"
+    change(scan_cpp, '''DvbScanDialog::~DvbScanDialog()
+{
+	if (!isLive && device)
+		manager->releaseDevice(device, DvbManager::Exclusive);
+	delete internal;
+}''', '''DvbScanDialog::~DvbScanDialog()
+{
+	// Stop pending signal/quality polling while the frontend is torn down.
+	statusTimer.stop();
+	// A live scan must stop using the frontend BEFORE exclusive release.
+	delete internal;
+	internal = NULL;
+	if (!isLive && device) {
+		manager->releaseDevice(device, DvbManager::Exclusive);
+		device = NULL;
+	}
+}''')
+    change(scan_cpp, '''void DvbScanDialog::dialogAccepted()
+{
+	manager->getChannelModel()->cloneFrom(channelModel);''',
+    '''void DvbScanDialog::dialogAccepted()
+{
+	// Never mutate/flush the channel model while the scanner is still
+	// delivering foundChannels and holding a backend tuner.
+	if (internal != NULL) {
+		QSignalBlocker blocker(scanButton);
+		scanButton->setChecked(false);
+		scanButtonClicked(false);
+	}
+	manager->getChannelModel()->cloneFrom(channelModel);''')
+    change(scan_cpp, '#include <QDialogButtonBox>\n',
+           '#include <QDialogButtonBox>\n#include <QSignalBlocker>\n')
+    change(scan_cpp, '''void DvbScanDialog::updateStatus()
+{
+	if (device->getDeviceState() != DvbDevice::DeviceIdle) {''',
+    '''void DvbScanDialog::updateStatus()
+{
+	// A queued status tick can arrive just after stop/release.
+	if (device == NULL) return;
+	if (device->getDeviceState() != DvbDevice::DeviceIdle) {''')
+    change(scan_cpp, '''			DvbChannel newChannel(*channel);
+			channelModel->addChannel(newChannel);''',
+    '''			if (channel == NULL) continue; // removed during scan/selection
+			DvbChannel newChannel(*channel);
+			channelModel->addChannel(newChannel);''')
+    change(scan_cpp, '''void DvbScanDialog::scanFinished()
+{
+	// the state may have changed because the signal is queued''',
+    '''void DvbScanDialog::scanFinished()
+{
+	// A previously queued completion must not stop a different scan.
+	if (internal == NULL) return;
+	// the state may have changed because the signal is queued''')
 
     # Selecting a fresh DVB-T2 tuner must be immediately scannable.
     # Do not override a saved user-selected source; use Kaffeine's own
