@@ -87,7 +87,7 @@ def transform(files):
            '\tfileName = runtime + QLatin1String("/dvbpipe.m2t");')
     change(live, 'DvbLiveViewInternal::~DvbLiveViewInternal()\n{\n',
            'DvbLiveViewInternal::~DvbLiveViewInternal()\n{\n'
-           '\tif (tihuluCaptionFd >= 0)\n\t\t::close(tihuluCaptionFd);\n')
+           '\tif (tihuluCaptionFd >= 0)\n\t\t::close(tihuluCaptionFd);\n\tif (!tihuluEffectiveDelayFile.isEmpty())\n\t\tQFile::remove(tihuluEffectiveDelayFile);\n')
     change(live, '''	if (!timeShiftFile.isOpen()) {
 		if (writeFd >= 0) {
 			buffers.append(buffer);
@@ -160,15 +160,21 @@ def transform(files):
 ''', '''\tQString tihuluCaptionSocketPath;
 \tint tihuluCaptionFd;
 \tQString tihuluDelayFile;
+\tQString tihuluEffectiveDelayFile;
 \tQList<QPair<qint64, QByteArray> > tihuluDelayed;
 \tqint64 tihuluDelayedBytes = 0;
 \tqint64 tihuluConfigCheckedAt = 0;
+\tqint64 tihuluObservedBytes = 0;
+\tqint64 tihuluObservedRate = 0;
+\tqint64 tihuluDelayCooldownUntil = 0;
 \tint tihuluVideoDelayMs = 0;
 ''')
     change(live, '#include <QCoreApplication>\n',
            '#include <QCoreApplication>\n#include <QDateTime>\n')
     change(live, '''\tfileName = runtime + QLatin1String("/dvbpipe.m2t");''',
            '''\ttihuluDelayFile = runtime + QLatin1String("/tihulu-playback-delay-")
+\t\t+ QString::number(QCoreApplication::applicationPid()) + QLatin1String(".txt");
+\ttihuluEffectiveDelayFile = runtime + QLatin1String("/tihulu-playback-effective-")
 \t\t+ QString::number(QCoreApplication::applicationPid()) + QLatin1String(".txt");
 \tfileName = runtime + QLatin1String("/dvbpipe.m2t");''')
     change(live, '''\tretryCounter = 0;
@@ -183,19 +189,43 @@ def transform(files):
 \t\t\tbuffers.append(buffer);
 \t\t\twriteToPipe();
 \t\t\tif (emptyBuffer) {''',
-    '''\t// Read at most once per second, not for every TS packet.
+    '''\t// Whisper receives the original TS ABOVE, before this playback delay.
+\t// A requested delay can exceed the memory-limited native FIFO. Bound the
+\t// actual delay to 48 MiB of measured selected-service TS with 16 MiB
+\t// headroom and publish effective/native value to the subtitle controller.
 \tconst qint64 now = QDateTime::currentMSecsSinceEpoch();
+\ttihuluObservedBytes += buffer.size();
 \tif (now - tihuluConfigCheckedAt >= 1000) {
+\t\tconst qint64 elapsed = now - tihuluConfigCheckedAt;
+\t\tif (tihuluConfigCheckedAt > 0 && elapsed > 0) {
+\t\t\tconst qint64 instantaneous = tihuluObservedBytes * 1000 / elapsed;
+\t\t\t// Keep 75% of the prior rate when DVB bitrate falls temporarily.
+\t\t\ttihuluObservedRate = qMax(instantaneous,
+\t\t\t\t(tihuluObservedRate * 3) / 4);
+\t\t}
+\t\ttihuluObservedBytes = 0;
 \t\ttihuluConfigCheckedAt = now;
 \t\tQFile settings(tihuluDelayFile);
-\t\tint value = 0;
+\t\tint requestedMs = 0;
 \t\tif (settings.open(QIODevice::ReadOnly) && settings.size() < 16) {
 \t\t\tbool ok = false;
-\t\t\tint requested = settings.readAll().trimmed().toInt(&ok);
+\t\t\tconst int requested = settings.readAll().trimmed().toInt(&ok);
 \t\t\tif (ok && requested >= 0 && requested <= 20000)
-\t\t\t\tvalue = requested;
+\t\t\t\trequestedMs = requested;
 \t\t}
-\t\ttihuluVideoDelayMs = value;
+\t\tconst qint64 safeMs = tihuluObservedRate > 0
+\t\t\t? qMin(20000LL, 48LL * 1024 * 1024 * 1000 / tihuluObservedRate)
+\t\t\t: 20000LL;
+\t\tconst int cappedMs = (qMin<qint64>(requestedMs, safeMs) / 500) * 500;
+\t\ttihuluVideoDelayMs = (now < tihuluDelayCooldownUntil ||
+\t\t\ttimeShiftFile.isOpen()) ? 0 : cappedMs;
+\t\tQFile status(tihuluEffectiveDelayFile);
+\t\tif (status.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+\t\t\tstatus.setPermissions(QFile::ReadOwner | QFile::WriteOwner);
+\t\t\tstatus.write(QByteArray::number(requestedMs) + " " +
+\t\t\t\tQByteArray::number(tihuluVideoDelayMs) + " " +
+\t\t\t\tQByteArray::number(tihuluObservedRate));
+\t\t}
 \t}
 \tif (!timeShiftFile.isOpen()) {
 \t\tif (writeFd >= 0) {
@@ -204,8 +234,9 @@ def transform(files):
 \t\t\t\ttihuluDelayed.append(qMakePair(now, buffer));
 \t\t\t\ttihuluDelayedBytes += buffer.size();
 \t\t\t\tif (tihuluDelayedBytes > 64LL * 1024 * 1024) {
-\t\t\t\t\tqCWarning(logDvb, "TIHULU playback delay exceeded 64 MiB; reverting to live");
+\t\t\t\t\tqCWarning(logDvb, "TIHULU playback delay exceeded 64 MiB; reverting to live for 5s");
 \t\t\t\t\ttihuluVideoDelayMs = 0;
+\t\t\t\t\ttihuluDelayCooldownUntil = now + 5000;
 \t\t\t\t}
 \t\t\t}
 \t\t\twhile (!tihuluDelayed.isEmpty() &&
