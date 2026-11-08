@@ -11,7 +11,10 @@ from dataclasses import dataclass
 LANGUAGE = {
     "deu": "de", "ger": "de", "de": "de",
     "eng": "en", "en": "en",
-    "tur": "tr", "tr": "tr",
+    "tur": "tr", "tr": "tr", "fra":"fr", "fre":"fr", "fr":"fr",
+    "spa":"es", "es":"es", "ita":"it", "it":"it",
+    "nld":"nl", "dut":"nl", "pol":"pl", "por":"pt", "rus":"ru",
+    "ukr":"uk", "ara":"ar",
 }
 
 @dataclass(frozen=True)
@@ -69,7 +72,11 @@ class TeletextSubtitleDiscovery:
     def snapshot(self):
         return [t.as_dict() for t in self.tracks]
 
-    def offer(self, chunk: bytes) -> bool:
+    def offer(self, chunk: bytes, preferred_service_id=None) -> bool:
+        # Kaffeine usually sends a selected-service TS. If its PAT still
+        # includes more than one service, prefer the real tuned program ID
+        # rather than mixing tracks from a neighbouring channel.
+        self._preferred = preferred_service_id
         old = (self.service_id, self.pmt_pid, self.tracks)
         if not isinstance(chunk, bytes) or len(chunk) % 188:
             return False
@@ -151,13 +158,19 @@ class TeletextSubtitleDiscovery:
                 programs.append((service, pid))
         if not programs:
             return
-        # The Kaffeine sidecar already forwards the chosen service's TS.
-        # A non-filtered multiplex with multiple PAT entries is ambiguous;
-        # do not present another service's Teletext tracks as selected.
-        if len(programs) != 1:
-            self.clear()
+        preferred = getattr(self, "_preferred", None)
+        if preferred is not None:
+            matches = [entry for entry in programs if entry[0] == preferred]
+            if not matches:
+                self.tracks = ()
+                return
+            service, pmt_pid = matches[0]
+        elif len(programs) == 1:
+            service, pmt_pid = programs[0]
+        else:
+            # Never guess whose subtitles they are in a multiplex.
+            self.tracks = ()
             return
-        service, pmt_pid = programs[0]
         if (service, pmt_pid) != (self.service_id, self.pmt_pid):
             self.service_id, self.pmt_pid = service, pmt_pid
             self.tracks = ()
