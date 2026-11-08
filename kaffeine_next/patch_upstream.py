@@ -104,17 +104,6 @@ void MainWindow::playHardware()
 }
 
 void MainWindow::configureKeys()''')
-    # An explicit shortcut supports keyboard-only use without introducing
-    # a second hardware-dialog window.
-    change(main, '''	gridLayout->addWidget(button,2,0,1,3);
-#endif /* HAVE_DVB == 1 */''',
-    '''	gridLayout->addWidget(button,2,0,1,3);
-	button = addShortcut(i18n("&8 Hardware and receiver ownership"),
-		QIcon::fromTheme(QLatin1String("drive-removable-media")),this);
-	button->setShortcut(Qt::Key_8);
-	connect(button,SIGNAL(clicked()),mainWindow,SLOT(playHardware()));
-	gridLayout->addWidget(button,3,0,1,3);
-#endif /* HAVE_DVB == 1 */''')
 
     # Keep original Playback libVLC widget. Local file AI controls live
     # INSIDE its own tab; the older launched media-captions-ui remains
@@ -231,6 +220,18 @@ QAbstractButton *StartTab::addShortcut''')
 	connect(button,SIGNAL(clicked()),mainWindow,SLOT(open()));
 	gridLayout->addWidget(button,2,0,1,3);
 #endif /* HAVE_DVB == 1 */''')
+    # An explicit shortcut supports keyboard-only use without introducing
+    # a second hardware-dialog window.
+    change(main, '''	gridLayout->addWidget(button,2,0,1,3);
+#endif /* HAVE_DVB == 1 */''',
+    '''	gridLayout->addWidget(button,2,0,1,3);
+	button = addShortcut(i18n("&8 Hardware and receiver ownership"),
+		QIcon::fromTheme(QLatin1String("drive-removable-media")),this);
+	button->setShortcut(Qt::Key_8);
+	connect(button,SIGNAL(clicked()),mainWindow,SLOT(playHardware()));
+	gridLayout->addWidget(button,3,0,1,3);
+#endif /* HAVE_DVB == 1 */''')
+
     # Use a unique application ID and KConfig/SQLite user-data path.
     # This is a distinctly installed app, not the system KDE Kaffeine
     # process or a secondary window inside the existing binary.
