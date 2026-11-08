@@ -1420,14 +1420,17 @@ def main(argv=None):
                 translated.setToolTip("Translations are not selected.")
             ipc.publish(current_text,applied,ttl_ms=3000)
             last_published = now
-        elif current_cue and now >= current_until:
+        elif current_cue and now >= current_until + 1.0:
+            # Small jitter/ASR chunk gaps are not explicit silence. Holding
+            # the last *complete* sentence briefly avoids empty-frame flicker.
+            # A channel change or explicit stop still clears immediately.
             current_cue = None
             current_text = ""
             ipc.publish("",applied)
             original.setText("Waiting for next live phrase…")
             translated.setText("")
-        elif current_cue and now-last_published >= 2.0:
-            ipc.publish(current_text,applied,ttl_ms=3000)
+        elif current_cue and now-last_published >= 1.8:
+            ipc.publish(current_text,applied,ttl_ms=4000)
             last_published = now
 
     timer = QTimer(window)
