@@ -97,7 +97,10 @@ cleanup() {
 }
 trap cleanup EXIT
 
-git clone --depth 1 --branch architecture/kaffeine-core-tv-2026-11-07 \
+# Read the matching feature branch during this standalone preview.
+# Override only when installing a release from another compatible branch.
+TIHULU_SOURCE_BRANCH="${TIHULU_SOURCE_BRANCH:-fix/tihulu-media-radio-dvb-2026-11-08}"
+git clone --depth 1 --single-branch --branch "$TIHULU_SOURCE_BRANCH" \
   https://github.com/Tihulu/TIHULU-TEXT-CENTER.git "$temp/tihulu"
 if [[ ! -d "$SOURCE/.git" ]]; then
   git clone --depth 1 --branch v2.0.19 \
