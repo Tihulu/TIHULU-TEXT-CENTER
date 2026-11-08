@@ -51,6 +51,55 @@ def recommend(measurements, current_buffer_ms=0, clip_seconds=6):
     }
 
 
+def diagnose_live(samples, *, capture_seconds=6, queue_overflows=0,
+                  ts_audio_gaps=0):
+    """Find observed bottlenecks; do not infer the cause from a stale caption.
+
+    Worker timings come from the real TV caption sidecar, not synthetic
+    hardware estimates. These include queued time and actual decode time,
+    but cannot measure unreported lost RF frames or the speaker DAC clock.
+    """
+    valid=[s for s in list(samples)[-16:] if isinstance(s,dict)
+           and type(s.get("compute_ms")) in (int,float)
+           and type(s.get("queue_wait_ms")) in (int,float)
+           and s["compute_ms"]>=0 and s["queue_wait_ms"]>=0]
+    if not valid:
+        return {"samples":0,"state":"waiting_for_real_live_samples",
+                "causes":[],"recommendations":[],
+                "hardware_proven":False}
+    def median(values):
+        values=sorted(values)
+        n=len(values)
+        return (values[n//2] if n%2 else (values[n//2-1]+values[n//2])/2)
+    compute_ms=median([x["compute_ms"] for x in valid])
+    wait_ms=median([x["queue_wait_ms"] for x in valid])
+    rtf=(compute_ms/1000)/capture_seconds
+    causes=[]
+    recommendation=[]
+    if queue_overflows:
+        causes.append("caption_capture_queue_overflow")
+        recommendation.append("Reduce live ASR workload or use a measured faster installed model; more TV delay cannot restore missing captures.")
+    if ts_audio_gaps:
+        causes.append("dvb_audio_continuity_gaps")
+        recommendation.append("Check RF reception and MPEG-TS audio PID; buffer cannot recreate lost RF packets.")
+    if rtf>=0.9:
+        causes.append("inference_or_translation_too_slow")
+        recommendation.append("Benchmark installed CPU/GPU Whisper and translators on a six-second recorded sample.")
+    if wait_ms>=1000:
+        causes.append("caption_queue_backlog")
+        recommendation.append("Caption worker has queued work; inspect CPU/GPU usage, speech model and translator.")
+    if not causes:
+        recommendation.append("No sustained compute overload in the measured samples; inspect sentence waiting and native-buffer confirmation.")
+    return {"samples":len(valid),
+            "state":"measured" if len(valid)>=4 else "collecting",
+            "median_compute_ms":round(compute_ms),
+            "median_queue_wait_ms":round(wait_ms),
+            "median_compute_realtime_factor":round(rtf,2),
+            "causes":causes,"recommendations":recommendation,
+            "hardware_proven":False,
+            "note":"Real local pipeline timings only. No actual DAC lip-sync/accuracy asserted."}
+
+
 def inventory(settings=None, library=None, profile=None):
     from .ai_settings import AISettings
     from .model_market import ModelLibrary
