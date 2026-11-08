@@ -68,7 +68,7 @@ def _choose_model(ai: AISettings):
 
 
 def _chunk_cues(pcm: bytes, *, position: float, lang: str, profile:dict,
-                backend: str, music:bool=False) -> list[LyricCue]:
+                backend: str, music:bool=False, detection:dict|None=None) -> list[LyricCue]:
     """Real GPU word cues; legacy CPU models use honest eight-second chunks."""
     text=""
     words=[]
@@ -80,7 +80,14 @@ def _chunk_cues(pcm: bytes, *, position: float, lang: str, profile:dict,
             music_mode=music)
         text=str(result.get("text") or "").strip()
         words=result.get("words") or []
+        if detection is not None:
+            detected=result.get("language")
+            if isinstance(detected,str) and len(detected) in (2,3):
+                detection["language"]=detected
+                detection["confidence"]=result.get("language_probability",0.0)
     else:
+        if lang=="auto":
+            raise RuntimeError("Automatic source detection requires installed Faster-Whisper GPU model")
         from textcenter.speech import transcribe_pcm
         text=transcribe_pcm(pcm,lang,backend,profile).strip()
     if not text:
@@ -123,7 +130,7 @@ def transcribe_local_media(filename: str, *, source: str="de",
                            targets=(), music:bool=False,
                            max_seconds:int=7200):
     media=validate_local_media(filename)
-    source=language_code(source)
+    source=("auto" if source=="auto" else language_code(source))
     targets=tuple(dict.fromkeys(language_code(t,nllb=True) for t in targets))
     if len(targets)>3:
         raise ValueError("Choose at most three translation targets")
@@ -215,7 +222,7 @@ def create_subtitles(filename, *, source="de", targets=(),music=False,
                      lyrics=False,fetch_lyrics=False,artist="",track="",
                      output=None,overwrite=False):
     media=validate_local_media(filename)
-    source=language_code(source)
+    source=("auto" if source=="auto" else language_code(source))
     target_codes=tuple(dict.fromkeys(language_code(t,nllb=True)
                                      for t in targets))
     if len(target_codes)>3:
