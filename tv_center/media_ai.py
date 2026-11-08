@@ -87,6 +87,7 @@ def _chunk_cues(pcm: bytes, *, position: float, lang: str, profile:dict,
             if isinstance(detected,str) and len(detected) in (2,3):
                 detection["language"]=detected
                 detection["confidence"]=result.get("language_probability",0.0)
+            detection["recognition_rejected"]=result.get("recognition_rejected")
     else:
         if lang=="auto":
             raise RuntimeError("Automatic source detection requires installed Faster-Whisper GPU model")
