@@ -264,36 +264,16 @@ def translate(text: str, source: str, target: str) -> tuple[str | None, str | No
         from textcenter.transcripts import translate_offline
         return translate_offline(text, source, target), None
     except (ImportError, RuntimeError, ValueError, KeyError) as exc:
-        # The Market installs Argos into a separate *user-owned* Python venv.
-        # The system PyQt interpreter cannot import that private environment.
-        # Route translation to the correct Python rather than wrongly
-        # displaying "translator unavailable" when models are installed.
+        # Argos is in a private user-owned venv. Keep its model loaded in a
+        # persistent isolated worker instead of spawning a new interpreter
+        # and re-importing language packages every 6-second caption.
         try:
-            from .runtime import AIRuntime
-            runtime = AIRuntime().status()
-            if not runtime["installed"]:
-                return None, "Argos language packs not installed. Open Translator Model Market."
-            root = str(Path(__file__).resolve().parent.parent)
-            env = os.environ.copy()
-            env["PYTHONPATH"] = root + os.pathsep + env.get("PYTHONPATH", "")
-            env["ARGOS_DEVICE_TYPE"] = "cpu"
-            env["HF_HUB_OFFLINE"] = "1"
-            env["TRANSFORMERS_OFFLINE"] = "1"
-            proc = subprocess.run(
-                [runtime["python"], "-m", "tv_center.translation_worker"],
-                input=json.dumps({"text":text[:1600],"source":source,"target":target},
-                                 ensure_ascii=False).encode("utf-8"),
-                stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                env=env, timeout=40, check=False)
-            if proc.returncode != 0:
-                detail = proc.stderr.decode("utf-8","replace")[-320:].strip()
-                return None, "Argos language pair unavailable: " + (detail or str(exc))[:120]
-            translated = json.loads(proc.stdout.decode("utf-8","replace"))["translated"]
-            if not isinstance(translated, str) or not translated.strip():
-                raise ValueError("Empty translator response")
-            return translated[:1600], None
-        except (OSError, ValueError, KeyError, subprocess.TimeoutExpired) as error:
-            return None, "Offline translator could not run: " + str(error)[:120]
+            from .translation_service import translate_argos
+            return translate_argos(text, source, target), None
+        except (ImportError, RuntimeError, ValueError, OSError, TimeoutError) as error:
+            return None, ("Argos package unavailable or worker failed: " +
+                          str(error)[:150])
+
 
 def decode_segment(ts: bytes, *, mode="auto", page=150, source="de",
                    target="tr", targets=None, model="", service_id: int | None = None,
