@@ -788,3 +788,100 @@ video output; native broadcast-supplied DVB subtitles or video
 letterboxing are separate layers and are not controlled by this
 optional AI caption appearance setting.
 
+
+## Standalone TIHULU Media Center — TV, all-block DAB+, media and AI (2026-11-08)
+
+This experimental branch now installs a **separate application** named
+**TIHULU Media Center**, with its own orbital play icon, application/DBus
+identity, local config, desktop launcher and channel/SQLite data directory.
+The original KDE Kaffeine remains installed and intact. On the first
+install, supported existing Kaffeine DVB channel settings are
+**copied** (not moved), when the TIHULU destination does not already
+exist. Upstream Kaffeine GPL attribution remains in the About dialog
+and source tree. The Home/Start screen now offers **DAB+ Radio** and
+**Open Media + Offline AI** alongside native TV, file, CD and DVD actions.
+
+The Radio tab **does not reparent** the shared Kaffeine MediaWidget.
+This is crucial: the former implementation moved libVLC's video surface
+inside the radio view, breaking Playback or leaving duplicated controls
+after tab changes. Radio playback still uses Kaffeine's shared libVLC
+audio engine, but its central artist/AI caption canvas is independent.
+Playback, Playlist and Television keep their own native video activation.
+
+### DAB+ integrated library and RF tools
+
+- All verified stations are shown by default **across all saved DAB
+  blocks** (not just the current frequency), with a persistent local
+  catalogue, search, filter by block, sortable wide station names, and
+  **★ favorites** saved separately from station data.
+- Double-click a station name to retune its actual block and play.
+  Clicking the star toggles a favorite without tuning; the cache remains
+  available when the tuner is disconnected. A USB receiver must actually
+  support DAB+; an ordinary DVB-T2 tuner is not automatically compatible.
+- **Show welle.io RF widgets** exposes native spectrum, on-demand
+  constellation, CIR, null spectrum, optional **live waterfall / live
+  spectrum** updates, FFT/coarse correction and the full local TII/receiver
+  diagnostic JSON. The RF panel and live polling are OFF by default.
+- DAB **MOT/SLS artwork** has Prev/Next navigation across a bounded
+  local slideshow history, as well as original broadcaster DLS text.
+  Signal status reports measured SNR and FIC/codec error counters; RF
+  quality labels are approximate, never invented percentages.
+- The lyrics search remains **explicit, keyless, metadata-only**.
+  Separate **Stop lyrics** terminates the lookup and stops synced text
+  display. DLS-change timestamps are shifted by the requested radio
+  audio cache and may still need the manual offset; neither DLS nor
+  LRCLIB supplies an exact libVLC sound-card presentation timestamp.
+
+### Three different, honest buffering mechanisms
+
+1. **Television**: a pre-playback MPEG-TS AI tap and Kaffeine native
+   audio+video delay. The controller follows confirmed, primed native
+   buffer status and audits it periodically. This is not libVLC PTS.
+2. **DAB+ Radio**: a separate, configurable **0–20-second libVLC
+   network cache**. Live 6-second radio speech chunks are processed
+   off the undelayed local stream; captions are held according to the
+   estimated radio cache and measured Whisper+translation completion.
+   Opt-in radio **Auto adjust buffer** takes a rolling sample, and
+   conservatively raises the cache at most once per minute if clearly
+   too short. **Applying a new value reopens the stream** and can cause
+   a brief interruption. It is NOT exact lip-sync or audio-fingerprint
+   alignment; device/codec/ALSA output latency is unmeasured.
+3. **Local video/audio files**: a separate **0–20-second file read-ahead**
+   (libVLC `file-caching`) and an independent, checked-by-default
+   **Preprocess before playback** control. When you press Generate, the
+   file can stop while GPU Whisper and installed translators produce a
+   real timestamped SRT, then restart from the beginning with those
+   captions loaded in the **same Playback tab**. For long videos this
+   may take much longer than 20 seconds; its benefit is correct file
+   timestamps without trying to catch up live. File read-ahead is NOT
+   itself the ASR compute latency budget.
+
+### Automatic language detection and cross translation
+
+The radio and embedded file AI controls now default to **Auto detect
+(GPU Whisper)**. The installed managed Faster-Whisper returns the actual
+detected source language, so a broadcast heard in **English** can
+produce **German and Turkish translations** while retaining the
+original English text only once. Target language availability depends
+on offline packages in Model Market; no translation is invented when a
+pair is not installed. Radio exposes DE, EN, TR and extra ISO/NLLB
+target codes, with bounded resource limits. Native TV Whisper also
+offers Auto detect; broadcaster Teletext uses its signalled source
+language without guessing. Other CPU/NPU speech engines are not
+claimed to support automatic detection unless they actually do.
+Song transcription remains an opt-in best-effort speech model use,
+not a guaranteed match to copyrighted lyrics.
+
+To build the standalone player AND the optional loopback-only DAB
+receiver from this branch:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/Tihulu/TIHULU-TEXT-CENTER/architecture/kaffeine-core-tv-2026-11-07/kaffeine_next/install.sh | bash -s -- --with-dab
+tihulu-media-center --software-video
+```
+
+GitHub CI validates source patch application, Qt5 compilation and
+Python tests. It cannot verify physical receiver scans, live
+latency/quality, hardware audio output or desktop compositor behavior.
+Keep the PR draft pending physical verification.
+
