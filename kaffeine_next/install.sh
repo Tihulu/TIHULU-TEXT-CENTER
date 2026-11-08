@@ -43,6 +43,23 @@ PREFIX="$HOME/.local/opt/tihulu-kaffeine"
 BUILD="$APPROOT/build-system-qt5"
 LOGDIR="$APPROOT/logs"
 mkdir -p "$APPROOT" "$LOGDIR" "$HOME/.local/bin" "$HOME/.local/share/applications"
+# Migrate existing tuner/channel definitions ONCE into a distinct TIHULU
+# data directory. Never alter the system Kaffeine instance's own files.
+LEGACY_DATA="$HOME/.local/share/kaffeine"
+TIHULU_DATA="$HOME/.local/share/tihulu-media-center"
+if [[ -d "$LEGACY_DATA" && ! -e "$TIHULU_DATA" && ! -L "$LEGACY_DATA" ]]; then
+  mkdir -p "$TIHULU_DATA"
+  # Copy settings/channels, not user-owned recordings/videos or unknown links.
+  find "$LEGACY_DATA" -maxdepth 1 -type f \
+    \( -name 'config.dvb' -o -name '*.db' -o -name '*.sqlite' \) \
+    -exec cp -n -- {} "$TIHULU_DATA/" \;
+  echo "Imported existing Kaffeine channel database/config as independent TIHULU copies."
+fi
+mkdir -p "$HOME/.config"
+if [[ -f "$HOME/.config/kaffeinerc" &&
+      ! -e "$HOME/.config/tihulu-media-centerrc" ]]; then
+  cp -n -- "$HOME/.config/kaffeinerc" "$HOME/.config/tihulu-media-centerrc"
+fi
 
 # A running Conda/Miniconda "base" shell can inject another Qt5 at link time.
 # CMake's path search, pkg-config and the ELF linker must all use the same
@@ -123,6 +140,13 @@ if ! "${SYSTEM_BUILD_ENV[@]}" /usr/bin/cmake --build "$BUILD" --parallel 2 \
 fi
 "${SYSTEM_BUILD_ENV[@]}" /usr/bin/cmake --install "$BUILD"
 test -x "$PREFIX/bin/kaffeine"
+# The compiled executable remains attributed to upstream KDE Kaffeine,
+# but a standalone installed filename and its QApplication identity
+# distinguish TIHULU from /usr/bin/kaffeine.
+ln -sfn kaffeine "$PREFIX/bin/tihulu-media-center"
+mkdir -p "$HOME/.local/share/icons/hicolor/scalable/apps"
+cp "$temp/tihulu/kaffeine_next/assets/tihulu-media-center.svg" \
+  "$HOME/.local/share/icons/hicolor/scalable/apps/tihulu-media-center.svg"
 
 TIHULU_KAFFEINE_PRIMARY=1 bash "$temp/tihulu/tv_center/packaging/build-deb.sh" "$temp/debs"
 # The AI sidecar may already be installed at the same preview version.
@@ -156,18 +180,22 @@ fi
 # Avoid mixing native system libVLC/Qt5 with the user's Conda installation.
 exec env -u LD_LIBRARY_PATH -u LD_PRELOAD -u QT_PLUGIN_PATH \
   -u QT_QPA_PLATFORM_PLUGIN_PATH -u QML2_IMPORT_PATH -u QML_IMPORT_PATH \
-  "$HOME/.local/opt/tihulu-kaffeine/bin/kaffeine" "$@"
+  "$HOME/.local/opt/tihulu-kaffeine/bin/tihulu-media-center" "$@"
 LAUNCH
 chmod 755 "$HOME/.local/bin/tihulu-kaffeine"
+ln -sfn tihulu-kaffeine "$HOME/.local/bin/tihulu-media-center"
 cat > "$HOME/.local/share/applications/tihulu-kaffeine.desktop" <<DESKTOP
 [Desktop Entry]
 Type=Application
-Name=TIHULU TV (Kaffeine)
-Comment=Native Kaffeine DVB TV plus optional Whisper and Translator
-Exec=$HOME/.local/bin/tihulu-kaffeine
-Icon=kaffeine
+Name=TIHULU Media Center
+GenericName=TV · DAB+ Radio · Local Video/Audio · AI Subtitles
+Comment=Standalone native TV and radio player with offline AI, based on KDE Kaffeine
+Exec=$HOME/.local/bin/tihulu-media-center
+TryExec=$HOME/.local/bin/tihulu-media-center
+Icon=tihulu-media-center
+StartupWMClass=tihulu-media-center
 Terminal=false
-Categories=AudioVideo;Video;TV;
+Categories=AudioVideo;Video;TV;Audio;Player;
 DESKTOP
 
 if [[ "$MODE" != --no-ai ]]; then
@@ -176,8 +204,8 @@ if [[ "$MODE" != --no-ai ]]; then
     echo "AI setup incomplete; TV itself is installed. Retry from AI Model Market." >&2
   fi
 fi
-echo "Open TIHULU TV (Kaffeine) from applications or run:"
-echo "  $HOME/.local/bin/tihulu-kaffeine"
+echo "Open TIHULU Media Center (separate app, icon and channel database):"
+echo "  $HOME/.local/bin/tihulu-media-center"
 echo "Use TV -> TIHULU AI for Model Market and live subtitles."
 echo "Close the other Kaffeine instance first; only one frontend owner at a time."
 echo "DAB+ Radio is a native tab. Optional welle.io backend (separate SDR):"
