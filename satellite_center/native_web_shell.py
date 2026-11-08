@@ -234,7 +234,7 @@ class NativeReceiver(QObject):
             chosen={}
             for record in incoming+previous:
                 chosen.setdefault(record["id"],record)
-                if len(chosen)>=30:break
+                if len(chosen)>=80:break
             content="".join(row["name"].encode("ascii","replace").decode("ascii")+"\n"+
                             row["l1"]+"\n"+row["l2"]+"\n"
                             for row in chosen.values())
@@ -317,7 +317,7 @@ class NativeReceiver(QObject):
                 sources["manual"]={"downloaded":False,"cached":True,
                                    "age_days":round(age_days,2),"error":None}
                 if age_days<=7:
-                    for item in parse_tle(manual.read_text(encoding="ascii",errors="replace"),limit=30):
+                    for item in parse_tle(manual.read_text(encoding="ascii",errors="replace"),limit=80):
                         result.append({**item,"family":family("manual",item)})
                 else:errors.append("manual: imported TLE cache is over 7 days old")
             self.orbit_engine.invalidate()
