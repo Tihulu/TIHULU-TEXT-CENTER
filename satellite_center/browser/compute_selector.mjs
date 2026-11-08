@@ -14,6 +14,7 @@ export function initComputeSelector(prefix,{capabilitiesProvider=null}={}){
            gpu:{available:false,reason:"Probing real GPU adapter…"},
            npu:{available:false,reason:"No compatible SSTV NPU model/kernel"}};
  let loaded=false;
+ let nativeGpu=null;
  const describe=()=>{
    for(const name of ["cpu","gpu","npu"]){
      targets[name].disabled=mode.value!=="custom"||!caps[name]?.available;
@@ -28,7 +29,12 @@ export function initComputeSelector(prefix,{capabilitiesProvider=null}={}){
      "CPU: "+(caps.cpu?.name||"available")+
      " · GPU: "+(caps.gpu?.available?"real acceleration available":caps.gpu?.reason||"unavailable")+
      " · NPU: "+(caps.npu?.available?"supported":caps.npu?.reason||"no supported SSTV kernel")+
-     ". GPU targets SSTV tone-tracing only; FFT, synchronization, pixels and archive may remain on CPU.";
+     ". GPU targets SSTV tone-tracing only; FFT, synchronization, pixels and archive may remain on CPU."+
+     (nativeGpu?.detected?
+       " Native OS GPU detected: "+(nativeGpu.devices||[]).join(", ")+
+       " · CUDA/CuPy Robot36 kernel "+(nativeGpu.available?"ready":"not working")+
+       ". WebGPU and native CUDA are different execution engines.":
+       nativeGpu?" Native OS GPU not detected; see native GPU details.":"");
  };
  const getSelection=()=>{
    const list=Object.entries(targets).filter(([k,v])=>v.checked).map(([k])=>k);
@@ -36,6 +42,15 @@ export function initComputeSelector(prefix,{capabilitiesProvider=null}={}){
      throw Error("Choose at least one available CPU or GPU backend");
    return {mode:mode.value,targets:mode.value==="custom"?list:[]};
  };
+ const checkNativeGpu=async()=>{
+   if(typeof window.nativeComputeStatus!=="function")return;
+   try{
+     const system=await window.nativeComputeStatus();
+     if(system?.gpu){nativeGpu=system.gpu;describe();}
+   }catch(_error){ /* Browser GPU probe is independent. */ }
+ };
+ window.addEventListener("tihulu-native-bridge-ready",()=>{void checkNativeGpu();});
+ void checkNativeGpu();
  mode.addEventListener("change",describe);
  for(const key of Object.keys(targets))targets[key].addEventListener("change",describe);
  describe();
