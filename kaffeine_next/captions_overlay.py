@@ -854,7 +854,7 @@ def main(argv=None):
             "Language choices ready. Checking installed models (max 6 s)…")
         language_process.start(sys.executable,
             ["-m","tv_center.installed_languages"])
-        language_timeout.start(6000)
+        language_timeout.start(11000)
 
     language_process.finished.connect(language_catalog_finished)
     language_process.errorOccurred.connect(language_catalog_error)
