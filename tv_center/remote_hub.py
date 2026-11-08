@@ -230,6 +230,8 @@ class RemoteHub:
             if path is None or path.is_symlink() or not path.is_file() or (
                     self.root not in path.resolve().parents):
                 raise ValueError("File not in explicitly shared media catalog")
+            if path.suffix.lower() not in MEDIA_EXTS:
+                raise ValueError("Shared pictures use the authenticated image viewer")
             source=str(path)
             host_source=path.as_uri()
         elif kind=="dab":
@@ -405,7 +407,8 @@ def create_handler(hub):
                 return
             if not self.require():return
             if path=="/api/catalog":
-                items=[{"id":k,"name":str(v.relative_to(hub.root))[:240]}
+                items=[{"id":k,"name":str(v.relative_to(hub.root))[:240],
+                        "kind":"image" if v.suffix.lower() in IMAGE_EXTS else "file"}
                        for k,v in hub.files.items()]
                 self.send_data(200,{"items":items})
             elif path=="/api/dab":
