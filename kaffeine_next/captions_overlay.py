@@ -264,9 +264,20 @@ class CaptionTap:
                         not options.get("audio_source")):
                     signaled = self.subtitle_discovery.snapshot_audio()
                     selected_pid = options.get("audio_pid")
-                    matches = ([item for item in signaled if item.get("pid") == selected_pid]
-                               if selected_pid is not None else
-                               signaled if len(signaled) == 1 else [])
+                    if selected_pid is not None:
+                        matches = [item for item in signaled
+                                   if item.get("pid") == selected_pid]
+                    else:
+                        # Exclude audio-description tracks; if all regular
+                        # audio streams agree on a language, it is a safe
+                        # broadcast hint even with multiple audio PIDs.
+                        regular = [item for item in signaled
+                                   if not item.get("visual_impaired")]
+                        codes = {item.get("source_hint") or item.get("language")
+                                 for item in regular}
+                        codes.discard(None)
+                        codes.discard("und")
+                        matches = regular[:1] if len(codes) == 1 else []
                     if len(matches) == 1:
                         from tv_center.language_codes import language_code
                         hinted = matches[0].get("source_hint") or matches[0].get("language")
@@ -841,15 +852,24 @@ def main(argv=None):
 
     original = QLabel("Waiting for real Kaffeine DVB stream…")
     original.setObjectName("subtitle"); original.setWordWrap(True)
-    original.setMaximumHeight(68)
     translated = QLabel("")
     translated.setObjectName("subtitle"); translated.setWordWrap(True)
-    translated.setMaximumHeight(80)
     translated.setToolTip(
         "Translations are computed offline. Missing or broken NLLB "
         "automatically uses installed Argos language packs. Model errors "
         "are never shown as captions.")
-    root.addWidget(original); root.addWidget(translated)
+    preview_body = QWidget()
+    preview_layout = QVBoxLayout(preview_body)
+    preview_layout.setContentsMargins(5, 4, 5, 4)
+    preview_layout.addWidget(original)
+    preview_layout.addWidget(translated)
+    preview_scroll = QScrollArea()
+    preview_scroll.setWidgetResizable(True)
+    preview_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+    preview_scroll.setMaximumHeight(150)
+    preview_scroll.setMinimumHeight(58)
+    preview_scroll.setWidget(preview_body)
+    root.addWidget(preview_scroll)
     srt_controls = QHBoxLayout()
     srt_start = QPushButton("Start SRT recording")
     srt_stop = QPushButton("Stop SRT recording")
@@ -863,7 +883,13 @@ def main(argv=None):
     status = QLabel("Whisper captions use 6-second overlapping audio chunks plus processing time. "
                     "Audio and video remain synchronized with each other.")
     status.setWordWrap(True)
-    status.setMaximumHeight(76)
+    diagnostics_toggle = QPushButton("Show detailed ASR / translator diagnostics")
+    diagnostics_toggle.setCheckable(True)
+    status.setMinimumHeight(48)
+    status.setWordWrap(True)
+    status.setVisible(False)
+    diagnostics_toggle.toggled.connect(status.setVisible)
+    root.addWidget(diagnostics_toggle)
     root.addWidget(status)
 
     market = QPushButton("Whisper + Translator Model Market")
