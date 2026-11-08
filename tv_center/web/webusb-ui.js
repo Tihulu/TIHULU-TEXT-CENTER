@@ -113,8 +113,14 @@ $("webusb-ts-import").onchange=()=>run(async()=>{
     ts.feed(chunk);
   }
   const data=ts.summary();
+  const identified=data.programs.filter(p=>p.name).map(p=>p.service+
+    " · "+p.name+(p.kind==="radio"?" [Radio]":p.kind==="tv"?" [TV]":"")+
+    (p.provider?" · "+p.provider:""));
   say("Analyzed "+size+" local bytes of "+file.name+" — "+data.packets+
-      " TS packets, "+data.programs.length+" PAT service ID(s). Local analysis only; file not uploaded.");
+      " MPEG-TS packets, "+data.programs.length+" real PAT services, "+
+      identified.length+" SDT names. No upload. "+
+      (identified.length?"Detected: "+identified.slice(0,12).join(" | "):
+       "No broadcaster names found in this sample; SDT may be absent."));
   report({importedTransport:data,importedFileSize:file.size,readBytes:size});
   $("webusb-ts-import").value="";
 });
