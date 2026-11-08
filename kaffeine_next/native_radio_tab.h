@@ -264,6 +264,22 @@ public:
 			if(countryName.isEmpty()) continue;
 			world.insert(countryName+QLatin1String(" (")+code+QLatin1Char(')'),code);
 		}
+		// Debian's ISO-3166 source supplements locales with territories
+		// for which Qt does not ship a user-interface locale.
+		QFile countries(QLatin1String("/usr/share/iso-codes/json/iso_3166-1.json"));
+		if(countries.open(QIODevice::ReadOnly) && countries.size()<512*1024) {
+			const QJsonDocument catalog=QJsonDocument::fromJson(countries.readAll());
+			const QJsonArray entries=catalog.object().value(
+				QLatin1String("3166-1")).toArray();
+			for(const QJsonValue &v:entries) {
+				const QJsonObject e=v.toObject();
+				const QString code=e.value(QLatin1String("alpha_2")).toString();
+				const QString title=e.value(QLatin1String("name")).toString();
+				if(QRegularExpression(QLatin1String("^[A-Z]{2}$"))
+				   .match(code).hasMatch() && !title.isEmpty())
+					world.insert(title+QLatin1String(" (")+code+QLatin1Char(')'),code);
+			}
+		}
 		for(auto it=world.constBegin();it!=world.constEnd();++it)
 			webCountry_->addItem(it.key(),it.value());
 		webCountry_->setEditable(true);
