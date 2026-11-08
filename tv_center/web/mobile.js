@@ -388,6 +388,15 @@
   }
   $("set-host-volume").onclick=()=>invoke(
     "volume",{value:Number($("host-volume").value)},"Volume").catch(()=>{});
+  $("mute-host").onclick=async()=>{
+    try{
+      await invoke("volume",{value:0},"Host audio muted");
+      $("host-volume").value=0;
+      $("host-feedback").textContent=
+        "Computer audio muted. The native tuner must remain running to "+
+        "feed phone TV; restore volume with the slider if desired.";
+    }catch(_){}
+  };
   $("tune-tv").onclick=()=>invoke(
     "tv_channel",{channel:$("tv-channel").value.trim()},"Tune TV").catch(()=>{});
   $("open-page").onclick=async()=>{
