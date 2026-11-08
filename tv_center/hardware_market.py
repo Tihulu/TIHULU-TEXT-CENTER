@@ -57,9 +57,20 @@ def detect_hardware():
                     name=match.group(1).strip()[:120]; break
             except OSError:
                 pass
-    nvcc=_find_executable("nvcc",("/usr/local/cuda/bin/nvcc",
-                                  "/usr/local/cuda-12.8/bin/nvcc",
-                                  "/usr/local/cuda-13.0/bin/nvcc"))
+    # CUDA toolkit installations from NVIDIA are frequently not in PATH.
+    # Discover any versioned /usr/local/cuda-12.8, -13.0, -13.1... toolkits
+    # without requiring users to change their shell/Conda environment.
+    cuda_candidates = [
+        Path("/usr/local/cuda/bin/nvcc"),
+        Path("/opt/cuda/bin/nvcc"),
+    ]
+    cuda_candidates.extend(sorted(
+        Path("/usr/local").glob("cuda-*/bin/nvcc"),reverse=True))
+    for env_path in ("CUDA_HOME","CUDA_PATH"):
+        value=os.environ.get(env_path)
+        if value and len(value)<512:
+            cuda_candidates.append(Path(value)/"bin/nvcc")
+    nvcc=_find_executable("nvcc",tuple(map(str,cuda_candidates)))
     version_text=_command([nvcc,"--version"]) if nvcc else ""
     version=re.search(r"release\s+(\d+)\.(\d+)",version_text)
     cuda_version=(int(version.group(1)),int(version.group(2))) if version else None
@@ -104,7 +115,10 @@ def detect_hardware():
                    ".".join(map(str,cuda_version)) if cuda_version else None),
                "cuda_compile_possible":can_compile,
                "reason":(
-                   "CUDA >=12.8 required for Blackwell RTX 50-series"
+                   "NVIDIA RTX 50-series needs CUDA Toolkit >=12.8; nvcc not found. "
+                   "Install the toolkit (not a replacement display driver)."
+                   if is_blackwell and not nvcc else
+                   "Installed nvcc CUDA version is too old for Blackwell; >=12.8 required"
                    if is_blackwell and not can_compile else
                    "CUDA toolkit (nvcc) not detected; GPU can be detected without a CUDA speech runtime"
                    if name and not nvcc else

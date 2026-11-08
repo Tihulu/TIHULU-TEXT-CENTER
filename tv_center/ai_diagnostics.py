@@ -46,6 +46,7 @@ def inspect():
             "gpu_detected": gpu["detected"],
             "vram_mib": gpu["vram_mib"],
             "cuda_compiler": gpu["cuda_version"],
+            "cuda_compiler_path": gpu["cuda_compiler"],
             "cuda_compile_possible": gpu["cuda_compile_possible"],
             "cuda_note": gpu["reason"],
             "npu_detected": npu["detected"],
@@ -62,7 +63,16 @@ def inspect():
         "next_step": (
             "GPU READY: test real audio inference in Kaffeine, verify actual CUDA execution."
             if choice.get("selected") == "gpu" and choice.get("ready") else
-            "Install/activate a multilingual Whisper model and a matching CPU/CUDA/NPU runtime in Model Market; detected GPU alone is not enough."
+            "RTX detected, CUDA Toolkit >=12.8 compiler not available. Check "
+            "'ls /usr/local/cuda*/bin/nvcc' and install NVIDIA's cuda-toolkit-12-8 "
+            "(toolkit only; do not replace the Pop!_OS NVIDIA driver), then "
+            "build CUDA whisper.cpp in TIHULU Model Market."
+            if gpu["detected"] and not gpu["cuda_compile_possible"] else
+            "GPU found, but the user-owned CUDA whisper.cpp runtime is missing. "
+            "Install CUDA Whisper in Model Market, then select a larger "
+            "multilingual GGML model and save backend Auto/GPU."
+            if gpu["detected"] and not whisper.ready_gpu() else
+            "Install/activate a multilingual Whisper model and matching runtime in Model Market."
         )
     }
 
