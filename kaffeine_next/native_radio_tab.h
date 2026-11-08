@@ -1832,6 +1832,11 @@ private:
 						activePlaybackCacheMs_;
 					lyricCues_=QJsonArray();
 					lastLyricSyncUpdateMs_=0;
+                    lastLyricDirection_=0;
+                    lyricOffsetConsistency_=0;
+                    lastVerifiedLyricMs_=0;
+                    lastVerifiedLyricText_.clear();
+                    lastVerifiedLyricTranslations_=QJsonObject();
 					lyricsSyncState_->setText(tr("New DLS song · awaiting audible lyric verification"));
 					plainLyricMode_=false;
 					plainLyricQueue_.clear();
@@ -2693,20 +2698,32 @@ private:
 				while(cueQueue_.size()>12) cueQueue_.removeFirst();
 			}
 			const QJsonObject matched=obj.value(QLatin1String("lyric_match")).toObject();
+            const QJsonObject lyricTranslations=obj.value(
+                QLatin1String("lyric_translations")).toObject();
 			if(matched.value(QLatin1String("kind")).toString()==
 				QLatin1String("observed_ASR_chunk_match") &&
 				matched.value(QLatin1String("confidence")).toDouble()>=0.74) {
 				const QString line=matched.value(QLatin1String("text")).toString();
 				const double confidence=matched.value(QLatin1String("confidence")).toDouble();
 				if(!line.isEmpty() && line.size()<=240) {
+                    QString rendered=line;
+                    for(auto it=lyricTranslations.begin();it!=lyricTranslations.end();++it)
+                        if(it.value().isString() && !it.value().toString().isEmpty())
+                            rendered+=QLatin1String("\n[")+it.key().toUpper()+
+                                QLatin1String("] ")+it.value().toString();
+                    if(!lyricTranslations.isEmpty()) {
+                        lastVerifiedLyricText_=line;
+                        lastVerifiedLyricTranslations_=lyricTranslations;
+                        lastVerifiedLyricMs_=now;
+                    }
 					if(plainLyricMode_) {
-						plainLyricQueue_.append({due+lyricsOffset_->value(),line,confidence});
+						plainLyricQueue_.append({due+lyricsOffset_->value(),rendered,confidence});
 						while(plainLyricQueue_.size()>10) plainLyricQueue_.removeFirst();
 						lyricsSyncState_->setText(tr("Verified text match %1% · "
 							"audio-derived line ordering, approximate 5s time resolution")
 							.arg(qRound(confidence*100)));
-					} else if(autoLyricSync_->isChecked() && confidence>=0.90 &&
-					          now-lastLyricSyncUpdateMs_>=5000 && !lyricCues_.isEmpty()) {
+					} else if(autoLyricSync_->isChecked() && confidence>=0.92 &&
+                         !lyricCues_.isEmpty()) {
 						const int idx=matched.value(QLatin1String("index")).toInt(-1);
 						if(idx>=0 && idx<lyricCues_.size() && songStartMs_>0) {
 							const double lrcSeconds=lyricCues_.at(idx).toObject()
@@ -2718,14 +2735,30 @@ private:
 								// Require a close observed vocal line, then correct gently.
 								// Broad or false ASR lyric matches must not jump by minutes.
 								if(qAbs(delta)<=15000) {
-									const int step=qBound(-650,int(delta/4),650);
-									songStartMs_+=step;
-									lastLyricSyncUpdateMs_=now;
-									lyricsSyncState_->setText(tr("Lyric audio check %1% · "
-										"observed DLS/LRC mismatch %2 ms · corrected %3 ms · "
-										"manual lyric offset %4 ms")
-										.arg(qRound(confidence*100)).arg(delta).arg(step)
-										.arg(lyricsOffset_->value()));
+                                    if(qAbs(delta)<900) {
+                                        lyricOffsetConsistency_=0;
+                                    } else {
+                                        const int direction=delta>0?1:-1;
+                                        lyricOffsetConsistency_=
+                                            direction==lastLyricDirection_?
+                                            qMin(3,lyricOffsetConsistency_+1):1;
+                                        lastLyricDirection_=direction;
+                                        // Require two matching vocal lines and a
+                                        // 30s cooldown; cap every correction at
+                                        // 250 ms to avoid lyric timing oscillation.
+                                        if(lyricOffsetConsistency_>=2 &&
+                                           now-lastLyricSyncUpdateMs_>=30000) {
+                                            const int step=qBound(-250,int(delta/8),250);
+                                            songStartMs_+=step;
+                                            lastLyricSyncUpdateMs_=now;
+                                            lyricOffsetConsistency_=0;
+                                            lyricsSyncState_->setText(tr(
+                                                "Audio lyric sync %1% · mismatch %2 ms · "
+                                                "corrected %3 ms · manual offset %4 ms")
+                                                .arg(qRound(confidence*100)).arg(delta).arg(step)
+                                                .arg(lyricsOffset_->value()));
+                                        }
+                                    }
 								} else {
 									lyricsSyncState_->setText(tr("Lyric match rejected: "
 										"observed offset %1 ms outside ±15000 ms guard. "
@@ -2768,6 +2801,10 @@ private:
 		lyricCues_=QJsonArray();
 		plainLyricMode_=false;
 		plainLyricQueue_.clear();
+        lastVerifiedLyricMs_=0;
+        lastVerifiedLyricText_.clear();
+        lastVerifiedLyricTranslations_=QJsonObject();
+        lyricOffsetConsistency_=0;
 		lyricLoaded_=false;
 		stopLyrics_->setEnabled(false);
 		lyricText_->setText(tr("Timed lyrics stopped (no online lyric polling)."));
@@ -2855,8 +2892,12 @@ private:
 					if (cue.value(QLatin1String("start")).toDouble()<=elapsed &&
 					    cue.value(QLatin1String("end")).toDouble()>elapsed) {
 						current=cue.value(QLatin1String("text")).toString();
-						const QJsonObject translated=cue.value(
+						QJsonObject translated=cue.value(
 							QLatin1String("translations")).toObject();
+                        if(translated.isEmpty() &&
+                           lastVerifiedLyricText_==current &&
+                           QDateTime::currentMSecsSinceEpoch()-lastVerifiedLyricMs_<12000)
+                            translated=lastVerifiedLyricTranslations_;
 						for(auto it=translated.begin();it!=translated.end();++it)
 							if(it.value().isString() && !it.value().toString().isEmpty())
 								current+=QLatin1String("\n[")+it.key().toUpper()+
@@ -2998,6 +3039,10 @@ private:
 	quint64 scanRequestId_=0,stationRequestId_=0;
 	qint64 songStartMs_=0,manualSongStartMs_=0;
 	QString lastWelleError_,lastAnalogError_;
+    QString lastVerifiedLyricText_;
+    QJsonObject lastVerifiedLyricTranslations_;
+    qint64 lastVerifiedLyricMs_=0;
+    int lastLyricDirection_=0,lyricOffsetConsistency_=0;
 	QString activeChannel_,playingKey_,lastDls_,captionPath_,lyricPath_,
 		wellePortFile_,
 		lastDetectedLanguage_;
