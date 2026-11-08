@@ -193,12 +193,21 @@ QAbstractButton *StartTab::addShortcut''')
            '''	app.setApplicationName("tihulu-media-center");
 	app.setOrganizationName("TIHULU");
 	app.setOrganizationDomain("tihulu.local");
-	const QString userLogo = QStandardPaths::writableLocation(
-		QStandardPaths::GenericDataLocation) +
-		QLatin1String("/icons/hicolor/64x64/apps/tihulu-media-center.png");
-	const QIcon custom = QFileInfo::exists(userLogo) ? QIcon(userLogo) : QIcon();
-	app.setWindowIcon(!custom.isNull() ? custom :
-		QIcon::fromTheme(QLatin1String("tihulu-media-center"), QIcon(":kaffeine")));''')
+	// A previously installed portrait PNG must not silently override the
+	// standalone PLAY-button application icon after an update. Explicit
+	// TIHULU_USE_LEGACY_LOGO=1 restores that user-owned PNG without deleting it.
+	const QString iconsRoot=QStandardPaths::writableLocation(
+		QStandardPaths::GenericDataLocation)+QLatin1String("/icons/hicolor/");
+	const QString playerSvg=iconsRoot+
+		QLatin1String("scalable/apps/tihulu-media-center.svg");
+	const QString legacyPng=iconsRoot+
+		QLatin1String("64x64/apps/tihulu-media-center.png");
+	const bool preferLegacy=qgetenv("TIHULU_USE_LEGACY_LOGO")=="1" &&
+		QFileInfo::exists(legacyPng);
+	const QIcon chosen=preferLegacy ? QIcon(legacyPng) :
+		QFileInfo::exists(playerSvg) ? QIcon(playerSvg) :
+		QIcon::fromTheme(QLatin1String("tihulu-media-center"),QIcon(":kaffeine"));
+	app.setWindowIcon(chosen);''')
     change(main, '''	menu = new QMenu(i18n("Kaffeine"), this);''',
            '''	menu = new QMenu(i18n("TIHULU Media Center"), this);''')
     change(main, '''	trayIcon->setToolTip(i18n("Kaffeine"));''',
