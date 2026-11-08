@@ -13,7 +13,7 @@ def main():
     source = payload.get("source")
     target = payload.get("target")
     if (not isinstance(text,str) or not text.strip() or len(text)>1600 or
-        source not in ("de","en","tr") or target not in ("de","en","tr") or
+        source not in ("de","en","tr","fr") or target not in ("de","en","tr","fr") or
         source == target):
         raise ValueError("Invalid offline translation request")
     import os

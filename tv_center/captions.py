@@ -12,7 +12,7 @@ import tempfile
 import time
 from pathlib import Path
 
-SUPPORTED = ("de", "en", "tr")
+SUPPORTED = ("de", "en", "tr", "fr")
 
 def _run(argv, timeout=30):
     return subprocess.run(argv, stdin=subprocess.DEVNULL,
@@ -41,10 +41,22 @@ def _program_streams(path, service_id):
     # Do not inadvertently transcribe a neighbouring TV service.
     return []
 
-def _sub_stream(path, service_id):
+def _sub_stream(path, service_id, teletext_pid=None):
     streams = _program_streams(path, service_id)
-    return next((s["index"] for s in streams
-                 if s.get("codec_name") == "dvb_teletext"), None)
+    for stream in streams:
+        if stream.get("codec_name") != "dvb_teletext":
+            continue
+        if teletext_pid is not None:
+            try:
+                # ffprobe stream id is normally e.g. '0x013f'.
+                stream_pid = int(str(stream.get("id","")), 0)
+            except (ValueError, TypeError):
+                continue
+            if stream_pid != teletext_pid:
+                continue
+        return stream["index"]
+    # Never fall back to another language/PID after a user's selection.
+    return None
 
 def ass_text(raw: str) -> str:
     lines = []
@@ -60,12 +72,13 @@ def ass_text(raw: str) -> str:
             lines.append(txt)
     return "\n".join(lines[-6:])[:1600]
 
-def teletext_from_clip(path: Path, page: int | str, service_id: int | None = None) -> str:
+def teletext_from_clip(path: Path, page: int | str, service_id: int | None = None,
+                       teletext_pid: int | None = None) -> str:
     # 'subtitle' is FFmpeg/libzvbi's special selector for broadcaster-marked
     # caption pages. Never treat arbitrary Teletext page 150 news as speech.
     if page != "subtitle" and (type(page) is not int or not 100 <= page <= 899):
         raise ValueError("Teletext page must be 100-899 or 'subtitle'")
-    idx = _sub_stream(path, service_id)
+    idx = _sub_stream(path, service_id, teletext_pid)
     if idx is None:
         return ""
     cmd = ["ffmpeg", "-hide_banner", "-loglevel", "error",
@@ -189,7 +202,8 @@ def translate(text: str, source: str, target: str) -> tuple[str | None, str | No
 
 def decode_segment(ts: bytes, *, mode="auto", page=150, source="de",
                    target="tr", targets=None, model="", service_id: int | None = None,
-                   previous_text: str = "") -> dict:
+                   previous_text: str = "",
+                   teletext_pid: int | None = None) -> dict:
     if mode not in ("teletext", "page", "asr", "auto"):
         raise ValueError("Unsupported caption source")
     if not 100 <= page <= 899 or source not in SUPPORTED or target not in SUPPORTED:
@@ -216,7 +230,9 @@ def decode_segment(ts: bytes, *, mode="auto", page=150, source="de",
             # the broadcaster, not arbitrary Teletext news/information pages.
             selected_page = page if mode == "page" else "subtitle"
             teletext_start = time.perf_counter()
-            original = teletext_from_clip(p, selected_page, service_id)
+            original = (teletext_from_clip(p, selected_page, service_id, teletext_pid)
+                        if teletext_pid is not None else
+                        teletext_from_clip(p, selected_page, service_id))
             teletext_ms = round((time.perf_counter()-teletext_start)*1000)
             used = (f"teletext_page_{page}" if selected_page != "subtitle"
                     else "broadcaster_teletext_subtitles") if original else ""

@@ -11,7 +11,7 @@ from pathlib import Path
 import subprocess
 import sys
 
-LANGS=("de","en","tr")
+LANGS=("de","en","tr","fr")
 ACTIONS=("catalog","installed","install","remove")
 
 

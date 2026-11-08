@@ -21,7 +21,7 @@ import tempfile
 import time
 
 MODE = ("auto", "teletext", "asr", "page", "off")
-LANGS = ("de", "en", "tr")
+LANGS = ("de", "en", "tr", "fr")
 
 @dataclass(frozen=True)
 class CaptionConfig:
@@ -30,6 +30,7 @@ class CaptionConfig:
     target: str = "tr"
     target_languages: tuple[str, ...] = ("tr",)
     page: int = 150
+    teletext_pid: int | None = None
     offset_ms: int = 0
     playback_delay_ms: int = 0
     automatic_sync: bool = False
@@ -47,6 +48,9 @@ class CaptionConfig:
             raise ValueError("Unknown caption source or language")
         if type(self.page) is not int or not 100 <= self.page <= 899:
             raise ValueError("Teletext page must be an integer 100–899")
+        if self.teletext_pid is not None and (
+                type(self.teletext_pid) is not int or not 1 <= self.teletext_pid <= 8190):
+            raise ValueError("Invalid broadcaster Teletext subtitle PID")
         if type(self.offset_ms) is not int or not -10000 <= self.offset_ms <= 10000:
             raise ValueError("Caption offset must be -10 to +10 seconds")
         if type(self.playback_delay_ms) is not int or not 0 <= self.playback_delay_ms <= 20000:
@@ -76,7 +80,8 @@ class CaptionConfig:
     def options(self):
         return {"mode":self.mode,"source":self.source,
                 "target":self.target,"targets":self.target_languages,
-                "page":self.page,"revision":self.revision}
+                "page":self.page,"teletext_pid":self.teletext_pid,
+                "revision":self.revision}
 
     def render(self, result):
         """Produce independently selectable original/translated subtitle lines."""

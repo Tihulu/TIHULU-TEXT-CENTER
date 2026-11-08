@@ -13,7 +13,7 @@ import platform
 import shutil
 import subprocess
 
-LANGUAGES = ("en", "de", "tr")
+LANGUAGES = ("en", "de", "tr", "fr")
 BACKENDS = ("auto", "cpu", "gpu", "npu")
 
 

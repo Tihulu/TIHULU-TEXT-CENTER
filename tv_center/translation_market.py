@@ -16,7 +16,7 @@ import sys
 MODEL_ID = "facebook/nllb-200-distilled-600M"
 MODEL_REVISION = "a3e77be725cf30383f1faeb8d2f0b0ea98ac554e"
 LICENSE = "CC-BY-NC-4.0 (non-commercial use)"
-LANG = {"de":"deu_Latn","en":"eng_Latn","tr":"tur_Latn"}
+LANG = {"de":"deu_Latn","en":"eng_Latn","tr":"tur_Latn","fr":"fra_Latn"}
 
 
 class TranslationModelMarket:
