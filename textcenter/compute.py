@@ -138,6 +138,20 @@ def detect_devices(*, executable_lookup=None, device_root=None,
             gpu_model = model
     except (ImportError,OSError,ValueError):
         pass
+    # Unlike whisper.cpp's CUDA *build*, the Faster-Whisper CTranslate2
+    # worker uses NVIDIA's prebuilt cuBLAS/cuDNN pip wheels. It does not
+    # require nvcc or import GPU Python modules into Kaffeine's Qt process.
+    if nvidia.strip() and device_root is None:
+        try:
+            from tv_center.cuda_faster_whisper import FasterWhisperCUDA
+            managed_cuda = FasterWhisperCUDA()
+            if managed_cuda.installed() and managed_cuda.probe()["ready"]:
+                gpu_ready = True
+                gpu_engine = "faster_whisper_managed"
+                gpu_model = managed_cuda.model_dir
+                gpu_executable = None
+        except (ImportError, OSError, RuntimeError, ValueError):
+            pass
     speech_ready=bool(executable and model and model.is_file() and model.stat().st_size>1024)
     argos=importlib.util.find_spec("argostranslate") is not None
     return {
