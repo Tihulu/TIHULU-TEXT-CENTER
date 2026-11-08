@@ -584,13 +584,22 @@ actually produced speaker turns and Whisper supplied word timings. These
 IDs are **temporary per clip**: do not interpret them as a reliably
 persistent person across scenes, and do not automatically infer whether
 a voice belongs to a woman, man, child, or a particular person.
-Users may **manually** assign temporary voice-slot display names such as
-`Woman, Child, Man 1, Man 2` in the caption settings, but these are not
-inferred classifications and should be rechecked as clips change. Voice
-slots can reorder between clips; stable real-person tracking is not yet
-verified. Diarization adds latency; if model access is denied or the
-optional runtime fails, **original transcriptions continue without speaker
-labels**.
+**Token-free automatic voice labels** are the preferred option. The optional
+Resemblyzer 0.1.4 package includes public pretrained Apache-2.0 weights,
+requires **no Hugging Face token**, and runs in a dedicated offline CPU
+environment independent of the RTX 5080's CUDA Whisper and the NLLB
+translator. Under **Model Market → Speaker separation** the public model
+can be installed, verified, and removed without a gated account. When
+available, Live Captions has **Auto-label distinct voices** checked by
+default and displays **Speaker 1, Speaker 2, ...** based on estimated
+embedding clusters. Users do **not** need to type speaker names. The
+public model works best on English and may be unreliable on some other
+languages, short dialogue, music or overlapping voices. It does not
+identify a person's gender, age or civil identity. The more advanced
+gated pyannote Community-1 option is collapsed under an optional
+advanced section and still requires owner-authorized access.
+Diarization adds processing time; if the model is missing or fails,
+**original and translated captions continue without speaker labels**.
 
 **In the same AI Model Market window:** the Speech tab lists installed
 GGML models and offers explicit online discovery of verified Medium and
@@ -599,4 +608,35 @@ lists installed and official-available Argos language pairs and has
 install/remove actions and the optional NLLB-200 multilingual model. The
 Speaker tab controls the optional voice-separation runtime. None of these
 downloads happen automatically on app launch.
+
+
+## Caption window and subtitle color controls (2026-11-08)
+
+AI Model Market now has independent vertically scrolling Speech, Translation,
+and Speaker tabs. Long labels wrap, the dark palette stays consistent, and
+the **Save settings / Close** footer stays visible even on smaller windows.
+Live Captions also scrolls its settings independently while preserving
+**Apply**, **Hide settings / keep subtitles**, **Stop subtitles** and concise
+live caption status.
+
+The on-video overlay now reads **both** text and background colors from
+validated private user-owned OSD IPC JSON (`text_color` /
+`background_color`, each #RRGGBB). Independent text and backing opacity
+controls span 0–100%. A color dialog, live visual preview and presets
+provide white-on-black, yellow, cyan/navy, transparent backing and
+fully transparent styles. These settings are actually rendered in the
+patched native Kaffeine/Qt OSD, not just in the control dialog.
+
+The language checkboxes represent **requested output languages**, not an
+implicit single target. EN and TR remain checked even if a detected
+broadcast subtitle channel carries English as its **original** language.
+The transcript is shown as EN (no redundant translation call) alongside
+the genuinely translated TR text when a compatible local language pack
+is installed. Original + translations avoids duplicate copies of
+English; Translations only includes requested English as a source-language
+output when appropriate. A single unambiguous broadcaster-signalled
+Teletext or audio track is selected automatically, including its
+*actual language*, rather than incorrectly labeling broadcaster
+English as German. Unavailable translations are reported separately
+and cannot erase the original transcript.
 
