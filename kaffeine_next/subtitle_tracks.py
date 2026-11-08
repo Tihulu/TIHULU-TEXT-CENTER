@@ -40,6 +40,22 @@ class TeletextTrack:
                 "label":self.display}
 
 
+@dataclass(frozen=True)
+class BroadcastAudioTrack:
+    pid: int
+    language: str
+    visual_impaired: bool = False
+
+    def as_dict(self):
+        return {
+            "pid": self.pid, "language": self.language,
+            "source_hint": LANGUAGE.get(self.language.lower()),
+            "visual_impaired": self.visual_impaired,
+            "label": (f"{self.language.upper()} · Audio PID {self.pid}" +
+                      (" · audio description" if self.visual_impaired else "")),
+        }
+
+
 def mpeg_crc32(data: bytes) -> int:
     result = 0xffffffff
     for byte in data:
@@ -59,6 +75,7 @@ class TeletextSubtitleDiscovery:
         self.service_id = None
         self.pmt_pid = None
         self.tracks = ()
+        self.audio_tracks = ()
         self._buffers = {}
         self._continuity = {}
 
@@ -66,18 +83,22 @@ class TeletextSubtitleDiscovery:
         self.service_id = None
         self.pmt_pid = None
         self.tracks = ()
+        self.audio_tracks = ()
         self._buffers.clear()
         self._continuity.clear()
 
     def snapshot(self):
         return [t.as_dict() for t in self.tracks]
 
+    def snapshot_audio(self):
+        return [t.as_dict() for t in self.audio_tracks]
+
     def offer(self, chunk: bytes, preferred_service_id=None) -> bool:
         # Kaffeine usually sends a selected-service TS. If its PAT still
         # includes more than one service, prefer the real tuned program ID
         # rather than mixing tracks from a neighbouring channel.
         self._preferred = preferred_service_id
-        old = (self.service_id, self.pmt_pid, self.tracks)
+        old = (self.service_id, self.pmt_pid, self.tracks, self.audio_tracks)
         if not isinstance(chunk, bytes) or len(chunk) % 188:
             return False
         for i in range(0, len(chunk), 188):
@@ -116,7 +137,7 @@ class TeletextSubtitleDiscovery:
                 self._feed(pid, payload[1 + pointer:])
             elif pid in self._buffers:
                 self._feed(pid, payload)
-        return old != (self.service_id, self.pmt_pid, self.tracks)
+        return old != (self.service_id, self.pmt_pid, self.tracks, self.audio_tracks)
 
     def _feed(self, pid, content):
         if not content:
@@ -163,6 +184,7 @@ class TeletextSubtitleDiscovery:
             matches = [entry for entry in programs if entry[0] == preferred]
             if not matches:
                 self.tracks = ()
+                self.audio_tracks = ()
                 return
             service, pmt_pid = matches[0]
         elif len(programs) == 1:
@@ -170,10 +192,12 @@ class TeletextSubtitleDiscovery:
         else:
             # Never guess whose subtitles they are in a multiplex.
             self.tracks = ()
+            self.audio_tracks = ()
             return
         if (service, pmt_pid) != (self.service_id, self.pmt_pid):
             self.service_id, self.pmt_pid = service, pmt_pid
             self.tracks = ()
+            self.audio_tracks = ()
             self._buffers = {0: self._buffers.get(0, bytearray())}
             self._continuity.pop(pmt_pid, None)
 
@@ -189,8 +213,12 @@ class TeletextSubtitleDiscovery:
         if start > end:
             return
         tracks = set()
+        audio_tracks = set()
         i = start
         while i + 5 <= end:
+            stream_type = section[i]
+            audio_languages = []
+            private_audio = False
             pid = ((section[i + 1] & 0x1f) << 8) | section[i + 2]
             desc_len = ((section[i + 3] & 0x0f) << 8) | section[i + 4]
             desc_end = i + 5 + desc_len
@@ -204,6 +232,18 @@ class TeletextSubtitleDiscovery:
                 entry_end = entry_start + size
                 if entry_end > desc_end:
                     break
+                if tag == 0x0a and size % 4 == 0:
+                    # ISO 639 audio-language descriptor; type=3 denotes
+                    # audio intended for visually impaired listeners.
+                    for j in range(entry_start, entry_end, 4):
+                        raw = section[j:j + 3]
+                        if all(97 <= byte <= 122 for byte in raw):
+                            audio_languages.append((raw.decode("ascii"),
+                                                    section[j + 3] == 3))
+                if tag in (0x6a, 0x7a, 0x7c, 0x7b):
+                    # AC-3, enhanced AC-3 and AAC descriptor signalled
+                    # inside a private-data elementary stream.
+                    private_audio = True
                 if tag == 0x56 and size % 5 == 0:
                     for j in range(entry_start, entry_end, 5):
                         raw = section[j:j + 3]
@@ -219,6 +259,14 @@ class TeletextSubtitleDiscovery:
                             tracks.add(TeletextTrack(pid, page, language,
                                                      hearing_impaired=kind == 5))
                 desc_at = entry_end
+            # Only advertise identified audio types. In particular, DVB
+            # private-stream type 0x06 also carries Teletext, not just AC3.
+            if stream_type in (0x03, 0x04, 0x0f, 0x11, 0x81) or (
+                    stream_type == 0x06 and private_audio):
+                for language, descriptive in (audio_languages or [("und", False)]):
+                    audio_tracks.add(BroadcastAudioTrack(pid, language, descriptive))
             i = desc_end
         self.tracks = tuple(sorted(tracks, key=lambda t: (t.language, t.page, t.pid,
                                                          t.hearing_impaired)))
+        self.audio_tracks = tuple(sorted(
+            audio_tracks, key=lambda t: (t.language, t.visual_impaired, t.pid)))
