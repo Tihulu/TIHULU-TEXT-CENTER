@@ -31,6 +31,8 @@ jobs:
       - name: Validate installer and all TV browser modules
         run: |
           bash -n tv_center/install.sh
+          bash -n tv_center/tools/diagnose-webusb-linux.sh
+          bash tv_center/tools/diagnose-webusb-linux.sh
           for f in tv_center/web/*.js; do
             node --input-type=module --check < "$f"
           done
