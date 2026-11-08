@@ -48,6 +48,20 @@ class MobileLAN:
         self.thread = None
         self.lock = threading.Lock()
 
+    def session_token(self, header):
+        cookie=SimpleCookie()
+        try:
+            cookie.load(header)
+            return cookie["tihulu_tv"].value
+        except (KeyError,ValueError):
+            return None
+
+    def revoke(self, header):
+        token=self.session_token(header)
+        with self.lock:
+            if token is not None:
+                self.clients.pop(token,None)
+
     def authorized(self, header):
         cookie = SimpleCookie()
         try:
@@ -102,9 +116,11 @@ class MobileLAN:
                 self.headers_safe()
                 self.send_header("Content-Type", "application/json; charset=utf-8")
                 self.send_header("Content-Length", str(len(raw)))
-                if cookie:
-                    self.send_header("Set-Cookie", "tihulu_tv=" + cookie +
-                                     "; HttpOnly; SameSite=Strict; Path=/; Max-Age=3600")
+                if cookie is not None:
+                    suffix=("; HttpOnly; SameSite=Strict; Path=/; Max-Age=0"
+                            if cookie=="" else
+                            "; HttpOnly; SameSite=Strict; Path=/; Max-Age=3600")
+                    self.send_header("Set-Cookie", "tihulu_tv=" + cookie + suffix)
                 self.end_headers()
                 self.wfile.write(raw)
 
@@ -182,14 +198,20 @@ class MobileLAN:
 
             def do_POST(self):
                 url = urlsplit(self.path).path
-                if url not in ("/api/pair", "/api/teletext", "/api/command"):
+                if url not in ("/api/pair", "/api/teletext", "/api/command", "/api/disconnect"):
                     return self.reply(404, {"error": "No such route"})
                 # Same-origin browser requests only, for protection against
                 # drive-by form submission and cross-site reading.
                 origin = self.headers.get("Origin", "")
                 host = self.headers.get("Host", "")
-                if origin and origin != "http://" + host:
-                    return self.reply(403, {"error": "Cross-origin request blocked"})
+                # HTTPS private reverse proxies legitimately send an HTTPS
+                # Origin to this localhost HTTP server. Compare the hostname
+                # and port, rather than demanding the external HTTP scheme.
+                if origin:
+                    request_origin=urlsplit(origin)
+                    if (request_origin.scheme not in ("http","https") or
+                            request_origin.netloc != host):
+                        return self.reply(403, {"error":"Cross-origin request blocked"})
                 length = self.headers.get("Content-Length", "")
                 if not length.isdigit() or not 0 < int(length) <= 512:
                     return self.reply(400, {"error": "Invalid request length"})
@@ -204,6 +226,9 @@ class MobileLAN:
                     return self.reply(200, {"paired": True}, ticket)
                 if not self.allowed():
                     return self.reply(401, {"error": "Pair before changing Teletext"})
+                if url == "/api/disconnect":
+                    owner.revoke(self.headers.get("Cookie",""))
+                    return self.reply(200, {"disconnected":True}, "")
                 if url == "/api/command":
                     if not owner.commands:
                         return self.reply(503, {"error": "Native TV control unavailable"})
