@@ -30,6 +30,10 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QLabel>
+#include <QLineEdit>
+#include <QSet>
+#include <QSignalBlocker>
+#include <QHeaderView>
 #include <QMap>
 #include <QMessageBox>
 #include <QNetworkAccessManager>
@@ -115,13 +119,42 @@ public:
 		root->addWidget(state_);
 
 		auto *split = new QSplitter(Qt::Horizontal, this);
-		stations_ = new QTreeWidget(split);
-		stations_->setHeaderLabels({tr("Station"), tr("DAB block"), tr("Service ID")});
+		auto *library = new QWidget(split);
+		auto *libraryLayout = new QVBoxLayout(library);
+		libraryLayout->setContentsMargins(1,1,1,1);
+		libraryLayout->setSpacing(5);
+		auto *libraryHeader = new QLabel(tr("All scanned DAB stations"),library);
+		libraryHeader->setStyleSheet(QLatin1String("font-weight:600;font-size:15px"));
+		libraryLayout->addWidget(libraryHeader);
+		stationSearch_ = new QLineEdit(library);
+		stationSearch_->setPlaceholderText(tr("Search every saved DAB ensemble…"));
+		stationSearch_->setClearButtonEnabled(true);
+		libraryLayout->addWidget(stationSearch_);
+		auto *libraryFilters = new QHBoxLayout();
+		libraryBlock_ = new QComboBox(library);
+		libraryBlock_->addItem(tr("All DAB blocks"),QString());
+		for (const QString &block : blocks)
+			libraryBlock_->addItem(block,block);
+		favoritesOnly_ = new QCheckBox(tr("★ Favorites only"),library);
+		libraryFilters->addWidget(libraryBlock_,1);
+		libraryFilters->addWidget(favoritesOnly_);
+		libraryLayout->addLayout(libraryFilters);
+		stations_ = new QTreeWidget(library);
+		stations_->setHeaderLabels({tr("★"),tr("Station"),tr("DAB block"),tr("Service ID")});
 		stations_->setRootIsDecorated(false);
 		stations_->setAlternatingRowColors(true);
 		stations_->setSortingEnabled(true);
-		stations_->setMinimumWidth(240);
-		split->addWidget(stations_);
+		stations_->setMinimumWidth(340);
+		stations_->header()->setSectionResizeMode(0,QHeaderView::Fixed);
+		stations_->header()->resizeSection(0,29);
+		stations_->header()->setSectionResizeMode(1,QHeaderView::Stretch);
+		stations_->header()->setSectionResizeMode(2,QHeaderView::ResizeToContents);
+		stations_->header()->setSectionResizeMode(3,QHeaderView::ResizeToContents);
+		stations_->setSortingEnabled(true);
+		libraryLayout->addWidget(stations_,1);
+		libraryStatus_ = new QLabel(tr("Scan every Band III block or open a saved station"),library);
+		libraryLayout->addWidget(libraryStatus_);
+		split->addWidget(library);
 
 		auto *right = new QWidget(split);
 		auto *rightLayout = new QVBoxLayout(right);
@@ -162,7 +195,8 @@ public:
 		meta->addLayout(textBlock, 1);
 		rightLayout->addLayout(meta);
 		split->addWidget(right);
-		split->setStretchFactor(1, 2);
+		split->setStretchFactor(0,1);
+		split->setStretchFactor(1,2);
 		root->addWidget(split, 4);
 
 		auto *lab = new QGroupBox(tr("Offline radio AI · Whisper / translation / timed lyrics"), this);
@@ -249,7 +283,20 @@ public:
 		connect(record_, &QPushButton::clicked, this, [this](){ toggleRecording(); });
 		connect(scan_, &QPushButton::clicked, this, [this](){ beginScan(); });
 		connect(stations_, &QTreeWidget::itemDoubleClicked, this,
-			[this](QTreeWidgetItem *item, int){ selectStation(item); });
+			[this](QTreeWidgetItem *item, int column){
+				if (column==0) toggleFavorite(item);
+				else selectStation(item);
+			});
+		connect(stations_, &QTreeWidget::itemClicked, this,
+			[this](QTreeWidgetItem *item, int column){
+				if (column==0) toggleFavorite(item);
+			});
+		connect(stationSearch_, &QLineEdit::textChanged,this,
+			[this](){ filterStations(); });
+		connect(libraryBlock_,QOverload<int>::of(&QComboBox::currentIndexChanged),
+			this,[this](){ filterStations(); });
+		connect(favoritesOnly_,&QCheckBox::toggled,this,
+			[this](){ filterStations(); });
 		connect(caption_, &QPushButton::clicked, this, [this](){ startCaptioning(); });
 		connect(stopCaption_, &QPushButton::clicked, this, [this](){ stopCaptioning(); });
 		connect(lyrics_, &QPushButton::clicked, this, [this](){ fetchLyrics(); });
@@ -272,6 +319,7 @@ public:
 		tick_.setInterval(1600);
 		connect(&tick_, &QTimer::timeout, this, [this](){ pollMux(); pollCaption(); updateLyrics(); });
 		loadStations();
+		filterStations();
 	}
 
 	~TihuluRadioTab() override { stopReceiver(); }
@@ -415,11 +463,13 @@ private:
 			const QString key = ch + QLatin1Char(':') + sid;
 			if (!stationData_.contains(key)) {
 				auto *item = new QTreeWidgetItem(
-					{serviceLabel, ch, sid});
+					{favorites_.contains(key)?QStringLiteral("★"):QStringLiteral("☆"),
+					 serviceLabel, ch, sid});
 				item->setData(0,Qt::UserRole,key);
 				stations_->addTopLevelItem(item);
 				stationData_[key] = service;
 				stationChannels_[key] = ch;
+				filterStations();
 			}
 			stationData_[key] = service;
 			if (key==playingKey_) {
@@ -449,8 +499,39 @@ private:
 			state_->setText(tr("DAB+ %1 · %2 total known stations · local receiver")
 				.arg(ch).arg(stations_->topLevelItemCount()));
 	}
+	void filterStations() {
+		const QString query=stationSearch_->text().trimmed();
+		const QString block=libraryBlock_->currentData().toString();
+		int visible=0, total=stations_->topLevelItemCount();
+		for (int i=0;i<total;++i) {
+			QTreeWidgetItem *item=stations_->topLevelItem(i);
+			const QString key=item->data(0,Qt::UserRole).toString();
+			const bool match=(query.isEmpty() ||
+				item->text(1).contains(query,Qt::CaseInsensitive) ||
+				item->text(2).contains(query,Qt::CaseInsensitive)) &&
+				(block.isEmpty() || item->text(2)==block) &&
+				(!favoritesOnly_->isChecked() || favorites_.contains(key));
+			item->setHidden(!match);
+			if (match) ++visible;
+		}
+		libraryStatus_->setText(tr("%1 visible / %2 saved stations · all DAB blocks")
+			.arg(visible).arg(total));
+	}
+	void toggleFavorite(QTreeWidgetItem *item) {
+		if (!item) return;
+		const QString key=item->data(0,Qt::UserRole).toString();
+		if (key.isEmpty()) return;
+		if (favorites_.contains(key)) favorites_.remove(key);
+		else favorites_.insert(key);
+		item->setText(0,favorites_.contains(key)?
+			QStringLiteral("★"):QStringLiteral("☆"));
+		saveStations();
+		filterStations();
+	}
 	void loadStations() {
 		QSettings settings(QLatin1String("TIHULU"),QLatin1String("KaffeineRadio"));
+		favorites_ = QSet<QString>::fromList(
+			settings.value(QLatin1String("dabFavorites")).toStringList());
 		const QByteArray raw=settings.value(QLatin1String("dabStationCache")).toByteArray();
 		if (raw.size() > 150000) return;
 		const auto doc=QJsonDocument::fromJson(raw);
@@ -463,7 +544,9 @@ private:
 			if (ch.size()>3 || sid.size()>16 || name.size()>150 ||
 				sid.isEmpty() || ch.isEmpty() || name.isEmpty()) continue;
 			const QString key=ch+QLatin1Char(':')+sid;
-			auto *item = new QTreeWidgetItem({name,ch,sid});
+			auto *item = new QTreeWidgetItem(
+				{favorites_.contains(key)?QStringLiteral("★"):QStringLiteral("☆"),
+				 name,ch,sid});
 			item->setData(0,Qt::UserRole,key);
 			stations_->addTopLevelItem(item);
 			stationChannels_[key]=ch;
@@ -474,14 +557,16 @@ private:
 		for (int i=0;i<stations_->topLevelItemCount() && i<700;++i) {
 			const auto *item=stations_->topLevelItem(i);
 			QJsonObject obj;
-			obj[QLatin1String("channel")]=item->text(1);
-			obj[QLatin1String("sid")]=item->text(2);
-			obj[QLatin1String("name")]=item->text(0);
+			obj[QLatin1String("channel")]=item->text(2);
+			obj[QLatin1String("sid")]=item->text(3);
+			obj[QLatin1String("name")]=item->text(1);
 			list.append(obj);
 		}
 		QSettings settings(QLatin1String("TIHULU"),QLatin1String("KaffeineRadio"));
 		settings.setValue(QLatin1String("dabStationCache"),
 			QJsonDocument(list).toJson(QJsonDocument::Compact));
+		settings.setValue(QLatin1String("dabFavorites"),
+			QStringList(favorites_.values()));
 	}
 	void tune(const QString &block, const std::function<void()> &ready) {
 		if (!active()) return;
@@ -583,7 +668,7 @@ private:
 		if (!active()) { startReceiver(); if (!active()) return; }
 		if (scanning_) { state_->setText(tr("Stop or finish scanning before playback.")); return; }
 		auto play = [this,key,item]() {
-			const QString sid=item->text(2);
+			const QString sid=item->text(3);
 			const QString stream=QLatin1String("/mp3/")+sid;
 			if (!QRegularExpression(QLatin1String("^/mp3/[A-Fa-f0-9x]+$"))
 				.match(stream).hasMatch()) return;
@@ -597,9 +682,9 @@ private:
 			player_->play(QUrl(base()+stream));
 			radioCanvas_->setText(tr("♪ %1\nDAB+ %2 · Live radio\n"
 				"Offline captions appear here when enabled.")
-				.arg(item->text(0),activeChannel_));
-			state_->setText(tr("Playing %1 with Kaffeine / libVLC.")
-				.arg(item->text(0)));
+				.arg(item->text(1),activeChannel_));
+			state_->setText(tr("Playing %1 with native TIHULU/libVLC.")
+				.arg(item->text(1)));
 		};
 		if (activeChannel_!=block) tune(block,play);
 		else play();
@@ -886,6 +971,11 @@ private:
 		*caption_=nullptr,
 		*stopCaption_=nullptr,*lyrics_=nullptr;
 	QTreeWidget *stations_=nullptr;
+	QComboBox *libraryBlock_=nullptr;
+	QLineEdit *stationSearch_=nullptr;
+	QCheckBox *favoritesOnly_=nullptr;
+	QLabel *libraryStatus_=nullptr;
+	QSet<QString> favorites_;
 	QLabel *state_=nullptr,*dls_=nullptr,*signal_=nullptr,*slide_=nullptr,
 		*radioCaption_=nullptr,*lyricText_=nullptr,*plot_=nullptr;
 	QCheckBox *english_=nullptr,*turkish_=nullptr,*music_=nullptr,
