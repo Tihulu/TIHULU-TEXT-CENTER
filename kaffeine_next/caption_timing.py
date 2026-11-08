@@ -42,6 +42,7 @@ class CaptionConfig:
     playback_delay_ms: int = 0
     automatic_sync: bool = False
     on_video: bool = True
+    render_mode: str = "native"  # libVLC compositor, never a QWidget over video
     show_original: bool = True
     show_translation: bool = True
     position: str = "bottom"
@@ -86,6 +87,8 @@ class CaptionConfig:
             raise ValueError("Output languages must be distinct (up to six)")
         if not self.show_original and not self.show_translation:
             raise ValueError("Select original transcript and/or translation")
+        if self.render_mode not in ("native", "legacy-qt"):
+            raise ValueError("Unknown subtitle renderer")
         if self.position not in ("bottom", "top"):
             raise ValueError("Unknown caption position")
         if type(self.font_px) is not int or not 16 <= self.font_px <= 44:
@@ -476,6 +479,7 @@ class KaffeineOSD:
         if not config.on_video or config.mode == "off":
             text = ""
         obj = {"text":str(text)[:1100], "position":config.position,
+               "render_mode":config.render_mode,
                "size":config.font_px, "opacity":config.opacity,
                "text_opacity":config.text_opacity,
                "text_color":config.text_color,
