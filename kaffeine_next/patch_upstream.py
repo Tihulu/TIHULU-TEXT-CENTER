@@ -219,11 +219,9 @@ QAbstractButton *StartTab::addShortcut''')
 			i18n("Media files (*.mp4 *.mkv *.mov *.avi *.webm *.ts *.flac "
 			     "*.mp3 *.wav *.m4a *.aac *.ogg *.opus);;All files (*)"));
 		if (file.isEmpty()) return;
-		if (!QProcess::startDetached(QLatin1String("tihulu-tv-center"),
-			QStringList() << QLatin1String("media-captions-ui")
-			              << QLatin1String("--input") << file))
-			QMessageBox::warning(this, i18n("Offline file captions"),
-				i18n("Install the TIHULU AI companion first."));
+		// Play in THIS same window; the Playback tab includes the
+		// offline GPU/translation/lyrics controls under native libVLC.
+		openUrl(QUrl::fromLocalFile(file));
 	});
 	QAction *captionAction = aiMenu->addAction(i18n("Live Teletext / Whisper subtitles"));''')
 
