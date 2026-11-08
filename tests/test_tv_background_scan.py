@@ -38,9 +38,7 @@ class DvbBackgroundScanTests(unittest.TestCase):
 
     def test_existing_import_safety_kept(self):
         self.assertIn("fix_sql_free_key(files[sql_hdr])", self.patch)
-        self.assertIn("manager->getChannelModel()->channelFlush()", (
-            "manager->getChannelModel()->channelFlush()"  # upstream unchanged
-        ))
+        self.assertIn("manager->getChannelModel()->cloneFrom(channelModel)", self.patch)
         self.assertIn("QSignalBlocker blocker(scanButton)", self.patch)
 
 
