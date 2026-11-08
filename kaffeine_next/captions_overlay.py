@@ -62,7 +62,9 @@ class CaptionTap:
         self.previous_original = ""
         self.previous_revision = -1
         from tv_center.sentence_joiner import LiveSentenceJoiner
-        self.sentence_joiner = LiveSentenceJoiner(max_words=90,max_chunks=3)
+        # Two 6-second clips are the maximum natural-sentence wait;
+        # unpunctuated speech must not remain silently withheld for ~18 s.
+        self.sentence_joiner = LiveSentenceJoiner(max_words=90,max_chunks=2)
         self.sentence_session = None
         self.sentence_captured_start = None
         self.program_id = None
@@ -394,7 +396,9 @@ class CaptionTap:
                 speaker_provider=options.get("speaker_provider","resemblyzer"),
                 music_transcription=bool(options.get("music_transcription",False)),
                 speech_priority=bool(options.get("speech_priority",False)),
-                previous_text=previous)
+                previous_text=previous,
+                defer_asr_translation=not bool(
+                    options.get("music_transcription",False)))
             if options.get("program_epoch") != self.program_epoch:
                 return  # old channel's caption must never appear on new TV
             if result.get("source") == "local_asr" and result.get("original"):
@@ -435,7 +439,18 @@ class CaptionTap:
                     language=result.get("source_language"),
                     silent=not bool(observed))
                 if not joined["text"]:
-                    return  # Retain the incomplete sentence, not a cut-off cue.
+                    # Tell the UI why nothing appeared; this is NOT evidence
+                    # of silence or a hardware failure.
+                    try:
+                        self.events.put_nowait(("sentence_pending",{
+                            "chunks":joined.get("chunks",0),
+                            "maximum_chunks":self.sentence_joiner.max_chunks,
+                            "program_epoch":options.get("program_epoch"),
+                            "revision":options.get("revision"),
+                            "captured_end":captured_end}))
+                    except queue.Full:
+                        pass
+                    return  # Keep words for the next clip.
                 # A loop may span several otherwise valid Whisper clips.
                 # Filter the FINAL assembled sentence too, after overlap
                 # removal, before the translation engine receives it.
