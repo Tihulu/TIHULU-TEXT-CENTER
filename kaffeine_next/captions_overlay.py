@@ -799,10 +799,12 @@ def main(argv=None):
         "drawn independently by the broadcaster.")
     transparent_help.setWordWrap(True)
     quick_layout.addRow(transparent_help)
-    native_note = QLabel("Native renderer: text color, opacity, position and size "
-                         "are supported. A colored backing box requires the "
-                         "experimental Qt renderer; native transparent means "
-                         "no video-covering Qt window.")
+    native_note = QLabel(
+        "Native video renderer: subtitle text and an optional colored "
+        "background are composited into the VLC video itself. "
+        "Background 0% is fully transparent; use 60–80% for a readable "
+        "translucent backing. All colors, opacity, position and size "
+        "apply without enabling the experimental Qt overlay.")
     native_note.setWordWrap(True)
     quick_layout.addRow(native_note)
     appearance_store = QSettings("TIHULU", "KaffeineCaptionAppearance")
