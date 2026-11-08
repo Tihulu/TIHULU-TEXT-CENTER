@@ -313,6 +313,7 @@ def decode_segment(ts: bytes, *, mode="auto", page=150, source="de",
         return {"original": original, "translated": translated, "translations": translations,
                 "asr_backend": speech_diagnostics.get("backend"),
                 "asr_model": speech_diagnostics.get("model"),
+                "asr_engine": speech_diagnostics.get("engine"),
                 "processing_ms": {
                     "teletext":teletext_ms,"asr":asr_ms,
                     "translation":translation_ms,
