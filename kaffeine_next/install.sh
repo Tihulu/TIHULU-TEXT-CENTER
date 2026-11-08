@@ -160,10 +160,12 @@ mkdir -p "$HOME/.local/share/icons/hicolor/scalable/apps"
 cp "$temp/tihulu/kaffeine_next/assets/tihulu-media-center.svg" \
   "$HOME/.local/share/icons/hicolor/scalable/apps/tihulu-media-center.svg"
 
-# Optional user-supplied PNG portrait/logo. Copy unchanged; never attempt
-# to vectorize or replace the artwork without the owner's approval.
-# The SVG remains as a fallback if no supplied logo exists.
-DESKTOP_ICON=tihulu-media-center
+# The standalone PLAY-button player SVG is the new default. The user's
+# earlier, unmodified portrait PNG is preserved but is NOT implicitly reused
+# on every upgrade. An explicitly provided TIHULU_CUSTOM_LOGO chooses PNG
+# for this installation; TIHULU_USE_LEGACY_LOGO=1 restores the saved portrait
+# at runtime without modifying its bytes.
+DESKTOP_ICON="$HOME/.local/share/icons/hicolor/scalable/apps/tihulu-media-center.svg"
 if [[ -n "${TIHULU_CUSTOM_LOGO:-}" ]]; then
   if [[ ! -f "$TIHULU_CUSTOM_LOGO" || -L "$TIHULU_CUSTOM_LOGO" ]]; then
     echo "Custom logo must be a readable regular PNG file." >&2
@@ -175,9 +177,12 @@ if [[ -n "${TIHULU_CUSTOM_LOGO:-}" ]]; then
   fi
   mkdir -p "$HOME/.local/share/icons/hicolor/64x64/apps"
   cp -- "$TIHULU_CUSTOM_LOGO" "$HOME/.local/share/icons/hicolor/64x64/apps/tihulu-media-center.png"
-fi
-if [[ -f "$HOME/.local/share/icons/hicolor/64x64/apps/tihulu-media-center.png" ]]; then
   DESKTOP_ICON="$HOME/.local/share/icons/hicolor/64x64/apps/tihulu-media-center.png"
+fi
+if [[ -f "$HOME/.local/share/icons/hicolor/64x64/apps/tihulu-media-center.png" &&
+      -z "${TIHULU_CUSTOM_LOGO:-}" ]]; then
+  echo "Kept legacy user portrait PNG unchanged; player SVG is now the default icon."
+  echo "To use the portrait again: TIHULU_USE_LEGACY_LOGO=1 tihulu-media-center"
 fi
 
 TIHULU_KAFFEINE_PRIMARY=1 bash "$temp/tihulu/tv_center/packaging/build-deb.sh" "$temp/debs"
