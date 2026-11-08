@@ -72,6 +72,7 @@ def _chunk_cues(pcm: bytes, *, position: float, lang: str, profile:dict,
     """Real GPU word cues; legacy CPU models use honest eight-second chunks."""
     text=""
     words=[]
+    recognized_language=lang
     if (backend=="gpu" and profile["speech"].get("gpu_engine") ==
             "faster_whisper_managed"):
         from .cuda_faster_whisper import transcribe_cuda_details
@@ -121,10 +122,10 @@ def _chunk_cues(pcm: bytes, *, position: float, lang: str, profile:dict,
         if current and start is not None:
             out.append(LyricCue(position+start,
                                 position+max(float(end),start+.3),
-                                " ".join(current),"Whisper/CUDA"))
+                                " ".join(current),"Whisper/CUDA",recognized_language))
         return out
     return [LyricCue(position,position+max(.4,min(duration,8)),
-                     text,"Whisper chunk / not word-aligned",lang)]
+                     text,"Whisper chunk / not word-aligned",recognized_language)
 
 
 def transcribe_local_media(filename: str, *, source: str="de",
