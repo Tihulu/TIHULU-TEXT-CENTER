@@ -60,6 +60,36 @@ class PairedTvClockTests(unittest.TestCase):
         phone.set_caption({"original":"","source":"channel_changed"})
         self.assertEqual(phone.snapshot()["caption_events"],[])
 
+    def test_native_caption_controls_are_queued_and_validate_limits(self):
+        requests=[]
+        phone=KaffeineMobile(opts,lambda _:None,
+             gui_commands=lambda action,params:requests.append((action,params)))
+        for action,params in (
+            ("set_desktop_caption_mode",{"mode":"asr"}),
+            ("set_desktop_caption_offset",{"offset_ms":-2500}),
+            ("set_desktop_tv_buffer",{"buffer_ms":15000}),
+            ("desktop_subtitles_running",{"running":False}),
+        ):
+            response=phone.remote_command(action,params)
+            self.assertTrue(response["queued"])
+        self.assertEqual(len(requests),4)
+        with self.assertRaises(ValueError):
+            phone.remote_command("set_desktop_caption_mode",{"mode":"root"})
+        with self.assertRaises(ValueError):
+            phone.remote_command("set_desktop_caption_offset",{"offset_ms":99999})
+        with self.assertRaises(ValueError):
+            phone.remote_command("set_desktop_tv_buffer",{"buffer_ms":-1})
+        with self.assertRaises(ValueError):
+            phone.remote_command("desktop_subtitles_running",{"running":"false"})
+        self.assertEqual(len(requests),4)
+        from kaffeine_next import captions_overlay
+        import inspect
+        ui=inspect.getsource(captions_overlay.main)
+        self.assertIn('elif kind == "remote_gui_command":',ui)
+        self.assertIn('mode.findData(params["mode"])',ui)
+        self.assertIn('playback_delay.setValue(params["buffer_ms"]/1000)',ui)
+        self.assertIn('set_subtitles_running(params["running"])',ui)
+
     def test_remote_source_and_device_routing_not_tuner_duplicate(self):
         phone=KaffeineMobile(opts,lambda _:None)
         self.assertEqual(phone.remote_command("player_target",{"target":"host"})["target"],"host")
