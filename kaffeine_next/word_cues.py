@@ -85,8 +85,11 @@ def word_groups(result: dict, *, maximum_words: int = 6, maximum_span: float = 1
         # Exact target-language word timing is not supplied by translation
         # engines. Show a short reading window rather than a 6s text dump.
         fraction = (finish + 1) / len(valid)
+        source_language = result.get("source_language")
         payload["translations"] = {
-            lang:_translation_window(message,fraction)
+            lang:(snippet if lang == source_language and
+                  message.strip() == str(result.get("original") or "").strip()
+                  else _translation_window(message,fraction))
             for lang,message in (result.get("translations") or {}).items()
             if isinstance(message,str)}
         if payload["translations"]:
