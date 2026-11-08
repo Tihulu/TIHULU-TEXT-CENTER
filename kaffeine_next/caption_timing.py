@@ -450,6 +450,43 @@ class AutoSyncController:
         return next_ms
 
 
+def buffer_fill_progress(native: dict | None, requested_ms: int) -> dict:
+    """Measured native DVB playback-buffer fill, never a GUI-timer estimate.
+
+    Return None for percent if the receiver status is missing, stale, for an
+    earlier request, or from an old native build lacking queue-age telemetry.
+    100% means the native producer explicitly marked the buffer primed.
+    """
+    if type(requested_ms) is not int or not 0 <= requested_ms <= 20000:
+        raise ValueError("Invalid requested TV buffer")
+    unknown = {"percent": None, "state": "waiting", "queued_ms": None,
+               "effective_ms": None, "requested_ms": requested_ms}
+    if not isinstance(native, dict) or native.get("requested_ms") != requested_ms:
+        return unknown
+    effective = native.get("effective_ms")
+    if type(effective) is not int or not 0 <= effective <= requested_ms:
+        return unknown
+    if requested_ms == 0:
+        return {"percent": 100, "state": "live", "queued_ms": 0,
+                "effective_ms": 0, "requested_ms": 0}
+    if effective == 0:
+        return {"percent": 0, "state": "unavailable", "queued_ms": 0,
+                "effective_ms": 0, "requested_ms": requested_ms}
+    if not native.get("has_queue_age", True):
+        return unknown
+    queued = native.get("queue_age_ms")
+    if type(queued) is not int or queued < 0 or queued > 60000:
+        return unknown
+    primed = native.get("primed") is True
+    percentage = (100 if primed else
+                  max(0, min(99, round(100 * queued / effective))))
+    return {"percent": percentage,
+            "state": "ready" if primed else "filling",
+            "queued_ms": min(queued, effective),
+            "effective_ms": effective,
+            "requested_ms": requested_ms}
+
+
 class KaffeineOSD:
     def __init__(self, pid, runtime=None):
         runtime = Path(runtime or os.environ.get("XDG_RUNTIME_DIR", ""))
@@ -511,6 +548,7 @@ class KaffeineOSD:
                 if primed_flag not in (0,1) or not 0 <= queue_age <= 60000:
                     return None
                 primed = bool(primed_flag)
+                has_queue_age = True
             elif len(values) == 3:
                 # Old native builds report ONLY the target queue setting,
                 # even while a new multi-second playback buffer fills.
@@ -518,6 +556,7 @@ class KaffeineOSD:
                 requested, actual, bps = values
                 primed = (actual == 0)
                 queue_age = 0
+                has_queue_age = False
             else:
                 return None
             if (not 0 <= requested <= 20000 or not 0 <= actual <= requested or
@@ -526,6 +565,7 @@ class KaffeineOSD:
             return {"requested_ms": requested, "effective_ms": actual,
                     "ts_bytes_per_second": bps,
                     "primed":primed, "queue_age_ms":queue_age,
+                    "has_queue_age":has_queue_age,
                     "capped": actual < requested}
         except (OSError, ValueError, UnicodeError):
             return None
