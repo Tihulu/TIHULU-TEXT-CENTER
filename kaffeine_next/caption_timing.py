@@ -47,6 +47,8 @@ class CaptionConfig:
     font_px: int = 25
     opacity: int = 70
     text_opacity: int = 100
+    text_color: str = "#FFFFFF"
+    background_color: str = "#000000"
     revision: int = 0
 
     def validate(self):
@@ -92,6 +94,12 @@ class CaptionConfig:
             raise ValueError("Background opacity must be 0–100%")
         if type(self.text_opacity) is not int or not 0 <= self.text_opacity <= 100:
             raise ValueError("Text opacity must be 0–100%")
+        for field in ("text_color", "background_color"):
+            chosen = getattr(self,field)
+            if (not isinstance(chosen,str) or
+                    re.fullmatch(r"#[0-9A-Fa-f]{6}",chosen) is None):
+                raise ValueError(
+                    field + " must be an RGB hex color such as #FFFFFF")
         for key in ("automatic_sync", "on_video", "show_original", "show_translation",
                     "speaker_enabled"):
             if type(getattr(self, key)) is not bool:
@@ -368,6 +376,8 @@ class KaffeineOSD:
         obj = {"text":str(text)[:1100], "position":config.position,
                "size":config.font_px, "opacity":config.opacity,
                "text_opacity":config.text_opacity,
+               "text_color":config.text_color,
+               "background_color":config.background_color,
                "enabled":bool(config.on_video and config.mode != "off"),
                "expires_ms":int(time.time()*1000) + min(max(int(ttl_ms),0),15000)}
         self._atomic(self.path, json.dumps(obj,ensure_ascii=False,separators=(",",":")))
