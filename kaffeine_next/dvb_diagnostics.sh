@@ -43,5 +43,8 @@ for frontend in "${frontends[@]}"; do
 done
 printf 'A busy frontend cannot be used by two independent programs.\n'
 printf 'Exit the other TV/SDR application normally; do not kill arbitrary processes.\n'
-printf 'In Configure Television set DVB-T2 Source to a real scan list, not No Source.\n'
-printf 'Then use Television > Full Antenna Scan.\n'
+printf 'A detected DVB frontend with read/write permission is not proof of RF lock.\n'
+printf 'TIHULU defaults an UNCONFIGURED DVB-T2 frontend to native AUTO-T2-Normal.\n'
+printf 'If you previously saved No Source, change it explicitly to AUTO-T2-Normal or a suitable regional list.\n'
+printf 'Then run Television > Full Antenna Scan; inspect live lock/SNR in the scan UI.\n'
+printf 'DAB Band III scanning is separate from DVB-T2 and needs a compatible SDR/welle receiver.\n'
