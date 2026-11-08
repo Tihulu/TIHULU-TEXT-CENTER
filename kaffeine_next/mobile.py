@@ -12,9 +12,10 @@ from tv_center.lan import MobileLAN
 from tv_center.streaming import HLSStreamer
 
 class KaffeineMobile:
-    def __init__(self, options, notify, caption=None):
+    def __init__(self, options, notify, caption=None, gui_commands=None):
         self.options = options
         self.notify = notify
+        self.gui_commands = gui_commands
         self.caption = caption or {"original":"", "translated":"", "source":"none"}
         self.caption_sequence = 0
         self.caption_history = []
@@ -61,6 +62,15 @@ class KaffeineMobile:
             "source": "live_native_dvb" if live else "offline",
             "channel": "Kaffeine DVB service "+str(sid) if live else None,
             "caption": caption,
+            "desktop_caption_settings":{
+                "mode":self.options().get("mode","off"),
+                "source":self.options().get("source","auto"),
+                "targets":list(self.options().get("targets",())),
+                "page":self.options().get("page",150),
+                "requested_buffer_ms":self.options().get("playback_delay_ms",0),
+                "offset_ms":self.options().get("offset_ms",0),
+                "on_video":self.options().get("on_video",True),
+            },
             "caption_timing": timing,
             "caption_events": history,
             "server_epoch_ms":round(time.time()*1000),
@@ -184,6 +194,27 @@ class KaffeineMobile:
             if enabled:self.enable_video()
             else:self.stop_video()
             return {"video_enabled":bool(self.hls)}
+        if action in ("set_desktop_caption_mode", "set_desktop_caption_offset",
+                      "set_desktop_tv_buffer", "desktop_subtitles_running"):
+            if not callable(self.gui_commands):
+                raise RuntimeError("Desktop caption control is not attached")
+            if action == "set_desktop_caption_mode":
+                if params.get("mode") not in ("off","teletext","page","asr","auto"):
+                    raise ValueError("Invalid desktop caption mode")
+            elif action == "set_desktop_caption_offset":
+                value = params.get("offset_ms")
+                if type(value) is not int or not -10000<=value<=10000:
+                    raise ValueError("Desktop caption offset must be ±10000 ms")
+            elif action == "set_desktop_tv_buffer":
+                value = params.get("buffer_ms")
+                if type(value) is not int or not 0<=value<=20000:
+                    raise ValueError("Desktop TV buffer must be 0–20000 ms")
+            else:
+                if type(params.get("running")) is not bool:
+                    raise ValueError("Desktop subtitle running must be boolean")
+            self.gui_commands(action,dict(params))
+            return {"queued":True,"action":action,
+                    "note":"Queued for native Qt GUI; wait for status confirmation"}
         if action in ("play", "pause", "stop", "next", "previous", "volume",
                       "tv_channel"):
             from tv_center.remote_controls import native_player_command
