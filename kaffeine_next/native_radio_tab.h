@@ -359,7 +359,7 @@ private:
 				if (!dls.isEmpty() && lastDls_ != dls) {
 					lastDls_=dls;
 					songStartMs_=QDateTime::currentMSecsSinceEpoch();
-					lyricCues_.clear();
+					lyricCues_=QJsonArray();
 					lyricLoaded_=false;
 					if (!lyricPath_.isEmpty()) QFile::remove(lyricPath_);
 					lyricPath_.clear();
@@ -481,7 +481,7 @@ private:
 			lyricLoaded_=false;
 			if (!lyricPath_.isEmpty()) QFile::remove(lyricPath_);
 			lyricPath_.clear();
-			lyricCues_.clear();
+			lyricCues_=QJsonArray();
 			// Kaffeine's native libVLC audio engine, same global playback controls.
 			player_->play(QUrl(base()+stream));
 			state_->setText(tr("Playing %1 with Kaffeine / libVLC.")
@@ -641,7 +641,8 @@ private:
 				const double elapsed=(QDateTime::currentMSecsSinceEpoch()-songStartMs_+
 					lyricsOffset_->value())/1000.;
 				QString current;
-				for (const auto &cue:lyricCues_) {
+				for (const QJsonValue &item:lyricCues_) {
+					const QJsonObject cue=item.toObject();
 					if (cue.value(QLatin1String("start")).toDouble()<=elapsed &&
 					    cue.value(QLatin1String("end")).toDouble()>elapsed) {
 						current=cue.value(QLatin1String("text")).toString();
