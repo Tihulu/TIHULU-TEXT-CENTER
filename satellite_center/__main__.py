@@ -736,7 +736,7 @@ class Station:
             if source == "amateur":
                 entries = [it for it in entries if selectable(source, it)][:80]
             if source == "manual":
-                entries = entries[:30]
+                entries = entries[:80]
             for item in entries:
                 if not selectable(source, item) or item["id"] in processed_norad:
                     continue
