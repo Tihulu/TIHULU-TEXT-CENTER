@@ -76,6 +76,7 @@ QAbstractButton *StartTab::addShortcut''',
 	button->setWhatsThis(i18n("Open the native TIHULU DAB+ station library."));
 	connect(button, SIGNAL(clicked()), mainWindow, SLOT(playRadio()));
 	gridLayout->addWidget(button, 1, 2);
+#endif /* HAVE_DVB == 1 */
 }
 
 QAbstractButton *StartTab::addShortcut''')
