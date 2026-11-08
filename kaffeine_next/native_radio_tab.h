@@ -14,6 +14,7 @@
 #include <QCheckBox>
 #include <QComboBox>
 #include <QDateTime>
+#include <QDialog>
 #include <QCoreApplication>
 #include <QDir>
 #include <QNetworkRequest>
@@ -86,6 +87,7 @@ public:
 		driver_->addItem(tr("Auto SDR"), QLatin1String("auto"));
 		driver_->addItem(tr("RTL-SDR"), QLatin1String("rtl_sdr"));
 		driver_->addItem(tr("SoapySDR"), QLatin1String("soapysdr"));
+		driver_->addItem(tr("Airspy"), QLatin1String("airspy"));
 		driver_->setToolTip(tr("Choose the DAB-capable receiver driver. "
 			"An ordinary DVB-T2 frontend alone cannot be assumed to work."));
 		header->addWidget(driver_);
@@ -193,13 +195,29 @@ public:
 		plotKind_->addItem(tr("Null spectrum"), "nullspectrum");
 		plotKind_->addItem(tr("CIR / impulse response"), "impulseresponse");
 		plotKind_->addItem(tr("Constellation phase"), "constellation");
+		fftPlacement_ = new QComboBox(this);
+		fftPlacement_->addItem(tr("FFT earliest"),QLatin1String("EarliestPeakWithBinning"));
+		fftPlacement_->addItem(tr("FFT strongest"),QLatin1String("StrongestPeak"));
+		fftPlacement_->addItem(tr("FFT threshold"),QLatin1String("ThresholdBeforePeak"));
+		fftPlacement_->setToolTip(tr("Original welle.io FFT synchronization placement; "
+			"changes are applied only on explicit click."));
+		coarseCorrector_ = new QCheckBox(tr("Coarse correction"),this);
+		coarseCorrector_->setChecked(true);
+		coarseCorrector_->setToolTip(tr("Toggle welle.io coarse frequency corrector "
+			"using the local receiver only."));
 		plot_ = new QLabel(tr("On-demand RF plots"), this);
 		plot_->setFixedSize(330, 110);
 		plot_->setAlignment(Qt::AlignCenter);
 		plot_->setStyleSheet(QLatin1String("border:1px solid #456;"));
 		auto *plotButton = new QPushButton(tr("Capture RF plot"), this);
+		auto *detailsButton = new QPushButton(tr("Receiver / TII details"),this);
+		auto *applyRf = new QPushButton(tr("Apply RF options"),this);
 		diagnostics->addWidget(plotKind_);
 		diagnostics->addWidget(plotButton);
+		diagnostics->addWidget(fftPlacement_);
+		diagnostics->addWidget(coarseCorrector_);
+		diagnostics->addWidget(applyRf);
+		diagnostics->addWidget(detailsButton);
 		diagnostics->addWidget(plot_, 1);
 		root->addLayout(diagnostics);
 
@@ -213,6 +231,8 @@ public:
 		connect(stopCaption_, &QPushButton::clicked, this, [this](){ stopCaptioning(); });
 		connect(lyrics_, &QPushButton::clicked, this, [this](){ fetchLyrics(); });
 		connect(plotButton, &QPushButton::clicked, this, [this](){ fetchPlot(); });
+		connect(applyRf, &QPushButton::clicked, this, [this](){ applyRfOptions(); });
+		connect(detailsButton, &QPushButton::clicked, this, [this](){ showReceiverDetails(); });
 		connect(&backend_, &QProcess::readyReadStandardError, this, [this]() {
 			const QString tail = QString::fromUtf8(backend_.readAllStandardError());
 			if (tail.contains(QLatin1String("Cannot")) ||
@@ -341,6 +361,7 @@ private:
 		});
 	}
 	void consumeMux(const QJsonObject &mux, const QString &ch) {
+		lastMux_=mux;
 		const auto receiver = mux.value(QLatin1String("receiver")).toObject();
 		const auto hardware = receiver.value(QLatin1String("hardware")).toObject();
 		const auto demod = mux.value(QLatin1String("demodulator")).toObject();
@@ -663,6 +684,52 @@ private:
 				.arg(type));
 		});
 	}
+	void sendRfOption(const QString &endpoint, const QByteArray &body) {
+		if (!active()) {
+			state_->setText(tr("Start the local DAB receiver first."));
+			return;
+		}
+		QNetworkRequest req(QUrl(base()+endpoint));
+		req.setHeader(QNetworkRequest::ContentTypeHeader,QLatin1String("text/plain"));
+		QNetworkReply *reply=network_.post(req,body);
+		connect(reply,&QNetworkReply::finished,this,[this,reply,endpoint]() {
+			const bool okay=reply->error()==QNetworkReply::NoError;
+			reply->deleteLater();
+			if (!okay)
+				state_->setText(tr("Receiver rejected RF option %1").arg(endpoint));
+		});
+	}
+	void applyRfOptions() {
+		const QString fft=fftPlacement_->currentData().toString();
+		const QStringList allowed={
+			"EarliestPeakWithBinning","StrongestPeak","ThresholdBeforePeak"};
+		if (!allowed.contains(fft)) return;
+		sendRfOption(QLatin1String("/fftwindowplacement"),fft.toUtf8());
+		sendRfOption(QLatin1String("/enablecoarsecorrector"),
+			coarseCorrector_->isChecked()?"1":"0");
+		state_->setText(tr("Requested local welle.io FFT/coarse correction options."));
+	}
+	void showReceiverDetails() {
+		if (lastMux_.isEmpty()) {
+			QMessageBox::information(this,tr("Receiver diagnostics"),
+				tr("No real welle.io demodulation metrics yet."));
+			return;
+		}
+		QDialog dlg(this);
+		dlg.setWindowTitle(tr("Native welle.io · receiver / station / TII diagnostics"));
+		dlg.resize(850,560);
+		auto *layout=new QVBoxLayout(&dlg);
+		auto *note=new QLabel(tr("Raw local receiver diagnostics. The FFT, null "
+			"spectrum, constellation and CIR graphs are shown in the Radio tab."),&dlg);
+		note->setWordWrap(true);
+		layout->addWidget(note);
+		auto *textView=new QPlainTextEdit(&dlg);
+		textView->setReadOnly(true);
+		textView->setPlainText(QString::fromUtf8(
+			QJsonDocument(lastMux_).toJson(QJsonDocument::Indented)));
+		layout->addWidget(textView);
+		dlg.exec();
+	}
 	void startCaptioning() {
 		if (!active() || playingKey_.isEmpty()) {
 			state_->setText(tr("Play a real DAB+ station before starting offline AI.")); return;
@@ -781,14 +848,15 @@ private:
 	QWidget *playerHost_=nullptr;
 	QVBoxLayout *playerHostLayout_=nullptr;
 	QComboBox *channel_=nullptr, *driver_=nullptr, *speechLanguage_=nullptr,
-		*plotKind_=nullptr;
+		*plotKind_=nullptr, *fftPlacement_=nullptr;
 	QPushButton *start_=nullptr,*stop_=nullptr,*scan_=nullptr,*record_=nullptr,
 		*caption_=nullptr,
 		*stopCaption_=nullptr,*lyrics_=nullptr;
 	QTreeWidget *stations_=nullptr;
 	QLabel *state_=nullptr,*dls_=nullptr,*signal_=nullptr,*slide_=nullptr,
 		*radioCaption_=nullptr,*lyricText_=nullptr,*plot_=nullptr;
-	QCheckBox *english_=nullptr,*turkish_=nullptr,*music_=nullptr;
+	QCheckBox *english_=nullptr,*turkish_=nullptr,*music_=nullptr,
+		*coarseCorrector_=nullptr;
 	QSlider *lyricsOffset_=nullptr;
 	QProcess backend_,captionProcess_,recorder_;
 	QNetworkAccessManager network_;
@@ -801,6 +869,7 @@ private:
 	QMap<QString,QJsonObject> stationData_;
 	QMap<QString,QString> stationChannels_;
 	QJsonArray lyricCues_;
+	QJsonObject lastMux_;
 };
 
 #endif // TIHULU_NATIVE_RADIO_TAB_H
