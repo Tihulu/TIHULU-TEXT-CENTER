@@ -320,7 +320,8 @@ def main(argv=None):
             event.ignore()
 
     window = CaptionSettingsWindow()
-    window.setWindowTitle("TIHULU · Live captions / Whisper / Translator")
+    window.setWindowTitle(
+        "TIHULU · Live captions · GPU Whisper + translation failover")
     window.setMinimumWidth(780)
     window.setStyleSheet(
         "QWidget{background:#0c1722;color:#e8f3fa;font-size:13px}"
@@ -507,6 +508,10 @@ def main(argv=None):
     original.setObjectName("subtitle"); original.setWordWrap(True)
     translated = QLabel("")
     translated.setObjectName("subtitle"); translated.setWordWrap(True)
+    translated.setToolTip(
+        "Translations are computed offline. Missing or broken NLLB "
+        "automatically uses installed Argos language packs. Model errors "
+        "are never shown as captions.")
     root.addWidget(original); root.addWidget(translated)
     status = QLabel("Whisper captions use 6-second overlapping audio chunks plus processing time. "
                     "Audio and video remain synchronized with each other.")
@@ -966,6 +971,17 @@ def main(argv=None):
                             " | Offline speakers detected (IDs local to clip)")
                     if data.get("audio_notice"):
                         status.setText(status.text() + "\n" + data["audio_notice"])
+                    failures = data.get("translation_errors") or {}
+                    backup = data.get("translation_warnings") or {}
+                    if backup:
+                        status.setText(status.text() +
+                            " | Translator: Argos fallback (" +
+                            ", ".join(sorted(backup)).upper() + ")")
+                    elif failures:
+                        status.setText(status.text() +
+                            " | Translation unavailable (" +
+                            ", ".join(sorted(failures)).upper() +
+                            ") · original speech retained")
                     if data.get("error"):
                         status.setText(status.text()+"\n"+data["error"])
                 elif data.get("error"):
@@ -979,16 +995,42 @@ def main(argv=None):
             mobile.set_caption(result)
             current_text = applied.render(result)
             current_until = cue["expires"]
-            original.setText("ORIGINAL: "+result.get("original", ""))
-            translations = result.get("translations", {})
+            source_language = str(result.get("source_language") or applied.source).upper()
+            original.setText("ORIGINAL [" + source_language + "]: " +
+                             result.get("original", ""))
+            translations = result.get("translations") or {}
+            failures = result.get("translation_errors") or {}
+            fallback = result.get("translation_warnings") or {}
             if applied.show_translation and applied.target_languages:
-                translated.setText("TRANSLATIONS: " + (
-                    " · ".join(lang.upper()+": "+translations[lang]
-                             for lang in applied.target_languages if lang in translations)
-                    or result.get("translation_error") or result.get("error")
-                    or "No translated phrase yet · open Model Market"))
+                available = [
+                    lang.upper() + ": " + translations[lang]
+                    for lang in applied.target_languages
+                    if isinstance(translations.get(lang), str) and
+                    translations[lang].strip()]
+                if available:
+                    heading = ("TRANSLATIONS · Argos backup: " if fallback else
+                               "TRANSLATIONS: ")
+                    translated.setText(heading + " · ".join(available))
+                else:
+                    requested = ", ".join(applied.target_languages).upper()
+                    translated.setText(
+                        "Translation unavailable for " + requested +
+                        " · original " + source_language +
+                        " subtitles remain visible.")
+                if failures:
+                    translated.setToolTip(
+                        "Offline translator diagnostics (not subtitles):\n" +
+                        "\n".join(lang.upper()+": "+str(message)[:180]
+                                  for lang,message in failures.items()))
+                elif fallback:
+                    translated.setToolTip(
+                        "NLLB could not produce output; the installed Argos "
+                        "language pack handled this phrase.")
+                else:
+                    translated.setToolTip("Translation output is local/offline.")
             else:
-                translated.setText("Translations not selected")
+                translated.setText("")
+                translated.setToolTip("Translations are not selected.")
             ipc.publish(current_text,applied,ttl_ms=3000)
             last_published = now
         elif current_cue and now >= current_until:
