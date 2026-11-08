@@ -211,6 +211,18 @@ def asr_from_clip(path: Path, language: str, model: str,
         if not model or not Path(model).expanduser().is_file():
             raise RuntimeError("CPU Whisper model missing. Install/select a multilingual GGML model.")
         profile["speech"]["model_path"] = str(Path(model).expanduser())
+    if (selected["selected"] == "gpu" and
+            profile["speech"].get("gpu_engine") == "faster_whisper_managed"):
+        # The CUDA worker returns *measured* word positions within this
+        # original pre-playback DVB audio clip. A later subtitle scheduler
+        # uses them only when an active native TV delay can be confirmed.
+        from .cuda_faster_whisper import transcribe_cuda_details
+        details = transcribe_cuda_details(
+            audio.stdout, language, str(profile["speech"]["gpu_model_path"]))
+        if diagnostics is not None:
+            diagnostics["words"] = details.get("words", [])
+            diagnostics["word_timing_source"] = "faster_whisper_cuda_word_timestamps"
+        return details["text"].strip()
     return transcribe_pcm(audio.stdout, language, selected["selected"], profile).strip()
 
 def translate(text: str, source: str, target: str) -> tuple[str | None, str | None]:
@@ -354,6 +366,8 @@ def decode_segment(ts: bytes, *, mode="auto", page=150, source="de",
                 "asr_model": speech_diagnostics.get("model"),
                 "asr_engine": speech_diagnostics.get("engine"),
                 "audio_notice": speech_diagnostics.get("audio_notice"),
+                "words":speech_diagnostics.get("words", []),
+                "word_timing_source":speech_diagnostics.get("word_timing_source"),
                 "processing_ms": {
                     "teletext":teletext_ms,"asr":asr_ms,
                     "translation":translation_ms,
