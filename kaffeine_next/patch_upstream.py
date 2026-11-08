@@ -16,7 +16,8 @@ PATHS = ("src/mainwindow.cpp", "src/mainwindow.h", "src/CMakeLists.txt",
          "src/dvb/dvbliveview_p.h", "src/dvb/dvbmanager.cpp", "src/dvb/dvbtab.cpp",
          "src/dvb/dvbtab.h", "src/dvb/dvbconfigdialog.cpp", "src/dvb/dvbscandialog.cpp", "src/backend-vlc/vlcmediawidget.cpp",
          "src/mediawidget.cpp", "src/mediawidget.h", "src/osdwidget.cpp",
-         "src/osdwidget.h", "src/main.cpp", "src/dvb/dvbepg.cpp")
+         "src/osdwidget.h", "src/main.cpp", "src/dvb/dvbepg.cpp",
+         "src/sqlinterface.h")
 
 def transform(files):
     files = dict(files)
@@ -1145,6 +1146,19 @@ void DvbTab::showChannelDialog()
 	}
 	return NULL;
 }''')
+
+    # Kaffeine 2.0.19 upstream crash in DVB scan result import:
+    # sqlFindFreeKey() uses std::prev(end, -1), which tries to move
+    # FORWARD from end() rather than backwards to the final QMap entry.
+    # With two or more channel additions DvbChannelModel::cloneFrom()
+    # dereferences an invalid map iterator and can SIGSEGV. Reported as
+    # KDE #503740 / Debian #1110405 / #1103728; fix the actual cause.
+    # This is idempotent with change(), so an already-corrected upstream
+    # checkout also remains valid. The original empty-container check is
+    # retained so prev(end) is never evaluated for an empty map.
+    sql_hdr = "src/sqlinterface.h"
+    change(sql_hdr, "std::prev(container.constEnd(), -1)",
+           "std::prev(container.constEnd())")
 
     # Critical guard for native scan/channel-import crashes.
     # The pinned upstream DvbScanDialog releases its exclusive tuner *before*
