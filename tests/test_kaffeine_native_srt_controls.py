@@ -93,7 +93,7 @@ class CaptionWindowControlsTests(unittest.TestCase):
         self.assertIn('srt_recorder.append(cue, applied)', code)
         from kaffeine_next.patch_upstream import transform
         patch = inspect.getsource(transform)
-        self.assertIn('libvlc_position_top : libvlc_position_bottom', patch)
+        self.assertIn('atTop ? 4 : 8', patch)
         self.assertIn('tihuluCaptionCacheKey.clear()', patch)
         self.assertIn('Load generated SRT in native player...', patch)
 
