@@ -1421,17 +1421,35 @@ class Station:
         # Platform-native rtl-sdr tools report actual device errors.
         if platform.system() == "Linux" and not tuner_present():
             raise RuntimeError("Exactly one Linux RTL2832U must be present")
-        if detect_busy():
-            raise RuntimeError("Another receiver appears active; scan not started")
+        conflicts = detect_busy()
+        if conflicts:
+            names = sorted({str(row.get("process", "unknown") if isinstance(row, dict) else row)
+                            for row in conflicts})[:8]
+            raise RuntimeError(
+                "RTL-SDR may be occupied by another receiver: " + ", ".join(names) +
+                ". Stop that program (e.g. Flight Radar/readsb) explicitly, "
+                "then retry. Satellite Center does not stop external processes.")
         TEXT_CENTER_LOCK.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
         fd = os.open(TEXT_CENTER_LOCK, os.O_CREAT|os.O_RDWR|getattr(os, "O_CLOEXEC", 0)|getattr(os, "O_NOFOLLOW", 0), 0o600)
         try:
             lock_receiver(fd)
-            if detect_busy():
-                raise RuntimeError("Receiver occupied during preflight")
-        except (RuntimeError, OSError):
-            os.close(fd)
-            raise RuntimeError("RTL-SDR receiver lease unavailable")
+            conflicts = detect_busy()
+            if conflicts:
+                raise RuntimeError(
+                    "RTL-SDR receiver became busy during acquisition: " +
+                    ", ".join(sorted({str(row.get("process", "unknown") if isinstance(row, dict)
+                                           else row) for row in conflicts})[:8]) +
+                    ". Close the competing application before retrying.")
+        except (RuntimeError, OSError) as exc:
+            try:
+                unlock_receiver(fd)
+            finally:
+                os.close(fd)
+            if isinstance(exc, RuntimeError) and "became busy" in str(exc):
+                raise
+            raise RuntimeError(
+                "RTL-SDR receiver lease unavailable; another app may own the USB tuner. "
+                "Check Flight Radar/readsb, SatDump, or Gqrx before retrying.") from exc
         self.device_lock = fd
 
     def _release(self):
@@ -1672,19 +1690,39 @@ class Station:
                 self._release()
 
     def _run_bounded(self, command, timeout):
-        proc = self._launch_receiver(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        with self.lock: self.process = proc
-        try:
-            until = time.monotonic()+timeout
-            while proc.poll() is None and not self.stopping.is_set() and time.monotonic()<until:
-                time.sleep(0.2)
-            if self.stopping.is_set() or proc.poll() is None:
-                raise RuntimeError("Receiver stopped or timed out")
-            if proc.returncode:
-                raise RuntimeError("RF recorder exited unsuccessfully (device busy, permission or signal)")
-        finally:
-            stop_process(proc)
-            with self.lock: self.process = None
+        """Bounded native receiver with real stderr evidence, like Flight Radar.
+
+        Keep diagnostics in an ephemeral local file, never a potentially
+        blocking PIPE. Only the child launched by this Station may be stopped.
+        """
+        import tempfile
+        with tempfile.TemporaryFile() as diagnostic:
+            proc = self._launch_receiver(
+                command, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                stderr=diagnostic)
+            with self.lock: self.process = proc
+            try:
+                until = time.monotonic()+timeout
+                while proc.poll() is None and not self.stopping.is_set() and time.monotonic()<until:
+                    time.sleep(0.2)
+                if self.stopping.is_set():
+                    raise RuntimeError("RF recording stopped by operator")
+                if proc.poll() is None:
+                    raise RuntimeError("RF recorder exceeded its time limit")
+                if proc.returncode:
+                    diagnostic.flush()
+                    diagnostic.seek(0)
+                    excerpt = diagnostic.read(8192).decode("utf-8", "replace")[-700:]
+                    excerpt = re.sub(r"[\\x00-\\x1f\\x7f]+", " ", excerpt).strip()
+                    raise RuntimeError(
+                        "rtl_sdr exited with code " + str(proc.returncode) +
+                        (": " + excerpt if excerpt else
+                         "; check SDR ownership, USB permissions and driver access"))
+            finally:
+                stop_process(proc)
+                with self.lock:
+                    if self.process is proc:
+                        self.process = None
 
     def _wait_decode(self, procs, seconds):
         finish = time.monotonic()+seconds
