@@ -8,15 +8,23 @@ existing chunk queue remains the correct fallback.
 from __future__ import annotations
 
 
-def _translation_window(text: str, progress: float, max_words: int = 9) -> str:
+def _translation_window(text: str, first: int, last: int, total: int) -> str:
+    """Non-overlapping estimated translation for a single source phrase.
+
+    Repeating a rolling nine-word translation window created a fake
+    'karaoke' effect in which the same words reappeared several times.
+    We cannot pretend translation is word-aligned: distribute target words
+    into disjoint partitions keyed to real source-word group boundaries.
+    """
     tokens = str(text).split()
-    if not tokens:
+    if not tokens or total <= 0:
         return ""
-    count = max(1, min(len(tokens), round(progress * len(tokens))))
-    return " ".join(tokens[max(0, count-max_words):count])
+    a = round(max(0, first) * len(tokens) / total)
+    b = round(min(total, last) * len(tokens) / total)
+    return " ".join(tokens[a:b])
 
 
-def word_groups(result: dict, *, maximum_words: int = 6, maximum_span: float = 1.75):
+def word_groups(result: dict, *, maximum_words: int = 11, maximum_span: float = 3.5):
     """Return (source-clip-relative start/end, partial caption result).
 
     Reject malformed or non-monotonic timestamps rather than presenting a
@@ -59,14 +67,22 @@ def word_groups(result: dict, *, maximum_words: int = 6, maximum_span: float = 1
         first = index
         finish = index
         first_speaker = speaker_at(valid[first][0],valid[first][1])
-        while finish + 1 < len(valid) and finish-first+1 < maximum_words and (
-                valid[finish+1][1]-valid[first][0] <= maximum_span):
-            next_speaker = speaker_at(valid[finish+1][0],valid[finish+1][1])
+        while finish + 1 < len(valid) and finish-first+1 < maximum_words:
+            current = valid[finish]
+            following = valid[finish+1]
+            if current[2].endswith((".", "!", "?", "…")):
+                break
+            if following[1]-valid[first][0] > maximum_span:
+                break
+            # Prefer natural pauses and complete clauses instead of
+            # flickering one- and two-word fragments every 0.3 seconds.
+            if (following[0]-current[1] >= 0.55 and
+                    current[1]-valid[first][0] >= 1.3):
+                break
+            next_speaker = speaker_at(following[0],following[1])
             if first_speaker and next_speaker and first_speaker != next_speaker:
                 break
             finish += 1
-            if valid[finish][2].endswith((".", "!", "?", "…")):
-                break
         snippet = " ".join(x[2] for x in valid[first:finish+1])
         payload = dict(result)
         payload["original"] = snippet
@@ -84,16 +100,20 @@ def word_groups(result: dict, *, maximum_words: int = 6, maximum_span: float = 1
                 payload["speaker_index"] = speaker_number
         # Exact target-language word timing is not supplied by translation
         # engines. Show a short reading window rather than a 6s text dump.
-        fraction = (finish + 1) / len(valid)
         source_language = result.get("source_language")
         payload["translations"] = {
-            lang:(snippet if lang == source_language and
-                  message.strip() == str(result.get("original") or "").strip()
-                  else _translation_window(message,fraction))
+            lang:(_translation_window(
+                str(result.get("original") or ""),first,finish+1,len(valid))
+                if lang == source_language and
+                   message.strip() == str(result.get("original") or "").strip()
+                else _translation_window(message,first,finish+1,len(valid)))
             for lang,message in (result.get("translations") or {}).items()
             if isinstance(message,str)}
+        payload["translations"] = {
+            k:v for k,v in payload["translations"].items() if v.strip()}
         if payload["translations"]:
-            payload["translation_alignment"] = "estimated from source-word progress"
+            payload["translation_alignment"] = (
+                "distinct phrases divided proportionally; not exact word alignment")
         groups.append((valid[first][0], max(valid[finish][1],
                                            valid[first][0]+0.25), payload))
         index = finish+1
@@ -107,7 +127,15 @@ def enqueue_word_cues(queue, result, config, captured_start, captured_end, finis
     # Audio extraction can strip leading TS packets. Never schedule past the
     # captured duration plus a small offset; fallback to the regular cue.
     duration = captured_end - captured_start
-    if duration <= 0 or any(start > duration+1.0 for start,_,_ in groups):
+    if (duration <= 0 or any(start > duration+0.35 or
+                                  end > duration+0.5 for start,end,_ in groups)):
+        return None
+    # When the decoder/translator finishes AFTER the source audio has
+    # already played, do not burst several obsolete words in rapid
+    # succession. Emit one coherent chunk with an honest late status.
+    last_audio_due = captured_end + (
+        config.playback_delay_ms + config.offset_ms) / 1000.0
+    if finished >= last_audio_due - 0.45:
         return None
     prior = None
     for start,end,payload in groups:
