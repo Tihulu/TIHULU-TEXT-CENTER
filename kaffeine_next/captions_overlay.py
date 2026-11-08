@@ -548,10 +548,11 @@ def main(argv=None):
                                  buffer_fill_progress)
     from .word_cues import enqueue_word_cues
     from .track_preferences import recommended_track, _signaled_language
-    from PyQt5.QtCore import Qt, QTimer, QSettings
+    from PyQt5.QtCore import Qt, QTimer, QSettings, QProcess
     from PyQt5.QtGui import QColor
     from PyQt5.QtWidgets import (QApplication, QWidget, QVBoxLayout, QHBoxLayout,
-        QLabel, QComboBox, QPushButton, QSpinBox, QDoubleSpinBox,
+        QLabel, QComboBox, QPushButton, QToolButton, QMenu, QWidgetAction,
+        QSpinBox, QDoubleSpinBox,
         QCheckBox, QGroupBox, QFormLayout, QLineEdit, QColorDialog,
         QScrollArea, QFrame, QGridLayout, QFileDialog, QTabWidget,
         QProgressBar)
@@ -627,7 +628,7 @@ def main(argv=None):
     mode.addItem("Off", "off")
     source = QComboBox()
     source.setEditable(True)
-    source.addItem("Auto detect · Whisper", "auto")
+    source.addItem("Auto detect → English (UI default)", "auto")
     source.addItems(LANGS)
     source.setCurrentIndex(0)
     source.setToolTip(
@@ -648,11 +649,89 @@ def main(argv=None):
     output_row.addWidget(QLabel("Display"))
     output_row.addWidget(display_mode, 2)
     output_row.addWidget(QLabel("Output languages"))
-    language_boxes = {lang: QCheckBox(lang.upper()) for lang in LANGS}
-    for lang, check in language_boxes.items():
-        check.setChecked(lang == "tr")
-        output_row.addWidget(check)
+    # Multi-check dropdown, populated from installed offline translator packs.
+    # Discovery runs in a child process to avoid blocking live DVB playback.
+    language_boxes = {}
+    output_button = QToolButton()
+    output_button.setText("Checking installed languages…")
+    output_button.setPopupMode(QToolButton.InstantPopup)
+    output_button.setMinimumWidth(170)
+    output_menu = QMenu(output_button)
+    output_button.setMenu(output_menu)
+    output_row.addWidget(output_button,1)
     settings_layout.addRow(output_row)
+    output_catalog_status = QLabel("Checking locally installed output languages…")
+    output_catalog_status.setWordWrap(True)
+    settings_layout.addRow(output_catalog_status)
+    requested_languages = {"en","tr"}
+    def summarize_languages(*_):
+        checked = [code.upper() for code,box in language_boxes.items()
+                   if box.isChecked()]
+        output_button.setText(", ".join(checked) or "Choose output languages")
+    def fill_languages(result):
+        items = result.get("languages", ()) if isinstance(result,dict) else ()
+        output_menu.clear()
+        language_boxes.clear()
+        content = QWidget(output_menu)
+        content_layout = QVBoxLayout(content)
+        content_layout.setContentsMargins(10,8,10,8)
+        content_layout.setSpacing(5)
+        for item in items:
+            if not isinstance(item,dict):
+                continue
+            try:
+                code = language_code(item.get("code",""),nllb=True)
+            except ValueError:
+                continue
+            if code in language_boxes:
+                continue
+            label = str(item.get("label",code.upper()))[:50]
+            engines = item.get("engines") or []
+            cb = QCheckBox(code.upper()+" · "+label,content)
+            cb.setToolTip("On disk: "+", ".join(str(x) for x in engines)+
+                ". A full source→target translation is verified by a real inference test.")
+            cb.setChecked(code in requested_languages)
+            language_boxes[code] = cb
+            content_layout.addWidget(cb)
+            cb.toggled.connect(summarize_languages)
+            cb.toggled.connect(set_pending)
+        if not language_boxes:
+            content_layout.addWidget(QLabel(
+                "No installed language packs. Use Model Market.",content))
+        scroll = QScrollArea(output_menu)
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.NoFrame)
+        scroll.setMaximumHeight(320)
+        scroll.setMinimumWidth(260)
+        scroll.setWidget(content)
+        action = QWidgetAction(output_menu)
+        action.setDefaultWidget(scroll)
+        output_menu.addAction(action)
+        if isinstance(result,dict) and result.get("errors"):
+            output_catalog_status.setText(
+                "Installed-language discovery incomplete: "+
+                "; ".join(str(e) for e in result["errors"])[:230])
+        else:
+            output_catalog_status.setText(
+                str(len(language_boxes))+" installed output languages available. "
+                "Translation direction and runtime still require verification.")
+        summarize_languages()
+    language_process = QProcess(window)
+    def language_catalog_finished(*_):
+        try:
+            payload=bytes(language_process.readAllStandardOutput()).decode(
+                "utf-8","replace")
+            if language_process.exitCode()!=0 or len(payload)>75000:
+                raise ValueError("Installed-language discovery failed")
+            result=json.loads(payload)
+        except (ValueError,TypeError) as exc:
+            result={"languages":[],"errors":[str(exc)]}
+        fill_languages(result)
+    language_process.finished.connect(language_catalog_finished)
+    def start_language_catalog():
+        if language_process.state()==QProcess.NotRunning:
+            language_process.start(sys.executable,["-m","tv_center.installed_languages"])
+    QTimer.singleShot(150,start_language_catalog)
     extra_targets = QLineEdit()
     extra_targets.setPlaceholderText(
         "Optional extra target codes: es, pl, ar, ja or zho_Hant")
@@ -667,14 +746,7 @@ def main(argv=None):
     translation_health.setWordWrap(True)
     settings_layout.addRow("Translation status", translation_health)
     def update_language_choices(*_):
-        for lang, check in language_boxes.items():
-            check.setEnabled(True)
-            check.setToolTip(
-                ("Same as spoken language · display original under " +
-                 lang.upper() + " label (no translator needed)"
-                 if lang == source.currentText() else
-                 "Translate to " + lang.upper() + " when a local model exists; "
-                 "otherwise keep the original readable"))
+        summarize_languages()
     source.currentTextChanged.connect(update_language_choices)
     update_language_choices()
     tracks_row = QHBoxLayout()
@@ -1152,7 +1224,7 @@ def main(argv=None):
                                 hinted and hinted not in WHISPER_LANGUAGES and
                                 chosen_track is None):
             hinted = None
-        automatic_source = source.currentText() == "Auto detect · Whisper"
+        automatic_source = source.currentData() == "auto" and source.currentIndex()==0
         # An explicitly selected speech language takes precedence. With Auto,
         # use a trustworthy DVB audio/subtitle language BEFORE asking Whisper
         # to guess from a noisy six-second chunk. With no reliable descriptor,
@@ -1228,7 +1300,7 @@ def main(argv=None):
             if mode.currentData() in ("asr", "auto"):
                 chosen = selected.get("source_hint") or selected.get("language")
                 if chosen and chosen != "und" and (
-                        source.currentText() != "Auto detect · Whisper"):
+                        source.currentData() != "auto"):
                     source.setCurrentText(language_code(chosen))
                 detected = selected.get("source_hint") or selected.get("language")
                 if (not detected or
@@ -1265,7 +1337,7 @@ def main(argv=None):
                         str(new_offset/1000) + "s. Other changes: Apply")
     caption_offset.valueChanged.connect(apply_offset_immediately)
     for w in (show_video,automatic,speaker_enabled,music_transcription,
-              speech_priority,*language_boxes.values()):
+              speech_priority):
         w.toggled.connect(set_pending)
 
     def apply_settings():
@@ -1359,7 +1431,7 @@ def main(argv=None):
         mode.setCurrentIndex(0)
         source.setCurrentIndex(0); display_mode.setCurrentIndex(1)
         for lang, check in language_boxes.items():
-            check.setChecked(lang == "tr")
+            check.setChecked(lang in ("en","tr"))
         subtitle_track.setCurrentIndex(0)
         audio_track.setCurrentIndex(0)
         extra_targets.clear()
