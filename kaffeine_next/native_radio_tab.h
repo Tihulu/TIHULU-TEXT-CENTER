@@ -1714,7 +1714,9 @@ private:
 		if (!lyricsEnabled_) return;
 		if (lyricPath_.isEmpty() || lyricLoaded_) {
 			if (!lyricCues_.isEmpty() && songStartMs_>0) {
-				const double elapsed=(QDateTime::currentMSecsSinceEpoch()-songStartMs_+
+				const qint64 start=autoLyricSync_->isChecked()
+					?songStartMs_:manualSongStartMs_;
+				const double elapsed=(QDateTime::currentMSecsSinceEpoch()-start+
 					lyricsOffset_->value())/1000.;
 				QString current;
 				for (const QJsonValue &item:lyricCues_) {
@@ -1742,6 +1744,8 @@ private:
 		if (value.value(QLatin1String("status")).toString()==QLatin1String("completed")) {
 			lyricLoaded_=true;
 			lyricCues_=value.value(QLatin1String("cues")).toArray();
+			// Manual timing is anchored to the lookup result, not fake audio matching.
+			manualSongStartMs_=QDateTime::currentMSecsSinceEpoch();
 			lyricText_->setText(tr("%1 synchronized lyric lines · estimated "
 				"from DLS time; adjust offset as necessary.")
 				.arg(lyricCues_.size()));
@@ -1809,7 +1813,7 @@ private:
 		lyricsEnabled_=false,
 		plotPending_=false;
 	int scanIndex_=0;
-	qint64 songStartMs_=0;
+	qint64 songStartMs_=0,manualSongStartMs_=0;
 	QString activeChannel_,playingKey_,lastDls_,captionPath_,lyricPath_,
 		lastDetectedLanguage_;
 	QMap<QString,QJsonObject> stationData_;
