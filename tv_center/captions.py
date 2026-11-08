@@ -330,6 +330,7 @@ def decode_segment(ts: bytes, *, mode="auto", page=150, source="de",
         p = Path(tmp) / "broadcast.ts"
         p.write_bytes(ts)
         original, used, error = "", "", None
+        raw_asr_original = ""
         used_language = source
         speech_diagnostics = {}
         timing_started = time.perf_counter()
@@ -365,6 +366,7 @@ def decode_segment(ts: bytes, *, mode="auto", page=150, source="de",
                 speech_language = audio_source or source
                 original = asr_from_clip(p, speech_language, model, service_id,
                                          **asr_kwargs)
+                raw_asr_original = original[:2500]  # private overlap bookkeeping
                 if original:
                     used_language = speech_language
                 if original and previous_text:
@@ -418,7 +420,8 @@ def decode_segment(ts: bytes, *, mode="auto", page=150, source="de",
                     errors[language] = failed
             translation_ms = round((time.perf_counter()-translate_start)*1000)
         translated = translations.get(target)
-        return {"original": original, "translated": translated, "translations": translations,
+        return {"original": original, "raw_asr_original":raw_asr_original,
+                "translated": translated, "translations": translations,
                 "asr_backend": speech_diagnostics.get("backend"),
                 "asr_model": speech_diagnostics.get("model"),
                 "asr_engine": speech_diagnostics.get("engine"),
