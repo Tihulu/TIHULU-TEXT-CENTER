@@ -87,7 +87,10 @@ scanSource=TIHULU tested: 538 / 586 / 626 MHz
 
     def test_upstream_release_is_immutable(self):
         self.assertEqual(REVISION, "e7ea15b86dafed3b20b151cbcb080578ab8e2d5c")
-        self.assertEqual(len(PATHS), 17)
+        # The pinned KDE revision is immutable; patching its SQL allocator
+        # adds one deliberately version-guarded upstream header to our list.
+        self.assertEqual(len(PATHS), 18)
+        self.assertIn("src/sqlinterface.h", PATHS)
         self.assertIn("src/dvb/dvbscandialog.cpp", PATHS)
         self.assertIn("src/dvb/dvbconfigdialog.cpp", PATHS)
         self.assertIn("src/mainwindow.h", PATHS)
