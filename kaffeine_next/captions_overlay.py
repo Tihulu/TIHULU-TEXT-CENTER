@@ -1180,7 +1180,8 @@ def main(argv=None):
                 current_until = 0.0
                 original.setText("Waiting for captions under the new source settings…")
                 translated.setText("")
-                ipc.publish("", applied)
+                ipc.publish("", applied if service_running else
+                            __import__("dataclasses").replace(applied, mode="off"))
             else:
                 # Font, opacity, position, visible languages and caption
                 # offset are display-time changes, NOT a new ASR source.
@@ -1289,6 +1290,7 @@ def main(argv=None):
 
     def set_subtitles_running(should_run):
         nonlocal service_running, applied, current_cue, current_text, current_until
+        nonlocal last_published
         with lock:
             if service_running == should_run:
                 return
@@ -1302,7 +1304,11 @@ def main(argv=None):
         current_until = 0.0
         estimator.clear()
         auto_controller.reset()
-        ipc.publish("", applied)
+        # Pausing recognition is not the same as leaving a selectable AI
+        # caption track active in Kaffeine. Keep the DVB player untouched.
+        ipc.publish("", applied if should_run else
+                    __import__("dataclasses").replace(applied, mode="off"))
+        last_published = time.monotonic()
         if not should_run and srt_recorder.active:
             recorded = srt_recorder.stop()
             srt_status.setText("SRT saved: " + ", ".join(str(p) for p in recorded))
@@ -1809,16 +1815,22 @@ def main(argv=None):
             ipc.publish(current_text,applied,ttl_ms=3000)
             last_published = now
         elif current_cue and now >= current_until + 1.0:
-            # Small jitter/ASR chunk gaps are not explicit silence. Holding
-            # the last *complete* sentence briefly avoids empty-frame flicker.
-            # A channel change or explicit stop still clears immediately.
+            # Clear expired speech without stopping the capture service.
             current_cue = None
             current_text = ""
-            ipc.publish("",applied)
+            ipc.publish("",applied if service_running else
+                        __import__("dataclasses").replace(applied, mode="off"))
+            last_published = now
             original.setText("Waiting for next live phrase…")
             translated.setText("")
-        elif current_cue and now-last_published >= 1.8:
-            ipc.publish(current_text,applied,ttl_ms=4000)
+        elif now-last_published >= 1.5:
+            # A real local caption-service heartbeat keeps Kaffeine's
+            # virtual subtitle entry stable BETWEEN spoken phrases, including
+            # extended silences. An empty cue means "available, no speech".
+            heartbeat = (applied if service_running else
+                         __import__("dataclasses").replace(applied, mode="off"))
+            ipc.publish(current_text if current_cue and service_running else "",
+                        heartbeat, ttl_ms=3500)
             last_published = now
 
     timer = QTimer(window)
