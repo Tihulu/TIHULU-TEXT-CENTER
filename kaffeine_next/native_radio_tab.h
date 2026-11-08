@@ -67,7 +67,7 @@ class TihuluRadioTab final : public TabBase
 public:
 	explicit TihuluRadioTab(MediaWidget *player, QWidget *parent = nullptr)
 		: TabBase(), player_(player), backend_(this), captionProcess_(this),
-		  recorder_(this), network_(this), tick_(this)
+		  recorder_(this), lyricsProcess_(this), network_(this), tick_(this)
 	{
 		setParent(parent);
 		auto *root = new QVBoxLayout(this);
@@ -236,11 +236,14 @@ public:
 		v->addWidget(radioCaption_);
 		auto *lyricsRow = new QHBoxLayout();
 		lyrics_ = new QPushButton(tr("Find timed lyrics (optional internet)"), lab);
+		stopLyrics_=new QPushButton(tr("Stop lyrics"),lab);
+		stopLyrics_->setEnabled(false);
 		lyricsOffset_ = new QSlider(Qt::Horizontal, lab);
 		lyricsOffset_->setRange(-90000, 90000);
 		lyricsOffset_->setValue(0);
-		lyricsOffset_->setToolTip(tr("Manual lyric sync offset, milliseconds (-12s to +12s)."));
+		lyricsOffset_->setToolTip(tr("Manual lyric sync offset, milliseconds (-90s to +90s)."));
 		lyricsRow->addWidget(lyrics_);
+		lyricsRow->addWidget(stopLyrics_);
 		lyricsRow->addWidget(new QLabel(tr("Lyric timing:"), lab));
 		lyricsRow->addWidget(lyricsOffset_, 1);
 		v->addLayout(lyricsRow);
@@ -318,6 +321,7 @@ public:
 		connect(caption_, &QPushButton::clicked, this, [this](){ startCaptioning(); });
 		connect(stopCaption_, &QPushButton::clicked, this, [this](){ stopCaptioning(); });
 		connect(lyrics_, &QPushButton::clicked, this, [this](){ fetchLyrics(); });
+		connect(stopLyrics_, &QPushButton::clicked, this, [this](){ stopLyrics(); });
 		connect(slidePrev_,&QPushButton::clicked,this,[this](){slideMove(-1);});
 		connect(slideNext_,&QPushButton::clicked,this,[this](){slideMove(1);});
 		connect(plotButton, &QPushButton::clicked, this, [this](){ fetchPlot(); });
@@ -418,6 +422,7 @@ private:
 		shuttingDown_ = true;
 		scanning_ = false;
 		stopCaptioning();
+		stopLyrics();
 		stopRecording();
 		tick_.stop();
 		if (!playingKey_.isEmpty()) player_->stop();
@@ -503,6 +508,10 @@ private:
 					songStartMs_=QDateTime::currentMSecsSinceEpoch();
 					lyricCues_=QJsonArray();
 					lyricLoaded_=false;
+					lyricsEnabled_=false;
+					if (lyricsProcess_.state()!=QProcess::NotRunning)
+						lyricsProcess_.kill();
+					stopLyrics_->setEnabled(false);
 					if (!lyricPath_.isEmpty()) QFile::remove(lyricPath_);
 					lyricPath_.clear();
 					lyricText_->setText(tr("New DLS text. Lyrics need fresh explicit lookup."));
@@ -698,6 +707,10 @@ private:
 			playingKey_=key;
 			lastDls_.clear();
 			lyricLoaded_=false;
+			lyricsEnabled_=false;
+			if (lyricsProcess_.state()!=QProcess::NotRunning)
+				lyricsProcess_.kill();
+			stopLyrics_->setEnabled(false);
 			if (!lyricPath_.isEmpty()) QFile::remove(lyricPath_);
 			lyricPath_.clear();
 			lyricCues_=QJsonArray();
@@ -972,6 +985,19 @@ private:
 		if (!captionPath_.isEmpty()) QFile::remove(captionPath_);
 		captionPath_.clear();
 	}
+	void stopLyrics() {
+		lyricsEnabled_=false;
+		if (lyricsProcess_.state()!=QProcess::NotRunning) {
+			lyricsProcess_.terminate();
+			if (!lyricsProcess_.waitForFinished(600)) lyricsProcess_.kill();
+		}
+		if (!lyricPath_.isEmpty()) QFile::remove(lyricPath_);
+		lyricPath_.clear();
+		lyricCues_=QJsonArray();
+		lyricLoaded_=false;
+		stopLyrics_->setEnabled(false);
+		lyricText_->setText(tr("Timed lyrics stopped (no online lyric polling)."));
+	}
 	void fetchLyrics() {
 		if (!active() || playingKey_.isEmpty()) {
 			lyricText_->setText(tr("Play a station first.")); return;
@@ -994,13 +1020,22 @@ private:
 		lyricPath_=runtime+QLatin1String("/tihulu-radio-lyrics-")+
 			QString::number(QCoreApplication::applicationPid())+QLatin1String(".json");
 		QFile::remove(lyricPath_);
-		QProcess::startDetached(QLatin1String("tihulu-tv-center"),
+		lyricsEnabled_=true;
+		lyricLoaded_=false;
+		lyricsProcess_.start(QLatin1String("tihulu-tv-center"),
 			{QLatin1String("lyrics-lookup"),QLatin1String("--artist"),artist,
 			 QLatin1String("--track"),title,QLatin1String("--output"),lyricPath_,
 			 QLatin1String("--online")});
-		lyricText_->setText(tr("Checking time-coded lyrics…"));
+		if (!lyricsProcess_.waitForStarted(900)) {
+			lyricsEnabled_=false;
+			lyricText_->setText(tr("Could not start lyrics lookup."));
+			return;
+		}
+		stopLyrics_->setEnabled(true);
+		lyricText_->setText(tr("Searching verified time-coded lyrics… Stop available."));
 	}
 	void updateLyrics() {
+		if (!lyricsEnabled_) return;
 		if (lyricPath_.isEmpty() || lyricLoaded_) {
 			if (!lyricCues_.isEmpty() && songStartMs_>0) {
 				const double elapsed=(QDateTime::currentMSecsSinceEpoch()-songStartMs_+
@@ -1041,7 +1076,8 @@ private:
 		*plotKind_=nullptr, *fftPlacement_=nullptr;
 	QPushButton *start_=nullptr,*stop_=nullptr,*scan_=nullptr,*record_=nullptr,
 		*caption_=nullptr,
-		*stopCaption_=nullptr,*lyrics_=nullptr,*slidePrev_=nullptr,*slideNext_=nullptr;
+		*stopCaption_=nullptr,*lyrics_=nullptr,*stopLyrics_=nullptr,
+		*slidePrev_=nullptr,*slideNext_=nullptr;
 	QTreeWidget *stations_=nullptr;
 	QComboBox *libraryBlock_=nullptr;
 	QLineEdit *stationSearch_=nullptr;
@@ -1054,11 +1090,12 @@ private:
 		*livePlot_=nullptr,*showWidgets_=nullptr,
 		*coarseCorrector_=nullptr;
 	QSlider *lyricsOffset_=nullptr;
-	QProcess backend_,captionProcess_,recorder_;
+	QProcess backend_,captionProcess_,recorder_,lyricsProcess_;
 	QNetworkAccessManager network_;
 	QTimer tick_;
 	quint16 port_=0;
 	bool scanning_=false,shuttingDown_=false,slidePending_=false,lyricLoaded_=false,
+		lyricsEnabled_=false,
 		plotPending_=false;
 	int scanIndex_=0;
 	qint64 songStartMs_=0;
