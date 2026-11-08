@@ -13,6 +13,7 @@ import subprocess
 import threading
 from pathlib import Path
 from .runtime import AIRuntime
+from .language_codes import language_code
 
 class NLLBService:
     def __init__(self):
@@ -37,8 +38,10 @@ class NLLBService:
     def translate(self,text,source,target):
         if not isinstance(text,str) or len(text)>1600:
             raise ValueError("Caption text invalid")
-        if source not in ("de","en","tr") or target not in ("de","en","tr"):
-            raise ValueError("Unsupported translator language")
+        source = language_code(source, nllb=True)
+        target = language_code(target, nllb=True)
+        if source == target:
+            return text
         with self.lock:
             if self.process is None or self.process.poll() is not None:
                 self._start()
