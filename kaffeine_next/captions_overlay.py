@@ -892,8 +892,28 @@ def main(argv=None):
     extra_targets.textChanged.connect(set_pending)
     presets.currentIndexChanged.connect(set_pending)
     source.currentTextChanged.connect(set_pending)
-    for w in (page,caption_offset,playback_delay,font,opacity,text_opacity):
+    for w in (page,playback_delay,font,opacity,text_opacity):
         w.valueChanged.connect(set_pending)
+    def apply_offset_immediately(value):
+        nonlocal applied, current_text, current_until
+        # Only the caption presentation clock is modified here.
+        # An unsaved change to source, model or audio buffer remains pending.
+        new_offset = round(float(value)*1000)
+        old_offset = applied.offset_ms
+        if new_offset == old_offset:
+            return
+        with lock:
+            applied = __import__("dataclasses").replace(
+                applied, offset_ms=new_offset)
+        cues.retime(new_offset-old_offset,applied)
+        if current_cue is not None:
+            current_cue["config"] = applied
+            current_text = applied.render(current_cue["result"])
+            ipc.publish(current_text,applied,ttl_ms=4000)
+            current_until = max(current_until,time.monotonic()+1.8)
+        pending.setText("Caption offset applied live · " +
+                        str(new_offset/1000) + "s. Other changes: Apply")
+    caption_offset.valueChanged.connect(apply_offset_immediately)
     for w in (show_video,automatic,speaker_enabled,music_transcription,
               *language_boxes.values()):
         w.toggled.connect(set_pending)
@@ -903,27 +923,43 @@ def main(argv=None):
         try:
             selected = from_controls()
             previous = applied
-            if selected.mode != previous.mode or selected.source != previous.source or (
-                    selected.target_languages != previous.target_languages) or (
-                    selected.music_transcription != previous.music_transcription or
-                    selected.speaker_enabled != previous.speaker_enabled or
-                    selected.speaker_provider != previous.speaker_provider or
-                    selected.speaker_aliases != previous.speaker_aliases):
+            source_changed = any(
+                getattr(selected, key) != getattr(previous, key)
+                for key in ("mode", "source", "target_languages", "page",
+                            "teletext_pid", "audio_pid", "audio_language",
+                            "music_transcription", "speaker_enabled",
+                            "speaker_provider", "speaker_aliases"))
+            # The native video/audio buffer really changes the media clock.
+            # Unlike a cosmetic change, that requires fresh cue calibration.
+            playback_changed = (selected.playback_delay_ms !=
+                                previous.playback_delay_ms)
+            if source_changed:
                 estimator.clear()
-            # Switching automatic control ON starts the calibration afresh.
             if selected.automatic_sync != previous.automatic_sync:
                 auto_controller.reset()
             with lock:
                 applied = __import__("dataclasses").replace(
-                    selected, revision=applied.revision+1)
-            cues.clear()
-            current_cue = None
-            current_text = ""
-            current_until = 0.0
-            original.setText("Waiting for captions under the new settings…")
-            translated.setText("")
-            ipc.publish("",applied)
-            ipc.set_playback_delay(applied)
+                    selected, revision=previous.revision +
+                    int(source_changed or playback_changed))
+            if source_changed or playback_changed:
+                cues.clear()
+                current_cue = None
+                current_text = ""
+                current_until = 0.0
+                original.setText("Waiting for captions under the new source settings…")
+                translated.setText("")
+                ipc.publish("", applied)
+            else:
+                # Font, opacity, position, visible languages and caption
+                # offset are display-time changes, NOT a new ASR source.
+                cues.retime(applied.offset_ms - previous.offset_ms, applied)
+                if current_cue is not None:
+                    current_cue["config"] = applied
+                    current_text = applied.render(current_cue["result"])
+                    ipc.publish(current_text, applied, ttl_ms=4000)
+                    current_until = max(current_until, time.monotonic()+1.8)
+            if playback_changed:
+                ipc.set_playback_delay(applied)
             automatic_active = applied.automatic_sync and applied.mode not in ("off","page","teletext")
             sync_estimate.setText(
                 ("Automatic timing enabled · collecting live Whisper samples ("
