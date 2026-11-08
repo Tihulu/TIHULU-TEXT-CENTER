@@ -99,11 +99,14 @@ public:
 			"stop recording to release the file."));
 		scan_ = new QPushButton(tr("Scan all blocks"), this);
 		scan_->setToolTip(tr("Retunes across Band III blocks; can take minutes."));
-		header->addWidget(start_);
-		header->addWidget(scan_);
-		header->addWidget(record_);
-		header->addWidget(stop_);
 		root->addLayout(header);
+		// Operational buttons wrap to a second row on narrower displays.
+		auto *receiverActions=new QHBoxLayout();
+		receiverActions->addWidget(start_);
+		receiverActions->addWidget(scan_);
+		receiverActions->addWidget(record_);
+		receiverActions->addWidget(stop_);
+		root->addLayout(receiverActions);
 
 		state_ = new QLabel(tr("Receiver disconnected. A separate DAB-capable SDR is required; "
 			"the DVB-T2 television adapter is not automatically a DAB receiver."), this);
@@ -166,9 +169,12 @@ public:
 		row->addWidget(english_);
 		row->addWidget(turkish_);
 		row->addWidget(music_);
-		row->addWidget(caption_);
-		row->addWidget(stopCaption_);
 		v->addLayout(row);
+		auto *captionActions=new QHBoxLayout();
+		captionActions->addStretch(1);
+		captionActions->addWidget(caption_);
+		captionActions->addWidget(stopCaption_);
+		v->addLayout(captionActions);
 		radioCaption_ = new QLabel(tr("Radio AI is OFF; it never starts without your request."), lab);
 		radioCaption_->setTextFormat(Qt::PlainText);
 		radioCaption_->setWordWrap(true);
@@ -189,6 +195,8 @@ public:
 		v->addWidget(lyricText_);
 		root->addWidget(lab);
 
+		auto *diagnosticCard = new QGroupBox(tr("DAB receiver diagnostics / welle.io"),this);
+		auto *diagnosticLayout=new QVBoxLayout(diagnosticCard);
 		auto *diagnostics = new QHBoxLayout();
 		plotKind_ = new QComboBox(this);
 		plotKind_->addItem(tr("Spectrum"), "spectrum");
@@ -214,12 +222,15 @@ public:
 		auto *applyRf = new QPushButton(tr("Apply RF options"),this);
 		diagnostics->addWidget(plotKind_);
 		diagnostics->addWidget(plotButton);
-		diagnostics->addWidget(fftPlacement_);
-		diagnostics->addWidget(coarseCorrector_);
-		diagnostics->addWidget(applyRf);
-		diagnostics->addWidget(detailsButton);
 		diagnostics->addWidget(plot_, 1);
-		root->addLayout(diagnostics);
+		diagnosticLayout->addLayout(diagnostics);
+		auto *rfOptions=new QHBoxLayout();
+		rfOptions->addWidget(fftPlacement_,1);
+		rfOptions->addWidget(coarseCorrector_);
+		rfOptions->addWidget(applyRf);
+		rfOptions->addWidget(detailsButton);
+		diagnosticLayout->addLayout(rfOptions);
+		root->addWidget(diagnosticCard);
 
 		connect(start_, &QPushButton::clicked, this, [this](){ startReceiver(); });
 		connect(stop_, &QPushButton::clicked, this, [this](){ stopReceiver(); });
