@@ -16,6 +16,8 @@ import sys
 import threading
 import time
 
+from .tv_tune_state import read_native_tune
+
 # Longer contiguous phrases improve Whisper context; overlap covers words
 # spanning boundaries. Queued capture lets CPU inference finish without
 # *immediately* discarding the next 6-second segment.
@@ -48,6 +50,7 @@ class CaptionTap:
         self.packet_guard = CaptionPacketGuard()
         self.subtitle_discovery = TeletextSubtitleDiscovery()
         self.program_epoch = 0
+        self.native_tune_state = None
         self.recv_buffer_bytes = None
         self.work_queue = BufferedCaptionQueue(
             maximum_bytes=(48 if Path("/proc/device-tree/model").is_file()
@@ -106,6 +109,30 @@ class CaptionTap:
         except queue.Full:
             pass
 
+    def poll_owner_tune(self) -> bool:
+        """Owner tune changes invalidate decoded captions even with no TS."""
+        observed = read_native_tune(self.path)
+        if observed is None or observed == self.native_tune_state:
+            return False
+        self.native_tune_state = observed
+        self.program_epoch += 1
+        self.program_id = None
+        self.work_queue.clear()
+        self.subtitle_discovery.clear()
+        self.packet_guard.reset()
+        self.transport_health.reset()
+        self.previous_original = ""
+        self.previous_revision = -1
+        try:
+            self.events.put_nowait(("native_tv_tune", {
+                "owner_epoch": observed[0],
+                "service_id": observed[1],
+                "transport_stream_id": observed[2],
+                "program_epoch": self.program_epoch}))
+        except queue.Full:
+            self._note_warning("Native TV tune observed; UI will resynchronize.")
+        return True
+
     def _reader(self):
         chunks = bytearray()
         last = time.monotonic()
@@ -114,8 +141,20 @@ class CaptionTap:
         previous_duration = 0.0
         quality = {"invalid":0,"duplicates":0,"gaps":0,"critical_gaps":0}
         from .continuous_captions import CapturedClip, prepended_overlap, estimate_overlap_seconds
-        from .mpegts import current_program_id
+        from .mpegts import current_program_identity
+        last_owner_poll = 0.0
         while not self.stop.is_set():
+            tick = time.monotonic()
+            if tick - last_owner_poll >= 0.15:
+                last_owner_poll = tick
+                if self.poll_owner_tune():
+                    chunks.clear()
+                    last = tick
+                    last_revision = -1
+                    previous_segment = b""
+                    previous_duration = 0.0
+                    quality = {"invalid":0,"duplicates":0,"gaps":0,
+                               "critical_gaps":0}
             try:
                 data = self.sock.recv(188 * 32)
             except socket.timeout:
@@ -146,9 +185,21 @@ class CaptionTap:
                     self.bytes_per_second = 0.7 * self.bytes_per_second + 0.3 * measured_rate
                 self._rate_start = rate_now
                 self._rate_bytes = 0
+            # Validate native owner-selected SID + TSID before accepting
+            # any packets. Old multiplex data can remain in a Unix socket
+            # after a tune; a matching service ID alone is insufficient.
+            identity = current_program_identity(data)
+            if self.native_tune_state is not None:
+                expected = self.native_tune_state[1:]
+                if expected[0] == 0:
+                    continue  # Kaffeine stopped TV; never reuse old TS.
+                if self.program_id is None and identity != expected:
+                    continue  # Await PAT for the NEW owner-selected service.
+                if identity is not None and identity != expected:
+                    continue  # Stale old service or recycled SID/multiplex.
             # Kaffeine may switch services without reopening this sidecar.
             # Never concatenate clips or deduplicate speech across TV channels.
-            observed_program = current_program_id(data)
+            observed_program = identity[0] if identity is not None else None
             if observed_program and observed_program != self.program_id:
                 if self.program_id is not None:
                     chunks.clear()
@@ -290,6 +341,7 @@ class CaptionTap:
                 captured_options["ts_integrity"] = segment_quality
                 captured_options["service_id"] = self.program_id
                 captured_options["program_epoch"] = self.program_epoch
+                captured_options["native_tune_state"] = self.native_tune_state
                 queued = self.work_queue.offer(
                     CapturedClip(capture, captured_options, started, now))
                 if not queued:
@@ -441,6 +493,12 @@ class CaptionTap:
             result["captured_end"] = captured_end
             result["decoded_at"] = time.monotonic()
             result["revision"] = options.get("revision", 0)
+            result["program_epoch"] = options.get("program_epoch")
+            result["native_tune_state"] = options.get("native_tune_state")
+            # Recheck before publishing. Decoder/translator can take
+            # seconds; no result from a previous tune may be displayed.
+            if options.get("program_epoch") != self.program_epoch:
+                return
             try:
                 self.events.put_nowait(("caption", result))
             except queue.Full:
