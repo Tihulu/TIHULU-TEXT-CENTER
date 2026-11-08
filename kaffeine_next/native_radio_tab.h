@@ -503,9 +503,13 @@ private:
 		const auto fic = demod.value(QLatin1String("fic")).toObject();
 		const auto ensemble = mux.value(QLatin1String("ensemble")).toObject();
 		const QString stationGroup = label(ensemble.value(QLatin1String("label")));
-		signal_->setText(tr("Ensemble: %1  |  SNR: %2 dB  |  FIC errors: %3  |  Gain: %4\nSDR: %5")
+		const double snr=demod.value(QLatin1String("snr")).toDouble();
+		const QString quality=(snr>=15?tr("strong"):snr>=8?
+			tr("moderate"):tr("weak / uncertain"));
+		signal_->setText(tr("Ensemble: %1  |  SNR: %2 dB (%3)  |  FIC errors: %4  |  Gain: %5\nSDR: %6")
 			.arg(stationGroup.isEmpty()?tr("not locked"):stationGroup)
-			.arg(demod.value(QLatin1String("snr")).toDouble(),0,'f',1)
+			.arg(snr,0,'f',1)
+			.arg(quality)
 			.arg(fic.value(QLatin1String("numcrcerrors")).toVariant().toString())
 			.arg(hardware.value(QLatin1String("gain")).toVariant().toString())
 			.arg(hardware.value(QLatin1String("name")).toString()));
@@ -539,7 +543,10 @@ private:
 				                         .toObject().value(QLatin1String("label")));
 				if (!dls.isEmpty() && lastDls_ != dls) {
 					lastDls_=dls;
-					songStartMs_=QDateTime::currentMSecsSinceEpoch();
+					// DLS is live; the audible audio may be delayed by radio caching.
+					// This is approximate metadata sync, NOT audio fingerprinting.
+					songStartMs_=QDateTime::currentMSecsSinceEpoch()+
+						bufferMs_->value();
 					lyricCues_=QJsonArray();
 					lyricLoaded_=false;
 					lyricsEnabled_=false;
