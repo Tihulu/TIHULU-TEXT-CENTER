@@ -362,7 +362,7 @@ def main(argv=None):
                                  effective_cue_config, confirmed_cue_config)
     from .word_cues import enqueue_word_cues
     from .track_preferences import recommended_track, _signaled_language
-    from PyQt5.QtCore import Qt, QTimer
+    from PyQt5.QtCore import Qt, QTimer, QSettings
     from PyQt5.QtGui import QColor
     from PyQt5.QtWidgets import (QApplication, QWidget, QVBoxLayout, QHBoxLayout,
         QLabel, QComboBox, QPushButton, QSpinBox, QDoubleSpinBox,
@@ -570,7 +570,7 @@ def main(argv=None):
     show_video = QCheckBox("On-video subtitles"); show_video.setChecked(True)
     position = QComboBox(); position.addItems(("bottom", "top"))
     font = QSpinBox(); font.setRange(16, 44); font.setValue(25)
-    opacity = QSpinBox(); opacity.setRange(0, 100); opacity.setValue(70); opacity.setSuffix("%")
+    opacity = QSpinBox(); opacity.setRange(0, 100); opacity.setValue(0); opacity.setSuffix("%")
     text_opacity = QSpinBox()
     text_opacity.setRange(0, 100); text_opacity.setValue(100)
     text_opacity.setSuffix("%")
@@ -596,11 +596,12 @@ def main(argv=None):
     timing_layout.addRow("Subtitle appearance", appearance_row)
     preset_row = QHBoxLayout()
     presets = QComboBox()
+    presets.addItem("No background · white text visible", ("#FFFFFF","#000000",0,100))
     presets.addItem("White text · translucent black", ("#FFFFFF","#000000",70,100))
     presets.addItem("Yellow text · black", ("#FFE45C","#000000",75,100))
     presets.addItem("Cyan text · navy", ("#6EE7F8","#0B2540",60,100))
-    presets.addItem("White text · no background", ("#FFFFFF","#000000",0,100))
-    presets.addItem("Fully transparent text + background", ("#FFFFFF","#000000",0,0))
+    presets.addItem("Yellow text · no background", ("#FFE45C","#000000",0,100))
+    presets.addItem("Hide ALL subtitles · both opacities 0%", ("#FFFFFF","#000000",0,0))
     presets.addItem("Custom colors / transparency", None)
     presets.setToolTip(
         "A preset can be changed with either color picker, or "
@@ -612,6 +613,14 @@ def main(argv=None):
     appearance_preview.setWordWrap(True)
     preset_row.addWidget(appearance_preview,2)
     timing_layout.addRow("Appearance presets", preset_row)
+    transparent_help = QLabel(
+        "No background = Background 0% and Text 100%. "
+        "Text 0% hides the letters too. The chosen appearance is saved "
+        "locally and restored next time; it does NOT change DVB subtitles "
+        "drawn independently by the broadcaster.")
+    transparent_help.setWordWrap(True)
+    timing_layout.addRow(transparent_help)
+    appearance_store = QSettings("TIHULU", "KaffeineCaptionAppearance")
 
     def update_appearance_preview(*_):
         fg = QColor(active_colors["text"])
@@ -652,8 +661,27 @@ def main(argv=None):
     background_button.clicked.connect(lambda: pick_appearance_color("background"))
     text_button.clicked.connect(lambda: pick_appearance_color("text"))
     presets.currentIndexChanged.connect(apply_appearance_preset)
-    opacity.valueChanged.connect(update_appearance_preview)
-    text_opacity.valueChanged.connect(update_appearance_preview)
+    def appearance_opacity_changed(*_):
+        presets.blockSignals(True)
+        presets.setCurrentIndex(presets.count()-1)
+        presets.blockSignals(False)
+        update_appearance_preview()
+    opacity.valueChanged.connect(appearance_opacity_changed)
+    text_opacity.valueChanged.connect(appearance_opacity_changed)
+    # Restore only an explicitly SAVED appearance. Never reset a viewer's
+    # no-background preference when they reopen the captions controller.
+    for channel in ("text", "background"):
+        stored = str(appearance_store.value(channel+"_color",
+                     active_colors[channel]))
+        if QColor(stored).isValid() and len(stored)==7:
+            active_colors[channel] = stored.upper()
+    try:
+        opacity.setValue(int(appearance_store.value("background_opacity", 0)))
+        text_opacity.setValue(int(appearance_store.value("text_opacity", 100)))
+    except (ValueError,TypeError):
+        opacity.setValue(0)
+        text_opacity.setValue(100)
+    presets.setCurrentIndex(presets.count()-1)
     update_appearance_preview()
     control_layout.addWidget(timing)
     control_layout.addStretch(1)
@@ -896,6 +924,12 @@ def main(argv=None):
                  + str(estimator.ceiling_ms / 1000) + " s.")
                 if automatic_active else
                 "Automatic timing OFF; measured recommendations will not change playback.")
+            for channel in ("text", "background"):
+                appearance_store.setValue(
+                    channel+"_color",active_colors[channel])
+            appearance_store.setValue("background_opacity",applied.opacity)
+            appearance_store.setValue("text_opacity",applied.text_opacity)
+            appearance_store.sync()
             pending.setText("Applied · " + applied.mode + " · " + applied.source.upper() +
                             " → " + (" + ".join(lang.upper() for lang in
                                 applied.target_languages) or "original only") +
