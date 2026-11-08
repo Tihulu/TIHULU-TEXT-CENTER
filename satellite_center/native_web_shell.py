@@ -282,7 +282,7 @@ class NativeReceiver(QObject):
             errors=[]
             sources={}
             caps={"iss":1,"meteor3":1,"meteor4":1,
-                  "amateur":24,"iridium":14}
+                  "amateur":80,"iridium":24}
             for source in SOURCE_URLS:
                 path=st.directory/(source+".tle")
                 report=refresh_report.get(source,{})
@@ -298,7 +298,7 @@ class NativeReceiver(QObject):
                     continue
                 try:
                     text=path.read_text(encoding="ascii",errors="replace")
-                    items=parse_tle(text,limit=200)
+                    items=parse_tle(text,limit=300)
                     accepted=0
                     for item in items:
                         if not selectable(source,item):continue
@@ -408,7 +408,8 @@ class NativeReceiver(QObject):
             return st.plan_passes(city="Cologne",
                 lat=float(args["lat"]),lon=float(args["lon"]),
                 hours=int(args.get("hours",24)),
-                elevation=float(args.get("elevation",15)))
+                elevation=float(args.get("elevation",15)),
+                window=args.get("window"))
         if command=="capture":
             frequency=int(args["frequency"])
             profile=next((key for key,setting in PROFILES.items()
