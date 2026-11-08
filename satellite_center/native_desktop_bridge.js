@@ -394,6 +394,71 @@
     }
   };
   // Pass card forms are native SDR schedules, never browser-local/WebUSB jobs.
+  // They reuse browser HTML, but every scheduling hint/budget must describe
+  // the native OS receiver rather than WebUSB's <=60 second segmented capture.
+  const enhanceNativePassForm=form=>{
+    if(!form)return;
+    const card=form.closest('.pass');
+    const norad=Number(card?.dataset?.norad);
+    const selects=[...form.querySelectorAll('select')];
+    const checks=[...form.querySelectorAll('input[type="checkbox"]')];
+    const secondsInput=form.querySelector('input[type="number"]');
+    const freq=selects[0],unit=selects[1],rate=selects[2];
+    const raw=checks[0],wav=checks[1];
+    if(!freq||!raw||!wav)return;
+    const hint=form.querySelector('p.hint.schedule-wide');
+    const budget=form.querySelector('.schedule-capture-budget');
+    const legacyLink=form.querySelector('a[href^="http://127.0.0.1:8791/"]');
+    if(legacyLink)legacyLink.hidden=true;
+    const update=()=>{
+      const hz=Number(freq.value);
+      const meteor=(norad===57166||norad===59051);
+      const supportsWav= !meteor && [145800000,437550000,437800000].includes(hz);
+      wav.disabled=!supportsWav;
+      if(!supportsWav){wav.checked=false;raw.checked=true;}
+      wav.title=supportsWav
+        ?'ISS FM WAV audio is available for this selected downlink'
+        :'This native profile does not support FM WAV. Meteor LRPT requires original IQ (.cu8).';
+      if(hint)hint.textContent=
+        'Native OS RTL-SDR: continuous local-disk IQ recording up to 900 seconds / 2 GB, '+
+        'if this duration fits the predicted pass. No WebUSB, browser downloads, '+
+        'or 60-second file segmentation. Keep the PC awake and Satellite Center running.';
+      if(budget){
+        const n=Number(secondsInput?.value||0);
+        const secs=Math.round(n*(unit?.value==='minutes'?60:1));
+        const sr=Number(rate?.value||1024000);
+        const bytes=secs*((raw.checked?2*sr:0)+(wav.checked?96000:0));
+        const tooLarge=bytes>2000000000;
+        budget.textContent=secs<=900
+          ?'Native capture: 1 continuous file · '+secs+' s · '+
+            (bytes/1e6).toFixed(1)+' MB estimated'+
+            (tooLarge?' · exceeds the 2 GB safety cap':'')+
+            '. Must finish before predicted LOS.'
+          :'Native long request: '+secs+' s. Exceeds 900 s single-file limit; '+
+            'separate OS capture segments and restart gaps required. '+
+            'All segments must fit the predicted pass.';
+      }
+    };
+    if(form.dataset.nativeScheduleEnhanced!=='true'){
+      form.dataset.nativeScheduleEnhanced='true';
+      for(const el of [freq,unit,rate,raw,wav,secondsInput]){
+        el?.addEventListener('change',update);
+        if(el===secondsInput)el?.addEventListener('input',update);
+      }
+    }
+    update();
+  };
+  const enhanceAllNativePassForms=()=>{
+    document.querySelectorAll('form.pass-schedule-form').forEach(enhanceNativePassForm);
+  };
+  enhanceAllNativePassForms();
+  const passList=$('passes');
+  if(passList){
+    new MutationObserver(entries=>{
+      if(entries.some(entry=>entry.addedNodes.length))
+        enhanceAllNativePassForms();
+    }).observe(passList,{childList:true,subtree:true});
+  }
   document.addEventListener('submit',event=>{
     const form=event.target.closest?.('form.pass-schedule-form');
     if(!form)return;
@@ -414,10 +479,21 @@
       if(warn)warn.textContent='Native pass metadata missing; refresh TLE and recalculate.';
       return;
     }
+    // Guard against stale/browser-only media selections, including imported
+    // form state from before the desktop native bridge was initialized.
+    enhanceNativePassForm(form);
     const args={...coordinateArgs(),norad,aos_millis,when_millis:at,
       frequency:Number(selections[0]?.value),
       rate:Number(selections[2]?.value||1024000),
       seconds,raw:Boolean(checks[0]?.checked),wav:Boolean(checks[1]?.checked)};
+    if(!args.raw&&!args.wav){
+      if(warn)warn.textContent='Choose original IQ (.cu8), or ISS FM WAV when supported.';
+      return;
+    }
+    if((norad===57166||norad===59051)&&(!args.raw||args.wav)){
+      if(warn)warn.textContent='Meteor LRPT requires original IQ (.cu8) only. Disable WAV / Robot36.';
+      return;
+    }
     if(warn)warn.textContent='Verifying native orbital geometry and receiver availability…';
     lookup('schedule',args).then(result=>{
       if(warn)warn.textContent='Native TLE-backed RF capture scheduled: '+
