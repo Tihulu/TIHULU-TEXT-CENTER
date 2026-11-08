@@ -126,6 +126,16 @@ fi
 BUILDSRC="$temp/kaffeine-source"
 git -C "$SOURCE" worktree add --detach "$BUILDSRC" "$UPSTREAM_SHA"
 python3 "$temp/tihulu/kaffeine_next/patch_upstream.py" "$BUILDSRC"
+# Refuse to ship Kaffeine 2.0.19 with the known channel-import crash
+# (KDE #503740 / Debian #1110405). The wrong -1 to std::prev(end)
+# reads past the QMap end while several scanned channels are inserted.
+SQL_HEADER="$BUILDSRC/src/sqlinterface.h"
+if grep -Fq 'std::prev(container.constEnd(), -1)' "$SQL_HEADER" ||
+   ! grep -Fq 'std::prev(container.constEnd())' "$SQL_HEADER"; then
+  echo "FATAL: DVB scan channel-import SQL iterator fix missing." >&2
+  exit 1
+fi
+echo "Verified Kaffeine DVB channel-import SQL iterator fix (no past-end iterator)."
 git -C "$BUILDSRC" diff --check
 # Keep the user-approved, loopback-only welle.io backend installer on disk
 # instead of trying to run an untrusted internet pipe from the native GUI.
