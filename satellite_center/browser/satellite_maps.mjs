@@ -506,6 +506,23 @@ export function createSatelliteMaps({getTles,getSatLib,getPasses,getLastCapture,
        ctx.globalAlpha=1;
      }
    }
+   // Full future ground track for the selected pass, including its sample cursor.
+   if(passPreview?.steps?.length){
+    ctx.strokeStyle="#ffd47e";ctx.lineWidth=3;ctx.globalAlpha=0.98;
+    for(const path of mapSplitDateline(passPreview.steps.map(p=>[p.lat,p.lon]))){
+     ctx.beginPath();path.forEach(([lat,lon],i)=>{
+      const [x,y]=geoCanvasXY(lon,lat,W,H);
+      if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);
+     });ctx.stroke();
+    }
+    const p=previewPoint();
+    if(p){
+     const [x,y]=geoCanvasXY(p.lon,p.lat,W,H);
+     ctx.beginPath();ctx.arc(x,y,8,0,2*Math.PI);
+     ctx.fillStyle="#ffd47e";ctx.fill();ctx.strokeStyle="#ffffff";ctx.lineWidth=2;ctx.stroke();
+    }
+    ctx.globalAlpha=1;
+   }
    // Ground station and orbit positions use the same locally calculated
    // coordinates as the pass calendar (never fabricated receptions).
    const o=obs,[gx,gy]=geoCanvasXY(o.lon,o.lat,W,H);
@@ -660,6 +677,20 @@ export function createSatelliteMaps({getTles,getSatLib,getPasses,getLastCapture,
    }
    pruneSegments(trackLayers,validTracks);
    pruneSegments(coverageLayers,validCoverage);
+   if(previewLayer){earthMap.removeLayer(previewLayer);previewLayer=null;}
+   if(passPreview?.steps?.length){
+    const segments=mapSplitDateline(passPreview.steps.map(p=>[p.lat,p.lon]));
+    previewLayer=leaflet.layerGroup(segments.map(path=>leaflet.polyline(path,{
+     pane:"sat-tracks",color:"#ffd47e",weight:4,opacity:0.98
+    }))).addTo(earthMap);
+    const p=previewPoint();
+    if(p){
+     if(!previewDot)previewDot=leaflet.circleMarker([p.lat,p.lon],{
+      pane:"sat-markers",radius:9,color:"#fff",weight:2,fillColor:"#ffd47e",fillOpacity:1
+     }).bindTooltip("Selected pass preview · orbital prediction").addTo(earthMap);
+     else previewDot.setLatLng([p.lat,p.lon]);
+    }
+   }else if(previewDot){earthMap.removeLayer(previewDot);previewDot=null;}
    updateEarthViewportCount();
    const counts=layerCounts();
    $("map-overlay-count").textContent+=" | "+trackCount+" track segments, "+
