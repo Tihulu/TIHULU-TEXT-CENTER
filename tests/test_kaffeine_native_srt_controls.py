@@ -91,6 +91,11 @@ class CaptionWindowControlsTests(unittest.TestCase):
         self.assertIn('renderer.addItem("Native libVLC', code)
         self.assertIn('root.addWidget(quick, 0)', code)
         self.assertIn('srt_recorder.append(cue, applied)', code)
+        from kaffeine_next.patch_upstream import transform
+        patch = inspect.getsource(transform)
+        self.assertIn('libvlc_position_top : libvlc_position_bottom', patch)
+        self.assertIn('tihuluCaptionCacheKey.clear()', patch)
+        self.assertIn('Load generated SRT in native player...', patch)
 
     def test_tv_auto_language_prefers_dvb_descriptor(self):
         from tv_center import captions
