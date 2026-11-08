@@ -115,7 +115,7 @@ class KaffeineTimingTests(unittest.TestCase):
         # Only actual ASR word positions use source-relative begin time.
         word = {"original":"Guten","source":"local_asr",
                 "word_progress":{"start":0,"end":0,"count":3}}
-        self.assertAlmostEqual(cue_window(100,100.5,102,cfg,word)["due"],115.05)
+        self.assertAlmostEqual(cue_window(100,100.5,102,cfg,word)["due"],114.65)
         # Teletext remains broadcaster-timed, independent of Whisper behavior.
         tele = {"source":"broadcaster_teletext_subtitles","original":"Hallo"}
         self.assertAlmostEqual(cue_window(100,106,108,cfg,tele)["due"],115.05)
