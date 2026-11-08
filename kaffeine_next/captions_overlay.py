@@ -376,7 +376,7 @@ def main(argv=None):
     display_mode.setCurrentIndex(1)
     output_row.addWidget(QLabel("Display"))
     output_row.addWidget(display_mode, 2)
-    output_row.addWidget(QLabel("Translate to"))
+    output_row.addWidget(QLabel("Output languages"))
     language_boxes = {lang: QCheckBox(lang.upper()) for lang in LANGS}
     for lang, check in language_boxes.items():
         check.setChecked(lang == "tr")
@@ -397,11 +397,13 @@ def main(argv=None):
     settings_layout.addRow("Translation status", translation_health)
     def update_language_choices(*_):
         for lang, check in language_boxes.items():
-            if lang == source.currentText():
-                check.setChecked(False)
-                check.setEnabled(False)
-            else:
-                check.setEnabled(True)
+            check.setEnabled(True)
+            check.setToolTip(
+                ("Same as spoken language · display original under " +
+                 lang.upper() + " label (no translator needed)"
+                 if lang == source.currentText() else
+                 "Translate to " + lang.upper() + " when a local model exists; "
+                 "otherwise keep the original readable"))
     source.currentTextChanged.connect(update_language_choices)
     update_language_choices()
     tracks_row = QHBoxLayout()
@@ -711,9 +713,11 @@ def main(argv=None):
             lang for lang, check in language_boxes.items() if check.isChecked()]
         raw_targets.extend(x.strip() for x in extra_targets.text().replace(
             ";", ",").split(",") if x.strip())
+        # Never remove the explicitly checked EN/TR checkbox when the
+        # broadcaster changes its actual Teletext or audio source language:
+        # requested output EN is valid even when EN is already the original.
         target_langs = tuple(dict.fromkeys(
-            language_code(lang, nllb=True) for lang in raw_targets
-            if language_code(lang, nllb=True) != spoken))
+            language_code(lang, nllb=True) for lang in raw_targets))
         output = display_mode.currentData()
         return CaptionConfig(
             mode=mode.currentData(), source=spoken,
