@@ -54,11 +54,11 @@ test("browser-only driver and WASM preview are actually included in both CI and 
     assert.ok(html.includes('id="'+id+'"'));
 
   }
-  for(const module of ["em28xx-driver-plan.js","webusb-driver-ui.js",
-    "wasm-ts-preview.js"]){
+  for(const module of ["webusb-driver-ui.js","wasm-ts-preview.js"]){
     assert.ok(html.includes(module));
-
   }
+  const driverUI=fs.readFileSync(new URL("../webusb-driver-ui.js",import.meta.url),"utf8");
+  assert.ok(driverUI.includes("em28xx-driver-plan.js"));
   assert.doesNotMatch(js,/location\.replace\(LOOPBACK/);
   assert.match(js,/WEBUSB · BROWSER-ONLY/);
 });
