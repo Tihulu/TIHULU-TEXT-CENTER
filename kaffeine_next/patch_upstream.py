@@ -303,6 +303,78 @@ QAbstractButton *StartTab::addShortcut''')
 	});
 #endif /* HAVE_DVB == 1 */
 ''')
+    # Explicit in-app remote media sharing: default LOOPBACK, not WAN.
+    # The Python hub performs host-side HLS conversion and prints a random
+    # pairing PIN. Qt captures stdout privately and shows that PIN only
+    # in the host GUI. No raw PIN in process arguments, file or GitHub.
+    change(main, '''	QAction *marketAction = aiMenu->addAction(i18n("Whisper + Translator Market"));''',
+    '''	QAction *hubStart = aiMenu->addAction(i18n("Start paired remote media hub..."));
+	QAction *hubStop = aiMenu->addAction(i18n("Stop remote media sharing"));
+	hubStop->setEnabled(false);
+	QProcess *hubProcess = new QProcess(this);
+	connect(hubProcess, &QProcess::readyReadStandardOutput, this,
+		[this,hubProcess]() {
+			const QByteArray combined=hubProcess->property("partial").toByteArray()+
+				hubProcess->readAllStandardOutput();
+			const QByteArray marker("Pairing PIN (host terminal only): ");
+			const int offset=combined.indexOf(marker);
+			if(!hubProcess->property("pinShown").toBool() && offset>=0 &&
+			   combined.size()>=offset+marker.size()+8) {
+				const QByteArray pin=combined.mid(offset+marker.size(),8);
+				bool valid=pin.size()==8;
+				for(char digit:pin) if(digit<'0' || digit>'9') valid=false;
+				if(valid) {
+					hubProcess->setProperty("pinShown",true);
+					QMessageBox::information(this,i18n("Paired remote media hub"),
+						i18n("Local media remote is active on "
+						"127.0.0.1:8788. Pairing PIN: %1\\n\\n"
+						"Only your explicitly selected media folder is shared. "
+						"Other devices require a private HTTPS proxy, "
+						"for example Tailscale Serve. "
+						"Live DVB television/DVD is NOT yet rebroadcast."),
+						QString::fromLatin1(pin));
+				}
+			}
+			hubProcess->setProperty("partial",combined.right(450));
+		});
+	connect(hubProcess,QOverload<int,QProcess::ExitStatus>::of(&QProcess::finished),
+		this,[hubStop](int,QProcess::ExitStatus) {hubStop->setEnabled(false);});
+	connect(hubStart,&QAction::triggered,this,[this,hubProcess,hubStop]() {
+		if(hubProcess->state()!=QProcess::NotRunning) {
+			QMessageBox::information(this,i18n("Remote hub"),
+				i18n("The local paired remote hub is already running."));
+			return;
+		}
+		const QString folder=QFileDialog::getExistingDirectory(this,
+			i18n("Choose media directory to share with paired devices"),
+			QDir::homePath());
+		if(folder.isEmpty()) return;
+		hubProcess->setProperty("pinShown",false);
+		hubProcess->setProperty("partial",QByteArray());
+		hubProcess->start(QLatin1String("tihulu-tv-center"),
+			{QLatin1String("remote-hub"),QLatin1String("--media-root"),folder,
+			 QLatin1String("--bind"),QLatin1String("127.0.0.1")});
+		if(!hubProcess->waitForStarted(1500)) {
+			QMessageBox::warning(this,i18n("Remote hub"),
+				i18n("Cannot start Python companion; run "
+				"'tihulu-tv-center remote-hub --help' in terminal."));
+			return;
+		}
+		hubStop->setEnabled(true);
+	});
+	connect(hubStop,&QAction::triggered,this,[hubProcess]() {
+		if(hubProcess->state()!=QProcess::NotRunning)
+			hubProcess->terminate();
+	});
+	connect(QCoreApplication::instance(),&QCoreApplication::aboutToQuit,
+		hubProcess,[hubProcess]() {
+			if(hubProcess->state()!=QProcess::NotRunning) {
+				hubProcess->terminate();
+				if(!hubProcess->waitForFinished(1200)) hubProcess->kill();
+			}
+		});
+	QAction *marketAction = aiMenu->addAction(i18n("Whisper + Translator Market"));''')
+
     # Give locally opened video/audio files the SAME managed offline
     # Whisper/translation engines via optional SRT creation dialogue.
     # No file uploads and no interference with native playback.
