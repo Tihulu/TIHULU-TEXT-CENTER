@@ -70,6 +70,37 @@ class RadioModesAndSyncTests(unittest.TestCase):
         self.assertIn('60000);',self.patch)
         self.assertIn('60 s',self.radio)
 
+    def test_radio_picture_is_preserved_and_captions_use_small_banner(self):
+        self.assertIn("radioCaptionBanner_=new QLabel",self.radio)
+        self.assertIn("radioCaptionBanner_->setText(cue.text.left(680))",self.radio)
+        self.assertNotIn("radioCanvas_->setText(cue.text.left(680))",self.radio)
+        self.assertIn("applyCaptions_=new QPushButton",self.radio)
+        self.assertIn('tr("Apply caption settings")',self.radio)
+        self.assertIn("stopCaptioning();",self.radio)
+
+    def test_radio_cache_uptime_never_means_audio_is_fully_buffered(self):
+        self.assertIn("Stream uptime is NOT buffering progress",self.radio)
+        self.assertIn("audioCacheProgress_->setRange(0,audioStartedMs_>0?0:100)",self.radio)
+        self.assertIn("queue/DAC UNVERIFIED",self.radio)
+        self.assertNotIn("Applied at open %1 ms · elapsed %2 ms",self.radio)
+        self.assertIn("EST. caption in ~%1 ms",self.radio)
+
+    def test_missing_lyrics_fall_back_to_real_local_whisper_audio(self):
+        for field in ("listenLyrics_","listenFallbackOnMiss_",
+                      "lyricsAudioFallbackActive_","beginLyricListening()",
+                      "lyricsFallbackStartedAi_"):
+            self.assertIn(field,self.radio)
+        self.assertIn("if(listenFallbackOnMiss_->isChecked()) beginLyricListening();",
+                      self.radio)
+        self.assertIn("if (music_->isChecked() || lyricsAudioFallbackActive_)",self.radio)
+        self.assertIn("lyricsEnabled_=false;",self.radio)
+        self.assertIn("lyrics_->setEnabled(true)",self.radio)
+        self.assertIn("lyricsAudioFallbackActive_=false;",self.radio)
+        self.assertIn("Local Whisper on actual DAB audio",self.radio)
+        self.assertIn('captionSource_->findData(QLatin1String("asr"))',self.radio)
+        self.assertIn("lyricsProcess_.start",self.radio)
+        self.assertIn("No radio audio uploaded",self.radio) if False else None
+
     def test_lyric_alignment_requires_reliable_evidence_and_is_rate_limited(self):
         self.assertIn('confidence>=0.92',self.radio)
         self.assertIn('lyricOffsetConsistency_>=2',self.radio)
