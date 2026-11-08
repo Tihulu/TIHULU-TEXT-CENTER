@@ -707,7 +707,7 @@ def main(argv=None):
         "Real MPEG-TS queue age from Kaffeine, not an estimate based on "
         "elapsed wall-clock time. The percentage stays unknown until a "
         "matching native buffer acknowledgement is received.")
-    timing_layout.addRow("TV buffer filling", buffer_progress)
+    # Place the actual progress bar below the tabs, visible in every view.
     visibility = QHBoxLayout()
     renderer = QComboBox()
     renderer.addItem("Native libVLC · video-safe (recommended)", "native")
@@ -866,6 +866,7 @@ def main(argv=None):
     pinned_progress = QLabel("TV buffer: waiting for receiver")
     pinned_progress.setWordWrap(True)
     root.addWidget(pinned_progress)
+    root.addWidget(buffer_progress)
     buttons = QHBoxLayout()
     apply = QPushButton("Apply")
     apply.setObjectName("apply")
