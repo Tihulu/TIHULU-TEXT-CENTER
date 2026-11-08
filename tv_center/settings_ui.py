@@ -157,11 +157,21 @@ def open_ai_settings(parent, ai, after_save=None):
             root.addWidget(langs)
             trans_layout = QVBoxLayout(langs)
             trans_row = QHBoxLayout()
-            self.source = QComboBox(); self.source.addItems(["de", "en", "tr"])
-            self.target = QComboBox(); self.target.addItems(["tr", "de", "en"])
+            self.source = QComboBox()
+            self.source.setEditable(True)
+            self.source.addItems(["de", "en", "tr", "fr", "es", "pl", "ar", "ja"])
+            self.target = QComboBox()
+            self.target.setEditable(True)
+            self.target.addItems(["tr", "de", "en", "fr", "es", "pl", "ar", "ja"])
+            self.source.setToolTip("Type any real ISO 639-1/2 source language code")
+            self.target.setToolTip("Type any real ISO 639-1/2 target language code")
             trans_row.addWidget(QLabel("From")); trans_row.addWidget(self.source)
             trans_row.addWidget(QLabel("To")); trans_row.addWidget(self.target)
             trans_layout.addLayout(trans_row)
+            trans_layout.addWidget(QLabel(
+                "Language codes are editable: es, pl, ar, ja, ru, zh and more. "
+                "Refresh the official Argos catalog to see which translation "
+                "pairs exist; only installed packs work offline."))
             self.available = QLabel("Catalog not refreshed. Optional argostranslate package required.")
             self.available.setWordWrap(True)
             trans_layout.addWidget(self.available)
@@ -180,7 +190,8 @@ def open_ai_settings(parent, ai, after_save=None):
             quality_layout = QVBoxLayout(quality)
             self.translation_choice = QComboBox()
             self.translation_choice.addItem("Argos Translate · compact offline language packs","argos")
-            self.translation_choice.addItem("NLLB-200 600M · larger multilingual DE / EN / TR","nllb")
+            self.translation_choice.addItem(
+                "NLLB-200 600M · multilingual; enter ISO or NLLB codes", "nllb")
             self.translation_choice.setCurrentIndex(
                 1 if ai.values.get("translation_model")=="nllb" else 0)
             quality_layout.addWidget(self.translation_choice)
