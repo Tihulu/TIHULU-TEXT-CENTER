@@ -341,6 +341,14 @@ public:
 		english_ = new QCheckBox(tr("English"), lab); english_->setChecked(true);
 		turkish_ = new QCheckBox(tr("Turkish"), lab); turkish_->setChecked(true);
 		music_ = new QCheckBox(tr("Transcribe singing / music vocals"), lab);
+		speakerLabels_=new QCheckBox(tr("Label different speakers · offline"),lab);
+		speakerLabels_->setToolTip(tr("Optional installed voice-clustering model. "
+			"Outputs Speaker 1/2, NOT inferred woman/man/child labels. "
+			"Disable when music is playing."));
+		connect(music_,&QCheckBox::toggled,speakerLabels_,[this](bool enabled){
+			speakerLabels_->setEnabled(!enabled);
+			if(enabled) speakerLabels_->setChecked(false);
+		});
 		caption_ = new QPushButton(tr("Start offline live captions"), lab);
 		stopCaption_ = new QPushButton(tr("Stop AI captions"), lab);
 		row->addWidget(new QLabel(tr("Source:"), lab));
@@ -349,6 +357,7 @@ public:
 		row->addWidget(german_);
 		row->addWidget(turkish_);
 		row->addWidget(music_);
+		row->addWidget(speakerLabels_);
 		v->addLayout(row);
 		extraTargets_=new QLineEdit(lab);
 		extraTargets_->setPlaceholderText(
@@ -1793,6 +1802,7 @@ private:
 	QLabel *state_=nullptr,*dls_=nullptr,*signal_=nullptr,*slide_=nullptr,
 		*radioCaption_=nullptr,*lyricText_=nullptr,*plot_=nullptr;
 	QCheckBox *english_=nullptr,*german_=nullptr,*turkish_=nullptr,*music_=nullptr,
+		*speakerLabels_=nullptr,
 		*livePlot_=nullptr,*showWidgets_=nullptr,
 		*coarseCorrector_=nullptr;
 	QSlider *lyricsOffset_=nullptr;
