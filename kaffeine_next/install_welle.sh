@@ -15,7 +15,7 @@ sudo apt-get install -y --no-install-recommends \
   git ca-certificates cmake g++ make pkg-config python3 \
   libfaad-dev libmpg123-dev libfftw3-dev librtlsdr-dev \
   libusb-1.0-0-dev libmp3lame-dev libflac++-dev \
-  libsoapysdr-dev libasound2-dev
+  libsoapysdr-dev libairspy-dev libasound2-dev
 ROOT="$HOME/.local/share/tihulu-welle"
 PREFIX="$HOME/.local/opt/tihulu-welle"
 mkdir -p "$ROOT" "$PREFIX"
@@ -49,7 +49,7 @@ PY
 cmake -S "$TEMPDIR/welle" -B "$TEMPDIR/build" \
   -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="$PREFIX" \
   -DBUILD_WELLE_IO=OFF -DBUILD_WELLE_CLI=ON \
-  -DRTLSDR=ON -DSOAPYSDR=ON -DFLAC=ON -DAIRSPY=OFF
+  -DRTLSDR=ON -DSOAPYSDR=ON -DFLAC=ON -DAIRSPY=ON
 cmake --build "$TEMPDIR/build" --parallel 2
 cmake --install "$TEMPDIR/build"
 test -x "$PREFIX/bin/welle-cli"
