@@ -469,7 +469,8 @@ def main(argv=None):
         return 0
     from .caption_timing import (CaptionConfig, CueQueue, KaffeineOSD,
                                  AutoSyncEstimator, AutoSyncController,
-                                 effective_cue_config, confirmed_cue_config)
+                                 effective_cue_config, confirmed_cue_config,
+                                 buffer_fill_progress)
     from .word_cues import enqueue_word_cues
     from .track_preferences import recommended_track, _signaled_language
     from PyQt5.QtCore import Qt, QTimer, QSettings
@@ -477,7 +478,8 @@ def main(argv=None):
     from PyQt5.QtWidgets import (QApplication, QWidget, QVBoxLayout, QHBoxLayout,
         QLabel, QComboBox, QPushButton, QSpinBox, QDoubleSpinBox,
         QCheckBox, QGroupBox, QFormLayout, QLineEdit, QColorDialog,
-        QScrollArea, QFrame, QGridLayout, QFileDialog, QTabWidget)
+        QScrollArea, QFrame, QGridLayout, QFileDialog, QTabWidget,
+        QProgressBar)
     app = QApplication.instance() or QApplication(["TIHULU Kaffeine Live Captions"])
     # Hiding the only QWidget must NOT quit the Qt event loop: audio capture,
     # auto-sync and video-overlay publishing continue independently of UI.
@@ -696,6 +698,16 @@ def main(argv=None):
     effective_status = QLabel("Native TV delay: waiting for Kaffeine's applied buffer status…")
     effective_status.setWordWrap(True)
     timing_layout.addRow(effective_status)
+    buffer_progress = QProgressBar()
+    buffer_progress.setObjectName("tvBufferFillProgress")
+    buffer_progress.setRange(0, 0)
+    buffer_progress.setTextVisible(True)
+    buffer_progress.setFormat("Awaiting native TV buffer status")
+    buffer_progress.setToolTip(
+        "Real MPEG-TS queue age from Kaffeine, not an estimate based on "
+        "elapsed wall-clock time. The percentage stays unknown until a "
+        "matching native buffer acknowledgement is received.")
+    timing_layout.addRow("TV buffer filling", buffer_progress)
     visibility = QHBoxLayout()
     renderer = QComboBox()
     renderer.addItem("Native libVLC · video-safe (recommended)", "native")
@@ -849,6 +861,11 @@ def main(argv=None):
     pages.addTab(tools_page, "Diagnostics & network")
     pages.setCurrentIndex(0)
     root.addWidget(pages, 1)
+    # A compact pinned buffer meter remains visible on every settings tab.
+    # Source & sync also contains the detailed native status explanation.
+    pinned_progress = QLabel("TV buffer: waiting for receiver")
+    pinned_progress.setWordWrap(True)
+    root.addWidget(pinned_progress)
     buttons = QHBoxLayout()
     apply = QPushButton("Apply")
     apply.setObjectName("apply")
@@ -1343,7 +1360,34 @@ def main(argv=None):
         if now - last_effective_check >= 1.0:
             last_effective_check = now
             effective = ipc.read_effective_delay()
+            progress = buffer_fill_progress(effective, applied.playback_delay_ms)
+            percent = progress["percent"]
+            if percent is None:
+                buffer_progress.setRange(0, 0)
+                buffer_progress.setFormat("Waiting for native buffer measurements")
+            else:
+                buffer_progress.setRange(0, 100)
+                buffer_progress.setValue(percent)
+                queued_ms = progress["queued_ms"]
+                effective_ms = progress["effective_ms"]
+                requested_ms = progress["requested_ms"]
+                state = progress["state"]
+                if state == "live":
+                    buffer_progress.setFormat("Live TV · buffer disabled")
+                elif state == "unavailable":
+                    buffer_progress.setFormat("Buffer unavailable · 0%")
+                else:
+                    buffer_progress.setFormat(
+                        f"{queued_ms/1000:.1f} / {effective_ms/1000:.1f} s "
+                        f"({percent}%) · " + ("Ready" if state == "ready"
+                                            else "Filling"))
+                    if effective_ms < requested_ms:
+                        buffer_progress.setToolTip(
+                            f"Requested {requested_ms/1000:.1f} s; "
+                            f"receiver memory / timeshift capped the "
+                            f"effective delay at {effective_ms/1000:.1f} s.")
             if effective is None:
+                pinned_progress.setText("TV buffer: waiting for native receiver telemetry")
                 effective_status.setText(
                     "Native TV delay: Kaffeine has not reported its active MPEG-TS "
                     "buffer yet; requested value is not confirmed.")
@@ -1351,6 +1395,13 @@ def main(argv=None):
                 actual = effective["effective_ms"] / 1000
                 requested = effective["requested_ms"] / 1000
                 rate = effective["ts_bytes_per_second"] / 1024 / 1024
+                if percent is None:
+                    pinned_progress.setText("TV buffer: measurements unavailable or resetting")
+                elif progress["state"] == "live":
+                    pinned_progress.setText("TV buffer: OFF · live playback")
+                else:
+                    pinned_progress.setText(
+                        "TV buffer: " + buffer_progress.format())
                 confirmed = (
                     effective["requested_ms"] == applied.playback_delay_ms
                     and bool(effective["primed"]))
