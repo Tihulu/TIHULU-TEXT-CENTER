@@ -140,7 +140,7 @@ class NaturalSubtitleTests(unittest.TestCase):
         self.assertIn("WA_NoSystemBackground",patch)
         self.assertIn("setAutoFillBackground(false)",patch)
         self.assertIn("if (tihuluCaptionOpacity > 0)",patch)
-        self.assertIn("painter.fillRect(rect(), Qt::transparent)",patch)
+        self.assertIn("painter.fillRect(QWidget::rect(), Qt::transparent)",patch)
         overlay=(Path(__file__).resolve().parent.parent /
                  "kaffeine_next"/"captions_overlay.py").read_text()
         self.assertIn("KaffeineCaptionAppearance",overlay)
