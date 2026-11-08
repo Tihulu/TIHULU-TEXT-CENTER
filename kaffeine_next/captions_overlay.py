@@ -289,7 +289,8 @@ def main(argv=None):
         # Do not create a competing DVB/Whisper reader.
         return 0
     from .caption_timing import (CaptionConfig, CueQueue, KaffeineOSD,
-                                 AutoSyncEstimator, AutoSyncController)
+                                 AutoSyncEstimator, AutoSyncController,
+                                 effective_cue_config)
     from PyQt5.QtCore import Qt, QTimer
     from PyQt5.QtWidgets import (QApplication, QWidget, QVBoxLayout, QHBoxLayout,
         QLabel, QComboBox, QPushButton, QSpinBox, QDoubleSpinBox,
@@ -776,9 +777,19 @@ def main(argv=None):
                         sync_estimate.setText(
                             f"Automatic timing: {len(estimator.values)}/3 real Whisper "
                             "samples. No recommendation yet; playback unchanged.")
-                    cue = cues.add(data, applied,
+                    # The native 64-MiB MPEG-TS FIFO may apply less delay
+                    # than the UI requested. Schedule text against the
+                    # confirmed playback delay when its status matches the
+                    # current request; never reuse a stale channel setting.
+                    cue_config = effective_cue_config(
+                        applied, ipc.read_effective_delay())
+                    cue = cues.add(data, cue_config,
                                    data["captured_start"],data["captured_end"],
                                    data["decoded_at"])
+                    delay_verified = (
+                        cue_config.playback_delay_ms != applied.playback_delay_ms or
+                        (ipc.read_effective_delay() or {}).get("requested_ms")
+                        == applied.playback_delay_ms)
                     actual_backend = data.get("asr_backend")
                     backend_info = (" | Whisper: "+actual_backend.upper() +
                                     " · "+str(data.get("asr_model") or "unknown model")
@@ -786,7 +797,9 @@ def main(argv=None):
                     status.setText("Real "+data.get("source","unknown")+backend_info+
                         " | ASR+translate latency: "+
                         f"{int((data['decoded_at']-data['captured_end'])*1000)}ms" +
-                        " | Caption lateness vs buffered TV: "+
+                        " | Caption lateness vs "+(
+                            "applied TV delay: " if delay_verified else
+                            "requested TV delay (unconfirmed): ") +
                         str(cue["lateness_ms"])+"ms" +
                         " | DVB TS packets: "+str(tap.packet_count) +
                         " | Backlog: "+str(tap.work_queue.snapshot()["queued_clips"]) +
