@@ -359,7 +359,9 @@ export function createSatelliteMaps({getTles,getSatLib,getPasses,getLastCapture,
   }
   ctx.font="16px system-ui";ctx.fillText("ZENITH · 90°",cx,cy-10);
   const s=selected();
-  if(s&&s.el>=0){
+  // Native rows have real Skyfield coordinates but no browser satellite.js
+  // propagator. Never call propagate(undefined) when a satellite rises.
+  if(s&&s.el>=0&&s.lib&&s.rec){
    let started=false;ctx.strokeStyle="#f0f8ff";ctx.lineWidth=3;ctx.beginPath();
    const o=observer().station;
    for(let minute=-15;minute<=15;minute++){
