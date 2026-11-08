@@ -178,7 +178,8 @@ class TVWebMixin:
             self.measure_signal()
             return {"measurement_requested":True,"note":"Await real dvb-fe-tool readings"}
         if action=="scan_start":
-            if self.scanner.running or (self.capture.thread and self.capture.thread.is_alive()):
+            if (self.scanner.running or self.web_scan_requested or
+                    (self.capture.thread and self.capture.thread.is_alive())):
                 raise RuntimeError("Stop playing TV or scanning before starting a new scan")
             country=params.get("country")
             medium=params.get("medium")
