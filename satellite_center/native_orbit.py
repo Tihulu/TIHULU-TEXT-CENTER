@@ -1,6 +1,16 @@
 """Native Skyfield TLE tracking; never a claim of received RF."""
 from datetime import datetime,timedelta,timezone
-import math,time
+import math,time,threading
+from functools import wraps
+
+def serialized_orbit(method):
+    """Serialize cached Skyfield reads/refreshes across Qt workers."""
+    @wraps(method)
+    def call(self,*args,**kwargs):
+        with self._mutex:
+            return method(self,*args,**kwargs)
+    return call
+
 R_KM=6371.0
 def valid(lat,lon):
     return all(isinstance(v,(int,float)) and math.isfinite(v) for v in (lat,lon)) and -90<=lat<=90 and -180<=lon<=180
@@ -47,12 +57,15 @@ def dateline_segments(points):
 class OrbitEngine:
     """Reuses cached Skyfield objects, updates when downloaded TLE files change."""
     def __init__(self,station):
+        self._mutex=threading.RLock()
         self.station=station
         self.keys=None
         self.records=[]
         self.warnings=[]
         self.ts=None
+    @serialized_orbit
     def invalidate(self):self.keys=None
+    @serialized_orbit
     def _load(self):
         from skyfield.api import load,EarthSatellite
         from .__main__ import SOURCE_URLS,parse_tle,selectable
@@ -85,6 +98,7 @@ class OrbitEngine:
                 self.records.append((item,source,sat,age/86400))
                 seen_norad.add(item["id"])
                 if len(self.records)>=160:return
+    @serialized_orbit
     def snapshot(self,lat,lon,at=None,*,family_filter="all",minimum_el=-90,
                  selected_norad=None,with_track=False,track_scope="selected"):
         from skyfield.api import wgs84
@@ -169,6 +183,7 @@ class OrbitEngine:
                     total_loaded=len(self.records),warnings=list(self.warnings),
                     note="TLE geometry only. No actual RF reception or satellite data verified.")
 
+    @serialized_orbit
     def preview_pass(self,lat,lon,norad,start,end):
         """Sample a selected TLE pass for the sky/ground-track preview.
 
