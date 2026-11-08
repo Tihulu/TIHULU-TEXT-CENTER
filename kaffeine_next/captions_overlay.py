@@ -378,6 +378,11 @@ def main(argv=None):
         "Actual translation requires a matching installed Argos pack or "
         "NLLB model. Missing packs never hide the source captions.")
     settings_layout.addRow("Additional translation languages", extra_targets)
+    translation_health = QLabel(
+        "Translation model: selected in AI Model Market. "
+        "NLLB errors trigger installed Argos backup; subtitles stay visible.")
+    translation_health.setWordWrap(True)
+    settings_layout.addRow("Translation status", translation_health)
     def update_language_choices(*_):
         for lang, check in language_boxes.items():
             if lang == source.currentText():
@@ -704,8 +709,16 @@ def main(argv=None):
                 if automatic_active else
                 "Automatic timing OFF; measured recommendations will not change playback.")
             pending.setText("Applied · " + applied.mode + " · " + applied.source.upper() +
-                            " → " + applied.target.upper() +
+                            " → " + (" + ".join(lang.upper() for lang in
+                                applied.target_languages) or "original only") +
                             " · playback buffer " + str(applied.playback_delay_ms/1000) + " s")
+            from tv_center.ai_settings import AISettings
+            active_ai = AISettings().values
+            translation_health.setText(
+                "Selected translator: " +
+                (active_ai.get("translation_model","argos").upper()
+                 if active_ai.get("translation_enabled") else "OFF") +
+                " · waiting for real subtitle/translation status")
             pending.setStyleSheet("color:#9ed7ba")
             status.setText("Applied. Caption offset: "+str(applied.offset_ms/1000)+
                            "s; TV playback buffer: "+str(applied.playback_delay_ms/1000)+
@@ -973,6 +986,19 @@ def main(argv=None):
                         status.setText(status.text() + "\n" + data["audio_notice"])
                     failures = data.get("translation_errors") or {}
                     backup = data.get("translation_warnings") or {}
+                    actual_engines = data.get("translation_engines") or {}
+                    if actual_engines:
+                        translation_health.setText(
+                            "Live translation: " +
+                            " · ".join(lang.upper()+" → "+
+                                str(engine).replace("-", " ")
+                                for lang, engine in actual_engines.items()))
+                    elif failures:
+                        translation_health.setText(
+                            "Requested translation unavailable: " +
+                            ", ".join(sorted(failures)).upper() +
+                            " · showing original " +
+                            str(data.get("source_language") or applied.source).upper())
                     if backup:
                         status.setText(status.text() +
                             " | Translator: Argos fallback (" +
