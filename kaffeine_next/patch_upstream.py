@@ -14,7 +14,8 @@ REVISION = "e7ea15b86dafed3b20b151cbcb080578ab8e2d5c"
 PATHS = ("src/mainwindow.cpp", "src/mainwindow.h", "src/CMakeLists.txt",
          "src/dvb/dvbliveview.cpp",
          "src/dvb/dvbliveview_p.h", "src/dvb/dvbmanager.cpp", "src/dvb/dvbtab.cpp",
-         "src/dvb/dvbtab.h", "src/dvb/dvbconfigdialog.cpp", "src/dvb/dvbscandialog.cpp", "src/backend-vlc/vlcmediawidget.cpp",
+         "src/dvb/dvbtab.h", "src/dvb/dvbconfigdialog.cpp", "src/dvb/dvbscandialog.cpp",
+         "src/dvb/dvbscandialog.h", "src/backend-vlc/vlcmediawidget.cpp",
          "src/mediawidget.cpp", "src/mediawidget.h", "src/osdwidget.cpp",
          "src/osdwidget.h", "src/main.cpp", "src/dvb/dvbepg.cpp",
          "src/sqlinterface.h")
@@ -1116,6 +1117,13 @@ void OsdWidget::showObject(OsdObject *osdObject_, int duration)
 \tQDialog *dialog = new DvbScanDialog(manager, this);
 ''', '''void DvbTab::showFullScanDialog()
 {
+\t// A running scan owns the sole frontend: resume its existing window.
+\tif (scanDialog) {
+\t\tscanDialog->show();
+\t\tscanDialog->raise();
+\t\tscanDialog->activateWindow();
+\t\treturn;
+\t}
 \t// The native DVB scanner needs exclusive tuner ownership for
 \t// changing frequencies; Kaffeine's Channels editor can instead
 \t// stay attached to a single currently playing transponder.
@@ -1137,6 +1145,92 @@ void DvbTab::showChannelDialog()
 {
 \tQDialog *dialog = new DvbScanDialog(manager, this);
 ''')
+
+    # Kaffeine's stock Channels dialog is application-modal even while the
+    # scanner runs asynchronously. Make it modeless so the user may navigate
+    # local media, online radio, subtitles and settings during a long RF sweep.
+    # Keep exactly ONE scan dialog / frontend owner, and protect live DVB tuning
+    # from stealing the single receiver while it is scanning.
+    change(tab, '''void DvbTab::showChannelDialog()
+{
+\tQDialog *dialog = new DvbScanDialog(manager, this);
+\tdialog->setAttribute(Qt::WA_DeleteOnClose, true);
+\tdialog->setModal(true);
+\tdialog->show();
+}''', '''void DvbTab::showChannelDialog()
+{
+\tif (scanDialog) {
+\t\t// Reopening Channels focuses the original running scan.
+\t\tscanDialog->show();
+\t\tscanDialog->raise();
+\t\tscanDialog->activateWindow();
+\t\treturn;
+\t}
+\tDvbScanDialog *dialog = new DvbScanDialog(manager, this);
+\tscanDialog = dialog; // QPointer clears when WA_DeleteOnClose destroys it.
+\tdialog->setAttribute(Qt::WA_DeleteOnClose, true);
+\tdialog->setModal(false);
+\tdialog->show();
+}''')
+    change(tab, '''DvbTab::~DvbTab()
+{
+\tKSharedConfig::openConfig()->group("DVB")''', '''DvbTab::~DvbTab()
+{
+\t// Child QObjects may otherwise destroy the manager BEFORE the dialog.
+\t// Stop the scanner / release the tuner while its manager still exists.
+\tif (scanDialog) {
+\t\tdelete scanDialog;
+\t\tscanDialog = NULL;
+\t}
+\tKSharedConfig::openConfig()->group("DVB")''')
+    change(tab, '''void DvbTab::playChannel(const DvbSharedChannel &channel, const QModelIndex &index)
+{
+\tQIcon *icon;''', '''void DvbTab::playChannel(const DvbSharedChannel &channel, const QModelIndex &index)
+{
+\tif (scanDialog && scanDialog->isScanning()) {
+\t\tQMessageBox::information(this, i18n("Antenna scan in progress"),
+\t\t\ti18n("Stop or finish the antenna scan before tuning another TV channel. "
+\t\t\t     "Other media and application tools remain available."));
+\t\treturn;
+\t}
+\tQIcon *icon;''')
+    change(tab, '''void DvbTab::configureDvb()
+{
+\tQDialog *dialog = new DvbConfigDialog(manager, this);''', '''void DvbTab::configureDvb()
+{
+\tif (scanDialog) {
+\t\t// Changing DVB sources while its channel editor is open would race
+\t\t// the editor's cloned channel model or active tuner ownership.
+\t\tscanDialog->raise();
+\t\tQMessageBox::information(this, i18n("Channel editor is open"),
+\t\t\ti18n("Close the Channels window before changing DVB receiver settings."));
+\t\treturn;
+\t}
+\tQDialog *dialog = new DvbConfigDialog(manager, this);''')
+    change(tab, '''void DvbTab::instantRecord(bool checked)
+{
+\tif (checked) {''', '''void DvbTab::instantRecord(bool checked)
+{
+\tif (checked && scanDialog && scanDialog->isScanning()) {
+\t\tinstantRecordAction->setChecked(false);
+\t\tQMessageBox::information(this, i18n("Antenna scan in progress"),
+\t\t\ti18n("An instant DVB recording cannot start on the tuner during its scan."));
+\t\treturn;
+\t}
+\tif (checked) {''')
+    tabhdr = "src/dvb/dvbtab.h"
+    change(tabhdr, 'class DvbEpgDialog;', 'class DvbEpgDialog;\nclass DvbScanDialog;')
+    change(tabhdr, '\tQPointer<DvbEpgDialog> epgDialog;',
+           '\tQPointer<DvbEpgDialog> epgDialog;\n\tQPointer<DvbScanDialog> scanDialog;')
+    scan_hdr = "src/dvb/dvbscandialog.h"
+    change(scan_hdr, '''\t~DvbScanDialog();
+
+private slots:''', '''\t~DvbScanDialog();
+\t// When true, this dialog has a real DvbScan worker and must retain its frontend.
+\tbool isScanning() const { return internal != NULL; }
+
+private slots:''')
+
     # Upstream Kaffeine 2.0.19 returns a pointer to a local QSharedPointer
     # copy in getInstantRecording(). The dangling pointer is dereferenced
     # during channel changes and can crash immediately after scan/import.
