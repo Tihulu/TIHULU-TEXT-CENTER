@@ -10,6 +10,7 @@ from __future__ import annotations
 from pathlib import Path
 import os
 import queue
+from collections import deque
 import re
 import socket
 import sys
@@ -74,6 +75,17 @@ class CaptionTap:
         self._rate_start = None
         self._rate_bytes = 0
         self.bytes_per_second = None
+        self._performance_lock = threading.Lock()
+        self._performance_samples = deque(maxlen=48)
+        self._decoded_count = 0
+
+    def performance_snapshot(self):
+        with self._performance_lock:
+            samples = [dict(row) for row in self._performance_samples]
+            decoded = self._decoded_count
+        return {"samples":samples,"completed_clips":decoded,
+                "queue":self.work_queue.snapshot(),
+                "ts":self.transport_health.snapshot()}
 
     def start(self):
         if self.path.exists():
@@ -102,10 +114,21 @@ class CaptionTap:
             clip = self.work_queue.get(timeout=0.3)
             if clip is None:
                 continue
+            began = time.monotonic()
+            queue_wait = max(0.0,began-clip.ended)
             try:
                 self._decode(clip.data, clip.options, clip.started, clip.ended)
             except Exception as error:
                 self._note_warning("Caption worker failed: "+str(error)[:120])
+            finally:
+                finished=time.monotonic()
+                with self._performance_lock:
+                    self._decoded_count += 1
+                    self._performance_samples.append({
+                        "compute_ms":round(1000*(finished-began)),
+                        "queue_wait_ms":round(1000*queue_wait),
+                        "total_latency_ms":round(1000*max(0,finished-clip.ended)),
+                        "clip_seconds":round(max(0,clip.ended-clip.started),2)})
 
     def _note_warning(self, message):
         try:
@@ -1229,6 +1252,10 @@ def main(argv=None):
     current_until = 0.0
     last_published = 0.0
     current_cue = None
+    # Captions decoded during a temporary native-buffer ACK delay are
+    # HELD rather than silently dropped. They remain bounded in memory
+    # and are discarded on actual channel/source changes.
+    deferred_captions = deque(maxlen=48)
 
     def from_controls():
         selected = subtitle_track.currentData()
@@ -1704,6 +1731,7 @@ def main(argv=None):
             applied = __import__("dataclasses").replace(
                 applied, revision=applied.revision + 1)
         cues.clear()
+        deferred_captions.clear()
         current_cue = None
         current_text = ""
         current_until = 0.0
@@ -1779,6 +1807,7 @@ def main(argv=None):
                 mode="auto" if applied.mode == "page" else applied.mode,
                 revision=applied.revision+1)
         cues.clear()
+        deferred_captions.clear()
         estimator.clear()
         auto_controller.reset()
         current_cue = None
@@ -1941,11 +1970,19 @@ def main(argv=None):
                 mobile.set_caption({"original":"","source":"channel_changed"})
                 sync_estimate.setText("Channel changed · recalibrating automatic sync.")
             last_service_id = mobile.service_id
+        # Never lose decoded speech merely because the native video buffer
+        # needs another acknowledgement. Replay older held results before
+        # newer events as soon as the relevant buffer is verified.
+        buffer_ready = confirmed_cue_config(
+            applied,ipc.read_effective_delay()) is not None
         for _ in range(8):
-            try:
-                kind, data = events.get_nowait()
-            except queue.Empty:
-                break
+            if buffer_ready and deferred_captions:
+                kind, data = "caption", deferred_captions.popleft()
+            else:
+                try:
+                    kind, data = events.get_nowait()
+                except queue.Empty:
+                    break
             if kind == "native_tv_tune":
                 # A previous queued event must never reset a newer tune.
                 if data.get("program_epoch") == tap.program_epoch:
@@ -2172,11 +2209,20 @@ def main(argv=None):
                     native_state = ipc.read_effective_delay()
                     cue_config = confirmed_cue_config(applied, native_state)
                     if cue_config is None:
+                        if len(deferred_captions)>=deferred_captions.maxlen:
+                            # No data recovery is possible past this bound;
+                            # expose loss instead of falsely saying 'silence'.
+                            status.setText(
+                                "Native TV buffer ACK missing; deferred-caption "
+                                "queue overflow. Real spoken phrases may be lost.")
+                        deferred_captions.append(data)
                         status.setText(
-                            "Waiting for actual TV buffer confirmation "
-                            "before publishing another subtitle. "
-                            "This prevents early captions while auto-sync "
-                            "changes are being applied.")
+                            "Waiting for real TV buffer confirmation · "+
+                            str(len(deferred_captions))+
+                            " decoded phrases held, NOT dropped. "
+                            "If this persists, inspect the native buffer and "
+                            "TV channel state; increasing delay alone cannot "
+                            "recover broken data.")
                         continue
                     cue = enqueue_word_cues(
                         cues, data, cue_config,
@@ -2283,6 +2329,17 @@ def main(argv=None):
                         + str(data["recognition_rejected"]) +
                         "). No subtitle was fabricated. "
                         "Use broadcast Teletext when available.")
+            elif kind == "sentence_pending":
+                if (data.get("program_epoch")==tap.program_epoch and
+                        data.get("revision")==applied.revision):
+                    status.setText(
+                        "Whisper recognized an incomplete sentence · "+
+                        str(data.get("chunks",0))+"/"+str(
+                            data.get("maximum_chunks",2))+
+                        " audio chunks held for natural phrasing. "
+                        "Original speech is pending, not confirmed lost.")
+                    original.setText(
+                        "Building a sentence from real Whisper audio…")
             elif kind == "warning":
                 status.setText(str(data))
         cue = cues.poll(now, applied.revision) if service_running else None
