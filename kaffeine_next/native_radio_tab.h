@@ -131,6 +131,18 @@ public:
 		playerHostLayout_ = new QVBoxLayout(playerHost_);
 		playerHostLayout_->setContentsMargins(0, 0, 0, 0);
 		rightLayout->addWidget(playerHost_, 3);
+		// The radio is audio-only. Keep Kaffeine's global libVLC MediaWidget
+		// owned by Playback/Playlist/Television. Reparenting it into Radio
+		// broke file playback and left a duplicate transport bar in the
+		// video canvas. This is a radio visualization and caption surface.
+		radioCanvas_ = new QLabel(tr("Radio · choose a station to listen"), playerHost_);
+		radioCanvas_->setAlignment(Qt::AlignCenter);
+		radioCanvas_->setWordWrap(true);
+		radioCanvas_->setMinimumHeight(135);
+		radioCanvas_->setStyleSheet(QLatin1String(
+			"QLabel{background:#122637;color:#eef9fc;font-size:19px;"
+			"border:1px solid #2b566b;border-radius:8px;padding:12px;}"));
+		playerHostLayout_->addWidget(radioCanvas_);
 
 		auto *meta = new QHBoxLayout();
 		slide_ = new QLabel(tr("No DAB slideshow"), right);
@@ -265,9 +277,11 @@ public:
 	~TihuluRadioTab() override { stopReceiver(); }
 
 	void activate() override {
-		// Same Kaffeine MediaWidget and libVLC controls as Playback/Television.
-		// Moving the widget between tabs does not start a second player.
-		playerHostLayout_->addWidget(player_);
+		// NEVER move Kaffeine's shared mediaWidget into this radio panel.
+		// The normal Playback, Playlist, and Television activate() methods
+		// remain sole owners of the video surface. Radio uses libVLC only
+		// for audio output, with its own visible AI and station metadata.
+		radioCanvas_->setFocus();
 	}
 
 private:
@@ -581,6 +595,9 @@ private:
 			lyricCues_=QJsonArray();
 			// Kaffeine's native libVLC audio engine, same global playback controls.
 			player_->play(QUrl(base()+stream));
+			radioCanvas_->setText(tr("♪ %1\nDAB+ %2 · Live radio\n"
+				"Offline captions appear here when enabled.")
+				.arg(item->text(0),activeChannel_));
 			state_->setText(tr("Playing %1 with Kaffeine / libVLC.")
 				.arg(item->text(0)));
 		};
@@ -779,8 +796,12 @@ private:
 			if (it.value().isString())
 				text+=QLatin1String("\n[")+it.key().toUpper()+
 					QLatin1String("] ")+it.value().toString();
-		if (!text.isEmpty())
+		if (!text.isEmpty()) {
 			radioCaption_->setText(text.left(1300));
+			// Radio uses no moving video image: show natural, large
+			// subtitles right on the central radio artwork surface.
+			radioCanvas_->setText(text.left(680));
+		}
 		else if (obj.contains(QLatin1String("error")))
 			radioCaption_->setText(tr("Radio speech processing: %1")
 				.arg(obj.value(QLatin1String("error")).toString().left(170)));
@@ -856,6 +877,7 @@ private:
 		}
 	}
 	MediaWidget *player_;
+	QLabel *radioCanvas_=nullptr;
 	QWidget *playerHost_=nullptr;
 	QVBoxLayout *playerHostLayout_=nullptr;
 	QComboBox *channel_=nullptr, *driver_=nullptr, *speechLanguage_=nullptr,
