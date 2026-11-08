@@ -781,8 +781,11 @@ private:
 			return;
 		}
 		activeChannel_ = current;
+		apiReady_=false;
+		apiWaitCount_=0;
 		state_->setText(tr("Initializing local DAB+ receiver on %1…").arg(current));
 		tick_.start();
+		probeReceiverApi();
 	}
 
 	void stopReceiver() {
@@ -804,8 +807,30 @@ private:
 			}
 		}
 		port_ = 0;
+		apiReady_=false;
 	}
 
+	void probeReceiverApi() {
+		if(!active() || apiReady_ || port_==0) return;
+		QNetworkRequest request(QUrl(base()+QLatin1String("/channel")));
+		request.setTransferTimeout(850);
+		QNetworkReply *reply=network_.get(request);
+		connect(reply,&QNetworkReply::finished,this,[this,reply]() {
+			const bool isReady=reply->error()==QNetworkReply::NoError;
+			reply->deleteLater();
+			if(!active()) return;
+			if(isReady) {
+				apiReady_=true;
+				apiWaitCount_=0;
+				state_->setText(tr("DAB control service ready; channels and scans available."));
+			} else if(++apiWaitCount_<12) {
+				QTimer::singleShot(450,this,[this](){probeReceiverApi();});
+			} else {
+				state_->setText(tr("DAB backend started, but its local audio/control server "
+					"did not answer. Check welle-cli stderr and SDR ownership."));
+			}
+		});
+	}
 	void callJson(const QString &endpoint,
 	              const std::function<void(const QJsonObject&)> &done) {
 		if (!active() || !port_) return;
@@ -979,6 +1004,16 @@ private:
 	}
 	void tune(const QString &block, const std::function<void()> &ready) {
 		if (!active()) return;
+		if (!apiReady_) {
+			if(apiWaitCount_>=12) {
+				state_->setText(tr("Cannot tune: local welle receiver API is unreachable."));
+				scanning_=false;
+				scan_->setEnabled(true);
+				return;
+			}
+			QTimer::singleShot(450,this,[this,block,ready](){tune(block,ready);});
+			return;
+		}
 		if (!QRegularExpression(QLatin1String("^(?:[5-9]|1[0-3])[A-F]$"))
 		        .match(block).hasMatch()) return;
 		QNetworkRequest req(QUrl(base()+QLatin1String("/channel")));
@@ -1621,6 +1656,8 @@ private:
 	QNetworkAccessManager network_;
 	QTimer tick_;
 	quint16 port_=0;
+	bool apiReady_=false;
+	int apiWaitCount_=0;
 	bool scanning_=false,shuttingDown_=false,slidePending_=false,lyricLoaded_=false,
 		lyricsEnabled_=false,
 		plotPending_=false;
