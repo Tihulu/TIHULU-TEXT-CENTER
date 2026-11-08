@@ -61,7 +61,8 @@ def write_runtime_json(path: Path, payload: dict) -> None:
 
 def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,...],
                       output: str, music: bool=False, max_chunks: int=0,
-                      speaker_labels: bool=False, prefer_verified_lyrics: bool=False):
+                      speaker_labels: bool=False, prefer_verified_lyrics: bool=False,
+                      sentence_hops: int=3):
     if type(port) is not int or not 1024 <= port <= 65535:
         raise ValueError("Invalid loopback radio port")
     if not isinstance(sid,str) or not _SID.fullmatch(sid):
@@ -71,6 +72,8 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
                                        for t in targets))
     if len(destinations)>6:
         raise ValueError("Choose at most 6 translated subtitle languages")
+    if type(sentence_hops) is not int or not 2 <= sentence_hops <= 5:
+        raise ValueError("Radio sentence assembly must use 2–5 audio hops")
     location=checked_runtime_output(output,prefix="tihulu-radio-captions-")
     ai=AISettings()
     ai.configure_environment()
@@ -106,7 +109,7 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
         "tihulu-radio-captions-","tihulu-radio-lyrics-",1))
     lyric_marker=None
     plain_matcher=None
-    sentence_joiner=LiveSentenceJoiner(max_words=90,max_chunks=3)
+    sentence_joiner=LiveSentenceJoiner(max_words=115,max_chunks=sentence_hops)
     try:
         while not done:
             # Five-second audio hops with a genuine 1-second overlapping window.
@@ -128,7 +131,8 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
                     payload=json.loads(lyric_path.read_text(encoding="utf-8"))
                     lines=payload.get("plain_lines",[])
                     plain_matcher=(LiveLyricMatcher(lines)
-                                   if payload.get("alignment_mode")=="asr_lexical"
+                                   if payload.get("alignment_mode") in
+                                   ("asr_lexical","timed_lrc")
                                    and isinstance(lines,list) and lines else None)
             except (OSError,ValueError,TypeError,json.JSONDecodeError):
                 if not lyric_path.is_file():
@@ -230,6 +234,7 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
                 "sentence_complete":bool(sentence_state.get("complete")),
                 "sentence_carry_chunks":int(sentence_state.get("chunks",0)),
                 "sentence_continuation":bool(sentence_state.get("continued",False)),
+                "sentence_hops_limit":sentence_hops,
                 "lyric_match":lyric_match,
                 "unverified_song_asr_hidden":unverified_vocals_hidden,
                 "lyric_alignment":("observed_ASR_approximate" if plain_matcher
@@ -278,6 +283,10 @@ def lyrics_lookup_to_file(*, artist:str, track:str,output:str,
         cues,provenance=lookup_synced_lyrics(
             title=track,artist=artist,online=online,allow_plain=True)
         plain_lines=provenance.get("plain_lines",[]) if isinstance(provenance,dict) else []
+        if cues and not plain_lines:
+            # A timestamped LRC is also a verified text catalog, so real
+            # Whisper observations can periodically recalibrate DLS timing.
+            plain_lines=[cue.text for cue in cues[:150]]
         if not cues and not plain_lines:
             raise RuntimeError(
                 "No matching lyrics ("+str(provenance.get("status"))+")")
@@ -334,6 +343,9 @@ def main(args=None):
     live.add_argument("--targets",default="en,tr")
     live.add_argument("--output",required=True)
     live.add_argument("--music",action="store_true")
+    live.add_argument("--sentence-hops",type=int,default=3,
+                      help="2–5 Whisper 5s hops; higher buffer can preserve "
+                           "longer sentences before translating")
     live.add_argument("--speaker-labels",action="store_true",
                       help="Opt-in local voice clusters; not for song/music mode")
     live.add_argument("--prefer-verified-lyrics",action="store_true",
@@ -359,7 +371,8 @@ def main(args=None):
             targets=tuple(x.strip() for x in opts.targets.split(",") if x.strip()),
             output=opts.output,music=opts.music,
             speaker_labels=opts.speaker_labels,
-            prefer_verified_lyrics=opts.prefer_verified_lyrics)
+            prefer_verified_lyrics=opts.prefer_verified_lyrics,
+            sentence_hops=opts.sentence_hops)
         return 0
     except (OSError,ValueError,RuntimeError,subprocess.TimeoutExpired) as exc:
         print("Offline radio AI unavailable: "+str(exc)[:250],file=sys.stderr)
