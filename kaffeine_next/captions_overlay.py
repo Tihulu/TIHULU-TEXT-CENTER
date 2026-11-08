@@ -679,11 +679,14 @@ def main(argv=None):
     mode.addItem("Off", "off")
     source = QComboBox()
     source.setEditable(True)
-    source.addItem("Auto detect → English (UI default)", "auto")
+    source.addItem("Auto detect", "auto")
     source.addItems(LANGS)
     source.setCurrentIndex(0)
     source.setToolTip(
-        "Type an ISO code such as pl, es, ja, ar. Broadcast Teletext "
+        "Automatically identify the broadcast audio language or use a genuine " 
+        "Whisper detection. This is the SOURCE language; English is the " 
+        "initial OUTPUT language. Type an ISO code such as pl, es, ja, ar. " 
+        "Broadcast Teletext "
         "can be displayed in its original language; 100 source-language "
         "codes are supported by multilingual Whisper, provided the chosen "
         "speech model and runtime are installed.")
@@ -714,7 +717,7 @@ def main(argv=None):
     output_catalog_status = QLabel("Checking locally installed output languages…")
     output_catalog_status.setWordWrap(True)
     settings_layout.addRow(output_catalog_status)
-    requested_languages = {"en","tr"}
+    requested_languages = {"en"}
     # Show the familiar language checkboxes immediately. Whether a
     # translator for a particular source→target pair is *installed* is a
     # separate asynchronous fact and must never gate the selection menu.
@@ -792,7 +795,7 @@ def main(argv=None):
         summarize_languages()
         if pending:
             output_catalog_status.setText(
-                "Languages ready: EN, TR, DE, FR. Checking installed "
+                "Languages ready: EN selected by default. Checking installed "
                 "offline translation models in the background…")
         elif isinstance(result,dict) and result.get("errors"):
             output_catalog_status.setText(
@@ -1820,7 +1823,7 @@ def main(argv=None):
         mode.setCurrentIndex(0)
         source.setCurrentIndex(0); display_mode.setCurrentIndex(1)
         for lang, check in language_boxes.items():
-            check.setChecked(lang in ("en","tr"))
+            check.setChecked(lang == "en")
         subtitle_track.setCurrentIndex(0)
         audio_track.setCurrentIndex(0)
         extra_targets.clear()
