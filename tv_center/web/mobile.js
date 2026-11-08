@@ -28,7 +28,7 @@
   };
   const setEnabled = (enabled) => {
     for(const id of ["leave","start-video","stop-video","fullscreen",
-        "open-page","apply-target","apply-source","enable-host-stream","host-play","host-pause",
+        "open-page","apply-target","apply-source","enable-host-stream","disable-host-stream","host-play","host-pause",
         "host-stop","host-prev","host-next","set-host-volume","tune-tv"]){
       if($(id)) $(id).disabled = !enabled;
     }
@@ -209,6 +209,8 @@
       $("source-capabilities").textContent=actual?.reason||
         "Host tuning remains local. Phone HLS and caption-only are separate modes.";
       $("start-video").disabled=!state.mobile_video || selectedSource!=="dvb";
+      $("enable-host-stream").disabled=state.mobile_video || state.source!=="live_native_dvb";
+      $("disable-host-stream").disabled=!state.mobile_video;
       $("stop-video").disabled=!currentlyPlayingHls;
       const t=state.caption_timing||{};
       const host=t.host_effective_buffer_ms;
@@ -277,6 +279,19 @@
     video.play().catch(()=>{$("video-status").textContent=
       "Tap the video Play button to enable audio on this phone.";});
   }
+  $("enable-host-stream").onclick=async()=>{
+    try{
+      await invoke("video",{enabled:true},"Host phone-stream encoder");
+      await refresh();
+    }catch(_){}
+  };
+  $("disable-host-stream").onclick=async()=>{
+    try{
+      stopClient();
+      await invoke("video",{enabled:false},"Host phone-stream encoder");
+      await refresh();
+    }catch(_){}
+  };
   $("start-video").onclick=watchVideo;
   $("stop-video").onclick=stopClient;
   $("fullscreen").onclick=async()=>{
