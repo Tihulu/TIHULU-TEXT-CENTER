@@ -3,7 +3,8 @@ import unittest
 from unittest.mock import patch
 
 from kaffeine_next.subtitle_tracks import TeletextSubtitleDiscovery, mpeg_crc32
-from tv_center.captions import _sub_stream, ass_text, decode_segment, teletext_from_clip
+from tv_center.captions import (_sub_stream, ass_text, decode_segment,
+                                teletext_from_clip, choose_audio_stream)
 
 
 def _section(table_id, body):
@@ -46,6 +47,16 @@ def _pmt(service, streams):
     return _ts(0x100,_section(2,body))
 
 
+def _pmt_audio(service, streams):
+    body=bytes([service>>8, service&255, 0xC1, 0, 0, 0xE1, 1, 0xF0, 0])
+    for stream_type, pid, language, audio_type in streams:
+        desc=(bytes([0x0a, 4])+language.encode("ascii")+
+              bytes([audio_type]))
+        body+=bytes([stream_type, 0xE0 | (pid>>8), pid&255,
+                     0xF0, len(desc)])+desc
+    return _ts(0x100,_section(2,body))
+
+
 class RealDVBSubtitleTrackTests(unittest.TestCase):
     def test_real_broadcaster_german_french_teletext_subtitles(self):
         # Exact DVB descriptor 0x56, teletext types 2 & 5; Kaffeine-style
@@ -63,6 +74,51 @@ class RealDVBSubtitleTrackTests(unittest.TestCase):
         self.assertFalse(meter.offer(_pmt(42,[
             (0x120,"deu",250,False),(0x121,"fre",366,True)]),
             preferred_service_id=42))
+
+    def test_real_audio_tracks_discovered_for_whisper(self):
+        meter = TeletextSubtitleDiscovery()
+        meter.offer(_pat([(42, 0x100)]), preferred_service_id=42)
+        self.assertTrue(meter.offer(_pmt_audio(42, [
+            (0x11, 0x121, "deu", 0),
+            (0x11, 0x122, "deu", 3),
+            (0x0f, 0x123, "eng", 0)]), preferred_service_id=42))
+        tracks = meter.snapshot_audio()
+        self.assertEqual([(t["pid"], t["source_hint"]) for t in tracks],
+                         [(0x121, "de"), (0x122, "de"), (0x123, "en")])
+        self.assertFalse(tracks[0]["visual_impaired"])
+        self.assertTrue(tracks[1]["visual_impaired"])
+        self.assertIn("audio description", tracks[1]["label"])
+        self.assertEqual(meter.snapshot(), [])
+        self.assertFalse(meter.offer(_pmt_audio(42, [
+            (0x11, 0x121, "deu", 0),
+            (0x11, 0x122, "deu", 3),
+            (0x0f, 0x123, "eng", 0)]), preferred_service_id=42))
+
+    def test_whisper_exact_audio_pid_does_not_fallback(self):
+        streams = [
+            {"codec_type":"audio", "index":3, "id":"0x121",
+             "tags":{"language":"deu"}},
+            {"codec_type":"audio", "index":5, "id":"0x123",
+             "tags":{"language":"eng"}},
+        ]
+        self.assertEqual(choose_audio_stream(streams, "de", 0x123), 5)
+        self.assertIsNone(choose_audio_stream(streams, "de", 0x333))
+        self.assertEqual(choose_audio_stream(streams, "de"), 3)
+        with self.assertRaises(ValueError):
+            choose_audio_stream(streams, "de", -1)
+        from kaffeine_next.caption_timing import CaptionConfig
+        self.assertEqual(CaptionConfig(audio_pid=0x123).validate().options()["audio_pid"],0x123)
+        with self.assertRaises(ValueError):
+            CaptionConfig(audio_pid=8191).validate()
+
+    def test_selected_audio_pid_is_forwarded_to_asr(self):
+        with patch("tv_center.captions.asr_from_clip",
+                   return_value="German speech") as asr:
+            result=decode_segment(bytes([0x47])+bytes(187), mode="asr",
+                                  source="de", target="de", targets=(),
+                                  audio_pid=0x121)
+        self.assertEqual(result["original"], "German speech")
+        self.assertEqual(asr.call_args.kwargs["audio_pid"], 0x121)
 
     def test_multiple_pat_entries_do_not_select_another_television_service(self):
         meter=TeletextSubtitleDiscovery()
