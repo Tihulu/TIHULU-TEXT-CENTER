@@ -263,7 +263,7 @@ def _translate_cues(cues:list[LyricCue],targets,source):
             if dest==source:
                 continue
             cue_source=cue.language or source
-            if cue_source=="auto":
+            if cue_source in ("auto", "und"):
                 warnings.append({"cue":i,"target":dest,"warning":
                     "Lyrics language not identified: choose an ISO source code"})
                 continue
