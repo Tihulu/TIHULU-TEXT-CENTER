@@ -749,6 +749,9 @@ def main(argv=None):
         if not language_boxes:
             content_layout.addWidget(QLabel(
                 "No installed language packs. Use Model Market.",content))
+        refresh_languages=QPushButton("Refresh installed languages",content)
+        content_layout.addWidget(refresh_languages)
+        refresh_languages.clicked.connect(start_language_catalog)
         scroll = QScrollArea(output_menu)
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QFrame.NoFrame)
@@ -1356,9 +1359,9 @@ def main(argv=None):
         if isinstance(selected,dict):
             language = selected.get("source_hint")
             if mode.currentData() in ("auto","teletext","page"):
-                chosen = selected.get("source_hint") or selected.get("language")
-                if chosen:
-                    source.setCurrentText(language_code(chosen))
+                # An audio/Teletext descriptor is an input-language hint,
+                # not a request to replace the user's Auto/English UI choice
+                # or an explicitly chosen manual language.
                 if language not in LANGS:
                     track_status.setText(
                         "Original broadcaster subtitles remain available. "
@@ -1371,10 +1374,6 @@ def main(argv=None):
         if isinstance(selected, dict):
             language = selected.get("source_hint")
             if mode.currentData() in ("asr", "auto"):
-                chosen = selected.get("source_hint") or selected.get("language")
-                if chosen and chosen != "und" and (
-                        source.currentData() != "auto"):
-                    source.setCurrentText(language_code(chosen))
                 detected = selected.get("source_hint") or selected.get("language")
                 if (not detected or
                         language_code(detected) not in WHISPER_LANGUAGES):
