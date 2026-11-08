@@ -499,8 +499,13 @@ public:
 			"artist/title is sent to LRCLIB on each new song. No audio or private RF data are uploaded."));
 		autoLyricSync_=new QCheckBox(tr("Auto lyric timing (DLS estimate)"),lab);
 		autoLyricSync_->setChecked(true);
-		autoLyricSync_->setToolTip(tr("Use the song metadata change and requested audio "
-			"buffer as an estimated timeline. Not audio fingerprinting; manual slider still applies."));
+		autoLyricSync_->setToolTip(tr("Use song metadata change and requested audio "
+			"buffer as an estimated timeline, not a verified sound-card timebase."));
+		preferLyrics_=new QCheckBox(tr("Prefer matched lyrics / hide uncertain sung words"),lab);
+		preferLyrics_->setChecked(true);
+		preferLyrics_->setToolTip(tr("When plain lyrics from an opted-in LRCLIB search are found, "
+			"show matched real-audio lines; unmatched song vocals are [music], not guessed text. "
+			"Presenter speech outside verified song metadata is unaffected."));
 		lyricsOffsetValue_=new QLabel(tr("0.00 s"),lab);
 		lyricsOffsetValue_->setMinimumWidth(65);
 		connect(lyricsOffset_,&QSlider::valueChanged,this,[this](int value){
@@ -517,6 +522,7 @@ public:
 		lyricsRow->addWidget(lyricsOffset_, 1);
 		lyricsRow->addWidget(lyricsOffsetValue_);
 		v->addLayout(lyricsRow);
+		v->addWidget(preferLyrics_);
 		lyricText_ = new QLabel(tr("No synchronized lyrics loaded."), lab);
 		lyricText_->setTextFormat(Qt::PlainText);
 		lyricText_->setWordWrap(true);
@@ -1709,6 +1715,8 @@ private:
 		}
 		options<<QLatin1String("--targets")<<targets.join(QLatin1Char(','));
 		if (music_->isChecked()) options<<QLatin1String("--music");
+		if (preferLyrics_->isChecked())
+			options<<QLatin1String("--prefer-verified-lyrics");
 		if (speakerLabels_->isChecked() && !music_->isChecked())
 			options<<QLatin1String("--speaker-labels");
 		const QString runtime=QStandardPaths::writableLocation(QStandardPaths::RuntimeLocation);
@@ -2026,7 +2034,8 @@ private:
 	int lastLyricOffsetMs_=0;
 	bool plainLyricMode_=false;
 	QList<TimedPlainLyric> plainLyricQueue_;
-	QCheckBox *autoLyrics_=nullptr,*autoLyricSync_=nullptr;
+	QCheckBox *autoLyrics_=nullptr,*autoLyricSync_=nullptr,
+		*preferLyrics_=nullptr;
 	QSpinBox *bufferMs_=nullptr,*radioOffsetMs_=nullptr;
 	QCheckBox *autoSync_=nullptr,*autoRestartAudio_=nullptr;
 	int lastCaptionOffsetMs_=0;
