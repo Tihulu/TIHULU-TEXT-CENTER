@@ -24,7 +24,7 @@ def _translation_window(text: str, first: int, last: int, total: int) -> str:
     return " ".join(tokens[a:b])
 
 
-def word_groups(result: dict, *, maximum_words: int = 11, maximum_span: float = 3.5):
+def word_groups(result: dict, *, maximum_words: int = 7, maximum_span: float = 2.7):
     """Return (source-clip-relative start/end, partial caption result).
 
     Reject malformed or non-monotonic timestamps rather than presenting a
