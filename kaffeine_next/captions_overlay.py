@@ -772,6 +772,7 @@ def main(argv=None):
         summarize_languages()
     language_process = QProcess(window)
     def language_catalog_finished(*_):
+        language_timeout.stop()
         try:
             payload=bytes(language_process.readAllStandardOutput()).decode(
                 "utf-8","replace")
@@ -782,9 +783,19 @@ def main(argv=None):
             result={"languages":[],"errors":[str(exc)]}
         fill_languages(result)
     language_process.finished.connect(language_catalog_finished)
+    language_timeout=QTimer(window)
+    language_timeout.setSingleShot(True)
+    def language_catalog_timeout():
+        if language_process.state()!=QProcess.NotRunning:
+            language_process.kill()
+            output_catalog_status.setText(
+                "Installed language discovery timed out. Retry via "
+                "the dropdown; TV playback continues normally.")
+    language_timeout.timeout.connect(language_catalog_timeout)
     def start_language_catalog():
         if language_process.state()==QProcess.NotRunning:
             language_process.start(sys.executable,["-m","tv_center.installed_languages"])
+            language_timeout.start(25000)
     QTimer.singleShot(150,start_language_catalog)
     extra_targets = QLineEdit()
     extra_targets.setPlaceholderText(
@@ -1196,6 +1207,9 @@ def main(argv=None):
         "AI performance test: not run on this computer. No model speed assumed.")
     benchmark_status.setWordWrap(True)
     tools_layout.addWidget(benchmark_button)
+    cancel_benchmark_button=QPushButton("Stop AI model test")
+    cancel_benchmark_button.setEnabled(False)
+    tools_layout.addWidget(cancel_benchmark_button)
     live_test_button=QPushButton("Measure current live subtitle pipeline · 4 clips")
     live_test_button.setToolTip(
         "Passive: observes the existing caption worker over four real "
@@ -1519,7 +1533,24 @@ def main(argv=None):
     live_test_button.clicked.connect(begin_live_test)
 
     benchmark_process = QProcess(window)
+    benchmark_cancelled=False
+    def cancel_benchmark():
+        nonlocal benchmark_cancelled
+        if benchmark_process.state()!=QProcess.NotRunning:
+            benchmark_cancelled=True
+            cancel_benchmark_button.setEnabled(False)
+            benchmark_status.setText(
+                "Stopping local AI test and its model worker… "
+                "No settings have been changed.")
+            benchmark_process.terminate()
+            QTimer.singleShot(3500,lambda:
+                benchmark_process.kill() if
+                benchmark_process.state()!=QProcess.NotRunning else None)
+    cancel_benchmark_button.clicked.connect(cancel_benchmark)
+
     def run_benchmark_clicked():
+        nonlocal benchmark_cancelled
+        benchmark_cancelled=False
         if benchmark_process.state()!=QProcess.NotRunning:
             return
         answer=QMessageBox.question(
@@ -1541,6 +1572,7 @@ def main(argv=None):
         if not chosen:
             return
         benchmark_button.setEnabled(False)
+        cancel_benchmark_button.setEnabled(True)
         benchmark_status.setText(
             "Testing installed AI models locally on six seconds of selected "
             "media. Main DVB player and caption service remain independent.")
@@ -1551,9 +1583,15 @@ def main(argv=None):
             benchmark_status.setText(
                 "Could not start the local benchmark process.")
             benchmark_button.setEnabled(True)
+            cancel_benchmark_button.setEnabled(False)
 
     def benchmark_finished(*_):
         benchmark_button.setEnabled(True)
+        cancel_benchmark_button.setEnabled(False)
+        if benchmark_cancelled:
+            benchmark_status.setText(
+                "AI test canceled. Original model, translator and buffer settings kept.")
+            return
         raw=bytes(benchmark_process.readAllStandardOutput()).decode(
             "utf-8","replace")
         if benchmark_process.exitCode()!=0 or len(raw)>100000:
