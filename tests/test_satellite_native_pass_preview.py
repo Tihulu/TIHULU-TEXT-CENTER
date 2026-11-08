@@ -30,6 +30,10 @@ class NativePassPreviewTests(unittest.TestCase):
             for node in ast.walk(execute)))
         self.assertIn('if command=="pass_preview":',source)
         self.assertIn('if command=="cancel_schedule":',source)
+        # Calendar and native pass card must compute the same geometric
+        # elevation threshold, not 15° in the UI versus hardcoded 5° here.
+        self.assertIn('elevation=float(args.get("elevation",5))',source)
+        self.assertNotIn('hours=int(args.get("hours",24)),elevation=5)',source)
 
     def test_skyfield_trajectory_sampling_and_timing_without_network(self):
         class Angle:
