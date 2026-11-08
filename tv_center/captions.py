@@ -362,7 +362,25 @@ def decode_segment(ts: bytes, *, mode="auto", page=150, source="de",
                     used_language = speech_language
                 if original and previous_text:
                     from kaffeine_next.continuous_captions import remove_repeated_prefix
-                    original = remove_repeated_prefix(previous_text, original)
+                    deduplicated = remove_repeated_prefix(previous_text, original)
+                    if deduplicated != original and speech_diagnostics.get("words"):
+                        # The 1-second overlapping DVB clip also duplicates
+                        # ASR word timestamps. Keep only words proven to be
+                        # the surviving transcript suffix; otherwise use the
+                        # old chunk cue rather than re-showing earlier speech.
+                        import re
+                        words = speech_diagnostics["words"]
+                        def clean_tokens(items):
+                            return [re.sub(r"\\W+","",str(x).casefold())
+                                    for x in items]
+                        target_words = clean_tokens(deduplicated.split())
+                        timed_words = clean_tokens(w["text"] for w in words)
+                        if (target_words and len(target_words) <= len(timed_words)
+                                and timed_words[-len(target_words):] == target_words):
+                            speech_diagnostics["words"] = words[-len(target_words):]
+                        else:
+                            speech_diagnostics["words"] = []
+                    original = deduplicated
                 used = "local_asr" if original else ""
             except (RuntimeError, ValueError, OSError, subprocess.TimeoutExpired) as exc:
                 error = str(exc)[:180]
