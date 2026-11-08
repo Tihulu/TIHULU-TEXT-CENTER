@@ -408,7 +408,7 @@ def transform(files):
 \tint pixelSize, int backgroundPercent, int textPercent,
 \tconst QString &foregroundColor, const QString &backgroundColor)
 {
-\tif (text.isEmpty()) {
+\tif (text.isEmpty() || (backgroundPercent <= 0 && textPercent <= 0)) {
 \t\thideCaption();
 \t\treturn;
 \t}
@@ -467,19 +467,29 @@ void OsdWidget::showObject(OsdObject *osdObject_, int duration)
 \t\t\ttihuluCaptionTop ? 35 : qMax(12, height() - boxHeight - 40),
 \t\t\tlimit, boxHeight);
 \t\tQPainter painter(this);
+\t\t// A child QWidget covering libVLC is opaque by default on some
+\t\t// X11/Wayland paths. Explicitly CLEAR every repainted pixel;
+\t\t// simply drawing an RGBA(0) rectangle previously left a black box.
+\t\tpainter.setCompositionMode(QPainter::CompositionMode_Source);
+\t\tpainter.fillRect(rect(), Qt::transparent);
+\t\tpainter.setCompositionMode(QPainter::CompositionMode_SourceOver);
 \t\tpainter.setRenderHint(QPainter::Antialiasing);
-\t\tpainter.setPen(Qt::NoPen);
-\t\tQColor backing(tihuluCaptionBackground);
-\t\tbacking.setAlpha(tihuluCaptionOpacity * 255 / 100);
-\t\tpainter.setBrush(backing);
-\t\tpainter.drawRoundedRect(box, 8, 8);
-\t\tpainter.setFont(face);
-\t\tQColor foreground(tihuluCaptionForeground);
-\t\tforeground.setAlpha(tihuluCaptionTextOpacity * 255 / 100);
-\t\tpainter.setPen(foreground);
-\t\tpainter.drawText(box.adjusted(12, 9, -12, -9),
-\t\t\tQt::AlignHCenter | Qt::AlignVCenter | Qt::TextWordWrap,
-\t\t\ttihuluCaptionText);
+\t\tif (tihuluCaptionOpacity > 0) {
+\t\t\tQColor backing(tihuluCaptionBackground);
+\t\t\tbacking.setAlpha(tihuluCaptionOpacity * 255 / 100);
+\t\t\tpainter.setPen(Qt::NoPen);
+\t\t\tpainter.setBrush(backing);
+\t\t\tpainter.drawRoundedRect(box, 8, 8);
+\t\t}
+\t\tif (tihuluCaptionTextOpacity > 0) {
+\t\t\tpainter.setFont(face);
+\t\t\tQColor foreground(tihuluCaptionForeground);
+\t\t\tforeground.setAlpha(tihuluCaptionTextOpacity * 255 / 100);
+\t\t\tpainter.setPen(foreground);
+\t\t\tpainter.drawText(box.adjusted(12, 9, -12, -9),
+\t\t\t\tQt::AlignHCenter | Qt::AlignVCenter | Qt::TextWordWrap,
+\t\t\t\ttihuluCaptionText);
+\t\t}
 \t\tsetMask(box);
 \t\treturn;
 \t}
@@ -500,6 +510,13 @@ void OsdWidget::showObject(OsdObject *osdObject_, int duration)
     '''\tosdWidget = new OsdWidget(this);
 \t// Independent on-video subtitles; native Kaffeine OSD is untouched.
 \ttihuluCaptionWidget = new OsdWidget(this);
+\t// Transparent *child surface*, not only a translucent painted brush.
+\t// Without these, a black video-covering rectangle can remain even
+\t// when the user selects background opacity = 0%.
+\ttihuluCaptionWidget->setAttribute(Qt::WA_TranslucentBackground, true);
+\ttihuluCaptionWidget->setAttribute(Qt::WA_NoSystemBackground, true);
+\ttihuluCaptionWidget->setAttribute(Qt::WA_OpaquePaintEvent, false);
+\ttihuluCaptionWidget->setAutoFillBackground(false);
 \ttihuluCaptionWidget->setAttribute(Qt::WA_TransparentForMouseEvents);
 \ttihuluCaptionWidget->resize(size());
 \tconst QString runtime = QStandardPaths::writableLocation(QStandardPaths::RuntimeLocation);
