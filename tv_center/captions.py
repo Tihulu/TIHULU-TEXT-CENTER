@@ -249,6 +249,8 @@ def asr_from_clip(path: Path, language: str, model: str,
             music_mode=music_transcription)
         if diagnostics is not None:
             diagnostics["words"] = details.get("words", [])
+            diagnostics["detected_language"] = details.get("language")
+            diagnostics["language_confidence"] = details.get("language_probability")
             diagnostics["word_timing_source"] = "faster_whisper_cuda_word_timestamps"
         return _speaker_details(audio.stdout, details["text"].strip(),
                                 diagnostics, speaker_enabled, speaker_provider,
@@ -310,7 +312,7 @@ def decode_segment(ts: bytes, *, mode="auto", page=150, source="de",
         raise ValueError("Unsupported caption source")
     if type(page) is not int or not 100 <= page <= 899:
         raise ValueError("Invalid Teletext page")
-    source = language_code(source, nllb=True)
+    source = "auto" if source == "auto" else language_code(source, nllb=True)
     target = language_code(target, nllb=True)
     if audio_pid is not None and (
             type(audio_pid) is not int or not 1 <= audio_pid <= 8190):
@@ -319,8 +321,8 @@ def decode_segment(ts: bytes, *, mode="auto", page=150, source="de",
         audio_source = language_code(audio_source)
     if targets is None:
         targets = (target,) if target != source else ()
-    if not isinstance(targets, (tuple,list)) or len(targets) > 3:
-        raise ValueError("Choose up to three translation languages")
+    if not isinstance(targets, (tuple,list)) or len(targets) > 6:
+        raise ValueError("Choose up to six translation languages")
     targets = tuple(language_code(t, nllb=True) for t in targets)
     if len(set(targets)) != len(targets):
         raise ValueError("Duplicate translation languages")
@@ -363,12 +365,19 @@ def decode_segment(ts: bytes, *, mode="auto", page=150, source="de",
                 if speaker_enabled:
                     asr_kwargs["speaker_enabled"] = True
                     asr_kwargs["speaker_provider"] = speaker_provider
-                speech_language = audio_source or source
+                speech_language = (
+                    source if source == "auto" else audio_source or source)
                 original = asr_from_clip(p, speech_language, model, service_id,
                                          **asr_kwargs)
                 raw_asr_original = original[:2500]  # private overlap bookkeeping
                 if original:
-                    used_language = speech_language
+                    used_language = (
+                        speech_diagnostics.get("detected_language") or
+                        speech_language)
+                    if used_language == "auto":
+                        # No invented translation source: display original
+                        # speech until the real model reports a language.
+                        used_language = "und"
                 if original and previous_text:
                     from kaffeine_next.continuous_captions import remove_repeated_prefix
                     deduplicated = remove_repeated_prefix(previous_text, original)
@@ -425,6 +434,8 @@ def decode_segment(ts: bytes, *, mode="auto", page=150, source="de",
                 "asr_backend": speech_diagnostics.get("backend"),
                 "asr_model": speech_diagnostics.get("model"),
                 "asr_engine": speech_diagnostics.get("engine"),
+                "language_confidence":speech_diagnostics.get("language_confidence"),
+                "detected_language":speech_diagnostics.get("detected_language"),
                 "audio_notice": speech_diagnostics.get("audio_notice"),
                 "words":speech_diagnostics.get("words", []),
                 "word_timing_source":speech_diagnostics.get("word_timing_source"),
