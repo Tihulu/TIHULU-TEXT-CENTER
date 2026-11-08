@@ -216,7 +216,8 @@ def main(args=None):
     live=subs.add_parser("radio-captions")
     live.add_argument("--port",type=int,required=True)
     live.add_argument("--sid",required=True)
-    live.add_argument("--source",default="de")
+    live.add_argument("--source",default="auto",
+                      help="Auto-detect multilingual broadcast speech per chunk")
     live.add_argument("--targets",default="en,tr")
     live.add_argument("--output",required=True)
     live.add_argument("--music",action="store_true")
