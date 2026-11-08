@@ -875,10 +875,11 @@ QAbstractButton *StartTab::addShortcut''')
 \t\tint fontSize, int textOpacity, const QString &color);''')
     change(vlch, '''\tQByteArray typeOfDevice;''',
            '''\tQByteArray typeOfDevice;
-\tQString tihuluCaptionCacheKey;''')
+\tQString tihuluCaptionCacheKey;
+\tqint64 tihuluCaptionLastSentMs = 0;''')
     vlcc = "src/backend-vlc/vlcmediawidget.cpp"
     change(vlcc, '#include "vlcmediawidget.h"\n',
-           '#include "vlcmediawidget.h"\n#include <QColor>\n')
+           '#include "vlcmediawidget.h"\n#include <QColor>\n#include <QDateTime>\n')
     change(vlcc, '''\tlibvlc_media_player_set_media(vlcMediaPlayer, vlcMedia);''',
            '''\tlibvlc_media_player_set_media(vlcMediaPlayer, vlcMedia);
 \t// A new media/video compositor invalidates the last caption render.
@@ -899,11 +900,21 @@ QAbstractButton *StartTab::addShortcut''')
 \t\t+ QString::number(int(atTop)) + QLatin1Char('|')
 \t\t+ QString::number(fontSize) + QLatin1Char('|')
 \t\t+ QString::number(textOpacity) + QLatin1Char('|') + color;
-\tif (requestedKey == tihuluCaptionCacheKey) return;
+\t// On a DVB tune, VOUT starts after the UI first publishes the caption.
+\t// Do not cache an unrenderable caption, and periodically reassert an active
+\t// caption after video-output restarts or renderer reconfiguration.
+\tif (libvlc_media_player_has_vout(vlcMediaPlayer) <= 0) {
+\t\ttihuluCaptionCacheKey.clear();
+\t\treturn;
+\t}
+\tconst qint64 nowMs = QDateTime::currentMSecsSinceEpoch();
+\tif (requestedKey == tihuluCaptionCacheKey &&
+\t    nowMs - tihuluCaptionLastSentMs < 2000) return;
 \ttihuluCaptionCacheKey = requestedKey;
+\ttihuluCaptionLastSentMs = nowMs;
 \tconst QColor rawColor(color);
 \tconst QColor safeColor = rawColor.isValid() ? rawColor : QColor(Qt::white);
-\tlibvlc_video_set_marquee_int(vlcMediaPlayer, libvlc_marquee_Enable, 1);
+\t// Set subtitle text/attributes BEFORE starting the libVLC filter.
 \tlibvlc_video_set_marquee_int(vlcMediaPlayer, libvlc_marquee_Size,
 \t\tqBound(16,fontSize,44));
 \tlibvlc_video_set_marquee_int(vlcMediaPlayer, libvlc_marquee_Color,
@@ -917,6 +928,7 @@ QAbstractButton *StartTab::addShortcut''')
 \tconst QByteArray utf8 = text.left(1100).toUtf8();
 \tlibvlc_video_set_marquee_string(vlcMediaPlayer, libvlc_marquee_Text,
 \t\tutf8.constData());
+\tlibvlc_video_set_marquee_int(vlcMediaPlayer, libvlc_marquee_Enable, 1);
 }
 
 void VlcMediaWidget::setExternalSubtitle(const QUrl &url)
@@ -929,7 +941,8 @@ void VlcMediaWidget::setExternalSubtitle(const QUrl &url)
     change(osdh, '''\tvoid showText(const QString &text, int duration); // duration: msecs
 ''', '''\tvoid showText(const QString &text, int duration); // duration: msecs
 \tvoid showCaption(const QString &text, bool atTop, int pixelSize, int backgroundPercent, int textPercent,
-\t\tconst QString &foregroundColor, const QString &backgroundColor);
+\t\tconst QString &foregroundColor, const QString &backgroundColor,
+\t\tconst QRect &videoViewport);
 \tvoid hideCaption();
 ''')
     change(osdh, '''\tOsdObject *osdObject;
@@ -949,7 +962,8 @@ void VlcMediaWidget::setExternalSubtitle(const QUrl &url)
 {''',
     '''void OsdWidget::showCaption(const QString &text, bool atTop,
 \tint pixelSize, int backgroundPercent, int textPercent,
-\tconst QString &foregroundColor, const QString &backgroundColor)
+\tconst QString &foregroundColor, const QString &backgroundColor,
+\tconst QRect &videoViewport)
 {
 \tif (text.isEmpty() || (backgroundPercent <= 0 && textPercent <= 0)) {
 \t\thideCaption();
@@ -975,22 +989,30 @@ void VlcMediaWidget::setExternalSubtitle(const QUrl &url)
 \ttihuluCaptionBackground = chosenBackground.isValid() ? backgroundColor : QLatin1String("#000000");
 \t// The legacy Qt mode MUST NOT own an X/Wayland window covering the whole
 \t// video. A full-size transparent child was retaining stale video frames.
-\t// Restrict it to an actual subtitle-sized strip, never the full viewport.
+\t// Anchor to the actual VIDEO widget, not the MediaWidget (which includes
+\t// controls and may be letterboxed). The small caption strip cannot cover
+\t// the whole video or float over an unrelated part of the application.
 \tif (parentWidget() != NULL) {
+\t\tconst QRect video = videoViewport.intersected(parentWidget()->rect());
+\t\tif (video.width() < 120 || video.height() < 80) {
+\t\t\thideCaption();
+\t\t\treturn;
+\t\t}
 \t\tQFont face = font();
 \t\tface.setPixelSize(tihuluCaptionSize);
 \t\tface.setBold(true);
 \t\tQFontMetrics metrics(face);
-\t\tconst int stripWidth = qMax(100, parentWidget()->width() - 56);
+\t\tconst int stripWidth = qMax(100, video.width()-qMin(56,video.width()/10));
 \t\tconst QRect measured = metrics.boundingRect(
 \t\t\tQRect(0,0,qMax(80,stripWidth-30),270),
 \t\t\tQt::TextWordWrap | Qt::AlignHCenter, tihuluCaptionText);
 \t\tconst int stripHeight = qBound(48, measured.height()+30,
-\t\t\tqMax(48, parentWidget()->height()/3));
-\t\tsetGeometry(qMax(0,(parentWidget()->width()-stripWidth)/2),
-\t\t\ttihuluCaptionTop ? 18 :
-\t\t\t\tqMax(18,parentWidget()->height()-stripHeight-25),
-\t\t\tstripWidth,stripHeight);
+\t\t\tqMax(48,video.height()/3));
+\t\tconst int left = video.left()+qMax(0,(video.width()-stripWidth)/2);
+\t\tconst int top = tihuluCaptionTop ? video.top()+18 :
+\t\t\tvideo.bottom()-stripHeight-24;
+\t\tsetGeometry(left,qBound(video.top(),top,
+\t\t\tqMax(video.top(),video.bottom()-stripHeight)),stripWidth,stripHeight);
 \t}
 \ttimer->stop();
 \tshow();
@@ -1151,7 +1173,8 @@ void OsdWidget::showObject(OsdObject *osdObject_, int duration)
 \t\t\t\tobj.value(QLatin1String("opacity")).toInt(70),
 \t\t\t\tobj.value(QLatin1String("text_opacity")).toInt(100),
 \t\t\tobj.value(QLatin1String("text_color")).toString(QLatin1String("#FFFFFF")),
-\t\t\tobj.value(QLatin1String("background_color")).toString(QLatin1String("#000000")));
+\t\t\tobj.value(QLatin1String("background_color")).toString(QLatin1String("#000000")),
+\t\t\tbackend->geometry());
 \t\t});
 \t\tcaptionPoll->start(150);
 \t}
