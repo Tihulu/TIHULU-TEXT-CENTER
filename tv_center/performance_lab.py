@@ -21,7 +21,8 @@ import time
 def recommend(measurements, current_buffer_ms=0, clip_seconds=6):
     """Measured speed recommendation; never assume GPU availability = speed."""
     asr = [m for m in measurements if m.get("kind")=="asr"
-           and m.get("status")=="ok" and m.get("elapsed_s",1e9)>0]
+           and m.get("status")=="ok" and m.get("nonempty_text",True)
+           and m.get("elapsed_s",1e9)>0]
     translations = [m for m in measurements if m.get("kind")=="translation"
                     and m.get("status")=="ok"]
     fastest = min(asr,key=lambda m:m["elapsed_s"]) if asr else None
@@ -212,7 +213,8 @@ def worker(kind,one,two=None,three=None):
         from .captions import asr_from_clip
         heard=asr_from_clip(Path(clip),"auto",model)
         return {"status":"ok","elapsed_s":round(time.monotonic()-started,3),
-                "nonempty_text":bool(str(heard).strip())}
+                "nonempty_text":bool(str(heard).strip()),
+                "speech_proven":bool(str(heard).strip())}
     if kind=="translation":
         engine,target=one,two
         if engine not in ("argos","nllb") or target not in ("en","tr"):
