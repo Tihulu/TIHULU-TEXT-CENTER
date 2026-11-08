@@ -11,13 +11,15 @@ from pathlib import Path
 import subprocess
 import sys
 
-LANGS=("de","en","tr","fr")
+from .language_codes import language_code
+
 ACTIONS=("catalog","installed","install","remove")
 
 
 def run(action,source="de",target="tr"):
-    if action not in ACTIONS or source not in LANGS or target not in LANGS:
+    if action not in ACTIONS:
         raise ValueError("Invalid Argos Market command")
+    source, target = language_code(source), language_code(target)
     if action in ("install","remove") and source==target:
         raise ValueError("Choose distinct source/target languages")
     from .runtime import AIRuntime
@@ -50,13 +52,13 @@ def worker(action,source,target):
         result=[{"source":p.from_code,"target":p.to_code,
                  "name":str(p),"version":str(getattr(p,"package_version",""))}
                 for p in package.get_available_packages()
-                if p.from_code in LANGS and p.to_code in LANGS
-                and p.from_code != p.to_code
+                if p.from_code != p.to_code
+                and all(language_code(code) for code in (p.from_code,p.to_code))
                 and getattr(p,"type","translate")=="translate"]
     elif action=="installed":
         result=[{"source":p.from_code,"target":p.to_code,
                  "name":str(p)} for p in package.get_installed_packages()
-                 if p.from_code in LANGS and p.to_code in LANGS]
+                 if all(language_code(code) for code in (p.from_code,p.to_code))]
     elif action=="install":
         existing={(p.from_code,p.to_code)
                   for p in package.get_installed_packages()}
@@ -90,7 +92,6 @@ def worker(action,source,target):
 
 if __name__=="__main__":
     args=sys.argv[1:]
-    if len(args)!=4 or args[0]!="--worker" or args[1] not in ACTIONS or (
-            args[2] not in LANGS or args[3] not in LANGS):
+    if len(args)!=4 or args[0]!="--worker" or args[1] not in ACTIONS:
         raise SystemExit("Invalid Argos worker arguments")
     worker(args[1],args[2],args[3])
