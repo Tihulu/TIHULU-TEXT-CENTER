@@ -840,7 +840,7 @@ def main(argv=None):
         if language_process.state()!=QProcess.NotRunning:
             catalog_timed_out=True
             output_catalog_status.setText(
-                "Installed model scan exceeded 6 seconds. Language choices "
+                "Installed model scan exceeded 11 seconds. Language choices "
                 "remain usable; Retry after Model Market is ready.")
             language_process.kill()
 
