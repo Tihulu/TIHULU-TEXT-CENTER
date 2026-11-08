@@ -128,7 +128,7 @@ def _chunk_cues(pcm: bytes, *, position: float, lang: str, profile:dict,
                      text,"Whisper chunk / not word-aligned",recognized_language)]
 
 
-def transcribe_local_media(filename: str, *, source: str="de",
+def transcribe_local_media(filename: str, *, source: str="auto",
                            targets=(), music:bool=False,
                            max_seconds:int=7200):
     media=validate_local_media(filename)
@@ -227,7 +227,7 @@ def _translate_cues(cues:list[LyricCue],targets,source):
     return translated,warnings
 
 
-def create_subtitles(filename, *, source="de", targets=(),music=False,
+def create_subtitles(filename, *, source="auto", targets=(),music=False,
                      lyrics=False,fetch_lyrics=False,artist="",track="",
                      output=None,overwrite=False):
     media=validate_local_media(filename)
