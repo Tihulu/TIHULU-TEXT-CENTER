@@ -1488,6 +1488,9 @@ def main(argv=None):
         with lock:
             applied = __import__("dataclasses").replace(
                 applied, teletext_pid=None, audio_pid=None, audio_language=None,
+                # A manually selected Teletext page belongs to the old
+                # service. Do not continue decoding it after a TV tune.
+                mode="auto" if applied.mode == "page" else applied.mode,
                 revision=applied.revision+1)
         cues.clear()
         estimator.clear()
@@ -1660,10 +1663,14 @@ def main(argv=None):
             if kind == "native_tv_tune":
                 # A previous queued event must never reset a newer tune.
                 if data.get("program_epoch") == tap.program_epoch:
-                    native_channel_status.setText(
-                        "Native Kaffeine tune: SID %s / TSID %s · epoch %s" % (
-                            data["service_id"], data["transport_stream_id"],
-                            data["owner_epoch"]))
+                    if data["service_id"]:
+                        native_channel_status.setText(
+                            "Kaffeine TV: new SID %s / TSID %s · tune %s" % (
+                                data["service_id"], data["transport_stream_id"],
+                                data["owner_epoch"]))
+                    else:
+                        native_channel_status.setText(
+                            "Kaffeine TV stopped/retuning · old caption source cleared")
             elif kind == "show_settings":
                 window.showNormal()
                 window.raise_()
