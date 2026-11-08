@@ -32,11 +32,19 @@
     const present=(hw.usb_devices||[]).some(d=>d.receiver_type==='rtl_sdr') ||
       Number(hw.usb_rtl_count)>0;
     hardwareState.enabled=hw.receiver_enabled===true;
-    hardwareState.verified=hardwareState.enabled;
+    // A persisted receiver_enabled flag is not the same as a newly acquired
+    // physical IQ sample. Show Flight Radar-style process/ownership truth.
+    hardwareState.verified=Boolean(hw.last_real_sample?.sample_bytes);
     const receiver=(hw.usb_devices||[]).find(d=>d.receiver_type==='rtl_sdr');
     const active=response?.session?.active===true;
+    const competing=Array.isArray(response?.busy)?response.busy:[];
+    const busyNames=[...new Set(competing.map(x=>
+      String(typeof x==='string'?x:x?.process||'other SDR process')))].slice(0,5);
     const phase=active?'RECORDING · native SDR process running':
-      hardwareState.enabled?'READY · real IQ tested; receiver armed':
+      busyNames.length?'OTHER SDR ACTIVE · '+busyNames.join(', ')+
+        ' · release it before using Satellite Center':
+      hardwareState.enabled&&hardwareState.verified?'READY · actual IQ verified; USB released while idle':
+      hardwareState.enabled?'ARMED · previous session state; run Connect to verify current USB/IQ':
       present?'DETECTED · press Connect to verify actual IQ':'NO COMPATIBLE SDR DETECTED';
     say('native-receiver-status',phase);
     say('native-rx-phase',phase);
@@ -53,8 +61,10 @@
       hardwareState.enabled?'Armed; click Start direct native RF capture':
       'Disabled until USB + IQ verification succeeds');
     say('native-rx-release',hw.app_released
-      ? 'Released while idle · available for other SDR apps'
-      : active?'Owned by Satellite Center recording':
+      ?(busyNames.length
+         ?'Satellite Center released its lease; another process may still own USB: '+busyNames.join(', ')
+         :'Satellite Center has released USB while idle')
+      :active?'Owned by Satellite Center recording':
                'Busy, connecting or release not yet confirmed');
     say('native-rx-pll',hw.last_real_sample?.pll_warning===true
       ? 'PLL warning observed · tuner lock not proven'
