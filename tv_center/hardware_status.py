@@ -133,7 +133,7 @@ def check_owners(snapshot):
     reports=[]
     for path in nodes:
         try:
-            outcome=subprocess.run([fuser,"-v","--",path],
+            outcome=subprocess.run([fuser,"-v",path],
                 stdout=subprocess.PIPE,stderr=subprocess.PIPE,
                 stdin=subprocess.DEVNULL,timeout=3,check=False)
             details=(outcome.stderr+outcome.stdout).decode(
