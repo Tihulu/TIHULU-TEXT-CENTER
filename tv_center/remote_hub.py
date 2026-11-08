@@ -28,7 +28,12 @@ from urllib.request import urlopen
 MEDIA_EXTS=frozenset({".mkv",".mp4",".webm",".mov",".avi",".ts",
                       ".mp3",".flac",".wav",".m4a",".ogg",".opus",".aac"})
 MPRIS_DEST="org.mpris.MediaPlayer2.tihulu_media_center"
-MPRIS_PATH="/org/mpris/MediaPlayer2"
+# Pinned KDE Kaffeine v2.0.19 uses MPRIS 1, NOT MPRIS 2.
+# Its native Qt DBus objects are /Player, /TrackList and /Television.
+MPRIS_INTERFACE="org.freedesktop.MediaPlayer"
+MPRIS_PLAYER_PATH="/Player"
+MPRIS_TRACKLIST_PATH="/TrackList"
+MPRIS_TV_PATH="/Television"
 
 PAGE="""<!doctype html><html lang="en"><head><meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -46,16 +51,27 @@ small{color:#a5c6d4} #caption{min-height:2.5rem;white-space:pre-wrap;text-align:
 <p><button onclick="loadCatalog()">Refresh catalog</button>
 <button onclick="command('PlayPause')">Host Play/Pause</button>
 <button onclick="command('Stop')">Host Stop</button>
+<button onclick="command('Next')">Next</button>
+<button onclick="command('Previous')">Previous</button>
 <button onclick="stopRemote()">Stop remote stream</button></p>
+<p><label>Native TV channel (name or number)
+<input id="tvchannel" maxlength="90" placeholder="Channel name or number"></label>
+<button onclick="tvTune()">Tune native TV (host)</button></p>
+<p><label>Native player volume (0–100)
+<input id="volume" type="range" min="0" max="100" value="60"></label>
+<button onclick="setVolume()">Apply host volume</button></p>
 <label><input id="host" type="checkbox"> Also play on host computer</label>
 <p id="status">Remote server connected</p>
 <div id="catalog"></div><h2>Verified live DAB services</h2><div id="dab"></div>
-</section><section><video controls playsinline id="player"></video>
+</section><section><div style="position:relative"><video controls playsinline id="player"></video>
+<div id="caption" aria-live="polite" style="position:absolute;bottom:2.5rem;left:5%;width:90%;
+box-sizing:border-box;white-space:pre-wrap;text-align:center;
+color:#fff;background:rgba(0,0,0,.72);font-size:1.15rem;pointer-events:none"></div></div>
 <p><small>Host performs encoding. Multiple authenticated devices can watch the
 same HLS stream. Safari supports HLS natively; on some browsers use VLC
 with an authenticated proxy. This is not guaranteed on Firefox without an HLS player.</small></p>
 <label>Caption display delay (ms, UI only) <input id="offset" type="number" value="0" min="-20000" max="20000"></label>
-<div id="caption" aria-live="polite"></div></section>
+</section>
 <script>
 let csrf='';
 async function api(path,body){let r=await fetch(path,{method:body?'POST':'GET',
@@ -82,6 +98,12 @@ async function start(kind,id){try{let x=await api('/api/start',{kind:kind,id:id,
 host:document.getElementById('host').checked});document.getElementById('status').textContent=x.status;
 let video=document.getElementById('player');video.src='/hls/stream.m3u8?serial='+x.serial;
 video.load();video.play().catch(()=>{}); }catch(e){alert(e.message)}}
+async function tvTune(){try{await api('/api/control',{
+action:'TVChannel',channel:document.getElementById('tvchannel').value});
+await statusCheck()}catch(e){alert(e.message)}}
+async function setVolume(){try{await api('/api/control',{
+action:'VolumeSet',value:Number(document.getElementById('volume').value)});
+}catch(e){alert(e.message)}}
 async function stopRemote(){try{await api('/api/stop',{});document.getElementById('player').removeAttribute('src');
 document.getElementById('player').load();}catch(e){alert(e.message)}}
 async function command(cmd){try{await api('/api/control',{action:cmd})}catch(e){alert(e.message)}}
@@ -176,8 +198,8 @@ class RemoteHub:
         if shutil.which("dbus-send") is None:
             return False
         args=["dbus-send","--session","--print-reply","--reply-timeout=2000",
-              "--dest="+MPRIS_DEST,MPRIS_PATH,
-              "org.mpris.MediaPlayer2.Player.OpenUri","string:"+url]
+              "--dest="+MPRIS_DEST,MPRIS_TRACKLIST_PATH,
+              MPRIS_INTERFACE+".AddTrack","string:"+url,"boolean:true"]
         try:
             done=subprocess.run(args,stdin=subprocess.DEVNULL,
                 stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,
@@ -186,22 +208,37 @@ class RemoteHub:
         except (OSError,subprocess.TimeoutExpired):
             return False
 
-    def control(self,action):
-        if action not in {"PlayPause","Play","Pause","Stop","Next","Previous"}:
-            raise ValueError("Invalid MPRIS command")
+    def control(self,action,*,channel=None,value=None):
+        known={"PlayPause":"Pause","Play":"Play","Pause":"Pause",
+               "Stop":"Stop","Next":"Next","Previous":"Prev",
+               "VolumeSet":"VolumeSet","TVChannel":"PlayChannel"}
+        if action not in known:
+            raise ValueError("Invalid native MPRIS control action")
         if shutil.which("dbus-send") is None:
             raise RuntimeError("DBus tools not installed")
+        is_tv=action=="TVChannel"
+        if is_tv:
+            if not isinstance(channel,str) or not 0<len(channel.strip())<=90 or (
+                    any(ord(c)<32 for c in channel)):
+                raise ValueError("Enter valid native TV channel name or number")
+        if action=="VolumeSet":
+            if type(value)!=int or not 0<=value<=100:
+                raise ValueError("Native volume must be integer 0–100")
         args=["dbus-send","--session","--print-reply","--reply-timeout=2000",
-              "--dest="+MPRIS_DEST,MPRIS_PATH,
-              "org.mpris.MediaPlayer2.Player."+action]
+              "--dest="+MPRIS_DEST,
+              MPRIS_TV_PATH if is_tv else MPRIS_PLAYER_PATH,
+              MPRIS_INTERFACE+"."+known[action]]
+        if is_tv:args+=["string:"+channel.strip()]
+        elif action=="VolumeSet":args+=["int32:"+str(value)]
         try:
             run=subprocess.run(args,stdin=subprocess.DEVNULL,
                 stdout=subprocess.DEVNULL,stderr=subprocess.PIPE,
                 timeout=3,check=False)
         except (OSError,subprocess.TimeoutExpired):
-            raise RuntimeError("Native MPRIS control is unavailable")
+            raise RuntimeError("Native Kaffeine DBus command unavailable")
         if run.returncode:
-            raise RuntimeError("Native TIHULU MPRIS control not responding")
+            raise RuntimeError("Native TIHULU DBus command failed. "
+                               "Is the standalone player running on this login?")
 
     def start(self,kind,identifier,host=False):
         if shutil.which("ffmpeg") is None:
@@ -408,7 +445,8 @@ def create_handler(hub):
                     with hub.lock:hub.stop()
                     self.send_data(200,{"status":"remote stopped"})
                 elif path=="/api/control":
-                    hub.control(payload.get("action"))
+                    hub.control(payload.get("action"),
+                                channel=payload.get("channel"),value=payload.get("value"))
                     self.send_data(200,{"status":"sent to native MPRIS player"})
                 else:self.send_data(404,{"error":"Unknown route"})
             except (RuntimeError,ValueError,OSError) as exc:
