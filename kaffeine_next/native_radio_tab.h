@@ -2674,6 +2674,14 @@ private:
 		const int sentenceHops=activePlaybackCacheMs_<8000?2:
 			activePlaybackCacheMs_<14000?3:activePlaybackCacheMs_<18500?4:5;
 		options<<QLatin1String("--sentence-hops")<<QString::number(sentenceHops);
+        // Transfer the CURRENT desktop radio timing settings to the
+        // separately paired phone. This is a requested native audio cache,
+        // not a measured DAC clock. The mobile browser must NOT blindly
+        // add this host delay again when decoding its own HLS stream.
+        options<<QLatin1String("--host-audio-cache-ms")
+               <<QString::number(activePlaybackCacheMs_);
+        options<<QLatin1String("--host-caption-offset-ms")
+               <<QString::number(radioOffsetMs_->value());
 		if (music_->isChecked() || lyricsAudioFallbackActive_)
             options<<QLatin1String("--music");
 		if (preferLyrics_->isChecked())
