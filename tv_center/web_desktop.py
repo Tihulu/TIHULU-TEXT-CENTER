@@ -19,6 +19,8 @@ class TVWebMixin:
         self.web_scan_events=[]
         self.web_scan_requested=False
         self.web_scan_remote=False
+        self.web_target="host"
+        self.web_muted_host=False
         self.mobile_toggle=QCheckBox("Allow phone / tablet on trusted Wi-Fi · PIN pairing")
         self.mobile_toggle.toggled.connect(self.toggle_mobile)
         form.addRow("Local mobile TV app",self.mobile_toggle)
@@ -76,7 +78,104 @@ class TVWebMixin:
             self.mobile_video_toggle.setChecked(False)
             self.mobile_video_toggle.blockSignals(False)
 
+    def native_web_snapshot(self):
+        """Real, non-fabricated native DVB receiver capabilities for mobile."""
+        import time
+        verified=bool(self.capture._stream_verified and self.capture.zap
+                      and self.capture.zap.poll() is None)
+        return {
+            "server_epoch_ms":round(time.time()*1000),
+            "backend":"native_tv_center",
+            "mobile_video":bool(self.capture.mobile_stream_dir()),
+            "playback_target":self.web_target,
+            "mobile_sources":[
+                {"id":"dvb","label":"Verified native DVB service",
+                 "available":verified,
+                 "streamable":bool(self.capture.mobile_stream_dir()),
+                 "reason":("" if verified else
+                     "No verified current DVB transport. Tune a real service.")},
+                {"id":"captions","label":"Captions only",
+                 "available":True,"streamable":True}
+            ],
+            "desktop_caption_settings":{
+                "mode":self.capture.caption_mode,
+                "source":self.capture.source_lang,
+                "targets":[self.capture.target_lang],
+                "page":self.capture.page,
+                "requested_buffer_ms":0,
+                "offset_ms":0,
+                "on_video":True},
+            "caption_timing":{
+                "host_requested_buffer_ms":0,
+                "host_effective_buffer_ms":None,
+                "host_buffer_verified":False,
+                "host_caption_offset_ms":0,
+                "latency_note":"Native mpv and phone HLS run independent clocks; "+
+                     "media PTS calibration not available"},
+            "stream_disclaimer":"Mobile HLS latency is estimated from the "+
+                    "actual browser buffer, not measured against broadcast PTS."
+        }
+
     def web_action(self,action,params):
+        if action=="sources":
+            return {"items":self.native_web_snapshot()["mobile_sources"]}
+        if action=="video":
+            enabled=params.get("enabled")
+            if type(enabled) is not bool:
+                raise ValueError("Video enabled must be boolean")
+            if not self.mobile:
+                raise RuntimeError("PIN-paired native mobile service not active")
+            self.mobile_video_toggle.setChecked(enabled)
+            actual=bool(self.capture.mobile_stream_dir())
+            if enabled and not actual:
+                raise RuntimeError("Native DVB HLS encoding could not start; "+
+                                   self.statusbar.text())
+            return {"video_enabled":actual,
+                    "note":"Host HLS encoder "+("enabled" if actual else "stopped")}
+        if action=="player_target":
+            target=params.get("target")
+            if target not in ("phone","host","both"):
+                raise ValueError("Playback target must be phone, host or both")
+            player=bool(self.capture.player and self.capture.player.poll() is None)
+            if player and target=="phone":
+                self.capture.control_player("mute",True)
+                self.web_muted_host=True
+            elif player and self.web_muted_host:
+                self.capture.control_player("mute",False)
+                self.web_muted_host=False
+            self.web_target=target
+            return {"target":target,
+                    "note":("Native mpv host audio muted; tuner continues "+
+                            "to feed phone HLS" if player and target=="phone" else
+                            "Host audio unmuted" if player else
+                            "Output preference stored; no host player is running")}
+        if action=="pause":
+            return self.capture.control_player("pause")
+        if action=="volume":
+            return self.capture.control_player("volume",params.get("value"))
+        if action=="tv_channel":
+            name=params.get("channel")
+            if not isinstance(name,str) or not 1<=len(name.strip())<=90:
+                raise ValueError("Enter the exact scanned channel name")
+            matches=[(idx,row) for idx,row in enumerate(self.visible_rows)
+                     if row["name"].casefold()==name.strip().casefold()]
+            if len(matches)!=1:
+                raise ValueError("Enter a unique channel name from the scanned "+
+                                 "channel list; multiple or no matches found")
+            index,row=matches[0]
+            self.channel_list.setCurrentRow(index)
+            self.play()
+            return {"channel":row["name"],"tuning_requested":True}
+        if action in ("next","previous"):
+            rows=getattr(self,"visible_rows",[])
+            if not rows:
+                raise RuntimeError("No included scanned channels available")
+            current=self.channel_list.currentRow()
+            offset=1 if action=="next" else -1
+            next_row=(current+offset)%len(rows)
+            self.channel_list.setCurrentRow(next_row)
+            self.play()
+            return {"tuning_requested":True,"channel":rows[next_row]["name"]}
         if action=="channels":
             return {"profile":self.current_profile(),
                     "country":self.country.currentData(),
@@ -147,6 +246,8 @@ class TVWebMixin:
             return {"saved":True}
         if action=="play":
             key=params.get("key")
+            if key is None:
+                return self.capture.control_player("resume")
             match=next((i for i,r in enumerate(self.visible_rows) if r["key"]==key),None)
             if match is None:
                 raise ValueError("Channel not included in active DVB profile")
@@ -156,6 +257,7 @@ class TVWebMixin:
         if action=="stop":
             self.stop()
             self.reset_mobile_video_ui()
+            self.web_muted_host=False
             return {"released":True}
         if action=="teletext":
             page=params.get("page")
