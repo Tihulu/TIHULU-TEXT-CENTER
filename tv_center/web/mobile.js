@@ -1,112 +1,351 @@
 "use strict";
+// TIHULU paired native DVB remote: no simulated channel, clock or recording.
 (() => {
-  const el = id => document.getElementById(id);
-  let connected = false, busy = false, ticker = null, hls = null;
-  const send = async (url, obj) => {
-    const response = await fetch(url, {method:"POST", credentials:"same-origin",
-      headers:{"Content-Type":"application/json"}, body:JSON.stringify(obj), cache:"no-store"});
+  const $ = id => document.getElementById(id);
+  let connected = false, loading = false, ticker = null, playerHls = null;
+  let selectedSource = "dvb", serverClockDelta = 0;
+  let seen = new Set(), pending = [], active = null;
+  let nativeTrack = null, lastCaptionText = "";
+  let currentlyPlayingHls = false;
+  const allowedSource = new Set(["dvb", "captions"]);
+  const get = async path => {
+    const start = Date.now();
+    const response = await fetch(path,{credentials:"same-origin",cache:"no-store"});
     const data = await response.json();
-    if (!response.ok) throw new Error(data.error || ("HTTP "+response.status));
+    if(!response.ok) throw Error(data.error || "HTTP " + response.status);
+    if(path === "/api/status" && typeof data.server_epoch_ms === "number") {
+      serverClockDelta = data.server_epoch_ms - (start + Date.now()) / 2;
+    }
     return data;
   };
-  function disconnect() {
-    connected = false;
-    clearInterval(ticker); ticker = null;
-    if (hls) { hls.destroy(); hls = null; }
-    el("tv").pause(); el("tv").removeAttribute("src"); el("tv").load();
-    el("pair").disabled = false; el("leave").disabled = true;
-    el("start-video").disabled = true; el("open-page").disabled = true;
-    el("state").textContent = "NOT PAIRED";
-    // Session cookie remains until host expiry or restart; browser cannot
-    // delete it because it is HttpOnly. A host reset revokes sessions.
+  const send = async (url, obj) => {
+    const response = await fetch(url,{method:"POST",credentials:"same-origin",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify(obj),cache:"no-store"});
+    const data = await response.json();
+    if(!response.ok) throw Error(data.error || "HTTP "+response.status);
+    return data;
+  };
+  const setEnabled = (enabled) => {
+    for(const id of ["leave","start-video","stop-video","fullscreen",
+        "open-page","apply-target","apply-source","host-play","host-pause",
+        "host-stop","host-prev","host-next","set-host-volume","tune-tv"]){
+      if($(id)) $(id).disabled = !enabled;
+    }
+    $("pair").disabled=enabled;
+    $("start-video").disabled = true; $("stop-video").disabled = !enabled || !currentlyPlayingHls;
+    $("fullscreen").disabled = !enabled;
+  };
+  const stopClient = () => {
+    if(playerHls){playerHls.destroy();playerHls=null;}
+    const video=$("tv");video.pause();video.removeAttribute("src");video.load();
+    currentlyPlayingHls=false;
+    $("stop-video").disabled=true;
+  };
+  function disconnect(){
+    connected=false;
+    if(ticker){clearInterval(ticker);ticker=null;}
+    stopClient();setEnabled(false);
+    seen.clear();pending=[];active=null;
+    $("state").textContent="NOT PAIRED";
+    $("caption-status").textContent="";
+    $("fullscreen-captions").style.display="none";
+    $("video-status").textContent="Pairing required";
   }
-  async function refresh() {
-    if (!connected || busy) return;
-    busy = true;
+  const showError = (error) => {
+    $("host-feedback").textContent = String(error?.message || error);
+  };
+  function initTextTrack(){
+    const video=$("tv");
+    if(nativeTrack)return nativeTrack;
     try {
-      const response = await fetch("/api/status", {credentials:"same-origin", cache:"no-store"});
-      if (!response.ok) throw new Error("Host session expired or unavailable");
-      const data = await response.json();
-      el("channel").textContent = data.channel || "No TV channel tuned on host";
-      el("source").textContent = data.source === "live_native_dvb" ?
-        "Real DVB stream from the connected host. No demo content." :
-        "No live DVB signal: tune a channel on the host.";
-      el("original").textContent = data.caption?.original || "Waiting for broadcaster captions";
-      el("translated").textContent = data.caption?.translated || "";
-      el("caption-source").textContent = data.caption?.source || "None";
-      el("page").value = data.teletext_page || 150;
-      el("state").textContent = data.source === "live_native_dvb" ? "TV TUNED" : "PAIRED";
-      el("start-video").disabled = !data.mobile_video;
-      el("video-status").textContent = data.mobile_video ?
-        "HLS enabled; press Watch live TV to start playing." :
-        "Mobile video encoding is OFF. Enable it on the host to share TV.";
-    } catch (err) {
-      el("pair-note").textContent = err.message;
-      disconnect();
-    } finally {
-      busy = false;
+      nativeTrack=video.addTextTrack("subtitles","TIHULU live captions","en");
+      nativeTrack.mode="showing";
+    } catch(error) {
+      $("latency-state").textContent="Native phone video text track unavailable: "+
+        error.message + ". Keep the video container in fullscreen.";
+    }
+    return nativeTrack;
+  }
+  function composedCaption(caption){
+    const choice=$("subtitle-display").value;
+    if(choice==="off")return "";
+    const original=choice==="translation"?"":String(caption.original||"");
+    const translated=choice==="original"?"":String(caption.translated||"");
+    return [original,translated].filter(Boolean).join("\n");
+  }
+  function clearExpiredTrack(){
+    if(!nativeTrack || !nativeTrack.cues)return;
+    const video=$("tv");
+    for(const cue of Array.from(nativeTrack.cues)){
+      if(cue.endTime < video.currentTime-2){
+        try{nativeTrack.removeCue(cue)}catch(_){}
+      }
     }
   }
-  el("pair").onclick = async () => {
-    try {
-      await send("/api/pair", {pin:el("pin").value.trim()});
-      el("pin").value = ""; connected = true;
-      el("pair").disabled = true; el("leave").disabled = false;
-      el("open-page").disabled = false;
+  function addNativeCue(item,seconds){
+    if(!currentlyPlayingHls || !item?.caption)return;
+    const track=initTextTrack();
+    if(!track || typeof VTTCue==="undefined")return;
+    const content=composedCaption(item.caption);
+    if(!content)return;
+    const video=$("tv");
+    const start=Math.max(0,video.currentTime+Math.max(0,seconds));
+    const end=start+Math.min(8,Math.max(2.4,item.duration||4));
+    try{
+      const cue=new VTTCue(start,end,content);
+      cue.line=88;cue.position=50;cue.align="middle";
+      track.addCue(cue);
+      clearExpiredTrack();
+    }catch(_){}
+  }
+  function hlsLagEstimateMs(){
+    const video=$("tv");
+    if(!currentlyPlayingHls || !video.buffered || !video.buffered.length)return 0;
+    const last=video.buffered.end(video.buffered.length-1);
+    if(!Number.isFinite(last)||!Number.isFinite(video.currentTime))return 0;
+    // The buffered tail is behind the encoder's live edge. Include two
+    // nominal HLS segments: approximate, NOT verified broadcast PTS.
+    return Math.max(0,Math.min(30000,(last-video.currentTime)*1000))+4000;
+  }
+  function cueTime(item){
+    const t=item.timing||{}, mode=$("sync-mode").value;
+    const manual=Math.max(-20000,Math.min(20000,
+      (Number($("phone-offset").value)||0)*1000));
+    let due=t.host_caption_due_epoch_ms;
+    if(typeof due!=="number")return null;
+    if(mode==="manual"){
+      due=(t.capture_end_epoch_ms??due)+500;
+    }else if(mode==="mobile" && currentlyPlayingHls){
+      // Important: mobile HLS receives TS BEFORE desktop's libVLC delay.
+      // Do not add 15 seconds again. Prefer the actually confirmed delay.
+      if(t.host_buffer_verified && Number.isFinite(t.host_effective_buffer_ms))
+        due-=t.host_effective_buffer_ms;
+      else if(Number.isFinite(t.capture_end_epoch_ms))
+        due=t.capture_end_epoch_ms+500+(t.host_caption_offset_ms||0);
+      due+=hlsLagEstimateMs();
+    }
+    return due-serverClockDelta+manual;
+  }
+  function scheduleEvents(data){
+    const now=Date.now();
+    for(const event of data.caption_events||[]){
+      if(!event || !Number.isInteger(event.sequence) || seen.has(event.sequence))continue;
+      seen.add(event.sequence);
+      const due=cueTime(event);
+      if(due===null)continue;
+      if(due<now-16000)continue; // Never surface stale caption after resuming.
+      const t=event.timing||{};
+      const duration=(Number(t.cue_expiry_epoch_ms)-Number(t.host_caption_due_epoch_ms))/1000;
+      pending.push({...event,due,
+        duration: Number.isFinite(duration)?Math.max(2,Math.min(8,duration)):4});
+    }
+    if(seen.size>250)seen=new Set([...seen].slice(-90));
+    pending.sort((a,b)=>a.due-b.due);
+    pending=pending.slice(-48);
+  }
+  function displayEvent(event){
+    active={...event,until:Date.now()+Math.max(2400,event.duration*1000)};
+    const c=event.caption||{};
+    $("original").textContent=c.original||"";
+    $("translated").textContent=c.translated||"";
+    $("caption-source").textContent=(c.source_language||"und").toUpperCase()+
+      " · "+(c.source||"Whisper/Teletext");
+    updateOverlay();
+  }
+  function updateOverlay(){
+    const source=active?.caption||{},choice=$("subtitle-display").value;
+    $("overlay-original").textContent=choice==="translation"||choice==="off"?
+      "":(source.original||"");
+    $("overlay-translated").textContent=choice==="original"||choice==="off"?
+      "":(source.translated||"");
+    $("fullscreen-captions").style.display=choice==="off"?"none":"";
+    $("fullscreen-captions").style.background="rgba(0,0,0,"+
+       (Number($("caption-opacity").value)/100)+")";
+  }
+  function tickCaptions(){
+    const now=Date.now();
+    while(pending.length && pending[0].due<=now){
+      const next=pending.shift();
+      if(next.due<now-12000)continue;
+      displayEvent(next);
+      addNativeCue(next,0);
+    }
+    if(active && now>active.until){
+      active=null;
+      $("original").textContent="Listening for the next phrase…";
+      $("translated").textContent="";
+      updateOverlay();
+    }
+  }
+  async function refresh(){
+    if(!connected||loading)return;
+    loading=true;
+    try{
+      const state=await get("/api/status");
+      $("channel").textContent=state.channel||"No TV channel tuned";
+      $("source").textContent=state.source==="live_native_dvb"?
+        "Current tuned native DVB service; receiver remains on the host.":
+        "No active DVB transport stream from host";
+      $("state").textContent=state.mobile_video?"MOBILE STREAM":"PAIRED";
+      $("play-target").value=state.playback_target||"phone";
+      const services=state.mobile_sources||[];
+      const selector=$("media-source");
+      const previous=selectedSource;
+      selector.replaceChildren();
+      for(const source of services){
+        if(!allowedSource.has(source.id))continue;
+        const option=document.createElement("option");
+        option.value=source.id;
+        option.textContent=source.label+(source.available?"":" · offline");
+        option.disabled=!source.available;
+        selector.append(option);
+      }
+      selectedSource=allowedSource.has(previous)?previous:"dvb";
+      if(![...selector.options].some(o=>o.value===selectedSource&&!o.disabled))
+        selectedSource="captions";
+      selector.value=selectedSource;
+      const actual=services.find(s=>s.id===selectedSource);
+      $("source-capabilities").textContent=actual?.reason||
+        "Host tuning remains local. Phone HLS and caption-only are separate modes.";
+      $("start-video").disabled=!state.mobile_video || selectedSource!=="dvb";
+      $("stop-video").disabled=!currentlyPlayingHls;
+      const t=state.caption_timing||{};
+      const host=t.host_effective_buffer_ms;
+      $("host-latency").textContent=t.host_buffer_verified?
+        "Computer: "+(host/1000).toFixed(1)+" s verified MPEG-TS buffer; "
+          +(Number(t.host_caption_offset_ms)/1000).toFixed(2)+" s caption offset.":
+        "Computer requested "+((t.host_requested_buffer_ms||0)/1000).toFixed(1)+
+          " s buffer; native applied delay not yet verified.";
+      $("video-status").textContent=state.mobile_video?
+        "Host HLS ready; tap Watch live TV. Fullscreen captions available.":
+        "Phone HLS is OFF or no valid DVB source is active. Host must enable streaming.";
+      scheduleEvents(state);
+      $("latency-state").textContent=$("sync-mode").value==="mobile"?
+        "Phone HLS estimated playback lag: "+(hlsLagEstimateMs()/1000).toFixed(1)+
+        " s · not PTS-calibrated; use fine-tune when needed.":
+        $("sync-mode").value==="host"?
+        "Using verified desktop caption schedule, independent of phone media buffer.":
+        "Manual mode uses audio capture end and your phone-only delay.";
+      $("caption-status").textContent=state.stream_disclaimer||"";
+    }catch(e){
+      $("pair-note").textContent=e.message;
+      if(/401|expired|pair/i.test(e.message))disconnect();
+    }finally{loading=false;}
+  }
+  async function invoke(action,params={},label=""){
+    try{
+      const result=(await send("/api/command",{action,params})).result;
+      $("host-feedback").textContent=(label||action)+" · "+
+        (result?.note||"Command accepted");
       await refresh();
-      if (connected) {ticker = setInterval(refresh, 1800);
-        document.dispatchEvent(new Event("tihulu-tv-connected"));}
-    } catch (err) { el("pair-note").textContent = err.message; }
+      return result;
+    }catch(e){showError(e);throw e;}
+  }
+  $("pair").onclick=async()=>{
+    try{
+      await send("/api/pair",{pin:$("pin").value.trim()});
+      $("pin").value="";connected=true;setEnabled(true);
+      await refresh();
+      ticker=setInterval(refresh,1200);
+      document.dispatchEvent(new Event("tihulu-tv-connected"));
+    }catch(e){$("pair-note").textContent=e.message;}
   };
-  el("leave").onclick = disconnect;
-  el("start-video").onclick = () => {
-    const url = "/hls/index.m3u8";
-    const video = el("tv");
-    if (hls) { hls.destroy(); hls = null; }
-    if (video.canPlayType("application/vnd.apple.mpegurl")) {
-      video.src = url;
-    } else if (window.Hls?.isSupported()) {
-      hls = new window.Hls({lowLatencyMode:false, maxBufferLength:12});
-      hls.loadSource(url);
-      hls.attachMedia(video);
-      hls.on(window.Hls.Events.ERROR, (_, err) => {
-        if (err.fatal) el("video-status").textContent = "HLS error: "+err.type+"; check host video encoder.";
+  $("leave").onclick=disconnect;
+  function watchVideo(){
+    const video=$("tv"),url="/hls/index.m3u8";
+    if(playerHls){playerHls.destroy();playerHls=null;}
+    if(video.canPlayType("application/vnd.apple.mpegurl")){
+      video.src=url;video.load();
+    }else if(window.Hls?.isSupported()){
+      playerHls=new window.Hls({lowLatencyMode:false,maxBufferLength:24});
+      playerHls.loadSource(url);
+      playerHls.attachMedia(video);
+      playerHls.on(window.Hls.Events.ERROR,(_,err)=>{
+        if(err.fatal)$("video-status").textContent=
+          "HLS playback error: "+err.type+" (check source, codec and signal)";
       });
-    } else {
-      el("video-status").textContent = "Browser cannot play HLS. Try Safari/Chrome or load hls.js.";
+    }else{
+      $("video-status").textContent=
+        "This browser cannot play the host's HLS stream; try Safari or a browser with hls.js.";
       return;
     }
-    video.play().catch(() => { el("video-status").textContent = "Tap Play inside the video player."; });
-  };
-  el("open-page").onclick = async () => {
-    const page = Number(el("page").value);
-    if (!Number.isInteger(page) || page < 100 || page > 899) return;
+    currentlyPlayingHls=true;
+    initTextTrack();
+    $("stop-video").disabled=false;
+    $("video-status").textContent="Playing host stream with phone caption sync";
+    video.play().catch(()=>{$("video-status").textContent=
+      "Tap the video Play button to enable audio on this phone.";});
+  }
+  $("start-video").onclick=watchVideo;
+  $("stop-video").onclick=stopClient;
+  $("fullscreen").onclick=async()=>{
+    const stage=$("fullscreen-stage"),video=$("tv");
     try {
-      await send("/api/teletext", {page});
-      el("teletext-result").textContent = "Page "+page+" requested — waits for real broadcast packets.";
-    } catch (err) { el("teletext-result").textContent = err.message; }
+      if(stage.requestFullscreen){
+        await stage.requestFullscreen({navigationUI:"hide"});
+      }else if(video.webkitEnterFullscreen){
+        // iOS native video-only fullscreen cannot contain HTML overlays.
+        // The live native VTTCue track keeps subtitles available there.
+        initTextTrack();video.webkitEnterFullscreen();
+      }else{
+        $("video-status").textContent="Fullscreen unavailable in this browser";
+      }
+    }catch(e){$("video-status").textContent="Fullscreen: "+e.message;}
   };
-  document.querySelectorAll("[data-page]").forEach(btn => {
-    btn.onclick = () => {el("page").value = btn.dataset.page; if (connected) el("open-page").click();};
+  $("subtitle-display").onchange=updateOverlay;
+  $("caption-opacity").oninput=updateOverlay;
+  $("sync-mode").onchange=()=>{pending=[];seen.clear();active=null;refresh();};
+  $("phone-offset").onchange=()=>{pending=[];seen.clear();active=null;refresh();};
+  $("apply-target").onclick=async()=>{
+    try{
+      const target=$("play-target").value;
+      await invoke("player_target",{target},"Playback target");
+      if(target==="host"){stopClient();}
+      else if(selectedSource==="dvb" && !$("start-video").disabled)watchVideo();
+    }catch(_){}
+  };
+  $("apply-source").onclick=()=>{
+    selectedSource=$("media-source").value;
+    if(selectedSource==="captions")stopClient();
+    $("caption-only-stage").hidden=selectedSource!=="captions";
+    $("tv").hidden=selectedSource==="captions";
+    refresh();
+  };
+  for(const [id,action] of [["host-play","play"],["host-pause","pause"],
+     ["host-stop","stop"],["host-next","next"],["host-prev","previous"]]){
+    $(id).onclick=()=>invoke(action,{},action).catch(()=>{});
+  }
+  $("set-host-volume").onclick=()=>invoke(
+    "volume",{value:Number($("host-volume").value)},"Volume").catch(()=>{});
+  $("tune-tv").onclick=()=>invoke(
+    "tv_channel",{channel:$("tv-channel").value.trim()},"Tune TV").catch(()=>{});
+  $("open-page").onclick=async()=>{
+    const page=Number($("page").value);
+    if(!Number.isInteger(page)||page<100||page>899)return;
+    try{await send("/api/teletext",{page});
+      $("teletext-result").textContent="Requested native Teletext page "+page;}
+    catch(e){$("teletext-result").textContent=e.message;}
+  };
+  document.querySelectorAll("[data-page]").forEach(btn=>btn.onclick=()=>{
+    $("page").value=btn.dataset.page;
+    if(connected)$("open-page").click();
   });
-  window.tihuluTVWeb = {
+  window.tihuluTVWeb={
     connected:()=>connected,
-    get:async path=>{
-      const response=await fetch(path,{credentials:"same-origin",cache:"no-store"});
-      const data=await response.json();
-      if(!response.ok)throw Error(data.error||"HTTP "+response.status);
-      return data;
-    },
+    get,
     command:async(action,params)=>{
-      const data=await send("/api/command",{action,params});
-      return data.result;
+      return (await send("/api/command",{action,params})).result;
     }
   };
-  // Previous cookie may be valid; only the host can accept it.
-  connected = true;
-  refresh().then(() => {
-    if (connected) {el("pair").disabled = true; el("leave").disabled = false; el("open-page").disabled = false;
-       ticker = setInterval(refresh, 1800);
-       document.dispatchEvent(new Event("tihulu-tv-connected"));}
+  setInterval(tickCaptions,180);
+  // A valid HttpOnly cookie may survive browser refresh; only host validates.
+  connected=true;
+  refresh().then(()=>{
+    if(connected){
+      setEnabled(true);
+      ticker=setInterval(refresh,1200);
+      document.dispatchEvent(new Event("tihulu-tv-connected"));
+    }else disconnect();
   });
 })();
