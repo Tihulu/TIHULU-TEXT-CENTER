@@ -2156,6 +2156,13 @@ private:
 			const double decoded=obj.value(QLatin1String("decoded_monotonic")).toDouble();
 			const int inference=(decoded>=captured && decoded-captured<=90.)
 				?int((decoded-captured)*1000):0;
+			const int carriedChunks=qBound(0,
+				obj.value(QLatin1String("sentence_carry_chunks")).toInt(),3);
+			const int sentenceHoldMs=qMax(0,carriedChunks-1)*5000;
+			if(obj.value(QLatin1String("sentence_pending")).toBool()) {
+				syncStatus_->setText(tr("Listening · carrying unfinished sentence "
+					"into next audio segment (up to 3 hops)."));
+			}
 			if(inference>0) {
 				lagSamples_.append(inference);
 				while(lagSamples_.size()>8) lagSamples_.removeFirst();
@@ -2166,7 +2173,7 @@ private:
 				std::sort(values.begin(),values.end());
 				const int p80=values[values.size()*4/5];
 				const int recommended=qBound(0,
-					((6000+p80+1400+499)/500)*500,20000);
+					((6000+p80+sentenceHoldMs+1400+499)/500)*500,20000);
 				lastAdjustmentMs_=now;
 				if(recommended>bufferMs_->value()+1500) {
 					if(autoRestartAudio_->isChecked()) {
@@ -2182,7 +2189,8 @@ private:
 			// The stream cache is only a requested network delay; not a
 			// confirmed DAC timestamp. The user's manual offset is ALWAYS
 			// applied to the already-generated cue's display time.
-			const int remaining=bufferMs_->value()-6000-inference+550;
+			const int remaining=bufferMs_->value()-6000-inference-
+				sentenceHoldMs+550;
 			QString caption=obj.value(QLatin1String("original")).toString();
 			const QJsonArray speakers=obj.value(QLatin1String("speaker_turns")).toArray();
 			if(!caption.isEmpty() && !speakers.isEmpty() && !music_->isChecked()) {
