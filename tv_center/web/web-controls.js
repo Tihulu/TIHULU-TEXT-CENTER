@@ -22,7 +22,7 @@
   const $=id=>document.getElementById(id);
   const conn=()=>window.tihuluTVWeb;
   const show=(id,value)=>{$(id).textContent=value};
-  let channels=[],busy=false;
+  let channels=[],busy=false,advancedAvailable=true;
   const make=(tag,value,cls)=>{
     const n=document.createElement(tag);n.textContent=value||"";if(cls)n.className=cls;return n;
   };
@@ -31,7 +31,7 @@
     return conn().command(action,params||{});
   }
   async function refreshChannels(){
-    if(!conn()?.connected()||busy)return;
+    if(!conn()?.connected()||busy||!advancedAvailable)return;
     busy=true;
     try{
       const data=await conn().get("/api/channels");
@@ -42,7 +42,23 @@
       $("web-medium").value=data.medium||"t";
       $("web-satellite").value=data.satellite||"S42E0";
       draw();
-    }catch(e){show("web-channel-msg","Channel lookup: "+e.message);}
+    }catch(e){
+      if(/native.*bridge|native.*control|not available from.*sidecar|unavailable/i.test(e.message)){
+        advancedAvailable=false;
+        // Unlike the previous UI, do NOT render unusable scan/receiver
+        // controls when paired only with the caption sidecar. The real
+        // host playback/volume/tuning controls are shown above instead.
+        root.replaceChildren();
+        const panel=make("section","","panel");
+        panel.append(make("h2","Advanced native DVB management"));
+        panel.append(make("p",
+          "This pairing is attached to the caption service. A native DVB control bridge "+
+          "for full scan, channel favorites and receiver diagnostics is not available "+
+          "in this session; use the main computer window. Host playback controls above "+
+          "remain available through D-Bus."));
+        root.append(panel);
+      }else show("web-channel-msg","Channel lookup: "+e.message);
+    }
     finally{busy=false;}
   }
   function draw(){
@@ -80,7 +96,7 @@
     }
   }
   async function refreshScan(){
-    if(!conn()?.connected())return;
+    if(!conn()?.connected()||!advancedAvailable)return;
     try{
       const data=await conn().get("/api/scan");
       show("web-scan-state",(data.running?"SCANNING · ":"Idle · ")+(data.status||""));
@@ -92,7 +108,7 @@
     }catch(e){show("web-scan-state",e.message);}
   }
   async function refreshModels(){
-    if(!conn()?.connected())return;
+    if(!conn()?.connected()||!advancedAvailable)return;
     try{
       const d=await conn().get("/api/models");
       show("web-model-info","Native ASR "+(d.asr_enabled?"ON":"OFF")+
