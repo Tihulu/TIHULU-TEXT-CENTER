@@ -204,6 +204,64 @@ def unmaterialized_tensors(model, maximum=8):
     return entries
 
 
+
+def repair_meta_embeddings_from_checkpoint(model, checkpoint):
+    """Repair ONLY tied embedding parameters from actual safetensors values.
+
+    Some Transformers versions leave tied M2M100 shared embedding parameters
+    on the 'meta' device despite a complete HF checkpoint. This function
+    never invents or reinitializes weights and never uses to_empty().
+    It reads only canonical shared/encoder/decoder/lm_head aliases and
+    validates shape and dtype before binding a real tensor.
+    """
+    missing=unmaterialized_tensors(model,maximum=64)
+    if not missing:
+        return []
+    import torch
+    from safetensors import safe_open
+    shared_aliases=(
+        "model.shared.weight", "model.encoder.embed_tokens.weight",
+        "model.decoder.embed_tokens.weight", "lm_head.weight",
+        "shared.weight", "encoder.embed_tokens.weight",
+        "decoder.embed_tokens.weight")
+    if not all(key in shared_aliases for key in missing):
+        raise RuntimeError("NLLB has non-embedding meta parameters ("+
+                           ", ".join(missing[:4])+
+                           "); genuine checkpoint or runtime repair needed")
+    if not checkpoint.is_file() or checkpoint.stat().st_size < 200_000_000:
+        raise RuntimeError("NLLB safetensors file missing or implausibly short")
+    source=None
+    with safe_open(str(checkpoint),framework="pt",device="cpu") as reader:
+        keys=set(reader.keys())
+        for alias in shared_aliases:
+            if alias in keys:
+                source=reader.get_tensor(alias)
+                if source is not None and source.numel()>0:
+                    break
+    if source is None:
+        raise RuntimeError("NLLB checkpoint has no real tied embedding weights")
+    if source.device.type=="meta" or not source.is_floating_point():
+        raise RuntimeError("NLLB shared checkpoint tensor was not materialized")
+    # A single genuine materialized tensor can be tied across all compatible
+    # embedding aliases without multiplying the model's memory usage.
+    genuine=torch.nn.Parameter(source.contiguous(),requires_grad=False)
+    for fullname in missing:
+        current=model.get_parameter(fullname)
+        if tuple(current.shape)!=tuple(genuine.shape):
+            raise RuntimeError("Checkpoint shared-embedding shape mismatch for "+
+                               fullname)
+        parent_name,leaf=fullname.rsplit(".",1)
+        parent=model.get_submodule(parent_name)
+        setattr(parent,leaf,genuine)
+    if hasattr(model,"tie_weights"):
+        model.tie_weights()
+    remaining=unmaterialized_tensors(model,maximum=64)
+    if remaining:
+        raise RuntimeError("Unmaterialized NLLB weights remain after genuine "
+                           "checkpoint recovery: "+", ".join(remaining[:4]))
+    return missing
+
+
 @lru_cache(maxsize=1)
 def _load_nllb():
     from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
@@ -222,18 +280,19 @@ def _load_nllb():
         trust_remote_code=False, low_cpu_mem_usage=False, device_map=None)
     missing = unmaterialized_tensors(model)
     if missing:
-        # Some tied checkpoint embeddings can be restored by reapplying
-        # their *existing initialized* tied weights. Never reinitialize
-        # missing weights or claim a model with empty params works.
-        if hasattr(model, "tie_weights"):
+        # First try the ordinary framework tie operation; only then load a
+        # canonical tied embedding from the pinned, real safetensors file.
+        if hasattr(model,"tie_weights"):
             model.tie_weights()
-        missing = unmaterialized_tensors(model)
-    if missing:
+        if unmaterialized_tensors(model):
+            repair_meta_embeddings_from_checkpoint(
+                model,location.model/"model.safetensors")
+    remaining=unmaterialized_tensors(model)
+    if remaining:
         raise RuntimeError(
-            "NLLB checkpoint has unmaterialized meta tensors (" +
-            ", ".join(missing[:4]) +
-            "). Model is unsafe for inference. Reinstall/repair NLLB in "
-            "AI Model Market; use installed Argos packs meanwhile.")
+            "NLLB still has unmaterialized meta tensors: " +
+            ", ".join(remaining[:4]) +
+            ". Model remains disabled; use Argos while repairing.")
     model.eval()
     device = "cpu"
     if torch.cuda.is_available():
