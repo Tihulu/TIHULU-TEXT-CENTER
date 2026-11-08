@@ -247,7 +247,9 @@ class _PersistentCUDAWorker:
                          and type(w.get("start")) in (float, int)
                          and type(w.get("end")) in (float, int)
                          and 0 <= w["start"] <= w["end"] <= 60]
-                return {"text":output[:3000],"words":words}
+                detected = result.get("language")
+                return {"text":output[:3000],"words":words,
+                        "language": detected if isinstance(detected,str) else language}
             except (OSError, ValueError, BrokenPipeError) as exc:
                 self._stop()
                 raise RuntimeError("CUDA worker unavailable: " + str(exc)[:180]) from exc
@@ -337,7 +339,7 @@ def main():
             if len(line) > 5_500_000:
                 raise ValueError("CUDA audio message too large")
             request = json.loads(line)
-            if request.get("language") not in WHISPER_LANGUAGES:
+            if request.get("language") not in WHISPER_LANGUAGES and request.get("language") != "auto":
                 raise ValueError("Unsupported Whisper language")
             path = str(FasterWhisperCUDA().model_dir)
             if request.get("model") != path:
@@ -352,8 +354,9 @@ def main():
             samples = np.frombuffer(pcm, dtype="<i2").astype(np.float32)
             samples = samples[:len(samples) // 2 * 2]
             waveform = (samples[0::2] + samples[1::2]) / 65536.0
-            segments, _ = model.transcribe(
-                waveform, language=request["language"], task="transcribe",
+            segments, language_info = model.transcribe(
+                waveform, language=(None if request["language"]=="auto" else
+                                    request["language"]), task="transcribe",
                 beam_size=3, vad_filter=not bool(request.get("music_mode")),
                 condition_on_previous_text=False, word_timestamps=True)
             all_segments = list(segments)
@@ -366,7 +369,12 @@ def main():
                         words.append({
                             "text": token, "start":round(float(word.start),3),
                             "end":round(float(word.end),3)})
-            output = {"text": text[:3000], "words": words}
+            detected = getattr(language_info,"language",None)
+            output = {"text": text[:3000], "words": words,
+                      "language":detected if isinstance(detected,str) else
+                                 request["language"],
+                      "language_probability":float(
+                          getattr(language_info,"language_probability",0.0) or 0.0)}
         except (ImportError, OSError, RuntimeError, ValueError, KeyError,
                 TypeError) as exc:
             output = {"error": str(exc)[:300]}
