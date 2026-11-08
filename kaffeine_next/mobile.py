@@ -62,6 +62,9 @@ class KaffeineMobile:
             "source": "live_native_dvb" if live else "offline",
             "channel": "Kaffeine DVB service "+str(sid) if live else None,
             "caption": caption,
+            "desktop_control_capabilities":{
+                "mode":True,"offset":True,"buffer":True,"start_stop":True,
+                "backend":"kaffeine_captions_sidecar"},
             "desktop_caption_settings":{
                 "mode":self.options().get("mode","off"),
                 "source":self.options().get("source","auto"),
