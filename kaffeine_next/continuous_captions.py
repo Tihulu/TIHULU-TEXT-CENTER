@@ -176,7 +176,10 @@ def collapse_asr_repetition_loops(text: str, *, enabled=True) -> str:
     while i < len(words):
         best_block = 0
         copies = 0
-        for block in range(min(48, (len(words)-i)//3), 0, -1):
+        # Prefer the smallest repeated unit, otherwise 18 identical words
+        # may appear as three copies of a six-word block and only shrink
+        # from 18 to six, rather than the intended two-word emphasis.
+        for block in range(1, min(48, (len(words)-i)//3) + 1):
             threshold = 6 if block == 1 else 4 if block == 2 else 3
             if i + block * threshold > len(words):
                 continue
