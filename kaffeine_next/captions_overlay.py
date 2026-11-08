@@ -1621,6 +1621,8 @@ def main(argv=None):
                 label+=f": {float(row['elapsed_s']):.2f}s"
                 if row.get("kind")=="asr":
                     label+=" / 6s captured audio"
+                    if not row.get("nonempty_text",True):
+                        label+=" · NO recognized speech; not recommended"
             else:
                 label+=": "+str(row.get("status"))+" · "+str(
                     row.get("reason",""))[:130]
@@ -1646,7 +1648,7 @@ def main(argv=None):
         pane.addWidget(results)
         choice=QComboBox()
         eligible=[m for m in rows if m.get("kind")=="asr" and
-                  m.get("status")=="ok"]
+                  m.get("status")=="ok" and m.get("nonempty_text",True)]
         for m in eligible:
             choice.addItem(
                 m["backend"].upper()+" · "+Path(m["model_path"]).name+
