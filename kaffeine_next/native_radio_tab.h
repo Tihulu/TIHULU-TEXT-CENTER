@@ -1504,6 +1504,21 @@ private:
 			return;
 		}
 		activeChannel_ = current;
+		// The remote hub can attach to this already running loopback backend
+		// without opening USB or stealing the receiver. Runtime file is 0600
+		// and scoped to this native application's PID.
+		const QString runtimeDir=QStandardPaths::writableLocation(
+			QStandardPaths::RuntimeLocation);
+		if(!runtimeDir.isEmpty()) {
+			wellePortFile_=runtimeDir+QLatin1String("/tihulu-welle-")+
+				QString::number(QCoreApplication::applicationPid())+
+				QLatin1String(".port");
+			QFile file(wellePortFile_);
+			if(file.open(QIODevice::WriteOnly|QIODevice::Truncate)) {
+				file.setPermissions(QFile::ReadOwner|QFile::WriteOwner);
+				file.write(QByteArray::number(port_));
+			}
+		}
 		apiReady_=false;
 		apiWaitCount_=0;
 		state_->setText(tr("Initializing local DAB+ receiver on %1…").arg(current));
@@ -1532,6 +1547,8 @@ private:
 			}
 		}
 		port_ = 0;
+		if(!wellePortFile_.isEmpty()) QFile::remove(wellePortFile_);
+		wellePortFile_.clear();
 		apiReady_=false;
 	}
 
@@ -2784,6 +2801,7 @@ private:
 	quint64 scanRequestId_=0,stationRequestId_=0;
 	qint64 songStartMs_=0,manualSongStartMs_=0;
 	QString activeChannel_,playingKey_,lastDls_,captionPath_,lyricPath_,
+		wellePortFile_,
 		lastDetectedLanguage_;
 	QMap<QString,QJsonObject> stationData_;
 	QMap<QString,QString> stationChannels_;
