@@ -405,22 +405,20 @@ The browser's independent WebUSB EM28178 experiment still lacks a
 complete Si2168/Si2157 DVB-T2 tuner driver. Running the local Linux
 bridge does not pretend that direct WebUSB video works.
 
-### Why GitHub Pages shows a disconnected receiver
+### Why GitHub Pages and the native receiver are different
 
-The public GitHub Pages origin does **not** have native Linux DVB privileges.
-The TV controls therefore live in the **same-origin local application**
-`http://127.0.0.1:8768/`, which requires the current desktop build.
-When the browser permits its health probe, Pages now redirects to the local
-app automatically unless `?browser-only` is supplied. When blocked by
-browser mixed-content/private-network restrictions, choose **Open Local TV**
-(the first, prominent card); this direct top-level navigation needs no token.
-The disconnected scan controls are deliberately **not rendered on Pages**.
+GitHub Pages now stays in **standalone browser mode** by default: it
+does **not** redirect to localhost, require a TV Center installation,
+authenticate with a token/PIN, or show dead native scan buttons. The
+optional native app is separately available at `http://127.0.0.1:8768/`
+when installed, but it is not a prerequisite for browser-side WebUSB,
+WASM, local recording analysis or AI.
 
-The local TV page also distinguishes a *running web service* from a *present
-DVB frontend*: it reports Linux frontend/DVR availability separately.
-A running server with no attached DVB adapter cannot start a scan. For
-that case check `tihulu-tv-center doctor` and the native hardware status.
-
+Standalone WebUSB still needs Chrome/Chromium, browser permission,
+operating-system USB access and an interface not owned by the Linux
+`em28xx` DVB driver. This is an OS hardware restriction, not a server
+dependency. Firefox has no WebUSB API. A USB selection/open success
+is **not** proof that the DVB tuner is initialized or that RF is locked.
 
 ## Standalone GitHub Pages: EM28178 browser-driver project (November 2026)
 
@@ -433,7 +431,13 @@ reception route, not the default or a dependency for WebUSB/WASM or AI.
 
 - Chrome/Chromium WebUSB permission for WinTV-soloHD \`2040:8268\` and passive
   USB descriptor/EM28xx chip-ID read (no kernel-driver detach).
-- Explicit bulk-IN transfer diagnostic when *already* configured/claimable.
+- Explicit 16 KiB bulk-IN transfer diagnostic when *already* configured/claimable.
+- **Opt-in bounded bulk capture (4 MiB maximum)** with cooperative Stop,
+  an on-page real packet/PSI/SI counter, and local `.ts` or raw `.bin`
+  download. The `.ts` extension is used only after valid DVB tables
+  are detected; saving data does not certify hardware tune success.
+  A stuck WebUSB read has a five-second *soft* timeout; it may still
+  require safe release or unplug, not an automatic USB kernel detach.
 - Client-side (browser, no uploads) MPEG-TS parser: MPEG-2 CRC, transport
   sync, continuity, PAT service IDs, PMT video/audio PIDs, **SDT service
   names, provider and TV/radio category**. The importer scans up to 2 MiB.
@@ -452,6 +456,27 @@ reception route, not the default or a dependency for WebUSB/WASM or AI.
   of a user-supplied Si2168-D60 \`.fw\` file. The firmware is NOT distributed,
   uploaded or automatically written to the physical device. Pure logic has
   synthetic fixture tests, but no physical RF-lock acceptance.
+
+### Standalone browser hardware acceptance procedure
+
+1. In Chromium or Chrome, open
+   https://tihulu.github.io/TIHULU-TEXT-CENTER/tv_center/ on HTTPS.
+2. In **Hauppauge WebUSB**, select the matching `2040:8268` device,
+   open USB and inspect/read its chip-ID. Report the result if any step
+   fails; the device has not been tuned yet.
+3. With all native TV applications stopped, try **Claim bulk-IN
+   (experimental)**. On Linux this may fail because `em28xx` already
+   owns the USB interface. Never unbind a driver automatically from a
+   web page or bypass USB permissions.
+4. If the interface is claimable, optionally choose **Capture live bulk
+   data**. The recorder reads actual bytes only; it cannot start RF
+   reception on an uninitialized tuner. Stop and export JSON/TS/BIN.
+   **No valid PSI/SI** means there is no evidence of DVB transport
+   reception, regardless of how many raw bytes are received.
+5. Keep capture separate from browser-only file preview. Captured
+   `.ts` can be inspected via the offline analyzer or FFmpeg/WASM.
+   Please include USB diagnostics and Linux `lsusb -d 2040:8268`
+   output when investigating device access, but do not share serials.
 
 ### Critical remaining work for *direct live* DVB-T2 from this exact USB device
 
