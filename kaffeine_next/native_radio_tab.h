@@ -497,6 +497,11 @@ public:
 		autoLyrics_->setChecked(false);
 		autoLyrics_->setToolTip(tr("OFF by default. When enabled, the current radio DLS "
 			"artist/title is sent to LRCLIB on each new song. No audio or private RF data are uploaded."));
+		connect(autoLyrics_,&QCheckBox::toggled,this,[this](bool enabled){
+			if(enabled && active() && !playingKey_.isEmpty() &&
+			   !lyricsEnabled_ && lastDls_.contains(QLatin1String(" - ")))
+				QTimer::singleShot(100,this,[this](){fetchLyrics(true);});
+		});
 		autoLyricSync_=new QCheckBox(tr("Auto lyric timing (DLS estimate)"),lab);
 		autoLyricSync_->setChecked(true);
 		autoLyricSync_->setToolTip(tr("Use song metadata change and requested audio "
