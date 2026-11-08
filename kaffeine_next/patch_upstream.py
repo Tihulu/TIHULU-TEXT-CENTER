@@ -185,14 +185,20 @@ QAbstractButton *StartTab::addShortcut''')
 	setOrganizationName("TIHULU");
 	setOrganizationDomain("tihulu.local");
 	QString path = QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation);''')
+    change(appmain, '#include <QPointer>\n',
+           '#include <QPointer>\n#include <QFileInfo>\n')
     change(appmain, '''	app.setApplicationName("kaffeine");
 	app.setOrganizationDomain("kde.org");
 	app.setWindowIcon(QIcon::fromTheme(QLatin1String("kaffeine"), QIcon(":kaffeine")));''',
            '''	app.setApplicationName("tihulu-media-center");
 	app.setOrganizationName("TIHULU");
 	app.setOrganizationDomain("tihulu.local");
-	app.setWindowIcon(QIcon::fromTheme(QLatin1String("tihulu-media-center"),
-		QIcon(":kaffeine")));''')
+	const QString userLogo = QStandardPaths::writableLocation(
+		QStandardPaths::GenericDataLocation) +
+		QLatin1String("/icons/hicolor/64x64/apps/tihulu-media-center.png");
+	const QIcon custom = QFileInfo::exists(userLogo) ? QIcon(userLogo) : QIcon();
+	app.setWindowIcon(!custom.isNull() ? custom :
+		QIcon::fromTheme(QLatin1String("tihulu-media-center"), QIcon(":kaffeine")));''')
     change(main, '''	menu = new QMenu(i18n("Kaffeine"), this);''',
            '''	menu = new QMenu(i18n("TIHULU Media Center"), this);''')
     change(main, '''	trayIcon->setToolTip(i18n("Kaffeine"));''',
