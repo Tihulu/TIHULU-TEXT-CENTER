@@ -24,6 +24,7 @@ WEB_ASSETS = frozenset({
     "index.html", "app.js", "web-controls.js", "scan-ui-state.js",
     "style.css", "webusb-ui.js", "webusb-em28xx.js", "ts-analyzer.js",
     "browser-ai-ui.js", "browser-ai-worker.js",
+    "em28xx-driver-plan.js", "webusb-driver-ui.js", "wasm-ts-preview.js",
 })
 MIME = {
     ".html": "text/html; charset=utf-8",
