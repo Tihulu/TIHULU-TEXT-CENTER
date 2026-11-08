@@ -237,7 +237,7 @@ class KaffeineTimingTests(unittest.TestCase):
                 "text_button.clicked.connect", "update_appearance_preview",
                 "speaker_enabled.setChecked(True)", "speaker_provider.currentData()",
                 "Background opacity", "Text opacity",
-                "extra_targets = QLineEdit()", "root.addWidget(control_scroll, 1)"):
+                "extra_targets = QLineEdit()", "pages.addTab(control_scroll, \"Source & sync\")"):
             self.assertIn(expected,source)
         self.assertNotIn("speaker_roles = QLineEdit()",source)
 
