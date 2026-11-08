@@ -82,11 +82,9 @@ class FastOutputLanguageTests(unittest.TestCase):
         self.assertIn("requested_languages.discard(code)",code)
         self.assertIn("cb.setChecked(code in requested_languages)",code)
         self.assertIn("Refresh installed languages",code)
-        self.assertIn("installed model: ",code)
-        self.assertIn("translation model not confirmed",code)
-        self.assertIn("model is required for actual output",code.replace(
-            "A translation pack is required for actual output",
-            "model is required for actual output"))
+        self.assertIn("local model: ",code)
+        self.assertIn("no offline translation pack confirmed",code)
+        self.assertIn("no model, source or channel changed",code.lower())
 
 
 if __name__=="__main__":
