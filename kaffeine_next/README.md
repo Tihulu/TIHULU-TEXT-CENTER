@@ -240,6 +240,32 @@ with original only, no translation model is required. Libre DVB
 Teletext formatting escape `\\h` is normalized to whitespace
 before display or translation.
 
+### Choose a *real* TV audio channel for Whisper
+
+In **TIHULU AI → Live Teletext / Whisper subtitles**, the new **Whisper
+source audio channel** picker lists verified audio elementary-stream PIDs
+signalled by the currently tuned DVB service's PMT. The first choice leaves
+the normal language-aware, non-audio-description preference in place.
+Selecting a specific PID means Whisper reads **only** that program audio;
+it does not change Kaffeine's own TV soundtrack, retune the receiver,
+or open a second tuner. If the selected track disappears, the sidecar
+reports an error rather than transcribing a different language silently.
+
+The **Broadcast subtitle channel** picker is independent: select an
+actual Teletext language/page/PID for broadcast captions, or use
+**Whisper live transcription** for a chosen soundtrack. In **Teletext →
+Whisper fallback** mode the subtitle/translation source language follows
+the broadcaster Teletext page when text is present; when Whisper is needed,
+it follows the selected audio language. Other languages require matching
+Whisper and translator support and real installed Argos/NLLB models.
+Unknown PMT language codes are not guessed as German.
+
+Native C++ playback buffering and subtitle cue scheduling now take the
+**effective** playback delay reported by Kaffeine when its 64-MiB
+memory cap reduces the user's requested delay. If no fresh matching
+status exists, the UI labels the lateness estimate as unconfirmed instead
+of claiming exact synchronization.
+
 ## Synchronized live subtitles, embedded on-video OSD and Apply / Reset
 
 In Kaffeine choose **TIHULU AI → Live Teletext / Whisper subtitles**.
@@ -266,7 +292,7 @@ without replacing libVLC or Kaffeine's existing EPG/Teletext OSD.
   bounded to 64 MiB. Kaffeine timeshift is already a separate playback
   mode and is not double-buffered.
 
-Whisper operates on approximately **4-second audio segments** (plus
+Whisper operates on approximately **6-second overlapping audio segments** (plus
 inference/translation time); it is not truly simultaneous word-by-word
 ASR. A 3–6 second broadcast delay may help where machine processing
 is fast enough. Use the live **ASR+translate latency** and
