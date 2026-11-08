@@ -52,6 +52,52 @@ def transform(files):
 	stackedLayout->addWidget(radioTab);
 
 	currentTabIndex = StartTabId;''')
+    # Keep original Playback libVLC widget. Local file AI controls live
+    # INSIDE its own tab; the older launched media-captions-ui remains
+    # available only as an optional legacy menu entry.
+    change(main, '#include "tihulu_radio_tab.h"\n',
+           '#include "tihulu_radio_tab.h"\n#include "tihulu_media_panel.h"\n')
+    change(main, '''	void activate() override
+	{
+		layout()->addWidget(mediaWidget);
+		mediaWidget->setFocus();
+	}
+
+private:
+	MediaWidget *mediaWidget;
+};''',
+           '''	void activate() override
+	{
+		layout()->addWidget(mediaWidget);
+		mediaWidget->setFocus();
+	}
+	void setLocalFile(const QUrl &url) { aiPanel->setLocalFile(url); }
+
+private:
+	MediaWidget *mediaWidget;
+	TihuluMediaPanel *aiPanel;
+};''')
+    change(main, '''PlayerTab::PlayerTab(MediaWidget *mediaWidget_) : mediaWidget(mediaWidget_)
+{
+	QHBoxLayout *layout = new QHBoxLayout(this);
+	layout->setContentsMargins(0, 0, 0, 0);
+}''',
+           '''PlayerTab::PlayerTab(MediaWidget *mediaWidget_) : mediaWidget(mediaWidget_)
+{
+	QVBoxLayout *layout = new QVBoxLayout(this);
+	layout->setContentsMargins(0, 0, 0, 0);
+	layout->setSpacing(0);
+	aiPanel = new TihuluMediaPanel(mediaWidget, this);
+	layout->addWidget(mediaWidget, 1);
+	layout->addWidget(aiPanel, 0);
+}''')
+    change(main, '''	QUrl copy(url);
+	actionOpenRecent->addUrl(copy);''',
+           '''	QUrl copy(url);
+	// Keep local video/audio player *inside* this Playback tab.
+	// Its optional AI captions are generated in the bottom panel.
+	playerTab->setLocalFile(copy);
+	actionOpenRecent->addUrl(copy);''')
     hdrmain = "src/mainwindow.h"
     change(hdrmain, '\t\tDvbTabId = 3\n',
            '\t\tDvbTabId = 3,\n\t\tRadioTabId = 4\n')
@@ -798,6 +844,14 @@ def apply(root: Path):
         raise RuntimeError("Refusing to overwrite unrelated native radio header")
     dest.write_text(widget.read_text(encoding="utf-8"),encoding="utf-8")
     print("Installed native Kaffeine radio page:", dest)
+    panel = Path(__file__).with_name("native_media_panel.h")
+    if not panel.is_file():
+        raise RuntimeError("In-player local media AI template is missing")
+    media_dest = root / "src/tihulu_media_panel.h"
+    if media_dest.exists() and media_dest.read_text(encoding="utf-8") != panel.read_text(encoding="utf-8"):
+        raise RuntimeError("Refusing to overwrite unrelated native media panel")
+    media_dest.write_text(panel.read_text(encoding="utf-8"),encoding="utf-8")
+    print("Installed in-player offline media AI controls:",media_dest)
 
 if __name__ == "__main__":
     if len(sys.argv) != 2:
