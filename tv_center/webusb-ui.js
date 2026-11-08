@@ -3,10 +3,11 @@
  */
 import {WinTVProbe,WINTV,bulkCandidates} from "./webusb-em28xx.js";
 import {TransportAnalyzer} from "./ts-analyzer.js";
+import {BrowserTransportCapture} from "./browser-ts-capture.js";
 
 const $=id=>document.getElementById(id);
 const probe=new WinTVProbe();
-let lastReport=null,busy=false;
+let lastReport=null,busy=false,capture=null,lastCapture=null;
 const say=text=>{$("usb-status").textContent=text};
 function setButtons(){
   const supported=!!navigator.usb&&globalThis.isSecureContext===true;
@@ -21,13 +22,20 @@ function setButtons(){
   $("webusb-bulk").disabled=!claimed||busy;
   $("webusb-release").disabled=!selected||busy;
   $("webusb-export").disabled=!lastReport;
+  $("webusb-capture").disabled=!claimed||busy;
+  $("webusb-capture-stop").disabled=!capture;
+  $("webusb-capture-save").disabled=!lastCapture?.bytes?.length;
 }
 const formatHex=n=>"0x"+Number(n).toString(16).padStart(2,"0");
 function report(extra={}){
   const info={timestamp:new Date().toISOString(),
     browserWebUSB:!!navigator.usb,secureContext:globalThis.isSecureContext,
     ...probe.describe(),
-    transport:probe.analyzer.summary(),...extra};
+    transport:probe.analyzer.summary(),
+    capture:lastCapture?{bytes:lastCapture.bytes.length,
+      transfers:lastCapture.transfers,stopped:lastCapture.stopped,
+      transportVerified:lastCapture.transportVerified,
+      summary:lastCapture.summary}:null,...extra};
   // Never persist user serial numbers, hardware paths, MACs or permission tokens.
   lastReport=info;
   $("webusb-diagnostics").textContent=JSON.stringify(info,null,2);
@@ -90,6 +98,71 @@ $("webusb-bulk").onclick=()=>run(async()=>{
         data.summary.packets+" MPEG-TS packets so far. Zero packets means NO confirmed TV stream.");
   }finally{clearTimeout(timeout);}
 });
+// A finite and explicitly requested read-only capture: NEVER tune, send
+// firmware, reset the device or silently detach the Linux DVB driver.
+function boundedBulkRead(size){
+  // WebUSB has no AbortSignal on transferIn. This is a soft deadline only;
+  // a timed-out browser USB operation may remain pending until close/unplug.
+  let timer;
+  return Promise.race([
+    probe.readBulkBytes(size),
+    new Promise((_,reject)=>{
+      timer=setTimeout(()=>reject(Error(
+        "USB bulk-IN stalled for 5 seconds. Stop/release the interface or unplug safely; a USB transfer may still be pending.")),5000);
+    })
+  ]).finally(()=>clearTimeout(timer));
+}
+$("webusb-capture").onclick=async()=>{
+  if(busy||probe.claimed===null)return;
+  if(!confirm("Capture up to 4 MiB from the already-claimed USB bulk-IN endpoint? "+
+     "No RF frequency will be tuned and no firmware or USB control writes will be sent. "+
+     "Without an already-running TS stream, this may time out."))return;
+  busy=true;lastCapture=null;
+  capture=new BrowserTransportCapture(boundedBulkRead,{
+    maxBytes:4*1024*1024,maxTransfers:256,
+    onProgress:({bytes,transfers,summary})=>{
+      const named=summary.programs.filter(p=>p.name).map(p=>p.name).slice(0,6);
+      say("Captured "+bytes+" real USB bytes / "+transfers+" reads · "+
+          summary.packets+" MPEG-TS packets · "+summary.validSections+
+          " valid PSI/SI sections"+(named.length?" · "+named.join(", "):""));
+    }
+  });
+  setButtons();
+  say("Read-only capture started. Stop requests take effect after the current USB transfer.");
+  try{
+    lastCapture=await capture.run();
+    probe.analyzer=capture.analyzer;
+    const s=lastCapture.summary;
+    say("Capture ended: "+lastCapture.bytes.length+" bytes, "+s.packets+
+      " MPEG-TS packets, "+s.validSections+" valid PSI/SI sections, "+
+      s.programs.length+" PAT services. "+
+      (lastCapture.transportVerified?
+        "Transport stream recognized; download is enabled.":
+        "No validated DVB transport tables. The download is raw diagnostic bytes, NOT proof of TV reception."));
+  }catch(err){
+    say("USB capture failed: "+(err?.message||err)+
+      " No tuner writes were attempted.");
+  }finally{
+    capture=null;busy=false;report();
+  }
+};
+$("webusb-capture-stop").onclick=()=>{
+  capture?.stop();
+  say("Capture stop requested. Current WebUSB read must finish or time out first.");
+};
+$("webusb-capture-save").onclick=()=>{
+  if(!lastCapture?.bytes.length)return;
+  const ts=lastCapture.transportVerified;
+  const blob=new Blob([lastCapture.bytes],{
+    type:ts?"video/mp2t":"application/octet-stream"
+  });
+  const url=URL.createObjectURL(blob);
+  const link=document.createElement("a");
+  link.href=url;
+  link.download="tihulu-real-usb-capture."+(ts?"ts":"bin");
+  link.click();
+  setTimeout(()=>URL.revokeObjectURL(url),1500);
+};
 $("webusb-release").onclick=()=>run(async()=>{
   await probe.release();
   say("WebUSB interface released and device handle closed. Linux tuner settings were untouched.");
@@ -127,6 +200,7 @@ $("webusb-ts-import").onchange=()=>run(async()=>{
 if(navigator.usb){
   navigator.usb.addEventListener("disconnect",evt=>{
     if(probe.onDisconnect(evt.device)){
+      capture?.stop();
       say("WinTV tuner unplugged. Browser USB access ended.");
       report();
     }

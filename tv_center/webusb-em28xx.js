@@ -121,17 +121,23 @@ export class WinTVProbe {
                   this.lastError);
     }
   }
-  async readBulkOnce(){
+  async readBulkBytes(length=16384){
     if(this.claimed===null||this.endpoint===null)
       throw Error("Explicitly claim the bulk-IN interface first");
-    // At most 16384 bytes. This probes an already-active stream only.
-    // It does not initialize the EM28xx TS bridge, Si2168, Si2157 or PLL.
-    const result=await this.device.transferIn(this.endpoint,16384);
+    if(!Number.isInteger(length)||length<1||length>16384)
+      throw RangeError("USB bulk reads must be 1..16384 bytes");
+    // This does not enable the TS bridge or initialize the Si2168/Si2157.
+    const result=await this.device.transferIn(this.endpoint,length);
     if(result.status!=="ok"||!result.data)
       throw Error("USB bulk-IN did not return an OK transport result");
-    const data=new Uint8Array(result.data.buffer,result.data.byteOffset,
-                              result.data.byteLength);
-    this.analyzer.feed(new Uint8Array(data));
+    if(result.data.byteLength>length)
+      throw Error("USB transfer exceeded the requested size");
+    return new Uint8Array(result.data.buffer,result.data.byteOffset,
+                          result.data.byteLength).slice();
+  }
+  async readBulkOnce(){
+    const data=await this.readBulkBytes();
+    this.analyzer.feed(data);
     return {readBytes:data.length,summary:this.analyzer.summary()};
   }
   async release(){

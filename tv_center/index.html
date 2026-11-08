@@ -59,10 +59,12 @@
 </section>
 <section class="panel" id="webusb-dvb">
 <h2>1 · Hauppauge WebUSB · Direct driver laboratory</h2>
-<p><strong>WinTV-soloHD 2040:8268 / Empia EM28178</strong>: direct USB descriptor and read-only chip-ID diagnostics are implemented. An experimental exclusive bulk-IN transfer can analyze real MPEG-TS packets if the device is already delivering them. <strong>This is NOT a functioning DVB-T2 tuner or scan driver yet.</strong></p>
+<p><strong>WinTV-soloHD 2040:8268 / Empia EM28178</strong>: direct USB descriptor and read-only chip-ID diagnostics are implemented. Experimental single-read and bounded multi-read bulk-IN capture can analyze or save real MPEG-TS packets if the device is already delivering them. <strong>This is NOT a functioning DVB-T2 tuner or scan driver yet.</strong></p>
 <div class="actions"><button id="webusb-select">Select USB tuner</button><button id="webusb-check" class="secondary">Find permitted device</button></div>
 <div class="actions"><button id="webusb-inspect" class="secondary" disabled>Inspect interfaces</button><button id="webusb-open" class="secondary" disabled>Open USB (read only)</button><button id="webusb-read-chip" class="secondary" disabled>Read EM28xx chip ID</button></div>
 <div class="actions"><button id="webusb-claim" class="secondary" disabled>Claim bulk-IN (experimental)</button><button id="webusb-bulk" class="secondary" disabled>Read 16 KiB (test only)</button><button id="webusb-release" class="secondary" disabled>Release USB</button></div>
+<div class="actions"><button id="webusb-capture" class="secondary" disabled>Capture live bulk data (max 4 MiB)</button><button id="webusb-capture-stop" class="secondary" disabled>Stop capture</button><button id="webusb-capture-save" class="secondary" disabled>Download real USB capture</button></div>
+<small>Captures only actual received USB bytes. A recognized MPEG-TS stream can contain real channel tables (PAT/PMT/SDT); this tool does not tune channels. If no tuner stream is active, it may time out. The Stop button is cooperative because WebUSB transferIn has no AbortSignal. Data remains local until you choose to save.</small>
 <p id="usb-status" role="status">WebUSB not started. No tuner access.</p>
 <label for="webusb-ts-import">Offline transport-stream analyzer (local .ts file; maximum 2 MiB read)</label>
 <input type="file" id="webusb-ts-import" accept=".ts,.m2ts,video/mp2t" />

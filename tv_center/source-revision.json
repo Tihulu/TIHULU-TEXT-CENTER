@@ -1,9 +1,10 @@
 {
   "source_branch": "feature/tv-center-native-teletext-asr-2026-11-07",
-  "source_sha": "2c57daac6fc37a0d83bbbeca458dad4f6b2a1798",
-  "web_mode": "independent WebUSB + WebAssembly, no native receiver or localhost dependency",
-  "direct_hardware": "experimental read-only diagnostics; Si2168 firmware parser and plan, actual tuner writes disabled",
-  "transport": "browser-only MPEG-TS PAT/PMT/SDT inspection; opt-in FFmpeg WASM file preview",
+  "source_sha": "9af6cbda89ee7c224916f832b6e59fc31f887f52",
+  "web_mode": "Standalone WebUSB and WebAssembly, with optional native fallback",
+  "usb_capture": "Opt-in bounded read-only bulk-IN capture up to 4 MiB, stop, local export; not hardware verified",
+  "transport": "Real captured bytes, CRC-validated PSI/SI PAT/PMT/SDT detection",
   "live_dvb_tuning": "NOT IMPLEMENTED OR HARDWARE VERIFIED",
-  "optional_native": "localhost TV via user-chosen native app only"
+  "usb_permissions": "Requires WebUSB-capable Chromium and exclusive device interface ownership",
+  "optional_native": "Optional local Linux native TV Center"
 }
