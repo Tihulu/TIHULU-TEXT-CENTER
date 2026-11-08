@@ -56,6 +56,10 @@ class CaptionTap:
         self.worker = None
         self.previous_original = ""
         self.previous_revision = -1
+        from tv_center.sentence_joiner import LiveSentenceJoiner
+        self.sentence_joiner = LiveSentenceJoiner(max_words=90,max_chunks=3)
+        self.sentence_session = None
+        self.sentence_captured_start = None
         self.program_id = None
         self.sock = None
         self.packet_count = 0
@@ -302,6 +306,63 @@ class CaptionTap:
                 self.previous_original = (result.get("raw_asr_original") or
                                           result["original"])
                 self.previous_revision = options.get("revision", 0)
+            if result.get("source") == "local_asr" and not options.get(
+                    "music_transcription",False):
+                # Only completed spoken phrases are sent to the TV subtitle
+                # queue. Word timestamps from separate six-second clips
+                # cannot be claimed as an exact word clock for merged text.
+                session=(options.get("program_epoch"),options.get("revision"))
+                if session!=self.sentence_session:
+                    self.sentence_joiner.reset()
+                    self.sentence_session=session
+                    self.sentence_captured_start=None
+                if self.sentence_captured_start is None:
+                    self.sentence_captured_start=captured_start
+                observed=result.get("original","")
+                joined=self.sentence_joiner.push(
+                    observed,
+                    language=result.get("source_language"),
+                    silent=not bool(observed))
+                if not joined["text"]:
+                    return  # Retain the incomplete sentence, not a cut-off cue.
+                result["original"]=joined["text"]
+                result["words"]=[]
+                result["word_timing_source"]=None
+                result["sentence_complete"]=bool(joined.get("complete"))
+                result["sentence_continuation"]=bool(joined.get("continued"))
+                result["timing_note"]="Sentence carried across live TV chunks; "
+                result["timing_note"]+="word-by-word alignment not asserted"
+                captured_start=self.sentence_captured_start
+                self.sentence_captured_start=(
+                    captured_end if joined.get("pending") else None)
+                # Translate AFTER reassembling the original full sentence.
+                # Never join partial independent translations: German/English
+                # word ordering can be destroyed by chunkwise translation.
+                from tv_center.captions import translate as translate_sentence
+                result["translations"]={}
+                result["translation_errors"]={}
+                result["translation_warnings"]={}
+                result["translation_engines"]={}
+                used=result.get("source_language")
+                if enabled and used in (None,"und","auto"):
+                    result["translation_errors"]={
+                        target:"Source language not confirmed for full sentence"
+                        for target in enabled}
+                elif enabled:
+                    for target in enabled:
+                        if target==used:
+                            result["translations"][target]=result["original"]
+                            continue
+                        text,issue=translate_sentence(
+                            result["original"],used,target)
+                        if text:
+                            result["translations"][target]=text
+                        if issue:
+                            if text:
+                                result["translation_warnings"][target]=issue[:180]
+                            else:
+                                result["translation_errors"][target]=issue[:180]
+                result["translated"]=result["translations"].get(primary)
             if targets and not ai.values["translation_enabled"]:
                 result["translation_errors"] = {
                     lang: "Translation disabled in Model Market." for lang in targets}
