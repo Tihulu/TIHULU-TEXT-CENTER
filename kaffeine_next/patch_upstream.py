@@ -629,6 +629,14 @@ QAbstractButton *StartTab::addShortcut''')
 
 \treplay();''')
 
+    # An unrelated Playback, radio, media file or explicit Stop must cancel
+    # any pending asynchronous TV reacquire. Otherwise a delayed callback
+    # could unexpectedly steal the shared player after leaving Television.
+    change(live, '''\tcase MediaWidget::Idle:
+\t\tif (device != NULL) {''', '''\tcase MediaWidget::Idle:
+\t\t++internal->tihuluTuneEpoch;
+\t\tinternal->tihuluDeviceRetryCount = 0;
+\t\tif (device != NULL) {''')
     # DvbManager only forward-declares DvbConfig; the diagnostic iterates
     # QList<DvbConfig> so include the complete shared-pointer definition.
     change(live, '#include "dvbdevice.h"\n',
