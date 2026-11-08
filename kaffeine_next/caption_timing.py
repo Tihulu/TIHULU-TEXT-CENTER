@@ -256,7 +256,12 @@ class CueQueue:
         if len(key[0]) >= 12:
             recent = self._recent.get(key)
             if recent and (float(captured_start) <= recent[1]+1.5
-                           and float(captured_start)-recent[0] < 10):
+                           and float(captured_start)-recent[0] < 30):
+                # Continuous broadcaster repeats can span many 6-second
+                # clips. Extend the prior window only for genuinely
+                # overlapping identical text; a later repeat remains valid.
+                self._recent[key]=(recent[0],
+                                   max(recent[1],float(captured_end)))
                 return {"result":dict(result),"config":config,
                         "skipped_duplicate":True, **when}
             self._recent[key]=(float(captured_start),float(captured_end))
