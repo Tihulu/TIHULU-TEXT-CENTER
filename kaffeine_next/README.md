@@ -257,13 +257,26 @@ the same Teletext stream. The chosen page is fed directly to FFmpeg
 and the signalled source language is used for translation; manual
 page entry and pure Whisper transcription remain separate modes.
 
-Initially enabled offline source/target codes are German, English,
-Turkish and French. Other languages require language-catalog/runtime
-support and an installed translator model; discovery of a Teletext
-language alone does not imply it can be translated. For captions
-with original only, no translation model is required. Libre DVB
-Teletext formatting escape `\\h` is normalized to whitespace
-before display or translation.
+Whisper's published multilingual tokenizer supplies **100 source-language
+codes**; the subtitle panel provides four one-click presets and an editable
+source field for any supported language (for example `es`, `pl`, `ja`,
+`ar`). Translator availability is independent: **Additional translation
+languages** accepts ISO codes (for example `es,pl`) and full NLLB script
+codes (for example `zho_Hant`). The subtitle panel handles up to three
+simultaneous translation targets to avoid uncontrolled latency.
+
+Model Market now exposes all official Argos pairs, not only DE/EN/TR.
+NLLB checks the installed model tokenizer's actual language set before
+inference. Selecting a valid language does **not** automatically download
+a translator model or imply that a matching pack is installed. Original
+Teletext remains readable even if Whisper or translation is unavailable.
+If translation cannot be produced, **Translations only** displays the
+source-language words with an explicit original/unavailable label
+rather than blank captions or fake text. When a selected DVB audio PID
+disappears, Whisper switches only to a broadcaster-labelled soundtrack
+in the same language. Otherwise the status lists available alternate
+audio languages and prompts selection instead of silently guessing.
+Libre DVB Teletext formatting escape `\\h` is normalized to whitespace.
 
 ### Choose a *real* TV audio channel for Whisper
 
@@ -300,7 +313,7 @@ without replacing libVLC or Kaffeine's existing EPG/Teletext OSD.
 
 - Source modes: broadcaster-marked Teletext subtitles first with Whisper
   fallback, Teletext-only, Whisper-only, and explicit manual Teletext page.
-- Language: German, English, Turkish, optional disabled translation.
+- Languages: 100 Whisper speech codes plus user-entered Argos/NLLB targets.
   Both spoken words and translation can be shown together on the video.
 - Video overlay: toggle on/off, original/translated line switches, position
   top/bottom, font size and black background opacity.
