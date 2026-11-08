@@ -188,6 +188,14 @@ public:
             "border-radius:6px;padding:7px;font-weight:600;"));
         selectedSource_=selected;
         root->addWidget(selectedSource_);
+        radioCaptionBanner_=new QLabel(tr("Live radio subtitles OFF · DLS is not speech"),page);
+        radioCaptionBanner_->setTextFormat(Qt::PlainText);
+        radioCaptionBanner_->setWordWrap(true);
+        radioCaptionBanner_->setMaximumHeight(120);
+        radioCaptionBanner_->setStyleSheet(QLatin1String(
+            "background:#14242e;color:#f5e6bb;border:1px solid #405365;"
+            "border-radius:6px;padding:7px;"));
+        root->addWidget(radioCaptionBanner_);
         modes_=new QTabWidget(page);
         modes_->setDocumentMode(true);
         modes_->setUsesScrollButtons(true);
@@ -1185,14 +1193,16 @@ public:
 				const qint64 elapsed=audioStartedMs_>0?
 					qMax(qint64(0),QDateTime::currentMSecsSinceEpoch()-audioStartedMs_):0;
 				const int requested=activePlaybackCacheMs_;
-				audioCacheProgress_->setValue(audioStartedMs_>0?
-					(requested==0?100:qBound(0,int(elapsed*100/requested),100)):0);
-				audioCacheProgress_->setFormat(audioStartedMs_<=0?
-					tr("Audio cache estimate · no stream opened"):
-					tr("Applied at open %1 ms · elapsed %2 ms · UNVERIFIED%3")
-					.arg(requested).arg(qMin(qint64(requested),elapsed))
+                // A requested libVLC network cache has no sampled fill
+                // telemetry. Stream uptime is NOT buffering progress.
+                audioCacheProgress_->setRange(0,audioStartedMs_>0?0:100);
+                if(audioStartedMs_<=0) audioCacheProgress_->setValue(0);
+                audioCacheProgress_->setFormat(audioStartedMs_<=0?
+                    tr("Audio cache request · no stream opened"):
+                    tr("Requested %1 ms · stream uptime %2 ms · queue/DAC UNVERIFIED%3")
+                    .arg(requested).arg(elapsed)
                     .arg(bufferMs_->value()!=requested?
-                        tr(" · next request %1 ms PENDING").arg(bufferMs_->value()):
+                        tr(" · next-tune request %1 ms pending").arg(bufferMs_->value()):
                         QString()));
 			}
 		});
@@ -2646,7 +2656,15 @@ private:
 			if(cue.chunkIndex<=displayedRadioChunk_) continue;
 			displayedRadioChunk_=cue.chunkIndex;
 			radioCaption_->setText(cue.text);
-			radioCanvas_->setText(cue.text.left(680));
+            radioCaptionBanner_->setText(cue.text.left(680));
+            if(lyricsAudioFallbackActive_) {
+                const QString heard=tr("Whisper heard (unverified lyrics) · %1")
+                    .arg(cue.text.left(650));
+                lyricText_->setText(heard);
+            }
+            // NEVER replace the main DAB station picture/video panel with
+            // a caption string: it destroys its status/artwork and places
+            // huge subtitles in the center of an unrelated canvas.
 		}
 	}
 	void pollCaption() {
@@ -2883,6 +2901,10 @@ private:
                 "Install/enable Whisper in AI Model Market and play a valid DAB stream."));
             return;
         }
+        lyricCues_=QJsonArray();
+        plainLyricMode_=false;
+        plainLyricQueue_.clear();
+        if(!lyricPath_.isEmpty()) QFile::remove(lyricPath_);
         lyricsEnabled_=true;
         lyricLoaded_=true;
         lyrics_->setEnabled(true);
@@ -2953,6 +2975,11 @@ private:
 		lyricLoaded_=false;
 		plainLyricMode_=false;
 		plainLyricQueue_.clear();
+        if(lyricsAudioFallbackActive_) {
+            // The current fallback is only for this song's absent lyrics;
+            // do not leave a previous track's plain/timed cues visible.
+            lyricCues_=QJsonArray();
+        }
 		lyrics_->setEnabled(false);
         lyricProvider_->setText(tr("Searching LRCLIB, optional licensed "
             "Musixmatch and lyrics.ovh (metadata only)."));
@@ -3128,7 +3155,8 @@ private:
 	QLabel *libraryStatus_=nullptr;
 	QSet<QString> favorites_;
 	QLabel *state_=nullptr,*playStatus_=nullptr,*dls_=nullptr,*signal_=nullptr,*slide_=nullptr,
-		*radioCaption_=nullptr,*lyricText_=nullptr,*plot_=nullptr;
+		*radioCaption_=nullptr,*radioCaptionBanner_=nullptr,
+        *lyricText_=nullptr,*plot_=nullptr;
 	QCheckBox *english_=nullptr,*german_=nullptr,*turkish_=nullptr,*music_=nullptr,
 		*speakerLabels_=nullptr,
 		*livePlot_=nullptr,*showWidgets_=nullptr,
