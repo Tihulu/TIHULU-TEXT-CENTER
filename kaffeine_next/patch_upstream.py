@@ -243,7 +243,8 @@ QAbstractButton *StartTab::addShortcut''')
     '''\tstackedLayout->addWidget(hardwareTab);
 \t// Shared Record/Stop and Recordings library remain in the bottom
 \t// transport bar on every tab, including Web TV and radio.
-\tnew TihuluUnifiedRecorder(mediaWidget,dvbTab,controlBar,this);
+\tnew TihuluUnifiedRecorder(mediaWidget,dvbTab,controlBar,
+		[this]() { activateTab(PlayerTabId); },this);
 
 \tcurrentTabIndex = StartTabId;''')
     media="src/mediawidget.cpp"
