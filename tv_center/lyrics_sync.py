@@ -30,6 +30,7 @@ class LyricCue:
     end: float
     text: str
     provenance: str = "local"
+    language: str | None = None
 
 
 def parse_lrc(content: str, *, duration: float | None = None,
