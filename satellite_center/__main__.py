@@ -883,7 +883,14 @@ class Station:
             if not event:
                 raise ValueError("Pass not in native prediction results; refresh local TLE and recalculate")
             if profile not in event["profiles"] or mode not in MODES or not allowed_mode(profile, mode):
-                raise ValueError("Unsupported pass/profile/mode combination")
+                if profile in ("meteor", "meteor_backup") and mode in ("sstv_audio", "fm_audio", "iq_and_fm_wav"):
+                    raise ValueError(
+                        "Unsupported pass/profile/mode combination: Meteor LRPT requires original raw IQ (.cu8); "
+                        "Robot36/FM WAV and combined IQ+WAV are ISS audio modes. Select IQ only.")
+                raise ValueError(
+                    "Unsupported pass/profile/mode combination: " + str(profile) +
+                    " / " + str(mode) + "; supported profiles for this pass: " +
+                    ", ".join(event["profiles"]))
             if mode not in ("iq", "survey"):
                 # Manual users may explicitly choose the catalogued pass
                 # receiver profile and the matching approved audio/packet
@@ -1958,7 +1965,8 @@ class Handler(BaseHTTPRequestHandler):
                 result = app.refresh()
             elif route == "/api/schedule":
                 result = app.schedule(data.get("pass_id"), data.get("profile"), data.get("mode"),
-                                      data.get("run_at"), data.get("duration_seconds"))
+                                      data.get("run_at"), data.get("duration_seconds"),
+                                      sample_rate=data.get("sample_rate", 1024000))
             elif route == "/api/schedule-chain":
                 result = app.schedule_chain(data.get("pass_id"),data.get("profile"),
                     data.get("mode"),data.get("run_at"),data.get("duration_seconds"),
