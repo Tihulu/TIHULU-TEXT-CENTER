@@ -8,10 +8,60 @@ No OpenVINO/AI-HAT NPU SSTV kernels exist; never claim they run this DSP.
 from __future__ import annotations
 
 from functools import lru_cache
+import platform
+import re
+import shutil
+import subprocess
 from .npu_sstv import probe_real_sstv_npu
 from typing import Iterable
 
 VALID_TARGETS = ("cpu", "gpu", "npu")
+
+
+@lru_cache(maxsize=1)
+def detect_gpu_hardware() -> dict:
+    """Passive GPU inventory; hardware detection is NOT CUDA kernel readiness."""
+    info = {"detected": False, "devices": [], "driver": None,
+            "source": "no working OS GPU inventory"}
+    executable = shutil.which("nvidia-smi")
+    if executable:
+        try:
+            result = subprocess.run(
+                [executable, "--query-gpu=name,driver_version", "--format=csv,noheader"],
+                capture_output=True, text=True, timeout=3, check=False
+            )
+            if result.returncode == 0:
+                rows = []
+                for line in result.stdout.splitlines()[:8]:
+                    parts = [part.strip() for part in line.split(",")]
+                    if parts and 0 < len(parts[0]) < 130:
+                        rows.append(parts[0])
+                        if len(parts) > 1 and re.fullmatch(r"[0-9.]{2,40}", parts[1]):
+                            info["driver"] = parts[1]
+                if rows:
+                    info.update(detected=True, devices=rows, source="nvidia-smi")
+                    return info
+        except (OSError, subprocess.SubprocessError):
+            pass
+    if platform.system() == "Linux" and shutil.which("lspci"):
+        try:
+            result = subprocess.run(
+                ["lspci", "-nn"], capture_output=True, text=True,
+                timeout=3, check=False
+            )
+            if result.returncode == 0:
+                rows = []
+                for line in result.stdout.splitlines():
+                    if re.search(r"VGA compatible controller|3D controller|Display controller", line, re.I):
+                        name = line.split(": ", 1)[-1][:140]
+                        if any(x in name.upper() for x in ("NVIDIA", "AMD", "INTEL")):
+                            rows.append(name)
+                if rows:
+                    info.update(detected=True, devices=rows[:8],
+                                source="lspci (hardware only)")
+        except (OSError, subprocess.SubprocessError):
+            pass
+    return info
 
 
 @lru_cache(maxsize=1)
@@ -25,9 +75,13 @@ def compute_capabilities() -> dict:
     except ImportError:
         pass
 
+    physical = detect_gpu_hardware()
     gpu = {"available": False, "name": "CUDA/CuPy (optional)",
+           "detected": physical["detected"], "devices": physical["devices"],
+           "driver": physical["driver"], "detection_source": physical["source"],
+           "backend": "native CuPy/CUDA · Robot36 tone trace only",
            "role": "PCM zero-crossing / FM tone-frequency trace",
-           "reason": "No working CuPy/CUDA runtime found. WebGPU browser acceleration is a separate backend."}
+           "reason": "Native CuPy/CUDA compute kernel not yet verified."}
     try:
         import cupy as cp
         count = cp.cuda.runtime.getDeviceCount()
@@ -40,6 +94,12 @@ def compute_capabilities() -> dict:
                            reason="")
     except Exception as exc:
         gpu["reason"] = "CUDA/CuPy not runnable: " + str(exc)[:160]
+    if gpu["detected"] and not gpu["available"]:
+        gpu["action"] = ("GPU detected. Install a CUDA-version-compatible CuPy "+
+                         "in the Python interpreter running Satellite Center, then restart. "+
+                         "Physical GPU detection alone does not accelerate Robot36.")
+    elif not gpu["detected"] and not gpu["available"]:
+        gpu["action"] = "Check the NVIDIA driver with nvidia-smi; CPU remains usable."
 
     return {
         "cpu": cpu, "gpu": gpu,
