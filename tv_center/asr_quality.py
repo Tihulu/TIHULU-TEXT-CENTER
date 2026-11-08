@@ -18,7 +18,7 @@ def _number(field, value, default):
 
 def accepted_whisper_segments(
     segments, *, source_language="auto", detected_probability=None,
-    music_mode=False,
+    music_mode=False, speech_priority=False,
 ):
     """Return (accepted segments, suppression reason or None).
 
@@ -44,15 +44,28 @@ def accepted_whisper_segments(
         end = _number("end", getattr(segment, "end", start), start)
         duration = max(0., end - start)
         reason = None
-        if no_speech >= (0.87 if music_mode else 0.65) or (
-                not music_mode and no_speech >= 0.43 and logprob < -0.35):
+        # Accompaniment increases the measured no-speech probability even
+        # when a real human is talking. Do not open the floodgates for
+        # music-only clips: require sustained, confidently decoded words
+        # before exempting a mixed-audio phrase from the normal VAD gate.
+        confident_mixed_dialogue = (
+            speech_priority and not music_mode and
+            len(tokens) >= 4 and duration >= 1.2 and
+            no_speech < 0.78 and logprob >= -0.38 and
+            compression <= 2.5)
+        silence_limit = (0.87 if music_mode else 0.65)
+        if (no_speech >= silence_limit and not confident_mixed_dialogue) or (
+                not music_mode and no_speech >= 0.43
+                and logprob < -0.35):
             reason = "probable_silence_or_background_audio"
         elif logprob < -1.0:
             reason = "low_ASR_confidence"
         elif compression > 2.8:
             reason = "repetitive_ASR_hallucination"
         elif (not music_mode and len(tokens) <= 3 and duration < 1.1
-              and (no_speech > 0.18 or logprob < -0.40)):
+              and (no_speech > 0.18 or logprob < -0.40)
+              and not (speech_priority and duration >= 0.65
+                       and no_speech < 0.48 and logprob >= -0.18)):
             reason = "unverified_short_phrase"
         elif (not music_mode and len(tokens) <= 3
               and sum(c.isdigit() for c in text) >= 2
