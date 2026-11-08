@@ -7,7 +7,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from kaffeine_next.caption_timing import (CaptionConfig, CueQueue, KaffeineOSD, cue_window,
-    AutoSyncEstimator, AutoSyncController, SyncRecommendation)
+    AutoSyncEstimator, AutoSyncController, SyncRecommendation, effective_cue_config)
 from kaffeine_next.patch_upstream import PATHS
 
 class KaffeineTimingTests(unittest.TestCase):
@@ -144,6 +144,26 @@ class KaffeineTimingTests(unittest.TestCase):
         self.assertEqual(timing["lateness_ms"],0)
         too_late = cue_window(10,14,19,cfg)
         self.assertEqual(too_late["lateness_ms"],3500)
+
+    def test_cue_schedule_tracks_actual_native_delay_not_requested(self):
+        requested = CaptionConfig(playback_delay_ms=15000, revision=4)
+        actual = effective_cue_config(requested, {
+            "requested_ms":15000, "effective_ms":3500, "capped":True})
+        self.assertEqual(actual.playback_delay_ms,3500)
+        self.assertEqual(requested.playback_delay_ms,15000)
+        due = cue_window(10,16,17,actual)
+        self.assertAlmostEqual(due["due"],17.0)
+        self.assertEqual(due["lateness_ms"],3500)
+        # An old sampled status is never applied after a new setting.
+        self.assertIs(effective_cue_config(requested,{
+            "requested_ms":10000, "effective_ms":3000}), requested)
+        self.assertIs(effective_cue_config(requested,None), requested)
+        self.assertIs(effective_cue_config(requested,{
+            "requested_ms":15000, "effective_ms":22000}), requested)
+        self.assertIs(effective_cue_config(requested,{
+            "requested_ms":15000, "effective_ms":-50}), requested)
+        self.assertEqual(effective_cue_config(requested,{
+            "requested_ms":15000, "effective_ms":0}).playback_delay_ms,0)
 
     def test_apply_revision_discards_old_cues(self):
         q = CueQueue()
