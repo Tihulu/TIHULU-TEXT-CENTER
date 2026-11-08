@@ -453,6 +453,15 @@ def main(argv=None):
         "This can add processing delay to subtitles.")
     speakers_row.addWidget(speaker_enabled)
     timing_layout.addRow(speakers_row)
+    speaker_roles = QLineEdit()
+    speaker_roles.setPlaceholderText(
+        "Voice 1, Voice 2, Voice 3, Voice 4 · optional manual names")
+    speaker_roles.setToolTip(
+        "Example: Woman, Child, Man 1, Man 2. These are only YOUR manual "
+        "display labels for per-clip speaker positions, never inferred "
+        "age/gender or stable identities. Speaker indices may reorder "
+        "between overlapping clips; leave blank for neutral Speaker 1/2.")
+    timing_layout.addRow("Voice labels (optional)", speaker_roles)
     sync_estimate = QLabel("Automatic timing: collecting real ASR samples (0/3). "
                            "Live TV and manually entered delay are unchanged.")
     sync_estimate.setWordWrap(True)
@@ -601,6 +610,8 @@ def main(argv=None):
                                                  chosen_audio.get("language")) not in (None, "und")
                             else None),
             speaker_enabled=speaker_enabled.isChecked(),
+            speaker_aliases=tuple(s.strip() for s in speaker_roles.text().split(",")
+                                  if s.strip()),
             offset_ms=round(caption_offset.value()*1000),
             playback_delay_ms=round(playback_delay.value()*1000),
             automatic_sync=automatic.isChecked(),
@@ -649,6 +660,7 @@ def main(argv=None):
         set_pending()
     audio_track.currentIndexChanged.connect(audio_source_selected)
     extra_targets.textChanged.connect(set_pending)
+    speaker_roles.textChanged.connect(set_pending)
     source.currentTextChanged.connect(set_pending)
     for w in (page,caption_offset,playback_delay,font,opacity,text_opacity):
         w.valueChanged.connect(set_pending)
@@ -662,7 +674,8 @@ def main(argv=None):
             previous = applied
             if selected.mode != previous.mode or selected.source != previous.source or (
                     selected.target_languages != previous.target_languages) or (
-                    selected.speaker_enabled != previous.speaker_enabled):
+                    selected.speaker_enabled != previous.speaker_enabled or
+                    selected.speaker_aliases != previous.speaker_aliases):
                 estimator.clear()
             # Switching automatic control ON starts the calibration afresh.
             if selected.automatic_sync != previous.automatic_sync:
