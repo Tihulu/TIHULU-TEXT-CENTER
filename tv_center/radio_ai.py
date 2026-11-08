@@ -22,6 +22,7 @@ from .ai_settings import AISettings
 from .language_codes import language_code
 from .lyrics_sync import lookup_synced_lyrics, LiveLyricMatcher, parse_lrc
 from .sentence_joiner import LiveSentenceJoiner
+from .radio_language import RadioLanguageLock
 from .media_ai import _chunk_cues, _choose_model, _near_silent_pcm, CHUNK_SAMPLES
 
 _SID = re.compile(r"(?:0x)?[A-Fa-f0-9]{1,8}\Z")
@@ -102,9 +103,7 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
         signal.signal(signum,stop)
     chunks=0
     overlap_pcm=b""
-    latest_language=None
-    candidate_language=None
-    candidate_runs=0
+    auto_language=RadioLanguageLock()
     lyric_path=location.with_name(location.name.replace(
         "tihulu-radio-captions-","tihulu-radio-lyrics-",1))
     lyric_marker=None
@@ -183,30 +182,15 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
                     speaker_warning=str(exc)[:180]
             candidate=detection.get("language")
             confidence=float(detection.get("confidence") or 0.0)
-            language_pending=False
             if src=="auto":
-                # One incorrect 6-second language guess must NOT flip the
-                # translation source. Two consecutive high-confidence
-                # detections are required before committing a switch.
-                if candidate and confidence>=0.72:
-                    if candidate==candidate_language:
-                        candidate_runs+=1
-                    else:
-                        candidate_language=candidate
-                        candidate_runs=1
-                    if candidate_runs>=2:
-                        latest_language=candidate
-                    elif candidate!=latest_language:
-                        language_pending=True
-                else:
-                    candidate_language=None
-                    candidate_runs=0
-                    if latest_language is None or (
-                            candidate and candidate!=latest_language):
-                        language_pending=True
-                used_language=latest_language
+                decision=auto_language.observe(candidate,confidence)
+                used_language=decision.language
+                language_pending=decision.pending
+                language_reason=decision.reason
             else:
                 used_language=src
+                language_pending=False
+                language_reason="manual_source_language"
             lyric_match=(plain_matcher.observe(original)
                          if plain_matcher is not None and original else None)
             sentence_state={"text":original,"complete":True,"pending":False,"chunks":0}
@@ -228,6 +212,8 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
                     unverified_vocals_hidden=True
             translated={}
             problems={}
+            requested_translation_targets=tuple(
+                lang for lang in destinations if lang != used_language)
             if (original and used_language and not language_pending
                     and not unverified_vocals_hidden
                     and ai.values["translation_enabled"]):
@@ -277,13 +263,28 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
                             lyric_translations[lang]=translated_line
                         if issue:
                             problems[lang]=str(issue)[:180]
+            # Do not report an unverified translation as success. Provide
+            # exact reasons for the visible untranslated original, including
+            # model disabled, unknown source, or missing language packs.
+            from .radio_translation_status import translation_state
+            translation_info=translation_state(
+                original=original, source_language=used_language,
+                requested_targets=destinations, translated=translated,
+                failures=problems,
+                translator_enabled=ai.values["translation_enabled"],
+                language_pending=language_pending)
             write_runtime_json(location,{
                 "status":"running",
                 "source_language":used_language or "und",
                 "language_detected":src=="auto",
                 "language_confidence":round(confidence,3),
                 "language_pending":language_pending,
-                "language_source":("confirmed_2_chunks" if src=="auto" else "manual"),
+                "language_source":language_reason,
+                "translation_state":translation_info["state"],
+                "translation_note":translation_info["message"],
+                "translation_missing_targets":translation_info["missing_targets"],
+                "translation_pending_targets":translation_info["pending_targets"],
+                "requested_targets":list(destinations),
                 "original":original[:1800],
                 "sentence_pending":bool(sentence_state.get("pending")),
                 "sentence_complete":bool(sentence_state.get("complete")),
