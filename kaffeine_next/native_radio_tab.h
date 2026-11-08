@@ -25,6 +25,7 @@
 #include <QFile>
 #include <QFileDialog>
 #include <QFormLayout>
+#include <QGridLayout>
 #include <QGroupBox>
 #include <QHBoxLayout>
 #include <QHostAddress>
@@ -321,8 +322,15 @@ public:
 		signal_ = new QLabel(tr("SNR / FIC / ensemble diagnostics: no RF readings."), right);
 		signal_->setTextFormat(Qt::PlainText);
 		signal_->setWordWrap(true);
+		rfQuality_=new QProgressBar(right);
+		rfQuality_->setRange(0,100);
+		rfQuality_->setValue(0);
+		rfQuality_->setFormat(tr("DAB signal: unmeasured"));
+		rfQuality_->setToolTip(tr("Relative indication derived from receiver-reported "
+			"SNR, not calibrated RF power or signal strength."));
 		textBlock->addWidget(dls_);
 		textBlock->addWidget(signal_);
+		textBlock->addWidget(rfQuality_);
 		meta->addLayout(textBlock, 1);
 		rightLayout->addLayout(meta);
 		split->addWidget(right);
@@ -539,6 +547,11 @@ public:
 		livePlot_->setToolTip(tr("Update spectrum/waterfall every 1.6 seconds while enabled"));
 		showWidgets_=new QCheckBox(tr("Show welle.io RF widgets"),this);
 		showWidgets_->setChecked(false);
+		multiRf_=new QCheckBox(tr("Multi-widget live RF dashboard"),this);
+		multiRf_->setChecked(false);
+		multiRf_->setToolTip(tr("Rotate real welle.io receiver samples across spectrum, "
+			"waterfall and constellation without blocking the GUI. "
+			"Requires DAB SDR; does not show invented values."));
 		auto *detailsButton = new QPushButton(tr("Receiver / TII details"),this);
 		auto *applyRf = new QPushButton(tr("Apply RF options"),this);
 		diagnostics->addWidget(plotKind_);
@@ -546,6 +559,26 @@ public:
 		diagnostics->addWidget(livePlot_);
 		diagnostics->addWidget(plot_, 1);
 		diagnosticLayout->addLayout(diagnostics);
+		diagnosticLayout->addWidget(multiRf_);
+		multiPanel_=new QWidget(diagnosticCard);
+		auto *multiGrid=new QGridLayout(multiPanel_);
+		const QStringList kinds={tr("Live spectrum"),tr("Live waterfall"),
+			tr("Live constellation")};
+		for(int i=0;i<3;++i) {
+			auto *frame=new QWidget(multiPanel_);
+			auto *column=new QVBoxLayout(frame);
+			column->setContentsMargins(2,2,2,2);
+			column->addWidget(new QLabel(kinds[i],frame));
+			auto *image=new QLabel(tr("Waiting for real RF samples"),frame);
+			image->setFixedSize(330,110);
+			image->setAlignment(Qt::AlignCenter);
+			image->setStyleSheet(QLatin1String("border:1px solid #456;"));
+			column->addWidget(image);
+			multiPlots_.append(image);
+			multiGrid->addWidget(frame,i/2,i%2);
+		}
+		multiPanel_->setVisible(false);
+		diagnosticLayout->addWidget(multiPanel_);
 		auto *rfOptions=new QHBoxLayout();
 		rfOptions->addWidget(fftPlacement_,1);
 		rfOptions->addWidget(coarseCorrector_);
@@ -556,6 +589,15 @@ public:
 		root->addWidget(diagnosticCard);
 		diagnosticCard->setVisible(false);
 		connect(showWidgets_,&QCheckBox::toggled,diagnosticCard,&QWidget::setVisible);
+		connect(multiRf_,&QCheckBox::toggled,this,[this](bool enabled){
+			multiPanel_->setVisible(enabled);
+			if(enabled) {
+				showWidgets_->setChecked(true);
+				livePlot_->setChecked(true);
+			}
+			if(enabled) rfTick_.start();
+			else rfTick_.stop();
+		});
 
 		connect(start_, &QPushButton::clicked, this, [this](){ startReceiver(); });
 		connect(stop_, &QPushButton::clicked, this, [this](){ stopReceiver(); });
@@ -657,9 +699,20 @@ public:
 			pollCaption();updateLyrics();
 		});
 		captionTick_.start();
+		rfTick_.setInterval(700);
+		connect(&rfTick_,&QTimer::timeout,this,[this](){
+			if(!multiRf_->isChecked() || !active() || plotPending_ || multiPlots_.size()!=3)
+				return;
+			const QStringList kinds={
+				QLatin1String("spectrum"),QLatin1String("waterfall"),
+				QLatin1String("constellation")};
+			const int index=(multiRfIndex_++)%3;
+			fetchPlot(kinds[index],multiPlots_.at(index));
+		});
 		connect(&tick_, &QTimer::timeout, this, [this](){
 			pollMux();
-			if(livePlot_->isChecked() && !plotPending_) fetchPlot();
+			if(livePlot_->isChecked() && !multiRf_->isChecked() && !plotPending_)
+				fetchPlot();
 		});
 		loadStations();
 		stations_->sortItems(1,Qt::AscendingOrder);
@@ -1008,12 +1061,18 @@ private:
 		const auto fic = demod.value(QLatin1String("fic")).toObject();
 		const auto ensemble = mux.value(QLatin1String("ensemble")).toObject();
 		const QString stationGroup = label(ensemble.value(QLatin1String("label")));
+		const bool snrValid=demod.value(QLatin1String("snr")).isDouble();
 		const double snr=demod.value(QLatin1String("snr")).toDouble();
-		const QString quality=(snr>=15?tr("strong"):snr>=8?
-			tr("moderate"):tr("weak / uncertain"));
+		const QString quality=!snrValid?tr("not measured"):
+			(snr>=15?tr("strong"):snr>=8?tr("moderate"):tr("weak / uncertain"));
+		rfQuality_->setValue(snrValid?qBound(0,qRound(snr*4),100):0);
+		rfQuality_->setFormat(
+			snrValid ? tr("DAB SNR: %1 dB · relative %2%").arg(snr,0,'f',1)
+				.arg(qBound(0,qRound(snr*4),100)) :
+			tr("DAB SNR unavailable · tuner not locked"));
 		signal_->setText(tr("Ensemble: %1  |  SNR: %2 dB (%3)  |  FIC errors: %4  |  Gain: %5\nSDR: %6")
 			.arg(stationGroup.isEmpty()?tr("not locked"):stationGroup)
-			.arg(snr,0,'f',1)
+			.arg(snrValid?QString::number(snr,'f',1):tr("unknown"))
 			.arg(quality)
 			.arg(fic.value(QLatin1String("numcrcerrors")).toVariant().toString())
 			.arg(hardware.value(QLatin1String("gain")).toVariant().toString())
@@ -1412,10 +1471,11 @@ private:
 		slide_->setToolTip(tr("DAB MOT/SLS slide %1/%2")
 			.arg(slideIndex_+1).arg(slideHistory_.size()));
 	}
-	void fetchPlot() {
+	void fetchPlot(const QString &overrideType=QString(), QLabel *output=nullptr) {
+		QLabel *target=output?output:plot_;
 		if (!active()) { state_->setText(tr("Start a DAB receiver first.")); return; }
 		if(plotPending_) return;
-		const QString type=plotKind_->currentData().toString();
+		const QString type=overrideType.isEmpty()?plotKind_->currentData().toString():overrideType;
 		if (type!=QLatin1String("spectrum") &&
 		    type!=QLatin1String("nullspectrum") &&
 		    type!=QLatin1String("impulseresponse") &&
@@ -1430,13 +1490,13 @@ private:
 		QTimer::singleShot(5000,reply,[reply](){
 			if(reply->isRunning()) reply->abort();
 		});
-		connect(reply,&QNetworkReply::finished,this,[this,reply,type]() {
+		connect(reply,&QNetworkReply::finished,this,[this,reply,type,target]() {
 			plotPending_=false;
 			const QByteArray raw=reply->readAll();
 			const bool okay=reply->error()==QNetworkReply::NoError &&
 				raw.size()>=32 && raw.size()<=262144 && raw.size()%4==0;
 			reply->deleteLater();
-			if (!okay) { plot_->setText(tr("No valid receiver RF sample.")); return; }
+			if (!okay) { target->setText(tr("No valid receiver RF sample.")); return; }
 			const int count=raw.size()/4;
 			const int steps=qMin(count,500);
 			QVector<double> points;
@@ -1451,7 +1511,7 @@ private:
 			const auto mm=std::minmax_element(points.cbegin(),points.cend());
 			const double lo=*mm.first,hi=*mm.second;
 			if (type==QLatin1String("waterfall")) {
-				const QSize size=plot_->size();
+				const QSize size=target->size();
 				if(waterfall_.size()!=size) {
 					waterfall_=QImage(size,QImage::Format_RGB32);
 					waterfall_.fill(QColor("#0e2536"));
@@ -1472,10 +1532,10 @@ private:
 					painter.drawPoint(x,0);
 				}
 				painter.end();
-				plot_->setPixmap(QPixmap::fromImage(waterfall_));
+				target->setPixmap(QPixmap::fromImage(waterfall_));
 				return;
 			}
-			QImage picture(plot_->width(),plot_->height(),QImage::Format_ARGB32);
+			QImage picture(target->width(),target->height(),QImage::Format_ARGB32);
 			picture.fill(QColor("#101d2a"));
 			QPainter p(&picture);
 			p.setRenderHint(QPainter::Antialiasing);
@@ -1488,8 +1548,8 @@ private:
 				poly<<QPointF(x,y);
 			}
 			p.drawPolyline(poly);
-			plot_->setPixmap(QPixmap::fromImage(picture));
-			plot_->setToolTip(tr("%1 receiver RF samples (native float32; signal dependent)")
+			target->setPixmap(QPixmap::fromImage(picture));
+			target->setToolTip(tr("%1 receiver RF samples (native float32; signal dependent)")
 				.arg(type));
 		});
 	}
@@ -1876,6 +1936,11 @@ private:
 	QTreeWidget *webStations_=nullptr;
 	QCheckBox *webFavoritesOnly_=nullptr;
 	QLabel *webStatus_=nullptr;
+	QProgressBar *rfQuality_=nullptr;
+	QCheckBox *multiRf_=nullptr;
+	QWidget *multiPanel_=nullptr;
+	QList<QLabel*> multiPlots_;
+	int multiRfIndex_=0;
 	QLabel *analogStatus_=nullptr;
 	QComboBox *analogBand_=nullptr;
 	QDoubleSpinBox *analogFrequency_=nullptr;
@@ -1915,7 +1980,7 @@ private:
 	QCheckBox *subtitledRecord_=nullptr;
 	QProcess analogDemod_{this},analogAudio_{this};
 	QNetworkAccessManager network_;
-	QTimer tick_,captionTick_;
+	QTimer tick_,captionTick_,rfTick_;
 	quint16 port_=0;
 	bool apiReady_=false;
 	int apiWaitCount_=0;
