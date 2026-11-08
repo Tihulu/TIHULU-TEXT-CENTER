@@ -455,8 +455,12 @@
   const passList=$('passes');
   if(passList){
     new MutationObserver(entries=>{
-      if(entries.some(entry=>entry.addedNodes.length))
-        enhanceAllNativePassForms();
+      // Only new pass cards/forms qualify. Updating a hint's text node must
+      // NOT trigger an observer/update loop.
+      const addedForm=entries.some(entry=>[...entry.addedNodes].some(node=>
+        node.nodeType===1&&(node.matches?.('form.pass-schedule-form, .pass')||
+          node.querySelector?.('form.pass-schedule-form'))));
+      if(addedForm)enhanceAllNativePassForms();
     }).observe(passList,{childList:true,subtree:true});
   }
   document.addEventListener('submit',event=>{
