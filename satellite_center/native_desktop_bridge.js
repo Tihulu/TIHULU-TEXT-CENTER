@@ -153,6 +153,17 @@
     }
     const install=document.querySelector('#desktop-install');
     if(install)install.hidden=true; // PWA install is browser-only, desktop is installed.
+    // The schedule area retains the same layout as Pages, but instructions
+    // cannot tell a native Qt receiver to request browser WebUSB permission.
+    const scheduleHelp=$('schedule-center')?.querySelectorAll(':scope > p.hint')||[];
+    if(scheduleHelp[0])scheduleHelp[0].textContent=
+      'To schedule: calculate genuine TLE passes, open a pass, choose a local start time, '+
+      'duration, compatible frequency and native format; then confirm OS-native SDR authorization. '+
+      'The native scheduler persists jobs while Satellite Center runs.';
+    if(scheduleHelp[1])scheduleHelp[1].textContent=
+      'Native rtl_sdr/rtl_fm records actual local USB samples to disk without WebUSB. '+
+      'TLE geometry does not prove a transmission; decoding Meteor LRPT still needs a valid signal.';
+    if(scheduleHelp[2])scheduleHelp[2].hidden=true;
     for(const id of ['connect','usb-live-test','disconnect','start','stop']){
       if($(id))$(id).disabled=false;
     }
