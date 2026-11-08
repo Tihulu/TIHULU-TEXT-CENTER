@@ -23,10 +23,12 @@ _managed_cuda_probe_cache = {}
 def _managed_cuda_probe(worker):
     marker = worker.model_dir / ".tihulu-verified-faster-whisper-turbo"
     try:
-        signature = (str(worker.python), str(worker.model_dir),
-                     marker.stat().st_mtime_ns)
+        marker_mtime = marker.stat().st_mtime_ns
     except OSError:
-        return {"ready":False,"reason":"CUDA model install marker missing"}
+        # The installed() predicate remains the ownership guard. A live
+        # upgrade can temporarily remove the marker between checks.
+        marker_mtime = None
+    signature = (str(worker.python), str(worker.model_dir), marker_mtime)
     now = time.monotonic()
     previous = _managed_cuda_probe_cache.get(signature)
     if previous and now - previous[0] < 25:
