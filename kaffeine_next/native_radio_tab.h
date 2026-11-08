@@ -448,10 +448,34 @@ private:
 		connect(reply,&QNetworkReply::finished,this,[this,reply,block,ready]() {
 			const bool ok=reply->error()==QNetworkReply::NoError;
 			reply->deleteLater();
-			if (!ok) { state_->setText(tr("DAB retune failed.")); return; }
-			activeChannel_=block;
-			channel_->setCurrentText(block);
-			QTimer::singleShot(3200,this,ready);
+			if (!ok) {
+				state_->setText(tr("DAB retune failed; skipping unavailable block."));
+				if (scanning_) QTimer::singleShot(400,this,[this](){scanStep();});
+				return;
+			}
+			QTimer::singleShot(3200,this,[this,block,ready]() {
+				// welle-cli replies 200 even to unsupported DAB blocks.
+				// Verify its actual tuned /channel before assigning services
+				// to this frequency or playing their MP3 path.
+				if (!active()) return;
+				QNetworkReply *readback=network_.get(
+					QNetworkRequest(QUrl(base()+QLatin1String("/channel"))));
+				connect(readback,&QNetworkReply::finished,this,
+					[this,readback,block,ready]() {
+						const bool matched=readback->error()==QNetworkReply::NoError &&
+							QString::fromUtf8(readback->readAll()).trimmed()==block;
+						readback->deleteLater();
+						if (!matched) {
+							state_->setText(tr("DAB %1 is unavailable; not attributing "
+								"old station metadata to the wrong frequency.").arg(block));
+							if (scanning_) QTimer::singleShot(300,this,[this](){scanStep();});
+							return;
+						}
+						activeChannel_=block;
+						channel_->setCurrentText(block);
+						ready();
+					});
+			});
 		});
 	}
 	void beginScan() {
