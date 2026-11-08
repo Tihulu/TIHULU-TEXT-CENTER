@@ -23,6 +23,7 @@ REVISION = "0a363e9161cbc7ed1431c9597a8ceaf0c4f78fcf"
 MODEL_SHA256 = "e76620f83d5f5b69efd3d87e3dc180c1bd21df9fbebacfd4335e5e1efcc018da"
 MARKER = ".tihulu-owned-faster-whisper-cuda"
 MODEL_MARKER = ".tihulu-verified-faster-whisper-turbo"
+PARTIAL_MARKER = ".tihulu-faster-whisper-install-in-progress"
 
 
 class FasterWhisperCUDA:
@@ -50,7 +51,8 @@ class FasterWhisperCUDA:
         if (self.model_dir.is_symlink() or base.is_symlink() or
                 self.model_dir.resolve() == Path("/") or
                 (self.model_dir.exists() and any(self.model_dir.iterdir()) and
-                 not (self.model_dir / MODEL_MARKER).exists())):
+                 not (self.model_dir / MODEL_MARKER).exists() and
+                 not (self.model_dir / PARTIAL_MARKER).exists())):
             raise RuntimeError("Refusing to overwrite unowned Faster-Whisper model directory")
 
     def installed(self):
@@ -227,6 +229,9 @@ def _download(destination):
         raise RuntimeError("Unexpected model download destination")
     worker._guard()
     path.mkdir(parents=True, exist_ok=True)
+    (path / PARTIAL_MARKER).write_text(
+        "Interrupted owner-approved model download may be resumed.\\n",
+        encoding="utf-8")
     snapshot_download(repo_id=MODEL_ID, revision=REVISION,
                       allow_patterns=["model.bin", "config.json", "tokenizer.json",
                                       "preprocessor_config.json", "vocabulary.json"],
@@ -243,6 +248,7 @@ def _download(destination):
     (path / MODEL_MARKER).write_text(
         "model=" + MODEL_ID + "\nrevision=" + REVISION +
         "\nsha256=" + MODEL_SHA256 + "\n", encoding="utf-8")
+    (path / PARTIAL_MARKER).unlink(missing_ok=True)
 
 
 def main():
