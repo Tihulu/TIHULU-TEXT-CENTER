@@ -206,16 +206,21 @@ public:
 		scan_ = new QPushButton(tr("Scan all blocks"), this);
 		scan_->setToolTip(tr("Retunes across Band III blocks; can take minutes."));
 		root->addLayout(header);
-		// Operational buttons wrap to a second row on narrower displays.
-		auto *receiverActions=new QHBoxLayout();
-		receiverActions->addWidget(start_);
-		receiverActions->addWidget(scan_);
-		receiverActions->addWidget(record_);
+		// Two-row responsive operation grid; large monitors no longer stretch
+		// every action across 400 px, and laptop windows do not clip controls.
+		auto *receiverActions=new QGridLayout();
+		receiverActions->setHorizontalSpacing(9);
+		for(QPushButton *button:{start_,scan_,record_,stop_})
+			button->setMaximumWidth(200);
+		receiverActions->addWidget(start_,0,0);
+		receiverActions->addWidget(scan_,0,1);
+		receiverActions->addWidget(stop_,0,2);
 		subtitledRecord_=new QCheckBox(tr("Make subtitled recording"),this);
 		subtitledRecord_->setToolTip(tr("On Stop, create offline time-coded SRT from the "
 			"saved audio and mux a selectable-subtitle MKV. Never fake live synchronization."));
-		receiverActions->addWidget(subtitledRecord_);
-		receiverActions->addWidget(stop_);
+		receiverActions->addWidget(record_,1,0);
+		receiverActions->addWidget(subtitledRecord_,1,1,1,2);
+		receiverActions->setColumnStretch(2,1);
 		root->addLayout(receiverActions);
 		// Keep actual scan progress + SNR in view even when the RF graph and
 		// AI settings are far down the scroll area.
@@ -621,7 +626,7 @@ public:
 				state_->setText(tr("Installed Argos targets: %1. Select desired outputs above.")
 					.arg(langs.join(QLatin1String(", "))));
 			});
-		auto *syncControls=new QHBoxLayout();
+		auto *syncControls=new QGridLayout();
 		bufferMs_=new QSpinBox(lab);
 		bufferMs_->setRange(0,20000);
 		bufferMs_->setSingleStep(500);
@@ -648,12 +653,13 @@ public:
 		autoRestartAudio_->setToolTip(tr("OFF prevents speech gaps during buffer retuning. "
 			"Turn on only if occasional brief audio interruption is acceptable."));
 		auto *applyBuffer=new QPushButton(tr("Apply radio buffer"),lab);
-		syncControls->addWidget(new QLabel(tr("Audio buffer:"),lab));
-		syncControls->addWidget(bufferMs_);
-		syncControls->addWidget(autoSync_);
-		syncControls->addWidget(new QLabel(tr("Caption offset:"),lab));
-		syncControls->addWidget(radioOffsetMs_);
-		syncControls->addWidget(applyBuffer);
+		syncControls->addWidget(new QLabel(tr("Audio buffer:"),lab),0,0);
+		syncControls->addWidget(bufferMs_,0,1);
+		syncControls->addWidget(applyBuffer,0,2);
+		syncControls->addWidget(new QLabel(tr("Caption offset:"),lab),1,0);
+		syncControls->addWidget(radioOffsetMs_,1,1);
+		syncControls->addWidget(autoSync_,1,2);
+		syncControls->setColumnStretch(2,1);
 		v->addLayout(syncControls);
 		v->addWidget(autoRestartAudio_);
 		lastCaptionOffsetMs_=radioOffsetMs_->value();
@@ -686,7 +692,7 @@ public:
 		radioCaption_->setTextFormat(Qt::PlainText);
 		radioCaption_->setWordWrap(true);
 		v->addWidget(radioCaption_);
-		auto *lyricsRow = new QHBoxLayout();
+		auto *lyricsRow = new QGridLayout();
 		lyrics_ = new QPushButton(tr("Find timed lyrics (optional internet)"), lab);
 		stopLyrics_=new QPushButton(tr("Stop lyrics"),lab);
 		stopLyrics_->setEnabled(false);
@@ -720,13 +726,14 @@ public:
 			lastLyricOffsetMs_=value;
 			for(auto &cue:plainLyricQueue_) cue.dueMs+=delta;
 		});
-		lyricsRow->addWidget(lyrics_);
-		lyricsRow->addWidget(stopLyrics_);
-		lyricsRow->addWidget(autoLyrics_);
-		lyricsRow->addWidget(autoLyricSync_);
-		lyricsRow->addWidget(new QLabel(tr("Lyric timing:"), lab));
-		lyricsRow->addWidget(lyricsOffset_, 1);
-		lyricsRow->addWidget(lyricsOffsetValue_);
+		lyricsRow->addWidget(lyrics_,0,0);
+		lyricsRow->addWidget(stopLyrics_,0,1);
+		lyricsRow->addWidget(autoLyrics_,0,2);
+		lyricsRow->addWidget(autoLyricSync_,1,0,1,2);
+		lyricsRow->addWidget(new QLabel(tr("Lyric timing:"), lab),1,2);
+		lyricsRow->addWidget(lyricsOffset_,2,0,1,2);
+		lyricsRow->addWidget(lyricsOffsetValue_,2,2);
+		lyricsRow->setColumnStretch(1,1);
 		v->addLayout(lyricsRow);
 		v->addWidget(preferLyrics_);
 		lyricText_ = new QLabel(tr("No synchronized lyrics loaded."), lab);
