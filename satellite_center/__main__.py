@@ -32,6 +32,7 @@ from .capture_budget import (MAX_IQ_BYTES, MAX_CAPTURE_SECONDS,
                              plan_capture_budget, END_MARGIN_SECONDS)
 from .sstv_series35 import extract_robot36_wav
 from .compute_backends import compute_capabilities, resolve_compute_backend
+from .window_visibility import validate_window, summarize_window
 from .bridge import (app_data_dir, lock_receiver, unlock_receiver, start_receiver_process,
                      stop_receiver_process, pairing_secret, allowed_origin,
                      local_host_allowed, request_is_remote)
@@ -147,10 +148,8 @@ def family(source, item):
 
 def selectable(source, item):
     if source == "amateur":
-        # Opt-in, bounded subset of orbit candidates; RF activity is unverified.
-        return item["id"] in {27607, 43017, 43678, 44909} or (
-            len(item["name"]) < 48 and "CUBESAT" in item["name"].upper()
-        )
+        # TLE presence is NOT evidence of an active radio downlink.
+        return bool(item.get("name")) and 1000 <= item["id"] <= 99999
     return source != "iridium" or "IRIDIUM" in item["name"].upper()
 
 
@@ -695,15 +694,16 @@ class Station:
                                 "Try a longer lookahead or lower elevation."]
         return report
 
-    def passes(self, *, city="Cologne", lat=None, lon=None, hours=24, elevation=15):
+    def passes(self, *, city="Cologne", lat=None, lon=None, hours=24, elevation=15, window=None):
         try:
             from skyfield.api import EarthSatellite, load, wgs84
         except ImportError as exc:
             raise ValueError("Install optional orbit dependency: pip install skyfield") from exc
         if type(hours) is not int or not 1 <= hours <= 72:
             raise ValueError("hours must be 1–72")
-        if not isinstance(elevation, (float, int)) or not 5 <= elevation <= 75:
-            raise ValueError("minimum elevation must be 5–75 degrees")
+        if not isinstance(elevation, (float, int)) or not 0 <= elevation <= 75:
+            raise ValueError("minimum elevation must be 0–75 degrees")
+        window=validate_window(window)
         if lat is None or lon is None:
             if city not in LOCATIONS:
                 raise ValueError("Unknown location preset")
@@ -732,9 +732,9 @@ class Station:
                 continue
             if age > 2:
                 warnings.append(f"{source}: TLE cache {age:.1f} days old; predictions less reliable")
-            entries = parse_tle(file.read_text(encoding="ascii", errors="ignore"))
+            entries = parse_tle(file.read_text(encoding="ascii", errors="ignore"),limit=240)
             if source == "amateur":
-                entries = [it for it in entries if selectable(source, it)][:15]
+                entries = [it for it in entries if selectable(source, it)][:80]
             if source == "manual":
                 entries = entries[:30]
             for item in entries:
@@ -768,17 +768,30 @@ class Station:
                                          "status": "PREDICTED_GEOMETRY_NOT_SIGNAL",
                                          "tle_source": SOURCE_URLS.get(source,"user-imported local TLE"),
                                          "tle_age_days": round(age, 2)}
+                                if window is not None:
+                                    # Skyfield topocentric geometry every 10s.
+                                    # No actual USB reception or optical guarantee.
+                                    observations=[]
+                                    for offset in range(0,int((end-rising).total_seconds())+1,10):
+                                        instant=rising+timedelta(seconds=offset)
+                                        el,az,_distance=(sat-observer).at(
+                                            clock.from_datetime(instant)).altaz()
+                                        observations.append((instant.timestamp(),
+                                                             az.degrees,el.degrees))
+                                    event["window_visibility"]=summarize_window(
+                                        observations,window)
                                 events.append(event)
                             rising = None
                 except (ValueError, OverflowError, RuntimeError):
                     continue
         events.sort(key=lambda x: x["aos"])
-        events = events[:400]
+        events = events[:900]
         with self.lock:
             self.predicted = {x["id"]: x for x in events}
         return {"observer": {"label": city if lat is None else city, "lat": lat, "lon": lon},
                 "predictions": events, "warnings": warnings,
-                "as_of": stamp(), "note": "Potential passes only. TLE geometry cannot establish any active transmission."}
+                "as_of": stamp(), "window_profile": window,
+                "note": "Potential passes only. TLE geometry cannot establish any active transmission."}
 
     def sky(self, city="Cologne", lat=None, lon=None):
         """Observed sky positions calculated from cached orbits, not RF identification."""
