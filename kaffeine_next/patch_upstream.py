@@ -705,7 +705,7 @@ QAbstractButton *StartTab::addShortcut''')
     change(live, '''\t\t} else {
 \t\t\tKMessageBox::information(manager->getParentWidget(),
 \t\t\t\ti18nc("@info",
-\t\t\t\t      "Didn't find a device with valid settings or access permissions are wrong.\n\n"
+\t\t\t\t      "Didn't find a device with valid settings or access permissions are wrong.\\n\\n"
 \t\t\t\t      "Please check the Configure Television window."));
 \t\t}
 
@@ -717,7 +717,7 @@ QAbstractButton *StartTab::addShortcut''')
 \t\t} else if (!hasConnectedMatchingSource) {
 \t\t\tKMessageBox::information(manager->getParentWidget(),
 \t\t\t\ti18nc("@info", "This TV channel uses the source '%1', but no connected "
-\t\t\t\t"DVB tuner has that exact source name. Configured sources: %2.\n\n"
+\t\t\t\t"DVB tuner has that exact source name. Configured sources: %2.\\n\\n"
 \t\t\t\t"Open Television → Configure Television and match the DVB-T2 "
 \t\t\t\t"source Name used by the saved channel, or rescan the service.",
 \t\t\t\trequestedSource,usableSources.join(QLatin1String(", "))));
@@ -726,7 +726,7 @@ QAbstractButton *StartTab::addShortcut''')
 \t\t\t\ti18nc("@info", "The DVB tuner was detected and its channel source "
 \t\t\t\t"matches, but the tuner could not be acquired after a short retry. "
 \t\t\t\t"Check whether another TV program, a scan, or a driver operation "
-\t\t\t\t"is holding the frontend.\n\n"
+\t\t\t\t"is holding the frontend.\\n\\n"
 \t\t\t\t"Run tihulu-media-center --diagnose-tuner. "
 \t\t\t\t"No tuner reset or channel settings were performed."));
 \t\t}
