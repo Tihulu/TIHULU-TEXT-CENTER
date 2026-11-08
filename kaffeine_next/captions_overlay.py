@@ -1038,7 +1038,9 @@ def main(argv=None):
                 actual = effective["effective_ms"] / 1000
                 requested = effective["requested_ms"] / 1000
                 rate = effective["ts_bytes_per_second"] / 1024 / 1024
-                confirmed = effective["requested_ms"] == applied.playback_delay_ms
+                confirmed = (
+                    effective["requested_ms"] == applied.playback_delay_ms
+                    and bool(effective["primed"]))
                 if confirmed:
                     current_actual = effective["effective_ms"]
                     if (last_applied_effective_ms is not None and
@@ -1064,14 +1066,19 @@ def main(argv=None):
                         f"{requested:.1f}s requested. ASR/translation "
                         "samples are continuously measured; this is not "
                         "sample-accurate lip synchronization.")
+                queue_age = effective.get("queue_age_ms",0) / 1000
                 effective_status.setText(
-                    f"Native TV delay: {actual:.1f} s applied / "
-                    f"{requested:.1f} s requested · TS {rate:.2f} MiB/s" +
-                    (" · Waiting for requested delay acknowledgement."
-                     if not confirmed else
-                     " · Limited by memory, timeshift or recovery cooldown."
-                     if effective["capped"] else
-                     " · Confirmed; periodically rechecked."))
+                    (f"Filling TV playback buffer: {queue_age:.1f}s "
+                     f"of {actual:.1f}s TS queued · subtitles held safely."
+                     if not effective["primed"] and actual > 0
+                     else
+                     f"Native TV delay: {actual:.1f}s primed / "
+                     f"{requested:.1f}s requested · TS {rate:.2f} MiB/s" +
+                     (" · Waiting for new buffer acknowledgement."
+                      if not confirmed else
+                      " · Memory/timeshift limit; rechecking."
+                      if effective["capped"] else
+                      " · Primed and periodically rechecked.")))
         # Never reuse an ASR processing estimate across distinct TV services.
         if mobile.service_id != last_service_id:
             if last_service_id is not None:
