@@ -39,6 +39,6 @@ class ReadOnlyAICheckTests(unittest.TestCase):
         self.assertFalse(result["whisper"]["backend_ready"])
         self.assertFalse(result["whisper"]["runtime_cuda"])
         self.assertIn("no nvcc needed",result["next_step"])
-            self.assertIn("CUDA Toolkit nvcc is optional",result["next_step"])
-            self.assertIn("NPU",result["npu_explanation"])
+        self.assertIn("CUDA Toolkit nvcc is optional",result["next_step"])
+        self.assertIn("NPU",result["npu_explanation"])
         self.assertIn("no RF access",result["policy"])
