@@ -43,7 +43,8 @@ class NLLBService:
         if source == target:
             return text
         with self.lock:
-            if self.process is None or self.process.poll() is not None:
+            cold=self.process is None or self.process.poll() is not None
+            if cold:
                 self._start()
             try:
                 payload=json.dumps({"text":text,"source":source,"target":target},
@@ -54,7 +55,8 @@ class NLLBService:
                 # cannot tolerate an 80-s translator stall. Time out fast,
                 # stop the stale worker and let the Argos circuit-breaker
                 # take over while the original transcript continues.
-                time_budget = 10 if isinstance(self, ArgosService) else 12
+                time_budget = (10 if isinstance(self, ArgosService) else
+                               30 if cold and isinstance(self, MadladService) else 12)
                 ready,_,_=select.select([self.process.stdout],[],[],time_budget)
                 if not ready:
                     self.close_locked()
@@ -109,10 +111,28 @@ class ArgosService(NLLBService):
             bufsize=0,close_fds=True)
 
 
+class MadladService(NLLBService):
+    def _start(self):
+        runtime=AIRuntime().status()
+        if not runtime["installed"]:
+            raise RuntimeError("Managed translator Python missing")
+        root=str(Path(__file__).resolve().parent.parent)
+        env=os.environ.copy()
+        env["PYTHONPATH"]=root+os.pathsep+env.get("PYTHONPATH","")
+        env["HF_HUB_OFFLINE"]="1"
+        env["TRANSFORMERS_OFFLINE"]="1"
+        self.process=subprocess.Popen(
+            [runtime["python"],"-u","-m","tv_center.translation_worker",
+             "--serve-madlad"],cwd=root,env=env,stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,stderr=subprocess.DEVNULL,bufsize=0,close_fds=True)
+
+
 _service=NLLBService()
 _argos_service=ArgosService()
+_madlad_service=MadladService()
 atexit.register(_service.close)
 atexit.register(_argos_service.close)
+atexit.register(_madlad_service.close)
 
 
 def translate_nllb(text,source,target):
@@ -124,3 +144,7 @@ def translate_argos(text,source,target):
     source=language_code(source)
     target=language_code(target)
     return _argos_service.translate(text,source,target)
+
+
+def translate_madlad(text,source,target):
+    return _madlad_service.translate(text,source,target)
