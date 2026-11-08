@@ -169,10 +169,14 @@ public:
 		webSource_ = new QLineEdit(webGroup);
 		webSource_->setPlaceholderText(tr("Or paste an HTTP(S) radio stream URL"));
 		webPlay_ = new QPushButton(tr("Play stream"), webGroup);
+		webProbeButton_=new QPushButton(tr("Test stream / codec"),webGroup);
+		webProbeButton_->setToolTip(tr("Ask local FFprobe to inspect the station URL "
+			"without opening DVB or claiming that audio is audible."));
 		webStop_ = new QPushButton(tr("Stop stream"), webGroup);
 		webFavoritesOnly_ = new QCheckBox(tr("★ Favorites"),webGroup);
 		webPlayRow->addWidget(webSource_, 1);
 		webPlayRow->addWidget(webPlay_);
+		webPlayRow->addWidget(webProbeButton_);
 		webPlayRow->addWidget(webStop_);
 		webPlayRow->addWidget(webFavoritesOnly_);
 		webLayout->addLayout(webPlayRow);
@@ -639,6 +643,31 @@ public:
 		connect(webSearchButton_, &QPushButton::clicked, this, [this](){ searchInternetRadio(); });
 		connect(webSearch_, &QLineEdit::returnPressed, this, [this](){ searchInternetRadio(); });
 		connect(webPlay_, &QPushButton::clicked, this, [this](){ playInternetRadio(webSource_->text()); });
+		connect(webProbeButton_, &QPushButton::clicked, this,[this](){probeInternetRadio();});
+		connect(&internetProbe_,QOverload<int,QProcess::ExitStatus>::of(&QProcess::finished),
+			this,[this](int code,QProcess::ExitStatus status){
+				webProbeButton_->setEnabled(true);
+				if(webSource_->text().trimmed()!=testedWebUrl_) return;
+				const QByteArray bytes=internetProbe_.readAllStandardOutput();
+				const QJsonDocument doc=QJsonDocument::fromJson(bytes);
+				QStringList audioCodecs;
+				for(const auto &entry:doc.object().value(QLatin1String("streams")).toArray()){
+					const auto stream=entry.toObject();
+					if(stream.value(QLatin1String("codec_type")).toString()!=QLatin1String("audio")) continue;
+					const QString codec=stream.value(QLatin1String("codec_name")).toString();
+					if(!codec.isEmpty()) audioCodecs<<codec;
+				}
+				if(code==0 && status==QProcess::NormalExit && !audioCodecs.isEmpty()) {
+					webStatus_->setText(tr("URL provides audio codecs: %1. "
+						"FFprobe succeeded, but live VLC playback still depends on station availability.")
+						.arg(audioCodecs.join(QLatin1String(", "))));
+				} else {
+					const QString problem=QString::fromLocal8Bit(
+						internetProbe_.readAllStandardError()).right(260);
+					webStatus_->setText(tr("Station stream could not be decoded: %1")
+						.arg(problem.isEmpty()?tr("timeout / no audio stream"):problem));
+				}
+			});
 		connect(webSource_, &QLineEdit::returnPressed, this, [this](){ playInternetRadio(webSource_->text()); });
 		connect(webStop_, &QPushButton::clicked, this, [this](){ stopInternetRadio(); });
 		connect(webStations_, &QTreeWidget::itemDoubleClicked, this,
@@ -916,6 +945,33 @@ private:
 		}
 		analogStatus_->setText(tr("Tuning %1 Hz via local RTL-SDR. "
 			"No fabricated station name or lock confirmation.").arg(hz));
+	}
+	void probeInternetRadio() {
+		if(internetProbe_.state()!=QProcess::NotRunning) return;
+		const QUrl url=QUrl::fromUserInput(webSource_->text().trimmed());
+		if(!url.isValid() || url.host().isEmpty() ||
+			(url.scheme()!=QLatin1String("http") && url.scheme()!=QLatin1String("https"))) {
+			webStatus_->setText(tr("Select an HTTP(S) station before testing."));return;
+		}
+		testedWebUrl_=webSource_->text().trimmed();
+		webProbeButton_->setEnabled(false);
+		webStatus_->setText(tr("Testing stream via FFprobe (timeout 8 seconds)…"));
+		internetProbe_.start(QLatin1String("ffprobe"),{
+			QLatin1String("-v"),QLatin1String("error"),
+			QLatin1String("-rw_timeout"),QLatin1String("6000000"),
+			QLatin1String("-analyzeduration"),QLatin1String("1500000"),
+			QLatin1String("-probesize"),QLatin1String("262144"),
+			QLatin1String("-show_entries"),QLatin1String("stream=codec_type,codec_name"),
+			QLatin1String("-of"),QLatin1String("json"),
+			QLatin1String("-i"),url.toString()});
+		if(!internetProbe_.waitForStarted(700)) {
+			webProbeButton_->setEnabled(true);
+			webStatus_->setText(tr("FFprobe executable unavailable; install ffmpeg."));
+			return;
+		}
+		QTimer::singleShot(8500,this,[this](){
+			if(internetProbe_.state()!=QProcess::NotRunning) internetProbe_.kill();
+		});
 	}
 	void playInternetRadio(const QString &address) {
 		stopAnalog();
@@ -1932,7 +1988,10 @@ private:
 	QComboBox *libraryBlock_=nullptr;
 	QLineEdit *stationSearch_=nullptr;
 	QLineEdit *webSearch_=nullptr,*webCountry_=nullptr,*webSource_=nullptr;
-	QPushButton *webSearchButton_=nullptr,*webPlay_=nullptr,*webStop_=nullptr;
+	QPushButton *webSearchButton_=nullptr,*webPlay_=nullptr,*webStop_=nullptr,
+		*webProbeButton_=nullptr;
+	QProcess internetProbe_{this};
+	QString testedWebUrl_;
 	QTreeWidget *webStations_=nullptr;
 	QCheckBox *webFavoritesOnly_=nullptr;
 	QLabel *webStatus_=nullptr;
