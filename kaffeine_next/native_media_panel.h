@@ -51,17 +51,24 @@ public:
 		tr_=new QCheckBox(tr("TR"),this); tr_->setChecked(true);
 		music_=new QCheckBox(tr("Song vocals"),this);
 		lyrics_=new QCheckBox(tr("Use synced .lrc"),this);
+		lyricsOnline_=new QCheckBox(tr("Find lyrics online (optional)"),this);
+		lyricsOnline_->setToolTip(tr("Only song title/artist metadata is sent "
+			"to LRCLIB after pressing Generate, never file audio. No API key."));
 		tools->addWidget(de_);
 		tools->addWidget(en_);
 		tools->addWidget(tr_);
 		tools->addWidget(music_);
 		tools->addWidget(lyrics_);
+		v->addLayout(tools);
+		auto *actions = new QHBoxLayout();
+		actions->addWidget(lyricsOnline_);
+		actions->addStretch();
 		run_=new QPushButton(tr("Generate + load captions"),this);
 		cancel_=new QPushButton(tr("Cancel"),this);
 		cancel_->setEnabled(false);
-		tools->addWidget(run_);
-		tools->addWidget(cancel_);
-		v->addLayout(tools);
+		actions->addWidget(run_);
+		actions->addWidget(cancel_);
+		v->addLayout(actions);
 		message_=new QLabel(tr("Caption file will attach to the same playing video/audio."),this);
 		message_->setWordWrap(true);
 		v->addWidget(message_);
@@ -115,6 +122,8 @@ private:
 			QLatin1String("--targets"),targets.join(QLatin1Char(','))};
 		if(music_->isChecked()) args<<QLatin1String("--music");
 		if(lyrics_->isChecked()) args<<QLatin1String("--lyrics");
+		if(lyrics_->isChecked() && lyricsOnline_->isChecked())
+			args<<QLatin1String("--fetch-lyrics");
 		// The CLI refuses overwriting an existing user's .srt; the
 		// player can still attach that file with the native subtitle menu.
 		process_.start(QLatin1String("tihulu-tv-center"),args);
@@ -131,7 +140,8 @@ private:
 	QProcess process_;
 	QLabel *file_=nullptr,*message_=nullptr;
 	QComboBox *language_=nullptr;
-	QCheckBox *de_=nullptr,*en_=nullptr,*tr_=nullptr,*music_=nullptr,*lyrics_=nullptr;
+	QCheckBox *de_=nullptr,*en_=nullptr,*tr_=nullptr,*music_=nullptr,*lyrics_=nullptr,
+		*lyricsOnline_=nullptr;
 	QPushButton *run_=nullptr,*cancel_=nullptr;
 	QString path_,srtPath_;
 };
