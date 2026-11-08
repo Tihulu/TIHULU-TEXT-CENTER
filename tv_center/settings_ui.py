@@ -5,7 +5,7 @@ import threading
 from pathlib import Path
 
 def open_ai_settings(parent, ai, after_save=None):
-    from PyQt5.QtCore import Qt, QTimer
+    from PyQt5.QtCore import Qt, QTimer, QSettings
     from PyQt5.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QGroupBox,
         QFormLayout, QCheckBox, QComboBox, QLabel, QListWidget, QPushButton,
         QFileDialog, QMessageBox, QLineEdit, QWidget, QScrollArea,
@@ -32,10 +32,20 @@ def open_ai_settings(parent, ai, after_save=None):
             super().__init__(parent)
             self.setWindowTitle("Settings · Optional ASR & Translation Model Market")
             screen = self.screen().availableGeometry()
-            self.resize(min(1080, max(620, screen.width()-90)),
-                        min(790, max(480, screen.height()-90)))
             self.setMinimumSize(620, 460)
             self.setWindowFlag(Qt.WindowMinMaxButtonsHint, True)
+            self.geometry_store = QSettings("TIHULU", "ModelMarketWindowGeometry")
+            self.resize(min(900, max(620, screen.width()-90)),
+                        min(730, max(480, screen.height()-90)))
+            previous = self.geometry_store.value("geometry")
+            if previous:
+                try:
+                    self.restoreGeometry(previous)
+                except (TypeError, ValueError):
+                    previous = None
+            if not previous or not self.frameGeometry().intersects(screen):
+                self.move(max(screen.left()+10, screen.right()-self.width()-18),
+                          screen.top()+38)
             self.setStyleSheet("""
                 QDialog { background:#0c151f; color:#deebf5; }
                 QTabWidget::pane {
@@ -1226,6 +1236,10 @@ def open_ai_settings(parent, ai, after_save=None):
                 return
             self.begin("Removing Argos language pack",
                        lambda: run_argos_market("remove", a, b))
+
+        def done(self, result):
+            self.geometry_store.setValue("geometry", self.saveGeometry())
+            super().done(result)
 
         def save(self):
             if self.running:
