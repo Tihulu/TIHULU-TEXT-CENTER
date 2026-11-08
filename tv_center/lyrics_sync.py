@@ -179,7 +179,7 @@ def _metadata_key(value: str) -> str:
     """Tolerate radio punctuation/Unicode differences, not different songs."""
     value = unicodedata.normalize("NFKD", str(value)).casefold()
     value = "".join(c for c in value if not unicodedata.combining(c))
-    return " ".join(re.findall(r"[^\\W_]+", value, flags=re.UNICODE))
+    return " ".join(re.findall(r"[^\W_]+", value, flags=re.UNICODE))
 
 
 def _matches_record(record: dict, title: str, artist: str) -> bool:
