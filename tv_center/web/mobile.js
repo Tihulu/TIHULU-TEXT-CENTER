@@ -193,23 +193,29 @@
         "Current tuned native DVB service; receiver remains on the host.":
         "No active DVB transport stream from host";
       $("state").textContent=state.mobile_video?"MOBILE STREAM":"PAIRED";
-      $("play-target").value=state.playback_target||"phone";
+      if(document.activeElement!==$("play-target"))
+        $("play-target").value=state.playback_target||"phone";
       const services=state.mobile_sources||[];
       const selector=$("media-source");
-      const previous=selectedSource;
-      selector.replaceChildren();
-      for(const source of services){
-        if(!allowedSource.has(source.id))continue;
-        const option=document.createElement("option");
-        option.value=source.id;
-        option.textContent=source.label+(source.available?"":" · offline");
-        option.disabled=!source.available;
-        selector.append(option);
+      const signature=JSON.stringify(services.map(x=>[x.id,x.label,x.available]));
+      if(selector.dataset.signature!==signature){
+        const previous=selectedSource;
+        selector.replaceChildren();
+        for(const source of services){
+          if(!allowedSource.has(source.id))continue;
+          const option=document.createElement("option");
+          option.value=source.id;
+          option.textContent=source.label+(source.available?"":" · offline");
+          option.disabled=!source.available;
+          selector.append(option);
+        }
+        selectedSource=allowedSource.has(previous)?previous:"dvb";
+        if(![...selector.options].some(o=>o.value===selectedSource&&!o.disabled))
+          selectedSource="captions";
+        selector.value=selectedSource;
+        selector.dataset.signature=signature;
       }
-      selectedSource=allowedSource.has(previous)?previous:"dvb";
-      if(![...selector.options].some(o=>o.value===selectedSource&&!o.disabled))
-        selectedSource="captions";
-      selector.value=selectedSource;
+      if(document.activeElement===selector)selectedSource=selector.value;
       const actual=services.find(s=>s.id===selectedSource);
       $("source-capabilities").textContent=actual?.reason||
         "Host tuning remains local. Phone HLS and caption-only are separate modes.";
@@ -218,7 +224,8 @@
       $("disable-host-stream").disabled=!state.mobile_video;
       $("stop-video").disabled=!currentlyPlayingHls;
       const desktop=state.desktop_caption_settings||{};
-      if(desktop.mode)$("desktop-caption-mode").value=desktop.mode;
+      if(desktop.mode && document.activeElement!==$("desktop-caption-mode"))
+        $("desktop-caption-mode").value=desktop.mode;
       if(document.activeElement!==$("desktop-offset"))
         $("desktop-offset").value=((desktop.offset_ms||0)/1000).toFixed(2);
       if(document.activeElement!==$("desktop-buffer"))
@@ -356,6 +363,7 @@
       else if(selectedSource==="dvb" && !$("start-video").disabled)watchVideo();
     }catch(_){}
   };
+  $("media-source").onchange=()=>{selectedSource=$("media-source").value;};
   $("apply-source").onclick=()=>{
     selectedSource=$("media-source").value;
     if(selectedSource==="captions")stopClient();
