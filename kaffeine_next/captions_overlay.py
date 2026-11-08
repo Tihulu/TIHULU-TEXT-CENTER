@@ -502,10 +502,86 @@ def main(argv=None):
     text_opacity.setRange(0, 100); text_opacity.setValue(100)
     text_opacity.setSuffix("%")
     visibility.addWidget(show_video)
-    for name, widget in (("Position",position),("Size",font),
-                         ("Background",opacity),("Text",text_opacity)):
+    for name, widget in (("Position",position),("Size",font)):
         visibility.addWidget(QLabel(name)); visibility.addWidget(widget)
     timing_layout.addRow(visibility)
+    appearance_row = QGridLayout()
+    appearance_row.addWidget(QLabel("Background opacity"),0,0)
+    appearance_row.addWidget(opacity,0,1)
+    appearance_row.addWidget(QLabel("Text opacity"),0,2)
+    appearance_row.addWidget(text_opacity,0,3)
+    background_button = QPushButton("Background · #000000")
+    text_button = QPushButton("Text · #FFFFFF")
+    active_colors = {"background":"#000000", "text":"#FFFFFF"}
+    background_button.setToolTip(
+        "Choose the solid subtitle backing color; opacity is independent "
+        "and supports 0% (completely transparent)")
+    text_button.setToolTip(
+        "Choose the text color separately from its opacity (0–100%)")
+    appearance_row.addWidget(background_button,1,0,1,2)
+    appearance_row.addWidget(text_button,1,2,1,2)
+    timing_layout.addRow("Subtitle appearance", appearance_row)
+    preset_row = QHBoxLayout()
+    presets = QComboBox()
+    presets.addItem("White text · translucent black", ("#FFFFFF","#000000",70,100))
+    presets.addItem("Yellow text · black", ("#FFE45C","#000000",75,100))
+    presets.addItem("Cyan text · navy", ("#6EE7F8","#0B2540",60,100))
+    presets.addItem("White text · no background", ("#FFFFFF","#000000",0,100))
+    presets.addItem("Fully transparent text + background", ("#FFFFFF","#000000",0,0))
+    presets.addItem("Custom colors / transparency", None)
+    presets.setToolTip(
+        "A preset can be changed with either color picker, or "
+        "use individual background and text transparency controls.")
+    preset_row.addWidget(presets,1)
+    appearance_preview = QLabel("DE: Guten Morgen   ·   TR: Günaydın")
+    appearance_preview.setAlignment(Qt.AlignCenter)
+    appearance_preview.setMinimumHeight(55)
+    appearance_preview.setWordWrap(True)
+    preset_row.addWidget(appearance_preview,2)
+    timing_layout.addRow("Appearance presets", preset_row)
+
+    def update_appearance_preview(*_):
+        fg = QColor(active_colors["text"])
+        bg = QColor(active_colors["background"])
+        bg.setAlpha(round(opacity.value()*255/100))
+        fg.setAlpha(round(text_opacity.value()*255/100))
+        appearance_preview.setStyleSheet(
+            "QLabel{border:1px solid #36556a;border-radius:8px;"
+            f"background-color:rgba({bg.red()},{bg.green()},{bg.blue()},{bg.alpha()});"
+            f"color:rgba({fg.red()},{fg.green()},{fg.blue()},{fg.alpha()});"
+            "font-weight:700;padding:8px;}")
+        background_button.setText("Background · "+active_colors["background"])
+        text_button.setText("Text · "+active_colors["text"])
+
+    def apply_appearance_preset(*_):
+        selected = presets.currentData()
+        if selected is None:
+            return
+        foreground, background, back_alpha, text_alpha = selected
+        active_colors["text"] = foreground
+        active_colors["background"] = background
+        opacity.setValue(back_alpha)
+        text_opacity.setValue(text_alpha)
+        update_appearance_preview()
+
+    def pick_appearance_color(which):
+        selected = QColorDialog.getColor(
+            QColor(active_colors[which]), window,
+            "Choose subtitle " + which + " color",
+            QColorDialog.DontUseNativeDialog)
+        if not selected.isValid():
+            return
+        active_colors[which] = selected.name().upper()
+        presets.setCurrentIndex(presets.count()-1)
+        update_appearance_preview()
+        set_pending()
+
+    background_button.clicked.connect(lambda: pick_appearance_color("background"))
+    text_button.clicked.connect(lambda: pick_appearance_color("text"))
+    presets.currentIndexChanged.connect(apply_appearance_preset)
+    opacity.valueChanged.connect(update_appearance_preview)
+    text_opacity.valueChanged.connect(update_appearance_preview)
+    update_appearance_preview()
     control_layout.addWidget(timing)
     control_layout.addStretch(1)
     control_scroll = QScrollArea()
@@ -657,7 +733,9 @@ def main(argv=None):
             show_original=output in ("original","both"),
             show_translation=output in ("translated","both"),
             position=position.currentText(),font_px=font.value(),
-            opacity=opacity.value(),text_opacity=text_opacity.value()
+            opacity=opacity.value(),text_opacity=text_opacity.value(),
+            text_color=active_colors["text"],
+            background_color=active_colors["background"]
         ).validate()
 
     def set_pending(*_):
@@ -770,7 +848,8 @@ def main(argv=None):
         speaker_provider.setCurrentIndex(0)
         show_video.setChecked(True)
         position.setCurrentText("bottom"); font.setValue(25)
-        opacity.setValue(70); text_opacity.setValue(100)
+        presets.setCurrentIndex(0)
+        apply_appearance_preset()
         set_pending()
     apply.clicked.connect(apply_settings)
     reset.clicked.connect(reset_settings)
