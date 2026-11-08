@@ -1036,7 +1036,13 @@ def main(argv=None):
                 if available:
                     heading = ("TRANSLATIONS · Argos backup: " if fallback else
                                "TRANSLATIONS: ")
-                    translated.setText(heading + " · ".join(available))
+                    missing = [
+                        lang.upper() for lang in applied.target_languages
+                        if lang in failures and lang not in translations]
+                    translated.setText(
+                        heading + " · ".join(available) +
+                        (" · " + ", ".join(missing) + " unavailable"
+                         if missing else ""))
                 else:
                     requested = ", ".join(applied.target_languages).upper()
                     translated.setText(
