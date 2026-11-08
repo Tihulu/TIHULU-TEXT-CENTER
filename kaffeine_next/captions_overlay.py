@@ -1555,11 +1555,19 @@ def main(argv=None):
                     if lang and source.currentText() != "Auto detect · Whisper":
                         source.setCurrentText(lang)
                     apply_settings()
-                    track_status.setText(
-                        "Automatically selected broadcaster subtitle language " +
-                        (lang.upper() if lang else "") +
-                        "; original source and requested output languages "
-                        "stay synchronized.")
+                    if chosen is new_audio:
+                        audio_track_status.setText(
+                            "Broadcast audio " + (lang.upper() if lang else "unknown") +
+                            " · PID " + str(new_audio["pid"]) +
+                            " automatically selected. Whisper uses this "
+                            "signalled language instead of guessing "
+                            "from six seconds of live television audio.")
+                    else:
+                        track_status.setText(
+                            "Automatically selected broadcaster subtitle language " +
+                            (lang.upper() if lang else "") +
+                            "; original source and requested output languages "
+                            "stay synchronized.")
                 if previous_identity is not None and current == 0:
                     # On a channel change, never reuse stale PID/page settings.
                     # Revert the applied subtitle selection immediately to
