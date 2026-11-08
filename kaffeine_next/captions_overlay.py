@@ -244,6 +244,7 @@ class CaptionTap:
                 speaker_enabled=bool(options.get("speaker_enabled",False))
                                 and selected in ("auto","asr"),
                 speaker_provider=options.get("speaker_provider","resemblyzer"),
+                music_transcription=bool(options.get("music_transcription",False)),
                 previous_text=previous)
             if options.get("program_epoch") != self.program_epoch:
                 return  # old channel's caption must never appear on new TV
@@ -465,6 +466,13 @@ def main(argv=None):
         "adjusts TV delay gradually. Does not detect exact spoken-word timestamps.")
     auto_row.addWidget(automatic)
     timing_layout.addRow(auto_row)
+    music_transcription = QCheckBox(
+        "Include singing / music vocals in Whisper (optional; less accurate)")
+    music_transcription.setChecked(False)
+    music_transcription.setToolTip(
+        "Available for live TV audio, too. CUDA Whisper disables voice activity "
+        "filtering when checked. This is ASR, not a guarantee of exact lyrics.")
+    timing_layout.addRow(music_transcription)
     speakers_row = QHBoxLayout()
     speaker_enabled = QCheckBox(
         "Auto-label distinct voices · Speaker 1, Speaker 2, …")
@@ -733,6 +741,7 @@ def main(argv=None):
                                                  chosen_audio.get("language")) not in (None, "und")
                             else None),
             speaker_enabled=speaker_enabled.isChecked(),
+            music_transcription=music_transcription.isChecked(),
             speaker_provider=speaker_provider.currentData(),
             speaker_aliases=(),
             offset_ms=round(caption_offset.value()*1000),
@@ -790,7 +799,8 @@ def main(argv=None):
     source.currentTextChanged.connect(set_pending)
     for w in (page,caption_offset,playback_delay,font,opacity,text_opacity):
         w.valueChanged.connect(set_pending)
-    for w in (show_video,automatic,speaker_enabled,*language_boxes.values()):
+    for w in (show_video,automatic,speaker_enabled,music_transcription,
+              *language_boxes.values()):
         w.toggled.connect(set_pending)
 
     def apply_settings():
@@ -800,6 +810,7 @@ def main(argv=None):
             previous = applied
             if selected.mode != previous.mode or selected.source != previous.source or (
                     selected.target_languages != previous.target_languages) or (
+                    selected.music_transcription != previous.music_transcription or
                     selected.speaker_enabled != previous.speaker_enabled or
                     selected.speaker_provider != previous.speaker_provider or
                     selected.speaker_aliases != previous.speaker_aliases):
@@ -867,6 +878,7 @@ def main(argv=None):
         caption_offset.setValue(0.0); playback_delay.setValue(0.0)
         automatic.setChecked(False)
         speaker_enabled.setChecked(True)
+        music_transcription.setChecked(False)
         speaker_provider.setCurrentIndex(0)
         show_video.setChecked(True)
         position.setCurrentText("bottom"); font.setValue(25)
