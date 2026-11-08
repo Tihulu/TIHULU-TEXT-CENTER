@@ -23,6 +23,8 @@ def open_ai_settings(parent, ai, after_save=None):
     from .ai_provision import StarterAI
     from .hardware_market import detect_hardware, model_fit
     from .translation_market import TranslationModelMarket, LICENSE as NLLB_LICENSE
+    from .translation_madlad import MadladMarket
+    from .deepl_api import read_key, save_key, remove_key
     from .argos_market_bridge import run as run_argos_market
 
     class Manager(QDialog):
@@ -303,8 +305,13 @@ def open_ai_settings(parent, ai, after_save=None):
             self.translation_choice.addItem("Argos Translate · compact offline language packs","argos")
             self.translation_choice.addItem(
                 "NLLB-200 600M · multilingual; enter ISO or NLLB codes", "nllb")
+            self.translation_choice.addItem(
+                "MADLAD-400 3B · Apache-2.0 · GPU · large offline model", "madlad")
+            self.translation_choice.addItem(
+                "DeepL API · PROPRIETARY online text only · explicit consent", "deepl")
             self.translation_choice.setCurrentIndex(
-                1 if ai.values.get("translation_model")=="nllb" else 0)
+                max(0,self.translation_choice.findData(
+                    ai.values.get("translation_model","argos"))))
             self.translation_choice.currentIndexChanged.connect(
                 lambda *_: self.inspect_nllb())
             quality_layout.addWidget(self.translation_choice)
@@ -335,6 +342,39 @@ def open_ai_settings(parent, ai, after_save=None):
             nllb_buttons.addWidget(use_argos,1,0)
             nllb_buttons.addWidget(nllb_remove,1,1)
             quality_layout.addLayout(nllb_buttons)
+            madlad_actions=QGridLayout()
+            self.madlad_state=QLabel("MADLAD state not inspected")
+            self.madlad_state.setWordWrap(True)
+            quality_layout.addWidget(self.madlad_state)
+            madlad_install=QPushButton("Install MADLAD 3B · ~12GB CUDA")
+            madlad_install.clicked.connect(self.install_madlad_model)
+            madlad_test=QPushButton("Test MADLAD offline DE → EN")
+            madlad_test.clicked.connect(self.test_madlad_model)
+            madlad_remove=QPushButton("Remove managed MADLAD weights")
+            madlad_remove.clicked.connect(self.remove_madlad_model)
+            madlad_actions.addWidget(madlad_install,0,0)
+            madlad_actions.addWidget(madlad_test,0,1)
+            madlad_actions.addWidget(madlad_remove,1,0,1,2)
+            quality_layout.addLayout(madlad_actions)
+            quality_layout.addWidget(QLabel(
+                "DeepL is NOT an open/offline model. It sends ONLY decoded text "
+                "to its proprietary external API when you select it. "
+                "Never enable it without permission from the content owner."))
+            self.deepl_key=QLineEdit()
+            self.deepl_key.setEchoMode(QLineEdit.Password)
+            self.deepl_key.setPlaceholderText(
+                "Own DeepL API key · saved locally with mode 0600 (never uploaded to GitHub)")
+            quality_layout.addWidget(self.deepl_key)
+            deepl_actions=QHBoxLayout()
+            set_deepl=QPushButton("Save DeepL key · opt in")
+            set_deepl.clicked.connect(self.save_deepl_api_key)
+            remove_deepl=QPushButton("Remove local DeepL key")
+            remove_deepl.clicked.connect(self.delete_deepl_api_key)
+            deepl_actions.addWidget(set_deepl)
+            deepl_actions.addWidget(remove_deepl)
+            quality_layout.addLayout(deepl_actions)
+            self.deepl_status=QLabel("")
+            quality_layout.addWidget(self.deepl_status)
             trans_layout.addWidget(quality)
             self.inspect_nllb()
 
@@ -621,6 +661,8 @@ def open_ai_settings(parent, ai, after_save=None):
                 ("nllb","NLLB-200 600M · "+
                  ("INSTALLED" if nllb_ready else "NOT INSTALLED")+
                  " · multilingual translator (noncommercial license)"),
+                ("madlad","MADLAD-400 3B · Apache-2.0 · optional large CUDA offline translator"),
+                ("deepl","DeepL API · proprietary online text-only translation; user API key needed"),
                 ("speaker","Resemblyzer · "+("INSTALLED" if free_voice else "NOT INSTALLED")+
                  " · local voice clustering, no demographic labels"),
                 ("speaker-private","pyannote · "+
@@ -766,9 +808,12 @@ def open_ai_settings(parent, ai, after_save=None):
             pending = self.translation_choice.currentData()
             for index in range(self.translation_choice.count()):
                 key = self.translation_choice.itemData(index)
-                name = ("Argos Translate · compact offline language packs"
-                        if key == "argos" else
-                        "NLLB-200 600M · multilingual; enter ISO or NLLB codes")
+                name = {
+                    "argos":"Argos Translate · compact offline language packs",
+                    "nllb":"NLLB-200 600M · multilingual; ISO / NLLB codes",
+                    "madlad":"MADLAD-400 3B · Apache-2.0 · GPU · large offline model",
+                    "deepl":"DeepL API · PROPRIETARY online text only · explicit consent",
+                }.get(key,"Unknown translator")
                 self.translation_choice.setItemText(
                     index, ("✓ SELECTED · " if key == active else "") + name)
             self.translation_selected_label.setText(
@@ -778,14 +823,74 @@ def open_ai_settings(parent, ai, after_save=None):
             self.nllb_status.setText(
                 ("INSTALLED" if state["installed"] else "NOT INSTALLED") +
                 " · currently selected: " +
-                ("NLLB" if self.translation_choice.currentData()=="nllb"
-                 else "Argos") +
+                str(self.translation_choice.currentData()).upper() +
                 " · optional ~2.5 GB model + Python/PyTorch dependencies" +
                 " · " + NLLB_LICENSE +
                 " · CPU can be slow; requires ~6 GB+ RAM for practical use. "
                 "Installed does NOT prove usable: click Test NLLB offline. "
                 "If the model fails to load, live captions now try installed "
                 "Argos packs automatically and keep original text visible.")
+            try:
+                active_deepl=bool(read_key())
+            except (OSError,ValueError,RuntimeError):
+                active_deepl=False
+            self.deepl_status.setText(
+                "DeepL key: "+("present locally (not validated)" if active_deepl
+                              else "NOT configured · no network request made"))
+            self.madlad_state.setText(
+                "MADLAD 3B: "+("INSTALLED (run GPU selftest)"
+                  if MadladMarket().status()["installed"] else
+                  "NOT INSTALLED")+
+                " · ~12 GB weights, CUDA needed · model is not bundled.")
+
+        def save_deepl_api_key(self):
+            if QMessageBox.question(self,"Enable DeepL online translation?",
+                "Only recognized TEXT phrases will be sent to the official "
+                "DeepL HTTPS API if you select DeepL as your translator. "
+                "Audio and RF data stay local. This is not offline/private "
+                "translation. Continue?") != QMessageBox.Yes:
+                return
+            try:
+                save_key(self.deepl_key.text())
+                self.deepl_key.clear()
+                self.inspect_nllb()
+            except (RuntimeError,ValueError,OSError) as error:
+                QMessageBox.warning(self,"DeepL key rejected",str(error))
+
+        def delete_deepl_api_key(self):
+            try:
+                remove_key()
+                self.inspect_nllb()
+            except (RuntimeError,OSError) as error:
+                QMessageBox.warning(self,"DeepL key removal",str(error))
+
+        def install_madlad_model(self):
+            if QMessageBox.question(self,"Large Apache-2.0 GPU model",
+                "Download Google MADLAD-400 3B (Apache-2.0)? "
+                "~12 GB real model files plus PyTorch dependencies, "
+                "at least 16 GB free disk, large RAM and CUDA GPU. "
+                "Actual GPU inference must pass before usable. "
+                "This may not meet real-time subtitle latency. Continue?"
+                ) != QMessageBox.Yes:
+                return
+            self.begin("Installing and verifying real MADLAD weights…",
+                       MadladMarket().install)
+
+        def test_madlad_model(self):
+            def check():
+                outcome=MadladMarket().selftest()
+                if not outcome.get("ready"):
+                    raise RuntimeError("MADLAD offline self-test failed: "+
+                                       str(outcome.get("reason"))[:220])
+                return "MADLAD offline GPU test PASS: "+str(outcome.get("translated"))
+            self.begin("Running MADLAD real GPU translation…",check)
+
+        def remove_madlad_model(self):
+            if QMessageBox.question(self,"Remove MADLAD weights",
+                "Delete only user-managed MADLAD weights? "
+                "NLLB, Argos and Whisper remain untouched.") != QMessageBox.Yes:
+                return
+            self.begin("Removing MADLAD only…",MadladMarket().remove)
 
         def install_nllb_model(self):
             if QMessageBox.question(self, "Optional NLLB license and large download",
@@ -1115,6 +1220,25 @@ def open_ai_settings(parent, ai, after_save=None):
         def save(self):
             if self.running:
                 QMessageBox.warning(self, "Model operation running", "Finish the active install/removal first.")
+                return
+            chosen=self.translation_choice.currentData()
+            if chosen=="deepl":
+                try:
+                    if not read_key():
+                        QMessageBox.warning(self,"DeepL API key required",
+                            "Save your own key before selecting the proprietary online translator.")
+                        return
+                except (OSError,RuntimeError) as error:
+                    QMessageBox.warning(self,"DeepL key unsafe",str(error))
+                    return
+                if QMessageBox.question(self,"External text transfer",
+                    "Selected DeepL is ONLINE; decoded subtitle text will be sent "
+                    "over HTTPS to DeepL. No audio or video is uploaded. "
+                    "Do you consent to online text translation?") != QMessageBox.Yes:
+                    return
+            if chosen=="madlad" and not MadladMarket().status()["installed"]:
+                QMessageBox.warning(self,"MADLAD unavailable",
+                    "Install and real-GPU-test MADLAD before selecting.")
                 return
             try:
                 ai.update({
