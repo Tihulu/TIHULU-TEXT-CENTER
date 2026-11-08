@@ -62,3 +62,18 @@ footer{margin-top:28px;font-size:11px;color:#8099b1;letter-spacing:.13em}
 #browser-driver-center details{padding:9px;background:#091522;margin-top:15px;border-radius:8px;border:1px solid #344d61}
 #browser-driver-center pre{white-space:pre-wrap;overflow-wrap:anywhere;max-height:360px;overflow:auto;font-size:11px;color:#9fdac8}
 #wasm-ts-panel video[hidden]{display:none!important}
+
+/* Hardware permission problems need a visible, narrow and actionable fix. */
+#webusb-access-help[hidden],#webusb-help-udev-block[hidden],
+#webusb-help-claim-block[hidden]{display:none!important}
+#webusb-access-help{margin:14px 0;padding:12px;border:1px solid #a27b3e;
+ border-radius:8px;background:#1b2028;color:#e8eef4;overflow:hidden}
+#webusb-access-help summary{cursor:pointer;font-weight:700;color:#f5d096}
+#webusb-access-help h3{font-size:16px;margin:10px 0 6px}
+#webusb-access-help p{line-height:1.5;margin:9px 0}
+#webusb-access-help strong{display:block;margin-top:10px;color:#e8edf4}
+#webusb-help-udev{white-space:pre-wrap;overflow-wrap:anywhere;
+ max-height:210px;overflow:auto;padding:10px;border:1px solid #3d5064;
+ background:#0c1622;border-radius:6px;color:#bad7e5;font-size:11px}
+#webusb-access-help code{color:#b7e3ea;overflow-wrap:anywhere}
+#webusb-copy-udev{white-space:normal;max-width:100%}
