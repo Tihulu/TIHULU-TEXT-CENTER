@@ -202,6 +202,13 @@ QAbstractButton *StartTab::addShortcut''')
 			setWindowTitle(caption.isEmpty() ? QStringLiteral("TIHULU Media Center")
 				: caption + QStringLiteral(" — TIHULU Media Center"));
 		});''')
+    change(main, '''\ttabBar->addTab(QIcon::fromTheme(QLatin1String("kaffeine"), QIcon(":kaffeine")), i18n("Playback"));''',
+           '''\ttabBar->addTab(QIcon::fromTheme(QLatin1String("tihulu-media-center"), QIcon(":kaffeine")), i18n("Playback"));''')
+    change(main, '''\ttrayIcon->setIcon(QIcon::fromTheme(QLatin1String("kaffeine"), QIcon(":kaffeine")));''',
+           '''\ttrayIcon->setIcon(QIcon::fromTheme(QLatin1String("tihulu-media-center"), QIcon(":kaffeine")));''')
+    change(main, '''\tQDBusConnection::sessionBus().registerService(QLatin1String("org.mpris.kaffeine"));''',
+           '''\tQDBusConnection::sessionBus().registerService(
+\t\tQLatin1String("org.mpris.MediaPlayer2.tihulu_media_center"));''')
     cmake = "src/CMakeLists.txt"
     change(cmake, 'target_link_libraries(kaffeine Qt5::Sql Qt5::X11Extras',
            'target_link_libraries(kaffeine Qt5::Network Qt5::Sql Qt5::X11Extras')
