@@ -46,6 +46,7 @@
 #include <QPainter>
 #include <QPen>
 #include <QPixmap>
+#include <QProgressBar>
 #include <QPlainTextEdit>
 #include <QProcess>
 #include <QPushButton>
@@ -455,6 +456,13 @@ public:
 			"· no verified audio output clock · checking every 30s"),lab);
 		syncStatus_->setWordWrap(true);
 		v->addWidget(syncStatus_);
+		captionProgress_=new QProgressBar(lab);
+		captionProgress_->setRange(0,100);
+		captionProgress_->setValue(0);
+		captionProgress_->setFormat(tr("Caption timeline · waiting for decoded audio"));
+		captionProgress_->setToolTip(tr("Estimated time to hear the decoded phrase. "
+			"Audio cache is requested, not independently measured at the sound card."));
+		v->addWidget(captionProgress_);
 		connect(applyBuffer,&QPushButton::clicked,this,[this](){ applyRadioBuffer(); });
 		auto *captionActions=new QHBoxLayout();
 		captionActions->addStretch(1);
@@ -481,12 +489,21 @@ public:
 		autoLyricSync_->setChecked(true);
 		autoLyricSync_->setToolTip(tr("Use the song metadata change and requested audio "
 			"buffer as an estimated timeline. Not audio fingerprinting; manual slider still applies."));
+		lyricsOffsetValue_=new QLabel(tr("0.00 s"),lab);
+		lyricsOffsetValue_->setMinimumWidth(65);
+		connect(lyricsOffset_,&QSlider::valueChanged,this,[this](int value){
+			lyricsOffsetValue_->setText(QString::number(value/1000.,'f',2)+tr(" s"));
+			const int delta=value-lastLyricOffsetMs_;
+			lastLyricOffsetMs_=value;
+			for(auto &cue:plainLyricQueue_) cue.dueMs+=delta;
+		});
 		lyricsRow->addWidget(lyrics_);
 		lyricsRow->addWidget(stopLyrics_);
 		lyricsRow->addWidget(autoLyrics_);
 		lyricsRow->addWidget(autoLyricSync_);
 		lyricsRow->addWidget(new QLabel(tr("Lyric timing:"), lab));
 		lyricsRow->addWidget(lyricsOffset_, 1);
+		lyricsRow->addWidget(lyricsOffsetValue_);
 		v->addLayout(lyricsRow);
 		lyricText_ = new QLabel(tr("No synchronized lyrics loaded."), lab);
 		lyricText_->setTextFormat(Qt::PlainText);
@@ -634,8 +651,14 @@ public:
 				if (!shuttingDown_) state_->setText(tr("welle-cli stopped; SDR released."));
 			});
 		tick_.setInterval(1600);
+		// Audio captions no longer wait for the expensive 1600-ms RF poll.
+		captionTick_.setInterval(150);
+		connect(&captionTick_,&QTimer::timeout,this,[this](){
+			pollCaption();updateLyrics();
+		});
+		captionTick_.start();
 		connect(&tick_, &QTimer::timeout, this, [this](){
-			pollMux(); pollCaption(); updateLyrics();
+			pollMux();
 			if(livePlot_->isChecked() && !plotPending_) fetchPlot();
 		});
 		loadStations();
@@ -663,7 +686,8 @@ public:
 	}
 
 private:
-	struct TimedRadioCue { int chunkIndex; qint64 dueMs; QString text; };
+	struct TimedRadioCue { int chunkIndex; qint64 dueMs; qint64 queuedMs; QString text; };
+	struct TimedPlainLyric { qint64 dueMs; QString text; double confidence; };
 	static QString label(const QJsonValue &value) {
 		if (value.isString()) return value.toString();
 		if (value.isObject()) return value.toObject().value(QLatin1String("label")).toString();
@@ -1582,6 +1606,18 @@ private:
 	void displayDueRadioCues(qint64 now) {
 		// Queue rather than overwrite: a new AI chunk must not erase the
 		// previous chunk before its estimated playback presentation time.
+		if(captionProgress_) {
+			if(cueQueue_.isEmpty()) {
+				captionProgress_->setValue(0);
+				captionProgress_->setFormat(tr("Caption timeline · awaiting next audio phrase"));
+			} else {
+				const auto &next=cueQueue_.first();
+				const qint64 total=qMax(qint64(1),next.dueMs-next.queuedMs);
+				captionProgress_->setValue(qBound(0,int((now-next.queuedMs)*100/total),100));
+				captionProgress_->setFormat(tr("Subtitle in ~%1 ms · requested cache %2 ms")
+					.arg(qMax(qint64(0),next.dueMs-now)).arg(bufferMs_->value()));
+			}
+		}
 		while(!cueQueue_.isEmpty() && cueQueue_.first().dueMs<=now) {
 			const TimedRadioCue cue=cueQueue_.takeFirst();
 			if(cue.chunkIndex<=displayedRadioChunk_) continue;
@@ -1649,11 +1685,25 @@ private:
 				if(it.value().isString())
 					caption+=QLatin1String("\n[")+it.key().toUpper()+
 						QLatin1String("] ")+it.value().toString();
+			const qint64 due=now+qMax(-1500,remaining)+radioOffsetMs_->value();
 			if(!caption.isEmpty()) {
-				const qint64 due=now+qMax(-1500,remaining)+radioOffsetMs_->value();
-				cueQueue_.append({chunk,due,caption.left(1300)});
+				cueQueue_.append({chunk,due,now,caption.left(1300)});
 				while(cueQueue_.size()>12) cueQueue_.removeFirst();
 			}
+			const QJsonObject matched=obj.value(QLatin1String("lyric_match")).toObject();
+			if(matched.value(QLatin1String("kind")).toString()==
+				QLatin1String("observed_ASR_chunk_match") &&
+				matched.value(QLatin1String("confidence")).toDouble()>=0.74) {
+				const QString line=matched.value(QLatin1String("text")).toString();
+				if(!line.isEmpty() && line.size()<=240) {
+					plainLyricQueue_.append({due+lyricsOffset_->value(),line,
+						matched.value(QLatin1String("confidence")).toDouble()});
+					while(plainLyricQueue_.size()>10) plainLyricQueue_.removeFirst();
+				}
+			}
+			if(obj.value(QLatin1String("language_pending")).toBool())
+				syncStatus_->setText(tr("Language change uncertain; translation held "
+					"until two reliable detections. Original audio kept."));
 			if(obj.contains(QLatin1String("error")))
 				state_->setText(tr("Radio ASR: %1")
 					.arg(obj.value(QLatin1String("error")).toString().left(170)));
@@ -1735,10 +1785,19 @@ private:
 			return;
 		}
 		stopLyrics_->setEnabled(true);
-		lyricText_->setText(tr("Searching verified time-coded lyrics… Stop available."));
+		lyricText_->setText(tr("Searching timed OR plain lyrics… Stop available."));
 	}
 	void updateLyrics() {
 		if (!lyricsEnabled_) return;
+		if(plainLyricMode_) {
+			const qint64 now=QDateTime::currentMSecsSinceEpoch();
+			while(!plainLyricQueue_.isEmpty() && plainLyricQueue_.first().dueMs<=now) {
+				const auto cue=plainLyricQueue_.takeFirst();
+				lyricText_->setText(tr("Audio-matched lyric (~%1% confidence) · %2")
+					.arg(qRound(cue.confidence*100)).arg(cue.text));
+			}
+			return;
+		}
 		if (lyricPath_.isEmpty() || lyricLoaded_) {
 			if (!lyricCues_.isEmpty() && songStartMs_>0) {
 				const qint64 start=autoLyricSync_->isChecked()
@@ -1770,7 +1829,17 @@ private:
 		const auto value=QJsonDocument::fromJson(file.readAll()).object();
 		if (value.value(QLatin1String("status")).toString()==QLatin1String("completed")) {
 			lyricLoaded_=true;
+			plainLyricMode_=value.value(QLatin1String("alignment_mode")).toString()
+				==QLatin1String("asr_lexical");
 			lyricCues_=value.value(QLatin1String("cues")).toArray();
+			if(plainLyricMode_) {
+				lyricText_->setText(tr("Plain lyrics found. Awaiting REAL Whisper vocal matches; "
+					"no fabricated timestamps."));
+				lyrics_->setEnabled(true);
+				if(captionProcess_.state()==QProcess::NotRunning)
+					startCaptioning();
+				return;
+			}
 			// Manual timing is anchored to the lookup result, not fake audio matching.
 			manualSongStartMs_=QDateTime::currentMSecsSinceEpoch();
 			lyricText_->setText(tr("%1 synchronized lyric lines · estimated "
@@ -1818,6 +1887,11 @@ private:
 		*livePlot_=nullptr,*showWidgets_=nullptr,
 		*coarseCorrector_=nullptr;
 	QSlider *lyricsOffset_=nullptr;
+	QLabel *lyricsOffsetValue_=nullptr;
+	QProgressBar *captionProgress_=nullptr;
+	int lastLyricOffsetMs_=0;
+	bool plainLyricMode_=false;
+	QList<TimedPlainLyric> plainLyricQueue_;
 	QCheckBox *autoLyrics_=nullptr,*autoLyricSync_=nullptr;
 	QSpinBox *bufferMs_=nullptr,*radioOffsetMs_=nullptr;
 	QCheckBox *autoSync_=nullptr,*autoRestartAudio_=nullptr;
@@ -1833,7 +1907,7 @@ private:
 	QCheckBox *subtitledRecord_=nullptr;
 	QProcess analogDemod_{this},analogAudio_{this};
 	QNetworkAccessManager network_;
-	QTimer tick_;
+	QTimer tick_,captionTick_;
 	quint16 port_=0;
 	bool apiReady_=false;
 	int apiWaitCount_=0;
