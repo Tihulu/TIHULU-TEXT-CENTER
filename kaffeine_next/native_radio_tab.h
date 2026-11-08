@@ -339,8 +339,7 @@ public:
 		connect(scan_, &QPushButton::clicked, this, [this](){ beginScan(); });
 		connect(stations_, &QTreeWidget::itemDoubleClicked, this,
 			[this](QTreeWidgetItem *item, int column){
-				if (column==0) toggleFavorite(item);
-				else selectStation(item);
+				if (column!=0) selectStation(item);
 			});
 		connect(stations_, &QTreeWidget::itemClicked, this,
 			[this](QTreeWidgetItem *item, int column){
@@ -380,6 +379,7 @@ public:
 			if(livePlot_->isChecked() && !plotPending_) fetchPlot();
 		});
 		loadStations();
+		stations_->sortItems(1,Qt::AscendingOrder);
 		filterStations();
 	}
 
@@ -553,6 +553,7 @@ private:
 					if (lyricsProcess_.state()!=QProcess::NotRunning)
 						lyricsProcess_.kill();
 					stopLyrics_->setEnabled(false);
+					lyrics_->setEnabled(true);
 					if (!lyricPath_.isEmpty()) QFile::remove(lyricPath_);
 					lyricPath_.clear();
 					lyricText_->setText(tr("New DLS text. Lyrics need fresh explicit lookup."));
@@ -752,6 +753,7 @@ private:
 			if (lyricsProcess_.state()!=QProcess::NotRunning)
 				lyricsProcess_.kill();
 			stopLyrics_->setEnabled(false);
+			lyrics_->setEnabled(true);
 			if (!lyricPath_.isEmpty()) QFile::remove(lyricPath_);
 			lyricPath_.clear();
 			lyricCues_=QJsonArray();
@@ -860,6 +862,11 @@ private:
 		const QString api=type==QLatin1String("waterfall")?
 			QLatin1String("spectrum"):type;
 		QNetworkReply *reply=network_.get(QNetworkRequest(QUrl(base()+QLatin1Char('/')+api)));
+		// Do not leave Live RF permanently locked if the backend stops
+		// answering mid-capture.
+		QTimer::singleShot(5000,reply,[reply](){
+			if(reply->isRunning()) reply->abort();
+		});
 		connect(reply,&QNetworkReply::finished,this,[this,reply,type]() {
 			plotPending_=false;
 			const QByteArray raw=reply->readAll();
@@ -1101,6 +1108,7 @@ private:
 	}
 	void stopLyrics() {
 		lyricsEnabled_=false;
+		lyrics_->setEnabled(true);
 		if (lyricsProcess_.state()!=QProcess::NotRunning) {
 			lyricsProcess_.terminate();
 			if (!lyricsProcess_.waitForFinished(600)) lyricsProcess_.kill();
@@ -1136,12 +1144,14 @@ private:
 		QFile::remove(lyricPath_);
 		lyricsEnabled_=true;
 		lyricLoaded_=false;
+		lyrics_->setEnabled(false);
 		lyricsProcess_.start(QLatin1String("tihulu-tv-center"),
 			{QLatin1String("lyrics-lookup"),QLatin1String("--artist"),artist,
 			 QLatin1String("--track"),title,QLatin1String("--output"),lyricPath_,
 			 QLatin1String("--online")});
 		if (!lyricsProcess_.waitForStarted(900)) {
 			lyricsEnabled_=false;
+			lyrics_->setEnabled(true);
 			lyricText_->setText(tr("Could not start lyrics lookup."));
 			return;
 		}
