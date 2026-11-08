@@ -463,8 +463,18 @@ public:
 		lyricsOffset_->setRange(-90000, 90000);
 		lyricsOffset_->setValue(0);
 		lyricsOffset_->setToolTip(tr("Manual lyric sync offset, milliseconds (-90s to +90s)."));
+		autoLyrics_=new QCheckBox(tr("Auto search lyrics on new DLS song"),lab);
+		autoLyrics_->setChecked(false);
+		autoLyrics_->setToolTip(tr("OFF by default. When enabled, the current radio DLS "
+			"artist/title is sent to LRCLIB on each new song. No audio or private RF data are uploaded."));
+		autoLyricSync_=new QCheckBox(tr("Auto lyric timing (DLS estimate)"),lab);
+		autoLyricSync_->setChecked(true);
+		autoLyricSync_->setToolTip(tr("Use the song metadata change and requested audio "
+			"buffer as an estimated timeline. Not audio fingerprinting; manual slider still applies."));
 		lyricsRow->addWidget(lyrics_);
 		lyricsRow->addWidget(stopLyrics_);
+		lyricsRow->addWidget(autoLyrics_);
+		lyricsRow->addWidget(autoLyricSync_);
 		lyricsRow->addWidget(new QLabel(tr("Lyric timing:"), lab));
 		lyricsRow->addWidget(lyricsOffset_, 1);
 		v->addLayout(lyricsRow);
@@ -1008,7 +1018,12 @@ private:
 					lyrics_->setEnabled(true);
 					if (!lyricPath_.isEmpty()) QFile::remove(lyricPath_);
 					lyricPath_.clear();
-					lyricText_->setText(tr("New DLS text. Lyrics need fresh explicit lookup."));
+					lyricText_->setText(tr("New DLS song metadata. "
+						"Automatic lookup needs opt-in; timing follows DLS estimate."));
+					if(autoLyrics_->isChecked() &&
+					   dls.contains(QLatin1String(" - "))) {
+						QTimer::singleShot(100,this,[this](){fetchLyrics(true);});
+					}
 				}
 				const QJsonObject errs=service.value(
 					QLatin1String("errorcounters")).toObject();
@@ -1642,7 +1657,7 @@ private:
 		stopLyrics_->setEnabled(false);
 		lyricText_->setText(tr("Timed lyrics stopped (no online lyric polling)."));
 	}
-	void fetchLyrics() {
+	void fetchLyrics(bool automatic=false) {
 		if (!active() || playingKey_.isEmpty()) {
 			lyricText_->setText(tr("Play a station first.")); return;
 		}
@@ -1655,7 +1670,8 @@ private:
 		const QString artist=fields.at(0).trimmed(),title=fields.at(1).trimmed();
 		if (artist.isEmpty() || title.isEmpty() || artist.size()>130 || title.size()>130)
 			return;
-		if (QMessageBox::question(this,tr("Optional online lyrics lookup"),
+		if (automatic && !autoLyrics_->isChecked()) return;
+		if(!automatic && QMessageBox::question(this,tr("Optional online lyrics lookup"),
 			tr("Search LRCLIB for synchronized lyrics?\nArtist: %1\nTitle: %2\n\n"
 			   "Only these metadata are sent; no radio audio is uploaded. "
 			   "Start time estimated from DLS, so adjust the timing slider manually.")
@@ -1770,6 +1786,7 @@ private:
 		*livePlot_=nullptr,*showWidgets_=nullptr,
 		*coarseCorrector_=nullptr;
 	QSlider *lyricsOffset_=nullptr;
+	QCheckBox *autoLyrics_=nullptr,*autoLyricSync_=nullptr;
 	QSpinBox *bufferMs_=nullptr,*radioOffsetMs_=nullptr;
 	QCheckBox *autoSync_=nullptr,*autoRestartAudio_=nullptr;
 	int lastCaptionOffsetMs_=0;
