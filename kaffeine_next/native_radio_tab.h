@@ -572,6 +572,14 @@ public:
 		speechLanguage_->addItems({"de","en","tr","fr","es","pl","ar","ja"});
 		speechLanguage_->setEditable(true);
 		speechLanguage_->setCurrentIndex(0);
+		captionSource_=new QComboBox(lab);
+		captionSource_->addItem(tr("Whisper ASR · recognized live audio"),
+			QLatin1String("asr"));
+		captionSource_->addItem(tr("Broadcaster DLS · metadata only, NOT subtitles"),
+			QLatin1String("dls"));
+		captionSource_->setToolTip(tr("DAB DLS is program/song metadata, not a "
+			"guaranteed subtitle channel. Whisper generates spoken-word subtitles "
+			"from actual audio; timed lyrics are separate."));
 		german_ = new QCheckBox(tr("German"), lab); german_->setChecked(true);
 		english_ = new QCheckBox(tr("English"), lab); english_->setChecked(true);
 		turkish_ = new QCheckBox(tr("Turkish"), lab); turkish_->setChecked(true);
@@ -586,7 +594,9 @@ public:
 		});
 		caption_ = new QPushButton(tr("Start offline live captions"), lab);
 		stopCaption_ = new QPushButton(tr("Stop AI captions"), lab);
-		row->addWidget(new QLabel(tr("Source:"), lab));
+		row->addWidget(new QLabel(tr("Caption source:"),lab));
+		row->addWidget(captionSource_);
+		row->addWidget(new QLabel(tr("Speech language:"), lab));
 		row->addWidget(speechLanguage_);
 		row->addWidget(english_);
 		row->addWidget(german_);
@@ -691,6 +701,16 @@ public:
 			"· no verified audio output clock · checking every 30s"),lab);
 		syncStatus_->setWordWrap(true);
 		v->addWidget(syncStatus_);
+		audioCacheProgress_=new QProgressBar(lab);
+		audioCacheProgress_->setRange(0,100);
+		audioCacheProgress_->setValue(0);
+		audioCacheProgress_->setFormat(tr("Requested audio cache · not started"));
+		audioCacheProgress_->setToolTip(tr("Estimated time since opening a stream, NOT "
+			"verified buffer fill, actual DAC output clock or lip sync."));
+		v->addWidget(audioCacheProgress_);
+		bufferRecommendation_=new QLabel(tr("Buffer recommendation: awaiting real ASR timing"),lab);
+		bufferRecommendation_->setWordWrap(true);
+		v->addWidget(bufferRecommendation_);
 		captionProgress_=new QProgressBar(lab);
 		captionProgress_->setRange(0,100);
 		captionProgress_->setValue(0);
@@ -734,10 +754,16 @@ public:
 		preferLyrics_->setToolTip(tr("When plain lyrics from an opted-in LRCLIB search are found, "
 			"show matched real-audio lines; unmatched song vocals are [music], not guessed text. "
 			"Presenter speech outside verified song metadata is unaffected."));
-		lyricsOffsetValue_=new QLabel(tr("0.00 s"),lab);
-		lyricsOffsetValue_->setMinimumWidth(65);
+		lyricsOffsetValue_=new QLabel(tr("Offset: +0.00 s"),lab);
+		lyricsOffsetValue_->setMinimumWidth(120);
+		lyricsOffsetValue_->setToolTip(tr("Signed manual correction in seconds "
+			"(+ delays lyrics; - displays earlier)."));
+		lyricsSyncState_=new QLabel(tr("Audio lyric sync: no verified vocal match"),lab);
+		lyricsSyncState_->setWordWrap(true);
 		connect(lyricsOffset_,&QSlider::valueChanged,this,[this](int value){
-			lyricsOffsetValue_->setText(QString::number(value/1000.,'f',2)+tr(" s"));
+			lyricsOffsetValue_->setText(
+				tr("Offset: %1%2 s").arg(value>=0?QLatin1String("+"):QString())
+				.arg(QString::number(value/1000.,'f',2)));
 			const int delta=value-lastLyricOffsetMs_;
 			lastLyricOffsetMs_=value;
 			for(auto &cue:plainLyricQueue_) cue.dueMs+=delta;
@@ -751,6 +777,7 @@ public:
 		lyricsRow->addWidget(lyricsOffsetValue_,2,2);
 		lyricsRow->setColumnStretch(1,1);
 		v->addLayout(lyricsRow);
+		v->addWidget(lyricsSyncState_);
 		v->addWidget(preferLyrics_);
 		lyricText_ = new QLabel(tr("No synchronized lyrics loaded."), lab);
 		lyricText_->setTextFormat(Qt::PlainText);
@@ -984,6 +1011,17 @@ public:
 		captionTick_.setInterval(150);
 		connect(&captionTick_,&QTimer::timeout,this,[this](){
 			pollCaption();updateLyrics();
+			if(audioCacheProgress_) {
+				const qint64 elapsed=audioStartedMs_>0?
+					qMax(qint64(0),QDateTime::currentMSecsSinceEpoch()-audioStartedMs_):0;
+				const int requested=bufferMs_->value();
+				audioCacheProgress_->setValue(audioStartedMs_>0?
+					(requested==0?100:qBound(0,int(elapsed*100/requested),100)):0);
+				audioCacheProgress_->setFormat(audioStartedMs_<=0?
+					tr("Audio cache estimate · no stream opened"):
+					tr("Requested %1 ms cache · elapsed %2 ms · UNVERIFIED")
+					.arg(requested).arg(qMin(qint64(requested),elapsed)));
+			}
 		});
 		captionTick_.start();
 		rfTick_.setInterval(300);
@@ -1302,7 +1340,7 @@ private:
 			analogAudioVu_->setValue(0);
 			analogAudioVu_->setFormat(tr("Audio VU: stopped (not RF strength)"));
 		}
-		if(wasPlaying) player_->stop();
+		if(wasPlaying) { player_->stop(); audioStartedMs_=0; }
 		if(analogStatus_) analogStatus_->setText(tr("Analogue SDR released."));
 	}
 	void startAnalog() {
@@ -1329,6 +1367,7 @@ private:
 		// Reuse Kaffeine/libVLC's own audio sink so the main player volume,
 		// mute and audio-device selection work, unlike the former aplay fork.
 		retuneAnalogDemod();
+		audioStartedMs_=QDateTime::currentMSecsSinceEpoch();
 		player_->play(QUrl(QLatin1String("http://127.0.0.1:")+
 			QString::number(analogServer_.serverPort())+QLatin1String("/analog.wav")));
 	}
@@ -1373,6 +1412,7 @@ private:
 		webPlaying_=true;
 		webSource_->setText(url.toString());
 		player_->play(url);
+		audioStartedMs_=QDateTime::currentMSecsSinceEpoch();
 		radioCanvas_->setText(tr("♪ Internet radio\\n%1\\nAudio uses the built-in player.")
 			.arg(url.host()));
 		webStatus_->setText(tr("Opening internet radio stream · no DVB device required."));
@@ -1381,6 +1421,7 @@ private:
 		if (!webPlaying_) return;
 		player_->stop();
 		webPlaying_=false;
+		audioStartedMs_=0;
 		webStatus_->setText(tr("Internet radio stopped."));
 	}
 	void startReceiver() {
@@ -1440,6 +1481,7 @@ private:
 		tick_.stop();
 		if (!playingKey_.isEmpty()) player_->stop();
 		playingKey_.clear();
+		audioStartedMs_=0;
 		if (active()) {
 			backend_.terminate();
 			if (!backend_.waitForFinished(1200)) {
@@ -1562,6 +1604,13 @@ private:
 				                         .toObject().value(QLatin1String("label")));
 				if (!dls.isEmpty() && lastDls_ != dls) {
 					lastDls_=dls;
+					if(metadataCaptions_) {
+						const qint64 received=QDateTime::currentMSecsSinceEpoch();
+						cueQueue_.append({++dlsCaptionIndex_,received+
+							bufferMs_->value()+radioOffsetMs_->value(),received,
+							tr("[DLS broadcaster metadata] %1").arg(dls).left(700)});
+						while(cueQueue_.size()>12) cueQueue_.removeFirst();
+					}
 					// DLS is live; the audible audio may be delayed by radio caching.
 					// This is approximate metadata sync, NOT audio fingerprinting.
 					songStartMs_=QDateTime::currentMSecsSinceEpoch()+
@@ -1885,6 +1934,7 @@ private:
 				lastSlideHash_.clear();
 				slideIndex_=0;
 				player_->play(QUrl(base()+stream));
+				audioStartedMs_=QDateTime::currentMSecsSinceEpoch();
 				radioCanvas_->setText(tr("♪ %1\nDAB+ %2 · verifying audio playback…")
 					.arg(name,block));
 				playStatus_->setText(tr("LIVE mux lists %1. Opening audio; "
@@ -2222,6 +2272,23 @@ private:
 		if (!active() || playingKey_.isEmpty()) {
 			state_->setText(tr("Play a real DAB+ station before starting offline AI.")); return;
 		}
+		if (captionSource_->currentData().toString()==QLatin1String("dls")) {
+			stopCaptioning();
+			metadataCaptions_=true;
+			lastRadioChunk_=-1;
+			displayedRadioChunk_=-1;
+			radioCaption_->setText(tr("Broadcaster DLS selected. "
+				"This is NOT a subtitle or spoken transcript; "
+				"text is delayed only by the requested buffer and offset."));
+			if(!lastDls_.isEmpty())
+				cueQueue_.append({++dlsCaptionIndex_,
+					QDateTime::currentMSecsSinceEpoch()+bufferMs_->value()+
+					radioOffsetMs_->value(),
+					QDateTime::currentMSecsSinceEpoch(),
+					tr("[DLS broadcaster metadata] %1").arg(lastDls_).left(700)});
+			return;
+		}
+		metadataCaptions_=false;
 		if (captionProcess_.state()!=QProcess::NotRunning) return;
 		const QString sid=playingKey_.section(QLatin1Char(':'),1);
 		const QString sourceCode=speechLanguage_->currentData().isValid()?
@@ -2245,6 +2312,9 @@ private:
 				targets<<lang;
 		}
 		options<<QLatin1String("--targets")<<targets.join(QLatin1Char(','));
+		const int sentenceHops=bufferMs_->value()<8000?2:
+			bufferMs_->value()<14000?3:bufferMs_->value()<18500?4:5;
+		options<<QLatin1String("--sentence-hops")<<QString::number(sentenceHops);
 		if (music_->isChecked()) options<<QLatin1String("--music");
 		if (preferLyrics_->isChecked())
 			options<<QLatin1String("--prefer-verified-lyrics");
@@ -2287,7 +2357,10 @@ private:
 	}
 	void pollCaption() {
 		const qint64 now=QDateTime::currentMSecsSinceEpoch();
-		if(captionPath_.isEmpty()) return;
+		if(captionPath_.isEmpty()) {
+			displayDueRadioCues(now);
+			return;
+		}
 		QFile stream(captionPath_);
 		if(!stream.open(QIODevice::ReadOnly) || stream.size()>15000) {
 			displayDueRadioCues(now);
@@ -2379,6 +2452,7 @@ private:
 	}
 	void stopCaptioning() {
 		cueQueue_.clear();
+		metadataCaptions_=false;
 		if (captionProcess_.state()!=QProcess::NotRunning) {
 			captionProcess_.terminate();
 			if (!captionProcess_.waitForFinished(700))
@@ -2528,6 +2602,7 @@ private:
 	QWidget *playerHost_=nullptr;
 	QVBoxLayout *playerHostLayout_=nullptr;
 	QComboBox *channel_=nullptr, *driver_=nullptr, *speechLanguage_=nullptr,
+		*captionSource_=nullptr,
 		*plotKind_=nullptr, *fftPlacement_=nullptr;
 	QPushButton *start_=nullptr,*stop_=nullptr,*scan_=nullptr,*record_=nullptr,
 		*caption_=nullptr,
@@ -2584,8 +2659,12 @@ private:
 		*livePlot_=nullptr,*showWidgets_=nullptr,
 		*coarseCorrector_=nullptr;
 	QSlider *lyricsOffset_=nullptr;
-	QLabel *lyricsOffsetValue_=nullptr;
-	QProgressBar *captionProgress_=nullptr;
+	QLabel *lyricsOffsetValue_=nullptr,*lyricsSyncState_=nullptr;
+	QProgressBar *captionProgress_=nullptr,*audioCacheProgress_=nullptr;
+	QLabel *bufferRecommendation_=nullptr;
+	qint64 audioStartedMs_=0,lastLyricSyncUpdateMs_=0;
+	bool metadataCaptions_=false;
+	int dlsCaptionIndex_=0;
 	int lastLyricOffsetMs_=0;
 	bool plainLyricMode_=false;
 	QList<TimedPlainLyric> plainLyricQueue_;
