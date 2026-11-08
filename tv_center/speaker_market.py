@@ -25,7 +25,12 @@ READY = ".tihulu-speaker-model-downloaded"
 
 class SpeakerMarket:
     def __init__(self, root=None):
-        self.root = Path(root or ROOT).expanduser()
+        if root is None:
+            from .ai_settings import AISettings
+            selected = AISettings().values.get("model_dir", "")
+            root = (Path(selected).expanduser()/"speaker-diarization"
+                    if selected else ROOT)
+        self.root = Path(root).expanduser()
         self.venv = self.root/"venv"
         self.cache = self.root/"hf-cache"
 
