@@ -22,7 +22,7 @@ class RadioAndLocalMediaTests(unittest.TestCase):
         self.assertEqual([round(c.start,2) for c in cues],[2.5,5,8,12.1])
         self.assertIsNone(cue_at(cues,1.99))
         self.assertEqual(cue_at(cues,5.01).text,"World")
-        self.assertIsNone(cue_at(cues,6.0) if False else [])
+        self.assertEqual(cue_at(cues,6.0).text,"World")
         self.assertEqual(srt_timestamp(62.034),"00:01:02,034")
         with self.assertRaises(ValueError):
             parse_lrc("a"*2_100_000)
@@ -115,9 +115,7 @@ class RadioAndLocalMediaTests(unittest.TestCase):
         self.assertIn("INADDR_LOOPBACK",builder)
         self.assertIn("Socket.cpp",builder)
         self.assertIn("-DBUILD_WELLE_IO=OFF",builder)
-        self.assertIn("NO Hugging Face",(
-            directory/"README.md").read_text() if (
-            directory/"README.md").exists() else "NO Hugging Face")
+        self.assertIn("Resemblyzer",(directory/"README.md").read_text())
 
 
 if __name__=="__main__":
