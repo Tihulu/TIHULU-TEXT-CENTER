@@ -731,3 +731,54 @@ controls only the characters. White text at 100% with background
 opacity 0% is fully readable text with no black bar; either color can
 also be changed independently.
 
+
+## Natural live subtitle timing, MPEG-TS integrity and true no-background (2026-11-08)
+
+Natural dialogue captions now use **ordered, non-overlapping groups** of
+actual ASR words with at least **1.75 seconds of reading time** (rather
+than instantly jumping to the last due word). Groups prefer pauses and
+complete clauses. Target-language translation text is divided into
+**disjoint** rough groups: words no longer repeat across consecutive
+windows. Exact translated-word timestamps are not available, so they
+are not represented as sample-accurate. When a transcription finishes
+too late to follow its word timing, the screen displays one coherent
+phrase instead of rapidly catching up with obsolete partial words.
+ASR overlap is deduplicated against the **whole prior raw recognition**,
+not the already trimmed text of the previous callback.
+
+Whisper continues reading a copy of the **undelayed** DVB TS stream.
+The native player still delays audio and video together. The caption
+scheduler adds a conservative 550 ms anti-early display margin and
+only schedules against the **confirmed** Kaffeine TS delay, never an
+unacknowledged new requested buffer. Automatic timing estimates the
+full Whisper+translation availability with a rolling window, protects
+the 48 MiB safe portion of the native TS budget, adjusts slowly under
+the original 30-second cooldown, and independently checks the player
+delay every 25 seconds. If the native queue changes actual buffering,
+previous cues are cleared rather than displayed ahead of the picture.
+The player-reported queue delay is **not** the exact libVLC A/V
+presentation clock, so lip-sync precision is not falsely asserted.
+
+The caption-only TS copy has per-packet header, TEI, adaptation and
+continuity validation. Exact duplicate payload packets are filtered.
+If an audio PID has missing continuity counters, word-perfect cue
+alignment is disabled; severely compromised audio segments are
+discarded instead of transcribed into possible hallucinations. This
+never modifies live TV output or opens the tuner again. The 1 MiB
+audio-overlap cap is included in the measured time origin, rather than
+incorrectly subtracting a fixed one second at every bitrate.
+
+**No background** means **Background opacity: 0%** and **Text opacity:
+100%**. A caption QColor brush with alpha=0 was insufficient: the Qt
+child QWidget backing could still paint black over libVLC. The native
+caption OSD is now a transparent child widget; it explicitly clears
+the paint surface and draws **no backing geometry at all** when the
+background opacity is zero. Both color and transparency controls
+remain independent; selecting 0% for BOTH actually hides all captions
+and is labelled as such. Appearance is saved in local Qt settings and
+restored when the caption service is reopened. Qt overlays may still
+behave differently depending on the user's window compositor and
+video output; native broadcast-supplied DVB subtitles or video
+letterboxing are separate layers and are not controlled by this
+optional AI caption appearance setting.
+
