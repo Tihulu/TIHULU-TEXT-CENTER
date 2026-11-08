@@ -29,7 +29,7 @@
   const setEnabled = (enabled) => {
     for(const id of ["leave","start-video","stop-video","fullscreen",
         "open-page","apply-target","apply-source","enable-host-stream","disable-host-stream","host-play","host-pause",
-        "host-stop","host-prev","host-next","set-host-volume","tune-tv",
+        "host-stop","host-prev","host-next","set-host-volume","mute-host","tune-tv",
         "desktop-apply-mode","desktop-apply-offset","desktop-apply-buffer",
         "desktop-captions-start","desktop-captions-stop"]){
       if($(id)) $(id).disabled = !enabled;
