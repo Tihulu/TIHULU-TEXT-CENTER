@@ -591,6 +591,8 @@
     const args={...coordinateArgs(),norad,aos_millis,when_millis:at,
       frequency:Number(selections[0]?.value),
       rate:Number(selections[2]?.value||1024000),
+      elevation:Number($('elev')?.value||5),
+      hours:Number($('hours')?.value||24),
       seconds,raw:Boolean(checks[0]?.checked),wav:Boolean(checks[1]?.checked)};
     if(!args.raw&&!args.wav){
       if(warn)warn.textContent='Choose original IQ (.cu8), or ISS FM WAV when supported.';
