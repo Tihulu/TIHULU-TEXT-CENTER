@@ -16,7 +16,44 @@ import sys
 MODEL_ID = "facebook/nllb-200-distilled-600M"
 MODEL_REVISION = "a3e77be725cf30383f1faeb8d2f0b0ea98ac554e"
 LICENSE = "CC-BY-NC-4.0 (non-commercial use)"
-LANG = {"de":"deu_Latn","en":"eng_Latn","tr":"tur_Latn","fr":"fra_Latn"}
+from .language_codes import language_code
+
+# Familiar ISO codes are a convenience. Advanced users can enter any
+# installed NLLB tokenizer language token, such as srp_Cyrl or zho_Hant.
+LANG = {
+    "de":"deu_Latn", "en":"eng_Latn", "tr":"tur_Latn",
+    "fr":"fra_Latn", "es":"spa_Latn", "it":"ita_Latn",
+    "nl":"nld_Latn", "pl":"pol_Latn", "pt":"por_Latn",
+    "ru":"rus_Cyrl", "uk":"ukr_Cyrl", "ar":"arb_Arab",
+    "ja":"jpn_Jpan", "ko":"kor_Hang", "zh":"zho_Hans",
+    "hi":"hin_Deva", "sv":"swe_Latn", "da":"dan_Latn",
+    "fi":"fin_Latn", "el":"ell_Grek", "cs":"ces_Latn",
+    "ro":"ron_Latn", "hu":"hun_Latn", "sk":"slk_Latn",
+    "bg":"bul_Cyrl", "hr":"hrv_Latn", "sr":"srp_Cyrl",
+    "ca":"cat_Latn", "he":"heb_Hebr", "id":"ind_Latn",
+    "vi":"vie_Latn", "th":"tha_Thai",
+}
+
+
+def nllb_code(language):
+    requested = language_code(language, nllb=True)
+    return LANG.get(requested, requested if "_" in requested else "")
+
+
+def nllb_token_id(tokenizer, language):
+    code = nllb_code(language)
+    if not code:
+        raise ValueError(f"No NLLB mapping for {language}; enter a complete NLLB code")
+    available = getattr(tokenizer, "lang_code_to_id", None)
+    if isinstance(available, dict):
+        if code not in available:
+            raise ValueError(f"Chosen NLLB language is unsupported by installed tokenizer: {code}")
+        return code, available[code]
+    token = tokenizer.convert_tokens_to_ids(code)
+    if (token is None or token == getattr(tokenizer, "unk_token_id", None)
+            or type(token) is not int or token < 0):
+        raise ValueError(f"Chosen NLLB language is unsupported by installed tokenizer: {code}")
+    return code, token
 
 
 class TranslationModelMarket:
@@ -120,15 +157,15 @@ def _load_nllb():
 
 def run_nllb(text,source,target):
     """Local model cached once per persistent worker, never per sentence."""
-    if source not in LANG or target not in LANG:
-        raise ValueError("Unsupported language")
     model,tokenizer,device,torch=_load_nllb()
-    tokenizer.src_lang=LANG[source]
+    src_code, _ = nllb_token_id(tokenizer, source)
+    _, target_token = nllb_token_id(tokenizer, target)
+    tokenizer.src_lang=src_code
     data=tokenizer(text[:1600],return_tensors="pt",truncation=True,
                    max_length=256).to(device)
     with torch.inference_mode():
         output=model.generate(**data,
-            forced_bos_token_id=tokenizer.convert_tokens_to_ids(LANG[target]),
+            forced_bos_token_id=target_token,
             max_new_tokens=180,num_beams=3)
     return tokenizer.batch_decode(output,skip_special_tokens=True)[0].strip()
 
