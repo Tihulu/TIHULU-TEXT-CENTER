@@ -29,7 +29,9 @@
   const setEnabled = (enabled) => {
     for(const id of ["leave","start-video","stop-video","fullscreen",
         "open-page","apply-target","apply-source","enable-host-stream","disable-host-stream","host-play","host-pause",
-        "host-stop","host-prev","host-next","set-host-volume","tune-tv"]){
+        "host-stop","host-prev","host-next","set-host-volume","tune-tv",
+        "desktop-apply-mode","desktop-apply-offset","desktop-apply-buffer",
+        "desktop-captions-start","desktop-captions-stop"]){
       if($(id)) $(id).disabled = !enabled;
     }
     $("pair").disabled=enabled;
@@ -215,6 +217,12 @@
       $("enable-host-stream").disabled=state.mobile_video || state.source!=="live_native_dvb";
       $("disable-host-stream").disabled=!state.mobile_video;
       $("stop-video").disabled=!currentlyPlayingHls;
+      const desktop=state.desktop_caption_settings||{};
+      if(desktop.mode)$("desktop-caption-mode").value=desktop.mode;
+      if(document.activeElement!==$("desktop-offset"))
+        $("desktop-offset").value=((desktop.offset_ms||0)/1000).toFixed(2);
+      if(document.activeElement!==$("desktop-buffer"))
+        $("desktop-buffer").value=((desktop.requested_buffer_ms||0)/1000).toFixed(1);
       const t=state.caption_timing||{};
       const host=t.host_effective_buffer_ms;
       $("host-latency").textContent=t.host_buffer_verified?
@@ -321,6 +329,25 @@
   $("caption-opacity").oninput=updateOverlay;
   $("sync-mode").onchange=()=>{pending=[];seen.clear();active=null;refresh();};
   $("phone-offset").onchange=()=>{pending=[];seen.clear();active=null;refresh();};
+  $("desktop-apply-mode").onclick=()=>invoke(
+    "set_desktop_caption_mode",{mode:$("desktop-caption-mode").value},
+    "Native subtitle mode").catch(()=>{});
+  $("desktop-apply-offset").onclick=()=>{
+    const n=Math.round(Number($("desktop-offset").value)*1000);
+    if(!Number.isInteger(n)||n<-10000||n>10000)return;
+    invoke("set_desktop_caption_offset",{offset_ms:n},
+      "Native caption offset").catch(()=>{});
+  };
+  $("desktop-apply-buffer").onclick=()=>{
+    const n=Math.round(Number($("desktop-buffer").value)*1000);
+    if(!Number.isInteger(n)||n<0||n>20000)return;
+    invoke("set_desktop_tv_buffer",{buffer_ms:n},
+      "Native TV buffer (pending acknowledgement)").catch(()=>{});
+  };
+  $("desktop-captions-start").onclick=()=>invoke(
+    "desktop_subtitles_running",{running:true},"Desktop captions").catch(()=>{});
+  $("desktop-captions-stop").onclick=()=>invoke(
+    "desktop_subtitles_running",{running:false},"Desktop captions").catch(()=>{});
   $("apply-target").onclick=async()=>{
     try{
       const target=$("play-target").value;
