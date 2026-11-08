@@ -162,7 +162,8 @@ class CaptionTap:
                     self.events.put_nowait((
                         "teletext_tracks",
                         {"service_id":self.subtitle_discovery.service_id,
-                         "tracks":self.subtitle_discovery.snapshot()}))
+                         "tracks":self.subtitle_discovery.snapshot(),
+                         "audio_tracks":self.subtitle_discovery.snapshot_audio()}))
                 except queue.Full:
                     self._note_warning("Teletext subtitle channel list refresh delayed")
             if self.packet_sink:
@@ -236,6 +237,8 @@ class CaptionTap:
                 service_id=options.get("service_id"),
                 teletext_pid=(options.get("teletext_pid")
                               if selected in ("auto", "teletext", "page") else None),
+                audio_pid=(options.get("audio_pid")
+                           if selected in ("auto", "asr") else None),
                 previous_text=previous)
             if options.get("program_epoch") != self.program_epoch:
                 return  # old channel's caption must never appear on new TV
@@ -373,6 +376,19 @@ def main(argv=None):
     track_status.setWordWrap(True)
     settings_layout.addRow(tracks_row)
     settings_layout.addRow(track_status)
+    audio_row = QHBoxLayout()
+    audio_row.addWidget(QLabel("Whisper source audio channel"))
+    audio_track = QComboBox()
+    audio_track.addItem("Automatic · prefer spoken language / regular audio", None)
+    audio_track.setToolTip(
+        "Real audio elementary streams signalled in the tuned DVB service. "
+        "Choose a PID for Whisper transcription; TV audio playback remains "
+        "under Kaffeine's own control. No second tuner is opened.")
+    audio_row.addWidget(audio_track, 1)
+    settings_layout.addRow(audio_row)
+    audio_track_status = QLabel("Scanning broadcaster audio track descriptors…")
+    audio_track_status.setWordWrap(True)
+    settings_layout.addRow(audio_track_status)
     root.addWidget(settings)
 
     timing = QGroupBox("Synchronization & video overlay")
@@ -522,9 +538,12 @@ def main(argv=None):
         # translator merely because the prior Spoken box said 'de'.
         chosen_track = (selected if isinstance(selected, dict) and
                         mode.currentData() in ("auto","teletext","page") else None)
-        spoken = (chosen_track.get("source_hint")
-                  if chosen_track and chosen_track.get("source_hint") in LANGS
-                  else source.currentText())
+        selected_audio = audio_track.currentData()
+        chosen_audio = (selected_audio if isinstance(selected_audio, dict) and
+                        mode.currentData() in ("asr", "auto") else None)
+        hinted = (chosen_track.get("source_hint") if chosen_track else
+                  chosen_audio.get("source_hint") if chosen_audio else None)
+        spoken = hinted if hinted in LANGS else source.currentText()
         target_langs = tuple(lang for lang, check in language_boxes.items()
                              if check.isChecked() and lang != spoken)
         output = display_mode.currentData()
@@ -534,6 +553,7 @@ def main(argv=None):
             target_languages=target_langs if output != "original" else (),
             page=chosen_track["page"] if chosen_track else page.value(),
             teletext_pid=chosen_track["pid"] if chosen_track else None,
+            audio_pid=chosen_audio["pid"] if chosen_audio else None,
             offset_ms=round(caption_offset.value()*1000),
             playback_delay_ms=round(playback_delay.value()*1000),
             automatic_sync=automatic.isChecked(),
@@ -547,7 +567,7 @@ def main(argv=None):
     def set_pending(*_):
         pending.setText("Unsaved changes — press Apply")
         pending.setStyleSheet("color:#f7bf6e")
-    for w in (mode,source,display_mode,position,subtitle_track):
+    for w in (mode,source,display_mode,position,subtitle_track,audio_track):
         w.currentIndexChanged.connect(set_pending)
     def subtitle_source_selected(*_):
         selected = subtitle_track.currentData()
@@ -562,6 +582,18 @@ def main(argv=None):
                     "can still be displayed; install matching translation packs.")
         set_pending()
     subtitle_track.currentIndexChanged.connect(subtitle_source_selected)
+    def audio_source_selected(*_):
+        selected = audio_track.currentData()
+        if isinstance(selected, dict):
+            language = selected.get("source_hint")
+            if language in LANGS and mode.currentData() in ("asr", "auto"):
+                source.setCurrentText(language)
+            elif language not in LANGS:
+                audio_track_status.setText(
+                    "Selected audio PID has no supported language hint. "
+                    "Set the spoken language manually before Whisper transcription.")
+        set_pending()
+    audio_track.currentIndexChanged.connect(audio_source_selected)
     for w in (page,caption_offset,playback_delay,font,opacity,text_opacity):
         w.valueChanged.connect(set_pending)
     for w in (show_video,automatic,*language_boxes.values()):
@@ -612,6 +644,7 @@ def main(argv=None):
         for lang, check in language_boxes.items():
             check.setChecked(lang == "tr")
         subtitle_track.setCurrentIndex(0)
+        audio_track.setCurrentIndex(0)
         page.setValue(150)
         caption_offset.setValue(0.0); playback_delay.setValue(0.0)
         automatic.setChecked(False)
@@ -716,6 +749,34 @@ def main(argv=None):
                         current = subtitle_track.count()-1
                 subtitle_track.setCurrentIndex(current)
                 subtitle_track.blockSignals(False)
+                old_audio = audio_track.currentData()
+                previous_audio_pid = (
+                    old_audio.get("pid") if isinstance(old_audio, dict) else None)
+                audio_track.blockSignals(True)
+                audio_track.clear()
+                audio_track.addItem(
+                    "Automatic · prefer spoken language / regular audio", None)
+                selected_audio_index = 0
+                for desc in data.get("audio_tracks", ()):
+                    if not isinstance(desc, dict):
+                        continue
+                    item = dict(desc)
+                    audio_track.addItem(item["label"], item)
+                    if item.get("pid") == previous_audio_pid:
+                        selected_audio_index = audio_track.count()-1
+                audio_track.setCurrentIndex(selected_audio_index)
+                audio_track.blockSignals(False)
+                audio_count = audio_track.count()-1
+                audio_track_status.setText(
+                    f"{audio_count} broadcast-signalled audio channel(s). "
+                    "Choose a PID for Whisper, then Apply. "
+                    "The speaker source language may also need setting.")
+                if previous_audio_pid is not None and selected_audio_index == 0:
+                    with lock:
+                        applied = __import__("dataclasses").replace(
+                            applied, audio_pid=None, revision=applied.revision+1)
+                    cues.clear()
+                    set_pending()
                 count = subtitle_track.count()-1
                 track_status.setText(
                     (f"{count} broadcast-signalled Teletext subtitle "
