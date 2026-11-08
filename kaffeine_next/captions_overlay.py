@@ -385,6 +385,7 @@ class CaptionTap:
                         "be retained. Select CUDA GPU/smaller model or fewer translations.")
 
     def _decode(self, capture, options, captured_start, captured_end):
+        decode_clock=time.perf_counter()
         try:
             from tv_center.ai_settings import AISettings
             from tv_center.captions import decode_segment
@@ -499,17 +500,23 @@ class CaptionTap:
                 result["translation_warnings"]={}
                 result["translation_engines"]={}
                 used=result.get("source_language")
+                translate_clock=time.perf_counter()
+                translation_languages_ms={}
                 if enabled and used in (None,"und","auto"):
                     result["translation_errors"]={
                         target:"Source language not confirmed for full sentence"
                         for target in enabled}
                 elif enabled:
                     for target in enabled:
+                        one_clock=time.perf_counter()
                         if target==used:
                             result["translations"][target]=result["original"]
+                            translation_languages_ms[target]=0
                             continue
                         text,issue=translate_sentence(
                             result["original"],used,target)
+                        translation_languages_ms[target]=round(
+                            (time.perf_counter()-one_clock)*1000)
                         if text:
                             result["translations"][target]=text
                         if issue:
@@ -518,6 +525,9 @@ class CaptionTap:
                             else:
                                 result["translation_errors"][target]=issue[:180]
                 result["translated"]=result["translations"].get(primary)
+                spent=round((time.perf_counter()-translate_clock)*1000)
+                result.setdefault("processing_ms",{})["translation"]=spent
+                result["translation_languages_ms"]=translation_languages_ms
             if targets and not ai.values["translation_enabled"]:
                 result["translation_errors"] = {
                     lang: "Translation disabled in Model Market." for lang in targets}
@@ -538,6 +548,8 @@ class CaptionTap:
             result["captured_start"] = captured_start
             result["captured_end"] = captured_end
             result["decoded_at"] = time.monotonic()
+            result.setdefault("processing_ms",{})["total"]=round(
+                (time.perf_counter()-decode_clock)*1000)
             result["revision"] = options.get("revision", 0)
             result["program_epoch"] = options.get("program_epoch")
             result["native_tune_state"] = options.get("native_tune_state")
