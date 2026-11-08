@@ -90,6 +90,14 @@ QAbstractButton *StartTab::addShortcut''')
 		i18n("TIHULU Media Center"),''')
     change(appmain, '''		i18n("A media player by KDE with digital TV support."),''',
            '''		i18n("TIHULU · TV, DAB+ radio, media and offline AI; built on KDE Kaffeine."),''')
+    change(appmain, '''{
+	QString path = QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation);''',
+           '''{
+	// Isolate SQL and KSharedConfig BEFORE opening the database.
+	setApplicationName("tihulu-media-center");
+	setOrganizationName("TIHULU");
+	setOrganizationDomain("tihulu.local");
+	QString path = QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation);''')
     change(appmain, '''	app.setApplicationName("kaffeine");
 	app.setOrganizationDomain("kde.org");
 	app.setWindowIcon(QIcon::fromTheme(QLatin1String("kaffeine"), QIcon(":kaffeine")));''',
