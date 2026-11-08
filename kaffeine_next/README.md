@@ -749,8 +749,14 @@ not the already trimmed text of the previous callback.
 Whisper continues reading a copy of the **undelayed** DVB TS stream.
 The native player still delays audio and video together. The caption
 scheduler adds a conservative 550 ms anti-early display margin and
-only schedules against the **confirmed** Kaffeine TS delay, never an
-unacknowledged new requested buffer. Automatic timing estimates the
+only schedules against the **confirmed, fully primed** Kaffeine TS
+buffer, never an unacknowledged new requested delay. The native player
+publishes a separate **buffer ready** flag and measured oldest queued
+MPEG-TS age. If 15s is requested but only 2s is collected, the caption
+controller holds output until real delayed video data is ready instead
+of treating the requested 15s setting as already active. Old native
+3-field status files are treated as **unverified** for nonzero delays;
+rebuilding pinned Kaffeine is required for safe auto-sync. Automatic timing estimates the
 full Whisper+translation availability with a rolling window, protects
 the 48 MiB safe portion of the native TS budget, adjusts slowly under
 the original 30-second cooldown, and independently checks the player
