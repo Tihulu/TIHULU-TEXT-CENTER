@@ -251,11 +251,25 @@ def open_ai_settings(parent, ai, after_save=None):
             self.nllb_status.setWordWrap(True)
             quality_layout.addWidget(self.nllb_status)
             nllb_buttons = QHBoxLayout()
-            nllb_install = QPushButton("Download & install NLLB")
+            nllb_install = QPushButton("Download / repair NLLB")
             nllb_install.clicked.connect(self.install_nllb_model)
+            self.nllb_test = QPushButton(
+                "Test NLLB offline · real DE → EN translation")
+            self.nllb_test.setToolTip(
+                "Explicit opt-in: load installed 600M weights and check "
+                "actual local translation; no TV or network access.")
+            self.nllb_test.clicked.connect(self.test_nllb_model)
             nllb_remove = QPushButton("Remove managed NLLB model")
             nllb_remove.clicked.connect(self.remove_nllb_model)
-            nllb_buttons.addWidget(nllb_install); nllb_buttons.addWidget(nllb_remove)
+            use_argos = QPushButton("Use Argos instead · faster backup")
+            use_argos.clicked.connect(lambda: (
+                self.translation_choice.setCurrentIndex(0),
+                self.feedback.setText(
+                    "Argos selected. Click Save settings to use installed packs.")))
+            nllb_buttons.addWidget(nllb_install)
+            nllb_buttons.addWidget(self.nllb_test)
+            nllb_buttons.addWidget(use_argos)
+            nllb_buttons.addWidget(nllb_remove)
             quality_layout.addLayout(nllb_buttons)
             trans_layout.addWidget(quality)
             self.inspect_nllb()
@@ -461,6 +475,8 @@ def open_ai_settings(parent, ai, after_save=None):
 
         def inspect_nllb(self):
             state = self.translation_market.status()
+            if hasattr(self, "nllb_test"):
+                self.nllb_test.setEnabled(state["installed"])
             self.nllb_status.setText(
                 ("INSTALLED" if state["installed"] else "NOT INSTALLED") +
                 " · currently selected: " +
@@ -469,7 +485,9 @@ def open_ai_settings(parent, ai, after_save=None):
                 " · optional ~2.5 GB model + Python/PyTorch dependencies" +
                 " · " + NLLB_LICENSE +
                 " · CPU can be slow; requires ~6 GB+ RAM for practical use. "
-                "GPU inference only when compatible PyTorch CUDA is actually available.")
+                "Installed does NOT prove usable: click Test NLLB offline. "
+                "If the model fails to load, live captions now try installed "
+                "Argos packs automatically and keep original text visible.")
 
         def install_nllb_model(self):
             if QMessageBox.question(self, "Optional NLLB license and large download",
@@ -482,6 +500,24 @@ def open_ai_settings(parent, ai, after_save=None):
                 return
             self.begin("Installing larger NLLB multilingual translation model…",
                        self.translation_market.install)
+
+        def test_nllb_model(self):
+            if not self.translation_market.status()["installed"]:
+                QMessageBox.information(
+                    self, "Offline NLLB test",
+                    "NLLB files are missing. Download / repair the model first.")
+                return
+            def verify():
+                outcome = TranslationModelMarket().selftest()
+                if not outcome.get("ready"):
+                    raise RuntimeError(
+                        "NLLB self-test failed: " +
+                        str(outcome.get("reason") or "unknown")[:240] +
+                        " · Select Argos or repair NLLB dependencies.")
+                return ("NLLB real offline translation PASSED on " +
+                        str(outcome.get("device")) + ": Guten Morgen → " +
+                        str(outcome.get("translated")))
+            self.begin("Testing actual local NLLB model weights…", verify)
 
         def remove_nllb_model(self):
             if QMessageBox.question(self,"Remove NLLB",
