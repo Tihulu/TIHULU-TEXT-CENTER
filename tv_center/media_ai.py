@@ -89,10 +89,16 @@ def _chunk_cues(pcm: bytes, *, position: float, lang: str, profile:dict,
                 detection["confidence"]=result.get("language_probability",0.0)
             detection["recognition_rejected"]=result.get("recognition_rejected")
     else:
-        if lang=="auto":
-            raise RuntimeError("Automatic source detection requires installed Faster-Whisper GPU model")
+        # CPU whisper.cpp can transcribe with -l auto, but this API does
+        # not provide a verified language code. Never guess a translation
+        # source from an unspecified language; keep original words only.
         from textcenter.speech import transcribe_pcm
         text=transcribe_pcm(pcm,lang,backend,profile).strip()
+        if lang=="auto":
+            recognized_language="und"
+            if detection is not None:
+                detection["language"]=None
+                detection["confidence"]=0.0
     if not text:
         return []
     duration=len(pcm)/(2*CHUNK_SAMPLES)
