@@ -100,12 +100,7 @@ def _chunk_cues(pcm: bytes, *, position: float, lang: str, profile:dict,
     text=""
     words=[]
     recognized_language=lang
-    if _near_silent_pcm(pcm):
-        if detection is not None:
-            detection["recognition_rejected"] = "near_silent_pcm"
-            detection["language"] = None
-            detection["confidence"] = 0.0
-        return []
+
     if (backend=="gpu" and profile["speech"].get("gpu_engine") ==
             "faster_whisper_managed"):
         from .cuda_faster_whisper import transcribe_cuda_details
