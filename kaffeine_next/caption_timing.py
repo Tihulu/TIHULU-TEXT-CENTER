@@ -184,6 +184,24 @@ def effective_cue_config(config: CaptionConfig, native_status: dict | None) -> C
     return replace(config, playback_delay_ms=actual)
 
 
+def confirmed_cue_config(config: CaptionConfig,
+                         native_status: dict | None) -> CaptionConfig | None:
+    """Do not schedule captions ahead of an unacknowledged delay change.
+
+    If a 15-second TV buffer is REQUESTED but the player still reports the
+    old 3-second buffer, using '15' would display text up to 12 seconds
+    ahead of the video. No number is safe until the native status matches.
+    No-buffer mode can function without a native acknowledgement.
+    """
+    if config.playback_delay_ms <= 0 and native_status is None:
+        return config
+    if (not isinstance(native_status,dict) or
+            native_status.get("requested_ms") != config.playback_delay_ms or
+            type(native_status.get("effective_ms")) is not int):
+        return None
+    return effective_cue_config(config,native_status)
+
+
 # The audio/video native queue reports TS buffering, not the exact
 # libVLC presentation timestamp. Bias captions slightly BEHIND speech rather
 # than revealing the next line too early while dialogue is still playing.
