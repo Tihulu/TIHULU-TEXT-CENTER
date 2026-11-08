@@ -194,6 +194,52 @@ class KaffeineTimingTests(unittest.TestCase):
             self.assertFalse(p.path.exists())
             self.assertFalse(p.delay.exists())
 
+    def test_bilingual_settings_and_transparent_native_caption_colors(self):
+        from kaffeine_next.patch_upstream import transform
+        import inspect
+        cfg = CaptionConfig(
+            source="de",target="en",target_languages=("en","tr"),
+            show_original=True,show_translation=True,
+            text_color="#FFE45C",background_color="#0B2540",
+            opacity=0,text_opacity=80).validate()
+        text = cfg.render({
+            "original":"Guten Morgen",
+            "source_language":"de",
+            "translations":{"en":"Good morning","tr":"Günaydın"}})
+        self.assertIn("[DE] Guten Morgen",text)
+        self.assertIn("[EN] Good morning",text)
+        self.assertIn("[TR] Günaydın",text)
+        with tempfile.TemporaryDirectory() as root:
+            p=KaffeineOSD(913,root)
+            p.publish(text,cfg)
+            payload=json.loads(p.path.read_text())
+            self.assertEqual(payload["text_color"],"#FFE45C")
+            self.assertEqual(payload["background_color"],"#0B2540")
+            self.assertEqual(payload["opacity"],0)
+            self.assertEqual(payload["text_opacity"],80)
+            p.close()
+        cxx=inspect.getsource(transform)
+        self.assertIn('QLatin1String("text_color")',cxx)
+        self.assertIn('QLatin1String("background_color")',cxx)
+        for invalid in ("#0000","#FFFFFFFF","yellow","#GG0000","\x00"):
+            with self.assertRaises(ValueError):
+                CaptionConfig(text_color=invalid).validate()
+        self.assertTrue(CaptionConfig(
+            text_color="#FFFFFF",background_color="#000000",
+            opacity=0,text_opacity=0).validate())
+
+    def test_live_caption_window_shows_color_controls_and_autolabels(self):
+        source=(Path(__file__).resolve().parent.parent /
+                "kaffeine_next"/"captions_overlay.py").read_text()
+        for expected in (
+                "QColorDialog.getColor(", "background_button.clicked.connect",
+                "text_button.clicked.connect", "update_appearance_preview",
+                "speaker_enabled.setChecked(True)", "speaker_provider.currentData()",
+                "Background opacity", "Text opacity",
+                "extra_targets = QLineEdit()", "root.addWidget(control_scroll, 1)"):
+            self.assertIn(expected,source)
+        self.assertNotIn("speaker_roles = QLineEdit()",source)
+
     def test_video_hidden_without_caption_mode(self):
         with tempfile.TemporaryDirectory() as root:
             p=KaffeineOSD(4,root)
