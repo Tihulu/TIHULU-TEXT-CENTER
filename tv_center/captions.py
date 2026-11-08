@@ -138,6 +138,10 @@ def choose_audio_stream(streams, language, preferred_pid=None):
 
 def _speaker_details(pcm, transcript, diagnostics, enabled,
                      provider="resemblyzer", channel=None):
+    # A few low-confidence words from a TV jingle do not justify a fake
+    # "Speaker 2" badge. Do not run diarization on empty/short captions.
+    if not transcript or len(transcript.split()) < 4:
+        return transcript
     if enabled:
         try:
             if provider == "resemblyzer":
@@ -254,6 +258,7 @@ def asr_from_clip(path: Path, language: str, model: str,
             diagnostics["detected_language"] = details.get("language")
             diagnostics["language_confidence"] = details.get("language_probability")
             diagnostics["word_timing_source"] = "faster_whisper_cuda_word_timestamps"
+            diagnostics["recognition_rejected"] = details.get("recognition_rejected")
         return _speaker_details(audio.stdout, details["text"].strip(),
                                 diagnostics, speaker_enabled, speaker_provider,
                                 channel=f"{service_id}:{audio_pid}")
@@ -475,6 +480,7 @@ def decode_segment(ts: bytes, *, mode="auto", page=150, source="de",
                 "speaker_engine":speech_diagnostics.get("speaker_engine"),
                 "speaker_error":speech_diagnostics.get("speaker_error"),
                 "speaker_note":speech_diagnostics.get("speaker_note"),
+                "recognition_rejected":speech_diagnostics.get("recognition_rejected"),
                 "processing_ms": {
                     "teletext":teletext_ms,"asr":asr_ms,
                     "translation":translation_ms,
