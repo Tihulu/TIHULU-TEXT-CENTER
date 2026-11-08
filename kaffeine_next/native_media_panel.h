@@ -14,6 +14,8 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QProcess>
+#include <QSettings>
+#include <QSpinBox>
 #include <QPushButton>
 #include <QStandardPaths>
 #include <QUrl>
@@ -66,6 +68,23 @@ public:
 		run_=new QPushButton(tr("Generate + load captions"),this);
 		cancel_=new QPushButton(tr("Cancel"),this);
 		cancel_->setEnabled(false);
+		caching_=new QSpinBox(this);
+		caching_->setRange(0,20000);
+		caching_->setSingleStep(500);
+		caching_->setSuffix(tr(" ms"));
+		QSettings mediaSettings(QLatin1String("TIHULU"),QLatin1String("MediaPlayer"));
+		caching_->setValue(qBound(0,
+			mediaSettings.value(QLatin1String("fileCacheMs"),1500).toInt(),20000));
+		caching_->setToolTip(tr("libVLC file read-ahead; this is not the "
+			"same as the Whisper subtitle creation budget."));
+		wait_=new QCheckBox(tr("Preprocess before playback"),this);
+		wait_->setChecked(true);
+		wait_->setToolTip(tr("Stops the selected media during offline transcription, "
+			"then restarts it at the beginning with synchronized SRT. "
+			"Processing the entire file can take a while."));
+		actions->addWidget(new QLabel(tr("File cache:"),this));
+		actions->addWidget(caching_);
+		actions->addWidget(wait_);
 		actions->addWidget(run_);
 		actions->addWidget(cancel_);
 		v->addLayout(actions);
@@ -85,10 +104,18 @@ public:
 				cancel_->setEnabled(false);
 				if(exitCode==0 && exitStatus==QProcess::NormalExit &&
 				   !path_.isEmpty() && QFile::exists(srtPath_)) {
+					if (pausedForAi_) {
+						pausedForAi_=false;
+						player_->play(QUrl::fromLocalFile(path_));
+					}
 					player_->setSubtitle(QUrl::fromLocalFile(srtPath_));
 					message_->setText(tr("Attached generated subtitles to current "
 						"file playback · %1").arg(srtPath_));
 				} else {
+					if (pausedForAi_ && !path_.isEmpty()) {
+						pausedForAi_=false;
+						player_->play(QUrl::fromLocalFile(path_));
+					}
 					const QString err=QString::fromUtf8(process_.readAllStandardError());
 					message_->setText(tr("Offline captions unavailable: %1")
 						.arg(err.left(220)));
@@ -126,8 +153,17 @@ private:
 			args<<QLatin1String("--fetch-lyrics");
 		// The CLI refuses overwriting an existing user's .srt; the
 		// player can still attach that file with the native subtitle menu.
+		QSettings mediaSettings(QLatin1String("TIHULU"),QLatin1String("MediaPlayer"));
+		mediaSettings.setValue(QLatin1String("fileCacheMs"),caching_->value());
+		mediaSettings.sync();
+		pausedForAi_=wait_->isChecked();
+		if (pausedForAi_) player_->stop();
 		process_.start(QLatin1String("tihulu-tv-center"),args);
 		if(!process_.waitForStarted(800)){
+			if (pausedForAi_) {
+				pausedForAi_=false;
+				player_->play(QUrl::fromLocalFile(path_));
+			}
 			message_->setText(tr("Could not launch TIHULU AI worker."));
 			return;
 		}
@@ -143,6 +179,9 @@ private:
 	QCheckBox *de_=nullptr,*en_=nullptr,*tr_=nullptr,*music_=nullptr,*lyrics_=nullptr,
 		*lyricsOnline_=nullptr;
 	QPushButton *run_=nullptr,*cancel_=nullptr;
+	QSpinBox *caching_=nullptr;
+	QCheckBox *wait_=nullptr;
+	bool pausedForAi_=false;
 	QString path_,srtPath_;
 };
 #endif
