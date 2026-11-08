@@ -55,7 +55,8 @@ class CaptionConfig:
     def validate(self):
         if self.mode not in MODE:
             raise ValueError("Unknown caption source")
-        language_code(self.source, nllb=True)
+        if self.source != "auto":
+            language_code(self.source, nllb=True)
         language_code(self.target, nllb=True)
         if type(self.page) is not int or not 100 <= self.page <= 899:
             raise ValueError("Teletext page must be an integer 100–899")
@@ -80,9 +81,9 @@ class CaptionConfig:
         if type(self.playback_delay_ms) is not int or not 0 <= self.playback_delay_ms <= 20000:
             raise ValueError("Playback buffering must be 0–20 seconds")
         if (not isinstance(self.target_languages, tuple) or
-                len(self.target_languages) > 3 or
+                len(self.target_languages) > 6 or
                 len(set(self.target_languages)) != len(self.target_languages)):
-            raise ValueError("Output languages must be distinct (up to three)")
+            raise ValueError("Output languages must be distinct (up to six)")
         if not self.show_original and not self.show_translation:
             raise ValueError("Select original transcript and/or translation")
         if self.position not in ("bottom", "top"):
