@@ -250,7 +250,8 @@ class CaptionTap:
                 return  # old channel's caption must never appear on new TV
             if result.get("source") == "local_asr" and result.get("original"):
                 # The decoder must remove duplicated overlap before translation.
-                self.previous_original = result["original"]
+                self.previous_original = (result.get("raw_asr_original") or
+                                          result["original"])
                 self.previous_revision = options.get("revision", 0)
             if targets and not ai.values["translation_enabled"]:
                 result["translation_errors"] = {
