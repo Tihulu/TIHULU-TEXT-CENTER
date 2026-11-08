@@ -64,6 +64,9 @@
 #include <QSlider>
 #include <QSpinBox>
 #include <QSplitter>
+#include <QTabWidget>
+#include <QTabBar>
+#include <QResizeEvent>
 #include <QStandardPaths>
 #include <QTcpServer>
 #include <QTimer>
@@ -176,7 +179,27 @@ public:
 		root->setContentsMargins(9, 9, 9, 9);
 		root->setSpacing(8);
 		scroll->setWidget(page);
-		auto *header = new QHBoxLayout();
+        // Single compact dashboard: independent radio modes no longer
+        // stack all advanced settings under one enormous scrolling page.
+        auto *selected = new QLabel(tr("Selected source: none · choose DAB+, Internet or FM/MW/LW"),page);
+        selected->setWordWrap(true);
+        selected->setStyleSheet(QLatin1String(
+            "background:#142e3b;color:#c0edf6;border:1px solid #385a67;"
+            "border-radius:6px;padding:7px;font-weight:600;"));
+        selectedSource_=selected;
+        root->addWidget(selectedSource_);
+        modes_=new QTabWidget(page);
+        modes_->setDocumentMode(true);
+        modes_->setUsesScrollButtons(true);
+        modes_->tabBar()->setExpanding(false);
+        modes_->setSizePolicy(QSizePolicy::Expanding,QSizePolicy::Preferred);
+        root->addWidget(modes_,1);
+        auto *dabPage=new QWidget(modes_);
+        auto *dabLayout=new QVBoxLayout(dabPage);
+        dabLayout->setContentsMargins(8,8,8,8);
+        dabLayout->setSpacing(7);
+        modes_->addTab(dabPage,tr("DAB+ · stations"));
+        auto *header = new QHBoxLayout();
 		auto *name = new QLabel(tr("Radio · DAB+ (powered by welle.io)"), this);
 		name->setStyleSheet(QLatin1String("font-weight:700;font-size:16px"));
 		header->addWidget(name, 1);
@@ -207,7 +230,7 @@ public:
 			"stop recording to release the file."));
 		scan_ = new QPushButton(tr("Scan all blocks"), this);
 		scan_->setToolTip(tr("Retunes across Band III blocks; can take minutes."));
-		root->addLayout(header);
+		dabLayout->addLayout(header);
 		// Two-row responsive operation grid; large monitors no longer stretch
 		// every action across 400 px, and laptop windows do not clip controls.
 		auto *receiverActions=new QGridLayout();
@@ -223,7 +246,7 @@ public:
 		receiverActions->addWidget(record_,1,0);
 		receiverActions->addWidget(subtitledRecord_,1,1,1,2);
 		receiverActions->setColumnStretch(2,1);
-		root->addLayout(receiverActions);
+		dabLayout->addLayout(receiverActions);
 		// Keep actual scan progress + SNR in view even when the RF graph and
 		// AI settings are far down the scroll area.
 		auto *scanReadouts=new QHBoxLayout();
@@ -240,21 +263,21 @@ public:
 			"to a relative progress indicator, NOT a measured RF power level."));
 		scanReadouts->addWidget(scanProgress_,1);
 		scanReadouts->addWidget(scanSNR_,1);
-		root->addLayout(scanReadouts);
+		dabLayout->addLayout(scanReadouts);
 
 		state_ = new QLabel(tr("Receiver disconnected. A separate DAB-capable SDR is required; "
 			"the DVB-T2 television adapter is not automatically a DAB receiver."), this);
 		state_->setWordWrap(true);
 		state_->setTextFormat(Qt::PlainText);
-		root->addWidget(state_);
+		dabLayout->addWidget(state_);
 		playStatus_=new QLabel(tr("Station: no live stream verified"),page);
 		playStatus_->setWordWrap(true);
-		root->addWidget(playStatus_);
+		dabLayout->addWidget(playStatus_);
 		stationOpenProgress_=new QProgressBar(page);
 		stationOpenProgress_->setRange(0,4);
 		stationOpenProgress_->setValue(0);
 		stationOpenProgress_->setFormat(tr("Stream status · choose a station"));
-		root->addWidget(stationOpenProgress_);
+		dabLayout->addWidget(stationOpenProgress_);
 
 		// Public internet radio requires no SDR, welle-cli or DVB frontend.
 		// Search happens only when clicked, and uses HTTPS Radio Browser API.
@@ -341,7 +364,7 @@ public:
 		webStatus_ = new QLabel(tr("Internet radio is ready. No tuner connection required."),webGroup);
 		webStatus_->setWordWrap(true);
 		webLayout->addWidget(webStatus_);
-		root->addWidget(webGroup);
+		modes_->addTab(webGroup,tr("Internet radio"));
 
 		// The analog radio is optional hardware; keep a bounded, collapsible
 		// retro cabinet so the DAB channel table stays visible.
@@ -431,7 +454,7 @@ public:
 		analogStatus_->setWordWrap(true);
 		cabinetLayout->addWidget(analogStatus_);
 		analogLayout->addWidget(analogCabinet);
-		root->addWidget(analogGroup);
+		modes_->addTab(analogGroup,tr("Vintage FM / AM / LW"));
 		analogRetune_.setSingleShot(true);
 		analogRetune_.setInterval(450);
 		connect(&analogRetune_,&QTimer::timeout,this,[this](){
@@ -499,7 +522,8 @@ public:
 		stations_->setRootIsDecorated(false);
 		stations_->setAlternatingRowColors(true);
 		stations_->setSortingEnabled(true);
-		stations_->setMinimumWidth(340);
+		stations_->setMinimumWidth(200);
+        stations_->setSizePolicy(QSizePolicy::Expanding,QSizePolicy::Expanding);
 		stations_->header()->setSectionResizeMode(0,QHeaderView::Fixed);
 		stations_->header()->resizeSection(0,29);
 		stations_->header()->setSectionResizeMode(1,QHeaderView::Stretch);
@@ -567,7 +591,8 @@ public:
 		split->addWidget(right);
 		split->setStretchFactor(0,1);
 		split->setStretchFactor(1,2);
-		root->addWidget(split, 4);
+		stationSplit_=split;
+        dabLayout->addWidget(split, 4);
 
 		auto *lab = new QGroupBox(tr("Offline radio AI · Whisper / translation / timed lyrics"), this);
 		auto *v = new QVBoxLayout(lab);
@@ -801,7 +826,7 @@ public:
 		lyricText_->setTextFormat(Qt::PlainText);
 		lyricText_->setWordWrap(true);
 		v->addWidget(lyricText_);
-		root->addWidget(lab);
+		modes_->addTab(lab,tr("AI subtitles / lyrics"));
 
 		auto *diagnosticCard = new QGroupBox(tr("DAB receiver diagnostics / welle.io"),this);
 		auto *diagnosticLayout=new QVBoxLayout(diagnosticCard);
@@ -869,8 +894,12 @@ public:
 		rfOptions->addWidget(applyRf);
 		rfOptions->addWidget(detailsButton);
 		diagnosticLayout->addLayout(rfOptions);
-		root->addWidget(showWidgets_);
-		root->addWidget(diagnosticCard);
+        auto *rfPage=new QWidget(modes_);
+        auto *rfLayout=new QVBoxLayout(rfPage);
+        rfLayout->setContentsMargins(5,5,5,5);
+        rfLayout->addWidget(showWidgets_);
+        rfLayout->addWidget(diagnosticCard);
+        modes_->addTab(rfPage,tr("RF Lab · advanced"));
 		diagnosticCard->setVisible(false);
 		connect(showWidgets_,&QCheckBox::toggled,diagnosticCard,&QWidget::setVisible);
 		connect(multiRf_,&QCheckBox::toggled,this,[this](bool enabled){
@@ -1099,6 +1128,13 @@ public:
 			else rfTick_.stop();
 		});
 		connect(&tick_, &QTimer::timeout, this, [this](){pollMux();});
+        QSettings uiSettings(QLatin1String("TIHULU"),QLatin1String("KaffeineRadio"));
+        modes_->setCurrentIndex(qBound(0,uiSettings.value(
+            QLatin1String("radioModeTab"),0).toInt(),modes_->count()-1));
+        connect(modes_,&QTabWidget::currentChanged,this,[](int tab){
+            QSettings config(QLatin1String("TIHULU"),QLatin1String("KaffeineRadio"));
+            config.setValue(QLatin1String("radioModeTab"),tab);
+        });
 		loadStations();
 		stations_->sortItems(1,Qt::AscendingOrder);
 		filterStations();
@@ -1123,6 +1159,13 @@ public:
 		}
 	}
 
+protected:
+    void resizeEvent(QResizeEvent *event) override {
+        TabBase::resizeEvent(event);
+        if(stationSplit_)
+            stationSplit_->setOrientation(width()<930?Qt::Vertical:Qt::Horizontal);
+    }
+public:
     // Native hardware operations stop only processes owned by this tab.
     // Never unbind USB drivers or terminate unrelated SDR applications.
     bool hardwareDabOwned() const {
@@ -2774,6 +2817,9 @@ private:
 	QLabel *radioCanvas_=nullptr;
 	QWidget *playerHost_=nullptr;
 	QVBoxLayout *playerHostLayout_=nullptr;
+	QTabWidget *modes_=nullptr;
+    QSplitter *stationSplit_=nullptr;
+    QLabel *selectedSource_=nullptr;
 	QComboBox *channel_=nullptr, *driver_=nullptr, *speechLanguage_=nullptr,
 		*captionSource_=nullptr,
 		*plotKind_=nullptr, *fftPlacement_=nullptr;
