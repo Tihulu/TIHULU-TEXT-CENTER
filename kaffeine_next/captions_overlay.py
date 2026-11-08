@@ -482,10 +482,12 @@ def main(argv=None):
     # Hiding the only QWidget must NOT quit the Qt event loop: audio capture,
     # auto-sync and video-overlay publishing continue independently of UI.
     app.setQuitOnLastWindowClosed(False)
+    window_state = QSettings("TIHULU", "CaptionWindowGeometry")
 
     class CaptionSettingsWindow(QWidget):
         terminating = False
         def closeEvent(self, event):
+            window_state.setValue("geometry", self.saveGeometry())
             if self.terminating:
                 event.accept()
                 return
@@ -507,8 +509,19 @@ def main(argv=None):
         "QLabel#subtitle{font-size:20px;max-height:86px}"
     )
     desktop = app.primaryScreen().availableGeometry()
-    window.resize(min(980, max(620, desktop.width()-90)),
-                  min(760, max(480, desktop.height()-100)))
+    window.resize(min(780, max(620, desktop.width()-90)),
+                  min(690, max(480, desktop.height()-100)))
+    saved_geometry = window_state.value("geometry")
+    if saved_geometry:
+        try:
+            window.restoreGeometry(saved_geometry)
+        except (TypeError, ValueError):
+            saved_geometry = None
+    if not saved_geometry or not window.frameGeometry().intersects(desktop):
+        window.move(max(desktop.left()+10, desktop.right()-window.width()-18),
+                    desktop.top()+28)
+    app.aboutToQuit.connect(
+        lambda: window_state.setValue("geometry", window.saveGeometry()))
     root = QVBoxLayout(window)
     root.setContentsMargins(12,10,12,10)
     root.setSpacing(8)
