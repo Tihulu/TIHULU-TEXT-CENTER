@@ -12,6 +12,7 @@ import queue
 import subprocess
 import sys
 import threading
+import time
 
 from . import __version__
 from .core import TVCapture, discover_channels, read_channels, receiver_status, parse_signal_log, format_frequency, Channel
@@ -55,6 +56,8 @@ def main():
             self.bridge = None
             self.last_playback_error = False
             self.latest = {"original": "", "translated": "", "source": "none"}
+            self.caption_history=[]
+            self.caption_sequence=0
             self.channels = []
             self.setStyleSheet("""
                 QMainWindow, QWidget {background:#101823;color:#e5edf4;font-family:Sans;font-size:13px}
@@ -573,6 +576,9 @@ def main():
                 return
             channel=self.channels[idx]
             self.stop()
+            self.caption_history.clear()
+            self.latest={"original":"","translated":"","source":"changing_channel"}
+            self.web_muted_host=False
             self.last_playback_error=False
             self.player_hint.setText(
                 "Tuning "+channel.name+"…\nWaiting for real DVB transport packets")
@@ -597,6 +603,8 @@ def main():
 
         def stop(self):
             self.capture.stop()
+            self.caption_history.clear()
+            self.web_muted_host=False
             if hasattr(self,"player_hint"):
                 self.player_hint.setText("Receiver stopped · select a channel to watch")
                 self.player_hint.show()
@@ -673,14 +681,21 @@ def main():
                                       self.model.text())
 
         def snapshot(self):
-            return {"source": "live_native_dvb" if self.capture.zap and self.capture.zap.poll() is None else "offline",
-                    "channel": self.capture.channel.name if self.capture.channel else None,
-                    "caption": dict(self.latest),
-                    "subtitle_mode": self.capture.caption_mode,
-                    "teletext_page": self.capture.page,
-                    "supported_languages": ["tr", "de", "en"],
-                    "web_video": "not_available_in_pages_preview",
-                    "pi5_hardware_verified": False}
+            valid=bool(self.capture._stream_verified and self.capture.zap
+                       and self.capture.zap.poll() is None)
+            cutoff=round(time.time()*1000)-90000
+            self.caption_history=[event for event in self.caption_history
+                                  if event["received_epoch_ms"]>cutoff]
+            return {"source":"live_native_dvb" if valid else "offline",
+                    "channel":self.capture.channel.name if valid else None,
+                    "caption":dict(self.latest),
+                    "caption_events":[dict(event) for event in self.caption_history[-24:]],
+                    "subtitle_mode":self.capture.caption_mode,
+                    "teletext_page":self.capture.page,
+                    "supported_languages":["tr","de","en"],
+                    "web_video":"host_mobile_hls_only_if_enabled",
+                    "pi5_hardware_verified":False,
+                    **self.native_web_snapshot()}
 
         def toggle_bridge(self, enabled):
             if enabled:
@@ -705,13 +720,27 @@ def main():
             # HTTP worker threads never touch Qt widgets. Without draining
             # this queue, paired mobile requests timed out after ten seconds.
             self.web_commands.drain(self.web_action, limit=12)
+            # A channel switch creates a fresh mpv process. Preserve
+            # phone-only output by muting the NEW host player, never tuner.
+            if (self.web_target=="phone" and not self.web_muted_host and
+                    self.capture.player is not None and
+                    self.capture.player.poll() is None):
+                try:
+                    self.capture.control_player("mute",True)
+                    self.web_muted_host=True
+                except RuntimeError:
+                    pass  # mpv socket may not exist immediately after tuning
             for _ in range(15):
                 try:
                     kind, info = self.capture.events.get_nowait()
                 except queue.Empty:
                     break
                 if kind == "caption":
+                    if not (self.capture.zap and self.capture.zap.poll() is None):
+                        continue  # don't publish old captions after tuner release
                     self.latest = info
+                    self.caption_sequence+=1
+                    received=round(time.time()*1000)
                     original = info.get("original", "")
                     translated = info.get("translated")
                     if translated and translated != original:
@@ -720,6 +749,27 @@ def main():
                     else:
                         body = original
                     self.subtitle.setText(body + "\nSource: " + info.get("source", "unknown"))
+                    translated=str(info.get("translated") or "")
+                    translated_text=(translated if translated!=str(original) else "")
+                    caption_data={
+                        "original":str(original)[:1200],
+                        "translated":translated_text[:1200],
+                        "translations":({str(info.get("target_language") or "tr")[:8]:
+                                         translated_text[:1200]} if translated_text else {}),
+                        "source":str(info.get("source") or "native_dvb")[:64],
+                        "source_language":str(info.get("source_language") or "und")[:12],
+                        "sequence":self.caption_sequence}
+                    self.caption_history.append({
+                        "sequence":self.caption_sequence,
+                        "received_epoch_ms":received,
+                        "caption":caption_data,
+                        "timing":{
+                            "host_caption_due_epoch_ms":received,
+                            "cue_expiry_epoch_ms":received+5000,
+                            "host_requested_buffer_ms":0,
+                            "host_buffer_verified":False,
+                            "sync_accuracy":"decode_arrival_only_not_pts"}})
+                    self.caption_history=self.caption_history[-24:]
                 elif kind == "scan_progress":
                     if isinstance(info,dict):
                         # Publish only genuine scanner events: frequency,
