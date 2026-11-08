@@ -40,6 +40,9 @@ def fix_sql_free_key(source: str) -> str:
 
 def transform(files):
     files = dict(files)
+    # Used by the native caption bridge and global player changes.
+    # Keep this bound before any source transformation or conditional path.
+    mediac = "src/mediawidget.cpp"
     def change(path, before, after):
         source = files[path]
         if after in source:
