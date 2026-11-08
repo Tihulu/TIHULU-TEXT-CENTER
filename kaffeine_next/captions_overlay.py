@@ -1502,10 +1502,15 @@ def main(argv=None):
 
     live_test_started_at=0.0
     live_test_baseline=0
+    live_test_baseline_overflows=0
+    live_test_baseline_ts_gaps=0
     def begin_live_test():
         nonlocal live_test_started_at,live_test_baseline
+        nonlocal live_test_baseline_overflows,live_test_baseline_ts_gaps
         state=tap.performance_snapshot()
         live_test_baseline=state["completed_clips"]
+        live_test_baseline_overflows=state["queue"]["overflows"]
+        live_test_baseline_ts_gaps=state["ts"].get("continuity_gaps",0)
         live_test_started_at=time.monotonic()
         live_test_button.setEnabled(False)
         benchmark_status.setText(
@@ -1828,6 +1833,13 @@ def main(argv=None):
         """
         nonlocal applied, current_cue, current_text, current_until
         nonlocal last_published, last_service_id, last_applied_effective_ms
+        nonlocal live_test_started_at
+        if live_test_started_at:
+            live_test_started_at=0
+            live_test_button.setEnabled(True)
+            benchmark_status.setText(
+                "Live performance sampling cancelled: TV channel changed. "
+                "Restart the four-clip test on the new channel.")
         # Stop cross-channel sentence/cue contamination before the NEXT
         # audio/Teletext descriptor even arrives.
         with lock:
@@ -1909,8 +1921,10 @@ def main(argv=None):
                 from tv_center.performance_lab import diagnose_live
                 report=diagnose_live(
                     state["samples"][-min(observed,16):] if observed>0 else [],
-                    queue_overflows=state["queue"]["overflows"],
-                    ts_audio_gaps=state["ts"].get("continuity_gaps",0))
+                    queue_overflows=max(0,state["queue"]["overflows"]-
+                                        live_test_baseline_overflows),
+                    ts_audio_gaps=max(0,state["ts"].get("continuity_gaps",0)-
+                                     live_test_baseline_ts_gaps))
                 live_test_started_at=0.0
                 live_test_button.setEnabled(True)
                 if report["samples"]:
