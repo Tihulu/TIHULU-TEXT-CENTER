@@ -916,7 +916,8 @@ void OsdWidget::hideCaption()
 \tif (tihuluCaptionMode) {
 \t\ttihuluCaptionMode = false;
 \t\ttihuluCaptionText.clear();
-\t\tsetMask(QRegion());
+\t\t// No setMask() here: all pixels are cleared transparently
+\t\t// by paintEvent, and hiding no longer reconfigures a native window.
 \t\thide();
 \t}
 }
@@ -965,7 +966,9 @@ void OsdWidget::showObject(OsdObject *osdObject_, int duration)
 \t\t\t\tQt::AlignHCenter | Qt::AlignVCenter | Qt::TextWordWrap,
 \t\t\t\ttihuluCaptionText);
 \t\t}
-\t\tsetMask(box);
+\t\t// Qt must not repeatedly alter a QWidget mask from paintEvent:
+\t\t// that schedules further repaints and makes live subtitles flicker.
+\t\t// The child is already WA_TranslucentBackground and mouse-transparent.
 \t\treturn;
 \t}
 \tif (osdObject == NULL) {''')
@@ -991,6 +994,7 @@ void OsdWidget::showObject(OsdObject *osdObject_, int duration)
 \ttihuluCaptionWidget->setAttribute(Qt::WA_TranslucentBackground, true);
 \ttihuluCaptionWidget->setAttribute(Qt::WA_NoSystemBackground, true);
 \ttihuluCaptionWidget->setAttribute(Qt::WA_OpaquePaintEvent, false);
+\ttihuluCaptionWidget->setAttribute(Qt::WA_StyledBackground, false);
 \ttihuluCaptionWidget->setAutoFillBackground(false);
 \ttihuluCaptionWidget->setAttribute(Qt::WA_TransparentForMouseEvents);
 \ttihuluCaptionWidget->resize(size());
