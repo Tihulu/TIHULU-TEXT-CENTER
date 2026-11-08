@@ -3,7 +3,7 @@
 const $=id=>document.getElementById(id);
 let csrf="",paired=false,lastSerial=-1,source="none",lastImageSid="";
 let currentKind="none",clockDelta=0,currentCue=null,cueSequence=-1,timer=null;
-let webVtt=null;
+let webVtt=null, playerHls=null, lastCaption={original:"",translations:{}};
 function error(e){$("status").textContent=e.message||String(e);}
 async function api(path,payload=null){
   const began=Date.now();
@@ -26,10 +26,24 @@ function setPaired(value){
 }
 function setVideoSource(url){
   const player=$("player");
-  player.pause();player.removeAttribute("src");
-  player.src=url;player.load();
-  player.play().catch(()=>{$("playback-state").textContent="Tap Play on the phone to enable audio";});
+  if(playerHls){playerHls.destroy();playerHls=null;}
+  player.pause();player.removeAttribute("src");player.load();
+  if(player.canPlayType("application/vnd.apple.mpegurl")){
+    player.src=url;player.load();
+  }else if(window.Hls?.isSupported()){
+    playerHls=new window.Hls({lowLatencyMode:false,maxBufferLength:24});
+    playerHls.loadSource(url);playerHls.attachMedia(player);
+    playerHls.on(window.Hls.Events.ERROR,(_,e)=>{
+      if(e.fatal)$("playback-state").textContent="Browser HLS error: "+e.type;
+    });
+  }else{
+    $("playback-state").textContent=
+      "HLS needs Safari or hls.js-enabled browser. Try phone Safari.";
+    return;
+  }
   $("picture").hidden=true;player.hidden=false;
+  player.play().catch(()=>{$("playback-state").textContent=
+    "Tap Play on the phone to enable audio";});
 }
 function displayImage(url,alt){
   const img=$("picture");img.src=url;img.alt=alt;img.hidden=false;
@@ -90,6 +104,7 @@ function showCaptions(caption){
   const original=(type==="translation"||type==="off")?"":String(caption.original||"");
   const translated=(type==="original"||type==="off")?"":Object.entries(caption.translations||{}).
     map(([lang,text])=>"["+lang.toUpperCase()+"] "+String(text)).join("\n");
+  lastCaption=caption;
   $("original").textContent=original;
   $("translated").textContent=translated;
   $("overlay-original").textContent=original;
@@ -185,8 +200,10 @@ async function refreshSlide(){
     const image=$("picture");const previous=image.dataset.localUrl;
     image.src=url;image.dataset.localUrl=url;
     image.alt="Current native DAB service slideshow (real welle receiver)";
-    // Do not cover an active video stream with an unsolicited image.
-    if(currentKind!=="dab" || $("player").paused){image.hidden=false;}
+    // Show actual slideshow artwork while the separate DAB audio player
+    // continues running (never pause or fake an image).
+    image.classList.add("radio-cover");
+    image.hidden=false;
     if(previous)URL.revokeObjectURL(previous);
   }catch(e){$("playback-state").textContent=e.message;}
 }
@@ -198,6 +215,7 @@ $("pair").onclick=async()=>{
     csrf=data.csrf;$("pin").value="";
     setPaired(true);await refreshCatalog();await statusCheck();
     setInterval(statusCheck,4000);setInterval(refreshCaptions,1500);
+    setInterval(()=>{if(lastImageSid && currentKind==="dab")refreshSlide()},9000);
   }catch(e){$("pair-status").textContent=e.message;}
 };
 $("source-type").onchange=refreshCatalog;
@@ -235,8 +253,7 @@ $("fullscreen").onclick=async()=>{
   }catch(e){error(e);}
 };
 $("refresh-slide").onclick=refreshSlide;
-$("subtitle-track").onchange=()=>showCaptions({original:$("original").textContent,
-  translations:{}});
+$("subtitle-track").onchange=()=>showCaptions(lastCaption);
 $("caption-opacity").oninput=()=>{$("fullscreen-captions").style.background=
   "rgba(0,0,0,"+Number($("caption-opacity").value)/100+")"};
 $("offset").onchange=refreshCaptions;
