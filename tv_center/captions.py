@@ -164,7 +164,19 @@ def asr_from_clip(path: Path, language: str, model: str,
     selected = choose_backend(profile, selected_backend)
     if diagnostics is not None:
         diagnostics["backend"] = selected.get("selected", "unknown")
-        diagnostics["model"] = Path(model).name if model else "not configured"
+        # The user may have a GGML Tiny selected for CPU fallback while
+        # managed CUDA actually runs a separate CTranslate2 Large-v3 Turbo.
+        # Report the model that really receives audio, not the UI fallback.
+        speech = profile["speech"]
+        actual = (speech.get("gpu_model_path")
+                  if selected.get("selected") == "gpu" else
+                  speech.get("npu_model_path")
+                  if selected.get("selected") == "npu" else model)
+        diagnostics["model"] = Path(actual).name if actual else "not configured"
+        diagnostics["engine"] = (
+            speech.get("gpu_engine") if selected.get("selected") == "gpu" else
+            speech.get("npu_engine") if selected.get("selected") == "npu" else
+            speech.get("engine", "whisper.cpp CLI"))
         diagnostics["ready"] = bool(selected.get("ready"))
     if not selected.get("ready"):
         raise RuntimeError(selected.get("reason", "Offline speech engine unavailable"))
