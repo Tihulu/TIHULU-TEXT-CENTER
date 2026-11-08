@@ -110,7 +110,9 @@ function showCaptions(caption){
   $("translated").textContent=translated;
   $("overlay-original").textContent=original;
   $("overlay-translated").textContent=translated;
-  $("fullscreen-captions").style.display=type==="off"?"none":"";
+  $("fullscreen-captions").style.display=
+    type==="off"||(!original&&!translated)?"none":"";
+  if(webVtt)webVtt.mode=type==="off"?"disabled":"showing";
   $("fullscreen-captions").style.background="rgba(0,0,0,"+
     (Number($("caption-opacity").value)/100)+")";
 }
@@ -208,6 +210,18 @@ async function refreshSlide(){
     if(previous)URL.revokeObjectURL(previous);
   }catch(e){$("playback-state").textContent=e.message;}
 }
+$("logout").onclick=async()=>{
+  try{if(paired)await api("/api/disconnect",{});}
+  catch(e){error(e);}
+  finally{
+    csrf="";setPaired(false);
+    const player=$("player");player.pause();player.removeAttribute("src");
+    if(playerHls){playerHls.destroy();playerHls=null;}
+    player.load();$("picture").hidden=true;
+    lastImageSid="";lastSerial=-1;
+    $("status").textContent="This device is unpaired.";
+  }
+};
 $("pair").onclick=async()=>{
   try{
     const code=$("pin").value.trim();
@@ -246,12 +260,20 @@ $("tune-tv").onclick=async()=>{
 };
 $("fullscreen").onclick=async()=>{
   try{
-    if($("fullscreen-stage").requestFullscreen)await $("fullscreen-stage").requestFullscreen();
-    else if($("player").webkitEnterFullscreen){
+    if($("fullscreen-stage").requestFullscreen){
+      await $("fullscreen-stage").requestFullscreen();
+    }else if($("player").webkitEnterFullscreen){
       if(!webVtt)nativeTrack({original:"",translations:{}});
       $("player").webkitEnterFullscreen();
-    }
-  }catch(e){error(e);}
+    }else throw Error("Fullscreen is unavailable");
+  }catch(e){
+    try{
+      if($("player").webkitEnterFullscreen){
+        if(!webVtt)nativeTrack({original:"",translations:{}});
+        $("player").webkitEnterFullscreen();
+      }else throw e;
+    }catch(error){$("playback-state").textContent=error.message;}
+  }
 };
 $("refresh-slide").onclick=refreshSlide;
 $("subtitle-track").onchange=()=>showCaptions(lastCaption);
