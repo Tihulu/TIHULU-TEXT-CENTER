@@ -38,8 +38,8 @@ class PairedRemoteHubTests(unittest.TestCase):
             hub=RemoteHub(d)
             try:
                 good=subprocess.CompletedProcess(["dbus-send"],0)
-                with mock.patch("shutil.which",return_value="/usr/bin/dbus-send"), (
-                        mock.patch("subprocess.run",return_value=good) as run):
+                with mock.patch("shutil.which",return_value="/usr/bin/dbus-send"), \
+                     mock.patch("subprocess.run",return_value=good) as run:
                     hub.control("TVChannel",channel="WDR HD")
                     args=run.call_args.args[0]
                     self.assertIn("/Television",args)
