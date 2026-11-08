@@ -56,6 +56,46 @@ class NativePassFormatTests(unittest.TestCase):
             finally:
                 station.close()
 
+    def test_flight_radar_readsb_conflict_is_diagnostic_not_auto_killed(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            station = Station(Path(tmp))
+            try:
+                with patch("satellite_center.__main__.tuner_present", return_value=True), patch(
+                    "satellite_center.__main__.detect_busy",
+                    return_value=[{"process": "readsb", "pid": 12345}],
+                ):
+                    with self.assertRaisesRegex(RuntimeError, "Flight Radar/readsb"):
+                        station._acquire()
+                self.assertIsNone(station.device_lock)
+            finally:
+                station.close()
+
+    def test_failed_native_receiver_includes_real_stderr_and_releases_child(self):
+        class FakeProcess:
+            returncode = 1
+
+            def poll(self):
+                return 1
+
+        with tempfile.TemporaryDirectory() as tmp:
+            station = Station(Path(tmp))
+            fake = FakeProcess()
+
+            def fake_launch(_cmd, **kwargs):
+                kwargs["stderr"].write(b"usb_claim_interface error -6\\n")
+                return fake
+
+            try:
+                with patch.object(station, "_launch_receiver", side_effect=fake_launch), patch(
+                    "satellite_center.__main__.stop_process"
+                ) as stop:
+                    with self.assertRaisesRegex(RuntimeError, "usb_claim_interface error -6"):
+                        station._run_bounded(["rtl_sdr", "-n", "8192"], 1)
+                    stop.assert_called_once_with(fake)
+                    self.assertIsNone(station.process)
+            finally:
+                station.close()
+
     def test_shared_browser_and_qt_desktop_show_native_contract(self):
         root = Path(__file__).resolve().parents[1] / "satellite_center"
         browser = (root / "browser" / "browser.js").read_text(encoding="utf-8")
@@ -69,6 +109,8 @@ class NativePassFormatTests(unittest.TestCase):
         self.assertIn("enhanceNativePassForm", desktop)
         self.assertIn("wav.disabled=!supportsWav", desktop)
         self.assertIn("No WebUSB, browser downloads", desktop)
+        self.assertIn("hardwareState.verified=Boolean(hw.last_real_sample?.sample_bytes)", desktop)
+        self.assertIn("OTHER SDR ACTIVE", desktop)
         self.assertIn("manualDuration.min='8'", desktop)
         self.assertIn("manualDuration.max='900'", desktop)
         self.assertIn("The previous 6-second input is not supported", desktop)
