@@ -1470,7 +1470,7 @@ function paintBrowserCalendar(force=false){
  const source=nativeMode()?nativeScheduledJobs:jobs;
  const signature=day+'|'+source.map(j=>[
    j.id,j.run_at??j.when,j.state,j.capture_seconds??j.durationSeconds,j.result
- ]).join(':')).join('|');
+ ].join(':')).join('|');
  const editingCard=$('browser-calendar-grid').querySelector('.calendar-edit')?.closest('.sat-calendar-job');
  const editedJob=jobs.find(j=>j.id===editingCard?.dataset.jobId);
  if(!force&&!nativeMode()&&editingCard&&editedJob?.state==='armed')return;
