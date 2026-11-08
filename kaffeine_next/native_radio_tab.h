@@ -962,6 +962,29 @@ private:
 		layout->addWidget(textView);
 		dlg.exec();
 	}
+	void applyRadioBuffer() {
+		QSettings radioSettings(QLatin1String("TIHULU"),QLatin1String("KaffeineRadio"));
+		radioSettings.setValue(QLatin1String("playbackBufferMs"),bufferMs_->value());
+		radioSettings.sync();
+		if (!playingKey_.isEmpty() && active()) {
+			const QString sid=playingKey_.section(QLatin1Char(':'),1);
+			if (!QRegularExpression(QLatin1String("^(?:0x)?[A-Fa-f0-9]{1,8}$"))
+				.match(sid).hasMatch()) return;
+			// libVLC network cache applies to media OPEN, not existing
+			// stream. Explicitly reopen when the owner chooses a new
+			// buffer; this can briefly interrupt sound.
+			player_->play(QUrl(base()+QLatin1String("/mp3/")+sid));
+			lastRadioChunk_=-1;
+			pendingRadioCue_.clear();
+			lastAdjustmentMs_=QDateTime::currentMSecsSinceEpoch();
+			syncStatus_->setText(tr("Reopened radio audio with %1ms requested libVLC "
+				"cache. Physical sound-card delay not verified.")
+				.arg(bufferMs_->value()));
+		} else {
+			syncStatus_->setText(tr("Saved %1ms; will apply when station starts.")
+				.arg(bufferMs_->value()));
+		}
+	}
 	void startCaptioning() {
 		if (!active() || playingKey_.isEmpty()) {
 			state_->setText(tr("Play a real DAB+ station before starting offline AI.")); return;
@@ -1001,17 +1024,60 @@ private:
 		QFile stream(captionPath_);
 		if (!stream.open(QIODevice::ReadOnly) || stream.size()>15000) return;
 		const auto obj=QJsonDocument::fromJson(stream.readAll()).object();
+		const int chunk=obj.value(QLatin1String("chunk_index")).toInt(-1);
+		const qint64 now=QDateTime::currentMSecsSinceEpoch();
+		if(chunk>=0 && chunk!=lastRadioChunk_) {
+			lastRadioChunk_=chunk;
+			const double captured=obj.value(
+				QLatin1String("captured_monotonic")).toDouble();
+			const double decoded=obj.value(
+				QLatin1String("decoded_monotonic")).toDouble();
+			if(decoded>=captured && decoded-captured<=90.) {
+				const int inference=int((decoded-captured)*1000);
+				lagSamples_.append(inference);
+				while(lagSamples_.size()>8) lagSamples_.removeFirst();
+				const int estimatedNeed=6000+inference+950;
+				syncStatus_->setText(tr("ASR+translation: %1ms · radio-only "
+					"cache requested: %2ms · buffer is estimated, "
+					"not sample-accurate lip-sync")
+					.arg(inference).arg(bufferMs_->value()));
+				// Auto correction only after 4 fresh chunks, max once per
+				// 60s, and only if lag is significant. A cache change
+				// necessarily reopens the local libVLC audio stream.
+				if(autoSync_->isChecked() && lagSamples_.size()>=4 &&
+				   now-lastAdjustmentMs_>60000) {
+					QList<int> values=lagSamples_;
+					std::sort(values.begin(),values.end());
+					const int p80=values[values.size()*4/5];
+					const int recommended=qBound(0,
+						((6000+p80+1400+499)/500)*500,20000);
+					if(recommended>bufferMs_->value()+1500) {
+						bufferMs_->setValue(recommended);
+						applyRadioBuffer();
+					}
+				}
+				const int remaining=qMax(0,bufferMs_->value() -
+					6000 - inference + 550);
+				// Display only when delayed audio is EXPECTED to reach
+				// the player; never claim this is an observed libVLC PTS.
+				radioCueDueMs_=now+remaining;
+			} else {
+				radioCueDueMs_=now;
+			}
+		}
 		QString text=obj.value(QLatin1String("original")).toString();
 		const auto translated=obj.value(QLatin1String("translations")).toObject();
 		for (auto it=translated.begin();it!=translated.end();++it)
 			if (it.value().isString())
 				text+=QLatin1String("\n[")+it.key().toUpper()+
 					QLatin1String("] ")+it.value().toString();
-		if (!text.isEmpty()) {
-			radioCaption_->setText(text.left(1300));
-			// Radio uses no moving video image: show natural, large
-			// subtitles right on the central radio artwork surface.
-			radioCanvas_->setText(text.left(680));
+		if (!text.isEmpty() && chunk>=0)
+			pendingRadioCue_=text.left(1300);
+		if(!pendingRadioCue_.isEmpty() && now>=radioCueDueMs_ &&
+		   displayedRadioChunk_!=chunk) {
+			displayedRadioChunk_=chunk;
+			radioCaption_->setText(pendingRadioCue_);
+			radioCanvas_->setText(pendingRadioCue_.left(680));
 		}
 		else if (obj.contains(QLatin1String("error")))
 			radioCaption_->setText(tr("Radio speech processing: %1")
@@ -1149,6 +1215,10 @@ private:
 	QMap<QString,QString> stationChannels_;
 	QJsonArray lyricCues_;
 	QJsonObject lastMux_;
+	QList<int> lagSamples_;
+	int lastRadioChunk_=-1,displayedRadioChunk_=-1;
+	qint64 lastAdjustmentMs_=0,radioCueDueMs_=0;
+	QString pendingRadioCue_;
 	QList<QPixmap> slideHistory_;
 	QByteArray lastSlideHash_;
 	QImage waterfall_;
