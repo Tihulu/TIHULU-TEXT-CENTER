@@ -86,6 +86,22 @@ scanSource=TIHULU tested: 538 / 586 / 626 MHz
         self.assertIn("requested channel source=", source)
         self.assertIn("configured channel sources=", source)
 
+    def test_switching_dvb_channels_uses_bounded_acquire_and_diagnostic(self):
+        import inspect
+        from kaffeine_next.patch_upstream import transform
+        source=inspect.getsource(transform)
+        self.assertIn("tihuluDeviceRetryCount < 2",source)
+        self.assertIn("hasConnectedMatchingSource && !recording",source)
+        self.assertIn("QTimer::singleShot(attempt * 400, this",source)
+        self.assertIn("internal->tihuluTuneEpoch != epoch",source)
+        self.assertIn("++internal->tihuluTuneEpoch",source)
+        self.assertIn("channel.constData() == NULL",source)
+        self.assertIn("source matches connected tuner=",source)
+        self.assertIn("source Name used by the saved channel",source)
+        self.assertIn("No tuner reset or channel settings were performed",source)
+        self.assertNotIn("udevadm trigger",source)
+        self.assertNotIn("systemctl stop",source)
+
     def test_upstream_release_is_immutable(self):
         self.assertEqual(REVISION, "e7ea15b86dafed3b20b151cbcb080578ab8e2d5c")
         # The pinned KDE revision is immutable; patching its SQL allocator
