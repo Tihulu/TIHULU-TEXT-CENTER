@@ -1015,7 +1015,7 @@ def main(argv=None):
                 audio_track.blockSignals(False)
                 audio_count = audio_track.count()-1
                 audio_track_status.setText(
-                    f"{audio_count} broadcast-signalled audio channel(s). "
+                    f"{audio_count} broadcast-signalled audio channel(s). " +
                     ("Automatically matched signalled audio language/PID."
                      if new_audio_track else
                      "Choose a PID for Whisper if automatic selection is ambiguous.")
