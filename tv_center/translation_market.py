@@ -143,6 +143,7 @@ class TranslationModelMarket:
         env["PYTHONPATH"]=root+os.pathsep+env.get("PYTHONPATH","")
         env["HF_HUB_OFFLINE"]="1"
         env["TRANSFORMERS_OFFLINE"]="1"
+        env["TOKENIZERS_PARALLELISM"]="false"
         try:
             process=subprocess.run(
                 [runtime["python"], "-m", "tv_center.translation_market", "--selftest"],
@@ -150,9 +151,31 @@ class TranslationModelMarket:
                 stdout=subprocess.PIPE,stderr=subprocess.PIPE,
                 timeout=180,check=False)
             if process.returncode:
-                return {"ready":False,"reason":
-                        process.stderr.decode("utf-8","replace")[-500:] or
-                        "NLLB offline self-test failed"}
+                # The last 500 raw traceback bytes often start halfway through
+                # a Python caret line (^^) and hide the actual exception.
+                stderr = process.stderr.decode("utf-8", "replace")
+                lines = [line.strip() for line in stderr.splitlines()
+                         if line.strip()]
+                if process.returncode < 0 and not lines:
+                    reason = ("NLLB subprocess terminated by signal " +
+                              str(-process.returncode) +
+                              " (possible memory pressure; check available RAM)")
+                elif lines:
+                    reason = next(
+                        (line for line in reversed(lines)
+                         if (line.startswith(("RuntimeError:", "OSError:",
+                                              "ValueError:", "ImportError:",
+                                              "ModuleNotFoundError:",
+                                              "NotImplementedError:",
+                                              "TypeError:", "KeyError:",
+                                              "AssertionError:", "CUDA")))),
+                        lines[-1])
+                else:
+                    reason = ("NLLB offline self-test exited with code " +
+                              str(process.returncode))
+                return {"ready":False, "reason":reason[:600],
+                        "exit_code":process.returncode,
+                        "traceback_tail":stderr[-3000:]}
             result=json.loads(process.stdout.decode("utf-8","replace"))
             return result if isinstance(result,dict) and result.get("ready") else {
                 "ready":False,"reason":"NLLB self-test returned invalid result"}
