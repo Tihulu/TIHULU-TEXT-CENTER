@@ -89,7 +89,7 @@ class OrbitEngine:
             if age>7*86400:
                 self.warnings.append(source+": stale TLE over 7 days");continue
             records=parse_tle(f.read_text(encoding="ascii",errors="replace"),limit=300)
-            if source=="manual":records=records[:30]
+            if source=="manual":records=records[:80]
             for item in records:
                 if item["id"] in seen_norad or not selectable(source,item):continue
                 if source=="amateur" and sum(x[1]=="amateur" for x in self.records)>=80:break
