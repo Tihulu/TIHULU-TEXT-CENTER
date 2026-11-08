@@ -11,6 +11,7 @@ import argparse
 import json
 import math
 import os
+import signal
 from pathlib import Path
 import subprocess
 import sys
@@ -138,27 +139,52 @@ def inventory(settings=None, library=None, profile=None):
             "settings":dict(opts)}
 
 
+_running_child = None
+
+
+def _cancel_benchmark(signum, frame):
+    """Stop benchmark and its local model subprocess on user cancellation."""
+    global _running_child
+    if _running_child is not None and _running_child.poll() is None:
+        try:
+            os.killpg(_running_child.pid,signal.SIGTERM)
+        except (OSError,ProcessLookupError):
+            pass
+    raise SystemExit(130)
+
+
 def _child(args,timeout):
+    global _running_child
     try:
-        p=subprocess.run([sys.executable,"-m","tv_center.performance_lab",
-                          "--worker",*args],stdin=subprocess.DEVNULL,
-                         stdout=subprocess.PIPE,stderr=subprocess.PIPE,
-                         timeout=timeout,check=False,env={
-                             **os.environ, "HF_HUB_OFFLINE":"1",
-                             "TRANSFORMERS_OFFLINE":"1",
-                             "TOKENIZERS_PARALLELISM":"false"})
-        if p.returncode:
+        _running_child=subprocess.Popen(
+            [sys.executable,"-m","tv_center.performance_lab",
+             "--worker",*args],
+            stdin=subprocess.DEVNULL,stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,start_new_session=True,env={
+                **os.environ,"HF_HUB_OFFLINE":"1",
+                "TRANSFORMERS_OFFLINE":"1",
+                "TOKENIZERS_PARALLELISM":"false"})
+        try:
+            stdout,stderr=_running_child.communicate(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            try:
+                os.killpg(_running_child.pid,signal.SIGKILL)
+            except (OSError,ProcessLookupError):
+                pass
+            _running_child.communicate()
+            return {"status":"timeout","reason":"Model exceeded time budget"}
+        if _running_child.returncode:
             return {"status":"failed","reason":
-                    p.stderr.decode("utf-8","replace")[-250:] or
-                    "Worker returned "+str(p.returncode)}
-        payload=json.loads(p.stdout.decode("utf-8","replace"))
+                    stderr.decode("utf-8","replace")[-250:] or
+                    "Worker returned "+str(_running_child.returncode)}
+        payload=json.loads(stdout.decode("utf-8","replace"))
         if not isinstance(payload,dict) or payload.get("status")!="ok":
             return {"status":"failed","reason":"Invalid AI worker result"}
         return payload
-    except subprocess.TimeoutExpired:
-        return {"status":"timeout","reason":"Model exceeded time budget"}
     except (OSError,ValueError) as exc:
         return {"status":"failed","reason":str(exc)[:180]}
+    finally:
+        _running_child=None
 
 
 def run_benchmark(audio_path, *, current_buffer_ms=0):
@@ -237,6 +263,11 @@ def main(argv=None):
     parser.add_argument("--worker",nargs="+")
     args=parser.parse_args(argv)
     try:
+        if not args.worker:
+            # Qt Stop AI model test terminates the orchestrator; clean up
+            # its verified model worker process group rather than leaving
+            # CUDA/CPU inference running after the UI says canceled.
+            signal.signal(signal.SIGTERM,_cancel_benchmark)
         if args.worker:
             result=worker(*args.worker)
         elif args.audio:
