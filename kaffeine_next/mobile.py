@@ -17,6 +17,7 @@ class KaffeineMobile:
         self.notify = notify
         self.caption = caption or {"original":"", "translated":"", "source":"none"}
         self.caption_sequence = 0
+        self.caption_history = []
         self.caption_timing = {}
         self.remote_access_mode = "phone"  # owner may still play on host
         self.last_native_status = None
@@ -49,14 +50,20 @@ class KaffeineMobile:
             sid = self.service_id
             live = bool(sid and time.monotonic() - self.last_packet_at < 8)
             streaming = live and self.hls is not None and self.hls.get_dir() is not None
+            self.caption_history = [
+                item for item in self.caption_history
+                if item["received_epoch_ms"] > int(time.time()*1000)-90000]
             caption = dict(self.caption)
             timing = dict(self.caption_timing)
+            history = [dict(item) for item in self.caption_history]
             mode = self.remote_access_mode
         return {
             "source": "live_native_dvb" if live else "offline",
             "channel": "Kaffeine DVB service "+str(sid) if live else None,
             "caption": caption,
             "caption_timing": timing,
+            "caption_events": history,
+            "server_epoch_ms":round(time.time()*1000),
             "mobile_video": streaming,
             "playback_target": mode,
             "mobile_sources": [
@@ -102,6 +109,9 @@ class KaffeineMobile:
                         for k,v in list(translations.items())[:6]
                         if isinstance(v,str) and v.strip()}
         with self.lock:
+            if result.get("source") in ("stopped","channel_changed"):
+                self.caption_history.clear()
+                self.caption_timing = {}
             self.caption_sequence += 1
             self.caption = {
                 "original":original,
@@ -134,6 +144,14 @@ class KaffeineMobile:
                     "latency_note":("Desktop and phone HLS buffers are independent; "
                                     "use phone-video mode while playing HLS."),
                 }
+                if original or translations:
+                    self.caption_history.append({
+                        "sequence":self.caption_sequence,
+                        "received_epoch_ms":round(now_wall*1000),
+                        "caption":dict(self.caption),
+                        "timing":dict(self.caption_timing),
+                    })
+                    self.caption_history = self.caption_history[-24:]
 
     def enable_lan(self, change_page):
         with self.lock:
