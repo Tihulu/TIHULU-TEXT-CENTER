@@ -169,11 +169,11 @@ def lyrics_lookup_to_file(*, artist:str, track:str,output:str,
                           targets:tuple[str,...]=()):
     location=checked_runtime_output(output,prefix="tihulu-radio-lyrics-")
     try:
-        cues,source=lookup_synced_lyrics(
+        cues,provenance=lookup_synced_lyrics(
             title=track,artist=artist,online=online)
         if not cues:
             raise RuntimeError(
-                "No verified time-coded lyrics ("+str(source.get("status"))+")")
+                "No verified time-coded lyrics ("+str(provenance.get("status"))+")")
         from .captions import translate
         source_code=("auto" if source=="auto" else language_code(source))
         target_codes=tuple(dict.fromkeys(language_code(t,nllb=True)
@@ -193,7 +193,7 @@ def lyrics_lookup_to_file(*, artist:str, track:str,output:str,
             if translated:
                 line["translations"]=translated
             timed.append(line)
-        payload={"status":"completed","provenance":source,
+        payload={"status":"completed","provenance":provenance,
                  "source_language":source_code,
                  "translation_note":("Choose a source language or start radio ASR "
                     "to detect it before translating lyrics"
