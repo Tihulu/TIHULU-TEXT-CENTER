@@ -34,6 +34,7 @@
 #include <QJsonObject>
 #include <QLabel>
 #include <QLineEdit>
+#include <QListWidget>
 #include <QSet>
 #include <QSignalBlocker>
 #include <QHeaderView>
@@ -352,6 +353,50 @@ public:
 		extraTargets_->setPlaceholderText(
 			tr("Extra translation targets (optional): fr, es, pl, ar, ja..."));
 		v->addWidget(extraTargets_);
+		auto *targetRow=new QHBoxLayout();
+		installedTargets_=new QListWidget(lab);
+		installedTargets_->setMaximumHeight(95);
+		installedTargets_->setToolTip(tr("Select any target languages actually installed "
+			"via Argos. NLLB multilingual targets may also be entered above."));
+		refreshTargets_=new QPushButton(tr("Refresh installed language packs"),lab);
+		refreshTargets_->setToolTip(tr("Read-only local model catalog; never downloads models."));
+		targetRow->addWidget(installedTargets_,1);
+		targetRow->addWidget(refreshTargets_);
+		v->addLayout(targetRow);
+		connect(refreshTargets_,&QPushButton::clicked,this,[this](){refreshLanguagePacks();});
+		connect(&languagePackWorker_,
+			QOverload<int,QProcess::ExitStatus>::of(&QProcess::finished),this,
+			[this](int status,QProcess::ExitStatus exitStatus){
+				refreshTargets_->setEnabled(true);
+				if(status!=0 || exitStatus!=QProcess::NormalExit){
+					state_->setText(tr("Could not inspect installed translation packs."));
+					return;
+				}
+				const QJsonDocument doc=QJsonDocument::fromJson(languagePackWorker_.readAllStandardOutput());
+				const QJsonArray pairs=doc.object().value(QLatin1String("installed_pairs")).toArray();
+				QSet<QString> selected;
+				for(int i=0;i<installedTargets_->count();++i)
+					if(installedTargets_->item(i)->checkState()==Qt::Checked)
+						selected.insert(installedTargets_->item(i)->data(Qt::UserRole).toString());
+				QSet<QString> languages;
+				for(const QJsonValue &value:pairs){
+					const QString pair=value.toString();
+					const QString lang=pair.section(QChar(0x2192),1).trimmed();
+					if(QRegularExpression(QLatin1String("^[a-z]{2,3}$")).match(lang).hasMatch())
+						languages.insert(lang);
+				}
+				installedTargets_->clear();
+				QStringList langs=QStringList(languages.values());
+				langs.sort();
+				for(const QString &lang:langs){
+					auto *item=new QListWidgetItem(lang.toUpper()+tr(" · installed Argos target"),installedTargets_);
+					item->setData(Qt::UserRole,lang);
+					item->setFlags(item->flags()|Qt::ItemIsUserCheckable);
+					item->setCheckState(selected.contains(lang)?Qt::Checked:Qt::Unchecked);
+				}
+				state_->setText(tr("Installed Argos targets: %1. Select desired outputs above.")
+					.arg(langs.join(QLatin1String(", "))));
+			});
 		auto *syncControls=new QHBoxLayout();
 		bufferMs_=new QSpinBox(lab);
 		bufferMs_->setRange(0,20000);
@@ -688,6 +733,16 @@ private:
 			webStatus_->setText(tr("%1 real stations discovered. Double-click to play; click ★ to save.")
 				.arg(webStations_->topLevelItemCount()));
 		});
+	}
+	void refreshLanguagePacks() {
+		if(languagePackWorker_.state()!=QProcess::NotRunning) return;
+		refreshTargets_->setEnabled(false);
+		languagePackWorker_.start(QLatin1String("tihulu-tv-center"),
+			{QLatin1String("ai-pairs")});
+		if(!languagePackWorker_.waitForStarted(1000)) {
+			refreshTargets_->setEnabled(true);
+			state_->setText(tr("AI companion not installed; target catalog unavailable."));
+		}
 	}
 	void configureAnalogBand() {
 		const QString band=analogBand_->currentData().toString();
@@ -1468,6 +1523,12 @@ private:
 		for(const QString &extra:extraTargets_->text().split(QLatin1Char(','),Qt::SkipEmptyParts))
 			if(!targets.contains(extra.trimmed()) && targets.size()<6)
 				targets<<extra.trimmed();
+		for(int i=0;i<installedTargets_->count();++i) {
+			const QListWidgetItem *item=installedTargets_->item(i);
+			const QString lang=item->data(Qt::UserRole).toString();
+			if(item->checkState()==Qt::Checked && !targets.contains(lang) && targets.size()<6)
+				targets<<lang;
+		}
 		options<<QLatin1String("--targets")<<targets.join(QLatin1Char(','));
 		if (music_->isChecked()) options<<QLatin1String("--music");
 		const QString runtime=QStandardPaths::writableLocation(QStandardPaths::RuntimeLocation);
@@ -1715,7 +1776,9 @@ private:
 	QList<TimedRadioCue> cueQueue_;
 	QLineEdit *extraTargets_=nullptr;
 	QLabel *syncStatus_=nullptr;
-	QProcess backend_,captionProcess_,recorder_,lyricsProcess_,recordAi_,recordMux_;
+	QProcess backend_,captionProcess_,recorder_,lyricsProcess_,recordAi_,recordMux_,languagePackWorker_;
+	QListWidget *installedTargets_=nullptr;
+	QPushButton *refreshTargets_=nullptr;
 	QString recordedPath_;
 	bool recordWithSubtitles_=false;
 	QCheckBox *subtitledRecord_=nullptr;
