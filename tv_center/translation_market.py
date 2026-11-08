@@ -111,7 +111,16 @@ class TranslationModelMarket:
                 outcome.stderr.decode("utf-8","replace")[-600:])
         if not self.status()["installed"]:
             raise RuntimeError("NLLB safetensors or tokenizer files missing")
-        return "NLLB translator model installed locally; choose it in AI Market and Save"
+        # Installing weights alone previously displayed INSTALLED while
+        # model.shared.weight was still a meta tensor. Prove real inference.
+        check=self.selftest()
+        if not check.get("ready"):
+            raise RuntimeError(
+                "NLLB weights downloaded, but real offline inference failed: "+
+                str(check.get("reason") or "unknown failure")[:360]+
+                ". Original files kept; Argos stays available.")
+        return ("NLLB real offline inference VERIFIED ("+
+                str(check.get("device"))+"). Select NLLB and Save settings.")
 
     def _download(self):
         from huggingface_hub import snapshot_download
@@ -122,6 +131,21 @@ class TranslationModelMarket:
         for name in ("model.safetensors","config.json","tokenizer_config.json"):
             if not (self.model/name).is_file():
                 raise RuntimeError("Expected NLLB model file missing: "+name)
+        from safetensors import safe_open
+        checkpoint=self.model/"model.safetensors"
+        if checkpoint.stat().st_size < 200_000_000:
+            raise RuntimeError("NLLB checkpoint unexpectedly short; refusing ready marker")
+        with safe_open(str(checkpoint),framework="pt",device="cpu") as reader:
+            keys=set(reader.keys())
+            shared=("model.shared.weight","model.encoder.embed_tokens.weight",
+                    "model.decoder.embed_tokens.weight","lm_head.weight",
+                    "shared.weight")
+            found=next((k for k in shared if k in keys),None)
+            if not found:
+                raise RuntimeError("NLLB genuine shared embedding checkpoint missing")
+            shape=reader.get_slice(found).get_shape()
+            if len(shape)!=2 or shape[0]<100_000 or shape[1]<500:
+                raise RuntimeError("NLLB checkpoint shared embedding shape invalid")
         self.marker.write_text(
             f"TIHULU managed optional NLLB; revision={MODEL_REVISION}\n",
             encoding="utf-8")
