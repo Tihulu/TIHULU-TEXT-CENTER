@@ -126,6 +126,39 @@ class TranslationModelMarket:
             f"TIHULU managed optional NLLB; revision={MODEL_REVISION}\n",
             encoding="utf-8")
 
+    def selftest(self):
+        """Opt-in actual offline German→English inference; no RF or downloads.
+
+        Run in the same isolated environment as live NLLB, so the installed
+        PyTorch/Transformers compatibility is tested rather than guessed.
+        """
+        from .runtime import AIRuntime
+        if not self.status()["installed"]:
+            return {"ready":False,"reason":"Install NLLB model first"}
+        runtime=AIRuntime().status()
+        if not runtime["installed"]:
+            return {"ready":False,"reason":"Managed translator Python missing"}
+        env=os.environ.copy()
+        root=str(Path(__file__).resolve().parent.parent)
+        env["PYTHONPATH"]=root+os.pathsep+env.get("PYTHONPATH","")
+        env["HF_HUB_OFFLINE"]="1"
+        env["TRANSFORMERS_OFFLINE"]="1"
+        try:
+            process=subprocess.run(
+                [runtime["python"], "-m", "tv_center.translation_market", "--selftest"],
+                cwd=root,env=env,stdin=subprocess.DEVNULL,
+                stdout=subprocess.PIPE,stderr=subprocess.PIPE,
+                timeout=180,check=False)
+            if process.returncode:
+                return {"ready":False,"reason":
+                        process.stderr.decode("utf-8","replace")[-500:] or
+                        "NLLB offline self-test failed"}
+            result=json.loads(process.stdout.decode("utf-8","replace"))
+            return result if isinstance(result,dict) and result.get("ready") else {
+                "ready":False,"reason":"NLLB self-test returned invalid result"}
+        except (OSError,ValueError,subprocess.TimeoutExpired) as error:
+            return {"ready":False,"reason":str(error)[:300]}
+
     def remove(self):
         if self.model.is_symlink() or not self.marker.is_file():
             raise RuntimeError("Refusing to remove unverified translator model")
@@ -211,7 +244,18 @@ def main():
         TranslationModelMarket()._download()
         print(json.dumps({"status":"installed","model":MODEL_ID}))
         return 0
-    raise SystemExit("Only --download allowed")
+    if len(sys.argv)==2 and sys.argv[1]=="--selftest":
+        # The explicit test executes real pretrained weights, not a mock
+        # translation. The user's TV tuner and audio are never accessed.
+        phrase=run_nllb("Guten Morgen", "de", "en")
+        if not isinstance(phrase,str) or not phrase.strip() or (
+                phrase.strip().casefold()=="guten morgen"):
+            raise RuntimeError("NLLB model produced no useful self-test translation")
+        model,_,device,_=_load_nllb()
+        print(json.dumps({"ready":True,"source":"de","target":"en",
+                          "device":device,"translated":phrase[:120]}))
+        return 0
+    raise SystemExit("Only --download or --selftest allowed")
 
 if __name__=="__main__":
     raise SystemExit(main())
