@@ -14,6 +14,8 @@
 #include <QCheckBox>
 #include <QComboBox>
 #include <QDateTime>
+#include <QDial>
+#include <QDoubleSpinBox>
 #include <QDialog>
 #include <QCoreApplication>
 #include <QCryptographicHash>
@@ -170,6 +172,67 @@ public:
 		webStatus_->setWordWrap(true);
 		webLayout->addWidget(webStatus_);
 		root->addWidget(webGroup);
+
+		// Hardware-dependent analogue tuner. Never claim a DVB-T2 frontend
+		// can demodulate FM, MW or LW; rtl_fm needs a compatible RTL-SDR.
+		auto *analogGroup=new QGroupBox(tr("Analogue tuner · FM / MW-AM / LW"),page);
+		auto *analogLayout=new QVBoxLayout(analogGroup);
+		auto *analogRow=new QHBoxLayout();
+		analogBand_=new QComboBox(analogGroup);
+		analogBand_->addItem(tr("FM · 87.5–108 MHz"),QLatin1String("fm"));
+		analogBand_->addItem(tr("AM / MW · 531–1602 kHz"),QLatin1String("mw"));
+		analogBand_->addItem(tr("LW · 150–280 kHz"),QLatin1String("lw"));
+		analogFrequency_=new QDoubleSpinBox(analogGroup);
+		analogFrequency_->setDecimals(2);
+		analogFrequency_->setRange(87.5,108.0);
+		analogFrequency_->setValue(99.2);
+		analogFrequency_->setSuffix(tr(" MHz"));
+		analogDial_=new QDial(analogGroup);
+		analogDial_->setRange(8750,10800);
+		analogDial_->setValue(9920);
+		analogDial_->setNotchesVisible(true);
+		analogDial_->setFixedSize(95,95);
+		analogStart_=new QPushButton(tr("Tune frequency"),analogGroup);
+		analogStop_=new QPushButton(tr("Release analogue SDR"),analogGroup);
+		analogRow->addWidget(analogBand_);
+		analogRow->addWidget(analogFrequency_);
+		analogRow->addWidget(analogDial_);
+		analogRow->addWidget(analogStart_);
+		analogRow->addWidget(analogStop_);
+		analogLayout->addLayout(analogRow);
+		directSampling_=new QCheckBox(
+			tr("Hardware-specific direct sampling for MW/LW (explicit opt-in)"),analogGroup);
+		directSampling_->setToolTip(tr("Only enable if your RTL-SDR specifically supports direct-sampling below 24 MHz. "
+			"Other tuners require a suitable converter or external receiver."));
+		analogLayout->addWidget(directSampling_);
+		analogStatus_=new QLabel(tr("Frequency tuning requires rtl_fm and a compatible SDR. "
+			"Silicon Labs Si2168 alone is not an FM/AM/LW tuner."),analogGroup);
+		analogStatus_->setWordWrap(true);
+		analogLayout->addWidget(analogStatus_);
+		root->addWidget(analogGroup);
+		connect(analogBand_,QOverload<int>::of(&QComboBox::currentIndexChanged),
+			this,[this](){ configureAnalogBand(); });
+		connect(analogDial_,&QDial::valueChanged,this,[this](int value){
+			analogFrequency_->setValue(value/100.);
+		});
+		connect(analogFrequency_,QOverload<double>::of(&QDoubleSpinBox::valueChanged),
+			this,[this](double value){
+			analogDial_->setValue(qRound(value*100.));
+		});
+		connect(analogStart_,&QPushButton::clicked,this,[this](){ startAnalog(); });
+		connect(analogStop_,&QPushButton::clicked,this,[this](){ stopAnalog(); });
+		connect(&analogDemod_,&QProcess::readyReadStandardError,this,[this](){
+			const QString msg=QString::fromLocal8Bit(analogDemod_.readAllStandardError());
+			if(msg.contains(QLatin1String("Failed"),Qt::CaseInsensitive) ||
+			   msg.contains(QLatin1String("error"),Qt::CaseInsensitive))
+				analogStatus_->setText(msg.right(320));
+		});
+		connect(&analogDemod_,QOverload<int,QProcess::ExitStatus>::of(&QProcess::finished),
+			this,[this](int code,QProcess::ExitStatus){
+				if(!analogStopping_) analogStatus_->setText(
+					tr("Analogue SDR stopped (exit %1); check USB ownership and RF range.").arg(code));
+			});
+		configureAnalogBand();
 
 		auto *split = new QSplitter(Qt::Horizontal, page);
 		auto *library = new QWidget(split);
@@ -589,7 +652,75 @@ private:
 				.arg(webStations_->topLevelItemCount()));
 		});
 	}
+	void configureAnalogBand() {
+		const QString band=analogBand_->currentData().toString();
+		const bool fm=band==QLatin1String("fm");
+		const bool mw=band==QLatin1String("mw");
+		analogFrequency_->setDecimals(fm?2:0);
+		analogFrequency_->setRange(fm?87.5:(mw?531:150),fm?108:(mw?1602:280));
+		analogFrequency_->setSuffix(fm?tr(" MHz"):tr(" kHz"));
+		analogFrequency_->setSingleStep(fm?0.1:(mw?9:1));
+		analogDial_->setRange(fm?8750:(mw?53100:15000),fm?10800:(mw?160200:28000));
+		analogFrequency_->setValue(fm?99.2:(mw?999:198));
+		analogDial_->setValue(qRound(analogFrequency_->value()*100));
+		directSampling_->setEnabled(!fm);
+	}
+	void stopAnalog() {
+		analogStopping_=true;
+		if(analogDemod_.state()!=QProcess::NotRunning) {
+			analogDemod_.terminate();
+			if(!analogDemod_.waitForFinished(900)) analogDemod_.kill();
+		}
+		if(analogAudio_.state()!=QProcess::NotRunning) {
+			analogAudio_.terminate();
+			if(!analogAudio_.waitForFinished(900)) analogAudio_.kill();
+		}
+		if(analogStatus_) analogStatus_->setText(tr("Analogue SDR released."));
+	}
+	void startAnalog() {
+		const QString demod=QStandardPaths::findExecutable(QLatin1String("rtl_fm"));
+		const QString player=QStandardPaths::findExecutable(QLatin1String("aplay"));
+		if(demod.isEmpty() || player.isEmpty()) {
+			analogStatus_->setText(tr("Install optional rtl-sdr and alsa-utils tools first. "
+				"Neither USB tuner nor AI models are installed automatically."));
+			return;
+		}
+		const QString band=analogBand_->currentData().toString();
+		const bool isFm=band==QLatin1String("fm");
+		if(!isFm && !directSampling_->isChecked()) {
+			analogStatus_->setText(tr("MW/LW need an HF-capable SDR, direct sampling or an upconverter. "
+				"Opt into compatible direct sampling only after checking hardware."));
+			return;
+		}
+		stopReceiver(); // Release welle and shared audio before claiming RTL-SDR.
+		stopAnalog();
+		analogStopping_=false;
+		const quint64 hz=qRound64(analogFrequency_->value()*(isFm?1000000.:1000.));
+		QStringList args{QLatin1String("-M"),isFm?QLatin1String("wbfm"):QLatin1String("am"),
+			QLatin1String("-f"),QString::number(hz),
+			QLatin1String("-s"),isFm?QLatin1String("170000"):QLatin1String("48000"),
+			QLatin1String("-r"),QLatin1String("48000")};
+		if(!isFm && directSampling_->isChecked())
+			args<<QLatin1String("-D")<<QLatin1String("2");
+		analogDemod_.setStandardOutputProcess(&analogAudio_);
+		analogAudio_.start(player,{QLatin1String("-q"),QLatin1String("-t"),
+			QLatin1String("raw"),QLatin1String("-f"),QLatin1String("S16_LE"),
+			QLatin1String("-r"),QLatin1String("48000"),QLatin1String("-c"),
+			QLatin1String("1")});
+		if(!analogAudio_.waitForStarted(1200)) {
+			analogStatus_->setText(tr("Cannot start ALSA output; check audio device."));return;
+		}
+		analogDemod_.start(demod,args);
+		if(!analogDemod_.waitForStarted(1200)){
+			stopAnalog();
+			analogStatus_->setText(tr("RTL-SDR backend failed to start; check exclusive device access."));
+			return;
+		}
+		analogStatus_->setText(tr("Tuning %1 Hz via local RTL-SDR. "
+			"No fabricated station name or lock confirmation.").arg(hz));
+	}
 	void playInternetRadio(const QString &address) {
+		stopAnalog();
 		const QUrl url=QUrl::fromUserInput(address.trimmed());
 		if (!url.isValid() || url.host().isEmpty() ||
 		    (url.scheme()!=QLatin1String("http") && url.scheme()!=QLatin1String("https"))) {
@@ -613,6 +744,7 @@ private:
 		webStatus_->setText(tr("Internet radio stopped."));
 	}
 	void startReceiver() {
+		stopAnalog();
 		if (webPlaying_) stopInternetRadio();
 		if (active()) { state_->setText(tr("DAB+ receiver already running.")); return; }
 		if (!prepared()) {
@@ -654,6 +786,7 @@ private:
 	}
 
 	void stopReceiver() {
+		stopAnalog();
 		stopInternetRadio();
 		shuttingDown_ = true;
 		scanning_ = false;
@@ -1459,6 +1592,13 @@ private:
 	QTreeWidget *webStations_=nullptr;
 	QCheckBox *webFavoritesOnly_=nullptr;
 	QLabel *webStatus_=nullptr;
+	QLabel *analogStatus_=nullptr;
+	QComboBox *analogBand_=nullptr;
+	QDoubleSpinBox *analogFrequency_=nullptr;
+	QDial *analogDial_=nullptr;
+	QPushButton *analogStart_=nullptr,*analogStop_=nullptr;
+	QCheckBox *directSampling_=nullptr;
+	bool analogStopping_=false;
 	QSet<QString> internetFavorites_;
 	bool webPlaying_=false;
 	QCheckBox *favoritesOnly_=nullptr;
@@ -1477,6 +1617,7 @@ private:
 	QLineEdit *extraTargets_=nullptr;
 	QLabel *syncStatus_=nullptr;
 	QProcess backend_,captionProcess_,recorder_,lyricsProcess_;
+	QProcess analogDemod_{this},analogAudio_{this};
 	QNetworkAccessManager network_;
 	QTimer tick_;
 	quint16 port_=0;
