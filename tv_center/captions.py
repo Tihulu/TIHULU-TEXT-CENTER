@@ -12,7 +12,7 @@ import tempfile
 import time
 from pathlib import Path
 
-SUPPORTED = ("de", "en", "tr", "fr")  # current speech recognition backends
+from textcenter.compute import LANGUAGES as SUPPORTED
 from .language_codes import language_code
 
 def _run(argv, timeout=30):
@@ -99,8 +99,6 @@ def choose_audio_stream(streams, language, preferred_pid=None):
     Transcribing an AD or English track as German can corrupt the captions.
     This does not retune the channel or pick a different TV service.
     """
-    languages = {"de":("deu","ger","de"), "en":("eng","en"),
-                 "tr":("tur","tr"), "fr":("fra","fre","fr")}
     if preferred_pid is not None and (
             type(preferred_pid) is not int or not 1 <= preferred_pid <= 8190):
         raise ValueError("Invalid selected audio PID")
@@ -125,7 +123,10 @@ def choose_audio_stream(streams, language, preferred_pid=None):
         bad = any(k in description.lower() for k in
                   ("audio description","audiodeskription","hörfilm","descriptive"))
         bad = bad or bool(disposition.get("visual_impaired"))
-        preferred = lang in languages.get(language, ())
+        try:
+            preferred = language_code(lang) == language
+        except ValueError:
+            preferred = False
         # Prefer known audio descriptions only when there is no normal track.
         candidates.append((4 if preferred else 0, -10 if bad else 0,
                            stream.get("index")))
