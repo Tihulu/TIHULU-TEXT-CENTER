@@ -121,7 +121,7 @@ class OrbitEngine:
                     orbit_sources[row["norad"]]=sat
             except (ValueError,RuntimeError,OverflowError,ArithmeticError):continue
         rows.sort(key=lambda p:(-p["el"],p["name"]))
-        track=[];choices=[];track_paths_by_norad={}
+        track=[];choices=[];track_paths_by_norad={};sky_paths_by_norad={}
         if with_track:
             # All visible tracks is bounded to avoid 100s of propagations on
             # every Qt frame; 12 objects at most, updated by map timer cache.
@@ -147,10 +147,25 @@ class OrbitEngine:
                         continue
                 track.extend(dateline_segments(samples))
                 track_paths_by_norad[str(_norad)] = [[p["lat"],p["lon"]] for p in samples]
+                # Topocentric polar chart: real azimuth/elevation samples,
+                # not a guess made from global ground tracks. Retain null
+                # breaks where the path goes below the local horizon.
+                sky=[]
+                for minute in range(-15,16,2):
+                    instant=self.ts.from_datetime(at+timedelta(minutes=minute))
+                    try:
+                        elevation,azimuth,_distance=(satellite-observer).at(instant).altaz()
+                        el=float(elevation.degrees);az=float(azimuth.degrees)
+                        sky.append([round(az%360,2),round(el,2)]
+                                   if math.isfinite(el) and math.isfinite(az) and el>=0 else None)
+                    except (ValueError,OverflowError,RuntimeError,ArithmeticError):
+                        sky.append(None)
+                sky_paths_by_norad[str(_norad)]=sky
         return dict(at_utc=at.isoformat(),observer={"lat":lat,"lon":lon},satellites=rows,
                     selected=selected[0] if selected else None,track_segments=track,
                     track_scope=track_scope,track_object_count=len(choices),
                     track_paths_by_norad=track_paths_by_norad,
+                    sky_paths_by_norad=sky_paths_by_norad,
                     total_loaded=len(self.records),warnings=list(self.warnings),
                     note="TLE geometry only. No actual RF reception or satellite data verified.")
 
