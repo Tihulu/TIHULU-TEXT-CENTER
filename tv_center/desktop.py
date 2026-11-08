@@ -745,7 +745,9 @@ def main():
                                                 "text": message})
                     self.refresh_channels()
                     self.statusbar.setText("Scan: " + ("completed" if ok else "failed") + " — " + message)
-                    if ok:
+                    was_remote=self.web_scan_remote
+                    self.web_scan_remote=False
+                    if ok and not was_remote:
                         self.open_channel_manager()
                 elif kind == "measurement":
                     if "error" in info:
