@@ -88,6 +88,41 @@ class KaffeineTimingTests(unittest.TestCase):
         self.assertIn("src/mediawidget.cpp", PATHS)
         self.assertIn("src/dvb/dvbliveview.cpp", PATHS)
 
+    def test_whisper_receives_undelayed_ts_and_only_kaf_playback_is_buffered(self):
+        from kaffeine_next.patch_upstream import transform
+        import inspect
+        source = inspect.getsource(transform)
+        # The source patch is compiled against pinned KDE Kaffeine in CI.
+        # Critical architecture: nonblocking sidecar -> bitrate cap ->
+        # audio+video playback FIFO, never the other way around.
+        self.assertLess(source.index("::sendto(tihuluCaptionFd"),
+                        source.index("tihuluDelayed.append"))
+        self.assertIn("tihuluObservedRate",source)
+        self.assertIn("tihuluEffectiveDelayFile",source)
+        self.assertIn("48LL * 1024 * 1024 * 1000",source)
+        self.assertIn("tihuluDelayCooldownUntil",source)
+        self.assertIn("timeShiftFile.isOpen()",source)
+
+    def test_applied_tv_delay_is_read_from_player_not_guessed_from_gui(self):
+        with tempfile.TemporaryDirectory() as root:
+            ipc = KaffeineOSD(931, root)
+            self.assertIsNone(ipc.read_effective_delay())
+            ipc.effective.write_text("15000 7500 4200000")
+            os = __import__("os")
+            os.chmod(ipc.effective, 0o600)
+            state = ipc.read_effective_delay()
+            self.assertEqual(state["requested_ms"],15000)
+            self.assertEqual(state["effective_ms"],7500)
+            self.assertEqual(state["ts_bytes_per_second"],4200000)
+            self.assertTrue(state["capped"])
+            ipc.effective.write_text("15000 15000 1000000")
+            self.assertFalse(ipc.read_effective_delay()["capped"])
+            ipc.effective.write_text("15000 22000 1000000")
+            self.assertIsNone(ipc.read_effective_delay())
+            ipc.effective.write_text("15000 7500 4200000")
+            os.utime(ipc.effective,(time.time()-20,time.time()-20))
+            self.assertIsNone(ipc.read_effective_delay())
+
     def test_settings_validation_and_bilingual_text(self):
         cfg = CaptionConfig(playback_delay_ms=3000,offset_ms=-1200,
                             on_video=True,show_original=True,
