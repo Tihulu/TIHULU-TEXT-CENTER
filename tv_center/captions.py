@@ -164,7 +164,8 @@ def asr_from_clip(path: Path, language: str, model: str,
                   service_id: int | None = None, diagnostics=None,
                   audio_pid: int | None = None,
                   speaker_enabled: bool = False,
-                  speaker_provider: str = "resemblyzer") -> str:
+                  speaker_provider: str = "resemblyzer",
+                  music_transcription: bool = False) -> str:
     if language not in SUPPORTED:
         raise ValueError("Unsupported transcription language")
     selected_backend = os.environ.get("TIHULU_TV_ASR_BACKEND", "auto")
@@ -244,7 +245,8 @@ def asr_from_clip(path: Path, language: str, model: str,
         # uses them only when an active native TV delay can be confirmed.
         from .cuda_faster_whisper import transcribe_cuda_details
         details = transcribe_cuda_details(
-            audio.stdout, language, str(profile["speech"]["gpu_model_path"]))
+            audio.stdout, language, str(profile["speech"]["gpu_model_path"]),
+            music_mode=music_transcription)
         if diagnostics is not None:
             diagnostics["words"] = details.get("words", [])
             diagnostics["word_timing_source"] = "faster_whisper_cuda_word_timestamps"
@@ -302,7 +304,8 @@ def decode_segment(ts: bytes, *, mode="auto", page=150, source="de",
                    audio_pid: int | None = None,
                    audio_source: str | None = None,
                    speaker_enabled: bool = False,
-                   speaker_provider: str = "resemblyzer") -> dict:
+                   speaker_provider: str = "resemblyzer",
+                   music_transcription: bool = False) -> dict:
     if mode not in ("teletext", "page", "asr", "auto"):
         raise ValueError("Unsupported caption source")
     if type(page) is not int or not 100 <= page <= 899:
@@ -354,6 +357,8 @@ def decode_segment(ts: bytes, *, mode="auto", page=150, source="de",
                 asr_kwargs = {"diagnostics": speech_diagnostics}
                 if audio_pid is not None:
                     asr_kwargs["audio_pid"] = audio_pid
+                if music_transcription:
+                    asr_kwargs["music_transcription"] = True
                 if speaker_enabled:
                     asr_kwargs["speaker_enabled"] = True
                     asr_kwargs["speaker_provider"] = speaker_provider
