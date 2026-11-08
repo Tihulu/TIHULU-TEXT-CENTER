@@ -109,6 +109,9 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
         "tihulu-radio-captions-","tihulu-radio-lyrics-",1))
     lyric_marker=None
     plain_matcher=None
+    lyric_source_language="auto"
+    lyric_target_codes=()
+    lyric_translation_cache={}
     sentence_joiner=LiveSentenceJoiner(max_words=115,max_chunks=sentence_hops)
     try:
         while not done:
@@ -134,10 +137,16 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
                                    if payload.get("alignment_mode") in
                                    ("asr_lexical","timed_lrc")
                                    and isinstance(lines,list) and lines else None)
+                    lyric_source_language=payload.get("source_language","auto")
+                    lyric_target_codes=tuple(payload.get("translation_targets",[]))[:6]
+                    lyric_translation_cache.clear()
             except (OSError,ValueError,TypeError,json.JSONDecodeError):
                 if not lyric_path.is_file():
                     lyric_marker=None
                     plain_matcher=None
+                    lyric_source_language="auto"
+                    lyric_target_codes=()
+                    lyric_translation_cache.clear()
             detection={}
             cues=_chunk_cues(pcm,position=chunks*5,lang=src,
                             profile=profile,backend=backend,
@@ -230,6 +239,33 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
                 dict(translated)
                 if lyric_match and original==lyric_match.get("text")
                    and used_language and not language_pending else {})
+            if (lyric_match and ai.values["translation_enabled"]):
+                song_language=(lyric_source_language
+                               if lyric_source_language!="auto" else
+                               used_language if not language_pending else None)
+                song_line=lyric_match.get("text","")
+                if song_language and song_line and not (
+                    song_language==used_language and
+                    original==song_line and not language_pending):
+                    # Only translate an actually HEARD/matched lyric line.
+                    # An explicit song-source choice can differ from the
+                    # auto-detected spoken presenter language.
+                    from .captions import translate
+                    for lang in lyric_target_codes:
+                        if lang==song_language:
+                            continue
+                        key=(song_language,lang,song_line)
+                        if key in lyric_translation_cache:
+                            translated_line,issue=lyric_translation_cache[key]
+                        else:
+                            translated_line,issue=translate(song_line,song_language,lang)
+                            if len(lyric_translation_cache)>=120:
+                                lyric_translation_cache.clear()
+                            lyric_translation_cache[key]=(translated_line,issue)
+                        if translated_line:
+                            lyric_translations[lang]=translated_line
+                        if issue:
+                            problems[lang]=str(issue)[:180]
             write_runtime_json(location,{
                 "status":"running",
                 "source_language":used_language or "und",
@@ -326,6 +362,7 @@ def lyrics_lookup_to_file(*, artist:str, track:str,output:str,
                      key:value for key,value in provenance.items()
                      if key!="plain_lines"},
                  "plain_lines":plain_lines[:150],
+                 "translation_targets":list(target_codes),
                  "alignment_mode":("timed_lrc" if cues else "asr_lexical"),
                  "source_language":source_code,
                  "translation_note":("Choose a source language or start radio ASR "
