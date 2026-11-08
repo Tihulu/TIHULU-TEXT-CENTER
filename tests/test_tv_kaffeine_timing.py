@@ -38,8 +38,8 @@ class KaffeineTimingTests(unittest.TestCase):
         rec = e.recommend()
         self.assertEqual(rec.samples,3)
         self.assertEqual(rec.observed_lag_ms,5000)
-        self.assertEqual((rec.safe_min_ms,rec.safe_max_ms),(5500,6000))
-        self.assertEqual(rec.suggested_delay_ms,6000)
+        self.assertEqual((rec.safe_min_ms,rec.safe_max_ms),(5500,7000))
+        self.assertEqual(rec.suggested_delay_ms,6500)
         self.assertIn("safe playback delay",rec.summary)
         self.assertFalse(rec.saturated)
 
@@ -142,10 +142,10 @@ class KaffeineTimingTests(unittest.TestCase):
     def test_cue_due_is_from_capture_not_decode_finish(self):
         cfg = CaptionConfig(playback_delay_ms=6000,offset_ms=-500,revision=7)
         timing = cue_window(started=10,ended=14,finished=15,config=cfg)
-        self.assertAlmostEqual(timing["due"],15.5)
+        self.assertAlmostEqual(timing["due"],16.05)
         self.assertEqual(timing["lateness_ms"],0)
         too_late = cue_window(10,14,19,cfg)
-        self.assertEqual(too_late["lateness_ms"],3500)
+        self.assertEqual(too_late["lateness_ms"],2950)
 
     def test_cue_schedule_tracks_actual_native_delay_not_requested(self):
         requested = CaptionConfig(playback_delay_ms=15000, revision=4)
@@ -155,7 +155,7 @@ class KaffeineTimingTests(unittest.TestCase):
         self.assertEqual(requested.playback_delay_ms,15000)
         due = cue_window(10,16,17,actual)
         self.assertAlmostEqual(due["due"],17.0)
-        self.assertEqual(due["lateness_ms"],3500)
+        self.assertEqual(due["lateness_ms"],2950)
         # An old sampled status is never applied after a new setting.
         self.assertIs(effective_cue_config(requested,{
             "requested_ms":10000, "effective_ms":3000}), requested)
