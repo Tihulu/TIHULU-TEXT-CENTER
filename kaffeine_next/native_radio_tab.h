@@ -662,6 +662,12 @@ public:
         row->addWidget(speakerLabels_,3,2);
         row->setColumnStretch(1,1);
 		v->addLayout(row);
+        translationStatus_=new QLabel(tr(
+            "Translations: show original audio first. Select output languages; "
+            "automatic source translation waits for reliable Whisper detection."),lab);
+        translationStatus_->setWordWrap(true);
+        translationStatus_->setTextFormat(Qt::PlainText);
+        v->addWidget(translationStatus_);
 		extraTargets_=new QLineEdit(lab);
 		extraTargets_->setPlaceholderText(
 			tr("Extra translation targets (optional): fr, es, pl, ar, ja..."));
@@ -827,6 +833,16 @@ public:
 		preferLyrics_->setToolTip(tr("When plain lyrics from an opted-in LRCLIB search are found, "
 			"show matched real-audio lines; unmatched song vocals are [music], not guessed text. "
 			"Presenter speech outside verified song metadata is unaffected."));
+        lyricsSourceLanguage_=new QComboBox(lab);
+        lyricsSourceLanguage_->addItem(
+            tr("Auto · wait for confirmed sung audio language"),QLatin1String("auto"));
+        const QStringList lyricSources={"de","en","tr","fr","es","it","pl","ar","ja","pt"};
+        for(const QString &lang:lyricSources)
+            lyricsSourceLanguage_->addItem(lang.toUpper(),lang);
+        lyricsSourceLanguage_->setToolTip(tr(
+            "Independent song lyric language. Explicitly choose it for immediate "
+            "translation of retrieved lyrics; Auto never reuses an unverified "
+            "presenter's language for the singer."));
 		lyricsOffsetValue_=new QLabel(tr("Offset: +0.00 s"),lab);
 		lyricsOffsetValue_->setMinimumWidth(120);
 		lyricsOffsetValue_->setToolTip(tr("Signed manual correction in seconds "
@@ -851,6 +867,8 @@ public:
 		lyricsRow->addWidget(lyricsImport_,3,0);
 		lyricsRow->addWidget(lyricsArtist_,3,1);
 		lyricsRow->addWidget(lyricsTitle_,3,2);
+        lyricsRow->addWidget(new QLabel(tr("Song lyric language:"),lab),4,0);
+        lyricsRow->addWidget(lyricsSourceLanguage_,4,1,1,2);
 		lyricsRow->setColumnStretch(1,1);
 		v->addLayout(lyricsRow);
 		v->addWidget(lyricsSyncState_);
@@ -2779,6 +2797,30 @@ private:
 					}
 				}
 			}
+            const QJsonObject translationWarnings=obj.value(
+                QLatin1String("translation_warnings")).toObject();
+            const QJsonObject outputLanguages=obj.value(
+                QLatin1String("translations")).toObject();
+            if(obj.value(QLatin1String("language_pending")).toBool()) {
+                translationStatus_->setText(tr("Source language uncertain: "
+                    "original transcription shown; translations wait for two "
+                    "consistent high-confidence detections."));
+            } else if(!outputLanguages.isEmpty()) {
+                QStringList codes=outputLanguages.keys();
+                codes.sort();
+                translationStatus_->setText(tr("Original %1 + translations %2 "
+                    "from current recognized audio.")
+                    .arg(detected.isEmpty()?tr("undetected"):detected,
+                         codes.join(QLatin1String(", ")).toUpper()));
+            } else if(!translationWarnings.isEmpty()) {
+                translationStatus_->setText(tr(
+                    "No verified translation; check installed language pair/model. %1")
+                    .arg(translationWarnings.keys().join(QLatin1String(", "))));
+            } else {
+                translationStatus_->setText(tr("Original %1 available; no translated "
+                    "line verified yet. Check target selections and Model Market.")
+                    .arg(detected.isEmpty()?tr("unknown"):detected));
+            }
 			if(obj.value(QLatin1String("language_pending")).toBool())
 				syncStatus_->setText(tr("Language change uncertain; translation held "
 					"until two reliable detections. Original audio kept."));
@@ -2850,10 +2892,9 @@ private:
 		plainLyricMode_=false;
 		plainLyricQueue_.clear();
 		lyrics_->setEnabled(false);
-		QString sourceCode=speechLanguage_->currentData().isValid()?
-			speechLanguage_->currentData().toString():
-			speechLanguage_->currentText().trimmed();
-		// Do not reuse previous spoken presenter language for the NEXT song:
+		QString sourceCode=lyricsSourceLanguage_->currentData().toString();
+        // Song-specific manual choice never changes automatic spoken ASR.
+        // Do not reuse previous spoken presenter language for the NEXT song:
 		// an English or Turkish singer may follow a German-language host.
 		// Without independently verified song language, keep it auto and
 		// suppress ungrounded German/English/Turkish lyric translation.
@@ -2955,6 +2996,8 @@ private:
 	QTabWidget *modes_=nullptr;
     QSplitter *stationSplit_=nullptr;
     QLabel *selectedSource_=nullptr,*selectedStationVintage_=nullptr;
+	QComboBox *lyricsSourceLanguage_=nullptr;
+    QLabel *translationStatus_=nullptr;
 	QComboBox *channel_=nullptr, *driver_=nullptr, *speechLanguage_=nullptr,
 		*captionSource_=nullptr,
 		*plotKind_=nullptr, *fftPlacement_=nullptr;
