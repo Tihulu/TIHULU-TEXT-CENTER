@@ -67,12 +67,45 @@ def _choose_model(ai: AISettings):
     return profile,selected["selected"]
 
 
+def _near_silent_pcm(pcm: bytes) -> bool:
+    """Fail closed only on effectively inaudible signed 16-bit 32kHz PCM.
+
+    Whisper can hallucinate speech (especially when music mode disables VAD)
+    over dead-air/silent receiver buffers. Sample a bounded number of native
+    little-endian PCM frames; no third-party package or network is needed.
+    This is not a voice activity detector: normal quiet speech/music stays
+    eligible for Whisper, and music with audible instruments may still
+    produce uncertain transcripts.
+    """
+    if not pcm or len(pcm) % 2:
+        return True
+    from array import array
+    import sys as _sys
+    samples = array("h")
+    samples.frombytes(pcm)
+    if _sys.byteorder != "little":
+        samples.byteswap()
+    step = max(1, len(samples) // 4096)
+    subset = samples[::step]
+    if not subset:
+        return True
+    squared = sum(int(value) * int(value) for value in subset)
+    peak = max(abs(int(value)) for value in subset)
+    return (squared / len(subset) < 22.0 ** 2 and peak < 65)
+
+
 def _chunk_cues(pcm: bytes, *, position: float, lang: str, profile:dict,
                 backend: str, music:bool=False, detection:dict|None=None) -> list[LyricCue]:
     """Real GPU word cues; legacy CPU models use honest eight-second chunks."""
     text=""
     words=[]
     recognized_language=lang
+    if _near_silent_pcm(pcm):
+        if detection is not None:
+            detection["recognition_rejected"] = "near_silent_pcm"
+            detection["language"] = None
+            detection["confidence"] = 0.0
+        return []
     if (backend=="gpu" and profile["speech"].get("gpu_engine") ==
             "faster_whisper_managed"):
         from .cuda_faster_whisper import transcribe_cuda_details
