@@ -94,6 +94,11 @@ def open_ai_settings(parent, ai, after_save=None):
                 "model and CUDA 12 cuBLAS/cuDNN wheels. Does not replace NVIDIA "
                 "drivers, whisper.cpp or TV device control.")
             self.install_fast_cuda.clicked.connect(self.install_fast_cuda_runtime)
+            self.install_fast_cuda.setStyleSheet(
+                "QPushButton{background:#17775b;color:white;"
+                "border-radius:7px;padding:11px;font-weight:700}"
+                "QPushButton:hover{background:#219b75}"
+                "QPushButton:disabled{background:#444;color:#999}")
             form.addRow(self.install_fast_cuda)
             self.verify_fast_cuda = QPushButton(
                 "Verify RTX CUDA · run real local model inference self-test")
@@ -568,6 +573,12 @@ def open_ai_settings(parent, ai, after_save=None):
                 gpu = self.hardware["gpu"]
                 npu = self.hardware["npu"]
                 ram = self.hardware["ram_mib"]
+                self.install_cuda.setEnabled(bool(gpu["cuda_compile_possible"]))
+                self.install_cuda.setToolTip(
+                    "Optional source build requires nvcc (CUDA Toolkit >=12.8). "
+                    "Use the highlighted Faster-Whisper button below without nvcc.")
+                self.install_fast_cuda.setEnabled(bool(gpu["detected"]))
+                self.verify_fast_cuda.setEnabled(FasterWhisperCUDA().installed())
                 available = [key.upper() for key in ("cpu","gpu","npu")
                              if p["speech"].get("ready_"+key)]
                 self.compute.setText(
