@@ -218,6 +218,8 @@ def transform(files):
 \tqint64 tihuluObservedRate = 0;
 \tqint64 tihuluDelayCooldownUntil = 0;
 \tint tihuluVideoDelayMs = 0;
+\tint tihuluPrimedTargetMs = -1;
+\tbool tihuluDelayPrimed = false;
 ''')
     change(live, '#include <QCoreApplication>\n',
            '#include <QCoreApplication>\n#include <QDateTime>\n')
@@ -233,7 +235,9 @@ def transform(files):
 \tnotifier->setEnabled(false);
 \t// Never replay a previous channel's delayed TS after switching services.
 \ttihuluDelayed.clear();
-\ttihuluDelayedBytes = 0;''')
+\ttihuluDelayedBytes = 0;
+\ttihuluPrimedTargetMs = -1;
+\ttihuluDelayPrimed = false;''')
     change(live, '''\tif (!timeShiftFile.isOpen()) {
 \t\tif (writeFd >= 0) {
 \t\t\tbuffers.append(buffer);
@@ -267,14 +271,31 @@ def transform(files):
 \t\t\t? qMin(20000LL, 48LL * 1024 * 1024 * 1000 / tihuluObservedRate)
 \t\t\t: 20000LL;
 \t\tconst int cappedMs = (qMin<qint64>(requestedMs, safeMs) / 500) * 500;
-\t\ttihuluVideoDelayMs = (now < tihuluDelayCooldownUntil ||
+\t\tconst int newTargetMs = (now < tihuluDelayCooldownUntil ||
 \t\t\ttimeShiftFile.isOpen()) ? 0 : cappedMs;
+\t\tif (newTargetMs != tihuluPrimedTargetMs) {
+\t\t\t// A new requested delay is NOT yet an applied playback
+\t\t\t// timeline: waiting for 14s of input can take 14 real seconds.
+\t\t\ttihuluDelayPrimed = (newTargetMs == 0);
+\t\t\ttihuluPrimedTargetMs = newTargetMs;
+\t\t}
+\t\ttihuluVideoDelayMs = newTargetMs;
+\t\tconst qint64 queuedAgeMs = tihuluDelayed.isEmpty() ? 0 :
+\t\t\tqMax<qint64>(0, now - tihuluDelayed.first().first);
+\t\tif (!tihuluDelayPrimed && tihuluVideoDelayMs > 0 &&
+\t\t    queuedAgeMs >= tihuluVideoDelayMs - 250)
+\t\t\ttihuluDelayPrimed = true;
 \t\tQFile status(tihuluEffectiveDelayFile);
 \t\tif (status.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
 \t\t\tstatus.setPermissions(QFile::ReadOwner | QFile::WriteOwner);
+\t\t\t// request, bounded target, TS bytes/s, buffer primed flag,
+\t\t\t// and observed oldest queued TS age. A target does not
+\t\t\t// imply libVLC already has delayed video ready.
 \t\t\tstatus.write(QByteArray::number(requestedMs) + " " +
 \t\t\t\tQByteArray::number(tihuluVideoDelayMs) + " " +
-\t\t\t\tQByteArray::number(tihuluObservedRate));
+\t\t\t\tQByteArray::number(tihuluObservedRate) + " " +
+\t\t\t\tQByteArray::number(tihuluDelayPrimed ? 1 : 0) + " " +
+\t\t\t\tQByteArray::number(queuedAgeMs));
 \t\t}
 \t}
 \tif (!timeShiftFile.isOpen()) {
@@ -286,6 +307,8 @@ def transform(files):
 \t\t\t\tif (tihuluDelayedBytes > 64LL * 1024 * 1024) {
 \t\t\t\t\tqCWarning(logDvb, "TIHULU playback delay exceeded 64 MiB; reverting to live for 5s");
 \t\t\t\t\ttihuluVideoDelayMs = 0;
+\t\t\t\t\ttihuluDelayPrimed = true;
+\t\t\t\t\ttihuluPrimedTargetMs = 0;
 \t\t\t\t\ttihuluDelayCooldownUntil = now + 5000;
 \t\t\t\t}
 \t\t\t}
