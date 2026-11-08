@@ -17,11 +17,13 @@ fi
 # Explicit opt out for users who only want Kaffeine's DVB reception.
 MODE=default
 WITH_DAB=0
+WITH_ANALOG=0
 for argument in "$@"; do
   case "$argument" in
     --no-ai) MODE=--no-ai ;;
     --with-dab) WITH_DAB=1 ;;
-    *) echo "Usage: bash install.sh [--no-ai] [--with-dab]" >&2; exit 2 ;;
+    --with-analog) WITH_ANALOG=1 ;;
+    *) echo "Usage: bash install.sh [--no-ai] [--with-dab] [--with-analog]" >&2; exit 2 ;;
   esac
 done
 echo "Building a separate GPL-compatible Kaffeine v2.0.19 fork."
@@ -36,6 +38,10 @@ sudo apt-get install -y --no-install-recommends \
  libdvbv5-dev libudev-dev libqt5sql5-sqlite vlc \
  python3 python3-venv python3-pip python3-pyqt5 ffmpeg \
  dvb-tools psmisc
+if (( WITH_ANALOG == 1 )); then
+  echo "Installing optional local RTL-SDR analogue tools and ALSA PCM output."
+  sudo apt-get install -y --no-install-recommends rtl-sdr alsa-utils
+fi
 
 APPROOT="$HOME/.local/share/tihulu-kaffeine"
 SOURCE="$APPROOT/upstream-v2.0.19"
@@ -228,6 +234,7 @@ echo "Use TV -> TIHULU AI for Model Market and live subtitles."
 echo "Only one DVB frontend owner at a time. Inspect with:"
 echo "  $HOME/.local/bin/tihulu-media-center --diagnose-tuner"
 echo "Set DVB-T2 Source in Configure Television before the first channel scan."
+echo "FM/MW/LW requires a suitable SDR; optional tools: bash install.sh --with-analog"
 echo "DAB+ Radio is a native tab. Optional welle.io backend (separate SDR):"
 echo "  bash $APPROOT/install_welle.sh"
 if (( WITH_DAB == 1 )); then
