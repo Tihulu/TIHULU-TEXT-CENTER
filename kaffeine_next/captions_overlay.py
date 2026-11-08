@@ -509,6 +509,10 @@ def main(argv=None):
         "border:1px solid #356784;border-radius:6px;padding:7px}"
         "QPushButton#apply{background:#207796;font-weight:700}"
         "QLabel#subtitle{font-size:20px;max-height:86px}"
+        "QProgressBar{border:1px solid #356784;border-radius:6px;"
+        "background:#122533;color:#e8f3fa;text-align:center;"
+        "min-height:22px;font-weight:600}"
+        "QProgressBar::chunk{background:#38b8d2;border-radius:5px}"
     )
     desktop = app.primaryScreen().availableGeometry()
     window.resize(min(780, max(620, desktop.width()-90)),
