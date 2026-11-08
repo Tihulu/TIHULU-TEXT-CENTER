@@ -840,16 +840,18 @@ def open_ai_settings(parent, ai, after_save=None):
                 "Active translator: " + active.upper() +
                 (" · Pending: " + pending.upper() + " (Save settings to switch)"
                  if pending != active else " ✓ SELECTED"))
+            # This row describes NLLB itself, NOT the currently selected
+            # MADLAD/DeepL/Argos engine. Previously an active MADLAD label
+            # appeared next to NLLB's unrelated disk size and license.
             self.nllb_status.setText(
+                "NLLB-200 distilled 600M: " +
                 ("INSTALLED" if state["installed"] else "NOT INSTALLED") +
-                " · currently selected: " +
-                str(self.translation_choice.currentData()).upper() +
-                " · optional ~2.5 GB model + Python/PyTorch dependencies" +
+                " · optional ~2.5 GB offline weights + PyTorch" +
                 " · " + NLLB_LICENSE +
-                " · CPU can be slow; requires ~6 GB+ RAM for practical use. "
-                "Installed does NOT prove usable: click Test NLLB offline. "
-                "If the model fails to load, live captions now try installed "
-                "Argos packs automatically and keep original text visible.")
+                " · CPU may be slower than compact Argos packs. "
+                "Installed does not prove usable; run Test NLLB offline. "
+                "Live subtitles can fall back to installed Argos and keep "
+                "the original captions if neural translation fails.")
             try:
                 active_deepl=bool(read_key())
             except (OSError,ValueError,RuntimeError):

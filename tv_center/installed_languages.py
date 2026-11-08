@@ -1,12 +1,14 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 """Offline output-language catalog for the native Kaffeine subtitle picker.
 
-Only languages actually supplied by on-device Argos packages or a provisioned
-NLLB model are advertised. No network/catalog update and no model download.
-A present NLLB model is labelled unverified until real translation is tested.
+Discover locally installed Argos language pairs and local NLLB/MADLAD weights.
+DeepL is a separately labelled ONLINE API, never a local language pack.
+The optional --fast pass avoids slow Argos imports and yields an immediate
+list. Existence on disk is not evidence of successful model inference.
 """
 from __future__ import annotations
 
+import argparse
 import json
 import subprocess
 from .language_codes import language_code
@@ -21,8 +23,11 @@ NAMES = {
 }
 
 def catalog(*, installed_pairs=None, nllb_installed=None,
-            madlad_installed=None):
+            madlad_installed=None, deepl_configured=None,
+            scan_argos=True):
     errors = []
+    if installed_pairs is None and not scan_argos:
+        installed_pairs = []
     if installed_pairs is None:
         try:
             from .argos_market_bridge import run
@@ -48,6 +53,13 @@ def catalog(*, installed_pairs=None, nllb_installed=None,
         except (OSError, RuntimeError, ValueError) as exc:
             madlad_installed = False
             errors.append("MADLAD status unavailable: "+str(exc)[:120])
+    if deepl_configured is None:
+        try:
+            from .deepl_api import read_key
+            deepl_configured=bool(read_key())
+        except (OSError,ValueError,RuntimeError) as exc:
+            deepl_configured=False
+            errors.append("DeepL API key unavailable: "+str(exc)[:100])
     destinations = {}
     for pair in installed_pairs:
         if not isinstance(pair, dict):
@@ -64,11 +76,19 @@ def catalog(*, installed_pairs=None, nllb_installed=None,
         for code in LANG:
             destinations.setdefault(code, set()).add("NLLB (weights present)")
     if madlad_installed:
-        # MADLAD is one multilingual checkpoint. The tokenizer must still
-        # verify <2xx> targets at real inference time; installed weights
-        # alone do not prove a working translation direction.
+        # MADLAD has broad language coverage, but the actual installed
+        # tokenizer must verify its <2xx> token at inference time. Offer
+        # commonly used codes; arbitrary supported ISO codes remain
+        # enterable in the advanced target-language field.
         for code in NAMES:
             destinations.setdefault(code, set()).add("MADLAD (weights present)")
+    if deepl_configured:
+        # Only the familiar baseline targets are advertised as candidates
+        # without calling the authenticated DeepL Languages API. This
+        # NEVER claims that DeepL is installed or usable offline.
+        for code in ("de","en","tr","fr"):
+            destinations.setdefault(code, set()).add(
+                "DeepL API (online; configured key, target unverified)")
     return {
         "languages":[{"code":code,"label":NAMES.get(code,code.upper()),
                       "engines":sorted(engines),
@@ -81,13 +101,20 @@ def catalog(*, installed_pairs=None, nllb_installed=None,
             x for x in installed_pairs if isinstance(x,dict)]),
         "nllb_present":bool(nllb_installed),
         "madlad_present":bool(madlad_installed),
+        "deepl_online_key_configured":bool(deepl_configured),
+        "scan_argos":bool(scan_argos),
         "errors":errors,
         "note":"A model package on disk does not prove translation for the current spoken language. No downloads.",
     }
 
 
-def main():
-    print(json.dumps(catalog(),ensure_ascii=False))
+def main(argv=None):
+    parser=argparse.ArgumentParser(
+        description="Read installed/offline and explicitly remote translator destinations")
+    parser.add_argument("--fast",action="store_true",
+        help="Skip potentially slow Argos Python import; inspect local NLLB/MADLAD and DeepL key only")
+    args=parser.parse_args(argv)
+    print(json.dumps(catalog(scan_argos=not args.fast),ensure_ascii=False))
     return 0
 
 
