@@ -39,6 +39,7 @@
 #include <QLineEdit>
 #include <QListWidget>
 #include <QSet>
+#include <QHash>
 #include <QSignalBlocker>
 #include <QHeaderView>
 #include <QMap>
@@ -1327,31 +1328,43 @@ private:
 		connect(&analogServer_,&QTcpServer::newConnection,this,[this](){
 			while(analogServer_.hasPendingConnections()) {
 				QTcpSocket *socket=analogServer_.nextPendingConnection();
-				if(analogClient_) analogClient_->disconnectFromHost();
-				analogClient_=socket;
-				analogHeaderSent_=false;
-				analogHttpRequest_.clear();
+				// One browser/player + one recorder. The bounded third slot
+				// supports a graceful reconnect without evicting playback.
+				if(analogSockets_.size()>=3) {
+					socket->disconnectFromHost();
+					socket->deleteLater();
+					continue;
+				}
+				analogSockets_.insert(socket);
+				analogRequests_.insert(socket,QByteArray());
 				connect(socket,&QTcpSocket::readyRead,this,[this,socket](){
-					if(socket!=analogClient_) return;
-					const QByteArray bytes=socket->readAll();
-					if(analogHeaderSent_) return;
-					analogHttpRequest_+=bytes;
-					if(analogHttpRequest_.size()>4096) {
+					const QByteArray request=socket->readAll();
+					if(!analogSockets_.contains(socket) || analogStreaming_.contains(socket))
+						return;
+					QByteArray &pending=analogRequests_[socket];
+					pending+=request;
+					if(pending.size()>4096) {
 						socket->disconnectFromHost();return;
 					}
-					if(!analogHttpRequest_.contains("\r\n\r\n")) return;
-					if(!analogHttpRequest_.startsWith("GET /analog.wav ")) {
+					if(!pending.contains("\r\n\r\n"))return;
+					if(!pending.startsWith("GET /analog.wav ")) {
 						socket->disconnectFromHost();return;
 					}
-					QByteArray answer("HTTP/1.1 200 OK\r\n"
+					QByteArray response("HTTP/1.1 200 OK\r\n"
 						"Content-Type: audio/wav\r\n"
 						"Cache-Control: no-store\r\n"
 						"Connection: keep-alive\r\n\r\n");
-					answer+=analogWavHeader();
-					socket->write(answer);
-					analogHeaderSent_=true;
+					response+=analogWavHeader();
+					socket->write(response);
+					analogRequests_.remove(socket);
+					analogStreaming_.insert(socket);
 				});
-				connect(socket,&QTcpSocket::disconnected,socket,&QObject::deleteLater);
+				connect(socket,&QTcpSocket::disconnected,this,[this,socket](){
+					analogSockets_.remove(socket);
+					analogStreaming_.remove(socket);
+					analogRequests_.remove(socket);
+					socket->deleteLater();
+				});
 			}
 		});
 		connect(&analogDemod_,&QProcess::readyReadStandardOutput,this,[this](){
@@ -1375,11 +1388,13 @@ private:
 						.arg(db,0,'f',1));
 				}
 			}
-			if(analogClient_ && analogHeaderSent_ &&
-			   analogClient_->state()==QAbstractSocket::ConnectedState) {
-				// Bound buffering: do not let stalled VLC audio grow unbounded.
-				if(analogClient_->bytesToWrite()<262144)
-					analogClient_->write(pcm);
+			// Share exactly the same PCM samples with VLC and FFmpeg;
+			// recording must never steal or restart the analog receiver.
+			for(QTcpSocket *socket : analogStreaming_) {
+				if(socket && socket->state()==QAbstractSocket::ConnectedState) {
+					if(socket->bytesToWrite()<262144) socket->write(pcm);
+					else socket->disconnectFromHost(); // bounded backpressure
+				}
 			}
 		});
 	}
@@ -1423,12 +1438,13 @@ private:
 			analogDemod_.terminate();
 			if(!analogDemod_.waitForFinished(850)) analogDemod_.kill();
 		}
-		if(analogClient_) {
-			analogClient_->disconnectFromHost();
-			analogClient_.clear();
+		for(QTcpSocket *client : analogSockets_) {
+			if(client)client->disconnectFromHost();
 		}
+		analogSockets_.clear();
+		analogStreaming_.clear();
+		analogRequests_.clear();
 		analogServer_.close();
-		analogHeaderSent_=false;
 		if(analogAudioVu_) {
 			analogAudioVu_->setValue(0);
 			analogAudioVu_->setFormat(tr("Audio VU: stopped (not RF strength)"));
@@ -2792,15 +2808,15 @@ private:
 	QDial *analogDial_=nullptr;
 	QSlider *analogVolume_=nullptr;
 	QPushButton *analogMute_=nullptr;
-	QByteArray analogHttpRequest_;
 	QLabel *analogDigital_=nullptr;
 	QProgressBar *analogAudioVu_=nullptr;
 	qint64 lastAnalogVuUpdateMs_=0;
 	TihuluAnalogScale *analogScale_=nullptr;
 	QTimer analogRetune_{this};
 	QTcpServer analogServer_{this};
-	QPointer<QTcpSocket> analogClient_;
-	bool analogHeaderSent_=false,analogSocketsWired_=false;
+	QSet<QTcpSocket*> analogSockets_,analogStreaming_;
+	QHash<QTcpSocket*,QByteArray> analogRequests_;
+	bool analogSocketsWired_=false;
 	QPushButton *analogStart_=nullptr,*analogStop_=nullptr;
 	QCheckBox *directSampling_=nullptr;
 	bool analogStopping_=false;
