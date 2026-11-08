@@ -9,7 +9,7 @@ def open_ai_settings(parent, ai, after_save=None):
     from PyQt5.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QGroupBox,
         QFormLayout, QCheckBox, QComboBox, QLabel, QListWidget, QPushButton,
         QFileDialog, QMessageBox, QLineEdit, QWidget, QScrollArea,
-        QTabWidget, QListWidgetItem)
+        QTabWidget, QListWidgetItem, QInputDialog)
 
     from .model_market import (CATALOG, ModelLibrary, ModelError,
         argos_available_pairs, argos_installed_pairs, argos_install, argos_remove)
@@ -17,6 +17,7 @@ def open_ai_settings(parent, ai, after_save=None):
     from .runtime import AIRuntime, RuntimeErrorAI
     from .whisper_engine import WhisperRuntime, WhisperRuntimeError
     from .cuda_faster_whisper import FasterWhisperCUDA
+    from .speaker_market import SpeakerMarket
     from .ai_provision import StarterAI
     from .hardware_market import detect_hardware, model_fit
     from .translation_market import TranslationModelMarket, LICENSE as NLLB_LICENSE
@@ -247,6 +248,38 @@ def open_ai_settings(parent, ai, after_save=None):
             language_stack.addStretch(1)
             tabs.addTab(speech_page, "Speech models · GPU / NPU")
             tabs.addTab(language_page, "Language packs · Translation")
+
+            speaker_page = QWidget()
+            speaker_layout = QVBoxLayout(speaker_page)
+            intro = QLabel(
+                "Speaker separation (OFF by default) · pyannote Community-1. "
+                "Recognizes speaker turns and labels them Speaker 1, 2, etc. "
+                "within each short audio clip. It does NOT reliably infer "
+                "woman/man/child or preserve identity across separate clips. "
+                "Voice labels only appear when enabled in Live Captions.")
+            intro.setWordWrap(True)
+            speaker_layout.addWidget(intro)
+            terms = QLabel(
+                'Community-1 uses CC-BY-4.0 and is gated by Hugging Face '
+                '<a href="https://huggingface.co/pyannote/'
+                'speaker-diarization-community-1">access conditions</a>. '
+                'Accept those terms and create a read token first. '
+                'The token is used only for installation, not saved.')
+            terms.setWordWrap(True)
+            terms.setOpenExternalLinks(True)
+            speaker_layout.addWidget(terms)
+            self.speaker_status = QLabel("")
+            self.speaker_status.setWordWrap(True)
+            speaker_layout.addWidget(self.speaker_status)
+            install_speaker = QPushButton(
+                "Install gated offline speaker model (requires HF access token)")
+            install_speaker.clicked.connect(self.install_speaker_model)
+            speaker_layout.addWidget(install_speaker)
+            remove_speaker = QPushButton("Remove managed speaker runtime and cache")
+            remove_speaker.clicked.connect(self.remove_speaker_model)
+            speaker_layout.addWidget(remove_speaker)
+            speaker_layout.addStretch(1)
+            tabs.addTab(speaker_page, "Speaker separation · optional")
             root.addWidget(tabs)
             self.model_tabs = tabs
 
@@ -269,6 +302,45 @@ def open_ai_settings(parent, ai, after_save=None):
             self.inspect_argos()
             self.inspect_runtime()
             self.inspect_starter()
+            self.inspect_speaker()
+
+        def inspect_speaker(self):
+            state = SpeakerMarket().status()
+            self.speaker_status.setText(
+                ("INSTALLED · offline model ready for opt-in testing" if
+                 state["installed"] else "NOT INSTALLED · no speaker inference") +
+                "\nLocation: " + state["path"] +
+                "\nLabels are local to each 6-second clip; no demographic "
+                "or permanent person identity recognition is asserted.")
+
+        def install_speaker_model(self):
+            if QMessageBox.question(
+                self, "Opt-in speaker separation",
+                "Community-1 requires accepting the Hugging Face model "
+                "conditions and a read access token. Downloading separate "
+                "PyTorch cu128 and pyannote dependencies may use several GB. "
+                "No audio is sent to the network during live TV. Continue?"
+                ) != QMessageBox.Yes:
+                return
+            token, ok = QInputDialog.getText(
+                self, "Gated Community-1 model",
+                "Enter your Hugging Face read token (used now; never saved):",
+                QLineEdit.Password)
+            if not ok or not token.strip():
+                return
+            self.begin("Installing separate offline speaker runtime…",
+                       lambda: SpeakerMarket().install(token))
+            token = ""
+
+        def remove_speaker_model(self):
+            if QMessageBox.question(
+                self,"Remove speaker model",
+                "Remove the TIHULU-owned pyannote runtime and its cached "
+                "speaker model? Whisper, NLLB and Argos remain unchanged."
+                ) != QMessageBox.Yes:
+                return
+            self.begin("Removing optional speaker runtime…",
+                       SpeakerMarket().remove)
 
         def inspect_starter(self):
             try:
@@ -534,6 +606,7 @@ def open_ai_settings(parent, ai, after_save=None):
                     self.inspect_runtime()
                     self.inspect_starter()
                     self.inspect_nllb()
+                    self.inspect_speaker()
                     self.inspect_compute()
                     if after_save:
                         after_save()
