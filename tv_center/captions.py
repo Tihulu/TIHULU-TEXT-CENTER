@@ -166,8 +166,10 @@ def asr_from_clip(path: Path, language: str, model: str,
                   speaker_enabled: bool = False,
                   speaker_provider: str = "resemblyzer",
                   music_transcription: bool = False) -> str:
-    if language not in SUPPORTED:
-        raise ValueError("Unsupported transcription language")
+    # "auto" is a speech-detection MODE, not an ISO language code.
+    # All existing speech backends except unverified NPUs handle it.
+    if language != "auto" and language not in SUPPORTED:
+        raise ValueError("Unsupported transcription language: " + str(language))
     selected_backend = os.environ.get("TIHULU_TV_ASR_BACKEND", "auto")
     if selected_backend == "off":
         raise RuntimeError("Offline transcription disabled in Settings")
