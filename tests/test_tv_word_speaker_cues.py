@@ -78,6 +78,16 @@ class WordCueTests(unittest.TestCase):
         cfg.render({"original":"Test","speaker_label":"[Speaker 2 · clip]"})
         self.assertIn("Speaker 2",cfg.render(
             {"original":"Test","speaker_label":"[Speaker 2 · clip]"}))
+        manual=CaptionConfig(speaker_enabled=True,
+                             speaker_aliases=("Woman","Man","Child")).validate()
+        rendered=manual.render({"original":"Test",
+                    "speaker_index":3,"speaker_label":"[Speaker 3 · clip]"})
+        self.assertIn("[Child · clip]",rendered)
+        untouched=CaptionConfig(speaker_enabled=False,
+                                 speaker_aliases=("Woman",)).validate()
+        self.assertNotIn("Woman",untouched.render(
+            {"original":"Test","speaker_index":1,
+             "speaker_label":"[Speaker 1 · clip]"}))
 
 if __name__=="__main__":
     unittest.main()
