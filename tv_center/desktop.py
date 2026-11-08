@@ -24,6 +24,7 @@ from .ai_settings import AISettings
 from .channels_ui import edit_channels
 from .settings_ui import open_ai_settings
 from .scan_ui import ScanMonitor
+from .web_desktop import TVWebMixin
 
 def main():
     if os.environ.get("WAYLAND_DISPLAY"):
@@ -40,7 +41,7 @@ def main():
         print("Qt desktop dependency missing: sudo apt install python3-pyqt5", file=sys.stderr)
         return 2
 
-    class Window(QMainWindow):
+    class Window(QMainWindow, TVWebMixin):
         def __init__(self):
             super().__init__()
             self.setWindowTitle("TIHULU TV Center · Native DVB")
@@ -297,6 +298,10 @@ def main():
             self.bridge_token.setReadOnly(True)
             self.bridge_token.setPlaceholderText("Bridge OFF — no local server")
             form.addRow("Temporary bridge token", self.bridge_token)
+            # Native GUI actually owns the authenticated scan/channel bridge.
+            # The separate Kaffeine caption sidecar does not: expose real
+            # controls only here, with serialized dispatch on this Qt thread.
+            self.setup_mobile_ui(form)
             self.statusbar = QLabel("Idle. No active tuner or AI worker.")
             self.statusbar.setWordWrap(True)
             outer.addWidget(self.statusbar)
@@ -478,8 +483,8 @@ def main():
                 copyfile(file, target)
             self.refresh_channels()
 
-        def scan_channels(self):
-            if self.scanner.running:
+        def scan_channels(self, confirmed=False):
+            if self.scanner.running or getattr(self,"web_scan_requested",False):
                 QMessageBox.information(self, "Scan running", "A scan is already active.")
                 return
             if self.capture.thread and self.capture.thread.is_alive():
@@ -496,10 +501,12 @@ def main():
                             "\n\nOnly continue with a dedicated DVB-S/S2 tuner connected to the LNB.")
             else:
                 question = (label + "\n\nScan the real connected antenna/cable now?")
-            if QMessageBox.question(self, "Automatic full scan",
+            if confirmed is not True and QMessageBox.question(
+                self, "Automatic full scan",
                 question + "\n\nExisting channels and favorites are preserved if no results are found."
             ) != QMessageBox.Yes:
-                return
+                return False
+            self.web_scan_requested=True
             self.stop_scan_btn.setEnabled(True)
             self.scan_monitor = ScanMonitor(self, self.cancel_scan, label)
             self.scan_monitor.show()
@@ -514,10 +521,14 @@ def main():
                 except (ScanError, ValueError, OSError, RuntimeError) as exc:
                     self.capture.emit("scan", (False, str(exc)))
             threading.Thread(target=worker, daemon=True, name="tihulu-tv-auto-scan").start()
+            return True
 
         def cancel_scan(self):
             self.scanner.cancel()
             self.stop_scan_btn.setEnabled(False)
+            self.web_scan_events.append({"kind":"status",
+                "text":"Cancel requested · previous channel lists preserved"})
+            self.web_scan_events=self.web_scan_events[-120:]
             self.statusbar.setText("Cancelling scan; existing channel lists remain preserved")
 
         def scan_from_file(self):
@@ -691,6 +702,9 @@ def main():
                 self.bridge_token.clear()
 
         def poll(self):
+            # HTTP worker threads never touch Qt widgets. Without draining
+            # this queue, paired mobile requests timed out after ten seconds.
+            self.web_commands.drain(self.web_action, limit=12)
             for _ in range(15):
                 try:
                     kind, info = self.capture.events.get_nowait()
@@ -707,12 +721,23 @@ def main():
                         body = original
                     self.subtitle.setText(body + "\nSource: " + info.get("source", "unknown"))
                 elif kind == "scan_progress":
-                    if isinstance(info, dict) and self.scan_monitor:
-                        self.scan_monitor.feed(info)
+                    if isinstance(info,dict):
+                        # Publish only genuine scanner events: frequency,
+                        # service, status and unavailable signal reading
+                        # (scanner already owns the frontend).
+                        self.web_scan_events.append(dict(info))
+                        self.web_scan_events=self.web_scan_events[-120:]
+                        if self.scan_monitor:
+                            self.scan_monitor.feed(info)
                         if info.get("kind") == "status":
-                            self.statusbar.setText(info.get("text", "Scanning…"))
+                            self.statusbar.setText(info.get("text","Scanning…"))
                 elif kind == "scan":
                     ok, message = info
+                    self.web_scan_requested=False
+                    self.web_scan_events.append({
+                        "kind":"complete" if ok else "failed",
+                        "stage":3,"text":str(message)[:250]})
+                    self.web_scan_events=self.web_scan_events[-120:]
                     self.stop_scan_btn.setEnabled(False)
                     if self.scan_monitor:
                         self.scan_monitor.feed({"kind": "complete" if ok else "failed",
@@ -763,6 +788,7 @@ def main():
                         self.statusbar.setText(message)
 
         def closeEvent(self, event):
+            self.close_mobile()
             self.scanner.cancel()
             if self.bridge:
                 self.bridge.stop()
