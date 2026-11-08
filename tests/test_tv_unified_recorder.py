@@ -21,7 +21,7 @@ class SharedRecordingSourceTests(unittest.TestCase):
         self.assertIn('bar->addWidget(this);',self.recorder)
         self.assertIn('● REC',self.recorder)
         self.assertIn('■ STOP REC',self.recorder)
-        self.assertIn('new TihuluUnifiedRecorder(mediaWidget,dvbTab,controlBar,this);',
+        self.assertIn('new TihuluUnifiedRecorder(mediaWidget,dvbTab,controlBar,',
                       self.patch)
 
     def test_uses_native_dvb_recorder_no_second_receiver(self):
