@@ -38,7 +38,7 @@ class RadioModesAndSyncTests(unittest.TestCase):
         self.assertIn('details->setVisible(false)',panel)
         self.assertIn('detailsLayout->addLayout(tools)',panel)
         self.assertIn('detailsLayout->addLayout(actions)',panel)
-        self.assertIn('tabs',self.radio.lower())
+        self.assertIn('QTabWidget *modes_',self.radio)
         self.assertIn('auto *tools=new QGridLayout()',hardware)
         self.assertIn('cards->addWidget(analogCard,2,0,1,2)',hardware)
         self.assertIn('auto *filter = new QGridLayout()',web)
