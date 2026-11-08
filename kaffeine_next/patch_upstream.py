@@ -56,7 +56,8 @@ def transform(files):
     # INSIDE its own tab; the older launched media-captions-ui remains
     # available only as an optional legacy menu entry.
     change(main, '#include "tihulu_radio_tab.h"\n',
-           '#include "tihulu_radio_tab.h"\n#include "tihulu_media_panel.h"\n')
+           '#include "tihulu_radio_tab.h"\n#include "tihulu_media_panel.h"\n'
+           '#include "tihulu_web_tv_dialog.h"\n')
     change(main, '''	void activate() override
 	{
 		layout()->addWidget(mediaWidget);
@@ -260,6 +261,12 @@ QAbstractButton *StartTab::addShortcut''')
 		diagnostics->start(QLatin1String("/bin/bash"),
 			QStringList() << QDir::homePath() +
 				QLatin1String("/.local/share/tihulu-kaffeine/dvb_diagnostics.sh"));
+	});
+	QAction *webTvAction = dvbMenu->addAction(i18n("Web TV / Internet channels..."));
+	connect(webTvAction, &QAction::triggered, this, [this]() {
+		TihuluWebTvDialog *dialog = new TihuluWebTvDialog(mediaWidget,
+			[this]() { activateTab(PlayerTabId); }, this);
+		dialog->show();
 	});
 	// Keep native Kaffeine channel switching, Teletext and player unchanged.
 	QMenu *aiMenu = new QMenu(i18n("TIHULU &AI"), this);
@@ -964,6 +971,14 @@ def apply(root: Path):
         raise RuntimeError("Refusing to overwrite unrelated native media panel")
     media_dest.write_text(panel.read_text(encoding="utf-8"),encoding="utf-8")
     print("Installed in-player offline media AI controls:",media_dest)
+    web_template = Path(__file__).with_name("native_web_tv_dialog.h")
+    if not web_template.is_file():
+        raise RuntimeError("Native internet television dialog is missing")
+    web_dest = root / "src/tihulu_web_tv_dialog.h"
+    if web_dest.exists() and web_dest.read_text(encoding="utf-8") != web_template.read_text(encoding="utf-8"):
+        raise RuntimeError("Refusing to overwrite unrelated internet television header")
+    web_dest.write_text(web_template.read_text(encoding="utf-8"), encoding="utf-8")
+    print("Installed native internet television catalogue:", web_dest)
 
 if __name__ == "__main__":
     if len(sys.argv) != 2:
