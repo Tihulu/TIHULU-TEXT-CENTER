@@ -696,9 +696,11 @@ private:
 				QMessageBox::Yes|QMessageBox::No,QMessageBox::No)!=QMessageBox::Yes)
 				return;
 			stopCaptioning();
+			stopLyrics();
 			stopRecording();
 			player_->stop();
 			playingKey_.clear();
+			lastDetectedLanguage_.clear();
 		}
 		scanning_=true;
 		scanIndex_=0;
@@ -742,6 +744,15 @@ private:
 		if (!active()) { startReceiver(); if (!active()) return; }
 		if (scanning_) { state_->setText(tr("Stop or finish scanning before playback.")); return; }
 		auto play = [this,key,item]() {
+			const bool restartAi=captionProcess_.state()!=QProcess::NotRunning;
+			stopCaptioning();
+			stopLyrics();
+			stopRecording();
+			lastDetectedLanguage_.clear();
+			lagSamples_.clear();
+			lastRadioChunk_=-1;
+			displayedRadioChunk_=-1;
+			pendingRadioCue_.clear();
 			const QString sid=item->text(3);
 			const QString stream=QLatin1String("/mp3/")+sid;
 			if (!QRegularExpression(QLatin1String("^/mp3/[A-Fa-f0-9x]+$"))
@@ -765,6 +776,8 @@ private:
 				.arg(item->text(1),activeChannel_));
 			state_->setText(tr("Playing %1 with native TIHULU/libVLC.")
 				.arg(item->text(1)));
+			if(restartAi)
+				QTimer::singleShot(900,this,[this](){startCaptioning();});
 		};
 		if (activeChannel_!=block) tune(block,play);
 		else play();
