@@ -21,7 +21,8 @@ import tempfile
 import time
 
 MODE = ("auto", "teletext", "asr", "page", "off")
-LANGS = ("de", "en", "tr", "fr")
+LANGS = ("de", "en", "tr", "fr")  # quick-select presets only
+from tv_center.language_codes import language_code
 
 @dataclass(frozen=True)
 class CaptionConfig:
@@ -46,8 +47,10 @@ class CaptionConfig:
     revision: int = 0
 
     def validate(self):
-        if self.mode not in MODE or self.source not in LANGS or self.target not in LANGS:
-            raise ValueError("Unknown caption source or language")
+        if self.mode not in MODE:
+            raise ValueError("Unknown caption source")
+        language_code(self.source, nllb=True)
+        language_code(self.target, nllb=True)
         if type(self.page) is not int or not 100 <= self.page <= 899:
             raise ValueError("Teletext page must be an integer 100–899")
         if self.teletext_pid is not None and (
@@ -56,8 +59,8 @@ class CaptionConfig:
         if self.audio_pid is not None and (
                 type(self.audio_pid) is not int or not 1 <= self.audio_pid <= 8190):
             raise ValueError("Invalid selected broadcaster audio PID")
-        if self.audio_language is not None and self.audio_language not in LANGS:
-            raise ValueError("Selected audio language is unsupported for Whisper")
+        if self.audio_language is not None:
+            language_code(self.audio_language)
         if type(self.offset_ms) is not int or not -10000 <= self.offset_ms <= 10000:
             raise ValueError("Caption offset must be -10 to +10 seconds")
         if type(self.playback_delay_ms) is not int or not 0 <= self.playback_delay_ms <= 20000:
@@ -65,7 +68,7 @@ class CaptionConfig:
         if (not isinstance(self.target_languages, tuple) or
                 len(self.target_languages) > 3 or
                 len(set(self.target_languages)) != len(self.target_languages) or
-                any(lang not in LANGS or lang == self.source
+                any(language_code(lang, nllb=True) == language_code(self.source, nllb=True)
                     for lang in self.target_languages)):
             raise ValueError("Translation languages must be distinct and differ from spoken language")
         if not self.show_original and (not self.show_translation or
@@ -112,6 +115,13 @@ class CaptionConfig:
                 legacy = (result.get("translated") or "").strip()
                 if legacy and legacy != original:
                     lines.append(legacy)
+        # If the viewer requested translated-only subtitles but no model
+        # could translate into the selected language, never blank the screen.
+        # Broadcast / Whisper original remains visible with an explicit label.
+        if not lines and original and self.show_translation:
+            codes = ", ".join(self.target_languages).upper() or self.target.upper()
+            actual = (result.get("source_language") or self.source).upper()
+            lines.append(f"[{actual} · original; {codes} unavailable] " + original)
         return "\n".join(lines)[:1100]
 
 def effective_cue_config(config: CaptionConfig, native_status: dict | None) -> CaptionConfig:
