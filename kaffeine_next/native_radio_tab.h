@@ -295,16 +295,40 @@ public:
 			radioSettings.value(QLatin1String("playbackBufferMs"),12000).toInt(),20000));
 		bufferMs_->setToolTip(tr("Radio-only libVLC network cache. Applies on stream reopen; "
 			"not a measured DAC/ALSA audio presentation clock."));
-		autoSync_=new QCheckBox(tr("Auto adjust radio buffer"),lab);
+		autoSync_=new QCheckBox(tr("Auto synchronize caption timing"),lab);
 		autoSync_->setChecked(true);
-		autoSync_->setToolTip(tr("Periodically measure ASR+translation lag; "
-			"restarting the audio stream briefly can be necessary to apply a new buffer."));
+		autoSync_->setToolTip(tr("Adapt caption timing to measured ASR delay. "
+			"Does not reopen audio unless separately enabled."));
+		radioOffsetMs_=new QSpinBox(lab);
+		radioOffsetMs_->setRange(-12000,12000);
+		radioOffsetMs_->setSingleStep(250);
+		radioOffsetMs_->setSuffix(tr(" ms"));
+		radioOffsetMs_->setValue(qBound(-12000,
+			radioSettings.value(QLatin1String("captionOffsetMs"),0).toInt(),12000));
+		radioOffsetMs_->setToolTip(tr("Positive: subtitles later; negative: earlier. "
+			"Changes also shift pending cues without re-running Whisper."));
+		autoRestartAudio_=new QCheckBox(tr("Allow automatic radio audio restart"),lab);
+		autoRestartAudio_->setChecked(false);
+		autoRestartAudio_->setToolTip(tr("OFF prevents speech gaps during buffer retuning. "
+			"Turn on only if occasional brief audio interruption is acceptable."));
 		auto *applyBuffer=new QPushButton(tr("Apply radio buffer"),lab);
 		syncControls->addWidget(new QLabel(tr("Audio buffer:"),lab));
 		syncControls->addWidget(bufferMs_);
 		syncControls->addWidget(autoSync_);
+		syncControls->addWidget(new QLabel(tr("Caption offset:"),lab));
+		syncControls->addWidget(radioOffsetMs_);
 		syncControls->addWidget(applyBuffer);
 		v->addLayout(syncControls);
+		v->addWidget(autoRestartAudio_);
+		lastCaptionOffsetMs_=radioOffsetMs_->value();
+		connect(radioOffsetMs_,QOverload<int>::of(&QSpinBox::valueChanged),
+			this,[this](int newOffset){
+				QSettings saved(QLatin1String("TIHULU"),QLatin1String("KaffeineRadio"));
+				saved.setValue(QLatin1String("captionOffsetMs"),newOffset);
+				const int adjustment=newOffset-lastCaptionOffsetMs_;
+				lastCaptionOffsetMs_=newOffset;
+				for(auto &cue:cueQueue_) cue.dueMs+=adjustment;
+			});
 		syncStatus_=new QLabel(tr("Sync: 12s requested radio network cache "
 			"· no verified audio output clock · checking every 30s"),lab);
 		syncStatus_->setWordWrap(true);
@@ -465,6 +489,7 @@ public:
 	}
 
 private:
+	struct TimedRadioCue { int chunkIndex; qint64 dueMs; QString text; };
 	static QString label(const QJsonValue &value) {
 		if (value.isString()) return value.toString();
 		if (value.isObject()) return value.toObject().value(QLatin1String("label")).toString();
@@ -1436,8 +1461,10 @@ private:
 		*livePlot_=nullptr,*showWidgets_=nullptr,
 		*coarseCorrector_=nullptr;
 	QSlider *lyricsOffset_=nullptr;
-	QSpinBox *bufferMs_=nullptr;
-	QCheckBox *autoSync_=nullptr;
+	QSpinBox *bufferMs_=nullptr,*radioOffsetMs_=nullptr;
+	QCheckBox *autoSync_=nullptr,*autoRestartAudio_=nullptr;
+	int lastCaptionOffsetMs_=0;
+	QList<TimedRadioCue> cueQueue_;
 	QLineEdit *extraTargets_=nullptr;
 	QLabel *syncStatus_=nullptr;
 	QProcess backend_,captionProcess_,recorder_,lyricsProcess_;
