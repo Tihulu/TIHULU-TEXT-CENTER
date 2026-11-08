@@ -144,8 +144,25 @@ def open_ai_settings(parent, ai, after_save=None):
             self.online_state.setWordWrap(True)
             models_layout.addWidget(self.online_state)
             self.models = QListWidget()
-            self.models.setMaximumHeight(260)
+            self.models.setMaximumHeight(290)
             models_layout.addWidget(self.models)
+            recommended = QLabel(
+                "RTX 5080 recommendation: prebuilt CUDA Large-v3 Turbo "
+                "(word-timed live captions). CPU fallback: Small → Medium. "
+                "Browse the official verified catalog for other quality "
+                "tiers and install/select them here.")
+            recommended.setWordWrap(True)
+            models_layout.addWidget(recommended)
+            discover = QHBoxLayout()
+            medium_models = QPushButton("Browse verified Medium GGML")
+            medium_models.clicked.connect(
+                lambda: self.search_quality_model("medium"))
+            turbo_models = QPushButton("Browse verified Large-v3 Turbo GGML")
+            turbo_models.clicked.connect(
+                lambda: self.search_quality_model("large-v3-turbo"))
+            discover.addWidget(medium_models)
+            discover.addWidget(turbo_models)
+            models_layout.addLayout(discover)
             line = QHBoxLayout()
             self.download = QPushButton("Download & install selected")
             self.download.clicked.connect(self.download_model)
@@ -209,6 +226,11 @@ def open_ai_settings(parent, ai, after_save=None):
             trans_layout.addLayout(controls)
             self.pairs = QLabel("Installed pairs: not inspected")
             trans_layout.addWidget(self.pairs)
+            self.installed_argos = QListWidget()
+            self.installed_argos.setMaximumHeight(120)
+            self.installed_argos.itemSelectionChanged.connect(
+                self.select_installed_argos_pair)
+            trans_layout.addWidget(self.installed_argos)
             quality = QGroupBox("Higher-capacity translator · NLLB-200 distilled 600M")
             quality_layout = QVBoxLayout(quality)
             self.translation_choice = QComboBox()
@@ -217,6 +239,8 @@ def open_ai_settings(parent, ai, after_save=None):
                 "NLLB-200 600M · multilingual; enter ISO or NLLB codes", "nllb")
             self.translation_choice.setCurrentIndex(
                 1 if ai.values.get("translation_model")=="nllb" else 0)
+            self.translation_choice.currentIndexChanged.connect(
+                lambda *_: self.inspect_nllb())
             quality_layout.addWidget(self.translation_choice)
             self.nllb_status = QLabel("")
             self.nllb_status.setWordWrap(True)
@@ -434,6 +458,9 @@ def open_ai_settings(parent, ai, after_save=None):
             state = self.translation_market.status()
             self.nllb_status.setText(
                 ("INSTALLED" if state["installed"] else "NOT INSTALLED") +
+                " · currently selected: " +
+                ("NLLB" if self.translation_choice.currentData()=="nllb"
+                 else "Argos") +
                 " · optional ~2.5 GB model + Python/PyTorch dependencies" +
                 " · " + NLLB_LICENSE +
                 " · CPU can be slow; requires ~6 GB+ RAM for practical use. "
@@ -457,6 +484,24 @@ def open_ai_settings(parent, ai, after_save=None):
                 "Argos packs and Whisper models are preserved.") != QMessageBox.Yes:
                 return
             self.begin("Removing NLLB weights…",self.translation_market.remove)
+
+        def search_quality_model(self, query):
+            self.online_query.setText(query)
+            self.refresh_online_models()
+
+        def select_installed_argos_pair(self):
+            selected = self.installed_argos.currentItem()
+            if selected is None:
+                return
+            pair = selected.data(Qt.UserRole)
+            if not isinstance(pair, dict):
+                return
+            self.source.setCurrentText(pair["source"])
+            self.target.setCurrentText(pair["target"])
+            self.available.setText(
+                "Installed pack selected: " + pair["source"] +
+                " → " + pair["target"] + ". "
+                "Choose Argos translator and Save settings to use it.")
 
         def refresh_online_models(self):
             query = self.online_query.text().strip()
@@ -559,9 +604,17 @@ def open_ai_settings(parent, ai, after_save=None):
                     pairs = run_argos_market("installed")
                 else:
                     pairs = []
-                self.pairs.setText("Installed Argos: " + (", ".join(
+                self.pairs.setText("Installed Argos packs (" + str(len(pairs)) +
+                    "): " + (", ".join(
                     p["source"] + "→" + p["target"] for p in pairs) if pairs else
-                    "none — install starter bundle to manage language packs"))
+                    "none — install starter bundle or select a catalog pair"))
+                self.installed_argos.clear()
+                for pair in pairs:
+                    item = QListWidgetItem(
+                        pair["source"].upper()+" → "+pair["target"].upper()+
+                        " · INSTALLED")
+                    item.setData(Qt.UserRole,pair)
+                    self.installed_argos.addItem(item)
             except (ImportError, OSError, ValueError) as exc:
                 self.pairs.setText("Argos runtime unavailable: " + str(exc)[:100])
 
