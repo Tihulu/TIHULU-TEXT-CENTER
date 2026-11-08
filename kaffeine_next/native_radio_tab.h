@@ -1121,7 +1121,29 @@ public:
 		connect(favoritesOnly_,&QCheckBox::toggled,this,
 			[this](){ filterStations(); });
 		connect(caption_, &QPushButton::clicked, this, [this](){ startCaptioning(); });
-		connect(stopCaption_, &QPushButton::clicked, this, [this](){ stopCaptioning(); });
+		connect(stopCaption_, &QPushButton::clicked, this, [this](){
+            const bool lyricOnly=lyricsAudioFallbackActive_;
+            if(lyricOnly) {
+                lyricsAudioFallbackActive_=false;
+                lyricsFallbackStartedAi_=false;
+                lyricText_->setText(tr("Offline lyric listening stopped."));
+            }
+            stopCaptioning();
+            radioCaptionBanner_->setText(tr("Live radio captions stopped."));
+        });
+        connect(&captionProcess_,QOverload<int,QProcess::ExitStatus>::of(&QProcess::finished),
+            this,[this](int code,QProcess::ExitStatus exitState){
+                if(captionsStopping_ || (code==0 && exitState==QProcess::NormalExit))
+                    return;
+                const QString error=QString::fromLocal8Bit(
+                    captionProcess_.readAllStandardError()).right(200);
+                const QString message=tr("Live radio Whisper stopped unexpectedly. "
+                    "Check the installed AI model, DAB stream and ffmpeg. %1")
+                    .arg(error.isEmpty()?tr("No decoder details"):error);
+                radioCaption_->setText(message);
+                radioCaptionBanner_->setText(message);
+                if(lyricsAudioFallbackActive_) lyricText_->setText(message);
+            });
 		connect(lyrics_, &QPushButton::clicked, this, [this](){ fetchLyrics(); });
 		connect(lyricsImport_,&QPushButton::clicked,this,[this](){
 			const QString path=QFileDialog::getOpenFileName(
@@ -2870,6 +2892,7 @@ private:
 		displayDueRadioCues(now);
 	}
 	void stopCaptioning() {
+        captionsStopping_=true;
 		cueQueue_.clear();
 		metadataCaptions_=false;
 		if (captionProcess_.state()!=QProcess::NotRunning) {
@@ -2879,6 +2902,7 @@ private:
 		}
 		if (!captionPath_.isEmpty()) QFile::remove(captionPath_);
 		captionPath_.clear();
+        captionsStopping_=false;
 	}
     void beginLyricListening() {
         if (!active() || playingKey_.isEmpty()) {
@@ -2953,7 +2977,8 @@ private:
 			&& !lyricsTitle_->text().trimmed().isEmpty();
 		if(fields.size()<2 && !overridden) {
 			lyricText_->setText(tr("No reliable Artist - Title DLS metadata. "
-				"Enter corrected artist/title or import local TXT/LRC."));
+                "You can type artist/title, import LRC, or listen to vocals offline."));
+            if(!automatic && listenFallbackOnMiss_->isChecked()) beginLyricListening();
 			return;
 		}
 		const QString artist=overridden?lyricsArtist_->text().trimmed():fields.at(0).trimmed();
@@ -3174,7 +3199,8 @@ private:
 	QList<TimedPlainLyric> plainLyricQueue_;
 	QCheckBox *autoLyrics_=nullptr,*autoLyricSync_=nullptr,
 		*preferLyrics_=nullptr,*listenFallbackOnMiss_=nullptr;
-    bool lyricsAudioFallbackActive_=false,lyricsFallbackStartedAi_=false;
+    bool lyricsAudioFallbackActive_=false,lyricsFallbackStartedAi_=false,
+        captionsStopping_=false;
 	QSpinBox *bufferMs_=nullptr,*radioOffsetMs_=nullptr;
 	QCheckBox *autoSync_=nullptr,*autoRestartAudio_=nullptr;
 	int lastCaptionOffsetMs_=0;
