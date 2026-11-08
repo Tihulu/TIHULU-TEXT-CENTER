@@ -58,6 +58,7 @@ def main():
             self.latest = {"original": "", "translated": "", "source": "none"}
             self.caption_history=[]
             self.caption_sequence=0
+            self.last_signal_measure_epoch_ms=None
             self.channels = []
             self.setStyleSheet("""
                 QMainWindow, QWidget {background:#101823;color:#e5edf4;font-family:Sans;font-size:13px}
@@ -577,6 +578,8 @@ def main():
             channel=self.channels[idx]
             self.stop()
             self.caption_history.clear()
+            self.last_signal_measure_epoch_ms=None
+            self.signal_result.setText("New service: signal not yet measured")
             self.latest={"original":"","translated":"","source":"changing_channel"}
             self.web_muted_host=False
             self.last_playback_error=False
@@ -604,6 +607,7 @@ def main():
         def stop(self):
             self.capture.stop()
             self.caption_history.clear()
+            self.last_signal_measure_epoch_ms=None
             self.web_muted_host=False
             if hasattr(self,"player_hint"):
                 self.player_hint.setText("Receiver stopped · select a channel to watch")
@@ -801,8 +805,10 @@ def main():
                         self.open_channel_manager()
                 elif kind == "measurement":
                     if "error" in info:
+                        self.last_signal_measure_epoch_ms=None
                         self.signal_result.setText("Signal tool error: " + info["error"])
                     else:
+                        self.last_signal_measure_epoch_ms=round(time.time()*1000)
                         self.signal_result.setText(
                             f"C/N: {info['cn_min_db']}–{info['cn_max_db']} dB | "
                             f"UCB change: {info['ucb_delta']} | "
