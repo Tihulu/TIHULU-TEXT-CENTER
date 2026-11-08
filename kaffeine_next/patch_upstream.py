@@ -974,34 +974,56 @@ QAbstractButton *StartTab::addShortcut''')
     change(vlch, '''\tvoid setExternalSubtitle(const QUrl &subtitleUrl) override;''',
            '''\tvoid setExternalSubtitle(const QUrl &subtitleUrl) override;
 \tvoid setTihuluNativeCaption(const QString &text, bool atTop,
-\t\tint fontSize, int textOpacity, const QString &color);''')
+\t\tint fontSize, int textOpacity, const QString &color,
+\t\tint backgroundPercent = 0,
+\t\tconst QString &backgroundColor = QString());''')
     change(vlch, '''\tQByteArray typeOfDevice;''',
            '''\tQByteArray typeOfDevice;
 \tQString tihuluCaptionCacheKey;
-\tqint64 tihuluCaptionLastSentMs = 0;''')
+\tqint64 tihuluCaptionLastSentMs = 0;
+\t// Private temporary PNGs are composited by libVLC's logo filter, not a
+\t// QWidget covering live video. Keep recent files until VLC has read them.
+\tQTemporaryDir tihuluCaptionLogoDir;
+\tQString tihuluCaptionLogoActiveFile;
+\tQStringList tihuluCaptionLogoFiles;
+\tquint64 tihuluCaptionLogoSequence = 0;''')
+    # QTemporaryDir owns short-lived AI caption images and removes them at
+    # player destruction; the directory is private to this process.
+    change(vlch, '#include <QByteArray>\n',
+           '#include <QByteArray>\n#include <QTemporaryDir>\n#include <QStringList>\n')
     vlcc = "src/backend-vlc/vlcmediawidget.cpp"
     change(vlcc, '#include "vlcmediawidget.h"\n',
-           '#include "vlcmediawidget.h"\n#include <QColor>\n#include <QDateTime>\n')
+           '#include "vlcmediawidget.h"\n#include <QColor>\n#include <QDateTime>\n'
+           '#include <QDir>\n#include <QFile>\n#include <QFont>\n'
+           '#include <QFontMetrics>\n#include <QImage>\n'
+           '#include <QPainter>\n')
     change(vlcc, '''\tlibvlc_media_player_set_media(vlcMediaPlayer, vlcMedia);''',
            '''\tlibvlc_media_player_set_media(vlcMediaPlayer, vlcMedia);
 \t// A new media/video compositor invalidates the last caption render.
-\ttihuluCaptionCacheKey.clear();''')
+\ttihuluCaptionCacheKey.clear();
+\ttihuluCaptionLogoActiveFile.clear();''')
     change(vlcc, '''void VlcMediaWidget::setExternalSubtitle(const QUrl &url)
 {''', '''void VlcMediaWidget::setTihuluNativeCaption(const QString &text, bool atTop,
-\tint fontSize, int textOpacity, const QString &color)
+\tint fontSize, int textOpacity, const QString &color,
+\tint backgroundPercent, const QString &backgroundColor)
 {
 \tif (vlcMediaPlayer == NULL) return;
 \tif (text.isEmpty() || textOpacity <= 0) {
-\t\tif (!tihuluCaptionCacheKey.isEmpty()) {
+\t\tif (!tihuluCaptionCacheKey.isEmpty() ||
+\t\t    !tihuluCaptionLogoActiveFile.isEmpty()) {
 \t\t\tlibvlc_video_set_marquee_int(vlcMediaPlayer, libvlc_marquee_Enable, 0);
+\t\t\tlibvlc_video_set_logo_int(vlcMediaPlayer, libvlc_logo_enable, 0);
 \t\t\ttihuluCaptionCacheKey.clear();
+\t\t\ttihuluCaptionLogoActiveFile.clear();
 \t\t}
 \t\treturn;
 \t}
 \tconst QString requestedKey = text + QLatin1Char('|')
 \t\t+ QString::number(int(atTop)) + QLatin1Char('|')
 \t\t+ QString::number(fontSize) + QLatin1Char('|')
-\t\t+ QString::number(textOpacity) + QLatin1Char('|') + color;
+\t\t+ QString::number(textOpacity) + QLatin1Char('|') + color
+\t\t+ QLatin1Char('|') + QString::number(backgroundPercent)
+\t\t+ QLatin1Char('|') + backgroundColor;
 \t// On a DVB tune, VOUT starts after the UI first publishes the caption.
 \t// Do not cache an unrenderable caption, and periodically reassert an active
 \t// caption after video-output restarts or renderer reconfiguration.
