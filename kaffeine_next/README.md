@@ -672,14 +672,17 @@ Whisper models or DVB-T2 tuner configuration.
 
 **Radio features included**: real Band III ensemble scanning on
 owner request, persistent station cache, per-service selection and
-playback, broadcaster DLS text, MOT slideshow, live ensemble and SNR/FIC
-error indicators, receiver information and on-demand spectrum, null
-spectrum, constellation and impulse-response visualizations. The
+playback, explicit automatic/RTL-SDR/SoapySDR driver choice, owner-initiated
+local MP3 recording without overwriting existing files, broadcaster DLS
+text, MOT slideshow, live ensemble and SNR/FIC/audio error indicators,
+TII transmitter-count status, receiver information and on-demand spectrum,
+null spectrum, constellation and impulse-response visualizations. The
 interface uses the actual welle `/mux.json`, `/channel`,
 `/mp3/<SID>`, `/slide/<SID>` and RF diagnostic endpoints on the
 private 127.0.0.1 server. It **does not yet replicate every original
-welle.io GUI menu**, complex TII visualization or independent driver
-configuration dialog; those are not claimed as complete. Only one
+welle.io GUI menu**, e.g. detailed TII transmitter diagrams, advanced
+FFT placement/coarse-correction controls or historical RF recording;
+those are not claimed as complete. Only one
 application should own a particular RTL-SDR at once.
 
 **Offline radio AI** is an optional **Start offline live captions**
