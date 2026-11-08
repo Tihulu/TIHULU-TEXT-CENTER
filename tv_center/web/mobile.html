@@ -80,6 +80,24 @@ Use the six-digit code shown on the host. Local access is opt-in and stops with 
 </section>
 </section>
 <aside>
+<section class="panel"><h2>Desktop captions & TV buffer</h2>
+<div class="control-inline"><label>Source mode
+<select id="desktop-caption-mode"><option value="off">Off</option>
+<option value="teletext">Broadcaster Teletext</option>
+<option value="page">Teletext page</option>
+<option value="asr">Whisper ASR</option>
+<option value="auto">Broadcast captions → Whisper fallback</option></select></label>
+<button id="desktop-apply-mode" disabled>Apply to computer</button></div>
+<div class="control-inline">
+<label>Desktop caption offset (seconds)
+<input type="number" min="-10" max="10" step="0.25" id="desktop-offset" value="0"></label>
+<button id="desktop-apply-offset" disabled>Apply offset</button></div>
+<div class="control-inline"><label>Desktop TV buffer (seconds)
+<input type="number" min="0" max="20" step="0.5" id="desktop-buffer" value="0"></label>
+<button id="desktop-apply-buffer" disabled>Apply buffer</button></div>
+<div class="actions wrap"><button id="desktop-captions-start" disabled>Start desktop captions</button>
+<button id="desktop-captions-stop" disabled>Stop desktop captions</button></div>
+<p id="desktop-caption-status" class="muted">All changes run inside the native GUI and the receiver's buffer must acknowledge them.</p></section>
 <section class="panel"><h2>Host playback</h2>
 <div class="actions wrap">
 <button id="host-play" disabled>Play</button><button id="host-pause" disabled>Pause</button>
