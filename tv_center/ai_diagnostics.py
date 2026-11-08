@@ -61,7 +61,19 @@ def inspect():
             "enabled": settings.values["translation_enabled"],
             "engine": settings.values["translation_model"],
             "argos_runtime_installed": AIRuntime().status()["installed"],
-            "nllb_model_installed": TranslationModelMarket().status()["installed"]
+            "nllb_model_installed": TranslationModelMarket().status()["installed"],
+            "readiness_note": (
+                "Model files are not proof of a valid translation. "
+                "Use AI Model Market → Language packs → Test NLLB offline. "
+                "On NLLB failure, real installed Argos packs are tried; "
+                "original captions are preserved otherwise.")
+        },
+        "caption_ui": {
+            "feature_revision": "multilingual-nllb-failover-2026-11-08",
+            "includes":"short word-timed captions, backup translator, speaker options",
+            "restart_required": (
+                "After reinstalling, close the old Live Captions sidecar "
+                "using Stop subtitles & Exit and reopen via Kaffeine.")
         },
         "npu_explanation": (
             "RTX Tensor Cores are part of the NVIDIA GPU, not a separate "
