@@ -218,8 +218,9 @@ def repair_meta_embeddings_from_checkpoint(model, checkpoint):
     if not missing:
         return []
     if not checkpoint.is_file() or checkpoint.stat().st_size < 200_000_000:
-        raise RuntimeError("NLLB safetensors checkpoint file is missing or "
-                           "implausibly short; install/repair genuine weights")
+        raise RuntimeError("NLLB has unmaterialized meta tensors; "
+                           "checkpoint file is missing or implausibly short. "
+                           "Install/repair genuine weights.")
     try:
         import torch
         from safetensors import safe_open
