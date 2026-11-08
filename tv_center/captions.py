@@ -228,13 +228,17 @@ def decode_segment(ts: bytes, *, mode="auto", page=150, source="de",
         if mode in ("teletext", "page", "auto"):
             # Automatic captions must use *actual* subtitle pages signaled by
             # the broadcaster, not arbitrary Teletext news/information pages.
-            selected_page = page if mode == "page" else "subtitle"
+            # A selected broadcaster Teletext subtitle channel has an
+            # explicit DVB page and PID; 'subtitle' would mix languages.
+            selected_page = page if mode == "page" or teletext_pid is not None else "subtitle"
             teletext_start = time.perf_counter()
             original = (teletext_from_clip(p, selected_page, service_id, teletext_pid)
                         if teletext_pid is not None else
                         teletext_from_clip(p, selected_page, service_id))
             teletext_ms = round((time.perf_counter()-teletext_start)*1000)
-            used = (f"teletext_page_{page}" if selected_page != "subtitle"
+            used = ((f"broadcaster_teletext_subtitles_page_{page}"
+                     if teletext_pid is not None else f"teletext_page_{page}")
+                    if selected_page != "subtitle"
                     else "broadcaster_teletext_subtitles") if original else ""
         if not original and mode in ("asr", "auto"):
             asr_start = time.perf_counter()
