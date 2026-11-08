@@ -42,8 +42,10 @@ class CaptionTap:
         self.stop = threading.Event()
         from .continuous_captions import BufferedCaptionQueue
         from .transport_health import TransportContinuityMeter
+        from .ts_capture_integrity import CaptionPacketGuard
         from .subtitle_tracks import TeletextSubtitleDiscovery
         self.transport_health = TransportContinuityMeter()
+        self.packet_guard = CaptionPacketGuard()
         self.subtitle_discovery = TeletextSubtitleDiscovery()
         self.program_epoch = 0
         self.recv_buffer_bytes = None
@@ -106,7 +108,8 @@ class CaptionTap:
         last_revision = -1
         previous_segment = b""
         previous_duration = 0.0
-        from .continuous_captions import CapturedClip, prepended_overlap
+        quality = {"invalid":0,"duplicates":0,"gaps":0,"critical_gaps":0}
+        from .continuous_captions import CapturedClip, prepended_overlap, estimate_overlap_seconds
         from .mpegts import current_program_id
         while not self.stop.is_set():
             try:
@@ -152,6 +155,9 @@ class CaptionTap:
                     self.previous_original = ""
                     self.previous_revision = -1
                     self.transport_health.reset()
+                    self.packet_guard.reset()
+                    quality = {"invalid":0,"duplicates":0,"gaps":0,
+                               "critical_gaps":0}
                     self.subtitle_discovery.clear()
                     self.program_epoch += 1
                     self._note_warning(
@@ -179,29 +185,71 @@ class CaptionTap:
                 last = time.monotonic()
                 previous_segment = b""
                 previous_duration = 0.0
+                quality = {"invalid":0,"duplicates":0,"gaps":0,
+                           "critical_gaps":0}
+                self.packet_guard.reset()
             if options["mode"] == "off":
                 chunks.clear()
                 last = time.monotonic()
                 continue
-            if len(chunks) + len(data) > MAX_TS_BYTES:
+            actual_audio_pid = options.get("audio_pid")
+            if actual_audio_pid is None:
+                audio_signals = self.subtitle_discovery.snapshot_audio()
+                if len(audio_signals)==1:
+                    actual_audio_pid = audio_signals[0].get("pid")
+            clean, measured = self.packet_guard.filter(
+                data, audio_pid=actual_audio_pid,
+                teletext_pid=options.get("teletext_pid"))
+            for key in quality:
+                quality[key] += measured[key]
+            if not clean:
+                continue
+            if len(chunks) + len(clean) > MAX_TS_BYTES:
                 chunks.clear()
                 self._note_warning(
                     "RF caption capture exceeded 24 MiB; audio may be incomplete")
                 last = time.monotonic()
                 previous_segment = b""
                 previous_duration = 0.0
-            chunks.extend(data)
+                quality = {"invalid":0,"duplicates":0,"gaps":0,
+                           "critical_gaps":0}
+                self.packet_guard.reset()
+            chunks.extend(clean)
             now = time.monotonic()
             if now - last >= CHUNK_SECONDS and len(chunks) >= 188 * 300:
                 raw = bytes(chunks)
+                # The 1 MiB overlap cap may make the actual pre-roll
+                # shorter than 1s on high-bitrate TV. Measure it from
+                # the retained TS size/rate so Whisper word times are not
+                # shifted before the video's real speech.
+                overlap = estimate_overlap_seconds(
+                    previous_segment, previous_duration, OVERLAP_SECONDS)
                 capture = prepended_overlap(
                     raw, previous_segment, previous_duration, OVERLAP_SECONDS)
-                started = last - (OVERLAP_SECONDS if previous_segment else 0)
+                started = last - overlap
                 previous_segment = raw
                 previous_duration = max(0.5, now-last)
                 chunks.clear()
                 last = now
+                segment_quality = dict(quality)
+                quality = {"invalid":0,"duplicates":0,"gaps":0,
+                           "critical_gaps":0}
+                if (segment_quality["critical_gaps"] >= 3 or
+                        segment_quality["invalid"] >= 12):
+                    # Incomplete audio PES fragments can trigger repeated
+                    # ASR hallucinations. Never feed a severely damaged
+                    # clip as though it were intact broadcast dialogue.
+                    self.previous_original = ""
+                    self.previous_revision = -1
+                    previous_segment = b""
+                    previous_duration = 0.0
+                    self._note_warning(
+                        "Subtitle TS audio packet integrity compromised; "
+                        "discarded damaged sample and will resume on "
+                        "the next complete capture.")
+                    continue
                 captured_options = dict(options)
+                captured_options["ts_integrity"] = segment_quality
                 captured_options["service_id"] = self.program_id
                 captured_options["program_epoch"] = self.program_epoch
                 queued = self.work_queue.offer(
@@ -261,6 +309,15 @@ class CaptionTap:
                     next(iter(result.get("translation_errors", {}).values()), None)
                     or result.get("error") or
                     "Language packs unavailable. Install via Model Market.")
+            quality = options.get("ts_integrity") or {}
+            result["ts_integrity"] = quality
+            if quality.get("critical_gaps", 0) > 0:
+                # Audio gaps break the assumption that raw ASR word offsets
+                # map continuously to the captured transport stream.
+                # Show coherent fallback phrases, never fake word-sync.
+                result["words"] = []
+                result["word_timing_source"] = None
+                result["timing_note"] = "Audio PID discontinuity: word timing disabled"
             result["captured_start"] = captured_start
             result["captured_end"] = captured_end
             result["decoded_at"] = time.monotonic()
