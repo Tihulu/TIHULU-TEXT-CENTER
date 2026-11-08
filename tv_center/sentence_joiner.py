@@ -64,8 +64,17 @@ class LiveSentenceJoiner:
         if language:
             self.language=language
         if text:
-            self.pending=(self.pending+" "+text).strip()
-            self.chunks+=1
+            if self.pending:
+                # Even after the prior raw-clip overlap was trimmed, a long
+                # ASR hypothesis may repeat words already held by the
+                # sentence assembler. Trim a verified 4+ word boundary only.
+                # Keep shorter repetitions ("nein nein", "ja ja") intact.
+                from kaffeine_next.continuous_captions import remove_repeated_prefix
+                text = remove_repeated_prefix(
+                    self.pending, text, maximum_words=64, minimum_words=4)
+            if text:
+                self.pending=(self.pending+" "+text).strip()
+                self.chunks+=1
         elif not self.pending:
             return {"text":"","complete":False,"pending":False,"chunks":0}
         boundary=self._cut_at_last_sentence(self.pending)
