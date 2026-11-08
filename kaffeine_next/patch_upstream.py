@@ -471,7 +471,7 @@ void OsdWidget::showObject(OsdObject *osdObject_, int duration)
 \t\t// X11/Wayland paths. Explicitly CLEAR every repainted pixel;
 \t\t// simply drawing an RGBA(0) rectangle previously left a black box.
 \t\tpainter.setCompositionMode(QPainter::CompositionMode_Source);
-\t\tpainter.fillRect(rect(), Qt::transparent);
+\t\tpainter.fillRect(QWidget::rect(), Qt::transparent);
 \t\tpainter.setCompositionMode(QPainter::CompositionMode_SourceOver);
 \t\tpainter.setRenderHint(QPainter::Antialiasing);
 \t\tif (tihuluCaptionOpacity > 0) {
