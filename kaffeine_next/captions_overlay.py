@@ -406,6 +406,9 @@ def main(argv=None):
                            "Live TV and manually entered delay are unchanged.")
     sync_estimate.setWordWrap(True)
     timing_layout.addRow(sync_estimate)
+    effective_status = QLabel("Native TV delay: waiting for Kaffeine's applied buffer status…")
+    effective_status.setWordWrap(True)
+    timing_layout.addRow(effective_status)
     visibility = QHBoxLayout()
     show_video = QCheckBox("On-video subtitles"); show_video.setChecked(True)
     position = QComboBox(); position.addItems(("bottom", "top"))
@@ -486,6 +489,7 @@ def main(argv=None):
     estimator = AutoSyncEstimator(ceiling_ms=6000 if pi5 else 15000)
     auto_controller = AutoSyncController()
     last_service_id = None
+    last_effective_check = 0.0
     def options():
         with lock:
             return applied.options()
@@ -647,7 +651,7 @@ def main(argv=None):
 
     def pump():
         nonlocal current_cue, current_text, current_until, last_published
-        nonlocal applied, last_service_id
+        nonlocal applied, last_service_id, last_effective_check
         # Kaffeine is the DVB owner. Terminate sidecar when it disappears,
         # including when the settings window has been hidden.
         try:
@@ -660,6 +664,22 @@ def main(argv=None):
             pass
         mobile.expire_if_idle()
         now = time.monotonic()
+        if now - last_effective_check >= 1.0:
+            last_effective_check = now
+            effective = ipc.read_effective_delay()
+            if effective is None:
+                effective_status.setText(
+                    "Native TV delay: Kaffeine has not reported its active MPEG-TS "
+                    "buffer yet; requested value is not confirmed.")
+            else:
+                actual = effective["effective_ms"] / 1000
+                requested = effective["requested_ms"] / 1000
+                rate = effective["ts_bytes_per_second"] / 1024 / 1024
+                effective_status.setText(
+                    f"Native TV delay: {actual:.1f} s applied / "
+                    f"{requested:.1f} s requested · TS {rate:.2f} MiB/s" +
+                    (" · Limited by memory, timeshift or recovery cooldown."
+                     if effective["capped"] else " · Within native safety budget."))
         # Never reuse an ASR processing estimate across distinct TV services.
         if mobile.service_id != last_service_id:
             if last_service_id is not None:
