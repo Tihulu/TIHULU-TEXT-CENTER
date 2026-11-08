@@ -153,3 +153,59 @@ class OrbitEngine:
                     track_paths_by_norad=track_paths_by_norad,
                     total_loaded=len(self.records),warnings=list(self.warnings),
                     note="TLE geometry only. No actual RF reception or satellite data verified.")
+
+    def preview_pass(self,lat,lon,norad,start,end):
+        """Sample a selected TLE pass for the sky/ground-track preview.
+
+        This is receive-independent orbital geometry, not optical visibility,
+        RF evidence, a transmission schedule or an automatic recording.
+        """
+        from skyfield.api import wgs84
+        from .__main__ import family
+        lat=float(lat);lon=float(lon)
+        if not valid(lat,lon):
+            raise ValueError("Select valid observer coordinates")
+        if start.tzinfo is None or end.tzinfo is None:
+            raise ValueError("Pass times must include UTC offsets")
+        start=start.astimezone(timezone.utc)
+        end=end.astimezone(timezone.utc)
+        total=(end-start).total_seconds()
+        if not 0<total<=1500:
+            raise ValueError("Pass preview requires 1–1500 seconds")
+        self._load()
+        chosen=next(((item,source,sat) for item,source,sat,_age in self.records
+                     if int(item["id"])==int(norad)),None)
+        if not chosen:
+            raise ValueError("Satellite not in current native TLE cache; refresh orbit data")
+        item,source,sat=chosen
+        observer=wgs84.latlon(lat,lon)
+        step=max(5,int(math.ceil(total/100)))
+        offsets=list(range(0,int(total)+1,step))
+        if not offsets or offsets[-1]!=int(total):
+            offsets.append(int(total))
+        rows=[]
+        for offset in offsets:
+            instant=start+timedelta(seconds=offset)
+            t=self.ts.from_datetime(instant)
+            try:
+                sky=(sat-observer).at(t)
+                elevation,azimuth,distance=sky.altaz()
+                sub=wgs84.subpoint_of(sat.at(t))
+                vals=(elevation.degrees,azimuth.degrees,distance.km,
+                      sub.latitude.degrees,sub.longitude.degrees)
+                if not all(math.isfinite(v) for v in vals):
+                    continue
+                rows.append(dict(at_ms=round(instant.timestamp()*1000),
+                                 el=round(vals[0],3),az=round(vals[1]%360,3),
+                                 range_km=round(vals[2],2),
+                                 lat=round(vals[3],5),lon=round(vals[4],5)))
+            except (RuntimeError,ValueError,OverflowError,ArithmeticError):
+                continue
+        if len(rows)<2:
+            raise ValueError("No valid native Skyfield coordinates within selected pass")
+        highest=max(rows,key=lambda r:r["el"])
+        return dict(norad=int(norad),name=item["name"],family=family(source,item),
+                    aos=start.isoformat(),los=end.isoformat(),
+                    peak=highest,steps=rows,source="native_skyfield_tle",
+                    observer={"lat":lat,"lon":lon},
+                    disclaimer="Geometric prediction only; ground obstructions and RF activity unverified.")
