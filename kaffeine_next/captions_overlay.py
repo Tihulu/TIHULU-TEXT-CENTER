@@ -1437,6 +1437,7 @@ def main(argv=None):
                     int(source_changed or playback_changed))
             if source_changed or playback_changed:
                 cues.clear()
+                deferred_captions.clear()
                 current_cue = None
                 current_text = ""
                 current_until = 0.0
@@ -2246,6 +2247,7 @@ def main(argv=None):
                                 # buffer ACK. Discard old queued word cues
                                 # and pause scheduling until player confirms.
                                 cues.clear()
+                                deferred_captions.clear()
                                 current_cue = None
                                 current_text = ""
                                 current_until = 0.0
@@ -2323,6 +2325,12 @@ def main(argv=None):
                             " | Stages: TT "+str(timing.get("teletext",0))+"ms"+
                             " / ASR "+str(timing.get("asr",0))+"ms"+
                             " / translation "+str(timing.get("translation",0))+"ms")
+                    by_language=data.get("translation_languages_ms") or {}
+                    if by_language:
+                        status.setText(status.text()+" | Per target: "+
+                            " + ".join(str(lang).upper()+" "+
+                                str(milliseconds)+"ms" for lang,milliseconds
+                                in sorted(by_language.items())))
                     ts_health = tap.transport_health.snapshot()
                     status.setText(status.text()+
                         " | TS continuity gaps: "+str(ts_health["continuity_gaps"])+
@@ -2467,7 +2475,11 @@ def main(argv=None):
             ipc.publish("",applied if service_running else
                         __import__("dataclasses").replace(applied, mode="off"))
             last_published = now
-            original.setText("Waiting for next live phrase…")
+            pending_words = bool(tap.sentence_joiner.pending)
+            original.setText(
+                "Holding heard words for the next 6s audio segment…"
+                if pending_words else
+                "Listening for new TV audio · previous subtitle completed…")
             translated.setText("")
         elif now-last_published >= 1.5:
             # A real local caption-service heartbeat keeps Kaffeine's
