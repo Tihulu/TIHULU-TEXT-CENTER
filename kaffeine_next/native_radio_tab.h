@@ -33,6 +33,7 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QLabel>
+#include <QLocale>
 #include <QLineEdit>
 #include <QListWidget>
 #include <QSet>
@@ -636,11 +637,16 @@ public:
 	~TihuluRadioTab() override { stopReceiver(); }
 
 	void activate() override {
-		// NEVER move Kaffeine's shared mediaWidget into this radio panel.
-		// The normal Playback, Playlist, and Television activate() methods
-		// remain sole owners of the video surface. Radio uses libVLC only
-		// for audio output, with its own visible AI and station metadata.
+		// Never move the shared video MediaWidget into this radio panel.
 		radioCanvas_->setFocus();
+		if(!webCatalogRequested_) {
+			webCatalogRequested_=true;
+			const QString systemCountry=QLocale::system().name()
+				.section(QLatin1Char('_'),1,1).toUpper();
+			webCountry_->setText(QRegularExpression(QLatin1String("^[A-Z]{2}$"))
+				.match(systemCountry).hasMatch()?systemCountry:QLatin1String("DE"));
+			QTimer::singleShot(100,this,[this](){searchInternetRadio();});
+		}
 	}
 
 private:
@@ -1780,7 +1786,7 @@ private:
 	QCheckBox *directSampling_=nullptr;
 	bool analogStopping_=false;
 	QSet<QString> internetFavorites_;
-	bool webPlaying_=false;
+	bool webPlaying_=false,webCatalogRequested_=false;
 	QCheckBox *favoritesOnly_=nullptr;
 	QLabel *libraryStatus_=nullptr;
 	QSet<QString> favorites_;
