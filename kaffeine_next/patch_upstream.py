@@ -353,7 +353,9 @@ QAbstractButton *StartTab::addShortcut''')
 		hubProcess->setProperty("partial",QByteArray());
 		hubProcess->start(QLatin1String("tihulu-tv-center"),
 			{QLatin1String("remote-hub"),QLatin1String("--media-root"),folder,
-			 QLatin1String("--bind"),QLatin1String("127.0.0.1")});
+			 QLatin1String("--bind"),QLatin1String("127.0.0.1"),
+			 QLatin1String("--native-pid"),
+			 QString::number(QCoreApplication::applicationPid())});
 		if(!hubProcess->waitForStarted(1500)) {
 			QMessageBox::warning(this,i18n("Remote hub"),
 				i18n("Cannot start Python companion; run "
