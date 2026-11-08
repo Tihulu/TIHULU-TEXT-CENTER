@@ -473,7 +473,7 @@ export function createSatelliteMaps({getTles,getSatLib,getPasses,getLastCapture,
    }
    skyHit.push({x,y,id:s.id});
   }
-  if(!skyHit.length){
+  if(!skyHit.length&&!passPreview?.steps?.length){
    ctx.fillStyle="#c5d9ef";ctx.font="16px system-ui";ctx.textAlign="center";
    ctx.fillText(getTles().length?"No satellites above horizon in this subset.":"Load orbital elements to display the sky.",cx,H-24);
   }
