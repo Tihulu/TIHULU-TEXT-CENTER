@@ -320,6 +320,36 @@ class TVWebMixin:
             return {"scan_requested":True,"profile":self.current_profile(),
                     "backend":"native_tv_center",
                     "note":"Real RF scan started on host, existing channel data preserved on failure"}
+        if action=="set_desktop_caption_mode":
+            choice=params.get("mode")
+            modes=["off","teletext","asr","auto","page"]
+            if choice not in modes:
+                raise ValueError("Invalid native subtitle mode")
+            self.mode.setCurrentIndex(modes.index(choice))
+            self.apply_mode()
+            if self.capture.caption_mode!="off":
+                self.last_desktop_caption_mode=self.capture.caption_mode
+            return {"actual_mode":self.capture.caption_mode,
+                    "note":"Applied native caption mode on host"}
+        if action=="desktop_subtitles_running":
+            should_run=params.get("running")
+            if type(should_run) is not bool:
+                raise ValueError("Subtitle Start/Stop requires a boolean")
+            modes=["off","teletext","asr","auto","page"]
+            current=self.capture.caption_mode
+            if should_run:
+                choice=(current if current!="off" else
+                        getattr(self,"last_desktop_caption_mode","teletext"))
+            else:
+                if current!="off":
+                    self.last_desktop_caption_mode=current
+                choice="off"
+            self.mode.setCurrentIndex(modes.index(choice))
+            self.apply_mode()
+            return {"running":self.capture.caption_mode!="off",
+                    "actual_mode":self.capture.caption_mode,
+                    "note":"Native caption state is "+
+                    ("running" if self.capture.caption_mode!="off" else "off")}
         if action=="set_captions":
             mode=params.get("mode")
             modes=["off","teletext","asr","auto","page"]
