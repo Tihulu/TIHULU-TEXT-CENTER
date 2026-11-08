@@ -66,7 +66,7 @@ class CaptionConfig:
         if (not isinstance(self.speaker_aliases,tuple) or
                 len(self.speaker_aliases)>4 or
                 any(not isinstance(alias,str) or len(alias)>32 or
-                    "\\n" in alias or "\\r" in alias
+                    "\n" in alias or "\r" in alias
                     for alias in self.speaker_aliases)):
             raise ValueError("Speaker labels must be four short names or fewer")
         if type(self.offset_ms) is not int or not -10000 <= self.offset_ms <= 10000:
