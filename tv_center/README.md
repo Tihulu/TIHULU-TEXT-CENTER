@@ -457,6 +457,49 @@ reception route, not the default or a dependency for WebUSB/WASM or AI.
   uploaded or automatically written to the physical device. Pure logic has
   synthetic fixture tests, but no physical RF-lock acceptance.
 
+### Linux `USBDevice.open(): Access denied` (Pop!_OS / Ubuntu / Debian)
+
+**At `open()`, the browser selected the device but did not gain OS-level
+access to its USB device node.** This is a different failure from
+`claimInterface()`, which can fail later when Linux's `em28xx` driver
+owns a DVB streaming interface. A permissions rule alone does not solve
+kernel interface ownership. The browser cannot grant itself OS rights.
+
+For a **local, active Linux desktop session** with `systemd-logind`,
+apply this *single VID/PID* udev rule manually:
+
+```sh
+printf '%s\\n' 'SUBSYSTEM=="usb", ENV{DEVTYPE}=="usb_device", ATTR{idVendor}=="2040", ATTR{idProduct}=="8268", MODE="0660", TAG+="uaccess"' | sudo tee /etc/udev/rules.d/70-tihulu-wintv-webusb.rules
+sudo udevadm control --reload-rules
+```
+
+Then physically unplug and reconnect the **Hauppauge** tuner and retry
+**Open USB** in Chromium/Chrome. This does not load firmware, change
+frontends or detach a kernel driver. On remote/headless Linux where
+`uaccess` might not grant an active seat ACL, administrators should
+instead configure a **dedicated group** with scoped device access;
+never use `MODE="0666"`, `chmod 777` or run the browser as root.
+
+- Inspect the exact USB device: `lsusb -d 2040:8268`
+- Inspect Linux driver bindings: `lsusb -t`
+- Inspect Chromium permissions: `chrome://device-log/` or
+  `chromium://device-log/`
+- If Chromium is installed as a **Snap**:
+  `snap connections chromium` and, when `raw-usb` is disconnected,
+  `sudo snap connect chromium:raw-usb`.
+- A **Flatpak** browser can additionally be blocked by sandbox rules
+  despite a correctly configured host udev device. To isolate that
+  cause, test with a non-sandboxed Chromium/Chrome package.
+- Optional **read-only** Linux diagnostic (no sudo, device changes,
+  firmware loading or driver unbinding):
+  `bash tv_center/tools/diagnose-webusb-linux.sh` from the project checkout.
+
+The TV Center page now classifies **OS open denied** separately from
+**interface claim unavailable** and displays these instructions, with
+a copyable scoped command and exported sanitized error stage. It
+**never** installs system rules from GitHub Pages. Receiver firmware,
+tuning and live scanning are separate unfinished workstreams.
+
 ### Standalone browser hardware acceptance procedure
 
 1. In Chromium or Chrome, open
