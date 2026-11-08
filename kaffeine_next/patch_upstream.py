@@ -52,59 +52,6 @@ def transform(files):
 	stackedLayout->addWidget(radioTab);
 
 	currentTabIndex = StartTabId;''')
-    # Hardware lives as an actual native tab next to Radio, NOT a floating
-    # dialog. The UI never USB-opens to determine a device's state.
-    change(main, '#include "tihulu_radio_tab.h"\n',
-           '#include "tihulu_radio_tab.h"\n#include "tihulu_hardware_tab.h"\n')
-    change(main, '''	tabBar->addTab(QIcon::fromTheme(QLatin1String("audio-radio")),
-		i18n("Radio (DAB+)"));
-	tabBar->setShape(QTabBar::RoundedWest);''',
-    '''	tabBar->addTab(QIcon::fromTheme(QLatin1String("audio-radio")),
-		i18n("Radio (DAB+)"));
-	tabBar->addTab(QIcon::fromTheme(QLatin1String("drive-removable-media")),
-		i18n("Hardware"));
-	tabBar->setShape(QTabBar::RoundedWest);''')
-    change(main, '''	TabBase *radioTab = new TihuluRadioTab(mediaWidget, this);
-	tabs.append(radioTab);
-	stackedLayout->addWidget(radioTab);
-
-	currentTabIndex = StartTabId;''',
-    '''	TabBase *radioTab = new TihuluRadioTab(mediaWidget, this);
-	tabs.append(radioTab);
-	stackedLayout->addWidget(radioTab);
-	TabBase *hardwareTab = new TihuluHardwareTab(
-		static_cast<TihuluRadioTab *>(radioTab), dvbTab, mediaWidget,
-		[this]() { activateTab(RadioTabId); },
-		[this]() { activateTab(DvbTabId); }, this);
-	tabs.append(hardwareTab);
-	stackedLayout->addWidget(hardwareTab);
-
-	currentTabIndex = StartTabId;''')
-    hdrmain = "src/mainwindow.h"
-    change(hdrmain, '''		RadioTabId = 4
-''', '''		RadioTabId = 4,
-		HardwareTabId = 5
-''')
-    change(hdrmain, '\tvoid playRadio();\n',
-           '\tvoid playRadio();\n\tvoid playHardware();\n')
-    change(main, '''void MainWindow::playRadio()
-{
-	activateTab(RadioTabId);
-}
-
-void MainWindow::configureKeys()''',
-    '''void MainWindow::playRadio()
-{
-	activateTab(RadioTabId);
-}
-
-void MainWindow::playHardware()
-{
-	activateTab(HardwareTabId);
-}
-
-void MainWindow::configureKeys()''')
-
     # Keep original Playback libVLC widget. Local file AI controls live
     # INSIDE its own tab; the older launched media-captions-ui remains
     # available only as an optional legacy menu entry.
@@ -168,6 +115,59 @@ private:
 
 void MainWindow::configureKeys()
 {''')
+    # Hardware lives as an actual native tab next to Radio, NOT a floating
+    # dialog. The UI never USB-opens to determine a device's state.
+    change(main, '#include "tihulu_radio_tab.h"\n',
+           '#include "tihulu_radio_tab.h"\n#include "tihulu_hardware_tab.h"\n')
+    change(main, '''	tabBar->addTab(QIcon::fromTheme(QLatin1String("audio-radio")),
+		i18n("Radio (DAB+)"));
+	tabBar->setShape(QTabBar::RoundedWest);''',
+    '''	tabBar->addTab(QIcon::fromTheme(QLatin1String("audio-radio")),
+		i18n("Radio (DAB+)"));
+	tabBar->addTab(QIcon::fromTheme(QLatin1String("drive-removable-media")),
+		i18n("Hardware"));
+	tabBar->setShape(QTabBar::RoundedWest);''')
+    change(main, '''	TabBase *radioTab = new TihuluRadioTab(mediaWidget, this);
+	tabs.append(radioTab);
+	stackedLayout->addWidget(radioTab);
+
+	currentTabIndex = StartTabId;''',
+    '''	TabBase *radioTab = new TihuluRadioTab(mediaWidget, this);
+	tabs.append(radioTab);
+	stackedLayout->addWidget(radioTab);
+	TabBase *hardwareTab = new TihuluHardwareTab(
+		static_cast<TihuluRadioTab *>(radioTab), dvbTab, mediaWidget,
+		[this]() { activateTab(RadioTabId); },
+		[this]() { activateTab(DvbTabId); }, this);
+	tabs.append(hardwareTab);
+	stackedLayout->addWidget(hardwareTab);
+
+	currentTabIndex = StartTabId;''')
+    hdrmain = "src/mainwindow.h"
+    change(hdrmain, '''		RadioTabId = 4
+''', '''		RadioTabId = 4,
+		HardwareTabId = 5
+''')
+    change(hdrmain, '\tvoid playRadio();\n',
+           '\tvoid playRadio();\n\tvoid playHardware();\n')
+    change(main, '''void MainWindow::playRadio()
+{
+	activateTab(RadioTabId);
+}
+
+void MainWindow::configureKeys()''',
+    '''void MainWindow::playRadio()
+{
+	activateTab(RadioTabId);
+}
+
+void MainWindow::playHardware()
+{
+	activateTab(HardwareTabId);
+}
+
+void MainWindow::configureKeys()''')
+
     change(main, '''#endif /* HAVE_DVB == 1 */
 }
 
