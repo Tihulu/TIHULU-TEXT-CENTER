@@ -164,7 +164,8 @@ class NativeReceiver(QObject):
         if method not in {
             "status","connect","usb_open","sample","disconnect","stop",
             "capture","auto","auto_cancel","schedule","refresh","passes","geocode",
-            "tle_catalog","orbit_snapshot","tle_custom","world_outline","tle_import",
+            "tle_catalog","orbit_snapshot","pass_preview","tle_custom","world_outline","tle_import",
+            "cancel_schedule",
         }:
             self.reply.emit(request_id,json.dumps({
                 "ok":False,"error":"Native command is not allowlisted"}))
@@ -339,6 +340,26 @@ class NativeReceiver(QObject):
             self._cache_manual_tles(content.decode("ascii","strict"))
             return {"entries":[{**row,"family":family("manual",row)} for row in rows[:1]],
                     "source":"native_celestrak_custom_norad"}
+        if command=="cancel_schedule":
+            job_id=args.get("job_id")
+            if not isinstance(job_id,str) or not re.fullmatch(r"[A-Za-z0-9_-]{1,40}",job_id):
+                raise ValueError("Select a valid native pending job")
+            return st.cancel(job_id)
+        if command=="pass_preview":
+            lat=float(args.get("lat"));lon=float(args.get("lon"))
+            norad=args.get("norad")
+            aos_ms=args.get("aos_ms");los_ms=args.get("los_ms")
+            if type(norad) is not int or not 1000<=norad<=99999:
+                raise ValueError("Selected satellite NORAD number required")
+            if type(aos_ms) not in (int,float) or type(los_ms) not in (int,float):
+                raise ValueError("AOS and LOS must be numeric UTC milliseconds")
+            if not 0 < los_ms-aos_ms <= 1500000:
+                raise ValueError("Pass preview limited to a real 25 minute window")
+            if abs(time.time()*1000-aos_ms)>86400000*4:
+                raise ValueError("Pass preview must be within four days of now")
+            start=datetime.fromtimestamp(aos_ms/1000,timezone.utc)
+            end=datetime.fromtimestamp(los_ms/1000,timezone.utc)
+            return self.orbit_engine.preview_pass(lat,lon,norad,start,end)
         if command=="orbit_snapshot":
             lat=float(args.get("lat"))
             lon=float(args.get("lon"))
@@ -429,7 +450,6 @@ class NativeReceiver(QObject):
                 hours=int(args.get("hours",24)),elevation=5)
             norad=int(args["norad"])
             at=int(args["aos_millis"])/1000
-            from datetime import datetime,timezone
             possible=[p for p in data["predictions"] if p["norad"]==norad
                       and abs(datetime.fromisoformat(p["aos"]).timestamp()-at)<180]
             if not possible:
