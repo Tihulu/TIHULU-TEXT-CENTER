@@ -68,7 +68,7 @@ class RadioAndLocalMediaTests(unittest.TestCase):
         from tv_center.media_ai import _near_silent_pcm
         import struct
         self.assertTrue(_near_silent_pcm(b""))
-        self.assertTrue(_near_silent_pcm(b"\\x00" * (32000 * 6 * 2)))
+        self.assertTrue(_near_silent_pcm(b"\x00" * (32000 * 6 * 2)))
         self.assertFalse(_near_silent_pcm(struct.pack("<h",500) * 32000))
         self.assertFalse(_near_silent_pcm(struct.pack("<h",-2000) * 32000))
         code=(Path(__file__).resolve().parent.parent / "tv_center"/"radio_ai.py").read_text()
