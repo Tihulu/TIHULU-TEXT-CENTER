@@ -199,6 +199,11 @@ All location methods are optional. City suggestions are offline by default; GPS 
 <button id="browser-calendar-next" class="secondary" type="button">Next day</button></div>
 <div id="browser-calendar-grid" class="sat-calendar-grid" aria-live="polite">No scheduled RF jobs.</div>
 </section>
+<section id="predicted-pass-calendar" class="pass-prediction-calendar" aria-labelledby="predicted-pass-calendar-title">
+<h3 id="predicted-pass-calendar-title">Predicted passes · orbital calendar</h3>
+<p class="hint">TLE-only geometric opportunities, separate from the RF recording calendar. Select Preview to inspect a pass in the sky/ground map. No receiver required.</p>
+<div id="predicted-pass-calendar-grid" class="predicted-pass-calendar-grid" aria-live="polite">Calculate passes to view their predicted local times.</div>
+</section>
 <p id="scheduled-report" class="status" role="status">After a real capture, the sample-level report appears here. Only measured USB bytes are reported.</p>
 </section>
 </div></div>
@@ -231,6 +236,17 @@ All location methods are optional. City suggestions are offline by default; GPS 
 <p id="map-state" class="status" aria-live="polite">Load orbital elements to populate the maps. No RF data detected.</p>
 <div class="sat-map-layout">
 <div class="map-primary">
+<div class="pass-preview-toolbar" id="pass-preview-controls">
+<label>Selected predicted pass
+<select id="map-pass-select" aria-label="Select an upcoming predicted satellite pass"><option value="">Calculate passes to preview a trajectory</option></select></label>
+<button id="map-pass-preview" type="button" class="secondary">Preview trajectory</button>
+<button id="map-pass-play" type="button" class="secondary" disabled>Play pass</button>
+<button id="map-pass-stop" type="button" class="secondary" disabled>Pause preview</button>
+<button id="map-pass-clear" type="button" class="secondary" disabled>Clear</button>
+<label class="pass-preview-scrubber">Pass progress
+<input id="map-pass-time" type="range" min="0" max="1" step="1" value="0" disabled></label>
+<p id="map-pass-summary" class="map-caption" role="status">Select a calculated pass to preview its north/east sky trajectory, AOS, peak and LOS. This works without SDR hardware.</p>
+</div>
 <div id="map-sky-pane" role="tabpanel" aria-labelledby="map-tab-sky">
 <canvas id="sky-chart" width="760" height="620" tabindex="0" aria-label="Polar sky plot: north up, east right; click a satellite to inspect it"></canvas>
 <p class="map-caption">Horizon = outside circle · zenith = center · north at top, east at right. Click a colored satellite dot to inspect the pass. This is an estimated sky position, not optical visibility or RF reception.</p>
