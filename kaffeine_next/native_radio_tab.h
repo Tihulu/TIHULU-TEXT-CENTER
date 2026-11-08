@@ -13,6 +13,7 @@
 
 #include <QCheckBox>
 #include <QComboBox>
+#include <QCompleter>
 #include <QDateTime>
 #include <QDial>
 #include <QDoubleSpinBox>
@@ -148,9 +149,32 @@ public:
 		auto *webSearchRow = new QHBoxLayout();
 		webSearch_ = new QLineEdit(webGroup);
 		webSearch_->setPlaceholderText(tr("Search station name · e.g. WDR, BBC, TRT"));
-		webCountry_ = new QLineEdit(webGroup);
-		webCountry_->setPlaceholderText(tr("Country ISO code (optional: DE, TR...)"));
-		webCountry_->setMaximumWidth(230);
+		webCountry_ = new QComboBox(webGroup);
+		webCountry_->setMinimumWidth(175);
+		webCountry_->setMaximumWidth(300);
+		webCountry_->setSizePolicy(QSizePolicy::Preferred,QSizePolicy::Fixed);
+		webCountry_->addItem(tr("All countries · worldwide"),QString());
+		QMap<QString,QString> world;
+		const auto locales=QLocale::matchingLocales(
+			QLocale::AnyLanguage,QLocale::AnyScript,QLocale::AnyCountry);
+		for(const QLocale &loc:locales) {
+			const QString code=loc.name().section(QLatin1Char('_'),1).toUpper();
+			if(!QRegularExpression(QLatin1String("^[A-Z]{2}$")).match(code).hasMatch())
+				continue;
+			QString countryName=QLocale::countryToString(loc.country());
+			if(countryName.isEmpty()) continue;
+			world.insert(countryName+QLatin1String(" (")+code+QLatin1Char(')'),code);
+		}
+		for(auto it=world.constBegin();it!=world.constEnd();++it)
+			webCountry_->addItem(it.key(),it.value());
+		webCountry_->setEditable(true);
+		webCountry_->setInsertPolicy(QComboBox::NoInsert);
+		webCountry_->setMaxVisibleItems(20);
+		webCountry_->setToolTip(tr("Choose a country or type its name/ISO code; "
+			"the online directory is searched after selecting a country."));
+		webCountry_->completer()->setFilterMode(Qt::MatchContains);
+		webCountry_->completer()->setCaseSensitivity(Qt::CaseInsensitive);
+		webCountry_->setCurrentIndex(0);
 		webSearchButton_ = new QPushButton(tr("Find stations online"), webGroup);
 		webSearchRow->addWidget(webSearch_, 2);
 		webSearchRow->addWidget(webCountry_, 1);
@@ -656,6 +680,12 @@ public:
 			});
 		connect(scan_, &QPushButton::clicked, this, [this](){ beginScan(); });
 		connect(webSearchButton_, &QPushButton::clicked, this, [this](){ searchInternetRadio(); });
+		connect(webCountry_,QOverload<int>::of(&QComboBox::activated),
+			this,[this](int){
+				QSettings saved(QLatin1String("TIHULU"),QLatin1String("KaffeineRadio"));
+				saved.setValue(QLatin1String("webCountry"),webCountry_->currentData());
+				searchInternetRadio();
+			});
 		connect(webSearch_, &QLineEdit::returnPressed, this, [this](){ searchInternetRadio(); });
 		connect(webPlay_, &QPushButton::clicked, this, [this](){ playInternetRadio(webSource_->text()); });
 		connect(webProbeButton_, &QPushButton::clicked, this,[this](){probeInternetRadio();});
@@ -791,10 +821,10 @@ public:
 		}
 		if(!webCatalogRequested_) {
 			webCatalogRequested_=true;
-			const QString systemCountry=QLocale::system().name()
-				.section(QLatin1Char('_'),1,1).toUpper();
-			webCountry_->setText(QRegularExpression(QLatin1String("^[A-Z]{2}$"))
-				.match(systemCountry).hasMatch()?systemCountry:QLatin1String("DE"));
+			QSettings saved(QLatin1String("TIHULU"),QLatin1String("KaffeineRadio"));
+			const QString preference=saved.value(QLatin1String("webCountry")).toString();
+			const int index=webCountry_->findData(preference);
+			webCountry_->setCurrentIndex(index>=0?index:0);
 			QTimer::singleShot(100,this,[this](){searchInternetRadio();});
 		}
 	}
@@ -834,21 +864,28 @@ private:
 		if (url.isEmpty()) return;
 		if (internetFavorites_.contains(url)) internetFavorites_.remove(url);
 		else internetFavorites_.insert(url);
-		item->setText(0,internetFavorites_.contains(url)?QLatin1String("★"):QLatin1String("☆"));
+		item->setText(0,internetFavorites_.contains(url)?QStringLiteral("★"):QStringLiteral("☆"));
 		QSettings settings(QLatin1String("TIHULU"),QLatin1String("KaffeineRadio"));
 		settings.setValue(QLatin1String("internetFavorites"),QStringList(internetFavorites_.values()));
 		filterInternetStations();
 	}
 	void searchInternetRadio() {
 		const QString name=webSearch_->text().trimmed();
-		const QString country=webCountry_->text().trimmed().toUpper();
-		if (name.isEmpty() && country.isEmpty()) {
-			webStatus_->setText(tr("Enter a station name or country code to search."));
-			return;
-		}
-		if (!country.isEmpty() && !QRegularExpression(QLatin1String("^[A-Z]{2}$")).match(country).hasMatch()) {
-			webStatus_->setText(tr("Country must be a two-letter ISO code, e.g. DE or TR."));
-			return;
+		QString country=webCountry_->currentData().toString();
+		const QString typed=webCountry_->currentText().trimmed();
+		const QString selected=webCountry_->itemText(webCountry_->currentIndex());
+		if(typed!=selected) {
+			if(QRegularExpression(QLatin1String("^[a-zA-Z]{2}$")).match(typed).hasMatch())
+				country=typed.toUpper();
+			else {
+				const int selectedIndex=webCountry_->findText(typed,Qt::MatchExactly);
+				if(selectedIndex>=0) country=webCountry_->itemData(selectedIndex).toString();
+				else {
+					webStatus_->setText(tr("Choose a country from the list, "
+						"or type its two-letter ISO code."));
+					return;
+				}
+			}
 		}
 		QUrl url(QLatin1String("https://de1.api.radio-browser.info/json/stations/search"));
 		QUrlQuery query;
@@ -857,7 +894,7 @@ private:
 		query.addQueryItem(QLatin1String("hidebroken"),QLatin1String("true"));
 		query.addQueryItem(QLatin1String("order"),QLatin1String("votes"));
 		query.addQueryItem(QLatin1String("reverse"),QLatin1String("true"));
-		query.addQueryItem(QLatin1String("limit"),QLatin1String("40"));
+		query.addQueryItem(QLatin1String("limit"),QLatin1String("120"));
 		url.setQuery(query);
 		QNetworkRequest request(url);
 		request.setRawHeader("User-Agent","TIHULU-Media-Center/0.2 (desktop; station discovery)");
@@ -868,7 +905,7 @@ private:
 		connect(reply,&QNetworkReply::finished,this,[this,reply]() {
 			webSearchButton_->setEnabled(true);
 			const QByteArray data=reply->readAll();
-			const bool ok=reply->error()==QNetworkReply::NoError && data.size()<512*1024;
+			const bool ok=reply->error()==QNetworkReply::NoError && data.size()<2*1024*1024;
 			const QString error=reply->errorString();
 			reply->deleteLater();
 			if (!ok) { webStatus_->setText(tr("Online search failed: %1").arg(error)); return; }
@@ -890,7 +927,7 @@ private:
 				const QString country=station.value(QLatin1String("countrycode")).toString();
 				const QString codec=station.value(QLatin1String("codec")).toString();
 				auto *item=new QTreeWidgetItem(webStations_);
-				item->setText(0,internetFavorites_.contains(link)?QLatin1String("★"):QLatin1String("☆"));
+				item->setText(0,internetFavorites_.contains(link)?QStringLiteral("★"):QStringLiteral("☆"));
 				item->setText(1,name.left(120));
 				item->setText(2,country);
 				item->setText(3,codec);
@@ -2028,7 +2065,8 @@ private:
 	QTreeWidget *stations_=nullptr;
 	QComboBox *libraryBlock_=nullptr;
 	QLineEdit *stationSearch_=nullptr;
-	QLineEdit *webSearch_=nullptr,*webCountry_=nullptr,*webSource_=nullptr;
+	QLineEdit *webSearch_=nullptr,*webSource_=nullptr;
+	QComboBox *webCountry_=nullptr;
 	QPushButton *webSearchButton_=nullptr,*webPlay_=nullptr,*webStop_=nullptr,
 		*webProbeButton_=nullptr,*webAlternate_=nullptr;
 	QProcess internetProbe_{this};
