@@ -6,6 +6,10 @@ devices directly; WebCommandQueue handles serialization and timeouts.
 from __future__ import annotations
 from .lan import MobileLAN
 from .web_control import WebCommandQueue
+from .core import receiver_status
+from .scanner import check_dependencies
+from .satellite import SATELLITES
+from pathlib import Path
 
 class TVWebMixin:
     def setup_mobile_ui(self, form):
@@ -13,6 +17,8 @@ class TVWebMixin:
         self.web_commands=WebCommandQueue()
         self.mobile=None
         self.web_scan_events=[]
+        self.web_scan_requested=False
+        self.web_scan_remote=False
         self.mobile_toggle=QCheckBox("Allow phone / tablet on trusted Wi-Fi · PIN pairing")
         self.mobile_toggle.toggled.connect(self.toggle_mobile)
         form.addRow("Local mobile TV app",self.mobile_toggle)
@@ -76,6 +82,8 @@ class TVWebMixin:
                     "country":self.country.currentData(),
                     "medium":self.delivery.currentData(),
                     "satellite":self.satellite.currentData(),
+                    "diseqc_port":self.diseqc.currentData(),
+                    "backend":"native_tv_center",
                     "channels":[{
                        "key":r["key"],"name":r["name"],"kind":r["kind"],
                        "favorite":r["favorite"],"included":r["included"],
@@ -83,11 +91,45 @@ class TVWebMixin:
                        "frequency":r["channel"].frequency
                     } for r in getattr(self,"current_rows",[])]}
         if action=="scan_status":
-            return {"running":self.scanner.running,
+            device=receiver_status(self.capture.adapter)
+            from .scanner import passive_signal
+            playing=bool(self.capture.thread and self.capture.thread.is_alive())
+            running=bool(self.scanner.running or self.web_scan_requested)
+            events=self.web_scan_events[-80:]
+            last=next((e for e in reversed(events)
+                       if e.get("kind") in ("frequency","status","found","signal",
+                                            "complete","failed")),None)
+            signal_event=next((e.get("metrics") for e in reversed(events)
+                               if e.get("kind")=="signal"),None)
+            signal_text=("Scanning owns the tuner: independent live C/N "
+                         "measurement is unavailable until scan completes"
+                         if running else self.signal_result.text())
+            return {"running":running,
+                    "backend":"native_tv_center",
+                    "frontend_present":device["frontend_present"],
+                    "selected_adapter":device["adapter"],
+                    "frontend":device["frontend"],
+                    "adapters":[int(p.parent.name.removeprefix("adapter"))
+                                for p in sorted(Path("/dev/dvb").glob("adapter*/frontend0"))
+                                if p.parent.name.removeprefix("adapter").isdigit()],
+                    "busy":playing,
+                    "scanning_dependencies":check_dependencies(),
                     "profile":self.current_profile(),
-                    "events":self.web_scan_events[-60:],
+                    "country":self.country.currentData(),
+                    "medium":self.delivery.currentData(),
+                    "satellite":self.satellite.currentData(),
+                    "diseqc_port":self.diseqc.currentData(),
+                    "events":events,
+                    "last_event":last,
+                    "discovered_services":max((int(e.get("count") or 0)
+                                                for e in events
+                                                if e.get("kind")=="found"),default=0),
                     "status":self.statusbar.text(),
-                    "signal":self.signal_result.text()}
+                    "signal":signal_text,
+                    "signal_metrics":signal_event,
+                    "signal_is_live":False,
+                    "signal_note":("No signal is fabricated: C/N/UCB requires "
+                                   "a driver measurement while a service is tuned.")}
         if action=="models":
             from .model_market import ModelLibrary
             return {"models":ModelLibrary(self.ai.values["model_dir"] or None).installed(),
@@ -123,8 +165,18 @@ class TVWebMixin:
             self.mode.setCurrentIndex(4)
             return {"page":page}
         if action=="scan_cancel":
+            if not (self.scanner.running or self.web_scan_requested):
+                return {"cancel_requested":False,
+                        "note":"No active RF scan to cancel"}
             self.cancel_scan()
             return {"cancel_requested":True}
+        if action=="measure_signal":
+            if self.scanner.running or self.web_scan_requested:
+                raise RuntimeError("Cannot measure signal while scanning owns the tuner")
+            if not (self.capture.zap and self.capture.zap.poll() is None):
+                raise RuntimeError("Tune an actual channel on the computer before measuring signal")
+            self.measure_signal()
+            return {"measurement_requested":True,"note":"Await real dvb-fe-tool readings"}
         if action=="scan_start":
             if self.scanner.running or (self.capture.thread and self.capture.thread.is_alive()):
                 raise RuntimeError("Stop playing TV or scanning before starting a new scan")
@@ -142,14 +194,32 @@ class TVWebMixin:
                 si=self.satellite.findData(satellite)
                 if si<0:raise ValueError("Unsupported satellite")
                 self.satellite.setCurrentIndex(si)
+            if medium=="s":
+                port=params.get("diseqc_port")
+                if port is not None and (type(port) is not int or not 0<=port<=3):
+                    raise ValueError("DiSEqC port must be direct or 1–4")
+                idx=self.diseqc.findData(port)
+                if idx<0:
+                    raise ValueError("Unsupported DiSEqC input")
+                self.diseqc.setCurrentIndex(idx)
             self.web_scan_events.clear()
-            self.scan_channels(confirmed=True)
-            return {"scan_requested":True,"profile":self.current_profile()}
+            self.web_scan_remote=True
+            started=self.scan_channels(confirmed=True)
+            if started is not True:
+                self.web_scan_remote=False
+                raise RuntimeError("Native tuner did not start a scan")
+            self.web_scan_events.append({
+                "kind":"status","stage":0,
+                "text":"Queued actual tuner scan: "+self.current_profile()})
+            return {"scan_requested":True,"profile":self.current_profile(),
+                    "backend":"native_tv_center",
+                    "note":"Real RF scan started on host, existing channel data preserved on failure"}
         if action=="set_captions":
             mode=params.get("mode")
             modes=["off","teletext","asr","auto","page"]
             if mode not in modes:raise ValueError("Unknown caption mode")
             self.mode.setCurrentIndex(modes.index(mode))
+            self.apply_mode()
             return {"actual_mode":self.capture.caption_mode}
         raise ValueError("Unsupported native TV web action")
 
