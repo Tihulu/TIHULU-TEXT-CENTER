@@ -217,8 +217,15 @@ def repair_meta_embeddings_from_checkpoint(model, checkpoint):
     missing=unmaterialized_tensors(model,maximum=64)
     if not missing:
         return []
-    import torch
-    from safetensors import safe_open
+    if not checkpoint.is_file() or checkpoint.stat().st_size < 200_000_000:
+        raise RuntimeError("NLLB safetensors checkpoint file is missing or "
+                           "implausibly short; install/repair genuine weights")
+    try:
+        import torch
+        from safetensors import safe_open
+    except ImportError as exc:
+        raise RuntimeError("NLLB repair requires local torch and safetensors "
+                           "in the managed Python runtime") from exc
     shared_aliases=(
         "model.shared.weight", "model.encoder.embed_tokens.weight",
         "model.decoder.embed_tokens.weight", "lm_head.weight",
@@ -228,8 +235,6 @@ def repair_meta_embeddings_from_checkpoint(model, checkpoint):
         raise RuntimeError("NLLB has non-embedding meta parameters ("+
                            ", ".join(missing[:4])+
                            "); genuine checkpoint or runtime repair needed")
-    if not checkpoint.is_file() or checkpoint.stat().st_size < 200_000_000:
-        raise RuntimeError("NLLB safetensors file missing or implausibly short")
     source=None
     with safe_open(str(checkpoint),framework="pt",device="cpu") as reader:
         keys=set(reader.keys())
