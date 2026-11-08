@@ -8,12 +8,12 @@
 </head>
 <body>
 <div class="shell">
-<header><div><div class="eyebrow">TIHULU / MEDIA</div><h1>TV Center <span>Web Companion</span></h1></div>
-<div class="state" id="state">CHECKING LOCAL TV</div></header>
+<header><div><div class="eyebrow">TIHULU / MEDIA</div><h1>TV Center <span>Standalone WebUSB · WASM</span></h1></div>
+<div class="state" id="state">BROWSER · DIRECT</div></header>
 <main>
 <section class="hero">
-<div class="eyebrow">RECEIVER SESSION</div>
-<h2 id="channel">No local receiver connected</h2>
+<div class="eyebrow">NATIVE-FREE WEBUSB / WASM RESEARCH</div>
+<h2 id="channel">Standalone browser TV engine</h2>
 <p id="source">This web interface does not fake reception. Open Local TV for real Linux DVB, or use WebUSB diagnostics/Browser AI directly.</p>
 <div class="video" id="video-box">
 <video id="tv" controls playsinline preload="none" style="display:block;width:100%;max-height:52vh;background:black;min-height:160px"></video>
@@ -28,16 +28,35 @@
 <p id="translated" class="translated"></p><small id="caption-source">No transcript received</small></section>
 </section>
 <aside>
-<section class="panel" id="local-tv-panel"><h2>3 · Open Local TV — No token</h2>
-<p>For real TV channels, scanning, favorites, Teletext and HLS video, run <strong>TIHULU TV Center</strong> on this computer. It starts a token-free local web companion at <code>127.0.0.1:8768</code>. No account, copied token or pairing required on the same machine.</p>
-<div class="actions">
-<a id="local-tv-link" class="link-button" href="http://127.0.0.1:8768/" target="_blank" rel="noopener noreferrer">Open Local TV</a>
-<button id="connect" class="secondary">Check local receiver</button>
-</div>
-<p id="connection-note" role="status">GitHub Pages supports browser AI and WebUSB diagnostics directly. Use the local link for full native DVB controls.</p>
-<small>Browser security may block automatic localhost discovery from GitHub Pages. Opening the local URL directly avoids cross-origin and mixed-content restrictions. Remote phones continue using the separately enabled PIN-paired LAN app.</small>
-</section>
 
+
+<section class="panel" id="browser-driver-center">
+<h2>Direct WebUSB DVB Driver · EM28178</h2>
+<p>Standalone research implementation for <strong>Hauppauge WinTV-soloHD 2040:8268</strong>, Si2168-D60 and Si2157. Linux driver reference commands can be inspected directly in the browser. USB write and automatic DVB-T2 tuning are <strong>not enabled until validated on the physical tuner</strong>.</p>
+<div class="web-research-grid">
+  <div><label for="dvb-driver-delivery">Broadcast system</label>
+  <select id="dvb-driver-delivery"><option value="t2">DVB-T2</option><option value="t">DVB-T</option><option value="c">DVB-C</option></select></div>
+  <div><label for="dvb-driver-frequency">RF center (MHz)</label><input id="dvb-driver-frequency" type="number" value="538" min="48" max="1000" step="0.001"></div>
+  <div><label for="dvb-driver-bandwidth">Bandwidth</label><select id="dvb-driver-bandwidth">
+    <option value="8">8 MHz</option><option value="7">7 MHz</option><option value="6">6 MHz</option>
+  </select></div>
+</div>
+<label for="dvb-driver-fw">Own Si2168-D60 firmware file (optional .fw; local preview)</label>
+<input id="dvb-driver-fw" type="file" accept=".fw,.bin,application/octet-stream" />
+<div class="actions"><button id="dvb-driver-preview">Inspect browser driver commands</button></div>
+<p id="dvb-driver-status" role="status">Protocol engine loads in this browser. Hardware writes are disabled.</p>
+<details><summary>GPIO / I²C / demod / tuner command preview</summary><pre id="dvb-driver-plan">No RF command plan created.</pre></details>
+<small>Firmware is never uploaded, stored remotely, or sent to the tuner by this preview. Windows/Linux may assign the USB interface to an OS driver, preventing WebUSB access. Never unbind an in-use TV driver without first stopping playback.</small>
+</section>
+<section class="panel" id="wasm-ts-panel">
+<h2>Browser MPEG-TS Playback · WebAssembly</h2>
+<p>Open a <strong>real DVB .ts recording</strong> and decode a short video preview with an optional FFmpeg/WebAssembly engine — <strong>no local receiver service and no upload</strong>. This does not tune a live frequency. Supports common broadcast codecs where the downloaded FFmpeg core and browser decoder permit them.</p>
+<label for="wasm-ts-file">Local MPEG-TS recording (maximum 64 MiB)</label>
+<input id="wasm-ts-file" type="file" accept=".ts,.m2ts,video/mp2t">
+<div class="actions"><button id="wasm-ts-start">Decode 5 s locally (WASM)</button><button id="wasm-ts-unload" class="secondary">Unload decoder</button></div>
+<video id="wasm-ts-video" controls playsinline hidden preload="none" style="width:100%;max-height:280px;background:black;border-radius:8px;margin-top:12px"></video>
+<p id="wasm-ts-status" role="status">No media has been sent or decoded. Decoder downloads only on request and may be slow on HEVC broadcasts.</p>
+</section>
 <section class="panel" id="webusb-dvb">
 <h2>1 · Hauppauge WebUSB · Direct driver laboratory</h2>
 <p><strong>WinTV-soloHD 2040:8268 / Empia EM28178</strong>: direct USB descriptor and read-only chip-ID diagnostics are implemented. An experimental exclusive bulk-IN transfer can analyze real MPEG-TS packets if the device is already delivering them. <strong>This is NOT a functioning DVB-T2 tuner or scan driver yet.</strong></p>
@@ -62,6 +81,15 @@
 <button id="open-page" disabled>Request page</button></div>
 <div class="shortcuts"><button data-page="100">100</button><button data-page="150">150</button><button data-page="777">777</button></div>
 <p id="teletext-result">Requires an active local receiver and caption decoding.</p>
+</section>
+<section class="panel" id="local-tv-panel"><div class="eyebrow">OPTIONAL · LINUX/Pi BACKEND</div><h2>Optional native backend — not required for Browser Lab</h2>
+<p>For real TV channels, scanning, favorites, Teletext and HLS video, run <strong>TIHULU TV Center</strong> on this computer. It starts a token-free local web companion at <code>127.0.0.1:8768</code>. No account, copied token or pairing required on the same machine.</p>
+<div class="actions">
+<a id="local-tv-link" class="link-button" href="http://127.0.0.1:8768/" target="_blank" rel="noopener noreferrer">Open Local TV</a>
+<button id="connect" class="secondary">Check local receiver</button>
+</div>
+<p id="connection-note" role="status">GitHub Pages supports browser AI and WebUSB diagnostics directly. Use the local link for full native DVB controls.</p>
+<small>Browser security may block automatic localhost discovery from GitHub Pages. Opening the local URL directly avoids cross-origin and mixed-content restrictions. Remote phones continue using the separately enabled PIN-paired LAN app.</small>
 </section>
 <section class="panel" id="browser-ai-panel"><h2>Browser AI Studio · WebGPU / WASM</h2>
 <p>Run multilingual Whisper locally with your microphone or a browser-shared tab's audio, where supported. Models download only on request. Approximate 10-second recognition windows; neither zero-latency nor a fake feed.</p>
@@ -88,5 +116,5 @@
 </section>
 </aside></main>
 <footer>TOKEN-FREE LOCAL DVB · OPTIONAL PIN FOR LAN · WEBUSB DIAGNOSTICS · WEBGPU/WASM AI</footer>
-</div><script src="https://cdn.jsdelivr.net/npm/hls.js@1.7.3/dist/hls.min.js"></script><script src="./app.js?v=4"></script><script type="module" src="./web-controls.js?v=4"></script><script type="module" src="./webusb-ui.js"></script><script type="module" src="./browser-ai-ui.js"></script>
+</div><script src="https://cdn.jsdelivr.net/npm/hls.js@1.7.3/dist/hls.min.js"></script><script src="./app.js?v=5"></script><script type="module" src="./web-controls.js?v=4"></script><script type="module" src="./webusb-ui.js"></script><script type="module" src="./webusb-driver-ui.js"></script><script type="module" src="./wasm-ts-preview.js"></script><script type="module" src="./browser-ai-ui.js"></script>
 </body></html>

@@ -93,22 +93,12 @@
 
   async function initialize(){
     if(!local){
-      state("BROWSER ONLY · DVB VIA LOCAL APP");
-      $("channel").textContent="Open Local TV to watch broadcast channels";
-      $("source").textContent="The public GitHub Pages site cannot control Linux DVB. WebUSB hardware diagnostics and browser AI remain available here.";
-      $("original").textContent="TV captions are available after opening the local TV app. Browser AI can run independently here.";
-      $("video-status").textContent="Click Open Local TV to tune channels, scan frequencies and watch HLS on this computer.";
-      note("Start tihulu-tv-center on the computer with the tuner, then choose Open Local TV. No token or PIN.");
-      try{
-        await health();
-        state("LOCAL TV FOUND");
-        note("Local TV service detected. Opening same-origin token-free TV controls…");
-        if(!new URLSearchParams(location.search).has("browser-only")){
-          location.replace(LOOPBACK+"/");
-        }
-      }catch(err){
-        note("Direct Pages-to-localhost discovery was unavailable (browser security may block it). Click Open Local TV manually; if it does not open, update/start the native TV Center.");
-      }
+      state("WEBUSB · BROWSER-ONLY");
+      $("channel").textContent="TV receiver in the browser — development preview";
+      $("source").textContent="WebUSB and WebAssembly run here without a native application, token or local server. Direct EM28178 DVB-T2 tuning is not ready; hardware diagnostics, local TS inspection and browser AI are available.";
+      $("original").textContent="Select a local transport recording or load optional browser AI to begin.";
+      $("video-status").textContent="For a browser-only preview, choose a real .ts recording in Browser TS Playback below. Direct live USB decoding requires the unfinished tuner driver.";
+      note("No native receiver is needed for WebUSB hardware diagnostics, firmware analysis, .ts playback or browser speech AI.");
       return;
     }
     try{
