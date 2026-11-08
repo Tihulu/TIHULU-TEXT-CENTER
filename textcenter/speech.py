@@ -139,6 +139,12 @@ def transcribe_pcm(pcm:bytes,language:str,backend:str,profile:dict)->str:
             return text[:3000]
         except (ImportError,RuntimeError,ValueError,OSError,TypeError) as exc:
             raise SpeechError("OpenVINO NPU transcription failed: "+str(exc)[:200]) from exc
+    if backend=="gpu" and profile["speech"].get("gpu_engine") == "faster_whisper_managed":
+        try:
+            from tv_center.cuda_faster_whisper import transcribe_cuda
+            return transcribe_cuda(pcm, language, str(model))
+        except (ImportError, OSError, RuntimeError, TimeoutError) as exc:
+            raise SpeechError("Managed CUDA Faster-Whisper failed: "+str(exc)[:180]) from exc
     if backend=="gpu" and profile["speech"].get("gpu_engine") != "whisper_cpp_cuda":
         if importlib.util.find_spec("faster_whisper") is None:
             raise SpeechError("faster-whisper CUDA package is not installed")
