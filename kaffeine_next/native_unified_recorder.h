@@ -257,6 +257,13 @@ private:
         singing_=musicChoice->isChecked();
         targets_=targets->text().trimmed();
         if(liveTv) {
+            if(dvb_->getManager()->getRecordingModel() &&
+                dvb_->getManager()->getRecordingModel()->hasActiveRecordings()){
+                report(tr("Native DVB already has an active recording. "
+                    "Use Kaffeine Television recordings to avoid toggling an "
+                    "unrelated recording or interrupting it."));
+                return;
+            }
             captureKind_=QLatin1String("dvb");
             dvb_->toggleInstantRecord();
             recording_=true;
@@ -277,9 +284,14 @@ private:
         }
         QStringList args{QLatin1String("-hide_banner"),QLatin1String("-loglevel"),
             QLatin1String("error"),QLatin1String("-n")};
-        if(url.isLocalFile() && player_->getPosition()>0)
-            args<<QLatin1String("-ss")<<QString::number(
-                player_->getPosition()/1000.,'f',3);
+        if(url.isLocalFile()) {
+            if(player_->getPosition()>0)
+                args<<QLatin1String("-ss")<<QString::number(
+                    player_->getPosition()/1000.,'f',3);
+            // A file must be read at playback rate or FFmpeg would
+            // finish recording its entire remaining content instantly.
+            args<<QLatin1String("-re");
+        }
         args<<QLatin1String("-i")<<(url.isLocalFile()?url.toLocalFile():url.toString())
             <<QLatin1String("-map")<<QLatin1String("0:v:0?")
             <<QLatin1String("-map")<<QLatin1String("0:a:0?")
