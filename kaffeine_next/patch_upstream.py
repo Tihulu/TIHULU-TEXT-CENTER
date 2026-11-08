@@ -431,6 +431,16 @@ QAbstractButton *StartTab::addShortcut''')
 			QMessageBox::warning(this, i18n("Whisper Market"),
 				i18n("Install the TIHULU offline AI companion first."));
 	});
+	QAction *generatedSrtAction = aiMenu->addAction(i18n("Load generated SRT in native player..."));
+	connect(generatedSrtAction, &QAction::triggered, this, [this]() {
+		// Use Kaffeine's own libVLC subtitle loader for completed sidecars.
+		// A growing SRT is NOT guaranteed to refresh during a live TV stream.
+		const QString subtitle = QFileDialog::getOpenFileName(this,
+			i18n("Select completed AI subtitles (SRT)"),
+			QDir::homePath(), i18n("SubRip subtitles (*.srt);;All files (*)"));
+		if (!subtitle.isEmpty())
+			mediaWidget->setSubtitle(QUrl::fromLocalFile(subtitle));
+	});
 	QAction *captionAction = aiMenu->addAction(i18n("Live Teletext / Whisper subtitles"));
 	connect(captionAction, &QAction::triggered, this, [this]() {
 		const QString runtime = QStandardPaths::writableLocation(QStandardPaths::RuntimeLocation);
