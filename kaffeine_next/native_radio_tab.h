@@ -255,6 +255,7 @@ public:
 		auto *diagnostics = new QHBoxLayout();
 		plotKind_ = new QComboBox(this);
 		plotKind_->addItem(tr("Spectrum"), "spectrum");
+		plotKind_->addItem(tr("Waterfall"), "waterfall");
 		plotKind_->addItem(tr("Null spectrum"), "nullspectrum");
 		plotKind_->addItem(tr("CIR / impulse response"), "impulseresponse");
 		plotKind_->addItem(tr("Constellation phase"), "constellation");
@@ -273,10 +274,15 @@ public:
 		plot_->setAlignment(Qt::AlignCenter);
 		plot_->setStyleSheet(QLatin1String("border:1px solid #456;"));
 		auto *plotButton = new QPushButton(tr("Capture RF plot"), this);
+		livePlot_=new QCheckBox(tr("Live RF"),this);
+		livePlot_->setToolTip(tr("Update spectrum/waterfall every 1.6 seconds while enabled"));
+		showWidgets_=new QCheckBox(tr("Show welle.io RF widgets"),this);
+		showWidgets_->setChecked(false);
 		auto *detailsButton = new QPushButton(tr("Receiver / TII details"),this);
 		auto *applyRf = new QPushButton(tr("Apply RF options"),this);
 		diagnostics->addWidget(plotKind_);
 		diagnostics->addWidget(plotButton);
+		diagnostics->addWidget(livePlot_);
 		diagnostics->addWidget(plot_, 1);
 		diagnosticLayout->addLayout(diagnostics);
 		auto *rfOptions=new QHBoxLayout();
@@ -285,7 +291,10 @@ public:
 		rfOptions->addWidget(applyRf);
 		rfOptions->addWidget(detailsButton);
 		diagnosticLayout->addLayout(rfOptions);
+		root->addWidget(showWidgets_);
 		root->addWidget(diagnosticCard);
+		diagnosticCard->setVisible(false);
+		connect(showWidgets_,&QCheckBox::toggled,diagnosticCard,&QWidget::setVisible);
 
 		connect(start_, &QPushButton::clicked, this, [this](){ startReceiver(); });
 		connect(stop_, &QPushButton::clicked, this, [this](){ stopReceiver(); });
@@ -328,7 +337,10 @@ public:
 				if (!shuttingDown_) state_->setText(tr("welle-cli stopped; SDR released."));
 			});
 		tick_.setInterval(1600);
-		connect(&tick_, &QTimer::timeout, this, [this](){ pollMux(); pollCaption(); updateLyrics(); });
+		connect(&tick_, &QTimer::timeout, this, [this](){
+			pollMux(); pollCaption(); updateLyrics();
+			if(livePlot_->isChecked() && !plotPending_) fetchPlot();
+		});
 		loadStations();
 		filterStations();
 	}
@@ -783,13 +795,19 @@ private:
 	}
 	void fetchPlot() {
 		if (!active()) { state_->setText(tr("Start a DAB receiver first.")); return; }
+		if(plotPending_) return;
 		const QString type=plotKind_->currentData().toString();
 		if (type!=QLatin1String("spectrum") &&
 		    type!=QLatin1String("nullspectrum") &&
 		    type!=QLatin1String("impulseresponse") &&
-		    type!=QLatin1String("constellation")) return;
-		QNetworkReply *reply=network_.get(QNetworkRequest(QUrl(base()+QLatin1Char('/')+type)));
+		    type!=QLatin1String("constellation") &&
+		    type!=QLatin1String("waterfall")) return;
+		plotPending_=true;
+		const QString api=type==QLatin1String("waterfall")?
+			QLatin1String("spectrum"):type;
+		QNetworkReply *reply=network_.get(QNetworkRequest(QUrl(base()+QLatin1Char('/')+api)));
 		connect(reply,&QNetworkReply::finished,this,[this,reply,type]() {
+			plotPending_=false;
 			const QByteArray raw=reply->readAll();
 			const bool okay=reply->error()==QNetworkReply::NoError &&
 				raw.size()>=32 && raw.size()<=262144 && raw.size()%4==0;
@@ -808,6 +826,31 @@ private:
 			if (points.isEmpty()) return;
 			const auto mm=std::minmax_element(points.cbegin(),points.cend());
 			const double lo=*mm.first,hi=*mm.second;
+			if (type==QLatin1String("waterfall")) {
+				const QSize size=plot_->size();
+				if(waterfall_.size()!=size) {
+					waterfall_=QImage(size,QImage::Format_RGB32);
+					waterfall_.fill(QColor("#0e2536"));
+				}
+				QImage previous=waterfall_.copy();
+				QPainter painter(&waterfall_);
+				painter.drawImage(QPoint(0,1),previous,
+					QRect(0,0,size.width(),size.height()-1));
+				for(int x=0;x<size.width();++x) {
+					const double level=points[qBound(0,
+						int(double(x)*points.size()/qMax(1,size.width())),
+						points.size()-1)];
+					const double magnitude=qBound(0.,(level-lo)/qMax(.0001,hi-lo),1.);
+					const QColor color=QColor::fromHsv(
+						qBound(0,230-int(230*magnitude),230),230,
+						qBound(25,25+int(230*magnitude),255));
+					painter.setPen(color);
+					painter.drawPoint(x,0);
+				}
+				painter.end();
+				plot_->setPixmap(QPixmap::fromImage(waterfall_));
+				return;
+			}
 			QImage picture(plot_->width(),plot_->height(),QImage::Format_ARGB32);
 			picture.fill(QColor("#101d2a"));
 			QPainter p(&picture);
@@ -1008,13 +1051,15 @@ private:
 	QLabel *state_=nullptr,*dls_=nullptr,*signal_=nullptr,*slide_=nullptr,
 		*radioCaption_=nullptr,*lyricText_=nullptr,*plot_=nullptr;
 	QCheckBox *english_=nullptr,*turkish_=nullptr,*music_=nullptr,
+		*livePlot_=nullptr,*showWidgets_=nullptr,
 		*coarseCorrector_=nullptr;
 	QSlider *lyricsOffset_=nullptr;
 	QProcess backend_,captionProcess_,recorder_;
 	QNetworkAccessManager network_;
 	QTimer tick_;
 	quint16 port_=0;
-	bool scanning_=false,shuttingDown_=false,slidePending_=false,lyricLoaded_=false;
+	bool scanning_=false,shuttingDown_=false,slidePending_=false,lyricLoaded_=false,
+		plotPending_=false;
 	int scanIndex_=0;
 	qint64 songStartMs_=0;
 	QString activeChannel_,playingKey_,lastDls_,captionPath_,lyricPath_;
@@ -1024,6 +1069,7 @@ private:
 	QJsonObject lastMux_;
 	QList<QPixmap> slideHistory_;
 	QByteArray lastSlideHash_;
+	QImage waterfall_;
 	int slideIndex_=0;
 };
 
