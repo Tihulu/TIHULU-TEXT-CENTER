@@ -38,11 +38,18 @@
     $("start-video").disabled = true; $("stop-video").disabled = !enabled || !currentlyPlayingHls;
     $("fullscreen").disabled = !enabled;
   };
+  function resetTimeline(){
+    pending=[];seen.clear();active=null;
+    updateOverlay();
+    if(connected)refresh();
+  }
   const stopClient = () => {
     if(playerHls){playerHls.destroy();playerHls=null;}
     const video=$("tv");video.pause();video.removeAttribute("src");video.load();
+    const wasPlaying=currentlyPlayingHls;
     currentlyPlayingHls=false;
     $("stop-video").disabled=true;
+    if(wasPlaying)resetTimeline();
   };
   function disconnect(){
     connected=false;
@@ -103,7 +110,8 @@
   }
   function hlsLagEstimateMs(){
     const video=$("tv");
-    if(!currentlyPlayingHls || !video.buffered || !video.buffered.length)return 0;
+    if(!currentlyPlayingHls)return 0;
+    if(!video.buffered || !video.buffered.length)return 6500;
     const last=video.buffered.end(video.buffered.length-1);
     if(!Number.isFinite(last)||!Number.isFinite(video.currentTime))return 0;
     // The buffered tail is behind the encoder's live edge. Include two
@@ -296,6 +304,9 @@
     }
     currentlyPlayingHls=true;
     initTextTrack();
+    // Rebase queued host-timed captions against the phone's own HLS clock,
+    // rather than carrying over 15-second desktop deadlines.
+    resetTimeline();
     $("stop-video").disabled=false;
     $("video-status").textContent="Playing host stream with phone caption sync";
     video.play().catch(()=>{$("video-status").textContent=
