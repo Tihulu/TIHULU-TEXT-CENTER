@@ -80,6 +80,7 @@ def _chunk_cues(pcm: bytes, *, position: float, lang: str, profile:dict,
             music_mode=music)
         text=str(result.get("text") or "").strip()
         words=result.get("words") or []
+        recognized_language=result.get("language") if lang=="auto" else lang
         if detection is not None:
             detected=result.get("language")
             if isinstance(detected,str) and len(detected) in (2,3):
@@ -115,7 +116,7 @@ def _chunk_cues(pcm: bytes, *, position: float, lang: str, profile:dict,
             if len(current)>=7 or end-start>=2.4 or token.endswith((".","?","!")):
                 out.append(LyricCue(position+start,
                                     position+max(end,start+.3),
-                                    " ".join(current),"Whisper/CUDA"))
+                                    " ".join(current),"Whisper/CUDA",recognized_language))
                 current=[];start=None;end=None
         if current and start is not None:
             out.append(LyricCue(position+start,
@@ -123,7 +124,7 @@ def _chunk_cues(pcm: bytes, *, position: float, lang: str, profile:dict,
                                 " ".join(current),"Whisper/CUDA"))
         return out
     return [LyricCue(position,position+max(.4,min(duration,8)),
-                     text,"Whisper chunk / not word-aligned")]
+                     text,"Whisper chunk / not word-aligned",lang)]
 
 
 def transcribe_local_media(filename: str, *, source: str="de",
@@ -208,7 +209,14 @@ def _translate_cues(cues:list[LyricCue],targets,source):
         for dest in targets:
             if dest==source:
                 continue
-            output,issue=translate(cue.text,source,dest)
+            cue_source=cue.language or source
+            if cue_source=="auto":
+                warnings.append({"cue":i,"target":dest,"warning":
+                    "Lyrics language not identified: choose an ISO source code"})
+                continue
+            if dest==cue_source:
+                continue
+            output,issue=translate(cue.text,cue_source,dest)
             if output:
                 lines.append("["+dest.upper()+"] "+output.strip())
             if issue:
