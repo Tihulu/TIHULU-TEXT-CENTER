@@ -137,22 +137,58 @@ class TranslationModelMarket:
 
 from functools import lru_cache
 
+def unmaterialized_tensors(model, maximum=8):
+    """Meta weights have no data; never use to_empty() as a fake repair."""
+    entries = []
+    for name, weight in list(model.named_parameters()) + list(model.named_buffers()):
+        if getattr(weight, "is_meta", False):
+            entries.append(name)
+            if len(entries) >= maximum:
+                break
+    return entries
+
+
 @lru_cache(maxsize=1)
 def _load_nllb():
     from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
     import torch
-    location=TranslationModelMarket()
+    location = TranslationModelMarket()
     if not location.status()["installed"]:
         raise RuntimeError("NLLB translation weights not installed")
-    tokenizer=AutoTokenizer.from_pretrained(
-        str(location.model),local_files_only=True,trust_remote_code=False)
-    model=AutoModelForSeq2SeqLM.from_pretrained(
-        str(location.model),local_files_only=True,
-        use_safetensors=True,trust_remote_code=False)
+    tokenizer = AutoTokenizer.from_pretrained(
+        str(location.model), local_files_only=True, trust_remote_code=False)
+    # With recent Transformers / Accelerate combinations, the default
+    # low-memory path may leave decoder weights on the *meta* device.
+    # On RTX 5080 desktops the ordinary CPU materialization is safer:
+    # load the actual pretrained safetensors fully before any .to("cuda").
+    model = AutoModelForSeq2SeqLM.from_pretrained(
+        str(location.model), local_files_only=True, use_safetensors=True,
+        trust_remote_code=False, low_cpu_mem_usage=False, device_map=None)
+    missing = unmaterialized_tensors(model)
+    if missing:
+        # Some tied checkpoint embeddings can be restored by reapplying
+        # their *existing initialized* tied weights. Never reinitialize
+        # missing weights or claim a model with empty params works.
+        if hasattr(model, "tie_weights"):
+            model.tie_weights()
+        missing = unmaterialized_tensors(model)
+    if missing:
+        raise RuntimeError(
+            "NLLB checkpoint has unmaterialized meta tensors (" +
+            ", ".join(missing[:4]) +
+            "). Model is unsafe for inference. Reinstall/repair NLLB in "
+            "AI Model Market; use installed Argos packs meanwhile.")
     model.eval()
-    device="cuda" if torch.cuda.is_available() else "cpu"
-    model.to(device)
-    return model,tokenizer,device,torch
+    device = "cpu"
+    if torch.cuda.is_available():
+        try:
+            model.to("cuda")
+            device = "cuda"
+        except (RuntimeError, NotImplementedError, OSError):
+            # CUDA optional for translator; CPU materialization remains
+            # valid and is not assumed to meet live TV latency requirements.
+            model.to("cpu")
+    return model, tokenizer, device, torch
 
 
 def run_nllb(text,source,target):
