@@ -933,7 +933,7 @@ void DvbTab::showChannelDialog()
 	// the address of a loop-local QSharedPointer which dies at scope exit.
 	for (int index = 0; index < instantRecordings.size(); ++index) {
 		DvbSharedRecording &recording = instantRecordings[index];
-		if (recording && recording->channel == ch)
+		if (recording.constData() != NULL && recording.constData()->channel == ch)
 			return &recording;
 	}
 	return NULL;
