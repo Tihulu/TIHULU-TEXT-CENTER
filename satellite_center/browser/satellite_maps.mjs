@@ -226,6 +226,11 @@ export function createSatelliteMaps({getTles,getSatLib,getPasses,getLastCapture,
  }
  function choose(id){
   selectedId=id;drawList();drawDetail();
+  const future=getPasses().filter(p=>String(p.id)===String(id)&&p.los>Date.now())
+   .sort((a,b)=>a.aos-b.aos)[0];
+  if(future)void showPassPreview(future).catch(e=>{
+   passStatus.textContent="Selected pass preview failed: "+e.message;
+  });
   if(view==="sky")drawSky();
   else{
     drawEarth();
@@ -320,6 +325,12 @@ export function createSatelliteMaps({getTles,getSatLib,getPasses,getLastCapture,
   const match=getPasses().find(p=>String(p.id)===String(s.id)&&p.los>Date.now());
   if(match)info.append(detailsNode("p","Next predicted pass: "+fmtDate(match.aos)+" → "+fmtDate(match.los)+
    " · maximum elevation "+elFormat(match.maximum)+".","hint"));
+  if(passPreview?.norad===Number(s.id)){
+   const p=previewPoint();
+   if(p)info.append(detailsNode("p","PASS PREVIEW · "+passTime(p.at_ms)+
+    " · Az "+elFormat(p.az)+" ("+direction(p.az)+") · El "+elFormat(p.el)+
+    " · TLE only, not a measured RF signal.","map-warning"));
+  }
   const previous=getLastCapture();
   if(previous){
    info.append(detailsNode("p","Last measured USB sample: "+(previous.frequency_hz/1e6).toFixed(3)+
@@ -355,6 +366,33 @@ export function createSatelliteMaps({getTles,getSatLib,getPasses,getLastCapture,
     if(!started){ctx.moveTo(x,y);started=true;}else ctx.lineTo(x,y);
    }
    ctx.stroke();
+  }
+  // Explicit AOS → PEAK → LOS geometry, independent of current horizon.
+  if(passPreview?.steps?.length){
+   const samples=passPreview.steps.filter(p=>p.el>=0);
+   ctx.strokeStyle="#f4f5ff";ctx.lineWidth=3.5;ctx.beginPath();
+   let first=true;
+   for(const p of samples){
+    const [x,y]=mapSkyPoint(p.az,p.el,cx,cy,R);
+    if(first){ctx.moveTo(x,y);first=false;}else ctx.lineTo(x,y);
+   }
+   if(!first)ctx.stroke();
+   const peak=passPreview.peak||samples.reduce((a,b)=>a.el>b.el?a:b);
+   const markers=[["AOS",samples[0]],["PEAK",peak],["LOS",samples[samples.length-1]]];
+   ctx.font="bold 12px system-ui";ctx.textAlign="left";ctx.fillStyle="#ffffff";
+   for(const [label,p] of markers){
+    if(!p||p.el<0)continue;
+    const [x,y]=mapSkyPoint(p.az,p.el,cx,cy,R);
+    ctx.beginPath();ctx.arc(x,y,4,0,2*Math.PI);ctx.fill();
+    ctx.fillText(label,Math.min(W-70,x+8),Math.max(14,y-7));
+   }
+   const p=previewPoint();
+   if(p&&p.el>=0){
+    const [x,y]=mapSkyPoint(p.az,p.el,cx,cy,R);
+    ctx.beginPath();ctx.arc(x,y,10,0,2*Math.PI);
+    ctx.fillStyle="#ffd47e";ctx.fill();
+    ctx.strokeStyle="#ffffff";ctx.lineWidth=2;ctx.stroke();
+   }
   }
   skyHit=[];
   for(const s of filtered().filter(x=>x.el>=0).slice(0,30)){
@@ -1022,7 +1060,7 @@ export function createSatelliteMaps({getTles,getSatLib,getPasses,getLastCapture,
   clearTileDeadline();removeOsm();
   if(earthMap){earthMap.remove();earthMap=null;}
  });
- mapStarted=true;setView("sky");drawList();updateLiveControls();
+ mapStarted=true;setView("sky");drawList();updateLiveControls();refreshPassOptions();
  status("LIVE orbital geometry updates every second when TLEs are loaded and this tab is visible. USB reception remains opt-in.");
- return {refresh,choose};
+ return {refresh,choose,showPassPreview,refreshPassOptions};
 }
