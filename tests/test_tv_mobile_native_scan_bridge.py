@@ -90,7 +90,7 @@ class NativePairedScanTests(TestCase):
         self.assertEqual(result["discovered_services"],1)
         self.assertFalse(result["signal_is_live"])
         self.assertFalse(result["signal_metrics"]["available"])
-        self.assertIn("scanner",result["signal"].lower())
+        self.assertIn("scanning owns the tuner",result["signal"].lower())
         self.assertEqual(result["events"][0]["frequency"],"538.000 MHz")
 
     def test_browser_and_qt_integration_guardrails(self):
