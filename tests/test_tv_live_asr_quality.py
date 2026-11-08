@@ -83,8 +83,7 @@ class NativeSubtitleMenuTests(unittest.TestCase):
             "setAiAvailability(true)",
         ):
             self.assertIn(snippet, patch)
-        self.assertIn("backend->getSubtitles()", patch)
-        self.assertIn("source->getSubtitles()", patch)
+        self.assertIn("if (subtitleModel->stringList() != items)", patch)
 
     def test_caption_sidecar_heartbeat_preserves_choice(self):
         from kaffeine_next import captions_overlay
