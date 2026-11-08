@@ -251,7 +251,8 @@ class _PersistentCUDAWorker:
                 return {"text":output[:3000],"words":words,
                         "language": detected if isinstance(detected,str) else language,
                         "language_probability": float(
-                            result.get("language_probability",0.0) or 0.0)}
+                            result.get("language_probability",0.0) or 0.0),
+                        "recognition_rejected":result.get("recognition_rejected")}
             except (OSError, ValueError, BrokenPipeError) as exc:
                 self._stop()
                 raise RuntimeError("CUDA worker unavailable: " + str(exc)[:180]) from exc
@@ -362,9 +363,26 @@ def main():
                 beam_size=3, vad_filter=not bool(request.get("music_mode")),
                 condition_on_previous_text=False, word_timestamps=True)
             all_segments = list(segments)
-            text = " ".join(segment.text.strip() for segment in all_segments).strip()
+            # Very low-confidence station jingles and silence can produce
+            # convincing but invented words. Only reject extreme cases.
+            rejection=None
+            if all_segments and all(
+                    float(getattr(seg,"no_speech_prob",0.) or 0.) >
+                    (0.97 if request.get("music_mode") else 0.85)
+                    for seg in all_segments):
+                rejection="high_no_speech_probability"
+            elif all_segments and all(
+                    float(getattr(seg,"avg_logprob",0.) or 0.)<-1.55
+                    for seg in all_segments):
+                rejection="low_ASR_confidence"
+            elif all_segments and all(
+                    float(getattr(seg,"compression_ratio",0.) or 0.)>3.2
+                    for seg in all_segments):
+                rejection="repetitive_ASR_hallucination"
+            text = (" ".join(seg.text.strip() for seg in all_segments).strip()
+                    if rejection is None else "")
             words = []
-            for segment in all_segments:
+            for segment in ([] if rejection is not None else all_segments):
                 for word in segment.words or ():
                     token = word.word.strip()
                     if token and len(token) <= 100 and len(words) < 240:
@@ -376,7 +394,8 @@ def main():
                       "language":detected if isinstance(detected,str) else
                                  request["language"],
                       "language_probability":float(
-                          getattr(language_info,"language_probability",0.0) or 0.0)}
+                          getattr(language_info,"language_probability",0.0) or 0.0),
+                      "recognition_rejected":rejection}
         except (ImportError, OSError, RuntimeError, ValueError, KeyError,
                 TypeError) as exc:
             output = {"error": str(exc)[:300]}
