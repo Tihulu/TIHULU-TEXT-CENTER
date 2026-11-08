@@ -308,6 +308,15 @@ class CaptionTap:
                 self.previous_original = (result.get("raw_asr_original") or
                                           result["original"])
                 self.previous_revision = options.get("revision", 0)
+            if (selected=="asr" and not result.get("original") and
+                    not result.get("error") and self.sentence_joiner.pending and
+                    self.sentence_session==(
+                        options.get("program_epoch"),options.get("revision"))):
+                # A complete silent capture can close the previous original
+                # phrase. It is not invented speech; only stored words appear.
+                result["source"]="local_asr"
+                result["source_language"]=(
+                    self.sentence_joiner.language or source)
             if str(result.get("source","")).startswith("broadcaster_teletext"):
                 self.sentence_joiner.reset()
                 self.sentence_session=None
