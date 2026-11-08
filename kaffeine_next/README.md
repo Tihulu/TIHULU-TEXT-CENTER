@@ -87,8 +87,8 @@ Kaffeine's own scanning UI metrics instead.
 - **Caption and Teletext:** a separate always-on-top caption controller
   offers real Teletext page 100-899, broadcaster subtitle, Whisper ASR and
   fallback. Source and translated captions are displayed together, with
-  actual processing latency. A user-selected 10-second segment plus
-  inference latency means this is NOT word-for-word instantaneous.
+  actual processing latency. Six-second overlapping capture chunks plus
+  inference latency mean this is NOT word-for-word instantaneous.
 - **Same tuner, selected channel:** Kaffeine's DvbLiveView copies its
   already-filtered MPEG-TS packets into a bounded nonblocking private
   UNIX datagram socket only when a caption consumer is listening.
@@ -175,13 +175,38 @@ not proof of a working CUDA model. In particular, the Pop!_OS Kaffeine
 `--software-video` switch affects **libVLC HEVC video rendering**, NOT
 the separate CUDA Whisper speech engine. Both may be enabled together.
 
-For NVIDIA RTX 5080, use Model Market to install the compatible
-**CUDA whisper.cpp engine** (requires CUDA toolkit 12.8 or newer) and
-a verified multilingual **Large-v3 Turbo / Large-v3 Turbo Q5** model.
-Choose GPU or Auto and enable ASR. Large-v3 Turbo generally offers a
-better accuracy/speed tradeoff than the default Tiny model, but actual
-throughput depends on the installation. A Pi 5 without a supported speech
-NPU needs a smaller model to keep up with live speech.
+### NVIDIA RTX 5080: two independent GPU Whisper installation paths
+
+**Recommended first:** in **TIHULU AI → Whisper + Translator Model Market**,
+choose **Install CUDA Faster-Whisper Large-v3 Turbo · no nvcc needed**.
+After confirmation, the installer creates an isolated user-owned Python
+virtual environment with CTranslate2 Faster-Whisper and CUDA 12 cuBLAS/cuDNN
+libraries; it downloads and hashes a pinned multilingual CT2 Large-v3 Turbo
+model. The downloaded weights may live on the model-storage external SSD.
+The CUDA ASR worker remains alive and retains model weights across live
+six-second captions, avoiding per-segment startup/model loading. It does
+**not** install/change the NVIDIA graphics driver or system CUDA toolkit.
+It does not touch the DVB frontend, Kaffeine or the GGML CPU model.
+
+**Alternative:** CUDA `whisper.cpp` engine plus multilingual GGML Large-v3
+Turbo / Large-v3 Turbo Q5. Compiling this path on RTX 50-series requires a
+CUDA toolkit with `nvcc` >= 12.8 and separate user action; this requirement
+does not apply to the prebuilt Faster-Whisper wheel path.
+
+Restart captions after installation. Select **GPU** or **Auto**, turn on
+offline transcription, and inspect `tihulu-tv-center ai-check`. A successful
+installation should report `selected_backend: gpu`,
+`backend_ready: true`, `known_gpu_engine: faster_whisper_managed`.
+These values describe *readiness*, not confirmed live inference accuracy
+or end-to-end caption latency. The live caption status should identify
+**large-v3-turbo** and the actual worker backend; `--software-video`
+continues to affect only libVLC video decoding. Verify on a physical
+DVB-T2 broadcast before claiming speech-gap or synchronisation fixes.
+
+If the CUDA worker cannot run with the host's installed NVIDIA driver,
+it remains **not ready** and may need compatible userspace CUDA runtime
+versions; no automatic CPU/GPU downgrade is hidden. A Pi 5 without a
+supported speech NPU should use smaller models.
 
 DVB radio audio selection also prefers an ordinary soundtrack tagged for
 the requested source language rather than an unrelated language or an
