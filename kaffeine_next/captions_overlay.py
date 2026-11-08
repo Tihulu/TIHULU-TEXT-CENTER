@@ -575,6 +575,9 @@ def main(argv=None):
         "TIHULU · Live captions · GPU Whisper + translation failover")
     window.setMinimumWidth(620)
     window.setWindowFlag(Qt.WindowMinMaxButtonsHint, True)
+    # This is a separate controller, never a modal Kaffeine channel-switch
+    # dialog. Alt-Tab and the pinned Back-to-TV control preserve capture.
+    window.setWindowModality(Qt.NonModal)
     window.setStyleSheet(
         "QWidget{background:#0c1722;color:#e8f3fa;font-size:13px}"
         "QGroupBox{border:1px solid #304b63;border-radius:8px;margin-top:14px;padding:10px}"
@@ -969,6 +972,9 @@ def main(argv=None):
     pinned_progress = QLabel("TV buffer: waiting for receiver")
     pinned_progress.setWordWrap(True)
     root.addWidget(pinned_progress)
+    native_channel_status = QLabel("TV source: waiting for native Kaffeine channel")
+    native_channel_status.setWordWrap(True)
+    root.addWidget(native_channel_status)
     root.addWidget(buffer_progress)
     buttons = QHBoxLayout()
     apply = QPushButton("Apply")
@@ -979,17 +985,25 @@ def main(argv=None):
     root.addLayout(buttons)
     behavior = QHBoxLayout()
     hide_panel = QPushButton("Hide settings")
+    back_to_tv = QPushButton("Back to TV · keep captions running")
+    back_to_tv.setToolTip(
+        "Minimize these non-modal settings so Kaffeine has keyboard focus "
+        "for channel numbers, arrows and its channel list. Whisper and "
+        "translations continue in this process.")
     start_subtitles = QPushButton("Start subtitles")
     stop_subtitles = QPushButton("Stop subtitles")
     exit_subtitles = QPushButton("Exit caption service")
     start_subtitles.setEnabled(False)
     behavior.addWidget(start_subtitles)
     behavior.addWidget(stop_subtitles)
+    behavior.addWidget(back_to_tv)
     behavior.addWidget(hide_panel)
     behavior.addWidget(exit_subtitles)
     root.addLayout(behavior)
-    persistence = QLabel("Closing this settings panel keeps on-video subtitles, "
-                         "Whisper and translation running. Reopen with Kaffeine → "
+    persistence = QLabel("Closing or minimizing this non-modal settings panel keeps "
+                         "on-video subtitles, Whisper and translation running. "
+                         "When settings have keyboard focus, use Back to TV to "
+                         "change channels in Kaffeine. Reopen with Kaffeine → "
                          "TIHULU AI → Live Teletext / Whisper subtitles. "
                          "Stop pauses ASR without closing settings; Start resumes. "
                          "Exit closes the caption service entirely.")
@@ -1080,6 +1094,7 @@ def main(argv=None):
     estimator = AutoSyncEstimator(ceiling_ms=6000 if pi5 else 15000)
     auto_controller = AutoSyncController()
     last_service_id = None
+    last_ui_program_epoch = tap_initial_epoch = 0
     last_effective_check = 0.0
     last_applied_effective_ms = None
     last_sync_audit_at = 0.0
@@ -1458,10 +1473,73 @@ def main(argv=None):
     srt_start.clicked.connect(begin_srt_recording)
     srt_stop.clicked.connect(end_srt_recording)
 
+    def reset_channel_captions(epoch, native_state):
+        """Keep UI open but detach *every* selected old-channel PID.
+
+        The only source of tune truth is native Kaffeine (or decoded PAT
+        for older installations). A user-selected output language,
+        subtitle appearance and buffer preference survive this reset.
+        """
+        nonlocal applied, current_cue, current_text, current_until
+        nonlocal last_published, last_service_id, last_applied_effective_ms
+        # Stop cross-channel sentence/cue contamination before the NEXT
+        # audio/Teletext descriptor even arrives.
+        with lock:
+            applied = __import__("dataclasses").replace(
+                applied, teletext_pid=None, audio_pid=None, audio_language=None,
+                revision=applied.revision+1)
+        cues.clear()
+        estimator.clear()
+        auto_controller.reset()
+        current_cue = None
+        current_text = ""
+        current_until = 0.0
+        last_published = time.monotonic()
+        last_service_id = None
+        last_applied_effective_ms = None
+        subtitle_track.blockSignals(True)
+        subtitle_track.clear()
+        subtitle_track.addItem(
+            "Automatic broadcaster subtitles (new TV service)", None)
+        subtitle_track.blockSignals(False)
+        audio_track.blockSignals(True)
+        audio_track.clear()
+        audio_track.addItem(
+            "Automatic · select audio from new TV service", None)
+        audio_track.blockSignals(False)
+        if mode.currentData() == "page":
+            # An explicitly chosen old service's Teletext page must not
+            # silently become a real caption channel in the next service.
+            mode.setCurrentIndex(0)
+        track_status.setText("Switched service · waiting for fresh Teletext descriptors.")
+        audio_track_status.setText("Switched service · waiting for new audio PID/language.")
+        original.setText("TV channel changed · waiting for NEW channel captions…")
+        translated.setText("")
+        translation_health.setText("Translation will resume after new source confirmation.")
+        native_channel_status.setText(
+            ("Kaffeine TV: SID %s · TSID %s · tune %s · waiting for TS/ASR"
+             % (native_state[1], native_state[2], native_state[0]))
+            if native_state is not None and native_state[1] else
+            "Kaffeine TV: stopped or retuning · old subtitles cleared")
+        sync_estimate.setText("Channel changed · clearing timing measurements.")
+        ipc.publish("",applied if service_running else
+                    __import__("dataclasses").replace(applied,mode="off"))
+        # A live SRT file cannot silently stitch two unrelated TV shows.
+        if srt_recorder.active:
+            files = srt_recorder.stop()
+            srt_status.setText("TV channel changed; saved previous SRT: " +
+                               ", ".join(str(p) for p in files))
+            srt_start.setEnabled(True)
+            srt_stop.setEnabled(False)
+        pending.setText("New TV service detected · automatic PID reset")
+        status.setText("New Kaffeine TV tune observed: stale ASR/Teletext "
+                       "cue queue discarded; retuning does NOT stop subtitles.")
+
     def pump():
         nonlocal current_cue, current_text, current_until, last_published
         nonlocal applied, last_service_id, last_effective_check
         nonlocal last_applied_effective_ms, last_sync_audit_at
+        nonlocal last_ui_program_epoch
         # Kaffeine is the DVB owner. Terminate sidecar when it disappears,
         # including when the settings window has been hidden.
         try:
@@ -1474,6 +1552,11 @@ def main(argv=None):
             pass
         mobile.expire_if_idle()
         now = time.monotonic()
+        # The native channel epoch is published at tune time, even when
+        # no MPEG-TS bytes flow yet. Handle it BEFORE queued caption events.
+        if tap.program_epoch != last_ui_program_epoch:
+            last_ui_program_epoch = tap.program_epoch
+            reset_channel_captions(last_ui_program_epoch,tap.native_tune_state)
         if now - last_effective_check >= 1.0:
             last_effective_check = now
             effective = ipc.read_effective_delay()
@@ -1573,7 +1656,14 @@ def main(argv=None):
                 kind, data = events.get_nowait()
             except queue.Empty:
                 break
-            if kind == "show_settings":
+            if kind == "native_tv_tune":
+                # A previous queued event must never reset a newer tune.
+                if data.get("program_epoch") == tap.program_epoch:
+                    native_channel_status.setText(
+                        "Native Kaffeine tune: SID %s / TSID %s · epoch %s" % (
+                            data["service_id"], data["transport_stream_id"],
+                            data["owner_epoch"]))
+            elif kind == "show_settings":
                 window.showNormal()
                 window.raise_()
                 window.activateWindow()
@@ -1599,6 +1689,8 @@ def main(argv=None):
                     "Paired phone requested desktop caption control: " +
                     str(action) + ". Native status will confirm the effect.")
             elif kind == "teletext_tracks":
+                if data.get("program_epoch") != tap.program_epoch:
+                    continue
                 selected = subtitle_track.currentData()
                 previous_identity = ((selected.get("pid"),selected.get("page"),
                                       selected.get("language"))
@@ -1690,8 +1782,10 @@ def main(argv=None):
                               and new_subtitle_track is not None
                               else new_audio_track)
                     lang = _signaled_language(chosen)
-                    if lang and source.currentText() != "Auto detect · Whisper":
-                        source.setCurrentText(lang)
+                    # A broadcast hint is a property of THIS TV channel.
+                    # Do not replace a user's Auto source with a hardcoded
+                    # language or silently override an explicit manual choice.
+                    # from_controls() uses fresh DVB descriptors per tune.
                     apply_settings()
                     if chosen is new_audio:
                         audio_track_status.setText(
@@ -1721,7 +1815,8 @@ def main(argv=None):
                 page.setValue(int(data))
                 apply_settings()
             elif kind == "caption":
-                if data.get("revision") != applied.revision:
+                if (data.get("revision") != applied.revision or
+                        data.get("program_epoch") != tap.program_epoch):
                     continue
                 if data.get("original"):
                     real_source = data.get("source", "")
@@ -2002,6 +2097,7 @@ def main(argv=None):
         app.quit()
 
     hide_panel.clicked.connect(window.hide)
+    back_to_tv.clicked.connect(window.showMinimized)
     exit_subtitles.clicked.connect(stop_caption_service)
 
     def cleanup():
