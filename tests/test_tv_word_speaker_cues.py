@@ -40,6 +40,43 @@ class WordCueTests(unittest.TestCase):
         self.assertEqual(q.poll(109,0),None)
         self.assertIsNotNone(q.poll(111,0))
 
+    def test_timed_words_keep_actual_source_spacing_not_cumulative_ui_holds(self):
+        cfg=CaptionConfig(playback_delay_ms=20000)
+        queue=CueQueue(minimum_hold=1.75)
+        a={"source":"local_asr","original":"First voice",
+           "word_progress":{"start":0,"end":1,"count":4}}
+        b={"source":"local_asr","original":"Second voice",
+           "word_progress":{"start":2,"end":3,"count":4}}
+        one=queue.add(a,cfg,100.0,100.5,105.0)
+        two=queue.add(b,cfg,100.6,101.1,105.0)
+        self.assertAlmostEqual(one["due"],120.15)
+        self.assertAlmostEqual(two["due"],120.75)
+        self.assertIsNotNone(queue.poll(120.2,cfg.revision))
+        # Without the fix the 1.75s reading slot delayed voice 2
+        # until 121.9s (and accumulated further with each new speaker).
+        self.assertEqual(queue.poll(120.8,cfg.revision)["result"]["original"],
+                         "Second voice")
+
+    def test_overlapping_speaker_windows_do_not_mislabel_a_new_voice(self):
+        data=clip(words=[
+            {"text":"Hallo","start":0.2,"end":0.5},
+            {"text":"Welt","start":0.8,"end":1.1},
+            {"text":"Anderer","start":1.4,"end":1.65},
+            {"text":"Sprecher","start":1.7,"end":2.0}
+        ],turns=[
+            {"id":"SPEAKER_00","start":0.0,"end":1.5},
+            {"id":"SPEAKER_01","start":1.0,"end":2.5}])
+        groups=word_groups(data)
+        self.assertTrue(any(g[2].get("speaker_index")==1 for g in groups))
+        self.assertTrue(any(g[2].get("speaker_index")==2 for g in groups))
+        self.assertTrue(all(not ("Hallo" in g[2]["original"] and
+                                  "Anderer" in g[2]["original"]) for g in groups))
+        # A contested transition word has no confident assigned voice.
+        contested=word_groups(clip(words=[
+            {"text":"Maybe","start":1.17,"end":1.33}
+        ],turns=data["speaker_turns"]))
+        self.assertNotIn("speaker_label",contested[0][2])
+
     def test_missing_timestamps_and_non_whisper_use_normal_chunk(self):
         self.assertEqual(word_groups({"source":"broadcaster_teletext_subtitles",
                                      "words":clip()["words"]}),[])
