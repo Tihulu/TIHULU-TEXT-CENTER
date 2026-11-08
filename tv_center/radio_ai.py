@@ -64,7 +64,7 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
         raise ValueError("Invalid loopback radio port")
     if not isinstance(sid,str) or not _SID.fullmatch(sid):
         raise ValueError("Invalid welle station identifier")
-    src = language_code(source)
+    src = ("auto" if source=="auto" else language_code(source))
     destinations = tuple(dict.fromkeys(language_code(t,nllb=True)
                                        for t in targets))
     if len(destinations)>3:
@@ -96,6 +96,7 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
     for signum in (signal.SIGTERM,signal.SIGINT):
         signal.signal(signum,stop)
     chunks=0
+    latest_language=None
     try:
         while not done:
             pcm=ffmpeg.stdout.read(6*CHUNK_SAMPLES*2)
@@ -103,32 +104,48 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
                 break
             # Source is actual radio audio. Whisper emits real word positions
             # on CUDA; the output has no false claim of latency compensation.
+            captured_at=time.monotonic()
+            detection={}
             cues=_chunk_cues(pcm,position=chunks*6,lang=src,
-                            profile=profile,backend=backend,music=music)
+                            profile=profile,backend=backend,music=music,
+                            detection=detection)
             original=" ".join(cue.text for cue in cues).strip()
+            candidate=detection.get("language")
+            confidence=float(detection.get("confidence") or 0.0)
+            if src=="auto":
+                if candidate and candidate!=latest_language and confidence >= 0.65:
+                    latest_language=candidate
+                used_language=latest_language or candidate
+            else:
+                used_language=src
             translated={}
             problems={}
-            if original and ai.values["translation_enabled"]:
+            if original and used_language and ai.values["translation_enabled"]:
                 from .captions import translate
                 for lang in destinations:
-                    if lang == src:
-                        translated[lang]=original
+                    if lang == used_language:
+                        # Source language selected as output, not a
+                        # pointless second translation of the same text.
                         continue
-                    value,issue=translate(original,src,lang)
+                    value,issue=translate(original,used_language,lang)
                     if value:
                         translated[lang]=value
                     if issue:
                         problems[lang]=issue[:180]
             write_runtime_json(location,{
                 "status":"running",
-                "source_language":src,
+                "source_language":used_language or "und",
+                "language_detected":src=="auto",
+                "language_confidence":round(confidence,3),
                 "original":original[:1800],
                 "translations":translated,
                 "translation_warnings":problems,
                 "backend":backend,
                 "music_mode":bool(music),
-                "lag_note":"Radio transcription is processed after live audio "
-                           "arrival; no exact radio playback buffer is asserted",
+                "lag_note":"Radio ASR reads original welle stream. Player caching "
+                           "is an estimate, not a confirmed libVLC presentation clock.",
+                "captured_monotonic":captured_at,
+                "decoded_monotonic":time.monotonic(),
                 "timestamp":time.time(),
                 "station_sid":sid,
                 "chunk_index":chunks})
