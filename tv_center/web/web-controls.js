@@ -87,18 +87,22 @@
     $("web-scan-panel").hidden=!value;
     $("web-service-panel").hidden=!value;
     $("web-native-ai").hidden=!value;
-    if(!value){
-      root.replaceChildren();
-      const panel=make("section","","panel");
-      panel.id="web-native-unavailable";
-      panel.append(make("h2","Native DVB scan connection"));
-      panel.append(make("p",
-        "This phone is paired with the caption sidecar, not the native DVB scanner. "+
-        "Channel scanning, saved favorites and receiver signal readings need "+
-        "the main TIHULU TV Center web bridge. Its controls are unavailable "+
-        "here rather than silently failing."));
-      const note=make("p",reason,"muted");panel.append(note);root.append(panel);
+    let notice=$("web-native-unavailable");
+    if(!notice){
+      notice=make("section","","panel");
+      notice.id="web-native-unavailable";
+      const title=make("h2","Native receiver connection");
+      const body=make("p",
+        "Full RF scanning and signal telemetry require the legacy Qt TV Center "+
+        "native bridge (tihulu-tv-center legacy-player), not the Kaffeine "+
+        "subtitle sidecar or a static GitHub Pages preview. "+
+        "Pair with the right running host to enable actual controls.");
+      const detail=make("p","","muted");detail.id="web-native-reason";
+      notice.append(title,body,detail);
+      root.prepend(notice);
     }
+    notice.hidden=value;
+    show("web-native-reason",reason||"Waiting for an authenticated native DVB connection.");
   }
   function deliveryUi(){
     const medium=$("web-medium").value, sat=medium==="s";
@@ -303,6 +307,9 @@
     $(id).onchange=()=>{editProfile=true;deliveryUi();};
   }
   deliveryUi();
+  // Do not show a deceptive RF scan form on unpaired static/GitHub Pages.
+  // The panel becomes visible only after a real native Qt bridge answers.
+  useNativeBridge(false,"No native DVB scan bridge has been verified yet.");
   $("web-filter").onchange=drawChannels;
   $("web-refresh").onclick=refreshChannels;
   $("web-stop").onclick=async()=>{
@@ -327,7 +334,7 @@
     "set_captions",{mode:$("web-caption-mode").value},"web-model-info");
   async function activate(){
     if(!api()?.connected())return;
-    if(connected)return;
+    if(connected&&advancedAvailable)return;
     connected=true;
     try{
       const data=await api().get("/api/channels");
