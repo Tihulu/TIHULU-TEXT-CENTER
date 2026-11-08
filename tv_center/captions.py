@@ -393,8 +393,10 @@ def decode_segment(ts: bytes, *, mode="auto", page=150, source="de",
                 if speaker_enabled:
                     asr_kwargs["speaker_enabled"] = True
                     asr_kwargs["speaker_provider"] = speaker_provider
-                speech_language = (
-                    source if source == "auto" else audio_source or source)
+                # Real DVB audio-language descriptors are a stronger hint
+                # than six seconds of noisy live TV speech. Do not ignore
+                # the selected/signalled audio language in Auto mode.
+                speech_language = audio_source or source
                 original = asr_from_clip(p, speech_language, model, service_id,
                                          **asr_kwargs)
                 raw_asr_original = original[:2500]  # private overlap bookkeeping
