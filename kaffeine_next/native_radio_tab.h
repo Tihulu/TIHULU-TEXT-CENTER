@@ -658,6 +658,10 @@ public:
 			if(enabled) speakerLabels_->setChecked(false);
 		});
 		caption_ = new QPushButton(tr("Start offline live captions"), lab);
+        applyCaptions_=new QPushButton(tr("Apply caption settings"),lab);
+        applyCaptions_->setToolTip(tr("Restart only local Whisper/translation "
+            "with the current speech language, music, source and targets. "
+            "Keeps receiver tuning, radio playback and requested cache untouched."));
 		stopCaption_ = new QPushButton(tr("Stop AI captions"), lab);
 		row->addWidget(new QLabel(tr("Caption source:"),lab),0,0);
         row->addWidget(captionSource_,0,1,1,2);
@@ -799,6 +803,7 @@ public:
 		auto *captionActions=new QHBoxLayout();
 		captionActions->addStretch(1);
 		captionActions->addWidget(caption_);
+        captionActions->addWidget(applyCaptions_);
 		captionActions->addWidget(stopCaption_);
 		v->addLayout(captionActions);
 		radioCaption_ = new QLabel(tr("Radio AI is OFF; it never starts without your request."), lab);
@@ -823,7 +828,7 @@ public:
         listenLyrics_->setToolTip(tr("Use the playing DAB audio with Whisper "
             "singing mode, without online metadata. Heard words are "
             "approximate, not synchronized reference lyrics."));
-        listenFallbackOnMiss_=new QCheckBox(tr("If no lyrics found, listen with Whisper"),lab);
+        listenFallbackOnMiss_=new QCheckBox(tr("On miss: listen offline"),lab);
         listenFallbackOnMiss_->setChecked(true);
         listenFallbackOnMiss_->setToolTip(tr("After an authorized lyrics search "
             "returns no matching text, fall back to local audio transcription. "
@@ -1121,6 +1126,15 @@ public:
 		connect(favoritesOnly_,&QCheckBox::toggled,this,
 			[this](){ filterStations(); });
 		connect(caption_, &QPushButton::clicked, this, [this](){ startCaptioning(); });
+        connect(applyCaptions_,&QPushButton::clicked,this,[this](){
+            if(captionProcess_.state()!=QProcess::NotRunning) stopCaptioning();
+            cueQueue_.clear();
+            lastRadioChunk_=-1;
+            displayedRadioChunk_=-1;
+            startCaptioning();
+            radioCaptionBanner_->setText(tr("Applying local caption options; "
+                "waiting for a new real audio segment…"));
+        });
 		connect(stopCaption_, &QPushButton::clicked, this, [this](){
             const bool lyricOnly=lyricsAudioFallbackActive_;
             if(lyricOnly) {
@@ -3131,7 +3145,7 @@ private:
 		*captionSource_=nullptr,
 		*plotKind_=nullptr, *fftPlacement_=nullptr;
 	QPushButton *start_=nullptr,*stop_=nullptr,*scan_=nullptr,*record_=nullptr,
-		*caption_=nullptr,
+		*caption_=nullptr,*applyCaptions_=nullptr,
 		*stopCaption_=nullptr,*lyrics_=nullptr,*lyricsImport_=nullptr,*stopLyrics_=nullptr,
         *listenLyrics_=nullptr,
 		*slidePrev_=nullptr,*slideNext_=nullptr;
