@@ -300,6 +300,24 @@ class CueQueue:
         self.last_shown_at=float(now)
         return selected
 
+    def retime(self, offset_delta_ms, config):
+        """Shift pending caption display times without re-running ASR.
+
+        A user changing subtitle offset or appearance must not delete
+        already decoded speech. Revalidate the cue's revision at rendering,
+        and apply even negative offsets to the pending display deadlines.
+        """
+        if type(offset_delta_ms) is not int or abs(offset_delta_ms) > 20000:
+            raise ValueError("Invalid subtitle offset adjustment")
+        delta = offset_delta_ms / 1000.0
+        for item in self.items:
+            item["due"] += delta
+            item["expires"] = max(item["due"] + 0.6,
+                                  item["expires"] + delta)
+            item["config"] = config
+            item["revision"] = config.revision
+        self.items.sort(key=lambda item: item["due"])
+
     def clear(self):
         self.items.clear()
         self.last_shown_at=None
