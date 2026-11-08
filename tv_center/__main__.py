@@ -42,6 +42,9 @@ def main():
     if len(sys.argv) >= 2 and sys.argv[1] in ("radio-captions","lyrics-lookup","lyrics-import"):
         from .radio_ai import main as radio
         return radio(sys.argv[1:])
+    if len(sys.argv) >= 2 and sys.argv[1] == "hardware-status":
+        from .hardware_status import main as hardware_main
+        return hardware_main(sys.argv[2:])
     if len(sys.argv) >= 2 and sys.argv[1] == "remote-hub":
         from .remote_hub import main as remote_main
         return remote_main(sys.argv[2:])
