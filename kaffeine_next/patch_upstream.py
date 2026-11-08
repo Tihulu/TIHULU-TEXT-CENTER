@@ -1020,10 +1020,11 @@ QAbstractButton *StartTab::addShortcut''')
 \t\t(safeColor.red()<<16) | (safeColor.green()<<8) | safeColor.blue());
 \tlibvlc_video_set_marquee_int(vlcMediaPlayer, libvlc_marquee_Opacity,
 \t\tqBound(0,textOpacity,100)*255/100);
-\t// libVLC position flags: top=4, bottom=8 (1/2 are left/right).
-\t// Native compositor centres text without a video-covering Qt window.
+\t// Marquee positions are BIT FLAGS: 4=top-centre, 8=bottom-centre.
+\t// libvlc_position_top/bottom are DIFFERENT sequential enum values.
+\t// Passing those enum values incorrectly positioned subtitles off-corner.
 \tlibvlc_video_set_marquee_int(vlcMediaPlayer, libvlc_marquee_Position,
-\t\tatTop ? libvlc_position_top : libvlc_position_bottom);
+\t\tatTop ? 4 : 8);
 \tconst QByteArray utf8 = text.left(1100).toUtf8();
 \tlibvlc_video_set_marquee_string(vlcMediaPlayer, libvlc_marquee_Text,
 \t\tutf8.constData());
@@ -1176,6 +1177,54 @@ void OsdWidget::showObject(OsdObject *osdObject_, int duration)
 \tif (osdObject == NULL) {''')
 
     mediah = "src/mediawidget.h"
+    change(mediah, '''\tQString textSubtitlesOff;''',
+           '''\tQString textSubtitlesOff;
+\t// AI live subtitle is a virtual, user-selectable DVB track in Kaffeine.
+\t// Broadcast Teletext/DVB tracks remain owned by their original providers.
+\tbool tihuluAiCaptionAvailable = false;
+\tbool tihuluAiCaptionSelected = false;
+\tbool tihuluAiCaptionUserOverride = false;''')
+    change(mediac, '''void MediaWidget::currentSubtitleChanged(int currentSubtitle)
+{
+\tif (blockBackendUpdates)
+\t\treturn;
+''', '''void MediaWidget::currentSubtitleChanged(int currentSubtitle)
+{
+\tif (blockBackendUpdates)
+\t\treturn;
+\tif (source->getType() == MediaSource::Dvb && tihuluAiCaptionAvailable) {
+\t\tconst bool aiEntry = currentSubtitle == subtitleModel->rowCount()-1;
+\t\ttihuluAiCaptionUserOverride = true;
+\t\ttihuluAiCaptionSelected = aiEntry;
+\t\tif (aiEntry) {
+\t\t\t// Selecting the virtual AI track disables broadcast tracks, but
+\t\t\t// NEVER closes the DVB stream nor the user-run Whisper service.
+\t\t\tsource->setCurrentSubtitle(-1);
+\t\t\tbackend->setCurrentSubtitle(0);
+\t\t\tsubtitlesChanged();
+\t\t\treturn;
+\t\t}
+\t\t// Choosing off / broadcaster subtitles hides only our overlay.
+\t\ttihuluCaptionWidget->hideCaption();
+\t\tif (auto *vlc = qobject_cast<VlcMediaWidget *>(backend))
+\t\t\tvlc->setTihuluNativeCaption(QString(),false,25,0,QLatin1String("#FFFFFF"));
+\t}
+''')
+    change(mediac, '''\tblockBackendUpdates = true;
+
+\tif (subtitleModel->stringList() != items) {''',
+           '''\tif (source->getType() == MediaSource::Dvb && tihuluAiCaptionAvailable) {
+\t\t// Add ONE virtual AI entry after all existing Kaffeine subtitles.
+\t\t// It is selectable from Playback -> Subtitle without inventing
+\t\t// an MPEG-TS subtitle PID, libVLC SPU or external SRT track.
+\t\titems << i18n("TIHULU AI · Live Whisper / translations");
+\t\tif (tihuluAiCaptionSelected)
+\t\t\tcurrentIndex = items.size()-1;
+\t}
+\tblockBackendUpdates = true;
+
+\tif (subtitleModel->stringList() != items) {''')
+
     change(mediah, '''\tOsdWidget *osdWidget;
 ''', '''\tOsdWidget *osdWidget;
 \tOsdWidget *tihuluCaptionWidget;
