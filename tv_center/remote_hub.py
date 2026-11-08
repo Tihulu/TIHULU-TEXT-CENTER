@@ -367,7 +367,7 @@ def create_handler(hub):
             self.send_header("X-Content-Type-Options","nosniff")
             self.send_header("Referrer-Policy","no-referrer")
             self.send_header("Content-Security-Policy",
-                             "default-src 'self'; script-src 'self'; "
+                             "default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; "
                              "style-src 'self'; media-src 'self' blob:; "
                              "img-src 'self' blob: data:; connect-src 'self'; "
                              "frame-ancestors 'none'; base-uri 'none'")
