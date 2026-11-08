@@ -289,6 +289,7 @@ def main(argv=None):
     endpoint = validate_socket(argv[1])
     from .caption_control import CaptionServiceControl
     from tv_center.language_codes import language_code
+    from textcenter.compute import LANGUAGES as WHISPER_LANGUAGES
     pid = int(endpoint.stem.rsplit("-", 1)[-1])
     if CaptionServiceControl.request_show(endpoint.parent, pid):
         # Reopening the TIHULU AI menu focuses the existing controller.
@@ -344,8 +345,9 @@ def main(argv=None):
     source.setCurrentText("de")
     source.setToolTip(
         "Type an ISO code such as pl, es, ja, ar. Broadcast Teletext "
-        "can be displayed in its original language; ASR requires a "
-        "Whisper backend compatible with the selected spoken language.")
+        "can be displayed in its original language; 100 source-language "
+        "codes are supported by multilingual Whisper, provided the chosen "
+        "speech model and runtime are installed.")
     page = QSpinBox(); page.setRange(100, 899); page.setValue(150)
     for name, widget in (("Source",mode),("Spoken",source),("Teletext",page)):
         row.addWidget(QLabel(name)); row.addWidget(widget, 1)
@@ -622,12 +624,13 @@ def main(argv=None):
                 chosen = selected.get("source_hint") or selected.get("language")
                 if chosen and chosen != "und":
                     source.setCurrentText(language_code(chosen))
-                if language not in LANGS:
+                detected = selected.get("source_hint") or selected.get("language")
+                if (not detected or
+                        language_code(detected) not in WHISPER_LANGUAGES):
                     audio_track_status.setText(
-                        "This audio language is not yet supported by the "
-                        "configured Whisper engine. Other broadcast captions "
-                        "remain available; choose another soundtrack or "
-                        "install a compatible multilingual speech model.")
+                        "This audio language is not in Whisper's supported "
+                        "language set. You can display broadcast Teletext "
+                        "instead or select another available soundtrack.")
         set_pending()
     audio_track.currentIndexChanged.connect(audio_source_selected)
     extra_targets.textChanged.connect(set_pending)
