@@ -59,7 +59,7 @@ class WhisperRepetitionTests(unittest.TestCase):
         joiner = LiveSentenceJoiner()
         initial = "Dies sind die aktuellen Nachrichten aus der Region"
         self.assertTrue(joiner.push(initial, language="de")["pending"])
-        done = joiner.push("aus der Region und heute folgt ein Bericht.",
+        done = joiner.push("Nachrichten aus der Region und heute folgt ein Bericht.",
                            language="de")
         self.assertEqual(done["text"],
                          initial + " und heute folgt ein Bericht.")
