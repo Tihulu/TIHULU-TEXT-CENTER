@@ -50,6 +50,15 @@ class PlainLyricsTests(unittest.TestCase):
         self.assertIsNone(matcher.observe("The rose kokar rose metropol fm greeting"))
         self.assertIsNone(matcher.observe("hi hi"))
 
+    def test_short_turkish_refrain_preserves_proper_words(self):
+        words=["Gül kokar gül","Sevgin içimde büyür"]
+        bad=LiveLyricMatcher(words)
+        self.assertIsNone(bad.observe("Rose kokar rose"))
+        good=LiveLyricMatcher(words)
+        matched=good.observe("Gül kokar gül")
+        self.assertIsNotNone(matched)
+        self.assertEqual(matched["text"],"Gül kokar gül")
+
     def test_file_cues_anchor_only_to_actual_asr(self):
         cues=[LyricCue(5,6.4,"We walked through the morning"),
               LyricCue(6.4,7.2,"rain"),
