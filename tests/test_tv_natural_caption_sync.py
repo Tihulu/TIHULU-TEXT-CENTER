@@ -106,6 +106,31 @@ class NaturalSubtitleTests(unittest.TestCase):
             cue_window(100,102,105,expected)["due"],108.55)
         self.assertIsNotNone(confirmed_cue_config(
             CaptionConfig(playback_delay_ms=0),None))
+        self.assertIsNone(confirmed_cue_config(cfg,{
+            "requested_ms":15000,"effective_ms":8000,
+            "primed":False,"queue_age_ms":2500}))
+        self.assertEqual(confirmed_cue_config(cfg,{
+            "requested_ms":15000,"effective_ms":8000,
+            "primed":True,"queue_age_ms":7950}).playback_delay_ms,8000)
+
+    def test_native_queue_priming_status_is_distinct_from_target_delay(self):
+        import tempfile
+        from kaffeine_next.caption_timing import KaffeineOSD
+        with tempfile.TemporaryDirectory() as root:
+            ipc=KaffeineOSD(5454,root)
+            cfg=CaptionConfig(playback_delay_ms=15000)
+            ipc.effective.write_text("15000 15000 3500000 0 2500")
+            state=ipc.read_effective_delay()
+            self.assertFalse(state["primed"])
+            self.assertEqual(state["queue_age_ms"],2500)
+            self.assertIsNone(confirmed_cue_config(cfg,state))
+            ipc.effective.write_text("15000 15000 3500000 1 14900")
+            state=ipc.read_effective_delay()
+            self.assertTrue(state["primed"])
+            self.assertEqual(confirmed_cue_config(cfg,state).playback_delay_ms,15000)
+            ipc.effective.write_text("15000 15000 3500000")
+            self.assertFalse(ipc.read_effective_delay()["primed"])
+            ipc.close()
 
     def test_source_overlap_uses_actual_packet_count_not_fixed_one_second(self):
         previous=bytes(6*1024*1024)
