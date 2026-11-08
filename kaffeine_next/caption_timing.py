@@ -35,6 +35,7 @@ class CaptionConfig:
     audio_pid: int | None = None
     audio_language: str | None = None
     speaker_enabled: bool = False
+    music_transcription: bool = False
     speaker_provider: str = "resemblyzer"
     speaker_aliases: tuple[str, ...] = ()
     offset_ms: int = 0
@@ -99,7 +100,7 @@ class CaptionConfig:
                 raise ValueError(
                     field + " must be an RGB hex color such as #FFFFFF")
         for key in ("automatic_sync", "on_video", "show_original", "show_translation",
-                    "speaker_enabled"):
+                    "speaker_enabled", "music_transcription"):
             if type(getattr(self, key)) is not bool:
                 raise ValueError("Caption display toggles must be boolean")
         return self
@@ -110,6 +111,7 @@ class CaptionConfig:
                 "page":self.page,"teletext_pid":self.teletext_pid,
                 "audio_pid":self.audio_pid,"audio_source":self.audio_language,
                 "speaker_enabled":self.speaker_enabled,
+                "music_transcription":self.music_transcription,
                 "speaker_provider":self.speaker_provider,
                 "revision":self.revision}
 
