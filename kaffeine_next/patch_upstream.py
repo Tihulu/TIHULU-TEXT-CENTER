@@ -16,6 +16,7 @@ PATHS = ("src/mainwindow.cpp", "src/mainwindow.h", "src/CMakeLists.txt",
          "src/dvb/dvbliveview_p.h", "src/dvb/dvbmanager.cpp", "src/dvb/dvbtab.cpp",
          "src/dvb/dvbtab.h", "src/dvb/dvbconfigdialog.cpp", "src/dvb/dvbscandialog.cpp",
          "src/dvb/dvbscandialog.h", "src/backend-vlc/vlcmediawidget.cpp",
+         "src/backend-vlc/vlcmediawidget.h",
          "src/mediawidget.cpp", "src/mediawidget.h", "src/osdwidget.cpp",
          "src/osdwidget.h", "src/main.cpp", "src/dvb/dvbepg.cpp",
          "src/sqlinterface.h")
@@ -853,6 +854,46 @@ QAbstractButton *StartTab::addShortcut''')
 \tconst QByteArray appliedProfile = qgetenv("TIHULU_VLC_PROFILE");
 \tif (appliedProfile == "software" || appliedProfile == "software-no-audio")
 \t\tlibvlc_media_add_option(vlcMedia, ":avcodec-hw=none");''')
+
+    # Native VLC marquee renders inside the actual decoded video surface.
+    # Unlike a full-size transparent QWidget over an X11 video window, this
+    # cannot retain stale rectangles from past video frames.
+    vlch = "src/backend-vlc/vlcmediawidget.h"
+    change(vlch, '''\tvoid setExternalSubtitle(const QUrl &subtitleUrl) override;''',
+           '''\tvoid setExternalSubtitle(const QUrl &subtitleUrl) override;
+\tvoid setTihuluNativeCaption(const QString &text, bool atTop,
+\t\tint fontSize, int textOpacity, const QString &color);''')
+    vlcc = "src/backend-vlc/vlcmediawidget.cpp"
+    change(vlcc, '#include "vlcmediawidget.h"\n',
+           '#include "vlcmediawidget.h"\n#include <QColor>\n')
+    change(vlcc, '''void VlcMediaWidget::setExternalSubtitle(const QUrl &url)
+{''', '''void VlcMediaWidget::setTihuluNativeCaption(const QString &text, bool atTop,
+\tint fontSize, int textOpacity, const QString &color)
+{
+\tif (vlcMediaPlayer == NULL) return;
+\tif (text.isEmpty() || textOpacity <= 0) {
+\t\tlibvlc_video_set_marquee_int(vlcMediaPlayer, libvlc_marquee_Enable, 0);
+\t\treturn;
+\t}
+\tconst QColor rawColor(color);
+\tconst QColor safeColor = rawColor.isValid() ? rawColor : QColor(Qt::white);
+\tlibvlc_video_set_marquee_int(vlcMediaPlayer, libvlc_marquee_Enable, 1);
+\tlibvlc_video_set_marquee_int(vlcMediaPlayer, libvlc_marquee_Size,
+\t\tqBound(16,fontSize,44));
+\tlibvlc_video_set_marquee_int(vlcMediaPlayer, libvlc_marquee_Color,
+\t\t(safeColor.red()<<16) | (safeColor.green()<<8) | safeColor.blue());
+\tlibvlc_video_set_marquee_int(vlcMediaPlayer, libvlc_marquee_Opacity,
+\t\tqBound(0,textOpacity,100)*255/100);
+\t// libVLC positions: top-centre=1, bottom-centre=2.
+\tlibvlc_video_set_marquee_int(vlcMediaPlayer, libvlc_marquee_Position,
+\t\tatTop ? 1 : 2);
+\tconst QByteArray utf8 = text.left(1100).toUtf8();
+\tlibvlc_video_set_marquee_string(vlcMediaPlayer, libvlc_marquee_Text,
+\t\tutf8.constData());
+}
+
+void VlcMediaWidget::setExternalSubtitle(const QUrl &url)
+{''')
 
     # Kaffeine's OsdWidget already renders ABOVE libVLC's native video
     # surface. Reuse that mechanism in a *separate* caption OSD so the
