@@ -243,6 +243,7 @@ class CaptionTap:
                               if selected in ("auto", "asr") else None),
                 speaker_enabled=bool(options.get("speaker_enabled",False))
                                 and selected in ("auto","asr"),
+                speaker_provider=options.get("speaker_provider","resemblyzer"),
                 previous_text=previous)
             if options.get("program_epoch") != self.program_epoch:
                 return  # old channel's caption must never appear on new TV
@@ -459,6 +460,16 @@ def main(argv=None):
         "This can add processing delay to subtitles.")
     speakers_row.addWidget(speaker_enabled)
     timing_layout.addRow(speakers_row)
+    speaker_provider = QComboBox()
+    speaker_provider.addItem(
+        "Resemblyzer · public pretrained model · no token", "resemblyzer")
+    speaker_provider.addItem(
+        "pyannote Community-1 · requires HF model access", "pyannote")
+    speaker_provider.setToolTip(
+        "Speaker separation is optional and OFF by default. Resemblyzer "
+        "runs locally without any Hugging Face token. It estimates "
+        "voice similarity, not real identity, gender or age.")
+    timing_layout.addRow("Speaker model", speaker_provider)
     speaker_roles = QLineEdit()
     speaker_roles.setPlaceholderText(
         "Voice 1, Voice 2, Voice 3, Voice 4 · optional manual names")
@@ -620,6 +631,7 @@ def main(argv=None):
                                                  chosen_audio.get("language")) not in (None, "und")
                             else None),
             speaker_enabled=speaker_enabled.isChecked(),
+            speaker_provider=speaker_provider.currentData(),
             speaker_aliases=tuple(s.strip() for s in speaker_roles.text().split(",")
                                   if s.strip()),
             offset_ms=round(caption_offset.value()*1000),
@@ -635,7 +647,8 @@ def main(argv=None):
     def set_pending(*_):
         pending.setText("Unsaved changes — press Apply")
         pending.setStyleSheet("color:#f7bf6e")
-    for w in (mode,source,display_mode,position,subtitle_track,audio_track):
+    for w in (mode,source,display_mode,position,subtitle_track,
+              audio_track,speaker_provider):
         w.currentIndexChanged.connect(set_pending)
     def subtitle_source_selected(*_):
         selected = subtitle_track.currentData()
@@ -685,6 +698,7 @@ def main(argv=None):
             if selected.mode != previous.mode or selected.source != previous.source or (
                     selected.target_languages != previous.target_languages) or (
                     selected.speaker_enabled != previous.speaker_enabled or
+                    selected.speaker_provider != previous.speaker_provider or
                     selected.speaker_aliases != previous.speaker_aliases):
                 estimator.clear()
             # Switching automatic control ON starts the calibration afresh.
@@ -737,6 +751,9 @@ def main(argv=None):
         page.setValue(150)
         caption_offset.setValue(0.0); playback_delay.setValue(0.0)
         automatic.setChecked(False)
+        speaker_enabled.setChecked(False)
+        speaker_provider.setCurrentIndex(0)
+        speaker_roles.clear()
         show_video.setChecked(True)
         position.setCurrentText("bottom"); font.setValue(25)
         opacity.setValue(70); text_opacity.setValue(100)
@@ -981,7 +998,9 @@ def main(argv=None):
                             str(data["speaker_error"]))
                     elif data.get("speaker_turns"):
                         status.setText(status.text() +
-                            " | Offline speakers detected (IDs local to clip)")
+                            " | Offline speakers: " +
+                            str(data.get("speaker_engine") or "local model") +
+                            " · provisional voice clusters")
                     if data.get("audio_notice"):
                         status.setText(status.text() + "\n" + data["audio_notice"])
                     failures = data.get("translation_errors") or {}
