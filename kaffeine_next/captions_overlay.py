@@ -36,9 +36,11 @@ def validate_socket(path: str) -> Path:
     return p
 
 class CaptionTap:
-    def __init__(self, path, current_options, events, packet_sink=None):
+    def __init__(self, path, current_options, events, packet_sink=None,
+                 owner_tune_changed=None):
         self.path = validate_socket(path)
         self.packet_sink = packet_sink
+        self.owner_tune_changed = owner_tune_changed
         self.current_options = current_options
         self.events = events
         self.stop = threading.Event()
@@ -123,6 +125,11 @@ class CaptionTap:
         self.transport_health.reset()
         self.previous_original = ""
         self.previous_revision = -1
+        if self.owner_tune_changed is not None:
+            try:
+                self.owner_tune_changed(observed)
+            except (OSError, RuntimeError, ValueError) as exc:
+                self._note_warning("Paired phone stream reset failed: "+str(exc)[:120])
         try:
             self.events.put_nowait(("native_tv_tune", {
                 "owner_epoch": observed[0],
@@ -1087,7 +1094,8 @@ def main(argv=None):
         options, lambda msg: events.put(("warning",str(msg))),
         gui_commands=lambda action,params: events.put_nowait(
             ("remote_gui_command",{"action":action,"params":params})))
-    tap = CaptionTap(str(endpoint), options, events, packet_sink=mobile.receive)
+    tap = CaptionTap(str(endpoint), options, events, packet_sink=mobile.receive,
+                     owner_tune_changed=mobile.owner_tune_changed)
     try:
         tap.start()
     except (OSError, RuntimeError) as exc:
