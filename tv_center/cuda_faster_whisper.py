@@ -249,7 +249,9 @@ class _PersistentCUDAWorker:
                          and 0 <= w["start"] <= w["end"] <= 60]
                 detected = result.get("language")
                 return {"text":output[:3000],"words":words,
-                        "language": detected if isinstance(detected,str) else language}
+                        "language": detected if isinstance(detected,str) else language,
+                        "language_probability": float(
+                            result.get("language_probability",0.0) or 0.0)}
             except (OSError, ValueError, BrokenPipeError) as exc:
                 self._stop()
                 raise RuntimeError("CUDA worker unavailable: " + str(exc)[:180]) from exc
