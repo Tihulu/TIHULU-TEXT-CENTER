@@ -15,6 +15,7 @@ def open_ai_settings(parent, ai, after_save=None):
     from textcenter.compute import detect_devices, choose_backend
     from .runtime import AIRuntime, RuntimeErrorAI
     from .whisper_engine import WhisperRuntime, WhisperRuntimeError
+    from .cuda_faster_whisper import FasterWhisperCUDA
     from .ai_provision import StarterAI
     from .hardware_market import detect_hardware, model_fit
     from .translation_market import TranslationModelMarket, LICENSE as NLLB_LICENSE
@@ -76,6 +77,14 @@ def open_ai_settings(parent, ai, after_save=None):
             self.install_cuda = QPushButton("Install CUDA whisper.cpp for NVIDIA GPU")
             self.install_cuda.clicked.connect(self.install_cuda_runtime)
             form.addRow(self.install_cuda)
+            self.install_fast_cuda = QPushButton(
+                "Install CUDA Faster-Whisper Large-v3 Turbo · no nvcc needed")
+            self.install_fast_cuda.setToolTip(
+                "Isolated user-owned Python environment; verified CTranslate2 "
+                "model and CUDA 12 cuBLAS/cuDNN wheels. Does not replace NVIDIA "
+                "drivers, whisper.cpp or TV device control.")
+            self.install_fast_cuda.clicked.connect(self.install_fast_cuda_runtime)
+            form.addRow(self.install_fast_cuda)
             self.cuda_status = QLabel("")
             self.cuda_status.setWordWrap(True)
             form.addRow("GPU acceleration",self.cuda_status)
@@ -260,6 +269,23 @@ def open_ai_settings(parent, ai, after_save=None):
                 return
             self.begin("Building NVIDIA CUDA Whisper engine…",WhisperRuntime().install_gpu)
 
+        def install_fast_cuda_runtime(self):
+            if not self.hardware["gpu"]["detected"]:
+                QMessageBox.warning(self, "CUDA Faster-Whisper",
+                    "An NVIDIA GPU driver and nvidia-smi are required.")
+                return
+            if QMessageBox.question(self, "Install NVIDIA Faster-Whisper",
+                "Install Faster-Whisper, CUDA 12 cuBLAS/cuDNN runtime wheels "
+                "and a SHA-256 checked Large-v3 Turbo model (~1.62 GB) into "
+                "user-owned storage? No nvcc or system GPU driver replacement. "
+                "Python packages may take additional disk space. Model download "
+                "is only performed after this confirmation. Save external-SSD "
+                "model storage settings first if you want them used."
+                ) != QMessageBox.Yes:
+                return
+            self.begin("Installing local CUDA Faster-Whisper and Turbo model…",
+                       FasterWhisperCUDA().install)
+
         def inspect_nllb(self):
             state = self.translation_market.status()
             self.nllb_status.setText(
@@ -368,6 +394,8 @@ def open_ai_settings(parent, ai, after_save=None):
                     "CUDA compiler: " + (gpu["cuda_version"] or "not installed") +
                     " · GPU whisper.cpp built: " +
                     ("YES" if WhisperRuntime().ready_gpu() else "NO") +
+                    "\nManaged Faster-Whisper CUDA (no nvcc): " +
+                    ("INSTALLED" if FasterWhisperCUDA().installed() else "NOT INSTALLED") +
                     "\n" + gpu["reason"])
             except (ImportError, OSError, ValueError) as exc:
                 self.compute.setText("Hardware inference discovery failed: " + str(exc)[:140])
