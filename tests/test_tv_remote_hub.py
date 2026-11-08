@@ -56,7 +56,7 @@ class PairedRemoteHubTests(unittest.TestCase):
                     self.assertIn("org.freedesktop.MediaPlayer.AddTrack",args)
                     self.assertIn("boolean:true",args)
                     with self.assertRaises(ValueError):
-                        hub.control("TVChannel",channel="../../etc/passwd\\n")
+                        hub.control("TVChannel",channel="../../etc/passwd\n")
                     with self.assertRaises(ValueError):
                         hub.control("VolumeSet",value=200)
             finally:
