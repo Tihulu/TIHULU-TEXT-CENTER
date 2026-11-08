@@ -729,7 +729,17 @@ public:
 		radioCaption_->setWordWrap(true);
 		v->addWidget(radioCaption_);
 		auto *lyricsRow = new QGridLayout();
-		lyrics_ = new QPushButton(tr("Find timed lyrics (optional internet)"), lab);
+		lyrics_ = new QPushButton(tr("Find lyrics (timed OR plain, optional online)"), lab);
+		lyricsImport_=new QPushButton(tr("Import local TXT / LRC"),lab);
+		lyricsImport_->setToolTip(tr("Use your own legally obtained lyric file. "
+			"Plain TXT lines can be matched to audible Whisper speech; "
+			"timed LRC can be rechecked against actual vocals."));
+		lyricsArtist_=new QLineEdit(lab);
+		lyricsArtist_->setPlaceholderText(tr("Artist correction (optional)"));
+		lyricsTitle_=new QLineEdit(lab);
+		lyricsTitle_->setPlaceholderText(tr("Song title correction (optional)"));
+		lyricsArtist_->setMaximumWidth(240);
+		lyricsTitle_->setMaximumWidth(320);
 		stopLyrics_=new QPushButton(tr("Stop lyrics"),lab);
 		stopLyrics_->setEnabled(false);
 		lyricsOffset_ = new QSlider(Qt::Horizontal, lab);
@@ -775,6 +785,9 @@ public:
 		lyricsRow->addWidget(new QLabel(tr("Lyric timing:"), lab),1,2);
 		lyricsRow->addWidget(lyricsOffset_,2,0,1,2);
 		lyricsRow->addWidget(lyricsOffsetValue_,2,2);
+		lyricsRow->addWidget(lyricsImport_,3,0);
+		lyricsRow->addWidget(lyricsArtist_,3,1);
+		lyricsRow->addWidget(lyricsTitle_,3,2);
 		lyricsRow->setColumnStretch(1,1);
 		v->addLayout(lyricsRow);
 		v->addWidget(lyricsSyncState_);
@@ -987,6 +1000,35 @@ public:
 		connect(caption_, &QPushButton::clicked, this, [this](){ startCaptioning(); });
 		connect(stopCaption_, &QPushButton::clicked, this, [this](){ stopCaptioning(); });
 		connect(lyrics_, &QPushButton::clicked, this, [this](){ fetchLyrics(); });
+		connect(lyricsImport_,&QPushButton::clicked,this,[this](){
+			const QString path=QFileDialog::getOpenFileName(
+				this,tr("Import your plain text or timed song lyrics"),QString(),
+				tr("Lyric files (*.txt *.lrc)"));
+			if(path.isEmpty()) return;
+			stopLyrics();
+			const QString runtime=QStandardPaths::writableLocation(
+				QStandardPaths::RuntimeLocation);
+			if(runtime.isEmpty()) {
+				lyricText_->setText(tr("Cannot import: private runtime directory missing."));
+				return;
+			}
+			lyricPath_=runtime+QLatin1String("/tihulu-radio-lyrics-")+
+				QString::number(QCoreApplication::applicationPid())+QLatin1String(".json");
+			QFile::remove(lyricPath_);
+			lyricsEnabled_=true;
+			lyricLoaded_=false;
+			lyricsProcess_.start(QLatin1String("tihulu-tv-center"),{
+				QLatin1String("lyrics-import"),QLatin1String("--file"),path,
+				QLatin1String("--output"),lyricPath_});
+			if(!lyricsProcess_.waitForStarted(900)) {
+				lyricsEnabled_=false;
+				lyricText_->setText(tr("Local lyrics companion failed to start."));
+				return;
+			}
+			lyrics_->setEnabled(false);
+			stopLyrics_->setEnabled(true);
+			lyricText_->setText(tr("Importing plain TXT / timed LRC; no network lookup."));
+		});
 		connect(stopLyrics_, &QPushButton::clicked, this, [this](){ stopLyrics(); });
 		connect(slidePrev_,&QPushButton::clicked,this,[this](){slideMove(-1);});
 		connect(slideNext_,&QPushButton::clicked,this,[this](){slideMove(1);});
@@ -2526,12 +2568,15 @@ private:
 			lyricText_->setText(tr("Play a station first.")); return;
 		}
 		const QStringList fields=lastDls_.split(QLatin1String(" - "));
-		if (fields.size()<2) {
+		const bool overridden=!automatic && !lyricsArtist_->text().trimmed().isEmpty()
+			&& !lyricsTitle_->text().trimmed().isEmpty();
+		if(fields.size()<2 && !overridden) {
 			lyricText_->setText(tr("No reliable Artist - Title DLS metadata. "
-				"Open a saved .lrc manually or wait for song metadata."));
+				"Enter corrected artist/title or import local TXT/LRC."));
 			return;
 		}
-		const QString artist=fields.at(0).trimmed(),title=fields.at(1).trimmed();
+		const QString artist=overridden?lyricsArtist_->text().trimmed():fields.at(0).trimmed();
+		const QString title=overridden?lyricsTitle_->text().trimmed():fields.at(1).trimmed();
 		if (artist.isEmpty() || title.isEmpty() || artist.size()>130 || title.size()>130)
 			return;
 		if (automatic && !autoLyrics_->isChecked()) return;
@@ -2650,7 +2695,7 @@ private:
 		*plotKind_=nullptr, *fftPlacement_=nullptr;
 	QPushButton *start_=nullptr,*stop_=nullptr,*scan_=nullptr,*record_=nullptr,
 		*caption_=nullptr,
-		*stopCaption_=nullptr,*lyrics_=nullptr,*stopLyrics_=nullptr,
+		*stopCaption_=nullptr,*lyrics_=nullptr,*lyricsImport_=nullptr,*stopLyrics_=nullptr,
 		*slidePrev_=nullptr,*slideNext_=nullptr;
 	QTreeWidget *stations_=nullptr;
 	QComboBox *libraryBlock_=nullptr;
@@ -2718,7 +2763,7 @@ private:
 	QCheckBox *autoSync_=nullptr,*autoRestartAudio_=nullptr;
 	int lastCaptionOffsetMs_=0;
 	QList<TimedRadioCue> cueQueue_;
-	QLineEdit *extraTargets_=nullptr;
+	QLineEdit *extraTargets_=nullptr,*lyricsArtist_=nullptr,*lyricsTitle_=nullptr;
 	QLabel *syncStatus_=nullptr;
 	QProcess backend_,captionProcess_,recorder_,lyricsProcess_,recordAi_,recordMux_,languagePackWorker_;
 	QListWidget *installedTargets_=nullptr;
