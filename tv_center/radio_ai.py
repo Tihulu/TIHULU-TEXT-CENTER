@@ -165,7 +165,8 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
 
 
 def lyrics_lookup_to_file(*, artist:str, track:str,output:str,
-                          online:bool=False):
+                          online:bool=False, source:str="auto",
+                          targets:tuple[str,...]=()):
     location=checked_runtime_output(output,prefix="tihulu-radio-lyrics-")
     try:
         cues,source=lookup_synced_lyrics(
@@ -173,10 +174,34 @@ def lyrics_lookup_to_file(*, artist:str, track:str,output:str,
         if not cues:
             raise RuntimeError(
                 "No verified time-coded lyrics ("+str(source.get("status"))+")")
+        from .captions import translate
+        source_code=("auto" if source=="auto" else language_code(source))
+        target_codes=tuple(dict.fromkeys(language_code(t,nllb=True)
+                                         for t in targets))[:6]
+        timed=[]
+        for cue in cues[:150]:
+            line={"start":cue.start,"end":cue.end,
+                  "text":cue.text[:700]}
+            translated={}
+            if source_code!="auto":
+                for lang in target_codes:
+                    if lang==source_code:
+                        continue
+                    rendered,problem=translate(cue.text,source_code,lang)
+                    if rendered:
+                        translated[lang]=rendered[:700]
+            if translated:
+                line["translations"]=translated
+            timed.append(line)
         payload={"status":"completed","provenance":source,
-                 "time_base":"approximate DLS change; use manual offset",
-                 "cues":[{"start":cue.start,"end":cue.end,
-                          "text":cue.text[:700]} for cue in cues[:1500]]}
+                 "source_language":source_code,
+                 "translation_note":("Choose a source language or start radio ASR "
+                    "to detect it before translating lyrics"
+                    if source_code=="auto" else
+                    "Offline translations share original lyric timestamps; "
+                    "not exact translated-word alignment"),
+                 "time_base":"approximate DLS change plus radio cache; use manual offset",
+                 "cues":timed}
         write_runtime_json(location,payload)
         return 0
     except (RuntimeError,ValueError,PermissionError,OSError) as exc:
@@ -200,11 +225,15 @@ def main(args=None):
     lookup.add_argument("--artist",required=True)
     lookup.add_argument("--output",required=True)
     lookup.add_argument("--online",action="store_true")
+    lookup.add_argument("--source",default="auto")
+    lookup.add_argument("--targets",default="en,de,tr")
     opts=parser.parse_args(args)
     if opts.action=="lyrics-lookup":
         return lyrics_lookup_to_file(
             artist=opts.artist,track=opts.track,
-            output=opts.output,online=opts.online)
+            output=opts.output,online=opts.online,
+            source=opts.source,
+            targets=tuple(x.strip() for x in opts.targets.split(",") if x.strip()))
     try:
         decode_radio_live(port=opts.port,sid=opts.sid,
             source=opts.source,
