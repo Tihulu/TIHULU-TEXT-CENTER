@@ -1336,6 +1336,7 @@ def main(argv=None):
         current_cue = None
         current_text = ""
         current_until = 0.0
+        mobile.set_caption({"original":"","source":"stopped"})
         estimator.clear()
         auto_controller.reset()
         # Pausing recognition is not the same as leaving a selectable AI
@@ -1495,6 +1496,7 @@ def main(argv=None):
             if last_service_id is not None:
                 estimator.clear()
                 auto_controller.reset()
+                mobile.set_caption({"original":"","source":"channel_changed"})
                 sync_estimate.setText("Channel changed · recalibrating automatic sync.")
             last_service_id = mobile.service_id
         for _ in range(8):
@@ -1705,6 +1707,12 @@ def main(argv=None):
                         cue = cues.add(data, cue_config,
                                        data["captured_start"],data["captured_end"],
                                        data["decoded_at"])
+                    if not cue.get("skipped_duplicate"):
+                        # Phone HLS takes the PRE-buffer native MPEG-TS stream.
+                        # Publish cue capture/due/host-delay metadata now,
+                        # rather than waiting for the desktop subtitle to
+                        # become visible after the host TV buffer.
+                        mobile.set_caption(data, cue, cue_config, native_state)
                     delay_verified = (
                         native_state is not None and
                         native_state.get("requested_ms") == applied.playback_delay_ms)
@@ -1810,7 +1818,6 @@ def main(argv=None):
                 except (OSError, ValueError) as error:
                     end_srt_recording()
                     srt_status.setText("SRT save error: " + str(error))
-            mobile.set_caption(result)
             current_text = applied.render(result)
             current_until = cue["expires"]
             source_language = str(result.get("source_language") or applied.source).upper()
