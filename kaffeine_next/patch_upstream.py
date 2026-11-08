@@ -68,7 +68,9 @@ private:
 };''',
            '''	void activate() override
 	{
-		layout()->addWidget(mediaWidget);
+		// Insert at TOP on every activation; re-adding at the end
+		// would put video UNDER the AI toolbar after the next tab switch.
+		static_cast<QVBoxLayout *>(layout())->insertWidget(0, mediaWidget, 1);
 		mediaWidget->setFocus();
 	}
 	void setLocalFile(const QUrl &url) { aiPanel->setLocalFile(url); }
