@@ -487,6 +487,20 @@ def create_handler(hub):
                     "; Path=/; HttpOnly; SameSite=Strict"})
                 return
             if not self.require(csrf=True):return
+            if path=="/api/disconnect":
+                jar=SimpleCookie()
+                try:
+                    jar.load(self.headers.get("Cookie",""))
+                    ticket=jar["tihulu_session"].value
+                except (ValueError,KeyError):
+                    ticket=None
+                if ticket:
+                    with hub.lock:
+                        hub.sessions.pop(ticket,None)
+                self.send_data(200,{"disconnected":True},headers={
+                    "Set-Cookie":"tihulu_session=; Path=/; HttpOnly; "
+                                 "SameSite=Strict; Max-Age=0"})
+                return
             try:
                 if path=="/api/start":
                     result=hub.start(payload.get("kind"),payload.get("id"),
