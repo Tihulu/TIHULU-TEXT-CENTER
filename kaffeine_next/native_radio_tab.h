@@ -61,7 +61,7 @@ class TihuluRadioTab final : public TabBase
 public:
 	explicit TihuluRadioTab(MediaWidget *player, QWidget *parent = nullptr)
 		: TabBase(), player_(player), backend_(this), captionProcess_(this),
-		  network_(this), tick_(this)
+		  recorder_(this), network_(this), tick_(this)
 	{
 		setParent(parent);
 		auto *root = new QVBoxLayout(this);
@@ -460,6 +460,17 @@ private:
 			if (!active()) return;
 		}
 		if (scanning_) return;
+		if (!playingKey_.isEmpty()) {
+			if (QMessageBox::question(this,tr("Full DAB scan"),
+				tr("Stop current radio playback, offline captions and "
+				"recording while scanning Band III frequencies?"),
+				QMessageBox::Yes|QMessageBox::No,QMessageBox::No)!=QMessageBox::Yes)
+				return;
+			stopCaptioning();
+			stopRecording();
+			player_->stop();
+			playingKey_.clear();
+		}
 		scanning_=true;
 		scanIndex_=0;
 		scan_->setEnabled(false);
@@ -539,6 +550,10 @@ private:
 			return;
 		}
 		const QString sid=playingKey_.section(QLatin1Char(':'),1);
+		if (!QRegularExpression(QLatin1String("^(?:0x)?[A-Fa-f0-9]{1,8}$"))
+			.match(sid).hasMatch()) {
+			state_->setText(tr("Invalid station ID: recording refused.")); return;
+		}
 		const QString address=base()+QLatin1String("/mp3/")+sid;
 		recorder_.start(QLatin1String("ffmpeg"),
 			{QLatin1String("-nostdin"),QLatin1String("-hide_banner"),
@@ -751,7 +766,7 @@ private:
 		*radioCaption_=nullptr,*lyricText_=nullptr,*plot_=nullptr;
 	QCheckBox *english_=nullptr,*turkish_=nullptr,*music_=nullptr;
 	QSlider *lyricsOffset_=nullptr;
-	QProcess backend_,captionProcess_,recorder_{this};
+	QProcess backend_,captionProcess_,recorder_;
 	QNetworkAccessManager network_;
 	QTimer tick_;
 	quint16 port_=0;
