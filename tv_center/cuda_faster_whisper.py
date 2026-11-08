@@ -97,6 +97,27 @@ class FasterWhisperCUDA:
         except (OSError, ValueError, subprocess.TimeoutExpired) as exc:
             return {"ready": False, "reason": str(exc)[:180]}
 
+    def inference_selftest(self):
+        """Opt-in true CTranslate2/Blackwell model+kernel smoke test; no RF."""
+        if not self.installed():
+            return {"ready":False, "reason":"Install managed CUDA model first"}
+        try:
+            proc = subprocess.run(
+                [str(self.python), "-m", "tv_center.cuda_faster_whisper", "--selftest"],
+                env=self.worker_env(), stdin=subprocess.DEVNULL,
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                timeout=150, check=False)
+            if proc.returncode:
+                return {"ready":False, "reason":(
+                    proc.stderr.decode("utf-8","replace")[-700:]
+                    or "CUDA model inference failed")}
+            result = json.loads(proc.stdout)
+            return {"ready":bool(result.get("model_loaded") and result.get("cuda_tested")),
+                    "reason":result.get("error"), "device":result.get("device"),
+                    "model":result.get("model")}
+        except (OSError, ValueError, subprocess.TimeoutExpired) as exc:
+            return {"ready":False,"reason":str(exc)[:300]}
+
     def install(self):
         if os.geteuid() == 0:
             raise RuntimeError("Install GPU models as your normal desktop user")
@@ -114,8 +135,9 @@ class FasterWhisperCUDA:
             raise RuntimeError("Creating CUDA worker venv failed: " +
                                result.stderr.decode("utf-8", "replace")[-300:])
         packages = (
-            "faster-whisper>=1.1,<2", "huggingface_hub>=0.28,<1",
-            "nvidia-cublas-cu12>=12,<13", "nvidia-cudnn-cu12>=9,<10")
+            "faster-whisper>=1.2,<2", "ctranslate2>=4.6.3,<5",
+            "huggingface_hub>=0.28,<1",
+            "nvidia-cublas-cu12>=12.8,<13", "nvidia-cudnn-cu12>=9,<10")
         result = subprocess.run(
             [str(self.python), "-m", "pip", "install", "--disable-pip-version-check",
              *packages], stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
@@ -138,8 +160,14 @@ class FasterWhisperCUDA:
         check = self.probe()
         if not check["ready"]:
             raise RuntimeError("CUDA runtime installed but not ready: " + str(check["reason"]))
-        return ("NVIDIA Faster-Whisper Large-v3 Turbo installed without nvcc. "
-                "Restart captions and select GPU/Auto. Live speed is not yet benchmarked.")
+        verification = self.inference_selftest()
+        if not verification["ready"]:
+            raise RuntimeError(
+                "CUDA libraries and model installed, but real GPU inference failed: " +
+                str(verification.get("reason") or "unknown")[:500])
+        return ("NVIDIA Faster-Whisper Large-v3 Turbo installed and a real CUDA "
+                "model inference self-test passed (without nvcc). "
+                "Restart captions and select GPU/Auto. Live speed remains unmeasured.")
 
     def remove(self):
         self._guard()
@@ -256,11 +284,31 @@ def main():
         import ctranslate2
         print(json.dumps({"devices": ctranslate2.get_cuda_device_count()}), flush=True)
         return 0
+    if sys.argv[1:] == ["--selftest"]:
+        # This option really constructs the locally verified model and runs
+        # GPU decoder kernels on synthetic 16-kHz silence. It is deliberately
+        # separate from the cheap, read-only CUDA visibility check.
+        import numpy as np
+        import ctranslate2
+        from faster_whisper import WhisperModel
+        owned = FasterWhisperCUDA()
+        if not owned.installed() or ctranslate2.get_cuda_device_count() < 1:
+            raise RuntimeError("Verified CUDA model or NVIDIA device missing")
+        model = WhisperModel(str(owned.model_dir), device="cuda",
+                             compute_type="float16", local_files_only=True)
+        segments, _ = model.transcribe(np.zeros(16000,dtype=np.float32),
+                                       language="en", task="transcribe",
+                                       beam_size=1, vad_filter=False,
+                                       max_new_tokens=8)
+        list(segments)
+        print(json.dumps({"model_loaded":True,"cuda_tested":True,
+                          "device":"cuda","model":"large-v3-turbo"}), flush=True)
+        return 0
     if len(sys.argv) == 3 and sys.argv[1] == "--download":
         _download(sys.argv[2])
         return 0
     if sys.argv[1:] != ["--serve"]:
-        raise SystemExit("Usage: --probe | --download PATH | --serve")
+        raise SystemExit("Usage: --probe | --selftest | --download PATH | --serve")
     import numpy as np
     from faster_whisper import WhisperModel
     from textcenter.compute import LANGUAGES as WHISPER_LANGUAGES
