@@ -159,7 +159,10 @@
       "":(source.original||"");
     $("overlay-translated").textContent=choice==="original"||choice==="off"?
       "":(source.translated||"");
-    $("fullscreen-captions").style.display=choice==="off"?"none":"";
+    $("fullscreen-captions").style.display=
+      choice==="off"||(!$("overlay-original").textContent &&
+                       !$("overlay-translated").textContent)?"none":"";
+    if(nativeTrack)nativeTrack.mode=choice==="off"?"disabled":"showing";
     $("fullscreen-captions").style.background="rgba(0,0,0,"+
        (Number($("caption-opacity").value)/100)+")";
   }
@@ -300,17 +303,19 @@
   $("stop-video").onclick=stopClient;
   $("fullscreen").onclick=async()=>{
     const stage=$("fullscreen-stage"),video=$("tv");
-    try {
-      if(stage.requestFullscreen){
-        await stage.requestFullscreen({navigationUI:"hide"});
-      }else if(video.webkitEnterFullscreen){
-        // iOS native video-only fullscreen cannot contain HTML overlays.
-        // The live native VTTCue track keeps subtitles available there.
+    try{
+      if(stage.requestFullscreen)await stage.requestFullscreen();
+      else if(video.webkitEnterFullscreen){
         initTextTrack();video.webkitEnterFullscreen();
-      }else{
-        $("video-status").textContent="Fullscreen unavailable in this browser";
-      }
-    }catch(e){$("video-status").textContent="Fullscreen: "+e.message;}
+      }else throw Error("Fullscreen not supported in this browser");
+    }catch(e){
+      // Some iPhone Safari versions expose requestFullscreen but reject
+      // non-video elements. Keep real subtitles as a native WebVTT track.
+      try{
+        if(video.webkitEnterFullscreen){initTextTrack();video.webkitEnterFullscreen();}
+        else throw e;
+      }catch(error){$("video-status").textContent="Fullscreen: "+error.message;}
+    }
   };
   $("subtitle-display").onchange=updateOverlay;
   $("caption-opacity").oninput=updateOverlay;
