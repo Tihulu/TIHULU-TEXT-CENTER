@@ -128,6 +128,44 @@ QAbstractButton *StartTab::addShortcut''',
 }
 
 QAbstractButton *StartTab::addShortcut''')
+    # Rebuild Start as a TIHULU home screen, while retaining the
+    # original Kaffeine file/CD/DVD/TV actions and shortcuts.
+    change(main, '''	setBackgroundRole(QPalette::Base);
+	setAutoFillBackground(true);
+
+	QGridLayout *gridLayout = new QGridLayout(this);''',
+           '''	setObjectName(QLatin1String("tihuluHome"));
+	setStyleSheet(QLatin1String(
+		"QWidget#tihuluHome{background:#101d2d;color:#e2f6ff}"
+		"QToolButton{background:#1b3b53;color:#f3fbff;"
+		"border:1px solid #366b89;border-radius:9px;"
+		"min-width:186px;padding:14px}"
+		"QToolButton:hover{background:#215875}"
+	));
+	QVBoxLayout *frame=new QVBoxLayout(this);
+	frame->setContentsMargins(24,18,24,18);
+	auto *heading=new QLabel(i18n("TIHULU Media Center\\n"
+		"TV · Radio · Video / Audio · Offline AI"),this);
+	heading->setAlignment(Qt::AlignCenter);
+	heading->setStyleSheet(QLatin1String(
+		"font-size:24px;font-weight:700;color:#b6f6fe;padding:12px"));
+	frame->addWidget(heading,0,Qt::AlignCenter);
+	QGridLayout *gridLayout = new QGridLayout();''')
+    change(main, '''	gridLayout->setSpacing(15);
+
+	QAbstractButton *button =''',
+           '''	gridLayout->setSpacing(15);
+	frame->addLayout(gridLayout,1);
+	QAbstractButton *button =''')
+    change(main, '''	gridLayout->addWidget(button, 1, 2);
+#endif /* HAVE_DVB == 1 */''',
+           '''	gridLayout->addWidget(button, 1, 2);
+	button = addShortcut(i18n("&7 Open Media + Offline AI"),
+		QIcon::fromTheme(QLatin1String("video-x-generic")),this);
+	button->setShortcut(Qt::Key_7);
+	connect(button,SIGNAL(clicked()),mainWindow,SLOT(open()));
+	gridLayout->addWidget(button,2,0,1,3);
+#endif /* HAVE_DVB == 1 */''')
     # Use a unique application ID and KConfig/SQLite user-data path.
     # This is a distinctly installed app, not the system KDE Kaffeine
     # process or a secondary window inside the existing binary.
@@ -170,6 +208,8 @@ QAbstractButton *StartTab::addShortcut''')
     change(main, "#include <QMainWindow>\n",
            "#include <QMainWindow>\n#include <QCoreApplication>\n"
            "#include <QProcess>\n#include <QMessageBox>\n#include <QStandardPaths>\n")
+    change(main, "#include <QStandardPaths>\n",
+           "#include <QStandardPaths>\n#include <QLabel>\n#include <QVBoxLayout>\n")
     change(main, '''#if HAVE_DVB == 1
 	QMenu *dvbMenu = new QMenu(i18n("&Television"), this);
 	menuBar->addMenu(dvbMenu);
