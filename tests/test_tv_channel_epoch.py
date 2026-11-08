@@ -127,6 +127,10 @@ class TvTuneEpochTests(unittest.TestCase):
         self.assertIn("if tap.program_epoch != last_ui_program_epoch:",ui)
         self.assertIn('data.get("program_epoch") != tap.program_epoch',ui)
         self.assertIn("Automatic broadcaster subtitles (new TV service)",ui)
+        self.assertIn('mode="auto" if applied.mode == "page" else applied.mode',ui)
+        self.assertIn("srt_recorder.stop()",ui)
+        self.assertIn("from_controls() uses fresh DVB descriptors per tune",ui)
+        self.assertNotIn('if lang and source.currentText() != "Auto detect · Whisper":',ui)
 
 
 if __name__ == "__main__":
