@@ -51,8 +51,35 @@ def serve_nllb():
         print(json.dumps(result,ensure_ascii=False),flush=True)
 
 
+def serve_argos():
+    """Reuse the same isolated Argos Python process for live TV captions."""
+    from textcenter.transcripts import translate_offline
+    for line in sys.stdin:
+        if not line.strip():
+            continue
+        try:
+            if len(line)>10000:
+                raise ValueError("Translator request too long")
+            request=json.loads(line)
+            text,source,target=(request["text"],request["source"],request["target"])
+            if not isinstance(text,str) or not 0<len(text)<=1600:
+                raise ValueError("Invalid caption")
+            source=language_code(source)
+            target=language_code(target)
+            if source==target:
+                translated=text
+            else:
+                translated=translate_offline(text,source,target,backend="cpu")
+            response={"translated":translated}
+        except (ImportError,ValueError,RuntimeError,KeyError,TypeError,OSError) as exc:
+            response={"error":str(exc)[:220]}
+        print(json.dumps(response,ensure_ascii=False),flush=True)
+
+
 if __name__ == "__main__":
     if sys.argv[1:] == ["--serve-nllb"]:
         serve_nllb()
+    elif sys.argv[1:] == ["--serve-argos"]:
+        serve_argos()
     else:
         main()
