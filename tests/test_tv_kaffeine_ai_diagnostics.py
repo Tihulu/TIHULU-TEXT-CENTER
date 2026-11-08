@@ -38,5 +38,5 @@ class ReadOnlyAICheckTests(unittest.TestCase):
         self.assertTrue(result["hardware"]["gpu_detected"])
         self.assertFalse(result["whisper"]["backend_ready"])
         self.assertFalse(result["whisper"]["runtime_cuda"])
-        self.assertIn("detected GPU alone is not enough",result["next_step"])
+        self.assertIn("CUDA Toolkit >=12.8",result["next_step"])
         self.assertIn("no RF access",result["policy"])
