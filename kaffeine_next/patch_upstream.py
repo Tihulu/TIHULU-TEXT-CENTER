@@ -14,7 +14,7 @@ REVISION = "e7ea15b86dafed3b20b151cbcb080578ab8e2d5c"
 PATHS = ("src/mainwindow.cpp", "src/mainwindow.h", "src/CMakeLists.txt",
          "src/dvb/dvbliveview.cpp",
          "src/dvb/dvbliveview_p.h", "src/dvb/dvbmanager.cpp", "src/dvb/dvbtab.cpp",
-         "src/dvb/dvbtab.h", "src/backend-vlc/vlcmediawidget.cpp",
+         "src/dvb/dvbtab.h", "src/dvb/dvbconfigdialog.cpp", "src/backend-vlc/vlcmediawidget.cpp",
          "src/mediawidget.cpp", "src/mediawidget.h", "src/osdwidget.cpp",
          "src/osdwidget.h", "src/main.cpp", "src/dvb/dvbepg.cpp")
 
@@ -903,6 +903,47 @@ void DvbTab::showChannelDialog()
 {
 \tQDialog *dialog = new DvbScanDialog(manager, this);
 ''')
+    # Upstream Kaffeine 2.0.19 returns a pointer to a local QSharedPointer
+    # copy in getInstantRecording(). The dangling pointer is dereferenced
+    # during channel changes and can crash immediately after scan/import.
+    change(tab, '''DvbSharedRecording *DvbTab::getInstantRecording(DvbSharedChannel ch) {
+	DvbSharedRecording *ret = NULL;
+
+	QListIterator<DvbSharedRecording> i(instantRecordings);
+	while (i.hasNext()) {
+		DvbSharedRecording r = i.next();
+		if(r.constData()->channel == ch) {
+			ret = &r;
+			break;
+		}
+	}
+
+	return ret;
+}''', '''DvbSharedRecording *DvbTab::getInstantRecording(DvbSharedChannel ch) {
+	// Return the address of an element OWNED by the container, never
+	// the address of a loop-local QSharedPointer which dies at scope exit.
+	for (int index = 0; index < instantRecordings.size(); ++index) {
+		DvbSharedRecording &recording = instantRecordings[index];
+		if (recording && recording->channel == ch)
+			return &recording;
+	}
+	return NULL;
+}''')
+
+    # Selecting a fresh DVB-T2 tuner must be immediately scannable.
+    # Do not override a saved user-selected source; use Kaffeine's own
+    # real full-frequency AUTO-T2-Normal scan only if none is configured.
+    config_page = "src/dvb/dvbconfigdialog.cpp"
+    change(config_page,
+           '''	sourceBox->setCurrentIndex(sourceIndex + 1);''',
+           '''	// No Source is not a usable default for an auto-scannable T2 tuner.
+	// Keep all explicit saved scan sources unchanged.
+	if (isGen2 && config->getTransmissionType() == DvbConfigBase::DvbT &&
+	    config->scanSource.isEmpty())
+		sourceBox->setCurrentIndex(1); // Kaffeine AUTO-T2-Normal
+	else
+		sourceBox->setCurrentIndex(sourceIndex + 1);''')
+
     tabhdr = "src/dvb/dvbtab.h"
     change(tabhdr, '\tvoid showChannelDialog();',
            '\tvoid showChannelDialog();\n\tvoid showFullScanDialog();')
