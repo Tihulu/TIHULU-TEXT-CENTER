@@ -293,6 +293,34 @@ def translate(text: str, source: str, target: str) -> tuple[str | None, str | No
     from .translation_failover import live_failover
     from .translation_service import translate_nllb
     selected = os.environ.get("TIHULU_TRANSLATOR_MODEL", "argos")
+    if selected=="deepl":
+        # Explicit online-provider opt-in. Only the decoded text is sent;
+        # live RF, TV transport and original audio never leave this device.
+        try:
+            from .deepl_api import translate_deepl
+            translated=translate_deepl(text,source,target)
+            return translated,None
+        except (ValueError,RuntimeError,OSError,TimeoutError) as exc:
+            try:
+                replacement=_translate_argos_local(text,source,target)
+                return replacement,"DeepL unavailable; offline Argos fallback: "+str(exc)[:100]
+            except (ImportError,RuntimeError,ValueError,OSError,KeyError):
+                return None,"DeepL unavailable; no compatible offline Argos pair"
+    if selected=="madlad":
+        from .translation_service import translate_madlad
+        import time
+        now=time.monotonic()
+        blocked=getattr(translate,"_madlad_blocked_until",0.)
+        if now>=blocked:
+            try:
+                return translate_madlad(text,source,target),None
+            except (RuntimeError,OSError,ValueError,TimeoutError,ImportError):
+                translate._madlad_blocked_until=now+180.
+        try:
+            return _translate_argos_local(text,source,target),(
+                "MADLAD unavailable or too slow; switched to installed offline Argos")
+        except (RuntimeError,OSError,ValueError,ImportError,KeyError):
+            return None,"MADLAD unavailable; offline Argos pair not installed"
     outcome = live_failover().translate(
         text, source, target, preferred=selected,
         nllb=translate_nllb, argos=_translate_argos_local)
