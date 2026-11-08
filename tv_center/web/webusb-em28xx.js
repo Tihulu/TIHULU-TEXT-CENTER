@@ -4,6 +4,7 @@
  * firmware upload, kernel-driver detach, configuration change or USB reset.
  */
 import {TransportAnalyzer} from "./ts-analyzer.js";
+import {classifyUsbFailure} from "./webusb-access-guide.js";
 
 export const WINTV = Object.freeze({vendorId:0x2040,productId:0x8268,
   board:"Hauppauge WinTV-soloHD (retail bulk), Empia EM28178"});
@@ -42,7 +43,7 @@ export class WinTVProbe {
     this.device=null;this.claimed=null;this.endpoint=null;
     this.analyzer=new TransportAnalyzer();
     this.chipId=null;
-    this.lastError="";
+    this.lastError="";this.lastErrorStage=null;
   }
   requirePermission(){
     if(!navigator.usb || !globalThis.isSecureContext)
@@ -56,6 +57,7 @@ export class WinTVProbe {
     });
     if(!supportedUSB(device))throw Error("Selected device ID does not match WinTV-soloHD 2040:8268");
     this.device=device;this.analyzer=new TransportAnalyzer();
+    this.lastError="";this.lastErrorStage=null;
     return this.describe();
   }
   async permitted(){
@@ -73,11 +75,27 @@ export class WinTVProbe {
       endpoints:endpointsOf(this.device),chipId:this.chipId===null?null:hex(this.chipId),
       interfaceClaimed:this.claimed,
       fullDvbDriverImplemented:false,
-      linuxFrontendMayBeBusy:true};
+      linuxFrontendMayBeBusy:true,
+      lastError:this.lastError||null,lastErrorStage:this.lastErrorStage};
   }
   async openForRead(){
     if(!this.device)throw Error("Select the WinTV-soloHD first");
-    if(!this.device.opened)await this.device.open();
+    if(!this.device.opened){
+      try{
+        await this.device.open();
+        this.lastError="";this.lastErrorStage=null;
+      }catch(error){
+        // Selecting a USB device in the browser does not provide Linux
+        // /dev/bus/usb rights. Keep the original error for troubleshooting.
+        const advice=classifyUsbFailure(error,"open");
+        this.lastError=advice.raw;this.lastErrorStage="open";
+        const failure=new Error(advice.title+": "+advice.explanation);
+        failure.name="WebUSBOpenError";
+        failure.usbStage="open";failure.usbReason=advice.code;
+        failure.usbOriginal=advice.raw;
+        throw failure;
+      }
+    }
     if(!this.device.configuration)
       throw Error("No active USB configuration. Do not change configurations while Linux DVB is connected.");
     return this.describe();
@@ -116,9 +134,14 @@ export class WinTVProbe {
       return this.describe();
     }catch(error){
       this.lastError=String(error.message||error);
-      throw Error("USB interface is unavailable (possibly owned by Linux em28xx). "+
-                  "No driver was detached. Use native DVB or free the tuner safely. "+
-                  this.lastError);
+      this.lastErrorStage="claim";
+      const advice=classifyUsbFailure(error,"claim");
+      const failure=new Error(advice.title+": "+advice.explanation+
+        " No driver was detached. Original: "+this.lastError);
+      failure.name="WebUSBClaimError";
+      failure.usbStage="claim";failure.usbReason=advice.code;
+      failure.usbOriginal=this.lastError;
+      throw failure;
     }
   }
   async readBulkBytes(length=16384){
