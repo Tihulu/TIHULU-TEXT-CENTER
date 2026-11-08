@@ -159,6 +159,77 @@
     if($('auto-plan'))$('auto-plan').textContent='1 · Schedule native RF passes';
     if($('auto-stop'))$('auto-stop').textContent='Cancel native auto jobs';
     if($('schedule-check'))$('schedule-check').textContent='Check native scheduler status';
+    // Native direct capture has its OWN real receiver limits, not the website
+    // 60-second WebUSB segmented download workflow. The shared HTML remains
+    // identical, but these labels and choices must reflect the OS backend.
+    const manualDuration=$('duration');
+    if(manualDuration){manualDuration.min='8';manualDuration.max='900';}
+    const nativeManualFormats=()=>{
+      const hz=Number($('preset')?.value||137900000);
+      const raw=$('record'),wav=$('wav-record');
+      const supportsWav=[145800000,437550000,437800000].includes(hz);
+      if(wav)wav.disabled=!supportsWav;
+      if(!supportsWav){
+        if(wav)wav.checked=false;
+        if(raw)raw.checked=true;
+      }
+      for(const id of ['record-both','record-wav-only']){
+        const button=$(id);
+        if(button){
+          button.disabled=!supportsWav;
+          button.title=supportsWav
+            ?'ISS audio can be captured as FM WAV or with raw IQ'
+            :'This profile cannot be recorded as FM WAV; select CU8.';
+        }
+      }
+      const summary=$('capture-format-summary');
+      if(summary)summary.textContent=supportsWav
+        ?(raw?.checked&&wav?.checked?'Native raw IQ + FM WAV selected':
+          wav?.checked?'Native FM WAV selected':'Native raw IQ selected')
+        :'Native original IQ (.cu8) only · required for Meteor LRPT.';
+      const unit=$('duration-unit')?.value;
+      const value=Number(manualDuration?.value||0);
+      const seconds=Math.round(value*(unit==='minutes'?60:1));
+      const rate=Number($('rate')?.value||1024000);
+      const bytes=seconds*((raw?.checked?rate*2:0)+(wav?.checked?96000:0));
+      const label=$('capture-budget');
+      if(label){
+        label.textContent=seconds<8||seconds>900||!Number.isFinite(seconds)
+          ?'Native recording duration must be 8–900 seconds. Choose a valid length.'
+          :'Native direct-to-disk: 1 continuous '+seconds+' s capture · '+
+            (bytes/1e6).toFixed(1)+' MB estimated · '+
+            (bytes>2000000000?'EXCEEDS the native 2 GB limit. ':
+             'No WebUSB or 60-second downloads. ')+
+            'Receiver must be enabled; prevent OS sleep.';
+      }
+    };
+    nativeManualFormats();
+    // Existing website controls calculate browser budgets first; the native
+    // handler runs on document bubbling after those listeners, without timers.
+    document.addEventListener('change',event=>{
+      if(['preset','duration','duration-unit','rate','record','wav-record'].includes(event.target?.id))
+        nativeManualFormats();
+    });
+    document.addEventListener('input',event=>{
+      if(event.target?.id==='duration')nativeManualFormats();
+    });
+    document.addEventListener('click',event=>{
+      if(['record-both','record-wav-only','record-cu8-only'].includes(event.target?.id))
+        nativeManualFormats();
+    });
+    const hints=document.querySelectorAll('#manual-format-picker p.hint');
+    for(const el of hints){
+      el.textContent='Native RTL-SDR: record real radio samples locally to disk. '+
+        'FM WAV applies to supported ISS audio profiles only; Meteor LRPT needs IQ (.cu8).';
+    }
+    const manualCard=document.querySelector('#start')?.closest('section');
+    for(const el of manualCard?.querySelectorAll('p.hint')||[]){
+      if(/RF requests exceeding 60 seconds|WebUSB file, with|Manual uninterrupted disk/.test(el.textContent||'')){
+        el.textContent='Native OS receiver writes RF to disk without WebUSB or 60 s chunks. '+
+          'Capture duration 8–900 seconds subject to the 2 GB safety limit. '+
+          'Signals are unverified until actually received and decoded.';
+      }
+    }
     // Website source remains unchanged; only desktop-specific hardware copy.
     const lead=$('device-status');
     if(lead)lead.textContent='Native RTL-SDR backend · hardware not yet verified';
@@ -341,7 +412,15 @@
         const params={frequency:selectedFrequency(),
           seconds:duration('duration','duration-unit'),
           rate:Number($('rate')?.value||1024000),raw,wav};
-        if(!raw&&!wav)throw Error('Select CU8, WAV or both');
+        if(!Number.isInteger(params.seconds)||params.seconds<8||params.seconds>900)
+          throw Error('Native recording requires 8–900 whole seconds. The previous 6-second input is not supported.');
+        if(!raw&&!wav)throw Error('Select CU8 or a supported ISS WAV mode.');
+        if([137900000,137100000].includes(params.frequency)&&(!raw||wav))
+          throw Error('Meteor LRPT requires original CU8/IQ only. Uncheck WAV.');
+        if(wav&&![145800000,437550000,437800000].includes(params.frequency))
+          throw Error('This frequency has no supported native FM WAV mode. Choose CU8 only.');
+        if(params.seconds*params.rate*2>2000000000&&raw)
+          throw Error('Raw IQ exceeds 2 GB native recording limit; lower sample rate or duration.');
         try{
           const result=await invoke('capture',params,'device-status');
           if(!result.file||!Number(result.bytes))
