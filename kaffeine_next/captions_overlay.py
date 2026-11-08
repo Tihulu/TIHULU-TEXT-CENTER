@@ -239,6 +239,8 @@ class CaptionTap:
                               if selected in ("auto", "teletext", "page") else None),
                 audio_pid=(options.get("audio_pid")
                            if selected in ("auto", "asr") else None),
+                audio_source=(options.get("audio_source")
+                              if selected in ("auto", "asr") else None),
                 previous_text=previous)
             if options.get("program_epoch") != self.program_epoch:
                 return  # old channel's caption must never appear on new TV
@@ -554,6 +556,9 @@ def main(argv=None):
             page=chosen_track["page"] if chosen_track else page.value(),
             teletext_pid=chosen_track["pid"] if chosen_track else None,
             audio_pid=chosen_audio["pid"] if chosen_audio else None,
+            audio_language=(chosen_audio.get("source_hint")
+                            if chosen_audio and chosen_audio.get("source_hint") in LANGS
+                            else None),
             offset_ms=round(caption_offset.value()*1000),
             playback_delay_ms=round(playback_delay.value()*1000),
             automatic_sync=automatic.isChecked(),
