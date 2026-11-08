@@ -333,6 +333,7 @@ class CaptionTap:
                                 and selected in ("auto","asr"),
                 speaker_provider=options.get("speaker_provider","resemblyzer"),
                 music_transcription=bool(options.get("music_transcription",False)),
+                speech_priority=bool(options.get("speech_priority",False)),
                 previous_text=previous)
             if options.get("program_epoch") != self.program_epoch:
                 return  # old channel's caption must never appear on new TV
@@ -671,6 +672,27 @@ def main(argv=None):
         "Available for live TV audio, too. CUDA Whisper disables voice activity "
         "filtering when checked. This is ASR, not a guarantee of exact lyrics.")
     timing_layout.addRow(music_transcription)
+    speech_priority = QCheckBox(
+        "Prefer spoken dialogue over background music (optional)")
+    speech_priority.setChecked(False)
+    speech_priority.setToolTip(
+        "When music overlaps actual speech, apply gentle speech-band "
+        "conditioning to the private Whisper input and use a more "
+        "permissive voice-activity threshold with conservative ASR "
+        "confidence checks. Does not change TV audio or guarantee "
+        "true music/speech source separation. May increase errors "
+        "on some broadcasts; disable it if accuracy becomes worse.")
+    timing_layout.addRow(speech_priority)
+    # Voice/music-vocal recognition is a separate experiment; the two
+    # goals conflict and must not be advertised as identical features.
+    def choose_speech_priority(checked):
+        if checked:
+            music_transcription.setChecked(False)
+    def choose_music_vocals(checked):
+        if checked:
+            speech_priority.setChecked(False)
+    speech_priority.toggled.connect(choose_speech_priority)
+    music_transcription.toggled.connect(choose_music_vocals)
     speakers_row = QHBoxLayout()
     speaker_enabled = QCheckBox(
         "Auto-label distinct voices · Speaker 1, Speaker 2, …")
@@ -1069,6 +1091,7 @@ def main(argv=None):
                             hinted in WHISPER_LANGUAGES else None),
             speaker_enabled=speaker_enabled.isChecked(),
             music_transcription=music_transcription.isChecked(),
+            speech_priority=speech_priority.isChecked(),
             speaker_provider=speaker_provider.currentData(),
             speaker_aliases=(),
             offset_ms=round(caption_offset.value()*1000),
@@ -1149,7 +1172,7 @@ def main(argv=None):
                         str(new_offset/1000) + "s. Other changes: Apply")
     caption_offset.valueChanged.connect(apply_offset_immediately)
     for w in (show_video,automatic,speaker_enabled,music_transcription,
-              *language_boxes.values()):
+              speech_priority,*language_boxes.values()):
         w.toggled.connect(set_pending)
 
     def apply_settings():
@@ -1161,8 +1184,8 @@ def main(argv=None):
                 getattr(selected, key) != getattr(previous, key)
                 for key in ("mode", "source", "target_languages", "page",
                             "teletext_pid", "audio_pid", "audio_language",
-                            "music_transcription", "speaker_enabled",
-                            "speaker_provider", "speaker_aliases"))
+                            "music_transcription", "speech_priority",
+                            "speaker_enabled", "speaker_provider", "speaker_aliases"))
             # The native video/audio buffer really changes the media clock.
             # Unlike a cosmetic change, that requires fresh cue calibration.
             playback_changed = (selected.playback_delay_ms !=
@@ -1252,6 +1275,7 @@ def main(argv=None):
         automatic.setChecked(False)
         speaker_enabled.setChecked(True)
         music_transcription.setChecked(False)
+        speech_priority.setChecked(False)
         speaker_provider.setCurrentIndex(0)
         show_video.setChecked(True)
         position.setCurrentText("bottom"); font.setValue(25)
