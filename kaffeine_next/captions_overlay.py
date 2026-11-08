@@ -285,7 +285,9 @@ class CaptionTap:
                         if self.previous_revision == options.get("revision", 0)
                         else "")
             result = decode_segment(capture, mode=selected, page=options["page"],
-                source=source, target=primary, targets=enabled,
+                source=source, target=primary,
+                targets=(() if selected=="asr" and not options.get(
+                    "music_transcription",False) else enabled),
                 model=ai.values["model_path"],
                 service_id=options.get("service_id"),
                 teletext_pid=(options.get("teletext_pid")
@@ -306,6 +308,10 @@ class CaptionTap:
                 self.previous_original = (result.get("raw_asr_original") or
                                           result["original"])
                 self.previous_revision = options.get("revision", 0)
+            if str(result.get("source","")).startswith("broadcaster_teletext"):
+                self.sentence_joiner.reset()
+                self.sentence_session=None
+                self.sentence_captured_start=None
             if result.get("source") == "local_asr" and not options.get(
                     "music_transcription",False):
                 # Only completed spoken phrases are sent to the TV subtitle
