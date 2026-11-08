@@ -98,7 +98,7 @@ def local_lrc(media_path: str | Path) -> Path | None:
     return None
 
 
-def _get_json(url: str) -> dict:
+def _get_json(url: str, *, allow_list: bool=False):
     # No external redirect to other origins; do not send metadata to a
     # redirected host. This lookup is triggered only at user request.
     class NoRedirect(urllib.request.HTTPRedirectHandler):
@@ -123,6 +123,8 @@ def _get_json(url: str) -> dict:
             raise RuntimeError(
                 "Lyrics lookup rate-limited. Retry later; no automatic loop.") from exc
         raise RuntimeError(f"Lyrics lookup unavailable: HTTP {exc.code}") from exc
+    if allow_list and isinstance(record,list):
+        return [item for item in record[:20] if isinstance(item,dict)]
     if not isinstance(record, dict):
         raise ValueError("Unexpected LRCLIB response")
     return record
@@ -151,6 +153,17 @@ def lookup_synced_lyrics(*, title: str, artist: str,
         params["duration"] = round(float(duration))
     url = "https://lrclib.net/api/get?" + urllib.parse.urlencode(params)
     record = _get_json(url)
+    if not record:
+        # One opt-in catalog search; accept ONLY exact title+artist metadata.
+        search_url="https://lrclib.net/api/search?"+urllib.parse.urlencode(
+            {"track_name":title.strip(),"artist_name":artist.strip()})
+        results=_get_json(search_url,allow_list=True)
+        exact=[item for item in results
+               if str(item.get("trackName","")).casefold().strip()==title.casefold().strip()
+               and str(item.get("artistName","")).casefold().strip()==artist.casefold().strip()
+               and not item.get("instrumental")]
+        record=next((item for item in exact if item.get("syncedLyrics")),
+                    exact[0] if exact else {})
     if not record:
         return [], {"status":"not_found","provider":"LRCLIB"}
     if (str(record.get("trackName","")).casefold().strip() !=
