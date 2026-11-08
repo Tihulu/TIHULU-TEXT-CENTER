@@ -246,6 +246,14 @@ public:
 		state_->setWordWrap(true);
 		state_->setTextFormat(Qt::PlainText);
 		root->addWidget(state_);
+		playStatus_=new QLabel(tr("Station: no live stream verified"),page);
+		playStatus_->setWordWrap(true);
+		root->addWidget(playStatus_);
+		stationOpenProgress_=new QProgressBar(page);
+		stationOpenProgress_->setRange(0,4);
+		stationOpenProgress_->setValue(0);
+		stationOpenProgress_->setFormat(tr("Stream status · choose a station"));
+		root->addWidget(stationOpenProgress_);
 
 		// Public internet radio requires no SDR, welle-cli or DVB frontend.
 		// Search happens only when clicked, and uses HTTPS Radio Browser API.
@@ -1424,6 +1432,7 @@ private:
 		stopAnalog();
 		stopInternetRadio();
 		shuttingDown_ = true;
+		++stationRequestId_;
 		scanning_ = false;
 		stopCaptioning();
 		stopLyrics();
@@ -1467,6 +1476,7 @@ private:
 	              const std::function<void(const QJsonObject&)> &done) {
 		if (!active() || !port_) return;
 		QNetworkRequest request(QUrl(base() + endpoint));
+		request.setTransferTimeout(1200);
 		QNetworkReply *reply = network_.get(request);
 		connect(reply, &QNetworkReply::finished, this, [reply,done]() {
 			const QByteArray bytes = reply->readAll();
@@ -1735,6 +1745,7 @@ private:
 			lastDetectedLanguage_.clear();
 		}
 		scanning_=true;
+		++stationRequestId_;
 		scanRequestId_=0;
 		scanIndex_=0;
 		scanSnrByBlock_.clear();
@@ -1808,51 +1819,140 @@ private:
 			QTimer::singleShot(1500,this,next);
 		});
 	}
+	void verifyStation(const QString &key,const QString &name,
+	                   const QString &sid,quint64 requestId,int attempt=0) {
+		if(requestId!=stationRequestId_ || scanning_ || !active()) return;
+		if(attempt>=5) {
+			playStatus_->setText(tr("Unavailable now · %1 is only a SAVED station. "
+				"The tuner did not report its service on %2. "
+				"Rescan this DAB block or check RF SNR/lock.")
+				.arg(name,stationChannels_.value(key)));
+			stationOpenProgress_->setFormat(tr("OFFLINE / not found · no audio URL opened"));
+			stationOpenProgress_->setValue(0);
+			return;
+		}
+		stationOpenProgress_->setValue(qMin(3,attempt+1));
+		stationOpenProgress_->setFormat(tr("Checking live DAB service %1 · attempt %2/5")
+			.arg(name).arg(attempt+1));
+		auto resolved=std::make_shared<bool>(false);
+		const QString block=stationChannels_.value(key);
+		callJson(QLatin1String("/mux.json"),
+			[this,key,name,sid,block,requestId,attempt,resolved](const QJsonObject &mux) {
+				if(*resolved || requestId!=stationRequestId_) return;
+				*resolved=true;
+				if(!active() || activeChannel_!=block) return;
+				const QJsonObject demod=mux.value(QLatin1String("demodulator")).toObject();
+				const QJsonArray services=mux.value(QLatin1String("services")).toArray();
+				QString stream;
+				for(const QJsonValue &v:services) {
+					const QJsonObject candidate=v.toObject();
+					if(candidate.value(QLatin1String("sid")).toString()!=sid) continue;
+					const QString candidateStream=candidate.value(
+						QLatin1String("url_mp3")).toString();
+					if(QRegularExpression(QLatin1String("^/mp3/[A-Fa-f0-9x]+$"))
+						.match(candidateStream).hasMatch()) {
+						stream=candidateStream;
+						break;
+					}
+				}
+				if(stream.isEmpty()) {
+					playStatus_->setText(tr("%1 · DAB %2 · service not in LIVE mux "
+						"(saved entry may be stale); SNR %3.")
+						.arg(name,block).arg(demod.value(QLatin1String("snr"))
+						.isDouble()?QString::number(demod.value(QLatin1String("snr"))
+						.toDouble(),'f',1):tr("unavailable")));
+					QTimer::singleShot(1100,this,[this,key,name,sid,requestId,attempt](){
+						verifyStation(key,name,sid,requestId,attempt+1);
+					});
+					return;
+				}
+				// URL comes from the verified current welle mux, never fabricated
+				// from a possibly months-old cached service ID.
+				const bool restartAi=captionProcess_.state()!=QProcess::NotRunning;
+				stopCaptioning();
+				stopLyrics();
+				stopRecording();
+				lastDetectedLanguage_.clear();
+				lagSamples_.clear();
+				lastRadioChunk_=-1;
+				displayedRadioChunk_=-1;
+				pendingRadioCue_.clear();
+				playingKey_=key;
+				lastDls_.clear();
+				lyricLoaded_=false;
+				lyricCues_=QJsonArray();
+				slideHistory_.clear();
+				lastSlideHash_.clear();
+				slideIndex_=0;
+				player_->play(QUrl(base()+stream));
+				radioCanvas_->setText(tr("♪ %1\nDAB+ %2 · verifying audio playback…")
+					.arg(name,block));
+				playStatus_->setText(tr("LIVE mux lists %1. Opening audio; "
+					"receiver lock does not guarantee decoded sound.").arg(name));
+				stationOpenProgress_->setValue(4);
+				stationOpenProgress_->setFormat(tr("Live service verified · audio opening"));
+				QTimer::singleShot(3500,this,[this,requestId,name](){
+					if(requestId!=stationRequestId_) return;
+					if(player_->getPlaybackStatus()==MediaWidget::Playing) {
+						playStatus_->setText(tr("PLAYER RUNNING · %1 · verify audible "
+							"audio and error counters; actual audio output is not metered.")
+							.arg(name));
+						stationOpenProgress_->setFormat(tr("Player reports PLAYING · %1").arg(name));
+					} else {
+						playStatus_->setText(tr("NO AUDIO PLAYBACK reported for %1. "
+							"Check welle receiver, AAC decoding and stream endpoint.")
+							.arg(name));
+						stationOpenProgress_->setFormat(tr("Audio failed / stopped"));
+						stationOpenProgress_->setValue(0);
+					}
+				});
+				if(restartAi)
+					QTimer::singleShot(900,this,[this,requestId](){
+						if(requestId==stationRequestId_) startCaptioning();
+					});
+			});
+		QTimer::singleShot(1700,this,[this,key,name,sid,requestId,attempt,resolved](){
+			if(*resolved || requestId!=stationRequestId_) return;
+			*resolved=true;
+			playStatus_->setText(tr("DAB live mux API timed out; retrying without "
+				"opening a nonexistent /mp3 stream."));
+			verifyStation(key,name,sid,requestId,attempt+1);
+		});
+	}
 	void selectStation(QTreeWidgetItem *item) {
-		if (!item) return;
+		if(!item) return;
 		const QString key=item->data(0,Qt::UserRole).toString();
 		const QString block=stationChannels_.value(key);
-		if (!active()) { startReceiver(); if (!active()) return; }
-		if (scanning_) { state_->setText(tr("Stop or finish scanning before playback.")); return; }
-		auto play = [this,key,item]() {
-			const bool restartAi=captionProcess_.state()!=QProcess::NotRunning;
-			stopCaptioning();
-			stopLyrics();
-			stopRecording();
-			lastDetectedLanguage_.clear();
-			lagSamples_.clear();
-			lastRadioChunk_=-1;
-			displayedRadioChunk_=-1;
-			pendingRadioCue_.clear();
-			const QString sid=item->text(3);
-			const QString stream=QLatin1String("/mp3/")+sid;
-			if (!QRegularExpression(QLatin1String("^/mp3/[A-Fa-f0-9x]+$"))
-				.match(stream).hasMatch()) return;
-			playingKey_=key;
-			lastDls_.clear();
-			lyricLoaded_=false;
-			lyricsEnabled_=false;
-			if (lyricsProcess_.state()!=QProcess::NotRunning)
-				lyricsProcess_.kill();
-			stopLyrics_->setEnabled(false);
-			lyrics_->setEnabled(true);
-			if (!lyricPath_.isEmpty()) QFile::remove(lyricPath_);
-			lyricPath_.clear();
-			lyricCues_=QJsonArray();
-			slideHistory_.clear(); lastSlideHash_.clear(); slideIndex_=0;
-			// Kaffeine's native libVLC audio engine, same global playback controls.
-			player_->play(QUrl(base()+stream));
-			radioCanvas_->setText(tr("♪ %1\nDAB+ %2 · Live radio\n"
-				"Offline captions appear here when enabled.")
-				.arg(item->text(1),activeChannel_));
-			state_->setText(tr("Playing %1 with native TIHULU/libVLC.")
-				.arg(item->text(1)));
-			if(restartAi)
-				QTimer::singleShot(900,this,[this](){startCaptioning();});
+		const QString name=item->text(1),sid=item->text(3);
+		if(scanning_) {
+			playStatus_->setText(tr("Wait until scan ends before switching station."));
+			return;
+		}
+		if(!QRegularExpression(QLatin1String("^(?:[5-9]|1[0-3])[A-F]$"))
+		   .match(block).hasMatch() ||
+		   !QRegularExpression(QLatin1String("^(?:0x)?[A-Fa-f0-9]{1,8}$"))
+		   .match(sid).hasMatch()) {
+			playStatus_->setText(tr("Invalid saved DAB block/service ID; rescan."));
+			return;
+		}
+		if(!active()) {
+			startReceiver();
+			if(!active()) return;
+		}
+		const quint64 requestId=++stationRequestId_;
+		player_->stop();
+		playingKey_.clear();
+		playStatus_->setText(tr("Tuning DAB %1 for %2; checking LIVE service before play.")
+			.arg(block,name));
+		stationOpenProgress_->setValue(0);
+		auto ready=[this,key,name,sid,requestId]() {
+			if(requestId==stationRequestId_)
+				verifyStation(key,name,sid,requestId);
 		};
-		if (activeChannel_!=block) tune(block,play);
-		else play();
+		if(activeChannel_!=block) tune(block,ready);
+		else ready();
 	}
+
 	void toggleRecording() {
 		if (recorder_.state()!=QProcess::NotRunning) {
 			stopRecording();
@@ -2446,7 +2546,8 @@ private:
 	QCheckBox *webFavoritesOnly_=nullptr;
 	QLabel *webStatus_=nullptr;
 	QProgressBar *rfQuality_=nullptr;
-	QProgressBar *scanProgress_=nullptr,*scanSNR_=nullptr;
+	QProgressBar *scanProgress_=nullptr,*scanSNR_=nullptr,
+		*stationOpenProgress_=nullptr;
 	QMap<QString,double> scanSnrByBlock_;
 	QSet<QString> scanObserved_;
 	QCheckBox *multiRf_=nullptr;
@@ -2476,7 +2577,7 @@ private:
 	QCheckBox *favoritesOnly_=nullptr;
 	QLabel *libraryStatus_=nullptr;
 	QSet<QString> favorites_;
-	QLabel *state_=nullptr,*dls_=nullptr,*signal_=nullptr,*slide_=nullptr,
+	QLabel *state_=nullptr,*playStatus_=nullptr,*dls_=nullptr,*signal_=nullptr,*slide_=nullptr,
 		*radioCaption_=nullptr,*lyricText_=nullptr,*plot_=nullptr;
 	QCheckBox *english_=nullptr,*german_=nullptr,*turkish_=nullptr,*music_=nullptr,
 		*speakerLabels_=nullptr,
@@ -2512,7 +2613,7 @@ private:
 		lyricsEnabled_=false,
 		plotPending_=false;
 	int scanIndex_=0;
-	quint64 scanRequestId_=0;
+	quint64 scanRequestId_=0,stationRequestId_=0;
 	qint64 songStartMs_=0,manualSongStartMs_=0;
 	QString activeChannel_,playingKey_,lastDls_,captionPath_,lyricPath_,
 		lastDetectedLanguage_;
