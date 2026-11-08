@@ -12,7 +12,7 @@
 #include "dvb/dvbtab.h"
 #include "dvb/dvbmanager.h"
 #include "dvb/dvbliveview.h"
-#include "dvb/dvbrecordingmodel.h"
+#include "dvb/dvbrecording.h"
 
 #include <QCheckBox>
 #include <QColor>
@@ -32,6 +32,8 @@
 #include <QScrollArea>
 #include <QSet>
 #include <QTimer>
+#include <QTime>
+#include <QFrame>
 #include <QTreeWidget>
 #include <QVBoxLayout>
 
