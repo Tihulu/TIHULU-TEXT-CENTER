@@ -138,7 +138,7 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
             # not inferred gender/age. Music-mode does NOT invoke diarization.
             speaker_turns=[]
             speaker_warning=None
-            if speaker_labels and original and not music:
+            if speaker_labels and original and not music and plain_matcher is None:
                 try:
                     from .free_speakers import FreeSpeakerMarket, diarize_pcm
                     if FreeSpeakerMarket().status()["installed"]:
@@ -205,6 +205,9 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
                 "translation_warnings":problems,
                 "backend":backend,
                 "music_mode":bool(music),
+                "content_type":("music_lyrics_metadata" if plain_matcher is not None
+                                 else "speech_or_unclassified"),
+                "recognition_rejected":detection.get("recognition_rejected"),
                 "speaker_turns":speaker_turns,
                 "speaker_warning":speaker_warning,
                 "speaker_classification":(
