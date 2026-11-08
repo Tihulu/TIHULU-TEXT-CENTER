@@ -32,7 +32,7 @@ class StandaloneNativePlayerTests(unittest.TestCase):
                      "livePlot_->isChecked()", "QImage waterfall_",
                      "slideHistory_", "slideMove(",
                      "stopLyrics()","lyricsProcess_.start(",
-                     "autoSync_->isChecked()", "bufferMs_->setRange(0,20000)",
+                     "autoSync_->isChecked()", "bufferMs_->setRange(0,60000)",
                      "lagSamples_.size()>=4",
                      "QSettings radioSettings"):
             self.assertIn(term,radio)
