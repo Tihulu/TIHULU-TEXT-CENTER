@@ -690,6 +690,42 @@ QAbstractButton *StartTab::addShortcut''')
 
 \t\tif (recording) {''')
 
+    # Keep the stock recording-specific explanation, but do not tell the
+    # user to randomly change permissions when a tuned channel's Source is
+    # absent from the *connected* device configuration. This dialog only
+    # appears after transient reacquire attempts were exhausted.
+    change(live, '''\t\t} else {
+\t\t\tKMessageBox::information(manager->getParentWidget(),
+\t\t\t\ti18nc("@info",
+\t\t\t\t      "Didn't find a device with valid settings or access permissions are wrong.\n\n"
+\t\t\t\t      "Please check the Configure Television window."));
+\t\t}
+
+\t\treturn;
+\t}''', '''\t\t} else if (connectedDvbFrontends == 0) {
+\t\t\tKMessageBox::information(manager->getParentWidget(),
+\t\t\t\ti18nc("@info", "No connected DVB television tuner is available. "
+\t\t\t\t"Check the USB device, its driver, and Television → Receiver / tuner diagnostics."));
+\t\t} else if (!hasConnectedMatchingSource) {
+\t\t\tKMessageBox::information(manager->getParentWidget(),
+\t\t\t\ti18nc("@info", "This TV channel uses the source '%1', but no connected "
+\t\t\t\t"DVB tuner has that exact source name. Configured sources: %2.\n\n"
+\t\t\t\t"Open Television → Configure Television and match the DVB-T2 "
+\t\t\t\t"source Name used by the saved channel, or rescan the service.",
+\t\t\t\trequestedSource,usableSources.join(QLatin1String(", "))));
+\t\t} else {
+\t\t\tKMessageBox::information(manager->getParentWidget(),
+\t\t\t\ti18nc("@info", "The DVB tuner was detected and its channel source "
+\t\t\t\t"matches, but the tuner could not be acquired after a short retry. "
+\t\t\t\t"Check whether another TV program, a scan, or a driver operation "
+\t\t\t\t"is holding the frontend.\n\n"
+\t\t\t\t"Run tihulu-media-center --diagnose-tuner. "
+\t\t\t\t"No tuner reset or channel settings were performed."));
+\t\t}
+
+\t\treturn;
+\t}''')
+
     # Delay *both* audio and video by buffering already-filtered TS bytes
     # before Kaffeine's existing FIFO -> libVLC. The AI tap above stays
     # pre-delay so Whisper can finish nearer to delayed playback.
