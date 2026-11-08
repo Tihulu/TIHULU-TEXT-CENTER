@@ -361,28 +361,27 @@ def main():
                 waveform, language=(None if request["language"]=="auto" else
                                     request["language"]), task="transcribe",
                 beam_size=3, vad_filter=not bool(request.get("music_mode")),
-                condition_on_previous_text=False, word_timestamps=True)
+                vad_parameters=({"threshold":0.52,
+                                 "min_speech_duration_ms":350,
+                                 "min_silence_duration_ms":450,
+                                 "speech_pad_ms":180}
+                                if not request.get("music_mode") else None),
+                condition_on_previous_text=False, word_timestamps=True,
+                hallucination_silence_threshold=1.0)
             all_segments = list(segments)
-            # Very low-confidence station jingles and silence can produce
-            # convincing but invented words. Only reject extreme cases.
-            rejection=None
-            if all_segments and all(
-                    float(getattr(seg,"no_speech_prob",0.) or 0.) >
-                    (0.97 if request.get("music_mode") else 0.85)
-                    for seg in all_segments):
-                rejection="high_no_speech_probability"
-            elif all_segments and all(
-                    float(getattr(seg,"avg_logprob",0.) or 0.)<-1.55
-                    for seg in all_segments):
-                rejection="low_ASR_confidence"
-            elif all_segments and all(
-                    float(getattr(seg,"compression_ratio",0.) or 0.)>3.2
-                    for seg in all_segments):
-                rejection="repetitive_ASR_hallucination"
-            text = (" ".join(seg.text.strip() for seg in all_segments).strip()
-                    if rejection is None else "")
+            from tv_center.asr_quality import accepted_whisper_segments
+            detected = getattr(language_info,"language",None)
+            detected_probability = getattr(
+                language_info,"language_probability",None)
+            trusted_segments, rejection = accepted_whisper_segments(
+                all_segments, source_language=request["language"],
+                detected_probability=detected_probability,
+                music_mode=bool(request.get("music_mode")))
+            # Never translate hallucinated phrases or attach speaker labels
+            # to empty/no-speech clips. Preserve the reason as diagnostics.
+            text = " ".join(seg.text.strip() for seg in trusted_segments).strip()
             words = []
-            for segment in ([] if rejection is not None else all_segments):
+            for segment in trusted_segments:
                 for word in segment.words or ():
                     token = word.word.strip()
                     if token and len(token) <= 100 and len(words) < 240:
