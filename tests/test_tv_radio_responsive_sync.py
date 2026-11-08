@@ -101,6 +101,14 @@ class RadioModesAndSyncTests(unittest.TestCase):
         self.assertIn("lyricsProcess_.start",self.radio)
         self.assertIn("No radio audio uploaded",self.radio) if False else None
 
+    def test_lyric_listening_keeps_stop_control_across_dls_metadata(self):
+        self.assertIn("const bool listening=lyricsAudioFallbackActive_",self.radio)
+        self.assertIn("stopLyrics_->setEnabled(listening)",self.radio)
+        self.assertIn("DLS metadata updated. Continuing offline vocal",self.radio)
+        self.assertIn("plainLyricsStartedAi_",self.radio)
+        self.assertIn("lastCaptionVisibleMs_=now",self.radio)
+        self.assertIn("now-lastCaptionVisibleMs_>=12000",self.radio)
+
     def test_lyric_alignment_requires_reliable_evidence_and_is_rate_limited(self):
         self.assertIn('confidence>=0.92',self.radio)
         self.assertIn('lyricOffsetConsistency_>=2',self.radio)
