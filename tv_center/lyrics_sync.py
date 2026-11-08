@@ -249,12 +249,18 @@ class LiveLyricMatcher:
                 continue
             distinctive={word for word in expected if len(word)>=3}
             evidence=sum(1 for word in distinctive if word in hearing)
-            if evidence<3:
+            # Short refrains such as "Gül kokar gül" contain only two
+            # DISTINCTIVE words. Require BOTH, with higher confidence;
+            # do not match "Rose kokar rose" to "Gül kokar gül".
+            short_refrain=len(expected)<=4 and len(distinctive)==2
+            required=2 if short_refrain else 3
+            if evidence<required:
                 continue
             coverage=evidence/max(1,len(distinctive))
             precision=evidence/max(1,len(hearing))
             confidence=0.82*coverage+0.18*min(1.,precision*2.)
-            if confidence>=0.74 and (best is None or confidence>best[0]):
+            threshold=0.90 if short_refrain else 0.74
+            if confidence>=threshold and (best is None or confidence>best[0]):
                 best=(confidence,index,original)
         if best is None:
             return None
