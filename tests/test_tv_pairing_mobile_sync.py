@@ -178,7 +178,7 @@ class PairedHubTests(unittest.TestCase):
     def test_images_require_hub_pairing_cookie_and_reject_bad_content(self):
         with tempfile.TemporaryDirectory() as directory:
             root=Path(directory)
-            (root/"slide.png").write_bytes(b"\\x89PNG\\r\\n\\x1a\\n"+b"image")
+            (root/"slide.png").write_bytes(b"\x89PNG\r\n\x1a\n"+b"image")
             hub=RemoteHub(root)
             server=ThreadingHTTPServer(("127.0.0.1",0),create_handler(hub))
             thread=threading.Thread(target=server.serve_forever,daemon=True)
@@ -200,7 +200,7 @@ class PairedHubTests(unittest.TestCase):
                              timeout=3) as picture:
                     self.assertEqual(picture.status,200)
                     self.assertEqual(picture.headers["Content-Type"],"image/png")
-                    self.assertTrue(picture.read().startswith(b"\\x89PNG"))
+                    self.assertTrue(picture.read().startswith(b"\x89PNG"))
                 with self.assertRaises(HTTPError) as fake:
                     urlopen(Request(base+"/api/image?id=not-found",
                                     headers={"Cookie":cookie}),timeout=3)
