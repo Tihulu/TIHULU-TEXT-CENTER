@@ -202,7 +202,8 @@ class _PersistentCUDAWorker:
     def transcribe(self, pcm, language, model_path):
         return self.transcribe_details(pcm, language, model_path)["text"]
 
-    def transcribe_details(self, pcm, language, model_path, *, music_mode=False):
+    def transcribe_details(self, pcm, language, model_path, *, music_mode=False,
+                           speech_priority=False):
         if not isinstance(pcm, bytes) or not 0 < len(pcm) <= 4_000_000:
             raise RuntimeError("Invalid 32-kHz PCM audio segment")
         worker = FasterWhisperCUDA()
@@ -212,6 +213,7 @@ class _PersistentCUDAWorker:
             "audio": base64.b64encode(pcm).decode("ascii"),
             "language": language, "model": str(worker.model_dir),
             "music_mode":bool(music_mode),
+            "speech_priority":bool(speech_priority),
         }, separators=(",", ":")).encode("utf-8") + b"\n"
         with self.lock:
             if self.process is None or self.process.poll() is not None:
@@ -266,10 +268,12 @@ def transcribe_cuda(pcm, language, model_path):
     return _worker.transcribe(pcm, language, model_path)
 
 
-def transcribe_cuda_details(pcm, language, model_path, *, music_mode=False):
-    """Return real word timestamps; singing mode keeps possible vocal audio."""
-    return _worker.transcribe_details(pcm, language, model_path,
-                                      music_mode=music_mode)
+def transcribe_cuda_details(pcm, language, model_path, *,
+                            music_mode=False, speech_priority=False):
+    """Return real word timestamps; dialogue focus is independent of singing."""
+    return _worker.transcribe_details(
+        pcm, language, model_path, music_mode=music_mode,
+        speech_priority=speech_priority)
 
 
 def _download(destination):
@@ -357,15 +361,16 @@ def main():
             samples = np.frombuffer(pcm, dtype="<i2").astype(np.float32)
             samples = samples[:len(samples) // 2 * 2]
             waveform = (samples[0::2] + samples[1::2]) / 65536.0
+            from tv_center.speech_focus import whisper_vad_settings
+            dialogue_priority = (bool(request.get("speech_priority")) and
+                                 not bool(request.get("music_mode")))
+            vad = whisper_vad_settings(
+                speech_priority=dialogue_priority,
+                music_transcription=bool(request.get("music_mode")))
             segments, language_info = model.transcribe(
                 waveform, language=(None if request["language"]=="auto" else
                                     request["language"]), task="transcribe",
-                beam_size=3, vad_filter=not bool(request.get("music_mode")),
-                vad_parameters=({"threshold":0.52,
-                                 "min_speech_duration_ms":350,
-                                 "min_silence_duration_ms":450,
-                                 "speech_pad_ms":180}
-                                if not request.get("music_mode") else None),
+                beam_size=3, **vad,
                 condition_on_previous_text=False, word_timestamps=True,
                 hallucination_silence_threshold=1.0)
             all_segments = list(segments)
@@ -376,7 +381,8 @@ def main():
             trusted_segments, rejection = accepted_whisper_segments(
                 all_segments, source_language=request["language"],
                 detected_probability=detected_probability,
-                music_mode=bool(request.get("music_mode")))
+                music_mode=bool(request.get("music_mode")),
+                speech_priority=dialogue_priority)
             # Never translate hallucinated phrases or attach speaker labels
             # to empty/no-speech clips. Preserve the reason as diagnostics.
             text = " ".join(seg.text.strip() for seg in trusted_segments).strip()
