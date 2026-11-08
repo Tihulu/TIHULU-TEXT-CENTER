@@ -1053,6 +1053,8 @@ private:
 					songStartMs_=QDateTime::currentMSecsSinceEpoch()+
 						bufferMs_->value();
 					lyricCues_=QJsonArray();
+					plainLyricMode_=false;
+					plainLyricQueue_.clear();
 					lyricLoaded_=false;
 					lyricsEnabled_=false;
 					if (lyricsProcess_.state()!=QProcess::NotRunning)
@@ -1550,7 +1552,9 @@ private:
 			// buffer; this can briefly interrupt sound.
 			player_->play(QUrl(base()+QLatin1String("/mp3/")+sid));
 			lastRadioChunk_=-1;
+			displayedRadioChunk_=-1;
 			cueQueue_.clear();
+			plainLyricQueue_.clear();
 			pendingRadioCue_.clear();
 			lastAdjustmentMs_=QDateTime::currentMSecsSinceEpoch();
 			syncStatus_->setText(tr("Reopened radio audio with %1ms requested libVLC "
@@ -1730,6 +1734,8 @@ private:
 		if (!lyricPath_.isEmpty()) QFile::remove(lyricPath_);
 		lyricPath_.clear();
 		lyricCues_=QJsonArray();
+		plainLyricMode_=false;
+		plainLyricQueue_.clear();
 		lyricLoaded_=false;
 		stopLyrics_->setEnabled(false);
 		lyricText_->setText(tr("Timed lyrics stopped (no online lyric polling)."));
@@ -1759,6 +1765,8 @@ private:
 		QFile::remove(lyricPath_);
 		lyricsEnabled_=true;
 		lyricLoaded_=false;
+		plainLyricMode_=false;
+		plainLyricQueue_.clear();
 		lyrics_->setEnabled(false);
 		QString sourceCode=speechLanguage_->currentData().isValid()?
 			speechLanguage_->currentData().toString():
