@@ -82,18 +82,18 @@ public:
             "border-radius:7px;padding:9px;color:#d0f0fa;"));
         root->addWidget(noTunerNote);
 
-        auto *tools=new QHBoxLayout();
+        auto *tools=new QGridLayout();
         refreshButton_=new QPushButton(tr("Refresh devices now"),page);
         monitor_=new QCheckBox(tr("Watch USB plug / unplug · every 2.5 s"),page);
         monitor_->setChecked(false); // explicitly opt in to recurring polling
         filter_=new QCheckBox(tr("Receiver devices only"),page);
         filter_->setChecked(true);
         ownerButton_=new QPushButton(tr("Check DVB owners (read-only)"),page);
-        tools->addWidget(refreshButton_);
-        tools->addWidget(monitor_);
-        tools->addWidget(filter_);
-        tools->addStretch(1);
-        tools->addWidget(ownerButton_);
+        tools->addWidget(refreshButton_,0,0);
+        tools->addWidget(monitor_,0,1);
+        tools->addWidget(filter_,1,0);
+        tools->addWidget(ownerButton_,1,1);
+        tools->setColumnStretch(1,1);
         root->addLayout(tools);
 
         summary_=new QLabel(tr("Inventory: not checked yet."),page);
@@ -123,15 +123,17 @@ public:
         tvStatus_=new QLabel(dvbCard);
         tvStatus_->setWordWrap(true);
         dvbLayout->addWidget(tvStatus_);
-        auto *tvActions=new QHBoxLayout();
+        auto *tvActions=new QVBoxLayout();
         useTv_=new QPushButton(tr("Open TV / tune last channel"),dvbCard);
         releaseTv_=new QPushButton(tr("Stop TV / release playback"),dvbCard);
         tvActions->addWidget(useTv_);
         tvActions->addWidget(releaseTv_);
         dvbLayout->addLayout(tvActions);
-        dvbLayout->addWidget(new QLabel(tr(
+        auto *recordingNote=new QLabel(tr(
             "A DVB recording or scan can retain the frontend. "
-            "This control never cancels a recording or scan."),dvbCard));
+            "This control never cancels a recording or scan."),dvbCard);
+        recordingNote->setWordWrap(true);
+        dvbLayout->addWidget(recordingNote);
         cards->addWidget(dvbCard,0,0,1,2);
 
         auto *dabCard=new QGroupBox(tr("DAB+ · own welle-cli receiver"),page);
@@ -145,7 +147,7 @@ public:
         dabActions->addWidget(useDab_);
         dabActions->addWidget(releaseDab_);
         dabLayout->addLayout(dabActions);
-        cards->addWidget(dabCard,1,0);
+        cards->addWidget(dabCard,1,0,1,2);
 
         auto *analogCard=new QGroupBox(tr("Analogue radio · own rtl_fm receiver"),page);
         auto *analogLayout=new QVBoxLayout(analogCard);
@@ -158,7 +160,7 @@ public:
         analogActions->addWidget(useAnalog_);
         analogActions->addWidget(releaseAnalog_);
         analogLayout->addLayout(analogActions);
-        cards->addWidget(analogCard,1,1);
+        cards->addWidget(analogCard,2,0,1,2);
         root->addLayout(cards);
 
         auto *help=new QLabel(tr(
