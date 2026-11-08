@@ -1056,7 +1056,7 @@ def main(argv=None):
             page=chosen_track["page"] if chosen_track else page.value(),
             teletext_pid=chosen_track["pid"] if chosen_track else None,
             audio_pid=chosen_audio["pid"] if chosen_audio else None,
-            audio_language=(hinted if chosen_audio and
+            audio_language=(hinted if automatic_source and chosen_audio and
                             hinted in WHISPER_LANGUAGES else None),
             speaker_enabled=speaker_enabled.isChecked(),
             music_transcription=music_transcription.isChecked(),
