@@ -958,6 +958,25 @@ void VlcMediaWidget::setExternalSubtitle(const QUrl &url)
 \tconst QColor chosenBackground(backgroundColor);
 \ttihuluCaptionForeground = chosenText.isValid() ? foregroundColor : QLatin1String("#FFFFFF");
 \ttihuluCaptionBackground = chosenBackground.isValid() ? backgroundColor : QLatin1String("#000000");
+\t// The legacy Qt mode MUST NOT own an X/Wayland window covering the whole
+\t// video. A full-size transparent child was retaining stale video frames.
+\t// Restrict it to an actual subtitle-sized strip, never the full viewport.
+\tif (parentWidget() != NULL) {
+\t\tQFont face = font();
+\t\tface.setPixelSize(tihuluCaptionSize);
+\t\tface.setBold(true);
+\t\tQFontMetrics metrics(face);
+\t\tconst int stripWidth = qMax(100, parentWidget()->width() - 56);
+\t\tconst QRect measured = metrics.boundingRect(
+\t\t\tQRect(0,0,qMax(80,stripWidth-30),270),
+\t\t\tQt::TextWordWrap | Qt::AlignHCenter, tihuluCaptionText);
+\t\tconst int stripHeight = qBound(48, measured.height()+30,
+\t\t\tqMax(48, parentWidget()->height()/3));
+\t\tsetGeometry(qMax(0,(parentWidget()->width()-stripWidth)/2),
+\t\t\ttihuluCaptionTop ? 18 :
+\t\t\t\tqMax(18,parentWidget()->height()-stripHeight-25),
+\t\t\tstripWidth,stripHeight);
+\t}
 \ttimer->stop();
 \tshow();
 \traise();
@@ -986,15 +1005,9 @@ void OsdWidget::showObject(OsdObject *osdObject_, int duration)
 \t\tQFont face = font();
 \t\tface.setPixelSize(tihuluCaptionSize);
 \t\tface.setBold(true);
-\t\tQFontMetrics metrics(face);
-\t\tconst int limit = qMax(200, width() - 56);
-\t\tQRect bounds = metrics.boundingRect(
-\t\t\tQRect(0, 0, limit - 24, height()),
-\t\t\tQt::AlignHCenter | Qt::TextWordWrap, tihuluCaptionText);
-\t\tconst int boxHeight = qMin(qMax(40, bounds.height() + 22), qMax(40, height() - 30));
-\t\tQRect box((width() - limit) / 2,
-\t\t\ttihuluCaptionTop ? 35 : qMax(12, height() - boxHeight - 40),
-\t\t\tlimit, boxHeight);
+\t\t// Geometry is sized and anchored only on caption changes.
+\t\t// Do not mutate the mask or geometry inside paintEvent.
+\t\tQRect box = QWidget::rect().adjusted(7, 7, -7, -7);
 \t\tQPainter painter(this);
 \t\t// A child QWidget covering libVLC is opaque by default on some
 \t\t// X11/Wayland paths. Explicitly CLEAR every repainted pixel;
@@ -1050,7 +1063,9 @@ void OsdWidget::showObject(OsdObject *osdObject_, int duration)
 \ttihuluCaptionWidget->setAttribute(Qt::WA_StyledBackground, false);
 \ttihuluCaptionWidget->setAutoFillBackground(false);
 \ttihuluCaptionWidget->setAttribute(Qt::WA_TransparentForMouseEvents);
-\ttihuluCaptionWidget->resize(size());
+\t// Leave hidden legacy caption child at its minimal initial geometry.
+\t// It is resized only into a small caption strip after an opt-in.
+\ttihuluCaptionWidget->resize(1, 1);
 \tconst QString runtime = QStandardPaths::writableLocation(QStandardPaths::RuntimeLocation);
 \tif (!runtime.isEmpty()) {
 \t\tconst QString captionPath = runtime + QLatin1String("/tihulu-caption-")
@@ -1129,8 +1144,9 @@ void OsdWidget::showObject(OsdObject *osdObject_, int duration)
     change(mediac, '''\tosdWidget->resize(event->size());
 \tQWidget::resizeEvent(event);''',
     '''\tosdWidget->resize(event->size());
-\ttihuluCaptionWidget->resize(event->size());
-\ttihuluCaptionWidget->raise();
+\t// Re-anchor the optional legacy strip on the next caption poll.
+\t// Never resize a transparent overlay to cover the native video surface.
+\ttihuluCaptionWidget->hideCaption();
 \tQWidget::resizeEvent(event);''')
 
     # Use Kaffeine's OWN DVB scan engine; absolutely no w_scan_cpp,
