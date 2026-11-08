@@ -6,16 +6,19 @@ no shell, and all input arrives as one bounded JSON object over stdin.
 from __future__ import annotations
 import json
 import sys
+from .language_codes import language_code
 
 def main():
     payload = json.load(sys.stdin)
     text = payload.get("text")
     source = payload.get("source")
     target = payload.get("target")
-    if (not isinstance(text,str) or not text.strip() or len(text)>1600 or
-        source not in ("de","en","tr","fr") or target not in ("de","en","tr","fr") or
-        source == target):
+    if not isinstance(text,str) or not text.strip() or len(text)>1600:
         raise ValueError("Invalid offline translation request")
+    source = language_code(source, nllb=True)
+    target = language_code(target, nllb=True)
+    if source == target:
+        raise ValueError("Source/target language must differ")
     import os
     engine = os.environ.get("TIHULU_TRANSLATOR_MODEL", "argos")
     if engine == "nllb":
