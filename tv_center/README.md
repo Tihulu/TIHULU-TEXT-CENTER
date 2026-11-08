@@ -420,3 +420,79 @@ The local TV page also distinguishes a *running web service* from a *present
 DVB frontend*: it reports Linux frontend/DVR availability separately.
 A running server with no attached DVB adapter cannot start a scan. For
 that case check `tihulu-tv-center doctor` and the native hardware status.
+
+
+## Standalone GitHub Pages: EM28178 browser-driver project (November 2026)
+
+GitHub Pages TV Center is now primarily a **native-free, token-free browser
+laboratory**. It does not redirect to localhost or make a local service a
+prerequisite. The former Linux/Pi bridge is still an **optional** proven
+reception route, not the default or a dependency for WebUSB/WASM or AI.
+
+### Implemented without installing any application
+
+- Chrome/Chromium WebUSB permission for WinTV-soloHD \`2040:8268\` and passive
+  USB descriptor/EM28xx chip-ID read (no kernel-driver detach).
+- Explicit bulk-IN transfer diagnostic when *already* configured/claimable.
+- Client-side (browser, no uploads) MPEG-TS parser: MPEG-2 CRC, transport
+  sync, continuity, PAT service IDs, PMT video/audio PIDs, **SDT service
+  names, provider and TV/radio category**. The importer scans up to 2 MiB.
+- Native-free browser AI studio: user-consented multilingual Whisper ONNX
+  download, WebGPU or WASM inference, mic/tab audio and optional translation.
+- **Browser-only FFmpeg/WebAssembly preview (experimental):** user imports
+  a real \`.ts\` file under 64 MiB, requests a five-second transcoded MP4
+  video preview. The ffmpeg.wasm engine is downloaded only on request.
+  HEVC speed, codec support, CPU/memory limits, CSP/CDN compatibility and
+  playback require actual browser acceptance; on failure it reports the
+  real error rather than displaying fake video.
+- **Linux-source-driven driver protocol engine**, no auto USB writes:
+  EM28178 control messages and I²C read/write transfer formats, board-specific
+  GPIO reset sequence, Si2168 firmware record (8/17 byte) parser, Si2157
+  tuner frequency plans, Si2168 DVB-T/T2/C command plans, offline SHA-256
+  of a user-supplied Si2168-D60 \`.fw\` file. The firmware is NOT distributed,
+  uploaded or automatically written to the physical device. Pure logic has
+  synthetic fixture tests, but no physical RF-lock acceptance.
+
+### Critical remaining work for *direct live* DVB-T2 from this exact USB device
+
+1. Obtain **exclusive USB interface ownership** with valid OS permissions.
+   Linux's \`em28xx\` kernel driver generally owns this interface; WebUSB
+   cannot force-detach kernel drivers. NEVER silently unload a kernel module
+   or affect a native TV session. This requires explicit safe Linux
+   configuration performed out-of-browser before Chrome can claim it.
+2. Capture and verify USB control/I²C traces from a known-working native
+   tune without leaking private data; reconcile firmware revision, correct
+   0x06 clock/bus sequencing and this exact board GPIO timing. Integrate
+   isolated, opt-in and fail-safe control writes only after hardware tests.
+3. Load **legitimately obtained**, revision-matched Si2168-D60 firmware
+   from the user's local file. Confirm firmware commands, timing and
+   state machine, Si2157 tuner part revision/IF/gate, error handling.
+4. Implement physical RF front-end configuration, DVB-T/T2 lock/CNR
+   detection, scanning with country frequency plans, continuous bulk URB
+   equivalent loop with abort/cleanup and live TS PID discovery.
+5. Browser DVB-T2 Germany typically carries HEVC/H.265 and AAC/LATM,
+   which may not be directly supported by MSE/WebCodecs. Build tested
+   demux/decoder/transmux capability with WebAssembly software fallback,
+   and profile memory/CPU. Mobile Safari and Firefox differ from Chromium
+   WebUSB in fundamental ways.
+
+WebAssembly can run demux/decoding and even parts of a C driver as WASM,
+but **does not itself provide USB interface access**, kernel driver
+detachment or proprietary tuner firmware. Do not claim "Live DVB-T2
+working in browser" before physical RF locking, valid broadcast TS,
+actual image/audio and stable cleanup are reproduced.
+
+**Existing reference design:** \`e04/px4-web\` receives real broadcasts
+in the browser for a **different PLEX tuner chipset**; its WebUSB/WASM
+architecture is useful but its USB control commands cannot operate
+Hauppauge EM28178. Source: https://github.com/e04/px4-web
+
+**Linux primary driver references**:
+- https://github.com/torvalds/linux/blob/master/drivers/media/usb/em28xx/em28xx-cards.c
+- https://github.com/torvalds/linux/blob/master/drivers/media/usb/em28xx/em28xx-core.c
+- https://github.com/torvalds/linux/blob/master/drivers/media/usb/em28xx/em28xx-i2c.c
+- https://github.com/torvalds/linux/blob/master/drivers/media/usb/em28xx/em28xx-dvb.c
+- https://github.com/torvalds/linux/blob/master/drivers/media/dvb-frontends/si2168.c
+- https://github.com/torvalds/linux/blob/master/drivers/media/tuners/si2157.c
+
+Keep PR #35 in **draft** until real WebUSB and browser acceptance tests pass.
