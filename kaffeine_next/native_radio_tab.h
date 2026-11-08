@@ -2862,7 +2862,46 @@ private:
 		if (!captionPath_.isEmpty()) QFile::remove(captionPath_);
 		captionPath_.clear();
 	}
+    void beginLyricListening() {
+        if (!active() || playingKey_.isEmpty()) {
+            lyricText_->setText(tr("Play a DAB station to transcribe vocals."));
+            return;
+        }
+        // DLS cannot masquerade as spoken captions. Reuse the welle.io
+        // audio already playing in the receiver, never the metadata text.
+        const int asr=captionSource_->findData(QLatin1String("asr"));
+        if(asr>=0) captionSource_->setCurrentIndex(asr);
+        const bool alreadyRunning=captionProcess_.state()!=QProcess::NotRunning;
+        if(!lyricsAudioFallbackActive_)
+            lyricsFallbackStartedAi_=!alreadyRunning;
+        lyricsAudioFallbackActive_=true;
+        if(alreadyRunning) stopCaptioning();
+        startCaptioning();
+        if(captionProcess_.state()==QProcess::NotRunning) {
+            lyricsAudioFallbackActive_=false;
+            lyricText_->setText(tr("Offline music transcription unavailable. "
+                "Install/enable Whisper in AI Model Market and play a valid DAB stream."));
+            return;
+        }
+        lyricsEnabled_=true;
+        lyricLoaded_=true;
+        lyrics_->setEnabled(true);
+        stopLyrics_->setEnabled(true);
+        lyricProvider_->setText(tr("Local Whisper on actual DAB audio; no "
+            "lyrics service used. Heard vocal recognition can be wrong."));
+        lyricText_->setText(tr("Listening to DAB vocals offline… Approximate "
+            "words appear in live captions, NOT verified song lyrics."));
+    }
 	void stopLyrics() {
+        const bool hadListening=lyricsAudioFallbackActive_;
+        const bool startedByLyrics=lyricsFallbackStartedAi_;
+        lyricsAudioFallbackActive_=false;
+        lyricsFallbackStartedAi_=false;
+        if(hadListening && captionProcess_.state()!=QProcess::NotRunning) {
+            stopCaptioning();
+            if(!startedByLyrics && active() && !playingKey_.isEmpty())
+                startCaptioning();
+        }
 		lyricsEnabled_=false;
 		lyrics_->setEnabled(true);
 		if (lyricsProcess_.state()!=QProcess::NotRunning) {
@@ -2880,7 +2919,8 @@ private:
         lyricOffsetConsistency_=0;
 		lyricLoaded_=false;
 		stopLyrics_->setEnabled(false);
-		lyricText_->setText(tr("Timed lyrics stopped (no online lyric polling)."));
+        lyricProvider_->setText(tr("Lyrics stopped. Local DAB audio continues."));
+		lyricText_->setText(tr("Lyrics / lyric-triggered listening stopped."));
 	}
 	void fetchLyrics(bool automatic=false) {
 		if (!active() || playingKey_.isEmpty()) {
@@ -2938,7 +2978,9 @@ private:
 		if (!lyricsProcess_.waitForStarted(900)) {
 			lyricsEnabled_=false;
 			lyrics_->setEnabled(true);
-			lyricText_->setText(tr("Could not start lyrics lookup."));
+            stopLyrics_->setEnabled(false);
+			lyricText_->setText(tr("Lyrics lookup worker failed to start."));
+            if(listenFallbackOnMiss_->isChecked()) beginLyricListening();
 			return;
 		}
 		stopLyrics_->setEnabled(true);
@@ -2992,6 +3034,11 @@ private:
 		const auto value=QJsonDocument::fromJson(file.readAll()).object();
 		if (value.value(QLatin1String("status")).toString()==QLatin1String("completed")) {
 			lyricLoaded_=true;
+            const QString provider=value.value(QLatin1String("provenance"))
+                .toObject().value(QLatin1String("provider")).toString();
+            lyricProvider_->setText(tr("Lyrics source: %1 · metadata matched, "
+                "not yet verified against heard audio.")
+                .arg(provider.isEmpty()?tr("user local file"):provider));
 			plainLyricMode_=value.value(QLatin1String("alignment_mode")).toString()
 				==QLatin1String("asr_lexical");
 			lyricCues_=value.value(QLatin1String("cues")).toArray();
@@ -3010,7 +3057,13 @@ private:
 				.arg(lyricCues_.size()));
 		} else if (value.value(QLatin1String("status")).toString()==QLatin1String("error")) {
 			lyricLoaded_=true;
-			lyricText_->setText(value.value(QLatin1String("reason")).toString().left(190));
+            lyricsEnabled_=false;
+            lyrics_->setEnabled(true);
+            stopLyrics_->setEnabled(false);
+            const QString reason=value.value(QLatin1String("reason")).toString().left(190);
+			lyricText_->setText(tr("Lyrics unavailable: %1").arg(reason));
+            lyricProvider_->setText(tr("No trusted online lyrics; no radio audio uploaded."));
+            if(listenFallbackOnMiss_->isChecked()) beginLyricListening();
 		}
 	}
 	MediaWidget *player_;
