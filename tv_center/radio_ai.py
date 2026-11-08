@@ -22,7 +22,7 @@ from .ai_settings import AISettings
 from .language_codes import language_code
 from .lyrics_sync import lookup_synced_lyrics, LiveLyricMatcher, parse_lrc
 from .sentence_joiner import LiveSentenceJoiner
-from .media_ai import _chunk_cues, _choose_model, CHUNK_SAMPLES
+from .media_ai import _chunk_cues, _choose_model, _near_silent_pcm, CHUNK_SAMPLES
 
 _SID = re.compile(r"(?:0x)?[A-Fa-f0-9]{1,8}\Z")
 
@@ -148,10 +148,21 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
                     lyric_target_codes=()
                     lyric_translation_cache.clear()
             detection={}
-            cues=_chunk_cues(pcm,position=chunks*5,lang=src,
-                            profile=profile,backend=backend,
-                            music=music or plain_matcher is not None,
-                            detection=detection)
+            # DAB decoder may deliver actual near-silence. In music-mode
+            # VAD is intentionally disabled, and Whisper can hallucinate
+            # subtitle headings over dead air. Do not send near-silent
+            # 16-bit PCM to either GPU or CPU ASR. Real speech/music above
+            # the conservative floor is left untouched.
+            if _near_silent_pcm(pcm):
+                detection["recognition_rejected"]="near_silent_pcm"
+                detection["language"]=None
+                detection["confidence"]=0.0
+                cues=[]
+            else:
+                cues=_chunk_cues(pcm,position=chunks*5,lang=src,
+                                profile=profile,backend=backend,
+                                music=music or plain_matcher is not None,
+                                detection=detection)
             if chunks>0:
                 # Retain words that CROSS the hop boundary; ignore only
                 # items entirely inside the already-decoded overlap.

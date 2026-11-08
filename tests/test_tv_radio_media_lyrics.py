@@ -64,6 +64,19 @@ class RadioAndLocalMediaTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 validate_local_media(str(wrong))
 
+    def test_live_radio_near_silent_pcm_does_not_train_or_hallucinate_whisper(self):
+        from tv_center.media_ai import _near_silent_pcm
+        import struct
+        self.assertTrue(_near_silent_pcm(b""))
+        self.assertTrue(_near_silent_pcm(b"\x00" * (32000 * 6 * 2)))
+        self.assertFalse(_near_silent_pcm(struct.pack("<h",500) * 32000))
+        self.assertFalse(_near_silent_pcm(struct.pack("<h",-2000) * 32000))
+        code=(Path(__file__).resolve().parent.parent / "tv_center"/"radio_ai.py").read_text()
+        self.assertIn("if _near_silent_pcm(pcm):",code)
+        self.assertIn('detection["recognition_rejected"]="near_silent_pcm"',code)
+        self.assertLess(code.index("if _near_silent_pcm(pcm):"),
+                        code.index("cues=_chunk_cues(pcm,position=chunks*5"))
+
     def test_gpu_music_flag_is_explicitly_passed_not_auto_enabled(self):
         data=bytes(32000*2*2)
         profile={"speech":{"gpu_engine":"faster_whisper_managed",

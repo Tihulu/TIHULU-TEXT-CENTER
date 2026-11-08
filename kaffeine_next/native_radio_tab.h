@@ -188,6 +188,14 @@ public:
             "border-radius:6px;padding:7px;font-weight:600;"));
         selectedSource_=selected;
         root->addWidget(selectedSource_);
+        radioCaptionBanner_=new QLabel(tr("Live radio subtitles OFF · DLS is not speech"),page);
+        radioCaptionBanner_->setTextFormat(Qt::PlainText);
+        radioCaptionBanner_->setWordWrap(true);
+        radioCaptionBanner_->setMaximumHeight(120);
+        radioCaptionBanner_->setStyleSheet(QLatin1String(
+            "background:#14242e;color:#f5e6bb;border:1px solid #405365;"
+            "border-radius:6px;padding:7px;"));
+        root->addWidget(radioCaptionBanner_);
         modes_=new QTabWidget(page);
         modes_->setDocumentMode(true);
         modes_->setUsesScrollButtons(true);
@@ -650,6 +658,10 @@ public:
 			if(enabled) speakerLabels_->setChecked(false);
 		});
 		caption_ = new QPushButton(tr("Start offline live captions"), lab);
+        applyCaptions_=new QPushButton(tr("Apply caption settings"),lab);
+        applyCaptions_->setToolTip(tr("Restart only local Whisper/translation "
+            "with the current speech language, music, source and targets. "
+            "Keeps receiver tuning, radio playback and requested cache untouched."));
 		stopCaption_ = new QPushButton(tr("Stop AI captions"), lab);
 		row->addWidget(new QLabel(tr("Caption source:"),lab),0,0);
         row->addWidget(captionSource_,0,1,1,2);
@@ -791,6 +803,7 @@ public:
 		auto *captionActions=new QHBoxLayout();
 		captionActions->addStretch(1);
 		captionActions->addWidget(caption_);
+        captionActions->addWidget(applyCaptions_);
 		captionActions->addWidget(stopCaption_);
 		v->addLayout(captionActions);
 		radioCaption_ = new QLabel(tr("Radio AI is OFF; it never starts without your request."), lab);
@@ -809,8 +822,17 @@ public:
 		lyricsTitle_->setPlaceholderText(tr("Song title correction (optional)"));
 		lyricsArtist_->setMaximumWidth(240);
 		lyricsTitle_->setMaximumWidth(320);
-		stopLyrics_=new QPushButton(tr("Stop lyrics"),lab);
+		stopLyrics_=new QPushButton(tr("Stop lyrics / listening"),lab);
 		stopLyrics_->setEnabled(false);
+        listenLyrics_=new QPushButton(tr("Listen & transcribe vocals offline"),lab);
+        listenLyrics_->setToolTip(tr("Use the playing DAB audio with Whisper "
+            "singing mode, without online metadata. Heard words are "
+            "approximate, not synchronized reference lyrics."));
+        listenFallbackOnMiss_=new QCheckBox(tr("On miss: listen offline"),lab);
+        listenFallbackOnMiss_->setChecked(true);
+        listenFallbackOnMiss_->setToolTip(tr("After an authorized lyrics search "
+            "returns no matching text, fall back to local audio transcription. "
+            "No radio audio is sent to online lyrics services."));
 		lyricsOffset_ = new QSlider(Qt::Horizontal, lab);
 		lyricsOffset_->setRange(-90000, 90000);
 		lyricsOffset_->setValue(0);
@@ -860,6 +882,8 @@ public:
 		lyricsRow->addWidget(lyrics_,0,0);
 		lyricsRow->addWidget(stopLyrics_,0,1);
 		lyricsRow->addWidget(autoLyrics_,0,2);
+        lyricsRow->addWidget(listenLyrics_,5,0,1,2);
+        lyricsRow->addWidget(listenFallbackOnMiss_,5,2);
 		lyricsRow->addWidget(autoLyricSync_,1,0,1,2);
 		lyricsRow->addWidget(new QLabel(tr("Lyric timing:"), lab),1,2);
 		lyricsRow->addWidget(lyricsOffset_,2,0,1,2);
@@ -873,6 +897,11 @@ public:
 		v->addLayout(lyricsRow);
 		v->addWidget(lyricsSyncState_);
 		v->addWidget(preferLyrics_);
+        lyricProvider_=new QLabel(tr("Sources: LRCLIB; lyrics.ovh; optional "
+            "licensed Musixmatch API. Plain text must match heard audio."),lab);
+        lyricProvider_->setWordWrap(true);
+        lyricProvider_->setTextFormat(Qt::PlainText);
+        v->addWidget(lyricProvider_);
 		lyricText_ = new QLabel(tr("No synchronized lyrics loaded."), lab);
 		lyricText_->setTextFormat(Qt::PlainText);
 		lyricText_->setWordWrap(true);
@@ -1097,7 +1126,39 @@ public:
 		connect(favoritesOnly_,&QCheckBox::toggled,this,
 			[this](){ filterStations(); });
 		connect(caption_, &QPushButton::clicked, this, [this](){ startCaptioning(); });
-		connect(stopCaption_, &QPushButton::clicked, this, [this](){ stopCaptioning(); });
+        connect(applyCaptions_,&QPushButton::clicked,this,[this](){
+            if(captionProcess_.state()!=QProcess::NotRunning) stopCaptioning();
+            cueQueue_.clear();
+            lastRadioChunk_=-1;
+            displayedRadioChunk_=-1;
+            startCaptioning();
+            radioCaptionBanner_->setText(tr("Applying local caption options; "
+                "waiting for a new real audio segment…"));
+        });
+		connect(stopCaption_, &QPushButton::clicked, this, [this](){
+            const bool lyricOnly=lyricsAudioFallbackActive_;
+            if(lyricOnly) {
+                lyricsAudioFallbackActive_=false;
+                lyricsFallbackStartedAi_=false;
+                lyricText_->setText(tr("Offline lyric listening stopped."));
+            }
+            stopCaptioning();
+            radioCaptionBanner_->setText(tr("Live radio captions stopped."));
+            lastCaptionVisibleMs_=0;
+        });
+        connect(&captionProcess_,QOverload<int,QProcess::ExitStatus>::of(&QProcess::finished),
+            this,[this](int code,QProcess::ExitStatus exitState){
+                if(captionsStopping_ || (code==0 && exitState==QProcess::NormalExit))
+                    return;
+                const QString error=QString::fromLocal8Bit(
+                    captionProcess_.readAllStandardError()).right(200);
+                const QString message=tr("Live radio Whisper stopped unexpectedly. "
+                    "Check the installed AI model, DAB stream and ffmpeg. %1")
+                    .arg(error.isEmpty()?tr("No decoder details"):error);
+                radioCaption_->setText(message);
+                radioCaptionBanner_->setText(message);
+                if(lyricsAudioFallbackActive_) lyricText_->setText(message);
+            });
 		connect(lyrics_, &QPushButton::clicked, this, [this](){ fetchLyrics(); });
 		connect(lyricsImport_,&QPushButton::clicked,this,[this](){
 			const QString path=QFileDialog::getOpenFileName(
@@ -1129,6 +1190,9 @@ public:
 			lyricText_->setText(tr("Importing plain TXT / timed LRC; no network lookup."));
 		});
 		connect(stopLyrics_, &QPushButton::clicked, this, [this](){ stopLyrics(); });
+        connect(listenLyrics_,&QPushButton::clicked,this,[this](){
+            beginLyricListening();
+        });
 		connect(slidePrev_,&QPushButton::clicked,this,[this](){slideMove(-1);});
 		connect(slideNext_,&QPushButton::clicked,this,[this](){slideMove(1);});
 		connect(plotButton, &QPushButton::clicked, this, [this](){ fetchPlot(); });
@@ -1166,14 +1230,16 @@ public:
 				const qint64 elapsed=audioStartedMs_>0?
 					qMax(qint64(0),QDateTime::currentMSecsSinceEpoch()-audioStartedMs_):0;
 				const int requested=activePlaybackCacheMs_;
-				audioCacheProgress_->setValue(audioStartedMs_>0?
-					(requested==0?100:qBound(0,int(elapsed*100/requested),100)):0);
-				audioCacheProgress_->setFormat(audioStartedMs_<=0?
-					tr("Audio cache estimate · no stream opened"):
-					tr("Applied at open %1 ms · elapsed %2 ms · UNVERIFIED%3")
-					.arg(requested).arg(qMin(qint64(requested),elapsed))
+                // A requested libVLC network cache has no sampled fill
+                // telemetry. Stream uptime is NOT buffering progress.
+                audioCacheProgress_->setRange(0,audioStartedMs_>0?0:100);
+                if(audioStartedMs_<=0) audioCacheProgress_->setValue(0);
+                audioCacheProgress_->setFormat(audioStartedMs_<=0?
+                    tr("Audio cache request · no stream opened"):
+                    tr("Requested %1 ms · stream uptime %2 ms · queue/DAC UNVERIFIED%3")
+                    .arg(requested).arg(elapsed)
                     .arg(bufferMs_->value()!=requested?
-                        tr(" · next request %1 ms PENDING").arg(bufferMs_->value()):
+                        tr(" · next-tune request %1 ms pending").arg(bufferMs_->value()):
                         QString()));
 			}
 		});
@@ -1868,16 +1934,23 @@ private:
 					lyricsSyncState_->setText(tr("New DLS song · awaiting audible lyric verification"));
 					plainLyricMode_=false;
 					plainLyricQueue_.clear();
-					lyricLoaded_=false;
-					lyricsEnabled_=false;
+                    // A DLS metadata change is NOT proof of new audible
+                    // song, and must not disable Stop for an offline
+                    // listening worker the user explicitly started.
+                    const bool listening=lyricsAudioFallbackActive_;
+					lyricLoaded_=listening;
+					lyricsEnabled_=listening;
 					if (lyricsProcess_.state()!=QProcess::NotRunning)
 						lyricsProcess_.kill();
-					stopLyrics_->setEnabled(false);
+					stopLyrics_->setEnabled(listening);
 					lyrics_->setEnabled(true);
 					if (!lyricPath_.isEmpty()) QFile::remove(lyricPath_);
 					lyricPath_.clear();
-					lyricText_->setText(tr("New DLS song metadata. "
-						"Automatic lookup needs opt-in; timing follows DLS estimate."));
+					lyricText_->setText(listening?
+                        tr("DLS metadata updated. Continuing offline vocal "
+                           "listening; no proven song boundary.") :
+                        tr("New DLS metadata. Automatic lookup requires opt-in; "
+                           "timing is only an estimate."));
 					if(autoLyrics_->isChecked() &&
 					   dls.contains(QLatin1String(" - "))) {
 						QTimer::singleShot(100,this,[this](){fetchLyrics(true);});
@@ -2175,6 +2248,8 @@ private:
 				lagSamples_.clear();
 				lastRadioChunk_=-1;
 				displayedRadioChunk_=-1;
+                lastCaptionVisibleMs_=0;
+                radioCaptionBanner_->setText(tr("Opening DAB station · waiting for audio…"));
 				pendingRadioCue_.clear();
 				playingKey_=key;
                 showSelectedSource(name,tr("DAB+ · live mux verified"),
@@ -2588,10 +2663,12 @@ private:
 		const int sentenceHops=activePlaybackCacheMs_<8000?2:
 			activePlaybackCacheMs_<14000?3:activePlaybackCacheMs_<18500?4:5;
 		options<<QLatin1String("--sentence-hops")<<QString::number(sentenceHops);
-		if (music_->isChecked()) options<<QLatin1String("--music");
+		if (music_->isChecked() || lyricsAudioFallbackActive_)
+            options<<QLatin1String("--music");
 		if (preferLyrics_->isChecked())
 			options<<QLatin1String("--prefer-verified-lyrics");
-		if (speakerLabels_->isChecked() && !music_->isChecked())
+		if (speakerLabels_->isChecked() && !music_->isChecked() &&
+            !lyricsAudioFallbackActive_)
 			options<<QLatin1String("--speaker-labels");
 		const QString runtime=QStandardPaths::writableLocation(QStandardPaths::RuntimeLocation);
 		if (runtime.isEmpty()) return;
@@ -2616,7 +2693,7 @@ private:
 				const auto &next=cueQueue_.first();
 				const qint64 total=qMax(qint64(1),next.dueMs-next.queuedMs);
 				captionProgress_->setValue(qBound(0,int((now-next.queuedMs)*100/total),100));
-				captionProgress_->setFormat(tr("Caption in ~%1 ms · applied cache %2 ms")
+				captionProgress_->setFormat(tr("EST. caption in ~%1 ms · requested cache %2 ms · output unverified")
 					.arg(qMax(qint64(0),next.dueMs-now)).arg(activePlaybackCacheMs_));
 			}
 		}
@@ -2625,8 +2702,24 @@ private:
 			if(cue.chunkIndex<=displayedRadioChunk_) continue;
 			displayedRadioChunk_=cue.chunkIndex;
 			radioCaption_->setText(cue.text);
-			radioCanvas_->setText(cue.text.left(680));
+            radioCaptionBanner_->setText(cue.text.left(680));
+            lastCaptionVisibleMs_=now;
+            if(lyricsAudioFallbackActive_) {
+                const QString heard=tr("Whisper heard (unverified lyrics) · %1")
+                    .arg(cue.text.left(650));
+                lyricText_->setText(heard);
+            }
+            // NEVER replace the main DAB station picture/video panel with
+            // a caption string: it destroys its status/artwork and places
+            // huge subtitles in the center of an unrelated canvas.
 		}
+        if(lastCaptionVisibleMs_>0 && now-lastCaptionVisibleMs_>=12000 &&
+           cueQueue_.isEmpty() && !metadataCaptions_ &&
+           captionProcess_.state()!=QProcess::NotRunning) {
+            radioCaptionBanner_->setText(tr("Listening for real radio speech… "
+                "No subtitle text is currently verified."));
+            lastCaptionVisibleMs_=0;
+        }
 	}
 	void pollCaption() {
 		const qint64 now=QDateTime::currentMSecsSinceEpoch();
@@ -2831,6 +2924,7 @@ private:
 		displayDueRadioCues(now);
 	}
 	void stopCaptioning() {
+        captionsStopping_=true;
 		cueQueue_.clear();
 		metadataCaptions_=false;
 		if (captionProcess_.state()!=QProcess::NotRunning) {
@@ -2840,8 +2934,59 @@ private:
 		}
 		if (!captionPath_.isEmpty()) QFile::remove(captionPath_);
 		captionPath_.clear();
+        captionsStopping_=false;
 	}
+    void beginLyricListening() {
+        if (!active() || playingKey_.isEmpty()) {
+            lyricText_->setText(tr("Play a DAB station to transcribe vocals."));
+            return;
+        }
+        // DLS cannot masquerade as spoken captions. Reuse the welle.io
+        // audio already playing in the receiver, never the metadata text.
+        const int asr=captionSource_->findData(QLatin1String("asr"));
+        if(asr>=0) captionSource_->setCurrentIndex(asr);
+        const bool alreadyRunning=captionProcess_.state()!=QProcess::NotRunning;
+        if(!lyricsAudioFallbackActive_)
+            lyricsFallbackStartedAi_=(!alreadyRunning || plainLyricsStartedAi_);
+        plainLyricsStartedAi_=false;
+        lyricsAudioFallbackActive_=true;
+        if(alreadyRunning) stopCaptioning();
+        startCaptioning();
+        if(captionProcess_.state()==QProcess::NotRunning) {
+            lyricsAudioFallbackActive_=false;
+            lyricText_->setText(tr("Offline music transcription unavailable. "
+                "Install/enable Whisper in AI Model Market and play a valid DAB stream."));
+            return;
+        }
+        lyricCues_=QJsonArray();
+        plainLyricMode_=false;
+        plainLyricQueue_.clear();
+        if(!lyricPath_.isEmpty()) QFile::remove(lyricPath_);
+        lyricsEnabled_=true;
+        lyricLoaded_=true;
+        lyrics_->setEnabled(true);
+        stopLyrics_->setEnabled(true);
+        lyricProvider_->setText(tr("Local Whisper on actual DAB audio; no "
+            "lyrics service used. Heard vocal recognition can be wrong."));
+        lyricText_->setText(tr("Listening to DAB vocals offline… Approximate "
+            "words appear in live captions, NOT verified song lyrics."));
+    }
 	void stopLyrics() {
+        const bool hadListening=lyricsAudioFallbackActive_;
+        const bool startedByLyrics=lyricsFallbackStartedAi_;
+        lyricsAudioFallbackActive_=false;
+        lyricsFallbackStartedAi_=false;
+        if(hadListening && captionProcess_.state()!=QProcess::NotRunning) {
+            stopCaptioning();
+            if(!startedByLyrics && active() && !playingKey_.isEmpty())
+                startCaptioning();
+        } else if(plainLyricsStartedAi_ &&
+                  captionProcess_.state()!=QProcess::NotRunning) {
+            // An ASR worker started ONLY for plain-lyrics matching is
+            // owned by lyrics, not by independent live transcription.
+            stopCaptioning();
+        }
+        plainLyricsStartedAi_=false;
 		lyricsEnabled_=false;
 		lyrics_->setEnabled(true);
 		if (lyricsProcess_.state()!=QProcess::NotRunning) {
@@ -2859,7 +3004,8 @@ private:
         lyricOffsetConsistency_=0;
 		lyricLoaded_=false;
 		stopLyrics_->setEnabled(false);
-		lyricText_->setText(tr("Timed lyrics stopped (no online lyric polling)."));
+        lyricProvider_->setText(tr("Lyrics stopped. Local DAB audio continues."));
+		lyricText_->setText(tr("Lyrics / lyric-triggered listening stopped."));
 	}
 	void fetchLyrics(bool automatic=false) {
 		if (!active() || playingKey_.isEmpty()) {
@@ -2870,16 +3016,18 @@ private:
 			&& !lyricsTitle_->text().trimmed().isEmpty();
 		if(fields.size()<2 && !overridden) {
 			lyricText_->setText(tr("No reliable Artist - Title DLS metadata. "
-				"Enter corrected artist/title or import local TXT/LRC."));
+                "You can type artist/title, import LRC, or listen to vocals offline."));
+            if(!automatic && listenFallbackOnMiss_->isChecked()) beginLyricListening();
 			return;
 		}
 		const QString artist=overridden?lyricsArtist_->text().trimmed():fields.at(0).trimmed();
-		const QString title=overridden?lyricsTitle_->text().trimmed():fields.at(1).trimmed();
+		const QString title=overridden?lyricsTitle_->text().trimmed():
+            fields.mid(1).join(QLatin1String(" - ")).trimmed();
 		if (artist.isEmpty() || title.isEmpty() || artist.size()>130 || title.size()>130)
 			return;
 		if (automatic && !autoLyrics_->isChecked()) return;
 		if(!automatic && QMessageBox::question(this,tr("Optional online lyrics lookup"),
-			tr("Search LRCLIB for synchronized lyrics?\nArtist: %1\nTitle: %2\n\n"
+			tr("Search LRCLIB, lyrics.ovh and optional licensed Musixmatch?\nArtist: %1\nTitle: %2\n\n"
 			   "Only these metadata are sent; no radio audio is uploaded. "
 			   "Start time estimated from DLS, so adjust the timing slider manually.")
 			   .arg(artist,title))!=QMessageBox::Yes) return;
@@ -2891,7 +3039,14 @@ private:
 		lyricLoaded_=false;
 		plainLyricMode_=false;
 		plainLyricQueue_.clear();
+        if(lyricsAudioFallbackActive_) {
+            // The current fallback is only for this song's absent lyrics;
+            // do not leave a previous track's plain/timed cues visible.
+            lyricCues_=QJsonArray();
+        }
 		lyrics_->setEnabled(false);
+        lyricProvider_->setText(tr("Searching LRCLIB, optional licensed "
+            "Musixmatch and lyrics.ovh (metadata only)."));
 		QString sourceCode=lyricsSourceLanguage_->currentData().toString();
         // Song-specific manual choice never changes automatic spoken ASR.
         // Do not reuse previous spoken presenter language for the NEXT song:
@@ -2914,7 +3069,9 @@ private:
 		if (!lyricsProcess_.waitForStarted(900)) {
 			lyricsEnabled_=false;
 			lyrics_->setEnabled(true);
-			lyricText_->setText(tr("Could not start lyrics lookup."));
+            stopLyrics_->setEnabled(false);
+			lyricText_->setText(tr("Lyrics lookup worker failed to start."));
+            if(listenFallbackOnMiss_->isChecked()) beginLyricListening();
 			return;
 		}
 		stopLyrics_->setEnabled(true);
@@ -2968,6 +3125,11 @@ private:
 		const auto value=QJsonDocument::fromJson(file.readAll()).object();
 		if (value.value(QLatin1String("status")).toString()==QLatin1String("completed")) {
 			lyricLoaded_=true;
+            const QString provider=value.value(QLatin1String("provenance"))
+                .toObject().value(QLatin1String("provider")).toString();
+            lyricProvider_->setText(tr("Lyrics source: %1 · metadata matched, "
+                "not yet verified against heard audio.")
+                .arg(provider.isEmpty()?tr("user local file"):provider));
 			plainLyricMode_=value.value(QLatin1String("alignment_mode")).toString()
 				==QLatin1String("asr_lexical");
 			lyricCues_=value.value(QLatin1String("cues")).toArray();
@@ -2975,8 +3137,12 @@ private:
 				lyricText_->setText(tr("Plain lyrics found. Awaiting REAL Whisper vocal matches; "
 					"no fabricated timestamps."));
 				lyrics_->setEnabled(true);
-				if(captionProcess_.state()==QProcess::NotRunning)
+				if(captionProcess_.state()==QProcess::NotRunning) {
+                    plainLyricsStartedAi_=true;
+                    const int asr=captionSource_->findData(QLatin1String("asr"));
+                    if(asr>=0) captionSource_->setCurrentIndex(asr);
 					startCaptioning();
+                }
 				return;
 			}
 			// Manual timing is anchored to the lookup result, not fake audio matching.
@@ -2986,7 +3152,13 @@ private:
 				.arg(lyricCues_.size()));
 		} else if (value.value(QLatin1String("status")).toString()==QLatin1String("error")) {
 			lyricLoaded_=true;
-			lyricText_->setText(value.value(QLatin1String("reason")).toString().left(190));
+            lyricsEnabled_=false;
+            lyrics_->setEnabled(true);
+            stopLyrics_->setEnabled(false);
+            const QString reason=value.value(QLatin1String("reason")).toString().left(190);
+			lyricText_->setText(tr("Lyrics unavailable: %1").arg(reason));
+            lyricProvider_->setText(tr("No trusted online lyrics; no radio audio uploaded."));
+            if(listenFallbackOnMiss_->isChecked()) beginLyricListening();
 		}
 	}
 	MediaWidget *player_;
@@ -3002,8 +3174,9 @@ private:
 		*captionSource_=nullptr,
 		*plotKind_=nullptr, *fftPlacement_=nullptr;
 	QPushButton *start_=nullptr,*stop_=nullptr,*scan_=nullptr,*record_=nullptr,
-		*caption_=nullptr,
+		*caption_=nullptr,*applyCaptions_=nullptr,
 		*stopCaption_=nullptr,*lyrics_=nullptr,*lyricsImport_=nullptr,*stopLyrics_=nullptr,
+        *listenLyrics_=nullptr,
 		*slidePrev_=nullptr,*slideNext_=nullptr;
 	QTreeWidget *stations_=nullptr;
 	QComboBox *libraryBlock_=nullptr;
@@ -3050,23 +3223,28 @@ private:
 	QLabel *libraryStatus_=nullptr;
 	QSet<QString> favorites_;
 	QLabel *state_=nullptr,*playStatus_=nullptr,*dls_=nullptr,*signal_=nullptr,*slide_=nullptr,
-		*radioCaption_=nullptr,*lyricText_=nullptr,*plot_=nullptr;
+		*radioCaption_=nullptr,*radioCaptionBanner_=nullptr,
+        *lyricText_=nullptr,*plot_=nullptr;
 	QCheckBox *english_=nullptr,*german_=nullptr,*turkish_=nullptr,*music_=nullptr,
 		*speakerLabels_=nullptr,
 		*livePlot_=nullptr,*showWidgets_=nullptr,
 		*coarseCorrector_=nullptr;
 	QSlider *lyricsOffset_=nullptr;
-	QLabel *lyricsOffsetValue_=nullptr,*lyricsSyncState_=nullptr;
+	QLabel *lyricsOffsetValue_=nullptr,*lyricsSyncState_=nullptr,
+        *lyricProvider_=nullptr;
 	QProgressBar *captionProgress_=nullptr,*audioCacheProgress_=nullptr;
 	QLabel *bufferRecommendation_=nullptr;
-	qint64 audioStartedMs_=0,lastLyricSyncUpdateMs_=0;
+	qint64 audioStartedMs_=0,lastLyricSyncUpdateMs_=0,
+        lastCaptionVisibleMs_=0;
 	bool metadataCaptions_=false;
 	int dlsCaptionIndex_=0;
 	int lastLyricOffsetMs_=0;
 	bool plainLyricMode_=false;
 	QList<TimedPlainLyric> plainLyricQueue_;
 	QCheckBox *autoLyrics_=nullptr,*autoLyricSync_=nullptr,
-		*preferLyrics_=nullptr;
+		*preferLyrics_=nullptr,*listenFallbackOnMiss_=nullptr;
+    bool lyricsAudioFallbackActive_=false,lyricsFallbackStartedAi_=false,
+        plainLyricsStartedAi_=false,captionsStopping_=false;
 	QSpinBox *bufferMs_=nullptr,*radioOffsetMs_=nullptr;
 	QCheckBox *autoSync_=nullptr,*autoRestartAudio_=nullptr;
 	int lastCaptionOffsetMs_=0;

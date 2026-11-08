@@ -10,6 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import bisect
 import json
+import os
 from pathlib import Path
 import re
 import ssl
@@ -174,6 +175,78 @@ def lookup_alternative_plain(*, artist: str, title: str,
         "metadata_verification":"none; exact artist/title request only"}
 
 
+def _metadata_key(value: str) -> str:
+    """Tolerate radio punctuation/Unicode differences, not different songs."""
+    value = unicodedata.normalize("NFKD", str(value)).casefold()
+    value = "".join(c for c in value if not unicodedata.combining(c))
+    return " ".join(re.findall(r"[^\W_]+", value, flags=re.UNICODE))
+
+
+def _matches_record(record: dict, title: str, artist: str) -> bool:
+    return (_metadata_key(record.get("trackName", "")) == _metadata_key(title)
+            and _metadata_key(record.get("artistName", "")) == _metadata_key(artist))
+
+
+def _clean_plain(raw: str) -> list[str]:
+    if not isinstance(raw, str):
+        return []
+    cleaned = []
+    for row in raw.splitlines()[:350]:
+        line = " ".join(row.strip().split())
+        if 3 <= len(line) <= 240 and not (
+                line.startswith("[") and line.endswith("]")):
+            cleaned.append(line)
+        if len(cleaned) >= 150:
+            break
+    return cleaned
+
+
+def lookup_musixmatch_licensed_plain(*, artist: str, title: str,
+                                      online: bool = False) -> tuple[list[str], dict]:
+    """Official licensed API only, never unofficial Android keys or scraping.
+
+    A consumer's own contract must authorize use. The service may return
+    only previews; reject those rather than misrepresenting partial lyrics.
+    Un-timed text still must be independently matched to the heard audio.
+    """
+    if not online:
+        raise PermissionError("Musixmatch requires explicit online search consent")
+    key = os.environ.get("TIHULU_MUSIXMATCH_API_KEY", "").strip()
+    if not key:
+        return [], {"provider": "Musixmatch official API",
+                    "status": "not_configured", "license": "API key required"}
+    if not artist.strip() or not title.strip() or len(key) > 512:
+        return [], {"provider": "Musixmatch official API",
+                    "status": "unavailable"}
+    url = ("https://api.musixmatch.com/ws/1.1/matcher.lyrics.get?"
+           + urllib.parse.urlencode({"q_track": title, "q_artist": artist,
+                                     "apikey": key}))
+    try:
+        payload = _get_json(url)
+        message = payload.get("message", {})
+        header = message.get("header", {}) if isinstance(message, dict) else {}
+        if header.get("status_code") != 200:
+            return [], {"provider": "Musixmatch official API",
+                        "status": "unavailable"}
+        body = message.get("body", {})
+        lyrics = body.get("lyrics", {}) if isinstance(body, dict) else {}
+        raw = lyrics.get("lyrics_body", "") if isinstance(lyrics, dict) else ""
+        if not isinstance(raw, str) or not raw.strip() or (
+                "*******" in raw or "NOT for Commercial use" in raw):
+            return [], {"provider": "Musixmatch official API",
+                        "status": "no_full_licensed_lyrics"}
+        lines = _clean_plain(raw)
+        return lines, {"provider": "Musixmatch official API",
+                       "status": "plain" if lines else "empty",
+                       "alignment": "awaiting_real_audio_ASR",
+                       "metadata_verification": "audio_match_required",
+                       "online_lookup": True,
+                       "copyright": str(lyrics.get("lyrics_copyright", ""))[:240]}
+    except (OSError, ValueError, RuntimeError, urllib.error.URLError):
+        return [], {"provider": "Musixmatch official API",
+                    "status": "unavailable"}
+
+
 def lookup_synced_lyrics(*, title: str, artist: str,
                          album: str = "", duration: float | None = None,
                          online: bool = False,
@@ -197,30 +270,38 @@ def lookup_synced_lyrics(*, title: str, artist: str,
         params["duration"] = round(float(duration))
     url = "https://lrclib.net/api/get?" + urllib.parse.urlencode(params)
     record = _get_json(url)
-    if not record:
-        # One opt-in catalog search; accept ONLY exact title+artist metadata.
-        search_url="https://lrclib.net/api/search?"+urllib.parse.urlencode(
-            {"track_name":title.strip(),"artist_name":artist.strip()})
-        results=_get_json(search_url,allow_list=True)
-        exact=[item for item in results
-               if str(item.get("trackName","")).casefold().strip()==title.casefold().strip()
-               and str(item.get("artistName","")).casefold().strip()==artist.casefold().strip()
-               and not item.get("instrumental")]
-        record=next((item for item in exact if item.get("syncedLyrics")),
-                    exact[0] if exact else {})
+    # LRCLIB occasionally returns a fuzzy result for a structured /api/get,
+    # especially for RDS/DLS spelling and punctuation. Never crash the
+    # lookup worker or display another song; search the catalog for a
+    # metadata-matching candidate instead.
+    if not record or not _matches_record(record, title, artist):
+        search_url = ("https://lrclib.net/api/search?"
+                      + urllib.parse.urlencode({
+                          "track_name": title.strip(),
+                          "artist_name": artist.strip()}))
+        results = _get_json(search_url, allow_list=True)
+        exact = [item for item in results
+                 if _matches_record(item, title, artist)
+                 and not item.get("instrumental")]
+        record = next((item for item in exact if item.get("syncedLyrics")),
+                      exact[0] if exact else {})
     if not record:
         if allow_plain:
-            lines,alternate=lookup_alternative_plain(
-                artist=artist,title=title,online=online)
+            # Prefer open keyless LRCLIB; licensed Musixmatch is optional
+            # only when the user explicitly supplied their official API key.
+            lines, alternative = lookup_musixmatch_licensed_plain(
+                artist=artist, title=title, online=online)
             if lines:
-                return [],{**alternate,"plain_lines":lines,
-                           "artist":artist,"track":title}
-        return [], {"status":"not_found","provider":"LRCLIB; lyrics.ovh fallback"}
-    if (str(record.get("trackName","")).casefold().strip() !=
-            title.casefold().strip() or
-            str(record.get("artistName","")).casefold().strip() !=
-            artist.casefold().strip()):
-        raise ValueError("Lyrics result metadata did not match requested song")
+                return [], {**alternative, "plain_lines": lines,
+                            "artist": artist, "track": title}
+            lines, alternative = lookup_alternative_plain(
+                artist=artist, title=title, online=online)
+            if lines:
+                return [], {**alternative, "plain_lines": lines,
+                            "artist": artist, "track": title}
+        return [], {"status": "not_found",
+                    "provider": "LRCLIB; licensed Musixmatch; lyrics.ovh",
+                    "message": "No trusted matching lyric metadata"}
     if duration is not None and isinstance(record.get("duration"),(int,float)):
         if abs(float(record["duration"])-float(duration)) > 3:
             raise ValueError("Lyrics duration mismatch; refusing unsafe auto-sync")
@@ -248,13 +329,18 @@ def lookup_synced_lyrics(*, title: str, artist: str,
                     "alignment":"awaiting_real_audio_ASR",
                     "online_lookup":True}
         if allow_plain:
+            lines,alternate=lookup_musixmatch_licensed_plain(
+                artist=artist,title=title,online=online)
+            if lines:
+                return [],{**alternate,"plain_lines":lines,
+                           "artist":artist,"track":title}
             lines,alternate=lookup_alternative_plain(
                 artist=artist,title=title,online=online)
             if lines:
                 return [],{**alternate,"plain_lines":lines,
                            "artist":artist,"track":title}
-        return [], {"status":"unsynced_only","provider":"LRCLIB",
-                    "message":"No usable synced or plain lyrics from allowed sources"}
+        return [], {"status":"unsynced_only","provider":"LRCLIB; licensed Musixmatch; lyrics.ovh",
+                    "message":"No usable lyrics from allowed sources"}
     cues = parse_lrc(synced,duration=duration,provenance="LRCLIB")
     return cues, {"status":"synced" if cues else "invalid",
                   "provider":"LRCLIB","record_id":record.get("id"),
