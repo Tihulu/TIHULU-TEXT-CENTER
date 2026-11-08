@@ -49,7 +49,9 @@ class StandaloneNativePlayerTests(unittest.TestCase):
             self.assertIn(term,patches)
         self.assertNotIn('QStringList() << QLatin1String("media-captions-ui")',patches)
         installer=(ROOT/"kaffeine_next/install.sh").read_text()
-        self.assertIn("Icon=tihulu-media-center",installer)
+        self.assertTrue("Icon=tihulu-media-center" in installer or
+                        "Icon=$DESKTOP_ICON" in installer)
+        self.assertIn("tihulu-media-center.svg",installer)
         self.assertIn("Name=TIHULU Media Center",installer)
         self.assertIn('ln -sfn kaffeine "$PREFIX/bin/tihulu-media-center"',installer)
         self.assertIn("tihulu-media-centerrc",installer)
