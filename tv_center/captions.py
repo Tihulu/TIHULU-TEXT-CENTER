@@ -138,9 +138,10 @@ def choose_audio_stream(streams, language, preferred_pid=None):
 
 def _speaker_details(pcm, transcript, diagnostics, enabled,
                      provider="resemblyzer", channel=None):
-    # A few low-confidence words from a TV jingle do not justify a fake
-    # "Speaker 2" badge. Do not run diarization on empty/short captions.
-    if not transcript or len(transcript.split()) < 4:
+    # Never invoke speaker clustering for a silent/rejected ASR result.
+    # Short genuine dialogue still supports optional diarization, and its
+    # engine/error diagnostics remain visible to the user.
+    if not transcript:
         return transcript
     if enabled:
         try:
