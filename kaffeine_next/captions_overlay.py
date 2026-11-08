@@ -22,7 +22,7 @@ import time
 CHUNK_SECONDS = 6
 OVERLAP_SECONDS = 1.0
 MAX_TS_BYTES = 24 * 1024 * 1024
-LANGS = ("de", "en", "tr")
+LANGS = ("de", "en", "tr", "fr")
 
 def validate_socket(path: str) -> Path:
     location = Path(os.environ.get("XDG_RUNTIME_DIR", ""))
@@ -42,7 +42,10 @@ class CaptionTap:
         self.stop = threading.Event()
         from .continuous_captions import BufferedCaptionQueue
         from .transport_health import TransportContinuityMeter
+        from .subtitle_tracks import TeletextSubtitleDiscovery
         self.transport_health = TransportContinuityMeter()
+        self.subtitle_discovery = TeletextSubtitleDiscovery()
+        self.program_epoch = 0
         self.recv_buffer_bytes = None
         self.work_queue = BufferedCaptionQueue(
             maximum_bytes=(48 if Path("/proc/device-tree/model").is_file()
@@ -149,9 +152,19 @@ class CaptionTap:
                     self.previous_original = ""
                     self.previous_revision = -1
                     self.transport_health.reset()
+                    self.subtitle_discovery.clear()
+                    self.program_epoch += 1
                     self._note_warning(
                         "TV service changed; cleared previous-channel ASR queue.")
                 self.program_id = observed_program
+            if self.subtitle_discovery.offer(data, preferred_service_id=self.program_id):
+                try:
+                    self.events.put_nowait((
+                        "teletext_tracks",
+                        {"service_id":self.subtitle_discovery.service_id,
+                         "tracks":self.subtitle_discovery.snapshot()}))
+                except queue.Full:
+                    self._note_warning("Teletext subtitle channel list refresh delayed")
             if self.packet_sink:
                 try:
                     self.packet_sink(data)
@@ -187,8 +200,11 @@ class CaptionTap:
                 previous_duration = max(0.5, now-last)
                 chunks.clear()
                 last = now
+                captured_options = dict(options)
+                captured_options["service_id"] = self.program_id
+                captured_options["program_epoch"] = self.program_epoch
                 queued = self.work_queue.offer(
-                    CapturedClip(capture, dict(options), started, now))
+                    CapturedClip(capture, captured_options, started, now))
                 if not queued:
                     health = self.work_queue.snapshot()
                     self._note_warning(
@@ -216,8 +232,13 @@ class CaptionTap:
                         else "")
             result = decode_segment(capture, mode=selected, page=options["page"],
                 source=source, target=primary, targets=enabled,
-                model=ai.values["model_path"], service_id=None,
+                model=ai.values["model_path"],
+                service_id=options.get("service_id"),
+                teletext_pid=(options.get("teletext_pid")
+                              if selected in ("auto", "teletext", "page") else None),
                 previous_text=previous)
+            if options.get("program_epoch") != self.program_epoch:
+                return  # old channel's caption must never appear on new TV
             if result.get("source") == "local_asr" and result.get("original"):
                 # The decoder must remove duplicated overlap before translation.
                 self.previous_original = result["original"]
@@ -338,6 +359,19 @@ def main(argv=None):
                 check.setEnabled(True)
     source.currentIndexChanged.connect(update_language_choices)
     update_language_choices()
+    tracks_row = QHBoxLayout()
+    tracks_row.addWidget(QLabel("Broadcast subtitle channel"))
+    subtitle_track = QComboBox()
+    subtitle_track.addItem("Automatic broadcaster subtitles (no selected page)", None)
+    subtitle_track.setToolTip(
+        "Detected from the tuned TV service's DVB Teletext descriptor. "
+        "Only actual signalled subtitle pages are offered. Select a "
+        "language/page, then Apply. Whisper mode transcribes audio instead.")
+    tracks_row.addWidget(subtitle_track, 1)
+    track_status = QLabel("Scanning this channel's real DVB subtitle descriptors…")
+    track_status.setWordWrap(True)
+    settings_layout.addRow(tracks_row)
+    settings_layout.addRow(track_status)
     root.addWidget(settings)
 
     timing = QGroupBox("Synchronization & video overlay")
@@ -477,7 +511,15 @@ def main(argv=None):
     current_cue = None
 
     def from_controls():
-        spoken = source.currentText()
+        selected = subtitle_track.currentData()
+        # A Teletext subtitle channel's language is signalled by the
+        # broadcaster. Never run French captions through a German
+        # translator merely because the prior Spoken box said 'de'.
+        chosen_track = (selected if isinstance(selected, dict) and
+                        mode.currentData() in ("auto","teletext","page") else None)
+        spoken = (chosen_track.get("source_hint")
+                  if chosen_track and chosen_track.get("source_hint") in LANGS
+                  else source.currentText())
         target_langs = tuple(lang for lang, check in language_boxes.items()
                              if check.isChecked() and lang != spoken)
         output = display_mode.currentData()
@@ -485,7 +527,8 @@ def main(argv=None):
             mode=mode.currentData(), source=spoken,
             target=target_langs[0] if target_langs else spoken,
             target_languages=target_langs if output != "original" else (),
-            page=page.value(),
+            page=chosen_track["page"] if chosen_track else page.value(),
+            teletext_pid=chosen_track["pid"] if chosen_track else None,
             offset_ms=round(caption_offset.value()*1000),
             playback_delay_ms=round(playback_delay.value()*1000),
             automatic_sync=automatic.isChecked(),
@@ -499,8 +542,21 @@ def main(argv=None):
     def set_pending(*_):
         pending.setText("Unsaved changes — press Apply")
         pending.setStyleSheet("color:#f7bf6e")
-    for w in (mode,source,display_mode,position):
+    for w in (mode,source,display_mode,position,subtitle_track):
         w.currentIndexChanged.connect(set_pending)
+    def subtitle_source_selected(*_):
+        selected = subtitle_track.currentData()
+        if isinstance(selected,dict):
+            language = selected.get("source_hint")
+            if language in LANGS and mode.currentData() in ("auto","teletext","page"):
+                source.setCurrentText(language)
+            elif language not in LANGS:
+                track_status.setText(
+                    "Broadcast subtitle available, but this language does not "
+                    "have a configured Whisper/Argos source. Original Teletext "
+                    "can still be displayed; install matching translation packs.")
+        set_pending()
+    subtitle_track.currentIndexChanged.connect(subtitle_source_selected)
     for w in (page,caption_offset,playback_delay,font,opacity,text_opacity):
         w.valueChanged.connect(set_pending)
     for w in (show_video,automatic,*language_boxes.values()):
@@ -550,6 +606,7 @@ def main(argv=None):
         source.setCurrentText("de"); display_mode.setCurrentIndex(1)
         for lang, check in language_boxes.items():
             check.setChecked(lang == "tr")
+        subtitle_track.setCurrentIndex(0)
         page.setValue(150)
         caption_offset.setValue(0.0); playback_delay.setValue(0.0)
         automatic.setChecked(False)
@@ -619,7 +676,43 @@ def main(argv=None):
                 window.showNormal()
                 window.raise_()
                 window.activateWindow()
+            elif kind == "teletext_tracks":
+                selected = subtitle_track.currentData()
+                previous_identity = ((selected.get("pid"),selected.get("page"),
+                                      selected.get("language"))
+                                     if isinstance(selected,dict) else None)
+                subtitle_track.blockSignals(True)
+                subtitle_track.clear()
+                subtitle_track.addItem(
+                    "Automatic broadcaster subtitles (no selected page)", None)
+                current = 0
+                for desc in data.get("tracks", ()):
+                    if not isinstance(desc,dict):
+                        continue
+                    item = dict(desc)
+                    subtitle_track.addItem(item["label"], item)
+                    if (item["pid"],item["page"],item["language"]) == previous_identity:
+                        current = subtitle_track.count()-1
+                subtitle_track.setCurrentIndex(current)
+                subtitle_track.blockSignals(False)
+                count = subtitle_track.count()-1
+                track_status.setText(
+                    (f"{count} broadcast-signalled Teletext subtitle "
+                     f"channel(s) detected. Choose one, then Apply."
+                     if count else
+                     "No Teletext subtitle descriptor detected on this service. "
+                     "You can still use Whisper or manual page mode."))
+                if previous_identity is not None and current == 0:
+                    # On a channel change, never reuse stale PID/page settings.
+                    # Revert the applied subtitle selection immediately to
+                    # neutral while preserving other active user settings.
+                    with lock:
+                        applied = __import__("dataclasses").replace(
+                            applied, teletext_pid=None, revision=applied.revision+1)
+                    cues.clear()
+                    set_pending()
             elif kind == "remote_page":
+                subtitle_track.setCurrentIndex(0)
                 mode.setCurrentIndex(3)
                 page.setValue(int(data))
                 apply_settings()
