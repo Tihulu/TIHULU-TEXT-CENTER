@@ -13,6 +13,8 @@
 #include <QFileDialog>
 #include <QMessageBox>
 #include <QHBoxLayout>
+#include <QGridLayout>
+#include <QToolButton>
 #include <QLabel>
 #include <QLineEdit>
 #include <QProcess>
@@ -43,13 +45,30 @@ public:
 		file_->setMinimumWidth(120);
 		h->addWidget(file_,1);
 		v->addLayout(h);
-		auto *tools=new QHBoxLayout();
+        auto *expand=new QToolButton(this);
+        expand->setText(tr("Show offline AI / lyric / export options"));
+        expand->setCheckable(true);
+        expand->setChecked(false);
+        expand->setToolButtonStyle(Qt::ToolButtonTextOnly);
+        auto *details=new QWidget(this);
+        auto *detailsLayout=new QVBoxLayout(details);
+        detailsLayout->setContentsMargins(0,0,0,0);
+        detailsLayout->setSpacing(4);
+        v->addWidget(expand);
+        v->addWidget(details);
+        connect(expand,&QToolButton::toggled,this,[details,expand,this](bool enabled){
+            details->setVisible(enabled);
+            expand->setText(enabled?tr("Hide offline AI / lyric / export options"):
+                tr("Show offline AI / lyric / export options"));
+        });
+        details->setVisible(false);
+		auto *tools=new QGridLayout();
 		language_=new QComboBox(this);
 		language_->addItem(tr("Auto detect (GPU)"),QLatin1String("auto"));
 		for(const QString &code:QStringList{"de","en","tr","fr","es","pl","ja","ar"})
 			language_->addItem(code.toUpper(),code);
-		tools->addWidget(new QLabel(tr("Speech language"),this));
-		tools->addWidget(language_);
+		tools->addWidget(new QLabel(tr("Speech language"),this),0,0);
+        tools->addWidget(language_,0,1,1,2);
 		en_=new QCheckBox(tr("EN"),this); en_->setChecked(true);
 		de_=new QCheckBox(tr("DE"),this);
 		tr_=new QCheckBox(tr("TR"),this); tr_->setChecked(true);
@@ -58,15 +77,15 @@ public:
 		lyricsOnline_=new QCheckBox(tr("Find lyrics online (optional)"),this);
 		lyricsOnline_->setToolTip(tr("Only song title/artist metadata is sent "
 			"to LRCLIB after pressing Generate, never file audio. No API key."));
-		tools->addWidget(de_);
-		tools->addWidget(en_);
-		tools->addWidget(tr_);
-		tools->addWidget(music_);
-		tools->addWidget(lyrics_);
-		v->addLayout(tools);
-		auto *actions = new QHBoxLayout();
-		actions->addWidget(lyricsOnline_);
-		actions->addStretch();
+		tools->addWidget(de_,1,0);
+        tools->addWidget(en_,1,1);
+        tools->addWidget(tr_,1,2);
+        tools->addWidget(music_,2,0,1,2);
+        tools->addWidget(lyrics_,2,2);
+        tools->setColumnStretch(1,1);
+		detailsLayout->addLayout(tools);
+		auto *actions = new QGridLayout();
+		actions->addWidget(lyricsOnline_,0,0,1,3);
 		run_=new QPushButton(tr("Generate + load captions"),this);
 		cancel_=new QPushButton(tr("Cancel"),this);
 		cancel_->setEnabled(false);
@@ -88,13 +107,14 @@ public:
 		wait_->setToolTip(tr("Stops the selected media during offline transcription, "
 			"then restarts it at the beginning with synchronized SRT. "
 			"Processing the entire file can take a while."));
-		actions->addWidget(new QLabel(tr("File cache:"),this));
-		actions->addWidget(caching_);
-		actions->addWidget(wait_);
-		actions->addWidget(run_);
-		actions->addWidget(cancel_);
-		actions->addWidget(export_);
-		v->addLayout(actions);
+		actions->addWidget(new QLabel(tr("File cache:"),this),1,0);
+        actions->addWidget(caching_,1,1);
+        actions->addWidget(wait_,1,2);
+        actions->addWidget(run_,2,0,1,2);
+        actions->addWidget(cancel_,2,2);
+        actions->addWidget(export_,3,0,1,3);
+        actions->setColumnStretch(1,1);
+		detailsLayout->addLayout(actions);
 		message_=new QLabel(tr("Caption file will attach to the same playing video/audio."),this);
 		message_->setWordWrap(true);
 		v->addWidget(message_);
