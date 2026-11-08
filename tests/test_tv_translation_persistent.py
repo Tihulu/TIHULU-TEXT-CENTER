@@ -26,7 +26,7 @@ class PersistentTranslatorTests(unittest.TestCase):
                        side_effect=RuntimeError("de->ja pack not installed")):
                 translated,error=translate("Hallo","de","ja")
         self.assertIsNone(translated)
-        self.assertIn("de->ja",error)
+        self.assertIn("DE → JA",error)
 
     def test_equal_language_needs_no_translator(self):
         with patch("tv_center.translation_service.translate_argos") as backend:
