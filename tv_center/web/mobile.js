@@ -154,6 +154,17 @@
     pending.sort((a,b)=>a.due-b.due);
     pending=pending.slice(-48);
   }
+  function showNativeCaptionLimitations(abilities){
+    const unsupported=[];
+    if(abilities.offset!==true)unsupported.push("native caption offset");
+    if(abilities.buffer!==true)unsupported.push("native TV playback buffer");
+    $("desktop-caption-status").textContent=unsupported.length?
+      "This host uses "+(abilities.backend||"a different playback engine")+
+        ". Unsupported here: "+unsupported.join(", ")+
+        ". These require Kaffeine's native caption/buffer service.":
+      "Native caption mode, offset and buffer controls available. "+
+      "The host must acknowledge actual buffer priming.";
+  }
   function displayEvent(event){
     active={...event,until:Date.now()+Math.max(2400,event.duration*1000)};
     const c=event.caption||{};
@@ -231,6 +242,13 @@
       $("enable-host-stream").disabled=state.mobile_video || state.source!=="live_native_dvb";
       $("disable-host-stream").disabled=!state.mobile_video;
       $("stop-video").disabled=!currentlyPlayingHls;
+      const abilities=state.desktop_control_capabilities||{};
+      $("desktop-apply-mode").disabled=abilities.mode!==true;
+      $("desktop-captions-start").disabled=abilities.start_stop!==true;
+      $("desktop-captions-stop").disabled=abilities.start_stop!==true;
+      $("desktop-apply-offset").disabled=abilities.offset!==true;
+      $("desktop-apply-buffer").disabled=abilities.buffer!==true;
+      showNativeCaptionLimitations(abilities);
       const desktop=state.desktop_caption_settings||{};
       if(desktop.mode && document.activeElement!==$("desktop-caption-mode"))
         $("desktop-caption-mode").value=desktop.mode;
