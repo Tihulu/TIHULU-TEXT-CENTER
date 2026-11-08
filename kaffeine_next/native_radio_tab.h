@@ -456,15 +456,19 @@ public:
 		connect(analogStop_,&QPushButton::clicked,this,[this](){stopAnalog();});
 		connect(&analogDemod_,&QProcess::readyReadStandardError,this,[this](){
 			const QString msg=QString::fromLocal8Bit(analogDemod_.readAllStandardError());
+            if(!msg.trimmed().isEmpty()) lastAnalogError_=msg.trimmed().right(600);
 			if(msg.contains(QLatin1String("Failed"),Qt::CaseInsensitive) ||
 			   msg.contains(QLatin1String("error"),Qt::CaseInsensitive))
 				analogStatus_->setText(msg.right(320));
 		});
 		connect(&analogDemod_,QOverload<int,QProcess::ExitStatus>::of(&QProcess::finished),
 			this,[this](int code,QProcess::ExitStatus){
-				if(!analogStopping_ && analogServer_.isListening())
-					analogStatus_->setText(tr("Analog SDR exited (%1). Check USB ownership.")
-						.arg(code));
+				if(!analogStopping_) {
+                    lastAnalogError_=tr("rtl_fm exited (%1). %2")
+                        .arg(code).arg(lastAnalogError_).right(600);
+                    analogStatus_->setText(tr("Analog SDR exited (%1). "
+                        "Open Hardware tab for USB presence and owner scan.").arg(code));
+                }
 			});
 		configureAnalogBand();
 
@@ -1037,16 +1041,26 @@ public:
 		connect(detailsButton, &QPushButton::clicked, this, [this](){ showReceiverDetails(); });
 		connect(&backend_, &QProcess::readyReadStandardError, this, [this]() {
 			const QString tail = QString::fromUtf8(backend_.readAllStandardError());
+            if(!tail.trimmed().isEmpty()) lastWelleError_=tail.trimmed().right(600);
 			if (tail.contains(QLatin1String("Cannot")) ||
 			    tail.contains(QLatin1String("No device")) ||
 			    tail.contains(QLatin1String("Failed")))
 				state_->setText(tail.right(250));
 		});
 		connect(&backend_, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
-			this, [this](int, QProcess::ExitStatus){
+			this, [this](int exitCode, QProcess::ExitStatus){
+                if(!shuttingDown_)
+                    lastWelleError_=tr("welle-cli exited (%1) · %2")
+                        .arg(exitCode).arg(lastWelleError_).right(600);
 				stopCaptioning();
 				tick_.stop();
-				if (!shuttingDown_) state_->setText(tr("welle-cli stopped; SDR released."));
+                apiReady_=false;
+                scanning_=false;
+                scan_->setEnabled(true);
+                scanProgress_->setValue(0);
+                scanProgress_->setFormat(tr("Scan stopped: receiver exited"));
+				if (!shuttingDown_) state_->setText(tr("welle-cli stopped (%1): %2")
+                    .arg(exitCode).arg(lastWelleError_));
 			});
 		tick_.setInterval(900);
 		// Audio captions no longer wait for the expensive 1600-ms RF poll.
@@ -1107,6 +1121,43 @@ public:
 			QTimer::singleShot(100,this,[this](){searchInternetRadio();});
 		}
 	}
+
+    // Native hardware operations stop only processes owned by this tab.
+    // Never unbind USB drivers or terminate unrelated SDR applications.
+    bool hardwareDabOwned() const {
+        return backend_.state()!=QProcess::NotRunning;
+    }
+    bool hardwareAnalogOwned() const {
+        return analogServer_.isListening() ||
+               analogDemod_.state()!=QProcess::NotRunning;
+    }
+    QString hardwareDabStatus() const {
+        const QString error=lastWelleError_.isEmpty()?
+            tr("No receiver error captured"):lastWelleError_.right(230);
+        if(backend_.state()==QProcess::NotRunning)
+            return tr("RELEASED · welle-cli stopped. Last diagnostic: %1").arg(error);
+        if(!apiReady_)
+            return tr("STARTING / DEGRADED · welle-cli PID %1; loopback API not ready. %2")
+                .arg(backend_.processId()).arg(error);
+        return tr("ACTIVE · welle-cli PID %1, DAB %2, localhost API port %3%4")
+            .arg(backend_.processId()).arg(activeChannel_).arg(port_)
+            .arg(scanning_?tr(" · scanning"):QString());
+    }
+    QString hardwareAnalogStatus() const {
+        const QString error=lastAnalogError_.isEmpty()?
+            tr("No rtl_fm error captured"):lastAnalogError_.right(230);
+        if(analogDemod_.state()==QProcess::NotRunning)
+            return tr("RELEASED / FAILED · rtl_fm not running. %1").arg(error);
+        return tr("ACTIVE · rtl_fm PID %1 · %2 Hz · local audio endpoint %3")
+            .arg(analogDemod_.processId())
+            .arg(qRound64(analogFrequency_->value()*
+                 (analogBand_->currentData().toString()==QLatin1String("fm")?1000000.:1000.)))
+            .arg(analogServer_.isListening()?tr("ready"):tr("not listening"));
+    }
+    void hardwareStartDab() { startReceiver(); }
+    void hardwareStopDab() { stopReceiver(); }
+    void hardwareStartAnalog() { startAnalog(); }
+    void hardwareStopAnalog() { stopAnalog(); }
 
 private:
 	struct TimedRadioCue { int chunkIndex; qint64 dueMs; qint64 queuedMs; QString text; };
@@ -2800,6 +2851,7 @@ private:
 	int scanIndex_=0;
 	quint64 scanRequestId_=0,stationRequestId_=0;
 	qint64 songStartMs_=0,manualSongStartMs_=0;
+	QString lastWelleError_,lastAnalogError_;
 	QString activeChannel_,playingKey_,lastDls_,captionPath_,lyricPath_,
 		wellePortFile_,
 		lastDetectedLanguage_;
