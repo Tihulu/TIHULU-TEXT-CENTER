@@ -454,7 +454,7 @@ public:
 		buttons->addWidget(analogVolume_,1,1);
         buttons->addWidget(analogMute_,1,2);
         buttons->setColumnStretch(1,1);
-		buttons->addStretch(1);
+		buttons->setColumnStretch(3,1);
 		connect(analogVolume_,&QSlider::valueChanged,player_,&MediaWidget::setVolume);
 		connect(analogMute_,&QPushButton::clicked,player_,&MediaWidget::toggleMuted);
 		cabinetLayout->addLayout(buttons);
