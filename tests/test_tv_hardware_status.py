@@ -67,7 +67,7 @@ class HardwareDiscoveryTests(unittest.TestCase):
 
     def test_owner_check_no_dvb_never_starts_subprocess(self):
         with mock.patch("subprocess.run") as runner:
-            self.assertIn("No DVB frontend nodes",check_owners({"dvb":[]}))
+            self.assertIn("No DVB/SDR device nodes",check_owners({"dvb":[],"usb":[]}))
             runner.assert_not_called()
 
 
