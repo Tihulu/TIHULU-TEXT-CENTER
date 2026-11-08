@@ -286,7 +286,7 @@ def _load_nllb():
             model.tie_weights()
         if unmaterialized_tensors(model):
             repair_meta_embeddings_from_checkpoint(
-                model,location.model/"model.safetensors")
+                model,Path(location.model)/"model.safetensors")
     remaining=unmaterialized_tensors(model)
     if remaining:
         raise RuntimeError(
