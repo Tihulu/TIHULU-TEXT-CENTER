@@ -2961,7 +2961,13 @@ private:
             stopCaptioning();
             if(!startedByLyrics && active() && !playingKey_.isEmpty())
                 startCaptioning();
+        } else if(plainLyricsStartedAi_ &&
+                  captionProcess_.state()!=QProcess::NotRunning) {
+            // An ASR worker started ONLY for plain-lyrics matching is
+            // owned by lyrics, not by independent live transcription.
+            stopCaptioning();
         }
+        plainLyricsStartedAi_=false;
 		lyricsEnabled_=false;
 		lyrics_->setEnabled(true);
 		if (lyricsProcess_.state()!=QProcess::NotRunning) {
@@ -3112,8 +3118,12 @@ private:
 				lyricText_->setText(tr("Plain lyrics found. Awaiting REAL Whisper vocal matches; "
 					"no fabricated timestamps."));
 				lyrics_->setEnabled(true);
-				if(captionProcess_.state()==QProcess::NotRunning)
+				if(captionProcess_.state()==QProcess::NotRunning) {
+                    plainLyricsStartedAi_=true;
+                    const int asr=captionSource_->findData(QLatin1String("asr"));
+                    if(asr>=0) captionSource_->setCurrentIndex(asr);
 					startCaptioning();
+                }
 				return;
 			}
 			// Manual timing is anchored to the lookup result, not fake audio matching.
@@ -3214,7 +3224,7 @@ private:
 	QCheckBox *autoLyrics_=nullptr,*autoLyricSync_=nullptr,
 		*preferLyrics_=nullptr,*listenFallbackOnMiss_=nullptr;
     bool lyricsAudioFallbackActive_=false,lyricsFallbackStartedAi_=false,
-        captionsStopping_=false;
+        plainLyricsStartedAi_=false,captionsStopping_=false;
 	QSpinBox *bufferMs_=nullptr,*radioOffsetMs_=nullptr;
 	QCheckBox *autoSync_=nullptr,*autoRestartAudio_=nullptr;
 	int lastCaptionOffsetMs_=0;
