@@ -64,6 +64,10 @@ body:body?JSON.stringify(body):undefined});let x=await r.json();if(!r.ok)throw E
 async function pair(){try{let x=await api('/api/pair',{pin:document.getElementById('pin').value});
 csrf=x.csrf;document.getElementById('login').hidden=true;
 document.getElementById('controls').hidden=false;await loadCatalog()}catch(e){alert(e.message)}}
+async function statusCheck(){if(!csrf)return;try{let state=await api('/api/status');
+document.getElementById('status').textContent=state.state+
+ ' · '+state.source+' · '+(state.playlist_ready?'HLS PLAYLIST READY':'waiting for HLS output');
+}catch(e){document.getElementById('status').textContent=e.message}}
 async function loadCatalog(){try{let x=await api('/api/catalog');let el=document.getElementById('catalog');
 el.replaceChildren();for(let m of x.items){let div=document.createElement('div');div.className='item';
 let name=document.createElement('span');name.textContent=m.name;let b=document.createElement('button');
@@ -81,6 +85,7 @@ video.load();video.play().catch(()=>{}); }catch(e){alert(e.message)}}
 async function stopRemote(){try{await api('/api/stop',{});document.getElementById('player').removeAttribute('src');
 document.getElementById('player').load();}catch(e){alert(e.message)}}
 async function command(cmd){try{await api('/api/control',{action:cmd})}catch(e){alert(e.message)}}
+setInterval(statusCheck,4000);
 setInterval(async()=>{if(!csrf)return;try{let x=await api('/api/captions');let el=document.getElementById('caption');
 let delay=Number(document.getElementById('offset').value)||0;
 if(x.timestamp&&Date.now()-(x.timestamp*1000)<30000){
@@ -106,6 +111,7 @@ class RemoteHub:
         self.proc=None
         self.started=time.monotonic()
         self.serial=0
+        self.current_source="none"
         self.cache=Path(tempfile.mkdtemp(prefix="tihulu-remote-hls-"))
         os.chmod(self.cache,0o700)
         self.files=self._catalog()
@@ -210,6 +216,8 @@ class RemoteHub:
                    str(self.cache/"stream.m3u8")]
             self.proc=subprocess.Popen(args,stdin=subprocess.DEVNULL,
                                       stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+            self.current_source=(str(path.relative_to(self.root)) if kind=="file"
+                                 else "DAB "+identifier)
             on_host=self.play_local(host_source) if host else None
             return {"serial":self.serial,"status":"HLS source starting on host; "
                     "local playback "+("requested" if on_host else
@@ -222,6 +230,16 @@ class RemoteHub:
             except subprocess.TimeoutExpired:
                 self.proc.kill()
         self.proc=None
+        self.current_source="none"
+
+    def status(self):
+        with self.lock:
+            state=("idle" if self.proc is None else
+                   "encoding on host" if self.proc.poll() is None else
+                   "encoder exited (check source or FFmpeg codecs)")
+            return {"state":state,"source":self.current_source,
+                    "serial":self.serial,
+                    "playlist_ready":(self.cache/"stream.m3u8").is_file()}
 
     def captions(self):
         if self.caption_pid is None:return {}
@@ -304,6 +322,8 @@ def create_handler(hub):
                     for e in hub.dab_services()]})
             elif path=="/api/captions":
                 self.send_data(200,hub.captions())
+            elif path=="/api/status":
+                self.send_data(200,hub.status())
             elif path.startswith("/hls/"):
                 name=path.removeprefix("/hls/")
                 if not (name=="stream.m3u8" or
