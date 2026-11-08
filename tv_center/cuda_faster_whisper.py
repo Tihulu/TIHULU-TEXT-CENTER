@@ -200,6 +200,9 @@ class _PersistentCUDAWorker:
             self._stop()
 
     def transcribe(self, pcm, language, model_path):
+        return self.transcribe_details(pcm, language, model_path)["text"]
+
+    def transcribe_details(self, pcm, language, model_path):
         if not isinstance(pcm, bytes) or not 0 < len(pcm) <= 4_000_000:
             raise RuntimeError("Invalid 32-kHz PCM audio segment")
         worker = FasterWhisperCUDA()
@@ -235,7 +238,15 @@ class _PersistentCUDAWorker:
                 output = result.get("text")
                 if not isinstance(output, str):
                     raise RuntimeError("Invalid CUDA transcription response")
-                return output[:3000]
+                words = result.get("words") or []
+                if not isinstance(words, list):
+                    words = []
+                words = [w for w in words[:240] if isinstance(w, dict)
+                         and isinstance(w.get("text"), str)
+                         and type(w.get("start")) in (float, int)
+                         and type(w.get("end")) in (float, int)
+                         and 0 <= w["start"] <= w["end"] <= 60]
+                return {"text":output[:3000],"words":words}
             except (OSError, ValueError, BrokenPipeError) as exc:
                 self._stop()
                 raise RuntimeError("CUDA worker unavailable: " + str(exc)[:180]) from exc
@@ -247,6 +258,11 @@ atexit.register(_worker.close)
 
 def transcribe_cuda(pcm, language, model_path):
     return _worker.transcribe(pcm, language, model_path)
+
+
+def transcribe_cuda_details(pcm, language, model_path):
+    """Return real word timestamps, relative to the captured 16-kHz audio."""
+    return _worker.transcribe_details(pcm, language, model_path)
 
 
 def _download(destination):
@@ -336,9 +352,18 @@ def main():
             waveform = (samples[0::2] + samples[1::2]) / 65536.0
             segments, _ = model.transcribe(
                 waveform, language=request["language"], task="transcribe",
-                beam_size=3, vad_filter=True)
-            text = " ".join(segment.text.strip() for segment in segments).strip()
-            output = {"text": text[:3000]}
+                beam_size=3, vad_filter=True, word_timestamps=True)
+            all_segments = list(segments)
+            text = " ".join(segment.text.strip() for segment in all_segments).strip()
+            words = []
+            for segment in all_segments:
+                for word in segment.words or ():
+                    token = word.word.strip()
+                    if token and len(token) <= 100 and len(words) < 240:
+                        words.append({
+                            "text": token, "start":round(float(word.start),3),
+                            "end":round(float(word.end),3)})
+            output = {"text": text[:3000], "words": words}
         except (ImportError, OSError, RuntimeError, ValueError, KeyError,
                 TypeError) as exc:
             output = {"error": str(exc)[:300]}
