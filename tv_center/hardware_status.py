@@ -113,16 +113,25 @@ def inspect(*, usb_root="/sys/bus/usb/devices", dvb_root="/dev/dvb",
 
 
 def check_owners(snapshot):
-    """Optional explicit, bounded read-only fuser query for DVB node owners."""
-    nodes=[x["path"] for x in snapshot["dvb"] if
-           isinstance(x.get("path"),str) and x["path"].startswith("/dev/dvb/")]
+    """Bounded, explicit read-only fuser report for DVB and SDR USB nodes.
+
+    Even if no process is listed, firmware/driver/kernel locks may exist.
+    Never kill, SIGTERM, unbind, reset, or disconnect another process.
+    """
+    dvb=[x["path"] for x in snapshot.get("dvb",[]) if
+         isinstance(x.get("path"),str) and re.fullmatch(
+             r"/dev/dvb/adapter[0-9]+/frontend[0-9]+",x["path"])]
+    usb=[x["path"] for x in snapshot.get("usb",[]) if
+         x.get("receiver_candidate") and isinstance(x.get("path"),str) and
+         re.fullmatch(r"/dev/bus/usb/[0-9]{3}/[0-9]{3}",x["path"])]
+    nodes=list(dict.fromkeys(dvb[:6]+usb[:6]))
     if not nodes:
-        return "No DVB frontend nodes. USB owner diagnostics require native receiver logs."
+        return "No DVB/SDR device nodes to inspect. USB presence is not proof of ownership."
     fuser=shutil.which("fuser")
     if not fuser:
         return "fuser unavailable (install psmisc); no process was terminated."
     reports=[]
-    for path in nodes[:6]:
+    for path in nodes:
         try:
             outcome=subprocess.run([fuser,"-v","--",path],
                 stdout=subprocess.PIPE,stderr=subprocess.PIPE,
@@ -134,13 +143,13 @@ def check_owners(snapshot):
             reports.append(path+"\n"+(details or "No visible owner; other sessions may be hidden"))
         except (OSError,subprocess.TimeoutExpired) as exc:
             reports.append(path+"\nOwner check unavailable: "+type(exc).__name__)
-    return "\n\n".join(reports)[:8000]
+    return "\n\n".join(reports)[:12000]
 
 
 def main(argv=None):
     parser=argparse.ArgumentParser(description="Read-only Linux TV/SDR inventory")
     parser.add_argument("--owners",action="store_true",
-                        help="Explicitly query DVB frontend owners using read-only fuser")
+                        help="Explicitly query DVB and SDR USB node owners using read-only fuser")
     args=parser.parse_args(argv)
     snapshot=inspect()
     if args.owners:
