@@ -120,22 +120,81 @@ def _words(text):
     return [w for w in text.split() if w]
 
 
-def remove_repeated_prefix(previous: str, current: str, maximum_words=16) -> str:
-    """Trim the longest repeated word suffix / prefix after audio overlap.
-
-    Conservative token-level matching: do not remove a whole different
-    sentence merely because it shares a generic two-word expression.
-    """
+def _normalized_word(word: str) -> str:
+    """Compare case/punctuation-insensitive ASR word boundaries."""
     import re
+    return re.sub(r"^[^\w]+|[^\w]+$", "", word, flags=re.UNICODE).casefold()
+
+
+def remove_repeated_prefix(previous: str, current: str, maximum_words=64,
+                           minimum_words=1) -> str:
+    """Trim ONLY a matching suffix/prefix from adjacent overlapping clips.
+
+    The earlier 16-word limit missed repeating long sentences from Whisper.
+    Sentence assembly uses a larger minimum to preserve genuinely repeated
+    short expressions; no fuzzy matching or guessing missing speech.
+    """
+    if not isinstance(previous, str) or not isinstance(current, str):
+        raise TypeError("Transcription overlap expects strings")
+    if not isinstance(maximum_words, int) or maximum_words < 1:
+        raise ValueError("Invalid transcription overlap word limit")
+    if not isinstance(minimum_words, int) or not 1 <= minimum_words <= maximum_words:
+        raise ValueError("Invalid transcription overlap minimum")
     before = _words(previous)
     now = _words(current)
     if not before or not now:
         return current.strip()
-    def normalized(w):
-        return re.sub(r"^[^\w]+|[^\w]+$", "", w, flags=re.UNICODE).casefold()
-    for n in range(min(maximum_words,len(before),len(now)),0,-1):
-        if [normalized(x) for x in before[-n:]] == [normalized(x) for x in now[:n]]:
-            if n == 1 and len(now)>2:
+    old_normalized = [_normalized_word(w) for w in before]
+    new_normalized = [_normalized_word(w) for w in now]
+    for n in range(min(maximum_words, len(before), len(now)),
+                   minimum_words-1, -1):
+        if old_normalized[-n:] == new_normalized[:n] and all(old_normalized[-n:]):
+            if n == 1 and len(now) > 2:
                 continue
             return " ".join(now[n:]).strip()
     return current.strip()
+
+
+def collapse_asr_repetition_loops(text: str, *, enabled=True) -> str:
+    """Suppress obvious contiguous ASR loops, not normal doubled speech.
+
+    Only patterns repeated 3+ times (3+ words), 4+ times (2 words), or
+    6+ times (one word) are collapsed. Preserve an original instance
+    (two for single-word emphasis). Do NOT use for real broadcaster subtitles,
+    song lyrics, or to rewrite genuine spoken twofold repetition.
+    """
+    if not isinstance(text, str):
+        raise TypeError("Expected an ASR transcript")
+    if not enabled or not text.strip():
+        return text.strip()
+    words = text.split()
+    if len(words) < 6:
+        return " ".join(words)
+    norm = [_normalized_word(w) for w in words]
+    out = []
+    i = 0
+    while i < len(words):
+        best_block = 0
+        copies = 0
+        for block in range(min(48, (len(words)-i)//3), 0, -1):
+            threshold = 6 if block == 1 else 4 if block == 2 else 3
+            if i + block * threshold > len(words):
+                continue
+            pattern = norm[i:i+block]
+            if not all(pattern):
+                continue
+            repeats = 1
+            while (i + (repeats+1)*block <= len(words) and
+                   norm[i+repeats*block:i+(repeats+1)*block] == pattern):
+                repeats += 1
+            if repeats >= threshold:
+                best_block, copies = block, repeats
+                break
+        if copies:
+            retained = 2 if best_block == 1 else 1
+            out.extend(words[i:i+best_block*retained])
+            i += best_block * copies
+        else:
+            out.append(words[i])
+            i += 1
+    return " ".join(out)
