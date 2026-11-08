@@ -115,8 +115,9 @@ def detect_hardware():
                    ".".join(map(str,cuda_version)) if cuda_version else None),
                "cuda_compile_possible":can_compile,
                "reason":(
-                   "NVIDIA RTX 50-series needs CUDA Toolkit >=12.8; nvcc not found. "
-                   "Install the toolkit (not a replacement display driver)."
+                   "No nvcc compiler for optional whisper.cpp GPU source build. "
+                   "RTX 50-series requires CUDA Toolkit >=12.8 only if building "
+                   "whisper.cpp; prebuilt Faster-Whisper CUDA can run without nvcc."
                    if is_blackwell and not nvcc else
                    "Installed nvcc CUDA version is too old for Blackwell; >=12.8 required"
                    if is_blackwell and not can_compile else
@@ -148,7 +149,16 @@ def model_fit(key, size_mb, hardware):
         if required_ram_mb < gpu["vram_mib"] * 0.75:
             if gpu["cuda_compile_possible"]:
                 return "Recommended for NVIDIA CUDA once runtime installed"
-            return "Fits GPU memory estimate · CUDA backend still missing"
+            try:
+                from .cuda_faster_whisper import FasterWhisperCUDA
+                cuda = FasterWhisperCUDA()
+                if cuda.installed():
+                    return ("RTX VRAM fits estimate · Faster-Whisper CUDA is "
+                            "installed (GGML CPU model is separate)")
+            except (ImportError, OSError, ValueError, RuntimeError):
+                pass
+            return ("Fits VRAM · GPU whisper.cpp needs nvcc >=12.8; "
+                    "prebuilt Faster-Whisper does not require nvcc")
         return "Large for GPU VRAM · CPU or smaller quantized model"
     if key.startswith("large") and hardware["raspberry_pi_5"]:
         return "Not recommended for Pi 5 live captions"
