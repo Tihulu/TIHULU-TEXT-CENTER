@@ -565,7 +565,8 @@ def main(argv=None):
     from .track_preferences import recommended_track, _signaled_language
     from PyQt5.QtCore import Qt, QTimer, QSettings, QProcess
     from PyQt5.QtGui import QColor
-    from PyQt5.QtWidgets import (QApplication, QWidget, QVBoxLayout, QHBoxLayout,
+    from PyQt5.QtWidgets import (QApplication, QWidget, QDialog, QDialogButtonBox,
+        QMessageBox, QPlainTextEdit, QVBoxLayout, QHBoxLayout,
         QLabel, QComboBox, QPushButton, QToolButton, QMenu, QWidgetAction,
         QSpinBox, QDoubleSpinBox,
         QCheckBox, QGroupBox, QFormLayout, QLineEdit, QColorDialog,
@@ -1146,6 +1147,18 @@ def main(argv=None):
         subprocess.Popen(["tihulu-tv-center","ai-market"],close_fds=True)
     market.clicked.connect(launch_market)
     tools_layout.addWidget(market)
+    benchmark_button = QPushButton(
+        "Test installed AI models on a local audio sample…")
+    benchmark_button.setToolTip(
+        "Offline opt-in: select your own local recording. Real Whisper/Argos/NLLB "
+        "candidates are timed with six seconds of audio, without tuning the "
+        "DVB receiver, downloading anything or changing settings. The result "
+        "is editable and requires your confirmation.")
+    benchmark_status = QLabel(
+        "AI performance test: not run on this computer. No model speed assumed.")
+    benchmark_status.setWordWrap(True)
+    tools_layout.addWidget(benchmark_button)
+    tools_layout.addWidget(benchmark_status)
     phone = QCheckBox("Allow phone/tablet on trusted Wi-Fi (OFF by default)")
     video = QCheckBox("Share the live channel as H.264/AAC HLS (CPU intensive)")
     lan_note = QLabel("Mobile access OFF. No network listener.")
@@ -1441,6 +1454,192 @@ def main(argv=None):
                            "s. Real ASR timing varies with model CPU/GPU performance.")
         except (ValueError, OSError) as exc:
             status.setText("Settings were not applied: " + str(exc))
+
+    benchmark_process = QProcess(window)
+    def run_benchmark_clicked():
+        if benchmark_process.state()!=QProcess.NotRunning:
+            return
+        answer=QMessageBox.question(
+            window,"Local AI performance test",
+            "Test the Whisper models and translators already installed on "
+            "this computer using a six-second excerpt from a local audio/"
+            "video file you choose?\n\n"
+            "This can use CPU/GPU heavily for several minutes. It will not "
+            "touch DVB tuning, download models, upload media or change any "
+            "settings. Results require your explicit approval.",
+            QMessageBox.Yes | QMessageBox.No,QMessageBox.No)
+        if answer!=QMessageBox.Yes:
+            return
+        chosen=QFileDialog.getOpenFileName(
+            window,"Select local recording for AI timing",
+            str(Path.home()),
+            "Audio/video (*.wav *.flac *.mp3 *.m4a *.mp4 *.mkv *.ts *.ogg);;"
+            "All files (*)")[0]
+        if not chosen:
+            return
+        benchmark_button.setEnabled(False)
+        benchmark_status.setText(
+            "Testing installed AI models locally on six seconds of selected "
+            "media. Main DVB player and caption service remain independent.")
+        benchmark_process.start(
+            sys.executable,["-m","tv_center.performance_lab","--audio",chosen,
+                           "--buffer-ms",str(applied.playback_delay_ms)])
+        if not benchmark_process.waitForStarted(700):
+            benchmark_status.setText(
+                "Could not start the local benchmark process.")
+            benchmark_button.setEnabled(True)
+
+    def benchmark_finished(*_):
+        benchmark_button.setEnabled(True)
+        raw=bytes(benchmark_process.readAllStandardOutput()).decode(
+            "utf-8","replace")
+        if benchmark_process.exitCode()!=0 or len(raw)>100000:
+            error=bytes(benchmark_process.readAllStandardError()).decode(
+                "utf-8","replace")[-450:]
+            benchmark_status.setText(
+                "AI benchmark failed: "+(error or "No verified model result"))
+            return
+        try:
+            report=json.loads(raw)
+            if report.get("version")!=1 or not report.get("offline"):
+                raise ValueError("Untrusted benchmark result")
+            rows=report["samples"]
+            proposal=report["recommendation"]
+        except (ValueError,TypeError,KeyError) as exc:
+            benchmark_status.setText(
+                "AI benchmark returned no valid performance report: "+str(exc))
+            return
+        labels=[]
+        for row in rows:
+            name=(row.get("name") or row.get("engine") or
+                  row.get("backend") or "model")
+            label=str(name)[:70]
+            if row.get("target"):
+                label+=" → "+str(row["target"]).upper()
+            if row.get("status")=="ok":
+                label+=f": {float(row['elapsed_s']):.2f}s"
+                if row.get("kind")=="asr":
+                    label+=" / 6s captured audio"
+            else:
+                label+=": "+str(row.get("status"))+" · "+str(
+                    row.get("reason",""))[:130]
+            labels.append(label)
+        benchmark_status.setText(
+            "Local test completed. No options were changed. Review "
+            "per-model results and edit before applying.")
+        dialogue=QDialog(window)
+        window.ai_benchmark_dialog=dialogue
+        dialogue.setWindowTitle("Offline AI performance · review before applying")
+        dialogue.setWindowModality(Qt.NonModal)
+        dialogue.resize(660,490)
+        pane=QVBoxLayout(dialogue)
+        intro=QLabel(
+            "Real local 6-second-file test; not a guarantee for continuous "
+            "DVB throughput. Old settings remain unchanged until Apply.")
+        intro.setWordWrap(True)
+        pane.addWidget(intro)
+        results=QPlainTextEdit()
+        results.setReadOnly(True)
+        results.setPlainText("\n".join(labels) or
+            "No compatible installed AI models detected.")
+        pane.addWidget(results)
+        choice=QComboBox()
+        eligible=[m for m in rows if m.get("kind")=="asr" and
+                  m.get("status")=="ok"]
+        for m in eligible:
+            choice.addItem(
+                m["backend"].upper()+" · "+Path(m["model_path"]).name+
+                f" · {m['elapsed_s']:.2f}s",
+                (m["backend"],m["model_path"]))
+        choice.setEnabled(bool(eligible))
+        pane.addWidget(QLabel("Whisper engine and model (editable):"))
+        pane.addWidget(choice)
+        translator=QComboBox()
+        translator.addItem("Keep current translator",None)
+        for eng in ("argos","nllb"):
+            measured={m["target"]:m for m in rows if
+                      m.get("kind")=="translation" and
+                      m.get("engine")==eng and m.get("status")=="ok"}
+            if set(measured)>={"en","tr"}:
+                translator.addItem(
+                    eng.upper()+" · EN "+str(measured["en"]["elapsed_s"])+
+                    "s + TR "+str(measured["tr"]["elapsed_s"])+"s",eng)
+        proposed_engine=proposal.get("translation_model")
+        if proposed_engine:
+            for i in range(translator.count()):
+                if translator.itemData(i)==proposed_engine:
+                    translator.setCurrentIndex(i)
+        pane.addWidget(QLabel("Translation engine (tested DE→EN and DE→TR):"))
+        pane.addWidget(translator)
+        suggested_buffer=QDoubleSpinBox()
+        suggested_buffer.setRange(0,60)
+        suggested_buffer.setSingleStep(.5)
+        suggested_buffer.setSuffix(" seconds")
+        suggested_buffer.setValue(min(60,max(
+            applied.playback_delay_ms,
+            int(proposal.get("minimum_buffer_ms",0)))/1000))
+        pane.addWidget(QLabel(
+            "TV playback buffer · editable; never reduced automatically:"))
+        pane.addWidget(suggested_buffer)
+        detail=QLabel(
+            "Estimated sustainable per 6s clip: "+(
+                "YES" if proposal.get("realtime_sustainable") else
+                "NOT PROVEN")+" · benchmark excludes DVB packet loss, "
+            "speech-language detection errors and 2+ concurrent workloads. "
+            "Only the selected backend/model/translator and explicitly edited "
+            "buffer will be changed. Output languages stay as chosen above.")
+        detail.setWordWrap(True)
+        pane.addWidget(detail)
+        buttons=QDialogButtonBox(QDialogButtonBox.Ok |
+                                 QDialogButtonBox.Cancel,dialogue)
+        buttons.button(QDialogButtonBox.Ok).setText(
+            "Apply these settings (user approved)")
+        pane.addWidget(buttons)
+        buttons.rejected.connect(dialogue.reject)
+        def apply_benchmark_choice():
+            nonlocal applied,current_text,current_cue,current_until
+            from tv_center.ai_settings import AISettings
+            update={}
+            if choice.currentIndex()>=0 and eligible:
+                backend,path=choice.currentData()
+                update["backend"]=backend
+                # CPU uses GGML file. A managed CUDA directory is selected
+                # internally by the ready GPU runtime; never write its CT2
+                # folder into the GGML model_path setting.
+                if backend=="cpu":
+                    update["model_path"]=path
+            if translator.currentData() in ("argos","nllb"):
+                update["translation_model"]=translator.currentData()
+            try:
+                if update:
+                    AISettings().update(update)
+                # Native playback delay is changed ONLY as part of this
+                # explicit user-approved plan, not by background tests.
+                desired_ms=round(suggested_buffer.value()*1000)
+                if desired_ms!=applied.playback_delay_ms:
+                    playback_delay.setValue(desired_ms/1000)
+                    apply_settings()
+                with lock:
+                    applied=__import__("dataclasses").replace(
+                        applied,revision=applied.revision+1)
+                cues.clear()
+                current_cue=None
+                current_text=""
+                current_until=0
+                ipc.publish("",applied)
+            except (OSError,RuntimeError,ValueError) as exc:
+                QMessageBox.warning(dialogue,"AI configuration failed",
+                                    str(exc)[:250])
+                return
+            benchmark_status.setText(
+                "User-approved local AI settings applied. Retesting live "
+                "caption timing is still recommended. Nothing downloaded.")
+            dialogue.accept()
+        buttons.accepted.connect(apply_benchmark_choice)
+        dialogue.show()
+
+    benchmark_button.clicked.connect(run_benchmark_clicked)
+    benchmark_process.finished.connect(benchmark_finished)
 
     def reset_settings():
         mode.setCurrentIndex(0)
