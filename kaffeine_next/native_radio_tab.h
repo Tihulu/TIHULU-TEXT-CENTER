@@ -706,14 +706,17 @@ public:
 			});
 		auto *syncControls=new QGridLayout();
 		bufferMs_=new QSpinBox(lab);
-		bufferMs_->setRange(0,20000);
+		bufferMs_->setRange(0,60000);
 		bufferMs_->setSingleStep(500);
 		bufferMs_->setSuffix(tr(" ms"));
 		QSettings radioSettings(QLatin1String("TIHULU"),QLatin1String("KaffeineRadio"));
 		bufferMs_->setValue(qBound(0,
-			radioSettings.value(QLatin1String("playbackBufferMs"),12000).toInt(),20000));
-		bufferMs_->setToolTip(tr("Radio-only libVLC network cache. Applies on stream reopen; "
-			"not a measured DAC/ALSA audio presentation clock."));
+			radioSettings.value(QLatin1String("playbackBufferMs"),12000).toInt(),60000));
+        activePlaybackCacheMs_=bufferMs_->value();
+		bufferMs_->setToolTip(tr("Radio libVLC network cache requested at stream OPEN. "
+            "Range 0–60000 ms (safety limit, 60 s). If changed during playback "
+            "it remains PENDING until Apply or the next station; not verified "
+            "physical DAC/ALSA delay."));
 		autoSync_=new QCheckBox(tr("Auto synchronize caption timing"),lab);
 		autoSync_->setChecked(true);
 		autoSync_->setToolTip(tr("Adapt caption timing to measured ASR delay. "
@@ -728,8 +731,9 @@ public:
 			"Changes also shift pending cues without re-running Whisper."));
 		autoRestartAudio_=new QCheckBox(tr("Allow automatic radio audio restart"),lab);
 		autoRestartAudio_->setChecked(false);
-		autoRestartAudio_->setToolTip(tr("OFF prevents speech gaps during buffer retuning. "
-			"Turn on only if occasional brief audio interruption is acceptable."));
+		autoRestartAudio_->setToolTip(tr("OFF (recommended) never disrupts ongoing audio. "
+            "When ON, a large compute-driven increase can reopen the stream "
+            "at most once per 3 minutes. Restarting can still cause dropouts."));
 		auto *applyBuffer=new QPushButton(tr("Apply radio buffer"),lab);
 		syncControls->addWidget(new QLabel(tr("Audio buffer:"),lab),0,0);
 		syncControls->addWidget(bufferMs_,0,1);
@@ -749,8 +753,9 @@ public:
 				lastCaptionOffsetMs_=newOffset;
 				for(auto &cue:cueQueue_) cue.dueMs+=adjustment;
 			});
-		syncStatus_=new QLabel(tr("Sync: 12s requested radio network cache "
-			"· no verified audio output clock · checking every 30s"),lab);
+		syncStatus_=new QLabel(tr("Sync: requested playback cache %1 ms, "
+            "unverified physical audio clock. No automatic audio restarts.")
+            .arg(activePlaybackCacheMs_),lab);
 		syncStatus_->setWordWrap(true);
 		v->addWidget(syncStatus_);
 		audioCacheProgress_=new QProgressBar(lab);
@@ -1132,13 +1137,16 @@ public:
 			if(audioCacheProgress_) {
 				const qint64 elapsed=audioStartedMs_>0?
 					qMax(qint64(0),QDateTime::currentMSecsSinceEpoch()-audioStartedMs_):0;
-				const int requested=bufferMs_->value();
+				const int requested=activePlaybackCacheMs_;
 				audioCacheProgress_->setValue(audioStartedMs_>0?
 					(requested==0?100:qBound(0,int(elapsed*100/requested),100)):0);
 				audioCacheProgress_->setFormat(audioStartedMs_<=0?
 					tr("Audio cache estimate · no stream opened"):
-					tr("Requested %1 ms cache · elapsed %2 ms · UNVERIFIED")
-					.arg(requested).arg(qMin(qint64(requested),elapsed)));
+					tr("Applied at open %1 ms · elapsed %2 ms · UNVERIFIED%3")
+					.arg(requested).arg(qMin(qint64(requested),elapsed))
+                    .arg(bufferMs_->value()!=requested?
+                        tr(" · next request %1 ms PENDING").arg(bufferMs_->value()):
+                        QString()));
 			}
 		});
 		captionTick_.start();
@@ -1814,14 +1822,14 @@ private:
 					if(metadataCaptions_) {
 						const qint64 received=QDateTime::currentMSecsSinceEpoch();
 						cueQueue_.append({++dlsCaptionIndex_,received+
-							bufferMs_->value()+radioOffsetMs_->value(),received,
+							activePlaybackCacheMs_+radioOffsetMs_->value(),received,
 							tr("[DLS broadcaster metadata] %1").arg(dls).left(700)});
 						while(cueQueue_.size()>12) cueQueue_.removeFirst();
 					}
 					// DLS is live; the audible audio may be delayed by radio caching.
 					// This is approximate metadata sync, NOT audio fingerprinting.
 					songStartMs_=QDateTime::currentMSecsSinceEpoch()+
-						bufferMs_->value();
+						activePlaybackCacheMs_;
 					lyricCues_=QJsonArray();
 					lastLyricSyncUpdateMs_=0;
 					lyricsSyncState_->setText(tr("New DLS song · awaiting audible lyric verification"));
@@ -2145,6 +2153,7 @@ private:
 				lastSlideHash_.clear();
 				slideIndex_=0;
 				player_->play(QUrl(base()+stream));
+                activePlaybackCacheMs_=bufferMs_->value();
 				audioStartedMs_=QDateTime::currentMSecsSinceEpoch();
 				radioCanvas_->setText(tr("♪ %1\nDAB+ %2 · verifying audio playback…")
 					.arg(name,block));
@@ -2476,15 +2485,24 @@ private:
 			// stream. Explicitly reopen when the owner chooses a new
 			// buffer; this can briefly interrupt sound.
 			player_->play(QUrl(base()+QLatin1String("/mp3/")+sid));
+            activePlaybackCacheMs_=bufferMs_->value();
+            lastAudioRetuneMs_=QDateTime::currentMSecsSinceEpoch();
+            audioStartedMs_=lastAudioRetuneMs_;
+            const bool wasAiRunning=captionProcess_.state()!=QProcess::NotRunning;
+            if(wasAiRunning) stopCaptioning();
 			lastRadioChunk_=-1;
 			displayedRadioChunk_=-1;
 			cueQueue_.clear();
 			plainLyricQueue_.clear();
 			pendingRadioCue_.clear();
 			lastAdjustmentMs_=QDateTime::currentMSecsSinceEpoch();
-			syncStatus_->setText(tr("Reopened radio audio with %1ms requested libVLC "
-				"cache. Physical sound-card delay not verified.")
-				.arg(bufferMs_->value()));
+            if(wasAiRunning)
+                QTimer::singleShot(400,this,[this](){
+                    if(active() && !playingKey_.isEmpty())startCaptioning();
+                });
+			syncStatus_->setText(tr("Requested %1ms cache at media reopen; "
+                "captions restarted to discard old audio timeline. DAC delay unverified.")
+				.arg(activePlaybackCacheMs_));
 		} else {
 			syncStatus_->setText(tr("Saved %1ms; will apply when station starts.")
 				.arg(bufferMs_->value()));
@@ -2504,7 +2522,7 @@ private:
 				"text is delayed only by the requested buffer and offset."));
 			if(!lastDls_.isEmpty())
 				cueQueue_.append({++dlsCaptionIndex_,
-					QDateTime::currentMSecsSinceEpoch()+bufferMs_->value()+
+					QDateTime::currentMSecsSinceEpoch()+activePlaybackCacheMs_+
 					radioOffsetMs_->value(),
 					QDateTime::currentMSecsSinceEpoch(),
 					tr("[DLS broadcaster metadata] %1").arg(lastDls_).left(700)});
@@ -2534,8 +2552,8 @@ private:
 				targets<<lang;
 		}
 		options<<QLatin1String("--targets")<<targets.join(QLatin1Char(','));
-		const int sentenceHops=bufferMs_->value()<8000?2:
-			bufferMs_->value()<14000?3:bufferMs_->value()<18500?4:5;
+		const int sentenceHops=activePlaybackCacheMs_<8000?2:
+			activePlaybackCacheMs_<14000?3:activePlaybackCacheMs_<18500?4:5;
 		options<<QLatin1String("--sentence-hops")<<QString::number(sentenceHops);
 		if (music_->isChecked()) options<<QLatin1String("--music");
 		if (preferLyrics_->isChecked())
@@ -2565,8 +2583,8 @@ private:
 				const auto &next=cueQueue_.first();
 				const qint64 total=qMax(qint64(1),next.dueMs-next.queuedMs);
 				captionProgress_->setValue(qBound(0,int((now-next.queuedMs)*100/total),100));
-				captionProgress_->setFormat(tr("Subtitle in ~%1 ms · requested cache %2 ms")
-					.arg(qMax(qint64(0),next.dueMs-now)).arg(bufferMs_->value()));
+				captionProgress_->setFormat(tr("Caption in ~%1 ms · applied cache %2 ms")
+					.arg(qMax(qint64(0),next.dueMs-now)).arg(activePlaybackCacheMs_));
 			}
 		}
 		while(!cueQueue_.isEmpty() && cueQueue_.first().dueMs<=now) {
@@ -2601,11 +2619,12 @@ private:
 			const int inference=(decoded>=captured && decoded-captured<=90.)
 				?int((decoded-captured)*1000):0;
 			const int carriedChunks=qBound(0,
-				obj.value(QLatin1String("sentence_carry_chunks")).toInt(),3);
+				obj.value(QLatin1String("sentence_carry_chunks")).toInt(),5);
 			const int sentenceHoldMs=qMax(0,carriedChunks-1)*5000;
 			if(obj.value(QLatin1String("sentence_pending")).toBool()) {
 				syncStatus_->setText(tr("Listening · carrying unfinished sentence "
-					"into next audio segment (up to 3 hops)."));
+                    "into next audio segment (up to %1 hops).")
+                    .arg(obj.value(QLatin1String("sentence_hops_limit")).toInt(5)));
 			}
 			if(inference>0) {
 				lagSamples_.append(inference);
@@ -2616,33 +2635,45 @@ private:
 				QList<int> values=lagSamples_;
 				std::sort(values.begin(),values.end());
 				const int p80=values[values.size()*4/5];
+                // 6s captured PCM + p80 GPU inference + sentence hold,
+                // plus a 3s safety margin; all quantities are estimates,
+                // not samples of the physical audio output clock.
 				const int rawRecommended=
-					((6000+p80+sentenceHoldMs+1400+499)/500)*500;
-				const int recommended=qBound(0,rawRecommended,20000);
+					((6000+p80+sentenceHoldMs+3000+499)/500)*500;
+				const int recommended=qBound(0,rawRecommended,60000);
 				lastAdjustmentMs_=now;
 				bufferRecommendation_->setText(
-					tr("Whisper p80 %1 ms · sentence carry %2 ms · proposed cache "
-					"%3 ms (maximum 20000 ms)%4. This is a compute estimate, "
-					"NOT verified lip sync.")
+					tr("Whisper p80 %1 ms · sentence hold %2 ms · estimated "
+                    "needed buffer %3 ms (safety ceiling 60000 ms)%4. "
+                    "Live output clock NOT verified.")
 					.arg(p80).arg(sentenceHoldMs).arg(recommended)
-					.arg(rawRecommended>20000?
+					.arg(rawRecommended>60000?
 						tr(" · Above maximum: try fewer target languages or faster model"):
 						QString()));
-				if(recommended>bufferMs_->value()+1500) {
-					if(autoRestartAudio_->isChecked()) {
-						bufferMs_->setValue(recommended);
-						applyRadioBuffer();
-					} else {
-						syncStatus_->setText(tr("ASR lag: %1ms. Suggested radio cache: "
-							"%2ms; Apply manually (audio keeps playing).")
-							.arg(p80).arg(recommended));
-					}
+				if(recommended>bufferMs_->value()+1000) {
+                    // Auto selects a *future* cache request. libVLC cannot
+                    // alter the already open media's audio buffering in-place.
+                    // Never silently pretend that this changed live lip sync.
+                    bufferMs_->setValue(recommended);
+                    QSettings radio(QLatin1String("TIHULU"),QLatin1String("KaffeineRadio"));
+                    radio.setValue(QLatin1String("playbackBufferMs"),recommended);
+                    if(autoRestartAudio_->isChecked() &&
+                       now-lastAudioRetuneMs_>=180000 &&
+                       recommended>=activePlaybackCacheMs_+5000 &&
+                       active() && !playingKey_.isEmpty()) {
+                        applyRadioBuffer();
+                    } else {
+                        syncStatus_->setText(tr("Computed buffer %1ms is SAVED "
+                            "for next tune; current live audio still requests %2ms. "
+                            "No restart; audio uninterrupted.")
+                            .arg(recommended).arg(activePlaybackCacheMs_));
+                    }
 				}
 			}
 			// The stream cache is only a requested network delay; not a
 			// confirmed DAC timestamp. The user's manual offset is ALWAYS
 			// applied to the already-generated cue's display time.
-			const int remaining=bufferMs_->value()-6000-inference-
+			const int remaining=activePlaybackCacheMs_-6000-inference-
 				sentenceHoldMs+550;
 			QString caption=obj.value(QLatin1String("original")).toString();
 			const QJsonArray speakers=obj.value(QLatin1String("speaker_turns")).toArray();
@@ -2656,7 +2687,7 @@ private:
 				if(it.value().isString())
 					caption+=QLatin1String("\n[")+it.key().toUpper()+
 						QLatin1String("] ")+it.value().toString();
-			const qint64 due=now+qMax(-1500,remaining)+radioOffsetMs_->value();
+			const qint64 due=now+qMax(0,remaining)+radioOffsetMs_->value();
 			if(!caption.isEmpty()) {
 				cueQueue_.append({chunk,due,now,caption.left(1300)});
 				while(cueQueue_.size()>12) cueQueue_.removeFirst();
@@ -2943,6 +2974,8 @@ private:
 	QSpinBox *bufferMs_=nullptr,*radioOffsetMs_=nullptr;
 	QCheckBox *autoSync_=nullptr,*autoRestartAudio_=nullptr;
 	int lastCaptionOffsetMs_=0;
+    int activePlaybackCacheMs_=12000;
+    qint64 lastAudioRetuneMs_=0;
 	QList<TimedRadioCue> cueQueue_;
 	QLineEdit *extraTargets_=nullptr,*lyricsArtist_=nullptr,*lyricsTitle_=nullptr;
 	QLabel *syncStatus_=nullptr;
