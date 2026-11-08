@@ -125,7 +125,7 @@ def _chunk_cues(pcm: bytes, *, position: float, lang: str, profile:dict,
                                 " ".join(current),"Whisper/CUDA",recognized_language))
         return out
     return [LyricCue(position,position+max(.4,min(duration,8)),
-                     text,"Whisper chunk / not word-aligned",recognized_language)
+                     text,"Whisper chunk / not word-aligned",recognized_language)]
 
 
 def transcribe_local_media(filename: str, *, source: str="de",
