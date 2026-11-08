@@ -808,7 +808,8 @@ def main(argv=None):
                   chosen_audio.get("source_hint") or
                   chosen_audio.get("language") if chosen_audio else None)
         automatic_source = source.currentText() == "Auto detect · Whisper"
-        spoken = ("auto" if automatic_source and mode.currentData()=="asr" else
+        spoken = ("auto" if automatic_source and mode.currentData() in ("asr","auto")
+                  and chosen_track is None else
                   language_code(hinted or ("de" if automatic_source else
                                              source.currentText())))
         raw_targets = [
@@ -876,7 +877,8 @@ def main(argv=None):
             language = selected.get("source_hint")
             if mode.currentData() in ("asr", "auto"):
                 chosen = selected.get("source_hint") or selected.get("language")
-                if chosen and chosen != "und":
+                if chosen and chosen != "und" and (
+                        source.currentText() != "Auto detect · Whisper"):
                     source.setCurrentText(language_code(chosen))
                 detected = selected.get("source_hint") or selected.get("language")
                 if (not detected or
@@ -1191,7 +1193,7 @@ def main(argv=None):
                               and new_subtitle_track is not None
                               else new_audio_track)
                     lang = _signaled_language(chosen)
-                    if lang:
+                    if lang and source.currentText() != "Auto detect · Whisper":
                         source.setCurrentText(lang)
                     apply_settings()
                     track_status.setText(
