@@ -198,7 +198,7 @@ def _lyric_tokens(text: str) -> list[str]:
     # NFKD gives case/accent-insensitive candidates, including Turkish.
     plain = unicodedata.normalize("NFKD", text).casefold()
     plain = "".join(c for c in plain if not unicodedata.combining(c))
-    return re.findall(r"[^\\W_]+", plain, flags=re.UNICODE)[:90]
+    return re.findall(r"[^\W_]+", plain, flags=re.UNICODE)[:90]
 
 
 class LiveLyricMatcher:
