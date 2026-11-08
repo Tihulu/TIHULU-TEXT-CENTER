@@ -32,6 +32,7 @@ class CaptionConfig:
     page: int = 150
     teletext_pid: int | None = None
     audio_pid: int | None = None
+    audio_language: str | None = None
     offset_ms: int = 0
     playback_delay_ms: int = 0
     automatic_sync: bool = False
@@ -55,6 +56,8 @@ class CaptionConfig:
         if self.audio_pid is not None and (
                 type(self.audio_pid) is not int or not 1 <= self.audio_pid <= 8190):
             raise ValueError("Invalid selected broadcaster audio PID")
+        if self.audio_language is not None and self.audio_language not in LANGS:
+            raise ValueError("Selected audio language is unsupported for Whisper")
         if type(self.offset_ms) is not int or not -10000 <= self.offset_ms <= 10000:
             raise ValueError("Caption offset must be -10 to +10 seconds")
         if type(self.playback_delay_ms) is not int or not 0 <= self.playback_delay_ms <= 20000:
@@ -85,7 +88,8 @@ class CaptionConfig:
         return {"mode":self.mode,"source":self.source,
                 "target":self.target,"targets":self.target_languages,
                 "page":self.page,"teletext_pid":self.teletext_pid,
-                "audio_pid":self.audio_pid,"revision":self.revision}
+                "audio_pid":self.audio_pid,"audio_source":self.audio_language,
+                "revision":self.revision}
 
     def render(self, result):
         """Produce independently selectable original/translated subtitle lines."""
@@ -94,7 +98,8 @@ class CaptionConfig:
         translated = raw if isinstance(raw, dict) else {}
         lines = []
         if self.show_original and original:
-            prefix = (f"[{self.source.upper()}] " if
+            original_language = result.get("source_language") or self.source
+            prefix = (f"[{original_language.upper()}] " if
                       self.show_translation and self.target_languages and translated else "")
             lines.append(prefix + original)
         if self.show_translation:
