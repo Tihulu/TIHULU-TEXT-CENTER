@@ -648,6 +648,10 @@ public:
 	void activate() override {
 		// Never move the shared video MediaWidget into this radio panel.
 		radioCanvas_->setFocus();
+		if(!languagePacksLoaded_) {
+			languagePacksLoaded_=true;
+			QTimer::singleShot(0,this,[this](){refreshLanguagePacks();});
+		}
 		if(!webCatalogRequested_) {
 			webCatalogRequested_=true;
 			const QString systemCountry=QLocale::system().name()
@@ -1803,7 +1807,7 @@ private:
 	QCheckBox *directSampling_=nullptr;
 	bool analogStopping_=false;
 	QSet<QString> internetFavorites_;
-	bool webPlaying_=false,webCatalogRequested_=false;
+	bool webPlaying_=false,webCatalogRequested_=false,languagePacksLoaded_=false;
 	QCheckBox *favoritesOnly_=nullptr;
 	QLabel *libraryStatus_=nullptr;
 	QSet<QString> favorites_;
