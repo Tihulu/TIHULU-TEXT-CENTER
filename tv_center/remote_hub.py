@@ -22,11 +22,15 @@ import time
 from http import HTTPStatus
 from http.cookies import SimpleCookie
 from http.server import BaseHTTPRequestHandler,ThreadingHTTPServer
-from urllib.parse import urlsplit
+from urllib.parse import urlsplit, parse_qs
 from urllib.request import urlopen
 
 MEDIA_EXTS=frozenset({".mkv",".mp4",".webm",".mov",".avi",".ts",
                       ".mp3",".flac",".wav",".m4a",".ogg",".opus",".aac"})
+IMAGE_EXTS=frozenset({".png",".jpg",".jpeg",".webp"})
+STATIC_REMOTE={"":("hub.html","text/html; charset=utf-8"),
+               "hub.js":("hub.js","text/javascript; charset=utf-8"),
+               "style.css":("style.css","text/css; charset=utf-8")}
 MPRIS_DEST="org.mpris.MediaPlayer2.tihulu_media_center"
 # Pinned KDE Kaffeine v2.0.19 uses MPRIS 1, NOT MPRIS 2.
 # Its native Qt DBus objects are /Player, /TrackList and /Television.
@@ -35,86 +39,9 @@ MPRIS_PLAYER_PATH="/Player"
 MPRIS_TRACKLIST_PATH="/TrackList"
 MPRIS_TV_PATH="/Television"
 
-PAGE="""<!doctype html><html lang="en"><head><meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>TIHULU Remote Media Hub</title><style>
-body{background:#0b1524;color:#dfedf8;font:16px system-ui;margin:0;padding:1rem;max-width:1050px}
-h1{font-size:1.35rem;color:#73d9f0} section{border:1px solid #2d5772;border-radius:12px;margin:12px 0;padding:14px;background:#102537}
-button,input{background:#193c51;color:#fff;padding:9px;border:1px solid #477b94;border-radius:7px;max-width:100%}
-button{cursor:pointer;margin:3px} button:focus{outline:2px solid #78e4e9}
-.item{display:flex;gap:8px;align-items:center;flex-wrap:wrap;border-bottom:1px solid #26485d;padding:7px 0}
-video,audio{width:100%;max-height:60vh;background:black}
-small{color:#a5c6d4} #caption{min-height:2.5rem;white-space:pre-wrap;text-align:center}
-</style></head><body><h1>TIHULU Remote Media Hub</h1>
-<section id="login"><label>Pairing PIN from host terminal <input id="pin" type="password" inputmode="numeric" maxlength="8"></label><button onclick="pair()">Pair device</button></section>
-<section id="controls" hidden>
-<p><button onclick="loadCatalog()">Refresh catalog</button>
-<button onclick="command('PlayPause')">Host Play/Pause</button>
-<button onclick="command('Stop')">Host Stop</button>
-<button onclick="command('Next')">Next</button>
-<button onclick="command('Previous')">Previous</button>
-<button onclick="stopRemote()">Stop remote stream</button></p>
-<p><label>Native TV channel (name or number)
-<input id="tvchannel" maxlength="90" placeholder="Channel name or number"></label>
-<button onclick="tvTune()">Tune native TV (host)</button></p>
-<p><label>Native player volume (0–100)
-<input id="volume" type="range" min="0" max="100" value="60"></label>
-<button onclick="setVolume()">Apply host volume</button></p>
-<label><input id="host" type="checkbox"> Also play on host computer</label>
-<p id="status">Remote server connected</p>
-<div id="catalog"></div><h2>Verified live DAB services</h2><div id="dab"></div>
-</section><section><div style="position:relative"><video controls playsinline id="player"></video>
-<div id="caption" aria-live="polite" style="position:absolute;bottom:2.5rem;left:5%;width:90%;
-box-sizing:border-box;white-space:pre-wrap;text-align:center;
-color:#fff;background:rgba(0,0,0,.72);font-size:1.15rem;pointer-events:none"></div></div>
-<p><small>Host performs encoding. Multiple authenticated devices can watch the
-same HLS stream. Safari supports HLS natively; on some browsers use VLC
-with an authenticated proxy. This is not guaranteed on Firefox without an HLS player.</small></p>
-<label>Caption display delay (ms, UI only) <input id="offset" type="number" value="0" min="-20000" max="20000"></label>
-</section>
-<script>
-let csrf='';
-async function api(path,body){let r=await fetch(path,{method:body?'POST':'GET',
-credentials:'same-origin',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},
-body:body?JSON.stringify(body):undefined});let x=await r.json();if(!r.ok)throw Error(x.error||r.status);return x}
-async function pair(){try{let x=await api('/api/pair',{pin:document.getElementById('pin').value});
-csrf=x.csrf;document.getElementById('login').hidden=true;
-document.getElementById('controls').hidden=false;await loadCatalog()}catch(e){alert(e.message)}}
-async function statusCheck(){if(!csrf)return;try{let state=await api('/api/status');
-document.getElementById('status').textContent=state.state+
- ' · '+state.source+' · '+(state.playlist_ready?'HLS PLAYLIST READY':'waiting for HLS output');
-}catch(e){document.getElementById('status').textContent=e.message}}
-async function loadCatalog(){try{let x=await api('/api/catalog');let el=document.getElementById('catalog');
-el.replaceChildren();for(let m of x.items){let div=document.createElement('div');div.className='item';
-let name=document.createElement('span');name.textContent=m.name;let b=document.createElement('button');
-b.textContent='Stream';b.onclick=()=>start('file',m.id);div.append(name,b);el.append(div)}
-let services=(await api('/api/dab')).items;let dab=document.getElementById('dab');dab.replaceChildren();
-for(let m of services){let row=document.createElement('div');row.className='item';
-let label=document.createElement('span');label.textContent=m.name+' · '+m.sid;
-let b=document.createElement('button');b.textContent='Stream DAB';
-b.onclick=()=>start('dab',m.sid);row.append(label,b);dab.append(row)}
-}catch(e){document.getElementById('status').textContent=e.message}}
-async function start(kind,id){try{let x=await api('/api/start',{kind:kind,id:id,
-host:document.getElementById('host').checked});document.getElementById('status').textContent=x.status;
-let video=document.getElementById('player');video.src='/hls/stream.m3u8?serial='+x.serial;
-video.load();video.play().catch(()=>{}); }catch(e){alert(e.message)}}
-async function tvTune(){try{await api('/api/control',{
-action:'TVChannel',channel:document.getElementById('tvchannel').value});
-await statusCheck()}catch(e){alert(e.message)}}
-async function setVolume(){try{await api('/api/control',{
-action:'VolumeSet',value:Number(document.getElementById('volume').value)});
-}catch(e){alert(e.message)}}
-async function stopRemote(){try{await api('/api/stop',{});document.getElementById('player').removeAttribute('src');
-document.getElementById('player').load();}catch(e){alert(e.message)}}
-async function command(cmd){try{await api('/api/control',{action:cmd})}catch(e){alert(e.message)}}
-setInterval(statusCheck,4000);
-setInterval(async()=>{if(!csrf)return;try{let x=await api('/api/captions');let el=document.getElementById('caption');
-let delay=Number(document.getElementById('offset').value)||0;
-if(x.timestamp&&Date.now()-(x.timestamp*1000)<30000){
-let now=Date.now();setTimeout(()=>{if(csrf)el.textContent=x.text||''},Math.max(0,Math.min(20000,delay)));
-}else{el.textContent=''}
-}catch(e){}},3000);
-</script></body></html>"""
+# Paired web assets live in the same tested web folder, with no inline
+# script or automatic third-party HTTP requests.
+PAGE = (Path(__file__).resolve().parent / "web" / "hub.html").read_text(encoding="utf-8")
 
 
 class RemoteHub:
@@ -139,6 +66,10 @@ class RemoteHub:
         self.started=time.monotonic()
         self.serial=0
         self.current_source="none"
+        self.current_kind="none"
+        self.current_identifier=None
+        self.current_target="phone"
+        self.last_host_command="none"
         self.cache=Path(tempfile.mkdtemp(prefix="tihulu-remote-hls-"))
         os.chmod(self.cache,0o700)
         self.files=self._catalog()
@@ -147,7 +78,7 @@ class RemoteHub:
         found={}
         for p in self.root.rglob("*"):
             if len(found)>=500: break
-            if not p.is_file() or p.is_symlink() or p.suffix.lower() not in MEDIA_EXTS:
+            if not p.is_file() or p.is_symlink() or p.suffix.lower() not in (MEDIA_EXTS | IMAGE_EXTS):
                 continue
             if self.root not in p.resolve().parents:
                 continue
@@ -240,8 +171,15 @@ class RemoteHub:
             raise RuntimeError("Native TIHULU DBus command failed. "
                                "Is the standalone player running on this login?")
 
-    def start(self,kind,identifier,host=False):
-        if shutil.which("ffmpeg") is None:
+    def start(self,kind,identifier,host=False,target=None):
+        # Backwards-compatible host boolean, now explicit device selection.
+        if target is None:
+            target = "both" if host else "phone"
+        if target not in ("phone","host","both"):
+            raise ValueError("Playback target must be phone, host, or both")
+        if kind not in ("file","dab"):
+            raise ValueError("Select a real approved media file or verified DAB service")
+        if target!="host" and shutil.which("ffmpeg") is None:
             raise RuntimeError("FFmpeg not installed on host")
         if kind=="file":
             path=self.files.get(identifier)
@@ -258,6 +196,13 @@ class RemoteHub:
             host_source=source
         else:
             raise ValueError("Unsupported source type")
+        if target=="host":
+            if not self.play_local(host_source):
+                raise RuntimeError("Host-only playback could not reach native TIHULU MPRIS")
+            self.last_host_command="Play approved "+kind+" on computer"
+            return {"serial":self.serial,"status":"Host-only player command accepted",
+                    "target":"host","remote_stream_unchanged":True,
+                    "note":"Other paired phones are not disconnected"}
         with self.lock:
             self.stop()
             self.serial+=1
@@ -277,10 +222,18 @@ class RemoteHub:
                                       stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
             self.current_source=(str(path.relative_to(self.root)) if kind=="file"
                                  else "DAB "+identifier)
-            on_host=self.play_local(host_source) if host else None
-            return {"serial":self.serial,"status":"HLS source starting on host; "
-                    "local playback "+("requested" if on_host else
-                    "not requested or native MPRIS unavailable")}
+            self.current_kind=kind
+            self.current_identifier=identifier
+            self.current_target=target
+            on_host=self.play_local(host_source) if target=="both" else False
+            self.last_host_command=("Play approved "+kind+" on computer"
+                                    if on_host else "none")
+            return {"serial":self.serial,"status":"HLS source starting on host",
+                    "target":target, "host_play_requested":on_host,
+                    "note":("Host playback command was unavailable; phone HLS may still play"
+                            if target=="both" and not on_host else
+                            "Host playback is unchanged" if target=="phone"
+                            else "Phone and host playback requested")}
 
     def stop(self):
         if self.proc and self.proc.poll() is None:
@@ -290,6 +243,8 @@ class RemoteHub:
                 self.proc.kill()
         self.proc=None
         self.current_source="none"
+        self.current_kind="none"
+        self.current_identifier=None
 
     def status(self):
         with self.lock:
@@ -297,8 +252,23 @@ class RemoteHub:
                    "encoding on host" if self.proc.poll() is None else
                    "encoder exited (check source or FFmpeg codecs)")
             return {"state":state,"source":self.current_source,
+                    "source_kind":self.current_kind,
+                    "source_id":self.current_identifier,
+                    "playback_target":self.current_target,
                     "serial":self.serial,
-                    "playlist_ready":(self.cache/"stream.m3u8").is_file()}
+                    "server_epoch_ms":round(time.time()*1000),
+                    "playlist_ready":(self.cache/"stream.m3u8").is_file(),
+                    "capabilities":{
+                      "paired_media_files":True,
+                      "verified_dab":self.active_welle_port() is not None,
+                      "approved_images":True,
+                      "native_host_controls":True,
+                      "live_dvb_rebroadcast":False,
+                      "arbitrary_desktop_mirroring":False,
+                      "protected_video_capture":False},
+                    "sync_note":("Host TV/radio buffering and remote HLS have "
+                        "independent presentation clocks. Live DAB caption sync "
+                        "is approximate until PTS correlation is available.")}
 
     def captions(self):
         if self.caption_pid is None:return {}
