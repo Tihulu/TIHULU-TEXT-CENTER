@@ -82,7 +82,7 @@ class StandaloneNativePlayerTests(unittest.TestCase):
         def fake_translate(text,source,target):
             calls.append((source,target))
             return {"de":"Hallo","tr":"Merhaba"}.get(target),None
-        with patch("tv_center.captions.translate",side_effect=fake_translate):
+        with patch("tv_center.media_ai.translate",side_effect=fake_translate):
             result,warnings=_translate_cues(cues,("en","de","tr"),"auto")
         self.assertEqual(calls,[("en","de"),("en","tr")])
         self.assertIn("[DE]",result[1])
