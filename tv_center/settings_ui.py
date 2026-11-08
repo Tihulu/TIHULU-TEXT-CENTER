@@ -9,7 +9,8 @@ def open_ai_settings(parent, ai, after_save=None):
     from PyQt5.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QGroupBox,
         QFormLayout, QCheckBox, QComboBox, QLabel, QListWidget, QPushButton,
         QFileDialog, QMessageBox, QLineEdit, QWidget, QScrollArea,
-        QTabWidget, QListWidgetItem, QInputDialog)
+        QTabWidget, QListWidgetItem, QInputDialog, QFrame, QGridLayout,
+        QSizePolicy, QToolButton)
 
     from .model_market import (CATALOG, ModelLibrary, ModelError,
         argos_available_pairs, argos_installed_pairs, argos_install, argos_remove)
@@ -18,6 +19,7 @@ def open_ai_settings(parent, ai, after_save=None):
     from .whisper_engine import WhisperRuntime, WhisperRuntimeError
     from .cuda_faster_whisper import FasterWhisperCUDA
     from .speaker_market import SpeakerMarket
+    from .free_speakers import FreeSpeakerMarket
     from .ai_provision import StarterAI
     from .hardware_market import detect_hardware, model_fit
     from .translation_market import TranslationModelMarket, LICENSE as NLLB_LICENSE
@@ -27,7 +29,51 @@ def open_ai_settings(parent, ai, after_save=None):
         def __init__(self):
             super().__init__(parent)
             self.setWindowTitle("Settings · Optional ASR & Translation Model Market")
-            self.resize(1000, 770)
+            self.resize(960, 740)
+            self.setMinimumSize(700, 530)
+            self.setStyleSheet("""
+                QDialog { background:#0c151f; color:#deebf5; }
+                QTabWidget::pane {
+                    background:#111d28; border:1px solid #284052;
+                    border-radius:8px; top:-1px;
+                }
+                QTabBar::tab {
+                    background:#1c2d3b; color:#aec2d0;
+                    border:1px solid #2d4658; padding:10px 14px;
+                    border-top-left-radius:6px;
+                    border-top-right-radius:6px;
+                }
+                QTabBar::tab:selected {
+                    background:#164d63; color:white;
+                    border-bottom:2px solid #42b3c8;
+                }
+                QScrollArea { background:#111d28; border:0; }
+                QWidget#marketPage { background:#111d28; }
+                QGroupBox {
+                    border:1px solid #2b4355; border-radius:9px;
+                    margin-top:15px; padding-top:6px;
+                    background:#162430; color:#e6f0f7;
+                }
+                QGroupBox::title {
+                    subcontrol-origin:margin; left:12px;
+                    padding:0 5px; color:#b9d8ea;
+                }
+                QPushButton {
+                    background:#20384c; color:#e8f0f6;
+                    border:1px solid #36546b; border-radius:6px;
+                    padding:7px 12px; min-height:24px;
+                }
+                QPushButton:hover { background:#2a526e; }
+                QPushButton:disabled {
+                    background:#192833; color:#6f8798; border-color:#2b3845;
+                }
+                QLineEdit, QComboBox, QListWidget {
+                    background:#0f1a24; color:#ebf4fb;
+                    border:1px solid #3a566d; border-radius:6px;
+                    padding:5px; selection-background-color:#21678c;
+                }
+                QLabel, QCheckBox { color:#d9e8f2; }
+            """)
             self.ai = ai
             self.work = queue.Queue()
             self.running = False
@@ -35,31 +81,41 @@ def open_ai_settings(parent, ai, after_save=None):
             self.hardware = detect_hardware()
             self.translation_market = TranslationModelMarket()
             outer = QVBoxLayout(self)
-            scroll = QScrollArea()
-            scroll.setWidgetResizable(True)
+            outer.setContentsMargins(12, 12, 12, 10)
+            outer.setSpacing(9)
+            # Stage existing sections before moving them to separate
+            # independently scrolling tabs. The action footer is kept
+            # OUTSIDE all scroll areas so Save is always visible.
             body = QWidget()
             root = QVBoxLayout(body)
-            scroll.setWidget(body)
-            outer.addWidget(scroll)
+            root.setContentsMargins(0, 0, 0, 0)
+            root.setSpacing(12)
             self.info = QLabel("AI Model Market · Ready-to-use offline Whisper and Translator suites. "
                                "No speech processing occurs until you select subtitles.")
             self.info.setWordWrap(True)
-            root.addWidget(self.info)
+            outer.addWidget(self.info)
             quick = QGroupBox("STARTER BUNDLE  ·  Whisper + DE / EN / TR translator")
             quick_layout = QVBoxLayout(quick)
             self.starter_state = QLabel("Checking installed Whisper and translation packages…")
             self.starter_state.setWordWrap(True)
             quick_layout.addWidget(self.starter_state)
-            self.install_starter = QPushButton("Install / Repair complete starter bundle")
+            self.install_starter = QPushButton("Install / repair starter bundle")
             self.install_starter.clicked.connect(self.setup_starter)
             quick_layout.addWidget(self.install_starter)
-            quick_layout.addWidget(QLabel("Downloads verified multilingual Tiny (~78 MB), builds local "
-                 "Whisper CPU engine and installs four Argos language packs. Everything is removable."))
+            starter_description = QLabel(
+                "Optional CPU fallback: Whisper Tiny (~78 MB) and four Argos "
+                "language pairs. RTX GPU Turbo is installed separately.")
+            starter_description.setWordWrap(True)
+            quick_layout.addWidget(starter_description)
             root.addWidget(quick)
 
             settings = QGroupBox("AI features & compute backend")
             root.addWidget(settings)
             form = QFormLayout(settings)
+            form.setRowWrapPolicy(QFormLayout.WrapLongRows)
+            form.setFieldGrowthPolicy(QFormLayout.AllNonFixedFieldsGrow)
+            form.setLabelAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+            form.setSpacing(9)
             self.asr = QCheckBox("Enable offline live speech transcription")
             self.asr.setChecked(ai.values["asr_enabled"])
             form.addRow(self.asr)
@@ -84,11 +140,11 @@ def open_ai_settings(parent, ai, after_save=None):
             refresh_compute.clicked.connect(self.inspect_compute)
             form.addRow(refresh_compute)
             self.install_cuda = QPushButton(
-                "Advanced · compile GPU whisper.cpp (requires CUDA nvcc >=12.8)")
+                "Advanced: build whisper.cpp CUDA (nvcc required)")
             self.install_cuda.clicked.connect(self.install_cuda_runtime)
             form.addRow(self.install_cuda)
             self.install_fast_cuda = QPushButton(
-                "Install CUDA Faster-Whisper Large-v3 Turbo · no nvcc needed")
+                "Install / repair RTX CUDA · Faster-Whisper Turbo (no nvcc)")
             self.install_fast_cuda.setToolTip(
                 "Isolated user-owned Python environment; verified CTranslate2 "
                 "model and CUDA 12 cuBLAS/cuDNN wheels. Does not replace NVIDIA "
@@ -101,7 +157,7 @@ def open_ai_settings(parent, ai, after_save=None):
                 "QPushButton:disabled{background:#444;color:#999}")
             form.addRow(self.install_fast_cuda)
             self.verify_fast_cuda = QPushButton(
-                "Verify RTX CUDA · run real local model inference self-test")
+                "Test RTX CUDA · real local model inference")
             self.verify_fast_cuda.clicked.connect(self.verify_cuda_inference)
             form.addRow(self.verify_fast_cuda)
             self.cuda_status = QLabel("")
@@ -131,7 +187,7 @@ def open_ai_settings(parent, ai, after_save=None):
             engine_buttons.addWidget(self.remove_engine)
             form.addRow(engine_buttons)
 
-            models = QGroupBox("Whisper model market · multilingual DE / EN / TR")
+            models = QGroupBox("Speech model library · offline + verified online")
             root.addWidget(models)
             models_layout = QVBoxLayout(models)
             search_row = QHBoxLayout()
@@ -204,10 +260,11 @@ def open_ai_settings(parent, ai, after_save=None):
             trans_row.addWidget(QLabel("From")); trans_row.addWidget(self.source)
             trans_row.addWidget(QLabel("To")); trans_row.addWidget(self.target)
             trans_layout.addLayout(trans_row)
-            trans_layout.addWidget(QLabel(
-                "Language codes are editable: es, pl, ar, ja, ru, zh and more. "
-                "Refresh the official Argos catalog to see which translation "
-                "pairs exist; only installed packs work offline."))
+            lang_info = QLabel(
+                "Enter any supported language codes (es, pl, ar, ja, ru…). "
+                "Installed pairs work offline; catalog refresh is optional.")
+            lang_info.setWordWrap(True)
+            trans_layout.addWidget(lang_info)
             self.available = QLabel(
                 "Catalog not refreshed. Click Refresh to browse official language pairs.")
             self.available.setWordWrap(True)
@@ -250,7 +307,7 @@ def open_ai_settings(parent, ai, after_save=None):
             self.nllb_status = QLabel("")
             self.nllb_status.setWordWrap(True)
             quality_layout.addWidget(self.nllb_status)
-            nllb_buttons = QHBoxLayout()
+            nllb_buttons = QGridLayout()
             nllb_install = QPushButton("Download / repair NLLB")
             nllb_install.clicked.connect(self.install_nllb_model)
             self.nllb_test = QPushButton(
@@ -266,10 +323,10 @@ def open_ai_settings(parent, ai, after_save=None):
                 self.translation_choice.setCurrentIndex(0),
                 self.feedback.setText(
                     "Argos selected. Click Save settings to use installed packs.")))
-            nllb_buttons.addWidget(nllb_install)
-            nllb_buttons.addWidget(self.nllb_test)
-            nllb_buttons.addWidget(use_argos)
-            nllb_buttons.addWidget(nllb_remove)
+            nllb_buttons.addWidget(nllb_install,0,0)
+            nllb_buttons.addWidget(self.nllb_test,0,1)
+            nllb_buttons.addWidget(use_argos,1,0)
+            nllb_buttons.addWidget(nllb_remove,1,1)
             quality_layout.addLayout(nllb_buttons)
             trans_layout.addWidget(quality)
             self.inspect_nllb()
@@ -278,19 +335,35 @@ def open_ai_settings(parent, ai, after_save=None):
             # and translation catalogs into focused tabs, instead of a very
             # tall form where installed models are hard to find.
             tabs = QTabWidget()
+            tabs.setDocumentMode(True)
+
+            def scroll_tab(contents):
+                area = QScrollArea()
+                area.setWidgetResizable(True)
+                area.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+                area.setFrameShape(QFrame.NoFrame)
+                contents.setObjectName("marketPage")
+                contents.setMinimumWidth(0)
+                area.setWidget(contents)
+                return area
+
             speech_page = QWidget()
             speech_stack = QVBoxLayout(speech_page)
+            speech_stack.setContentsMargins(12, 16, 12, 12)
+            speech_stack.setSpacing(14)
             for section in (quick, settings, models):
                 root.removeWidget(section)
                 speech_stack.addWidget(section)
-            speech_stack.addStretch(1)
+            speech_stack.addStretch()
             language_page = QWidget()
             language_stack = QVBoxLayout(language_page)
+            language_stack.setContentsMargins(12, 16, 12, 12)
+            language_stack.setSpacing(14)
             root.removeWidget(langs)
             language_stack.addWidget(langs)
-            language_stack.addStretch(1)
-            tabs.addTab(speech_page, "Speech models · GPU / NPU")
-            tabs.addTab(language_page, "Language packs · Translation")
+            language_stack.addStretch()
+            tabs.addTab(scroll_tab(speech_page), "Speech models · GPU / NPU")
+            tabs.addTab(scroll_tab(language_page), "Language packs · Translation")
 
             speaker_page = QWidget()
             speaker_layout = QVBoxLayout(speaker_page)
@@ -322,13 +395,14 @@ def open_ai_settings(parent, ai, after_save=None):
             remove_speaker.clicked.connect(self.remove_speaker_model)
             speaker_layout.addWidget(remove_speaker)
             speaker_layout.addStretch(1)
-            tabs.addTab(speaker_page, "Speaker separation · optional")
-            root.addWidget(tabs)
+            tabs.addTab(scroll_tab(speaker_page), "Speaker separation · optional")
+            outer.addWidget(tabs,1)
             self.model_tabs = tabs
 
             self.feedback = QLabel("No active downloads.")
             self.feedback.setWordWrap(True)
-            root.addWidget(self.feedback)
+            self.feedback.setMinimumHeight(18)
+            outer.addWidget(self.feedback)
             finish = QHBoxLayout()
             save = QPushButton("Save settings")
             save.clicked.connect(self.save)
@@ -336,7 +410,7 @@ def open_ai_settings(parent, ai, after_save=None):
             cancel.clicked.connect(self.reject)
             finish.addWidget(save)
             finish.addWidget(cancel)
-            root.addLayout(finish)
+            outer.addLayout(finish)
             self.timer = QTimer(self)
             self.timer.timeout.connect(self.process_events)
             self.timer.start(250)
