@@ -101,6 +101,30 @@ class StandaloneNativePlayerTests(unittest.TestCase):
                 self.assertEqual(record["alignment_mode"],"timed_lrc")
                 self.assertNotIn("translations",record["cues"][0])
 
+    def test_untimed_song_lyrics_retain_targets_for_later_asr_matching(self):
+        import json
+        import os
+        import tempfile
+        from tv_center.radio_ai import lyrics_lookup_to_file
+        with tempfile.TemporaryDirectory() as temp:
+            path=str(Path(temp)/"tihulu-radio-lyrics-901.json")
+            with patch.dict(os.environ,{"XDG_RUNTIME_DIR":temp}), (
+                    patch("tv_center.radio_ai.lookup_synced_lyrics",
+                          return_value=([],{
+                              "provider":"LRCLIB","status":"plain",
+                              "plain_lines":["Hello everyone","Next refrain"]}))):
+                result=lyrics_lookup_to_file(
+                    artist="Artist",track="Track",output=path,online=True,
+                    source="en",targets=("de","tr"))
+                self.assertEqual(result,0)
+                record=json.loads(Path(path).read_text())
+                self.assertEqual(record["alignment_mode"],"asr_lexical")
+                self.assertEqual(record["source_language"],"en")
+                self.assertEqual(record["translation_targets"],["de","tr"])
+                self.assertEqual(record["plain_lines"],
+                                 ["Hello everyone","Next refrain"])
+                self.assertEqual(record["cues"],[])
+
     def test_auto_detected_en_translates_de_and_tr_with_correct_source(self):
         profile={"speech":{"gpu_engine":"faster_whisper_managed",
                            "gpu_model_path":"/test/turbo"}}
