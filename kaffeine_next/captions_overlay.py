@@ -1751,6 +1751,9 @@ def main(argv=None):
                             " · provisional voice clusters")
                     if data.get("audio_notice"):
                         status.setText(status.text() + "\n" + data["audio_notice"])
+                    if data.get("speech_priority_note"):
+                        status.setText(status.text() + "\nSpeech priority: " +
+                                       str(data["speech_priority_note"]))
                     failures = data.get("translation_errors") or {}
                     backup = data.get("translation_warnings") or {}
                     actual_engines = data.get("translation_engines") or {}
