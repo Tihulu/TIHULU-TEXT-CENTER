@@ -29,6 +29,17 @@ class FastOutputLanguageTests(unittest.TestCase):
         self.assertTrue(result["errors"])
         self.assertIn("timed",result["errors"][0].lower())
 
+    def test_madlad_installed_destinations_are_marked_unverified(self):
+        from tv_center.installed_languages import catalog
+        result=catalog(installed_pairs=[],nllb_installed=False,
+                       madlad_installed=True)
+        by_code={item["code"]:item for item in result["languages"]}
+        self.assertTrue(result["madlad_present"])
+        self.assertIn("en",by_code)
+        self.assertIn("tr",by_code)
+        self.assertIn("MADLAD (weights present)",by_code["tr"]["engines"])
+        self.assertFalse(by_code["tr"]["verified_by_runtime"])
+
     def test_native_dropdown_is_populated_before_async_scan(self):
         from kaffeine_next import captions_overlay
         code=inspect.getsource(captions_overlay.main)
