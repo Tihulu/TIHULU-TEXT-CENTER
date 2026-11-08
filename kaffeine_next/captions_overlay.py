@@ -230,6 +230,7 @@ class CaptionTap:
                     self.events.put_nowait((
                         "teletext_tracks",
                         {"service_id":self.subtitle_discovery.service_id,
+                         "program_epoch":self.program_epoch,
                          "tracks":self.subtitle_discovery.snapshot(),
                          "audio_tracks":self.subtitle_discovery.snapshot_audio()}))
                 except queue.Full:
@@ -1094,7 +1095,7 @@ def main(argv=None):
     estimator = AutoSyncEstimator(ceiling_ms=6000 if pi5 else 15000)
     auto_controller = AutoSyncController()
     last_service_id = None
-    last_ui_program_epoch = tap_initial_epoch = 0
+    last_ui_program_epoch = 0
     last_effective_check = 0.0
     last_applied_effective_ms = None
     last_sync_audit_at = 0.0
