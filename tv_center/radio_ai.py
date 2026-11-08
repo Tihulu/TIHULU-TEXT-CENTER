@@ -97,6 +97,7 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
     for signum in (signal.SIGTERM,signal.SIGINT):
         signal.signal(signum,stop)
     chunks=0
+    overlap_pcm=b""
     latest_language=None
     candidate_language=None
     candidate_runs=0
@@ -106,9 +107,12 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
     plain_matcher=None
     try:
         while not done:
-            pcm=ffmpeg.stdout.read(6*CHUNK_SAMPLES*2)
-            if done or len(pcm)<CHUNK_SAMPLES:
+            # Five-second audio hops with a genuine 1-second overlapping window.
+            fresh=ffmpeg.stdout.read((6 if chunks==0 else 5)*CHUNK_SAMPLES*2)
+            if done or len(fresh)<CHUNK_SAMPLES*2:
                 break
+            pcm=overlap_pcm+fresh
+            overlap_pcm=pcm[-CHUNK_SAMPLES*2:]
             # Source is actual radio audio. Whisper emits real word positions
             # on CUDA; the output has no false claim of latency compensation.
             captured_at=time.monotonic()
@@ -129,10 +133,14 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
                     lyric_marker=None
                     plain_matcher=None
             detection={}
-            cues=_chunk_cues(pcm,position=chunks*6,lang=src,
+            cues=_chunk_cues(pcm,position=chunks*5,lang=src,
                             profile=profile,backend=backend,
                             music=music or plain_matcher is not None,
                             detection=detection)
+            if chunks>0:
+                # Retain words that CROSS the hop boundary; ignore only
+                # items entirely inside the already-decoded overlap.
+                cues=[cue for cue in cues if cue.end>chunks*5+1.0]
             original=" ".join(cue.text for cue in cues).strip()
             # Speaker identities are relative voice clusters (Speaker 1, 2...),
             # not inferred gender/age. Music-mode does NOT invoke diarization.
@@ -219,7 +227,9 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
                 "decoded_monotonic":time.monotonic(),
                 "timestamp":time.time(),
                 "station_sid":sid,
-                "chunk_index":chunks})
+                "chunk_index":chunks,
+                "window_hop_seconds":5,
+                "audio_overlap_seconds":1 if chunks else 0})
             chunks+=1
             if max_chunks>0 and chunks>=max_chunks:
                 break
