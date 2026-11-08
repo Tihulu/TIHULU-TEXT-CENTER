@@ -246,33 +246,42 @@ def asr_from_clip(path: Path, language: str, model: str,
     return _speaker_details(audio.stdout, transcription,
                             diagnostics, speaker_enabled)
 
-def translate(text: str, source: str, target: str) -> tuple[str | None, str | None]:
+def _translate_argos_local(text: str, source: str, target: str) -> str:
+    """Translate offline through available system Argos or managed worker."""
     try:
-        source, target = language_code(source, nllb=True), language_code(target, nllb=True)
+        from textcenter.transcripts import translate_offline
+        return translate_offline(text, source, target)
+    except (ImportError, RuntimeError, ValueError, KeyError):
+        # The user-managed Argos venv is independent of the system Python
+        # used by Qt. Reuse its persistent worker for live caption windows.
+        from .translation_service import translate_argos
+        return translate_argos(text, source, target)
+
+
+def translate(text: str, source: str, target: str) -> tuple[str | None, str | None]:
+    """Return (verified translated text, error/warning), never made-up output.
+
+    If NLLB cannot materialize its weights or exceeds the live time budget,
+    the user still gets the requested translation when a suitable Argos pack
+    exists. A circuit breaker prevents a bad 2.5-GB NLLB cold start from
+    blocking every following live audio segment. Any fallback is reported
+    explicitly in diagnostics, not embedded in the on-video subtitle text.
+    """
+    try:
+        source = language_code(source, nllb=True)
+        target = language_code(target, nllb=True)
     except ValueError as exc:
         return None, str(exc)
     if source == target:
-        return None, None  # already the original requested language
-    selected_translation_engine = os.environ.get("TIHULU_TRANSLATOR_MODEL","argos")
-    if selected_translation_engine == "nllb":
-        try:
-            from .translation_service import translate_nllb
-            return translate_nllb(text,source,target), None
-        except (RuntimeError,ValueError,OSError,TimeoutError) as exc:
-            return None, "NLLB not ready or slower than live TV: " + str(exc)[:140]
-    try:
-        from textcenter.transcripts import translate_offline
-        return translate_offline(text, source, target), None
-    except (ImportError, RuntimeError, ValueError, KeyError) as exc:
-        # Argos is in a private user-owned venv. Keep its model loaded in a
-        # persistent isolated worker instead of spawning a new interpreter
-        # and re-importing language packages every 6-second caption.
-        try:
-            from .translation_service import translate_argos
-            return translate_argos(text, source, target), None
-        except (ImportError, RuntimeError, ValueError, OSError, TimeoutError) as error:
-            return None, ("Argos package unavailable or worker failed: " +
-                          str(error)[:150])
+        return None, None
+
+    from .translation_failover import live_failover
+    from .translation_service import translate_nllb
+    selected = os.environ.get("TIHULU_TRANSLATOR_MODEL", "argos")
+    outcome = live_failover().translate(
+        text, source, target, preferred=selected,
+        nllb=translate_nllb, argos=_translate_argos_local)
+    return outcome.text, outcome.error or outcome.warning
 
 
 def decode_segment(ts: bytes, *, mode="auto", page=150, source="de",
@@ -368,6 +377,8 @@ def decode_segment(ts: bytes, *, mode="auto", page=150, source="de",
                 asr_ms = round((time.perf_counter()-asr_start)*1000)
         translations = {}
         errors = {}
+        warnings = {}
+        engines = {}
         if original:
             translate_start = time.perf_counter()
             for language in targets:
@@ -379,7 +390,13 @@ def decode_segment(ts: bytes, *, mode="auto", page=150, source="de",
                 phrase, failed = translate(original, used_language, language)
                 if phrase:
                     translations[language] = phrase
-                if failed:
+                    if failed:
+                        warnings[language] = failed
+                        engines[language] = "argos-fallback"
+                    else:
+                        engines[language] = os.environ.get(
+                            "TIHULU_TRANSLATOR_MODEL", "argos")
+                elif failed:
                     errors[language] = failed
             translation_ms = round((time.perf_counter()-translate_start)*1000)
         translated = translations.get(target)
@@ -398,10 +415,15 @@ def decode_segment(ts: bytes, *, mode="auto", page=150, source="de",
                     "translation":translation_ms,
                     "total":round((time.perf_counter()-timing_started)*1000)
                 },
-                "translation_errors": errors, "source": used,
+                "translation_errors": errors,
+                "translation_warnings": warnings,
+                "translation_engines": engines, "source": used,
                 "source_language": used_language, "target_language": target,
                 "target_languages": list(targets), "page": page,
-                "error": error or (next(iter(errors.values()), None))}
+                # Speech/capture failures are distinct from a missing
+                # translator: never elevate a translation package error
+                # to a live ASR failure or turn a traceback into subtitles.
+                "error": error}
 
 def install_argos_pack(filename: str) -> str:
     p = Path(filename).expanduser()
