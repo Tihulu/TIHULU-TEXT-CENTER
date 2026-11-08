@@ -809,8 +809,17 @@ public:
 		lyricsTitle_->setPlaceholderText(tr("Song title correction (optional)"));
 		lyricsArtist_->setMaximumWidth(240);
 		lyricsTitle_->setMaximumWidth(320);
-		stopLyrics_=new QPushButton(tr("Stop lyrics"),lab);
+		stopLyrics_=new QPushButton(tr("Stop lyrics / listening"),lab);
 		stopLyrics_->setEnabled(false);
+        listenLyrics_=new QPushButton(tr("Listen & transcribe vocals offline"),lab);
+        listenLyrics_->setToolTip(tr("Use the playing DAB audio with Whisper "
+            "singing mode, without online metadata. Heard words are "
+            "approximate, not synchronized reference lyrics."));
+        listenFallbackOnMiss_=new QCheckBox(tr("If no lyrics found, listen with Whisper"),lab);
+        listenFallbackOnMiss_->setChecked(true);
+        listenFallbackOnMiss_->setToolTip(tr("After an authorized lyrics search "
+            "returns no matching text, fall back to local audio transcription. "
+            "No radio audio is sent to online lyrics services."));
 		lyricsOffset_ = new QSlider(Qt::Horizontal, lab);
 		lyricsOffset_->setRange(-90000, 90000);
 		lyricsOffset_->setValue(0);
@@ -860,6 +869,8 @@ public:
 		lyricsRow->addWidget(lyrics_,0,0);
 		lyricsRow->addWidget(stopLyrics_,0,1);
 		lyricsRow->addWidget(autoLyrics_,0,2);
+        lyricsRow->addWidget(listenLyrics_,5,0,1,2);
+        lyricsRow->addWidget(listenFallbackOnMiss_,5,2);
 		lyricsRow->addWidget(autoLyricSync_,1,0,1,2);
 		lyricsRow->addWidget(new QLabel(tr("Lyric timing:"), lab),1,2);
 		lyricsRow->addWidget(lyricsOffset_,2,0,1,2);
@@ -873,6 +884,11 @@ public:
 		v->addLayout(lyricsRow);
 		v->addWidget(lyricsSyncState_);
 		v->addWidget(preferLyrics_);
+        lyricProvider_=new QLabel(tr("Sources: LRCLIB; lyrics.ovh; optional "
+            "licensed Musixmatch API. Plain text must match heard audio."),lab);
+        lyricProvider_->setWordWrap(true);
+        lyricProvider_->setTextFormat(Qt::PlainText);
+        v->addWidget(lyricProvider_);
 		lyricText_ = new QLabel(tr("No synchronized lyrics loaded."), lab);
 		lyricText_->setTextFormat(Qt::PlainText);
 		lyricText_->setWordWrap(true);
@@ -1129,6 +1145,9 @@ public:
 			lyricText_->setText(tr("Importing plain TXT / timed LRC; no network lookup."));
 		});
 		connect(stopLyrics_, &QPushButton::clicked, this, [this](){ stopLyrics(); });
+        connect(listenLyrics_,&QPushButton::clicked,this,[this](){
+            beginLyricListening();
+        });
 		connect(slidePrev_,&QPushButton::clicked,this,[this](){slideMove(-1);});
 		connect(slideNext_,&QPushButton::clicked,this,[this](){slideMove(1);});
 		connect(plotButton, &QPushButton::clicked, this, [this](){ fetchPlot(); });
@@ -2588,10 +2607,12 @@ private:
 		const int sentenceHops=activePlaybackCacheMs_<8000?2:
 			activePlaybackCacheMs_<14000?3:activePlaybackCacheMs_<18500?4:5;
 		options<<QLatin1String("--sentence-hops")<<QString::number(sentenceHops);
-		if (music_->isChecked()) options<<QLatin1String("--music");
+		if (music_->isChecked() || lyricsAudioFallbackActive_)
+            options<<QLatin1String("--music");
 		if (preferLyrics_->isChecked())
 			options<<QLatin1String("--prefer-verified-lyrics");
-		if (speakerLabels_->isChecked() && !music_->isChecked())
+		if (speakerLabels_->isChecked() && !music_->isChecked() &&
+            !lyricsAudioFallbackActive_)
 			options<<QLatin1String("--speaker-labels");
 		const QString runtime=QStandardPaths::writableLocation(QStandardPaths::RuntimeLocation);
 		if (runtime.isEmpty()) return;
@@ -2616,7 +2637,7 @@ private:
 				const auto &next=cueQueue_.first();
 				const qint64 total=qMax(qint64(1),next.dueMs-next.queuedMs);
 				captionProgress_->setValue(qBound(0,int((now-next.queuedMs)*100/total),100));
-				captionProgress_->setFormat(tr("Caption in ~%1 ms · applied cache %2 ms")
+				captionProgress_->setFormat(tr("EST. caption in ~%1 ms · requested cache %2 ms · output unverified")
 					.arg(qMax(qint64(0),next.dueMs-now)).arg(activePlaybackCacheMs_));
 			}
 		}
@@ -2874,12 +2895,13 @@ private:
 			return;
 		}
 		const QString artist=overridden?lyricsArtist_->text().trimmed():fields.at(0).trimmed();
-		const QString title=overridden?lyricsTitle_->text().trimmed():fields.at(1).trimmed();
+		const QString title=overridden?lyricsTitle_->text().trimmed():
+            fields.mid(1).join(QLatin1String(" - ")).trimmed();
 		if (artist.isEmpty() || title.isEmpty() || artist.size()>130 || title.size()>130)
 			return;
 		if (automatic && !autoLyrics_->isChecked()) return;
 		if(!automatic && QMessageBox::question(this,tr("Optional online lyrics lookup"),
-			tr("Search LRCLIB for synchronized lyrics?\nArtist: %1\nTitle: %2\n\n"
+			tr("Search LRCLIB, lyrics.ovh and optional licensed Musixmatch?\nArtist: %1\nTitle: %2\n\n"
 			   "Only these metadata are sent; no radio audio is uploaded. "
 			   "Start time estimated from DLS, so adjust the timing slider manually.")
 			   .arg(artist,title))!=QMessageBox::Yes) return;
@@ -2892,6 +2914,8 @@ private:
 		plainLyricMode_=false;
 		plainLyricQueue_.clear();
 		lyrics_->setEnabled(false);
+        lyricProvider_->setText(tr("Searching LRCLIB, optional licensed "
+            "Musixmatch and lyrics.ovh (metadata only)."));
 		QString sourceCode=lyricsSourceLanguage_->currentData().toString();
         // Song-specific manual choice never changes automatic spoken ASR.
         // Do not reuse previous spoken presenter language for the NEXT song:
@@ -3004,6 +3028,7 @@ private:
 	QPushButton *start_=nullptr,*stop_=nullptr,*scan_=nullptr,*record_=nullptr,
 		*caption_=nullptr,
 		*stopCaption_=nullptr,*lyrics_=nullptr,*lyricsImport_=nullptr,*stopLyrics_=nullptr,
+        *listenLyrics_=nullptr,
 		*slidePrev_=nullptr,*slideNext_=nullptr;
 	QTreeWidget *stations_=nullptr;
 	QComboBox *libraryBlock_=nullptr;
@@ -3056,7 +3081,8 @@ private:
 		*livePlot_=nullptr,*showWidgets_=nullptr,
 		*coarseCorrector_=nullptr;
 	QSlider *lyricsOffset_=nullptr;
-	QLabel *lyricsOffsetValue_=nullptr,*lyricsSyncState_=nullptr;
+	QLabel *lyricsOffsetValue_=nullptr,*lyricsSyncState_=nullptr,
+        *lyricProvider_=nullptr;
 	QProgressBar *captionProgress_=nullptr,*audioCacheProgress_=nullptr;
 	QLabel *bufferRecommendation_=nullptr;
 	qint64 audioStartedMs_=0,lastLyricSyncUpdateMs_=0;
@@ -3066,7 +3092,8 @@ private:
 	bool plainLyricMode_=false;
 	QList<TimedPlainLyric> plainLyricQueue_;
 	QCheckBox *autoLyrics_=nullptr,*autoLyricSync_=nullptr,
-		*preferLyrics_=nullptr;
+		*preferLyrics_=nullptr,*listenFallbackOnMiss_=nullptr;
+    bool lyricsAudioFallbackActive_=false,lyricsFallbackStartedAi_=false;
 	QSpinBox *bufferMs_=nullptr,*radioOffsetMs_=nullptr;
 	QCheckBox *autoSync_=nullptr,*autoRestartAudio_=nullptr;
 	int lastCaptionOffsetMs_=0;
