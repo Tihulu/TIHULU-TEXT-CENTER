@@ -383,6 +383,13 @@ public:
 		analogFace->addWidget(analogScale_,1);
 		analogFace->addWidget(analogDial_);
 		cabinetLayout->addLayout(analogFace);
+		analogAudioVu_=new QProgressBar(analogCabinet);
+		analogAudioVu_->setRange(0,100);
+		analogAudioVu_->setValue(0);
+		analogAudioVu_->setFormat(tr("Audio VU: no input (not an RF strength reading)"));
+		analogAudioVu_->setToolTip(tr("Actual signed-PCM audio RMS level from rtl_fm. "
+			"It does not measure SDR RSSI, DAB lock, or antenna RF power."));
+		cabinetLayout->addWidget(analogAudioVu_);
 		auto *buttons=new QHBoxLayout();
 		analogStart_=new QPushButton(tr("Tune / play"),analogCabinet);
 		analogStop_=new QPushButton(tr("Stop / release"),analogCabinet);
@@ -1209,6 +1216,25 @@ private:
 		});
 		connect(&analogDemod_,&QProcess::readyReadStandardOutput,this,[this](){
 			const QByteArray pcm=analogDemod_.readAllStandardOutput();
+			const qint64 now=QDateTime::currentMSecsSinceEpoch();
+			if(analogAudioVu_ && now-lastAnalogVuUpdateMs_>=170 && pcm.size()>200) {
+				lastAnalogVuUpdateMs_=now;
+				double squared=0.;
+				int sampled=0;
+				for(int i=0;i+1<pcm.size();i+=32) {
+					const quint16 raw=quint16(quint8(pcm.at(i))) |
+						(quint16(quint8(pcm.at(i+1)))<<8);
+					const double level=double(qint16(raw))/32768.;
+					squared+=level*level;
+					++sampled;
+				}
+				if(sampled>0) {
+					const double db=20*std::log10(qMax(1e-6,std::sqrt(squared/sampled)));
+					analogAudioVu_->setValue(qBound(0,qRound((db+60.)*100./60.),100));
+					analogAudioVu_->setFormat(tr("Audio VU %1 dBFS · audio, NOT RF strength")
+						.arg(db,0,'f',1));
+				}
+			}
 			if(analogClient_ && analogHeaderSent_ &&
 			   analogClient_->state()==QAbstractSocket::ConnectedState) {
 				// Bound buffering: do not let stalled VLC audio grow unbounded.
@@ -1263,6 +1289,10 @@ private:
 		}
 		analogServer_.close();
 		analogHeaderSent_=false;
+		if(analogAudioVu_) {
+			analogAudioVu_->setValue(0);
+			analogAudioVu_->setFormat(tr("Audio VU: stopped (not RF strength)"));
+		}
 		if(wasPlaying) player_->stop();
 		if(analogStatus_) analogStatus_->setText(tr("Analogue SDR released."));
 	}
@@ -2412,6 +2442,8 @@ private:
 	QPushButton *analogMute_=nullptr;
 	QByteArray analogHttpRequest_;
 	QLabel *analogDigital_=nullptr;
+	QProgressBar *analogAudioVu_=nullptr;
+	qint64 lastAnalogVuUpdateMs_=0;
 	TihuluAnalogScale *analogScale_=nullptr;
 	QTimer analogRetune_{this};
 	QTcpServer analogServer_{this};
