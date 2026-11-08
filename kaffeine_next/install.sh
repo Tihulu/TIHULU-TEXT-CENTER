@@ -169,7 +169,7 @@ if [[ -n "${TIHULU_CUSTOM_LOGO:-}" ]]; then
     echo "Custom logo must be a readable regular PNG file." >&2
     exit 1
   fi
-  if ! python3 -c 'import pathlib,sys; b=pathlib.Path(sys.argv[1]).read_bytes(); sys.exit(0 if len(b)<4194304 and b.startswith(b"\\x89PNG\\r\\n\\x1a\\n") else 1)' "$TIHULU_CUSTOM_LOGO"; then
+  if ! python3 -c 'import pathlib,sys; b=pathlib.Path(sys.argv[1]).read_bytes(); sys.exit(0 if len(b)<4194304 and b.startswith(bytes((137,80,78,71,13,10,26,10))) else 1)' "$TIHULU_CUSTOM_LOGO"; then
     echo "Custom logo failed PNG signature / 4 MiB safety check." >&2
     exit 1
   fi
