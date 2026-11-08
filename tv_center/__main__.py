@@ -11,6 +11,17 @@ def main():
     if len(sys.argv) >= 2 and sys.argv[1] == "ai-check":
         from .ai_diagnostics import main as diagnose_ai
         return diagnose_ai()
+    if len(sys.argv) >= 2 and sys.argv[1] == "ai-pairs":
+        # Read-only installed language directions; consumed by native DAB
+        # selector. No model inference, download, USB or network access.
+        from .ai_provision import StarterAI
+        ai = AISettings()
+        state = StarterAI(ai).status()
+        print(json.dumps({
+            "installed_pairs": state["installed_pairs"],
+            "selected_translator": ai.values.get("translation_model", "argos"),
+        }, ensure_ascii=False))
+        return 0
     if len(sys.argv) >= 2 and sys.argv[1] == "ai-market":
         from .settings_ui import open_ai_settings
         from PyQt5.QtWidgets import QApplication
