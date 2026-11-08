@@ -20,7 +20,7 @@ import time
 
 from .ai_settings import AISettings
 from .language_codes import language_code
-from .lyrics_sync import lookup_synced_lyrics, LiveLyricMatcher
+from .lyrics_sync import lookup_synced_lyrics, LiveLyricMatcher, parse_lrc
 from .sentence_joiner import LiveSentenceJoiner
 from .media_ai import _chunk_cues, _choose_model, CHUNK_SAMPLES
 
@@ -332,6 +332,40 @@ def lyrics_lookup_to_file(*, artist:str, track:str,output:str,
         return 1
 
 
+def local_lyrics_to_file(*, file: str, output: str):
+    """Opt-in import of a user's local unsynced TXT or timed LRC."""
+    location=checked_runtime_output(output,prefix="tihulu-radio-lyrics-")
+    path=Path(file).expanduser()
+    if path.is_symlink() or not path.is_file() or path.suffix.lower() not in (".txt",".lrc"):
+        raise ValueError("Select a regular .txt or .lrc lyrics file (no symlinks)")
+    if path.stat().st_size>180_000:
+        raise ValueError("Lyrics file too large")
+    data=path.read_text(encoding="utf-8-sig")
+    timed=parse_lrc(data) if path.suffix.lower()==".lrc" else []
+    plain=[]
+    if timed:
+        plain=[cue.text for cue in timed[:150]]
+    else:
+        for row in data.splitlines()[:350]:
+            line=" ".join(row.strip().split())
+            if 3<=len(line)<=240 and not (line.startswith("[") and line.endswith("]")):
+                plain.append(line)
+            if len(plain)>=150:
+                break
+    if not plain:
+        raise ValueError("Local file has no usable lyric lines")
+    write_runtime_json(location,{
+        "status":"completed","alignment_mode":"timed_lrc" if timed else "asr_lexical",
+        "source_language":"auto",
+        "provenance":{"provider":"user_local_file","online_lookup":False},
+        "plain_lines":plain,
+        "cues":[{"start":line.start,"end":line.end,"text":line.text}
+                for line in timed[:150]],
+        "time_base":"LRC timestamps + observed ASR correction" if timed else
+                    "No given timestamps; align verified words to actual ASR chunks"})
+    return 0
+
+
 def main(args=None):
     parser=argparse.ArgumentParser(description="TIHULU offline DAB radio AI / lyrics")
     subs=parser.add_subparsers(dest="action",required=True)
@@ -351,6 +385,9 @@ def main(args=None):
     live.add_argument("--prefer-verified-lyrics",action="store_true",
                       help="When plain lyrics metadata is loaded, hide unverified song ASR "
                            "behind a [music] marker; never invent lyrics")
+    user_file=subs.add_parser("lyrics-import")
+    user_file.add_argument("--file",required=True)
+    user_file.add_argument("--output",required=True)
     lookup=subs.add_parser("lyrics-lookup")
     lookup.add_argument("--track",required=True)
     lookup.add_argument("--artist",required=True)
@@ -359,6 +396,12 @@ def main(args=None):
     lookup.add_argument("--source",default="auto")
     lookup.add_argument("--targets",default="en,de,tr")
     opts=parser.parse_args(args)
+    if opts.action=="lyrics-import":
+        try:
+            return local_lyrics_to_file(file=opts.file,output=opts.output)
+        except (OSError,ValueError,RuntimeError) as exc:
+            print("Local lyrics import failed: "+str(exc)[:240],file=sys.stderr)
+            return 1
     if opts.action=="lyrics-lookup":
         return lyrics_lookup_to_file(
             artist=opts.artist,track=opts.track,
