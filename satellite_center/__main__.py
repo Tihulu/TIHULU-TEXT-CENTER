@@ -1713,7 +1713,7 @@ class Station:
                     diagnostic.flush()
                     diagnostic.seek(0)
                     excerpt = diagnostic.read(8192).decode("utf-8", "replace")[-700:]
-                    excerpt = re.sub(r"[\\x00-\\x1f\\x7f]+", " ", excerpt).strip()
+                    excerpt = re.sub(r"[\x00-\x1f\x7f]+", " ", excerpt).strip()
                     raise RuntimeError(
                         "rtl_sdr exited with code " + str(proc.returncode) +
                         (": " + excerpt if excerpt else
