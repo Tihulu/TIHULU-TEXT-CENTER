@@ -32,7 +32,7 @@ class AISettings:
             raise ValueError("AI toggles must be boolean")
         if updated["backend"] not in ("auto", "cpu", "gpu", "npu"):
             raise ValueError("Unsupported AI backend")
-        if updated["translation_model"] not in ("argos", "nllb"):
+        if updated["translation_model"] not in ("argos", "nllb", "deepl", "madlad"):
             raise ValueError("Unsupported translation model")
         for field in ("model_path", "model_dir"):
             if not isinstance(updated[field], str) or len(updated[field]) > 1024:
