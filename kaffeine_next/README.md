@@ -584,8 +584,13 @@ actually produced speaker turns and Whisper supplied word timings. These
 IDs are **temporary per clip**: do not interpret them as a reliably
 persistent person across scenes, and do not automatically infer whether
 a voice belongs to a woman, man, child, or a particular person.
-Diarization adds latency; if model access is denied or the optional runtime
-fails, **original transcriptions continue without speaker labels**.
+Users may **manually** assign temporary voice-slot display names such as
+`Woman, Child, Man 1, Man 2` in the caption settings, but these are not
+inferred classifications and should be rechecked as clips change. Voice
+slots can reorder between clips; stable real-person tracking is not yet
+verified. Diarization adds latency; if model access is denied or the
+optional runtime fails, **original transcriptions continue without speaker
+labels**.
 
 **In the same AI Model Market window:** the Speech tab lists installed
 GGML models and offers explicit online discovery of verified Medium and
