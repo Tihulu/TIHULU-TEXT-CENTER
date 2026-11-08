@@ -87,7 +87,8 @@ scanSource=TIHULU tested: 538 / 586 / 626 MHz
 
     def test_upstream_release_is_immutable(self):
         self.assertEqual(REVISION, "e7ea15b86dafed3b20b151cbcb080578ab8e2d5c")
-        self.assertEqual(len(PATHS), 16)
+        self.assertEqual(len(PATHS), 17)
+        self.assertIn("src/dvb/dvbscandialog.cpp", PATHS)
         self.assertIn("src/dvb/dvbconfigdialog.cpp", PATHS)
         self.assertIn("src/mainwindow.h", PATHS)
         self.assertIn("src/CMakeLists.txt", PATHS)
