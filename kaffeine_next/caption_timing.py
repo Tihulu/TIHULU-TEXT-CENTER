@@ -35,6 +35,7 @@ class CaptionConfig:
     audio_pid: int | None = None
     audio_language: str | None = None
     speaker_enabled: bool = False
+    speaker_aliases: tuple[str, ...] = ()
     offset_ms: int = 0
     playback_delay_ms: int = 0
     automatic_sync: bool = False
@@ -62,6 +63,12 @@ class CaptionConfig:
             raise ValueError("Invalid selected broadcaster audio PID")
         if self.audio_language is not None:
             language_code(self.audio_language)
+        if (not isinstance(self.speaker_aliases,tuple) or
+                len(self.speaker_aliases)>4 or
+                any(not isinstance(alias,str) or len(alias)>32 or
+                    "\\n" in alias or "\\r" in alias
+                    for alias in self.speaker_aliases)):
+            raise ValueError("Speaker labels must be four short names or fewer")
         if type(self.offset_ms) is not int or not -10000 <= self.offset_ms <= 10000:
             raise ValueError("Caption offset must be -10 to +10 seconds")
         if type(self.playback_delay_ms) is not int or not 0 <= self.playback_delay_ms <= 20000:
@@ -100,6 +107,12 @@ class CaptionConfig:
         """Produce independently selectable original/translated subtitle lines."""
         original = (result.get("original") or "").strip()
         speaker = str(result.get("speaker_label") or "").strip()[:55]
+        speaker_index = result.get("speaker_index")
+        if (self.speaker_enabled and type(speaker_index) is int
+                and 1 <= speaker_index <= len(self.speaker_aliases)
+                and self.speaker_aliases[speaker_index-1].strip()):
+            speaker = ("[" + self.speaker_aliases[speaker_index-1].strip()[:30] +
+                       " · clip]")
         raw = result.get("translations")
         translated = raw if isinstance(raw, dict) else {}
         lines = []
