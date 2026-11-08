@@ -148,7 +148,12 @@ All location methods are optional. City suggestions are offline by default; GPS 
 </div>
 <div class="line"><label>Latitude (°) · editable<input id="lat" type="number" value="50.938" step="0.00001" min="-90" max="90"></label>
 <label>Longitude (°) · editable<input id="lon" type="number" value="6.960" step="0.00001" min="-180" max="180"></label>
-<label>Min elevation<select id="elev"><option value="5">5°</option><option value="15" selected>15°</option><option value="30">30°</option></select></label></div>
+<label>Min elevation<select id="elev">
+<option value="0">0° · every geometric horizon pass</option>
+<option value="5" selected>5° · low passes included</option>
+<option value="10">10°</option><option value="15">15°</option>
+<option value="20">20°</option><option value="30">30°</option>
+</select></label></div>
 <p class="hint">You can always enter fully custom latitude and longitude anywhere on Earth. Selecting a city or granting GPS permission updates both numbers, the pass planner and Earth/Sky tracking coordinates. Recalculate passes after changing ground station.</p>
 <div class="line"><button id="orbit-fetch">Refresh orbit data</button><button id="orbit-calc" class="secondary">Calculate passes</button></div>
 <label>Import local TLE file (fallback; remains in this tab)<input type="file" id="tle-file" accept=".txt,.tle,text/plain"></label>
@@ -179,6 +184,26 @@ All location methods are optional. City suggestions are offline by default; GPS 
 <span id="pass-list-count" class="hint">No calculated passes yet.</span>
 <p class="hint pass-capability-help">Protocol labels mean a published, possible downlink — <strong>not a detected transmission</strong>. Modes, active frequencies and decoder availability can change. NOAA-15/18/19 APT are archive-only.</p>
 </div>
+<div class="line" id="window-filter-panel">
+<label>Window eligibility
+<select id="pass-window-filter">
+<option value="all">Show all passes (recommended)</option>
+<option value="overlap">Only passes entering window sector</option>
+<option value="usable">At least 60 s in window sector</option>
+</select></label>
+<p id="window-filter-count" class="hint" role="status">Optional sector settings below. Geometry cannot confirm RF reception.</p>
+</div>
+<details id="map-window-settings" class="pass-window-settings">
+<summary>Estimated window view · optional obstruction sector</summary>
+<div class="pass-window-fields">
+<label class="map-check"><input type="checkbox" id="map-window-enabled"> Show estimated window sector</label>
+<label>Window facing azimuth (°)<input id="map-window-az" type="number" min="0" max="359" step="1" value="300"></label>
+<label>Half-width (°)<input id="map-window-halfwidth" type="number" min="1" max="90" step="1" value="30"></label>
+<label>Minimum elevation (°)<input id="map-window-minel" type="number" min="0" max="85" step="1" value="10"></label>
+<label>Maximum elevation (°)<input id="map-window-maxel" type="number" min="1" max="90" step="1" value="40"></label>
+</div>
+<p class="hint">These are editable starting estimates for a west-northwest-facing window, not a measured horizon mask. Buildings, walls and glazing can still block the signal.</p>
+</details>
 <div id="passes" class="pass-list"></div>
 <div class="line"><button id="pass-show-more" class="secondary" type="button" hidden>Show more passes</button></div>
 </section>
@@ -246,17 +271,7 @@ All location methods are optional. City suggestions are offline by default; GPS 
 <label class="pass-preview-scrubber">Pass progress
 <input id="map-pass-time" type="range" min="0" max="1" step="1" value="0" disabled></label>
 <p id="map-pass-summary" class="map-caption" role="status">Select a calculated pass to preview its north/east sky trajectory, AOS, peak and LOS. This works without SDR hardware.</p>
-<details id="map-window-settings" class="pass-window-settings">
-<summary>Estimated window view · optional obstruction sector</summary>
-<div class="pass-window-fields">
-<label class="map-check"><input type="checkbox" id="map-window-enabled"> Show estimated window sector</label>
-<label>Window facing azimuth (°)<input id="map-window-az" type="number" min="0" max="359" step="1" value="300"></label>
-<label>Half-width (°)<input id="map-window-halfwidth" type="number" min="1" max="90" step="1" value="30"></label>
-<label>Minimum elevation (°)<input id="map-window-minel" type="number" min="0" max="85" step="1" value="10"></label>
-<label>Maximum elevation (°)<input id="map-window-maxel" type="number" min="1" max="90" step="1" value="40"></label>
-</div>
-<p class="hint">These are editable starting estimates for a west-northwest-facing window, not a measured horizon mask. Buildings, walls and glazing can still block the signal.</p>
-</details>
+
 </div>
 <div id="map-sky-pane" role="tabpanel" aria-labelledby="map-tab-sky">
 <canvas id="sky-chart" width="760" height="620" tabindex="0" aria-label="Polar sky plot: north up, east right; click a satellite to inspect it"></canvas>
@@ -339,6 +354,7 @@ All location methods are optional. City suggestions are offline by default; GPS 
   <label><input type="checkbox" id="iq-compute-npu"> NPU</label>
  </fieldset>
  <p id="iq-compute-status" class="hint" role="status">Detecting compatible compute kernels…</p>
+ <p id="native-gpu-discovery" class="hint" role="status" hidden>Native GPU inventory is available only inside the desktop application.</p>
 </section>
 <div class="line">
 <button type="button" id="iq-analyze-last" disabled>Analyze last recording</button>
