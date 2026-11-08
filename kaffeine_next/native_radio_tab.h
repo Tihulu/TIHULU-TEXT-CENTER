@@ -1503,6 +1503,8 @@ private:
 			    !QRegularExpression(QLatin1String("^/mp3/[A-Fa-f0-9x]+$"))
 			     .match(stream).hasMatch() || sid.isEmpty()) continue;
 			const QString key = ch + QLatin1Char(':') + sid;
+			if(scanning_ && !stationGroup.isEmpty() && snrValid)
+				scanObserved_.insert(key);
 			if (!stationChannels_.contains(key)) {
 				auto *item = new QTreeWidgetItem(
 					{favorites_.contains(key)?QStringLiteral("★"):QStringLiteral("☆"),
@@ -1704,6 +1706,7 @@ private:
 		scanning_=true;
 		scanIndex_=0;
 		scanSnrByBlock_.clear();
+		scanObserved_.clear();
 		scanProgress_->setRange(0,channel_->count());
 		scanProgress_->setValue(0);
 		scanProgress_->setFormat(tr("Scanning Band III: %v/%m blocks"));
@@ -1736,8 +1739,9 @@ private:
 			scanning_=false;
 			scan_->setEnabled(true);
 			saveStations();
-			state_->setText(tr("DAB Band III scan completed · %1 discovered stations.")
-				.arg(stations_->topLevelItemCount()));
+			state_->setText(tr("DAB scan complete · %1 services seen on measured "
+				"RF blocks this scan · %2 total saved from all scans.")
+				.arg(scanObserved_.size()).arg(stations_->topLevelItemCount()));
 			return;
 		}
 		const QString block = channel_->itemText(scanIndex_++);
@@ -2387,6 +2391,7 @@ private:
 	QProgressBar *rfQuality_=nullptr;
 	QProgressBar *scanProgress_=nullptr,*scanSNR_=nullptr;
 	QMap<QString,double> scanSnrByBlock_;
+	QSet<QString> scanObserved_;
 	QCheckBox *multiRf_=nullptr;
 	QWidget *multiPanel_=nullptr;
 	QList<QLabel*> multiPlots_;
