@@ -49,6 +49,9 @@
 #include <QPen>
 #include <QPixmap>
 #include <QProgressBar>
+#include <QSizePolicy>
+#include <QTcpSocket>
+#include <QLinearGradient>
 #include <QPlainTextEdit>
 #include <QProcess>
 #include <QPushButton>
@@ -71,6 +74,84 @@
 #include <cstring>
 #include <functional>
 #include <limits>
+
+// Retuned analog radio: functional wheel/mouse QDial with a retro brass face.
+class TihuluBrassDial final : public QDial {
+public:
+    explicit TihuluBrassDial(QWidget *parent=nullptr):QDial(parent) {
+        setMinimumSize(88,88);
+        setMaximumSize(100,100);
+        setNotchesVisible(false);
+        setFocusPolicy(Qt::StrongFocus);
+    }
+protected:
+    void paintEvent(QPaintEvent *) override {
+        QPainter painter(this);
+        painter.setRenderHint(QPainter::Antialiasing);
+        const QRectF bounds=QRectF(rect()).adjusted(5,5,-5,-5);
+        const QPointF center=bounds.center();
+        const double radius=qMin(bounds.width(),bounds.height())/2;
+        QLinearGradient gold(bounds.topLeft(),bounds.bottomRight());
+        gold.setColorAt(0,QColor("#f8db94"));
+        gold.setColorAt(.45,QColor("#b48c44"));
+        gold.setColorAt(1,QColor("#5e461f"));
+        painter.setPen(QPen(QColor("#6d502b"),3));
+        painter.setBrush(gold);
+        painter.drawEllipse(bounds);
+        painter.setPen(QPen(QColor("#fff2b9"),1));
+        painter.drawEllipse(bounds.adjusted(8,8,-8,-8));
+        const double turn=(maximum()>minimum())
+          ?double(value()-minimum())/(maximum()-minimum()):0;
+        const double angle=(225.-270.*turn)*3.141592653589793/180.;
+        painter.setPen(QPen(QColor("#542d10"),4,Qt::SolidLine,Qt::RoundCap));
+        painter.drawLine(center,QPointF(center.x()+radius*.68*std::cos(angle),
+                                      center.y()-radius*.68*std::sin(angle)));
+        painter.setPen(Qt::NoPen);
+        painter.setBrush(QColor("#34291d"));
+        painter.drawEllipse(center,4,4);
+    }
+};
+
+class TihuluAnalogScale final : public QWidget {
+public:
+    explicit TihuluAnalogScale(QWidget *parent=nullptr):QWidget(parent) {
+        setMinimumHeight(95);
+        setSizePolicy(QSizePolicy::Expanding,QSizePolicy::Fixed);
+    }
+    void updateFrequency(double minValue,double maxValue,double current,
+                         const QString &units) {
+        minimum_=minValue;maximum_=maxValue;value_=current;units_=units;update();
+    }
+protected:
+    void paintEvent(QPaintEvent *) override {
+        QPainter p(this);
+        p.setRenderHint(QPainter::Antialiasing);
+        const QRectF frame=QRectF(rect()).adjusted(2,2,-2,-2);
+        p.setPen(QPen(QColor("#a97a36"),2));
+        p.setBrush(QColor("#171814"));
+        p.drawRoundedRect(frame,9,9);
+        const double left=20,right=qMax(25,width()-21);
+        p.setPen(QColor("#ebcf94"));
+        for(int i=0;i<=20;++i) {
+            const double x=left+(right-left)*i/20.;
+            const int yEnd=(i%5==0?52:45);
+            p.drawLine(QPointF(x,32),QPointF(x,yEnd));
+            if(i%5==0)
+                p.drawText(QRectF(x-33,54,66,20),Qt::AlignCenter,
+                           QString::number(minimum_+(maximum_-minimum_)*i/20.,'f',
+                                           maximum_>200?0:1));
+        }
+        p.setPen(QColor("#f6dca9"));
+        p.drawText(QRectF(left,8,right-left,22),Qt::AlignCenter,units_);
+        const double f=qBound(0.,(value_-minimum_)/qMax(1e-6,maximum_-minimum_),1.);
+        const double marker=left+(right-left)*f;
+        p.setPen(QPen(QColor("#ff674c"),3));
+        p.drawLine(QPointF(marker,22),QPointF(marker,77));
+    }
+private:
+    double minimum_=87.5,maximum_=108.,value_=99.2;
+    QString units_=QStringLiteral("FM · MHz");
+};
 
 class TihuluRadioTab final : public TabBase
 {
@@ -213,54 +294,98 @@ public:
 		webLayout->addWidget(webStatus_);
 		root->addWidget(webGroup);
 
-		// Hardware-dependent analogue tuner. Never claim a DVB-T2 frontend
-		// can demodulate FM, MW or LW; rtl_fm needs a compatible RTL-SDR.
-		auto *analogGroup=new QGroupBox(tr("Analogue tuner · FM / MW-AM / LW"),page);
+		// The analog radio is optional hardware; keep a bounded, collapsible
+		// retro cabinet so the DAB channel table stays visible.
+		auto *analogGroup=new QGroupBox(tr("Vintage analogue tuner · enable FM / MW / LW"),page);
+		analogGroup->setCheckable(true);
+		analogGroup->setChecked(false);
+		analogGroup->setStyleSheet(QLatin1String(
+			"QGroupBox{background:#30251b;color:#f1d6a1;border:2px solid #8d6634;"
+			"border-radius:11px;margin-top:16px;padding-top:8px;font-weight:600;}"
+			"QGroupBox::title{subcontrol-origin:margin;left:15px;padding:2px 8px;}"
+			"QLabel{color:#f2d4a0;}"
+			"QComboBox,QDoubleSpinBox{background:#171b1b;color:#efc783;"
+			"border:1px solid #ac8042;border-radius:5px;padding:5px;}"
+			"QPushButton{background:#6a4928;color:#fff0ce;border:1px solid #b69358;"
+			"border-radius:6px;padding:6px 11px;min-height:30px;}"));
 		auto *analogLayout=new QVBoxLayout(analogGroup);
-		auto *analogRow=new QHBoxLayout();
-		analogBand_=new QComboBox(analogGroup);
+		analogLayout->setSpacing(9);
+		analogLayout->setContentsMargins(14,22,14,10);
+		auto *analogCabinet=new QWidget(analogGroup);
+		auto *cabinetLayout=new QVBoxLayout(analogCabinet);
+		cabinetLayout->setContentsMargins(2,2,2,2);
+		auto *analogHead=new QHBoxLayout();
+		analogBand_=new QComboBox(analogCabinet);
 		analogBand_->addItem(tr("FM · 87.5–108 MHz"),QLatin1String("fm"));
 		analogBand_->addItem(tr("AM / MW · 531–1602 kHz"),QLatin1String("mw"));
 		analogBand_->addItem(tr("LW · 150–280 kHz"),QLatin1String("lw"));
-		analogFrequency_=new QDoubleSpinBox(analogGroup);
+		analogBand_->setMinimumWidth(155);
+		analogFrequency_=new QDoubleSpinBox(analogCabinet);
 		analogFrequency_->setDecimals(2);
 		analogFrequency_->setRange(87.5,108.0);
 		analogFrequency_->setValue(99.2);
 		analogFrequency_->setSuffix(tr(" MHz"));
-		analogDial_=new QDial(analogGroup);
+		analogFrequency_->setMinimumWidth(130);
+		analogDigital_=new QLabel(tr("99.20 MHz"),analogCabinet);
+		analogDigital_->setStyleSheet(QLatin1String(
+			"font: bold 20px monospace;color:#ffe1a1;background:#131916;"
+			"border:1px solid #ac8042;border-radius:6px;padding:7px;"));
+		analogHead->addWidget(analogBand_);
+		analogHead->addWidget(analogFrequency_);
+		analogHead->addWidget(analogDigital_,1);
+		cabinetLayout->addLayout(analogHead);
+		auto *analogFace=new QHBoxLayout();
+		analogScale_=new TihuluAnalogScale(analogCabinet);
+		analogDial_=new TihuluBrassDial(analogCabinet);
 		analogDial_->setRange(8750,10800);
 		analogDial_->setValue(9920);
-		analogDial_->setNotchesVisible(true);
-		analogDial_->setFixedSize(95,95);
-		analogStart_=new QPushButton(tr("Tune frequency"),analogGroup);
-		analogStop_=new QPushButton(tr("Release analogue SDR"),analogGroup);
-		analogRow->addWidget(analogBand_);
-		analogRow->addWidget(analogFrequency_);
-		analogRow->addWidget(analogDial_);
-		analogRow->addWidget(analogStart_);
-		analogRow->addWidget(analogStop_);
-		analogLayout->addLayout(analogRow);
+		analogDial_->setToolTip(tr("Turn with mouse wheel/drag; live retune after "
+			"brief 450ms pause. RF hardware must reopen and may briefly go silent."));
+		analogFace->addWidget(analogScale_,1);
+		analogFace->addWidget(analogDial_);
+		cabinetLayout->addLayout(analogFace);
+		auto *buttons=new QHBoxLayout();
+		analogStart_=new QPushButton(tr("Tune / play"),analogCabinet);
+		analogStop_=new QPushButton(tr("Stop / release"),analogCabinet);
+		analogStart_->setMaximumWidth(155);
+		analogStop_->setMaximumWidth(155);
+		buttons->addWidget(analogStart_);
+		buttons->addWidget(analogStop_);
+		buttons->addStretch(1);
+		cabinetLayout->addLayout(buttons);
 		directSampling_=new QCheckBox(
-			tr("Hardware-specific direct sampling for MW/LW (explicit opt-in)"),analogGroup);
-		directSampling_->setToolTip(tr("Only enable if your RTL-SDR specifically supports direct-sampling below 24 MHz. "
-			"Other tuners require a suitable converter or external receiver."));
-		analogLayout->addWidget(directSampling_);
-		analogStatus_=new QLabel(tr("Frequency tuning requires rtl_fm and a compatible SDR. "
-			"Silicon Labs Si2168 alone is not an FM/AM/LW tuner."),analogGroup);
+			tr("Use hardware-specific direct sampling for MW/LW (opt-in)"),analogCabinet);
+		directSampling_->setToolTip(tr("For compatible HF RTL-SDR hardware only."));
+		cabinetLayout->addWidget(directSampling_);
+		analogStatus_=new QLabel(tr("Optional RTL-SDR required. Built-in Kaffeine volume/"
+			"mute controls the local analog stream; DVB-T2 Si2168 does not tune FM."),analogCabinet);
 		analogStatus_->setWordWrap(true);
-		analogLayout->addWidget(analogStatus_);
+		cabinetLayout->addWidget(analogStatus_);
+		analogLayout->addWidget(analogCabinet);
 		root->addWidget(analogGroup);
+		analogRetune_.setSingleShot(true);
+		analogRetune_.setInterval(450);
+		connect(&analogRetune_,&QTimer::timeout,this,[this](){
+			if(analogServer_.isListening()) retuneAnalogDemod();
+		});
 		connect(analogBand_,QOverload<int>::of(&QComboBox::currentIndexChanged),
-			this,[this](){ configureAnalogBand(); });
-		connect(analogDial_,&QDial::valueChanged,this,[this](int value){
-			analogFrequency_->setValue(value/100.);
+			this,[this](){configureAnalogBand();});
+		connect(analogDial_,&QDial::valueChanged,this,[this](int v){
+			analogFrequency_->setValue(v/100.);
 		});
 		connect(analogFrequency_,QOverload<double>::of(&QDoubleSpinBox::valueChanged),
-			this,[this](double value){
-			analogDial_->setValue(qRound(value*100.));
+			this,[this](double v){
+			analogDial_->setValue(qRound(v*100.));
+			analogDigital_->setText(QString::number(v,'f',
+				analogBand_->currentData().toString()==QLatin1String("fm")?2:0)+
+				analogFrequency_->suffix());
+			analogScale_->updateFrequency(
+				analogFrequency_->minimum(),analogFrequency_->maximum(),v,
+				analogBand_->currentText());
+			if(analogServer_.isListening()) analogRetune_.start();
 		});
-		connect(analogStart_,&QPushButton::clicked,this,[this](){ startAnalog(); });
-		connect(analogStop_,&QPushButton::clicked,this,[this](){ stopAnalog(); });
+		connect(analogStart_,&QPushButton::clicked,this,[this](){startAnalog();});
+		connect(analogStop_,&QPushButton::clicked,this,[this](){stopAnalog();});
 		connect(&analogDemod_,&QProcess::readyReadStandardError,this,[this](){
 			const QString msg=QString::fromLocal8Bit(analogDemod_.readAllStandardError());
 			if(msg.contains(QLatin1String("Failed"),Qt::CaseInsensitive) ||
@@ -269,8 +394,9 @@ public:
 		});
 		connect(&analogDemod_,QOverload<int,QProcess::ExitStatus>::of(&QProcess::finished),
 			this,[this](int code,QProcess::ExitStatus){
-				if(!analogStopping_) analogStatus_->setText(
-					tr("Analogue SDR stopped (exit %1); check USB ownership and RF range.").arg(code));
+				if(!analogStopping_ && analogServer_.isListening())
+					analogStatus_->setText(tr("Analog SDR exited (%1). Check USB ownership.")
+						.arg(code));
 			});
 		configureAnalogBand();
 
