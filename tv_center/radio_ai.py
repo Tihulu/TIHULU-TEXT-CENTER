@@ -20,7 +20,7 @@ import time
 
 from .ai_settings import AISettings
 from .language_codes import language_code
-from .lyrics_sync import lookup_synced_lyrics
+from .lyrics_sync import lookup_synced_lyrics, LiveLyricMatcher
 from .media_ai import _chunk_cues, _choose_model, CHUNK_SAMPLES
 
 _SID = re.compile(r"(?:0x)?[A-Fa-f0-9]{1,8}\Z")
@@ -98,6 +98,12 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
         signal.signal(signum,stop)
     chunks=0
     latest_language=None
+    candidate_language=None
+    candidate_runs=0
+    lyric_path=location.with_name(location.name.replace(
+        "tihulu-radio-captions-","tihulu-radio-lyrics-",1))
+    lyric_marker=None
+    plain_matcher=None
     try:
         while not done:
             pcm=ffmpeg.stdout.read(6*CHUNK_SAMPLES*2)
@@ -106,9 +112,26 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
             # Source is actual radio audio. Whisper emits real word positions
             # on CUDA; the output has no false claim of latency compensation.
             captured_at=time.monotonic()
+            # The separately authorized lyrics worker writes only to a
+            # private XDG_RUNTIME_DIR JSON; refresh when the song changes.
+            # No additional Internet call and no second SDR owner.
+            try:
+                marker=(lyric_path.stat().st_mtime_ns,lyric_path.stat().st_size)
+                if marker != lyric_marker and marker[1] <= 150_000:
+                    lyric_marker=marker
+                    payload=json.loads(lyric_path.read_text(encoding="utf-8"))
+                    lines=payload.get("plain_lines",[])
+                    plain_matcher=(LiveLyricMatcher(lines)
+                                   if payload.get("alignment_mode")=="asr_lexical"
+                                   and isinstance(lines,list) and lines else None)
+            except (OSError,ValueError,TypeError,json.JSONDecodeError):
+                if not lyric_path.is_file():
+                    lyric_marker=None
+                    plain_matcher=None
             detection={}
             cues=_chunk_cues(pcm,position=chunks*6,lang=src,
-                            profile=profile,backend=backend,music=music,
+                            profile=profile,backend=backend,
+                            music=music or plain_matcher is not None,
                             detection=detection)
             original=" ".join(cue.text for cue in cues).strip()
             # Speaker identities are relative voice clusters (Speaker 1, 2...),
@@ -126,15 +149,36 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
                     speaker_warning=str(exc)[:180]
             candidate=detection.get("language")
             confidence=float(detection.get("confidence") or 0.0)
+            language_pending=False
             if src=="auto":
-                if candidate and candidate!=latest_language and confidence >= 0.65:
-                    latest_language=candidate
-                used_language=latest_language or candidate
+                # One incorrect 6-second language guess must NOT flip the
+                # translation source. Two consecutive high-confidence
+                # detections are required before committing a switch.
+                if candidate and confidence>=0.72:
+                    if candidate==candidate_language:
+                        candidate_runs+=1
+                    else:
+                        candidate_language=candidate
+                        candidate_runs=1
+                    if candidate_runs>=2:
+                        latest_language=candidate
+                    elif candidate!=latest_language:
+                        language_pending=True
+                else:
+                    candidate_language=None
+                    candidate_runs=0
+                    if latest_language is None or (
+                            candidate and candidate!=latest_language):
+                        language_pending=True
+                used_language=latest_language
             else:
                 used_language=src
+            lyric_match=(plain_matcher.observe(original)
+                         if plain_matcher is not None and original else None)
             translated={}
             problems={}
-            if original and used_language and ai.values["translation_enabled"]:
+            if (original and used_language and not language_pending
+                    and ai.values["translation_enabled"]):
                 from .captions import translate
                 for lang in destinations:
                     if lang == used_language:
@@ -151,7 +195,12 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
                 "source_language":used_language or "und",
                 "language_detected":src=="auto",
                 "language_confidence":round(confidence,3),
+                "language_pending":language_pending,
+                "language_source":("confirmed_2_chunks" if src=="auto" else "manual"),
                 "original":original[:1800],
+                "lyric_match":lyric_match,
+                "lyric_alignment":("observed_ASR_approximate" if plain_matcher
+                                   else "none"),
                 "translations":translated,
                 "translation_warnings":problems,
                 "backend":backend,
@@ -189,10 +238,11 @@ def lyrics_lookup_to_file(*, artist:str, track:str,output:str,
     location=checked_runtime_output(output,prefix="tihulu-radio-lyrics-")
     try:
         cues,provenance=lookup_synced_lyrics(
-            title=track,artist=artist,online=online)
-        if not cues:
+            title=track,artist=artist,online=online,allow_plain=True)
+        plain_lines=provenance.get("plain_lines",[]) if isinstance(provenance,dict) else []
+        if not cues and not plain_lines:
             raise RuntimeError(
-                "No verified time-coded lyrics ("+str(provenance.get("status"))+")")
+                "No matching lyrics ("+str(provenance.get("status"))+")")
         from .captions import translate
         source_code=("auto" if source=="auto" else language_code(source))
         target_codes=tuple(dict.fromkeys(language_code(t,nllb=True)
@@ -212,14 +262,20 @@ def lyrics_lookup_to_file(*, artist:str, track:str,output:str,
             if translated:
                 line["translations"]=translated
             timed.append(line)
-        payload={"status":"completed","provenance":provenance,
+        payload={"status":"completed","provenance":{
+                     key:value for key,value in provenance.items()
+                     if key!="plain_lines"},
+                 "plain_lines":plain_lines[:150],
+                 "alignment_mode":("asr_lexical" if plain_lines else "timed_lrc"),
                  "source_language":source_code,
                  "translation_note":("Choose a source language or start radio ASR "
                     "to detect it before translating lyrics"
                     if source_code=="auto" else
                     "Offline translations share original lyric timestamps; "
                     "not exact translated-word alignment"),
-                 "time_base":"approximate DLS change plus radio cache; use manual offset",
+                 "time_base":("matched ASR chunk timestamps; no fabricated LRC times"
+                              if plain_lines else
+                              "approximate DLS change plus radio cache; use manual offset"),
                  "cues":timed}
         write_runtime_json(location,payload)
         return 0
