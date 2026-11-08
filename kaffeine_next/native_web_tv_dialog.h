@@ -13,6 +13,8 @@
 #include <QHeaderView>
 #include <QJsonDocument>
 #include <QLabel>
+#include <QLocale>
+#include <QTimer>
 #include <QLineEdit>
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
@@ -45,6 +47,9 @@ public:
    for (const QString &code : QStringList({"de","tr","gb","fr","it","us","ww"}))
       country_->addItem(code.toUpper(),code);
    country_->setEditable(true);
+   const QString systemCountry = QLocale::system().name().section(QLatin1Char('_'),1,1).toLower();
+   if (country_->findData(systemCountry) >= 0)
+      country_->setCurrentIndex(country_->findData(systemCountry));
    load_ = new QPushButton(tr("Discover TV channels"),this);
    search_ = new QLineEdit(this);
    search_->setPlaceholderText(tr("Filter discovered channels by name..."));
@@ -91,6 +96,9 @@ public:
       [this](QTreeWidgetItem *item,int column){
          if (column!=0 && item) playUrl(item->data(1,Qt::UserRole).toString());
       });
+   // Automatically search the user's system-locale country on opening;
+   // no external tuner, token or paid provider is necessary.
+   QTimer::singleShot(0,this,[this](){discover();});
  }
 private:
  void filterList(){
