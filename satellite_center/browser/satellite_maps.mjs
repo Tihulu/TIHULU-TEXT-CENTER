@@ -94,6 +94,9 @@ export function createSatelliteMaps({getTles,getSatLib,getPasses,getLastCapture,
   passStatus.textContent=passPreview.name+" · AOS "+passTime(passPreview.steps[0].at_ms)+
    " · Peak "+passTime(peak.at_ms)+" ("+peak.el.toFixed(1)+"°) · LOS "+
    passTime(passPreview.steps[passPreview.steps.length-1].at_ms)+
+   " · Enter from "+direction(passPreview.steps[0].az)+" ("+
+   passPreview.steps[0].az.toFixed(0)+"°) → exit "+direction(passPreview.steps[passPreview.steps.length-1].az)+
+   " ("+passPreview.steps[passPreview.steps.length-1].az.toFixed(0)+"°)"+
    " · Preview "+passTime(p.at_ms)+" · az "+p.az.toFixed(1)+"° "+direction(p.az)+
    ", el "+p.el.toFixed(1)+"°, "+Math.round(p.range_km)+" km."+
    " TLE geometry only; ground obstructions and RF activity not verified.";
