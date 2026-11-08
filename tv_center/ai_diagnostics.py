@@ -46,7 +46,7 @@ def inspect():
             "gpu_detected": gpu["detected"],
             "vram_mib": gpu["vram_mib"],
             "cuda_compiler": gpu["cuda_version"],
-            "cuda_compiler_path": gpu["cuda_compiler"],
+            "cuda_compiler_path": gpu.get("cuda_compiler"),
             "cuda_compile_possible": gpu["cuda_compile_possible"],
             "cuda_note": gpu["reason"],
             "npu_detected": npu["detected"],
