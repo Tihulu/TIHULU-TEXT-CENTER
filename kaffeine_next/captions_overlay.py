@@ -123,9 +123,9 @@ class CaptionTap:
             if not data or len(data) % 188:
                 self.bad_packets += 1
                 continue
-            if any(data[i] != 0x47 for i in range(0, len(data), 188)):
-                self.bad_packets += 1
-                continue
+            # A corrupt packet in a 16-packet Unix datagram must not
+            # destroy 15 healthy neighbors. The caption-only guard below
+            # validates and filters each packet individually.
             self.packet_count += len(data) // 188
             self.transport_health.inspect(data)
             rate_now = time.monotonic()
@@ -200,6 +200,7 @@ class CaptionTap:
             clean, measured = self.packet_guard.filter(
                 data, audio_pid=actual_audio_pid,
                 teletext_pid=options.get("teletext_pid"))
+            self.bad_packets += measured["invalid"]
             for key in quality:
                 quality[key] += measured[key]
             if not clean:
