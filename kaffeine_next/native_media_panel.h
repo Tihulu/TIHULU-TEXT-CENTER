@@ -10,6 +10,8 @@
 #include <QComboBox>
 #include <QFile>
 #include <QFileInfo>
+#include <QFileDialog>
+#include <QMessageBox>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QLineEdit>
@@ -68,6 +70,10 @@ public:
 		run_=new QPushButton(tr("Generate + load captions"),this);
 		cancel_=new QPushButton(tr("Cancel"),this);
 		cancel_->setEnabled(false);
+		export_=new QPushButton(tr("Save video/audio + subtitles (.mkv)"),this);
+		export_->setToolTip(tr("Mux the original media and existing time-coded SRT "
+			"as an editable/selectable subtitle track; original files remain unchanged."));
+		export_->setEnabled(false);
 		caching_=new QSpinBox(this);
 		caching_->setRange(0,20000);
 		caching_->setSingleStep(500);
@@ -87,11 +93,23 @@ public:
 		actions->addWidget(wait_);
 		actions->addWidget(run_);
 		actions->addWidget(cancel_);
+		actions->addWidget(export_);
 		v->addLayout(actions);
 		message_=new QLabel(tr("Caption file will attach to the same playing video/audio."),this);
 		message_->setWordWrap(true);
 		v->addWidget(message_);
 		connect(run_,&QPushButton::clicked,this,[this](){generate();});
+		connect(export_,&QPushButton::clicked,this,[this](){exportWithCaptions();});
+		connect(&exportProcess_,QOverload<int,QProcess::ExitStatus>::of(&QProcess::finished),
+			this,[this](int exitCode,QProcess::ExitStatus exitStatus){
+				export_->setEnabled(true);
+				if(exitCode==0 && exitStatus==QProcess::NormalExit)
+					message_->setText(tr("Export complete · playable MKV with selectable SRT: %1")
+						.arg(exportPath_));
+				else
+					message_->setText(tr("Media export failed: %1")
+						.arg(QString::fromUtf8(exportProcess_.readAllStandardError()).right(350)));
+			});
 		connect(cancel_,&QPushButton::clicked,this,[this](){
 			if(process_.state()!=QProcess::NotRunning) {
 				process_.kill();
@@ -109,6 +127,7 @@ public:
 						player_->play(QUrl::fromLocalFile(path_));
 					}
 					player_->setSubtitle(QUrl::fromLocalFile(srtPath_));
+					export_->setEnabled(true);
 					message_->setText(tr("Attached generated subtitles to current "
 						"file playback · %1").arg(srtPath_));
 				} else {
@@ -127,10 +146,53 @@ public:
 		const QString candidate=url.toLocalFile();
 		if(!QFileInfo(candidate).isFile()) return;
 		path_=candidate;
+		srtPath_=QFileInfo(candidate).absolutePath()+QLatin1Char('/')+
+			QFileInfo(candidate).completeBaseName()+QLatin1String(".srt");
+		export_->setEnabled(QFileInfo(srtPath_).isFile());
 		file_->setText(QFileInfo(candidate).fileName());
 		file_->setToolTip(candidate);
 	}
 private:
+	void exportWithCaptions() {
+		if(exportProcess_.state()!=QProcess::NotRunning || path_.isEmpty() ||
+		   !QFileInfo(path_).isFile() || !QFileInfo(srtPath_).isFile()) {
+			message_->setText(tr("Open a local file with an existing generated SRT first."));
+			return;
+		}
+		QString suggested=QFileInfo(path_).absolutePath()+QLatin1Char('/')+
+			QFileInfo(path_).completeBaseName()+QLatin1String("-subtitled.mkv");
+		QString destination=QFileDialog::getSaveFileName(this,tr("Save media with selectable subtitles"),
+			suggested,tr("Matroska media (*.mkv)"));
+		if(destination.isEmpty()) return;
+		if(!destination.endsWith(QLatin1String(".mkv"),Qt::CaseInsensitive))
+			destination+=QLatin1String(".mkv");
+		if(QFileInfo(destination).exists()) {
+			message_->setText(tr("Destination exists; choose another filename to protect your files."));
+			return;
+		}
+		exportPath_=destination;
+		// -n prevents overwrite even if another process creates this path.
+		// Copy the original streams; mux subtitles as a selectable MKV track.
+		// No protected-disc bypass, no unverified 'burned in' claim.
+		exportProcess_.start(QLatin1String("ffmpeg"),
+			{QLatin1String("-nostdin"),QLatin1String("-hide_banner"),
+			 QLatin1String("-loglevel"),QLatin1String("error"),
+			 QLatin1String("-n"),QLatin1String("-i"),path_,
+			 QLatin1String("-i"),srtPath_,
+			 QLatin1String("-map"),QLatin1String("0:v?"),
+			 QLatin1String("-map"),QLatin1String("0:a?"),
+			 QLatin1String("-map"),QLatin1String("1:0"),
+			 QLatin1String("-c:v"),QLatin1String("copy"),
+			 QLatin1String("-c:a"),QLatin1String("copy"),
+			 QLatin1String("-c:s"),QLatin1String("srt"),
+			 exportPath_});
+		if(!exportProcess_.waitForStarted(800)) {
+			message_->setText(tr("FFmpeg is not available for subtitled export."));
+			return;
+		}
+		export_->setEnabled(false);
+		message_->setText(tr("Muxing original media and SRT in the background…"));
+	}
 	void generate() {
 		if(path_.isEmpty() || !QFileInfo(path_).isFile()) {
 			message_->setText(tr("Open a local media file in TIHULU first."));
@@ -173,15 +235,15 @@ private:
 			"GPU Whisper and translation models. Playback stays available."));
 	}
 	MediaWidget *player_;
-	QProcess process_;
+	QProcess process_,exportProcess_;
 	QLabel *file_=nullptr,*message_=nullptr;
 	QComboBox *language_=nullptr;
 	QCheckBox *de_=nullptr,*en_=nullptr,*tr_=nullptr,*music_=nullptr,*lyrics_=nullptr,
 		*lyricsOnline_=nullptr;
-	QPushButton *run_=nullptr,*cancel_=nullptr;
+	QPushButton *run_=nullptr,*cancel_=nullptr,*export_=nullptr;
 	QSpinBox *caching_=nullptr;
 	QCheckBox *wait_=nullptr;
 	bool pausedForAi_=false;
-	QString path_,srtPath_;
+	QString path_,srtPath_,exportPath_;
 };
 #endif
