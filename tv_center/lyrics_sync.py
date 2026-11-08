@@ -134,6 +134,46 @@ def _get_json(url: str, *, allow_list: bool=False):
     return record
 
 
+def lookup_alternative_plain(*, artist: str, title: str,
+                             online: bool=False) -> tuple[list[str],dict]:
+    """Best-effort second provider for non-time-coded lyrics.
+
+    lyrics.ovh returns only words, not a reliable artist/title identity or
+    timestamps. NEVER present its text as a verified audio match until local
+    Whisper independently recognizes the actual spoken/sung words.
+    """
+    if not online:
+        raise PermissionError("Alternative lyrics lookup requires opt-in")
+    if not isinstance(artist,str) or not isinstance(title,str) or (
+            not artist.strip() or not title.strip() or
+            len(artist)>160 or len(title)>160):
+        raise ValueError("Valid artist/title required")
+    url=("https://api.lyrics.ovh/v1/"+
+         urllib.parse.quote(artist.strip(),safe="")+"/"+
+         urllib.parse.quote(title.strip(),safe=""))
+    try:
+        result=_get_json(url)
+    except (OSError,ValueError,RuntimeError,urllib.error.URLError):
+        return [],{"status":"alternative_unavailable",
+                  "provider":"lyrics.ovh"}
+    raw=result.get("lyrics") if isinstance(result,dict) else None
+    if not isinstance(raw,str):
+        return [],{"status":"alternative_not_found","provider":"lyrics.ovh"}
+    cleaned=[]
+    for row in raw.splitlines()[:350]:
+        line=" ".join(row.strip().split())
+        if (3<=len(line)<=240 and
+                not (line.startswith("[") and line.endswith("]"))):
+            cleaned.append(line)
+        if len(cleaned)>=150:
+            break
+    if not cleaned:
+        return [],{"status":"alternative_empty","provider":"lyrics.ovh"}
+    return cleaned,{"status":"plain","provider":"lyrics.ovh",
+        "online_lookup":True,"alignment":"awaiting_real_audio_ASR",
+        "metadata_verification":"none; exact artist/title request only"}
+
+
 def lookup_synced_lyrics(*, title: str, artist: str,
                          album: str = "", duration: float | None = None,
                          online: bool = False,
@@ -169,7 +209,13 @@ def lookup_synced_lyrics(*, title: str, artist: str,
         record=next((item for item in exact if item.get("syncedLyrics")),
                     exact[0] if exact else {})
     if not record:
-        return [], {"status":"not_found","provider":"LRCLIB"}
+        if allow_plain:
+            lines,alternate=lookup_alternative_plain(
+                artist=artist,title=title,online=online)
+            if lines:
+                return [],{**alternate,"plain_lines":lines,
+                           "artist":artist,"track":title}
+        return [], {"status":"not_found","provider":"LRCLIB; lyrics.ovh fallback"}
     if (str(record.get("trackName","")).casefold().strip() !=
             title.casefold().strip() or
             str(record.get("artistName","")).casefold().strip() !=
@@ -201,8 +247,14 @@ def lookup_synced_lyrics(*, title: str, artist: str,
                     "plain_lines":cleaned,
                     "alignment":"awaiting_real_audio_ASR",
                     "online_lookup":True}
+        if allow_plain:
+            lines,alternate=lookup_alternative_plain(
+                artist=artist,title=title,online=online)
+            if lines:
+                return [],{**alternate,"plain_lines":lines,
+                           "artist":artist,"track":title}
         return [], {"status":"unsynced_only","provider":"LRCLIB",
-                    "message":"Only plain lyrics found; no time codes"}
+                    "message":"No usable synced or plain lyrics from allowed sources"}
     cues = parse_lrc(synced,duration=duration,provenance="LRCLIB")
     return cues, {"status":"synced" if cues else "invalid",
                   "provider":"LRCLIB","record_id":record.get("id"),
