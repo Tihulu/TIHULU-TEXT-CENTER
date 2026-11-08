@@ -136,7 +136,8 @@ class CaptionConfig:
                 for language in self.target_languages:
                     phrase = translated.get(language)
                     source_language = result.get("source_language") or self.source
-                    already_original = (phrase.strip() == original)
+                    already_original = (
+                        isinstance(phrase, str) and phrase.strip() == original)
                     # Requested original-language output is meaningful when
                     # translation-only was chosen, but avoid duplicate lines
                     # when 'Original + translations' already shows it.
