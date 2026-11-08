@@ -76,7 +76,11 @@ def transcribe_pcm(pcm:bytes,language:str,backend:str,profile:dict)->str:
         raise SpeechError("Empty received audio")
     if backend not in ("cpu","gpu","npu"):
         raise ValueError("Invalid compute backend")
-    validate_language(language)
+    if language != "auto":
+        validate_language(language)
+    elif backend=="npu":
+        raise SpeechError("Automatic speech language detection is not verified "
+                          "for this NPU model; choose a source language")
     model=(_whisper_model(profile) if backend=="cpu" else
            profile["speech"].get("gpu_model_path") if backend=="gpu" else
            profile["speech"].get("npu_model_path"))
@@ -157,7 +161,8 @@ def transcribe_pcm(pcm:bytes,language:str,backend:str,profile:dict)->str:
                 path.write_bytes(_whisper_cli_wav(pcm))
                 with _faster_whisper_lock:
                     decoder=_cached_cuda_whisper(str(model))
-                    segments,_=decoder.transcribe(str(path),language=language,
+                    segments,_=decoder.transcribe(
+                        str(path),language=(None if language=="auto" else language),
                                                  beam_size=3,vad_filter=True)
                     # Faster-Whisper decodes lazily; iterate under the lock.
                     return " ".join(s.text.strip() for s in segments).strip()[:3000]
