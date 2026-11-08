@@ -28,7 +28,7 @@ def catalog(*, installed_pairs=None, nllb_installed=None):
             # PyTorch/Argos cold imports can block for up to a minute in
             # the normal Model Market. A caption language menu must not.
             # This is a read-only, local probe with a strict short deadline.
-            installed_pairs = run("installed", installed_timeout=3.5)
+            installed_pairs = run("installed", installed_timeout=8.0)
         except (OSError, RuntimeError, ValueError, KeyError,
                 subprocess.TimeoutExpired) as exc:
             installed_pairs = []
