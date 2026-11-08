@@ -160,6 +160,26 @@ mkdir -p "$HOME/.local/share/icons/hicolor/scalable/apps"
 cp "$temp/tihulu/kaffeine_next/assets/tihulu-media-center.svg" \
   "$HOME/.local/share/icons/hicolor/scalable/apps/tihulu-media-center.svg"
 
+# Optional user-supplied PNG portrait/logo. Copy unchanged; never attempt
+# to vectorize or replace the artwork without the owner's approval.
+# The SVG remains as a fallback if no supplied logo exists.
+DESKTOP_ICON=tihulu-media-center
+if [[ -n "${TIHULU_CUSTOM_LOGO:-}" ]]; then
+  if [[ ! -f "$TIHULU_CUSTOM_LOGO" || -L "$TIHULU_CUSTOM_LOGO" ]]; then
+    echo "Custom logo must be a readable regular PNG file." >&2
+    exit 1
+  fi
+  if ! python3 -c 'import pathlib,sys; b=pathlib.Path(sys.argv[1]).read_bytes(); sys.exit(0 if len(b)<4194304 and b.startswith(b"\\x89PNG\\r\\n\\x1a\\n") else 1)' "$TIHULU_CUSTOM_LOGO"; then
+    echo "Custom logo failed PNG signature / 4 MiB safety check." >&2
+    exit 1
+  fi
+  mkdir -p "$HOME/.local/share/icons/hicolor/64x64/apps"
+  cp -- "$TIHULU_CUSTOM_LOGO" "$HOME/.local/share/icons/hicolor/64x64/apps/tihulu-media-center.png"
+fi
+if [[ -f "$HOME/.local/share/icons/hicolor/64x64/apps/tihulu-media-center.png" ]]; then
+  DESKTOP_ICON="$HOME/.local/share/icons/hicolor/64x64/apps/tihulu-media-center.png"
+fi
+
 TIHULU_KAFFEINE_PRIMARY=1 bash "$temp/tihulu/tv_center/packaging/build-deb.sh" "$temp/debs"
 # The AI sidecar may already be installed at the same preview version.
 # Force reinstall so the previously visible legacy player is hidden.
@@ -216,7 +236,7 @@ GenericName=TV · DAB+ Radio · Local Video/Audio · AI Subtitles
 Comment=Standalone native TV and radio player with offline AI, based on KDE Kaffeine
 Exec=$HOME/.local/bin/tihulu-media-center
 TryExec=$HOME/.local/bin/tihulu-media-center
-Icon=tihulu-media-center
+Icon=$DESKTOP_ICON
 StartupWMClass=tihulu-media-center
 Terminal=false
 Categories=AudioVideo;Video;TV;Audio;Player;
