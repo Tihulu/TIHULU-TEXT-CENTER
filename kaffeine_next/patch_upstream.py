@@ -19,6 +19,23 @@ PATHS = ("src/mainwindow.cpp", "src/mainwindow.h", "src/CMakeLists.txt",
          "src/osdwidget.h", "src/main.cpp", "src/dvb/dvbepg.cpp",
          "src/sqlinterface.h")
 
+def fix_sql_free_key(source: str) -> str:
+    """Fix Kaffeine 2.0.19's invalid QMap iterator in scan/channel import.
+
+    Guard the expected implementation shape to avoid applying this
+    narrowly targeted fix against an unrelated upstream revision.
+    """
+    old = "std::prev(container.constEnd(), -1)"
+    fixed = "std::prev(container.constEnd())"
+    if "if (!container.isEmpty()) {" not in source:
+        raise ValueError("Unexpected Kaffeine SQL allocator: missing empty-container guard")
+    if source.count(old) == 1:
+        return source.replace(old, fixed)
+    if old not in source and source.count(fixed) == 1:
+        return source
+    raise ValueError("Unexpected Kaffeine SQL allocator: cannot identify invalid iterator")
+
+
 def transform(files):
     files = dict(files)
     def change(path, before, after):
@@ -1157,8 +1174,7 @@ void DvbTab::showChannelDialog()
     # checkout also remains valid. The original empty-container check is
     # retained so prev(end) is never evaluated for an empty map.
     sql_hdr = "src/sqlinterface.h"
-    change(sql_hdr, "std::prev(container.constEnd(), -1)",
-           "std::prev(container.constEnd())")
+    files[sql_hdr] = fix_sql_free_key(files[sql_hdr])
 
     # Critical guard for native scan/channel-import crashes.
     # The pinned upstream DvbScanDialog releases its exclusive tuner *before*
