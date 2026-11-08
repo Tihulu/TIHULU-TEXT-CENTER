@@ -122,6 +122,9 @@ git -C "$BUILDSRC" diff --check
 # instead of trying to run an untrusted internet pipe from the native GUI.
 cp "$temp/tihulu/kaffeine_next/install_welle.sh" "$APPROOT/install_welle.sh"
 chmod 755 "$APPROOT/install_welle.sh"
+# Read-only frontend ownership check, accessible in the TV menu or CLI.
+cp "$temp/tihulu/kaffeine_next/dvb_diagnostics.sh" "$APPROOT/dvb_diagnostics.sh"
+chmod 755 "$APPROOT/dvb_diagnostics.sh"
 
 echo "Configuring clean Kaffeine native DVB scanner with isolated system Qt5"
 if ! "${SYSTEM_BUILD_ENV[@]}" /usr/bin/cmake --fresh -S "$BUILDSRC" -B "$BUILD" \
@@ -169,6 +172,7 @@ if [ -z "${TIHULU_VLC_PROFILE:-}" ]; then
 fi
 # Explicit per-session overrides for isolating decoder vs AAC audio faults.
 case "${1:-}" in
+  --diagnose-tuner) shift; exec /bin/bash "$HOME/.local/share/tihulu-kaffeine/dvb_diagnostics.sh" "$@" ;;
   --software-video) TIHULU_VLC_PROFILE=software; shift ;;
   --auto-video) TIHULU_VLC_PROFILE=auto; shift ;;
   --diagnose-no-audio) TIHULU_VLC_PROFILE=software-no-audio; shift ;;
@@ -176,6 +180,17 @@ esac
 export TIHULU_VLC_PROFILE
 if [ "$#" -eq 0 ]; then
   set -- --lastchannel
+fi
+# Do not launch two TIHULU instances that fight for the same frontend.
+# The exclusive lock is inherited by the player process and released on exit;
+# it never locks /dev/dvb or interferes with system Kaffeine.
+if command -v flock >/dev/null 2>&1; then
+  mkdir -p "$HOME/.cache"
+  exec 9>"$HOME/.cache/tihulu-media-center.lock"
+  if ! flock -n 9; then
+    echo "TIHULU Media Center is already running. Focus or close that window first." >&2
+    exit 2
+  fi
 fi
 # Avoid mixing native system libVLC/Qt5 with the user's Conda installation.
 exec env -u LD_LIBRARY_PATH -u LD_PRELOAD -u QT_PLUGIN_PATH \
@@ -207,7 +222,9 @@ fi
 echo "Open TIHULU Media Center (separate app, icon and channel database):"
 echo "  $HOME/.local/bin/tihulu-media-center"
 echo "Use TV -> TIHULU AI for Model Market and live subtitles."
-echo "Close the other Kaffeine instance first; only one frontend owner at a time."
+echo "Only one DVB frontend owner at a time. Inspect with:"
+echo "  $HOME/.local/bin/tihulu-media-center --diagnose-tuner"
+echo "Set DVB-T2 Source in Configure Television before the first channel scan."
 echo "DAB+ Radio is a native tab. Optional welle.io backend (separate SDR):"
 echo "  bash $APPROOT/install_welle.sh"
 if (( WITH_DAB == 1 )); then
