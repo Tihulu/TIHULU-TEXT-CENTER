@@ -137,30 +137,38 @@ class VoiceClusters:
         self.channel = channel
 
     def assign(self, embedding, channel=None):
-        import numpy as np
+        from math import isfinite, sqrt
         if channel != self.channel:
             self.reset(channel)
-        vec = np.asarray(embedding,dtype=np.float32).reshape(-1)
-        magnitude = float(np.linalg.norm(vec))
-        if len(vec) != 256 or magnitude < 1e-6 or not np.all(np.isfinite(vec)):
+        try:
+            vec = tuple(float(value) for value in embedding)
+        except (TypeError, ValueError):
             return None
-        vec /= magnitude
+        if len(vec) != 256 or not all(isfinite(v) for v in vec):
+            return None
+        magnitude = sqrt(sum(v*v for v in vec))
+        if magnitude < 1e-6:
+            return None
+        vec = tuple(v/magnitude for v in vec)
         if not self.centroids:
             self.centroids.append(vec)
             self.counts.append(1)
             return 0
-        similarities = [float(vec @ center) for center in self.centroids]
+        similarities = [
+            sum(v*u for v,u in zip(vec,center))
+            for center in self.centroids]
         best = max(range(len(similarities)),key=lambda i:similarities[i])
         if similarities[best] < self.threshold:
             if len(self.centroids) >= self.maximum:
-                return None   # unknown/new voice, do not force a wrong identity
+                return None   # unknown voice; never coerce into wrong identity
             self.centroids.append(vec)
             self.counts.append(1)
             return len(self.centroids)-1
         count = self.counts[best]
-        averaged = self.centroids[best] * min(count,8) + vec
-        self.centroids[best] = averaged / max(float(
-            np.linalg.norm(averaged)),1e-9)
+        averaged = [u*min(count,8)+v
+                    for u,v in zip(self.centroids[best],vec)]
+        length = sqrt(sum(v*v for v in averaged))
+        self.centroids[best] = tuple(v/max(length,1e-9) for v in averaged)
         self.counts[best] = count + 1
         return best
 
