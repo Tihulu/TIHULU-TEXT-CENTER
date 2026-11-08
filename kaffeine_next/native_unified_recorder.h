@@ -11,6 +11,7 @@
 #include "dvb/dvbtab.h"
 #include "dvb/dvbmanager.h"
 #include "dvb/dvbliveview.h"
+#include "dvb/dvbrecording.h"
 
 #include <QCheckBox>
 #include <QComboBox>
