@@ -8,6 +8,35 @@ from .whisper_engine import WhisperRuntime
 from .runtime import AIRuntime
 
 def main():
+    if len(sys.argv) >= 2 and sys.argv[1] == "ai-check":
+        from .ai_diagnostics import main as diagnose_ai
+        return diagnose_ai()
+    if len(sys.argv) >= 2 and sys.argv[1] == "ai-market":
+        from .settings_ui import open_ai_settings
+        from PyQt5.QtWidgets import QApplication
+        import os
+        if os.environ.get("WAYLAND_DISPLAY"):
+            os.environ.setdefault("QT_QPA_PLATFORM", "xcb")
+        app = QApplication.instance() or QApplication(["TIHULU Whisper / Translator Market"])
+        ai = AISettings()
+        ai.configure_environment()
+        open_ai_settings(None, ai)
+        return 0
+    if len(sys.argv) >= 2 and sys.argv[1] == "media-captions":
+        from .media_ai import main as local_media
+        return local_media(sys.argv[2:])
+    if len(sys.argv) >= 2 and sys.argv[1] == "media-captions-ui":
+        from .media_ui import main as local_media_gui
+        return local_media_gui(sys.argv[2:])
+    if len(sys.argv) >= 2 and sys.argv[1] in ("radio-captions","lyrics-lookup"):
+        from .radio_ai import main as radio
+        return radio(sys.argv[1:])
+    if len(sys.argv) >= 2 and sys.argv[1] == "kaffeine-doctor":
+        from kaffeine_next.diagnostics import main as diagnose
+        return diagnose(sys.argv[2:])
+    if len(sys.argv) >= 2 and sys.argv[1] == "kaffeine-captions":
+        from kaffeine_next.captions_overlay import main as captions_main
+        return captions_main(sys.argv[2:])
     if len(sys.argv) >= 2 and sys.argv[1] == "ai":
         from .ai_provision import main as ai_main
         return ai_main(sys.argv[2:])
@@ -30,8 +59,25 @@ def main():
             }
         }, indent=2, ensure_ascii=False))
         return 0
-    from .desktop import main as desktop
-    return desktop()
+    # Kaffeine owns normal TV, scanning and playback. Python only supplies
+    # AI, Teletext decoding and optional mobile access.
+    if len(sys.argv) >= 2 and sys.argv[1] == "legacy-player":
+        from .desktop import main as desktop
+        return desktop()
+    if len(sys.argv) == 1 or sys.argv[1] in ("tv", "watch"):
+        from pathlib import Path
+        import os
+        launcher = Path.home() / ".local/bin/tihulu-kaffeine"
+        if not launcher.is_file():
+            print("Kaffeine core not installed: run kaffeine_next/install.sh. "
+                  "No fallback scanner will start.", file=sys.stderr)
+            return 2
+        arguments = sys.argv[2:] if len(sys.argv) > 1 else []
+        os.execv(str(launcher), [str(launcher), "--lastchannel", *arguments])
+    print("Unknown command. Use: tv, ai-market, ai, doctor, "
+          "kaffeine-captions, kaffeine-doctor, ai-check, media-captions, "
+          "media-captions-ui, radio-captions, lyrics-lookup, legacy-player", file=sys.stderr)
+    return 2
 
 if __name__ == "__main__":
     raise SystemExit(main())

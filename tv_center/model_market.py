@@ -6,6 +6,8 @@ to files directly inside the app-managed model directory.
 """
 from __future__ import annotations
 import hashlib
+import json
+import re
 import os
 from pathlib import Path
 import shutil
@@ -38,23 +40,58 @@ class ModelLibrary:
         # Explicit alternate folder can be selected for external SSDs.
         self.root.mkdir(mode=0o700, parents=True, exist_ok=True)
         self.root = self.root.resolve()
+        self.catalog = dict(CATALOG)
+        self.manifest = self.root / ".tihulu-verified-market.json"
+        if self.manifest.is_file() and not self.manifest.is_symlink():
+            try:
+                if self.manifest.stat().st_size <= 80_000:
+                    saved = json.loads(self.manifest.read_text(encoding="utf-8"))
+                    if isinstance(saved, dict):
+                        from .online_models import ALLOWED, BASE
+                        for key, desc in saved.items():
+                            if (key in ALLOWED and isinstance(desc, dict)
+                                and desc.get("filename") == f"ggml-{key}.bin"
+                                and desc.get("url") == BASE + f"ggml-{key}.bin"
+                                and isinstance(desc.get("sha256"), str)
+                                and re.fullmatch(r"[a-f0-9]{64}", desc["sha256"])
+                                and type(desc.get("max_bytes")) is int
+                                and 1_000_000 < desc["max_bytes"] <= 4_200_000_000):
+                                self.catalog[key] = desc
+            except (OSError, ValueError, UnicodeError):
+                pass
+
+    def refresh_online(self, query=""):
+        from .online_models import search_official_models
+        results = search_official_models(query)
+        if not results:
+            return []
+        self.catalog.update(results)
+        # Remember trusted checksum metadata so a downloaded model remains
+        # selectable after restarting without network access.
+        metadata = {key: value for key,value in self.catalog.items()
+                    if key not in CATALOG}
+        tmp = self.manifest.with_suffix(".tmp")
+        tmp.write_text(json.dumps(metadata,ensure_ascii=False,indent=2),encoding="utf-8")
+        os.chmod(tmp,0o600)
+        os.replace(tmp,self.manifest)
+        return list(results)
 
     def _path(self, key):
-        if key not in CATALOG:
-            raise ModelError("Unknown curated model")
-        return self.root / CATALOG[key]["filename"]
+        if key not in self.catalog:
+            raise ModelError("Unknown curated/verified model")
+        return self.root / self.catalog[key]["filename"]
 
     def installed(self):
         return [
             {"id": key, "name": desc["name"], "size_mb": desc["size_mb"],
              "path": str(self._path(key)), "installed": self._path(key).is_file()}
-            for key, desc in CATALOG.items()
+            for key, desc in self.catalog.items()
         ]
 
     def add_local(self, key, file):
         src = Path(file).expanduser().resolve(strict=True)
         dest = self._path(key)
-        if src.is_dir() or src.stat().st_size > CATALOG[key]["max_bytes"]:
+        if src.is_dir() or src.stat().st_size > self.catalog[key]["max_bytes"]:
             raise ModelError("Invalid Whisper model size")
         if src == dest:
             return str(dest)
@@ -62,7 +99,7 @@ class ModelLibrary:
         return str(dest)
 
     def _copy_verified(self, source, key):
-        desc = CATALOG[key]
+        desc = self.catalog[key]
         digest = hashlib.sha256()
         with tempfile.NamedTemporaryFile(dir=self.root, prefix=".tihulu-model-",
                                          delete=False) as out:
@@ -86,7 +123,7 @@ class ModelLibrary:
         os.replace(staged, self._path(key))
 
     def download(self, key, progress=None):
-        desc = CATALOG.get(key)
+        desc = self.catalog.get(key)
         if desc is None:
             raise ModelError("Unknown model catalog entry")
         if self._path(key).exists():

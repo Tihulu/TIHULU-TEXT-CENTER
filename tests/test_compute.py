@@ -34,8 +34,8 @@ class DeviceTests(unittest.TestCase):
             self.assertFalse(choose_backend(profile,"npu")["ready"])
 
     def test_tri_language(self):
-        self.assertEqual([validate_language(v) for v in ("en","de","tr")],["en","de","tr"])
-        with self.assertRaises(ValueError):validate_language("fr")
+        self.assertEqual([validate_language(v) for v in ("en","de","tr","fr")],["en","de","tr","fr"])
+        with self.assertRaises(ValueError):validate_language("zz")
 
 
 if __name__=="__main__":
