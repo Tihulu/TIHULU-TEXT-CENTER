@@ -369,7 +369,20 @@ public:
 		analogStop_->setMaximumWidth(155);
 		buttons->addWidget(analogStart_);
 		buttons->addWidget(analogStop_);
+		buttons->addWidget(new QLabel(tr("Volume"),analogCabinet));
+		analogVolume_=new QSlider(Qt::Horizontal,analogCabinet);
+		analogVolume_->setRange(0,100);
+		analogVolume_->setValue(player_->getVolume());
+		analogVolume_->setMaximumWidth(170);
+		analogVolume_->setToolTip(tr("Real libVLC player volume; controls the "
+			"same stream as the main TIHULU media transport."));
+		analogMute_=new QPushButton(tr("Toggle mute"),analogCabinet);
+		analogMute_->setMaximumWidth(125);
+		buttons->addWidget(analogVolume_);
+		buttons->addWidget(analogMute_);
 		buttons->addStretch(1);
+		connect(analogVolume_,&QSlider::valueChanged,player_,&MediaWidget::setVolume);
+		connect(analogMute_,&QPushButton::clicked,player_,&MediaWidget::toggleMuted);
 		cabinetLayout->addLayout(buttons);
 		directSampling_=new QCheckBox(
 			tr("Use hardware-specific direct sampling for MW/LW (opt-in)"),analogCabinet);
@@ -1147,11 +1160,17 @@ private:
 				if(analogClient_) analogClient_->disconnectFromHost();
 				analogClient_=socket;
 				analogHeaderSent_=false;
+				analogHttpRequest_.clear();
 				connect(socket,&QTcpSocket::readyRead,this,[this,socket](){
 					if(socket!=analogClient_) return;
 					const QByteArray bytes=socket->readAll();
 					if(analogHeaderSent_) return;
-					if(!bytes.startsWith("GET /analog.wav ")) {
+					analogHttpRequest_+=bytes;
+					if(analogHttpRequest_.size()>4096) {
+						socket->disconnectFromHost();return;
+					}
+					if(!analogHttpRequest_.contains("\r\n\r\n")) return;
+					if(!analogHttpRequest_.startsWith("GET /analog.wav ")) {
 						socket->disconnectFromHost();return;
 					}
 					QByteArray answer("HTTP/1.1 200 OK\r\n"
@@ -2348,6 +2367,9 @@ private:
 	QComboBox *analogBand_=nullptr;
 	QDoubleSpinBox *analogFrequency_=nullptr;
 	QDial *analogDial_=nullptr;
+	QSlider *analogVolume_=nullptr;
+	QPushButton *analogMute_=nullptr;
+	QByteArray analogHttpRequest_;
 	QLabel *analogDigital_=nullptr;
 	TihuluAnalogScale *analogScale_=nullptr;
 	QTimer analogRetune_{this};
