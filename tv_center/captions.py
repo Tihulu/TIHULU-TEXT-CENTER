@@ -223,7 +223,8 @@ def decode_segment(ts: bytes, *, mode="auto", page=150, source="de",
                    target="tr", targets=None, model="", service_id: int | None = None,
                    previous_text: str = "",
                    teletext_pid: int | None = None,
-                   audio_pid: int | None = None) -> dict:
+                   audio_pid: int | None = None,
+                   audio_source: str | None = None) -> dict:
     if mode not in ("teletext", "page", "asr", "auto"):
         raise ValueError("Unsupported caption source")
     if not 100 <= page <= 899 or source not in SUPPORTED or target not in SUPPORTED:
@@ -231,6 +232,8 @@ def decode_segment(ts: bytes, *, mode="auto", page=150, source="de",
     if audio_pid is not None and (
             type(audio_pid) is not int or not 1 <= audio_pid <= 8190):
         raise ValueError("Invalid selected audio PID")
+    if audio_source is not None and audio_source not in SUPPORTED:
+        raise ValueError("Unsupported selected audio language")
     if targets is None:
         targets = (target,) if target != source else ()
     if (not isinstance(targets, (tuple,list)) or len(targets)>3 or
@@ -243,6 +246,7 @@ def decode_segment(ts: bytes, *, mode="auto", page=150, source="de",
         p = Path(tmp) / "broadcast.ts"
         p.write_bytes(ts)
         original, used, error = "", "", None
+        used_language = source
         speech_diagnostics = {}
         timing_started = time.perf_counter()
         teletext_ms = 0
@@ -269,8 +273,11 @@ def decode_segment(ts: bytes, *, mode="auto", page=150, source="de",
                 asr_kwargs = {"diagnostics": speech_diagnostics}
                 if audio_pid is not None:
                     asr_kwargs["audio_pid"] = audio_pid
-                original = asr_from_clip(p, source, model, service_id,
+                speech_language = audio_source or source
+                original = asr_from_clip(p, speech_language, model, service_id,
                                          **asr_kwargs)
+                if original:
+                    used_language = speech_language
                 if original and previous_text:
                     from kaffeine_next.continuous_captions import remove_repeated_prefix
                     original = remove_repeated_prefix(previous_text, original)
@@ -284,7 +291,7 @@ def decode_segment(ts: bytes, *, mode="auto", page=150, source="de",
         if original:
             translate_start = time.perf_counter()
             for language in targets:
-                phrase, failed = translate(original, source, language)
+                phrase, failed = translate(original, used_language, language)
                 if phrase:
                     translations[language] = phrase
                 if failed:
@@ -300,7 +307,7 @@ def decode_segment(ts: bytes, *, mode="auto", page=150, source="de",
                     "total":round((time.perf_counter()-timing_started)*1000)
                 },
                 "translation_errors": errors, "source": used,
-                "source_language": source, "target_language": target,
+                "source_language": used_language, "target_language": target,
                 "target_languages": list(targets), "page": page,
                 "error": error or (next(iter(errors.values()), None))}
 
