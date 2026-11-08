@@ -288,6 +288,7 @@ def main(argv=None):
         raise SystemExit("Usage: tihulu-tv-center kaffeine-captions --socket $XDG_RUNTIME_DIR/tihulu-dvb-PID.sock")
     endpoint = validate_socket(argv[1])
     from .caption_control import CaptionServiceControl
+    from tv_center.language_codes import language_code
     pid = int(endpoint.stem.rsplit("-", 1)[-1])
     if CaptionServiceControl.request_show(endpoint.parent, pid):
         # Reopening the TIHULU AI menu focuses the existing controller.
@@ -299,7 +300,7 @@ def main(argv=None):
     from PyQt5.QtCore import Qt, QTimer
     from PyQt5.QtWidgets import (QApplication, QWidget, QVBoxLayout, QHBoxLayout,
         QLabel, QComboBox, QPushButton, QSpinBox, QDoubleSpinBox,
-        QCheckBox, QGroupBox, QFormLayout)
+        QCheckBox, QGroupBox, QFormLayout, QLineEdit)
     app = QApplication.instance() or QApplication(["TIHULU Kaffeine Live Captions"])
     # Hiding the only QWidget must NOT quit the Qt event loop: audio capture,
     # auto-sync and video-overlay publishing continue independently of UI.
@@ -337,7 +338,14 @@ def main(argv=None):
     mode.addItem("Whisper live transcription", "asr")
     mode.addItem("Manual Teletext page", "page")
     mode.addItem("Off", "off")
-    source = QComboBox(); source.addItems(LANGS); source.setCurrentText("de")
+    source = QComboBox()
+    source.setEditable(True)
+    source.addItems(LANGS)
+    source.setCurrentText("de")
+    source.setToolTip(
+        "Type an ISO code such as pl, es, ja, ar. Broadcast Teletext "
+        "can be displayed in its original language; ASR requires a "
+        "Whisper backend compatible with the selected spoken language.")
     page = QSpinBox(); page.setRange(100, 899); page.setValue(150)
     for name, widget in (("Source",mode),("Spoken",source),("Teletext",page)):
         row.addWidget(QLabel(name)); row.addWidget(widget, 1)
@@ -356,6 +364,14 @@ def main(argv=None):
         check.setChecked(lang == "tr")
         output_row.addWidget(check)
     settings_layout.addRow(output_row)
+    extra_targets = QLineEdit()
+    extra_targets.setPlaceholderText(
+        "Optional extra target codes: es, pl, ar, ja or zho_Hant")
+    extra_targets.setToolTip(
+        "Up to three different targets including checked presets. "
+        "Actual translation requires a matching installed Argos pack or "
+        "NLLB model. Missing packs never hide the source captions.")
+    settings_layout.addRow("Additional translation languages", extra_targets)
     def update_language_choices(*_):
         for lang, check in language_boxes.items():
             if lang == source.currentText():
@@ -363,7 +379,7 @@ def main(argv=None):
                 check.setEnabled(False)
             else:
                 check.setEnabled(True)
-    source.currentIndexChanged.connect(update_language_choices)
+    source.currentTextChanged.connect(update_language_choices)
     update_language_choices()
     tracks_row = QHBoxLayout()
     tracks_row.addWidget(QLabel("Broadcast subtitle channel"))
@@ -543,11 +559,18 @@ def main(argv=None):
         selected_audio = audio_track.currentData()
         chosen_audio = (selected_audio if isinstance(selected_audio, dict) and
                         mode.currentData() in ("asr", "auto") else None)
-        hinted = (chosen_track.get("source_hint") if chosen_track else
-                  chosen_audio.get("source_hint") if chosen_audio else None)
-        spoken = hinted if hinted in LANGS else source.currentText()
-        target_langs = tuple(lang for lang, check in language_boxes.items()
-                             if check.isChecked() and lang != spoken)
+        hinted = (chosen_track.get("source_hint") or
+                  chosen_track.get("language") if chosen_track else
+                  chosen_audio.get("source_hint") or
+                  chosen_audio.get("language") if chosen_audio else None)
+        spoken = language_code(hinted or source.currentText())
+        raw_targets = [
+            lang for lang, check in language_boxes.items() if check.isChecked()]
+        raw_targets.extend(x.strip() for x in extra_targets.text().replace(
+            ";", ",").split(",") if x.strip())
+        target_langs = tuple(dict.fromkeys(
+            language_code(lang, nllb=True) for lang in raw_targets
+            if language_code(lang, nllb=True) != spoken))
         output = display_mode.currentData()
         return CaptionConfig(
             mode=mode.currentData(), source=spoken,
@@ -556,8 +579,10 @@ def main(argv=None):
             page=chosen_track["page"] if chosen_track else page.value(),
             teletext_pid=chosen_track["pid"] if chosen_track else None,
             audio_pid=chosen_audio["pid"] if chosen_audio else None,
-            audio_language=(chosen_audio.get("source_hint")
-                            if chosen_audio and chosen_audio.get("source_hint") in LANGS
+            audio_language=(language_code(chosen_audio.get("source_hint") or
+                                chosen_audio.get("language"))
+                            if chosen_audio and (chosen_audio.get("source_hint") or
+                                                 chosen_audio.get("language")) not in (None, "und")
                             else None),
             offset_ms=round(caption_offset.value()*1000),
             playback_delay_ms=round(playback_delay.value()*1000),
@@ -578,27 +603,35 @@ def main(argv=None):
         selected = subtitle_track.currentData()
         if isinstance(selected,dict):
             language = selected.get("source_hint")
-            if language in LANGS and mode.currentData() in ("auto","teletext","page"):
-                source.setCurrentText(language)
-            elif language not in LANGS:
-                track_status.setText(
-                    "Broadcast subtitle available, but this language does not "
-                    "have a configured Whisper/Argos source. Original Teletext "
-                    "can still be displayed; install matching translation packs.")
+            if mode.currentData() in ("auto","teletext","page"):
+                chosen = selected.get("source_hint") or selected.get("language")
+                if chosen:
+                    source.setCurrentText(language_code(chosen))
+                if language not in LANGS:
+                    track_status.setText(
+                        "Original broadcaster subtitles remain available. "
+                        "Choose a matching language pack in Model Market if "
+                        "you also want these captions translated.")
         set_pending()
     subtitle_track.currentIndexChanged.connect(subtitle_source_selected)
     def audio_source_selected(*_):
         selected = audio_track.currentData()
         if isinstance(selected, dict):
             language = selected.get("source_hint")
-            if language in LANGS and mode.currentData() in ("asr", "auto"):
-                source.setCurrentText(language)
-            elif language not in LANGS:
-                audio_track_status.setText(
-                    "Selected audio PID has no supported language hint. "
-                    "Set the spoken language manually before Whisper transcription.")
+            if mode.currentData() in ("asr", "auto"):
+                chosen = selected.get("source_hint") or selected.get("language")
+                if chosen and chosen != "und":
+                    source.setCurrentText(language_code(chosen))
+                if language not in LANGS:
+                    audio_track_status.setText(
+                        "This audio language is not yet supported by the "
+                        "configured Whisper engine. Other broadcast captions "
+                        "remain available; choose another soundtrack or "
+                        "install a compatible multilingual speech model.")
         set_pending()
     audio_track.currentIndexChanged.connect(audio_source_selected)
+    extra_targets.textChanged.connect(set_pending)
+    source.currentTextChanged.connect(set_pending)
     for w in (page,caption_offset,playback_delay,font,opacity,text_opacity):
         w.valueChanged.connect(set_pending)
     for w in (show_video,automatic,*language_boxes.values()):
@@ -650,6 +683,7 @@ def main(argv=None):
             check.setChecked(lang == "tr")
         subtitle_track.setCurrentIndex(0)
         audio_track.setCurrentIndex(0)
+        extra_targets.clear()
         page.setValue(150)
         caption_offset.setValue(0.0); playback_delay.setValue(0.0)
         automatic.setChecked(False)
