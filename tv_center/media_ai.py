@@ -266,7 +266,8 @@ def main(args=None):
     parser=argparse.ArgumentParser(description=
         "Offline Kaffeine video/audio subtitles using installed AI models")
     parser.add_argument("--input",required=True)
-    parser.add_argument("--source",default="de")
+    parser.add_argument("--source",default="auto",
+                        help="Automatic per-chunk speech language detection, or ISO code")
     parser.add_argument("--targets",default="",help="CSV such as en,tr")
     parser.add_argument("--music",action="store_true",
                         help="Transcribe singing as well as speech; accuracy varies")
