@@ -120,6 +120,9 @@ class TVWebMixin:
         }
 
     def web_action(self,action,params):
+        if action in ("play","tv_channel","next","previous") and (
+                self.scanner.running or self.web_scan_requested):
+            raise RuntimeError("Do not retune the native frontend during an RF scan")
         if action=="sources":
             return {"items":self.native_web_snapshot()["mobile_sources"]}
         if action=="video":
@@ -193,8 +196,11 @@ class TVWebMixin:
                        "frequency":r["channel"].frequency
                     } for r in getattr(self,"current_rows",[])]}
         if action=="scan_status":
+            import time
             device=receiver_status(self.capture.adapter)
-            from .scanner import passive_signal
+            measured_at=getattr(self,"last_signal_measure_epoch_ms",None)
+            measured_recently=bool(type(measured_at) is int and
+                0<=round(time.time()*1000)-measured_at<60000)
             playing=bool(self.capture.thread and self.capture.thread.is_alive())
             running=bool(self.scanner.running or self.web_scan_requested)
             events=self.web_scan_events[-80:]
@@ -229,9 +235,12 @@ class TVWebMixin:
                     "status":self.statusbar.text(),
                     "signal":signal_text,
                     "signal_metrics":signal_event,
-                    "signal_is_live":False,
-                    "signal_note":("No signal is fabricated: C/N/UCB requires "
-                                   "a driver measurement while a service is tuned.")}
+                    "signal_measured_epoch_ms":measured_at,
+                    "signal_is_live":bool(measured_recently and playing and not running),
+                    "signal_note":("Most recent real dvb-fe-tool measurement, not a "
+                                   "continuous signal feed" if measured_recently and playing
+                                   else "No C/N/UCB measurement for this tuned service. "
+                                   "The scanner cannot share its locked frontend.")}
         if action=="models":
             from .model_market import ModelLibrary
             return {"models":ModelLibrary(self.ai.values["model_dir"] or None).installed(),
