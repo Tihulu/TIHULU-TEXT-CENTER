@@ -28,7 +28,7 @@
   };
   const setEnabled = (enabled) => {
     for(const id of ["leave","start-video","stop-video","fullscreen",
-        "open-page","apply-target","apply-source","host-play","host-pause",
+        "open-page","apply-target","apply-source","enable-host-stream","host-play","host-pause",
         "host-stop","host-prev","host-next","set-host-volume","tune-tv"]){
       if($(id)) $(id).disabled = !enabled;
     }
