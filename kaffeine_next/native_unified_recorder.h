@@ -75,7 +75,8 @@ public:
         elapsed_.setInterval(1000);
         connect(&elapsed_,&QTimer::timeout,this,[this](){
             if(!recording_)return;
-            if(captureKind_==QLatin1String("ffmpeg") && recordingUrl_.isValid() &&
+            if(!finalizing_ && captureKind_==QLatin1String("ffmpeg") &&
+               recordingUrl_.isValid() &&
                player_->property("tihulu_recordable_url").toUrl()!=recordingUrl_) {
                 report(tr("Player changed source; finalizing the previous recording."));
                 stopRecording();
@@ -84,10 +85,13 @@ public:
             const qint64 seconds=qMax(qint64(0),
                 (QDateTime::currentMSecsSinceEpoch()-startedMs_)/1000);
             const qint64 bytes=QFileInfo(recordedPath_).size();
-            record_->setToolTip(tr("REC elapsed %1:%2 · saved %3 MiB. "
+            record_->setToolTip(captureKind_==QLatin1String("dvb")?
+                tr("Native DVB recording elapsed %1:%2 · Kaffeine owns saved file.")
+                  .arg(seconds/60).arg(seconds%60,2,10,QLatin1Char('0')):
+                tr("REC elapsed %1:%2 · saved %3 MiB. "
                 "Live recording has no known completion percentage.")
-                .arg(seconds/60).arg(seconds%60,2,10,QLatin1Char('0'))
-                .arg(QString::number(bytes/1048576.,'f',1)));
+                  .arg(seconds/60).arg(seconds%60,2,10,QLatin1Char('0'))
+                  .arg(QString::number(qMax(qint64(0),bytes)/1048576.,'f',1)));
         });
         connect(record_,&QToolButton::clicked,this,[this](){
             if(recording_)stopRecording(); else startRecording();
@@ -97,7 +101,9 @@ public:
             this,[this](int exitCode,QProcess::ExitStatus){
                 const bool wanted=recording_;
                 recording_=false;
+                finalizing_=false;
                 elapsed_.stop();
+                record_->setEnabled(true);
                 refreshButton();
                 if(captureKind_!=QLatin1String("ffmpeg"))return;
                 if(exitCode!=0 && !intentionalStop_) {
@@ -329,6 +335,7 @@ private:
             <<QLatin1String("-f")<<QLatin1String("matroska")
             <<recordedPath_;
         intentionalStop_=false;
+        finalizing_=false;
         captureKind_=QLatin1String("ffmpeg");
         capture_.start(QLatin1String("ffmpeg"),args);
         if(!capture_.waitForStarted(950)) {
@@ -353,6 +360,9 @@ private:
                 "automatically identified or modified."));
             return;
         }
+        if(finalizing_)return;
+        finalizing_=true;
+        record_->setEnabled(false);
         intentionalStop_=true;
         capture_.write("q\n"); // ffmpeg finalizes Matroska header/trailer.
         QTimer::singleShot(4000,this,[this](){
@@ -466,7 +476,8 @@ private:
     QTimer elapsed_;
     QUrl recordingUrl_;
     qint64 startedMs_=0;
-    bool recording_=false,intentionalStop_=false,subtitlesAfter_=false,singing_=false;
+    bool recording_=false,finalizing_=false,intentionalStop_=false,
+         subtitlesAfter_=false,singing_=false;
     QString captureKind_,recordedPath_,aiPath_,muxPath_,targets_,statusMessage_;
 };
 #endif // TIHULU_UNIFIED_RECORDER_H
