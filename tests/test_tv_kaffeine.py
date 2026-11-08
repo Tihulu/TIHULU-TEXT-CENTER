@@ -102,6 +102,24 @@ scanSource=TIHULU tested: 538 / 586 / 626 MHz
         self.assertNotIn("udevadm trigger",source)
         self.assertNotIn("systemctl stop",source)
 
+    def test_dvb_diagnostics_displays_channel_source_names_read_only(self):
+        import subprocess
+        script=Path(__file__).resolve().parent.parent / "kaffeine_next" / "dvb_diagnostics.sh"
+        subprocess.run(["bash","-n",str(script)],check=True)
+        with tempfile.TemporaryDirectory() as root:
+            config=Path(root) / ".local/share/tihulu-media-center/config.dvb"
+            config.parent.mkdir(parents=True)
+            config.write_text("[device]\\nfrontendName=Silicon Labs Si2168\\n"
+                              "[config]\\nname=Terrestrial (T2)\\n"
+                              "scanSource=AUTO-T2-Normal\\n"
+                              "deviceId=do-not-print-this\\n")
+            result=subprocess.run(["bash",str(script)],env={**os.environ,"HOME":root},
+                                  capture_output=True,text=True,check=True)
+            self.assertIn("Terrestrial (T2)",result.stdout)
+            self.assertIn("Silicon Labs Si2168",result.stdout)
+            self.assertIn("AUTO-T2-Normal",result.stdout)
+            self.assertNotIn("do-not-print-this",result.stdout)
+
     def test_upstream_release_is_immutable(self):
         self.assertEqual(REVISION, "e7ea15b86dafed3b20b151cbcb080578ab8e2d5c")
         # The pinned KDE revision is immutable; patching its SQL allocator
