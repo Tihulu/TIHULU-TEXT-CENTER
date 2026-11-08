@@ -418,8 +418,9 @@ def main(argv=None):
     mode.addItem("Off", "off")
     source = QComboBox()
     source.setEditable(True)
+    source.addItem("Auto detect · Whisper", "auto")
     source.addItems(LANGS)
-    source.setCurrentText("de")
+    source.setCurrentIndex(0)
     source.setToolTip(
         "Type an ISO code such as pl, es, ja, ar. Broadcast Teletext "
         "can be displayed in its original language; 100 source-language "
@@ -447,7 +448,7 @@ def main(argv=None):
     extra_targets.setPlaceholderText(
         "Optional extra target codes: es, pl, ar, ja or zho_Hant")
     extra_targets.setToolTip(
-        "Up to three different targets including checked presets. "
+         "Up to six distinct targets including checked presets. "
         "Actual translation requires a matching installed Argos pack or "
         "NLLB model. Missing packs never hide the source captions.")
     settings_layout.addRow("Additional translation languages", extra_targets)
@@ -806,7 +807,10 @@ def main(argv=None):
                   chosen_track.get("language") if chosen_track else
                   chosen_audio.get("source_hint") or
                   chosen_audio.get("language") if chosen_audio else None)
-        spoken = language_code(hinted or source.currentText())
+        automatic_source = source.currentText() == "Auto detect · Whisper"
+        spoken = ("auto" if automatic_source and mode.currentData()=="asr" else
+                  language_code(hinted or ("de" if automatic_source else
+                                             source.currentText())))
         raw_targets = [
             lang for lang, check in language_boxes.items() if check.isChecked()]
         raw_targets.extend(x.strip() for x in extra_targets.text().replace(
@@ -963,7 +967,7 @@ def main(argv=None):
 
     def reset_settings():
         mode.setCurrentIndex(0)
-        source.setCurrentText("de"); display_mode.setCurrentIndex(1)
+        source.setCurrentIndex(0); display_mode.setCurrentIndex(1)
         for lang, check in language_boxes.items():
             check.setChecked(lang == "tr")
         subtitle_track.setCurrentIndex(0)
