@@ -657,7 +657,9 @@ def main(argv=None):
     automatic.setToolTip(
         "OFF by default. After 3 real Whisper samples, estimates speech-caption "
         "availability and suggests a conservative delay. When enabled and Applied, "
-        "adjusts TV delay gradually. Does not detect exact spoken-word timestamps.")
+        "only raises an insufficient TV buffer. It NEVER reduces an existing "
+        "larger user buffer; lowering it requires an explicit manual change. "
+        "ASR availability is not exact spoken-word alignment.")
     auto_row.addWidget(automatic)
     timing_layout.addRow(auto_row)
     music_transcription = QCheckBox(
@@ -714,11 +716,11 @@ def main(argv=None):
     # Place the actual progress bar below the tabs, visible in every view.
     visibility = QHBoxLayout()
     renderer = QComboBox()
-    renderer.addItem("Native libVLC · video-safe (recommended)", "native")
-    renderer.addItem("Legacy Qt overlay · optional / experimental", "legacy-qt")
+    renderer.addItem("Native libVLC · in-video compositor (preferred)", "native")
+    renderer.addItem("Legacy Qt · bounded video strip (fallback)", "legacy-qt")
     renderer.setToolTip("Native libVLC avoids frozen video frames. "
-                        "Legacy Qt supports background boxes but may be "
-                        "incompatible with native video compositing on Wayland.")
+                        "Legacy Qt stays inside the current video rectangle and supports "
+                        "background opacity, but may still be limited by Wayland compositing.")
     quick_layout.addRow("Renderer", renderer)
     show_video = QCheckBox("On-video subtitles"); show_video.setChecked(True)
     position = QComboBox(); position.addItems(("bottom", "top"))
@@ -1192,7 +1194,7 @@ def main(argv=None):
                 ipc.set_playback_delay(applied)
             automatic_active = applied.automatic_sync and applied.mode not in ("off","page","teletext")
             sync_estimate.setText(
-                ("Automatic timing enabled · collecting live Whisper samples ("
+                ("Automatic timing (increase-only) · collecting live Whisper samples ("
                  + str(len(estimator.values)) + "/3); conservative maximum "
                  + str(estimator.ceiling_ms / 1000) + " s.")
                 if automatic_active else
@@ -1597,9 +1599,16 @@ def main(argv=None):
                     recommendation = estimator.recommend(
                         bytes_per_second=tap.bytes_per_second)
                     if recommendation:
+                        safe_existing = (
+                            applied.automatic_sync and
+                            applied.playback_delay_ms >= recommendation.suggested_delay_ms)
                         sync_estimate.setText(
                             recommendation.summary +
-                            (" · AUTO ACTIVE" if applied.automatic_sync else
+                            (" · AUTO HOLD: current TV buffer "+
+                             f"{applied.playback_delay_ms/1000:.1f}s already exceeds "+
+                             "the required minimum; not reducing it."
+                             if safe_existing else
+                             " · AUTO INCREASE-ONLY" if applied.automatic_sync else
                              " · automatic OFF; manual playback unchanged") +
                             " · This is a chunk-based estimate, not exact word alignment.")
                         active_auto = applied.automatic_sync and applied.mode in ("asr","auto")
