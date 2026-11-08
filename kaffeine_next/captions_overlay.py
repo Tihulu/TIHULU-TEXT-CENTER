@@ -342,7 +342,9 @@ class CaptionTap:
                                           result["original"])
                 self.previous_revision = options.get("revision", 0)
             if (selected=="asr" and not result.get("original") and
-                    not result.get("error") and self.sentence_joiner.pending and
+                    not result.get("error") and
+                    not result.get("recognition_rejected") and
+                    self.sentence_joiner.pending and
                     self.sentence_session==(
                         options.get("program_epoch"),options.get("revision"))):
                 # A complete silent capture can close the previous original
@@ -1753,6 +1755,12 @@ def main(argv=None):
                         status.setText(status.text()+"\n"+data["error"])
                 elif data.get("error"):
                     status.setText("Caption/translator: "+data["error"])
+                elif data.get("recognition_rejected"):
+                    status.setText(
+                        "Whisper suppressed an uncertain TV audio result ("
+                        + str(data["recognition_rejected"]) +
+                        "). No subtitle was fabricated. "
+                        "Use broadcast Teletext when available.")
             elif kind == "warning":
                 status.setText(str(data))
         cue = cues.poll(now, applied.revision) if service_running else None
