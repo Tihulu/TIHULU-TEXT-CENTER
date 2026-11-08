@@ -83,6 +83,18 @@ export function createSatelliteMaps({getTles,getSatLib,getPasses,getLastCapture,
  const passSelect=$("map-pass-select"),passSlider=$("map-pass-time"),passStatus=$("map-pass-summary");
  const passTime=ms=>new Date(ms).toLocaleString(undefined,{dateStyle:"short",timeStyle:"medium"});
  const direction=az=>["N","NE","E","SE","S","SW","W","NW"][Math.round(((az%360)+360)%360/45)%8];
+ const windowSector=()=>{
+  if(!$("map-window-enabled")?.checked)return null;
+  const az=Number($("map-window-az").value),half=Number($("map-window-halfwidth").value);
+  const min=Number($("map-window-minel").value),max=Number($("map-window-maxel").value);
+  return [az,half,min,max].every(Number.isFinite)&&az>=0&&az<360&&
+   half>0&&half<=90&&min>=0&&max<=90&&max>min?{az,half,min,max}:null;
+ };
+ const insideWindow=(p,sector)=>{
+  if(!sector||!p)return false;
+  const delta=Math.abs(((p.az-sector.az+540)%360)-180);
+  return delta<=sector.half&&p.el>=sector.min&&p.el<=sector.max;
+ };
  const previewPoint=()=>passPreview?.steps?.[passIndex]||null;
  function stopPreview(){
   if(passTimer!==null){clearInterval(passTimer);passTimer=null;}
@@ -101,6 +113,14 @@ export function createSatelliteMaps({getTles,getSatLib,getPasses,getLastCapture,
    " · Preview "+passTime(p.at_ms)+" · az "+p.az.toFixed(1)+"° "+direction(p.az)+
    ", el "+p.el.toFixed(1)+"°, "+Math.round(p.range_km)+" km."+
    " TLE geometry only; ground obstructions and RF activity not verified.";
+  const mask=windowSector();
+  if(mask){
+   const hits=passPreview.steps.filter(sample=>insideWindow(sample,mask));
+   passStatus.textContent+=hits.length
+    ?" · Estimated window-sector overlap "+passTime(hits[0].at_ms)+" to "+
+      passTime(hits[hits.length-1].at_ms)+" ("+hits.length+" samples)."
+    :" · No predicted trajectory samples in the assumed window sector.";
+  }
  }
  function seekPreview(index){
   if(!passPreview)return;
@@ -180,6 +200,11 @@ export function createSatelliteMaps({getTles,getSatLib,getPasses,getLastCapture,
  });
  $("map-pass-stop").addEventListener("click",stopPreview);
  $("map-pass-clear").addEventListener("click",clearPreview);
+ for(const id of ["map-window-enabled","map-window-az","map-window-halfwidth",
+                  "map-window-minel","map-window-maxel"]){
+  $(id).addEventListener("change",()=>{if(passPreview)updatePreview();drawSky();});
+  $(id).addEventListener("input",()=>{if(passPreview)updatePreview();drawSky();});
+ }
  window.addEventListener("tihulu-passes-updated",refreshPassOptions);
 
  let lastVisibleMarkerCount=0,initialCatalogFitDone=false;
@@ -359,6 +384,21 @@ export function createSatelliteMaps({getTles,getSatLib,getPasses,getLastCapture,
    const [x,y]=mapSkyPoint(az,0,cx,cy,R+30);ctx.fillText(name,x,y+7);
   }
   ctx.font="16px system-ui";ctx.fillText("ZENITH · 90°",cx,cy-10);
+  const mask=windowSector();
+  if(mask){
+   const polygon=[];
+   for(let az=mask.az-mask.half;az<=mask.az+mask.half;az+=2)
+    polygon.push(mapSkyPoint(az,mask.min,cx,cy,R));
+   polygon.push(mapSkyPoint(mask.az+mask.half,mask.min,cx,cy,R));
+   for(let az=mask.az+mask.half;az>=mask.az-mask.half;az-=2)
+    polygon.push(mapSkyPoint(az,mask.max,cx,cy,R));
+   polygon.push(mapSkyPoint(mask.az-mask.half,mask.max,cx,cy,R));
+   if(polygon.length>3){
+    ctx.beginPath();polygon.forEach(([x,y],i)=>i?ctx.lineTo(x,y):ctx.moveTo(x,y));
+    ctx.closePath();ctx.fillStyle="rgba(80,235,170,0.14)";
+    ctx.fill();ctx.strokeStyle="#68dcac";ctx.lineWidth=1.5;ctx.stroke();
+   }
+  }
   const s=selected();
   // Native rows have real Skyfield coordinates but no browser satellite.js
   // propagator. Never call propagate(undefined) when a satellite rises.
@@ -395,6 +435,16 @@ export function createSatelliteMaps({getTles,getSatLib,getPasses,getLastCapture,
     if(first){ctx.moveTo(x,y);first=false;}else ctx.lineTo(x,y);
    }
    if(!first)ctx.stroke();
+   if(mask){
+    ctx.strokeStyle="#61ffb4";ctx.lineWidth=5;ctx.beginPath();
+    let active=false;
+    for(const p of samples){
+     if(!insideWindow(p,mask)){active=false;continue;}
+     const [x,y]=mapSkyPoint(p.az,p.el,cx,cy,R);
+     if(!active){ctx.moveTo(x,y);active=true;}else ctx.lineTo(x,y);
+    }
+    ctx.stroke();
+   }
    const peak=passPreview.peak||samples.reduce((a,b)=>a.el>b.el?a:b);
    const markers=[["AOS",samples[0]],["PEAK",peak],["LOS",samples[samples.length-1]]];
    ctx.font="bold 12px system-ui";ctx.textAlign="left";ctx.fillStyle="#ffffff";
