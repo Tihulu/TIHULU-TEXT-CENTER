@@ -109,10 +109,10 @@ scanSource=TIHULU tested: 538 / 586 / 626 MHz
         with tempfile.TemporaryDirectory() as root:
             config=Path(root) / ".local/share/tihulu-media-center/config.dvb"
             config.parent.mkdir(parents=True)
-            config.write_text("[device]\\nfrontendName=Silicon Labs Si2168\\n"
-                              "[config]\\nname=Terrestrial (T2)\\n"
-                              "scanSource=AUTO-T2-Normal\\n"
-                              "deviceId=do-not-print-this\\n")
+            config.write_text("[device]\nfrontendName=Silicon Labs Si2168\n"
+                              "[config]\nname=Terrestrial (T2)\n"
+                              "scanSource=AUTO-T2-Normal\n"
+                              "deviceId=do-not-print-this\n")
             result=subprocess.run(["bash",str(script)],env={**os.environ,"HOME":root},
                                   capture_output=True,text=True,check=True)
             self.assertIn("Terrestrial (T2)",result.stdout)
