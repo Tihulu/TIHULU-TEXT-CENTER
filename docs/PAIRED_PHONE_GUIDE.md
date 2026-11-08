@@ -41,9 +41,26 @@ A/V presentation-clock correlation requires additional media pipeline work.
 The host requested delay is never labeled *verified* unless its native
 queue-primed acknowledgement is present.
 
-The phone cannot control native full scan and the entire model market
-without a functioning native-control bridge. Unsupported panels are
-hidden with a clear explanation instead of exposing non-functional buttons.
+**Native DVB scanning and channel management** are now available from
+the **TIHULU TV Center native Qt application** when its own six-digit
+PIN service is enabled. That Qt process drains the authenticated command
+queue and invokes the real AutoScanner with the current selected adapter.
+Remote scan prompts for confirmation, is cancelled from the same monitor
+as local scans, and publishes only actual scan progress and saved services.
+A terrestrial or cable profile hides satellite/DiSEqC controls; satellite
+mode exposes the chosen orbital position and LNB input.
+
+The **Kaffeine subtitle sidecar** also has a six-digit PIN but is not the
+scanner owner. It cannot legitimately start Kaffeine's full scan through the
+same interface: the phone now shows a truthful native DVB bridge unavailable
+message instead of a non-functional scan form. Do not start another tuner
+or claim that Kaffeine's channel import can be controlled without a real
+native command bridge.
+
+The full model market and installation of new large models remain
+desktop-approved. Native MPV does not implement Kaffeine's 0–20 second
+TS delay: phone controls for that exact desktop buffer and subtitle
+offset are disabled when paired with MPV rather than silently ignored.
 
 ## 2 · Shared files, verified DAB+ and slideshow (eight-digit PIN)
 
