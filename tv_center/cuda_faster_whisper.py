@@ -263,6 +263,7 @@ def main():
         raise SystemExit("Usage: --probe | --download PATH | --serve")
     import numpy as np
     from faster_whisper import WhisperModel
+    from textcenter.compute import LANGUAGES as WHISPER_LANGUAGES
     model = None
     active_path = None
     for line in sys.stdin.buffer:
@@ -270,7 +271,7 @@ def main():
             if len(line) > 5_500_000:
                 raise ValueError("CUDA audio message too large")
             request = json.loads(line)
-            if request.get("language") not in ("de", "en", "tr", "fr"):
+            if request.get("language") not in WHISPER_LANGUAGES:
                 raise ValueError("Unsupported Whisper language")
             path = str(FasterWhisperCUDA().model_dir)
             if request.get("model") != path:
