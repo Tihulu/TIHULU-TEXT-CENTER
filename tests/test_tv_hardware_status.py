@@ -61,7 +61,7 @@ class HardwareDiscoveryTests(unittest.TestCase):
              mock.patch("subprocess.run",return_value=fake) as runner:
             report=check_owners(data)
             args=runner.call_args.args[0]
-            self.assertEqual(args,["/usr/bin/fuser","-v","--",
+            self.assertEqual(args,["/usr/bin/fuser","-v",
                                    "/dev/dvb/adapter0/frontend0"])
             self.assertIn("frontend:",report)
 
