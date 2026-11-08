@@ -753,7 +753,7 @@ void OsdWidget::showObject(OsdObject *osdObject_, int duration)
     change(mediac, '#include <QComboBox>\n',
            '#include <QComboBox>\n#include <QCoreApplication>\n'
            '#include <QDateTime>\n#include <QFile>\n#include <QJsonDocument>\n'
-           '#include <QJsonObject>\n#include <QStandardPaths>\n')
+           '#include <QJsonObject>\n#include <QStandardPaths>\n#include <QSharedPointer>\n')
     change(mediac, '''\tosdWidget = new OsdWidget(this);
 ''',
     '''\tosdWidget = new OsdWidget(this);
@@ -773,33 +773,42 @@ void OsdWidget::showObject(OsdObject *osdObject_, int duration)
 \t\tconst QString captionPath = runtime + QLatin1String("/tihulu-caption-")
 \t\t\t+ QString::number(QCoreApplication::applicationPid()) + QLatin1String(".json");
 \t\tQTimer *captionPoll = new QTimer(this);
-\t\tconnect(captionPoll, &QTimer::timeout, this, [this, captionPath]() {
+\t\t// Resist transient missing/partially written caption IPC files.
+\t\tQSharedPointer<qint64> lastValidMs(new qint64(0));
+\t\tconnect(captionPoll, &QTimer::timeout, this, [this, captionPath, lastValidMs]() {
 \t\t\tif (source->getType() != MediaSource::Dvb) {
 \t\t\t\ttihuluCaptionWidget->hideCaption();
 \t\t\t\treturn;
 \t\t\t}
+\t\t\tconst qint64 now = QDateTime::currentMSecsSinceEpoch();
 \t\t\tQFile file(captionPath);
 \t\t\tif (!file.exists() || !file.open(QIODevice::ReadOnly)) {
-\t\t\t\ttihuluCaptionWidget->hideCaption();
+\t\t\t\tif (now - *lastValidMs > 1000) tihuluCaptionWidget->hideCaption();
 \t\t\t\treturn;
 \t\t\t}
 \t\t\tQByteArray bytes = file.read(16385);
 \t\t\tif (bytes.size() > 16384) {
-\t\t\t\ttihuluCaptionWidget->hideCaption();
+\t\t\t\tif (now - *lastValidMs > 1000) tihuluCaptionWidget->hideCaption();
 \t\t\t\treturn;
 \t\t\t}
 \t\t\tQJsonDocument doc = QJsonDocument::fromJson(bytes);
 \t\t\tif (!doc.isObject()) {
-\t\t\t\ttihuluCaptionWidget->hideCaption();
+\t\t\t\tif (now - *lastValidMs > 1000) tihuluCaptionWidget->hideCaption();
 \t\t\t\treturn;
 \t\t\t}
 \t\t\tQJsonObject obj = doc.object();
-\t\t\tif (!obj.value(QLatin1String("enabled")).toBool(false) ||
-\t\t\t    obj.value(QLatin1String("expires_ms")).toDouble(0)
-\t\t\t      < static_cast<double>(QDateTime::currentMSecsSinceEpoch())) {
+\t\t\tif (!obj.value(QLatin1String("enabled")).toBool(false)) {
+\t\t\t\t// An explicit OFF remains immediate.
+\t\t\t\t*lastValidMs = 0;
 \t\t\t\ttihuluCaptionWidget->hideCaption();
 \t\t\t\treturn;
 \t\t\t}
+\t\t\tif (obj.value(QLatin1String("expires_ms")).toDouble(0)
+\t\t\t      + 1000 < static_cast<double>(now)) {
+\t\t\t\ttihuluCaptionWidget->hideCaption();
+\t\t\t\treturn;
+\t\t\t}
+\t\t\t*lastValidMs = now;
 \t\t\ttihuluCaptionWidget->showCaption(
 \t\t\t\tobj.value(QLatin1String("text")).toString(),
 \t\t\t\tobj.value(QLatin1String("position")).toString() == QLatin1String("top"),
