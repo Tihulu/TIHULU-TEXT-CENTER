@@ -1306,9 +1306,15 @@ function renderPredictedPassCalendar(){
  if(!node)return;
  node.replaceChildren();
  const day=$('browser-calendar-date')?.value||localDayKey(new Date());
+ const filter=$('pass-window-filter')?.value||'all';
+ const enabled=Boolean($('map-window-enabled')?.checked);
  const items=passes.filter(p=>p.los>p.aos&&
   (localDayKey(new Date(p.aos))===day||
-   localDayKey(new Date(p.los-1))===day)).sort((a,b)=>a.aos-b.aos);
+   localDayKey(new Date(p.los-1))===day)).filter(p=>
+    !enabled||filter==='all'||(filter==='usable'
+     ?(p.windowVisibility?.seconds||0)>=60
+     :p.windowVisibility!=null&&p.windowVisibility.status!=='outside'
+    )).sort((a,b)=>a.aos-b.aos);
  if(!items.length){
   const p=document.createElement('p');p.className='hint';
   p.textContent=passes.length
@@ -1322,7 +1328,10 @@ function renderPredictedPassCalendar(){
   const meta=document.createElement('small');
   meta.textContent=new Date(pass.aos).toLocaleString(undefined,{hour:"2-digit",minute:"2-digit"})+
    ' – '+new Date(pass.los).toLocaleString(undefined,{hour:"2-digit",minute:"2-digit"})+
-   ' local · maximum '+pass.maximum.toFixed(1)+'° · '+pass.family.toUpperCase();
+   ' local · maximum '+pass.maximum.toFixed(1)+'° · '+pass.family.toUpperCase()+
+   (pass.windowVisibility?
+     ' · window '+(pass.windowVisibility.seconds||0)+' s ('+
+     String(pass.windowVisibility.status||'unrated').replaceAll('_',' ')+')':'');
   const preview=document.createElement('button');preview.type='button';
   preview.textContent='Preview sky / ground track';
   preview.addEventListener('click',()=>{
@@ -1438,6 +1447,7 @@ for(const id of ['map-window-enabled','map-window-az','map-window-halfwidth',
  $(id).addEventListener('change',()=>{
   status('orbit-state','Window settings changed: click Calculate passes to rescore every satellite.');
   if(!$('map-window-enabled').checked)$('pass-window-filter').value='all';
+  renderPasses();
  });
 }
 function readableJobState(job,now=Date.now()){
