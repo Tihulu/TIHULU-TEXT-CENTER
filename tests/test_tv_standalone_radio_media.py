@@ -82,6 +82,8 @@ class StandaloneNativePlayerTests(unittest.TestCase):
                     online=True,source="en",targets=("en","de","tr"))
                 self.assertEqual(code,0)
                 record=json.loads(Path(path).read_text())
+                self.assertEqual(record["alignment_mode"],"timed_lrc")
+                self.assertEqual(record["plain_lines"],["Hello everyone"])
                 cue=record["cues"][0]
                 self.assertEqual((cue["start"],cue["end"]),(1.0,3.0))
                 self.assertNotIn("en",cue["translations"])
@@ -96,6 +98,7 @@ class StandaloneNativePlayerTests(unittest.TestCase):
                     artist="Test Artist",track="Test Song",output=path,
                     online=True,source="auto",targets=("de",)),0)
                 record=json.loads(Path(path).read_text())
+                self.assertEqual(record["alignment_mode"],"timed_lrc")
                 self.assertNotIn("translations",record["cues"][0])
 
     def test_auto_detected_en_translates_de_and_tr_with_correct_source(self):
