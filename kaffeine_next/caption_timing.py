@@ -213,9 +213,20 @@ def confirmed_cue_config(config: CaptionConfig,
 CAPTION_SAFETY_HOLD_SEC = 0.55
 
 
-def cue_window(started, ended, finished, config: CaptionConfig):
-    """A stable phrase window on the observed, pre-buffer source timeline."""
-    source_due = float(started) + (
+def cue_window(started, ended, finished, config: CaptionConfig, result=None):
+    """Schedule from observed speech, never the Whisper-completion wall clock.
+
+    Multi-chunk/sentence ASR outputs describe completed speech near the END
+    of the captured audio, not the beginning of a six-second (or longer)
+    collection window. Starting the clock at the first TS packet made live
+    transcriptions lead speech by several seconds. Genuine word groups still
+    use their source-relative start timestamps. This is a coarse alignment
+    without calibrated DVB PTS, not lip-sync accuracy.
+    """
+    anchor = float(started)
+    if isinstance(result, dict) and result.get("source") == "local_asr" and not result.get("word_progress"):
+        anchor = max(float(started), float(ended) - 0.75)
+    source_due = anchor + (
         config.playback_delay_ms + config.offset_ms) / 1000.0
     source_due += CAPTION_SAFETY_HOLD_SEC
     due = max(float(finished), source_due)
@@ -249,7 +260,7 @@ class CueQueue:
         self._recent = {}
 
     def add(self, result, config, captured_start, captured_end, finished):
-        when = cue_window(captured_start, captured_end, finished, config)
+        when = cue_window(captured_start, captured_end, finished, config, result)
         original = str(result.get("original") or "").strip()
         key = (" ".join(original.casefold().split()),
                str(result.get("source") or ""))
@@ -429,22 +440,35 @@ class AutoSyncController:
         self.has_applied = False
 
     def next_delay(self, recommendation, current_ms, now, enabled):
+        """Automatic mode can ONLY raise an insufficient user TV delay.
+
+        A previously configured 14.5-second buffer must never be reduced to
+        a fresh 9-second ASR recommendation, even if the estimator's bitrate
+        memory cap subsequently drops. Too much existing delay is not a
+        subtitle safety problem; too little can show text prematurely.
+        Only an explicit manual user action may lower playback buffering.
+        """
         if not enabled or recommendation is None:
             return None
-        desired = recommendation.suggested_delay_ms
+        current_ms = int(current_ms)
+        desired = int(recommendation.suggested_delay_ms)
+        # The measured safe capacity may be below the existing buffer. That
+        # does not authorize erasing the user's larger stable configuration.
+        if desired <= current_ms or recommendation.safety_cap_ms <= current_ms:
+            return None
         if not self.has_applied:
             self.has_applied = True
             self.last_change_at = now
-            return desired if desired != current_ms else None
+            return desired
         if self.last_change_at is not None and (
                 now - self.last_change_at < self.cooldown_seconds):
             return None
-        if abs(desired - current_ms) < self.deadband_ms:
+        if desired - current_ms < self.deadband_ms:
             return None
-        delta = max(-self.step_ms, min(self.step_ms, desired - current_ms))
-        next_ms = max(0, min(recommendation.safety_cap_ms,
-                             round((current_ms + delta) / 500) * 500))
-        if next_ms == current_ms:
+        next_ms = min(recommendation.safety_cap_ms,
+                      current_ms + self.step_ms)
+        next_ms = max(current_ms, (next_ms // 500) * 500)
+        if next_ms <= current_ms:
             return None
         self.last_change_at = now
         return next_ms
