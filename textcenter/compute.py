@@ -12,6 +12,30 @@ from pathlib import Path
 import platform
 import shutil
 import subprocess
+import time
+
+# Cache the *GPU readiness probe* briefly across 6-second live TV clips.
+# Spawning another Python/CTranslate2 process for every clip causes jitter.
+# A changed model marker invalidates the cache after explicit installation.
+_managed_cuda_probe_cache = {}
+
+
+def _managed_cuda_probe(worker):
+    marker = worker.model_dir / ".tihulu-verified-faster-whisper-turbo"
+    try:
+        signature = (str(worker.python), str(worker.model_dir),
+                     marker.stat().st_mtime_ns)
+    except OSError:
+        return {"ready":False,"reason":"CUDA model install marker missing"}
+    now = time.monotonic()
+    previous = _managed_cuda_probe_cache.get(signature)
+    if previous and now - previous[0] < 25:
+        return previous[1]
+    state = worker.probe()
+    _managed_cuda_probe_cache.clear()
+    _managed_cuda_probe_cache[signature] = (now,state)
+    return state
+
 
 # Source-language codes from OpenAI Whisper's published multilingual
 # tokenizer vocabulary. Speech support and translator model availability
@@ -150,7 +174,7 @@ def detect_devices(*, executable_lookup=None, device_root=None,
         try:
             from tv_center.cuda_faster_whisper import FasterWhisperCUDA
             managed_cuda = FasterWhisperCUDA()
-            if managed_cuda.installed() and managed_cuda.probe()["ready"]:
+            if managed_cuda.installed() and _managed_cuda_probe(managed_cuda)["ready"]:
                 gpu_ready = True
                 gpu_engine = "faster_whisper_managed"
                 gpu_model = managed_cuda.model_dir
