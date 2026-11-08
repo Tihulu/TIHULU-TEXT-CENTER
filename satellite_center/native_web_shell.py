@@ -445,9 +445,15 @@ class NativeReceiver(QObject):
         if command=="auto_cancel":return st.cancel_auto_missions()
         if command=="schedule":
             # All scheduled passes must match native TLE-derived geometry.
+            # Match the exact elevation cutoff used by the displayed pass
+            # planner. Hardcoding 5 degrees shifted AOS by minutes when the
+            # user planned at 15/20/30 degrees and rejected valid schedules.
+            elevation=float(args.get("elevation",5))
+            if not 0<=elevation<=75:
+                raise ValueError("Native schedule elevation must be 0–75 degrees")
             data=st.plan_passes(
                 city="Cologne",lat=float(args["lat"]),lon=float(args["lon"]),
-                hours=int(args.get("hours",24)),elevation=5)
+                hours=int(args.get("hours",24)),elevation=elevation)
             norad=int(args["norad"])
             at=int(args["aos_millis"])/1000
             possible=[p for p in data["predictions"] if p["norad"]==norad
