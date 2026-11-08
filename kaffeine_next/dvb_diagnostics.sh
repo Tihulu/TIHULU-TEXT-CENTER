@@ -6,6 +6,31 @@ printf 'TIHULU Media Center · DVB frontend diagnostics\n'
 printf 'User: %s | Groups: %s\n' "$(id -un)" "$(id -nG)"
 printf 'Date: %s\n\n' "$(date --iso-8601=seconds)"
 shopt -s nullglob
+# A valid device is not enough: Kaffeine matches channel.source against the
+# configured DVB device's EXACT Source name. Inspect both independent TIHULU
+# and pre-migration Kaffeine storage without modifying or leaking device IDs.
+printf 'Saved television Source names (read-only):\n'
+found_config=0
+for config in "$HOME/.local/share/tihulu-media-center/config.dvb" \
+              "$HOME/.local/share/kaffeine/config.dvb"; do
+  if [[ ! -f "$config" || ! -r "$config" ]]; then continue; fi
+  found_config=1
+  printf '  Database: %s\n' "$config"
+  awk -F= '
+    /^\[device\]$/ { print "    [device]"; next }
+    /^\[config\]$/ { print "    [config]"; next }
+    /^(frontendName|name|scanSource)=/ {
+      key=$1
+      # Do not show sensitive serial/device-ID settings, just display names.
+      sub(/^[^=]*=/,"",$0)
+      print "      " key ": " substr($0,1,160)
+    }
+  ' "$config"
+done
+if (( found_config == 0 )); then
+  printf '  No saved device Source configuration found in either directory.\n'
+fi
+printf '\n'
 frontends=(/dev/dvb/adapter*/frontend*)
 if (( ${#frontends[@]} == 0 )); then
   printf 'No /dev/dvb/adapter*/frontend* devices found. Check USB, kernel driver and firmware.\n'
@@ -20,9 +45,11 @@ for frontend in "${frontends[@]}"; do
     printf '  Permissions: missing read/write access; check video group and udev rules\n'
   fi
   if command -v fuser >/dev/null 2>&1; then
-    owners="$(fuser -- "$frontend" 2>/dev/null || true)"
+    # A player/scanner may hold demux0 or dvr0 while the frontend
+    # file alone looks free. Inspect all nodes of this same DVB adapter.
+    owners="$(fuser -- "${frontend%/*}"/* 2>/dev/null || true)"
     if [[ -n "$owners" ]]; then
-      printf '  OPEN by PID(s): %s\n' "$owners"
+      printf '  DVB adapter OPEN by PID(s): %s\n' "$owners"
       for pid in $owners; do
         case "$pid" in
           *[!0-9]*|'') continue ;;

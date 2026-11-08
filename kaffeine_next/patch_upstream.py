@@ -600,6 +600,43 @@ QAbstractButton *StartTab::addShortcut''')
 		if (writeFd >= 0) {
 			buffers.append(buffer);
 ''')
+    # A channel switch may release the old DVB frontend and immediately
+    # reacquire it for a different multiplex. Allow the USB/backend release
+    # to settle, but NEVER retry a nonconfigured source or steal a tuner from
+    # recordings. The guard is scoped to the selected channel generation.
+    change(hdr, '''\tint retryCounter;
+''', '''\tint retryCounter;
+\tint tihuluDeviceRetryCount = 0;
+\tquint64 tihuluTuneEpoch = 0;
+''')
+    change(live, '''void DvbLiveView::replay()
+{
+\tif (device == NULL) {''', '''void DvbLiveView::replay()
+{
+\tif (channel.constData() == NULL) return;
+\tif (device == NULL) {''')
+    change(live, '''\tplaybackStatusChanged(MediaWidget::Idle);
+\tchannel = channel_;
+\tdevice = newDevice;
+
+\treplay();''', '''\t// Invalidate any pending reacquire from the previous channel.
+\t// Do not persist a temporary retry across channel switches.
+\t++internal->tihuluTuneEpoch;
+\tinternal->tihuluDeviceRetryCount = 0;
+\tplaybackStatusChanged(MediaWidget::Idle);
+\tchannel = channel_;
+\tdevice = newDevice;
+
+\treplay();''')
+
+    # An unrelated Playback, radio, media file or explicit Stop must cancel
+    # any pending asynchronous TV reacquire. Otherwise a delayed callback
+    # could unexpectedly steal the shared player after leaving Television.
+    change(live, '''\tcase MediaWidget::Idle:
+\t\tif (device != NULL) {''', '''\tcase MediaWidget::Idle:
+\t\t++internal->tihuluTuneEpoch;
+\t\tinternal->tihuluDeviceRetryCount = 0;
+\t\tif (device != NULL) {''')
     # DvbManager only forward-declares DvbConfig; the diagnostic iterates
     # QList<DvbConfig> so include the complete shared-pointer definition.
     change(live, '#include "dvbdevice.h"\n',
@@ -617,23 +654,85 @@ QAbstractButton *StartTab::addShortcut''')
 \t\tconst QString requestedSource = channel->source;
 \t\tQStringList usableSources;
 \t\tint connectedDvbFrontends = 0;
+\t\tbool hasConnectedMatchingSource = false;
 \t\tfor (const DvbDeviceConfig &entry : manager->getDeviceConfigs()) {
 \t\t\tif (entry.device == NULL) continue;
 \t\t\t++connectedDvbFrontends;
-\t\t\tfor (const DvbConfig &configured : entry.configs)
-\t\t\t\tif (!configured->name.isEmpty())
-\t\t\t\t\tusableSources.append(configured->name);
+\t\t\tfor (const DvbConfig &configured : entry.configs) {
+\t\t\t\tif (configured->name.isEmpty()) continue;
+\t\t\t\tusableSources.append(configured->name);
+\t\t\t\tif (configured->name == requestedSource)
+\t\t\t\t\thasConnectedMatchingSource = true;
+\t\t\t}
+\t\t}
+\t\tconst bool recording = manager->getRecordingModel()->hasActiveRecordings();
+\t\t// The first immediate reacquire may fail while the USB frontend is
+\t\t// still releasing. Retry only when the physical tuner and matching
+\t\t// named source exist. Never reopen a missing frontend or override a
+\t\t// recording, and never loop without an upper bound.
+\t\tif (hasConnectedMatchingSource && !recording &&
+\t\t    internal->tihuluDeviceRetryCount < 2) {
+\t\t\tconst int attempt = ++internal->tihuluDeviceRetryCount;
+\t\t\tconst quint64 epoch = internal->tihuluTuneEpoch;
+\t\t\tqCWarning(logDvb,
+\t\t\t\t"TIHULU DVB channel retune pending: source='%s', "
+\t\t\t\t"attempt %d/2; waiting for the previous frontend release.",
+\t\t\t\tqPrintable(requestedSource), attempt);
+\t\t\tQTimer::singleShot(attempt * 400, this, [this,epoch]() {
+\t\t\t\tif (internal->tihuluTuneEpoch != epoch ||
+\t\t\t\t    channel.constData() == NULL) return;
+\t\t\t\treplay();
+\t\t\t});
+\t\t\treturn;
 \t\t}
 \t\tqCWarning(logDvb,
 \t\t\t"TIHULU no usable DVB frontend: requested channel source='%s'; "
-\t\t\t"connected receivers=%d; configured channel sources='%s'. "
-\t\t\t"Check Configure Television, USB ownership and access permissions.",
+\t\t\t"connected receivers=%d; configured channel sources='%s'; "
+\t\t\t"source matches connected tuner=%d; attempts=%d. "
+\t\t\t"Inspect Configure Television and run --diagnose-tuner.",
 \t\t\tqPrintable(requestedSource), connectedDvbFrontends,
-\t\t\tqPrintable(usableSources.join(QLatin1String(", "))));
+\t\t\tqPrintable(usableSources.join(QLatin1String(", "))),
+\t\t\tint(hasConnectedMatchingSource), internal->tihuluDeviceRetryCount);
 \t\tchannel = DvbSharedChannel();
 \t\tmediaWidget->stop();
 
-\t\tif (manager->getRecordingModel()->hasActiveRecordings()) {''')
+\t\tif (recording) {''')
+
+    # Keep the stock recording-specific explanation, but do not tell the
+    # user to randomly change permissions when a tuned channel's Source is
+    # absent from the *connected* device configuration. This dialog only
+    # appears after transient reacquire attempts were exhausted.
+    change(live, '''\t\t} else {
+\t\t\tKMessageBox::information(manager->getParentWidget(),
+\t\t\t\ti18nc("@info",
+\t\t\t\t      "Didn't find a device with valid settings or access permissions are wrong.\\n\\n"
+\t\t\t\t      "Please check the Configure Television window."));
+\t\t}
+
+\t\treturn;
+\t}''', '''\t\t} else if (connectedDvbFrontends == 0) {
+\t\t\tKMessageBox::information(manager->getParentWidget(),
+\t\t\t\ti18nc("@info", "No connected DVB television tuner is available. "
+\t\t\t\t"Check the USB device, its driver, and Television → Receiver / tuner diagnostics."));
+\t\t} else if (!hasConnectedMatchingSource) {
+\t\t\tKMessageBox::information(manager->getParentWidget(),
+\t\t\t\ti18nc("@info", "This TV channel uses the source '%1', but no connected "
+\t\t\t\t"DVB tuner has that exact source name. Configured sources: %2.\\n\\n"
+\t\t\t\t"Open Television → Configure Television and match the DVB-T2 "
+\t\t\t\t"source Name used by the saved channel, or rescan the service.",
+\t\t\t\trequestedSource,usableSources.join(QLatin1String(", "))));
+\t\t} else {
+\t\t\tKMessageBox::information(manager->getParentWidget(),
+\t\t\t\ti18nc("@info", "The DVB tuner was detected and its channel source "
+\t\t\t\t"matches, but the tuner could not be acquired after a short retry. "
+\t\t\t\t"Check whether another TV program, a scan, or a driver operation "
+\t\t\t\t"is holding the frontend.\\n\\n"
+\t\t\t\t"Run tihulu-media-center --diagnose-tuner. "
+\t\t\t\t"No tuner reset or channel settings were performed."));
+\t\t}
+
+\t\treturn;
+\t}''')
 
     # Delay *both* audio and video by buffering already-filtered TS bytes
     # before Kaffeine's existing FIFO -> libVLC. The AI tap above stays
