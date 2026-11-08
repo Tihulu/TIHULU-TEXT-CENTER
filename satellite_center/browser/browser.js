@@ -1386,6 +1386,8 @@ function readableJobState(job,now=Date.now()){
  return 'armed / '+humanCountdown(secondsToJob(job,now))+' remaining';
 }
 let browserCalendarSignature="";
+let nativeScheduledJobs=[];
+const nativeMode=()=>typeof window.nativeScheduleStatus==="function";
 const browserCalendarDay=$('browser-calendar-date');
 browserCalendarDay.value=localDayKey(new Date());
 function showCalendarEdit(job,card){
@@ -1465,15 +1467,26 @@ function showCalendarEdit(job,card){
 }
 function paintBrowserCalendar(force=false){
  const day=browserCalendarDay.value;
- const signature=day+'|'+jobs.map(j=>[j.id,j.when,j.state,j.frequency,j.durationSeconds,j.chainId,j.chainIndex].join(':')).join('|');
+ const source=nativeMode()?nativeScheduledJobs:jobs;
+ const signature=day+'|'+source.map(j=>[
+   j.id,j.run_at??j.when,j.state,j.capture_seconds??j.durationSeconds,j.result
+ ]).join(':')).join('|');
  const editingCard=$('browser-calendar-grid').querySelector('.calendar-edit')?.closest('.sat-calendar-job');
  const editedJob=jobs.find(j=>j.id===editingCard?.dataset.jobId);
- if(!force&&editingCard&&editedJob?.state==='armed')return;
+ if(!force&&!nativeMode()&&editingCard&&editedJob?.state==='armed')return;
  if(!force&&signature===browserCalendarSignature)return;
  browserCalendarSignature=signature;
- renderSatelliteCalendar($('browser-calendar-grid'),jobs,day,{
-   onEdit:showCalendarEdit,
+ renderSatelliteCalendar($('browser-calendar-grid'),source,day,{
+   onEdit:nativeMode()?null:showCalendarEdit,
    onCancel:job=>{
+    if(nativeMode()){
+     if(!window.nativeCancelScheduledJob)return;
+     window.nativeCancelScheduledJob(String(job.id)).then(()=>{
+      void syncNativeScheduler();
+     }).catch(err=>{
+      $('schedule-readiness').textContent='Native cancellation failed: '+String(err?.message||err);
+     });return;
+    }
      if(job.state==='armed'){
        for(const related of jobs.filter(j=>j.id===job.id||(job.chainId&&j.chainId===job.chainId))){
          if(related.state!=='armed')continue;
@@ -1485,14 +1498,82 @@ function paintBrowserCalendar(force=false){
    }
  });
 }
-browserCalendarDay.addEventListener('change',()=>paintBrowserCalendar(true));
+browserCalendarDay.addEventListener('change',()=>{
+ paintBrowserCalendar(true);renderPredictedPassCalendar();
+});
 $('browser-calendar-prev').addEventListener('click',()=>{
- browserCalendarDay.value=shiftCalendarDay(browserCalendarDay.value,-1);paintBrowserCalendar(true);
+ browserCalendarDay.value=shiftCalendarDay(browserCalendarDay.value,-1);
+ paintBrowserCalendar(true);renderPredictedPassCalendar();
 });
 $('browser-calendar-next').addEventListener('click',()=>{
- browserCalendarDay.value=shiftCalendarDay(browserCalendarDay.value,1);paintBrowserCalendar(true);
+ browserCalendarDay.value=shiftCalendarDay(browserCalendarDay.value,1);
+ paintBrowserCalendar(true);renderPredictedPassCalendar();
 });
 
+function renderNativeJobCards(){
+ const container=$('jobs');
+ container.replaceChildren();
+ if(!nativeScheduledJobs.length){
+  const empty=document.createElement('p');empty.className='hint';
+  empty.textContent='No native RF recordings scheduled. Predicted passes appear in the orbital calendar below, not as recorded data.';
+  container.append(empty);
+ }else for(const job of [...nativeScheduledJobs].reverse().slice(0,40)){
+  const card=document.createElement('div');card.className='scheduled-job';
+  const title=document.createElement('h4');
+  title.textContent=String(job.satellite||'Unknown satellite')+' · '+String(job.state||'unknown').toUpperCase();
+  const meta=document.createElement('p');
+  const hz=job.profile==='meteor'||job.profile==='meteor_backup'
+   ?job.profile==='meteor'?137.900:137.100:null;
+  meta.textContent='Native OS job · start '+new Date(job.run_at||job.aos).toLocaleString()+
+   ' · '+Number(job.capture_seconds||0)+' s'+
+   (hz?' · '+hz.toFixed(3)+' MHz':'')+
+   ' · '+String(job.mode||'unknown')+
+   ' · '+(job.estimated_bytes?(job.estimated_bytes/1e6).toFixed(1)+' MB estimated':'');
+  card.append(title,meta);
+  if(job.result){
+   const detail=document.createElement('p');detail.className='hint';
+   detail.textContent=typeof job.result==='string'?job.result:
+    job.result.file?'Saved '+job.result.file+' · '+job.result.bytes+' actual bytes':
+    JSON.stringify(job.result).slice(0,350);
+   card.append(detail);
+  }
+  if(job.state==='pending'&&window.nativeCancelScheduledJob){
+   const cancel=document.createElement('button');cancel.className='secondary';cancel.type='button';
+   cancel.textContent='Cancel native job';
+   cancel.addEventListener('click',()=>{
+    cancel.disabled=true;
+    window.nativeCancelScheduledJob(String(job.id))
+     .then(()=>syncNativeScheduler()).catch(err=>{
+      $('schedule-readiness').textContent='Cancellation failed: '+err.message;
+      cancel.disabled=false;
+     });
+   });card.append(cancel);
+  }
+  container.append(card);
+ }
+ paintBrowserCalendar(true);
+}
+let nativeSyncRunning=false;
+async function syncNativeScheduler(){
+ if(!nativeMode()||nativeSyncRunning)return;
+ nativeSyncRunning=true;
+ try{
+  const data=await window.nativeScheduleStatus();
+  nativeScheduledJobs=Array.isArray(data?.jobs)?data.jobs:[];
+  renderNativeJobCards();
+  const heading=$('browser-calendar-title');
+  if(heading)heading.textContent='Native reception calendar · actual scheduled RF jobs';
+  const help=$('browser-schedule-calendar')?.querySelector('p.hint');
+  if(help)help.textContent='Persistent native RTL-SDR recordings, loaded from the local OS scheduler. These are not WebUSB jobs. Predictions are listed separately below; no radio samples are implied by a predicted pass.';
+ }catch(err){
+  $('schedule-readiness').textContent='Native calendar status unavailable: '+String(err?.message||err);
+ }finally{nativeSyncRunning=false;}
+}
+window.addEventListener('tihulu-native-bridge-ready',()=>{void syncNativeScheduler();});
+window.addEventListener('tihulu-native-schedule-changed',()=>{void syncNativeScheduler();});
+setInterval(()=>{
+ if(!document.hidden&&nativeMode())void syncNativeScheduler();
+},15000);
 let lastRenderedJobCardsSignature='';
 function jobCardsSignature(){
  return JSON.stringify(jobs.map(j=>[j.id,j.state,j.when,j.until,j.frequency,
@@ -1500,6 +1581,7 @@ function jobCardsSignature(){
    j.report,lastScheduledFile?.jobId===j.id]));
 }
 function renderJobs(){
+ if(nativeMode()){renderNativeJobCards();return;}
  const container=$('jobs');
  const signature=jobCardsSignature();
  if(signature===lastRenderedJobCardsSignature){
