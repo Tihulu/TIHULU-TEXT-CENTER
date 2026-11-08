@@ -371,7 +371,7 @@ def decode_segment(ts: bytes, *, mode="auto", page=150, source="de",
                         import re
                         words = speech_diagnostics["words"]
                         def clean_tokens(items):
-                            return [re.sub(r"\\W+","",str(x).casefold())
+                            return [re.sub(r"\W+","",str(x).casefold())
                                     for x in items]
                         target_words = clean_tokens(deduplicated.split())
                         timed_words = clean_tokens(w["text"] for w in words)
