@@ -21,6 +21,7 @@ import time
 from .ai_settings import AISettings
 from .language_codes import language_code
 from .lyrics_sync import lookup_synced_lyrics, LiveLyricMatcher
+from .sentence_joiner import LiveSentenceJoiner
 from .media_ai import _chunk_cues, _choose_model, CHUNK_SAMPLES
 
 _SID = re.compile(r"(?:0x)?[A-Fa-f0-9]{1,8}\Z")
@@ -105,6 +106,7 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
         "tihulu-radio-captions-","tihulu-radio-lyrics-",1))
     lyric_marker=None
     plain_matcher=None
+    sentence_joiner=LiveSentenceJoiner(max_words=90,max_chunks=3)
     try:
         while not done:
             # Five-second audio hops with a genuine 1-second overlapping window.
@@ -183,6 +185,13 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
                 used_language=src
             lyric_match=(plain_matcher.observe(original)
                          if plain_matcher is not None and original else None)
+            sentence_state={"text":original,"complete":True,"pending":False,"chunks":0}
+            if plain_matcher is None and not music:
+                sentence_state=sentence_joiner.push(
+                    original, language=used_language, silent=not bool(original))
+                original=sentence_state["text"]
+            else:
+                sentence_joiner.reset()
             # A verified song's plain lyric text is a much safer source than
             # uncertain musical ASR. Unmatched lines remain [music], never
             # a fabricated translation. DLS metadata != audio classifier.
@@ -217,6 +226,10 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
                 "language_pending":language_pending,
                 "language_source":("confirmed_2_chunks" if src=="auto" else "manual"),
                 "original":original[:1800],
+                "sentence_pending":bool(sentence_state.get("pending")),
+                "sentence_complete":bool(sentence_state.get("complete")),
+                "sentence_carry_chunks":int(sentence_state.get("chunks",0)),
+                "sentence_continuation":bool(sentence_state.get("continued",False)),
                 "lyric_match":lyric_match,
                 "unverified_song_asr_hidden":unverified_vocals_hidden,
                 "lyric_alignment":("observed_ASR_approximate" if plain_matcher
