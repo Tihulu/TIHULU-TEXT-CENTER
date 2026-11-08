@@ -265,6 +265,26 @@ QAbstractButton *StartTab::addShortcut''')
 \tsetProperty("tihulu_recordable_url",url);
 }''')
 
+    # Window management: default to a usable, contained viewport; restoring
+    # a stale large window from another display must never strand controls
+    # outside the current COSMIC / XWayland screen.
+    change(main, '''        resize(availableGeometry.width() / 3, availableGeometry.height() / 2);''',
+           '''        resize(qMax(1,availableGeometry.width()*4/5),
+               qMax(1,availableGeometry.height()*4/5));''')
+    change(main, '''    } else {
+        restoreGeometry(geometry);
+    }
+}''', '''    } else {
+        restoreGeometry(geometry);
+        // Keep restored geometry inside the current screen. Preserve
+        // smaller user sizes and the normal window manager maximized state.
+        const QRect screen=QApplication::desktop()->availableGeometry(this);
+        resize(qMin(width(),screen.width()),qMin(height(),screen.height()));
+        move(qBound(screen.left(),x(),screen.right()-width()+1),
+             qBound(screen.top(),y(),screen.bottom()-height()+1));
+    }
+}''')
+
     # Use a unique application ID and KConfig/SQLite user-data path.
     # This is a distinctly installed app, not the system KDE Kaffeine
     # process or a secondary window inside the existing binary.
