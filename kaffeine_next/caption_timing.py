@@ -284,6 +284,7 @@ class KaffeineOSD:
         self.root = runtime
         self.path = runtime / f"tihulu-caption-{pid}.json"
         self.delay = runtime / f"tihulu-playback-delay-{pid}.txt"
+        self.effective = runtime / f"tihulu-playback-effective-{pid}.txt"
         self.last_delay = 0
 
     def _atomic(self, path, content):
@@ -312,6 +313,28 @@ class KaffeineOSD:
         config.validate()
         self._atomic(self.delay, str(config.playback_delay_ms) + "\n")
         self.last_delay = config.playback_delay_ms
+
+    def read_effective_delay(self):
+        """Native Kaffeine reports its queue setting, not end-to-end VLC delay.
+
+        Return None if the player has not reported recently; never claim the
+        user-requested number is the *actual* delayed broadcast.
+        """
+        try:
+            info = self.effective.stat()
+            if not info.st_uid == os.getuid() or time.time()-info.st_mtime > 3.5:
+                return None
+            if info.st_size > 120 or info.st_size < 3:
+                return None
+            requested, actual, bps = map(int, self.effective.read_text().split())
+            if (not 0 <= requested <= 20000 or not 0 <= actual <= requested or
+                    not 0 <= bps <= 500_000_000):
+                return None
+            return {"requested_ms": requested, "effective_ms": actual,
+                    "ts_bytes_per_second": bps,
+                    "capped": actual < requested}
+        except (OSError, ValueError, UnicodeError):
+            return None
 
     def close(self):
         for path in (self.path, self.delay):
