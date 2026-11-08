@@ -302,6 +302,7 @@ def main(argv=None):
                                  AutoSyncEstimator, AutoSyncController,
                                  effective_cue_config)
     from .word_cues import enqueue_word_cues
+    from .track_preferences import recommended_track, _signaled_language
     from PyQt5.QtCore import Qt, QTimer
     from PyQt5.QtGui import QColor
     from PyQt5.QtWidgets import (QApplication, QWidget, QVBoxLayout, QHBoxLayout,
@@ -967,6 +968,20 @@ def main(argv=None):
                     subtitle_track.addItem(item["label"], item)
                     if (item["pid"],item["page"],item["language"]) == previous_identity:
                         current = subtitle_track.count()-1
+                new_subtitle_track = None
+                if current == 0 and mode.currentData() in ("auto","teletext"):
+                    new_subtitle_track = recommended_track(
+                        [subtitle_track.itemData(i)
+                         for i in range(1,subtitle_track.count())],
+                        source.currentText(), kind="teletext")
+                    if new_subtitle_track is not None:
+                        for i in range(1,subtitle_track.count()):
+                            item = subtitle_track.itemData(i)
+                            if (isinstance(item,dict) and
+                                    item.get("pid")==new_subtitle_track.get("pid") and
+                                    item.get("page")==new_subtitle_track.get("page")):
+                                current=i
+                                break
                 subtitle_track.setCurrentIndex(current)
                 subtitle_track.blockSignals(False)
                 old_audio = audio_track.currentData()
@@ -984,13 +999,27 @@ def main(argv=None):
                     audio_track.addItem(item["label"], item)
                     if item.get("pid") == previous_audio_pid:
                         selected_audio_index = audio_track.count()-1
+                new_audio_track = None
+                if selected_audio_index == 0 and mode.currentData() in ("auto","asr"):
+                    new_audio_track = recommended_track(
+                        [audio_track.itemData(i)
+                         for i in range(1,audio_track.count())],
+                        source.currentText(), kind="audio")
+                    if new_audio_track is not None:
+                        for i in range(1,audio_track.count()):
+                            item = audio_track.itemData(i)
+                            if isinstance(item,dict) and item.get("pid") == new_audio_track.get("pid"):
+                                selected_audio_index=i
+                                break
                 audio_track.setCurrentIndex(selected_audio_index)
                 audio_track.blockSignals(False)
                 audio_count = audio_track.count()-1
                 audio_track_status.setText(
                     f"{audio_count} broadcast-signalled audio channel(s). "
-                    "Choose a PID for Whisper, then Apply. "
-                    "The speaker source language may also need setting.")
+                    ("Automatically matched signalled audio language/PID."
+                     if new_audio_track else
+                     "Choose a PID for Whisper if automatic selection is ambiguous.")
+                    )
                 if previous_audio_pid is not None and selected_audio_index == 0:
                     with lock:
                         applied = __import__("dataclasses").replace(
@@ -1004,6 +1033,24 @@ def main(argv=None):
                      if count else
                      "No Teletext subtitle descriptor detected on this service. "
                      "You can still use Whisper or manual page mode."))
+                if ((new_subtitle_track is not None or new_audio_track is not None)
+                        and last_service_id == mobile.service_id):
+                    # One uniquely signalled DVB track can be auto-applied.
+                    # This updates both the UI source-language label and
+                    # actual decoder options; never silently show EN as DE.
+                    chosen = (new_subtitle_track
+                              if mode.currentData() in ("auto","teletext")
+                              and new_subtitle_track is not None
+                              else new_audio_track)
+                    lang = _signaled_language(chosen)
+                    if lang:
+                        source.setCurrentText(lang)
+                    apply_settings()
+                    track_status.setText(
+                        "Automatically selected broadcaster subtitle language " +
+                        (lang.upper() if lang else "") +
+                        "; original source and requested output languages "
+                        "stay synchronized.")
                 if previous_identity is not None and current == 0:
                     # On a channel change, never reuse stale PID/page settings.
                     # Revert the applied subtitle selection immediately to
