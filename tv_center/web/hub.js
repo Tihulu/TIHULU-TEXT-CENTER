@@ -23,6 +23,7 @@ async function api(path,payload=null){
 function setPaired(value){
   paired=value;$("login").hidden=value;$("hub-main").hidden=!value;
   $("connection").textContent=value?"PAIRED":"NOT PAIRED";
+  $("logout").hidden=!value;
 }
 function setVideoSource(url){
   const player=$("player");
