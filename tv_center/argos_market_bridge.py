@@ -11,7 +11,7 @@ from pathlib import Path
 import subprocess
 import sys
 
-from .language_codes import language_code
+from .language_codes import language_code, translation_language
 
 ACTIONS=("catalog","installed","install","remove")
 
@@ -53,7 +53,7 @@ def worker(action,source,target):
                  "name":str(p),"version":str(getattr(p,"package_version",""))}
                 for p in package.get_available_packages()
                 if p.from_code != p.to_code
-                and all(language_code(code) for code in (p.from_code,p.to_code))
+                and all(translation_language(code) for code in (p.from_code,p.to_code))
                 and getattr(p,"type","translate")=="translate"]
     elif action=="installed":
         result=[{"source":p.from_code,"target":p.to_code,
