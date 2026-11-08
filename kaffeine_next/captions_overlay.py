@@ -359,7 +359,7 @@ def main(argv=None):
         return 0
     from .caption_timing import (CaptionConfig, CueQueue, KaffeineOSD,
                                  AutoSyncEstimator, AutoSyncController,
-                                 effective_cue_config)
+                                 effective_cue_config, confirmed_cue_config)
     from .word_cues import enqueue_word_cues
     from .track_preferences import recommended_track, _signaled_language
     from PyQt5.QtCore import Qt, QTimer
@@ -737,6 +737,8 @@ def main(argv=None):
     auto_controller = AutoSyncController()
     last_service_id = None
     last_effective_check = 0.0
+    last_applied_effective_ms = None
+    last_sync_audit_at = 0.0
     def options():
         with lock:
             return applied.options()
@@ -977,6 +979,7 @@ def main(argv=None):
     def pump():
         nonlocal current_cue, current_text, current_until, last_published
         nonlocal applied, last_service_id, last_effective_check
+        nonlocal last_applied_effective_ms, last_sync_audit_at
         # Kaffeine is the DVB owner. Terminate sidecar when it disappears,
         # including when the settings window has been hidden.
         try:
@@ -1000,11 +1003,40 @@ def main(argv=None):
                 actual = effective["effective_ms"] / 1000
                 requested = effective["requested_ms"] / 1000
                 rate = effective["ts_bytes_per_second"] / 1024 / 1024
+                confirmed = effective["requested_ms"] == applied.playback_delay_ms
+                if confirmed:
+                    current_actual = effective["effective_ms"]
+                    if (last_applied_effective_ms is not None and
+                            abs(current_actual-last_applied_effective_ms) >= 500):
+                        # The 64MiB queue may cap/shrink/change delay even
+                        # without the controls changing. Old timed cues
+                        # are no longer tied to the true playback timeline.
+                        cues.clear()
+                        current_cue = None
+                        current_text = ""
+                        current_until = 0.0
+                        ipc.publish("",applied)
+                        status.setText(
+                            "TV buffer changed on the native player: "
+                            "old subtitle timestamps cleared; re-synchronizing.")
+                    last_applied_effective_ms = current_actual
+                else:
+                    last_applied_effective_ms = None
+                if now-last_sync_audit_at >= 25 and confirmed:
+                    last_sync_audit_at = now
+                    sync_estimate.setToolTip(
+                        f"Periodic Kaffeine buffer audit: {actual:.1f}s actual, "
+                        f"{requested:.1f}s requested. ASR/translation "
+                        "samples are continuously measured; this is not "
+                        "sample-accurate lip synchronization.")
                 effective_status.setText(
                     f"Native TV delay: {actual:.1f} s applied / "
                     f"{requested:.1f} s requested · TS {rate:.2f} MiB/s" +
-                    (" · Limited by memory, timeshift or recovery cooldown."
-                     if effective["capped"] else " · Within native safety budget."))
+                    (" · Waiting for requested delay acknowledgement."
+                     if not confirmed else
+                     " · Limited by memory, timeshift or recovery cooldown."
+                     if effective["capped"] else
+                     " · Confirmed; periodically rechecked."))
         # Never reuse an ASR processing estimate across distinct TV services.
         if mobile.service_id != last_service_id:
             if last_service_id is not None:
@@ -1164,6 +1196,15 @@ def main(argv=None):
                             else:
                                 with lock:
                                     applied = revised
+                                # The control request is not the native
+                                # buffer ACK. Discard old queued word cues
+                                # and pause scheduling until player confirms.
+                                cues.clear()
+                                current_cue = None
+                                current_text = ""
+                                current_until = 0.0
+                                last_applied_effective_ms = None
+                                ipc.publish("",applied)
                                 # The text field mirrors the *active* delay,
                                 # not an uncommitted manual change.
                                 playback_delay.blockSignals(True)
@@ -1179,8 +1220,15 @@ def main(argv=None):
                     # than the UI requested. Schedule text against the
                     # confirmed playback delay when its status matches the
                     # current request; never reuse a stale channel setting.
-                    cue_config = effective_cue_config(
-                        applied, ipc.read_effective_delay())
+                    native_state = ipc.read_effective_delay()
+                    cue_config = confirmed_cue_config(applied, native_state)
+                    if cue_config is None:
+                        status.setText(
+                            "Waiting for actual TV buffer confirmation "
+                            "before publishing another subtitle. "
+                            "This prevents early captions while auto-sync "
+                            "changes are being applied.")
+                        continue
                     cue = enqueue_word_cues(
                         cues, data, cue_config,
                         data["captured_start"],data["captured_end"],
@@ -1190,9 +1238,8 @@ def main(argv=None):
                                        data["captured_start"],data["captured_end"],
                                        data["decoded_at"])
                     delay_verified = (
-                        cue_config.playback_delay_ms != applied.playback_delay_ms or
-                        (ipc.read_effective_delay() or {}).get("requested_ms")
-                        == applied.playback_delay_ms)
+                        native_state is not None and
+                        native_state.get("requested_ms") == applied.playback_delay_ms)
                     actual_backend = data.get("asr_backend")
                     backend_info = (
                         " | Whisper: "+actual_backend.upper() +
@@ -1219,10 +1266,20 @@ def main(argv=None):
                     status.setText(status.text()+
                         " | TS continuity gaps: "+str(ts_health["continuity_gaps"])+
                         " (RF or nonblocking sidecar loss; not distinguished)")
-                    if data.get("word_timing_source"):
+                    segment_health = data.get("ts_integrity") or {}
+                    if segment_health:
+                        status.setText(status.text() +
+                            " | TS duplicates filtered: " +
+                            str(segment_health.get("duplicates",0)) +
+                            " · audio PID gaps: " +
+                            str(segment_health.get("critical_gaps",0)))
+                    if data.get("timing_note"):
+                        status.setText(status.text() + " | " +
+                                       str(data["timing_note"]))
+                    elif data.get("word_timing_source"):
                         status.setText(status.text() +
                             " | Speech-follow: real GPU word timestamps; "
-                            "translated word pacing is approximate")
+                            "non-overlapping translated phrases are estimates")
                     if data.get("speaker_error"):
                         status.setText(status.text() +
                             " | Diarization unavailable: " +
