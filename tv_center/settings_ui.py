@@ -329,7 +329,7 @@ def open_ai_settings(parent, ai, after_save=None):
             if not ok or not token.strip():
                 return
             self.begin("Installing separate offline speaker runtime…",
-                       lambda: SpeakerMarket().install(token))
+                       lambda owner_token=token: SpeakerMarket().install(owner_token))
             token = ""
 
         def remove_speaker_model(self):
