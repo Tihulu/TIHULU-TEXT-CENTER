@@ -1103,7 +1103,7 @@ private:
 		if(analogServer_.isListening()) analogRetune_.start();
 	}
 	static QByteArray analogWavHeader() {
-		QByteArray wav(44,'\\0');
+		QByteArray wav(44,'\0');
 		auto put16=[&wav](int i,quint16 value){
 			wav[i]=char(value&255);wav[i+1]=char((value>>8)&255);
 		};
@@ -1134,10 +1134,10 @@ private:
 					if(!bytes.startsWith("GET /analog.wav ")) {
 						socket->disconnectFromHost();return;
 					}
-					QByteArray answer("HTTP/1.1 200 OK\\r\\n"
-						"Content-Type: audio/wav\\r\\n"
-						"Cache-Control: no-store\\r\\n"
-						"Connection: keep-alive\\r\\n\\r\\n");
+					QByteArray answer("HTTP/1.1 200 OK\r\n"
+						"Content-Type: audio/wav\r\n"
+						"Cache-Control: no-store\r\n"
+						"Connection: keep-alive\r\n\r\n");
 					answer+=analogWavHeader();
 					socket->write(answer);
 					analogHeaderSent_=true;
