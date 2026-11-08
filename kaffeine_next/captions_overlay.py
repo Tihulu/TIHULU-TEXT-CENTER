@@ -241,6 +241,8 @@ class CaptionTap:
                            if selected in ("auto", "asr") else None),
                 audio_source=(options.get("audio_source")
                               if selected in ("auto", "asr") else None),
+                speaker_enabled=bool(options.get("speaker_enabled",False))
+                                and selected in ("auto","asr"),
                 previous_text=previous)
             if options.get("program_epoch") != self.program_epoch:
                 return  # old channel's caption must never appear on new TV
@@ -440,6 +442,17 @@ def main(argv=None):
         "adjusts TV delay gradually. Does not detect exact spoken-word timestamps.")
     auto_row.addWidget(automatic)
     timing_layout.addRow(auto_row)
+    speakers_row = QHBoxLayout()
+    speaker_enabled = QCheckBox(
+        "Detect separate voices (opt-in; offline pyannote Community-1)")
+    speaker_enabled.setChecked(False)
+    speaker_enabled.setToolTip(
+        "Requires optional gated model installed in Model Market; no cloud "
+        "audio is sent. Labels Speaker 1/2 within each clip only; no stable "
+        "person identity or automatic gender/age classification. "
+        "This can add processing delay to subtitles.")
+    speakers_row.addWidget(speaker_enabled)
+    timing_layout.addRow(speakers_row)
     sync_estimate = QLabel("Automatic timing: collecting real ASR samples (0/3). "
                            "Live TV and manually entered delay are unchanged.")
     sync_estimate.setWordWrap(True)
@@ -587,6 +600,7 @@ def main(argv=None):
                             if chosen_audio and (chosen_audio.get("source_hint") or
                                                  chosen_audio.get("language")) not in (None, "und")
                             else None),
+            speaker_enabled=speaker_enabled.isChecked(),
             offset_ms=round(caption_offset.value()*1000),
             playback_delay_ms=round(playback_delay.value()*1000),
             automatic_sync=automatic.isChecked(),
@@ -638,7 +652,7 @@ def main(argv=None):
     source.currentTextChanged.connect(set_pending)
     for w in (page,caption_offset,playback_delay,font,opacity,text_opacity):
         w.valueChanged.connect(set_pending)
-    for w in (show_video,automatic,*language_boxes.values()):
+    for w in (show_video,automatic,speaker_enabled,*language_boxes.values()):
         w.toggled.connect(set_pending)
 
     def apply_settings():
@@ -647,7 +661,8 @@ def main(argv=None):
             selected = from_controls()
             previous = applied
             if selected.mode != previous.mode or selected.source != previous.source or (
-                    selected.target_languages != previous.target_languages):
+                    selected.target_languages != previous.target_languages) or (
+                    selected.speaker_enabled != previous.speaker_enabled):
                 estimator.clear()
             # Switching automatic control ON starts the calibration afresh.
             if selected.automatic_sync != previous.automatic_sync:
@@ -929,6 +944,13 @@ def main(argv=None):
                         status.setText(status.text() +
                             " | Speech-follow: real GPU word timestamps; "
                             "translated word pacing is approximate")
+                    if data.get("speaker_error"):
+                        status.setText(status.text() +
+                            " | Diarization unavailable: " +
+                            str(data["speaker_error"]))
+                    elif data.get("speaker_turns"):
+                        status.setText(status.text() +
+                            " | Offline speakers detected (IDs local to clip)")
                     if data.get("audio_notice"):
                         status.setText(status.text() + "\n" + data["audio_notice"])
                     if data.get("error"):
