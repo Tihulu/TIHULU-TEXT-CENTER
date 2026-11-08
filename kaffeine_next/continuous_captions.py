@@ -82,6 +82,24 @@ class BufferedCaptionQueue:
                     "overflows":self.overflow_count, "queue_cap_mib":round(self.limit/1048576)}
 
 
+def estimate_overlap_seconds(previous: bytes, preceding_duration: float,
+                             overlap_seconds=0.75, cap_bytes=1024*1024) -> float:
+    """Actual TS pre-roll seconds, using the very same packet cap as capture.
+
+    The old code always subtracted one second even when the 1 MiB cap
+    included much less at high DVB rates. This moved source word cues
+    too early relative to delayed video.
+    """
+    if not previous or preceding_duration <= 0:
+        return 0.0
+    packets = int(min(len(previous)/max(0.2,preceding_duration)*overlap_seconds,
+                      cap_bytes) // 188)
+    if packets <= 0:
+        return 0.0
+    return min(float(preceding_duration),
+               packets*188*float(preceding_duration)/len(previous))
+
+
 def prepended_overlap(current: bytes, previous: bytes, preceding_duration: float,
                        overlap_seconds=0.75, cap_bytes=1024*1024) -> bytes:
     """Carry a short packet-aligned previous tail across speech boundaries.
