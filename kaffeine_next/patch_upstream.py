@@ -254,7 +254,9 @@ QAbstractButton *StartTab::addShortcut''')
 {
 \t// Invalidates a previously played Internet/local URL when a DVB,
 \t// disc or other non-URL media source takes ownership of libVLC.
-\tsetProperty("tihulu_recordable_url",QVariant());
+\tsetProperty("tihulu_recordable_url",
+\t\tsource_ && source_->getType()==MediaSource::Url ?
+\t\tQVariant(source_->getUrl()) : QVariant());
 \tif (source != source_) {''')
     change(media, '''\tplay(new MediaSourceUrl(url, subtitleUrl));
 }''',
