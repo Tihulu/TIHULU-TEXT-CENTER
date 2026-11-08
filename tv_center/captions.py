@@ -420,6 +420,20 @@ def decode_segment(ts: bytes, *, mode="auto", page=150, source="de",
                 speech_language = audio_source or source
                 original = asr_from_clip(p, speech_language, model, service_id,
                                          **asr_kwargs)
+                # Filter only unmistakable repeated Whisper loops (often
+                # music/jingle hallucinations). Keep real twice-spoken
+                # phrases and opt-in singing/lyrics exactly as transcribed.
+                from kaffeine_next.continuous_captions import (
+                    collapse_asr_repetition_loops)
+                cleaned = collapse_asr_repetition_loops(
+                    original, enabled=not music_transcription)
+                if cleaned != original:
+                    original = cleaned
+                    speech_diagnostics["asr_repetitions_removed"] = True
+                    # Removed words break original ASR timestamp indexing.
+                    # Prefer an accurate whole-phrase cue to forged timing.
+                    speech_diagnostics["words"] = []
+                    speech_diagnostics["word_timing_source"] = None
                 raw_asr_original = original[:2500]  # private overlap bookkeeping
                 if original:
                     used_language = (
@@ -495,6 +509,7 @@ def decode_segment(ts: bytes, *, mode="auto", page=150, source="de",
                 "speaker_error":speech_diagnostics.get("speaker_error"),
                 "speaker_note":speech_diagnostics.get("speaker_note"),
                 "recognition_rejected":speech_diagnostics.get("recognition_rejected"),
+                "asr_repetitions_removed":speech_diagnostics.get("asr_repetitions_removed",False),
                 "speech_priority":speech_diagnostics.get("speech_priority", False),
                 "speech_priority_note":speech_diagnostics.get("speech_priority_note"),
                 "processing_ms": {
