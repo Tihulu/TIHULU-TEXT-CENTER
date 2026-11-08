@@ -197,7 +197,8 @@ def confirmed_cue_config(config: CaptionConfig,
         return config
     if (not isinstance(native_status,dict) or
             native_status.get("requested_ms") != config.playback_delay_ms or
-            type(native_status.get("effective_ms")) is not int):
+            type(native_status.get("effective_ms")) is not int or
+            native_status.get("primed") is False):
         return None
     return effective_cue_config(config,native_status)
 
@@ -481,12 +482,27 @@ class KaffeineOSD:
                 return None
             if info.st_size > 120 or info.st_size < 3:
                 return None
-            requested, actual, bps = map(int, self.effective.read_text().split())
+            values = list(map(int, self.effective.read_text().split()))
+            if len(values) == 5:
+                requested, actual, bps, primed_flag, queue_age = values
+                if primed_flag not in (0,1) or not 0 <= queue_age <= 60000:
+                    return None
+                primed = bool(primed_flag)
+            elif len(values) == 3:
+                # Old native builds report ONLY the target queue setting,
+                # even while a new multi-second playback buffer fills.
+                # Do not treat their nonzero number as applied/ready.
+                requested, actual, bps = values
+                primed = (actual == 0)
+                queue_age = 0
+            else:
+                return None
             if (not 0 <= requested <= 20000 or not 0 <= actual <= requested or
                     not 0 <= bps <= 500_000_000):
                 return None
             return {"requested_ms": requested, "effective_ms": actual,
                     "ts_bytes_per_second": bps,
+                    "primed":primed, "queue_age_ms":queue_age,
                     "capped": actual < requested}
         except (OSError, ValueError, UnicodeError):
             return None
