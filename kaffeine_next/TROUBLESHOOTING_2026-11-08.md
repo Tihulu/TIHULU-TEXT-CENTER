@@ -36,3 +36,33 @@ bash kaffeine_next/install.sh
 Review the installer first; it uses APT for system dependencies and builds a separate pinned Kaffeine v2.0.19 fork. This code has not yet been exercised on the user's computer.
 
 Unresolved items in this PR: live subtitle flicker/offset, NLLB model testing, model-market selection badges, dedicated analogue tuning and replacing the installed icon with the supplied portrait logo.
+
+
+## Channel-switch error: "Didn't find a device with valid settings"
+
+This Kaffeine dialog occurs when selecting a channel fails to acquire a DVB
+receiver; it **does not mean ADS-B readsb or an Internet connection failed**.
+The Nooelec RTL-SDR used for 1090 MHz ADS-B is not the same as the Silicon
+Labs Si2168 DVB-T2 television frontend. Avoid forcibly stopping unrelated
+receiver services or resetting saved TV channels.
+
+The patched player retries a momentary frontend release **at most twice**
+(400 ms and 800 ms later) only if a connected DVB device advertises the
+channel's exact configured `Source` name and no active recording blocks it.
+It will never automatically remap a channel's source, take a scanner's
+frontend, restart arbitrary services or force-disconnect other software.
+When the retry still fails it reports whether no tuner was found, the
+channel's Source is not configured, or the existing tuner is busy/unavailable.
+
+For the installed build, use the read-only check:
+`~/.local/bin/tihulu-media-center --diagnose-tuner`.
+Also inspect the Kaffeine log from the launched process for
+`TIHULU no usable DVB frontend`, `TIHULU DVB channel retune pending`,
+and `Device or resource busy`. If the reported source differs, go to
+**Television → Configure Television → Device 1 → DVB-T2** and match the
+saved channel's **Source name** exactly; do not change DVB-C or erase the
+channel database. If a scanner is still running, stop/finish it before
+changing TV channels.
+
+Native DVB hardware timing and the failure of the user's particular tuner
+remain unverified until the build is installed and tested on Pop!_OS.
