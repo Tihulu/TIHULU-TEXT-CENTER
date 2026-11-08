@@ -11,7 +11,8 @@ import sys
 UPSTREAM = "https://github.com/KDE/kaffeine.git"
 TAG = "v2.0.19"
 REVISION = "e7ea15b86dafed3b20b151cbcb080578ab8e2d5c"
-PATHS = ("src/mainwindow.cpp", "src/dvb/dvbliveview.cpp",
+PATHS = ("src/mainwindow.cpp", "src/mainwindow.h", "src/CMakeLists.txt",
+         "src/dvb/dvbliveview.cpp",
          "src/dvb/dvbliveview_p.h", "src/dvb/dvbmanager.cpp", "src/dvb/dvbtab.cpp",
          "src/dvb/dvbtab.h", "src/backend-vlc/vlcmediawidget.cpp",
          "src/mediawidget.cpp", "src/mediawidget.h", "src/osdwidget.cpp",
@@ -27,7 +28,36 @@ def transform(files):
             raise ValueError("Unexpected Kaffeine source; patch refused: "+path+" "+repr(before[:48]))
         files[path] = source.replace(before, after)
 
+    # Integrate DAB+ into the same Kaffeine window and its existing
+    # libVLC player. The optional upstream welle-cli backend runs only
+    # on deliberate Radio -> Start; no second Qt/WebUSB player window.
     main = "src/mainwindow.cpp"
+    change(main, '#include "playlist/playlisttab.h"\n',
+           '#include "playlist/playlisttab.h"\n#include "tihulu_radio_tab.h"\n')
+    change(main, '''#endif /* HAVE_DVB == 1 */
+	tabBar->setShape(QTabBar::RoundedWest);''',
+           '''#endif /* HAVE_DVB == 1 */
+	tabBar->addTab(QIcon::fromTheme(QLatin1String("audio-radio")),
+		i18n("Radio (DAB+)"));
+	tabBar->setShape(QTabBar::RoundedWest);''')
+    change(main, '''#endif /* HAVE_DVB == 1 */
+
+	currentTabIndex = StartTabId;''',
+           '''#endif /* HAVE_DVB == 1 */
+
+	// Native radio page shares Kaffeine's existing libVLC MediaWidget.
+	// Its optional welle-cli backend is explicitly started and stopped.
+	TabBase *radioTab = new TihuluRadioTab(mediaWidget, this);
+	tabs.append(radioTab);
+	stackedLayout->addWidget(radioTab);
+
+	currentTabIndex = StartTabId;''')
+    hdrmain = "src/mainwindow.h"
+    change(hdrmain, '\t\tDvbTabId = 3\n',
+           '\t\tDvbTabId = 3,\n\t\tRadioTabId = 4\n')
+    cmake = "src/CMakeLists.txt"
+    change(cmake, 'target_link_libraries(kaffeine Qt5::Sql Qt5::X11Extras',
+           'target_link_libraries(kaffeine Qt5::Network Qt5::Sql Qt5::X11Extras')
     change(main, "#include <QMainWindow>\n",
            "#include <QMainWindow>\n#include <QCoreApplication>\n"
            "#include <QProcess>\n#include <QMessageBox>\n#include <QStandardPaths>\n")
@@ -67,6 +97,26 @@ def transform(files):
 	});
 #endif /* HAVE_DVB == 1 */
 ''')
+    # Give locally opened video/audio files the SAME managed offline
+    # Whisper/translation engines via optional SRT creation dialogue.
+    # No file uploads and no interference with native playback.
+    change(main, '''	QAction *captionAction = aiMenu->addAction(i18n("Live Teletext / Whisper subtitles"));''',
+           '''	QAction *mediaCaptionAction = aiMenu->addAction(
+		i18n("Generate AI captions / lyrics for local Video or Audio..."));
+	connect(mediaCaptionAction, &QAction::triggered, this, [this]() {
+		const QString file = QFileDialog::getOpenFileName(
+			this, i18n("Open local video or audio for offline captions"),
+			QString(),
+			i18n("Media files (*.mp4 *.mkv *.mov *.avi *.webm *.ts *.flac "
+			     "*.mp3 *.wav *.m4a *.aac *.ogg *.opus);;All files (*)"));
+		if (file.isEmpty()) return;
+		if (!QProcess::startDetached(QLatin1String("tihulu-tv-center"),
+			QStringList() << QLatin1String("media-captions-ui")
+			              << QLatin1String("--input") << file))
+			QMessageBox::warning(this, i18n("Offline file captions"),
+				i18n("Install the TIHULU AI companion first."));
+	});
+	QAction *captionAction = aiMenu->addAction(i18n("Live Teletext / Whisper subtitles"));''')
 
     hdr = "src/dvb/dvbliveview_p.h"
     change(hdr, '\tQList<QByteArray> buffers;\n',
@@ -637,6 +687,16 @@ def apply(root: Path):
     for path in PATHS:
         (root / path).write_text(new[path], encoding="utf-8")
         print("Patched upstream Kaffeine:", path)
+    # Header is original TIHULU Qt integration, not copied from welle.io.
+    # Rebuilds use a detached clean upstream Kaffeine worktree.
+    widget = Path(__file__).with_name("native_radio_tab.h")
+    if not widget.is_file():
+        raise RuntimeError("Native radio tab template missing from pinned source")
+    dest = root / "src/tihulu_radio_tab.h"
+    if dest.exists() and dest.read_text(encoding="utf-8") != widget.read_text(encoding="utf-8"):
+        raise RuntimeError("Refusing to overwrite unrelated native radio header")
+    dest.write_text(widget.read_text(encoding="utf-8"),encoding="utf-8")
+    print("Installed native Kaffeine radio page:", dest)
 
 if __name__ == "__main__":
     if len(sys.argv) != 2:
