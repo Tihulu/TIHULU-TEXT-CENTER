@@ -1025,7 +1025,10 @@ def main(argv=None):
                 values["mode"] = "off"  # no new Whisper jobs while paused
             return values
     from .mobile import KaffeineMobile
-    mobile = KaffeineMobile(options, lambda msg: events.put(("warning", str(msg))))
+    mobile = KaffeineMobile(
+        options, lambda msg: events.put(("warning",str(msg))),
+        gui_commands=lambda action,params: events.put_nowait(
+            ("remote_gui_command",{"action":action,"params":params})))
     tap = CaptionTap(str(endpoint), options, events, packet_sink=mobile.receive)
     try:
         tap.start()
@@ -1508,6 +1511,27 @@ def main(argv=None):
                 window.showNormal()
                 window.raise_()
                 window.activateWindow()
+            elif kind == "remote_gui_command":
+                # HTTP worker cannot touch QWidgets. Apply only validated
+                # allowlisted controls on the existing Qt GUI event loop.
+                action = data.get("action")
+                params = data.get("params") or {}
+                if action == "desktop_subtitles_running":
+                    set_subtitles_running(params["running"])
+                elif action == "set_desktop_caption_mode":
+                    index = mode.findData(params["mode"])
+                    if index >= 0:
+                        mode.setCurrentIndex(index)
+                        apply_settings()
+                elif action == "set_desktop_caption_offset":
+                    caption_offset.setValue(params["offset_ms"]/1000)
+                    apply_settings()
+                elif action == "set_desktop_tv_buffer":
+                    playback_delay.setValue(params["buffer_ms"]/1000)
+                    apply_settings()
+                status.setText(
+                    "Paired phone requested desktop caption control: " +
+                    str(action) + ". Native status will confirm the effect.")
             elif kind == "teletext_tracks":
                 selected = subtitle_track.currentData()
                 previous_identity = ((selected.get("pid"),selected.get("page"),
