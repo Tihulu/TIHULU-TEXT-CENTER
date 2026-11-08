@@ -60,7 +60,7 @@ def write_runtime_json(path: Path, payload: dict) -> None:
 
 def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,...],
                       output: str, music: bool=False, max_chunks: int=0,
-                      speaker_labels: bool=False):
+                      speaker_labels: bool=False, prefer_verified_lyrics: bool=False):
     if type(port) is not int or not 1024 <= port <= 65535:
         raise ValueError("Invalid loopback radio port")
     if not isinstance(sid,str) or not _SID.fullmatch(sid):
@@ -183,9 +183,20 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
                 used_language=src
             lyric_match=(plain_matcher.observe(original)
                          if plain_matcher is not None and original else None)
+            # A verified song's plain lyric text is a much safer source than
+            # uncertain musical ASR. Unmatched lines remain [music], never
+            # a fabricated translation. DLS metadata != audio classifier.
+            unverified_vocals_hidden=False
+            if plain_matcher is not None and prefer_verified_lyrics:
+                if lyric_match:
+                    original=lyric_match["text"]
+                else:
+                    original="[music]"
+                    unverified_vocals_hidden=True
             translated={}
             problems={}
             if (original and used_language and not language_pending
+                    and not unverified_vocals_hidden
                     and ai.values["translation_enabled"]):
                 from .captions import translate
                 for lang in destinations:
@@ -207,6 +218,7 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
                 "language_source":("confirmed_2_chunks" if src=="auto" else "manual"),
                 "original":original[:1800],
                 "lyric_match":lyric_match,
+                "unverified_song_asr_hidden":unverified_vocals_hidden,
                 "lyric_alignment":("observed_ASR_approximate" if plain_matcher
                                    else "none"),
                 "translations":translated,
@@ -311,6 +323,9 @@ def main(args=None):
     live.add_argument("--music",action="store_true")
     live.add_argument("--speaker-labels",action="store_true",
                       help="Opt-in local voice clusters; not for song/music mode")
+    live.add_argument("--prefer-verified-lyrics",action="store_true",
+                      help="When plain lyrics metadata is loaded, hide unverified song ASR "
+                           "behind a [music] marker; never invent lyrics")
     lookup=subs.add_parser("lyrics-lookup")
     lookup.add_argument("--track",required=True)
     lookup.add_argument("--artist",required=True)
@@ -330,7 +345,8 @@ def main(args=None):
             source=opts.source,
             targets=tuple(x.strip() for x in opts.targets.split(",") if x.strip()),
             output=opts.output,music=opts.music,
-            speaker_labels=opts.speaker_labels)
+            speaker_labels=opts.speaker_labels,
+            prefer_verified_lyrics=opts.prefer_verified_lyrics)
         return 0
     except (OSError,ValueError,RuntimeError,subprocess.TimeoutExpired) as exc:
         print("Offline radio AI unavailable: "+str(exc)[:250],file=sys.stderr)
