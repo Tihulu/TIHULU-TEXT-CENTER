@@ -1,10 +1,9 @@
-"""Optional timed lyrics for user-owned audio and DAB+ radio metadata.
+"""Lyrics from opt-in online metadata or local LRC.
 
-Internet lookup is NEVER automatic. It requires explicit --online or a
-user-initiated GUI action; the free LRCLIB service needs no token. A
-plain/unsynced lyric cannot be aligned to music from metadata alone, so
-the player does not invent timings. The caller should retain provenance
-and respect rights/terms of third-party lyric sources.
+The client only requests LRCLIB with explicit opt-in. Plain lyrics are
+allowed as *text*, not fabricated timestamps. Optional locally recognized
+speech can provide approximate, evidence-based sequential line alignment;
+unmatched lyrics remain hidden and are not given invented times.
 """
 from __future__ import annotations
 
@@ -14,6 +13,7 @@ import json
 from pathlib import Path
 import re
 import ssl
+import unicodedata
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -130,8 +130,13 @@ def _get_json(url: str) -> dict:
 
 def lookup_synced_lyrics(*, title: str, artist: str,
                          album: str = "", duration: float | None = None,
-                         online: bool = False) -> tuple[list[LyricCue],dict]:
-    """User-authorized keyless search. No plain-lyrics timing guess."""
+                         online: bool = False,
+                         allow_plain: bool = False) -> tuple[list[LyricCue],dict]:
+    """User-authorized keyless lookup with optional unsynced plain lines.
+
+    Plain lines are data for a *subsequent* real ASR matcher; never
+    pass them off as synchronized lyric timestamps.
+    """
     if not online:
         raise PermissionError(
             "Online lyrics search is OFF by default; ask explicitly to search")
@@ -160,14 +165,90 @@ def lookup_synced_lyrics(*, title: str, artist: str,
         return [], {"status":"instrumental","provider":"LRCLIB"}
     synced = record.get("syncedLyrics")
     if not synced or not isinstance(synced,str):
+        raw = record.get("plainLyrics")
+        if allow_plain and isinstance(raw,str):
+            # Newlines only; reject headers/tags and enforce tight bounds.
+            cleaned = []
+            for line in raw.splitlines()[:300]:
+                line = " ".join(line.strip().split())
+                if (3 <= len(line) <= 240 and
+                        not (line.startswith("[") and line.endswith("]"))):
+                    cleaned.append(line)
+                if len(cleaned) >= 150:
+                    break
+            if cleaned:
+                return [], {
+                    "status":"plain","provider":"LRCLIB",
+                    "record_id":record.get("id"),
+                    "track":title,"artist":artist,
+                    "plain_lines":cleaned,
+                    "alignment":"awaiting_real_audio_ASR",
+                    "online_lookup":True}
         return [], {"status":"unsynced_only","provider":"LRCLIB",
-                    "message":"No time-coded lyrics; not aligning by guess"}
+                    "message":"Only plain lyrics found; no time codes"}
     cues = parse_lrc(synced,duration=duration,provenance="LRCLIB")
     return cues, {"status":"synced" if cues else "invalid",
                   "provider":"LRCLIB","record_id":record.get("id"),
                   "track":title,"artist":artist,
                   "online_lookup":True}
 
+
+
+def _lyric_tokens(text: str) -> list[str]:
+    # NFKD gives case/accent-insensitive candidates, including Turkish.
+    plain = unicodedata.normalize("NFKD", text).casefold()
+    plain = "".join(c for c in plain if not unicodedata.combining(c))
+    return re.findall(r"[^\\W_]+", plain, flags=re.UNICODE)[:90]
+
+
+class LiveLyricMatcher:
+    """Conservative forward-only match of verified lyrics to *heard* ASR.
+
+    Does not detect a song by itself and makes no timestamps where no
+    recognizable vocal phrase is present. One or two generic words are
+    insufficient evidence for a match. This is approximate chunk timing,
+    NOT sample-accurate forced alignment.
+    """
+    def __init__(self, lines: list[str]):
+        if not isinstance(lines,list) or len(lines)>150:
+            raise ValueError("Invalid plain lyric line catalog")
+        self.lines=[line for line in lines if isinstance(line,str) and
+                    3<=len(line)<=240]
+        self.position=0
+        self.seen_chunks=0
+        self.previous_text=""
+
+    def observe(self, recognized: str) -> dict | None:
+        if not isinstance(recognized,str) or not recognized.strip():
+            return None
+        self.seen_chunks += 1
+        heard = _lyric_tokens(self.previous_text + " " + recognized)
+        self.previous_text = recognized[-480:]
+        if len(heard)<3:
+            return None
+        hearing=set(heard)
+        best=None
+        # At most 8 forward lines. Never jump to a random distant refrain.
+        for index in range(self.position, min(len(self.lines),self.position+8)):
+            original=self.lines[index]
+            expected=_lyric_tokens(original)
+            if len(expected)<3:
+                continue
+            distinctive={word for word in expected if len(word)>=3}
+            evidence=sum(1 for word in distinctive if word in hearing)
+            if evidence<3:
+                continue
+            coverage=evidence/max(1,len(distinctive))
+            precision=evidence/max(1,len(hearing))
+            confidence=0.82*coverage+0.18*min(1.,precision*2.)
+            if confidence>=0.74 and (best is None or confidence>best[0]):
+                best=(confidence,index,original)
+        if best is None:
+            return None
+        score,index,line=best
+        self.position=index+1
+        return {"index":index,"text":line,"confidence":round(score,3),
+                "kind":"observed_ASR_chunk_match","approximate":True}
 
 def srt_timestamp(seconds: float) -> str:
     ms=max(0,int(round(seconds*1000)))
