@@ -30,6 +30,29 @@ class RadioModesAndSyncTests(unittest.TestCase):
         self.assertIn('setOrientation(width()<930?Qt::Vertical:Qt::Horizontal)',self.radio)
         self.assertIn('radioModeTab',self.radio)
 
+    def test_global_window_and_other_player_panels_are_responsive(self):
+        panel=(BASE/"kaffeine_next/native_media_panel.h").read_text()
+        hardware=(BASE/"kaffeine_next/native_hardware_tab.h").read_text()
+        web=(BASE/"kaffeine_next/native_web_tv_dialog.h").read_text()
+        self.assertIn('Show offline AI / lyric / export options',panel)
+        self.assertIn('details->setVisible(false)',panel)
+        self.assertIn('detailsLayout->addLayout(tools)',panel)
+        self.assertIn('detailsLayout->addLayout(actions)',panel)
+        self.assertIn('tabs',self.radio.lower())
+        self.assertIn('auto *tools=new QGridLayout()',hardware)
+        self.assertIn('cards->addWidget(analogCard,2,0,1,2)',hardware)
+        self.assertIn('auto *filter = new QGridLayout()',web)
+        self.assertIn('auto *row = new QGridLayout()',web)
+        self.assertIn('restoreGeometry(geometry)',self.patch)
+        self.assertIn('resize(qMin(width(),screen.width())',self.patch)
+
+    def test_song_source_is_independent_from_presenter_language(self):
+        self.assertIn('lyricsSourceLanguage_->addItem(',self.radio)
+        self.assertIn('QString sourceCode=lyricsSourceLanguage_->currentData().toString()',self.radio)
+        self.assertIn('QString sourceCode=speechLanguage_->currentData().isValid()',self.radio)
+        self.assertIn('translationStatus_->setText(',self.radio)
+        self.assertIn('lastVerifiedLyricTranslations_',self.radio)
+
     def test_native_tuner_station_label_avoids_fake_fm_frequency(self):
         self.assertIn('showSelectedSource(item->text(1)',self.radio)
         self.assertIn('showSelectedSource(knownName',self.radio)
