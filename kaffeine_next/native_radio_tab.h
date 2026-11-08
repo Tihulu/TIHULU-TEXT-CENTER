@@ -635,6 +635,10 @@ public:
 		english_ = new QCheckBox(tr("English"), lab); english_->setChecked(true);
 		turkish_ = new QCheckBox(tr("Turkish"), lab); turkish_->setChecked(true);
 		music_ = new QCheckBox(tr("Transcribe singing / music vocals"), lab);
+        music_->setToolTip(tr("Show original sung words and selected translations "
+            "when Whisper confirms song language. If matched lyrics exist, "
+            "prefer their text; uncertain language is NEVER guessed. "
+            "Choose a specific language for immediate lyric translation."));
 		speakerLabels_=new QCheckBox(tr("Label different speakers · offline"),lab);
 		speakerLabels_->setToolTip(tr("Optional installed voice-clustering model. "
 			"Outputs Speaker 1/2, NOT inferred woman/man/child labels. "
@@ -1129,9 +1133,9 @@ public:
 				if (!shuttingDown_) state_->setText(tr("welle-cli stopped (%1): %2")
                     .arg(exitCode).arg(lastWelleError_));
 			});
-		tick_.setInterval(900);
+		tick_.setInterval(1400);
 		// Audio captions no longer wait for the expensive 1600-ms RF poll.
-		captionTick_.setInterval(150);
+		captionTick_.setInterval(300);
 		connect(&captionTick_,&QTimer::timeout,this,[this](){
 			pollCaption();updateLyrics();
 			if(audioCacheProgress_) {
@@ -2905,8 +2909,10 @@ private:
 						break;
 					}
 				}
-				if (!current.isEmpty())
-					lyricText_->setText(tr("Estimated lyric timing · %1").arg(current));
+				if (!current.isEmpty()) {
+                    const QString text=tr("Estimated lyric timing · %1").arg(current);
+                    if(lyricText_->text()!=text)lyricText_->setText(text);
+                }
 			}
 			return;
 		}
