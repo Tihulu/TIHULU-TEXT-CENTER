@@ -793,7 +793,7 @@ QAbstractButton *StartTab::addShortcut''')
 \t\t\tQLatin1String("KaffeineRadio"));
 \t\tconst int cacheMs=qBound(0,
 \t\t\tradioSettings.value(QLatin1String("playbackBufferMs"),12000).toInt(),
-\t\t\t20000);
+\t\t\t60000);
 \t\tconst QByteArray cacheOpt=QByteArray(":network-caching=")+
 \t\t\tQByteArray::number(cacheMs);
 \t\tlibvlc_media_add_option(vlcMedia,cacheOpt.constData());
