@@ -202,7 +202,7 @@ class _PersistentCUDAWorker:
     def transcribe(self, pcm, language, model_path):
         return self.transcribe_details(pcm, language, model_path)["text"]
 
-    def transcribe_details(self, pcm, language, model_path):
+    def transcribe_details(self, pcm, language, model_path, *, music_mode=False):
         if not isinstance(pcm, bytes) or not 0 < len(pcm) <= 4_000_000:
             raise RuntimeError("Invalid 32-kHz PCM audio segment")
         worker = FasterWhisperCUDA()
@@ -211,6 +211,7 @@ class _PersistentCUDAWorker:
         payload = json.dumps({
             "audio": base64.b64encode(pcm).decode("ascii"),
             "language": language, "model": str(worker.model_dir),
+            "music_mode":bool(music_mode),
         }, separators=(",", ":")).encode("utf-8") + b"\n"
         with self.lock:
             if self.process is None or self.process.poll() is not None:
@@ -260,9 +261,10 @@ def transcribe_cuda(pcm, language, model_path):
     return _worker.transcribe(pcm, language, model_path)
 
 
-def transcribe_cuda_details(pcm, language, model_path):
-    """Return real word timestamps, relative to the captured 16-kHz audio."""
-    return _worker.transcribe_details(pcm, language, model_path)
+def transcribe_cuda_details(pcm, language, model_path, *, music_mode=False):
+    """Return real word timestamps; singing mode keeps possible vocal audio."""
+    return _worker.transcribe_details(pcm, language, model_path,
+                                      music_mode=music_mode)
 
 
 def _download(destination):
@@ -352,7 +354,8 @@ def main():
             waveform = (samples[0::2] + samples[1::2]) / 65536.0
             segments, _ = model.transcribe(
                 waveform, language=request["language"], task="transcribe",
-                beam_size=3, vad_filter=True, word_timestamps=True)
+                beam_size=3, vad_filter=not bool(request.get("music_mode")),
+                condition_on_previous_text=False, word_timestamps=True)
             all_segments = list(segments)
             text = " ".join(segment.text.strip() for segment in all_segments).strip()
             words = []
