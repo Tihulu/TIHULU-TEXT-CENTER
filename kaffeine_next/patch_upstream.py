@@ -216,7 +216,9 @@ QAbstractButton *StartTab::addShortcut''')
            "#include <QMainWindow>\n#include <QCoreApplication>\n"
            "#include <QProcess>\n#include <QMessageBox>\n#include <QStandardPaths>\n")
     change(main, "#include <QStandardPaths>\n",
-           "#include <QStandardPaths>\n#include <QLabel>\n#include <QVBoxLayout>\n")
+           "#include <QStandardPaths>\n#include <QLabel>\n#include <QVBoxLayout>\n"
+           "#include <QDir>\n#include <QDialog>\n#include <QPlainTextEdit>\n"
+           "#include <QPushButton>\n")
     change(main, '''#if HAVE_DVB == 1
 	QMenu *dvbMenu = new QMenu(i18n("&Television"), this);
 	menuBar->addMenu(dvbMenu);
@@ -224,6 +226,41 @@ QAbstractButton *StartTab::addShortcut''')
 ''', '''#if HAVE_DVB == 1
 	QMenu *dvbMenu = new QMenu(i18n("&Television"), this);
 	menuBar->addMenu(dvbMenu);
+	QAction *receiverStatus = dvbMenu->addAction(i18n("Receiver / tuner diagnostics..."));
+	connect(receiverStatus, &QAction::triggered, this, [this]() {
+		// Read-only diagnostics: never force-close another SDR application's tuner.
+		QDialog *dialog = new QDialog(this);
+		dialog->setAttribute(Qt::WA_DeleteOnClose);
+		dialog->setWindowTitle(i18n("DVB tuner ownership and scan setup"));
+		dialog->resize(800, 480);
+		QVBoxLayout *layout = new QVBoxLayout(dialog);
+		QPlainTextEdit *console = new QPlainTextEdit(dialog);
+		console->setReadOnly(true);
+		console->setPlainText(i18n("Inspecting local DVB frontend ownership..."));
+		layout->addWidget(console);
+		QPushButton *close = new QPushButton(i18n("Close"), dialog);
+		connect(close, &QPushButton::clicked, dialog, &QDialog::accept);
+		layout->addWidget(close);
+		QProcess *diagnostics = new QProcess(dialog);
+		connect(diagnostics, &QProcess::readyReadStandardOutput, dialog,
+			[diagnostics, console]() {
+				console->appendPlainText(QString::fromLocal8Bit(
+					diagnostics->readAllStandardOutput()));
+			});
+		connect(diagnostics, &QProcess::readyReadStandardError, dialog,
+			[diagnostics, console]() {
+				console->appendPlainText(QString::fromLocal8Bit(
+					diagnostics->readAllStandardError()));
+			});
+		connect(diagnostics, QOverload<int,QProcess::ExitStatus>::of(&QProcess::finished),
+			dialog, [console](int code, QProcess::ExitStatus) {
+				console->appendPlainText(QStringLiteral("\\nCompleted (exit %1).").arg(code));
+			});
+		dialog->show();
+		diagnostics->start(QLatin1String("/bin/bash"),
+			QStringList() << QDir::homePath() +
+				QLatin1String("/.local/share/tihulu-kaffeine/dvb_diagnostics.sh"));
+	});
 	// Keep native Kaffeine channel switching, Teletext and player unchanged.
 	QMenu *aiMenu = new QMenu(i18n("TIHULU &AI"), this);
 	menuBar->addMenu(aiMenu);
@@ -849,7 +886,7 @@ void OsdWidget::showObject(OsdObject *osdObject_, int duration)
 \t\tmediaWidget->stop();
 \t\t// Give Kaffeine's asynchronous player status updates one event
 \t\t// loop turn to release the DVB frontend before the scan dialog opens.
-\t\tQTimer::singleShot(100, this, [this]() { showChannelDialog(); });
+\t\tQTimer::singleShot(750, this, [this]() { showChannelDialog(); });
 \t\treturn;
 \t}
 \tshowChannelDialog();
