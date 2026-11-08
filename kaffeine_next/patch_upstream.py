@@ -989,8 +989,9 @@ QAbstractButton *StartTab::addShortcut''')
 \tquint64 tihuluCaptionLogoSequence = 0;''')
     # QTemporaryDir owns short-lived AI caption images and removes them at
     # player destruction; the directory is private to this process.
-    change(vlch, '#include <QByteArray>\n',
-           '#include <QByteArray>\n#include <QTemporaryDir>\n#include <QStringList>\n')
+    change(vlch, '#include "../abstractmediawidget.h"\n',
+           '#include "../abstractmediawidget.h"\n'
+           '#include <QTemporaryDir>\n#include <QStringList>\n')
     vlcc = "src/backend-vlc/vlcmediawidget.cpp"
     change(vlcc, '#include "vlcmediawidget.h"\n',
            '#include "vlcmediawidget.h"\n#include <QColor>\n#include <QDateTime>\n'
