@@ -49,6 +49,7 @@
 #include <QPen>
 #include <QPixmap>
 #include <QProgressBar>
+#include <QPointer>
 #include <QSizePolicy>
 #include <QTcpSocket>
 #include <QLinearGradient>
@@ -1083,68 +1084,152 @@ private:
 		const QString band=analogBand_->currentData().toString();
 		const bool fm=band==QLatin1String("fm");
 		const bool mw=band==QLatin1String("mw");
+		const QSignalBlocker blockFreq(analogFrequency_);
+		const QSignalBlocker blockDial(analogDial_);
 		analogFrequency_->setDecimals(fm?2:0);
 		analogFrequency_->setRange(fm?87.5:(mw?531:150),fm?108:(mw?1602:280));
 		analogFrequency_->setSuffix(fm?tr(" MHz"):tr(" kHz"));
 		analogFrequency_->setSingleStep(fm?0.1:(mw?9:1));
-		analogDial_->setRange(fm?8750:(mw?53100:15000),fm?10800:(mw?160200:28000));
+		analogDial_->setRange(fm?8750:(mw?53100:15000),
+			fm?10800:(mw?160200:28000));
 		analogFrequency_->setValue(fm?99.2:(mw?999:198));
 		analogDial_->setValue(qRound(analogFrequency_->value()*100));
+		analogDigital_->setText(QString::number(analogFrequency_->value(),'f',fm?2:0)+
+			analogFrequency_->suffix());
+		analogScale_->updateFrequency(analogFrequency_->minimum(),
+			analogFrequency_->maximum(),analogFrequency_->value(),
+			analogBand_->currentText());
 		directSampling_->setEnabled(!fm);
+		if(analogServer_.isListening()) analogRetune_.start();
 	}
-	void stopAnalog() {
+	static QByteArray analogWavHeader() {
+		QByteArray wav(44,'\\0');
+		auto put16=[&wav](int i,quint16 value){
+			wav[i]=char(value&255);wav[i+1]=char((value>>8)&255);
+		};
+		auto put32=[&wav](int i,quint32 value){
+			for(int p=0;p<4;++p) wav[i+p]=char((value>>(8*p))&255);
+		};
+		memcpy(wav.data(),"RIFF",4);put32(4,0x7fffffffu);
+		memcpy(wav.data()+8,"WAVEfmt ",8);put32(16,16);
+		put16(20,1); // PCM, mono 48 kHz signed 16-bit
+		put16(22,1);put32(24,48000);put32(28,96000);
+		put16(32,2);put16(34,16);
+		memcpy(wav.data()+36,"data",4);put32(40,0x7fffffffu-36);
+		return wav;
+	}
+	void prepareAnalogLocalStream() {
+		if(analogSocketsWired_) return;
+		analogSocketsWired_=true;
+		connect(&analogServer_,&QTcpServer::newConnection,this,[this](){
+			while(analogServer_.hasPendingConnections()) {
+				QTcpSocket *socket=analogServer_.nextPendingConnection();
+				if(analogClient_) analogClient_->disconnectFromHost();
+				analogClient_=socket;
+				analogHeaderSent_=false;
+				connect(socket,&QTcpSocket::readyRead,this,[this,socket](){
+					if(socket!=analogClient_) return;
+					const QByteArray bytes=socket->readAll();
+					if(analogHeaderSent_) return;
+					if(!bytes.startsWith("GET /analog.wav ")) {
+						socket->disconnectFromHost();return;
+					}
+					QByteArray answer("HTTP/1.1 200 OK\\r\\n"
+						"Content-Type: audio/wav\\r\\n"
+						"Cache-Control: no-store\\r\\n"
+						"Connection: keep-alive\\r\\n\\r\\n");
+					answer+=analogWavHeader();
+					socket->write(answer);
+					analogHeaderSent_=true;
+				});
+				connect(socket,&QTcpSocket::disconnected,socket,&QObject::deleteLater);
+			}
+		});
+		connect(&analogDemod_,&QProcess::readyReadStandardOutput,this,[this](){
+			const QByteArray pcm=analogDemod_.readAllStandardOutput();
+			if(analogClient_ && analogHeaderSent_ &&
+			   analogClient_->state()==QAbstractSocket::ConnectedState) {
+				// Bound buffering: do not let stalled VLC audio grow unbounded.
+				if(analogClient_->bytesToWrite()<262144)
+					analogClient_->write(pcm);
+			}
+		});
+	}
+	void retuneAnalogDemod() {
+		if(!analogServer_.isListening()) return;
+		analogRetune_.stop();
+		const QString band=analogBand_->currentData().toString();
+		const bool fm=band==QLatin1String("fm");
+		if(!fm && !directSampling_->isChecked()) {
+			analogStatus_->setText(tr("MW/LW require compatible direct-sampling hardware "
+				"or an external upconverter."));
+			return;
+		}
 		analogStopping_=true;
 		if(analogDemod_.state()!=QProcess::NotRunning) {
 			analogDemod_.terminate();
-			if(!analogDemod_.waitForFinished(900)) analogDemod_.kill();
+			if(!analogDemod_.waitForFinished(500)) analogDemod_.kill();
 		}
-		if(analogAudio_.state()!=QProcess::NotRunning) {
-			analogAudio_.terminate();
-			if(!analogAudio_.waitForFinished(900)) analogAudio_.kill();
+		analogDemod_.readAllStandardOutput();
+		analogStopping_=false;
+		const quint64 hz=qRound64(analogFrequency_->value()*(fm?1000000.:1000.));
+		QStringList args{QLatin1String("-M"),fm?QLatin1String("wbfm"):
+			QLatin1String("am"),QLatin1String("-f"),QString::number(hz),
+			QLatin1String("-s"),fm?QLatin1String("170000"):QLatin1String("48000"),
+			QLatin1String("-r"),QLatin1String("48000")};
+		if(!fm && directSampling_->isChecked())
+			args<<QLatin1String("-D")<<QLatin1String("2");
+		analogDemod_.start(QLatin1String("rtl_fm"),args);
+		if(!analogDemod_.waitForStarted(1000)) {
+			analogStatus_->setText(tr("RTL-SDR retune failed; device disconnected or busy."));
+			return;
 		}
+		analogStatus_->setText(tr("Live analog frequency %1 Hz · volume/mute through "
+			"TIHULU player · RF retune briefly interrupts decoding.").arg(hz));
+	}
+	void stopAnalog() {
+		analogRetune_.stop();
+		const bool wasPlaying=analogServer_.isListening();
+		analogStopping_=true;
+		if(analogDemod_.state()!=QProcess::NotRunning) {
+			analogDemod_.terminate();
+			if(!analogDemod_.waitForFinished(850)) analogDemod_.kill();
+		}
+		if(analogClient_) {
+			analogClient_->disconnectFromHost();
+			analogClient_.clear();
+		}
+		analogServer_.close();
+		analogHeaderSent_=false;
+		if(wasPlaying) player_->stop();
 		if(analogStatus_) analogStatus_->setText(tr("Analogue SDR released."));
 	}
 	void startAnalog() {
-		const QString demod=QStandardPaths::findExecutable(QLatin1String("rtl_fm"));
-		const QString player=QStandardPaths::findExecutable(QLatin1String("aplay"));
-		if(demod.isEmpty() || player.isEmpty()) {
-			analogStatus_->setText(tr("Install optional rtl-sdr and alsa-utils tools first. "
-				"Neither USB tuner nor AI models are installed automatically."));
+		if(QStandardPaths::findExecutable(QLatin1String("rtl_fm")).isEmpty()) {
+			analogStatus_->setText(tr("Optional rtl-sdr package missing. Install it to tune."));
 			return;
 		}
-		const QString band=analogBand_->currentData().toString();
-		const bool isFm=band==QLatin1String("fm");
-		if(!isFm && !directSampling_->isChecked()) {
-			analogStatus_->setText(tr("MW/LW need an HF-capable SDR, direct sampling or an upconverter. "
-				"Opt into compatible direct sampling only after checking hardware."));
+		if(analogBand_->currentData().toString()!=QLatin1String("fm") &&
+		   !directSampling_->isChecked()) {
+			analogStatus_->setText(tr("MW/LW need compatible direct sampling or upconverter."));
 			return;
 		}
-		stopReceiver(); // Release welle and shared audio before claiming RTL-SDR.
+		if(analogServer_.isListening()) {
+			retuneAnalogDemod();
+			return;
+		}
+		stopReceiver();
 		stopAnalog();
-		analogStopping_=false;
-		const quint64 hz=qRound64(analogFrequency_->value()*(isFm?1000000.:1000.));
-		QStringList args{QLatin1String("-M"),isFm?QLatin1String("wbfm"):QLatin1String("am"),
-			QLatin1String("-f"),QString::number(hz),
-			QLatin1String("-s"),isFm?QLatin1String("170000"):QLatin1String("48000"),
-			QLatin1String("-r"),QLatin1String("48000")};
-		if(!isFm && directSampling_->isChecked())
-			args<<QLatin1String("-D")<<QLatin1String("2");
-		analogDemod_.setStandardOutputProcess(&analogAudio_);
-		analogAudio_.start(player,{QLatin1String("-q"),QLatin1String("-t"),
-			QLatin1String("raw"),QLatin1String("-f"),QLatin1String("S16_LE"),
-			QLatin1String("-r"),QLatin1String("48000"),QLatin1String("-c"),
-			QLatin1String("1")});
-		if(!analogAudio_.waitForStarted(1200)) {
-			analogStatus_->setText(tr("Cannot start ALSA output; check audio device."));return;
-		}
-		analogDemod_.start(demod,args);
-		if(!analogDemod_.waitForStarted(1200)){
-			stopAnalog();
-			analogStatus_->setText(tr("RTL-SDR backend failed to start; check exclusive device access."));
+		prepareAnalogLocalStream();
+		if(!analogServer_.listen(QHostAddress::LocalHost,0)) {
+			analogStatus_->setText(tr("Could not bind private local analog stream server."));
 			return;
 		}
-		analogStatus_->setText(tr("Tuning %1 Hz via local RTL-SDR. "
-			"No fabricated station name or lock confirmation.").arg(hz));
+		// Reuse Kaffeine/libVLC's own audio sink so the main player volume,
+		// mute and audio-device selection work, unlike the former aplay fork.
+		retuneAnalogDemod();
+		player_->play(QUrl(QLatin1String("http://127.0.0.1:")+
+			QString::number(analogServer_.serverPort())+QLatin1String("/analog.wav")));
 	}
 	void probeInternetRadio() {
 		if(internetProbe_.state()!=QProcess::NotRunning) return;
@@ -2209,6 +2294,12 @@ private:
 	QComboBox *analogBand_=nullptr;
 	QDoubleSpinBox *analogFrequency_=nullptr;
 	QDial *analogDial_=nullptr;
+	QLabel *analogDigital_=nullptr;
+	TihuluAnalogScale *analogScale_=nullptr;
+	QTimer analogRetune_{this};
+	QTcpServer analogServer_{this};
+	QPointer<QTcpSocket> analogClient_;
+	bool analogHeaderSent_=false,analogSocketsWired_=false;
 	QPushButton *analogStart_=nullptr,*analogStop_=nullptr;
 	QCheckBox *directSampling_=nullptr;
 	bool analogStopping_=false;
@@ -2243,7 +2334,7 @@ private:
 	QString recordedPath_;
 	bool recordWithSubtitles_=false;
 	QCheckBox *subtitledRecord_=nullptr;
-	QProcess analogDemod_{this},analogAudio_{this};
+	QProcess analogDemod_{this};
 	QNetworkAccessManager network_;
 	QTimer tick_,captionTick_,rfTick_;
 	quint16 port_=0;
