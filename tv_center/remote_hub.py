@@ -125,6 +125,50 @@ class RemoteHub:
                                  "name":str(name or sid)[:90]})
         return services[:100]
 
+    def read_approved_picture(self, identifier):
+        """Return ONLY bytes of a previously cataloged, non-symlink image."""
+        path=self.files.get(identifier)
+        if (not isinstance(identifier,str) or path is None
+                or path.is_symlink() or not path.is_file()
+                or path.suffix.lower() not in IMAGE_EXTS
+                or self.root not in path.resolve().parents
+                or path.stat().st_size > 8*1024*1024):
+            raise ValueError("No approved image available for this identifier")
+        data=path.read_bytes()
+        if data.startswith(b"\x89PNG\r\n\x1a\n"):
+            return data,"image/png"
+        if data.startswith(b"\xff\xd8\xff"):
+            return data,"image/jpeg"
+        if data.startswith(b"RIFF") and data[8:12]==b"WEBP":
+            return data,"image/webp"
+        raise ValueError("Image data failed strict content sniffing")
+
+    def read_dab_slide(self, sid):
+        """Verify receiver-reported DAB service before fetching its real slide."""
+        entry=next((item for item in self.dab_services()
+                    if item["sid"]==sid),None)
+        if entry is None:
+            raise ValueError("DAB slideshow service is not present in live mux")
+        import re
+        if not isinstance(sid,str) or not re.fullmatch(
+                r"(?:0x)?[A-Fa-f0-9]{1,8}",sid):
+            raise ValueError("Invalid service")
+        port=self.active_welle_port()
+        if port is None:
+            raise RuntimeError("Native DAB receiver is offline")
+        try:
+            with urlopen(f"http://127.0.0.1:{port}/slide/{sid}",timeout=2) as output:
+                data=output.read(3*1024*1024+1)
+        except (OSError,TimeoutError) as exc:
+            raise RuntimeError("Native DAB slideshow unavailable") from exc
+        if len(data)>3*1024*1024:
+            raise ValueError("DAB slide exceeds safety size")
+        if data.startswith(b"\x89PNG\r\n\x1a\n"):
+            return data,"image/png"
+        if data.startswith(b"\xff\xd8\xff"):
+            return data,"image/jpeg"
+        raise ValueError("Receiver did not provide a PNG/JPEG slide")
+
     def play_local(self,url):
         if shutil.which("dbus-send") is None:
             return False
@@ -284,7 +328,18 @@ class RemoteHub:
             text="\n".join([original]+[
                 "["+str(k)[:5]+"] "+str(v)[:800]
                 for k,v in list(translations.items())[:5]])
-            return {"text":text[:3000],"timestamp":data.get("timestamp")}
+            return {"text":text[:3000],
+                    "original":original,
+                    "translations":{str(k)[:8]:str(v)[:800]
+                                    for k,v in list(translations.items())[:5]
+                                    if isinstance(v,str)},
+                    "source_language":str(data.get("source_language") or "und")[:12],
+                    "timestamp":data.get("timestamp"),
+                    "source_capture_epoch_ms":data.get("source_capture_epoch_ms"),
+                    "host_audio_cache_ms":data.get("host_audio_cache_ms"),
+                    "host_caption_offset_ms":data.get("host_caption_offset_ms"),
+                    "chunk_index":data.get("chunk_index"),
+                    "sync_note":"Radio captions follow host ASR and audio-buffer estimates; not PTS-calibrated."}
         except (OSError,ValueError,TypeError):
             return {}
 
@@ -310,8 +365,10 @@ def create_handler(hub):
             self.send_header("X-Content-Type-Options","nosniff")
             self.send_header("Referrer-Policy","no-referrer")
             self.send_header("Content-Security-Policy",
-                             "default-src 'self'; script-src 'unsafe-inline' 'self'; "
-                             "style-src 'unsafe-inline' 'self'; media-src 'self'")
+                             "default-src 'self'; script-src 'self'; "
+                             "style-src 'self'; media-src 'self' blob:; "
+                             "img-src 'self' blob: data:; connect-src 'self'; "
+                             "frame-ancestors 'none'; base-uri 'none'")
             if headers:
                 for k,v in headers.items():self.send_header(k,v)
             self.end_headers()
@@ -338,8 +395,13 @@ def create_handler(hub):
             return session
         def do_GET(self):
             path=urlsplit(self.path).path
-            if path=="/":
-                self.send_data(200,PAGE.encode("utf-8"),"text/html; charset=utf-8")
+            asset=STATIC_REMOTE.get(path.lstrip("/"))
+            if asset is not None:
+                filename,mime=asset
+                source=Path(__file__).resolve().parent/"web"/filename
+                if not source.is_file() or source.is_symlink():
+                    return self.send_data(404,{"error":"Web UI component missing"})
+                self.send_data(200,source.read_bytes(),mime)
                 return
             if not self.require():return
             if path=="/api/catalog":
@@ -351,6 +413,22 @@ def create_handler(hub):
                     for e in hub.dab_services()]})
             elif path=="/api/captions":
                 self.send_data(200,hub.captions())
+            elif path=="/api/image":
+                query=parse_qs(urlsplit(self.path).query)
+                try:
+                    identifier=query.get("id",[None])[0]
+                    raw,kind=hub.read_approved_picture(identifier)
+                    self.send_data(200,raw,kind)
+                except (ValueError,OSError):
+                    self.send_data(404,{"error":"Approved image unavailable"})
+            elif path=="/api/slide":
+                query=parse_qs(urlsplit(self.path).query)
+                try:
+                    identifier=query.get("sid",[None])[0]
+                    raw,kind=hub.read_dab_slide(identifier)
+                    self.send_data(200,raw,kind)
+                except (ValueError,OSError,RuntimeError):
+                    self.send_data(404,{"error":"Live DAB slide unavailable"})
             elif path=="/api/status":
                 self.send_data(200,hub.status())
             elif path.startswith("/hls/"):
@@ -409,7 +487,7 @@ def create_handler(hub):
             try:
                 if path=="/api/start":
                     result=hub.start(payload.get("kind"),payload.get("id"),
-                        payload.get("host") is True)
+                        payload.get("host") is True,target=payload.get("target"))
                     self.send_data(200,result)
                 elif path=="/api/stop":
                     with hub.lock:hub.stop()
