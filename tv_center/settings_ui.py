@@ -207,6 +207,10 @@ def open_ai_settings(parent, ai, after_save=None):
             self.models = QListWidget()
             self.models.setMaximumHeight(290)
             models_layout.addWidget(self.models)
+            self.active_speech_label = QLabel("Selected speech model: checking settings…")
+            self.active_speech_label.setWordWrap(True)
+            models_layout.addWidget(self.active_speech_label)
+            self.model_path.textChanged.connect(lambda *_: self.populate_models())
             recommended = QLabel(
                 "RTX 5080 recommendation: prebuilt CUDA Large-v3 Turbo "
                 "(word-timed live captions). CPU fallback: Small → Medium. "
@@ -304,6 +308,9 @@ def open_ai_settings(parent, ai, after_save=None):
             self.translation_choice.currentIndexChanged.connect(
                 lambda *_: self.inspect_nllb())
             quality_layout.addWidget(self.translation_choice)
+            self.translation_selected_label = QLabel("")
+            self.translation_selected_label.setWordWrap(True)
+            quality_layout.addWidget(self.translation_selected_label)
             self.nllb_status = QLabel("")
             self.nllb_status.setWordWrap(True)
             quality_layout.addWidget(self.nllb_status)
@@ -639,6 +646,19 @@ def open_ai_settings(parent, ai, after_save=None):
             state = self.translation_market.status()
             if hasattr(self, "nllb_test"):
                 self.nllb_test.setEnabled(state["installed"])
+            active = ai.values.get("translation_model", "argos")
+            pending = self.translation_choice.currentData()
+            for index in range(self.translation_choice.count()):
+                key = self.translation_choice.itemData(index)
+                name = ("Argos Translate · compact offline language packs"
+                        if key == "argos" else
+                        "NLLB-200 600M · multilingual; enter ISO or NLLB codes")
+                self.translation_choice.setItemText(
+                    index, ("✓ SELECTED · " if key == active else "") + name)
+            self.translation_selected_label.setText(
+                "Active translator: " + active.upper() +
+                (" · Pending: " + pending.upper() + " (Save settings to switch)"
+                 if pending != active else " ✓ SELECTED"))
             self.nllb_status.setText(
                 ("INSTALLED" if state["installed"] else "NOT INSTALLED") +
                 " · currently selected: " +
@@ -748,18 +768,29 @@ def open_ai_settings(parent, ai, after_save=None):
 
         def populate_models(self):
             old = self.selected_model()
+            pending_path = self.model_path.text().strip()
+            saved_path = ai.values.get("model_path", "")
             self.models.clear()
             from PyQt5.QtWidgets import QListWidgetItem
             for model in self.library.installed():
                 key = model["id"]
+                path = str(self.library._path(key))
                 state = "INSTALLED" if model["installed"] else "download available"
+                selected = path == saved_path and model["installed"]
+                pending = path == pending_path and pending_path != saved_path
+                label = ("✓ SELECTED · " if selected else
+                         "◉ PENDING SAVE · " if pending else "")
                 fit = model_fit(key,model["size_mb"],self.hardware)
                 item = QListWidgetItem(
-                    f"{model['name']} · ~{model['size_mb']} MB · {state}\n   {fit}")
+                    f"{label}{model['name']} · ~{model['size_mb']} MB · {state}\n   {fit}")
                 item.setData(Qt.UserRole, key)
                 self.models.addItem(item)
                 if key == old:
                     self.models.setCurrentItem(item)
+            self.active_speech_label.setText(
+                "✓ Selected Whisper model: " + (saved_path or "None") +
+                ("\nPending model (not yet saved): " + pending_path
+                 if pending_path != saved_path else ""))
             self.storage_label.setText("Managed models: " + str(self.library.root))
             if hasattr(self, "starter_state"):
                 self.inspect_starter()
@@ -979,6 +1010,8 @@ def open_ai_settings(parent, ai, after_save=None):
                     "model_dir": str(self.library.root)
                 })
                 ai.configure_environment()
+                self.populate_models()
+                self.inspect_nllb()
                 if after_save: after_save()
             except (OSError, ValueError) as exc:
                 QMessageBox.warning(self, "Settings failed", str(exc))
