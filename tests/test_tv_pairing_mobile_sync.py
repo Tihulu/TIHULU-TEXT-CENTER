@@ -175,6 +175,40 @@ class PairedHubTests(unittest.TestCase):
                     hub.read_approved_picture(images["sound.mp3"])
             finally:hub.close()
 
+    def test_images_require_hub_pairing_cookie_and_reject_bad_content(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory)
+            (root/"slide.png").write_bytes(b"\\x89PNG\\r\\n\\x1a\\n"+b"image")
+            hub=RemoteHub(root)
+            server=ThreadingHTTPServer(("127.0.0.1",0),create_handler(hub))
+            thread=threading.Thread(target=server.serve_forever,daemon=True)
+            thread.start()
+            base="http://127.0.0.1:"+str(server.server_port)
+            identifier=next(iter(hub.files))
+            from urllib.parse import quote
+            path="/api/image?id="+quote(identifier)
+            try:
+                with self.assertRaises(HTTPError) as missing:
+                    urlopen(base+path,timeout=3)
+                self.assertEqual(missing.exception.code,401)
+                pair=Request(base+"/api/pair",
+                    data=json.dumps({"pin":hub.pin}).encode(),
+                    headers={"Content-Type":"application/json"},method="POST")
+                with urlopen(pair,timeout=3) as result:
+                    cookie=result.headers["Set-Cookie"].split(";",1)[0]
+                with urlopen(Request(base+path,headers={"Cookie":cookie}),
+                             timeout=3) as picture:
+                    self.assertEqual(picture.status,200)
+                    self.assertEqual(picture.headers["Content-Type"],"image/png")
+                    self.assertTrue(picture.read().startswith(b"\\x89PNG"))
+                with self.assertRaises(HTTPError) as fake:
+                    urlopen(Request(base+"/api/image?id=not-found",
+                                    headers={"Cookie":cookie}),timeout=3)
+                self.assertEqual(fake.exception.code,404)
+            finally:
+                server.shutdown();server.server_close()
+                thread.join(timeout=4);hub.close()
+
     def test_host_only_does_not_terminate_other_phone_stream(self):
         with tempfile.TemporaryDirectory() as directory:
             root=Path(directory);(root/"song.mp3").write_bytes(b"audio")
