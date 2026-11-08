@@ -91,19 +91,30 @@ def teletext_from_clip(path: Path, page: int | str, service_id: int | None = Non
     proc = _run(cmd, timeout=25)
     return ass_text(proc.stdout.decode("utf-8", "replace")) if proc.returncode == 0 else ""
 
-def choose_audio_stream(streams, language):
-    """Prefer the real program's matching, non-descriptive speech track.
+def choose_audio_stream(streams, language, preferred_pid=None):
+    """Prefer a real matching speech track, or an explicitly selected audio PID.
 
     German DTV broadcasts can contain accessibility/AD or English audio.
     Transcribing an AD or English track as German can corrupt the captions.
     This does not retune the channel or pick a different TV service.
     """
     languages = {"de":("deu","ger","de"), "en":("eng","en"),
-                 "tr":("tur","tr")}
+                 "tr":("tur","tr"), "fr":("fra","fre","fr")}
+    if preferred_pid is not None and (
+            type(preferred_pid) is not int or not 1 <= preferred_pid <= 8190):
+        raise ValueError("Invalid selected audio PID")
     candidates = []
     for stream in streams:
         if stream.get("codec_type") != "audio":
             continue
+        if preferred_pid is not None:
+            try:
+                pid = int(str(stream.get("id", "")), 0)
+            except (TypeError, ValueError):
+                continue
+            if pid != preferred_pid:
+                continue
+            return stream.get("index") if type(stream.get("index")) is int else None
         tags = stream.get("tags") or {}
         if not isinstance(tags, dict):
             tags = {}
@@ -124,7 +135,8 @@ def choose_audio_stream(streams, language):
 
 
 def asr_from_clip(path: Path, language: str, model: str,
-                  service_id: int | None = None, diagnostics=None) -> str:
+                  service_id: int | None = None, diagnostics=None,
+                  audio_pid: int | None = None) -> str:
     if language not in SUPPORTED:
         raise ValueError("Unsupported transcription language")
     selected_backend = os.environ.get("TIHULU_TV_ASR_BACKEND", "auto")
@@ -133,9 +145,12 @@ def asr_from_clip(path: Path, language: str, model: str,
     if selected_backend not in ("auto", "cpu", "gpu", "npu"):
         raise RuntimeError("Invalid offline speech backend")
     streams = _program_streams(path, service_id)
-    audio_index = choose_audio_stream(streams, language)
+    audio_index = choose_audio_stream(streams, language, audio_pid)
     if audio_index is None:
-        raise RuntimeError("No audio track in the selected TV service")
+        raise RuntimeError(
+            "Selected audio PID unavailable in tuned TV service"
+            if audio_pid is not None else
+            "No audio track in the selected TV service")
     audio = _run(["ffmpeg", "-hide_banner", "-loglevel", "error", "-i", str(path),
                   "-map", f"0:{audio_index}", "-vn", "-ar", "32000", "-ac", "1",
                   "-f", "s16le", "-"], timeout=35)
@@ -207,11 +222,15 @@ def translate(text: str, source: str, target: str) -> tuple[str | None, str | No
 def decode_segment(ts: bytes, *, mode="auto", page=150, source="de",
                    target="tr", targets=None, model="", service_id: int | None = None,
                    previous_text: str = "",
-                   teletext_pid: int | None = None) -> dict:
+                   teletext_pid: int | None = None,
+                   audio_pid: int | None = None) -> dict:
     if mode not in ("teletext", "page", "asr", "auto"):
         raise ValueError("Unsupported caption source")
     if not 100 <= page <= 899 or source not in SUPPORTED or target not in SUPPORTED:
         raise ValueError("Invalid language or page")
+    if audio_pid is not None and (
+            type(audio_pid) is not int or not 1 <= audio_pid <= 8190):
+        raise ValueError("Invalid selected audio PID")
     if targets is None:
         targets = (target,) if target != source else ()
     if (not isinstance(targets, (tuple,list)) or len(targets)>3 or
@@ -247,8 +266,11 @@ def decode_segment(ts: bytes, *, mode="auto", page=150, source="de",
         if not original and mode in ("asr", "auto"):
             asr_start = time.perf_counter()
             try:
+                asr_kwargs = {"diagnostics": speech_diagnostics}
+                if audio_pid is not None:
+                    asr_kwargs["audio_pid"] = audio_pid
                 original = asr_from_clip(p, source, model, service_id,
-                                         diagnostics=speech_diagnostics)
+                                         **asr_kwargs)
                 if original and previous_text:
                     from kaffeine_next.continuous_captions import remove_repeated_prefix
                     original = remove_repeated_prefix(previous_text, original)
