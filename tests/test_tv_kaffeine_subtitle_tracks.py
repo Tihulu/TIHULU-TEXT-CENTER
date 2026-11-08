@@ -120,6 +120,34 @@ class RealDVBSubtitleTrackTests(unittest.TestCase):
         self.assertEqual(result["original"], "German speech")
         self.assertEqual(asr.call_args.kwargs["audio_pid"], 0x121)
 
+    def test_teletext_and_whisper_fallback_translate_from_their_actual_languages(self):
+        sample_ts = bytes([0x47]) + bytes(187)
+        with patch("tv_center.captions.teletext_from_clip", return_value="Bonjour!"):
+            with patch("tv_center.captions.translate",
+                       return_value=("Merhaba", None)) as translate:
+                with patch("tv_center.captions.asr_from_clip") as asr:
+                    tele = decode_segment(sample_ts, mode="auto",
+                        page=366, source="fr", target="tr", targets=("tr",),
+                        teletext_pid=0x121, audio_pid=0x122,
+                        audio_source="en")
+        asr.assert_not_called()
+        translate.assert_called_once_with("Bonjour!", "fr", "tr")
+        self.assertEqual(tele["source_language"], "fr")
+
+        with patch("tv_center.captions.teletext_from_clip", return_value=""):
+            with patch("tv_center.captions.asr_from_clip",
+                       return_value="English speech") as asr:
+                with patch("tv_center.captions.translate",
+                           return_value=("Türkçe", None)) as translate:
+                    speech = decode_segment(sample_ts, mode="auto",
+                        page=366, source="fr", target="tr", targets=("tr",),
+                        teletext_pid=0x121, audio_pid=0x122,
+                        audio_source="en")
+        self.assertEqual(asr.call_args.args[1], "en")
+        self.assertEqual(asr.call_args.kwargs["audio_pid"], 0x122)
+        translate.assert_called_once_with("English speech", "en", "tr")
+        self.assertEqual(speech["source_language"], "en")
+
     def test_multiple_pat_entries_do_not_select_another_television_service(self):
         meter=TeletextSubtitleDiscovery()
         pat=_pat([(41,0x111),(42,0x100)])
