@@ -507,10 +507,12 @@ QAbstractButton *StartTab::addShortcut''')
     if files[vlc].count(mediaAnchor) != 2:
         raise ValueError("Unexpected libVLC media creation count")
     files[vlc] = files[vlc].replace(mediaAnchor, mediaAnchor + '''
-\tconst QUrl sourceUrl=source.getUrl();
-\tif (source.getType()==MediaSource::Url &&
-\t    sourceUrl.host()==QLatin1String("127.0.0.1") &&
-\t    sourceUrl.path().startsWith(QLatin1String("/mp3/"))) {
+\t// This media-creation expression occurs in BOTH play() and CD
+\t// track-change methods, but 'source' only exists in play().
+\t// Inspect the actual encoded libVLC URL instead.
+\tconst QByteArray localStreamUrl(typeOfDevice);
+\tif (localStreamUrl.startsWith("http://127.0.0.1:") &&
+\t    localStreamUrl.contains("/mp3/")) {
 \t\tQSettings radioSettings(QLatin1String("TIHULU"),
 \t\t\tQLatin1String("KaffeineRadio"));
 \t\tconst int cacheMs=qBound(0,
