@@ -54,3 +54,11 @@ footer{margin-top:28px;font-size:11px;color:#8099b1;letter-spacing:.13em}
 #web-pages-tv-launch{border-color:#497e91}
 #web-pages-tv-launch .link-button{margin:8px 0 12px}
 #web-pages-tv-launch code{overflow-wrap:anywhere}
+
+#browser-driver-center,#wasm-ts-panel{border-color:#36556b}
+#browser-driver-center .web-research-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px}
+#browser-driver-center label,#wasm-ts-panel label{display:block;margin:10px 0 5px;font-size:13px}
+#browser-driver-center select,#browser-driver-center input{width:100%;background:#071522;border:1px solid #405a6e;color:#e9f4ff;border-radius:5px;padding:10px}
+#browser-driver-center details{padding:9px;background:#091522;margin-top:15px;border-radius:8px;border:1px solid #344d61}
+#browser-driver-center pre{white-space:pre-wrap;overflow-wrap:anywhere;max-height:360px;overflow:auto;font-size:11px;color:#9fdac8}
+#wasm-ts-panel video[hidden]{display:none!important}

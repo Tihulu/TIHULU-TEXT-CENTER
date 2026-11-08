@@ -1,8 +1,9 @@
 {
   "source_branch": "feature/tv-center-native-teletext-asr-2026-11-07",
-  "source_sha": "0ca04531041b268098c9d67616030d17b3c9f191",
-  "ui": "GitHub Pages redirects to tokenless local TV when allowed; otherwise offers first-card same-host launcher; hide unusable native scan controls",
-  "native": "Local TV server and real DVB frontend shown separately; /api/status receiver.frontend_present controls scan readiness",
-  "webusb": "hardware diagnostics only; direct DVB-T2 tuning not implemented",
-  "mobile": "separate PIN-paired LAN session"
+  "source_sha": "2c57daac6fc37a0d83bbbeca458dad4f6b2a1798",
+  "web_mode": "independent WebUSB + WebAssembly, no native receiver or localhost dependency",
+  "direct_hardware": "experimental read-only diagnostics; Si2168 firmware parser and plan, actual tuner writes disabled",
+  "transport": "browser-only MPEG-TS PAT/PMT/SDT inspection; opt-in FFmpeg WASM file preview",
+  "live_dvb_tuning": "NOT IMPLEMENTED OR HARDWARE VERIFIED",
+  "optional_native": "localhost TV via user-chosen native app only"
 }

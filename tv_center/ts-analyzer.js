@@ -3,6 +3,17 @@
  * Parse *real* PAT/PMT with MPEG-2 CRC before reporting a program.
  */
 export const TS_SIZE = 188;
+export function dvbName(bytes){
+  if(!(bytes instanceof Uint8Array)||!bytes.length)return "";
+  // Explicit DVB UTF-8 selector 0x15. Default DVB EN 300 468
+  // character table is ISO 6937; Latin-1 is a documented best-effort
+  // fallback, so do not invent decoded text on unsupported encodings.
+  let source=bytes,encoding="iso-8859-1";
+  if(bytes[0]===0x15){source=bytes.subarray(1);encoding="utf-8";}
+  try{return new TextDecoder(encoding,{fatal:false}).decode(source)
+     .replace(/[\x00-\x1f]/g,"").trim();}
+  catch{return "";}
+}
 export function crc32Mpeg(input) {
   let c=0xffffffff;
   for(const byte of input){
@@ -21,6 +32,7 @@ export class TransportAnalyzer {
     this.packetCount=0;this.syncErrors=0;this.continuityErrors=0;
     this.crcErrors=0;this.validSections=0;this.teiErrors=0;
     this.bytes=0;this.programs=new Map();this.pmts=new Map();
+    this.services=new Map();this.transportId=null;
     this.continuity=new Map();this.sections=new Map();this.packetTypes=new Map();
     this.pending=new Uint8Array(0);
   }
@@ -108,6 +120,41 @@ export class TransportAnalyzer {
         if(service)next.set(service,pmt);
       }
       this.programs=next;this.validSections++;
+    }else if(pid===0x11 && table===0x42){
+      // DVB SDT actual TS: service names are in service_descriptor (0x48).
+      // Correctly ignore other multiplex (0x46) and invalid CRC.
+      if(sec.length<15)return;
+      const tsId=(sec[3]<<8)|sec[4];
+      const nextServices=new Map();
+      for(let at=11;at+5<=sec.length-4;){
+        const sid=(sec[at]<<8)|sec[at+1];
+        const descriptorLength=((sec[at+3]&0x0f)<<8)|sec[at+4];
+        const end=at+5+descriptorLength;
+        if(end>sec.length-4)break;
+        let name="",provider="",kind="unknown";
+        for(let d=at+5;d+2<=end;){
+          const tag=sec[d],n=sec[d+1],stop=d+2+n;
+          if(stop>end)break;
+          if(tag===0x48&&n>=3){
+            const serviceType=sec[d+2];
+            const pLen=sec[d+3],pStart=d+4;
+            const nameLenAt=pStart+pLen;
+            if(nameLenAt<stop){
+              const nLen=sec[nameLenAt],nStart=nameLenAt+1;
+              if(nStart+nLen<=stop){
+                provider=dvbName(sec.subarray(pStart,nameLenAt));
+                name=dvbName(sec.subarray(nStart,nStart+nLen));
+                kind=serviceType===0x02||serviceType===0x0a?"radio":
+                  [0x01,0x11,0x16,0x19,0x1f].includes(serviceType)?"tv":"unknown";
+              }
+            }
+          }
+          d=stop;
+        }
+        if(sid)nextServices.set(sid,{service:sid,name,provider,kind});
+        at=end;
+      }
+      this.services=nextServices;this.transportId=tsId;this.validSections++;
     }else if(table===0x02 && [...this.programs.values()].includes(pid)){
       if(sec.length<16)return;
       const service=(sec[3]<<8)|sec[4];
@@ -136,8 +183,13 @@ export class TransportAnalyzer {
       syncErrors:this.syncErrors,teiErrors:this.teiErrors,
       continuityErrors:this.continuityErrors,crcErrors:this.crcErrors,
       validSections:this.validSections,
+      transportId:this.transportId,
       programs:[...this.programs.entries()].map(([service,pmtPid])=>({
-        service,pmtPid,details:this.pmts.get(service)||null
+        service,pmtPid,
+        name:this.services.get(service)?.name||null,
+        provider:this.services.get(service)?.provider||null,
+        kind:this.services.get(service)?.kind||"unknown",
+        details:this.pmts.get(service)||null
       })).sort((a,b)=>a.service-b.service),
       topPids:[...this.packetTypes.entries()].sort((a,b)=>b[1]-a[1])
        .slice(0,12).map(([pid,count])=>({pid,count}))

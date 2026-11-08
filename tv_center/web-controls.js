@@ -11,10 +11,10 @@ import {scanFields,scanRequest,scanTitle,scanControls} from "./scan-ui-state.js"
   if(location.hostname==="tihulu.github.io"){
     root.innerHTML=`
       <section class="panel" id="web-pages-tv-launch">
-        <h2>Real TV channels &amp; scanning · Local TV</h2>
-        <p>GitHub Pages runs WebUSB diagnostics and browser AI, but cannot tune Linux DVB by itself. The full TV interface runs on the computer connected to the receiver.</p>
-        <a class="link-button" href="http://127.0.0.1:8768/" rel="noopener">Open Local TV — no token</a>
-        <small>Start <code>tihulu-tv-center</code> first. For a phone, open the PIN-paired LAN address shown by the native app instead.</small>
+        <h2>Browser-only DVB-T2 driver · Status</h2>
+        <p>The direct WebUSB transport and board-protocol modules are being ported from the Linux driver. Browser recording analysis, MPEG-TS/WASM preview and WebGPU speech AI need no local service. Full automatic frequency scanning is not yet hardware-verified.</p>
+        <a class="link-button" href="#browser-driver-center">Open direct USB driver tools</a>
+        <small>Chromium WebUSB is required to claim the USB tuner. WebAssembly handles software and recording codecs, not Linux kernel driver ownership.</small>
       </section>`;
     return;
   }
