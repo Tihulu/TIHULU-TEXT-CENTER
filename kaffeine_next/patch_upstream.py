@@ -232,6 +232,36 @@ QAbstractButton *StartTab::addShortcut''')
 	gridLayout->addWidget(button,3,0,1,3);
 #endif /* HAVE_DVB == 1 */''')
 
+    # Single bottom-bar recorder is available across Playback, TV, Radio
+    # and Internet streams. Non-DVB sources are tracked only when libVLC
+    # actually receives a URL; no stale source from a previous media type.
+    change(main, '#include "tihulu_hardware_tab.h"\\n',
+           '#include "tihulu_hardware_tab.h"\\n#include "tihulu_unified_recorder.h"\\n')
+    change(main, '''\tstackedLayout->addWidget(hardwareTab);
+
+\tcurrentTabIndex = StartTabId;''',
+    '''\tstackedLayout->addWidget(hardwareTab);
+\t// Shared Record/Stop and Recordings library remain in the bottom
+\t// transport bar on every tab, including Web TV and radio.
+\tnew TihuluUnifiedRecorder(mediaWidget,dvbTab,controlBar,this);
+
+\tcurrentTabIndex = StartTabId;''')
+    media="src/mediawidget.cpp"
+    change(media, '''void MediaWidget::play(MediaSource *source_)
+{
+\tif (source != source_) {''',
+    '''void MediaWidget::play(MediaSource *source_)
+{
+\t// Invalidates a previously played Internet/local URL when a DVB,
+\t// disc or other non-URL media source takes ownership of libVLC.
+\tsetProperty("tihulu_recordable_url",QVariant());
+\tif (source != source_) {''')
+    change(media, '''\tplay(new MediaSourceUrl(url, subtitleUrl));
+}''',
+    '''\tplay(new MediaSourceUrl(url, subtitleUrl));
+\tsetProperty("tihulu_recordable_url",url);
+}''')
+
     # Use a unique application ID and KConfig/SQLite user-data path.
     # This is a distinctly installed app, not the system KDE Kaffeine
     # process or a secondary window inside the existing binary.
@@ -1235,6 +1265,15 @@ def apply(root: Path):
         raise RuntimeError("Refusing to overwrite unrelated native hardware header")
     hardware_dest.write_text(hardware.read_text(encoding="utf-8"),encoding="utf-8")
     print("Installed native Hardware page:",hardware_dest)
+    recording_template=Path(__file__).with_name("native_unified_recorder.h")
+    if not recording_template.is_file():
+        raise RuntimeError("Native universal recorder template missing")
+    record_dest=root / "src/tihulu_unified_recorder.h"
+    if record_dest.exists() and (
+        record_dest.read_text(encoding="utf-8") != recording_template.read_text(encoding="utf-8")):
+        raise RuntimeError("Refusing to overwrite unrelated recording header")
+    record_dest.write_text(recording_template.read_text(encoding="utf-8"),encoding="utf-8")
+    print("Installed native unified Record/Stop + Library:",record_dest)
     panel = Path(__file__).with_name("native_media_panel.h")
     if not panel.is_file():
         raise RuntimeError("In-player local media AI template is missing")
