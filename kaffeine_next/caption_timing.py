@@ -105,6 +105,25 @@ class CaptionConfig:
                     lines.append(legacy)
         return "\n".join(lines)[:1100]
 
+def effective_cue_config(config: CaptionConfig, native_status: dict | None) -> CaptionConfig:
+    """Use the delay Kaffeine actually applies, not a requested but capped delay.
+
+    Kaffeine's 64-MiB DVB buffer can temporarily shrink for high-bitrate
+    services, timeshift, or recovery. A fresh status is already checked by
+    KaffeineOSD.read_effective_delay(). Reject a status from an older
+    user request: the C++ player may not have processed Apply yet.
+    This is best effort; libVLC's own output latency is not measured.
+    """
+    if (not isinstance(native_status, dict) or
+            type(native_status.get("requested_ms")) is not int or
+            native_status["requested_ms"] != config.playback_delay_ms):
+        return config
+    actual = native_status.get("effective_ms")
+    if type(actual) is not int or not 0 <= actual <= config.playback_delay_ms:
+        return config
+    return replace(config, playback_delay_ms=actual)
+
+
 def cue_window(started, ended, finished, config: CaptionConfig):
     """Schedule a chunk relative to the *captured* audio, not decoder finish.
 
