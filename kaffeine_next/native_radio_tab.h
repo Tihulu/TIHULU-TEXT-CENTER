@@ -217,6 +217,23 @@ public:
 		receiverActions->addWidget(subtitledRecord_);
 		receiverActions->addWidget(stop_);
 		root->addLayout(receiverActions);
+		// Keep actual scan progress + SNR in view even when the RF graph and
+		// AI settings are far down the scroll area.
+		auto *scanReadouts=new QHBoxLayout();
+		scanProgress_=new QProgressBar(page);
+		scanProgress_->setRange(0,channel_->count());
+		scanProgress_->setValue(0);
+		scanProgress_->setFormat(tr("DAB scan · not started"));
+		scanProgress_->setMinimumWidth(160);
+		scanSNR_=new QProgressBar(page);
+		scanSNR_->setRange(0,100);
+		scanSNR_->setValue(0);
+		scanSNR_->setFormat(tr("RF SNR: no live measurement"));
+		scanSNR_->setToolTip(tr("Actual reported DAB signal-to-noise ratio converted "
+			"to a relative progress indicator, NOT a measured RF power level."));
+		scanReadouts->addWidget(scanProgress_,1);
+		scanReadouts->addWidget(scanSNR_,1);
+		root->addLayout(scanReadouts);
 
 		state_ = new QLabel(tr("Receiver disconnected. A separate DAB-capable SDR is required; "
 			"the DVB-T2 television adapter is not automatically a DAB receiver."), this);
@@ -910,28 +927,31 @@ public:
 				tick_.stop();
 				if (!shuttingDown_) state_->setText(tr("welle-cli stopped; SDR released."));
 			});
-		tick_.setInterval(1600);
+		tick_.setInterval(900);
 		// Audio captions no longer wait for the expensive 1600-ms RF poll.
 		captionTick_.setInterval(150);
 		connect(&captionTick_,&QTimer::timeout,this,[this](){
 			pollCaption();updateLyrics();
 		});
 		captionTick_.start();
-		rfTick_.setInterval(700);
+		rfTick_.setInterval(300);
 		connect(&rfTick_,&QTimer::timeout,this,[this](){
-			if(!multiRf_->isChecked() || !active() || plotPending_ || multiPlots_.size()!=3)
-				return;
-			const QStringList kinds={
-				QLatin1String("spectrum"),QLatin1String("waterfall"),
-				QLatin1String("constellation")};
-			const int index=(multiRfIndex_++)%3;
-			fetchPlot(kinds[index],multiPlots_.at(index));
-		});
-		connect(&tick_, &QTimer::timeout, this, [this](){
-			pollMux();
-			if(livePlot_->isChecked() && !multiRf_->isChecked() && !plotPending_)
+			if(!active() || plotPending_) return;
+			if(multiRf_->isChecked() && multiPlots_.size()==3) {
+				const QStringList kinds={
+					QLatin1String("spectrum"),QLatin1String("waterfall"),
+					QLatin1String("constellation")};
+				const int index=(multiRfIndex_++)%3;
+				fetchPlot(kinds[index],multiPlots_.at(index));
+			} else if(livePlot_->isChecked()) {
 				fetchPlot();
+			}
 		});
+		connect(livePlot_,&QCheckBox::toggled,this,[this](bool enabled){
+			if(enabled || multiRf_->isChecked()) rfTick_.start();
+			else rfTick_.stop();
+		});
+		connect(&tick_, &QTimer::timeout, this, [this](){pollMux();});
 		loadStations();
 		stations_->sortItems(1,Qt::AscendingOrder);
 		filterStations();
@@ -1406,6 +1426,15 @@ private:
 		const double snr=demod.value(QLatin1String("snr")).toDouble();
 		const QString quality=!snrValid?tr("not measured"):
 			(snr>=15?tr("strong"):snr>=8?tr("moderate"):tr("weak / uncertain"));
+		if(scanSNR_) {
+			scanSNR_->setValue(snrValid?qBound(0,qRound(snr*4),100):0);
+			scanSNR_->setFormat(snrValid?
+				tr("%1 · actual SNR %2 dB (%3)").arg(ch)
+					.arg(snr,0,'f',1).arg(quality):
+				tr("%1 · no verified SNR measurement").arg(ch));
+		}
+		if(scanning_ && snrValid)
+			scanSnrByBlock_[ch]=snr;
 		rfQuality_->setValue(snrValid?qBound(0,qRound(snr*4),100):0);
 		rfQuality_->setFormat(
 			snrValid ? tr("DAB SNR: %1 dB · relative %2%").arg(snr,0,'f',1)
@@ -1627,6 +1656,12 @@ private:
 		}
 		scanning_=true;
 		scanIndex_=0;
+		scanSnrByBlock_.clear();
+		scanProgress_->setRange(0,channel_->count());
+		scanProgress_->setValue(0);
+		scanProgress_->setFormat(tr("Scanning Band III: %v/%m blocks"));
+		scanSNR_->setValue(0);
+		scanSNR_->setFormat(tr("Waiting for current DAB block lock…"));
 		scan_->setEnabled(false);
 		state_->setText(tr("Scanning real DAB Band III frequencies…"));
 		// welle-cli first opens the SDR and then starts its HTTP server.
@@ -1641,6 +1676,16 @@ private:
 			return;
 		}
 		if (scanIndex_ >= channel_->count()) {
+			scanProgress_->setValue(channel_->count());
+			scanProgress_->setFormat(tr("DAB scan complete · %v/%m blocks"));
+			if(!scanSnrByBlock_.isEmpty()) {
+				auto strongest=std::max_element(scanSnrByBlock_.constBegin(),
+					scanSnrByBlock_.constEnd(),
+					[](double a,double b){return a<b;});
+				scanSNR_->setToolTip(tr("Strongest measured block: %1 · %2 dB SNR. "
+					"Values are samples obtained during this scan only.")
+					.arg(strongest.key()).arg(strongest.value(),0,'f',1));
+			}
 			scanning_=false;
 			scan_->setEnabled(true);
 			saveStations();
@@ -1649,6 +1694,9 @@ private:
 			return;
 		}
 		const QString block = channel_->itemText(scanIndex_++);
+		scanProgress_->setValue(scanIndex_-1);
+		scanSNR_->setValue(0);
+		scanSNR_->setFormat(tr("%1 · retuning, awaiting new RF measurement").arg(block));
 		state_->setText(tr("Scanning DAB %1 (%2/%3)…")
 			.arg(block).arg(scanIndex_).arg(channel_->count()));
 		tune(block,[this,block]() {
@@ -1828,7 +1876,7 @@ private:
 		QNetworkReply *reply=network_.get(QNetworkRequest(QUrl(base()+QLatin1Char('/')+api)));
 		// Do not leave Live RF permanently locked if the backend stops
 		// answering mid-capture.
-		QTimer::singleShot(5000,reply,[reply](){
+		QTimer::singleShot(1800,reply,[reply](){
 			if(reply->isRunning()) reply->abort();
 		});
 		connect(reply,&QNetworkReply::finished,this,[this,reply,type,target]() {
@@ -1837,7 +1885,11 @@ private:
 			const bool okay=reply->error()==QNetworkReply::NoError &&
 				raw.size()>=32 && raw.size()<=262144 && raw.size()%4==0;
 			reply->deleteLater();
-			if (!okay) { target->setText(tr("No valid receiver RF sample.")); return; }
+			if (!okay) {
+				target->setToolTip(tr("No fresh RF data; retaining last valid plot. "
+				"Check SDR signal, lock and backend load."));
+				return;
+			}
 			const int count=raw.size()/4;
 			const int steps=qMin(count,500);
 			QVector<double> points;
@@ -2286,6 +2338,8 @@ private:
 	QCheckBox *webFavoritesOnly_=nullptr;
 	QLabel *webStatus_=nullptr;
 	QProgressBar *rfQuality_=nullptr;
+	QProgressBar *scanProgress_=nullptr,*scanSNR_=nullptr;
+	QMap<QString,double> scanSnrByBlock_;
 	QCheckBox *multiRf_=nullptr;
 	QWidget *multiPanel_=nullptr;
 	QList<QLabel*> multiPlots_;
