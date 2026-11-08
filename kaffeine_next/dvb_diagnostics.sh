@@ -17,8 +17,8 @@ for config in "$HOME/.local/share/tihulu-media-center/config.dvb" \
   found_config=1
   printf '  Database: %s\n' "$config"
   awk -F= '
-    /^\\[device\\]$/ { print "    [device]"; next }
-    /^\\[config\\]$/ { print "    [config]"; next }
+    /^\[device\]$/ { print "    [device]"; next }
+    /^\[config\]$/ { print "    [config]"; next }
     /^(frontendName|name|scanSource)=/ {
       key=$1
       # Do not show sensitive serial/device-ID settings, just display names.
