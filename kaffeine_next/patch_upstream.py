@@ -559,6 +559,17 @@ QAbstractButton *StartTab::addShortcut''')
 \t\tconst QByteArray cacheOpt=QByteArray(":network-caching=")+
 \t\t\tQByteArray::number(cacheMs);
 \t\tlibvlc_media_add_option(vlcMedia,cacheOpt.constData());
+\t} else if (localStreamUrl.startsWith("file://")) {
+\t\t// Local file AI may run BEFORE playback by user request.
+\t\t// This is only I/O read-ahead, not a fabricated subtitle offset.
+\t\tQSettings mediaSettings(QLatin1String("TIHULU"),
+\t\t\tQLatin1String("MediaPlayer"));
+\t\tconst int cacheMs=qBound(0,
+\t\t\tmediaSettings.value(QLatin1String("fileCacheMs"),1500).toInt(),
+\t\t\t20000);
+\t\tconst QByteArray cacheOpt=QByteArray(":file-caching=")+
+\t\t\tQByteArray::number(cacheMs);
+\t\tlibvlc_media_add_option(vlcMedia,cacheOpt.constData());
 \t}
 \t// Per-media option reinforces the instance-level software decode
 \t// request; native television and playback controls remain unmodified.
