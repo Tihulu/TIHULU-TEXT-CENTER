@@ -70,6 +70,17 @@ public:
             "own workers; never unbinds drivers, ejects USB or kills other apps."),page);
         note->setWordWrap(true);
         root->addWidget(note);
+        auto *noTunerNote=new QLabel(tr(
+            "No antenna or USB tuner? TIHULU still plays local files, "
+            "Internet TV (Television → Web TV / Internet channels) and "
+            "Internet radio (Radio → Internet radio). These use the normal "
+            "libVLC player and do not start DVB, welle-cli or rtl_fm. "
+            "Only terrestrial TV, DAB+ and FM/MW/LW reception need hardware."),page);
+        noTunerNote->setWordWrap(true);
+        noTunerNote->setStyleSheet(QLatin1String(
+            "background:#17334a;border:1px solid #426480;"
+            "border-radius:7px;padding:9px;color:#d0f0fa;"));
+        root->addWidget(noTunerNote);
 
         auto *tools=new QHBoxLayout();
         refreshButton_=new QPushButton(tr("Refresh devices now"),page);
@@ -393,7 +404,9 @@ private:
             .arg(counts.value(QLatin1String("dvb_frontends")).toInt())
             .arg(list_->topLevelItemCount()));
         if(list_->topLevelItemCount()==0)
-            summary_->setText(summary_->text()+tr(" · No matching hardware detected."));
+            summary_->setText(summary_->text()+tr(
+                " · No RF receiver found. Local media, Web TV and Internet radio "
+                "remain available without hardware."));
     }
 
     TihuluRadioTab *radio_=nullptr;
