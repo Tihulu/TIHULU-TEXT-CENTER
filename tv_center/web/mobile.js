@@ -253,7 +253,11 @@
       document.dispatchEvent(new Event("tihulu-tv-connected"));
     }catch(e){$("pair-note").textContent=e.message;}
   };
-  $("leave").onclick=disconnect;
+  $("leave").onclick=async()=>{
+    try{if(connected)await send("/api/disconnect",{});}
+    catch(e){$("pair-note").textContent="Could not revoke session: "+e.message;}
+    finally{disconnect();}
+  };
   function watchVideo(){
     const video=$("tv"),url="/hls/index.m3u8";
     if(playerHls){playerHls.destroy();playerHls=null;}
