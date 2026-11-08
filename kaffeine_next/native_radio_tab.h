@@ -48,6 +48,7 @@
 #include <QRegularExpression>
 #include <QSettings>
 #include <QSlider>
+#include <QSpinBox>
 #include <QSplitter>
 #include <QStandardPaths>
 #include <QTcpServer>
@@ -212,8 +213,11 @@ public:
 		auto *v = new QVBoxLayout(lab);
 		auto *row = new QHBoxLayout();
 		speechLanguage_ = new QComboBox(lab);
-		speechLanguage_->setEditable(true);
+		speechLanguage_->addItem(tr("Auto detect · GPU Whisper"),"auto");
 		speechLanguage_->addItems({"de","en","tr","fr","es","pl","ar","ja"});
+		speechLanguage_->setEditable(true);
+		speechLanguage_->setCurrentIndex(0);
+		german_ = new QCheckBox(tr("German"), lab); german_->setChecked(true);
 		english_ = new QCheckBox(tr("English"), lab); english_->setChecked(true);
 		turkish_ = new QCheckBox(tr("Turkish"), lab); turkish_->setChecked(true);
 		music_ = new QCheckBox(tr("Transcribe singing / music vocals"), lab);
@@ -222,9 +226,39 @@ public:
 		row->addWidget(new QLabel(tr("Source:"), lab));
 		row->addWidget(speechLanguage_);
 		row->addWidget(english_);
+		row->addWidget(german_);
 		row->addWidget(turkish_);
 		row->addWidget(music_);
 		v->addLayout(row);
+		extraTargets_=new QLineEdit(lab);
+		extraTargets_->setPlaceholderText(
+			tr("Extra translation targets (optional): fr, es, pl, ar, ja..."));
+		v->addWidget(extraTargets_);
+		auto *syncControls=new QHBoxLayout();
+		bufferMs_=new QSpinBox(lab);
+		bufferMs_->setRange(0,20000);
+		bufferMs_->setSingleStep(500);
+		bufferMs_->setSuffix(tr(" ms"));
+		QSettings radioSettings(QLatin1String("TIHULU"),QLatin1String("KaffeineRadio"));
+		bufferMs_->setValue(qBound(0,
+			radioSettings.value(QLatin1String("playbackBufferMs"),12000).toInt(),20000));
+		bufferMs_->setToolTip(tr("Radio-only libVLC network cache. Applies on stream reopen; "
+			"not a measured DAC/ALSA audio presentation clock."));
+		autoSync_=new QCheckBox(tr("Auto adjust radio buffer"),lab);
+		autoSync_->setChecked(true);
+		autoSync_->setToolTip(tr("Periodically measure ASR+translation lag; "
+			"restarting the audio stream briefly can be necessary to apply a new buffer."));
+		auto *applyBuffer=new QPushButton(tr("Apply radio buffer"),lab);
+		syncControls->addWidget(new QLabel(tr("Audio buffer:"),lab));
+		syncControls->addWidget(bufferMs_);
+		syncControls->addWidget(autoSync_);
+		syncControls->addWidget(applyBuffer);
+		v->addLayout(syncControls);
+		syncStatus_=new QLabel(tr("Sync: 12s requested radio network cache "
+			"· no verified audio output clock · checking every 30s"),lab);
+		syncStatus_->setWordWrap(true);
+		v->addWidget(syncStatus_);
+		connect(applyBuffer,&QPushButton::clicked,this,[this](){ applyRadioBuffer(); });
 		auto *captionActions=new QHBoxLayout();
 		captionActions->addStretch(1);
 		captionActions->addWidget(caption_);
@@ -934,13 +968,20 @@ private:
 		}
 		if (captionProcess_.state()!=QProcess::NotRunning) return;
 		const QString sid=playingKey_.section(QLatin1Char(':'),1);
+		const QString sourceCode=speechLanguage_->currentData().isValid()?
+			speechLanguage_->currentData().toString():
+			speechLanguage_->currentText().trimmed();
 		QStringList options{QLatin1String("radio-captions"),
 			QLatin1String("--port"),QString::number(port_),
 			QLatin1String("--sid"),sid,
-			QLatin1String("--source"),speechLanguage_->currentText()};
+			QLatin1String("--source"),sourceCode};
 		QStringList targets;
 		if (english_->isChecked()) targets<<QLatin1String("en");
+		if (german_->isChecked()) targets<<QLatin1String("de");
 		if (turkish_->isChecked()) targets<<QLatin1String("tr");
+		for(const QString &extra:extraTargets_->text().split(QLatin1Char(','),Qt::SkipEmptyParts))
+			if(!targets.contains(extra.trimmed()) && targets.size()<6)
+				targets<<extra.trimmed();
 		options<<QLatin1String("--targets")<<targets.join(QLatin1Char(','));
 		if (music_->isChecked()) options<<QLatin1String("--music");
 		const QString runtime=QStandardPaths::writableLocation(QStandardPaths::RuntimeLocation);
@@ -1086,10 +1127,14 @@ private:
 	QSet<QString> favorites_;
 	QLabel *state_=nullptr,*dls_=nullptr,*signal_=nullptr,*slide_=nullptr,
 		*radioCaption_=nullptr,*lyricText_=nullptr,*plot_=nullptr;
-	QCheckBox *english_=nullptr,*turkish_=nullptr,*music_=nullptr,
+	QCheckBox *english_=nullptr,*german_=nullptr,*turkish_=nullptr,*music_=nullptr,
 		*livePlot_=nullptr,*showWidgets_=nullptr,
 		*coarseCorrector_=nullptr;
 	QSlider *lyricsOffset_=nullptr;
+	QSpinBox *bufferMs_=nullptr;
+	QCheckBox *autoSync_=nullptr;
+	QLineEdit *extraTargets_=nullptr;
+	QLabel *syncStatus_=nullptr;
 	QProcess backend_,captionProcess_,recorder_,lyricsProcess_;
 	QNetworkAccessManager network_;
 	QTimer tick_;
