@@ -851,7 +851,7 @@ def main(argv=None):
         catalog_in_flight=True
         catalog_timed_out=False
         output_catalog_status.setText(
-            "Language choices ready. Checking installed models (max 6 s)…")
+            "Language choices ready. Checking installed models (max 11 s)…")
         language_process.start(sys.executable,
             ["-m","tv_center.installed_languages"])
         language_timeout.start(11000)
