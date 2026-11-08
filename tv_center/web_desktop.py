@@ -97,6 +97,9 @@ class TVWebMixin:
                 {"id":"captions","label":"Captions only",
                  "available":True,"streamable":True}
             ],
+            "desktop_control_capabilities":{
+                "mode":True,"offset":False,"buffer":False,"start_stop":True,
+                "backend":"native_tv_center_mpv"},
             "desktop_caption_settings":{
                 "mode":self.capture.caption_mode,
                 "source":self.capture.source_lang,
