@@ -1,7 +1,7 @@
 /* WebUSB WinTV-soloHD diagnostics, no automatic retune/firmware/kernel changes.
  * Every USB operation starts from explicit user interaction.
  */
-import {WinTVProbe,WINTV,bulkCandidates} from "./webusb-em28xx.js";
+import {WinTVProbe,WINTV,bulkCandidates} from "./webusb-em28xx.js?v=2";
 import {TransportAnalyzer} from "./ts-analyzer.js";
 import {BrowserTransportCapture} from "./browser-ts-capture.js";
 import {classifyUsbFailure,LINUX_SETUP_COMMANDS} from "./webusb-access-guide.js";
