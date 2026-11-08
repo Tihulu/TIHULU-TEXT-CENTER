@@ -22,6 +22,7 @@ class KaffeineCaptionTapTests(TestCase):
         self.assertIn("538000000, 586000000, 626000000", source)
         self.assertIn("Channels / Antenna Scan", source)
         self.assertIn("Full Antenna Scan...", source)
+        self.assertIn("Load generated SRT in native player...", source)
         self.assertIn("mediaWidget->stop()", source)
         self.assertIn("QTimer::singleShot", source)
         self.assertNotIn('QProcess::startDetached(QLatin1String("w_scan_cpp")', source)
