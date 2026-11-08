@@ -1887,8 +1887,10 @@ private:
 		QString sourceCode=speechLanguage_->currentData().isValid()?
 			speechLanguage_->currentData().toString():
 			speechLanguage_->currentText().trimmed();
-		if(sourceCode==QLatin1String("auto") && !lastDetectedLanguage_.isEmpty())
-			sourceCode=lastDetectedLanguage_;
+		// Do not reuse previous spoken presenter language for the NEXT song:
+		// an English or Turkish singer may follow a German-language host.
+		// Without independently verified song language, keep it auto and
+		// suppress ungrounded German/English/Turkish lyric translation.
 		QStringList dests;
 		if(english_->isChecked()) dests<<QLatin1String("en");
 		if(german_->isChecked()) dests<<QLatin1String("de");
