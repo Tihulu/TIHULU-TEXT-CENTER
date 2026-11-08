@@ -1205,6 +1205,7 @@ private:
 			// buffer; this can briefly interrupt sound.
 			player_->play(QUrl(base()+QLatin1String("/mp3/")+sid));
 			lastRadioChunk_=-1;
+			cueQueue_.clear();
 			pendingRadioCue_.clear();
 			lastAdjustmentMs_=QDateTime::currentMSecsSinceEpoch();
 			syncStatus_->setText(tr("Reopened radio audio with %1ms requested libVLC "
@@ -1249,75 +1250,83 @@ private:
 		else radioCaption_->setText(tr("Offline radio ASR/translation started. "
 			"Audio stays on this device; latency depends on model."));
 	}
+	void displayDueRadioCues(qint64 now) {
+		// Queue rather than overwrite: a new AI chunk must not erase the
+		// previous chunk before its estimated playback presentation time.
+		while(!cueQueue_.isEmpty() && cueQueue_.first().dueMs<=now) {
+			const TimedRadioCue cue=cueQueue_.takeFirst();
+			if(cue.chunkIndex<=displayedRadioChunk_) continue;
+			displayedRadioChunk_=cue.chunkIndex;
+			radioCaption_->setText(cue.text);
+			radioCanvas_->setText(cue.text.left(680));
+		}
+	}
 	void pollCaption() {
-		if (captionPath_.isEmpty()) return;
-		QFile stream(captionPath_);
-		if (!stream.open(QIODevice::ReadOnly) || stream.size()>15000) return;
-		const auto obj=QJsonDocument::fromJson(stream.readAll()).object();
-		const QString recognized=obj.value(QLatin1String("source_language")).toString();
-		if(recognized.size()>=2 && recognized.size()<=3 &&
-		   recognized!=QLatin1String("und"))
-			lastDetectedLanguage_=recognized;
-		const int chunk=obj.value(QLatin1String("chunk_index")).toInt(-1);
 		const qint64 now=QDateTime::currentMSecsSinceEpoch();
+		if(captionPath_.isEmpty()) return;
+		QFile stream(captionPath_);
+		if(!stream.open(QIODevice::ReadOnly) || stream.size()>15000) {
+			displayDueRadioCues(now);
+			return;
+		}
+		const QJsonObject obj=QJsonDocument::fromJson(stream.readAll()).object();
+		const QString detected=obj.value(QLatin1String("source_language")).toString();
+		if(detected.size()>=2 && detected.size()<=3 &&
+		   detected!=QLatin1String("und"))
+			lastDetectedLanguage_=detected;
+		const int chunk=obj.value(QLatin1String("chunk_index")).toInt(-1);
 		if(chunk>=0 && chunk!=lastRadioChunk_) {
 			lastRadioChunk_=chunk;
-			const double captured=obj.value(
-				QLatin1String("captured_monotonic")).toDouble();
-			const double decoded=obj.value(
-				QLatin1String("decoded_monotonic")).toDouble();
-			if(decoded>=captured && decoded-captured<=90.) {
-				const int inference=int((decoded-captured)*1000);
+			const double captured=obj.value(QLatin1String("captured_monotonic")).toDouble();
+			const double decoded=obj.value(QLatin1String("decoded_monotonic")).toDouble();
+			const int inference=(decoded>=captured && decoded-captured<=90.)
+				?int((decoded-captured)*1000):0;
+			if(inference>0) {
 				lagSamples_.append(inference);
 				while(lagSamples_.size()>8) lagSamples_.removeFirst();
-				const int estimatedNeed=6000+inference+950;
-				syncStatus_->setText(tr("ASR+translation: %1ms · radio-only "
-					"cache requested: %2ms · buffer is estimated, "
-					"not sample-accurate lip-sync")
-					.arg(inference).arg(bufferMs_->value()));
-				// Auto correction only after 4 fresh chunks, max once per
-				// 60s, and only if lag is significant. A cache change
-				// necessarily reopens the local libVLC audio stream.
-				if(autoSync_->isChecked() && lagSamples_.size()>=4 &&
-				   now-lastAdjustmentMs_>60000) {
-					QList<int> values=lagSamples_;
-					std::sort(values.begin(),values.end());
-					const int p80=values[values.size()*4/5];
-					const int recommended=qBound(0,
-						((6000+p80+1400+499)/500)*500,20000);
-					if(recommended>bufferMs_->value()+1500) {
+			}
+			if(autoSync_->isChecked() && lagSamples_.size()>=4 &&
+			   now-lastAdjustmentMs_>60000) {
+				QList<int> values=lagSamples_;
+				std::sort(values.begin(),values.end());
+				const int p80=values[values.size()*4/5];
+				const int recommended=qBound(0,
+					((6000+p80+1400+499)/500)*500,20000);
+				lastAdjustmentMs_=now;
+				if(recommended>bufferMs_->value()+1500) {
+					if(autoRestartAudio_->isChecked()) {
 						bufferMs_->setValue(recommended);
 						applyRadioBuffer();
+					} else {
+						syncStatus_->setText(tr("ASR lag: %1ms. Suggested radio cache: "
+							"%2ms; Apply manually (audio keeps playing).")
+							.arg(p80).arg(recommended));
 					}
 				}
-				const int remaining=qMax(0,bufferMs_->value() -
-					6000 - inference + 550);
-				// Display only when delayed audio is EXPECTED to reach
-				// the player; never claim this is an observed libVLC PTS.
-				radioCueDueMs_=now+remaining;
-			} else {
-				radioCueDueMs_=now;
 			}
+			// The stream cache is only a requested network delay; not a
+			// confirmed DAC timestamp. The user's manual offset is ALWAYS
+			// applied to the already-generated cue's display time.
+			const int remaining=bufferMs_->value()-6000-inference+550;
+			QString caption=obj.value(QLatin1String("original")).toString();
+			const auto translations=obj.value(QLatin1String("translations")).toObject();
+			for(auto it=translations.begin();it!=translations.end();++it)
+				if(it.value().isString())
+					caption+=QLatin1String("\n[")+it.key().toUpper()+
+						QLatin1String("] ")+it.value().toString();
+			if(!caption.isEmpty()) {
+				const qint64 due=now+qMax(-1500,remaining)+radioOffsetMs_->value();
+				cueQueue_.append({chunk,due,caption.left(1300)});
+				while(cueQueue_.size()>12) cueQueue_.removeFirst();
+			}
+			if(obj.contains(QLatin1String("error")))
+				state_->setText(tr("Radio ASR: %1")
+					.arg(obj.value(QLatin1String("error")).toString().left(170)));
 		}
-		QString text=obj.value(QLatin1String("original")).toString();
-		const auto translated=obj.value(QLatin1String("translations")).toObject();
-		for (auto it=translated.begin();it!=translated.end();++it)
-			if (it.value().isString())
-				text+=QLatin1String("\n[")+it.key().toUpper()+
-					QLatin1String("] ")+it.value().toString();
-		if (!text.isEmpty() && chunk>=0)
-			pendingRadioCue_=text.left(1300);
-		if(!pendingRadioCue_.isEmpty() && now>=radioCueDueMs_ &&
-		   displayedRadioChunk_!=chunk) {
-			displayedRadioChunk_=chunk;
-			radioCaption_->setText(pendingRadioCue_);
-			radioCanvas_->setText(pendingRadioCue_.left(680));
-		}
-		else if (obj.contains(QLatin1String("error")))
-			radioCaption_->setText(tr("Radio speech processing: %1")
-				.arg(obj.value(QLatin1String("error")).toString().left(170)));
+		displayDueRadioCues(now);
 	}
 	void stopCaptioning() {
+		cueQueue_.clear();
 		if (captionProcess_.state()!=QProcess::NotRunning) {
 			captionProcess_.terminate();
 			if (!captionProcess_.waitForFinished(700))
