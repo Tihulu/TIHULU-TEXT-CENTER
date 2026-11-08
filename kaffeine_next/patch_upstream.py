@@ -507,33 +507,24 @@ QAbstractButton *StartTab::addShortcut''')
     if files[vlc].count(mediaAnchor) != 2:
         raise ValueError("Unexpected libVLC media creation count")
     files[vlc] = files[vlc].replace(mediaAnchor, mediaAnchor + '''
+\tconst QUrl sourceUrl=source.getUrl();
+\tif (source.getType()==MediaSource::Url &&
+\t    sourceUrl.host()==QLatin1String("127.0.0.1") &&
+\t    sourceUrl.path().startsWith(QLatin1String("/mp3/"))) {
+\t\tQSettings radioSettings(QLatin1String("TIHULU"),
+\t\t\tQLatin1String("KaffeineRadio"));
+\t\tconst int cacheMs=qBound(0,
+\t\t\tradioSettings.value(QLatin1String("playbackBufferMs"),12000).toInt(),
+\t\t\t20000);
+\t\tconst QByteArray cacheOpt=QByteArray(":network-caching=")+
+\t\t\tQByteArray::number(cacheMs);
+\t\tlibvlc_media_add_option(vlcMedia,cacheOpt.constData());
+\t}
 \t// Per-media option reinforces the instance-level software decode
 \t// request; native television and playback controls remain unmodified.
 \tconst QByteArray appliedProfile = qgetenv("TIHULU_VLC_PROFILE");
 \tif (appliedProfile == "software" || appliedProfile == "software-no-audio")
 \t\tlibvlc_media_add_option(vlcMedia, ":avcodec-hw=none");''')
-
-    # Radio DAB+ playback has its OWN libVLC network cache. This only
-    # applies to the loopback welle MP3 station URL, never local media
-    # or the native DVB MPEG-TS pipeline. Runtime changes require
-    # re-opening the radio stream and may cause a brief audible restart.
-    change(vlc, '''	vlcMedia = libvlc_media_new_location(vlcInstance, typeOfDevice);
-	// Per-media option reinforces''',
-           '''	vlcMedia = libvlc_media_new_location(vlcInstance, typeOfDevice);
-	const QUrl sourceUrl = source.getUrl();
-	if (source.getType() == MediaSource::Url &&
-	    sourceUrl.host() == QLatin1String("127.0.0.1") &&
-	    sourceUrl.path().startsWith(QLatin1String("/mp3/"))) {
-		QSettings radioSettings(QLatin1String("TIHULU"),
-			QLatin1String("KaffeineRadio"));
-		const int cacheMs = qBound(0,
-			radioSettings.value(QLatin1String("playbackBufferMs"), 12000).toInt(),
-			20000);
-		const QByteArray option = QByteArray(":network-caching=") +
-			QByteArray::number(cacheMs);
-		libvlc_media_add_option(vlcMedia, option.constData());
-	}
-	// Per-media option reinforces''')
 
     # Kaffeine's OsdWidget already renders ABOVE libVLC's native video
     # surface. Reuse that mechanism in a *separate* caption OSD so the
