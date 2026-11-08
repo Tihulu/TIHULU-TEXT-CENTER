@@ -1047,41 +1047,63 @@ void OsdWidget::showObject(OsdObject *osdObject_, int duration)
 \t\t// Resist transient missing/partially written caption IPC files.
 \t\tQSharedPointer<qint64> lastValidMs(new qint64(0));
 \t\tconnect(captionPoll, &QTimer::timeout, this, [this, captionPath, lastValidMs]() {
-\t\t\tif (source->getType() != MediaSource::Dvb) {
+\t\t\tauto clearCaption = [this]() {
 \t\t\t\ttihuluCaptionWidget->hideCaption();
+\t\t\t\tif (auto *vlc = qobject_cast<VlcMediaWidget *>(backend))
+\t\t\t\t\tvlc->setTihuluNativeCaption(QString(),false,25,0,QLatin1String("#FFFFFF"));
+\t\t\t};
+\t\t\tif (source->getType() != MediaSource::Dvb) {
+\t\t\t\tclearCaption();
 \t\t\t\treturn;
 \t\t\t}
 \t\t\tconst qint64 now = QDateTime::currentMSecsSinceEpoch();
 \t\t\tQFile file(captionPath);
 \t\t\tif (!file.exists() || !file.open(QIODevice::ReadOnly)) {
-\t\t\t\tif (now - *lastValidMs > 1000) tihuluCaptionWidget->hideCaption();
+\t\t\t\tif (now - *lastValidMs > 1000) clearCaption();
 \t\t\t\treturn;
 \t\t\t}
 \t\t\tQByteArray bytes = file.read(16385);
 \t\t\tif (bytes.size() > 16384) {
-\t\t\t\tif (now - *lastValidMs > 1000) tihuluCaptionWidget->hideCaption();
+\t\t\t\tif (now - *lastValidMs > 1000) clearCaption();
 \t\t\t\treturn;
 \t\t\t}
 \t\t\tQJsonDocument doc = QJsonDocument::fromJson(bytes);
 \t\t\tif (!doc.isObject()) {
-\t\t\t\tif (now - *lastValidMs > 1000) tihuluCaptionWidget->hideCaption();
+\t\t\t\tif (now - *lastValidMs > 1000) clearCaption();
 \t\t\t\treturn;
 \t\t\t}
 \t\t\tQJsonObject obj = doc.object();
 \t\t\tif (!obj.value(QLatin1String("enabled")).toBool(false)) {
 \t\t\t\t// An explicit OFF remains immediate.
 \t\t\t\t*lastValidMs = 0;
-\t\t\t\ttihuluCaptionWidget->hideCaption();
+\t\t\t\tclearCaption();
 \t\t\t\treturn;
 \t\t\t}
 \t\t\tif (obj.value(QLatin1String("expires_ms")).toDouble(0)
 \t\t\t      + 1000 < static_cast<double>(now)) {
-\t\t\t\ttihuluCaptionWidget->hideCaption();
+\t\t\t\tclearCaption();
 \t\t\t\treturn;
 \t\t\t}
 \t\t\t*lastValidMs = now;
+\t\t\tconst QString text = obj.value(QLatin1String("text")).toString();
+\t\t\tconst QString renderMode = obj.value(QLatin1String("render_mode"))
+\t\t\t\t.toString(QLatin1String("native"));
+\t\t\tVlcMediaWidget *vlc = qobject_cast<VlcMediaWidget *>(backend);
+\t\t\tif (renderMode != QLatin1String("legacy-qt")) {
+\t\t\t\t// Native video compositing, never a transparent QWidget over XVideo.
+\t\t\t\ttihuluCaptionWidget->hideCaption();
+\t\t\t\tif (vlc)
+\t\t\t\t\tvlc->setTihuluNativeCaption(text,
+\t\t\t\t\t\tobj.value(QLatin1String("position")).toString()==QLatin1String("top"),
+\t\t\t\t\t\tobj.value(QLatin1String("size")).toInt(25),
+\t\t\t\t\t\tobj.value(QLatin1String("text_opacity")).toInt(100),
+\t\t\t\t\t\tobj.value(QLatin1String("text_color")).toString(QLatin1String("#FFFFFF")));
+\t\t\t\treturn;
+\t\t\t}
+\t\t\tif (vlc)
+\t\t\t\tvlc->setTihuluNativeCaption(QString(),false,25,0,QLatin1String("#FFFFFF"));
 \t\t\ttihuluCaptionWidget->showCaption(
-\t\t\t\tobj.value(QLatin1String("text")).toString(),
+\t\t\t\ttext,
 \t\t\t\tobj.value(QLatin1String("position")).toString() == QLatin1String("top"),
 \t\t\t\tobj.value(QLatin1String("size")).toInt(25),
 \t\t\t\tobj.value(QLatin1String("opacity")).toInt(70),
