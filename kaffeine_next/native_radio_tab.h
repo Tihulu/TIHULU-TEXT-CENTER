@@ -1038,6 +1038,10 @@ private:
 		QFile stream(captionPath_);
 		if (!stream.open(QIODevice::ReadOnly) || stream.size()>15000) return;
 		const auto obj=QJsonDocument::fromJson(stream.readAll()).object();
+		const QString recognized=obj.value(QLatin1String("source_language")).toString();
+		if(recognized.size()>=2 && recognized.size()<=3 &&
+		   recognized!=QLatin1String("und"))
+			lastDetectedLanguage_=recognized;
 		const int chunk=obj.value(QLatin1String("chunk_index")).toInt(-1);
 		const qint64 now=QDateTime::currentMSecsSinceEpoch();
 		if(chunk>=0 && chunk!=lastRadioChunk_) {
@@ -1145,9 +1149,23 @@ private:
 		lyricsEnabled_=true;
 		lyricLoaded_=false;
 		lyrics_->setEnabled(false);
+		QString sourceCode=speechLanguage_->currentData().isValid()?
+			speechLanguage_->currentData().toString():
+			speechLanguage_->currentText().trimmed();
+		if(sourceCode==QLatin1String("auto") && !lastDetectedLanguage_.isEmpty())
+			sourceCode=lastDetectedLanguage_;
+		QStringList dests;
+		if(english_->isChecked()) dests<<QLatin1String("en");
+		if(german_->isChecked()) dests<<QLatin1String("de");
+		if(turkish_->isChecked()) dests<<QLatin1String("tr");
+		for(const QString &part:extraTargets_->text().split(QLatin1Char(','),Qt::SkipEmptyParts))
+			if(dests.size()<6 && !dests.contains(part.trimmed()))
+				dests<<part.trimmed();
 		lyricsProcess_.start(QLatin1String("tihulu-tv-center"),
 			{QLatin1String("lyrics-lookup"),QLatin1String("--artist"),artist,
 			 QLatin1String("--track"),title,QLatin1String("--output"),lyricPath_,
+			 QLatin1String("--source"),sourceCode,
+			 QLatin1String("--targets"),dests.join(QLatin1Char(',')),
 			 QLatin1String("--online")});
 		if (!lyricsProcess_.waitForStarted(900)) {
 			lyricsEnabled_=false;
@@ -1170,6 +1188,12 @@ private:
 					if (cue.value(QLatin1String("start")).toDouble()<=elapsed &&
 					    cue.value(QLatin1String("end")).toDouble()>elapsed) {
 						current=cue.value(QLatin1String("text")).toString();
+						const QJsonObject translated=cue.value(
+							QLatin1String("translations")).toObject();
+						for(auto it=translated.begin();it!=translated.end();++it)
+							if(it.value().isString() && !it.value().toString().isEmpty())
+								current+=QLatin1String("\n[")+it.key().toUpper()+
+									QLatin1String("] ")+it.value().toString();
 						break;
 					}
 				}
@@ -1227,7 +1251,8 @@ private:
 		plotPending_=false;
 	int scanIndex_=0;
 	qint64 songStartMs_=0;
-	QString activeChannel_,playingKey_,lastDls_,captionPath_,lyricPath_;
+	QString activeChannel_,playingKey_,lastDls_,captionPath_,lyricPath_,
+		lastDetectedLanguage_;
 	QMap<QString,QJsonObject> stationData_;
 	QMap<QString,QString> stationChannels_;
 	QJsonArray lyricCues_;
