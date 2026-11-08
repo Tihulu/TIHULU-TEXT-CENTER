@@ -1264,24 +1264,49 @@ void OsdWidget::showObject(OsdObject *osdObject_, int duration)
 \t\t\t\tif (auto *vlc = qobject_cast<VlcMediaWidget *>(backend))
 \t\t\t\t\tvlc->setTihuluNativeCaption(QString(),false,25,0,QLatin1String("#FFFFFF"));
 \t\t\t};
+\t\t\tauto setAiAvailability = [this](bool available) {
+\t\t\t\tif (tihuluAiCaptionAvailable == available) return;
+\t\t\t\ttihuluAiCaptionAvailable = available;
+\t\t\t\tif (available && !tihuluAiCaptionUserOverride) {
+\t\t\t\t\t// Existing Live Captions default-on behavior is preserved:
+\t\t\t\t\t// the AI track becomes the selected native Kaffeine entry.
+\t\t\t\t\ttihuluAiCaptionSelected = true;
+\t\t\t\t\tsource->setCurrentSubtitle(-1);
+\t\t\t\t\tbackend->setCurrentSubtitle(0);
+\t\t\t\t} else if (!available) {
+\t\t\t\t\ttihuluAiCaptionSelected = false;
+\t\t\t\t\ttihuluAiCaptionUserOverride = false;
+\t\t\t\t}
+\t\t\t\tsubtitlesChanged();
+\t\t\t};
 \t\t\tif (source->getType() != MediaSource::Dvb) {
 \t\t\t\tclearCaption();
+\t\t\t\tsetAiAvailability(false);
 \t\t\t\treturn;
 \t\t\t}
 \t\t\tconst qint64 now = QDateTime::currentMSecsSinceEpoch();
 \t\t\tQFile file(captionPath);
 \t\t\tif (!file.exists() || !file.open(QIODevice::ReadOnly)) {
-\t\t\t\tif (now - *lastValidMs > 1000) clearCaption();
+\t\t\t\tif (now - *lastValidMs > 1000) {
+\t\t\t\t\tclearCaption();
+\t\t\t\t\tsetAiAvailability(false);
+\t\t\t\t}
 \t\t\t\treturn;
 \t\t\t}
 \t\t\tQByteArray bytes = file.read(16385);
 \t\t\tif (bytes.size() > 16384) {
-\t\t\t\tif (now - *lastValidMs > 1000) clearCaption();
+\t\t\t\tif (now - *lastValidMs > 1000) {
+\t\t\t\t\tclearCaption();
+\t\t\t\t\tsetAiAvailability(false);
+\t\t\t\t}
 \t\t\t\treturn;
 \t\t\t}
 \t\t\tQJsonDocument doc = QJsonDocument::fromJson(bytes);
 \t\t\tif (!doc.isObject()) {
-\t\t\t\tif (now - *lastValidMs > 1000) clearCaption();
+\t\t\t\tif (now - *lastValidMs > 1000) {
+\t\t\t\t\tclearCaption();
+\t\t\t\t\tsetAiAvailability(false);
+\t\t\t\t}
 \t\t\t\treturn;
 \t\t\t}
 \t\t\tQJsonObject obj = doc.object();
@@ -1289,14 +1314,23 @@ void OsdWidget::showObject(OsdObject *osdObject_, int duration)
 \t\t\t\t// An explicit OFF remains immediate.
 \t\t\t\t*lastValidMs = 0;
 \t\t\t\tclearCaption();
+\t\t\t\tsetAiAvailability(false);
 \t\t\t\treturn;
 \t\t\t}
 \t\t\tif (obj.value(QLatin1String("expires_ms")).toDouble(0)
 \t\t\t      + 1000 < static_cast<double>(now)) {
 \t\t\t\tclearCaption();
+\t\t\t\tsetAiAvailability(false);
 \t\t\t\treturn;
 \t\t\t}
 \t\t\t*lastValidMs = now;
+\t\t\tsetAiAvailability(true);
+\t\t\t// The AI reader may keep recognizing for SRT export even when
+\t\t\t// Kaffeine's Subtitle menu selects OFF or a broadcaster track.
+\t\t\tif (!tihuluAiCaptionSelected) {
+\t\t\t\tclearCaption();
+\t\t\t\treturn;
+\t\t\t}
 \t\t\tconst QString text = obj.value(QLatin1String("text")).toString();
 \t\t\tconst QString renderMode = obj.value(QLatin1String("render_mode"))
 \t\t\t\t.toString(QLatin1String("native"));
