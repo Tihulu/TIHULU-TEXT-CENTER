@@ -70,17 +70,17 @@ class NaturalSubtitleTests(unittest.TestCase):
         for index,text in enumerate(original):
             queue.add({"original":text,"source":"local_asr"},
                       cfg,100+index*.1,101+index*.1,109.5)
-        first=queue.poll(120,0)
+        first=queue.poll(110,0)
         self.assertEqual(first["result"]["original"],"Hallo Welt")
-        self.assertIsNone(queue.poll(120.1,0))
-        second=queue.poll(121.75,0)
+        self.assertIsNone(queue.poll(110.1,0))
+        second=queue.poll(111.8,0)
         self.assertEqual(second["result"]["original"],"Das ist gut")
-        third=queue.poll(123.8,0)
+        third=queue.poll(113.6,0)
         self.assertEqual(third["result"]["original"],"Und weiter")
-        self.assertIsNone(queue.poll(124,0))
+        self.assertIsNone(queue.poll(114,0))
 
     def test_exact_duplicate_from_overlap_not_broadcast_twice(self):
-        cfg=CaptionConfig(playback_delay_ms=8000)
+        cfg=CaptionConfig(playback_delay_ms=15000)
         q=CueQueue()
         first=q.add({"original":"Guten Morgen heute","source":"local_asr"},
                     cfg,100,106,107)
