@@ -81,8 +81,39 @@ class NLLBService:
         with self.lock:
             self.close_locked()
 
+class ArgosService(NLLBService):
+    """One private Argos process across multiple subtitle chunks and targets."""
+
+    def _start(self):
+        runtime=AIRuntime().status()
+        if not runtime["installed"]:
+            raise RuntimeError("Managed Argos runtime missing; install in Model Market")
+        root=str(Path(__file__).resolve().parent.parent)
+        env=os.environ.copy()
+        env["PYTHONPATH"]=root+os.pathsep+env.get("PYTHONPATH","")
+        env["ARGOS_DEVICE_TYPE"]="cpu"
+        env["HF_HUB_OFFLINE"]="1"
+        env["TRANSFORMERS_OFFLINE"]="1"
+        self.process=subprocess.Popen(
+            [runtime["python"],"-u","-m",
+             "tv_center.translation_worker","--serve-argos"],
+            cwd=root,env=env,stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,stderr=subprocess.DEVNULL,
+            bufsize=0,close_fds=True)
+
+
 _service=NLLBService()
+_argos_service=ArgosService()
 atexit.register(_service.close)
+atexit.register(_argos_service.close)
+
 
 def translate_nllb(text,source,target):
     return _service.translate(text,source,target)
+
+
+def translate_argos(text,source,target):
+    from .language_codes import language_code
+    source=language_code(source)
+    target=language_code(target)
+    return _argos_service.translate(text,source,target)
