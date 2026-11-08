@@ -1184,6 +1184,7 @@ void OsdWidget::showObject(OsdObject *osdObject_, int duration)
 \tbool tihuluAiCaptionAvailable = false;
 \tbool tihuluAiCaptionSelected = false;
 \tbool tihuluAiCaptionUserOverride = false;''')
+    mediac = "src/mediawidget.cpp"
     change(mediac, '''void MediaWidget::currentSubtitleChanged(int currentSubtitle)
 {
 \tif (blockBackendUpdates)
