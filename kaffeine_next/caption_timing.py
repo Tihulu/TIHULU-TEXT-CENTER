@@ -80,10 +80,8 @@ class CaptionConfig:
             raise ValueError("Playback buffering must be 0–20 seconds")
         if (not isinstance(self.target_languages, tuple) or
                 len(self.target_languages) > 3 or
-                len(set(self.target_languages)) != len(self.target_languages) or
-                any(language_code(lang, nllb=True) == language_code(self.source, nllb=True)
-                    for lang in self.target_languages)):
-            raise ValueError("Translation languages must be distinct and differ from spoken language")
+                len(set(self.target_languages)) != len(self.target_languages)):
+            raise ValueError("Output languages must be distinct (up to three)")
         if not self.show_original and not self.show_translation:
             raise ValueError("Select original transcript and/or translation")
         if self.position not in ("bottom", "top"):
@@ -137,7 +135,14 @@ class CaptionConfig:
             if translated:
                 for language in self.target_languages:
                     phrase = translated.get(language)
-                    if isinstance(phrase, str) and phrase.strip() and phrase.strip() != original:
+                    source_language = result.get("source_language") or self.source
+                    already_original = (phrase.strip() == original)
+                    # Requested original-language output is meaningful when
+                    # translation-only was chosen, but avoid duplicate lines
+                    # when 'Original + translations' already shows it.
+                    if (isinstance(phrase, str) and phrase.strip() and (
+                            not already_original or (
+                                not self.show_original and language == source_language))):
                         lines.append(
                             (speaker + "  " if speaker else "") +
                             f"[{language.upper()}] " + phrase.strip())
