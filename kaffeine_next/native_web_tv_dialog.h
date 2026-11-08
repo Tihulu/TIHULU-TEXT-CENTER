@@ -10,6 +10,7 @@
 #include <QComboBox>
 #include <QDialog>
 #include <QHBoxLayout>
+#include <QGridLayout>
 #include <QHeaderView>
 #include <QJsonDocument>
 #include <QLabel>
@@ -42,7 +43,7 @@ public:
       "The free directory is downloaded only on request; streams may be offline or geo-restricted."),this);
    intro->setWordWrap(true);
    layout->addWidget(intro);
-   auto *filter = new QHBoxLayout();
+   auto *filter = new QGridLayout();
    country_ = new QComboBox(this);
    for (const QString &code : QStringList({"de","tr","gb","fr","it","us","ww"}))
       country_->addItem(code.toUpper(),code);
@@ -53,10 +54,11 @@ public:
    load_ = new QPushButton(tr("Discover TV channels"),this);
    search_ = new QLineEdit(this);
    search_->setPlaceholderText(tr("Filter discovered channels by name..."));
-   filter->addWidget(new QLabel(tr("Country:"),this));
-   filter->addWidget(country_);
-   filter->addWidget(load_);
-   filter->addWidget(search_,1);
+   filter->addWidget(new QLabel(tr("Country:"),this),0,0);
+   filter->addWidget(country_,0,1);
+   filter->addWidget(load_,0,2);
+   filter->addWidget(search_,1,0,1,3);
+   filter->setColumnStretch(1,1);
    layout->addLayout(filter);
    channels_ = new QTreeWidget(this);
    channels_->setHeaderLabels({tr("★"),tr("Channel"),tr("Stream URL")});
@@ -66,14 +68,15 @@ public:
    channels_->header()->setSectionResizeMode(1,QHeaderView::Stretch);
    channels_->header()->setSectionResizeMode(2,QHeaderView::Stretch);
    layout->addWidget(channels_,1);
-   auto *row = new QHBoxLayout();
+   auto *row = new QGridLayout();
    direct_ = new QLineEdit(this);
    direct_->setPlaceholderText(tr("Or paste an HTTP(S) TV / HLS / MPEG-TS stream URL"));
    auto *play = new QPushButton(tr("Play selected / URL"),this);
    auto *close = new QPushButton(tr("Close"),this);
-   row->addWidget(direct_,1);
-   row->addWidget(play);
-   row->addWidget(close);
+   row->addWidget(direct_,0,0,1,2);
+   row->addWidget(play,1,0);
+   row->addWidget(close,1,1);
+   row->setColumnStretch(0,1);
    layout->addLayout(row);
    status_ = new QLabel(tr("Select a country, then choose Discover. No RF device needed."),this);
    status_->setWordWrap(true);
