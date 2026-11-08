@@ -128,7 +128,7 @@ public:
         dabStatus_=new QLabel(dabCard);
         dabStatus_->setWordWrap(true);
         dabLayout->addWidget(dabStatus_);
-        auto *dabActions=new QHBoxLayout();
+        auto *dabActions=new QVBoxLayout();
         useDab_=new QPushButton(tr("Attach / start DAB receiver"),dabCard);
         releaseDab_=new QPushButton(tr("Release TIHULU DAB receiver"),dabCard);
         dabActions->addWidget(useDab_);
@@ -141,7 +141,7 @@ public:
         analogStatus_=new QLabel(analogCard);
         analogStatus_->setWordWrap(true);
         analogLayout->addWidget(analogStatus_);
-        auto *analogActions=new QHBoxLayout();
+        auto *analogActions=new QVBoxLayout();
         useAnalog_=new QPushButton(tr("Attach / play selected FM"),analogCard);
         releaseAnalog_=new QPushButton(tr("Release TIHULU analogue SDR"),analogCard);
         analogActions->addWidget(useAnalog_);
