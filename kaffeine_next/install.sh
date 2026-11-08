@@ -16,10 +16,14 @@ if (( EUID == 0 )); then
 fi
 # Explicit opt out for users who only want Kaffeine's DVB reception.
 MODE=default
-if (( $# > 0 )); then MODE="$1"; fi
-if [[ "$MODE" != default && "$MODE" != --no-ai ]]; then
-  echo "Usage: bash install.sh [--no-ai]" >&2; exit 2
-fi
+WITH_DAB=0
+for argument in "$@"; do
+  case "$argument" in
+    --no-ai) MODE=--no-ai ;;
+    --with-dab) WITH_DAB=1 ;;
+    *) echo "Usage: bash install.sh [--no-ai] [--with-dab]" >&2; exit 2 ;;
+  esac
+done
 echo "Building a separate GPL-compatible Kaffeine v2.0.19 fork."
 echo "This preserves system Kaffeine, channel lists, other SDR programs and AI models."
 sudo apt-get update
@@ -97,6 +101,10 @@ BUILDSRC="$temp/kaffeine-source"
 git -C "$SOURCE" worktree add --detach "$BUILDSRC" "$UPSTREAM_SHA"
 python3 "$temp/tihulu/kaffeine_next/patch_upstream.py" "$BUILDSRC"
 git -C "$BUILDSRC" diff --check
+# Keep the user-approved, loopback-only welle.io backend installer on disk
+# instead of trying to run an untrusted internet pipe from the native GUI.
+cp "$temp/tihulu/kaffeine_next/install_welle.sh" "$APPROOT/install_welle.sh"
+chmod 755 "$APPROOT/install_welle.sh"
 
 echo "Configuring clean Kaffeine native DVB scanner with isolated system Qt5"
 if ! "${SYSTEM_BUILD_ENV[@]}" /usr/bin/cmake --fresh -S "$BUILDSRC" -B "$BUILD" \
@@ -172,3 +180,9 @@ echo "Open TIHULU TV (Kaffeine) from applications or run:"
 echo "  $HOME/.local/bin/tihulu-kaffeine"
 echo "Use TV -> TIHULU AI for Model Market and live subtitles."
 echo "Close the other Kaffeine instance first; only one frontend owner at a time."
+echo "DAB+ Radio is a native tab. Optional welle.io backend (separate SDR):"
+echo "  bash $APPROOT/install_welle.sh"
+if (( WITH_DAB == 1 )); then
+  echo "User explicitly selected --with-dab: building pinned localhost-only welle-cli."
+  bash "$APPROOT/install_welle.sh"
+fi
