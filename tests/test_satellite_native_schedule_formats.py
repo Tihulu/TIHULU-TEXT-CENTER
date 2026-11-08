@@ -69,6 +69,10 @@ class NativePassFormatTests(unittest.TestCase):
         self.assertIn("enhanceNativePassForm", desktop)
         self.assertIn("wav.disabled=!supportsWav", desktop)
         self.assertIn("No WebUSB, browser downloads", desktop)
+        self.assertIn("manualDuration.min='8'", desktop)
+        self.assertIn("manualDuration.max='900'", desktop)
+        self.assertIn("The previous 6-second input is not supported", desktop)
+        self.assertIn("Native direct-to-disk: 1 continuous", desktop)
         self.assertIn('sample_rate=data.get("sample_rate", 1024000)', service)
 
 
