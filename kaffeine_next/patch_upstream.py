@@ -335,7 +335,8 @@ def transform(files):
     osdh = "src/osdwidget.h"
     change(osdh, '''\tvoid showText(const QString &text, int duration); // duration: msecs
 ''', '''\tvoid showText(const QString &text, int duration); // duration: msecs
-\tvoid showCaption(const QString &text, bool atTop, int pixelSize, int backgroundPercent, int textPercent);
+\tvoid showCaption(const QString &text, bool atTop, int pixelSize, int backgroundPercent, int textPercent,
+\t\tconst QString &foregroundColor, const QString &backgroundColor);
 \tvoid hideCaption();
 ''')
     change(osdh, '''\tOsdObject *osdObject;
@@ -346,13 +347,16 @@ def transform(files):
 \tint tihuluCaptionSize = 25;
 \tint tihuluCaptionOpacity = 70;
 \tint tihuluCaptionTextOpacity = 100;
+\tQString tihuluCaptionForeground = QLatin1String("#FFFFFF");
+\tQString tihuluCaptionBackground = QLatin1String("#000000");
 \tQString tihuluCaptionText;''')
     osdc = "src/osdwidget.cpp"
     change(osdc, '#include <QPainter>\n', '#include <QPainter>\n#include <QRegion>\n')
     change(osdc, '''void OsdWidget::showObject(OsdObject *osdObject_, int duration)
 {''',
     '''void OsdWidget::showCaption(const QString &text, bool atTop,
-\tint pixelSize, int backgroundPercent, int textPercent)
+\tint pixelSize, int backgroundPercent, int textPercent,
+\tconst QString &foregroundColor, const QString &backgroundColor)
 {
 \tif (text.isEmpty()) {
 \t\thideCaption();
@@ -362,7 +366,9 @@ def transform(files):
 \tif (tihuluCaptionMode && tihuluCaptionText == cleaned &&
 \t    tihuluCaptionTop == atTop && tihuluCaptionSize == pixelSize &&
 \t    tihuluCaptionOpacity == backgroundPercent &&
-\t    tihuluCaptionTextOpacity == textPercent)
+\t    tihuluCaptionTextOpacity == textPercent &&
+\t    tihuluCaptionForeground == foregroundColor &&
+\t    tihuluCaptionBackground == backgroundColor)
 \t\treturn;
 \ttihuluCaptionMode = true;
 \ttihuluCaptionText = cleaned;
@@ -370,6 +376,10 @@ def transform(files):
 \ttihuluCaptionSize = qBound(16, pixelSize, 44);
 \ttihuluCaptionOpacity = qBound(0, backgroundPercent, 100);
 \ttihuluCaptionTextOpacity = qBound(0, textPercent, 100);
+\tconst QColor chosenText(foregroundColor);
+\tconst QColor chosenBackground(backgroundColor);
+\ttihuluCaptionForeground = chosenText.isValid() ? foregroundColor : QLatin1String("#FFFFFF");
+\ttihuluCaptionBackground = chosenBackground.isValid() ? backgroundColor : QLatin1String("#000000");
 \ttimer->stop();
 \tshow();
 \traise();
@@ -409,10 +419,14 @@ void OsdWidget::showObject(OsdObject *osdObject_, int duration)
 \t\tQPainter painter(this);
 \t\tpainter.setRenderHint(QPainter::Antialiasing);
 \t\tpainter.setPen(Qt::NoPen);
-\t\tpainter.setBrush(QColor(0, 0, 0, tihuluCaptionOpacity * 255 / 100));
+\t\tQColor backing(tihuluCaptionBackground);
+\t\tbacking.setAlpha(tihuluCaptionOpacity * 255 / 100);
+\t\tpainter.setBrush(backing);
 \t\tpainter.drawRoundedRect(box, 8, 8);
 \t\tpainter.setFont(face);
-\t\tpainter.setPen(QColor(255, 255, 255, tihuluCaptionTextOpacity * 255 / 100));
+\t\tQColor foreground(tihuluCaptionForeground);
+\t\tforeground.setAlpha(tihuluCaptionTextOpacity * 255 / 100);
+\t\tpainter.setPen(foreground);
 \t\tpainter.drawText(box.adjusted(12, 9, -12, -9),
 \t\t\tQt::AlignHCenter | Qt::AlignVCenter | Qt::TextWordWrap,
 \t\t\ttihuluCaptionText);
@@ -475,7 +489,9 @@ void OsdWidget::showObject(OsdObject *osdObject_, int duration)
 \t\t\t\tobj.value(QLatin1String("position")).toString() == QLatin1String("top"),
 \t\t\t\tobj.value(QLatin1String("size")).toInt(25),
 \t\t\t\tobj.value(QLatin1String("opacity")).toInt(70),
-\t\t\t\tobj.value(QLatin1String("text_opacity")).toInt(100));
+\t\t\t\tobj.value(QLatin1String("text_opacity")).toInt(100),
+\t\t\tobj.value(QLatin1String("text_color")).toString(QLatin1String("#FFFFFF")),
+\t\t\tobj.value(QLatin1String("background_color")).toString(QLatin1String("#000000")));
 \t\t});
 \t\tcaptionPoll->start(150);
 \t}
