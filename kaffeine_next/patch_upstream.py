@@ -1453,7 +1453,9 @@ void OsdWidget::showObject(OsdObject *osdObject_, int duration)
 \t\t\t\t\t\tobj.value(QLatin1String("position")).toString()==QLatin1String("top"),
 \t\t\t\t\t\tobj.value(QLatin1String("size")).toInt(25),
 \t\t\t\t\t\tobj.value(QLatin1String("text_opacity")).toInt(100),
-\t\t\t\t\t\tobj.value(QLatin1String("text_color")).toString(QLatin1String("#FFFFFF")));
+\t\t\t\t\t\tobj.value(QLatin1String("text_color")).toString(QLatin1String("#FFFFFF")),
+\t\t\t\t\t\tobj.value(QLatin1String("opacity")).toInt(0),
+\t\t\t\t\t\tobj.value(QLatin1String("background_color")).toString(QLatin1String("#000000")));
 \t\t\t\treturn;
 \t\t\t}
 \t\t\tif (vlc)
