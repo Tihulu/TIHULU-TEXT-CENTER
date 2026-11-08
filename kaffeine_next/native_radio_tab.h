@@ -1144,6 +1144,7 @@ public:
             }
             stopCaptioning();
             radioCaptionBanner_->setText(tr("Live radio captions stopped."));
+            lastCaptionVisibleMs_=0;
         });
         connect(&captionProcess_,QOverload<int,QProcess::ExitStatus>::of(&QProcess::finished),
             this,[this](int code,QProcess::ExitStatus exitState){
@@ -2240,6 +2241,8 @@ private:
 				lagSamples_.clear();
 				lastRadioChunk_=-1;
 				displayedRadioChunk_=-1;
+                lastCaptionVisibleMs_=0;
+                radioCaptionBanner_->setText(tr("Opening DAB station · waiting for audio…"));
 				pendingRadioCue_.clear();
 				playingKey_=key;
                 showSelectedSource(name,tr("DAB+ · live mux verified"),
@@ -2693,6 +2696,7 @@ private:
 			displayedRadioChunk_=cue.chunkIndex;
 			radioCaption_->setText(cue.text);
             radioCaptionBanner_->setText(cue.text.left(680));
+            lastCaptionVisibleMs_=now;
             if(lyricsAudioFallbackActive_) {
                 const QString heard=tr("Whisper heard (unverified lyrics) · %1")
                     .arg(cue.text.left(650));
@@ -2702,6 +2706,13 @@ private:
             // a caption string: it destroys its status/artwork and places
             // huge subtitles in the center of an unrelated canvas.
 		}
+        if(lastCaptionVisibleMs_>0 && now-lastCaptionVisibleMs_>=12000 &&
+           cueQueue_.isEmpty() && !metadataCaptions_ &&
+           captionProcess_.state()!=QProcess::NotRunning) {
+            radioCaptionBanner_->setText(tr("Listening for real radio speech… "
+                "No subtitle text is currently verified."));
+            lastCaptionVisibleMs_=0;
+        }
 	}
 	void pollCaption() {
 		const qint64 now=QDateTime::currentMSecsSinceEpoch();
@@ -2929,7 +2940,8 @@ private:
         if(asr>=0) captionSource_->setCurrentIndex(asr);
         const bool alreadyRunning=captionProcess_.state()!=QProcess::NotRunning;
         if(!lyricsAudioFallbackActive_)
-            lyricsFallbackStartedAi_=!alreadyRunning;
+            lyricsFallbackStartedAi_=(!alreadyRunning || plainLyricsStartedAi_);
+        plainLyricsStartedAi_=false;
         lyricsAudioFallbackActive_=true;
         if(alreadyRunning) stopCaptioning();
         startCaptioning();
@@ -3215,7 +3227,8 @@ private:
         *lyricProvider_=nullptr;
 	QProgressBar *captionProgress_=nullptr,*audioCacheProgress_=nullptr;
 	QLabel *bufferRecommendation_=nullptr;
-	qint64 audioStartedMs_=0,lastLyricSyncUpdateMs_=0;
+	qint64 audioStartedMs_=0,lastLyricSyncUpdateMs_=0,
+        lastCaptionVisibleMs_=0;
 	bool metadataCaptions_=false;
 	int dlsCaptionIndex_=0;
 	int lastLyricOffsetMs_=0;
