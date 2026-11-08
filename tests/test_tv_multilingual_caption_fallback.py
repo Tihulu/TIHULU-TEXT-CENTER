@@ -1,5 +1,8 @@
 """Offline regression tests for arbitrary target languages and honest fallbacks."""
 import unittest
+import os
+from pathlib import Path
+import tempfile
 from unittest.mock import patch, Mock
 
 from tv_center.language_codes import language_code
@@ -58,6 +61,39 @@ class MultilingualCaptions(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "Broadcast offers: EN"):
                 asr_from_clip("test.ts", "de", "/not/used/model",
                               service_id=42, audio_pid=0x120)
+
+    def test_selected_audio_pid_can_recover_to_same_language(self):
+        from textcenter.compute import LANGUAGES, validate_language
+        self.assertGreaterEqual(len(LANGUAGES), 100)
+        self.assertEqual(validate_language("pl"), "pl")
+        self.assertEqual(validate_language("ja"), "ja")
+        streams = [
+            {"codec_type":"audio", "index":3, "id":"0x122",
+             "tags":{"language":"deu", "title":"Stereo"}},
+            {"codec_type":"audio", "index":4, "id":"0x123",
+             "tags":{"language":"eng", "title":"Stereo"}},
+        ]
+        with tempfile.NamedTemporaryFile() as model:
+            with patch.dict(os.environ, {"TIHULU_TV_ASR_BACKEND":"cpu"}):
+                with patch("tv_center.captions._program_streams", return_value=streams), \
+                     patch("tv_center.captions._run") as ff, \
+                     patch("textcenter.compute.detect_devices",
+                           return_value={"speech":{"engine":"whisper.cpp CLI"}}), \
+                     patch("textcenter.compute.choose_backend",
+                           return_value={"selected":"cpu","ready":True}), \
+                     patch("textcenter.speech.transcribe_pcm",
+                           return_value="Guten Tag") as transcribe:
+                    ff.return_value.returncode = 0
+                    ff.return_value.stdout = bytes(64000)
+                    diagnostic = {}
+                    result = asr_from_clip(Path("sample.ts"), "de", model.name,
+                                           service_id=42, audio_pid=0x120,
+                                           diagnostics=diagnostic)
+        self.assertEqual(result, "Guten Tag")
+        self.assertIn("switched", diagnostic["audio_notice"])
+        transcribe.assert_called_once()
+        self.assertEqual(ff.call_args.args[0][
+            ff.call_args.args[0].index("-map")+1], "0:3")
 
     def test_real_teletext_language_is_not_rejected_without_whisper_model(self):
         with patch("tv_center.captions.teletext_from_clip", return_value="Cześć!"):
