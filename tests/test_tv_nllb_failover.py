@@ -91,6 +91,29 @@ class TranslationRecoveryTests(unittest.TestCase):
         self.assertNotIn("tr",result["translation_errors"])
         self.assertIsNone(result["error"])
 
+    def test_both_english_and_turkish_targets_survive_nllb_failure(self):
+        choices={"en":"Good morning","tr":"Günaydın"}
+        def argos(text, source, target):
+            return choices[target]
+        with mock.patch.dict(os.environ,{"TIHULU_TRANSLATOR_MODEL":"nllb"}), \
+             mock.patch("tv_center.translation_service.translate_nllb",
+                        side_effect=NotImplementedError(
+                            "Cannot copy out of meta tensor; no data!")) as nllb, \
+             mock.patch("tv_center.captions._translate_argos_local",
+                        side_effect=argos) as fallback, \
+             mock.patch("tv_center.captions.teletext_from_clip",
+                        return_value="Guten Morgen"):
+            result=decode_segment(bytes([0x47])+bytes(187),
+                                  mode="teletext",page=150,
+                                  source="de",target="en",
+                                  targets=("en","tr"))
+        self.assertEqual(result["translations"],choices)
+        self.assertEqual(result["translation_errors"],{})
+        self.assertEqual(result["translation_engines"],{
+            "en":"argos-fallback","tr":"argos-fallback"})
+        self.assertEqual(nllb.call_count,1)
+        self.assertEqual(fallback.call_count,2)
+
     def test_meta_parameters_cannot_be_treated_as_loaded_weights(self):
         model=mock.Mock()
         model.named_parameters.return_value=[
