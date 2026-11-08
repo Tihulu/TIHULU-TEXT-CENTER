@@ -10,6 +10,7 @@ from __future__ import annotations
 from pathlib import Path
 import os
 import queue
+from collections import deque
 import re
 import socket
 import sys
@@ -62,7 +63,9 @@ class CaptionTap:
         self.previous_original = ""
         self.previous_revision = -1
         from tv_center.sentence_joiner import LiveSentenceJoiner
-        self.sentence_joiner = LiveSentenceJoiner(max_words=90,max_chunks=3)
+        # Two 6-second clips are the maximum natural-sentence wait;
+        # unpunctuated speech must not remain silently withheld for ~18 s.
+        self.sentence_joiner = LiveSentenceJoiner(max_words=90,max_chunks=2)
         self.sentence_session = None
         self.sentence_captured_start = None
         self.program_id = None
@@ -72,6 +75,17 @@ class CaptionTap:
         self._rate_start = None
         self._rate_bytes = 0
         self.bytes_per_second = None
+        self._performance_lock = threading.Lock()
+        self._performance_samples = deque(maxlen=48)
+        self._decoded_count = 0
+
+    def performance_snapshot(self):
+        with self._performance_lock:
+            samples = [dict(row) for row in self._performance_samples]
+            decoded = self._decoded_count
+        return {"samples":samples,"completed_clips":decoded,
+                "queue":self.work_queue.snapshot(),
+                "ts":self.transport_health.snapshot()}
 
     def start(self):
         if self.path.exists():
@@ -100,10 +114,21 @@ class CaptionTap:
             clip = self.work_queue.get(timeout=0.3)
             if clip is None:
                 continue
+            began = time.monotonic()
+            queue_wait = max(0.0,began-clip.ended)
             try:
                 self._decode(clip.data, clip.options, clip.started, clip.ended)
             except Exception as error:
                 self._note_warning("Caption worker failed: "+str(error)[:120])
+            finally:
+                finished=time.monotonic()
+                with self._performance_lock:
+                    self._decoded_count += 1
+                    self._performance_samples.append({
+                        "compute_ms":round(1000*(finished-began)),
+                        "queue_wait_ms":round(1000*queue_wait),
+                        "total_latency_ms":round(1000*max(0,finished-clip.ended)),
+                        "clip_seconds":round(max(0,clip.ended-clip.started),2)})
 
     def _note_warning(self, message):
         try:
@@ -360,6 +385,7 @@ class CaptionTap:
                         "be retained. Select CUDA GPU/smaller model or fewer translations.")
 
     def _decode(self, capture, options, captured_start, captured_end):
+        decode_clock=time.perf_counter()
         try:
             from tv_center.ai_settings import AISettings
             from tv_center.captions import decode_segment
@@ -394,7 +420,9 @@ class CaptionTap:
                 speaker_provider=options.get("speaker_provider","resemblyzer"),
                 music_transcription=bool(options.get("music_transcription",False)),
                 speech_priority=bool(options.get("speech_priority",False)),
-                previous_text=previous)
+                previous_text=previous,
+                defer_asr_translation=not bool(
+                    options.get("music_transcription",False)))
             if options.get("program_epoch") != self.program_epoch:
                 return  # old channel's caption must never appear on new TV
             if result.get("source") == "local_asr" and result.get("original"):
@@ -435,7 +463,18 @@ class CaptionTap:
                     language=result.get("source_language"),
                     silent=not bool(observed))
                 if not joined["text"]:
-                    return  # Retain the incomplete sentence, not a cut-off cue.
+                    # Tell the UI why nothing appeared; this is NOT evidence
+                    # of silence or a hardware failure.
+                    try:
+                        self.events.put_nowait(("sentence_pending",{
+                            "chunks":joined.get("chunks",0),
+                            "maximum_chunks":self.sentence_joiner.max_chunks,
+                            "program_epoch":options.get("program_epoch"),
+                            "revision":options.get("revision"),
+                            "captured_end":captured_end}))
+                    except queue.Full:
+                        pass
+                    return  # Keep words for the next clip.
                 # A loop may span several otherwise valid Whisper clips.
                 # Filter the FINAL assembled sentence too, after overlap
                 # removal, before the translation engine receives it.
@@ -461,17 +500,23 @@ class CaptionTap:
                 result["translation_warnings"]={}
                 result["translation_engines"]={}
                 used=result.get("source_language")
+                translate_clock=time.perf_counter()
+                translation_languages_ms={}
                 if enabled and used in (None,"und","auto"):
                     result["translation_errors"]={
                         target:"Source language not confirmed for full sentence"
                         for target in enabled}
                 elif enabled:
                     for target in enabled:
+                        one_clock=time.perf_counter()
                         if target==used:
                             result["translations"][target]=result["original"]
+                            translation_languages_ms[target]=0
                             continue
                         text,issue=translate_sentence(
                             result["original"],used,target)
+                        translation_languages_ms[target]=round(
+                            (time.perf_counter()-one_clock)*1000)
                         if text:
                             result["translations"][target]=text
                         if issue:
@@ -480,6 +525,9 @@ class CaptionTap:
                             else:
                                 result["translation_errors"][target]=issue[:180]
                 result["translated"]=result["translations"].get(primary)
+                spent=round((time.perf_counter()-translate_clock)*1000)
+                result.setdefault("processing_ms",{})["translation"]=spent
+                result["translation_languages_ms"]=translation_languages_ms
             if targets and not ai.values["translation_enabled"]:
                 result["translation_errors"] = {
                     lang: "Translation disabled in Model Market." for lang in targets}
@@ -500,6 +548,8 @@ class CaptionTap:
             result["captured_start"] = captured_start
             result["captured_end"] = captured_end
             result["decoded_at"] = time.monotonic()
+            result.setdefault("processing_ms",{})["total"]=round(
+                (time.perf_counter()-decode_clock)*1000)
             result["revision"] = options.get("revision", 0)
             result["program_epoch"] = options.get("program_epoch")
             result["native_tune_state"] = options.get("native_tune_state")
@@ -548,10 +598,12 @@ def main(argv=None):
                                  buffer_fill_progress)
     from .word_cues import enqueue_word_cues
     from .track_preferences import recommended_track, _signaled_language
-    from PyQt5.QtCore import Qt, QTimer, QSettings
+    from PyQt5.QtCore import Qt, QTimer, QSettings, QProcess
     from PyQt5.QtGui import QColor
-    from PyQt5.QtWidgets import (QApplication, QWidget, QVBoxLayout, QHBoxLayout,
-        QLabel, QComboBox, QPushButton, QSpinBox, QDoubleSpinBox,
+    from PyQt5.QtWidgets import (QApplication, QWidget, QDialog, QDialogButtonBox,
+        QMessageBox, QPlainTextEdit, QVBoxLayout, QHBoxLayout,
+        QLabel, QComboBox, QPushButton, QToolButton, QMenu, QWidgetAction,
+        QSpinBox, QDoubleSpinBox,
         QCheckBox, QGroupBox, QFormLayout, QLineEdit, QColorDialog,
         QScrollArea, QFrame, QGridLayout, QFileDialog, QTabWidget,
         QProgressBar)
@@ -627,7 +679,7 @@ def main(argv=None):
     mode.addItem("Off", "off")
     source = QComboBox()
     source.setEditable(True)
-    source.addItem("Auto detect · Whisper", "auto")
+    source.addItem("Auto detect → English (UI default)", "auto")
     source.addItems(LANGS)
     source.setCurrentIndex(0)
     source.setToolTip(
@@ -648,11 +700,103 @@ def main(argv=None):
     output_row.addWidget(QLabel("Display"))
     output_row.addWidget(display_mode, 2)
     output_row.addWidget(QLabel("Output languages"))
-    language_boxes = {lang: QCheckBox(lang.upper()) for lang in LANGS}
-    for lang, check in language_boxes.items():
-        check.setChecked(lang == "tr")
-        output_row.addWidget(check)
+    # Multi-check dropdown, populated from installed offline translator packs.
+    # Discovery runs in a child process to avoid blocking live DVB playback.
+    language_boxes = {}
+    output_button = QToolButton()
+    output_button.setText("Checking installed languages…")
+    output_button.setPopupMode(QToolButton.InstantPopup)
+    output_button.setMinimumWidth(170)
+    output_menu = QMenu(output_button)
+    output_button.setMenu(output_menu)
+    output_row.addWidget(output_button,1)
     settings_layout.addRow(output_row)
+    output_catalog_status = QLabel("Checking locally installed output languages…")
+    output_catalog_status.setWordWrap(True)
+    settings_layout.addRow(output_catalog_status)
+    requested_languages = {"en","tr"}
+    def summarize_languages(*_):
+        checked = [code.upper() for code,box in language_boxes.items()
+                   if box.isChecked()]
+        output_button.setText(", ".join(checked) or "Choose output languages")
+    def fill_languages(result):
+        items = result.get("languages", ()) if isinstance(result,dict) else ()
+        output_menu.clear()
+        language_boxes.clear()
+        content = QWidget(output_menu)
+        content_layout = QVBoxLayout(content)
+        content_layout.setContentsMargins(10,8,10,8)
+        content_layout.setSpacing(5)
+        for item in items:
+            if not isinstance(item,dict):
+                continue
+            try:
+                code = language_code(item.get("code",""),nllb=True)
+            except ValueError:
+                continue
+            if code in language_boxes:
+                continue
+            label = str(item.get("label",code.upper()))[:50]
+            engines = item.get("engines") or []
+            cb = QCheckBox(code.upper()+" · "+label,content)
+            cb.setToolTip("On disk: "+", ".join(str(x) for x in engines)+
+                ". A full source→target translation is verified by a real inference test.")
+            cb.setChecked(code in requested_languages)
+            language_boxes[code] = cb
+            content_layout.addWidget(cb)
+            cb.toggled.connect(summarize_languages)
+            cb.toggled.connect(set_pending)
+        if not language_boxes:
+            content_layout.addWidget(QLabel(
+                "No installed language packs. Use Model Market.",content))
+        refresh_languages=QPushButton("Refresh installed languages",content)
+        content_layout.addWidget(refresh_languages)
+        refresh_languages.clicked.connect(start_language_catalog)
+        scroll = QScrollArea(output_menu)
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.NoFrame)
+        scroll.setMaximumHeight(320)
+        scroll.setMinimumWidth(260)
+        scroll.setWidget(content)
+        action = QWidgetAction(output_menu)
+        action.setDefaultWidget(scroll)
+        output_menu.addAction(action)
+        if isinstance(result,dict) and result.get("errors"):
+            output_catalog_status.setText(
+                "Installed-language discovery incomplete: "+
+                "; ".join(str(e) for e in result["errors"])[:230])
+        else:
+            output_catalog_status.setText(
+                str(len(language_boxes))+" installed output languages available. "
+                "Translation direction and runtime still require verification.")
+        summarize_languages()
+    language_process = QProcess(window)
+    def language_catalog_finished(*_):
+        language_timeout.stop()
+        try:
+            payload=bytes(language_process.readAllStandardOutput()).decode(
+                "utf-8","replace")
+            if language_process.exitCode()!=0 or len(payload)>75000:
+                raise ValueError("Installed-language discovery failed")
+            result=json.loads(payload)
+        except (ValueError,TypeError) as exc:
+            result={"languages":[],"errors":[str(exc)]}
+        fill_languages(result)
+    language_process.finished.connect(language_catalog_finished)
+    language_timeout=QTimer(window)
+    language_timeout.setSingleShot(True)
+    def language_catalog_timeout():
+        if language_process.state()!=QProcess.NotRunning:
+            language_process.kill()
+            output_catalog_status.setText(
+                "Installed language discovery timed out. Retry via "
+                "the dropdown; TV playback continues normally.")
+    language_timeout.timeout.connect(language_catalog_timeout)
+    def start_language_catalog():
+        if language_process.state()==QProcess.NotRunning:
+            language_process.start(sys.executable,["-m","tv_center.installed_languages"])
+            language_timeout.start(25000)
+    QTimer.singleShot(150,start_language_catalog)
     extra_targets = QLineEdit()
     extra_targets.setPlaceholderText(
         "Optional extra target codes: es, pl, ar, ja or zho_Hant")
@@ -667,14 +811,7 @@ def main(argv=None):
     translation_health.setWordWrap(True)
     settings_layout.addRow("Translation status", translation_health)
     def update_language_choices(*_):
-        for lang, check in language_boxes.items():
-            check.setEnabled(True)
-            check.setToolTip(
-                ("Same as spoken language · display original under " +
-                 lang.upper() + " label (no translator needed)"
-                 if lang == source.currentText() else
-                 "Translate to " + lang.upper() + " when a local model exists; "
-                 "otherwise keep the original readable"))
+        summarize_languages()
     source.currentTextChanged.connect(update_language_choices)
     update_language_choices()
     tracks_row = QHBoxLayout()
@@ -1059,6 +1196,27 @@ def main(argv=None):
         subprocess.Popen(["tihulu-tv-center","ai-market"],close_fds=True)
     market.clicked.connect(launch_market)
     tools_layout.addWidget(market)
+    benchmark_button = QPushButton(
+        "Test installed AI models on a local audio sample…")
+    benchmark_button.setToolTip(
+        "Offline opt-in: select your own local recording. Real Whisper/Argos/NLLB "
+        "candidates are timed with six seconds of audio, without tuning the "
+        "DVB receiver, downloading anything or changing settings. The result "
+        "is editable and requires your confirmation.")
+    benchmark_status = QLabel(
+        "AI performance test: not run on this computer. No model speed assumed.")
+    benchmark_status.setWordWrap(True)
+    tools_layout.addWidget(benchmark_button)
+    cancel_benchmark_button=QPushButton("Stop AI model test")
+    cancel_benchmark_button.setEnabled(False)
+    tools_layout.addWidget(cancel_benchmark_button)
+    live_test_button=QPushButton("Measure current live subtitle pipeline · 4 clips")
+    live_test_button.setToolTip(
+        "Passive: observes the existing caption worker over four real "
+        "six-second clips. No extra Whisper inference, tuner access, "
+        "backend switch or playback-buffer change.")
+    tools_layout.addWidget(live_test_button)
+    tools_layout.addWidget(benchmark_status)
     phone = QCheckBox("Allow phone/tablet on trusted Wi-Fi (OFF by default)")
     video = QCheckBox("Share the live channel as H.264/AAC HLS (CPU intensive)")
     lan_note = QLabel("Mobile access OFF. No network listener.")
@@ -1129,6 +1287,10 @@ def main(argv=None):
     current_until = 0.0
     last_published = 0.0
     current_cue = None
+    # Captions decoded during a temporary native-buffer ACK delay are
+    # HELD rather than silently dropped. They remain bounded in memory
+    # and are discarded on actual channel/source changes.
+    deferred_captions = deque(maxlen=48)
 
     def from_controls():
         selected = subtitle_track.currentData()
@@ -1152,7 +1314,7 @@ def main(argv=None):
                                 hinted and hinted not in WHISPER_LANGUAGES and
                                 chosen_track is None):
             hinted = None
-        automatic_source = source.currentText() == "Auto detect · Whisper"
+        automatic_source = source.currentData() == "auto" and source.currentIndex()==0
         # An explicitly selected speech language takes precedence. With Auto,
         # use a trustworthy DVB audio/subtitle language BEFORE asking Whisper
         # to guess from a noisy six-second chunk. With no reliable descriptor,
@@ -1211,9 +1373,9 @@ def main(argv=None):
         if isinstance(selected,dict):
             language = selected.get("source_hint")
             if mode.currentData() in ("auto","teletext","page"):
-                chosen = selected.get("source_hint") or selected.get("language")
-                if chosen:
-                    source.setCurrentText(language_code(chosen))
+                # An audio/Teletext descriptor is an input-language hint,
+                # not a request to replace the user's Auto/English UI choice
+                # or an explicitly chosen manual language.
                 if language not in LANGS:
                     track_status.setText(
                         "Original broadcaster subtitles remain available. "
@@ -1226,10 +1388,6 @@ def main(argv=None):
         if isinstance(selected, dict):
             language = selected.get("source_hint")
             if mode.currentData() in ("asr", "auto"):
-                chosen = selected.get("source_hint") or selected.get("language")
-                if chosen and chosen != "und" and (
-                        source.currentText() != "Auto detect · Whisper"):
-                    source.setCurrentText(language_code(chosen))
                 detected = selected.get("source_hint") or selected.get("language")
                 if (not detected or
                         language_code(detected) not in WHISPER_LANGUAGES):
@@ -1265,7 +1423,7 @@ def main(argv=None):
                         str(new_offset/1000) + "s. Other changes: Apply")
     caption_offset.valueChanged.connect(apply_offset_immediately)
     for w in (show_video,automatic,speaker_enabled,music_transcription,
-              speech_priority,*language_boxes.values()):
+              speech_priority):
         w.toggled.connect(set_pending)
 
     def apply_settings():
@@ -1293,6 +1451,7 @@ def main(argv=None):
                     int(source_changed or playback_changed))
             if source_changed or playback_changed:
                 cues.clear()
+                deferred_captions.clear()
                 current_cue = None
                 current_text = ""
                 current_until = 0.0
@@ -1355,11 +1514,241 @@ def main(argv=None):
         except (ValueError, OSError) as exc:
             status.setText("Settings were not applied: " + str(exc))
 
+    live_test_started_at=0.0
+    live_test_baseline=0
+    live_test_baseline_overflows=0
+    live_test_baseline_ts_gaps=0
+    def begin_live_test():
+        nonlocal live_test_started_at,live_test_baseline
+        nonlocal live_test_baseline_overflows,live_test_baseline_ts_gaps
+        state=tap.performance_snapshot()
+        live_test_baseline=state["completed_clips"]
+        live_test_baseline_overflows=state["queue"]["overflows"]
+        live_test_baseline_ts_gaps=state["ts"].get("continuity_gaps",0)
+        live_test_started_at=time.monotonic()
+        live_test_button.setEnabled(False)
+        benchmark_status.setText(
+            "Observing four NEW real DVB caption clips. "
+            "TV tuner, installed models and buffer unchanged.")
+    live_test_button.clicked.connect(begin_live_test)
+
+    benchmark_process = QProcess(window)
+    benchmark_cancelled=False
+    def cancel_benchmark():
+        nonlocal benchmark_cancelled
+        if benchmark_process.state()!=QProcess.NotRunning:
+            benchmark_cancelled=True
+            cancel_benchmark_button.setEnabled(False)
+            benchmark_status.setText(
+                "Stopping local AI test and its model worker… "
+                "No settings have been changed.")
+            benchmark_process.terminate()
+            QTimer.singleShot(3500,lambda:
+                benchmark_process.kill() if
+                benchmark_process.state()!=QProcess.NotRunning else None)
+    cancel_benchmark_button.clicked.connect(cancel_benchmark)
+
+    def run_benchmark_clicked():
+        nonlocal benchmark_cancelled
+        benchmark_cancelled=False
+        if benchmark_process.state()!=QProcess.NotRunning:
+            return
+        answer=QMessageBox.question(
+            window,"Local AI performance test",
+            "Test the Whisper models and translators already installed on "
+            "this computer using a six-second excerpt from a local audio/"
+            "video file you choose?\n\n"
+            "This can use CPU/GPU heavily for several minutes. It will not "
+            "touch DVB tuning, download models, upload media or change any "
+            "settings. Results require your explicit approval.",
+            QMessageBox.Yes | QMessageBox.No,QMessageBox.No)
+        if answer!=QMessageBox.Yes:
+            return
+        chosen=QFileDialog.getOpenFileName(
+            window,"Select local recording for AI timing",
+            str(Path.home()),
+            "Audio/video (*.wav *.flac *.mp3 *.m4a *.mp4 *.mkv *.ts *.ogg);;"
+            "All files (*)")[0]
+        if not chosen:
+            return
+        benchmark_button.setEnabled(False)
+        cancel_benchmark_button.setEnabled(True)
+        benchmark_status.setText(
+            "Testing installed AI models locally on six seconds of selected "
+            "media. Main DVB player and caption service remain independent.")
+        benchmark_process.start(
+            sys.executable,["-m","tv_center.performance_lab","--audio",chosen,
+                           "--buffer-ms",str(applied.playback_delay_ms)])
+        if not benchmark_process.waitForStarted(700):
+            benchmark_status.setText(
+                "Could not start the local benchmark process.")
+            benchmark_button.setEnabled(True)
+            cancel_benchmark_button.setEnabled(False)
+
+    def benchmark_finished(*_):
+        benchmark_button.setEnabled(True)
+        cancel_benchmark_button.setEnabled(False)
+        if benchmark_cancelled:
+            benchmark_status.setText(
+                "AI test canceled. Original model, translator and buffer settings kept.")
+            return
+        raw=bytes(benchmark_process.readAllStandardOutput()).decode(
+            "utf-8","replace")
+        if benchmark_process.exitCode()!=0 or len(raw)>100000:
+            error=bytes(benchmark_process.readAllStandardError()).decode(
+                "utf-8","replace")[-450:]
+            benchmark_status.setText(
+                "AI benchmark failed: "+(error or "No verified model result"))
+            return
+        try:
+            report=json.loads(raw)
+            if report.get("version")!=1 or not report.get("offline"):
+                raise ValueError("Untrusted benchmark result")
+            rows=report["samples"]
+            proposal=report["recommendation"]
+        except (ValueError,TypeError,KeyError) as exc:
+            benchmark_status.setText(
+                "AI benchmark returned no valid performance report: "+str(exc))
+            return
+        labels=[]
+        for row in rows:
+            name=(row.get("name") or row.get("engine") or
+                  row.get("backend") or "model")
+            label=str(name)[:70]
+            if row.get("target"):
+                label+=" → "+str(row["target"]).upper()
+            if row.get("status")=="ok":
+                label+=f": {float(row['elapsed_s']):.2f}s"
+                if row.get("kind")=="asr":
+                    label+=" / 6s captured audio"
+                    if not row.get("nonempty_text",True):
+                        label+=" · NO recognized speech; not recommended"
+            else:
+                label+=": "+str(row.get("status"))+" · "+str(
+                    row.get("reason",""))[:130]
+            labels.append(label)
+        benchmark_status.setText(
+            "Local test completed. No options were changed. Review "
+            "per-model results and edit before applying.")
+        dialogue=QDialog(window)
+        window.ai_benchmark_dialog=dialogue
+        dialogue.setWindowTitle("Offline AI performance · review before applying")
+        dialogue.setWindowModality(Qt.NonModal)
+        dialogue.resize(660,490)
+        pane=QVBoxLayout(dialogue)
+        intro=QLabel(
+            "Real local 6-second-file test; not a guarantee for continuous "
+            "DVB throughput. Old settings remain unchanged until Apply.")
+        intro.setWordWrap(True)
+        pane.addWidget(intro)
+        results=QPlainTextEdit()
+        results.setReadOnly(True)
+        results.setPlainText("\n".join(labels) or
+            "No compatible installed AI models detected.")
+        pane.addWidget(results)
+        choice=QComboBox()
+        eligible=[m for m in rows if m.get("kind")=="asr" and
+                  m.get("status")=="ok" and m.get("nonempty_text",True)]
+        for m in eligible:
+            choice.addItem(
+                m["backend"].upper()+" · "+Path(m["model_path"]).name+
+                f" · {m['elapsed_s']:.2f}s",
+                (m["backend"],m["model_path"]))
+        choice.setEnabled(bool(eligible))
+        pane.addWidget(QLabel("Whisper engine and model (editable):"))
+        pane.addWidget(choice)
+        translator=QComboBox()
+        translator.addItem("Keep current translator",None)
+        for eng in ("argos","nllb"):
+            measured={m["target"]:m for m in rows if
+                      m.get("kind")=="translation" and
+                      m.get("engine")==eng and m.get("status")=="ok"}
+            if set(measured)>={"en","tr"}:
+                translator.addItem(
+                    eng.upper()+" · EN "+str(measured["en"]["elapsed_s"])+
+                    "s + TR "+str(measured["tr"]["elapsed_s"])+"s",eng)
+        proposed_engine=proposal.get("translation_model")
+        if proposed_engine:
+            for i in range(translator.count()):
+                if translator.itemData(i)==proposed_engine:
+                    translator.setCurrentIndex(i)
+        pane.addWidget(QLabel("Translation engine (tested DE→EN and DE→TR):"))
+        pane.addWidget(translator)
+        suggested_buffer=QDoubleSpinBox()
+        suggested_buffer.setRange(0,60)
+        suggested_buffer.setSingleStep(.5)
+        suggested_buffer.setSuffix(" seconds")
+        suggested_buffer.setValue(min(60,max(
+            applied.playback_delay_ms,
+            int(proposal.get("minimum_buffer_ms",0)))/1000))
+        pane.addWidget(QLabel(
+            "TV playback buffer · editable; never reduced automatically:"))
+        pane.addWidget(suggested_buffer)
+        detail=QLabel(
+            "Estimated sustainable per 6s clip: "+(
+                "YES" if proposal.get("realtime_sustainable") else
+                "NOT PROVEN")+" · benchmark excludes DVB packet loss, "
+            "speech-language detection errors and 2+ concurrent workloads. "
+            "Only the selected backend/model/translator and explicitly edited "
+            "buffer will be changed. Output languages stay as chosen above.")
+        detail.setWordWrap(True)
+        pane.addWidget(detail)
+        buttons=QDialogButtonBox(QDialogButtonBox.Ok |
+                                 QDialogButtonBox.Cancel,dialogue)
+        buttons.button(QDialogButtonBox.Ok).setText(
+            "Apply these settings (user approved)")
+        pane.addWidget(buttons)
+        buttons.rejected.connect(dialogue.reject)
+        def apply_benchmark_choice():
+            nonlocal applied,current_text,current_cue,current_until
+            from tv_center.ai_settings import AISettings
+            update={}
+            if choice.currentIndex()>=0 and eligible:
+                backend,path=choice.currentData()
+                update["backend"]=backend
+                # CPU uses GGML file. A managed CUDA directory is selected
+                # internally by the ready GPU runtime; never write its CT2
+                # folder into the GGML model_path setting.
+                if backend=="cpu":
+                    update["model_path"]=path
+            if translator.currentData() in ("argos","nllb"):
+                update["translation_model"]=translator.currentData()
+            try:
+                if update:
+                    AISettings().update(update)
+                # Native playback delay is changed ONLY as part of this
+                # explicit user-approved plan, not by background tests.
+                desired_ms=round(suggested_buffer.value()*1000)
+                if desired_ms!=applied.playback_delay_ms:
+                    playback_delay.setValue(desired_ms/1000)
+                    apply_settings()
+                with lock:
+                    applied=__import__("dataclasses").replace(
+                        applied,revision=applied.revision+1)
+                cues.clear()
+                current_cue=None
+                current_text=""
+                current_until=0
+                ipc.publish("",applied)
+            except (OSError,RuntimeError,ValueError) as exc:
+                QMessageBox.warning(dialogue,"AI configuration failed",
+                                    str(exc)[:250])
+                return
+            benchmark_status.setText(
+                "User-approved local AI settings applied. Retesting live "
+                "caption timing is still recommended. Nothing downloaded.")
+            dialogue.accept()
+        buttons.accepted.connect(apply_benchmark_choice)
+        dialogue.show()
+
+    benchmark_button.clicked.connect(run_benchmark_clicked)
+    benchmark_process.finished.connect(benchmark_finished)
+
     def reset_settings():
         mode.setCurrentIndex(0)
         source.setCurrentIndex(0); display_mode.setCurrentIndex(1)
         for lang, check in language_boxes.items():
-            check.setChecked(lang == "tr")
+            check.setChecked(lang in ("en","tr"))
         subtitle_track.setCurrentIndex(0)
         audio_track.setCurrentIndex(0)
         extra_targets.clear()
@@ -1418,6 +1807,7 @@ def main(argv=None):
             applied = __import__("dataclasses").replace(
                 applied, revision=applied.revision + 1)
         cues.clear()
+        deferred_captions.clear()
         current_cue = None
         current_text = ""
         current_until = 0.0
@@ -1483,6 +1873,13 @@ def main(argv=None):
         """
         nonlocal applied, current_cue, current_text, current_until
         nonlocal last_published, last_service_id, last_applied_effective_ms
+        nonlocal live_test_started_at
+        if live_test_started_at:
+            live_test_started_at=0
+            live_test_button.setEnabled(True)
+            benchmark_status.setText(
+                "Live performance sampling cancelled: TV channel changed. "
+                "Restart the four-clip test on the new channel.")
         # Stop cross-channel sentence/cue contamination before the NEXT
         # audio/Teletext descriptor even arrives.
         with lock:
@@ -1493,6 +1890,7 @@ def main(argv=None):
                 mode="auto" if applied.mode == "page" else applied.mode,
                 revision=applied.revision+1)
         cues.clear()
+        deferred_captions.clear()
         estimator.clear()
         auto_controller.reset()
         current_cue = None
@@ -1543,7 +1941,7 @@ def main(argv=None):
         nonlocal current_cue, current_text, current_until, last_published
         nonlocal applied, last_service_id, last_effective_check
         nonlocal last_applied_effective_ms, last_sync_audit_at
-        nonlocal last_ui_program_epoch
+        nonlocal last_ui_program_epoch,live_test_started_at
         # Kaffeine is the DVB owner. Terminate sidecar when it disappears,
         # including when the settings window has been hidden.
         try:
@@ -1556,6 +1954,38 @@ def main(argv=None):
             pass
         mobile.expire_if_idle()
         now = time.monotonic()
+        if live_test_started_at and (now-live_test_started_at>=0.5):
+            state=tap.performance_snapshot()
+            observed=state["completed_clips"]-live_test_baseline
+            if observed>=4 or now-live_test_started_at>=75:
+                from tv_center.performance_lab import diagnose_live
+                report=diagnose_live(
+                    state["samples"][-min(observed,16):] if observed>0 else [],
+                    queue_overflows=max(0,state["queue"]["overflows"]-
+                                        live_test_baseline_overflows),
+                    ts_audio_gaps=max(0,state["ts"].get("continuity_gaps",0)-
+                                     live_test_baseline_ts_gaps))
+                live_test_started_at=0.0
+                live_test_button.setEnabled(True)
+                if report["samples"]:
+                    benchmark_status.setText(
+                        "Measured "+str(report["samples"])+" live caption clips"
+                        " · median compute "+str(report["median_compute_ms"])+"ms"
+                        " · queue wait "+str(report["median_queue_wait_ms"])+"ms"
+                        " · compute realtime factor "+
+                        str(report["median_compute_realtime_factor"])+"x"
+                        " · reasons: "+(", ".join(report["causes"]) or
+                                       "no clear overload")+
+                        ". "+("; ".join(report["recommendations"])))
+                else:
+                    benchmark_status.setText(
+                        "No completed live caption clips during the test. "
+                        "Check TV channel, DVB TS capture, audio PID, "
+                        "Whisper settings and backend readiness.")
+            elif state["completed_clips"]>live_test_baseline:
+                benchmark_status.setText(
+                    "Live performance: "+str(observed)+
+                    "/4 freshly decoded clips observed. No settings changed.")
         # The native channel epoch is published at tune time, even when
         # no MPEG-TS bytes flow yet. Handle it BEFORE queued caption events.
         if tap.program_epoch != last_ui_program_epoch:
@@ -1655,11 +2085,19 @@ def main(argv=None):
                 mobile.set_caption({"original":"","source":"channel_changed"})
                 sync_estimate.setText("Channel changed · recalibrating automatic sync.")
             last_service_id = mobile.service_id
+        # Never lose decoded speech merely because the native video buffer
+        # needs another acknowledgement. Replay older held results before
+        # newer events as soon as the relevant buffer is verified.
+        buffer_ready = confirmed_cue_config(
+            applied,ipc.read_effective_delay()) is not None
         for _ in range(8):
-            try:
-                kind, data = events.get_nowait()
-            except queue.Empty:
-                break
+            if buffer_ready and deferred_captions:
+                kind, data = "caption", deferred_captions.popleft()
+            else:
+                try:
+                    kind, data = events.get_nowait()
+                except queue.Empty:
+                    break
             if kind == "native_tv_tune":
                 # A previous queued event must never reset a newer tune.
                 if data.get("program_epoch") == tap.program_epoch:
@@ -1863,6 +2301,7 @@ def main(argv=None):
                                 # buffer ACK. Discard old queued word cues
                                 # and pause scheduling until player confirms.
                                 cues.clear()
+                                deferred_captions.clear()
                                 current_cue = None
                                 current_text = ""
                                 current_until = 0.0
@@ -1886,11 +2325,20 @@ def main(argv=None):
                     native_state = ipc.read_effective_delay()
                     cue_config = confirmed_cue_config(applied, native_state)
                     if cue_config is None:
+                        if len(deferred_captions)>=deferred_captions.maxlen:
+                            # No data recovery is possible past this bound;
+                            # expose loss instead of falsely saying 'silence'.
+                            status.setText(
+                                "Native TV buffer ACK missing; deferred-caption "
+                                "queue overflow. Real spoken phrases may be lost.")
+                        deferred_captions.append(data)
                         status.setText(
-                            "Waiting for actual TV buffer confirmation "
-                            "before publishing another subtitle. "
-                            "This prevents early captions while auto-sync "
-                            "changes are being applied.")
+                            "Waiting for real TV buffer confirmation · "+
+                            str(len(deferred_captions))+
+                            " decoded phrases held, NOT dropped. "
+                            "If this persists, inspect the native buffer and "
+                            "TV channel state; increasing delay alone cannot "
+                            "recover broken data.")
                         continue
                     cue = enqueue_word_cues(
                         cues, data, cue_config,
@@ -1931,6 +2379,12 @@ def main(argv=None):
                             " | Stages: TT "+str(timing.get("teletext",0))+"ms"+
                             " / ASR "+str(timing.get("asr",0))+"ms"+
                             " / translation "+str(timing.get("translation",0))+"ms")
+                    by_language=data.get("translation_languages_ms") or {}
+                    if by_language:
+                        status.setText(status.text()+" | Per target: "+
+                            " + ".join(str(lang).upper()+" "+
+                                str(milliseconds)+"ms" for lang,milliseconds
+                                in sorted(by_language.items())))
                     ts_health = tap.transport_health.snapshot()
                     status.setText(status.text()+
                         " | TS continuity gaps: "+str(ts_health["continuity_gaps"])+
@@ -1997,6 +2451,17 @@ def main(argv=None):
                         + str(data["recognition_rejected"]) +
                         "). No subtitle was fabricated. "
                         "Use broadcast Teletext when available.")
+            elif kind == "sentence_pending":
+                if (data.get("program_epoch")==tap.program_epoch and
+                        data.get("revision")==applied.revision):
+                    status.setText(
+                        "Whisper recognized an incomplete sentence · "+
+                        str(data.get("chunks",0))+"/"+str(
+                            data.get("maximum_chunks",2))+
+                        " audio chunks held for natural phrasing. "
+                        "Original speech is pending, not confirmed lost.")
+                    original.setText(
+                        "Building a sentence from real Whisper audio…")
             elif kind == "warning":
                 status.setText(str(data))
         cue = cues.poll(now, applied.revision) if service_running else None
@@ -2064,7 +2529,11 @@ def main(argv=None):
             ipc.publish("",applied if service_running else
                         __import__("dataclasses").replace(applied, mode="off"))
             last_published = now
-            original.setText("Waiting for next live phrase…")
+            pending_words = bool(tap.sentence_joiner.pending)
+            original.setText(
+                "Holding heard words for the next 6s audio segment…"
+                if pending_words else
+                "Listening for new TV audio · previous subtitle completed…")
             translated.setText("")
         elif now-last_published >= 1.5:
             # A real local caption-service heartbeat keeps Kaffeine's

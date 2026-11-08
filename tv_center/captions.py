@@ -354,7 +354,8 @@ def decode_segment(ts: bytes, *, mode="auto", page=150, source="de",
                    speaker_enabled: bool = False,
                    speaker_provider: str = "resemblyzer",
                    music_transcription: bool = False,
-                   speech_priority: bool = False) -> dict:
+                   speech_priority: bool = False,
+                   defer_asr_translation: bool = False) -> dict:
     if mode not in ("teletext", "page", "asr", "auto"):
         raise ValueError("Unsupported caption source")
     if type(page) is not int or not 100 <= page <= 899:
@@ -473,7 +474,11 @@ def decode_segment(ts: bytes, *, mode="auto", page=150, source="de",
         errors = {}
         warnings = {}
         engines = {}
-        if original:
+        if original and not (defer_asr_translation and used=="local_asr"):
+            # When ASR sentence assembly is enabled, translate only once
+            # AFTER completed phrases are joined by the live sidecar.
+            # Previously Auto mode translated EN/TR here and discarded
+            # those results, translating both languages a second time.
             translate_start = time.perf_counter()
             for language in targets:
                 if language == used_language:
