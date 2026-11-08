@@ -34,6 +34,7 @@ class CaptionConfig:
     teletext_pid: int | None = None
     audio_pid: int | None = None
     audio_language: str | None = None
+    speaker_enabled: bool = False
     offset_ms: int = 0
     playback_delay_ms: int = 0
     automatic_sync: bool = False
@@ -81,7 +82,8 @@ class CaptionConfig:
             raise ValueError("Background opacity must be 0–100%")
         if type(self.text_opacity) is not int or not 0 <= self.text_opacity <= 100:
             raise ValueError("Text opacity must be 0–100%")
-        for key in ("automatic_sync", "on_video", "show_original", "show_translation"):
+        for key in ("automatic_sync", "on_video", "show_original", "show_translation",
+                    "speaker_enabled"):
             if type(getattr(self, key)) is not bool:
                 raise ValueError("Caption display toggles must be boolean")
         return self
@@ -91,11 +93,13 @@ class CaptionConfig:
                 "target":self.target,"targets":self.target_languages,
                 "page":self.page,"teletext_pid":self.teletext_pid,
                 "audio_pid":self.audio_pid,"audio_source":self.audio_language,
+                "speaker_enabled":self.speaker_enabled,
                 "revision":self.revision}
 
     def render(self, result):
         """Produce independently selectable original/translated subtitle lines."""
         original = (result.get("original") or "").strip()
+        speaker = str(result.get("speaker_label") or "").strip()[:55]
         raw = result.get("translations")
         translated = raw if isinstance(raw, dict) else {}
         lines = []
@@ -103,13 +107,15 @@ class CaptionConfig:
             original_language = result.get("source_language") or self.source
             prefix = (f"[{original_language.upper()}] " if
                       self.show_translation and self.target_languages and translated else "")
-            lines.append(prefix + original)
+            lines.append((speaker + "  " if speaker else "") + prefix + original)
         if self.show_translation:
             if translated:
                 for language in self.target_languages:
                     phrase = translated.get(language)
                     if isinstance(phrase, str) and phrase.strip() and phrase.strip() != original:
-                        lines.append(f"[{language.upper()}] " + phrase.strip())
+                        lines.append(
+                            (speaker + "  " if speaker else "") +
+                            f"[{language.upper()}] " + phrase.strip())
             else:
                 legacy = (result.get("translated") or "").strip()
                 if legacy and legacy != original:
