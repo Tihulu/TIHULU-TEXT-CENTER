@@ -78,6 +78,36 @@ class HardwareAwareMarketTests(unittest.TestCase):
         self.assertFalse(result["gpu"]["cuda_compile_possible"])
         self.assertIn("12.8",result["gpu"]["reason"])
 
+    def test_versioned_cuda_13x_nvcc_found_without_path(self):
+        # Pop!_OS desktop shells may not add NVIDIA's toolkit directory to
+        # PATH. The CUDA compiler may exist at cuda-13.1/bin/nvcc.
+        original_glob = Path.glob
+        seen = []
+        def fake_glob(path, pattern):
+            if str(path) == "/usr/local" and pattern == "cuda-*/bin/nvcc":
+                return iter([Path("/usr/local/cuda-13.1/bin/nvcc")])
+            return iter([])
+        def fake_executable(name, alternatives=()):
+            if name == "nvidia-smi":
+                return "/usr/bin/nvidia-smi"
+            if name == "nvcc":
+                seen.extend(alternatives)
+                return "/usr/local/cuda-13.1/bin/nvcc"
+            return None
+        def command(argv,timeout=3):
+            if "nvidia-smi" in argv[0]:
+                return "NVIDIA GeForce RTX 5080, 16303, 12.0"
+            return "Cuda compilation tools, release 13.1, V13.1.0"
+        with patch.object(Path,"glob",fake_glob), \
+             patch("tv_center.hardware_market._find_executable",side_effect=fake_executable), \
+             patch("tv_center.hardware_market._command",side_effect=command):
+            hardware=detect_hardware()
+        self.assertIn("/usr/local/cuda-13.1/bin/nvcc",seen)
+        self.assertEqual(hardware["gpu"]["cuda_compiler"],
+                         "/usr/local/cuda-13.1/bin/nvcc")
+        self.assertEqual(hardware["gpu"]["cuda_version"],"13.1")
+        self.assertTrue(hardware["gpu"]["cuda_compile_possible"])
+
     def test_optional_translator_has_separate_selected_backend(self):
         with tempfile.TemporaryDirectory() as root:
             ai=AISettings(Path(root)/"ai.json")
