@@ -147,11 +147,36 @@ def asr_from_clip(path: Path, language: str, model: str,
         raise RuntimeError("Invalid offline speech backend")
     streams = _program_streams(path, service_id)
     audio_index = choose_audio_stream(streams, language, audio_pid)
+    if audio_index is None and audio_pid is not None:
+        # A TV retune may remove a selected elementary-stream PID. Only
+        # resume automatically if the alternate track explicitly advertises
+        # the SAME spoken language; never secretly switch languages.
+        same_language = []
+        available = set()
+        for stream in streams:
+            if stream.get("codec_type") != "audio":
+                continue
+            raw_language = str((stream.get("tags") or {}).get("language","")).lower()
+            try:
+                code = language_code(raw_language)
+            except ValueError:
+                continue
+            available.add(code)
+            if code == language and type(stream.get("index")) is int:
+                same_language.append(stream)
+        if same_language:
+            audio_index = choose_audio_stream(same_language, language)
+            if diagnostics is not None:
+                diagnostics["audio_notice"] = (
+                    "The selected audio PID disappeared; switched to another " +
+                    language.upper() + " audio track.")
+        else:
+            choices = ", ".join(sorted(available)).upper() or "none signalled"
+            raise RuntimeError(
+                "Selected audio channel is unavailable. Broadcast offers: " +
+                choices + ". Select another language/audio channel or use Teletext.")
     if audio_index is None:
-        raise RuntimeError(
-            "Selected audio PID unavailable in tuned TV service"
-            if audio_pid is not None else
-            "No audio track in the selected TV service")
+        raise RuntimeError("No audio track in the selected TV service")
     audio = _run(["ffmpeg", "-hide_banner", "-loglevel", "error", "-i", str(path),
                   "-map", f"0:{audio_index}", "-vn", "-ar", "32000", "-ac", "1",
                   "-f", "s16le", "-"], timeout=35)
@@ -327,6 +352,7 @@ def decode_segment(ts: bytes, *, mode="auto", page=150, source="de",
                 "asr_backend": speech_diagnostics.get("backend"),
                 "asr_model": speech_diagnostics.get("model"),
                 "asr_engine": speech_diagnostics.get("engine"),
+                "audio_notice": speech_diagnostics.get("audio_notice"),
                 "processing_ms": {
                     "teletext":teletext_ms,"asr":asr_ms,
                     "translation":translation_ms,
