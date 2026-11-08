@@ -42,12 +42,15 @@
 #include <QListWidget>
 #include <QMenu>
 #include <QFile>
+#include <functional>
 
 class TihuluUnifiedRecorder final : public QWidget {
 public:
     explicit TihuluUnifiedRecorder(MediaWidget *player,DvbTab *dvb,
-                                   QToolBar *bar,QWidget *parent=nullptr)
+                                   QToolBar *bar,std::function<void()> openPlayback,
+                                   QWidget *parent=nullptr)
         : QWidget(parent),player_(player),dvb_(dvb),
+          openPlayback_(openPlayback),
           capture_(this),ai_(this),mux_(this) {
         auto *line=new QHBoxLayout(this);
         line->setContentsMargins(1,0,1,0);
@@ -400,6 +403,7 @@ private:
             const QFileInfo info(path);
             const QString subtitle=info.absolutePath()+QLatin1Char('/')+
                 info.completeBaseName()+QLatin1String(".srt");
+            if(openPlayback_)openPlayback_();
             player_->play(QUrl::fromLocalFile(path),
                 QFileInfo::exists(subtitle)?QUrl::fromLocalFile(subtitle):QUrl());
             dialog.accept();
@@ -428,6 +432,7 @@ private:
 
     MediaWidget *player_=nullptr;
     DvbTab *dvb_=nullptr;
+    std::function<void()> openPlayback_;
     QToolButton *record_=nullptr,*library_=nullptr;
     QProcess capture_,ai_,mux_;
     bool recording_=false,intentionalStop_=false,subtitlesAfter_=false,singing_=false;
