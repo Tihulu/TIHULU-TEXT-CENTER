@@ -715,87 +715,153 @@ def main(argv=None):
     output_catalog_status.setWordWrap(True)
     settings_layout.addRow(output_catalog_status)
     requested_languages = {"en","tr"}
+    # Show the familiar language checkboxes immediately. Whether a
+    # translator for a particular source→target pair is *installed* is a
+    # separate asynchronous fact and must never gate the selection menu.
+    baseline = ("en", "tr", "de", "fr")
+    catalog_in_flight = False
+    catalog_timed_out = False
+
     def summarize_languages(*_):
         checked = [code.upper() for code,box in language_boxes.items()
                    if box.isChecked()]
         output_button.setText(", ".join(checked) or "Choose output languages")
-    def fill_languages(result):
-        items = result.get("languages", ()) if isinstance(result,dict) else ()
-        output_menu.clear()
-        language_boxes.clear()
-        content = QWidget(output_menu)
-        content_layout = QVBoxLayout(content)
-        content_layout.setContentsMargins(10,8,10,8)
-        content_layout.setSpacing(5)
+        output_button.setToolTip(
+            "Multiple selections; only locally available models can translate "
+            "a particular broadcast source language. Choose from the dropdown.")
+
+    def on_language_toggled(code, checked):
+        if checked:
+            requested_languages.add(code)
+        else:
+            requested_languages.discard(code)
+        summarize_languages()
+        set_pending()
+
+    def fill_languages(result, *, pending=False):
+        """Rebuild the menu without clearing the user's existing choices."""
+        items = result.get("languages",()) if isinstance(result,dict) else ()
+        available={}
         for item in items:
             if not isinstance(item,dict):
                 continue
             try:
-                code = language_code(item.get("code",""),nllb=True)
-            except ValueError:
+                code=language_code(item.get("code",""),nllb=True)
+            except (ValueError,TypeError):
                 continue
-            if code in language_boxes:
-                continue
-            label = str(item.get("label",code.upper()))[:50]
-            engines = item.get("engines") or []
-            cb = QCheckBox(code.upper()+" · "+label,content)
-            cb.setToolTip("On disk: "+", ".join(str(x) for x in engines)+
-                ". A full source→target translation is verified by a real inference test.")
+            if code not in available:
+                available[code]=item
+        output_menu.clear()
+        language_boxes.clear()
+        content=QWidget(output_menu)
+        content_layout=QVBoxLayout(content)
+        content_layout.setContentsMargins(10,8,10,8)
+        content_layout.setSpacing(5)
+        # Explicitly distinguish selectable codes from real installed packs.
+        for code in list(dict.fromkeys(
+                [*baseline,*sorted(available),*sorted(requested_languages)])):
+            model=available.get(code)
+            engines=model.get("engines",[]) if model else []
+            label=(str(model.get("label","")) if model else
+                   {"en":"English","tr":"Turkish","de":"German",
+                    "fr":"French"}.get(code,code.upper()))
+            status_text=(
+                " · installed model: "+", ".join(str(x) for x in engines)
+                if engines else " · translation model not confirmed")
+            cb=QCheckBox(code.upper()+" · "+label,content)
             cb.setChecked(code in requested_languages)
-            language_boxes[code] = cb
+            cb.setToolTip(
+                code.upper()+status_text+
+                ". A working translation direction is checked when decoding.")
+            language_boxes[code]=cb
             content_layout.addWidget(cb)
-            cb.toggled.connect(summarize_languages)
-            cb.toggled.connect(set_pending)
-        if not language_boxes:
-            content_layout.addWidget(QLabel(
-                "No installed language packs. Use Model Market.",content))
+            cb.toggled.connect(
+                lambda checked,lang=code:on_language_toggled(lang,checked))
         refresh_languages=QPushButton("Refresh installed languages",content)
         content_layout.addWidget(refresh_languages)
         refresh_languages.clicked.connect(start_language_catalog)
-        scroll = QScrollArea(output_menu)
+        scroll=QScrollArea(output_menu)
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QFrame.NoFrame)
         scroll.setMaximumHeight(320)
         scroll.setMinimumWidth(260)
         scroll.setWidget(content)
-        action = QWidgetAction(output_menu)
+        action=QWidgetAction(output_menu)
         action.setDefaultWidget(scroll)
         output_menu.addAction(action)
-        if isinstance(result,dict) and result.get("errors"):
+        summarize_languages()
+        if pending:
             output_catalog_status.setText(
-                "Installed-language discovery incomplete: "+
-                "; ".join(str(e) for e in result["errors"])[:230])
+                "Languages ready: EN, TR, DE, FR. Checking installed "
+                "offline translation models in the background…")
+        elif isinstance(result,dict) and result.get("errors"):
+            output_catalog_status.setText(
+                "Language choices available; installed model check incomplete: "+
+                "; ".join(str(x) for x in result["errors"])[:180]+
+                ". Open Model Market to install/verify packs.")
         else:
             output_catalog_status.setText(
-                str(len(language_boxes))+" installed output languages available. "
-                "Translation direction and runtime still require verification.")
-        summarize_languages()
-    language_process = QProcess(window)
+                str(len(available))+" installed output languages found. "
+                "Available destination is not proof of a working source→target "
+                "translation. Select languages, then Apply.")
+
+    language_process=QProcess(window)
+    language_timeout=QTimer(window)
+    language_timeout.setSingleShot(True)
     def language_catalog_finished(*_):
+        nonlocal catalog_in_flight
         language_timeout.stop()
+        catalog_in_flight=False
         try:
             payload=bytes(language_process.readAllStandardOutput()).decode(
                 "utf-8","replace")
             if language_process.exitCode()!=0 or len(payload)>75000:
-                raise ValueError("Installed-language discovery failed")
+                stderr=bytes(language_process.readAllStandardError()).decode(
+                    "utf-8","replace")
+                raise ValueError("Local model scan failed: "+stderr[-130:])
             result=json.loads(payload)
+            if not isinstance(result,dict):
+                raise ValueError("Invalid local model metadata")
         except (ValueError,TypeError) as exc:
-            result={"languages":[],"errors":[str(exc)]}
+            result={"languages":[],"errors":[str(exc)[:160]]}
         fill_languages(result)
-    language_process.finished.connect(language_catalog_finished)
-    language_timeout=QTimer(window)
-    language_timeout.setSingleShot(True)
-    def language_catalog_timeout():
-        if language_process.state()!=QProcess.NotRunning:
-            language_process.kill()
-            output_catalog_status.setText(
-                "Installed language discovery timed out. Retry via "
-                "the dropdown; TV playback continues normally.")
-    language_timeout.timeout.connect(language_catalog_timeout)
-    def start_language_catalog():
+
+    def language_catalog_error(error):
+        nonlocal catalog_in_flight
         if language_process.state()==QProcess.NotRunning:
-            language_process.start(sys.executable,["-m","tv_center.installed_languages"])
-            language_timeout.start(25000)
+            catalog_in_flight=False
+            language_timeout.stop()
+            output_catalog_status.setText(
+                "Installed model scan could not start (Qt process error "+
+                str(int(error))+"). Language checkboxes remain available.")
+
+    def language_catalog_timeout():
+        nonlocal catalog_timed_out
+        if language_process.state()!=QProcess.NotRunning:
+            catalog_timed_out=True
+            output_catalog_status.setText(
+                "Installed model scan exceeded 6 seconds. Language choices "
+                "remain usable; Retry after Model Market is ready.")
+            language_process.kill()
+
+    def start_language_catalog():
+        nonlocal catalog_in_flight,catalog_timed_out
+        if catalog_in_flight or language_process.state()!=QProcess.NotRunning:
+            return
+        catalog_in_flight=True
+        catalog_timed_out=False
+        output_catalog_status.setText(
+            "Language choices ready. Checking installed models (max 6 s)…")
+        language_process.start(sys.executable,
+            ["-m","tv_center.installed_languages"])
+        language_timeout.start(6000)
+
+    language_process.finished.connect(language_catalog_finished)
+    language_process.errorOccurred.connect(language_catalog_error)
+    language_timeout.timeout.connect(language_catalog_timeout)
+    # The menu is functional from the first rendered frame, even if the
+    # Argos runtime cannot import at all or the subprocess cannot start.
+    fill_languages({"languages":[]},pending=True)
     QTimer.singleShot(150,start_language_catalog)
     extra_targets = QLineEdit()
     extra_targets.setPlaceholderText(
