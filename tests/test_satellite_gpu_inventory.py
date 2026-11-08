@@ -16,7 +16,7 @@ class GPUInventoryTests(unittest.TestCase):
     def test_nvidia_smi_detects_physical_gpu_without_cuda_claim(self):
         detect_gpu_hardware.cache_clear()
         output=SimpleNamespace(returncode=0,
-            stdout="NVIDIA GeForce RTX 5080, 595.104.02\\n",stderr="")
+            stdout="NVIDIA GeForce RTX 5080, 595.104.02\n",stderr="")
         with patch("satellite_center.compute_backends.shutil.which",
                    side_effect=lambda name:"/usr/bin/nvidia-smi" if name=="nvidia-smi" else None), patch(
                    "satellite_center.compute_backends.subprocess.run",
