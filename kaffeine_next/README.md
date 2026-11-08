@@ -640,3 +640,91 @@ Teletext or audio track is selected automatically, including its
 English as German. Unavailable translations are reported separately
 and cannot erase the original transcript.
 
+
+## Native Radio (DAB+) + local media AI (2026-11-08)
+
+The left navigation now includes **Radio (DAB+)** in the SAME native
+Kaffeine window alongside Playback, Playlist and Television. Radio uses
+the shared libVLC `MediaWidget` and bottom playback toolbar; selecting a
+station does **not** open another player or browser. It does not open any
+receiver on startup.
+
+**welle.io backend** is an optional pinned GPL-2+ welle-cli build
+(`AlbrechtL/welle.io`, commit
+`512558d1f8ac4c524d3c63e97510ea36c1bd7a70`). It requires its own
+DAB-capable RTL-SDR/SoapySDR device. A DVB-T2 frontend is NOT
+automatically DAB-compatible. To install it:
+
+```sh
+bash "$HOME/.local/share/tihulu-kaffeine/install_welle.sh"
+# Or opt in to both source builds during a new install:
+# bash install.sh --with-dab
+```
+
+The backend installer changes welle.io's unprotected default HTTP bind
+from `INADDR_ANY` to `127.0.0.1` **before building**. Only the
+locally patched, marked binary is accepted by the native Radio tab.
+Never use an externally network-exposed welle-cli `-w` server as the
+Kaffeine radio backend. The optional builder depends on installed
+Debian/Pop!_OS APT development libraries, internet access for the
+first build, and sufficient disk space. It does not touch NVIDIA drivers,
+Whisper models or DVB-T2 tuner configuration.
+
+**Radio features included**: real Band III ensemble scanning on
+owner request, persistent station cache, per-service selection and
+playback, broadcaster DLS text, MOT slideshow, live ensemble and SNR/FIC
+error indicators, receiver information and on-demand spectrum, null
+spectrum, constellation and impulse-response visualizations. The
+interface uses the actual welle `/mux.json`, `/channel`,
+`/mp3/<SID>`, `/slide/<SID>` and RF diagnostic endpoints on the
+private 127.0.0.1 server. It **does not yet replicate every original
+welle.io GUI menu**, complex TII visualization or independent driver
+configuration dialog; those are not claimed as complete. Only one
+application should own a particular RTL-SDR at once.
+
+**Offline radio AI** is an optional **Start offline live captions**
+button in the Radio tab. It extracts PCM from the same local welle
+station stream, uses the already installed GPU/CPU Whisper model and
+selected offline Argos/NLLB translator, and displays the original plus
+checked EN/TR translations without uploading audio. **Include music
+vocals** disables speech VAD on the CUDA model; it may be less accurate
+on instrumental or heavily mixed music. Actual live radio word display
+can lag playback: TV's native MPEG-TS playback buffer is **TV-specific**
+and is not falsely reported as applied to welle MP3. The radio worker
+is stopped and its private runtime files removed on Stop / application
+close.
+
+**Local video and audio AI**: TIHULU AI → **Generate AI captions /
+lyrics for local Video or Audio** opens a file selection dialogue.
+The installed GPU Whisper and offline translator produce
+`.srt` next to the original media file; choose the subtitle file
+from Kaffeine's existing subtitle menu. The original media file is
+untouched. Supported examples include MP4, MKV, TS, MP3, WAV, FLAC,
+M4A and OGG. The offline CLI alternative is:
+
+```sh
+tihulu-tv-center media-captions --input "$HOME/Videos/example.mp4" --source de --targets en,tr
+tihulu-tv-center media-captions --input "$HOME/Music/song.flac" --source en --targets tr --music
+```
+
+**Timed lyrics**: A local same-basename `.lrc` is preferred. For
+a radio song announced as `Artist - Track` in DLS, the user may
+click **Find timed lyrics** and explicitly authorize a metadata-only
+HTTPS request to LRCLIB; no song audio is uploaded and no API key is
+required. Radio start time is estimated from the DLS change and a
+manual time-offset slider adjusts the approximate alignment. Only
+verified synchronized LRC cues are displayed, never made-up lyric
+timing. Existing lyrics and other copyrighted text are not republished
+by this README. See the provider's terms before redistributing.
+
+**Optional TV music**: In Live Captions, check **Include singing /
+music vocals in Whisper**. It uses the same early pre-playback TS tap
+and the existing TV buffer. This is real song-vocal transcription, not
+audio fingerprinting or guaranteed time-coded third-party lyrics.
+
+**Caption appearance**: `Background opacity` controls the backing
+rectangle (0% = completely transparent), while `Text opacity`
+controls only the characters. White text at 100% with background
+opacity 0% is fully readable text with no black bar; either color can
+also be changed independently.
+
