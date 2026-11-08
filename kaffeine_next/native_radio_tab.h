@@ -1561,6 +1561,8 @@ private:
 		}
 		options<<QLatin1String("--targets")<<targets.join(QLatin1Char(','));
 		if (music_->isChecked()) options<<QLatin1String("--music");
+		if (speakerLabels_->isChecked() && !music_->isChecked())
+			options<<QLatin1String("--speaker-labels");
 		const QString runtime=QStandardPaths::writableLocation(QStandardPaths::RuntimeLocation);
 		if (runtime.isEmpty()) return;
 		captionPath_=runtime + QLatin1String("/tihulu-radio-captions-")+
@@ -1632,6 +1634,12 @@ private:
 			// applied to the already-generated cue's display time.
 			const int remaining=bufferMs_->value()-6000-inference+550;
 			QString caption=obj.value(QLatin1String("original")).toString();
+			const QJsonArray speakers=obj.value(QLatin1String("speaker_turns")).toArray();
+			if(!caption.isEmpty() && !speakers.isEmpty() && !music_->isChecked()) {
+				const QString id=speakers.first().toObject().value(QLatin1String("id")).toString();
+				if(QRegularExpression(QLatin1String("^SPEAKER_[0-9]{2}$")).match(id).hasMatch())
+					caption=QLatin1String("[")+id+QLatin1String("] ")+caption;
+			}
 			const auto translations=obj.value(QLatin1String("translations")).toObject();
 			for(auto it=translations.begin();it!=translations.end();++it)
 				if(it.value().isString())
