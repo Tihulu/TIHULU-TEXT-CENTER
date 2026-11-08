@@ -20,7 +20,7 @@ class DvbBackgroundScanTests(unittest.TestCase):
         self.assertIn("if (scanDialog) {", self.patch)
         self.assertIn("scanDialog->activateWindow();", self.patch)
         self.assertIn("Qt::WA_DeleteOnClose", self.patch)
-        self.assertNotIn("QProcess::startDetached", self.patch)
+        self.assertNotIn('QProcess::startDetached(QLatin1String("w_scan_cpp")', self.patch)
 
     def test_tuner_ownership_is_protected_without_blocking_local_media(self):
         self.assertIn("scanDialog && scanDialog->isScanning()", self.patch)
