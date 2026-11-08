@@ -123,8 +123,12 @@ def _get_json(url: str, *, allow_list: bool=False):
             raise RuntimeError(
                 "Lyrics lookup rate-limited. Retry later; no automatic loop.") from exc
         raise RuntimeError(f"Lyrics lookup unavailable: HTTP {exc.code}") from exc
-    if allow_list and isinstance(record,list):
-        return [item for item in record[:20] if isinstance(item,dict)]
+    if allow_list:
+        if isinstance(record,list):
+            return [item for item in record[:20] if isinstance(item,dict)]
+        if not record:
+            return []
+        raise ValueError("Unexpected LRCLIB catalog search response")
     if not isinstance(record, dict):
         raise ValueError("Unexpected LRCLIB response")
     return record
