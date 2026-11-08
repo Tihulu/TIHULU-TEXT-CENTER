@@ -16,6 +16,8 @@ import sys
 import threading
 import time
 
+from .tv_tune_state import read_native_tune
+
 # Longer contiguous phrases improve Whisper context; overlap covers words
 # spanning boundaries. Queued capture lets CPU inference finish without
 # *immediately* discarding the next 6-second segment.
@@ -34,9 +36,11 @@ def validate_socket(path: str) -> Path:
     return p
 
 class CaptionTap:
-    def __init__(self, path, current_options, events, packet_sink=None):
+    def __init__(self, path, current_options, events, packet_sink=None,
+                 owner_tune_changed=None):
         self.path = validate_socket(path)
         self.packet_sink = packet_sink
+        self.owner_tune_changed = owner_tune_changed
         self.current_options = current_options
         self.events = events
         self.stop = threading.Event()
@@ -48,6 +52,7 @@ class CaptionTap:
         self.packet_guard = CaptionPacketGuard()
         self.subtitle_discovery = TeletextSubtitleDiscovery()
         self.program_epoch = 0
+        self.native_tune_state = None
         self.recv_buffer_bytes = None
         self.work_queue = BufferedCaptionQueue(
             maximum_bytes=(48 if Path("/proc/device-tree/model").is_file()
@@ -106,6 +111,35 @@ class CaptionTap:
         except queue.Full:
             pass
 
+    def poll_owner_tune(self) -> bool:
+        """Owner tune changes invalidate decoded captions even with no TS."""
+        observed = read_native_tune(self.path)
+        if observed is None or observed == self.native_tune_state:
+            return False
+        self.native_tune_state = observed
+        self.program_epoch += 1
+        self.program_id = None
+        self.work_queue.clear()
+        self.subtitle_discovery.clear()
+        self.packet_guard.reset()
+        self.transport_health.reset()
+        self.previous_original = ""
+        self.previous_revision = -1
+        if self.owner_tune_changed is not None:
+            try:
+                self.owner_tune_changed(observed)
+            except (OSError, RuntimeError, ValueError) as exc:
+                self._note_warning("Paired phone stream reset failed: "+str(exc)[:120])
+        try:
+            self.events.put_nowait(("native_tv_tune", {
+                "owner_epoch": observed[0],
+                "service_id": observed[1],
+                "transport_stream_id": observed[2],
+                "program_epoch": self.program_epoch}))
+        except queue.Full:
+            self._note_warning("Native TV tune observed; UI will resynchronize.")
+        return True
+
     def _reader(self):
         chunks = bytearray()
         last = time.monotonic()
@@ -114,8 +148,20 @@ class CaptionTap:
         previous_duration = 0.0
         quality = {"invalid":0,"duplicates":0,"gaps":0,"critical_gaps":0}
         from .continuous_captions import CapturedClip, prepended_overlap, estimate_overlap_seconds
-        from .mpegts import current_program_id
+        from .mpegts import current_program_identity
+        last_owner_poll = 0.0
         while not self.stop.is_set():
+            tick = time.monotonic()
+            if tick - last_owner_poll >= 0.15:
+                last_owner_poll = tick
+                if self.poll_owner_tune():
+                    chunks.clear()
+                    last = tick
+                    last_revision = -1
+                    previous_segment = b""
+                    previous_duration = 0.0
+                    quality = {"invalid":0,"duplicates":0,"gaps":0,
+                               "critical_gaps":0}
             try:
                 data = self.sock.recv(188 * 32)
             except socket.timeout:
@@ -146,9 +192,21 @@ class CaptionTap:
                     self.bytes_per_second = 0.7 * self.bytes_per_second + 0.3 * measured_rate
                 self._rate_start = rate_now
                 self._rate_bytes = 0
+            # Validate native owner-selected SID + TSID before accepting
+            # any packets. Old multiplex data can remain in a Unix socket
+            # after a tune; a matching service ID alone is insufficient.
+            identity = current_program_identity(data)
+            if self.native_tune_state is not None:
+                expected = self.native_tune_state[1:]
+                if expected[0] == 0:
+                    continue  # Kaffeine stopped TV; never reuse old TS.
+                if self.program_id is None and identity != expected:
+                    continue  # Await PAT for the NEW owner-selected service.
+                if identity is not None and identity != expected:
+                    continue  # Stale old service or recycled SID/multiplex.
             # Kaffeine may switch services without reopening this sidecar.
             # Never concatenate clips or deduplicate speech across TV channels.
-            observed_program = current_program_id(data)
+            observed_program = identity[0] if identity is not None else None
             if observed_program and observed_program != self.program_id:
                 if self.program_id is not None:
                     chunks.clear()
@@ -172,6 +230,7 @@ class CaptionTap:
                     self.events.put_nowait((
                         "teletext_tracks",
                         {"service_id":self.subtitle_discovery.service_id,
+                         "program_epoch":self.program_epoch,
                          "tracks":self.subtitle_discovery.snapshot(),
                          "audio_tracks":self.subtitle_discovery.snapshot_audio()}))
                 except queue.Full:
@@ -290,6 +349,7 @@ class CaptionTap:
                 captured_options["ts_integrity"] = segment_quality
                 captured_options["service_id"] = self.program_id
                 captured_options["program_epoch"] = self.program_epoch
+                captured_options["native_tune_state"] = self.native_tune_state
                 queued = self.work_queue.offer(
                     CapturedClip(capture, captured_options, started, now))
                 if not queued:
@@ -441,6 +501,12 @@ class CaptionTap:
             result["captured_end"] = captured_end
             result["decoded_at"] = time.monotonic()
             result["revision"] = options.get("revision", 0)
+            result["program_epoch"] = options.get("program_epoch")
+            result["native_tune_state"] = options.get("native_tune_state")
+            # Recheck before publishing. Decoder/translator can take
+            # seconds; no result from a previous tune may be displayed.
+            if options.get("program_epoch") != self.program_epoch:
+                return
             try:
                 self.events.put_nowait(("caption", result))
             except queue.Full:
@@ -510,6 +576,9 @@ def main(argv=None):
         "TIHULU · Live captions · GPU Whisper + translation failover")
     window.setMinimumWidth(620)
     window.setWindowFlag(Qt.WindowMinMaxButtonsHint, True)
+    # This is a separate controller, never a modal Kaffeine channel-switch
+    # dialog. Alt-Tab and the pinned Back-to-TV control preserve capture.
+    window.setWindowModality(Qt.NonModal)
     window.setStyleSheet(
         "QWidget{background:#0c1722;color:#e8f3fa;font-size:13px}"
         "QGroupBox{border:1px solid #304b63;border-radius:8px;margin-top:14px;padding:10px}"
@@ -904,6 +973,9 @@ def main(argv=None):
     pinned_progress = QLabel("TV buffer: waiting for receiver")
     pinned_progress.setWordWrap(True)
     root.addWidget(pinned_progress)
+    native_channel_status = QLabel("TV source: waiting for native Kaffeine channel")
+    native_channel_status.setWordWrap(True)
+    root.addWidget(native_channel_status)
     root.addWidget(buffer_progress)
     buttons = QHBoxLayout()
     apply = QPushButton("Apply")
@@ -914,17 +986,25 @@ def main(argv=None):
     root.addLayout(buttons)
     behavior = QHBoxLayout()
     hide_panel = QPushButton("Hide settings")
+    back_to_tv = QPushButton("Back to TV · keep captions running")
+    back_to_tv.setToolTip(
+        "Minimize these non-modal settings so Kaffeine has keyboard focus "
+        "for channel numbers, arrows and its channel list. Whisper and "
+        "translations continue in this process.")
     start_subtitles = QPushButton("Start subtitles")
     stop_subtitles = QPushButton("Stop subtitles")
     exit_subtitles = QPushButton("Exit caption service")
     start_subtitles.setEnabled(False)
     behavior.addWidget(start_subtitles)
     behavior.addWidget(stop_subtitles)
+    behavior.addWidget(back_to_tv)
     behavior.addWidget(hide_panel)
     behavior.addWidget(exit_subtitles)
     root.addLayout(behavior)
-    persistence = QLabel("Closing this settings panel keeps on-video subtitles, "
-                         "Whisper and translation running. Reopen with Kaffeine → "
+    persistence = QLabel("Closing or minimizing this non-modal settings panel keeps "
+                         "on-video subtitles, Whisper and translation running. "
+                         "When settings have keyboard focus, use Back to TV to "
+                         "change channels in Kaffeine. Reopen with Kaffeine → "
                          "TIHULU AI → Live Teletext / Whisper subtitles. "
                          "Stop pauses ASR without closing settings; Start resumes. "
                          "Exit closes the caption service entirely.")
@@ -1015,6 +1095,7 @@ def main(argv=None):
     estimator = AutoSyncEstimator(ceiling_ms=6000 if pi5 else 15000)
     auto_controller = AutoSyncController()
     last_service_id = None
+    last_ui_program_epoch = 0
     last_effective_check = 0.0
     last_applied_effective_ms = None
     last_sync_audit_at = 0.0
@@ -1029,7 +1110,8 @@ def main(argv=None):
         options, lambda msg: events.put(("warning",str(msg))),
         gui_commands=lambda action,params: events.put_nowait(
             ("remote_gui_command",{"action":action,"params":params})))
-    tap = CaptionTap(str(endpoint), options, events, packet_sink=mobile.receive)
+    tap = CaptionTap(str(endpoint), options, events, packet_sink=mobile.receive,
+                     owner_tune_changed=mobile.owner_tune_changed)
     try:
         tap.start()
     except (OSError, RuntimeError) as exc:
@@ -1392,10 +1474,76 @@ def main(argv=None):
     srt_start.clicked.connect(begin_srt_recording)
     srt_stop.clicked.connect(end_srt_recording)
 
+    def reset_channel_captions(epoch, native_state):
+        """Keep UI open but detach *every* selected old-channel PID.
+
+        The only source of tune truth is native Kaffeine (or decoded PAT
+        for older installations). A user-selected output language,
+        subtitle appearance and buffer preference survive this reset.
+        """
+        nonlocal applied, current_cue, current_text, current_until
+        nonlocal last_published, last_service_id, last_applied_effective_ms
+        # Stop cross-channel sentence/cue contamination before the NEXT
+        # audio/Teletext descriptor even arrives.
+        with lock:
+            applied = __import__("dataclasses").replace(
+                applied, teletext_pid=None, audio_pid=None, audio_language=None,
+                # A manually selected Teletext page belongs to the old
+                # service. Do not continue decoding it after a TV tune.
+                mode="auto" if applied.mode == "page" else applied.mode,
+                revision=applied.revision+1)
+        cues.clear()
+        estimator.clear()
+        auto_controller.reset()
+        current_cue = None
+        current_text = ""
+        current_until = 0.0
+        last_published = time.monotonic()
+        last_service_id = None
+        last_applied_effective_ms = None
+        subtitle_track.blockSignals(True)
+        subtitle_track.clear()
+        subtitle_track.addItem(
+            "Automatic broadcaster subtitles (new TV service)", None)
+        subtitle_track.blockSignals(False)
+        audio_track.blockSignals(True)
+        audio_track.clear()
+        audio_track.addItem(
+            "Automatic · select audio from new TV service", None)
+        audio_track.blockSignals(False)
+        if mode.currentData() == "page":
+            # An explicitly chosen old service's Teletext page must not
+            # silently become a real caption channel in the next service.
+            mode.setCurrentIndex(0)
+        track_status.setText("Switched service · waiting for fresh Teletext descriptors.")
+        audio_track_status.setText("Switched service · waiting for new audio PID/language.")
+        original.setText("TV channel changed · waiting for NEW channel captions…")
+        translated.setText("")
+        translation_health.setText("Translation will resume after new source confirmation.")
+        native_channel_status.setText(
+            ("Kaffeine TV: SID %s · TSID %s · tune %s · waiting for TS/ASR"
+             % (native_state[1], native_state[2], native_state[0]))
+            if native_state is not None and native_state[1] else
+            "Kaffeine TV: stopped or retuning · old subtitles cleared")
+        sync_estimate.setText("Channel changed · clearing timing measurements.")
+        ipc.publish("",applied if service_running else
+                    __import__("dataclasses").replace(applied,mode="off"))
+        # A live SRT file cannot silently stitch two unrelated TV shows.
+        if srt_recorder.active:
+            files = srt_recorder.stop()
+            srt_status.setText("TV channel changed; saved previous SRT: " +
+                               ", ".join(str(p) for p in files))
+            srt_start.setEnabled(True)
+            srt_stop.setEnabled(False)
+        pending.setText("New TV service detected · automatic PID reset")
+        status.setText("New Kaffeine TV tune observed: stale ASR/Teletext "
+                       "cue queue discarded; retuning does NOT stop subtitles.")
+
     def pump():
         nonlocal current_cue, current_text, current_until, last_published
         nonlocal applied, last_service_id, last_effective_check
         nonlocal last_applied_effective_ms, last_sync_audit_at
+        nonlocal last_ui_program_epoch
         # Kaffeine is the DVB owner. Terminate sidecar when it disappears,
         # including when the settings window has been hidden.
         try:
@@ -1408,6 +1556,11 @@ def main(argv=None):
             pass
         mobile.expire_if_idle()
         now = time.monotonic()
+        # The native channel epoch is published at tune time, even when
+        # no MPEG-TS bytes flow yet. Handle it BEFORE queued caption events.
+        if tap.program_epoch != last_ui_program_epoch:
+            last_ui_program_epoch = tap.program_epoch
+            reset_channel_captions(last_ui_program_epoch,tap.native_tune_state)
         if now - last_effective_check >= 1.0:
             last_effective_check = now
             effective = ipc.read_effective_delay()
@@ -1507,7 +1660,18 @@ def main(argv=None):
                 kind, data = events.get_nowait()
             except queue.Empty:
                 break
-            if kind == "show_settings":
+            if kind == "native_tv_tune":
+                # A previous queued event must never reset a newer tune.
+                if data.get("program_epoch") == tap.program_epoch:
+                    if data["service_id"]:
+                        native_channel_status.setText(
+                            "Kaffeine TV: new SID %s / TSID %s · tune %s" % (
+                                data["service_id"], data["transport_stream_id"],
+                                data["owner_epoch"]))
+                    else:
+                        native_channel_status.setText(
+                            "Kaffeine TV stopped/retuning · old caption source cleared")
+            elif kind == "show_settings":
                 window.showNormal()
                 window.raise_()
                 window.activateWindow()
@@ -1533,6 +1697,8 @@ def main(argv=None):
                     "Paired phone requested desktop caption control: " +
                     str(action) + ". Native status will confirm the effect.")
             elif kind == "teletext_tracks":
+                if data.get("program_epoch") != tap.program_epoch:
+                    continue
                 selected = subtitle_track.currentData()
                 previous_identity = ((selected.get("pid"),selected.get("page"),
                                       selected.get("language"))
@@ -1624,8 +1790,10 @@ def main(argv=None):
                               and new_subtitle_track is not None
                               else new_audio_track)
                     lang = _signaled_language(chosen)
-                    if lang and source.currentText() != "Auto detect · Whisper":
-                        source.setCurrentText(lang)
+                    # A broadcast hint is a property of THIS TV channel.
+                    # Do not replace a user's Auto source with a hardcoded
+                    # language or silently override an explicit manual choice.
+                    # from_controls() uses fresh DVB descriptors per tune.
                     apply_settings()
                     if chosen is new_audio:
                         audio_track_status.setText(
@@ -1655,7 +1823,8 @@ def main(argv=None):
                 page.setValue(int(data))
                 apply_settings()
             elif kind == "caption":
-                if data.get("revision") != applied.revision:
+                if (data.get("revision") != applied.revision or
+                        data.get("program_epoch") != tap.program_epoch):
                     continue
                 if data.get("original"):
                     real_source = data.get("source", "")
@@ -1936,6 +2105,7 @@ def main(argv=None):
         app.quit()
 
     hide_panel.clicked.connect(window.hide)
+    back_to_tv.clicked.connect(window.showMinimized)
     exit_subtitles.clicked.connect(stop_caption_service)
 
     def cleanup():

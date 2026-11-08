@@ -564,6 +564,7 @@ QAbstractButton *StartTab::addShortcut''')
     live = "src/dvb/dvbliveview.cpp"
     change(live, '#include <QDir>\n',
            '#include <QDir>\n#include <QCoreApplication>\n'
+           '#include <QSaveFile>\n'
            '#include <sys/socket.h>\n#include <sys/un.h>\n')
     change(live, '\treadFd(-1), writeFd(-1), notifier(NULL)\n{',
            '\treadFd(-1), writeFd(-1), notifier(NULL), tihuluCaptionFd(-1)\n{')
@@ -614,7 +615,27 @@ QAbstractButton *StartTab::addShortcut''')
 ''')
     change(live, '''void DvbLiveView::replay()
 {
-\tif (device == NULL) {''', '''void DvbLiveView::replay()
+\tif (device == NULL) {''', '''// One-way notification of the DVB owner's selected channel. It is
+// an atomic, private runtime marker, NOT a tuner command or second
+// receiver. The captions panel can invalidate old-PID work immediately,
+// even before a new multiplex supplies its next PAT packet.
+static void tihuluNotifyNativeCaptionTune(quint64 epoch, int sid, int tsid)
+{
+\tconst QString runtime = QStandardPaths::writableLocation(
+\t\tQStandardPaths::RuntimeLocation);
+\tif (runtime.isEmpty()) return;
+\tQSaveFile file(runtime + QLatin1String("/tihulu-tv-tune-") +
+\t\tQString::number(QCoreApplication::applicationPid()) +
+\t\tQLatin1String(".txt"));
+\tif (file.open(QIODevice::WriteOnly)) {
+\t\tQByteArray state = QByteArray::number(epoch) + ' ' +
+\t\t\tQByteArray::number(sid) + ' ' + QByteArray::number(tsid) + '\\n';
+\t\tif (file.write(state) != state.size()) file.cancelWriting();
+\t\telse file.commit();
+\t}
+}
+
+void DvbLiveView::replay()
 {
 \tif (channel.constData() == NULL) return;
 \tif (device == NULL) {''')
@@ -629,6 +650,11 @@ QAbstractButton *StartTab::addShortcut''')
 \tplaybackStatusChanged(MediaWidget::Idle);
 \tchannel = channel_;
 \tdevice = newDevice;
+\t// A native tune epoch makes changes visible even when service IDs are
+\t// recycled by a different DVB multiplex or the TS feed is interrupted.
+\ttihuluNotifyNativeCaptionTune(internal->tihuluTuneEpoch,
+\t\tchannel.constData()!=NULL ? int(channel->serviceId) : 0,
+\t\tchannel.constData()!=NULL ? int(channel->transportStreamId) : 0);
 
 \treplay();''')
 
@@ -638,6 +664,9 @@ QAbstractButton *StartTab::addShortcut''')
     change(live, '''\tcase MediaWidget::Idle:
 \t\tif (device != NULL) {''', '''\tcase MediaWidget::Idle:
 \t\t++internal->tihuluTuneEpoch;
+\t\t// Stop or retune: invalidate the old captions immediately. The
+\t\t// subsequent playChannel event advertises the new selected DVB SID.
+\t\ttihuluNotifyNativeCaptionTune(internal->tihuluTuneEpoch, 0, 0);
 \t\tinternal->tihuluDeviceRetryCount = 0;
 \t\tif (device != NULL) {''')
     # DvbManager only forward-declares DvbConfig; the diagnostic iterates

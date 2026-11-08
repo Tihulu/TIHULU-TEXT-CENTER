@@ -46,6 +46,22 @@ class KaffeineMobile:
         if active and active is not stream_to_stop:
             active.offer(datagram)
 
+    def owner_tune_changed(self, state=None):
+        """Discard phone HLS/caption state when native Kaffeine tunes again.
+
+        Called on the caption reader thread, not the GUI event loop. A
+        phone must never keep playing an earlier TV channel accidentally.
+        """
+        with self.lock:
+            old_video = self.hls
+            self.hls = None
+            self.service_id = None
+            self.last_packet_at = 0.0
+        if old_video is not None:
+            old_video.stop()
+            self.notify("Native TV channel changed; restart phone HLS deliberately.")
+        self.set_caption({"original":"", "source":"channel_changed"})
+
     def snapshot(self):
         with self.lock:
             sid = self.service_id
