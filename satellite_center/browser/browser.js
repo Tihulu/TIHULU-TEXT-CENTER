@@ -1246,11 +1246,58 @@ function renderPasses(){
     target.append(Object.assign(document.createElement('p'),{
       className:'hint',textContent:passes.length?'No passes match the selected satellite filter.':'Calculate potential passes first.'
     }));
+    renderPredictedPassCalendar();
+    window.dispatchEvent(new Event('tihulu-passes-updated'));
     return;
   }
   const fragment=document.createDocumentFragment();
   for(const pass of shown)fragment.append(appendPass(pass));
   target.append(fragment);
+  renderPredictedPassCalendar();
+  window.dispatchEvent(new Event('tihulu-passes-updated'));
+}
+function renderPredictedPassCalendar(){
+ const node=$('predicted-pass-calendar-grid');
+ if(!node)return;
+ node.replaceChildren();
+ const day=$('browser-calendar-date')?.value||localDayKey(new Date());
+ const items=passes.filter(p=>p.los>p.aos&&
+  (localDayKey(new Date(p.aos))===day||
+   localDayKey(new Date(p.los-1))===day)).sort((a,b)=>a.aos-b.aos);
+ if(!items.length){
+  const p=document.createElement('p');p.className='hint';
+  p.textContent=passes.length
+   ?'No predicted passes fall on this selected day. Change the calendar date.'
+   :'No orbital predictions yet. Click Calculate passes first; the receiver is not needed.';
+  node.append(p);return;
+ }
+ for(const pass of items.slice(0,50)){
+  const card=document.createElement('div');card.className='predicted-pass-card';
+  const name=document.createElement('strong');name.textContent=pass.name;
+  const meta=document.createElement('small');
+  meta.textContent=new Date(pass.aos).toLocaleString(undefined,{hour:"2-digit",minute:"2-digit"})+
+   ' – '+new Date(pass.los).toLocaleString(undefined,{hour:"2-digit",minute:"2-digit"})+
+   ' local · maximum '+pass.maximum.toFixed(1)+'° · '+pass.family.toUpperCase();
+  const preview=document.createElement('button');preview.type='button';
+  preview.textContent='Preview sky / ground track';
+  preview.addEventListener('click',()=>{
+   if(!satelliteMaps?.showPassPreview){
+    preview.textContent='Map module unavailable';return;
+   }
+   preview.disabled=true;
+   satelliteMaps.showPassPreview(pass).then(()=>{
+    $('satellite-tracking-maps').scrollIntoView({behavior:'smooth',block:'start'});
+   }).catch(err=>{
+    $('map-pass-summary').textContent='Preview failed: '+String(err?.message||err);
+   }).finally(()=>{preview.disabled=false;});
+  });
+  card.append(name,meta,preview);node.append(card);
+ }
+ if(items.length>50){
+  const note=document.createElement('p');note.className='hint';
+  note.textContent='Showing the first 50 of '+items.length+' geometric passes on this day.';
+  node.append(note);
+ }
 }
 window.addEventListener('storage',event=>{
  if(event.key==='tihulu-satellite-user-downlinks-v1'){visiblePassCount=40;renderPasses();}
@@ -1263,7 +1310,13 @@ for(const id of ['pass-sort','pass-family','pass-content']){
 }
 $('pass-show-more').addEventListener('click',()=>{visiblePassCount+=40;renderPasses();});
 async function calculateOrbitalPasses(){
-  if(!tleEntries.length){status('orbit-state','Load orbit TLEs from CelesTrak or an uploaded file first.');return;}
+  // Calculate passes is an explicit user action: native desktop can refresh
+  // its orbit cache on demand without requiring a separate prerequisite click.
+  if(!tleEntries.length)await refreshOrbitalCatalog();
+  if(!tleEntries.length){
+    status('orbit-state','No valid TLE catalog: check native HTTPS/cache or import a local TLE file.');
+    return;
+  }
   const lat=Number($('lat').value),lon=Number($('lon').value),hours=Number($('hours').value),minimum=Number($('elev').value);
   if(!$('lat').value.trim()||!$('lon').value.trim()||!Number.isFinite(lat)||!Number.isFinite(lon)||lat<-90||lat>90||lon<-180||lon>180){status('orbit-state','Enter valid latitude (−90…90) and longitude (−180…180) before calculating passes.');return;}
   if(typeof window.nativeOrbitPasses==='function'){
