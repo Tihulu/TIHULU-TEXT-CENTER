@@ -89,7 +89,7 @@ scanSource=TIHULU tested: 538 / 586 / 626 MHz
         self.assertEqual(REVISION, "e7ea15b86dafed3b20b151cbcb080578ab8e2d5c")
         # The pinned KDE revision is immutable; patching its SQL allocator
         # adds one deliberately version-guarded upstream header to our list.
-        self.assertEqual(len(PATHS), 19)
+        self.assertEqual(len(PATHS), 20)
         self.assertIn("src/sqlinterface.h", PATHS)
         self.assertIn("src/dvb/dvbscandialog.cpp", PATHS)
         self.assertIn("src/dvb/dvbscandialog.h", PATHS)
