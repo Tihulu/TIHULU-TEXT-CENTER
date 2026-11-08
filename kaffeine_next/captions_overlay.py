@@ -254,6 +254,28 @@ class CaptionTap:
                         "the next complete capture.")
                     continue
                 captured_options = dict(options)
+                # On TV the broadcast audio PID normally advertises its
+                # language. A six-second ASR language guess can be wildly
+                # wrong under music, narration or damaged reception.
+                # Trust an unambiguous real DVB descriptor first, without
+                # changing the actual track or opening another tuner.
+                if (options.get("source") == "auto" and
+                        options.get("mode") in ("auto", "asr") and
+                        not options.get("audio_source")):
+                    signaled = self.subtitle_discovery.snapshot_audio()
+                    selected_pid = options.get("audio_pid")
+                    matches = ([item for item in signaled if item.get("pid") == selected_pid]
+                               if selected_pid is not None else
+                               signaled if len(signaled) == 1 else [])
+                    if len(matches) == 1:
+                        from tv_center.language_codes import language_code
+                        hinted = matches[0].get("source_hint") or matches[0].get("language")
+                        try:
+                            code = language_code(hinted)
+                        except (ValueError, TypeError):
+                            code = None
+                        if code and code != "und":
+                            captured_options["audio_source"] = code
                 captured_options["ts_integrity"] = segment_quality
                 captured_options["service_id"] = self.program_id
                 captured_options["program_epoch"] = self.program_epoch
