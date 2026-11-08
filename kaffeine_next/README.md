@@ -532,3 +532,66 @@ worker; use **Stop subtitles & Exit** to end it. This is source-build
 tested, but not yet accepted on the user's live WinTV-soloHD hardware.
 Verify current KiKA/ARTE Teletext, German speech, Turkish/English
 translation, switching channels, and iPhone HLS before a stable release.
+
+## RTX 5080 GPU, NPU, live buffer and conversational captions
+
+The **RTX 5080 is a CUDA GPU, not a dedicated Hailo/Intel NPU**. On NVIDIA
+Blackwell, use **AI Model Market → Speech models · GPU/NPU → Install CUDA
+Faster-Whisper Large-v3 Turbo · no nvcc needed**. This isolated install
+requires a working NVIDIA driver, but *not* the CUDA source-build compiler.
+It installs pinned CTranslate2 >=4.6.3, CUDA 12.8+ cuBLAS and cuDNN 9
+runtime wheels with a SHA-256-verified model, then runs a synthetic CUDA
+inference self-test. The **Advanced compile whisper.cpp** button is optional
+and *does* require the CUDA Toolkit >=12.8 (nvcc); a missing compiler must
+not be mistaken for a missing GPU. The user's existing CPU GGML Tiny model
+is a valid fallback but is **not** the GPU Turbo model.
+
+After installing and saving **Auto** or **GPU** backend:
+
+```sh
+tihulu-tv-center ai-check
+tihulu-tv-center ai-check --deep
+```
+
+The first reports runtime status without model inference or RF. `--deep`
+explicitly loads the installed CUDA model and executes GPU inference on
+synthetic audio, without tuning any real receiver, downloads, or TV playback.
+Actual live performance still needs a tuned receiver and measured RF/audio.
+
+**Broadcast data path:** Kaffeine copies filtered, real, selected-channel
+MPEG-TS datagrams to the separate Whisper/Teletext sidecar *before*
+buffering its own MPEG-TS-to-libVLC playback queue. In the interval while
+both TV audio and video are delayed, the AI sidecar receives and transcribes
+the original live stream and performs optional translation. A word-time
+scheduler reads Faster-Whisper CUDA's `word_timestamps` and shows small
+spoken phrases as their **delayed playback time** approaches. Translated
+word pacing is approximate: no translator claims actual target-language
+word alignment. If word timestamps are unavailable the prior chunk-level
+caption path is preserved. If an ASR process is still slower than the
+buffer, captions may appear late; no imaginary live transcript is emitted.
+The native 64 MiB TS memory limit can cap or temporarily cancel the
+requested buffer. See **Native TV delay: actual / requested** in UI.
+
+**Speaker separation** is optionally enabled in the live captions settings
+and **OFF by default**. Model Market has a separate **Speaker separation**
+tab for pyannote Community-1, an owner-approved gated CC-BY-4.0 model.
+Before installation accept the official Hugging Face model terms and enter
+a read token *only in the installer prompt*. This installs into isolated
+user-owned storage (or the selected external model drive), and speaker
+inference uses local audio offline; no remote voice API. The UI renders
+`[Speaker 1 · clip]`, `[Speaker 2 · clip]` only where the offline model
+actually produced speaker turns and Whisper supplied word timings. These
+IDs are **temporary per clip**: do not interpret them as a reliably
+persistent person across scenes, and do not automatically infer whether
+a voice belongs to a woman, man, child, or a particular person.
+Diarization adds latency; if model access is denied or the optional runtime
+fails, **original transcriptions continue without speaker labels**.
+
+**In the same AI Model Market window:** the Speech tab lists installed
+GGML models and offers explicit online discovery of verified Medium and
+Large-v3 Turbo models, with Download / Use Selected. The translation tab
+lists installed and official-available Argos language pairs and has
+install/remove actions and the optional NLLB-200 multilingual model. The
+Speaker tab controls the optional voice-separation runtime. None of these
+downloads happen automatically on app launch.
+
