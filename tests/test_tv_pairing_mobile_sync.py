@@ -65,7 +65,7 @@ class PairedTvClockTests(unittest.TestCase):
         self.assertEqual(phone.remote_command("player_target",{"target":"host"})["target"],"host")
         self.assertEqual(phone.snapshot()["playback_target"],"host")
         self.assertFalse(phone.snapshot()["mobile_video"])
-        with self.assertRaisesRegex(ValueError,"target"):
+        with self.assertRaisesRegex(ValueError,"Target"):
             phone.remote_command("player_target",{"target":"internet"})
         with self.assertRaises(RuntimeError):
             phone.remote_command("scan_start",{"country":"DE"})
