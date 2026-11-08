@@ -812,6 +812,12 @@ def main(argv=None):
         nonlocal catalog_in_flight
         language_timeout.stop()
         catalog_in_flight=False
+        if catalog_timed_out:
+            output_catalog_status.setText(
+                "Installed-model scan timed out (11 seconds). EN/TR/DE/FR "
+                "checkboxes still work; use Refresh to try again. "
+                "A translation pack is required for actual output.")
+            return
         try:
             payload=bytes(language_process.readAllStandardOutput()).decode(
                 "utf-8","replace")
