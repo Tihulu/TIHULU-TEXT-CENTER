@@ -12,7 +12,8 @@ import tempfile
 import time
 from pathlib import Path
 
-SUPPORTED = ("de", "en", "tr", "fr")
+SUPPORTED = ("de", "en", "tr", "fr")  # current speech recognition backends
+from .language_codes import language_code
 
 def _run(argv, timeout=30):
     return subprocess.run(argv, stdin=subprocess.DEVNULL,
@@ -187,8 +188,12 @@ def asr_from_clip(path: Path, language: str, model: str,
     return transcribe_pcm(audio.stdout, language, selected["selected"], profile).strip()
 
 def translate(text: str, source: str, target: str) -> tuple[str | None, str | None]:
+    try:
+        source, target = language_code(source, nllb=True), language_code(target, nllb=True)
+    except ValueError as exc:
+        return None, str(exc)
     if source == target:
-        return None, None  # no translation attempted, preserve original independently
+        return None, None  # already the original requested language
     selected_translation_engine = os.environ.get("TIHULU_TRANSLATOR_MODEL","argos")
     if selected_translation_engine == "nllb":
         try:
@@ -239,19 +244,22 @@ def decode_segment(ts: bytes, *, mode="auto", page=150, source="de",
                    audio_source: str | None = None) -> dict:
     if mode not in ("teletext", "page", "asr", "auto"):
         raise ValueError("Unsupported caption source")
-    if not 100 <= page <= 899 or source not in SUPPORTED or target not in SUPPORTED:
-        raise ValueError("Invalid language or page")
+    if type(page) is not int or not 100 <= page <= 899:
+        raise ValueError("Invalid Teletext page")
+    source = language_code(source, nllb=True)
+    target = language_code(target, nllb=True)
     if audio_pid is not None and (
             type(audio_pid) is not int or not 1 <= audio_pid <= 8190):
         raise ValueError("Invalid selected audio PID")
-    if audio_source is not None and audio_source not in SUPPORTED:
-        raise ValueError("Unsupported selected audio language")
+    if audio_source is not None:
+        audio_source = language_code(audio_source)
     if targets is None:
         targets = (target,) if target != source else ()
-    if (not isinstance(targets, (tuple,list)) or len(targets)>3 or
-            len(set(targets)) != len(targets) or
-            any(t not in SUPPORTED or t==source for t in targets)):
-        raise ValueError("Unsupported or duplicate translation language")
+    if not isinstance(targets, (tuple,list)) or len(targets) > 3:
+        raise ValueError("Choose up to three translation languages")
+    targets = tuple(language_code(t, nllb=True) for t in targets)
+    if len(set(targets)) != len(targets):
+        raise ValueError("Duplicate translation languages")
     if not ts:
         return {"original": "", "source": mode, "error": "No live TS data"}
     with tempfile.TemporaryDirectory(prefix="tihulu-tv-captions-") as tmp:
@@ -294,7 +302,7 @@ def decode_segment(ts: bytes, *, mode="auto", page=150, source="de",
                     from kaffeine_next.continuous_captions import remove_repeated_prefix
                     original = remove_repeated_prefix(previous_text, original)
                 used = "local_asr" if original else ""
-            except (RuntimeError, OSError, subprocess.TimeoutExpired) as exc:
+            except (RuntimeError, ValueError, OSError, subprocess.TimeoutExpired) as exc:
                 error = str(exc)[:180]
             finally:
                 asr_ms = round((time.perf_counter()-asr_start)*1000)
@@ -303,6 +311,11 @@ def decode_segment(ts: bytes, *, mode="auto", page=150, source="de",
         if original:
             translate_start = time.perf_counter()
             for language in targets:
+                if language == used_language:
+                    # Requested language already matches the actual Teletext
+                    # or selected audio language; original IS the answer.
+                    translations[language] = original
+                    continue
                 phrase, failed = translate(original, used_language, language)
                 if phrase:
                     translations[language] = phrase
