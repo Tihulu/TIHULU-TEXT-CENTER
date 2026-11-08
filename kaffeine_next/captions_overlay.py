@@ -1181,6 +1181,12 @@ def main(argv=None):
         "AI performance test: not run on this computer. No model speed assumed.")
     benchmark_status.setWordWrap(True)
     tools_layout.addWidget(benchmark_button)
+    live_test_button=QPushButton("Measure current live subtitle pipeline · 4 clips")
+    live_test_button.setToolTip(
+        "Passive: observes the existing caption worker over four real "
+        "six-second clips. No extra Whisper inference, tuner access, "
+        "backend switch or playback-buffer change.")
+    tools_layout.addWidget(live_test_button)
     tools_layout.addWidget(benchmark_status)
     phone = QCheckBox("Allow phone/tablet on trusted Wi-Fi (OFF by default)")
     video = QCheckBox("Share the live channel as H.264/AAC HLS (CPU intensive)")
@@ -1481,6 +1487,19 @@ def main(argv=None):
                            "s. Real ASR timing varies with model CPU/GPU performance.")
         except (ValueError, OSError) as exc:
             status.setText("Settings were not applied: " + str(exc))
+
+    live_test_started_at=0.0
+    live_test_baseline=0
+    def begin_live_test():
+        nonlocal live_test_started_at,live_test_baseline
+        state=tap.performance_snapshot()
+        live_test_baseline=state["completed_clips"]
+        live_test_started_at=time.monotonic()
+        live_test_button.setEnabled(False)
+        benchmark_status.setText(
+            "Observing four NEW real DVB caption clips. "
+            "TV tuner, installed models and buffer unchanged.")
+    live_test_button.clicked.connect(begin_live_test)
 
     benchmark_process = QProcess(window)
     def run_benchmark_clicked():
@@ -1858,7 +1877,7 @@ def main(argv=None):
         nonlocal current_cue, current_text, current_until, last_published
         nonlocal applied, last_service_id, last_effective_check
         nonlocal last_applied_effective_ms, last_sync_audit_at
-        nonlocal last_ui_program_epoch
+        nonlocal last_ui_program_epoch,live_test_started_at
         # Kaffeine is the DVB owner. Terminate sidecar when it disappears,
         # including when the settings window has been hidden.
         try:
@@ -1871,6 +1890,36 @@ def main(argv=None):
             pass
         mobile.expire_if_idle()
         now = time.monotonic()
+        if live_test_started_at and (now-live_test_started_at>=0.5):
+            state=tap.performance_snapshot()
+            observed=state["completed_clips"]-live_test_baseline
+            if observed>=4 or now-live_test_started_at>=75:
+                from tv_center.performance_lab import diagnose_live
+                report=diagnose_live(
+                    state["samples"][-min(observed,16):] if observed>0 else [],
+                    queue_overflows=state["queue"]["overflows"],
+                    ts_audio_gaps=state["ts"].get("continuity_gaps",0))
+                live_test_started_at=0.0
+                live_test_button.setEnabled(True)
+                if report["samples"]:
+                    benchmark_status.setText(
+                        "Measured "+str(report["samples"])+" live caption clips"
+                        " · median compute "+str(report["median_compute_ms"])+"ms"
+                        " · queue wait "+str(report["median_queue_wait_ms"])+"ms"
+                        " · compute realtime factor "+
+                        str(report["median_compute_realtime_factor"])+"x"
+                        " · reasons: "+(", ".join(report["causes"]) or
+                                       "no clear overload")+
+                        ". "+("; ".join(report["recommendations"])))
+                else:
+                    benchmark_status.setText(
+                        "No completed live caption clips during the test. "
+                        "Check TV channel, DVB TS capture, audio PID, "
+                        "Whisper settings and backend readiness.")
+            elif state["completed_clips"]>live_test_baseline:
+                benchmark_status.setText(
+                    "Live performance: "+str(observed)+
+                    "/4 freshly decoded clips observed. No settings changed.")
         # The native channel epoch is published at tune time, even when
         # no MPEG-TS bytes flow yet. Handle it BEFORE queued caption events.
         if tap.program_epoch != last_ui_program_epoch:
