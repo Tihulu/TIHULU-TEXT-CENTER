@@ -67,9 +67,28 @@ public:
         library_->setText(tr("Recordings"));
         library_->setToolTip(tr("Open previously recorded media, import native DVB "
             "recordings and generate optional captions."));
+        record_->setMinimumWidth(78);
+        library_->setMaximumWidth(100);
         line->addWidget(record_);
         line->addWidget(library_);
         bar->addWidget(this);
+        elapsed_.setInterval(1000);
+        connect(&elapsed_,&QTimer::timeout,this,[this](){
+            if(!recording_)return;
+            if(captureKind_==QLatin1String("ffmpeg") && recordingUrl_.isValid() &&
+               player_->property("tihulu_recordable_url").toUrl()!=recordingUrl_) {
+                report(tr("Player changed source; finalizing the previous recording."));
+                stopRecording();
+                return;
+            }
+            const qint64 seconds=qMax(qint64(0),
+                (QDateTime::currentMSecsSinceEpoch()-startedMs_)/1000);
+            const qint64 bytes=QFileInfo(recordedPath_).size();
+            record_->setToolTip(tr("REC elapsed %1:%2 · saved %3 MiB. "
+                "Live recording has no known completion percentage.")
+                .arg(seconds/60).arg(seconds%60,2,10,QLatin1Char('0'))
+                .arg(QString::number(bytes/1048576.,'f',1)));
+        });
         connect(record_,&QToolButton::clicked,this,[this](){
             if(recording_)stopRecording(); else startRecording();
         });
@@ -78,6 +97,7 @@ public:
             this,[this](int exitCode,QProcess::ExitStatus){
                 const bool wanted=recording_;
                 recording_=false;
+                elapsed_.stop();
                 refreshButton();
                 if(captureKind_!=QLatin1String("ffmpeg"))return;
                 if(exitCode!=0 && !intentionalStop_) {
@@ -271,6 +291,10 @@ private:
             captureKind_=QLatin1String("dvb");
             dvb_->toggleInstantRecord();
             recording_=true;
+            startedMs_=QDateTime::currentMSecsSinceEpoch();
+            recordedPath_.clear();
+            recordingUrl_=QUrl();
+            elapsed_.start();
             refreshButton();
             report(tr("Native DVB instant-record requested; confirm Kaffeine "
                 "recording indicator. Stop here to finalize."));
@@ -311,6 +335,9 @@ private:
             report(tr("FFmpeg recorder could not start."));return;
         }
         recording_=true;
+        recordingUrl_=url;
+        startedMs_=QDateTime::currentMSecsSinceEpoch();
+        elapsed_.start();
         refreshButton();
         report(tr("REC · saving source stream to %1").arg(recordedPath_));
     }
@@ -319,6 +346,7 @@ private:
         if(captureKind_==QLatin1String("dvb")) {
             dvb_->toggleInstantRecord();
             recording_=false;
+            elapsed_.stop();
             refreshButton();
             report(tr("Native DVB record stop requested. Select the resulting "
                 "Kaffeine TV recording from Recordings → Import; it is not "
@@ -435,6 +463,9 @@ private:
     std::function<void()> openPlayback_;
     QToolButton *record_=nullptr,*library_=nullptr;
     QProcess capture_,ai_,mux_;
+    QTimer elapsed_;
+    QUrl recordingUrl_;
+    qint64 startedMs_=0;
     bool recording_=false,intentionalStop_=false,subtitlesAfter_=false,singing_=false;
     QString captureKind_,recordedPath_,aiPath_,muxPath_,targets_,statusMessage_;
 };
