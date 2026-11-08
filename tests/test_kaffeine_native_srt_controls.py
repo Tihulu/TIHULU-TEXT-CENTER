@@ -89,7 +89,7 @@ class CaptionWindowControlsTests(unittest.TestCase):
         self.assertIn('exit_subtitles.clicked.connect(stop_caption_service)', code)
         self.assertIn('values["mode"] = "off"', code)
         self.assertIn('renderer.addItem("Native libVLC', code)
-        self.assertIn('root.addWidget(quick, 0)', code)
+        self.assertIn('pages.addTab(appearance_scroll, "Appearance")', code)
         self.assertIn('srt_recorder.append(cue, applied)', code)
         from kaffeine_next.patch_upstream import transform
         patch = inspect.getsource(transform)
