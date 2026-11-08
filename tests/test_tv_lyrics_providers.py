@@ -47,7 +47,7 @@ class LyricsProviderTests(unittest.TestCase):
                         title="Track",artist="Artist",online=False)
                 network.assert_not_called()
         full={"message":{"header":{"status_code":200},"body":{"lyrics":{
-            "lyrics_body":"A line heard in audio\\nAnother authorized line",
+            "lyrics_body":"A line heard in audio\nAnother authorized line",
             "lyrics_copyright":"Owner"}}}}
         with mock.patch.dict("os.environ",{"TIHULU_MUSIXMATCH_API_KEY":"TEST_KEY"}):
             with mock.patch("tv_center.lyrics_sync._get_json",return_value=full) as http:
