@@ -16,6 +16,10 @@ class KaffeineMobile:
         self.options = options
         self.notify = notify
         self.caption = caption or {"original":"", "translated":"", "source":"none"}
+        self.caption_sequence = 0
+        self.caption_timing = {}
+        self.remote_access_mode = "phone"  # owner may still play on host
+        self.last_native_status = None
         self.service_id = None
         self.last_packet_at = 0.0
         self.http = None
@@ -46,11 +50,26 @@ class KaffeineMobile:
             live = bool(sid and time.monotonic() - self.last_packet_at < 8)
             streaming = live and self.hls is not None and self.hls.get_dir() is not None
             caption = dict(self.caption)
+            timing = dict(self.caption_timing)
+            mode = self.remote_access_mode
         return {
             "source": "live_native_dvb" if live else "offline",
             "channel": "Kaffeine DVB service "+str(sid) if live else None,
             "caption": caption,
+            "caption_timing": timing,
             "mobile_video": streaming,
+            "playback_target": mode,
+            "mobile_sources": [
+                {"id":"dvb","label":"Current host DVB-T2 channel",
+                 "available":live,
+                 "streamable":streaming,
+                 "reason":("" if live else "No DVB MPEG-TS packets from tuned host channel")},
+                {"id":"captions","label":"Captions only (no phone audio/video)",
+                 "available":True,"streamable":True},
+            ],
+            "stream_disclaimer":("Phone HLS and desktop libVLC use independent "
+                 "buffers. Host buffer settings are inherited as caption timing "
+                 "metadata, not a claim of synchronized audiovisual PTS."),
             "subtitle_mode": self.options()["mode"],
             "teletext_page": self.options()["page"],
             "supported_languages":["de","en","tr"],
@@ -58,18 +77,102 @@ class KaffeineMobile:
             "pi5_hardware_verified":False,
         }
 
-    def set_caption(self, result):
+    def set_caption(self, result, cue=None, config=None, native_state=None):
+        """Publish one REAL decoded caption with its measured host timings.
+
+        Mobile video is encoded from the pre-playback TS and therefore must
+        not inherit the desktop libVLC buffer a second time. Both clocks and
+        the explicitly confirmed native buffer are exposed to the browser.
+        """
+        if not isinstance(result, dict):
+            raise ValueError("Caption event must be a decoded mapping")
+        now_mono = time.monotonic()
+        now_wall = time.time()
+        def stamp(monotonic):
+            try:
+                number = float(monotonic)
+            except (ValueError, TypeError, OverflowError):
+                return None
+            return round((now_wall + number - now_mono)*1000)
+        original = str(result.get("original") or "")[:1200]
+        translations = result.get("translations") or {}
+        if not isinstance(translations, dict):
+            translations = {}
+        translations = {str(k)[:8]: str(v)[:1200]
+                        for k,v in list(translations.items())[:6]
+                        if isinstance(v,str) and v.strip()}
         with self.lock:
-            self.caption = dict(result)
+            self.caption_sequence += 1
+            self.caption = {
+                "original":original,
+                "translated":"\n".join(
+                    f"[{key.upper()}] {value}" for key,value in translations.items()),
+                "translations":translations,
+                "source":str(result.get("source") or "none")[:50],
+                "source_language":str(result.get("source_language") or "und")[:12],
+                "sequence":self.caption_sequence,
+            }
+            if config is not None:
+                requested = int(config.playback_delay_ms)
+                effective = (native_state.get("effective_ms")
+                             if isinstance(native_state,dict)
+                             and native_state.get("requested_ms")==requested
+                             and native_state.get("primed") is True else None)
+                self.caption_timing = {
+                    "host_requested_buffer_ms":requested,
+                    "host_effective_buffer_ms":effective,
+                    "host_buffer_verified":effective is not None,
+                    "host_caption_offset_ms":int(config.offset_ms),
+                    "host_caption_due_epoch_ms":stamp(
+                        cue.get("due") if isinstance(cue,dict) else None),
+                    "capture_start_epoch_ms":stamp(result.get("captured_start")),
+                    "capture_end_epoch_ms":stamp(result.get("captured_end")),
+                    "decode_done_epoch_ms":stamp(result.get("decoded_at")),
+                    "cue_expiry_epoch_ms":stamp(
+                        cue.get("expires") if isinstance(cue,dict) else None),
+                    "caption_sequence":self.caption_sequence,
+                    "latency_note":("Desktop and phone HLS buffers are independent; "
+                                    "use phone-video mode while playing HLS."),
+                }
 
     def enable_lan(self, change_page):
         with self.lock:
             if self.http is not None:
                 raise RuntimeError("Phone sharing already enabled")
-            server = MobileLAN(self.snapshot, change_page, self.stream_dir)
+            server = MobileLAN(self.snapshot, change_page, self.stream_dir,
+                               commands=self.remote_command)
             data = server.start()
             self.http = server
         return data
+
+    def remote_command(self, action, params):
+        """Allowlisted host player controls. Never spawn a second tuner."""
+        if not isinstance(params,dict) or type(action) is not str:
+            raise ValueError("Invalid remote media control")
+        if action == "sources":
+            return {"items":self.snapshot()["mobile_sources"]}
+        if action == "player_target":
+            mode = params.get("target")
+            if mode not in ("phone","host","both"):
+                raise ValueError("Target must be phone, host or both")
+            with self.lock:
+                self.remote_access_mode = mode
+            return {"target":mode,
+                    "note":"Playback target preference; phone HLS remains opt-in on host"}
+        if action == "video":
+            enabled = params.get("enabled")
+            if type(enabled) is not bool:
+                raise ValueError("Video enabled must be boolean")
+            if enabled:self.enable_video()
+            else:self.stop_video()
+            return {"video_enabled":bool(self.hls)}
+        if action in ("play", "pause", "stop", "next", "previous", "volume",
+                      "tv_channel"):
+            from tv_center.remote_controls import native_player_command
+            return native_player_command(action, params)
+        raise RuntimeError(
+            "This control needs the desktop's native DVB bridge; "
+            "not available from the caption sidecar. No action taken.")
 
     def enable_video(self):
         with self.lock:
