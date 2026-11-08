@@ -326,7 +326,7 @@ def lyrics_lookup_to_file(*, artist:str, track:str,output:str,
                      key:value for key,value in provenance.items()
                      if key!="plain_lines"},
                  "plain_lines":plain_lines[:150],
-                 "alignment_mode":("asr_lexical" if plain_lines else "timed_lrc"),
+                 "alignment_mode":("timed_lrc" if cues else "asr_lexical"),
                  "source_language":source_code,
                  "translation_note":("Choose a source language or start radio ASR "
                     "to detect it before translating lyrics"
