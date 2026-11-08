@@ -94,7 +94,7 @@ class WhisperRepetitionTests(unittest.TestCase):
             result = decode_segment(b"captured bytes", mode="asr",
                                     source="de", target="de", targets=(),
                                     music_transcription=True)
-        self.assertEqual(result["original"], (repeated*3).strip())
+        self.assertEqual(result["original"], repeated*3)
         self.assertFalse(result["asr_repetitions_removed"])
 
 
