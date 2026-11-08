@@ -36,9 +36,9 @@ class GPUInventoryTests(unittest.TestCase):
 
     def test_browser_native_ui_distinguishes_webgpu_and_cuda(self):
         root=Path(__file__).resolve().parents[1]/"satellite_center"
-        compute=(root/"browser"/"compute_selector.mjs").read_text()
-        bridge=(root/"native_desktop_bridge.js").read_text()
-        html=(root/"browser"/"index.html").read_text()
+        compute=(root/"browser"/"compute_selector.mjs").read_text(encoding="utf-8")
+        bridge=(root/"native_desktop_bridge.js").read_text(encoding="utf-8")
+        html=(root/"browser"/"index.html").read_text(encoding="utf-8")
         self.assertIn("nativeGpu",compute)
         self.assertIn("Native OS GPU detected",compute)
         self.assertIn("window.nativeComputeStatus=()=>",bridge)
