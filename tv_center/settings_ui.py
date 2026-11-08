@@ -8,7 +8,8 @@ def open_ai_settings(parent, ai, after_save=None):
     from PyQt5.QtCore import Qt, QTimer
     from PyQt5.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QGroupBox,
         QFormLayout, QCheckBox, QComboBox, QLabel, QListWidget, QPushButton,
-        QFileDialog, QMessageBox, QLineEdit, QWidget, QScrollArea)
+        QFileDialog, QMessageBox, QLineEdit, QWidget, QScrollArea,
+        QTabWidget, QListWidgetItem)
 
     from .model_market import (CATALOG, ModelLibrary, ModelError,
         argos_available_pairs, argos_installed_pairs, argos_install, argos_remove)
@@ -25,7 +26,7 @@ def open_ai_settings(parent, ai, after_save=None):
         def __init__(self):
             super().__init__(parent)
             self.setWindowTitle("Settings · Optional ASR & Translation Model Market")
-            self.resize(820, 700)
+            self.resize(1000, 770)
             self.ai = ai
             self.work = queue.Queue()
             self.running = False
@@ -65,8 +66,15 @@ def open_ai_settings(parent, ai, after_save=None):
             self.translator.setChecked(ai.values["translation_enabled"])
             form.addRow(self.translator)
             self.backend = QComboBox()
-            self.backend.addItems(["auto", "cpu", "gpu", "npu"])
-            self.backend.setCurrentText(ai.values["backend"])
+            self.backend.addItems(["auto", "gpu", "cpu"])
+            if self.hardware["npu"]["detected"]:
+                self.backend.addItem("npu")
+            self.backend.setCurrentText(
+                ai.values["backend"] if self.backend.findText(
+                    ai.values["backend"]) >= 0 else "auto")
+            self.backend.setToolTip(
+                "RTX 5080 uses GPU CUDA, NOT NPU. NPU is shown only when "
+                "a compatible discrete Intel/Hailo accelerator is detected.")
             form.addRow("Inference engine", self.backend)
             self.compute = QLabel("")
             self.compute.setWordWrap(True)
@@ -74,7 +82,8 @@ def open_ai_settings(parent, ai, after_save=None):
             refresh_compute = QPushButton("Refresh CPU / GPU / NPU readiness")
             refresh_compute.clicked.connect(self.inspect_compute)
             form.addRow(refresh_compute)
-            self.install_cuda = QPushButton("Install CUDA whisper.cpp for NVIDIA GPU")
+            self.install_cuda = QPushButton(
+                "Advanced · compile GPU whisper.cpp (requires CUDA nvcc >=12.8)")
             self.install_cuda.clicked.connect(self.install_cuda_runtime)
             form.addRow(self.install_cuda)
             self.install_fast_cuda = QPushButton(
@@ -85,6 +94,10 @@ def open_ai_settings(parent, ai, after_save=None):
                 "drivers, whisper.cpp or TV device control.")
             self.install_fast_cuda.clicked.connect(self.install_fast_cuda_runtime)
             form.addRow(self.install_fast_cuda)
+            self.verify_fast_cuda = QPushButton(
+                "Verify RTX CUDA · run real local model inference self-test")
+            self.verify_fast_cuda.clicked.connect(self.verify_cuda_inference)
+            form.addRow(self.verify_fast_cuda)
             self.cuda_status = QLabel("")
             self.cuda_status.setWordWrap(True)
             form.addRow("GPU acceleration",self.cuda_status)
@@ -172,9 +185,18 @@ def open_ai_settings(parent, ai, after_save=None):
                 "Language codes are editable: es, pl, ar, ja, ru, zh and more. "
                 "Refresh the official Argos catalog to see which translation "
                 "pairs exist; only installed packs work offline."))
-            self.available = QLabel("Catalog not refreshed. Optional argostranslate package required.")
+            self.available = QLabel(
+                "Catalog not refreshed. Click Refresh to browse official language pairs.")
             self.available.setWordWrap(True)
             trans_layout.addWidget(self.available)
+            self.argos_catalog_list = QListWidget()
+            self.argos_catalog_list.setMinimumHeight(135)
+            self.argos_catalog_list.setToolTip(
+                "Click a language pair to fill From/To. Install and use "
+                "without leaving this window; no network calls on startup.")
+            self.argos_catalog_list.itemSelectionChanged.connect(
+                self.select_argos_catalog_pair)
+            trans_layout.addWidget(self.argos_catalog_list)
             controls = QHBoxLayout()
             update = QPushButton("Refresh Argos catalog (internet)")
             update.clicked.connect(self.refresh_argos_catalog)
@@ -207,6 +229,26 @@ def open_ai_settings(parent, ai, after_save=None):
             quality_layout.addLayout(nllb_buttons)
             trans_layout.addWidget(quality)
             self.inspect_nllb()
+
+            # Keep one window but separate model selection, CUDA diagnostics
+            # and translation catalogs into focused tabs, instead of a very
+            # tall form where installed models are hard to find.
+            tabs = QTabWidget()
+            speech_page = QWidget()
+            speech_stack = QVBoxLayout(speech_page)
+            for section in (quick, settings, models):
+                root.removeWidget(section)
+                speech_stack.addWidget(section)
+            speech_stack.addStretch(1)
+            language_page = QWidget()
+            language_stack = QVBoxLayout(language_page)
+            root.removeWidget(langs)
+            language_stack.addWidget(langs)
+            language_stack.addStretch(1)
+            tabs.addTab(speech_page, "Speech models · GPU / NPU")
+            tabs.addTab(language_page, "Language packs · Translation")
+            root.addWidget(tabs)
+            self.model_tabs = tabs
 
             self.feedback = QLabel("No active downloads.")
             self.feedback.setWordWrap(True)
@@ -271,7 +313,13 @@ def open_ai_settings(parent, ai, after_save=None):
                    "Check NVIDIA driver and nvidia-smi before installing.")
                 return
             if not capability["cuda_compile_possible"]:
-                QMessageBox.warning(self,"CUDA toolkit unavailable",capability["reason"])
+                QMessageBox.information(
+                    self,"Optional source compiler unavailable",
+                    "You pressed the whisper.cpp source-build button. "
+                    "For your RTX 5080 without nvcc, use the green-path "
+                    "'Install CUDA Faster-Whisper Large-v3 Turbo' button "
+                    "below instead. It requires no CUDA Toolkit compiler.\n\n" +
+                    capability["reason"])
                 return
             if QMessageBox.question(self,"Build CUDA Whisper",
                 f"Build separate GPU-accelerated whisper.cpp for {capability['name']}?\n"
@@ -279,6 +327,19 @@ def open_ai_settings(parent, ai, after_save=None):
                 "The original CPU motor, models and TV tuner remain unchanged.") != QMessageBox.Yes:
                 return
             self.begin("Building NVIDIA CUDA Whisper engine…",WhisperRuntime().install_gpu)
+
+        def verify_cuda_inference(self):
+            if not FasterWhisperCUDA().installed():
+                QMessageBox.information(
+                    self, "GPU self-test",
+                    "Install the managed CUDA Faster-Whisper model first.")
+                return
+            def check():
+                verified = FasterWhisperCUDA().inference_selftest()
+                if not verified["ready"]:
+                    raise RuntimeError(str(verified.get("reason") or "GPU test failed"))
+                return "Real CUDA model inference self-test passed · RTX GPU ready."
+            self.begin("Loading model and testing real CUDA kernels…", check)
 
         def install_fast_cuda_runtime(self):
             if not self.hardware["gpu"]["detected"]:
@@ -406,8 +467,17 @@ def open_ai_settings(parent, ai, after_save=None):
                     " · GPU whisper.cpp built: " +
                     ("YES" if WhisperRuntime().ready_gpu() else "NO") +
                     "\nManaged Faster-Whisper CUDA (no nvcc): " +
-                    ("INSTALLED" if FasterWhisperCUDA().installed() else "NOT INSTALLED") +
-                    "\n" + gpu["reason"])
+                    ("READY FOR GPU · use Auto/GPU" if (
+                        FasterWhisperCUDA().installed() and p["speech"].get(
+                            "gpu_engine") == "faster_whisper_managed") else
+                     "INSTALLED BUT CUDA TEST NEEDED" if FasterWhisperCUDA().installed()
+                     else "NOT INSTALLED · use installer above") +
+                    "\nNPU: " + (
+                        "Separate hardware detected · requires compatible model"
+                        if npu["detected"] else
+                        "No dedicated NPU found. RTX Tensor Cores are GPU, "
+                        "not an OpenVINO/Hailo NPU.") +
+                    "\nCompiler note (whisper.cpp ONLY): " + gpu["reason"])
             except (ImportError, OSError, ValueError) as exc:
                 self.compute.setText("Hardware inference discovery failed: " + str(exc)[:140])
 
@@ -445,7 +515,20 @@ def open_ai_settings(parent, ai, after_save=None):
                     self.feedback.setText(str(data))
                 elif kind == "done":
                     self.running = False
-                    self.feedback.setText("Completed: " + str(data))
+                    if isinstance(data,dict) and data.get("kind") == "argos_catalog":
+                        self.argos_catalog_list.clear()
+                        for pair in data["items"]:
+                            item = QListWidgetItem(
+                                pair["source"].upper()+" → "+pair["target"].upper()+
+                                " · "+str(pair.get("name") or "Argos pack"))
+                            item.setData(Qt.UserRole,pair)
+                            self.argos_catalog_list.addItem(item)
+                        self.available.setText(
+                            f"{len(data['items'])} official translation pairs available. "
+                            "Select one, install it, then save your engine.")
+                        self.feedback.setText("Argos language catalog refreshed.")
+                    else:
+                        self.feedback.setText("Completed: " + str(data))
                     self.populate_models()
                     self.inspect_argos()
                     self.inspect_runtime()
@@ -510,10 +593,24 @@ def open_ai_settings(parent, ai, after_save=None):
                 self.feedback.setText("Storage folder selected; current models remain in their original location.")
 
         def refresh_argos_catalog(self):
-            self.begin("Searching live official Argos language package catalog…",
-                       lambda: "Available official Argos pairs: " + ", ".join(
-                           x["source"] + "→" + x["target"]
-                           for x in run_argos_market("catalog")))
+            def load_catalog():
+                return {"kind":"argos_catalog",
+                        "items":run_argos_market("catalog")}
+            self.begin("Browsing official Argos language pair catalog…",
+                       load_catalog)
+
+        def select_argos_catalog_pair(self):
+            selected = self.argos_catalog_list.currentItem()
+            if selected is None:
+                return
+            pair = selected.data(Qt.UserRole)
+            if not isinstance(pair,dict):
+                return
+            self.source.setCurrentText(pair["source"])
+            self.target.setCurrentText(pair["target"])
+            self.available.setText(
+                "Selected official package: " + str(pair.get("name") or
+                pair["source"]+" → "+pair["target"]) + " · install below.")
 
         def install_argos(self):
             a, b = self.source.currentText(), self.target.currentText()
