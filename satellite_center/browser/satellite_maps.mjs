@@ -78,6 +78,106 @@ export function createSatelliteMaps({getTles,getSatLib,getPasses,getLastCapture,
  // Installed desktop uses native Skyfield; web/PWA keeps browser satellite.js.
  let nativeSnapshotPending=false,nativeTrackAt=0;
  const nativeTrackCache=new Map();
+ let passPreview=null,passIndex=0,passTimer=null,previewLayer=null,previewDot=null;
+ const passSelect=$("map-pass-select"),passSlider=$("map-pass-time"),passStatus=$("map-pass-summary");
+ const passTime=ms=>new Date(ms).toLocaleString(undefined,{dateStyle:"short",timeStyle:"medium"});
+ const direction=az=>["N","NE","E","SE","S","SW","W","NW"][Math.round(((az%360)+360)%360/45)%8];
+ const previewPoint=()=>passPreview?.steps?.[passIndex]||null;
+ function stopPreview(){
+  if(passTimer!==null){clearInterval(passTimer);passTimer=null;}
+  $("map-pass-play").disabled=!passPreview;$("map-pass-stop").disabled=true;
+ }
+ function updatePreview(){
+  const p=previewPoint();
+  if(!p)return;
+  const peak=passPreview.peak||passPreview.steps.reduce((a,b)=>a.el>b.el?a:b);
+  passStatus.textContent=passPreview.name+" · AOS "+passTime(passPreview.steps[0].at_ms)+
+   " · Peak "+passTime(peak.at_ms)+" ("+peak.el.toFixed(1)+"°) · LOS "+
+   passTime(passPreview.steps[passPreview.steps.length-1].at_ms)+
+   " · Preview "+passTime(p.at_ms)+" · az "+p.az.toFixed(1)+"° "+direction(p.az)+
+   ", el "+p.el.toFixed(1)+"°, "+Math.round(p.range_km)+" km."+
+   " TLE geometry only; ground obstructions and RF activity not verified.";
+ }
+ function seekPreview(index){
+  if(!passPreview)return;
+  passIndex=Math.max(0,Math.min(passPreview.steps.length-1,Number(index)||0));
+  passSlider.value=String(passIndex);updatePreview();drawSky();drawDetail();
+  if(view==="earth")drawEarth();
+ }
+ function clearPreview(){
+  stopPreview();passPreview=null;passIndex=0;
+  passSlider.disabled=true;$("map-pass-play").disabled=true;
+  $("map-pass-clear").disabled=true;
+  passStatus.textContent="Choose a calculated pass to see its future path in sky and Earth maps.";
+  if(previewLayer&&earthMap){earthMap.removeLayer(previewLayer);previewLayer=null;}
+  if(previewDot&&earthMap){earthMap.removeLayer(previewDot);previewDot=null;}
+  drawSky();if(view==="earth")drawEarth();drawDetail();
+ }
+ function refreshPassOptions(){
+  const upcoming=getPasses().filter(p=>Number.isFinite(p.aos)&&p.los>Date.now()&&p.los>p.aos)
+   .sort((a,b)=>a.aos-b.aos).slice(0,150),old=passSelect.value;
+  passSelect.replaceChildren(new Option(upcoming.length?"Select a predicted pass":"Calculate passes first",""));
+  for(const p of upcoming)passSelect.append(new Option(
+   p.name+" · "+passTime(p.aos)+" · "+p.maximum.toFixed(0)+"° peak",
+   String(p.id)+"|"+String(p.aos)));
+  passSelect.value=[...passSelect.options].some(x=>x.value===old)?old:"";
+  if(passPreview&&!upcoming.some(p=>Number(p.id)===passPreview.norad&&
+    Math.abs(p.aos-passPreview.steps[0].at_ms)<60000))clearPreview();
+ }
+ async function showPassPreview(pass){
+  if(!pass||!Number.isFinite(pass.aos)||!Number.isFinite(pass.los)||pass.los<=pass.aos)
+   throw Error("Calculate and select a valid predicted pass first");
+  const item=getTles().find(x=>Number(x.id)===Number(pass.id));
+  if(!item)throw Error("Satellite absent from loaded TLEs; refresh the catalog");
+  stopPreview();passStatus.textContent="Calculating actual TLE pass geometry…";
+  const o=observer();
+  let result;
+  if(typeof window.nativePassPreview==="function"){
+   result=await window.nativePassPreview(o.lat,o.lon,Number(pass.id),pass.aos,pass.los);
+  }else{
+   const lib=await getSatLib(),rec=lib.twoline2satrec(item.l1,item.l2),steps=[];
+   const spacing=Math.max(5000,Math.ceil((pass.los-pass.aos)/100000)*1000);
+   for(let t=pass.aos;t<=pass.los;t+=spacing){
+    const x=propagate(lib,rec,new Date(t),o.station);
+    if(x)steps.push({at_ms:t,az:x.az,el:x.el,lat:x.lat,lon:x.lon,range_km:x.rangeKm});
+   }
+   if(!steps.length||steps[steps.length-1].at_ms<pass.los){
+    const x=propagate(lib,rec,new Date(pass.los),o.station);
+    if(x)steps.push({at_ms:pass.los,az:x.az,el:x.el,lat:x.lat,lon:x.lon,range_km:x.rangeKm});
+   }
+   result={norad:Number(pass.id),name:pass.name,steps,
+    peak:steps.reduce((a,b)=>a.el>b.el?a:b),source:"browser_satellitejs_tle"};
+  }
+  if(!Array.isArray(result.steps)||result.steps.length<2)
+   throw Error("No valid positions in this TLE pass");
+  passPreview=result;passIndex=0;selectedId=Number(pass.id);
+  passSlider.min="0";passSlider.max=String(result.steps.length-1);
+  passSlider.step="1";passSlider.value="0";passSlider.disabled=false;
+  $("map-pass-play").disabled=false;$("map-pass-clear").disabled=false;
+  const value=String(pass.id)+"|"+String(pass.aos);
+  if([...passSelect.options].some(x=>x.value===value))passSelect.value=value;
+  updatePreview();drawList();drawDetail();drawSky();if(view==="earth")drawEarth();
+  return result;
+ }
+ $("map-pass-preview").addEventListener("click",()=>{
+  const pass=getPasses().find(p=>String(p.id)+"|"+String(p.aos)===passSelect.value);
+  if(!pass){passStatus.textContent="Select a calculated pass first.";return;}
+  showPassPreview(pass).catch(e=>passStatus.textContent="Preview failed: "+e.message);
+ });
+ passSlider.addEventListener("input",()=>{stopPreview();seekPreview(passSlider.value);});
+ $("map-pass-play").addEventListener("click",()=>{
+  if(!passPreview)return;
+  if(passIndex>=passPreview.steps.length-1)seekPreview(0);
+  stopPreview();$("map-pass-play").disabled=true;$("map-pass-stop").disabled=false;
+  passTimer=setInterval(()=>{
+   if(document.hidden||!passPreview||passIndex>=passPreview.steps.length-1){stopPreview();return;}
+   seekPreview(passIndex+1);
+  },500);
+ });
+ $("map-pass-stop").addEventListener("click",stopPreview);
+ $("map-pass-clear").addEventListener("click",clearPreview);
+ window.addEventListener("tihulu-passes-updated",refreshPassOptions);
+
  let lastVisibleMarkerCount=0,initialCatalogFitDone=false;
  const status=text=>$("map-state").textContent=String(text);
  const observer=()=>{
