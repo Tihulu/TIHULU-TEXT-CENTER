@@ -863,6 +863,9 @@ QAbstractButton *StartTab::addShortcut''')
            '''\tvoid setExternalSubtitle(const QUrl &subtitleUrl) override;
 \tvoid setTihuluNativeCaption(const QString &text, bool atTop,
 \t\tint fontSize, int textOpacity, const QString &color);''')
+    change(vlch, '''\tQByteArray typeOfDevice;''',
+           '''\tQByteArray typeOfDevice;
+\tQString tihuluCaptionCacheKey;''')
     vlcc = "src/backend-vlc/vlcmediawidget.cpp"
     change(vlcc, '#include "vlcmediawidget.h"\n',
            '#include "vlcmediawidget.h"\n#include <QColor>\n')
@@ -872,9 +875,18 @@ QAbstractButton *StartTab::addShortcut''')
 {
 \tif (vlcMediaPlayer == NULL) return;
 \tif (text.isEmpty() || textOpacity <= 0) {
-\t\tlibvlc_video_set_marquee_int(vlcMediaPlayer, libvlc_marquee_Enable, 0);
+\t\tif (!tihuluCaptionCacheKey.isEmpty()) {
+\t\t\tlibvlc_video_set_marquee_int(vlcMediaPlayer, libvlc_marquee_Enable, 0);
+\t\t\ttihuluCaptionCacheKey.clear();
+\t\t}
 \t\treturn;
 \t}
+\tconst QString requestedKey = text + QLatin1Char('|')
+\t\t+ QString::number(int(atTop)) + QLatin1Char('|')
+\t\t+ QString::number(fontSize) + QLatin1Char('|')
+\t\t+ QString::number(textOpacity) + QLatin1Char('|') + color;
+\tif (requestedKey == tihuluCaptionCacheKey) return;
+\ttihuluCaptionCacheKey = requestedKey;
 \tconst QColor rawColor(color);
 \tconst QColor safeColor = rawColor.isValid() ? rawColor : QColor(Qt::white);
 \tlibvlc_video_set_marquee_int(vlcMediaPlayer, libvlc_marquee_Enable, 1);
