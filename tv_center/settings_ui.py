@@ -31,8 +31,11 @@ def open_ai_settings(parent, ai, after_save=None):
         def __init__(self):
             super().__init__(parent)
             self.setWindowTitle("Settings · Optional ASR & Translation Model Market")
-            self.resize(960, 740)
-            self.setMinimumSize(700, 530)
+            screen = self.screen().availableGeometry()
+            self.resize(min(1080, max(620, screen.width()-90)),
+                        min(790, max(480, screen.height()-90)))
+            self.setMinimumSize(620, 460)
+            self.setWindowFlag(Qt.WindowMinMaxButtonsHint, True)
             self.setStyleSheet("""
                 QDialog { background:#0c151f; color:#deebf5; }
                 QTabWidget::pane {
@@ -387,7 +390,9 @@ def open_ai_settings(parent, ai, after_save=None):
             def scroll_tab(contents):
                 area = QScrollArea()
                 area.setWidgetResizable(True)
-                area.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+                # Large translated descriptions/buttons must remain reachable
+                # on smaller screens instead of being clipped off-screen.
+                area.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
                 area.setFrameShape(QFrame.NoFrame)
                 contents.setObjectName("marketPage")
                 contents.setMinimumWidth(0)
@@ -540,6 +545,11 @@ def open_ai_settings(parent, ai, after_save=None):
             self.all_model_query.textChanged.connect(self.refresh_all_models)
             self.all_model_list.itemDoubleClicked.connect(
                 lambda *_:self.open_all_model_category())
+            # Word-wrap long model explanations; retain explicit scrollbars
+            # for code names and controls wider than the available viewport.
+            for label in self.findChildren(QLabel):
+                if len(label.text()) > 105 and not label.text().startswith("<"):
+                    label.setWordWrap(True)
             outer.addWidget(tabs,1)
             self.model_tabs = tabs
 
