@@ -1616,6 +1616,8 @@ private:
 					songStartMs_=QDateTime::currentMSecsSinceEpoch()+
 						bufferMs_->value();
 					lyricCues_=QJsonArray();
+					lastLyricSyncUpdateMs_=0;
+					lyricsSyncState_->setText(tr("New DLS song · awaiting audible lyric verification"));
 					plainLyricMode_=false;
 					plainLyricQueue_.clear();
 					lyricLoaded_=false;
@@ -2390,13 +2392,22 @@ private:
 				while(lagSamples_.size()>8) lagSamples_.removeFirst();
 			}
 			if(autoSync_->isChecked() && lagSamples_.size()>=4 &&
-			   now-lastAdjustmentMs_>60000) {
+			   now-lastAdjustmentMs_>30000) {
 				QList<int> values=lagSamples_;
 				std::sort(values.begin(),values.end());
 				const int p80=values[values.size()*4/5];
-				const int recommended=qBound(0,
-					((6000+p80+sentenceHoldMs+1400+499)/500)*500,20000);
+				const int rawRecommended=
+					((6000+p80+sentenceHoldMs+1400+499)/500)*500;
+				const int recommended=qBound(0,rawRecommended,20000);
 				lastAdjustmentMs_=now;
+				bufferRecommendation_->setText(
+					tr("Whisper p80 %1 ms · sentence carry %2 ms · proposed cache "
+					"%3 ms (maximum 20000 ms)%4. This is a compute estimate, "
+					"NOT verified lip sync.")
+					.arg(p80).arg(sentenceHoldMs).arg(recommended)
+					.arg(rawRecommended>20000?
+						tr(" · Above maximum: try fewer target languages or faster model"):
+						QString()));
 				if(recommended>bufferMs_->value()+1500) {
 					if(autoRestartAudio_->isChecked()) {
 						bufferMs_->setValue(recommended);
@@ -2435,10 +2446,43 @@ private:
 				QLatin1String("observed_ASR_chunk_match") &&
 				matched.value(QLatin1String("confidence")).toDouble()>=0.74) {
 				const QString line=matched.value(QLatin1String("text")).toString();
+				const double confidence=matched.value(QLatin1String("confidence")).toDouble();
 				if(!line.isEmpty() && line.size()<=240) {
-					plainLyricQueue_.append({due+lyricsOffset_->value(),line,
-						matched.value(QLatin1String("confidence")).toDouble()});
-					while(plainLyricQueue_.size()>10) plainLyricQueue_.removeFirst();
+					if(plainLyricMode_) {
+						plainLyricQueue_.append({due+lyricsOffset_->value(),line,confidence});
+						while(plainLyricQueue_.size()>10) plainLyricQueue_.removeFirst();
+						lyricsSyncState_->setText(tr("Verified text match %1% · "
+							"audio-derived line ordering, approximate 5s time resolution")
+							.arg(qRound(confidence*100)));
+					} else if(autoLyricSync_->isChecked() && confidence>=0.90 &&
+					          now-lastLyricSyncUpdateMs_>=5000 && !lyricCues_.isEmpty()) {
+						const int idx=matched.value(QLatin1String("index")).toInt(-1);
+						if(idx>=0 && idx<lyricCues_.size() && songStartMs_>0) {
+							const double lrcSeconds=lyricCues_.at(idx).toObject()
+								.value(QLatin1String("start")).toDouble(-1.);
+							if(lrcSeconds>=0.) {
+								const qint64 inferredStart=due-
+									qRound64(lrcSeconds*1000.);
+								const qint64 delta=inferredStart-songStartMs_;
+								// Require a close observed vocal line, then correct gently.
+								// Broad or false ASR lyric matches must not jump by minutes.
+								if(qAbs(delta)<=15000) {
+									const int step=qBound(-650,int(delta/4),650);
+									songStartMs_+=step;
+									lastLyricSyncUpdateMs_=now;
+									lyricsSyncState_->setText(tr("Lyric audio check %1% · "
+										"observed DLS/LRC mismatch %2 ms · corrected %3 ms · "
+										"manual lyric offset %4 ms")
+										.arg(qRound(confidence*100)).arg(delta).arg(step)
+										.arg(lyricsOffset_->value()));
+								} else {
+									lyricsSyncState_->setText(tr("Lyric match rejected: "
+										"observed offset %1 ms outside ±15000 ms guard. "
+										"No auto time jump.").arg(delta));
+								}
+							}
+						}
+					}
 				}
 			}
 			if(obj.value(QLatin1String("language_pending")).toBool())
