@@ -62,7 +62,8 @@ class WordCueTests(unittest.TestCase):
         with patch("tv_center.speaker_market.diarize_pcm",
                    side_effect=RuntimeError("Missing gated model")):
             meta={}
-            text=_speaker_details(b"1234","Guten Morgen",meta,True)
+            text=_speaker_details(b"1234","Guten Morgen",meta,True,
+                                  provider="pyannote")
         self.assertEqual(text,"Guten Morgen")
         self.assertIn("Missing gated model",meta["speaker_error"])
         with patch("tv_center.speaker_market.diarize_pcm") as worker:
