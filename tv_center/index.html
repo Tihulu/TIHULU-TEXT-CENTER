@@ -4,7 +4,7 @@
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="color-scheme" content="dark">
 <title>TIHULU TV Center · Web companion</title>
-<link rel="stylesheet" href="./style.css?v=2">
+<link rel="stylesheet" href="./style.css?v=3">
 </head>
 <body>
 <div class="shell">
@@ -66,6 +66,24 @@
 <div class="actions"><button id="webusb-capture" class="secondary" disabled>Capture live bulk data (max 4 MiB)</button><button id="webusb-capture-stop" class="secondary" disabled>Stop capture</button><button id="webusb-capture-save" class="secondary" disabled>Download real USB capture</button></div>
 <small>Captures only actual received USB bytes. A recognized MPEG-TS stream can contain real channel tables (PAT/PMT/SDT); this tool does not tune channels. If no tuner stream is active, it may time out. The Stop button is cooperative because WebUSB transferIn has no AbortSignal. Data remains local until you choose to save.</small>
 <p id="usb-status" role="status">WebUSB not started. No tuner access.</p>
+<details id="webusb-access-help" class="usb-access-help" hidden>
+  <summary>USB access diagnosis · Linux / Chromium</summary>
+  <h3 id="webusb-help-title">Hardware access problem</h3>
+  <p id="webusb-help-explanation"></p>
+  <p id="webusb-help-next"></p>
+  <div id="webusb-help-udev-block" hidden>
+    <strong>Scoped Linux udev rule · Hauppauge 2040:8268 only</strong>
+    <p>Run these commands yourself in your terminal. They require your permission via sudo and do not run from this website.</p>
+    <pre id="webusb-help-udev"></pre>
+    <button id="webusb-copy-udev" class="secondary" type="button">Copy targeted Linux permissions fix</button>
+    <p>After replugging, retry Open USB. If your browser is installed as a Chromium Snap, check <code>snap connections chromium</code> and consider <code>sudo snap connect chromium:raw-usb</code>. For Flatpak Chromium, test a non-sandboxed Chrome/Chromium installation; the web page cannot change sandbox permissions.</p>
+  </div>
+  <div id="webusb-help-claim-block" hidden>
+    <strong>Interface already in use?</strong>
+    <p>USB device access is separate from claiming its DVB streaming interface. Check <code>lsusb -t</code> and whether the interface has <code>Driver=em28xx</code>. Stop any native TV app before trying again. Do not automatically unbind a kernel driver while the tuner is in use.</p>
+  </div>
+  <p>For more evidence: run <code>lsusb -d 2040:8268</code> locally and check <code>chrome://device-log/</code> (or <code>chromium://device-log/</code>) for permission errors. You can export the sanitized JSON diagnosis below.</p>
+</details>
 <label for="webusb-ts-import">Offline transport-stream analyzer (local .ts file; maximum 2 MiB read)</label>
 <input type="file" id="webusb-ts-import" accept=".ts,.m2ts,video/mp2t" />
 <div class="actions"><button id="webusb-export" class="secondary" disabled>Export device/TS diagnostics JSON</button></div>
@@ -118,5 +136,5 @@
 </section>
 </aside></main>
 <footer>TOKEN-FREE LOCAL DVB · OPTIONAL PIN FOR LAN · WEBUSB DIAGNOSTICS · WEBGPU/WASM AI</footer>
-</div><script src="https://cdn.jsdelivr.net/npm/hls.js@1.7.3/dist/hls.min.js"></script><script src="./app.js?v=5"></script><script type="module" src="./web-controls.js?v=4"></script><script type="module" src="./webusb-ui.js"></script><script type="module" src="./webusb-driver-ui.js"></script><script type="module" src="./wasm-ts-preview.js"></script><script type="module" src="./browser-ai-ui.js"></script>
+</div><script src="https://cdn.jsdelivr.net/npm/hls.js@1.7.3/dist/hls.min.js"></script><script src="./app.js?v=5"></script><script type="module" src="./web-controls.js?v=4"></script><script type="module" src="./webusb-ui.js?v=3"></script><script type="module" src="./webusb-driver-ui.js"></script><script type="module" src="./wasm-ts-preview.js"></script><script type="module" src="./browser-ai-ui.js"></script>
 </body></html>

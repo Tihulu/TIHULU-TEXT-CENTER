@@ -1,10 +1,10 @@
 {
   "source_branch": "feature/tv-center-native-teletext-asr-2026-11-07",
-  "source_sha": "9af6cbda89ee7c224916f832b6e59fc31f887f52",
-  "web_mode": "Standalone WebUSB and WebAssembly, with optional native fallback",
-  "usb_capture": "Opt-in bounded read-only bulk-IN capture up to 4 MiB, stop, local export; not hardware verified",
-  "transport": "Real captured bytes, CRC-validated PSI/SI PAT/PMT/SDT detection",
+  "source_sha": "4e2eb8db10881708f37f6e11491fb2fe5a88254e",
+  "web_mode": "Standalone browser WebUSB, no local service or token needed for diagnostics",
+  "fix": "USBDevice.open Access denied guidance, scoped uaccess rules, Snap/Flatpak hints, open-vs-claim classification",
+  "hardware": "Hauppauge 2040:8268 EM28178",
   "live_dvb_tuning": "NOT IMPLEMENTED OR HARDWARE VERIFIED",
-  "usb_permissions": "Requires WebUSB-capable Chromium and exclusive device interface ownership",
-  "optional_native": "Optional local Linux native TV Center"
+  "permissions": "Requires Chromium WebUSB access, Linux device permissions and available USB interface",
+  "usb_capture": "Read-only bounded 4MiB capture and MPEG-TS PSI parser; RF tune not enabled"
 }

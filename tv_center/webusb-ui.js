@@ -1,13 +1,35 @@
 /* WebUSB WinTV-soloHD diagnostics, no automatic retune/firmware/kernel changes.
  * Every USB operation starts from explicit user interaction.
  */
-import {WinTVProbe,WINTV,bulkCandidates} from "./webusb-em28xx.js";
+import {WinTVProbe,WINTV,bulkCandidates} from "./webusb-em28xx.js?v=2";
 import {TransportAnalyzer} from "./ts-analyzer.js";
 import {BrowserTransportCapture} from "./browser-ts-capture.js";
+import {classifyUsbFailure,LINUX_SETUP_COMMANDS} from "./webusb-access-guide.js";
 
 const $=id=>document.getElementById(id);
 const probe=new WinTVProbe();
-let lastReport=null,busy=false,capture=null,lastCapture=null;
+let lastReport=null,busy=false,capture=null,lastCapture=null,lastFailure=null;
+function showUsbHelp(advice=null){
+  const panel=$("webusb-access-help");
+  if(!panel)return;
+  panel.hidden=!advice;
+  panel.open=!!advice;
+  if(!advice)return;
+  $("webusb-help-title").textContent=advice.title;
+  $("webusb-help-explanation").textContent=advice.explanation;
+  $("webusb-help-next").textContent=advice.next;
+  $("webusb-help-udev-block").hidden=advice.code!=="os_usb_open_denied";
+  $("webusb-help-claim-block").hidden=advice.code!=="usb_interface_unavailable";
+  $("webusb-help-udev").textContent=LINUX_SETUP_COMMANDS;
+}
+$("webusb-copy-udev").onclick=async()=>{
+  try{
+    await navigator.clipboard.writeText(LINUX_SETUP_COMMANDS);
+    say("Copied scoped 2040:8268 udev setup commands. Run manually in a local terminal, then replug the tuner.");
+  }catch(error){
+    say("Clipboard access blocked; select and copy the command text manually.");
+  }
+};
 const say=text=>{$("usb-status").textContent=text};
 function setButtons(){
   const supported=!!navigator.usb&&globalThis.isSecureContext===true;
@@ -32,6 +54,8 @@ function report(extra={}){
     browserWebUSB:!!navigator.usb,secureContext:globalThis.isSecureContext,
     ...probe.describe(),
     transport:probe.analyzer.summary(),
+    usbAccessError:lastFailure?{code:lastFailure.code,stage:lastFailure.stage,
+      original:lastFailure.raw}:null,
     capture:lastCapture?{bytes:lastCapture.bytes.length,
       transfers:lastCapture.transfers,stopped:lastCapture.stopped,
       transportVerified:lastCapture.transportVerified,
@@ -41,17 +65,30 @@ function report(extra={}){
   $("webusb-diagnostics").textContent=JSON.stringify(info,null,2);
   setButtons();
 }
-async function run(action){
+async function run(action,stage="unknown"){
   if(busy)return;
   busy=true;setButtons();
-  try{await action();}
-  catch(e){say(e?.message||String(e))}
-  finally{busy=false;report();}
+  try{
+    await action();
+    lastFailure=null;showUsbHelp();
+  }catch(error){
+    const root=error?.usbOriginal?
+      {name:stage==="open"?"SecurityError":"Error",message:error.usbOriginal}:error;
+    const advice=classifyUsbFailure(root,error?.usbStage||stage);
+    lastFailure=advice;
+    if(advice.code==="user_cancelled"){
+      say("USB device chooser was cancelled. No hardware accessed.");
+      showUsbHelp();
+    }else{
+      say(advice.title+". "+advice.next);
+      showUsbHelp(advice);
+    }
+  }finally{busy=false;report();}
 }
 $("webusb-select").onclick=()=>run(async()=>{
   const selected=await probe.select();
   say("Selected "+selected.model+". USB permission alone does NOT mean DVB tuning is ready.");
-});
+},"select");
 $("webusb-check").onclick=()=>run(async()=>{
   const count=await probe.permitted();
   say(count+" previously permitted WinTV 2040:8268 device(s)."+
@@ -65,12 +102,12 @@ $("webusb-inspect").onclick=()=>run(async()=>{
 $("webusb-open").onclick=()=>run(async()=>{
   await probe.openForRead();
   say("USB open succeeded. Linux em28xx may still own the data interface. No tuner was touched.");
-});
+},"open");
 $("webusb-read-chip").onclick=()=>run(async()=>{
   const id=await probe.readChipId();
   say("Read-only EM28xx chip ID register 0x0A = "+formatHex(id)+
       ". Demodulator/firmware/TV reception are NOT initialized by this read.");
-});
+},"open");
 $("webusb-claim").onclick=()=>run(async()=>{
   if(!confirm("Experimental: claim the exposed bulk-IN interface? "+
     "The request should fail while the Linux DVB driver owns the interface. "+
@@ -78,7 +115,7 @@ $("webusb-claim").onclick=()=>run(async()=>{
   const out=await probe.claimBulk();
   say("Claimed USB interface "+out.interfaceClaimed+
       ". This is exclusive access; no DVB-T2 frontend initialization has been performed.");
-});
+},"claim");
 $("webusb-bulk").onclick=()=>run(async()=>{
   if(!confirm("Read at most one 16 KiB bulk transfer as an experimental diagnostic? "+
               "Without firmware and tuner initialization this may return nothing or stall. "+
@@ -166,7 +203,7 @@ $("webusb-capture-save").onclick=()=>{
 $("webusb-release").onclick=()=>run(async()=>{
   await probe.release();
   say("WebUSB interface released and device handle closed. Linux tuner settings were untouched.");
-});
+},"release");
 $("webusb-export").onclick=()=>{
   if(!lastReport)return;
   const data=new Blob([JSON.stringify(lastReport,null,2)+"\n"],{type:"application/json"});
