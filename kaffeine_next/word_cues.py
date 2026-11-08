@@ -80,6 +80,8 @@ def word_groups(result: dict, *, maximum_words: int = 6, maximum_span: float = 1
             number = first_speaker.rsplit("_",1)[-1]
             speaker_number = int(number)+1 if number.isdigit() else number[:12]
             payload["speaker_label"] = f"[Speaker {speaker_number} · clip]"
+            if type(speaker_number) is int:
+                payload["speaker_index"] = speaker_number
         # Exact target-language word timing is not supplied by translation
         # engines. Show a short reading window rather than a 6s text dump.
         fraction = (finish + 1) / len(valid)
