@@ -67,7 +67,11 @@ def ass_text(raw: str) -> str:
         if len(fields) != 10:
             continue
         txt = re.sub(r"\{[^}]*\}", "", fields[9])
-        txt = txt.replace(r"\N", " ").replace(r"\n", " ").strip()
+        # ASS/libzvbi uses \\h for a non-breaking space; do not feed the
+        # literal backslash-h into Whisper/Argos or render it on video.
+        txt = (txt.replace(r"\N", " ").replace(r"\n", " ")
+               .replace(r"\h", " ").replace("\u00a0", " "))
+        txt = re.sub(r"[ \t]+", " ", txt).strip()
         if txt and (not lines or txt != lines[-1]):
             lines.append(txt)
     return "\n".join(lines[-6:])[:1600]
