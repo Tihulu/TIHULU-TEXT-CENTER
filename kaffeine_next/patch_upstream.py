@@ -879,6 +879,10 @@ QAbstractButton *StartTab::addShortcut''')
     vlcc = "src/backend-vlc/vlcmediawidget.cpp"
     change(vlcc, '#include "vlcmediawidget.h"\n',
            '#include "vlcmediawidget.h"\n#include <QColor>\n')
+    change(vlcc, '''\tlibvlc_media_player_set_media(vlcMediaPlayer, vlcMedia);''',
+           '''\tlibvlc_media_player_set_media(vlcMediaPlayer, vlcMedia);
+\t// A new media/video compositor invalidates the last caption render.
+\ttihuluCaptionCacheKey.clear();''')
     change(vlcc, '''void VlcMediaWidget::setExternalSubtitle(const QUrl &url)
 {''', '''void VlcMediaWidget::setTihuluNativeCaption(const QString &text, bool atTop,
 \tint fontSize, int textOpacity, const QString &color)
@@ -906,9 +910,10 @@ QAbstractButton *StartTab::addShortcut''')
 \t\t(safeColor.red()<<16) | (safeColor.green()<<8) | safeColor.blue());
 \tlibvlc_video_set_marquee_int(vlcMediaPlayer, libvlc_marquee_Opacity,
 \t\tqBound(0,textOpacity,100)*255/100);
-\t// libVLC positions: top-centre=1, bottom-centre=2.
+\t// libVLC position flags: top=4, bottom=8 (1/2 are left/right).
+\t// Native compositor centres text without a video-covering Qt window.
 \tlibvlc_video_set_marquee_int(vlcMediaPlayer, libvlc_marquee_Position,
-\t\tatTop ? 1 : 2);
+\t\tatTop ? libvlc_position_top : libvlc_position_bottom);
 \tconst QByteArray utf8 = text.left(1100).toUtf8();
 \tlibvlc_video_set_marquee_string(vlcMediaPlayer, libvlc_marquee_Text,
 \t\tutf8.constData());
