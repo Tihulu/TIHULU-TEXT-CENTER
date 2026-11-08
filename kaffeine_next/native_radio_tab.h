@@ -16,6 +16,7 @@
 #include <QDateTime>
 #include <QDialog>
 #include <QCoreApplication>
+#include <QCryptographicHash>
 #include <QDir>
 #include <QNetworkRequest>
 #include <QVector>
@@ -182,7 +183,15 @@ public:
 		slide_->setAlignment(Qt::AlignCenter);
 		slide_->setFixedSize(185, 112);
 		slide_->setStyleSheet(QLatin1String("border:1px solid #466;"));
-		meta->addWidget(slide_);
+		auto *slides = new QVBoxLayout();
+		slides->addWidget(slide_);
+		auto *slideControls=new QHBoxLayout();
+		slidePrev_=new QPushButton(tr("◀"),right);
+		slideNext_=new QPushButton(tr("▶"),right);
+		slideControls->addWidget(slidePrev_);
+		slideControls->addWidget(slideNext_);
+		slides->addLayout(slideControls);
+		meta->addLayout(slides);
 		auto *textBlock = new QVBoxLayout();
 		dls_ = new QLabel(tr("DLS radio text will appear here."), right);
 		dls_->setTextFormat(Qt::PlainText);
@@ -300,6 +309,8 @@ public:
 		connect(caption_, &QPushButton::clicked, this, [this](){ startCaptioning(); });
 		connect(stopCaption_, &QPushButton::clicked, this, [this](){ stopCaptioning(); });
 		connect(lyrics_, &QPushButton::clicked, this, [this](){ fetchLyrics(); });
+		connect(slidePrev_,&QPushButton::clicked,this,[this](){slideMove(-1);});
+		connect(slideNext_,&QPushButton::clicked,this,[this](){slideMove(1);});
 		connect(plotButton, &QPushButton::clicked, this, [this](){ fetchPlot(); });
 		connect(applyRf, &QPushButton::clicked, this, [this](){ applyRfOptions(); });
 		connect(detailsButton, &QPushButton::clicked, this, [this](){ showReceiverDetails(); });
@@ -678,6 +689,7 @@ private:
 			if (!lyricPath_.isEmpty()) QFile::remove(lyricPath_);
 			lyricPath_.clear();
 			lyricCues_=QJsonArray();
+			slideHistory_.clear(); lastSlideHash_.clear(); slideIndex_=0;
 			// Kaffeine's native libVLC audio engine, same global playback controls.
 			player_->play(QUrl(base()+stream));
 			radioCanvas_->setText(tr("♪ %1\nDAB+ %2 · Live radio\n"
@@ -747,10 +759,27 @@ private:
 			reply->deleteLater();
 			if (!ok) return;
 			QImage image;
-			if (image.loadFromData(bytes) && image.width()<2500 && image.height()<2500)
-				slide_->setPixmap(QPixmap::fromImage(image).scaled(
-					slide_->size(),Qt::KeepAspectRatio,Qt::SmoothTransformation));
+			if (image.loadFromData(bytes) && image.width()<2500 && image.height()<2500) {
+				const QPixmap candidate=QPixmap::fromImage(image);
+				const QByteArray signature=QCryptographicHash::hash(
+					bytes,QCryptographicHash::Sha256);
+				if (signature!=lastSlideHash_) {
+					lastSlideHash_=signature;
+					if(slideHistory_.size()>=30) slideHistory_.removeFirst();
+					slideHistory_.append(candidate);
+					slideIndex_=slideHistory_.size()-1;
+				}
+				slideMove(0);
+			}
 		});
+	}
+	void slideMove(int offset) {
+		if (slideHistory_.isEmpty()) return;
+		slideIndex_=qBound(0,slideIndex_+offset,slideHistory_.size()-1);
+		slide_->setPixmap(slideHistory_.at(slideIndex_).scaled(
+			slide_->size(),Qt::KeepAspectRatio,Qt::SmoothTransformation));
+		slide_->setToolTip(tr("DAB MOT/SLS slide %1/%2")
+			.arg(slideIndex_+1).arg(slideHistory_.size()));
 	}
 	void fetchPlot() {
 		if (!active()) { state_->setText(tr("Start a DAB receiver first.")); return; }
@@ -969,7 +998,7 @@ private:
 		*plotKind_=nullptr, *fftPlacement_=nullptr;
 	QPushButton *start_=nullptr,*stop_=nullptr,*scan_=nullptr,*record_=nullptr,
 		*caption_=nullptr,
-		*stopCaption_=nullptr,*lyrics_=nullptr;
+		*stopCaption_=nullptr,*lyrics_=nullptr,*slidePrev_=nullptr,*slideNext_=nullptr;
 	QTreeWidget *stations_=nullptr;
 	QComboBox *libraryBlock_=nullptr;
 	QLineEdit *stationSearch_=nullptr;
@@ -993,6 +1022,9 @@ private:
 	QMap<QString,QString> stationChannels_;
 	QJsonArray lyricCues_;
 	QJsonObject lastMux_;
+	QList<QPixmap> slideHistory_;
+	QByteArray lastSlideHash_;
+	int slideIndex_=0;
 };
 
 #endif // TIHULU_NATIVE_RADIO_TAB_H
