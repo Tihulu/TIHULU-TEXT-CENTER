@@ -19,7 +19,7 @@ import sys
 
 from .ai_settings import AISettings
 from .captions import translate
-from .lyrics_sync import (LyricCue, local_lrc, lookup_synced_lyrics,
+from .lyrics_sync import (LyricCue, LiveLyricMatcher, local_lrc, lookup_synced_lyrics,
                           parse_lrc, write_srt, srt_timestamp)
 from .language_codes import language_code
 
@@ -174,8 +174,39 @@ def transcribe_local_media(filename: str, *, source: str="auto",
     return cues,targets,backend
 
 
+
+def _align_plain_lyrics_to_local_audio(lines, transcript_cues):
+    """No guessed lyric positions. Only approximate times where local ASR confirms words."""
+    matcher=LiveLyricMatcher(lines)
+    aligned=[]
+    window=[]
+    window_start=None
+    def evaluate():
+        if not window:
+            return
+        evidence=matcher.observe(" ".join(c.text for c in window))
+        if evidence is None:
+            return
+        start=min(c.start for c in window)
+        end=max(c.end for c in window)
+        lang=next((c.language for c in window if c.language),None)
+        aligned.append(LyricCue(max(0.,start),max(end,start+1.5),
+                                evidence["text"],"plain lyrics / observed ASR",lang))
+    for cue in transcript_cues:
+        if window_start is None:
+            window_start=cue.start
+        if window and (cue.start-window_start>=6 or
+                       sum(len(c.text) for c in window)>290):
+            evaluate()
+            window=[]
+            window_start=cue.start
+        window.append(cue)
+    evaluate()
+    return aligned
+
+
 def _lyrics_for_file(media:Path, meta:dict, *,
-                     fetch_lyrics:bool=False,artist:str="",track:str=""):
+                     fetch_lyrics:bool=False,artist:str="",track:str="",source:str="auto"):
     local=local_lrc(media)
     if local:
         cues=parse_lrc(local.read_text(encoding="utf-8"),
@@ -193,11 +224,25 @@ def _lyrics_for_file(media:Path, meta:dict, *,
         raise ValueError("Artist metadata missing; provide --artist")
     lines,provenance=lookup_synced_lyrics(
         title=title,artist=singer,album=meta.get("album",""),
-        duration=meta.get("duration") or None,online=True)
-    if not lines:
-        raise RuntimeError(
-            "No confirmed time-coded lyrics: "+provenance.get("status","unknown"))
-    return lines,provenance
+        duration=meta.get("duration") or None,online=True,
+        allow_plain=True)
+    if lines:
+        return lines,provenance
+    plain=provenance.get("plain_lines",[])
+    if plain and provenance.get("status")=="plain":
+        heard,_,engine=transcribe_local_media(str(media),source=source,
+                                               targets=(),music=True)
+        aligned=_align_plain_lyrics_to_local_audio(plain,heard)
+        if not aligned:
+            raise RuntimeError("Plain lyrics found, but no reliable match with "
+                               "heard vocals; not inventing subtitle timestamps")
+        return aligned,{"provider":"LRCLIB",
+                        "status":"plain_matched_approximate",
+                        "matched_lines":len(aligned),
+                        "total_plain_lines":len(plain),
+                        "alignment":"observed_local_ASR_audio",
+                        "backend":engine}
+    raise RuntimeError("No matching lyrics: "+provenance.get("status","unknown"))
 
 
 def _translate_cues(cues:list[LyricCue],targets,source):
@@ -239,8 +284,10 @@ def create_subtitles(filename, *, source="auto", targets=(),music=False,
     if lyrics:
         meta=media_metadata(media)
         cues,origin=_lyrics_for_file(media,meta,fetch_lyrics=fetch_lyrics,
-                                     artist=artist,track=track)
-        backend="synced lyrics"
+                                     artist=artist,track=track,source=source)
+        backend=("ASR-based approximate lyric alignment"
+                 if origin.get("status")=="plain_matched_approximate"
+                 else "time-coded lyrics")
     else:
         if fetch_lyrics:
             raise ValueError("--fetch-lyrics requires --lyrics")
