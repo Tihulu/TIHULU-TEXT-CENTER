@@ -39,7 +39,7 @@ class TranscriptTests(unittest.TestCase):
 
     def test_unavailable_language_never_fabricated(self):
         with self.assertRaises(ValueError):
-            self.db.translate_later(self.cid,"fr")
+            self.db.translate_later(self.cid,"zz")
         with self.assertRaises(KeyError):
             self.db.translate_later("unknown","en")
         with self.assertRaises(ValueError):

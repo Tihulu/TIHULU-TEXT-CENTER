@@ -239,7 +239,7 @@ class HTTPTests(unittest.TestCase):
         self.assertEqual(self.request("POST","/api/recordings/transcription/start",
             {"medium":"fm","filename":"../secret.mp3","original_language":"de"},csrf)[0],409)
         self.assertEqual(self.request("POST","/api/recordings/transcription/start",
-            {"medium":"dvb_tv","filename":"x.mp4","original_language":"fr"},csrf)[0],400)
+            {"medium":"dvb_tv","filename":"x.mp4","original_language":"zz"},csrf)[0],400)
         self.assertEqual(self.request("POST","/api/recordings/transcription/stop",{},csrf)[0],200)
 
     def test_offline_translator_api_fail_closed(self):
@@ -250,7 +250,7 @@ class HTTPTests(unittest.TestCase):
         _,_,raw=self.request("GET","/api/bootstrap")
         csrf=json.loads(raw)["csrf"]
         self.assertEqual(self.request("POST","/api/translation/text",
-            {"text":"Hello","source":"en","target":"fr"},csrf)[0],400)
+            {"text":"Hello","source":"en","target":"zz"},csrf)[0],400)
         self.assertEqual(self.request("POST","/api/translation/text",
             {"text":"Hello","source":"en","target":"de","backend":"npu"},csrf)[0],409)
         self.assertEqual(self.request("POST","/api/translation/text",
