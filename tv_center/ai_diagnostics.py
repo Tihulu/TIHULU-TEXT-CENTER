@@ -63,15 +63,22 @@ def inspect():
             "argos_runtime_installed": AIRuntime().status()["installed"],
             "nllb_model_installed": TranslationModelMarket().status()["installed"]
         },
+        "npu_explanation": (
+            "RTX Tensor Cores are part of the NVIDIA GPU, not a separate "
+            "Hailo/Intel NPU; no NPU is expected on this desktop."
+            if gpu["detected"] and not npu["detected"] else
+            "Use dedicated NPU only if its compatible model/runtime is installed."),
         "next_step": (
-            "GPU READY: test real audio inference in Kaffeine, verify actual CUDA execution."
+            "GPU READY: run 'tihulu-tv-center ai-check --deep' to test CUDA "
+            "with a synthetic audio sample; real TV performance remains unverified."
             if choice.get("selected") == "gpu" and choice.get("ready") else
-            "RTX detected, CUDA Toolkit >=12.8 compiler not available. "
-            "Try the isolated Faster-Whisper CUDA installer in Model Market "
-            "(prebuilt cuBLAS/cuDNN; no nvcc needed), or check "
-            "'ls /usr/local/cuda*/bin/nvcc' and install NVIDIA's cuda-toolkit-12-8 "
-            "(toolkit only; do not replace the Pop!_OS NVIDIA driver), then "
-            "build CUDA whisper.cpp in TIHULU Model Market."
+            "RTX GPU found but no ready CUDA speech engine. In Model Market "
+            "press 'Install CUDA Faster-Whisper Large-v3 Turbo · no nvcc needed', "
+            "not the advanced source-build button. The GPU installer uses "
+            "cuBLAS >=12.8, cuDNN 9 and CTranslate2 >=4.6.3 and tests "
+            "real model inference after downloading verified weights. "
+            "CUDA Toolkit nvcc is optional and ONLY needed when building "
+            "whisper.cpp CUDA from source."
             if gpu["detected"] and not gpu["cuda_compile_possible"] else
             "GPU found, but the user-owned CUDA whisper.cpp runtime is missing. "
             "Install CUDA Whisper in Model Market, then select a larger "
@@ -83,7 +90,20 @@ def inspect():
 
 
 def main():
-    print(json.dumps(inspect(), indent=2, ensure_ascii=False))
+    import sys
+    args = sys.argv[2:] if len(sys.argv)>1 and sys.argv[1]=="ai-check" else sys.argv[1:]
+    if args not in ([], ["--deep"]):
+        print("Usage: tihulu-tv-center ai-check [--deep]",file=sys.stderr)
+        return 2
+    report = inspect()
+    if args == ["--deep"]:
+        # Explicitly requested full model loading, never DVB/RF access.
+        from .cuda_faster_whisper import FasterWhisperCUDA
+        report["policy"] = (
+            "Deep opt-in: synthetic local CUDA model inference only; "
+            "no RF access, model downloads or TV playback changes.")
+        report["deep_gpu_selftest"] = FasterWhisperCUDA().inference_selftest()
+    print(json.dumps(report, indent=2, ensure_ascii=False))
     return 0
 
 
