@@ -425,8 +425,8 @@ def decode_segment(ts: bytes, *, mode="auto", page=150, source="de",
                 # phrases and opt-in singing/lyrics exactly as transcribed.
                 from kaffeine_next.continuous_captions import (
                     collapse_asr_repetition_loops)
-                cleaned = collapse_asr_repetition_loops(
-                    original, enabled=not music_transcription)
+                cleaned = (original if music_transcription else
+                           collapse_asr_repetition_loops(original))
                 if cleaned != original:
                     original = cleaned
                     speech_diagnostics["asr_repetitions_removed"] = True
