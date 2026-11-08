@@ -55,6 +55,7 @@ const preparedLongStreams=new Map();
 const CHAIN_SEGMENT_GAP_SECONDS=6;
 const diskStreamingAvailable=()=>Boolean(window.isSecureContext&&typeof window.showSaveFilePicker==="function");
 const nativeLocal=()=>location.protocol==="http:"&&["localhost","127.0.0.1"].includes(location.hostname);
+const nativeReceiver=()=>nativeLocal()||window.nativeRFTransport==="rtl_sdr";
 async function nativeRequest(route,payload=null,csrf=null){
  const opts={cache:"no-store",credentials:"same-origin"};
  if(payload!==null){opts.method="POST";opts.headers={"Content-Type":"application/json"};opts.body=JSON.stringify({...payload,csrf});}
@@ -65,10 +66,15 @@ async function nativeRequest(route,payload=null,csrf=null){
 }
 async function nativeScheduledPass(pass,{when,durationSeconds,frequency,sampleRate,saveRaw,saveWav=false}){
  if(!nativeLocal())throw Error("Start the Debian app and open http://127.0.0.1:8791/browser/index.html");
- if(sampleRate!==1024000)throw Error("Native rtl_sdr uses 1.024 MS/s; select that sample rate.");
+ if(![1024000,2048000].includes(sampleRate))throw Error("Native SDR sample rate must be 1.024 or 2.048 MS/s.");
  if(!Number.isInteger(durationSeconds)||durationSeconds<8||durationSeconds>7200)
    throw Error("Native capture chain must be 8–7200 whole seconds and fit the predicted pass.");
- if(saveRaw&&saveWav)throw Error("One native scheduled receiver mode can write either CU8 or WAV; for both choose browser dual-format recording.");
+ if(!saveRaw&&!saveWav)throw Error("Select at least one recording format.");
+ if(pass.family==="meteor"&&!saveRaw)throw Error("Meteor LRPT requires original IQ (.cu8). FM WAV / Robot36 is not a Meteor LRPT format.");
+ if(pass.family==="meteor"&&saveWav)throw Error("Meteor LRPT cannot use FM WAV or dual-format recording. Uncheck WAV and record original IQ (.cu8).");
+ if(saveWav&&!["iss_voice","iss_sstv","iss_uhf"].includes(
+   frequency===437550000?"iss_sstv":frequency===145800000?"iss_voice":frequency===437800000?"iss_uhf":""))
+   throw Error("This frequency has no native FM WAV profile. Select original IQ (.cu8).");
  // Native survey is limited to 180 s PER FILE. Longer jobs use the same
  // opt-in backend chain scheduler, each part a separately persisted file.
  const state=await nativeRequest("/api/status");
@@ -90,10 +96,12 @@ async function nativeScheduledPass(pass,{when,durationSeconds,frequency,sampleRa
    events=await predict();target=matched();
  }
  if(!target)throw Error("Native TLE pass differs from browser estimate. Refresh catalog and recalculate.");
- const endpoint=durationSeconds>180?"/api/schedule-chain":"/api/schedule";
- return nativeRequest(endpoint,{pass_id:target.id,profile,
-   mode:saveRaw?"iq":saveWav?"sstv_audio":"survey",
-   run_at:new Date(when).toISOString(),duration_seconds:durationSeconds},state.csrf);
+ const endpoint=durationSeconds>900?"/api/schedule-chain":"/api/schedule";
+ const mode=saveRaw&&saveWav?"iq_and_fm_wav":
+   saveRaw?"iq":profile==="iss_sstv"?"sstv_audio":"fm_audio";
+ return nativeRequest(endpoint,{pass_id:target.id,profile,mode,
+   run_at:new Date(when).toISOString(),duration_seconds:durationSeconds,
+   sample_rate:sampleRate},state.csrf);
 }
 
 function captureWavName(job,frequency,at=new Date()){
@@ -1106,9 +1114,23 @@ function appendPass(pass){
   wav.checked=Number(frequency.value)===437550000;
   if(wav.checked)raw.checked=false;
   wavLabel.append(wav,' Record real FM-demodulated audio (.wav, mono PCM 48 kHz), suitable for Robot36 analysis.');
+  const updateNativeFormat=()=>{
+    if(!nativeReceiver())return;
+    const hz=Number(frequency.value);
+    const supportsAudio=pass.family==="iss"&&[145800000,437550000,437800000].includes(hz);
+    wav.disabled=!supportsAudio;
+    if(!supportsAudio){wav.checked=false;raw.checked=true;}
+    wavLabel.title=supportsAudio
+      ?"Optional ISS FM audio for this native receiving profile."
+      :"Unavailable for this RF profile. Meteor LRPT must be saved as raw IQ.";
+    localLink.hidden=true;
+    explanation.textContent="Native RTL-SDR: continuous direct-to-disk capture up to 900 s / "+
+      "2 GB if the requested window fits the predicted pass. No WebUSB and no 60-second "+
+      "browser segmentation. Keep the application open and prevent OS sleep.";
+  };
   frequency.addEventListener('change',()=>{
     const iss=Number(frequency.value)===437550000;
-    wav.checked=iss;raw.checked=!iss;refreshBudget();
+    wav.checked=iss;raw.checked=!iss;updateNativeFormat();refreshBudget();
   });
   const localLink=document.createElement('a');
   localLink.className="iq-jump-link schedule-wide";
@@ -1125,8 +1147,19 @@ function appendPass(pass){
   const refreshBudget=()=>{
     try{
       const total=secondsFromEntry(duration.value,lengthUnit.value);
+      if(nativeReceiver()){
+        const bytes=2*Number(rate.value)*total*(raw.checked?1:0)+96000*total*(wav.checked?1:0);
+        budgetLabel.textContent=total<=900
+          ?"Native direct-to-disk: one continuous "+total+" s capture · "+
+            (bytes/1e6).toFixed(1)+" MB estimated · no WebUSB 60 s segmentation. "+
+            (bytes>2e9?"EXCEEDS 2 GB cap. ":"")+
+            "Capture must fit the native TLE-defined pass and LOS margin."
+          :"Native long capture: "+total+" s exceeds the single 900 s limit. "+
+            "Native segments with receiver restart gaps must fit before LOS; no WebUSB.";
+        return;
+      }
       const plan=planChainedCapture({startMs:Date.now()+60000,totalSeconds:total,
-        rate:Number(rate.value),raw:raw.checked,wav:wav.checked});
+        rate:Number(rate.value),raw:raw.checked,wav:w.checked});
       budgetLabel.textContent=plan.segments.length+' separate calendar recording(s) · '+
         total+' s captured over '+plan.elapsedSeconds+' s · '+
         (plan.segments.reduce((n,x)=>n+x.estimatedRawBytes+x.estimatedWavBytes,0)/1e6).toFixed(1)+
@@ -1136,6 +1169,7 @@ function appendPass(pass){
   };
   for(const element of [duration,rate,raw,wav,lengthUnit])element.addEventListener('change',refreshBudget);
   duration.addEventListener('input',refreshBudget);rate.addEventListener('input',refreshBudget);
+  updateNativeFormat();
   refreshBudget();
   form.append(timeLabel,frequencyLabel,durationLabel,unitLabel,rateLabel,saveLabel,wavLabel,budgetLabel,localLink,explanation,alert,confirm);
   form.addEventListener('submit',async event=>{
