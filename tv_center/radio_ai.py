@@ -67,8 +67,8 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
     src = ("auto" if source=="auto" else language_code(source))
     destinations = tuple(dict.fromkeys(language_code(t,nllb=True)
                                        for t in targets))
-    if len(destinations)>3:
-        raise ValueError("Choose at most 3 translated subtitle languages")
+    if len(destinations)>6:
+        raise ValueError("Choose at most 6 translated subtitle languages")
     location=checked_runtime_output(output,prefix="tihulu-radio-captions-")
     ai=AISettings()
     ai.configure_environment()
