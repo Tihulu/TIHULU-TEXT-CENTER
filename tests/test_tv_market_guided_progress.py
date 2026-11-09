@@ -135,6 +135,10 @@ class ModelMarketFastStartupTests(unittest.TestCase):
         text=self.ui
         self.assertIn('self.profile_choice.addItem("Custom · manually adjusted", "custom")',text)
         self.assertIn("self.mark_manual_custom",text)
+        self.assertIn("self.preview_profile_controls(key)",text)
+        self.assertIn("self.populate_models()",text)
+        self.assertIn("PREVIEW ONLY",text)
+        self.assertIn("no downloads or settings changes were saved",text)
         self.assertIn("self.profile_choice.blockSignals(True)",text)
         self.assertIn("self._applying_profile=True",text)
         self.assertIn("self._manual_custom=False",text)

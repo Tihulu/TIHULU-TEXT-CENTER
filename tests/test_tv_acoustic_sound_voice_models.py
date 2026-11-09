@@ -27,7 +27,7 @@ class AcousticClassifiersTests(unittest.TestCase):
                                                 "confidence":"high"}]),[])
 
     def test_perceived_voice_categories_need_strong_confidence(self):
-        self.assertEqual(voice_prediction([0.91,0.03,0.06])["voice_type"],
+        self.assertEqual(voice_prediction([0.97,0.02,0.01])["voice_type"],
                          "child")
         self.assertEqual(voice_prediction([0.05,0.93,0.02])["voice_type"],
                          "female")
@@ -36,6 +36,12 @@ class AcousticClassifiersTests(unittest.TestCase):
         self.assertIsNone(voice_prediction([0.34,0.33,0.33]))
         self.assertIsNone(voice_prediction([-1,1,1]))
         self.assertIsNone(voice_prediction([]))
+        # Female speech can acoustically resemble a child's voice.
+        # Ambiguous or age-contradictory estimates are left unlabeled.
+        self.assertIsNone(voice_prediction([0.91,0.06,0.03]))
+        self.assertIsNone(voice_prediction([0.98,0.01,0.01],age_score=0.32))
+        self.assertEqual(voice_prediction(
+            [0.98,0.01,0.01],age_score=0.09)["voice_type"],"child")
 
     def test_no_model_load_or_download_for_local_status(self):
         with tempfile.TemporaryDirectory() as folder:
@@ -53,21 +59,30 @@ class AcousticClassifiersTests(unittest.TestCase):
                                 {"type":"hum","confidence":0.90,"source":"AST AudioSet"}]}
         labels_only=CaptionConfig(speaker_enabled=True,
             show_speaker_numbers=False,show_voice_types=False,
-            show_sound_events=True).validate()
+            show_sound_events=True,target_languages=("en",)).validate()
         first=labels_only.render(result)
-        self.assertIn("[Müzik]",first)
-        self.assertIn("[Uğultu]",first)
+        self.assertIn("[Music]",first)
+        self.assertIn("[Humming]",first)
         self.assertNotIn("Speaker",first)
-        self.assertNotIn("Kadın",first)
+        self.assertNotIn("Weibliche",first)
         voice_only=CaptionConfig(speaker_enabled=True,
             show_speaker_numbers=False,show_voice_types=True,
             show_sound_events=False).validate()
         second=voice_only.render(result)
-        self.assertIn("Kadın sesi?",second)
-        self.assertNotIn("[Müzik]",second)
+        self.assertIn("Weibliche Stimme?",second)
+        self.assertNotIn("[Music]",second)
         self.assertNotIn("Speaker",second)
+        english=CaptionConfig(source="en",speaker_enabled=True,
+            show_speaker_numbers=False,show_voice_types=True,
+            show_sound_events=True,show_translation=False).validate()
+        self.assertIn("Female voice?",english.render(result))
+        turkish=CaptionConfig(source="tr",speaker_enabled=True,
+            show_speaker_numbers=False,show_voice_types=True,
+            show_sound_events=True,show_translation=False).validate()
+        self.assertIn("Kadın sesi?",turkish.render(result))
+        self.assertIn("[Müzik]",turkish.render(result))
         result["voice_type_confidence"]=0.4
-        self.assertNotIn("Kadın sesi?",voice_only.render(result))
+        self.assertNotIn("Weibliche Stimme?",voice_only.render(result))
 
     def test_always_off_by_default(self):
         config=CaptionConfig()

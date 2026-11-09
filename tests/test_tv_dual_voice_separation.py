@@ -46,6 +46,14 @@ class SourceSeparationTests(unittest.TestCase):
                 self.assertFalse(model.installed())
         self.assertEqual(len(MODEL_FILES),4)
 
+    def test_sepformer_download_runtime_keeps_compatible_hub_major(self):
+        source=(Path(__file__).resolve().parents[1]/
+                "tv_center/overlap_separation.py").read_text(encoding="utf8")
+        ast.parse(source)
+        self.assertIn("huggingface_hub>=0.26,<1.0",source)
+        self.assertIn("HF_HUB_DISABLE_XET",source)
+        self.assertIn("SepFormer model download failed at",source)
+
     def test_actual_two_voice_subtitles_render_in_two_lines(self):
         branches=accept_two_transcripts([
             details("Merhaba nasılsın"),
@@ -94,22 +102,23 @@ class SourceSeparationTests(unittest.TestCase):
     def test_speaker_type_and_sound_tags_are_independent(self):
         config=CaptionConfig(
             show_speaker_numbers=False,show_voice_types=True,
-            show_sound_events=True,speaker_enabled=True).validate()
+            show_sound_events=True,speaker_enabled=True,
+            target_languages=("en",)).validate()
         result={"original":"Günaydın","source":"local_asr",
                 "speaker_index":1,"voice_type":"female",
                 "voice_type_confidence":0.92,
                 "sound_events":[{"type":"music","confidence":0.91,"source":"AST AudioSet"},
                                 {"type":"hum","confidence":0.81,"source":"AST AudioSet"}]}
         shown=config.render(result)
-        self.assertIn("Kadın sesi?",shown)
-        self.assertIn("[Müzik]",shown)
-        self.assertIn("[Uğultu]",shown)
+        self.assertIn("Weibliche Stimme?",shown)
+        self.assertIn("[Music]",shown)
+        self.assertIn("[Humming]",shown)
         self.assertNotIn("[Speaker",shown)
         # Weak classification is NOT guessed.
         result["voice_type_confidence"]=0.3
-        self.assertNotIn("Kadın",config.render(result))
+        self.assertNotIn("Weibliche",config.render(result))
         result["sound_events"][0]["confidence"]=0.15
-        self.assertNotIn("[Müzik]",config.render(result))
+        self.assertNotIn("[Music]",config.render(result))
 
     def test_ui_does_not_implicitly_enable_heavy_separation(self):
         source=(Path(__file__).resolve().parents[1]/

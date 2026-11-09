@@ -147,16 +147,29 @@ def classify_event_scores(pairs):
             for key,score in sorted(outputs.items(),key=lambda item:-item[1])[:2]]
 
 
-def voice_prediction(probabilities):
-    """Conservative acoustic category; NOT actual gender or age identity."""
+def voice_prediction(probabilities, age_score=None):
+    """Conservative perceived acoustic type, never verified age or gender.
+
+    A short adult/female narration clip can be mistaken for a child. A child
+    label needs unusually strong evidence and must not contradict the same
+    model's independent approximate age estimate. With doubt, show no label.
+    """
     if (not isinstance(probabilities,list) or len(probabilities)!=3 or
             any(not isinstance(v,(float,int)) or v<0 or v>1
                 for v in probabilities)):
         return None
-    score=max(probabilities)
-    if score<0.82:
+    ranked=sorted((float(v) for v in probabilities),reverse=True)
+    score=ranked[0]
+    kind=("child","female","male")[probabilities.index(max(probabilities))]
+    if (score < (0.95 if kind=="child" else 0.88) or
+            score-ranked[1] < 0.25):
         return None
-    kind=("child","female","male")[probabilities.index(score)]
+    if (kind=="child" and age_score is not None and
+            (not isinstance(age_score,(int,float)) or
+             not 0<=age_score<=1 or age_score>=0.18)):
+        # 0.18 is roughly the model's adult-boundary estimate, not a
+        # scientific age determination. Reject contradictions only.
+        return None
     return {"voice_type":kind,"voice_type_confidence":score,
             "voice_type_source":"audEERING 6-layer (perceived voice, noncommercial)"}
 
@@ -225,7 +238,9 @@ def detect_sound_events(pcm):
 
 
 def detect_voice_type(pcm):
-    return voice_prediction(_worker.predict(pcm,"voice").get("probabilities"))
+    prediction=_worker.predict(pcm,"voice")
+    return voice_prediction(prediction.get("probabilities"),
+                            age_score=prediction.get("age_score"))
 
 
 def _serve():
@@ -309,8 +324,9 @@ def _serve():
                 x=extractor(sound,sampling_rate=16000,
                             return_tensors="pt")["input_values"]
                 with torch.inference_mode():
-                    _,p=model(x)
-                response={"probabilities":[float(v) for v in p[0].tolist()]}
+                    age,p=model(x)
+                response={"probabilities":[float(v) for v in p[0].tolist()],
+                          "age_score":float(age.reshape(-1)[0].item())}
         except Exception as exc:
             response={"error":str(exc)[:160]}
         sys.stdout.write(json.dumps(response,separators=(",",":"))+"\n")
