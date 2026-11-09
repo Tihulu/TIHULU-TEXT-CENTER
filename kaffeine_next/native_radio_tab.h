@@ -2665,6 +2665,19 @@ private:
 							tr("[DLS broadcaster metadata] %1").arg(dls).left(700)});
 						while(cueQueue_.size()>12) cueQueue_.removeFirst();
 					}
+                    // Many stations rotate DLS song title, announcements
+                    // and station slogans while playing the SAME song.
+                    // An arbitrary DLS change MUST NOT erase the current
+                    // lyric match and start another lookup repeatedly.
+                    const QStringList songParts=dls.split(QLatin1String(" - "));
+                    const bool songMetadata=songParts.size()>=2 &&
+                        !songParts.first().trimmed().isEmpty() &&
+                        !songParts.mid(1).join(QLatin1String(" - "))
+                            .trimmed().isEmpty();
+                    const bool newSongMetadata=songMetadata &&
+                        dls!=lastSongDls_;
+                    if(newSongMetadata) {
+                        lastSongDls_=dls;
 					// DLS is live; the audible audio may be delayed by radio caching.
 					// This is approximate metadata sync, NOT audio fingerprinting.
 					songStartMs_=QDateTime::currentMSecsSinceEpoch()+
@@ -2699,10 +2712,9 @@ private:
                            "listening; no proven song boundary.") :
                         tr("New DLS metadata. Automatic lookup requires opt-in; "
                            "timing is only an estimate."));
-					if(autoLyrics_->isChecked() &&
-					   dls.contains(QLatin1String(" - "))) {
-						QTimer::singleShot(100,this,[this](){fetchLyrics(true);});
-					}
+                    if(autoLyrics_->isChecked())
+                        QTimer::singleShot(100,this,[this](){fetchLyrics(true);});
+                    } // New song metadata; ordinary rotating DLS does not reset lyrics.
 				}
                 const QJsonObject errs=service.value(
                     QLatin1String("errorcounters")).toObject();
@@ -3102,6 +3114,7 @@ private:
                     tr("Block %1 · %2 · service %3 · stream opening")
                         .arg(block,dabCenterFrequencyMHz(block),sid));
 				lastDls_.clear();
+                lastSongDls_.clear();
 				lyricLoaded_=false;
 				lyricCues_=QJsonArray();
 				slideHistory_.clear();
@@ -4199,7 +4212,9 @@ private:
 		if (!active() || playingKey_.isEmpty()) {
 			lyricText_->setText(tr("Play a station first.")); return;
 		}
-		const QStringList fields=lastDls_.split(QLatin1String(" - "));
+        const QString lyricDls=lastDls_.contains(QLatin1String(" - "))?
+            lastDls_:lastSongDls_;
+		const QStringList fields=lyricDls.split(QLatin1String(" - "));
 		const bool overridden=!automatic && !lyricsArtist_->text().trimmed().isEmpty()
 			&& !lyricsTitle_->text().trimmed().isEmpty();
 		if(fields.size()<2 && !overridden) {
@@ -4528,7 +4543,7 @@ private:
     QJsonObject lastVerifiedLyricTranslations_;
     qint64 lastVerifiedLyricMs_=0;
     int lastLyricDirection_=0,lyricOffsetConsistency_=0;
-	QString activeChannel_,playingKey_,lastDls_,captionPath_,captionControlsPath_,lyricPath_,
+	QString activeChannel_,playingKey_,lastDls_,lastSongDls_,captionPath_,captionControlsPath_,lyricPath_,
 		wellePortFile_,
 		lastDetectedLanguage_;
 	QMap<QString,QJsonObject> stationData_;
