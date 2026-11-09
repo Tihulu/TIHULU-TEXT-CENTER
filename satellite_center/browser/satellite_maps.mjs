@@ -895,17 +895,30 @@ export function createSatelliteMaps({getTles,getSatLib,getPasses,getLastCapture,
   if(loading)return loading;
   loading=(async()=>{
    status("Loading built-in land geography; OSM tiles are optional.");
-   const css=document.createElement("link");css.rel="stylesheet";
-   css.href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css";
-   css.crossOrigin="anonymous";css.integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=";
-   document.head.append(css);
+   // Leaflet 1.9.4 is bundled under the BSD-2-Clause license. Native
+   // tihulu:// and the website use the same local files, not a CDN.
+   if(!document.getElementById("tihulu-bundled-leaflet-css")){
+    const css=document.createElement("link");css.rel="stylesheet";
+    css.id="tihulu-bundled-leaflet-css";css.href="./leaflet.css";
+    document.head.append(css);
+   }
    const L=await new Promise((resolve,reject)=>{
     if(window.L)return resolve(window.L);
-    const script=document.createElement("script");script.crossOrigin="anonymous";
-    script.integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=";
-    script.src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js";
+    const old=document.getElementById("tihulu-bundled-leaflet-js");
+    if(old&&old.dataset.failed!=="true"){
+     old.addEventListener("load",()=>resolve(window.L),{once:true});
+     old.addEventListener("error",()=>reject(Error("Bundled Leaflet did not load")),{once:true});
+     return;
+    }
+    old?.remove();
+    const script=document.createElement("script");
+    script.id="tihulu-bundled-leaflet-js";script.src="./leaflet.js";
     script.onload=()=>resolve(window.L);
-    script.onerror=()=>reject(Error("Leaflet unavailable: check network/CDN"));document.head.append(script);
+    script.onerror=()=>{
+     script.dataset.failed="true";
+     reject(Error("Bundled Leaflet is missing. Reinstall the Satellite Center package."));
+    };
+    document.head.append(script);
    });
    if(!L)throw Error("Leaflet did not initialize");
    leaflet=L;const o=observer();
