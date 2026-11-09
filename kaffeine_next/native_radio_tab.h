@@ -344,6 +344,17 @@ public:
         radioQuickRow_->addWidget(quickBuffer_);
         radioQuickRow_->addStretch(1);
         dabLayout->addLayout(radioQuickRow_);
+        quickBufferProgress_=new QProgressBar(page);
+        quickBufferProgress_->setRange(0,100);
+        quickBufferProgress_->setValue(0);
+        quickBufferProgress_->setFormat(tr(
+            "Extra buffer OFF · enable it to view startup progress"));
+        quickBufferProgress_->setToolTip(tr(
+            "Progress shows estimated startup time against the requested "
+            "extra libVLC cache, NOT measured buffer occupancy, audio "
+            "latency or physical speaker output."));
+        quickBufferProgress_->setVisible(false);
+        dabLayout->addWidget(quickBufferProgress_);
 
 		// Public internet radio requires no SDR, welle-cli or DVB frontend.
 		// Search happens only when clicked, and uses HTTPS Radio Browser API.
@@ -1065,6 +1076,7 @@ public:
                 activePlaybackCacheMs_=0;
                 saved.setValue(QLatin1String("playbackBufferMs"),0);
             }
+            refreshRadioBufferProgress();
         });
         connect(autoSync_,&QCheckBox::toggled,this,[this](bool enabled){
             QSettings saved(QLatin1String("TIHULU"),QLatin1String("KaffeineRadio"));
@@ -1085,6 +1097,7 @@ public:
                    "No forced radio restart; next tune uses the estimate "
                    "or choose Apply buffer now."):
                 tr("Auto estimate OFF · buffer controlled manually."));
+            refreshRadioBufferProgress();
         });
 		auto *captionActions=new QHBoxLayout();
 		captionActions->addStretch(1);
@@ -1607,23 +1620,7 @@ public:
 		connect(&captionTick_,&QTimer::timeout,this,[this](){
             monitorRadioPlaybackStop();
 			pollCaption();updateLyrics();
-			if(audioCacheProgress_) {
-				const qint64 elapsed=audioStartedMs_>0?
-					qMax(qint64(0),QDateTime::currentMSecsSinceEpoch()-audioStartedMs_):0;
-				const int requested=activePlaybackCacheMs_;
-                // A requested libVLC network cache has no sampled fill
-                // telemetry. Stream uptime is NOT buffering progress.
-                audioCacheProgress_->setRange(0,audioStartedMs_>0?0:100);
-                if(audioStartedMs_<=0) audioCacheProgress_->setValue(0);
-                audioCacheProgress_->setFormat(audioStartedMs_<=0?
-                    tr("Audio cache request · no stream opened"):
-                    tr("Requested %1 ms · stream uptime %2 ms · queue/DAC UNVERIFIED%3")
-                    .arg(requested).arg(elapsed)
-                    .arg(requestedPlaybackBufferMs()!=requested?
-                        tr(" · next-tune request %1 ms pending")
-                            .arg(requestedPlaybackBufferMs()):
-                        QString()));
-			}
+            refreshRadioBufferProgress();
 		});
 		captionTick_.start();
 		rfTick_.setInterval(300);
@@ -3343,6 +3340,48 @@ private:
 		layout->addWidget(textView);
 		dlg.exec();
 	}
+    void refreshRadioBufferProgress() {
+        if(!quickBufferProgress_ || !audioCacheProgress_ || !quickBuffer_) return;
+        const bool enabled=quickBuffer_->isChecked();
+        quickBufferProgress_->setVisible(enabled);
+        audioCacheProgress_->setVisible(enabled);
+        if(!enabled) return;
+        const int requested=activePlaybackCacheMs_;
+        const int staged=requestedPlaybackBufferMs();
+        const qint64 elapsed=audioStartedMs_>0?
+            qMax(qint64(0),QDateTime::currentMSecsSinceEpoch()-audioStartedMs_):0;
+        const bool stationOpened=active() && !playingKey_.isEmpty() &&
+                                 audioStartedMs_>0;
+        const bool playing=stationOpened &&
+                           player_->getPlaybackStatus()==MediaWidget::Playing;
+        int percent=0;
+        QString message;
+        if(!stationOpened) {
+            message=tr("Extra buffer ON · %1 ms requested for next DAB "
+                       "playback; no stream currently opening").arg(staged);
+        } else if(playing) {
+            percent=100; // The player STARTED, not measured 100% buffer fill.
+            message=tr("Player reports PLAYING · %1 ms extra cache requested "
+                       "· actual buffer fill unmeasured").arg(requested);
+        } else if(requested>0) {
+            percent=qMin(95,int(qMin(elapsed,qint64(requested))*95/requested));
+            message=tr("Opening DAB audio · estimated startup %1 / %2 ms "
+                       "(%3% of requested time; actual fill unmeasured)")
+                       .arg(elapsed).arg(requested).arg(percent);
+        } else {
+            message=tr("Extra buffer enabled, 0 ms requested · %1")
+                .arg(autoSync_ && autoSync_->isChecked()?
+                    tr("awaiting Whisper latency estimate"):
+                    tr("open stream; no extra buffering"));
+        }
+        if(staged!=requested && stationOpened)
+            message+=tr(" · next station: %1 ms").arg(staged);
+        for(QProgressBar *bar:{quickBufferProgress_,audioCacheProgress_}) {
+            bar->setRange(0,100);
+            bar->setValue(percent);
+            bar->setFormat(message);
+        }
+    }
 	int selectedBufferMs() const {
         return qBound(0,bufferMs_->value()*(bufferUnitsSeconds_?1000:1),60000);
     }
@@ -4149,7 +4188,8 @@ private:
 	QSlider *lyricsOffset_=nullptr;
 	QLabel *lyricsOffsetValue_=nullptr,*lyricsSyncState_=nullptr,
         *lyricProvider_=nullptr;
-	QProgressBar *captionProgress_=nullptr,*audioCacheProgress_=nullptr;
+	QProgressBar *captionProgress_=nullptr,*audioCacheProgress_=nullptr,
+                 *quickBufferProgress_=nullptr;
 	QLabel *bufferRecommendation_=nullptr;
 	qint64 audioStartedMs_=0,lastLyricSyncUpdateMs_=0,
         lastCaptionVisibleMs_=0,lastCanvasLyricMs_=0,lastCaptionUpdateMs_=0,lastUnmatchedVoiceUntilMs_=0;
