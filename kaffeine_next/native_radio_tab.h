@@ -379,14 +379,17 @@ public:
         radioReadingPreset_->addItem(tr("Live · fast"),0);
         radioReadingPreset_->addItem(tr("Comfort · recommended"),1);
         radioReadingPreset_->addItem(tr("Relaxed · longer hold"),2);
+        radioReadingPreset_->addItem(
+            tr("TV-style Adaptive · readable + live"),3);
         radioReadingPreset_->setToolTip(tr(
-            "Avoid rapidly flashing phrases. Comfort pauses between new "
-            "captions so they remain readable; extra languages may lag "
-            "behind live speech. Does not change radio audio."));
+            "TV-style Adaptive (recommended) uses whole-sentence captions "
+            "and a character-per-second reading budget, then shortens holds "
+            "when live speech is queued. Live is fastest; Relaxed is slowest. "
+            "Radio audio and the SDR are never delayed."));
         QSettings captionPreferences(QLatin1String("TIHULU"),
                                      QLatin1String("KaffeineRadio"));
         const int readingPreference=qBound(0,captionPreferences.value(
-            QLatin1String("radioReadingPreset"),1).toInt(),2);
+            QLatin1String("radioReadingPreset"),3).toInt(),3);
         radioReadingPreset_->setCurrentIndex(readingPreference);
         captionComfortRow->addWidget(radioReadingPreset_);
         captionComfortRow->addWidget(new QLabel(tr("Text:"),page));
@@ -3918,8 +3921,12 @@ private:
         // Readability budget for all visible source/translation lines.
         // It does NOT delay audio or claim true sample-clock sync.
         const int chars=qMin(1400,text.trimmed().size());
-        const int normal=preset==2?
-            qBound(5500,chars*65,12000):
+        const int normal=preset==3?
+            // TV-style readability: a sentence-level ~16 cps budget
+            // for all visible source/translation lines, but bound the
+            // delay so radio speech does not accumulate endlessly.
+            qBound(2800,chars*63,9000):
+            preset==2?qBound(5500,chars*65,12000):
             qBound(3300,chars*45,8500);
         // Under load, avoid drifting tens of seconds behind live radio.
         // Backlog contracts the hold to ~2–4s without dropping phrases.
