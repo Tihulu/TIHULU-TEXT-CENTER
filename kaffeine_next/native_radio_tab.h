@@ -1518,8 +1518,9 @@ public:
                     tr("Audio cache request · no stream opened"):
                     tr("Requested %1 ms · stream uptime %2 ms · queue/DAC UNVERIFIED%3")
                     .arg(requested).arg(elapsed)
-                    .arg(bufferMs_->value()!=requested?
-                        tr(" · next-tune request %1 ms pending").arg(bufferMs_->value()):
+                    .arg(requestedPlaybackBufferMs()!=requested?
+                        tr(" · next-tune request %1 ms pending")
+                            .arg(requestedPlaybackBufferMs()):
                         QString()));
 			}
 		});
@@ -2640,8 +2641,14 @@ private:
 				slideHistory_.clear();
 				lastSlideHash_.clear();
 				slideIndex_=0;
-				player_->play(QUrl(base()+stream));
-                activePlaybackCacheMs_=bufferMs_->value();
+				activePlaybackCacheMs_=requestedPlaybackBufferMs();
+                QSettings playback(QLatin1String("TIHULU"),
+                                   QLatin1String("KaffeineRadio"));
+                playback.setValue(QLatin1String("playbackBufferMs"),
+                                  activePlaybackCacheMs_);
+                playback.setValue(QLatin1String("radioBufferDesiredMs"),
+                                  selectedBufferMs());
+                player_->play(QUrl(base()+stream));
 				audioStartedMs_=QDateTime::currentMSecsSinceEpoch();
 				radioCanvas_->setText(tr("♪ %1\nDAB+ %2 · verifying audio playback…")
 					.arg(name,block));
@@ -2962,10 +2969,31 @@ private:
 		layout->addWidget(textView);
 		dlg.exec();
 	}
-	void applyRadioBuffer() {
+	int selectedBufferMs() const {
+        return qBound(0,bufferMs_->value()*(bufferUnitsSeconds_?1000:1),60000);
+    }
+    int requestedPlaybackBufferMs() const {
+        return quickBuffer_->isChecked()?selectedBufferMs():0;
+    }
+    void setBufferDisplayMs(int milliseconds) {
+        const int bounded=qBound(0,milliseconds,60000);
+        const QSignalBlocker block(bufferMs_);
+        bufferMs_->setValue(bufferUnitsSeconds_?
+            qBound(0,(bounded+500)/1000,60):bounded);
+    }
+    void applyRadioBuffer() {
 		QSettings radioSettings(QLatin1String("TIHULU"),QLatin1String("KaffeineRadio"));
-		radioSettings.setValue(QLatin1String("playbackBufferMs"),bufferMs_->value());
-		radioSettings.sync();
+		const int desired=requestedPlaybackBufferMs();
+        radioSettings.setValue(QLatin1String("radioBufferDesiredMs"),selectedBufferMs());
+        radioSettings.setValue(QLatin1String("radioBufferEnabled"),
+                               quickBuffer_->isChecked());
+        radioSettings.setValue(QLatin1String("playbackBufferMs"),desired);
+        radioSettings.sync();
+        if(desired==activePlaybackCacheMs_) {
+            syncStatus_->setText(tr("Radio extra buffer unchanged: %1 ms. "
+                "No audio restart.").arg(desired));
+            return;
+        }
 		if (!playingKey_.isEmpty() && active()) {
 			const QString sid=playingKey_.section(QLatin1Char(':'),1);
 			if (!QRegularExpression(QLatin1String("^(?:0x)?[A-Fa-f0-9]{1,8}$"))
@@ -2974,7 +3002,7 @@ private:
 			// stream. Explicitly reopen when the owner chooses a new
 			// buffer; this can briefly interrupt sound.
 			player_->play(QUrl(base()+QLatin1String("/mp3/")+sid));
-            activePlaybackCacheMs_=bufferMs_->value();
+            activePlaybackCacheMs_=desired;
             lastAudioRetuneMs_=QDateTime::currentMSecsSinceEpoch();
             audioStartedMs_=lastAudioRetuneMs_;
             const bool wasAiRunning=captionProcess_.state()!=QProcess::NotRunning;
@@ -2993,8 +3021,8 @@ private:
                 "captions restarted to discard old audio timeline. DAC delay unverified.")
 				.arg(activePlaybackCacheMs_));
 		} else {
-			syncStatus_->setText(tr("Saved %1ms; will apply when station starts.")
-				.arg(bufferMs_->value()));
+			syncStatus_->setText(tr("Extra cache %1ms saved for the next station. "
+                "No receiver restart.").arg(desired));
 		}
 	}
 	void startCaptioning() {
@@ -3199,13 +3227,16 @@ private:
 					.arg(rawRecommended>60000?
 						tr(" · Above maximum: try fewer target languages or faster model"):
 						QString()));
-				if(recommended>bufferMs_->value()+1000) {
+				if(quickBuffer_->isChecked() && recommended>selectedBufferMs()+1000) {
                     // Auto selects a *future* cache request. libVLC cannot
                     // alter the already open media's audio buffering in-place.
                     // Never silently pretend that this changed live lip sync.
-                    bufferMs_->setValue(recommended);
+                    setBufferDisplayMs(recommended);
                     QSettings radio(QLatin1String("TIHULU"),QLatin1String("KaffeineRadio"));
-                    radio.setValue(QLatin1String("playbackBufferMs"),recommended);
+                    radio.setValue(QLatin1String("radioBufferDesiredMs"),
+                                   selectedBufferMs());
+                    radio.setValue(QLatin1String("playbackBufferMs"),
+                                   activePlaybackCacheMs_);
                     if(autoRestartAudio_->isChecked() &&
                        now-lastAudioRetuneMs_>=180000 &&
                        recommended>=activePlaybackCacheMs_+5000 &&
@@ -3707,6 +3738,10 @@ private:
     bool lyricsAudioFallbackActive_=false,lyricsFallbackStartedAi_=false,
         plainLyricsStartedAi_=false,captionsStopping_=false;
 	QSpinBox *bufferMs_=nullptr,*radioOffsetMs_=nullptr;
+    QComboBox *bufferUnit_=nullptr;
+    bool bufferUnitsSeconds_=false;
+    QHBoxLayout *radioQuickRow_=nullptr;
+    QCheckBox *quickAi_=nullptr,*quickBuffer_=nullptr;
 	QCheckBox *autoSync_=nullptr,*autoRestartAudio_=nullptr;
 	int lastCaptionOffsetMs_=0;
     int activePlaybackCacheMs_=12000;
