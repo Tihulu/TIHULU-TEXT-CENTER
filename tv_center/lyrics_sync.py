@@ -161,7 +161,10 @@ def aligned_karaoke_word_anchors(
             (window_seconds - heard[heard_index][1]) * 1000)
         if epoch <= last_epoch:
             continue
-        anchors.append({"start": match.start(), "end": match.end(),
+        # Qt QString indices are UTF-16 code units (not Python codepoints).
+        start_utf16 = len(lyric_line[:match.start()].encode("utf-16-le")) // 2
+        end_utf16 = len(lyric_line[:match.end()].encode("utf-16-le")) // 2
+        anchors.append({"start": start_utf16, "end": end_utf16,
                         "epoch_ms": epoch})
         last_epoch = epoch
     return anchors if len(anchors) >= 2 else []
