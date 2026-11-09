@@ -693,6 +693,19 @@ public:
             "Original heard audio + selected translation outputs. "
             "Captions are aligned to captured PCM timestamps, not "
             "measured libVLC audio presentation timestamps."));
+        radioLyricMatchStatus_=new QLabel(radioCanvas_);
+        radioLyricMatchStatus_->setTextFormat(Qt::PlainText);
+        radioLyricMatchStatus_->setWordWrap(true);
+        radioLyricMatchStatus_->setAlignment(Qt::AlignCenter);
+        radioLyricMatchStatus_->setStyleSheet(QLatin1String(
+            "QLabel{background:rgba(0,0,0,205);color:#cdebf5;"
+            "border-radius:5px;padding:4px;font-size:13px;}"));
+        radioLyricMatchStatus_->setVisible(false);
+        radioLyricMatchStatus_->setToolTip(tr(
+            "Lyrics FOUND means matching song metadata. Audio MATCHED "
+            "requires a real Whisper lyric line match; when no match "
+            "exists, actual speech stays visible as a transcription."));
+        captionSurface->addWidget(radioLyricMatchStatus_);
         captionSurface->addWidget(radioCanvasCaption_);
 
 		auto *meta = new QHBoxLayout();
@@ -3624,6 +3637,13 @@ private:
                 "Radio audio plays independently; heavy AI may fall behind."));
         }
 	}
+    void setRadioLyricMatchStatus(const QString &message) {
+        if(!radioLyricMatchStatus_) return;
+        const QString label=message.trimmed().left(210);
+        if(label!=radioLyricMatchStatus_->text())
+            radioLyricMatchStatus_->setText(label);
+        radioLyricMatchStatus_->setVisible(!label.isEmpty());
+    }
     void showRadioCanvasCaption(const QString &value,bool lyric=false) {
         if(!radioCanvasCaption_) return;
         const QString text=value.trimmed().left(1300);
@@ -3635,12 +3655,20 @@ private:
         // never replace the radioCanvas_'s station text or slideshow.
         // DLS metadata may still show a song while the announcer talks.
         // Never let estimated timed lyrics erase actual Whisper speech.
-        if(lyric && lastUnmatchedVoiceUntilMs_>
-           QDateTime::currentMSecsSinceEpoch()) return;
+        const qint64 currentMs=QDateTime::currentMSecsSinceEpoch();
+        if(lyric && lastUnmatchedVoiceUntilMs_>currentMs) return;
+        if(!lyric && lyricsEnabled_ && currentMs<lastMatchedLyricUntilMs_ &&
+           currentMs>=lastUnmatchedVoiceUntilMs_) return;
         if(radioCanvasCaption_->text()!=text)
             radioCanvasCaption_->setText(text);
         radioCanvasCaption_->setVisible(true);
-        if(lyric) lastCanvasLyricMs_=QDateTime::currentMSecsSinceEpoch();
+        if(lyric) {
+            lastCanvasLyricMs_=currentMs;
+            // Keep a verified lyric line readable between 5s ASR hops;
+            // a new unmatched presenter/advert immediately cancels this.
+            lastMatchedLyricUntilMs_=qMax(lastMatchedLyricUntilMs_,
+                                          currentMs+7500);
+        }
     }
 	void displayDueRadioCues(qint64 now) {
 		// Queue rather than overwrite: a new AI chunk must not erase the
@@ -4290,7 +4318,7 @@ private:
 	QComboBox *lyricsSourceLanguage_=nullptr;
     QLabel *translationStatus_=nullptr;
     QLabel *radioTranslationBanner_=nullptr;
-    QLabel *radioCanvasCaption_=nullptr;
+    QLabel *radioCanvasCaption_=nullptr,*radioLyricMatchStatus_=nullptr;
     QLabel *radioAudioHealth_=nullptr;
     QLabel *receiverOwnership_=nullptr;
     QCheckBox *advancedLanguages_=nullptr;
@@ -4362,13 +4390,14 @@ private:
                  *quickBufferProgress_=nullptr;
 	QLabel *bufferRecommendation_=nullptr;
 	qint64 audioStartedMs_=0,lastLyricSyncUpdateMs_=0,
-        lastCaptionVisibleMs_=0,lastCanvasLyricMs_=0,lastCaptionUpdateMs_=0,lastUnmatchedVoiceUntilMs_=0;
+        lastCaptionVisibleMs_=0,lastCanvasLyricMs_=0,lastCaptionUpdateMs_=0,
+        lastUnmatchedVoiceUntilMs_=0,lastMatchedLyricUntilMs_=0;
     bool lastLyricsAutoLookup_=false;
 	bool metadataCaptions_=false;
 	int dlsCaptionIndex_=0;
 	int lastLyricOffsetMs_=0;
 	bool plainLyricMode_=false;
-	QList<TimedPlainLyric> plainLyricQueue_;
+	QList<TimedPlainLyric> plainLyricQueue_,verifiedLyricQueue_;
 	QCheckBox *autoLyrics_=nullptr,*autoLyricSync_=nullptr,
 		*preferLyrics_=nullptr,*listenFallbackOnMiss_=nullptr;
     bool lyricsAudioFallbackActive_=false,lyricsFallbackStartedAi_=false,
