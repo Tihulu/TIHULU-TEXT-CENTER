@@ -101,15 +101,15 @@ class SourceSeparationTests(unittest.TestCase):
                 "sound_events":[{"type":"music","confidence":0.91,"source":"AST AudioSet"},
                                 {"type":"hum","confidence":0.81,"source":"AST AudioSet"}]}
         shown=config.render(result)
-        self.assertIn("Kadın sesi?",shown)
-        self.assertIn("[Müzik]",shown)
-        self.assertIn("[Uğultu]",shown)
+        self.assertIn("Weibliche Stimme?",shown)
+        self.assertIn("[Music]",shown)
+        self.assertIn("[Humming]",shown)
         self.assertNotIn("[Speaker",shown)
         # Weak classification is NOT guessed.
         result["voice_type_confidence"]=0.3
-        self.assertNotIn("Kadın",config.render(result))
+        self.assertNotIn("Weibliche",config.render(result))
         result["sound_events"][0]["confidence"]=0.15
-        self.assertNotIn("[Müzik]",config.render(result))
+        self.assertNotIn("[Music]",config.render(result))
 
     def test_ui_does_not_implicitly_enable_heavy_separation(self):
         source=(Path(__file__).resolve().parents[1]/
