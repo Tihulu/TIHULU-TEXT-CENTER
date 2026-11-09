@@ -430,7 +430,8 @@ def decode_segment(ts: bytes, *, mode="auto", page=150, source="de",
                    music_transcription: bool = False,
                    speech_priority: bool = False,
                    defer_asr_translation: bool = False,
-                   speech_auto: bool = False) -> dict:
+                   speech_auto: bool = False,
+                   auto_teletext_probe: bool = False) -> dict:
     if mode not in ("teletext", "page", "asr", "auto"):
         raise ValueError("Unsupported caption source")
     if type(page) is not int or not 100 <= page <= 899:
@@ -477,6 +478,32 @@ def decode_segment(ts: bytes, *, mode="auto", page=150, source="de",
                      if teletext_pid is not None else f"teletext_page_{page}")
                     if selected_page != "subtitle"
                     else "broadcaster_teletext_subtitles") if original else ""
+        # Auto mode may briefly check the *actual* speech against genuine
+        # broadcaster subtitles. Never run this in Teletext Hard or manual
+        # page mode. Three consecutive high-confidence conflicts are
+        # required by the caller before it may prefer Whisper.
+        teletext_probe = None
+        if (original and mode=="auto" and auto_teletext_probe):
+            details = {}
+            try:
+                opts={"diagnostics":details}
+                if audio_pid is not None:
+                    opts["audio_pid"]=audio_pid
+                probe_language=("auto" if speech_auto else
+                                (audio_source or source))
+                speech=asr_from_clip(p,probe_language,model,service_id,**opts)
+                if speech and isinstance(speech,str):
+                    teletext_probe={
+                        "text":speech[:2500],
+                        "source_language":(
+                            details.get("detected_language") or
+                            (probe_language if probe_language!="auto" else "und")),
+                        "word_timing_source":details.get("word_timing_source"),
+                        "words":details.get("words",[]),
+                    }
+            except (RuntimeError,ValueError,OSError,subprocess.TimeoutExpired):
+                # Teletext remains valid if optional test ASR is unavailable.
+                pass
         if not original and mode in ("asr", "auto"):
             asr_start = time.perf_counter()
             try:
@@ -578,6 +605,7 @@ def decode_segment(ts: bytes, *, mode="auto", page=150, source="de",
             translation_ms = round((time.perf_counter()-translate_start)*1000)
         translated = translations.get(target)
         return {"original": original, "raw_asr_original":raw_asr_original,
+                "teletext_probe":teletext_probe,
                 "translated": translated, "translations": translations,
                 "remote_error":speech_diagnostics.get("remote_error"),
                 "remote_fallback":speech_diagnostics.get("remote_fallback"),
