@@ -51,3 +51,12 @@ test("Native Qt schedule candidates and map/compute UI are independent of WebUSB
  assert.match(compute,/nativeSystem\?\.hardware/);
  assert.doesNotMatch(read('browser/pass_candidates.mjs'),/\.open\(|USBDevice|rtl_sdr|fetch\(/);
 });
+
+test("Long predicted pass preview uses native 25-minute bound and labels partial paths",()=>{
+ const map=read('browser/satellite_maps.mjs');
+ assert.match(map,/const previewLos=Math\.min\(pass\.los,pass\.aos\+1500000\)/);
+ assert.match(map,/const partialWindow=previewLos<pass\.los/);
+ assert.match(map,/nativePassPreview\(o\.lat,o\.lon,Number\(pass\.id\),pass\.aos,previewLos\)/);
+ assert.match(map,/PARTIAL 25-minute preview only/);
+ assert.match(map,/passPreview=\{\.\.\.result,partialWindow\}/);
+});
