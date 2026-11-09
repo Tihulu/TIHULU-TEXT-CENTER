@@ -4204,11 +4204,20 @@ private:
             qBound(2800,chars*63,9000):
             preset==2?qBound(5500,chars*65,12000):
             qBound(3300,chars*45,8500);
-        // Under load, avoid drifting tens of seconds behind live radio.
+        // TV-style Adaptive also reacts to actual observed Whisper model
+        // inference p80, rather than assuming every GPU/CPU model is fast.
+        // This only adjusts caption HOLD; it cannot change speaker PTS.
+        int adjusted=normal;
+        if(preset==3 && lagSamples_.size()>=3) {
+            QList<int> sorted=lagSamples_;
+            std::sort(sorted.begin(),sorted.end());
+            const int p80=sorted[sorted.size()*4/5];
+            adjusted=qMax(1800,normal-qBound(0,(p80-2500)/3,1700));
+        }
         // Backlog contracts the hold to ~2–4s without dropping phrases.
-        if(cueQueue_.size()>=4) return qMin(normal,2500);
-        if(cueQueue_.size()>=2) return qMin(normal,4000);
-        return normal;
+        if(cueQueue_.size()>=4) return qMin(adjusted,2500);
+        if(cueQueue_.size()>=2) return qMin(adjusted,4000);
+        return adjusted;
     }
     void setRadioLyricMatchStatus(const QString &message) {
         if(!radioLyricMatchStatus_) return;
@@ -4419,12 +4428,15 @@ private:
                     }
 				}
 			}
-            // Use a real captured PCM phrase-end time rather than
-            // anchoring captions to the end of potentially slow multi-
-            // language translation. This estimates stream presentation,
-            // NOT real libVLC audio/DAC PTS.
-            const qint64 wordEpoch=qRound64(obj.value(
+            // Use the first real GPU word for earlier caption presentation
+            // when available. CPU and multi-hop sentences fall back to the
+            // observed phrase END. These are capture-clock estimates, not DAC PTS.
+            const qint64 phraseEndEpoch=qRound64(obj.value(
                 QLatin1String("subtitle_audio_end_epoch_ms")).toDouble(0.));
+            const qint64 firstWordEpoch=qRound64(obj.value(
+                QLatin1String("subtitle_audio_start_epoch_ms")).toDouble(0.));
+            const qint64 wordEpoch=firstWordEpoch>now-120000 &&
+                firstWordEpoch<now+20000 ? firstWordEpoch:phraseEndEpoch;
             const bool hasCaptureTime=wordEpoch>now-120000 &&
                                       wordEpoch<now+20000;
             const int remaining=activePlaybackCacheMs_-6000-inference-
