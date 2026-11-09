@@ -13,7 +13,7 @@ from pathlib import Path
 PROFILES = {
     "pi5": {
         "name": "Raspberry Pi 5 · 8 GB",
-        "description": "Offline, lower-memory CPU speech. Tiny can be slow; benchmark live TV before enabling multiple translations.",
+        "description": "Whisper Tiny CPU + Argos offline. Limit speech inference to 3 CPU threads to reserve Pi 5 capacity for TV playback and translation; first benchmark a single target subtitle language.",
         "components": ("whisper_cpu", "tiny", "argos"),
         "speech": "tiny", "backend": "cpu", "translator": "argos",
         "min_ram_mib": 6000, "min_vram_mib": 0,
@@ -21,11 +21,11 @@ PROFILES = {
     },
     "pi5_hat2": {
         "name": "Raspberry Pi 5 · 8 GB + AI HAT+ 2 (8 GB NPU)",
-        "description": "Host CPU Whisper Tiny + Argos for now. Hailo-10H has separate 8 GB; these specific Whisper/Argos weights are NOT Hailo-compiled or NPU-accelerated.",
+        "description": "Whisper Base via Hailo-10H NPU when official encoder/decoder HEFs, NPY files and HailoRT are configured; CPU Tiny is the safe fallback. Argos still uses host CPU. HAT's 8GB is separate NPU memory.",
         "components": ("whisper_cpu", "tiny", "argos"),
         "speech": "tiny", "backend": "cpu", "translator": "argos",
         "min_ram_mib": 6000, "min_vram_mib": 0,
-        "disk_gb_estimate": "2–4 GB; optional Hailo models are not automatically provisioned",
+        "disk_gb_estimate": "2–4 GB CPU bundle; Hailo-10H Whisper assets installed separately",
     },
     "normal": {
         "name": "Normal · regular desktop / laptop",
@@ -88,9 +88,12 @@ def hardware_issue(key, hardware):
         return "This mode is for Raspberry Pi 5 hardware (preview only on this PC)"
     if key == "pi5_hat2":
         # /dev/hailo does not prove Hailo-10H model compatibility.
-        detected = hardware.get("npu",{}).get("devices") or []
+        npu = hardware.get("npu",{})
+        detected = npu.get("devices") or []
         if not any("hailo" in str(device).lower() for device in detected):
             return "Hailo device not detected; HAT+ 2 mode is preview-only"
+        if npu.get("hailo_arch") != "HAILO10H":
+            return "Hailo-10H not verified (hailortcli fw-control identify)"
     return None
 
 
@@ -193,7 +196,7 @@ def install_components(key, *, library=None, progress=None, installer=None):
     return steps
 
 
-def selection_patch(key, *, library, hardware, status):
+def selection_patch(key, *, library, hardware, status, hailo_ready=False):
     """Plan activation separately from installing; fail closed on missing assets."""
     spec=profile(key)
     issue=hardware_issue(key,hardware)
@@ -206,11 +209,17 @@ def selection_patch(key, *, library, hardware, status):
     chosen=library._path(spec["speech"])
     if not Path(chosen).is_file():
         raise RuntimeError("Missing local CPU Whisper fallback model")
+    # NPU is a separate, optional component. The HAT profile can always
+    # use its installed Tiny CPU fallback, but promotes speech to Hailo-10H
+    # only when model files and local runtime were actually inspected.
+    backend = ("npu" if key=="pi5_hat2" and hailo_ready
+               else spec["backend"])
     return {
         "active_profile":key,
         "asr_enabled":True,
         "translation_enabled":True,
-        "backend":spec["backend"],
+        "pi_cpu_threads":3 if key.startswith("pi5") else 3,
+        "backend":backend,
         "translation_model":spec["translator"],
         "model_path":str(chosen),
         "model_dir":str(library.root),
