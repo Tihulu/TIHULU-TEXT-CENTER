@@ -88,9 +88,14 @@ class OverlapSeparation:
              "--disable-pip-version-check","torch>=2.7,<3",
              "torchaudio>=2.7,<3","speechbrain==1.0.3",
              "scipy>=1.11,<2","numpy>=1.24,<3",
-             "huggingface_hub>=0.26,<2"],3000)
+             "huggingface_hub>=0.26,<1.0"],3000)
         env=self.env().copy()
         env.pop("HF_HUB_OFFLINE",None)  # owner specifically requested download
+        env.pop("TRANSFORMERS_OFFLINE",None)
+        # SpeechBrain 1.0.3 uses Hub 0.x APIs. HTTP downloads avoid
+        # optional Xet token/transport failures on desktop installations.
+        env["HF_HUB_DISABLE_XET"]="1"
+        env["HF_HUB_ETAG_TIMEOUT"]="30"
         code=("from huggingface_hub import snapshot_download;"
               "snapshot_download(repo_id="+repr(MODEL_ID)+
               ",revision="+repr(MODEL_REVISION)+
@@ -101,8 +106,22 @@ class OverlapSeparation:
             env=env,stdin=subprocess.DEVNULL,stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,timeout=1500,check=False)
         if proc.returncode:
-            raise RuntimeError("SepFormer model download failed: "+
-                               proc.stderr.decode("utf-8","replace")[-600:])
+            diagnostic=proc.stderr.decode("utf-8","replace").strip()
+            # Last traceback lines alone often omit the HTTP status and
+            # actual Hugging Face failure from the earlier exception.
+            lines=diagnostic.splitlines()
+            important=[line.strip() for line in lines if
+                any(term in line for term in (
+                    "HTTPError:","HfHubHTTPError:","OfflineModeIsEnabled:",
+                    "RepositoryNotFoundError:","RevisionNotFoundError:",
+                    "403 Client Error","401 Client Error","SSLError:",
+                    "ConnectError:","ReadTimeout:","RuntimeError:"))]
+            detail=" | ".join(important[-3:]) or "\n".join(lines[-5:])
+            raise RuntimeError(
+                "SepFormer model download failed at "+
+                MODEL_ID+"@"+MODEL_REVISION+": "+detail[-1100:]+
+                ". Check Hugging Face HTTPS access and retry; previously "
+                "downloaded model files remain available.")
         if not all((self.weights/file).is_file() for file in MODEL_FILES):
             raise RuntimeError("Incomplete SepFormer weights; retry install")
         (self.root/READY).write_text(
