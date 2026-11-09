@@ -4,6 +4,10 @@
  */
 export const CANDIDATE_STORAGE_KEY="tihulu-satellite-pass-planning-v1";
 const LIMIT=180;
+let sessionFallback=[];
+function safeStorage(){
+ try{return globalThis.localStorage??null;}catch{return null;}
+}
 function cleanName(value){return String(value||"Satellite").slice(0,96);}
 function validEpoch(value){return Number.isFinite(value)&&value>1000000000000;}
 export function candidateFromPass(pass,{observer=null,now=Date.now()}={}){
@@ -21,28 +25,33 @@ export function candidateFromPass(pass,{observer=null,now=Date.now()}={}){
   actualRecording:false,createdAt:now,
   note:"Orbital calendar candidate only. No SDR required; NO RF receiver scheduled."};
 }
-export function readPlanningCandidates(storage=globalThis.localStorage){
- if(!storage)return [];
+export function readPlanningCandidates(storage=undefined){
+ const store=storage===undefined?safeStorage():storage;
+ if(!store)return sessionFallback.slice();
  try{
-  const parsed=JSON.parse(storage.getItem(CANDIDATE_STORAGE_KEY)||"[]");
+  const parsed=JSON.parse(store.getItem(CANDIDATE_STORAGE_KEY)||"[]");
   if(!Array.isArray(parsed))return [];
   return parsed.filter(x=>x&&x.status==="planning-only"&&x.radioArmed===false&&
     validEpoch(x.aos)&&validEpoch(x.los)&&x.los>x.aos&&x.id&&x.norad)
     .slice(-LIMIT).sort((a,b)=>a.aos-b.aos);
- }catch{return [];}
+ }catch{return sessionFallback.slice();}
 }
-export function savePlanningCandidate(entry,storage=globalThis.localStorage){
+export function savePlanningCandidate(entry,storage=undefined){
  if(!entry||entry.status!=="planning-only"||entry.radioArmed!==false)
   throw Error("Planning entries cannot arm a receiver.");
- const rows=readPlanningCandidates(storage).filter(x=>x.id!==entry.id);
+ const store=storage===undefined?safeStorage():storage;
+ const rows=readPlanningCandidates(store).filter(x=>x.id!==entry.id);
  rows.push(entry);rows.sort((a,b)=>a.aos-b.aos);
  const next=rows.slice(-LIMIT);
- if(storage)try{storage.setItem(CANDIDATE_STORAGE_KEY,JSON.stringify(next));}
+ sessionFallback=next.slice();
+ if(store)try{store.setItem(CANDIDATE_STORAGE_KEY,JSON.stringify(next));}
  catch{/* Restricted storage: caller still has an in-memory candidate. */}
  return next;
 }
-export function removePlanningCandidate(id,storage=globalThis.localStorage){
- const rows=readPlanningCandidates(storage).filter(x=>x.id!==id);
- if(storage)try{storage.setItem(CANDIDATE_STORAGE_KEY,JSON.stringify(rows));}catch{}
+export function removePlanningCandidate(id,storage=undefined){
+ const store=storage===undefined?safeStorage():storage;
+ const rows=readPlanningCandidates(store).filter(x=>x.id!==id);
+ sessionFallback=rows.slice();
+ if(store)try{store.setItem(CANDIDATE_STORAGE_KEY,JSON.stringify(rows));}catch{}
  return rows;
 }
