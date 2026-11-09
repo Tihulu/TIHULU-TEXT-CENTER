@@ -343,6 +343,18 @@ public:
             "latency cannot be disabled. Changing this while playing "
             "reopens the audio stream once."));
         radioQuickRow_->addWidget(quickAi_);
+        quickTranslate_=new QCheckBox(tr("Radio translate · OFF"),page);
+        QSettings radioTranslatePrefs(QLatin1String("TIHULU"),
+                                      QLatin1String("KaffeineRadio"));
+        quickTranslate_->setChecked(radioTranslatePrefs.value(
+            QLatin1String("radioTranslationOptIn"),false).toBool());
+        quickTranslate_->setText(quickTranslate_->isChecked()?
+            tr("Radio translate · ON"):tr("Radio translate · OFF"));
+        quickTranslate_->setToolTip(tr(
+            "Explicitly use installed local Argos, NLLB or MADLAD for radio. "
+            "Never downloads models or opts into DeepL. Select OUT languages "
+            "using Edit; actual model availability is reported after processing."));
+        radioQuickRow_->addWidget(quickTranslate_);
         quickLanguageButton_=new QPushButton(
             tr("IN: AUTO · OUT: EN, DE, TR · Edit"),page);
         quickLanguageButton_->setToolTip(tr(
@@ -1789,6 +1801,23 @@ public:
             [this](){ changeSelectedStationList(true); });
         connect(removeStationList_,&QPushButton::clicked,this,
             [this](){ changeSelectedStationList(false); });
+        connect(quickTranslate_,&QCheckBox::toggled,this,[this](bool enabled){
+            QSettings prefs(QLatin1String("TIHULU"),
+                            QLatin1String("KaffeineRadio"));
+            prefs.setValue(QLatin1String("radioTranslationOptIn"),enabled);
+            quickTranslate_->setText(enabled?
+                tr("Radio translate · ON"):tr("Radio translate · OFF"));
+            if(captionProcess_.state()!=QProcess::NotRunning)
+                writeRadioLanguageControls();
+            if(radioTranslationBanner_) {
+                radioTranslationBanner_->setText(enabled?
+                    tr("Offline translation requested · checking local model "
+                       "and selected OUT languages on next audio chunk"):
+                    tr("Radio-only translation OFF · global AI Market "
+                       "setting still applies"));
+                radioTranslationBanner_->setVisible(true);
+            }
+        });
 		connect(quickAi_,&QCheckBox::toggled,this,[this](bool enabled){
             quickAi_->setText(enabled?tr("AI captions · ON"):tr("AI captions · OFF"));
             if(enabled) {
@@ -2194,7 +2223,9 @@ private:
             speechLanguage_->currentText().trimmed().toLower();
         const QJsonDocument document(QJsonObject{
             {QStringLiteral("source"),source},
-            {QStringLiteral("targets"),targets}});
+            {QStringLiteral("targets"),targets},
+            {QStringLiteral("radio_translations"),
+             quickTranslate_ && quickTranslate_->isChecked()}});
         QSaveFile file(captionControlsPath_);
         if(!file.open(QIODevice::WriteOnly)) {
             if(translationStatus_) translationStatus_->setText(tr(
@@ -3992,6 +4023,8 @@ private:
                <<QString::number(radioOffsetMs_->value());
 		if (music_->isChecked() || lyricsAudioFallbackActive_)
             options<<QLatin1String("--music");
+        if(quickTranslate_ && quickTranslate_->isChecked())
+            options<<QLatin1String("--radio-translations");
 		if (preferLyrics_->isChecked())
 			options<<QLatin1String("--prefer-verified-lyrics");
 		if (speakerLabels_->isChecked() && !music_->isChecked() &&
@@ -5076,7 +5109,8 @@ private:
     QComboBox *bufferUnit_=nullptr;
     bool bufferUnitsSeconds_=false;
     QHBoxLayout *radioQuickRow_=nullptr,*radioPlaybackRow_=nullptr;
-    QCheckBox *quickAi_=nullptr,*quickBuffer_=nullptr,*releaseOnStop_=nullptr;
+    QCheckBox *quickAi_=nullptr,*quickTranslate_=nullptr,
+        *quickBuffer_=nullptr,*releaseOnStop_=nullptr;
     QPushButton *captionEarlier_=nullptr,*captionLater_=nullptr;
     QLabel *captionOffsetReadout_=nullptr;
     QComboBox *radioReadingPreset_=nullptr;
