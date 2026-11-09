@@ -754,12 +754,20 @@ public:
         v->addWidget(new QLabel(
             tr("<b>1 · Heard audio (IN)</b> · Auto detect or choose English, German, etc."),lab));
 		speechLanguage_ = new QComboBox(lab);
-		speechLanguage_->addItem(tr("Auto detect · GPU Whisper"),"auto");
+		speechLanguage_->addItem(tr("Auto detect · Whisper (selected local model)"),"auto");
         // The complete supported Whisper input set is filled from the
         // shared catalog. Keep a usable offline fallback until it arrives.
         for(const QString &code:QStringList{"de","en","tr","fr","es","pl","ar","ja"})
             speechLanguage_->addItem(code.toUpper(),code);
-		speechLanguage_->setEditable(false);
+        speechLanguage_->setEditable(false);
+        speechLanguage_->setToolTip(tr(
+            "Auto detect uses the selected Whisper model. Every other IN "
+            "language is supported by a multilingual speech model, NOT a "
+            "separately installed translation package. Actual source "
+            "detection confidence depends on engine and the audio."));
+        spokenModelStatus_=new QLabel(tr(
+            "Checking locally installed Whisper model…"),lab);
+        spokenModelStatus_->setWordWrap(true);
         QSettings initialRadioLanguages(QLatin1String("TIHULU"),
                                        QLatin1String("KaffeineRadio"));
         const int savedSpeechIndex=speechLanguage_->findData(
@@ -800,6 +808,7 @@ public:
         row->addWidget(captionSource_,0,1,1,2);
         row->addWidget(new QLabel(tr("Speech language:"),lab),1,0);
         row->addWidget(speechLanguage_,1,1,1,2);
+        row->addWidget(spokenModelStatus_,2,0,1,3);
         // Legacy quick checkboxes are retained as disabled compatibility
         // objects only. ONE checkable multi-output list below owns targets.
         english_->hide(); german_->hide(); turkish_->hide();
@@ -948,7 +957,7 @@ public:
                 if(!inputLanguages.isEmpty()){
                     const QSignalBlocker block(speechLanguage_);
                     speechLanguage_->clear();
-                    speechLanguage_->addItem(tr("Auto detect · GPU Whisper"),"auto");
+                    speechLanguage_->addItem(tr("Auto detect · Whisper (selected local model)"),"auto");
                     for(const QJsonValue &value:inputLanguages){
                         const QJsonObject entry=value.toObject();
                         const QString code=entry.value(
@@ -962,6 +971,16 @@ public:
                     const int index=speechLanguage_->findData(previous);
                     speechLanguage_->setCurrentIndex(index>=0?index:0);
                 }
+                spokenModelStatus_->setText(info.value(
+                    QLatin1String("speech_model_present")).toBool()?
+                    tr("IN · Whisper model files found: %1. Listed spoken "
+                       "languages use the selected multilingual model "
+                       "(not installed one by one). Auto detect remains available.")
+                        .arg(info.value(QLatin1String("speech_models_installed"))
+                            .toArray().size()):
+                    tr("IN · No local Whisper model found. Choose or install "
+                       "one in Model Market. Auto detect is listed but "
+                       "cannot run until a speech model is available."));
                 translationStatus_->setText(tr(
                     "Selected TV/Radio translator: %1 · speech backend: %2. "
                     "%3 candidate outputs from installed model metadata. "
@@ -4378,7 +4397,7 @@ private:
     QLabel *selectedSource_=nullptr,*selectedStationVintage_=nullptr,
            *vintageDabReadout_=nullptr;
 	QComboBox *lyricsSourceLanguage_=nullptr;
-    QLabel *translationStatus_=nullptr;
+    QLabel *translationStatus_=nullptr,*spokenModelStatus_=nullptr;
     QLabel *radioTranslationBanner_=nullptr;
     QLabel *radioCanvasCaption_=nullptr,*radioLyricMatchStatus_=nullptr;
     QLabel *radioAudioHealth_=nullptr;
