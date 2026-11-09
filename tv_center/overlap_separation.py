@@ -195,14 +195,20 @@ def accept_two_transcripts(results):
             return None
         text=item.get("text")
         words=item.get("words")
-        if not isinstance(text,str) or len(text.split())<2 or not isinstance(words,list):
+        if (not isinstance(text,str) or not text.strip() or
+                not isinstance(words,list)):
             return None
         valid=[w for w in words if isinstance(w,dict)
                and isinstance(w.get("text"),str)
                and isinstance(w.get("start"),(int,float))
                and isinstance(w.get("end"),(int,float))
                and 0<=w["start"]<=w["end"]<=60]
-        if len(valid)<2 or not isinstance(item.get("language"),str):
+        # One-word interruptions such as "Merhaba!" can be genuine when
+        # the OTHER channel has a longer independent phrase. Require real
+        # word timing, sufficient duration and distinct transcripts below.
+        if (not valid or
+                float(valid[-1]["end"])-float(valid[0]["start"])<0.18 or
+                not isinstance(item.get("language"),str)):
             return None
         cleaned.append({"speaker_index":i+1,
                         "speaker_label":f"[Voice {i+1} · provisional]",
@@ -214,6 +220,16 @@ def accept_two_transcripts(results):
     norm=lambda t:" ".join(t.casefold().split())
     if SequenceMatcher(None,norm(cleaned[0]["original"]),
                        norm(cleaned[1]["original"])).ratio()>0.68:
+        return None
+    if all(len(part["words"])==1 for part in cleaned):
+        return None  # too little evidence: two standalone ASR tokens
+    a_start,a_end=(cleaned[0]["words"][0]["start"],
+                   cleaned[0]["words"][-1]["end"])
+    b_start,b_end=(cleaned[1]["words"][0]["start"],
+                   cleaned[1]["words"][-1]["end"])
+    if min(a_end,b_end)-max(a_start,b_start)<0.2:
+        # Sources do not actually overlap in time. Ordinary speaker
+        # diarization, NOT two-source simultaneous captions, handles them.
         return None
     cleaned.sort(key=lambda item:(item["first_word_s"],item["speaker_index"]))
     return cleaned
