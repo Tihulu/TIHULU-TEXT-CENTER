@@ -2542,6 +2542,14 @@ def main(argv=None):
                         status.setText(status.text() +
                             " | Speech-follow: real GPU word timestamps; "
                             "non-overlapping translated phrases are estimates")
+                    if data.get("npu_notice"):
+                        status.setText(
+                            status.text()+" | "+str(data["npu_notice"])[:170])
+                    if data.get("npu_error"):
+                        status.setText(
+                            status.text()+" | Hailo-10H ASR failed: "+
+                            str(data["npu_error"])[:140]+
+                            " · using "+str(data.get("npu_fallback") or "no fallback"))
                     if data.get("remote_error"):
                         status.setText(
                             status.text()+" | Remote GPU unavailable: "+
