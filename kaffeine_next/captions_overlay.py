@@ -52,6 +52,9 @@ class CaptionTap:
         self.transport_health = TransportContinuityMeter()
         self.packet_guard = CaptionPacketGuard()
         self.subtitle_discovery = TeletextSubtitleDiscovery()
+        from .teletext_match import TeletextAudit
+        self.teletext_audit = TeletextAudit()
+        self.teletext_audit_session = None
         self.program_epoch = 0
         self.native_tune_state = None
         self.recv_buffer_bytes = None
@@ -392,6 +395,13 @@ class CaptionTap:
             ai = AISettings()
             ai.configure_environment()
             selected = options["mode"]
+            audit_session=(options.get("program_epoch"),
+                           options.get("revision",0))
+            if audit_session!=self.teletext_audit_session:
+                self.teletext_audit.reset()
+                self.teletext_audit_session=audit_session
+            if selected=="auto" and self.teletext_audit.prefer_asr:
+                selected="asr"
             if selected in ("asr", "auto") and not ai.values["asr_enabled"]:
                 if selected == "asr":
                     raise RuntimeError("Whisper disabled. Enable in AI Model Market.")
@@ -415,8 +425,7 @@ class CaptionTap:
                            if selected in ("auto", "asr") else None),
                 audio_source=(options.get("audio_source")
                               if selected in ("auto", "asr") else None),
-                speech_auto=(bool(options.get("spoken_auto")) and
-                             ai.values.get("backend") in ("gpu","remote")),
+                speech_auto=bool(options.get("spoken_auto")),
                 speaker_enabled=bool(options.get("speaker_enabled",False))
                                 and selected in ("auto","asr"),
                 speaker_provider=options.get("speaker_provider","resemblyzer"),
@@ -424,7 +433,40 @@ class CaptionTap:
                 speech_priority=bool(options.get("speech_priority",False)),
                 previous_text=previous,
                 defer_asr_translation=not bool(
-                    options.get("music_transcription",False)))
+                    options.get("music_transcription",False)),
+                auto_teletext_probe=(
+                    selected=="auto" and ai.values["asr_enabled"] and
+                    self.teletext_audit.needs_probe()))
+            probe=result.pop("teletext_probe",None)
+            if (probe and selected=="auto" and
+                    str(result.get("source","")).startswith(
+                        "broadcaster_teletext")):
+                verdict=self.teletext_audit.observe(
+                    result.get("original"),probe.get("text"),
+                    result.get("source_language"),probe.get("source_language"))
+                result["teletext_audit"]=(
+                    f"{self.teletext_audit.attempts}/{self.teletext_audit.maximum}"
+                    " initial checks · "+verdict)
+                if verdict=="switched":
+                    # Use REAL recognition from the same TS capture; do not
+                    # invent dialogue or rerun the costly model twice.
+                    result["original"]=probe["text"]
+                    result["raw_asr_original"]=probe["text"]
+                    result["source_language"]=probe["source_language"]
+                    result["source"]="local_asr"
+                    result["word_timing_source"]=probe.get("word_timing_source")
+                    result["words"]=probe.get("words",[])
+                    result["translations"]={}
+                    result["translation_errors"]={}
+                    result["translation_warnings"]={}
+                    result["translation_engines"]={}
+                    result["teletext_audit"]=(
+                        "Teletext differed from confirmed spoken language "
+                        "in 3 initial checks; switched Auto to Whisper")
+            elif selected=="asr" and options["mode"]=="auto":
+                result["teletext_audit"]=(
+                    "Auto: Whisper selected after repeated early "
+                    "Teletext mismatch; Teletext Hard remains available")
             if options.get("program_epoch") != self.program_epoch:
                 return  # old channel's caption must never appear on new TV
             if result.get("source") == "local_asr" and result.get("original"):
@@ -707,7 +749,7 @@ def main(argv=None):
     row = QHBoxLayout()
     mode = QComboBox()
     mode.addItem("Teletext subtitles → Whisper fallback", "auto")
-    mode.addItem("Broadcaster Teletext subtitles", "teletext")
+    mode.addItem("Teletext Hard · broadcaster subtitles (no Whisper test)", "teletext")
     mode.addItem("Whisper live transcription", "asr")
     mode.addItem("Manual Teletext page", "page")
     mode.addItem("Off", "off")
@@ -2654,6 +2696,9 @@ def main(argv=None):
                             str(data["remote_error"])[:140]+
                             " · fallback: "+
                             str(data.get("remote_fallback") or "disabled"))
+                    if data.get("teletext_audit"):
+                        status.setText(
+                            status.text()+" | "+str(data["teletext_audit"])[:200])
                     if data.get("speaker_error"):
                         status.setText(status.text() +
                             " | Diarization unavailable: " +
