@@ -120,7 +120,7 @@ class RadioCaptionLiveLanguageTests(unittest.TestCase):
             "model not found",
             "rightLayout->addWidget(captionProgress_)"):
             self.assertIn(required,src)
-        self.assertNotIn("now+qMax(0,remaining)+radioOffsetMs_->value();",src)
+        self.assertNotIn("const qint64 due=now+qMax(0,remaining)",src)
 
 
 if __name__=="__main__":
