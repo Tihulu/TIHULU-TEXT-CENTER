@@ -385,7 +385,14 @@ def asr_from_clip(path: Path, language: str, model: str,
                     diagnostics["overlap_note"]=(
                         "Experimental 2-voice separation unavailable; kept "
                         "original mixed audio: "+str(exc)[:130])
-        return _speaker_details(audio.stdout, details["text"].strip(),
+        primary_text=details["text"].strip()
+        if not primary_text and diagnostics is not None and diagnostics.get(
+                "overlap_lines"):
+            # The mixed waveform can be unintelligible although source A
+            # and B are independently recognized. Use actual source A ASR,
+            # not an invented blended transcript, as the original fallback.
+            primary_text=diagnostics["overlap_lines"][0]["original"]
+        return _speaker_details(audio.stdout,primary_text,
                                 diagnostics, speaker_enabled, speaker_provider,
                                 channel=f"{service_id}:{audio_pid}")
     try:
