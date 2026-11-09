@@ -335,7 +335,7 @@ public:
         quickAi_->setChecked(false);
         quickAi_->setToolTip(tr("Whisper and translation are OFF at startup. "
             "When enabled, captions follow station changes; scanning disables them."));
-        quickBuffer_=new QCheckBox(tr("Extra audio buffer · OFF"),page);
+        quickBuffer_=new QCheckBox(tr("Extra buffer · OFF"),page);
         quickBuffer_->setChecked(false);
         quickBuffer_->setToolTip(tr("Enable a user-selected libVLC network cache. "
             "OFF means no EXTRA cache request; demodulator and device "
@@ -348,9 +348,12 @@ public:
             "Choose original speech and translation languages; "
             "updates reach the current radio ASR worker live."));
         radioQuickRow_->addWidget(quickLanguageButton_);
-        radioQuickRow_->addWidget(quickBuffer_);
         radioQuickRow_->addStretch(1);
         dabLayout->addLayout(radioQuickRow_);
+        radioPlaybackRow_=new QHBoxLayout();
+        radioPlaybackRow_->addWidget(quickBuffer_);
+        radioPlaybackRow_->addStretch(1);
+        dabLayout->addLayout(radioPlaybackRow_);
         quickBufferProgress_=new QProgressBar(page);
         quickBufferProgress_->setRange(0,100);
         quickBufferProgress_->setValue(0);
@@ -1015,7 +1018,7 @@ public:
         quickBuffer_->setChecked(
             radioSettings.value(QLatin1String("radioBufferEnabled"),false).toBool());
         quickBuffer_->setText(quickBuffer_->isChecked()?
-            tr("Extra audio buffer · ON"):tr("Extra audio buffer · OFF"));
+            tr("Extra buffer · ON"):tr("Extra buffer · OFF"));
         // Legacy 12s network cache is intentionally NOT reenabled just
         // because an earlier installation had saved it. Preserve its
         // numeric preference for the next explicit user enable.
@@ -1025,14 +1028,14 @@ public:
             "Range 0–60000 ms (safety limit, 60 s). If changed during playback "
             "it remains PENDING until Apply or the next station; not verified "
             "physical DAC/ALSA delay."));
-        autoSync_=new QCheckBox(tr("Auto-size buffer · ASR + safety"),page);
+        autoSync_=new QCheckBox(tr("Auto size · ASR + safety"),page);
         autoSync_->setChecked(quickBuffer_->isChecked() &&
             radioSettings.value(QLatin1String("radioAutoBufferEnabled"),false).toBool());
         autoSync_->setToolTip(tr("Optional. Estimate extra playback cache from "
             "five-second speech capture, observed ASR/translation workload "
             "and a three-second margin. NOT a measured DAC clock or RF "
             "dropout detector. Does NOT restart live audio by default."));
-        radioQuickRow_->insertWidget(2,autoSync_);
+        radioPlaybackRow_->insertWidget(1,autoSync_);
 		radioOffsetMs_=new QSpinBox(lab);
 		radioOffsetMs_->setRange(-12000,12000);
 		radioOffsetMs_->setSingleStep(250);
@@ -1245,8 +1248,8 @@ public:
 		});
 		lyricsRow->addWidget(lyrics_,0,0);
 		lyricsRow->addWidget(stopLyrics_,0,1);
-		radioQuickRow_->insertWidget(3,autoLyrics_);
-        autoLyrics_->setText(tr("Auto-find lyrics · online opt-in"));
+		radioPlaybackRow_->insertWidget(2,autoLyrics_);
+        autoLyrics_->setText(tr("Auto lyrics · online opt-in"));
         lyricsRow->addWidget(listenLyrics_,5,0,1,2);
         lyricsRow->addWidget(listenFallbackOnMiss_,5,2);
 		lyricsRow->addWidget(autoLyricSync_,1,0,1,2);
@@ -4373,7 +4376,7 @@ private:
 	QSpinBox *bufferMs_=nullptr,*radioOffsetMs_=nullptr;
     QComboBox *bufferUnit_=nullptr;
     bool bufferUnitsSeconds_=false;
-    QHBoxLayout *radioQuickRow_=nullptr;
+    QHBoxLayout *radioQuickRow_=nullptr,*radioPlaybackRow_=nullptr;
     QCheckBox *quickAi_=nullptr,*quickBuffer_=nullptr,*releaseOnStop_=nullptr;
 	QCheckBox *autoSync_=nullptr,*autoRestartAudio_=nullptr;
 	int lastCaptionOffsetMs_=0;
