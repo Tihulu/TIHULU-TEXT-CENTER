@@ -429,7 +429,8 @@ def decode_segment(ts: bytes, *, mode="auto", page=150, source="de",
                    speaker_provider: str = "resemblyzer",
                    music_transcription: bool = False,
                    speech_priority: bool = False,
-                   defer_asr_translation: bool = False) -> dict:
+                   defer_asr_translation: bool = False,
+                   speech_auto: bool = False) -> dict:
     if mode not in ("teletext", "page", "asr", "auto"):
         raise ValueError("Unsupported caption source")
     if type(page) is not int or not 100 <= page <= 899:
@@ -492,7 +493,10 @@ def decode_segment(ts: bytes, *, mode="auto", page=150, source="de",
                 # Real DVB audio-language descriptors are a stronger hint
                 # than six seconds of noisy live TV speech. Do not ignore
                 # the selected/signalled audio language in Auto mode.
-                speech_language = audio_source or source
+                # Explicit GPU/remote Spoken=Auto permits a language
+                # switch inside the same TV channel. DVB descriptors remain
+                # hints, never a forced Whisper language in this mode.
+                speech_language = "auto" if speech_auto else (audio_source or source)
                 original = asr_from_clip(p, speech_language, model, service_id,
                                          **asr_kwargs)
                 # Filter only unmistakable repeated Whisper loops (often
