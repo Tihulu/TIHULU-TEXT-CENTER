@@ -119,13 +119,43 @@ def translate_offline(text:str,source:str,target:str,backend:str="auto")->str:
     try:
         import argostranslate.translate as translate
         languages={x.code:x for x in translate.get_installed_languages()}
-        source_lang=languages[source]
-        target_lang=languages[target]
-        model=source_lang.get_translation(target_lang)
-        output=model.translate(text)
+        if source not in languages or target not in languages:
+            raise TranslatorUnavailable(
+                "Argos language packages unavailable for "+
+                source.upper()+" → "+target.upper()+
+                "; install both directions or matching English pivot packs")
+        src_lang, dst_lang=languages[source],languages[target]
+        try:
+            model=src_lang.get_translation(dst_lang)
+        except (KeyError,AttributeError,ValueError,LookupError):
+            model=None
+        if model is not None:
+            # Argos may itself return a composite source→English→target
+            # model when both directed packs are installed.
+            output=model.translate(text)
+        elif source!="en" and target!="en" and "en" in languages:
+            english=languages["en"]
+            try:
+                to_english=src_lang.get_translation(english)
+                from_english=english.get_translation(dst_lang)
+            except (KeyError,AttributeError,ValueError,LookupError) as exc:
+                raise TranslatorUnavailable(
+                    "Argos route missing: "+source.upper()+
+                    " → EN → "+target.upper()+
+                    ". Install both required directed language packs.") from exc
+            intermediate=to_english.translate(text)
+            if not isinstance(intermediate,str) or not intermediate.strip():
+                raise TranslatorUnavailable(
+                    "Argos English-pivot first stage produced no text")
+            output=from_english.translate(intermediate)
+        else:
+            raise TranslatorUnavailable(
+                "Argos direct translation package missing: "+
+                source.upper()+" → "+target.upper())
     except (ImportError,KeyError,AttributeError,ValueError,LookupError) as exc:
-        raise TranslatorUnavailable("Argos Translate model for "+
-            source+" → "+target+" is not installed") from exc
+        raise TranslatorUnavailable(
+            "Argos Translate model missing for "+source.upper()+
+            " → "+target.upper()) from exc
     if not isinstance(output,str) or not output.strip():
         raise TranslatorUnavailable("Translation engine did not return text")
     return output[:12000]
