@@ -354,6 +354,64 @@ public:
         radioPlaybackRow_->addWidget(quickBuffer_);
         radioPlaybackRow_->addStretch(1);
         dabLayout->addLayout(radioPlaybackRow_);
+        // Common controls must be reachable while listening, without
+        // opening the advanced Whisper/AI menu. Radio has no video lips:
+        // this is audio-to-subtitle timing, not a measured DAC clock.
+        auto *captionComfortRow=new QHBoxLayout();
+        captionComfortRow->addWidget(new QLabel(tr(
+            "Audio ↔ captions (estimated):"),page));
+        captionEarlier_=new QPushButton(tr("−250 ms"),page);
+        captionLater_=new QPushButton(tr("+250 ms"),page);
+        captionEarlier_->setToolTip(tr(
+            "Text appears 250 ms earlier. Does not retune radio audio."));
+        captionLater_->setToolTip(tr(
+            "Text appears 250 ms later. Does not retune radio audio."));
+        captionOffsetReadout_=new QLabel(tr("Offset +0 ms"),page);
+        captionOffsetReadout_->setToolTip(tr(
+            "Your manual subtitle offset (negative = earlier). "
+            "Actual libVLC/ALSA audio presentation time is unmeasured."));
+        captionComfortRow->addWidget(captionEarlier_);
+        captionComfortRow->addWidget(captionLater_);
+        captionComfortRow->addWidget(captionOffsetReadout_);
+        captionComfortRow->addSpacing(12);
+        captionComfortRow->addWidget(new QLabel(tr("Reading:"),page));
+        radioReadingPreset_=new QComboBox(page);
+        radioReadingPreset_->addItem(tr("Live · fast"),0);
+        radioReadingPreset_->addItem(tr("Comfort · recommended"),1);
+        radioReadingPreset_->addItem(tr("Relaxed · longer hold"),2);
+        radioReadingPreset_->setToolTip(tr(
+            "Avoid rapidly flashing phrases. Comfort pauses between new "
+            "captions so they remain readable; extra languages may lag "
+            "behind live speech. Does not change radio audio."));
+        QSettings captionPreferences(QLatin1String("TIHULU"),
+                                     QLatin1String("KaffeineRadio"));
+        const int readingPreference=qBound(0,captionPreferences.value(
+            QLatin1String("radioReadingPreset"),1).toInt(),2);
+        radioReadingPreset_->setCurrentIndex(readingPreference);
+        captionComfortRow->addWidget(radioReadingPreset_);
+        captionComfortRow->addWidget(new QLabel(tr("Text:"),page));
+        radioCaptionFontSize_=new QSpinBox(page);
+        radioCaptionFontSize_->setRange(14,28);
+        radioCaptionFontSize_->setSuffix(tr(" pt"));
+        radioCaptionFontSize_->setValue(qBound(14,captionPreferences.value(
+            QLatin1String("radioCaptionFontPt"),18).toInt(),28));
+        captionComfortRow->addWidget(radioCaptionFontSize_);
+        captionComfortRow->addStretch(1);
+        dabLayout->addLayout(captionComfortRow);
+        connect(radioReadingPreset_,QOverload<int>::of(
+            &QComboBox::currentIndexChanged),this,[this](int){
+            QSettings prefs(QLatin1String("TIHULU"),
+                            QLatin1String("KaffeineRadio"));
+            prefs.setValue(QLatin1String("radioReadingPreset"),
+                           radioReadingPreset_->currentData().toInt());
+        });
+        connect(radioCaptionFontSize_,QOverload<int>::of(
+            &QSpinBox::valueChanged),this,[this](int size){
+            QSettings prefs(QLatin1String("TIHULU"),
+                            QLatin1String("KaffeineRadio"));
+            prefs.setValue(QLatin1String("radioCaptionFontPt"),size);
+            updateRadioCaptionTypography();
+        });
         quickBufferProgress_=new QProgressBar(page);
         quickBufferProgress_->setRange(0,100);
         quickBufferProgress_->setValue(0);
@@ -707,6 +765,7 @@ public:
             "exists, actual speech stays visible as a transcription."));
         captionSurface->addWidget(radioLyricMatchStatus_);
         captionSurface->addWidget(radioCanvasCaption_);
+        updateRadioCaptionTypography();
 
 		auto *meta = new QHBoxLayout();
 		slide_ = new QLabel(tr("No DAB slideshow"), right);
@@ -1124,7 +1183,22 @@ public:
                 advancedSyncPanel,&QWidget::setVisible);
         v->addWidget(advancedSyncToggle);
         v->addWidget(advancedSyncPanel);
-		lastCaptionOffsetMs_=radioOffsetMs_->value();
+        lastCaptionOffsetMs_=radioOffsetMs_->value();
+        const auto updateOffsetReadout=[this](){
+            if(captionOffsetReadout_) captionOffsetReadout_->setText(
+                tr("Offset %1%2 ms")
+                .arg(radioOffsetMs_->value()>=0?QLatin1String("+"):QString())
+                .arg(radioOffsetMs_->value()));
+        };
+        updateOffsetReadout();
+        connect(captionEarlier_,&QPushButton::clicked,this,[this](){
+            radioOffsetMs_->setValue(qMax(-12000,radioOffsetMs_->value()-250));
+        });
+        connect(captionLater_,&QPushButton::clicked,this,[this](){
+            radioOffsetMs_->setValue(qMin(12000,radioOffsetMs_->value()+250));
+        });
+        connect(radioOffsetMs_,QOverload<int>::of(&QSpinBox::valueChanged),
+            this,[updateOffsetReadout](int){ updateOffsetReadout(); });
 		connect(radioOffsetMs_,QOverload<int>::of(&QSpinBox::valueChanged),
 			this,[this](int newOffset){
 				QSettings saved(QLatin1String("TIHULU"),QLatin1String("KaffeineRadio"));
@@ -4508,6 +4582,10 @@ private:
     bool bufferUnitsSeconds_=false;
     QHBoxLayout *radioQuickRow_=nullptr,*radioPlaybackRow_=nullptr;
     QCheckBox *quickAi_=nullptr,*quickBuffer_=nullptr,*releaseOnStop_=nullptr;
+    QPushButton *captionEarlier_=nullptr,*captionLater_=nullptr;
+    QLabel *captionOffsetReadout_=nullptr;
+    QComboBox *radioReadingPreset_=nullptr;
+    QSpinBox *radioCaptionFontSize_=nullptr;
 	QCheckBox *autoSync_=nullptr,*autoRestartAudio_=nullptr;
 	int lastCaptionOffsetMs_=0;
     int activePlaybackCacheMs_=0;
