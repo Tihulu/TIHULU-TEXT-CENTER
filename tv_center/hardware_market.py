@@ -28,6 +28,37 @@ def _find_executable(executable, alternatives=()):
          and os.access(name,os.X_OK)), None)
 
 
+def quick_hardware():
+    """Cheap startup snapshot; NO subprocess, compiler probe or model import.
+
+    Detailed GPU/NPU detection runs in a worker only after the UI is visible.
+    """
+    try:
+        ram=int(re.search(r"^MemTotal:\s+(\d+)\s+kB",
+                          Path("/proc/meminfo").read_text(),re.M).group(1))//1024
+    except (OSError,AttributeError,ValueError):
+        ram=None
+    try:
+        pi5="Raspberry Pi 5" in Path("/proc/device-tree/model").read_text(
+            encoding="utf-8",errors="replace")
+    except OSError:
+        pi5=False
+    hailo=[p.name for p in Path("/dev").glob("hailo*")]
+    return {
+        "cpu":platform.machine() or "CPU",
+        "architecture":platform.machine(),
+        "ram_mib":ram,
+        "raspberry_pi_5":pi5,
+        "gpu":{"detected":False,"name":"Checking in background…",
+               "vram_mib":None,"compute_capability":None,
+               "driver_tool":False,"cuda_compiler":None,"cuda_version":None,
+               "cuda_compile_possible":False,
+               "reason":"Full CUDA discovery is deferred until after first paint"},
+        "npu":{"detected":bool(hailo),"devices":hailo,"ready":False,
+               "detail":"NPU model compatibility unverified"},
+    }
+
+
 def detect_hardware():
     nvidia_smi = _find_executable("nvidia-smi",
                                  ("/usr/bin/nvidia-smi","/bin/nvidia-smi",

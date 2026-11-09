@@ -222,7 +222,10 @@ case "${1:-}" in
   --diagnose-no-audio) TIHULU_VLC_PROFILE=software-no-audio; shift ;;
 esac
 export TIHULU_VLC_PROFILE
-if [ "$#" -eq 0 ]; then
+# Fast, on-demand first paint: don't open or tune DVB automatically just
+# because the user opened Media Center. Explicitly set the opt-in below
+# to restore the former --lastchannel autoplay behavior.
+if [ "$#" -eq 0 ] && [ "${TIHULU_AUTOPLAY_LAST_CHANNEL:-0}" = 1 ]; then
   set -- --lastchannel
 fi
 # Do not launch two TIHULU instances that fight for the same frontend.

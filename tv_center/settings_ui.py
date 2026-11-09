@@ -21,7 +21,11 @@ def open_ai_settings(parent, ai, after_save=None):
     from .speaker_market import SpeakerMarket
     from .free_speakers import FreeSpeakerMarket
     from .ai_provision import StarterAI
-    from .hardware_market import detect_hardware, model_fit
+    from .hardware_market import detect_hardware, quick_hardware, model_fit
+    from .ai_profiles import (PROFILES, COMPONENTS, profile, local_status,
+                              install_components, selection_patch, hardware_issue)
+    from .remote_gpu import (validate_endpoint, save_token, read_token,
+                             delete_token, test_connection)
     from .translation_market import TranslationModelMarket, LICENSE as NLLB_LICENSE
     from .translation_madlad import MadladMarket
     from .deepl_api import read_key, save_key, remove_key
@@ -93,7 +97,11 @@ def open_ai_settings(parent, ai, after_save=None):
             self.work = queue.Queue()
             self.running = False
             self.library = ModelLibrary(ai.values["model_dir"] or None)
-            self.hardware = detect_hardware()
+            self.hardware = quick_hardware()
+            self._compute_busy = False
+            self._argos_busy = False
+            self._starter_busy = False
+            self._profile_inventory_busy = False
             self.translation_market = TranslationModelMarket()
             outer = QVBoxLayout(self)
             outer.setContentsMargins(12, 12, 12, 10)
@@ -138,14 +146,14 @@ def open_ai_settings(parent, ai, after_save=None):
             self.translator.setChecked(ai.values["translation_enabled"])
             form.addRow(self.translator)
             self.backend = QComboBox()
-            self.backend.addItems(["auto", "gpu", "cpu"])
+            self.backend.addItems(["auto", "gpu", "cpu", "remote"])
             if self.hardware["npu"]["detected"]:
                 self.backend.addItem("npu")
             self.backend.setCurrentText(
                 ai.values["backend"] if self.backend.findText(
                     ai.values["backend"]) >= 0 else "auto")
             self.backend.setToolTip(
-                "RTX 5080 uses GPU CUDA, NOT NPU. NPU is shown only when "
+                "RTX 5080 is GPU CUDA, NOT NPU. Remote requires explicit TLS and token. NPU is shown only when "
                 "a compatible discrete Intel/Hailo accelerator is detected.")
             form.addRow("Inference engine", self.backend)
             self.compute = QLabel("")
@@ -424,6 +432,77 @@ def open_ai_settings(parent, ai, after_save=None):
             root.removeWidget(langs)
             language_stack.addWidget(langs)
             language_stack.addStretch()
+            profile_page = QWidget()
+            profile_layout = QVBoxLayout(profile_page)
+            profile_layout.setContentsMargins(12, 16, 12, 12)
+            profile_layout.setSpacing(14)
+            guided = QGroupBox("Recommended modes · install before selecting")
+            guided_layout = QVBoxLayout(guided)
+            self.profile_choice = QComboBox()
+            for key, spec in PROFILES.items():
+                self.profile_choice.addItem(spec["name"], key)
+            initial = ai.values.get("active_profile") or (
+                "pi5" if self.hardware["raspberry_pi_5"] else "performance")
+            self.profile_choice.setCurrentIndex(
+                max(0, self.profile_choice.findData(initial)))
+            self.profile_choice.currentIndexChanged.connect(
+                self.show_profile_description)
+            guided_layout.addWidget(self.profile_choice)
+            self.profile_description = QLabel("")
+            self.profile_description.setWordWrap(True)
+            guided_layout.addWidget(self.profile_description)
+            self.profile_components = QLabel("Choose a profile to inspect components.")
+            self.profile_components.setWordWrap(True)
+            guided_layout.addWidget(self.profile_components)
+            buttons = QHBoxLayout()
+            self.profile_inspect = QPushButton("Check installed")
+            self.profile_inspect.clicked.connect(self.inspect_profile)
+            self.profile_install = QPushButton("Install all")
+            self.profile_install.clicked.connect(self.install_profile)
+            self.profile_select = QPushButton("Select mode")
+            self.profile_select.clicked.connect(self.select_profile)
+            for btn in (self.profile_inspect, self.profile_install, self.profile_select):
+                buttons.addWidget(btn)
+            guided_layout.addLayout(buttons)
+            profile_layout.addWidget(guided)
+            remote_group = QGroupBox("Remote GPU · opt-in TLS speech processing")
+            remote_layout = QFormLayout(remote_group)
+            self.remote_enabled = QCheckBox(
+                "Allow sending spoken TV audio to another GPU computer")
+            self.remote_enabled.setChecked(ai.values.get("remote_gpu_enabled", False))
+            remote_layout.addRow(self.remote_enabled)
+            self.remote_endpoint = QLineEdit(ai.values.get("remote_gpu_url", ""))
+            self.remote_endpoint.setPlaceholderText("https://gpu-host.example:8443")
+            remote_layout.addRow("HTTPS GPU host", self.remote_endpoint)
+            self.remote_fallback = QCheckBox(
+                "Fall back to local Auto when remote server unavailable")
+            self.remote_fallback.setChecked(ai.values.get("remote_gpu_fallback", True))
+            remote_layout.addRow(self.remote_fallback)
+            self.remote_token = QLineEdit()
+            self.remote_token.setEchoMode(QLineEdit.Password)
+            self.remote_token.setPlaceholderText("16–256 character shared private token")
+            remote_layout.addRow("Shared secret", self.remote_token)
+            remote_buttons = QHBoxLayout()
+            save_remote = QPushButton("Save token")
+            save_remote.clicked.connect(self.save_remote_token)
+            probe = QPushButton("Test TLS · no audio")
+            probe.clicked.connect(self.test_remote_gpu)
+            remove_remote = QPushButton("Remove token")
+            remove_remote.clicked.connect(self.remove_remote_token)
+            for btn in (save_remote, probe, remove_remote):
+                remote_buttons.addWidget(btn)
+            remote_layout.addRow(remote_buttons)
+            warning = QLabel(
+                "Install and explicitly start the TLS CUDA service on the remote "
+                "computer. Remote inference occurs ONLY when enabled here AND "
+                "Inference engine = remote is saved. Voice audio leaves this "
+                "device; TV video and DVB tuner never do. No automatic discovery.")
+            warning.setWordWrap(True)
+            remote_layout.addRow(warning)
+            profile_layout.addWidget(remote_group)
+            profile_layout.addStretch()
+            tabs.addTab(scroll_tab(profile_page), "Ready modes · Install all")
+            self.show_profile_description()
             tabs.addTab(scroll_tab(speech_page), "Speech models · GPU / NPU")
             tabs.addTab(scroll_tab(language_page), "Language packs · Translation")
 
@@ -578,13 +657,138 @@ def open_ai_settings(parent, ai, after_save=None):
             self.timer = QTimer(self)
             self.timer.timeout.connect(self.process_events)
             self.timer.start(250)
+            # Don't block the first paint on NVIDIA, Argos subprocesses
+            # or model readiness. Heavy probes run in read-only workers.
             self.populate_models()
-            self.inspect_compute()
             self.refresh_all_models()
-            self.inspect_argos()
             self.inspect_runtime()
-            self.inspect_starter()
             self.inspect_speaker()
+            QTimer.singleShot(0, self.inspect_compute)
+            QTimer.singleShot(0, self.inspect_argos)
+            QTimer.singleShot(0, self.inspect_starter)
+
+        def show_profile_description(self, *_):
+            key = self.profile_choice.currentData()
+            if key not in PROFILES:
+                return
+            spec = profile(key)
+            parts = "\n".join(
+                " • "+COMPONENTS[name][0]+" — "+COMPONENTS[name][1]
+                for name in spec["components"])
+            issue=hardware_issue(key,self.hardware)
+            self.profile_description.setText(
+                spec["description"]+"\nEstimated disk: "+
+                spec["disk_gb_estimate"]+
+                "\nMinimum host RAM: "+str(round(spec["min_ram_mib"]/1024,1))+
+                " GiB · NVIDIA VRAM: "+
+                (str(round(spec["min_vram_mib"]/1024,1))+" GiB"
+                 if spec["min_vram_mib"] else "not required")+
+                "\nHardware: "+
+                (issue or "Meets minimum estimates; inference still untested")+
+                "\nSelected: "+(self.ai.values.get("active_profile") or "Custom"))
+            self.profile_components.setText(
+                "Required models:\n"+parts+
+                "\nUse Check installed to verify live status.")
+
+        def inspect_profile(self):
+            if self._profile_inventory_busy:
+                return
+            key=self.profile_choice.currentData()
+            if key not in PROFILES:
+                return
+            self._profile_inventory_busy=True
+            self.profile_components.setText("Inspecting offline models in background…")
+            def scan():
+                try:
+                    statuses={name:local_status(name,library=self.library)
+                              for name in profile(key)["components"]}
+                    data={"profile":key,"status":statuses}
+                except Exception as exc:
+                    data={"profile":key,"error":str(exc)[:160]}
+                self.work.put(("profile_inventory",data))
+            threading.Thread(target=scan,daemon=True,
+                             name="tihulu-profile-inventory").start()
+
+        def _show_profile_inventory(self,data):
+            self._profile_inventory_busy=False
+            if data["profile"]!=self.profile_choice.currentData():
+                return
+            if "error" in data:
+                self.profile_components.setText(
+                    "Unable to verify models: "+data["error"])
+                return
+            self.profile_components.setText(
+                "\n".join(("✓ INSTALLED" if installed else "✗ MISSING")+
+                          " · "+COMPONENTS[name][0]
+                          for name,installed in data["status"].items())+
+                "\nMissing components block Select mode.")
+
+        def install_profile(self):
+            key=self.profile_choice.currentData()
+            if key not in PROFILES:
+                return
+            spec=profile(key)
+            warning=(
+                "\nNLLB: CC-BY-NC-4.0 non-commercial license; MADLAD "
+                "downloads ~12 GB weights, CUDA requires >=24GB VRAM."
+                if key=="experimental" else "")
+            caveat=(
+                "\nHailo-10H acceleration of these specific Whisper/Argos "
+                "models is NOT provided. This is a CPU fallback preset."
+                if key=="pi5_hat2" else "")
+            if QMessageBox.question(self,"Install all · "+spec["name"],
+                "Download/build missing components now?\n"+
+                spec["description"]+"\nEstimated disk: "+
+                spec["disk_gb_estimate"]+warning+caveat+
+                "\nInstall all does NOT activate the profile. "
+                "Partial successes remain installed for safe retry. Continue?"
+                ) != QMessageBox.Yes:
+                return
+            self.begin("Installing "+spec["name"]+"…",
+                lambda: {"kind":"profile_install","profile":key,
+                         "steps":install_components(
+                             key,library=self.library,
+                             progress=lambda msg:self.work.put(("progress",msg)))})
+
+        def select_profile(self):
+            key=self.profile_choice.currentData()
+            if key not in PROFILES:
+                return
+            def verify():
+                statuses={name:local_status(name,library=self.library)
+                          for name in profile(key)["components"]}
+                hardware=detect_hardware()
+                patch=selection_patch(key,library=self.library,
+                                      hardware=hardware,status=statuses)
+                return {"kind":"profile_selection","profile":key,"patch":patch}
+            self.begin("Verifying selected mode…",verify)
+
+        def save_remote_token(self):
+            try:
+                save_token(self.remote_token.text())
+                self.remote_token.clear()
+                self.feedback.setText(
+                    "Token saved privately. Remote remains OFF until explicitly selected.")
+            except (OSError,ValueError) as exc:
+                QMessageBox.warning(self,"Remote token",str(exc))
+
+        def remove_remote_token(self):
+            try:
+                delete_token()
+                self.feedback.setText("Remote GPU token removed.")
+            except (OSError,ValueError) as exc:
+                QMessageBox.warning(self,"Remove token",str(exc))
+
+        def test_remote_gpu(self):
+            try:
+                endpoint=validate_endpoint(self.remote_endpoint.text())
+                read_token()
+            except (OSError,ValueError) as exc:
+                QMessageBox.warning(self,"Remote GPU",str(exc))
+                return
+            self.begin("Testing TLS GPU endpoint (no audio uploaded)…",
+                lambda: {"kind":"remote_probe",
+                         "status":test_connection(endpoint)})
 
         def inspect_speaker(self):
             free = FreeSpeakerMarket().status()
@@ -705,8 +909,8 @@ def open_ai_settings(parent, ai, after_save=None):
                 return
             code=item.data(Qt.UserRole)
             self.model_tabs.setCurrentIndex(
-                1 if code in ("argos","nllb") else
-                2 if code in ("speaker","speaker-private") else 0)
+                2 if code in ("argos","nllb") else
+                3 if code in ("speaker","speaker-private") else 1)
             self.feedback.setText(
                 "Opened the compatible model controls for "+str(code)+
                 ". Online downloads occur only after explicit approval.")
@@ -718,12 +922,12 @@ def open_ai_settings(parent, ai, after_save=None):
                 return
             code=item.data(Qt.UserRole)
             if code in ("speech","lyrics"):
-                self.model_tabs.setCurrentIndex(0)
+                self.model_tabs.setCurrentIndex(1)
                 self.online_query.setText(
                     self.all_model_query.text().strip() or "large")
                 self.refresh_online_models()
             elif code=="argos":
-                self.model_tabs.setCurrentIndex(1)
+                self.model_tabs.setCurrentIndex(2)
                 self.refresh_argos_catalog()
             else:
                 self.open_all_model_category()
@@ -733,19 +937,33 @@ def open_ai_settings(parent, ai, after_save=None):
                     "Arbitrary online weights cannot safely be installed.")
 
         def inspect_starter(self):
-            try:
-                state = StarterAI(self.ai, self.library).status()
+            if self._starter_busy:
+                return
+            self._starter_busy=True
+            def read():
+                try:
+                    result={"state":StarterAI(self.ai,self.library).status()}
+                except Exception as exc:
+                    result={"error":str(exc)[:160]}
+                self.work.put(("starter_state",result))
+            threading.Thread(target=read,daemon=True,
+                             name="tihulu-starter-status").start()
+
+        def _show_starter(self,result):
+            self._starter_busy=False
+            if "error" in result:
                 self.starter_state.setText(
-                    "Whisper engine: " + ("READY" if state["whisper_engine_ready"] else "missing") +
-                    "  |  multilingual Tiny: " + ("READY" if state["tiny_model_ready"] else "missing") +
-                    "  |  DE/EN/TR translation: " + (
-                        "READY" if state["translation_three_languages_ready"] else "missing packs") +
-                    "\nInstalled directions: " + (
-                        ", ".join(state["installed_pairs"]) or "none") +
-                    "\nASR: " + ("ENABLED" if state["enabled_asr"] else "OFF") +
-                    "  /  Translation: " + ("ENABLED" if state["enabled_translation"] else "OFF"))
-            except (ImportError, OSError, RuntimeError) as exc:
-                self.starter_state.setText("Starter status unavailable: " + str(exc)[:160])
+                    "Starter readiness check failed: "+result["error"])
+                return
+            state=result["state"]
+            self.starter_state.setText(
+                "Whisper engine: "+("READY" if state["whisper_engine_ready"] else "missing")+
+                " | Tiny: "+("READY" if state["tiny_model_ready"] else "missing")+
+                " | DE/EN/TR: "+("READY" if state["translation_three_languages_ready"]
+                               else "missing packs")+
+                "\nInstalled directions: "+(", ".join(state["installed_pairs"]) or "none")+
+                "\nASR: "+("ENABLED" if state["enabled_asr"] else "OFF")+
+                " | Translation: "+("ENABLED" if state["enabled_translation"] else "OFF"))
 
         def setup_starter(self):
             if QMessageBox.question(self, "Install complete offline AI starter",
@@ -1035,71 +1253,93 @@ def open_ai_settings(parent, ai, after_save=None):
                 ("\nPending model (not yet saved): " + pending_path
                  if pending_path != saved_path else ""))
             self.storage_label.setText("Managed models: " + str(self.library.root))
-            if hasattr(self, "starter_state"):
-                self.inspect_starter()
+            # Avoid blocking the Qt event thread on a child Python/Argos
+            # import each time the installed-model selection is refreshed.
 
         def inspect_compute(self):
-            try:
-                self.hardware = detect_hardware()
-                p = detect_devices(model_path=self.model_path.text().strip())
-                gpu = self.hardware["gpu"]
-                npu = self.hardware["npu"]
-                ram = self.hardware["ram_mib"]
-                self.install_cuda.setEnabled(bool(gpu["cuda_compile_possible"]))
-                self.install_cuda.setToolTip(
-                    "Optional source build requires nvcc (CUDA Toolkit >=12.8). "
-                    "Use the highlighted Faster-Whisper button below without nvcc.")
-                self.install_fast_cuda.setEnabled(bool(gpu["detected"]))
-                self.verify_fast_cuda.setEnabled(FasterWhisperCUDA().installed())
-                available = [key.upper() for key in ("cpu","gpu","npu")
-                             if p["speech"].get("ready_"+key)]
-                self.compute.setText(
-                    "CPU: " + self.hardware["cpu"] +
-                    (" · RAM ~"+str(round(ram/1024,1))+" GiB" if ram else "") +
-                    "\nGPU: " + gpu["name"] +
-                    (" · VRAM "+str(gpu["vram_mib"])+" MiB" if gpu["vram_mib"] else "") +
-                    "\nNPU: " + (", ".join(npu["devices"]) if npu["detected"]
-                                  else "not detected") +
-                    "\nSpeech runtime READY: " + (", ".join(available) if available else "none") +
-                    "\nDetected hardware is NOT proof of usable CUDA/NPU model.")
-                self.cuda_status.setText(
-                    "CUDA compiler: " + (gpu["cuda_version"] or "not installed") +
-                    " · GPU whisper.cpp built: " +
-                    ("YES" if WhisperRuntime().ready_gpu() else "NO") +
-                    "\nManaged Faster-Whisper CUDA (no nvcc): " +
-                    ("READY FOR GPU · use Auto/GPU" if (
-                        FasterWhisperCUDA().installed() and p["speech"].get(
-                            "gpu_engine") == "faster_whisper_managed") else
-                     "INSTALLED BUT CUDA TEST NEEDED" if FasterWhisperCUDA().installed()
-                     else "NOT INSTALLED · use installer above") +
-                    "\nNPU: " + (
-                        "Separate hardware detected · requires compatible model"
-                        if npu["detected"] else
-                        "No dedicated NPU found. RTX Tensor Cores are GPU, "
-                        "not an OpenVINO/Hailo NPU.") +
-                    "\nCompiler note (whisper.cpp ONLY): " + gpu["reason"])
-            except (ImportError, OSError, ValueError) as exc:
-                self.compute.setText("Hardware inference discovery failed: " + str(exc)[:140])
+            if self._compute_busy:
+                return
+            self._compute_busy=True
+            self.compute.setText("Scanning CUDA / CPU / NPU after first paint…")
+            source_model=self.model_path.text().strip()
+            def worker():
+                try:
+                    hardware=detect_hardware()
+                    runtime=detect_devices(model_path=source_model)
+                    result={"hardware":hardware,"runtime":runtime}
+                except Exception as exc:
+                    result={"error":str(exc)[:180]}
+                self.work.put(("hardware",result))
+            threading.Thread(target=worker,daemon=True,
+                             name="tihulu-compute-scan").start()
+
+        def _show_compute(self,result):
+            self._compute_busy=False
+            if "error" in result:
+                self.compute.setText("Compute scan unavailable: "+result["error"])
+                return
+            self.hardware=result["hardware"]
+            p=result["runtime"]
+            gpu=self.hardware["gpu"]
+            npu=self.hardware["npu"]
+            ram=self.hardware["ram_mib"]
+            self.install_cuda.setEnabled(bool(gpu["cuda_compile_possible"]))
+            self.install_fast_cuda.setEnabled(bool(gpu["detected"]))
+            self.verify_fast_cuda.setEnabled(FasterWhisperCUDA().installed())
+            available=[key.upper() for key in ("cpu","gpu","npu")
+                       if p["speech"].get("ready_"+key)]
+            self.compute.setText(
+                "CPU: "+self.hardware["cpu"]+
+                (" · RAM "+str(round(ram/1024,1))+" GiB" if ram else "")+
+                "\nGPU: "+gpu["name"]+
+                (" · VRAM "+str(gpu["vram_mib"])+" MiB"
+                 if gpu["vram_mib"] else "")+
+                "\nNPU: "+(", ".join(npu["devices"]) if npu["detected"]
+                              else "not detected")+
+                "\nSpeech runtimes: "+(", ".join(available) if available
+                                         else "none detected")+
+                "\nHardware detection never proves model compatibility.")
+            self.cuda_status.setText(
+                "CUDA compiler: "+(gpu["cuda_version"] or "not installed")+
+                " · GPU whisper.cpp compiled: "+
+                ("YES" if WhisperRuntime().ready_gpu() else "NO")+
+                "\nFaster-Whisper CUDA installed: "+
+                ("YES" if FasterWhisperCUDA().installed() else "NO")+
+                "\n"+gpu["reason"])
+            self.show_profile_description()
+            self.populate_models()
 
         def inspect_argos(self):
-            try:
-                if AIRuntime().status()["installed"]:
-                    pairs = run_argos_market("installed")
-                else:
-                    pairs = []
-                self.pairs.setText("Installed Argos packs (" + str(len(pairs)) +
-                    "): " + (", ".join(
-                    p["source"] + "→" + p["target"] for p in pairs) if pairs else
-                    "none — install starter bundle or select a catalog pair"))
-                self.installed_argos.clear()
-                for pair in pairs:
-                    item = QListWidgetItem(
-                        pair["source"].upper()+" → "+pair["target"].upper()+
-                        " · INSTALLED")
-                    item.setData(Qt.UserRole,pair)
-                    self.installed_argos.addItem(item)
-            except (ImportError, OSError, ValueError) as exc:
-                self.pairs.setText("Argos runtime unavailable: " + str(exc)[:100])
+            if self._argos_busy:
+                return
+            self._argos_busy=True
+            self.pairs.setText("Reading installed Argos packs in background…")
+            def worker():
+                try:
+                    pairs=(run_argos_market("installed",installed_timeout=9)
+                           if AIRuntime().status()["installed"] else [])
+                    result={"pairs":pairs}
+                except Exception as exc:
+                    result={"error":str(exc)[:160]}
+                self.work.put(("argos_state",result))
+            threading.Thread(target=worker,daemon=True,
+                             name="tihulu-argos-scan").start()
+
+        def _show_argos(self,result):
+            self._argos_busy=False
+            if "error" in result:
+                self.pairs.setText("Argos inventory unavailable: "+result["error"])
+                return
+            pairs=result["pairs"]
+            self.pairs.setText("Installed Argos packs ("+str(len(pairs))+"): "+
+                (", ".join(p["source"]+"→"+p["target"] for p in pairs)
+                 if pairs else "none"))
+            self.installed_argos.clear()
+            for pair in pairs:
+                item=QListWidgetItem(pair["source"].upper()+" → "+
+                                     pair["target"].upper()+" · INSTALLED")
+                item.setData(Qt.UserRole,pair)
+                self.installed_argos.addItem(item)
 
         def begin(self, label, fn):
             if self.running:
@@ -1119,11 +1359,48 @@ def open_ai_settings(parent, ai, after_save=None):
             for _ in range(3):
                 try: kind, data = self.work.get_nowait()
                 except queue.Empty: break
-                if kind == "progress":
+                if kind == "hardware":
+                    self._show_compute(data)
+                elif kind == "argos_state":
+                    self._show_argos(data)
+                elif kind == "starter_state":
+                    self._show_starter(data)
+                elif kind == "profile_inventory":
+                    self._show_profile_inventory(data)
+                elif kind == "progress":
                     self.feedback.setText(str(data))
                 elif kind == "done":
                     self.running = False
-                    if isinstance(data,dict) and data.get("kind") == "argos_catalog":
+                    if isinstance(data,dict) and data.get("kind") == "profile_selection":
+                        try:
+                            self.ai.update(data["patch"])
+                            self.ai.configure_environment()
+                            self.backend.setCurrentText(data["patch"]["backend"])
+                            self.model_path.setText(data["patch"]["model_path"])
+                            self.translation_choice.setCurrentIndex(
+                                max(0,self.translation_choice.findData(
+                                    data["patch"]["translation_model"])))
+                            self.asr.setChecked(True)
+                            self.translator.setChecked(True)
+                            self.feedback.setText(
+                                "ACTIVE: "+profile(data["profile"])["name"]+
+                                ". Restart live captions to apply the new profile.")
+                            self.show_profile_description()
+                            if after_save: after_save()
+                        except (OSError,RuntimeError,ValueError) as exc:
+                            self.feedback.setText("Profile activation FAILED: "+str(exc))
+                    elif isinstance(data,dict) and data.get("kind")=="profile_install":
+                        self.feedback.setText(
+                            "Install all completed but NOT activated. "
+                            "Click Select mode. Components: "+
+                            ", ".join(name for name,_ in data["steps"]))
+                        self.inspect_profile()
+                    elif isinstance(data,dict) and data.get("kind")=="remote_probe":
+                        self.feedback.setText(
+                            "Remote TLS connection passed · CUDA installed marker: "+
+                            str(data["status"]["cuda_installed"])+
+                            " · no audio uploaded, actual inference untested.")
+                    elif isinstance(data,dict) and data.get("kind") == "argos_catalog":
                         self.argos_catalog_list.clear()
                         for pair in data["items"]:
                             item = QListWidgetItem(
@@ -1267,7 +1544,25 @@ def open_ai_settings(parent, ai, after_save=None):
                     "Install and real-GPU-test MADLAD before selecting.")
                 return
             try:
+                remote_enabled=self.remote_enabled.isChecked()
+                remote_url=(validate_endpoint(self.remote_endpoint.text())
+                            if remote_enabled else self.remote_endpoint.text().strip())
+                if remote_enabled:
+                    read_token()
+                # A manual model/backend change is a Custom mode rather
+                # than silently claiming the old verified preset is active.
+                old_profile=ai.values.get("active_profile","")
+                spec=PROFILES.get(old_profile)
+                still_profile=bool(spec and
+                    self.backend.currentText()==spec["backend"] and
+                    self.translation_choice.currentData()==spec["translator"] and
+                    self.model_path.text().strip()==str(
+                        self.library._path(spec["speech"])))
                 ai.update({
+                    "active_profile":old_profile if still_profile else "",
+                    "remote_gpu_enabled": remote_enabled,
+                    "remote_gpu_url": remote_url,
+                    "remote_gpu_fallback": self.remote_fallback.isChecked(),
                     "asr_enabled": self.asr.isChecked(),
                     "translation_enabled": self.translator.isChecked(),
                     "backend": self.backend.currentText(),

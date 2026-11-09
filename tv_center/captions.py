@@ -179,7 +179,7 @@ def asr_from_clip(path: Path, language: str, model: str,
     selected_backend = os.environ.get("TIHULU_TV_ASR_BACKEND", "auto")
     if selected_backend == "off":
         raise RuntimeError("Offline transcription disabled in Settings")
-    if selected_backend not in ("auto", "cpu", "gpu", "npu"):
+    if selected_backend not in ("auto", "cpu", "gpu", "npu", "remote"):
         raise RuntimeError("Invalid offline speech backend")
     streams = _program_streams(path, service_id)
     audio_index = choose_audio_stream(streams, language, audio_pid)
@@ -226,6 +226,41 @@ def asr_from_clip(path: Path, language: str, model: str,
             "This is not music/source separation." if focus_filter else None)
     if audio.returncode or len(audio.stdout) < 32000:
         raise RuntimeError("No usable audio stream in recorded TV segment")
+    # Remote speech is an explicit user-approved HTTPS+token backend.
+    # Device ownership remains local: only the bounded decoded audio PCM
+    # is sent to the configured GPU host; video/RF data are NOT uploaded.
+    if selected_backend == "remote":
+        from .ai_settings import AISettings
+        chosen = AISettings().values
+        if not chosen["remote_gpu_enabled"]:
+            raise RuntimeError("Remote GPU not enabled in AI Model Market")
+        try:
+            from .remote_gpu import transcribe as remote_transcribe
+            details = remote_transcribe(
+                audio.stdout, language, chosen["remote_gpu_url"])
+        except (OSError, RuntimeError, ValueError, TimeoutError) as exc:
+            if not chosen["remote_gpu_fallback"]:
+                raise RuntimeError("Remote GPU unavailable: "+str(exc)[:150]) from exc
+            if diagnostics is not None:
+                diagnostics["remote_error"] = str(exc)[:140]
+                diagnostics["remote_fallback"] = "local auto"
+            selected_backend = "auto"  # explicit configured fallback
+        else:
+            if diagnostics is not None:
+                diagnostics["backend"] = "remote"
+                diagnostics["model"] = "Remote managed Faster-Whisper CUDA"
+                diagnostics["engine"] = "authenticated HTTPS remote GPU"
+                diagnostics["ready"] = True
+                diagnostics["words"] = details["words"]
+                diagnostics["detected_language"] = details["language"]
+                diagnostics["language_confidence"] = details["language_probability"]
+                diagnostics["word_timing_source"] = "remote_cuda_word_timestamps"
+                diagnostics["recognition_rejected"] = details.get(
+                    "recognition_rejected")
+            return _speaker_details(
+                audio.stdout, details["text"].strip(), diagnostics,
+                speaker_enabled, speaker_provider,
+                channel=f"{service_id}:{audio_pid}")
     # Existing TEXT CENTER speech implementation handles local CPU/GPU selection.
     os.environ["TIHULU_WHISPER_MODEL"] = str(Path(model).expanduser())
     from textcenter.compute import detect_devices, choose_backend
@@ -501,6 +536,8 @@ def decode_segment(ts: bytes, *, mode="auto", page=150, source="de",
         translated = translations.get(target)
         return {"original": original, "raw_asr_original":raw_asr_original,
                 "translated": translated, "translations": translations,
+                "remote_error":speech_diagnostics.get("remote_error"),
+                "remote_fallback":speech_diagnostics.get("remote_fallback"),
                 "asr_backend": speech_diagnostics.get("backend"),
                 "asr_model": speech_diagnostics.get("model"),
                 "asr_engine": speech_diagnostics.get("engine"),
