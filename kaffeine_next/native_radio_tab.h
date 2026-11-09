@@ -1299,8 +1299,11 @@ public:
         connect(stop_, &QPushButton::clicked, this, [this](){ stopRadioListening(); });
         connect(forceRelease_,&QPushButton::clicked,this,[this](){
             stopReceiver();
-            state_->setText(tr("Radio stopped · TIHULU released its SDR "
-                "receiver. Other applications may now claim the device."));
+            state_->setText(active()?
+                tr("Radio Stop requested, but welle-cli has not exited; "
+                   "the SDR may still be in use. Check the receiver PID."):
+                tr("Radio stopped · TIHULU released its DAB receiver. "
+                   "Other applications may now claim the device."));
             updateReceiverOwnership();
         });
         connect(releaseOnStop_,&QCheckBox::toggled,this,[this](bool enabled){
@@ -2229,8 +2232,10 @@ private:
         // Scanning uses the receiver itself and always needs a hard stop.
         if(scanning_ || !releaseOnStop_ || releaseOnStop_->isChecked()) {
             stopReceiver();
-            if(state_) state_->setText(tr(
-                "Radio stopped · this application's DAB receiver released."));
+            if(state_) state_->setText(active()?
+                tr("Radio Stop requested, but the DAB receiver process "
+                   "is still active; SDR release not verified."):
+                tr("Radio stopped · this application's DAB receiver released."));
             updateReceiverOwnership();
             return;
         }
