@@ -1213,6 +1213,51 @@ def main(argv=None):
         "Independent from speaker names; only real detector-backed events "
         "with sufficient confidence are displayed. No guess from silence.")
     timing_layout.addRow(sound_events)
+    classifier_install_queue=queue.Queue(maxsize=4)
+    from tv_center.audio_classifiers import AudioLabels
+    classifier_status=QLabel(
+        "Optional sound: "+("installed" if AudioLabels().installed("sound")
+                             else "not installed")+
+        " · Voice type: "+("installed" if AudioLabels().installed("voice")
+                           else "not installed")+
+        ". Models load ONLY when the corresponding box is checked.")
+    classifier_status.setWordWrap(True)
+    timing_layout.addRow(classifier_status)
+    classifier_actions=QHBoxLayout()
+    event_install_button=QPushButton("Install sound detector · ~346 MB weights")
+    voice_install_button=QPushButton(
+        "Install voice-type estimator · ~363 MB · noncommercial license")
+    def install_classifier(kind):
+        lic=("This audEERING model is CC BY-NC-SA 4.0, NON-COMMERCIAL "
+             "ONLY. Its child/female/male predictions are uncertain "
+             "voice characteristics, NOT actual identities. "
+             if kind=="voice" else
+             "The MIT AudioSet AST classifier is BSD-3-Clause. ")
+        reply=QMessageBox.question(
+            window,"Install optional audio model?",
+            lic+"Download model weights and CPU PyTorch dependencies (may "
+            "use several GB total)? Runs offline only when enabled. Continue?",
+            QMessageBox.Yes | QMessageBox.No,QMessageBox.No)
+        if reply!=QMessageBox.Yes:
+            return
+        button=voice_install_button if kind=="voice" else event_install_button
+        button.setEnabled(False)
+        classifier_status.setText(
+            "Owner-approved "+kind+" classifier installation in background…")
+        def install_worker():
+            try:
+                info=AudioLabels().install(
+                    kind,noncommercial_acknowledged=(kind=="voice"))
+                classifier_install_queue.put((kind,"ok",info))
+            except Exception as exc:
+                classifier_install_queue.put((kind,"error",str(exc)[:220]))
+        threading.Thread(target=install_worker,daemon=True,
+                         name="tihulu-"+kind+"-classifier-install").start()
+    event_install_button.clicked.connect(lambda:install_classifier("sound"))
+    voice_install_button.clicked.connect(lambda:install_classifier("voice"))
+    classifier_actions.addWidget(event_install_button)
+    classifier_actions.addWidget(voice_install_button)
+    timing_layout.addRow(classifier_actions)
     overlap_enabled=QCheckBox(
         "Experimental · separate TWO simultaneous voices (SepFormer + 2× Whisper)")
     overlap_enabled.setChecked(False)
