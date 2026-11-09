@@ -904,8 +904,8 @@ def open_ai_settings(parent, ai, after_save=None):
                 return
             code=item.data(Qt.UserRole)
             self.model_tabs.setCurrentIndex(
-                1 if code in ("argos","nllb") else
-                2 if code in ("speaker","speaker-private") else 0)
+                2 if code in ("argos","nllb") else
+                3 if code in ("speaker","speaker-private") else 1)
             self.feedback.setText(
                 "Opened the compatible model controls for "+str(code)+
                 ". Online downloads occur only after explicit approval.")
@@ -917,12 +917,12 @@ def open_ai_settings(parent, ai, after_save=None):
                 return
             code=item.data(Qt.UserRole)
             if code in ("speech","lyrics"):
-                self.model_tabs.setCurrentIndex(0)
+                self.model_tabs.setCurrentIndex(1)
                 self.online_query.setText(
                     self.all_model_query.text().strip() or "large")
                 self.refresh_online_models()
             elif code=="argos":
-                self.model_tabs.setCurrentIndex(1)
+                self.model_tabs.setCurrentIndex(2)
                 self.refresh_argos_catalog()
             else:
                 self.open_all_model_category()
