@@ -26,6 +26,7 @@ def open_ai_settings(parent, ai, after_save=None):
                               install_components, selection_patch, hardware_issue)
     from .remote_gpu import (validate_endpoint, save_token, read_token,
                              delete_token, test_connection)
+    from .pi_hailo import readiness as hailo_readiness
     from .translation_market import TranslationModelMarket, LICENSE as NLLB_LICENSE
     from .translation_madlad import MadladMarket
     from .deepl_api import read_key, save_key, remove_key
@@ -465,6 +466,74 @@ def open_ai_settings(parent, ai, after_save=None):
                 buttons.addWidget(btn)
             guided_layout.addLayout(buttons)
             profile_layout.addWidget(guided)
+            # CPU tuning and optional real Hailo-10H, never automatic downloads.
+            pi_group=QGroupBox("Raspberry Pi 5 · resource settings")
+            pi_form=QFormLayout(pi_group)
+            self.pi_threads=QComboBox()
+            for count in (1,2,3,4):
+                self.pi_threads.addItem(str(count)+" whisper.cpp CPU threads",count)
+            self.pi_threads.setCurrentIndex(max(0,self.pi_threads.findData(
+                ai.values.get("pi_cpu_threads",3))))
+            pi_form.addRow("Keep one Pi CPU core for TV / Argos",self.pi_threads)
+            profile_layout.addWidget(pi_group)
+            self.hailo_group=QGroupBox("AI HAT+ 2 · Hailo-10H Whisper Base")
+            hailo_form=QFormLayout(self.hailo_group)
+            self.hailo_encoder=QLineEdit(ai.values.get("hailo_encoder_hef",""))
+            self.hailo_decoder=QLineEdit(ai.values.get("hailo_decoder_hef",""))
+            self.hailo_npy=QLineEdit(ai.values.get("hailo_npy_dir",""))
+            def file_picker(field):
+                filename,_=QFileDialog.getOpenFileName(
+                    self,"Choose locally installed Hailo-10H model (.hef)",
+                    str(Path.home()),"Hailo executable (*.hef)")
+                if filename: field.setText(filename)
+            for label,field in (
+                ("Encoder HEF",self.hailo_encoder),
+                ("Decoder HEF",self.hailo_decoder)):
+                row=QHBoxLayout()
+                row.addWidget(field)
+                browse=QPushButton("Browse")
+                browse.clicked.connect(
+                    lambda _,target=field:file_picker(target))
+                row.addWidget(browse)
+                hailo_form.addRow(label,row)
+            npy_row=QHBoxLayout()
+            npy_row.addWidget(self.hailo_npy)
+            npy_button=QPushButton("Browse")
+            def choose_npy():
+                folder=QFileDialog.getExistingDirectory(
+                    self,"Select folder with Hailo Whisper .npy decoder files",
+                    str(Path.home()))
+                if folder:self.hailo_npy.setText(folder)
+            npy_button.clicked.connect(choose_npy)
+            npy_row.addWidget(npy_button)
+            hailo_form.addRow("Decoder .npy folder",npy_row)
+            self.hailo_fallback=QCheckBox(
+                "Fall back to Whisper Tiny CPU when Hailo fails or Spoken=Auto")
+            self.hailo_fallback.setChecked(ai.values.get("hailo_cpu_fallback",True))
+            hailo_form.addRow(self.hailo_fallback)
+            hailo_buttons=QHBoxLayout()
+            save_hailo=QPushButton("Save model paths")
+            save_hailo.clicked.connect(self.save_hailo_paths)
+            inspect_hailo=QPushButton("Check Hailo-10H")
+            inspect_hailo.clicked.connect(self.inspect_hailo)
+            test_hailo=QPushButton("Test NPU · local silence")
+            test_hailo.clicked.connect(self.test_hailo)
+            for btn in (save_hailo,inspect_hailo,test_hailo):
+                hailo_buttons.addWidget(btn)
+            hailo_form.addRow(hailo_buttons)
+            self.hailo_status=QLabel(
+                "NPU OFF until valid HailoRT, encoder/decoder HEF and NPY paths "
+                "are saved and device firmware identifies HAILO10H.")
+            self.hailo_status.setWordWrap(True)
+            hailo_form.addRow(self.hailo_status)
+            hailo_note=QLabel(
+                "Install official Raspberry Pi OS hailo-h10-all and Hailo Apps "
+                "separately; vendor examples may auto-download missing files. "
+                "TIHULU never downloads an NPU model during TV playback. "
+                "Argos remains CPU-based; HAT's 8 GB is NOT extra Pi RAM.")
+            hailo_note.setWordWrap(True)
+            hailo_form.addRow(hailo_note)
+            profile_layout.addWidget(self.hailo_group)
             remote_group = QGroupBox("Remote GPU · opt-in TLS speech processing")
             remote_layout = QFormLayout(remote_group)
             self.remote_enabled = QCheckBox(
