@@ -94,7 +94,8 @@ class SourceSeparationTests(unittest.TestCase):
     def test_speaker_type_and_sound_tags_are_independent(self):
         config=CaptionConfig(
             show_speaker_numbers=False,show_voice_types=True,
-            show_sound_events=True,speaker_enabled=True).validate()
+            show_sound_events=True,speaker_enabled=True,
+            target_languages=("en",)).validate()
         result={"original":"Günaydın","source":"local_asr",
                 "speaker_index":1,"voice_type":"female",
                 "voice_type_confidence":0.92,
