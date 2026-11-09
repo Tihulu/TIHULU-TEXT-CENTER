@@ -200,6 +200,10 @@ def argos_worker():
             done.append(source + "→" + target)
         except (OSError, RuntimeError, ValueError) as exc:
             errors.append(source + "→" + target + ": " + str(exc)[:120])
+    if any(item not in installed for item in PAIRS if
+           item[0]+"→"+item[1] in done):
+        from .argos_generation import changed
+        changed()
     print(json.dumps({"installed": done, "errors": errors,
                       "pairs": argos_installed_pairs()}, ensure_ascii=False))
 
