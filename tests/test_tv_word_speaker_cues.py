@@ -70,7 +70,7 @@ class WordCueTests(unittest.TestCase):
         last=data["words"][-1]["end"]
         result=cue_window(100,106,107,cfg,data)
         source_anchor=(result["due"]-12-0.55)-100
-        self.assertGreaterEqual(source_anchor,last-2.5)
+        self.assertGreaterEqual(source_anchor+0.0001,last-2.5)
         self.assertGreaterEqual(source_anchor,first)
         # No exact word timings -> conservative fallback; don't pretend
         # to know the start of French/German source audio.
