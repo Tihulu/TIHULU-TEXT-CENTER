@@ -9,6 +9,8 @@ DEFAULTS = {
     "version": 1, "asr_enabled": False, "translation_enabled": False,
     "backend": "auto", "model_path": "", "model_dir": "",
     "translation_model": "argos",
+    "active_profile": "", "remote_gpu_enabled": False,
+    "remote_gpu_url": "", "remote_gpu_fallback": True,
 }
 
 class AISettings:
@@ -30,10 +32,22 @@ class AISettings:
         updated = {**self.values, **patch}
         if type(updated["asr_enabled"]) is not bool or type(updated["translation_enabled"]) is not bool:
             raise ValueError("AI toggles must be boolean")
-        if updated["backend"] not in ("auto", "cpu", "gpu", "npu"):
+        if updated["backend"] not in ("auto", "cpu", "gpu", "npu", "remote"):
             raise ValueError("Unsupported AI backend")
         if updated["translation_model"] not in ("argos", "nllb", "deepl", "madlad"):
             raise ValueError("Unsupported translation model")
+        from .ai_profiles import PROFILES
+        if updated["active_profile"] and updated["active_profile"] not in PROFILES:
+            raise ValueError("Unknown selected AI mode")
+        for key in ("remote_gpu_enabled", "remote_gpu_fallback"):
+            if type(updated[key]) is not bool:
+                raise ValueError("Remote GPU switches must be boolean")
+        if not isinstance(updated["remote_gpu_url"],str) or len(updated["remote_gpu_url"]) > 512:
+            raise ValueError("Invalid remote GPU URL")
+        # A stored endpoint does not send anything by itself. Explicit
+        # remote mode plus TLS/token requirements are checked by the client.
+        if updated["backend"]=="remote" and not updated["remote_gpu_enabled"]:
+            raise ValueError("Enable remote GPU explicitly before selecting it")
         for field in ("model_path", "model_dir"):
             if not isinstance(updated[field], str) or len(updated[field]) > 1024:
                 raise ValueError("Model paths must be strings")
