@@ -213,6 +213,10 @@ def confirmed_cue_config(config: CaptionConfig,
 # libVLC presentation timestamp. Bias captions slightly BEHIND speech rather
 # than revealing the next line too early while dialogue is still playing.
 CAPTION_SAFETY_HOLD_SEC = 0.55
+# Faster-Whisper word boundaries already describe the source audio timeline.
+# An additional half-second safety hold noticeably desynchronizes dialogue.
+# A modest bias remains until libVLC video PTS is calibrated end-to-end.
+WORD_TIMESTAMP_HOLD_SEC = 0.15
 
 
 def cue_window(started, ended, finished, config: CaptionConfig, result=None):
@@ -230,7 +234,8 @@ def cue_window(started, ended, finished, config: CaptionConfig, result=None):
         anchor = max(float(started), float(ended) - 0.75)
     source_due = anchor + (
         config.playback_delay_ms + config.offset_ms) / 1000.0
-    source_due += CAPTION_SAFETY_HOLD_SEC
+    timed = bool(isinstance(result, dict) and result.get("word_progress"))
+    source_due += (WORD_TIMESTAMP_HOLD_SEC if timed else CAPTION_SAFETY_HOLD_SEC)
     due = max(float(finished), source_due)
     spoken = max(0.0,float(ended)-float(started))
     # A chunk/word snippet should be readable before replacement. A
@@ -289,9 +294,12 @@ class CueQueue:
         self.items = [item for item in self.items if
                       item["revision"] == config.revision and
                       item["expires"] > float(finished)-0.1]
-        # If decoder produces 5 groups at the same timestamp, enforce
-        # stable minimum duration instead of an immediate flush/burst.
-        if self.items:
+        # Untimed phrases need reading slots; source-word-timed groups do
+        # NOT. Stacking a fixed 1.75s gap per group can accumulate several
+        # seconds of lag during fast alternating speakers, even with 20s
+        # of video buffer. Respect the speech clock for timed groups.
+        timed = bool(result.get("word_progress"))
+        if self.items and not timed:
             last = max(item["due"] for item in self.items)
             when["due"] = max(when["due"], last+self.minimum_hold)
             when["expires"] = max(when["expires"],
@@ -307,10 +315,12 @@ class CueQueue:
     def poll(self, now, revision):
         self.items=[item for item in self.items
                     if item["revision"]==revision and item["expires"]>now]
-        if (self.last_shown_at is not None and
-                now-self.last_shown_at < self.minimum_hold):
-            return None
         if not self.items or self.items[0]["due"]>now:
+            return None
+        next_timed = bool(self.items[0]["result"].get("word_progress"))
+        hold = min(self.minimum_hold, 0.2) if next_timed else self.minimum_hold
+        if (self.last_shown_at is not None and
+                now-self.last_shown_at < hold):
             return None
         selected=self.items.pop(0)
         self.last_shown_at=float(now)

@@ -445,8 +445,19 @@ class CaptionTap:
                 self.sentence_joiner.reset()
                 self.sentence_session=None
                 self.sentence_captured_start=None
-            if result.get("source") == "local_asr" and not options.get(
-                    "music_transcription",False):
+            # Valid Faster-Whisper word positions must survive the joiner.
+            # With native playback buffering these can follow real dialogue.
+            from .word_cues import word_groups
+            source_word_timed = (
+                result.get("source") == "local_asr"
+                and not options.get("music_transcription",False)
+                and bool(result.get("word_timing_source"))
+                and not (options.get("ts_integrity") or {}).get("critical_gaps")
+                and bool(word_groups(result)))
+            if (result.get("source") == "local_asr" and not options.get(
+                    "music_transcription",False) and not source_word_timed):
+                # Without valid word positions, keep the natural sentence
+                # joiner; those sentences are not speaker-word aligned.
                 # Only completed spoken phrases are sent to the TV subtitle
                 # queue. Word timestamps from separate six-second clips
                 # cannot be claimed as an exact word clock for merged text.
@@ -491,7 +502,21 @@ class CaptionTap:
                 captured_start=self.sentence_captured_start
                 self.sentence_captured_start=(
                     captured_end if joined.get("pending") else None)
-                # Translate AFTER reassembling the original full sentence.
+            elif source_word_timed:
+                # Mixing an old untimed sentence with source-timed speech
+                # would reintroduce late or mixed-speaker captions.
+                self.sentence_joiner.reset()
+                self.sentence_session=None
+                self.sentence_captured_start=None
+                result["caption_alignment"]="Source audio word timestamps"
+                result["timing_note"]=(
+                    "Live source-word timing; labels estimated from voice "
+                    "windows; libVLC video PTS not yet calibrated")
+            if (result.get("source") == "local_asr" and
+                    not options.get("music_transcription",False) and
+                    result.get("original")):
+                # Translate ONCE after untimed sentence joining OR while
+                # preserving the real Whisper word timestamps for this clip.
                 # Never join partial independent translations: German/English
                 # word ordering can be destroyed by chunkwise translation.
                 from tv_center.captions import translate as translate_sentence
@@ -971,7 +996,7 @@ def main(argv=None):
     playback_delay.setRange(0.0, 20.0)
     playback_delay.setSingleStep(0.5)
     playback_delay.setSuffix(" s")
-    playback_delay.setToolTip("Buffers audio and video together (0–20 s). Long buffers consume RAM; "
+    playback_delay.setToolTip("Buffers audio and video together (0–20 s); this is NOT calibrated lip-sync. Long buffers consume RAM; "
                                "use CUDA models to reduce lag rather than excessive buffering.")
     offsets.addWidget(QLabel("Caption offset"))
     offsets.addWidget(caption_offset)
@@ -979,7 +1004,7 @@ def main(argv=None):
     offsets.addWidget(playback_delay)
     timing_layout.addRow(offsets)
     auto_row = QHBoxLayout()
-    automatic = QCheckBox("Automatic sync · detect caption lag & adjust safe TV buffer")
+    automatic = QCheckBox("Automatic sync · estimate ASR lag / TV buffer (not PTS lip-sync)")
     automatic.setChecked(False)
     automatic.setToolTip(
         "OFF by default. After 3 real Whisper samples, estimates speech-caption "
@@ -1608,8 +1633,10 @@ def main(argv=None):
                               if applied.speaker_provider == "resemblyzer"
                               else SpeakerMarket().status()["installed"])
             speaker_health.setText(
-                ("Automatic voice labels ON · installed offline " +
-                 applied.speaker_provider + " model" if (
+                ("Voice model installed · " + applied.speaker_provider +
+                 " · accurate speaker-to-text labels require usable ASR "
+                 "word timestamps; an untimed full sentence remains "
+                 "unassigned" if (
                     applied.speaker_enabled and provider_ready) else
                  "Auto labels selected, but "+applied.speaker_provider+
                  " is NOT installed: open Model Market → Speaker separation"
@@ -2520,10 +2547,20 @@ def main(argv=None):
                             " | Diarization unavailable: " +
                             str(data["speaker_error"]))
                     elif data.get("speaker_turns"):
+                        aligned = (data.get("caption_alignment") ==
+                                   "Source audio word timestamps")
+                        speaker_health.setText(
+                            "Voice clusters detected · " +
+                            str(data.get("speaker_engine") or "offline") +
+                            (" · words split by provisional speaker turns; "
+                             "unknown/ambiguous turns remain unlabelled"
+                             if aligned else
+                             " · NO usable source-word times: cannot "
+                             "attribute whole joined sentences to individuals"))
                         status.setText(status.text() +
                             " | Offline speakers: " +
-                            str(data.get("speaker_engine") or "local model") +
-                            " · provisional voice clusters")
+                            ("provisional word/voice alignment" if aligned else
+                             "unassigned voice turns; use timed CUDA ASR"))
                     if data.get("audio_notice"):
                         status.setText(status.text() + "\n" + data["audio_notice"])
                     if data.get("speech_priority_note"):
