@@ -167,6 +167,18 @@ def enqueue_word_cues(queue, result, config, captured_start, captured_end, finis
     first_audio_due = (captured_start+groups[0][0]+
                        (config.playback_delay_ms+config.offset_ms)/1000.0+
                        0.15)
+    # Several separate word groups can demand longer than the source
+    # dialogue's entire speaking window at comfortable reading speed.
+    # Rather than making a chain of 0.8s subtitles that ultimately lags
+    # behind the picture, show ONE complete, human-readable phrase when
+    # the viewer selected readable pacing. Genuine word timing remains
+    # available in the result for anchoring the complete sentence.
+    if config.readable_pacing and len(groups)>1:
+        source_span=max(0.25,groups[-1][1]-groups[0][0])
+        minimum_view=0.85*len(groups)
+        if (minimum_view > source_span+0.6 or
+                len(config.target_languages)>=2):
+            return None
     if (finished >= last_audio_due - 0.45 or
             (config.readable_pacing and
              finished >= first_audio_due - 0.6)):
