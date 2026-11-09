@@ -344,6 +344,17 @@ public:
         radioQuickRow_->addWidget(quickBuffer_);
         radioQuickRow_->addStretch(1);
         dabLayout->addLayout(radioQuickRow_);
+        quickBufferProgress_=new QProgressBar(page);
+        quickBufferProgress_->setRange(0,100);
+        quickBufferProgress_->setValue(0);
+        quickBufferProgress_->setFormat(tr(
+            "Extra buffer OFF · enable it to view startup progress"));
+        quickBufferProgress_->setToolTip(tr(
+            "Progress shows estimated startup time against the requested "
+            "extra libVLC cache, NOT measured buffer occupancy, audio "
+            "latency or physical speaker output."));
+        quickBufferProgress_->setVisible(false);
+        dabLayout->addWidget(quickBufferProgress_);
 
 		// Public internet radio requires no SDR, welle-cli or DVB frontend.
 		// Search happens only when clicked, and uses HTTPS Radio Browser API.
@@ -463,6 +474,17 @@ public:
             "background:#141c1a;color:#eaca90;border:1px solid #96704a;"
             "border-radius:5px;padding:5px;font-weight:600;"));
         cabinetLayout->addWidget(selectedStationVintage_);
+        vintageDabReadout_=new QLabel(analogCabinet);
+        vintageDabReadout_->setWordWrap(true);
+        vintageDabReadout_->setTextFormat(Qt::PlainText);
+        vintageDabReadout_->setStyleSheet(QLatin1String(
+            "background:#102b32;color:#c5f0fa;border:1px solid #47717d;"
+            "border-radius:5px;padding:7px;font-weight:600;"));
+        vintageDabReadout_->setVisible(false);
+        vintageDabReadout_->setToolTip(tr(
+            "Current/selected DAB+ Band III ensemble centre frequency. "
+            "The brass analogue FM/MW/LW dial below remains independent."));
+        cabinetLayout->addWidget(vintageDabReadout_);
 		auto *analogHead=new QGridLayout();
 		analogBand_=new QComboBox(analogCabinet);
 		analogBand_->addItem(tr("FM · 87.5–108 MHz"),QLatin1String("fm"));
@@ -1054,6 +1076,7 @@ public:
                 activePlaybackCacheMs_=0;
                 saved.setValue(QLatin1String("playbackBufferMs"),0);
             }
+            refreshRadioBufferProgress();
         });
         connect(autoSync_,&QCheckBox::toggled,this,[this](bool enabled){
             QSettings saved(QLatin1String("TIHULU"),QLatin1String("KaffeineRadio"));
@@ -1074,6 +1097,7 @@ public:
                    "No forced radio restart; next tune uses the estimate "
                    "or choose Apply buffer now."):
                 tr("Auto estimate OFF · buffer controlled manually."));
+            refreshRadioBufferProgress();
         });
 		auto *captionActions=new QHBoxLayout();
 		captionActions->addStretch(1);
@@ -1428,8 +1452,9 @@ public:
 				if(!item)return;
                 if(column==0)toggleFavorite(item);
                 else showSelectedSource(item->text(1),tr("DAB+ · selected"),
-                    tr("Block %1 · SID %2 · double-click to tune")
-                        .arg(item->text(2),item->text(3)));
+                    tr("Block %1 · %2 · SID %3 · double-click to tune")
+                        .arg(item->text(2),dabCenterFrequencyMHz(item->text(2)),
+                             item->text(3)));
 			});
 		connect(stationSearch_, &QLineEdit::textChanged,this,
 			[this](){ filterStations(); });
@@ -1595,23 +1620,7 @@ public:
 		connect(&captionTick_,&QTimer::timeout,this,[this](){
             monitorRadioPlaybackStop();
 			pollCaption();updateLyrics();
-			if(audioCacheProgress_) {
-				const qint64 elapsed=audioStartedMs_>0?
-					qMax(qint64(0),QDateTime::currentMSecsSinceEpoch()-audioStartedMs_):0;
-				const int requested=activePlaybackCacheMs_;
-                // A requested libVLC network cache has no sampled fill
-                // telemetry. Stream uptime is NOT buffering progress.
-                audioCacheProgress_->setRange(0,audioStartedMs_>0?0:100);
-                if(audioStartedMs_<=0) audioCacheProgress_->setValue(0);
-                audioCacheProgress_->setFormat(audioStartedMs_<=0?
-                    tr("Audio cache request · no stream opened"):
-                    tr("Requested %1 ms · stream uptime %2 ms · queue/DAC UNVERIFIED%3")
-                    .arg(requested).arg(elapsed)
-                    .arg(requestedPlaybackBufferMs()!=requested?
-                        tr(" · next-tune request %1 ms pending")
-                            .arg(requestedPlaybackBufferMs()):
-                        QString()));
-			}
+            refreshRadioBufferProgress();
 		});
 		captionTick_.start();
 		rfTick_.setInterval(300);
@@ -2471,13 +2480,14 @@ private:
 			snrValid ? tr("DAB SNR: %1 dB · relative %2%").arg(snr,0,'f',1)
 				.arg(qBound(0,qRound(snr*4),100)) :
 			tr("DAB SNR unavailable · tuner not locked"));
-		signal_->setText(tr("Ensemble: %1  |  SNR: %2 dB (%3)  |  FIC errors: %4  |  Gain: %5\nSDR: %6")
-			.arg(stationGroup.isEmpty()?tr("not locked"):stationGroup)
-			.arg(snrValid?QString::number(snr,'f',1):tr("unknown"))
-			.arg(quality)
-			.arg(fic.value(QLatin1String("numcrcerrors")).toVariant().toString())
-			.arg(hardware.value(QLatin1String("gain")).toVariant().toString())
-			.arg(hardware.value(QLatin1String("name")).toString()));
+		signal_->setText(tr("DAB+ block %1 · centre %2\n"
+                "Ensemble: %3  |  SNR: %4 dB (%5)  |  FIC errors: %6  |  Gain: %7\nSDR: %8")
+            .arg(ch,dabCenterFrequencyMHz(ch),
+                 stationGroup.isEmpty()?tr("not locked"):stationGroup,
+                 snrValid?QString::number(snr,'f',1):tr("unknown"),quality,
+                 fic.value(QLatin1String("numcrcerrors")).toVariant().toString(),
+                 hardware.value(QLatin1String("gain")).toVariant().toString(),
+                 hardware.value(QLatin1String("name")).toString()));
 		const auto tii=mux.value(QLatin1String("tii")).toArray();
 		if (!tii.isEmpty())
 			signal_->setToolTip(tr("welle.io TII transmitters: %1 entries")
@@ -2587,8 +2597,9 @@ private:
 					.arg(errs.value(QLatin1String("frameerrors")).toVariant().toString())
 					.arg(errs.value(QLatin1String("rserrors")).toVariant().toString())
 					.arg(errs.value(QLatin1String("aacerrors")).toVariant().toString());
-				dls_->setText(tr("Now playing: %1\nDLS: %2\n%3")
-					.arg(serviceLabel,dls,technical));
+				dls_->setText(tr("Now playing: %1\n"
+                    "DAB+ block %2 · %3 (centre frequency)\nDLS: %4\n%5")
+                    .arg(serviceLabel,ch,dabCenterFrequencyMHz(ch),dls,technical));
 				requestSlide(sid);
 			}
 		}
@@ -2947,7 +2958,8 @@ private:
                     "New service · collecting real DAB frame/RS/AAC error "
                     "counter samples. Audio output is not measured."));
                 showSelectedSource(name,tr("DAB+ · live mux verified"),
-                    tr("Block %1 · service %2 · stream opening").arg(block,sid));
+                    tr("Block %1 · %2 · service %3 · stream opening")
+                        .arg(block,dabCenterFrequencyMHz(block),sid));
 				lastDls_.clear();
 				lyricLoaded_=false;
 				lyricCues_=QJsonArray();
@@ -3005,6 +3017,26 @@ private:
 			verifyStation(key,name,sid,requestId,attempt+1);
 		});
 	}
+    static QString dabCenterFrequencyMHz(const QString &block) {
+        // ETSI DAB Band III nominal ensemble centre frequency in kHz.
+        // This is NOT FM station frequency, RSSI or measured SDR offset.
+        static const QMap<QString,int> centers = {
+            {"5A",174928},{"5B",176640},{"5C",178352},{"5D",180064},
+            {"6A",181936},{"6B",183648},{"6C",185360},{"6D",187072},
+            {"7A",188928},{"7B",190640},{"7C",192352},{"7D",194064},
+            {"8A",195936},{"8B",197648},{"8C",199360},{"8D",201072},
+            {"9A",202928},{"9B",204640},{"9C",206352},{"9D",208064},
+            {"10A",209936},{"10B",211648},{"10C",213360},{"10D",215072},
+            {"11A",216928},{"11B",218640},{"11C",220352},{"11D",222064},
+            {"12A",223936},{"12B",225648},{"12C",227360},{"12D",229072},
+            {"13A",230784},{"13B",232496},{"13C",234208},{"13D",235776},
+            {"13E",237488},{"13F",239200}
+        };
+        const auto it=centers.constFind(block.toUpper());
+        if(it==centers.cend()) return QString();
+        return QString::number(it.value()/1000.,'f',3)+
+               QStringLiteral(" MHz");
+    }
 	void showSelectedSource(const QString &name,const QString &mode,
                            const QString &detail) {
         const QString display=tr("%1 · %2 · %3")
@@ -3013,11 +3045,25 @@ private:
         if(selectedStationVintage_)
             selectedStationVintage_->setText(display+tr(
                 " · analogue dial remains independent of DAB/Internet"));
+        if(vintageDabReadout_) {
+            const QRegularExpression blockPattern(
+                QLatin1String("\\bBlock\\s+((?:[5-9]|1[0-3])[A-F])\\b"));
+            const auto match=blockPattern.match(detail);
+            const QString block=match.hasMatch()?match.captured(1):QString();
+            const QString mhz=dabCenterFrequencyMHz(block);
+            const bool dab=mode.startsWith(QLatin1String("DAB+")) && !mhz.isEmpty();
+            vintageDabReadout_->setVisible(dab);
+            if(dab) vintageDabReadout_->setText(tr(
+                "DAB+ DIGITAL · %1 · Block %2 · %3 (centre frequency)")
+                .arg(name,block,mhz));
+        }
     }
 	void selectStation(QTreeWidgetItem *item) {
 		if(!item) return;
         showSelectedSource(item->text(1),tr("DAB+ · tuning"),
-            tr("Block %1 · SID %2").arg(item->text(2),item->text(3)));
+            tr("Block %1 · %2 · SID %3")
+                .arg(item->text(2),dabCenterFrequencyMHz(item->text(2)),
+                     item->text(3)));
 		const QString key=item->data(0,Qt::UserRole).toString();
 		const QString block=stationChannels_.value(key);
 		const QString name=item->text(1),sid=item->text(3);
@@ -3294,6 +3340,48 @@ private:
 		layout->addWidget(textView);
 		dlg.exec();
 	}
+    void refreshRadioBufferProgress() {
+        if(!quickBufferProgress_ || !audioCacheProgress_ || !quickBuffer_) return;
+        const bool enabled=quickBuffer_->isChecked();
+        quickBufferProgress_->setVisible(enabled);
+        audioCacheProgress_->setVisible(enabled);
+        if(!enabled) return;
+        const int requested=activePlaybackCacheMs_;
+        const int staged=requestedPlaybackBufferMs();
+        const qint64 elapsed=audioStartedMs_>0?
+            qMax(qint64(0),QDateTime::currentMSecsSinceEpoch()-audioStartedMs_):0;
+        const bool stationOpened=active() && !playingKey_.isEmpty() &&
+                                 audioStartedMs_>0;
+        const bool playing=stationOpened &&
+                           player_->getPlaybackStatus()==MediaWidget::Playing;
+        int percent=0;
+        QString message;
+        if(!stationOpened) {
+            message=tr("Extra buffer ON · %1 ms requested for next DAB "
+                       "playback; no stream currently opening").arg(staged);
+        } else if(playing) {
+            percent=100; // The player STARTED, not measured 100% buffer fill.
+            message=tr("Player reports PLAYING · %1 ms extra cache requested "
+                       "· actual buffer fill unmeasured").arg(requested);
+        } else if(requested>0) {
+            percent=qMin(95,int(qMin(elapsed,qint64(requested))*95/requested));
+            message=tr("Opening DAB audio · estimated startup %1 / %2 ms "
+                       "(%3% of requested time; actual fill unmeasured)")
+                       .arg(elapsed).arg(requested).arg(percent);
+        } else {
+            message=tr("Extra buffer enabled, 0 ms requested · %1")
+                .arg(autoSync_ && autoSync_->isChecked()?
+                    tr("awaiting Whisper latency estimate"):
+                    tr("open stream; no extra buffering"));
+        }
+        if(staged!=requested && stationOpened)
+            message+=tr(" · next station: %1 ms").arg(staged);
+        for(QProgressBar *bar:{quickBufferProgress_,audioCacheProgress_}) {
+            bar->setRange(0,100);
+            bar->setValue(percent);
+            bar->setFormat(message);
+        }
+    }
 	int selectedBufferMs() const {
         return qBound(0,bufferMs_->value()*(bufferUnitsSeconds_?1000:1),60000);
     }
@@ -4028,7 +4116,8 @@ private:
 	QVBoxLayout *playerHostLayout_=nullptr;
 	QTabWidget *modes_=nullptr;
     QSplitter *stationSplit_=nullptr;
-    QLabel *selectedSource_=nullptr,*selectedStationVintage_=nullptr;
+    QLabel *selectedSource_=nullptr,*selectedStationVintage_=nullptr,
+           *vintageDabReadout_=nullptr;
 	QComboBox *lyricsSourceLanguage_=nullptr;
     QLabel *translationStatus_=nullptr;
     QLabel *radioTranslationBanner_=nullptr;
@@ -4099,7 +4188,8 @@ private:
 	QSlider *lyricsOffset_=nullptr;
 	QLabel *lyricsOffsetValue_=nullptr,*lyricsSyncState_=nullptr,
         *lyricProvider_=nullptr;
-	QProgressBar *captionProgress_=nullptr,*audioCacheProgress_=nullptr;
+	QProgressBar *captionProgress_=nullptr,*audioCacheProgress_=nullptr,
+                 *quickBufferProgress_=nullptr;
 	QLabel *bufferRecommendation_=nullptr;
 	qint64 audioStartedMs_=0,lastLyricSyncUpdateMs_=0,
         lastCaptionVisibleMs_=0,lastCanvasLyricMs_=0,lastCaptionUpdateMs_=0,lastUnmatchedVoiceUntilMs_=0;
