@@ -2576,13 +2576,6 @@ private:
 			if (!active()) return;
 		}
         if(scanning_) return;
-        // Scanning must never leave an armed AI job behind, including
-        // the case where no station is playing yet.
-        {
-            const QSignalBlocker block(quickAi_);
-            quickAi_->setChecked(false);
-            quickAi_->setText(tr("AI captions · OFF"));
-        }
         if(!playingKey_.isEmpty()) {
 			if (QMessageBox::question(this,tr("Full DAB scan"),
 				tr("Stop current radio playback, offline captions and "
@@ -2601,6 +2594,14 @@ private:
 			playingKey_.clear();
 			lastDetectedLanguage_.clear();
 		}
+        // Disable AI only AFTER the user accepts the scan interruption;
+        // cancelling the scan must preserve the currently running captions.
+        {
+            const QSignalBlocker block(quickAi_);
+            quickAi_->setChecked(false);
+            quickAi_->setText(tr("AI captions · OFF"));
+        }
+        stopCaptioning();
 		scanning_=true;
 		++stationRequestId_;
 		scanRequestId_=0;
