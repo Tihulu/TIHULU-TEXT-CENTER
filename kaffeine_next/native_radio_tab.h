@@ -737,7 +737,20 @@ public:
 		refreshTargets_=new QPushButton(tr("Refresh installed models / languages"),lab);
 		refreshTargets_->setToolTip(tr("Read-only local model catalog; never downloads models."));
 		targetRow->addWidget(installedTargets_,1);
-		targetRow->addWidget(refreshTargets_);
+        auto *modelButtons=new QVBoxLayout();
+        modelButtons->addWidget(refreshTargets_);
+        auto *openModelMarket=new QPushButton(tr("Open AI Model Market"),lab);
+        openModelMarket->setToolTip(tr(
+            "Open the same Whisper / translator manager used by TV. "
+            "Refresh this radio catalog after applying another model."));
+        connect(openModelMarket,&QPushButton::clicked,this,[this](){
+            if(!QProcess::startDetached(QLatin1String("tihulu-tv-center"),
+                {QLatin1String("ai-market")}))
+                translationStatus_->setText(tr(
+                    "Could not open Model Market; use the TIHULU AI menu."));
+        });
+        modelButtons->addWidget(openModelMarket);
+		targetRow->addLayout(modelButtons);
 		v->addLayout(targetRow);
 		connect(refreshTargets_,&QPushButton::clicked,this,[this](){refreshLanguagePacks();});
         connect(&languagePackWorker_,
@@ -828,9 +841,13 @@ public:
                     speechLanguage_->setCurrentIndex(index>=0?index:0);
                 }
                 translationStatus_->setText(tr(
-                    "Language catalog: %1 possible outputs from installed "
-                    "Argos/NLLB/MADLAD or configured DeepL. Check up to six. "
-                    "Actual translation is verified only during playback.")
+                    "Selected TV/Radio translator: %1 · speech backend: %2. "
+                    "%3 candidate outputs from installed model metadata. "
+                    "Check up to six; inference is verified only during playback.")
+                    .arg(info.value(QLatin1String("selected_translator"))
+                            .toString(QLatin1String("unknown")),
+                         info.value(QLatin1String("selected_speech_backend"))
+                            .toString(QLatin1String("auto")))
                     .arg(installedTargets_->count()));
             });
         // Keep output selections stable across AI tab and station changes.
