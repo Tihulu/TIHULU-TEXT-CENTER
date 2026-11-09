@@ -1409,6 +1409,43 @@ public:
 		lyricsRow->addWidget(stopLyrics_,0,1);
 		radioPlaybackRow_->insertWidget(2,autoLyrics_);
         autoLyrics_->setText(tr("Auto lyrics · online opt-in"));
+        karaokeEnabled_=new QCheckBox(tr("Karaoke · blue screen"),page);
+        karaokeTranslationsEnabled_=new QCheckBox(
+            tr("Lyrics translations · yellow"),page);
+        QSettings lyricDisplaySettings(QLatin1String("TIHULU"),
+                                       QLatin1String("KaffeineRadio"));
+        karaokeEnabled_->setChecked(lyricDisplaySettings.value(
+            QLatin1String("karaokeDisplayEnabled"),true).toBool());
+        karaokeTranslationsEnabled_->setChecked(lyricDisplaySettings.value(
+            QLatin1String("karaokeTranslationsEnabled"),true).toBool());
+        karaokeEnabled_->setToolTip(tr(
+            "AUDIO-MATCHED song lines in the big blue station panel. "
+            "The normal Whisper/translated subtitles stay independently "
+            "in the bottom caption bar."));
+        karaokeTranslationsEnabled_->setToolTip(tr(
+            "Show existing lyric translations in yellow under the active "
+            "karaoke line. OFF hides only these duplicates, not the "
+            "normal bottom subtitles."));
+        radioPlaybackRow_->insertWidget(3,karaokeEnabled_);
+        radioPlaybackRow_->insertWidget(4,karaokeTranslationsEnabled_);
+        connect(karaokeEnabled_,&QCheckBox::toggled,this,[this](bool enabled){
+            QSettings prefs(QLatin1String("TIHULU"),
+                            QLatin1String("KaffeineRadio"));
+            prefs.setValue(QLatin1String("karaokeDisplayEnabled"),enabled);
+            if(karaokePanel_) karaokePanel_->setVisible(enabled &&
+                lastKaraokeUntilMs_>QDateTime::currentMSecsSinceEpoch() &&
+                karaokeCurrent_ && !karaokeCurrent_->text().isEmpty());
+        });
+        connect(karaokeTranslationsEnabled_,&QCheckBox::toggled,
+            this,[this](bool enabled){
+                QSettings prefs(QLatin1String("TIHULU"),
+                                QLatin1String("KaffeineRadio"));
+                prefs.setValue(QLatin1String("karaokeTranslationsEnabled"),
+                               enabled);
+                if(karaokeTranslation_)
+                    karaokeTranslation_->setVisible(enabled &&
+                        !karaokeTranslation_->text().isEmpty());
+            });
         lyricsRow->addWidget(listenLyrics_,5,0,1,2);
         lyricsRow->addWidget(listenFallbackOnMiss_,5,2);
 		lyricsRow->addWidget(autoLyricSync_,1,0,1,2);
@@ -4670,6 +4707,8 @@ private:
 	int lastLyricOffsetMs_=0;
 	bool plainLyricMode_=false;
 	QList<TimedPlainLyric> plainLyricQueue_,verifiedLyricQueue_;
+    QCheckBox *karaokeEnabled_=nullptr,
+        *karaokeTranslationsEnabled_=nullptr;
 	QCheckBox *autoLyrics_=nullptr,*autoLyricSync_=nullptr,
 		*preferLyrics_=nullptr,*listenFallbackOnMiss_=nullptr;
     bool lyricsAudioFallbackActive_=false,lyricsFallbackStartedAi_=false,
@@ -4716,6 +4755,13 @@ private:
     QString lastErrorStation_;
     qint64 lastRfFrameErrors_=-1,lastRfRsErrors_=-1,lastRfAacErrors_=-1;
     QJsonObject lastVerifiedLyricTranslations_;
+    QStringList lyricRawLines_;
+    QString lastLyricsProvider_;
+    qint64 lastKaraokeUntilMs_=0;
+    QLabel *karaokeSource_=nullptr,*karaokePrevious_=nullptr,
+        *karaokeCurrent_=nullptr,*karaokeNext_=nullptr,
+        *karaokeTranslation_=nullptr;
+    QWidget *karaokePanel_=nullptr;
     qint64 lastVerifiedLyricMs_=0;
     int lastLyricDirection_=0,lyricOffsetConsistency_=0;
 	QString activeChannel_,playingKey_,lastDls_,lastSongDls_,captionPath_,captionControlsPath_,lyricPath_,
