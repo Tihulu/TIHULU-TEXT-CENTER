@@ -4235,14 +4235,18 @@ private:
                         .arg(qRound(confidence*100))
                         .arg(matched.value(QLatin1String("index")).toInt()+1));
 					if(plainLyricMode_) {
-						plainLyricQueue_.append({due+lyricsOffset_->value(),rendered,confidence});
+						plainLyricQueue_.append({due+lyricsOffset_->value(),rendered,confidence,
+                            matched.value(QLatin1String("index")).toInt(-1),
+                            line,lyricTranslations});
 						while(plainLyricQueue_.size()>10) plainLyricQueue_.removeFirst();
 						lyricsSyncState_->setText(tr("Verified text match %1% · "
 							"audio-derived line ordering, approximate 5s time resolution")
 							.arg(qRound(confidence*100)));
                     } else {
                         verifiedLyricQueue_.append({
-                            due+lyricsOffset_->value(),rendered,confidence});
+                            due+lyricsOffset_->value(),rendered,confidence,
+                            matched.value(QLatin1String("index")).toInt(-1),
+                            line,lyricTranslations});
                         while(verifiedLyricQueue_.size()>10)
                             verifiedLyricQueue_.removeFirst();
                     }
@@ -4304,6 +4308,7 @@ private:
                 lastMatchedLyricUntilMs_=0;
                 verifiedLyricQueue_.clear();
                 plainLyricQueue_.clear();
+                clearKaraokeLine();
                 lastUnmatchedVoiceUntilMs_=qMax(lastUnmatchedVoiceUntilMs_,
                                                 due+5000);
                 setRadioLyricMatchStatus(tr(
@@ -4565,6 +4570,7 @@ private:
               verifiedLyricQueue_.first().dueMs<=now) {
             const auto cue=verifiedLyricQueue_.takeFirst();
             showRadioCanvasCaption(cue.text,true);
+            showKaraokeLine(cue);
             setRadioLyricMatchStatus(tr(
                 "LYRICS MATCHED %1% · showing heard song words")
                 .arg(qRound(cue.confidence*100)));
@@ -4577,6 +4583,7 @@ private:
 				lyricText_->setText(tr("Audio-matched lyric (~%1% confidence) · %2")
 					.arg(qRound(cue.confidence*100)).arg(cue.text));
                 showRadioCanvasCaption(cue.text,true);
+                showKaraokeLine(cue);
                 setRadioLyricMatchStatus(tr(
                     "LYRICS MATCHED %1% · showing heard song words")
                     .arg(qRound(cue.confidence*100)));
@@ -4647,6 +4654,12 @@ private:
 			plainLyricMode_=value.value(QLatin1String("alignment_mode")).toString()
 				==QLatin1String("asr_lexical");
 			lyricCues_=value.value(QLatin1String("cues")).toArray();
+            lastLyricsProvider_=provider.isEmpty()?tr("local file"):provider;
+            lyricRawLines_.clear();
+            const QJsonArray originalLines=value.value(
+                QLatin1String("plain_lines")).toArray();
+            for(const QJsonValue &item:originalLines)
+                if(item.isString()) lyricRawLines_<<item.toString().left(350);
             setRadioLyricMatchStatus(tr(
                 "LYRICS FOUND · %1 · %2 · matching live audio…")
                 .arg(provider.isEmpty()?tr("local file"):provider,
