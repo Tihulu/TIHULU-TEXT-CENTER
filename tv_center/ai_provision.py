@@ -17,11 +17,14 @@ from .model_market import ModelLibrary, argos_installed_pairs
 from .runtime import AIRuntime
 from .whisper_engine import WhisperRuntime
 
-PAIRS = (("de", "en"), ("en", "de"), ("en", "tr"), ("tr", "en"))
-LANGUAGES = ("de", "en", "tr")
+# Default offline translation mesh: any pair can route via English.
+# Bidirectional FR is important for multilingual German/NRW broadcasts.
+PAIRS = (("de", "en"), ("en", "de"), ("en", "tr"), ("tr", "en"),
+         ("fr", "en"), ("en", "fr"))
+LANGUAGES = ("de", "en", "tr", "fr")
 
 def translate_ready(pairs):
-    """Full DE/EN/TR translation by direct or English-pivot Argos paths."""
+    """All installed DE/EN/TR/FR paths must work in BOTH directions."""
     graph = {x: set() for x in LANGUAGES}
     for item in pairs:
         source, target = item["source"], item["target"]
@@ -37,6 +40,24 @@ def translate_ready(pairs):
         if len(seen) != len(LANGUAGES):
             return False
     return True
+
+def translate_ready_three(pairs):
+    graph={code:set() for code in ("de","en","tr")}
+    for item in pairs:
+        a,b=item["source"],item["target"]
+        if a in graph and b in graph:
+            graph[a].add(b)
+    for code in graph:
+        seen,pending={code},[code]
+        while pending:
+            for nxt in graph[pending.pop()]:
+                if nxt not in seen:
+                    seen.add(nxt)
+                    pending.append(nxt)
+        if len(seen)!=3:
+            return False
+    return True
+
 
 class StarterAI:
     def __init__(self, ai=None, library=None, runtime=None, whisper=None):
@@ -77,7 +98,10 @@ class StarterAI:
             "active_model": active,
             "argos_runtime_ready": self.runtime.status()["installed"],
             "installed_pairs": [p["source"] + "→" + p["target"] for p in pairs],
-            "translation_three_languages_ready": translate_ready(pairs),
+            # Preserve the legacy trio for older callers; full profile
+            # readiness now additionally checks French in both directions.
+            "translation_three_languages_ready": translate_ready_three(pairs),
+            "translation_four_languages_ready": translate_ready(pairs),
             "enabled_asr": self.ai.values["asr_enabled"],
             "enabled_translation": self.ai.values["translation_enabled"],
             "storage": str(self.library.root),
@@ -104,7 +128,7 @@ class StarterAI:
                 show(f"Whisper Tiny: {got//1048576} MiB received"))
         if not model.is_file():
             raise RuntimeError("Verified Whisper model unavailable")
-        show("3/3 · Creating offline Argos runtime and installing four language pairs")
+        show("3/3 · Creating offline Argos runtime and installing six bidirectional DE/EN/TR/FR language packs")
         if not self.runtime.status()["installed"]:
             self.runtime.install_argos()
         packages = self._setup_argos_packs(progress=show)
