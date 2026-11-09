@@ -906,6 +906,8 @@ public:
             60000));
         quickBuffer_->setChecked(
             radioSettings.value(QLatin1String("radioBufferEnabled"),false).toBool());
+        quickBuffer_->setText(quickBuffer_->isChecked()?
+            tr("Extra audio buffer · ON"):tr("Extra audio buffer · OFF"));
         // Legacy 12s network cache is intentionally NOT reenabled just
         // because an earlier installation had saved it. Preserve its
         // numeric preference for the next explicit user enable.
@@ -1013,6 +1015,8 @@ public:
         v->addWidget(captionProgress_);
         connect(applyBuffer,&QPushButton::clicked,this,[this](){ applyRadioBuffer(); });
         connect(quickBuffer_,&QCheckBox::toggled,this,[this](bool enabled){
+            quickBuffer_->setText(enabled?
+                tr("Extra audio buffer · ON"):tr("Extra audio buffer · OFF"));
             if(!enabled && autoSync_->isChecked()) {
                 const QSignalBlocker block(autoSync_);
                 autoSync_->setChecked(false);
@@ -1034,6 +1038,7 @@ public:
                 // Save recommendation for next tune or explicit Apply.
                 const QSignalBlocker block(quickBuffer_);
                 quickBuffer_->setChecked(true);
+                quickBuffer_->setText(tr("Extra audio buffer · ON"));
                 setBufferDisplayMs(0);
                 saved.setValue(QLatin1String("radioBufferEnabled"),true);
                 saved.setValue(QLatin1String("radioBufferDesiredMs"),0);
