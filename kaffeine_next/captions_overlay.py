@@ -1570,6 +1570,8 @@ def main(argv=None):
     from .live_srt import LiveSRTRecorder
     srt_recorder = LiveSRTRecorder()
     cues = CueQueue(maximum=32)
+    from .caption_timing import SpeakerLineHistory
+    recent_voice_lines=SpeakerLineHistory()
     # A six-second Whisper clip plus inference/translation may arrive more
     # than six seconds after speaking began. On desktop allow up to 15s,
     # but still obey the measured 48 MiB memory budget and native FIFO cap.
@@ -2205,6 +2207,7 @@ def main(argv=None):
             applied = __import__("dataclasses").replace(
                 applied, revision=applied.revision + 1)
         cues.clear()
+        recent_voice_lines.clear()
         deferred_captions.clear()
         current_cue = None
         current_text = ""
@@ -2821,6 +2824,9 @@ def main(argv=None):
                     if data.get("teletext_audit"):
                         status.setText(
                             status.text()+" | "+str(data["teletext_audit"])[:200])
+                    if data.get("overlap_note"):
+                        status.setText(status.text() +
+                            " | Dual voices: "+str(data["overlap_note"])[:180])
                     if data.get("speaker_error"):
                         status.setText(status.text() +
                             " | Diarization unavailable: " +
@@ -2904,7 +2910,8 @@ def main(argv=None):
                 except (OSError, ValueError) as error:
                     end_srt_recording()
                     srt_status.setText("SRT save error: " + str(error))
-            current_text = applied.render(result)
+            current_text = recent_voice_lines.compose(
+                result,applied.render(result),applied,now,tap.program_epoch)
             current_until = cue["expires"]
             source_language = str(result.get("source_language") or applied.source).upper()
             label_prefix = ""
@@ -2957,6 +2964,10 @@ def main(argv=None):
             else:
                 translated.setText("")
                 translated.setToolTip("Translations are not selected.")
+            if (applied.separate_overlapping_voices and
+                    len(result.get("overlap_lines") or [])==2):
+                original.setText(current_text)
+                translated.setText("")
             ipc.publish(current_text,applied,ttl_ms=3000)
             last_published = now
         elif current_cue and now >= current_until + 1.0:
