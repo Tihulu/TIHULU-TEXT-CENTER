@@ -595,6 +595,21 @@ public:
 			"QLabel{background:#122637;color:#eef9fc;font-size:19px;"
 			"border:1px solid #2b566b;border-radius:8px;padding:12px;}"));
 		playerHostLayout_->addWidget(radioCanvas_);
+        // Radio subtitles belong INSIDE the large station surface, not
+        // in the settings-only panel. Preserve radioCanvas_'s station art/
+        // receiver text; a separate bottom child overlays real cues.
+        auto *captionSurface=new QVBoxLayout(radioCanvas_);
+        captionSurface->setContentsMargins(12,12,12,12);
+        captionSurface->addStretch(1);
+        radioCanvasCaption_=new QLabel(radioCanvas_);
+        radioCanvasCaption_->setTextFormat(Qt::PlainText);
+        radioCanvasCaption_->setWordWrap(true);
+        radioCanvasCaption_->setAlignment(Qt::AlignHCenter | Qt::AlignVCenter);
+        radioCanvasCaption_->setStyleSheet(QLatin1String(
+            "QLabel{background:rgba(0,0,0,205);color:white;"
+            "border-radius:5px;padding:8px;font-size:16px;}"));
+        radioCanvasCaption_->setVisible(false);
+        captionSurface->addWidget(radioCanvasCaption_);
 
 		auto *meta = new QHBoxLayout();
 		slide_ = new QLabel(tr("No DAB slideshow"), right);
@@ -639,9 +654,14 @@ public:
 		auto *row = new QGridLayout();
         row->setHorizontalSpacing(7);
         row->setVerticalSpacing(5);
+        v->addWidget(new QLabel(
+            tr("<b>1 · Recognize audio</b> · independent of the output languages"),lab));
 		speechLanguage_ = new QComboBox(lab);
 		speechLanguage_->addItem(tr("Auto detect · GPU Whisper"),"auto");
-		speechLanguage_->addItems({"de","en","tr","fr","es","pl","ar","ja"});
+        // The complete supported Whisper input set is filled from the
+        // shared catalog. Keep a usable offline fallback until it arrives.
+        for(const QString &code:QStringList{"de","en","tr","fr","es","pl","ar","ja"})
+            speechLanguage_->addItem(code.toUpper(),code);
 		speechLanguage_->setEditable(true);
 		speechLanguage_->setCurrentIndex(0);
 		captionSource_=new QComboBox(lab);
@@ -678,13 +698,16 @@ public:
         row->addWidget(captionSource_,0,1,1,2);
         row->addWidget(new QLabel(tr("Speech language:"),lab),1,0);
         row->addWidget(speechLanguage_,1,1,1,2);
-        row->addWidget(english_,2,0);
-        row->addWidget(german_,2,1);
-        row->addWidget(turkish_,2,2);
+        // Legacy quick checkboxes are retained as disabled compatibility
+        // objects only. ONE checkable multi-output list below owns targets.
+        english_->hide(); german_->hide(); turkish_->hide();
         row->addWidget(music_,3,0,1,2);
         row->addWidget(speakerLabels_,3,2);
         row->setColumnStretch(1,1);
 		v->addLayout(row);
+        v->addWidget(new QLabel(tr(
+            "<b>2 · Output subtitles</b> · choose up to six checked languages; "
+            "original audio is always included"),lab));
         translationStatus_=new QLabel(tr(
             "Translations: show original audio first. Select output languages; "
             "automatic source translation waits for reliable Whisper detection."),lab);
@@ -693,14 +716,25 @@ public:
         v->addWidget(translationStatus_);
 		extraTargets_=new QLineEdit(lab);
 		extraTargets_->setPlaceholderText(
-			tr("Extra translation targets (optional): fr, es, pl, ar, ja..."));
+			tr("Advanced · additional ISO targets not listed (comma-separated)"));
+        extraTargets_->setToolTip(tr(
+            "Advanced override for NLLB/MADLAD-supported ISO codes. "
+            "A model weight file is not proof of real translation ability."));
+        extraTargets_->setVisible(false);
+        advancedLanguages_=new QCheckBox(tr("Advanced · enter other output language codes"),lab);
+        connect(advancedLanguages_,&QCheckBox::toggled,extraTargets_,
+                &QWidget::setVisible);
+        v->addWidget(advancedLanguages_);
 		v->addWidget(extraTargets_);
 		auto *targetRow=new QHBoxLayout();
 		installedTargets_=new QListWidget(lab);
-		installedTargets_->setMaximumHeight(95);
-		installedTargets_->setToolTip(tr("Select any target languages actually installed "
-			"via Argos. NLLB multilingual targets may also be entered above."));
-		refreshTargets_=new QPushButton(tr("Refresh installed language packs"),lab);
+		installedTargets_->setMinimumHeight(110);
+        installedTargets_->setMaximumHeight(180);
+		installedTargets_->setToolTip(tr("Shared TV/Radio Model Market catalog: "
+            "Argos pairs, NLLB/MADLAD installed weights and explicitly configured "
+            "online DeepL. Check up to six outputs. Listed does not guarantee "
+            "the selected source-to-target translation will succeed."));
+		refreshTargets_=new QPushButton(tr("Refresh installed models / languages"),lab);
 		refreshTargets_->setToolTip(tr("Read-only local model catalog; never downloads models."));
 		targetRow->addWidget(installedTargets_,1);
 		targetRow->addWidget(refreshTargets_);
@@ -3299,6 +3333,8 @@ private:
 	QComboBox *lyricsSourceLanguage_=nullptr;
     QLabel *translationStatus_=nullptr;
     QLabel *radioTranslationBanner_=nullptr;
+    QLabel *radioCanvasCaption_=nullptr;
+    QCheckBox *advancedLanguages_=nullptr;
 	QComboBox *channel_=nullptr, *driver_=nullptr, *speechLanguage_=nullptr,
 		*captionSource_=nullptr,
 		*plotKind_=nullptr, *fftPlacement_=nullptr;
