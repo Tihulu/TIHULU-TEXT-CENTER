@@ -24,6 +24,30 @@ MODE = ("auto", "teletext", "asr", "page", "off")
 LANGS = ("de", "en", "tr", "fr")  # quick-select presets only
 from tv_center.language_codes import language_code
 
+# Internal event/category codes are language-neutral. Translate only at
+# rendering time to the selected visible subtitle language, never hard-code
+# Turkish labels into German, English or French broadcasts.
+VOICE_NAMES = {
+    "en": {"male":"Male voice?","female":"Female voice?","child":"Child voice?"},
+    "de": {"male":"Männliche Stimme?","female":"Weibliche Stimme?","child":"Kinderstimme?"},
+    "tr": {"male":"Erkek sesi?","female":"Kadın sesi?","child":"Çocuk sesi?"},
+    "fr": {"male":"Voix masculine ?","female":"Voix féminine ?","child":"Voix d’enfant ?"},
+}
+SOUND_NAMES = {
+    "en": {"music":"Music","hum":"Humming","applause":"Applause",
+           "noise":"Noise","laughter":"Laughter"},
+    "de": {"music":"Musik","hum":"Summen","applause":"Applaus",
+           "noise":"Rauschen","laughter":"Lachen"},
+    "tr": {"music":"Müzik","hum":"Uğultu","applause":"Alkış",
+           "noise":"Gürültü","laughter":"Gülüşme"},
+    "fr": {"music":"Musique","hum":"Bourdonnement","applause":"Applaudissements",
+           "noise":"Bruit","laughter":"Rires"},
+}
+
+def _label_language(code):
+    return str(code or "en").lower().split("-")[0].split("_")[0]
+
+
 @dataclass(frozen=True)
 class CaptionConfig:
     mode: str = "auto"
@@ -141,16 +165,16 @@ class CaptionConfig:
                 "speaker_provider":self.speaker_provider,
                 "revision":self.revision}
 
-    def _voice_prefix(self,result):
+    def _voice_prefix(self,result,language="en"):
         if not self.speaker_enabled:
             return ""
         index=result.get("speaker_index")
         category=str(result.get("voice_type") or "").lower()
         score=result.get("voice_type_confidence")
+        threshold=0.95 if category=="child" else 0.88
         if (self.show_voice_types and category in ("male","female","child")
-                and isinstance(score,(float,int)) and score>=0.8):
-            names={"male":"Erkek sesi?","female":"Kadın sesi?",
-                   "child":"Çocuk sesi?"}
+                and isinstance(score,(float,int)) and score>=threshold):
+            names=VOICE_NAMES.get(_label_language(language),VOICE_NAMES["en"])
             return ("["+names[category]+
                     (f" {index}" if type(index) is int else "")+"]")
         if not self.show_speaker_numbers:
@@ -162,11 +186,10 @@ class CaptionConfig:
         return str(result.get("speaker_label") or "").strip()[:55]
 
     @staticmethod
-    def _event_lines(result):
+    def _event_lines(result,language="en"):
         # Show only detector-backed events (AST), never invent noise from
         # silence/voice pitch. Sound tags are INDEPENDENT of speaker labels.
-        names={"music":"Müzik","hum":"Uğultu","applause":"Alkış",
-               "noise":"Gürültü","laughter":"Gülüşme"}
+        names=SOUND_NAMES.get(_label_language(language),SOUND_NAMES["en"])
         labels=[]
         for event in (result.get("sound_events") or [])[:3]:
             if isinstance(event,dict):
@@ -181,27 +204,9 @@ class CaptionConfig:
     def render(self, result):
         """Produce independently selectable original/translated subtitle lines."""
         original = (result.get("original") or "").strip()
-        speaker = ""
-        speaker_index = result.get("speaker_index")
-        if self.speaker_enabled:
-            # Estimated voice category is metadata from a separate model.
-            # Resemblyzer alone only clusters identities; do NOT invent
-            # "man", "woman", "child" from cluster IDs or pitch.
-            guessed = str(result.get("voice_type") or "").lower()
-            if (self.show_voice_types and guessed in
-                    ("male","female","child") and
-                    float(result.get("voice_type_confidence") or 0) >= 0.8):
-                names={"male":"Erkek sesi?","female":"Kadın sesi?",
-                       "child":"Çocuk sesi?"}
-                speaker=("["+names[guessed]+
-                         (f" {speaker_index}" if type(speaker_index) is int else "")+"]")
-            elif self.show_speaker_numbers:
-                speaker = str(result.get("speaker_label") or "").strip()[:55]
-                if (type(speaker_index) is int
-                        and 1 <= speaker_index <= len(self.speaker_aliases)
-                        and self.speaker_aliases[speaker_index-1].strip()):
-                    speaker = ("[" + self.speaker_aliases[
-                        speaker_index-1].strip()[:30] + "]")
+        original_language=result.get("source_language") or self.source
+        speaker=self._voice_prefix(result,original_language)
+        speaker_index=result.get("speaker_index")
         raw = result.get("translations")
         translated = raw if isinstance(raw, dict) else {}
         lines = []
@@ -213,7 +218,8 @@ class CaptionConfig:
             for item in streams:
                 if not isinstance(item,dict):
                     continue
-                label=self._voice_prefix(item)
+                label=self._voice_prefix(
+                    item,item.get("source_language") or original_language)
                 speech=str(item.get("original") or "").strip()
                 translation=item.get("translations") or {}
                 chunks=[]
@@ -229,7 +235,10 @@ class CaptionConfig:
                     lines.append((label+" " if label else "")+" | ".join(chunks))
             if lines:
                 if self.show_sound_events:
-                    for label in self._event_lines(result):
+                    event_language=(self.target_languages[0]
+                                    if self.show_translation and self.target_languages
+                                    else original_language)
+                    for label in self._event_lines(result,event_language):
                         lines.append(label)
                 return "\n".join(lines[:4])[:1100]
         if self.show_original and original:
@@ -250,15 +259,19 @@ class CaptionConfig:
                     if (isinstance(phrase, str) and phrase.strip() and (
                             not already_original or (
                                 not self.show_original and language == source_language))):
+                        translated_speaker=self._voice_prefix(result,language)
                         lines.append(
-                            (speaker + "  " if speaker else "") +
+                            (translated_speaker + "  " if translated_speaker else "") +
                             f"[{language.upper()}] " + phrase.strip())
             else:
                 legacy = (result.get("translated") or "").strip()
                 if legacy and legacy != original:
                     lines.append(legacy)
         if self.show_sound_events:
-            lines.extend(self._event_lines(result))
+            event_language=(self.target_languages[0]
+                            if self.show_translation and self.target_languages
+                            else original_language)
+            lines.extend(self._event_lines(result,event_language))
         # If the viewer requested translated-only subtitles but no model
         # could translate into the selected language, never blank the screen.
         # Broadcast / Whisper original remains visible with an explicit label.
