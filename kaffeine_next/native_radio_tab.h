@@ -3292,6 +3292,8 @@ private:
 		}
 		if (!captionPath_.isEmpty()) QFile::remove(captionPath_);
 		captionPath_.clear();
+        if(!lyricsEnabled_ && radioCanvasCaption_)
+            radioCanvasCaption_->setVisible(false);
         if(radioTranslationBanner_) radioTranslationBanner_->setVisible(false);
         captionsStopping_=false;
 	}
@@ -3439,7 +3441,12 @@ private:
 				lyricText_->setText(tr("Audio-matched lyric (~%1% confidence) · %2")
 					.arg(qRound(cue.confidence*100)).arg(cue.text));
                 showRadioCanvasCaption(cue.text,true);
-			}
+            }
+            if(lastCanvasLyricMs_>0 && now-lastCanvasLyricMs_>8000 &&
+               radioCanvasCaption_) {
+                radioCanvasCaption_->setVisible(false);
+                lastCanvasLyricMs_=0;
+            }
 			return;
 		}
 		if (lyricPath_.isEmpty() || lyricLoaded_) {
@@ -3471,6 +3478,11 @@ private:
                     const QString text=tr("Estimated lyric timing · %1").arg(current);
                     if(lyricText_->text()!=text)lyricText_->setText(text);
                     showRadioCanvasCaption(current,true);
+                } else if(lastCanvasLyricMs_>0 &&
+                    QDateTime::currentMSecsSinceEpoch()-lastCanvasLyricMs_>8000 &&
+                    radioCanvasCaption_) {
+                    radioCanvasCaption_->setVisible(false);
+                    lastCanvasLyricMs_=0;
                 }
 			}
 			return;
