@@ -657,13 +657,15 @@ def open_ai_settings(parent, ai, after_save=None):
             self.timer = QTimer(self)
             self.timer.timeout.connect(self.process_events)
             self.timer.start(250)
+            # Don't block the first paint on NVIDIA, Argos subprocesses
+            # or model readiness. Heavy probes run in read-only workers.
             self.populate_models()
-            self.inspect_compute()
             self.refresh_all_models()
-            self.inspect_argos()
             self.inspect_runtime()
-            self.inspect_starter()
             self.inspect_speaker()
+            QTimer.singleShot(0, self.inspect_compute)
+            QTimer.singleShot(0, self.inspect_argos)
+            QTimer.singleShot(0, self.inspect_starter)
 
         def show_profile_description(self, *_):
             key = self.profile_choice.currentData()
@@ -930,19 +932,33 @@ def open_ai_settings(parent, ai, after_save=None):
                     "Arbitrary online weights cannot safely be installed.")
 
         def inspect_starter(self):
-            try:
-                state = StarterAI(self.ai, self.library).status()
+            if self._starter_busy:
+                return
+            self._starter_busy=True
+            def read():
+                try:
+                    result={"state":StarterAI(self.ai,self.library).status()}
+                except Exception as exc:
+                    result={"error":str(exc)[:160]}
+                self.work.put(("starter_state",result))
+            threading.Thread(target=read,daemon=True,
+                             name="tihulu-starter-status").start()
+
+        def _show_starter(self,result):
+            self._starter_busy=False
+            if "error" in result:
                 self.starter_state.setText(
-                    "Whisper engine: " + ("READY" if state["whisper_engine_ready"] else "missing") +
-                    "  |  multilingual Tiny: " + ("READY" if state["tiny_model_ready"] else "missing") +
-                    "  |  DE/EN/TR translation: " + (
-                        "READY" if state["translation_three_languages_ready"] else "missing packs") +
-                    "\nInstalled directions: " + (
-                        ", ".join(state["installed_pairs"]) or "none") +
-                    "\nASR: " + ("ENABLED" if state["enabled_asr"] else "OFF") +
-                    "  /  Translation: " + ("ENABLED" if state["enabled_translation"] else "OFF"))
-            except (ImportError, OSError, RuntimeError) as exc:
-                self.starter_state.setText("Starter status unavailable: " + str(exc)[:160])
+                    "Starter readiness check failed: "+result["error"])
+                return
+            state=result["state"]
+            self.starter_state.setText(
+                "Whisper engine: "+("READY" if state["whisper_engine_ready"] else "missing")+
+                " | Tiny: "+("READY" if state["tiny_model_ready"] else "missing")+
+                " | DE/EN/TR: "+("READY" if state["translation_three_languages_ready"]
+                               else "missing packs")+
+                "\\nInstalled directions: "+(", ".join(state["installed_pairs"]) or "none")+
+                "\\nASR: "+("ENABLED" if state["enabled_asr"] else "OFF")+
+                " | Translation: "+("ENABLED" if state["enabled_translation"] else "OFF"))
 
         def setup_starter(self):
             if QMessageBox.question(self, "Install complete offline AI starter",
@@ -1232,8 +1248,8 @@ def open_ai_settings(parent, ai, after_save=None):
                 ("\nPending model (not yet saved): " + pending_path
                  if pending_path != saved_path else ""))
             self.storage_label.setText("Managed models: " + str(self.library.root))
-            if hasattr(self, "starter_state"):
-                self.inspect_starter()
+            # Avoid blocking the Qt event thread on a child Python/Argos
+            # import each time the installed-model selection is refreshed.
 
         def inspect_compute(self):
             try:
