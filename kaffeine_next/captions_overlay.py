@@ -150,7 +150,14 @@ class CaptionTap:
                         f"Queue: {queue_state['queued_clips']} clips, "
                         f"wait {queue_wait:.1f}s")
             try:
-                self._decode(clip.data, options, clip.started, clip.ended)
+                from tv_center.translation_service import live_translation_budget
+                # One bounded budget for ALL selected output languages,
+                # beginning at the FIRST translation request, not before
+                # Whisper. An unavailable translator cannot hold the TV
+                # subtitle worker for 10–30s PER target.
+                with live_translation_budget(
+                        7.0 if options.get("live_priority",True) else 30.0):
+                    self._decode(clip.data, options, clip.started, clip.ended)
             except Exception as error:
                 self._note_warning("Caption worker failed: "+str(error)[:120])
             finally:
