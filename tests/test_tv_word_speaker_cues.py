@@ -42,6 +42,29 @@ class WordCueTests(unittest.TestCase):
         self.assertEqual(q.poll(109,0),None)
         self.assertIsNotNone(q.poll(111,0))
 
+    def test_fast_bilingual_word_cues_use_complete_readable_phrase(self):
+        data=clip()
+        cfg=CaptionConfig(playback_delay_ms=12000,
+                          readable_pacing=True,target_languages=("en","tr"))
+        from kaffeine_next.word_cues import enqueue_word_cues
+        queue=CueQueue()
+        result=enqueue_word_cues(queue,data,cfg,100.0,106.0,107.0)
+        self.assertIsNone(result)
+        self.assertEqual(queue.items,[])
+        # Full source-timed Whisper metadata remains available for a
+        # single natural sentence anchored to a real first word.
+        from kaffeine_next.caption_timing import cue_window
+        data["word_timing_source"]="CUDA"
+        when=cue_window(100.0,106.0,107.0,cfg,data)
+        self.assertGreater(when["expires"]-when["due"],2.8)
+
+    def test_legacy_word_by_word_still_available_without_readable_pacing(self):
+        cfg=CaptionConfig(playback_delay_ms=12000,readable_pacing=False)
+        queue=CueQueue()
+        result=enqueue_word_cues(queue,clip(),cfg,100,106,107)
+        self.assertIsNotNone(result)
+        self.assertGreater(len(queue.items),1)
+
     def test_timed_words_keep_actual_source_spacing_not_cumulative_ui_holds(self):
         cfg=CaptionConfig(playback_delay_ms=20000)
         queue=CueQueue(minimum_hold=1.75)
