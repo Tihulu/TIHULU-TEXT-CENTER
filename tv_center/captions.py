@@ -267,6 +267,22 @@ def asr_from_clip(path: Path, language: str, model: str,
     from textcenter.speech import transcribe_pcm
     profile = detect_devices()
     selected = choose_backend(profile, selected_backend)
+    # This vendor Whisper Base path currently lacks a proven automatic
+    # language-detection contract. Keep spoken=Auto useful via CPU Tiny,
+    # instead of labeling an unsupported NPU language mode as working.
+    if selected.get("selected")=="npu" and language=="auto":
+        from .ai_settings import AISettings
+        settings=AISettings().values
+        if (settings.get("active_profile")=="pi5_hat2"
+                and settings.get("hailo_cpu_fallback")):
+            selected=choose_backend(profile,"cpu")
+            if diagnostics is not None:
+                diagnostics["npu_notice"]=(
+                    "Spoken Auto detect uses Pi CPU fallback; set a language "
+                    "to test Hailo Whisper Base")
+        else:
+            raise RuntimeError(
+                "Selected NPU Whisper requires a known source language")
     if diagnostics is not None:
         diagnostics["backend"] = selected.get("selected", "unknown")
         # The user may have a GGML Tiny selected for CPU fallback while
@@ -308,8 +324,31 @@ def asr_from_clip(path: Path, language: str, model: str,
         return _speaker_details(audio.stdout, details["text"].strip(),
                                 diagnostics, speaker_enabled, speaker_provider,
                                 channel=f"{service_id}:{audio_pid}")
-    transcription = transcribe_pcm(
-        audio.stdout, language, selected["selected"], profile).strip()
+    try:
+        transcription = transcribe_pcm(
+            audio.stdout, language, selected["selected"], profile).strip()
+    except (RuntimeError, OSError, ValueError, TimeoutError) as exc:
+        # A failed Hailo device/model must NOT drop original dialogue when
+        # the owner explicitly selected this Pi preset with CPU fallback.
+        if selected.get("selected") != "npu":
+            raise
+        from .ai_settings import AISettings
+        settings=AISettings().values
+        if (settings.get("active_profile")!="pi5_hat2"
+                or not settings.get("hailo_cpu_fallback")):
+            raise
+        cpu=choose_backend(profile,"cpu")
+        if not cpu.get("ready"):
+            raise RuntimeError(
+                "Hailo ASR failed and Whisper Tiny CPU fallback is unavailable") from exc
+        if diagnostics is not None:
+            diagnostics["npu_error"]=str(exc)[:180]
+            diagnostics["npu_fallback"]="Whisper Tiny CPU"
+            diagnostics["backend"]="cpu"
+            diagnostics["model"]=Path(model).name if model else "CPU model"
+            diagnostics["engine"]="whisper.cpp CPU fallback"
+        transcription=transcribe_pcm(
+            audio.stdout, language,"cpu",profile).strip()
     return _speaker_details(audio.stdout, transcription,
                             diagnostics, speaker_enabled, speaker_provider,
                             channel=f"{service_id}:{audio_pid}")
