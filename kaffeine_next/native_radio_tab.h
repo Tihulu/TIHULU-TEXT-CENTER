@@ -1322,8 +1322,21 @@ public:
         });
         connect(&captionProcess_,QOverload<int,QProcess::ExitStatus>::of(&QProcess::finished),
             this,[this](int code,QProcess::ExitStatus exitState){
-                if(captionsStopping_ || (code==0 && exitState==QProcess::NormalExit))
+                if(captionsStopping_) return;
+                if(code==0 && exitState==QProcess::NormalExit) {
+                    // An EOF from the AI-only welle HTTP client is not the
+                    // same as verified silence or a healthy ASR session.
+                    if(active() && !playingKey_.isEmpty()) {
+                        const QString note=tr(
+                            "Radio AI audio stream ended. Check welle HTTP "
+                            "and ffmpeg; station playback has a separate "
+                            "libVLC path and may still be running.");
+                        radioCaption_->setText(note);
+                        radioTranslationBanner_->setText(note);
+                        radioTranslationBanner_->setVisible(true);
+                    }
                     return;
+                }
                 const QString error=QString::fromLocal8Bit(
                     captionProcess_.readAllStandardError()).right(200);
                 const QString message=tr("Live radio Whisper stopped unexpectedly. "
