@@ -53,7 +53,7 @@ class RadioCaptionComfortContracts(unittest.TestCase):
         self.assertIn('radio audio uninterrupted',queue)
         self.assertIn('cueQueue_.takeFirst()',queue)
         self.assertIn('captionReadingHoldUntilMs_=0;',UI)
-        self.assertIn('not a measured DAC clock',UI.lower())
+        self.assertIn('Actual libVLC/ALSA audio presentation time is unmeasured.',UI)
         # Caption sync changes never retune receiver hardware.
         self.assertNotIn('startReceiver()',hold)
         self.assertNotIn('player_->stop()',hold)
