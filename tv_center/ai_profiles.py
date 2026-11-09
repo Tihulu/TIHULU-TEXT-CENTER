@@ -58,7 +58,7 @@ COMPONENTS = {
     "whisper_cpu": ("whisper.cpp CPU engine", "Source compile; offline after installation"),
     "tiny": ("Whisper Tiny multilingual · 78 MB", "Verified GGML CPU weights"),
     "small": ("Whisper Small multilingual · 488 MB", "Verified GGML CPU weights"),
-    "argos": ("Argos DE / EN / TR", "4 offline language directions including EN pivot"),
+    "argos": ("Argos DE / EN / TR / FR", "6 directed language packs; all 12 cross-language directions via English pivot"),
     "cuda_turbo": ("Faster-Whisper Large-v3 Turbo CUDA", "CTranslate2 NVIDIA CUDA + checked model"),
     "resemblyzer": ("Resemblyzer speaker clustering", "Estimated voice clusters, not identity"),
     "nllb": ("NLLB-200 distilled 600M", "CC-BY-NC-4.0; non-commercial only"),
@@ -73,7 +73,7 @@ COMPONENT_DOWNLOADS = {
     "whisper_cpu": "source/build · size varies (no model weight)",
     "tiny": "~78 MB model download",
     "small": "~488 MB model download",
-    "argos": "runtime + 4 language packs · size varies by platform",
+    "argos": "runtime + 6 DE/EN/TR/FR language packs · size varies by platform",
     "cuda_turbo": "~1.62 GB model + CUDA/Python dependencies (several GB possible)",
     "resemblyzer": "model + CPU PyTorch dependencies · size varies",
     "nllb": "~2.5 GB model + Python dependencies (non-commercial license)",
@@ -141,10 +141,10 @@ def local_status(key, *, library=None, starter=None):
         from .whisper_engine import WhisperRuntime
         return WhisperRuntime().ready()
     if key == "argos":
-        # A runtime alone does not prove 4 translation directions.
+        # A runtime alone does not prove six required directed packs.
         from .ai_provision import StarterAI
         return bool((starter or StarterAI(library=library)).status()[
-            "translation_three_languages_ready"])
+            "translation_four_languages_ready"])
     if key == "cuda_turbo":
         from .cuda_faster_whisper import FasterWhisperCUDA
         return FasterWhisperCUDA().installed()
