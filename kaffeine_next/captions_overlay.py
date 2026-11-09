@@ -75,6 +75,9 @@ class CaptionTap:
         self.sock = None
         self.packet_count = 0
         self.bad_packets = 0
+        self._last_ts_at = None
+        self._last_clip_at = None
+        self._active_clip_at = None
         self._rate_start = None
         self._rate_bytes = 0
         self.bytes_per_second = None
@@ -89,7 +92,12 @@ class CaptionTap:
             samples = [dict(row) for row in self._performance_samples]
             decoded = self._decoded_count
             lost_events = self._lost_caption_events
+            last_ts=self._last_ts_at
+            last_clip=self._last_clip_at
+            active=self._active_clip_at
         return {"samples":samples,"completed_clips":decoded,
+                "last_ts_at":last_ts,"last_clip_at":last_clip,
+                "active_clip_at":active,
                 "lost_ui_caption_events":lost_events,
                 "queue":self.work_queue.snapshot(),
                 "ts":self.transport_health.snapshot()}
@@ -122,6 +130,8 @@ class CaptionTap:
             if clip is None:
                 continue
             began = time.monotonic()
+            with self._performance_lock:
+                self._active_clip_at=began
             queue_wait = max(0.0,began-clip.ended)
             options=dict(clip.options)
             queue_state=self.work_queue.snapshot()
@@ -163,6 +173,7 @@ class CaptionTap:
             finally:
                 finished=time.monotonic()
                 with self._performance_lock:
+                    self._active_clip_at=None
                     self._decoded_count += 1
                     self._performance_samples.append({
                         "compute_ms":round(1000*(finished-began)),
@@ -242,6 +253,8 @@ class CaptionTap:
             # destroy 15 healthy neighbors. The caption-only guard below
             # validates and filters each packet individually.
             self.packet_count += len(data) // 188
+            with self._performance_lock:
+                self._last_ts_at=time.monotonic()
             self.transport_health.inspect(data)
             rate_now = time.monotonic()
             if self._rate_start is None:
@@ -415,6 +428,8 @@ class CaptionTap:
                 captured_options["service_id"] = self.program_id
                 captured_options["program_epoch"] = self.program_epoch
                 captured_options["native_tune_state"] = self.native_tune_state
+                with self._performance_lock:
+                    self._last_clip_at=now
                 queued = self.work_queue.offer(
                     CapturedClip(capture, captured_options, started, now))
                 if not queued:
@@ -3190,10 +3205,13 @@ def main(argv=None):
                         __import__("dataclasses").replace(applied, mode="off"))
             last_published = now
             pending_words = bool(tap.sentence_joiner.pending)
+            # Expiration is a UI deadline, NOT proof of silence or that
+            # the selected audio PID reached Whisper. Show neutral text;
+            # the measured pipeline health below explains missing captions.
             original.setText(
-                "Holding heard words for the next 6s audio segment…"
+                "Preparing the next recognized sentence…"
                 if pending_words else
-                "Listening for new TV audio · previous subtitle completed…")
+                "No subtitle available for this interval · checking TV audio / ASR…")
             translated.setText("")
         elif now-last_published >= 1.5:
             # A real local caption-service heartbeat keeps Kaffeine's
@@ -3224,11 +3242,29 @@ def main(argv=None):
                     f"CAPTURE OVERFLOW: {missed:.1f}s of real TV audio "
                     "could not be retained; current scene may have no "
                     "subtitles. Reduce optional AI load.")
+            elif snap.get("active_clip_at") is not None:
+                elapsed=max(0.0,now-snap["active_clip_at"])
+                message=(
+                    f"Whisper / translation processing ({elapsed:.1f}s) · "
+                    f"{backlog['queued_clips']} following clip(s) queued. "
+                    "Speech may be delayed; no silence inferred.")
             elif backlog["queued_clips"]:
                 message=(
                     f"ASR CATCH-UP: {backlog['queued_clips']} real audio "
                     f"clips queued, last wait {recent.get('queue_wait_ms','?')}ms. "
                     "TV playback may be ahead of captions.")
+            elif (shown_gap>=10 and snap.get("last_ts_at") is not None
+                  and now-snap["last_ts_at"]>4.0):
+                message=(
+                    f"No fresh DVB transport packets for "
+                    f"{now-snap['last_ts_at']:.0f}s. Check TV playback and "
+                    "sidecar receiver connection.")
+            elif (shown_gap>=10 and snap.get("last_clip_at") is not None
+                  and now-snap["last_clip_at"]>12.0):
+                message=(
+                    f"TS packets present but no completed caption audio "
+                    f"clip for {now-snap['last_clip_at']:.0f}s. Check audio "
+                    "PID, TS integrity and channel tune state.")
             elif shown_gap>=10 and tap.packet_count:
                 message=(
                     f"NO SUBTITLE SHOWN for {shown_gap:.0f}s while DVB TS "
