@@ -66,6 +66,29 @@ class ReadableDisplayTests(unittest.TestCase):
         self.assertIn("Film",cue["result"]["original"])
         self.assertIsNotNone(q.poll(cue["due"]+0.1,cfg.revision))
 
+    def test_complete_translated_phrase_uses_real_asr_first_word_clock(self):
+        from kaffeine_next.caption_timing import cue_window
+        config=CaptionConfig(playback_delay_ms=10000,
+                             target_languages=("tr",))
+        words={"source":"local_asr","original":"Bonjour à tous.",
+               "source_language":"fr",
+               "translations":{"tr":"Herkese merhaba."},
+               "word_timing_source":"faster_whisper_cuda_word_timestamps",
+               "words":[{"text":"Bonjour","start":1.1,"end":1.7},
+                        {"text":"tous","start":1.8,"end":2.0}]}
+        due=cue_window(100.0,106.0,108.0,config,words)
+        # Actual first word source 101.1 + ten-second native FIFO +0.55.
+        self.assertAlmostEqual(due["due"],111.65)
+        # Untimed engines still use a cautious near-chunk-end anchor.
+        words["word_timing_source"]=None
+        self.assertAlmostEqual(
+            cue_window(100,106,108,config,words)["due"],115.8)
+        # Proven damaged audio must NOT claim exact word timing.
+        words["word_timing_source"]="faster_whisper_cuda_word_timestamps"
+        words["ts_integrity"]={"critical_gaps":1}
+        self.assertAlmostEqual(
+            cue_window(100,106,108,config,words)["due"],115.8)
+
     def test_no_extra_wait_for_real_unpunctuated_words_in_comfort_mode(self):
         words="Das ist ein echter erkennbarer gesprochener Satz ohne Punkt heute"
         joiner=LiveSentenceJoiner(max_words=90,max_chunks=2)
