@@ -942,7 +942,7 @@ def open_ai_settings(parent, ai, after_save=None):
                 bar.hide()
 
         def inspect_profile(self):
-            key=self.profile_choice.currentData()
+            key=self._display_profile_key()
             if key not in PROFILES:
                 return
             if self._profile_inventory_busy:
@@ -973,7 +973,7 @@ def open_ai_settings(parent, ai, after_save=None):
             self._profile_inventory_busy=False
             key=data["profile"]
             self._profile_status_cache[key]=data.get("status",{})
-            if key==self.profile_choice.currentData():
+            if key==self._display_profile_key():
                 status=data.get("status",{})
                 errors=data.get("errors",{})
                 for code in profile(key)["components"]:
@@ -989,7 +989,7 @@ def open_ai_settings(parent, ai, after_save=None):
                     ("Some checks failed; use Check installed to retry."
                      if errors else
                      "No downloads were started. Install all only if needed."))
-            if self._profile_scan_pending or key!=self.profile_choice.currentData():
+            if self._profile_scan_pending or key!=self._display_profile_key():
                 self._profile_scan_pending=False
                 QTimer.singleShot(0,self.inspect_profile)
 
@@ -1752,7 +1752,7 @@ def open_ai_settings(parent, ai, after_save=None):
                         self.feedback.setText(
                             "Optional model inventory failed: "+data["error"])
                 elif kind == "model_event":
-                    if data.get("profile")==self.profile_choice.currentData():
+                    if data.get("profile")==self._display_profile_key():
                         self._set_component_state(
                             data["component"],data["state"],
                             message=data.get("message",""),
@@ -1775,13 +1775,29 @@ def open_ai_settings(parent, ai, after_save=None):
                         try:
                             self.ai.update(data["patch"])
                             self.ai.configure_environment()
-                            self.backend.setCurrentText(data["patch"]["backend"])
-                            self.model_path.setText(data["patch"]["model_path"])
-                            self.translation_choice.setCurrentIndex(
-                                max(0,self.translation_choice.findData(
-                                    data["patch"]["translation_model"])))
-                            self.asr.setChecked(True)
-                            self.translator.setChecked(True)
+                            self._applying_profile=True
+                            try:
+                                backend=data["patch"]["backend"]
+                                if self.backend.findText(backend)<0:
+                                    self.backend.addItem(backend)
+                                self.backend.setCurrentText(backend)
+                                self.model_path.setText(data["patch"]["model_path"])
+                                translator_id=data["patch"]["translation_model"]
+                                self.translation_choice.setCurrentIndex(
+                                    max(0,self.translation_choice.findData(translator_id)))
+                                self.asr.setChecked(data["patch"]["asr_enabled"])
+                                self.translator.setChecked(data["patch"]["translation_enabled"])
+                                cpu_index=self.pi_threads.findData(
+                                    data["patch"].get("pi_cpu_threads",3))
+                                if cpu_index>=0:
+                                    self.pi_threads.setCurrentIndex(cpu_index)
+                                self._manual_custom=False
+                                self._active_profile=data["profile"]
+                                self._custom_base=data["profile"]
+                                self.profile_choice.setCurrentIndex(
+                                    self.profile_choice.findData(data["profile"]))
+                            finally:
+                                self._applying_profile=False
                             self.feedback.setText(
                                 "ACTIVE: "+profile(data["profile"])["name"]+
                                 (" · Hailo-10H Whisper selected (CPU fallback enabled)"
@@ -1978,10 +1994,13 @@ def open_ai_settings(parent, ai, after_save=None):
                 allowed=(
                     ("cpu","npu") if old_profile=="pi5_hat2"
                     else (spec["backend"],) if spec else ())
-                still_profile=bool(spec and
-                    self.backend.currentText() in allowed and
-                    self.translation_choice.currentData()==spec["translator"] and
-                    self.model_path.text().strip()==str(
+                still_profile=bool(
+                    not self._manual_custom and spec
+                    and self.asr.isChecked()
+                    and self.translator.isChecked()
+                    and self.backend.currentText() in allowed
+                    and self.translation_choice.currentData()==spec["translator"]
+                    and self.model_path.text().strip()==str(
                         self.library._path(spec["speech"])))
                 ai.update({
                     "active_profile":old_profile if still_profile else "",
@@ -1998,7 +2017,8 @@ def open_ai_settings(parent, ai, after_save=None):
                 })
                 ai.configure_environment()
                 self.populate_models()
-                self.inspect_nllb()
+                # Saving must not run large NLLB/Argos/PyTorch inventory on
+                # the UI thread; the language tab refreshes when opened.
                 if after_save: after_save()
             except (OSError, ValueError) as exc:
                 QMessageBox.warning(self, "Settings failed", str(exc))
