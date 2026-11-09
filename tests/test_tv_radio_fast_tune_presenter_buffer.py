@@ -35,7 +35,7 @@ class RadioLowLatencyAndSpeechTests(unittest.TestCase):
         self.assertIn('bufferUnit_->addItem(tr("Seconds"),1000)',ui)
         self.assertIn('captionProgress_->setRange(0,0)',ui)
         self.assertIn('captionProgress_->setVisible(true)',ui)
-        self.assertIn('radioQuickRow_->insertWidget(3,autoLyrics_)',ui)
+        self.assertIn('radioPlaybackRow_->insertWidget(2,autoLyrics_)',ui)
         self.assertIn('lastUnmatchedVoiceUntilMs_',ui)
 
     def test_unmatched_lyrics_do_not_erase_actual_presenter_words(self):
