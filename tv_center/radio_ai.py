@@ -20,7 +20,8 @@ import time
 
 from .ai_settings import AISettings
 from .language_codes import language_code
-from .lyrics_sync import lookup_synced_lyrics, LiveLyricMatcher, parse_lrc
+from .lyrics_sync import (lookup_synced_lyrics, LiveLyricMatcher, parse_lrc,
+                          aligned_karaoke_word_anchors)
 from .sentence_joiner import LiveSentenceJoiner
 from .radio_language import RadioLanguageLock
 from .media_ai import _chunk_cues, _choose_model, _near_silent_pcm, CHUNK_SAMPLES
@@ -289,6 +290,13 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
             heard_end=max(window_start,min(window_start+6.,heard_end))
             phrase_end_epoch_ms=int(capture_epoch_ms-
                                     round((window_start+6.-heard_end)*1000))
+            # Only matched song lines may carry GPU word evidence.
+            # No inferred word times for CPU, translations, DLS or LRC metadata.
+            lyric_word_anchors=(aligned_karaoke_word_anchors(
+                lyric_match["text"], detection.get("asr_words", []),
+                capture_end_epoch_ms=capture_epoch_ms,
+                window_seconds=len(pcm)/(2*CHUNK_SAMPLES))
+                if lyric_match else [])
 
             # Publish the ORIGINAL promptly after ASR. A slow sequential
             # NLLB/MADLAD/Argos/DeepL translation must not block hearing
@@ -411,6 +419,9 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
                 "sentence_continuation":bool(sentence_state.get("continued",False)),
                 "sentence_hops_limit":sentence_hops,
                 "lyric_match":lyric_match,
+                "lyric_word_anchors":lyric_word_anchors,
+                "lyric_word_clock":"gpu_whisper_pcm_estimated_not_dac"
+                    if lyric_word_anchors else "line_only_no_word_evidence",
                 "lyric_translations":lyric_translations,
                 "lyric_translation_status":(
                     "matched_song_audio" if lyric_translations else
