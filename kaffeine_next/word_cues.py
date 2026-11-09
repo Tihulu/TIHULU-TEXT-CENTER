@@ -167,6 +167,14 @@ def enqueue_word_cues(queue, result, config, captured_start, captured_end, finis
     first_audio_due = (captured_start+groups[0][0]+
                        (config.playback_delay_ms+config.offset_ms)/1000.0+
                        0.15)
+    # Avoid rapid unreadable multilingual word flashes. If the source
+    # includes several short timed groups, let the normal queue present
+    # one complete phrase with real source-word timing instead.
+    if config.readable_pacing and len(groups)>1:
+        source_span=max(0.25,groups[-1][1]-groups[0][0])
+        if (0.85*len(groups)>source_span+0.6 or
+                len(config.target_languages)>=2):
+            return None
     if (finished >= last_audio_due - 0.45 or
             (config.readable_pacing and
              finished >= first_audio_due - 0.6)):
