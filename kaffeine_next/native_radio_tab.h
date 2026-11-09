@@ -243,7 +243,10 @@ public:
 		header->addWidget(driver_);
 		start_ = new QPushButton(tr("Start receiver"), this);
 		start_->setToolTip(tr("Open an actual DAB-capable RTL-SDR/Soapy device on demand."));
-		stop_ = new QPushButton(tr("Stop / release SDR"), this);
+		stop_ = new QPushButton(tr("Stop radio"), this);
+        stop_->setToolTip(tr("Stop DAB audio, AI captions and recordings. "
+            "By default also terminate welle-cli and release the RTL-SDR. "
+            "Use the option below to keep the receiver ready."));
 		record_ = new QPushButton(tr("Record station"), this);
 		record_->setToolTip(tr("Save selected radio service to a local MP3; "
 			"stop recording to release the file."));
@@ -259,11 +262,28 @@ public:
 		receiverActions->addWidget(start_,0,0);
 		receiverActions->addWidget(scan_,0,1);
 		receiverActions->addWidget(stop_,0,2);
-		subtitledRecord_=new QCheckBox(tr("Make subtitled recording"),this);
+        releaseOnStop_=new QCheckBox(
+            tr("Release SDR when radio stops (default)"),page);
+        QSettings radioResourceSettings(QLatin1String("TIHULU"),
+                                        QLatin1String("KaffeineRadio"));
+        releaseOnStop_->setChecked(radioResourceSettings.value(
+            QLatin1String("releaseSdrOnStop"),true).toBool());
+        releaseOnStop_->setToolTip(tr("ON (recommended): stopping radio, "
+            "including the main Kaffeine Stop button, ends TIHULU's "
+            "welle-cli receiver and releases the RTL-SDR to other apps. "
+            "OFF keeps this application's DAB receiver occupying the SDR "
+            "after playback stops; full application exit still releases."));
+        receiverActions->addWidget(releaseOnStop_,1,2);
+        forceRelease_=new QPushButton(tr("Release SDR now"),page);
+        forceRelease_->setToolTip(tr("Always stop this app-owned radio receiver "
+            "and release the RTL-SDR, regardless of the keep-ready preference. "
+            "Does not stop other applications' SDR processes."));
+        receiverActions->addWidget(forceRelease_,2,2);
+        subtitledRecord_=new QCheckBox(tr("Make subtitled recording"),this);
 		subtitledRecord_->setToolTip(tr("On Stop, create offline time-coded SRT from the "
 			"saved audio and mux a selectable-subtitle MKV. Never fake live synchronization."));
 		receiverActions->addWidget(record_,1,0);
-		receiverActions->addWidget(subtitledRecord_,1,1,1,2);
+		receiverActions->addWidget(subtitledRecord_,1,1);
 		receiverActions->setColumnStretch(2,1);
 		dabLayout->addLayout(receiverActions);
 		// Keep actual scan progress + SNR in view even when the RF graph and
@@ -289,6 +309,11 @@ public:
 		state_->setWordWrap(true);
 		state_->setTextFormat(Qt::PlainText);
 		dabLayout->addWidget(state_);
+        receiverOwnership_=new QLabel(tr(
+            "SDR: RELEASED by TIHULU · select a DAB station or Start "
+            "receiver to acquire it"),page);
+        receiverOwnership_->setWordWrap(true);
+        dabLayout->addWidget(receiverOwnership_);
 		playStatus_=new QLabel(tr("Station: no live stream verified"),page);
 		playStatus_->setWordWrap(true);
 		dabLayout->addWidget(playStatus_);
@@ -1271,7 +1296,19 @@ public:
 		});
 
 		connect(start_, &QPushButton::clicked, this, [this](){ startReceiver(); });
-		connect(stop_, &QPushButton::clicked, this, [this](){ stopReceiver(); });
+        connect(stop_, &QPushButton::clicked, this, [this](){ stopRadioListening(); });
+        connect(forceRelease_,&QPushButton::clicked,this,[this](){
+            stopReceiver();
+            state_->setText(tr("Radio stopped · TIHULU released its SDR "
+                "receiver. Other applications may now claim the device."));
+            updateReceiverOwnership();
+        });
+        connect(releaseOnStop_,&QCheckBox::toggled,this,[this](bool enabled){
+            QSettings settings(QLatin1String("TIHULU"),
+                               QLatin1String("KaffeineRadio"));
+            settings.setValue(QLatin1String("releaseSdrOnStop"),enabled);
+            updateReceiverOwnership();
+        });
 		connect(record_, &QPushButton::clicked, this, [this](){ toggleRecording(); });
 		connect(&recordAi_,QOverload<int,QProcess::ExitStatus>::of(&QProcess::finished),
 			this,[this](int result,QProcess::ExitStatus status){
@@ -1550,6 +1587,7 @@ public:
 		// Audio captions no longer wait for the expensive 1600-ms RF poll.
 		captionTick_.setInterval(300);
 		connect(&captionTick_,&QTimer::timeout,this,[this](){
+            monitorRadioPlaybackStop();
 			pollCaption();updateLyrics();
 			if(audioCacheProgress_) {
 				const qint64 elapsed=audioStartedMs_>0?
@@ -3853,11 +3891,13 @@ private:
     QLabel *radioTranslationBanner_=nullptr;
     QLabel *radioCanvasCaption_=nullptr;
     QLabel *radioAudioHealth_=nullptr;
+    QLabel *receiverOwnership_=nullptr;
     QCheckBox *advancedLanguages_=nullptr;
 	QComboBox *channel_=nullptr, *driver_=nullptr, *speechLanguage_=nullptr,
 		*captionSource_=nullptr,
 		*plotKind_=nullptr, *fftPlacement_=nullptr;
-	QPushButton *start_=nullptr,*stop_=nullptr,*scan_=nullptr,*record_=nullptr,
+	QPushButton *start_=nullptr,*stop_=nullptr,*forceRelease_=nullptr,
+        *scan_=nullptr,*record_=nullptr,
 		*caption_=nullptr,*applyCaptions_=nullptr,
 		*stopCaption_=nullptr,*lyrics_=nullptr,*lyricsImport_=nullptr,*stopLyrics_=nullptr,
         *listenLyrics_=nullptr,
@@ -3934,10 +3974,12 @@ private:
     QComboBox *bufferUnit_=nullptr;
     bool bufferUnitsSeconds_=false;
     QHBoxLayout *radioQuickRow_=nullptr;
-    QCheckBox *quickAi_=nullptr,*quickBuffer_=nullptr;
+    QCheckBox *quickAi_=nullptr,*quickBuffer_=nullptr,*releaseOnStop_=nullptr;
 	QCheckBox *autoSync_=nullptr,*autoRestartAudio_=nullptr;
 	int lastCaptionOffsetMs_=0;
-    int activePlaybackCacheMs_=12000;
+    int activePlaybackCacheMs_=0;
+    bool dabPlaybackObserved_=false,analogPlaybackObserved_=false;
+    qint64 dabIdleSinceMs_=0,analogIdleSinceMs_=0;
     qint64 lastAudioRetuneMs_=0;
 	QList<TimedRadioCue> cueQueue_;
 	QLineEdit *extraTargets_=nullptr,*lyricsArtist_=nullptr,*lyricsTitle_=nullptr;
