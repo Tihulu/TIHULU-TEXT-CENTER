@@ -721,7 +721,7 @@ def main(argv=None):
     from .caption_timing import (CaptionConfig, CueQueue, KaffeineOSD,
                                  AutoSyncEstimator, AutoSyncController,
                                  effective_cue_config, confirmed_cue_config,
-                                 buffer_fill_progress)
+                                 buffer_fill_progress, NativeReleaseClock)
     from .word_cues import enqueue_word_cues
     from .track_preferences import recommended_track, _signaled_language
     from PyQt5.QtCore import Qt, QTimer, QSettings, QProcess
@@ -1675,6 +1675,8 @@ def main(argv=None):
     last_ui_program_epoch = 0
     last_effective_check = 0.0
     last_applied_effective_ms = None
+    pending_buffer_retime_ms = None
+    native_release_clock=NativeReleaseClock()
     last_sync_audit_at = 0.0
     def options():
         with lock:
@@ -1858,7 +1860,7 @@ def main(argv=None):
 
     def apply_settings():
         nonlocal applied, current_text, current_until, current_cue
-        nonlocal startup_buffer_pending
+        nonlocal startup_buffer_pending,pending_buffer_retime_ms
         try:
             if startup_buffer_pending:
                 startup_buffer_pending=False
@@ -1887,9 +1889,13 @@ def main(argv=None):
                 applied = __import__("dataclasses").replace(
                     selected, revision=previous.revision +
                     int(source_changed or playback_changed))
-            if source_changed or playback_changed:
+            if source_changed:
+                # Only a genuine source/channel change invalidates speech.
                 cues.clear()
                 deferred_captions.clear()
+                recent_voice_lines.clear()
+                native_release_clock.clear()
+                pending_buffer_retime_ms = None
                 current_cue = None
                 current_text = ""
                 current_until = 0.0
@@ -1897,6 +1903,19 @@ def main(argv=None):
                 translated.setText("")
                 ipc.publish("", applied if service_running else
                             __import__("dataclasses").replace(applied, mode="off"))
+            elif playback_changed:
+                # Keep REAL decoded sentences during temporary FIFO re-prime.
+                # Do NOT replay them against the old playback clock; the
+                # pump gates the cue queue until native status confirms.
+                pending_buffer_retime_ms = (
+                    last_applied_effective_ms if
+                    last_applied_effective_ms is not None else
+                    previous.playback_delay_ms)
+                cues.retime(0,applied)
+                native_release_clock.clear()
+                pending.setText(
+                    "TV buffer re-priming · decoded captions retained, "
+                    "timeline paused until native confirmation")
             else:
                 # Font, opacity, position, visible languages and caption
                 # offset are display-time changes, NOT a new ASR source.
@@ -2429,6 +2448,7 @@ def main(argv=None):
         nonlocal applied, last_service_id, last_effective_check
         nonlocal last_applied_effective_ms, last_sync_audit_at
         nonlocal last_ui_program_epoch,live_test_started_at
+        nonlocal pending_buffer_retime_ms,buffer_ready
         try:
             state,message=overlap_install_queue.get_nowait()
         except queue.Empty:
@@ -2499,7 +2519,8 @@ def main(argv=None):
             reset_channel_captions(last_ui_program_epoch,tap.native_tune_state)
         if now - last_effective_check >= 1.0:
             last_effective_check = now
-            effective = ipc.read_effective_delay()
+            effective = native_release_clock.stabilized(
+                ipc.read_effective_delay())
             progress = buffer_fill_progress(effective, applied.playback_delay_ms)
             percent = progress["percent"]
             if percent is None:
@@ -2547,19 +2568,19 @@ def main(argv=None):
                     and bool(effective["primed"]))
                 if confirmed:
                     current_actual = effective["effective_ms"]
-                    if (last_applied_effective_ms is not None and
-                            abs(current_actual-last_applied_effective_ms) >= 500):
-                        # The 64MiB queue may cap/shrink/change delay even
-                        # without the controls changing. Old timed cues
-                        # are no longer tied to the true playback timeline.
-                        cues.clear()
-                        current_cue = None
-                        current_text = ""
-                        current_until = 0.0
-                        ipc.publish("",applied)
+                    old_clock = (
+                        pending_buffer_retime_ms if
+                        pending_buffer_retime_ms is not None else
+                        last_applied_effective_ms)
+                    if old_clock is not None and current_actual!=old_clock:
+                        # Preserve decoded text and shift its pending due
+                        # dates to the NEW acknowledged FIFO time instead
+                        # of deleting subtitles on every bitrate adjustment.
+                        cues.retime(current_actual-old_clock,applied)
                         status.setText(
-                            "TV buffer changed on the native player: "
-                            "old subtitle timestamps cleared; re-synchronizing.")
+                            "Native buffer changed · retained queued captions "
+                            "and re-timed "+str(current_actual-old_clock)+" ms.")
+                    pending_buffer_retime_ms = None
                     last_applied_effective_ms = current_actual
                 else:
                     last_applied_effective_ms = None
@@ -2595,7 +2616,8 @@ def main(argv=None):
         # needs another acknowledgement. Replay older held results before
         # newer events as soon as the relevant buffer is verified.
         buffer_ready = confirmed_cue_config(
-            applied,ipc.read_effective_delay()) is not None
+            applied,native_release_clock.stabilized(
+                ipc.read_effective_delay())) is not None
         for _ in range(8):
             if buffer_ready and deferred_captions:
                 kind, data = "caption", deferred_captions.popleft()
@@ -2803,16 +2825,17 @@ def main(argv=None):
                             else:
                                 with lock:
                                     applied = revised
-                                # The control request is not the native
-                                # buffer ACK. Discard old queued word cues
-                                # and pause scheduling until player confirms.
-                                cues.clear()
-                                deferred_captions.clear()
-                                current_cue = None
-                                current_text = ""
-                                current_until = 0.0
+                                # New native buffer ACK is pending. Keep
+                                # already decoded subtitles and defer fresh
+                                # words; otherwise automatic 500ms increases
+                                # can erase whole scenes of dialogue.
+                                pending_buffer_retime_ms = (
+                                    last_applied_effective_ms if
+                                    last_applied_effective_ms is not None else
+                                    applied.playback_delay_ms)
+                                native_release_clock.clear()
                                 last_applied_effective_ms = None
-                                ipc.publish("",applied)
+                                buffer_ready = False
                                 # The text field mirrors the *active* delay,
                                 # not an uncommitted manual change.
                                 playback_delay.blockSignals(True)
@@ -2828,7 +2851,8 @@ def main(argv=None):
                     # than the UI requested. Schedule text against the
                     # confirmed playback delay when its status matches the
                     # current request; never reuse a stale channel setting.
-                    native_state = ipc.read_effective_delay()
+                    native_state = native_release_clock.stabilized(
+                        ipc.read_effective_delay())
                     cue_config = confirmed_cue_config(applied, native_state)
                     if cue_config is None:
                         if len(deferred_captions)>=deferred_captions.maxlen:
@@ -3009,7 +3033,8 @@ def main(argv=None):
                         "Building a sentence from real Whisper audio…")
             elif kind == "warning":
                 status.setText(str(data))
-        cue = cues.poll(now, applied.revision) if service_running else None
+        cue = (cues.poll(now, applied.revision)
+               if service_running and buffer_ready else None)
         if cue:
             current_cue = cue
             result = cue["result"]
