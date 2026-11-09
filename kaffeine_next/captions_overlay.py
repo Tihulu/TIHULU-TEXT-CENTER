@@ -1885,8 +1885,8 @@ def main(argv=None):
                   row.get("backend") or "model")
             label=str(name)[:70]
             if row.get("target"):
-                label+=" "+str(row.get("source") or "de").upper()+
-                       " → "+str(row["target"]).upper()
+                label+=(" "+str(row.get("source") or "de").upper()+
+                        " → "+str(row["target"]).upper())
             if row.get("status")=="ok":
                 label+=f": {float(row['elapsed_s']):.2f}s"
                 if row.get("kind")=="asr":
