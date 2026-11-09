@@ -1136,6 +1136,47 @@ def main(argv=None):
         "runs locally without any Hugging Face token. It estimates "
         "voice similarity, not real identity, gender or age.")
     timing_layout.addRow("Speaker model", speaker_provider)
+    # Speaker separation, display names, approximate voice categories and
+    # environmental sound labels are INDEPENDENT owner preferences.
+    speaker_numbers=QCheckBox("Show speaker names/numbers · [Speaker 1]")
+    speaker_numbers.setChecked(False)
+    speaker_numbers.setToolTip(
+        "Optional. Leave OFF to show different speakers on separate lines "
+        "WITHOUT [Speaker 1] labels. Manual names are optional overrides.")
+    timing_layout.addRow(speaker_numbers)
+    speaker_lines=QCheckBox(
+        "New subtitle line when Resemblyzer detects a different speaker")
+    speaker_lines.setChecked(True)
+    timing_layout.addRow(speaker_lines)
+    voice_types=QCheckBox(
+        "Estimated voice category · [Erkek sesi?] / [Kadın sesi?] / [Çocuk sesi?]")
+    voice_types.setChecked(False)
+    voice_types.setToolTip(
+        "Requires a separate licensed age/gender acoustic classifier. "
+        "Resemblyzer cannot predict these categories. With no reliable "
+        "classifier score, this option displays NO guessed category.")
+    timing_layout.addRow(voice_types)
+    sound_events=QCheckBox(
+        "Show detected non-speech sound labels · [Müzik] / [Uğultu] / [Alkış]")
+    sound_events.setChecked(False)
+    sound_events.setToolTip(
+        "Independent from speaker names; only real detector-backed events "
+        "with sufficient confidence are displayed. No guess from silence.")
+    timing_layout.addRow(sound_events)
+    overlap_enabled=QCheckBox(
+        "Experimental · separate TWO simultaneous voices (SepFormer + 2× Whisper)")
+    overlap_enabled.setChecked(False)
+    overlap_enabled.setToolTip(
+        "Runs real SpeechBrain SepFormer audio-source separation in an "
+        "isolated worker and transcribes each source separately. Requires "
+        "an owner-installed model, extra GPU/CPU time and TV buffer. "
+        "Not verified on multilingual TV; never invents a second transcript.")
+    timing_layout.addRow(overlap_enabled)
+    overlap_status=QLabel(
+        "Overlap separation OFF · model installed separately on demand; "
+        "English-trained SepFormer, quality and GPU speed not yet verified.")
+    overlap_status.setWordWrap(True)
+    timing_layout.addRow(overlap_status)
     speaker_health = QLabel(
         "Auto labels: checking installed local speaker model…")
     speaker_health.setWordWrap(True)
@@ -1161,12 +1202,18 @@ def main(argv=None):
         label_fields_layout.addWidget(QLabel(f"Voice {i+1}"),i,0)
         label_fields_layout.addWidget(name_input,i,1)
         speaker_alias_inputs.append(name_input)
-    timing_layout.addRow("Speaker label names",label_fields)
+    label_fields.setVisible(False)
+    manual_names=QCheckBox("Optional manual voice name overrides · advanced")
+    manual_names.setChecked(False)
+    manual_names.toggled.connect(label_fields.setVisible)
+    timing_layout.addRow(manual_names)
+    timing_layout.addRow(label_fields)
     voice_label_explanation=QLabel(
-        "Names appear as [Adam 1] or [Çocuk 2] before each attributed "
-        "subtitle. Leave empty for [Speaker N]. These are YOUR labels: "
-        "the model cannot reliably determine age, sex or identity, "
-        "and ambiguous/untimed words remain unlabelled.")
+        "Speaker names are optional, not required. Leave names OFF for "
+        "unlabelled voice changes. Age/gender categories require a separate "
+        "acoustic model and are never inferred from Resemblyzer clusters. "
+        "Two simultaneous lines require real separated audio and two "
+        "different Whisper transcripts.")
     voice_label_explanation.setWordWrap(True)
     timing_layout.addRow(voice_label_explanation)
     sync_estimate = QLabel("Automatic timing: collecting real ASR samples (0/3). "
@@ -1584,6 +1631,11 @@ def main(argv=None):
                             hinted in WHISPER_LANGUAGES else None),
             spoken_auto=automatic_source,
             speaker_enabled=speaker_enabled.isChecked(),
+            show_speaker_numbers=speaker_numbers.isChecked(),
+            show_voice_types=voice_types.isChecked(),
+            break_speaker_lines=speaker_lines.isChecked(),
+            show_sound_events=sound_events.isChecked(),
+            separate_overlapping_voices=overlap_enabled.isChecked(),
             music_transcription=music_transcription.isChecked(),
             speech_priority=speech_priority.isChecked(),
             speaker_provider=speaker_provider.currentData(),
@@ -1662,8 +1714,9 @@ def main(argv=None):
         pending.setText("Caption offset applied live · " +
                         str(new_offset/1000) + "s. Other changes: Apply")
     caption_offset.valueChanged.connect(apply_offset_immediately)
-    for w in (show_video,automatic,speaker_enabled,music_transcription,
-              speech_priority):
+    for w in (show_video,automatic,speaker_enabled,speaker_numbers,
+              speaker_lines,voice_types,sound_events,overlap_enabled,
+              music_transcription,speech_priority):
         w.toggled.connect(set_pending)
     for entry in speaker_alias_inputs:
         entry.textChanged.connect(set_pending)
@@ -2049,6 +2102,12 @@ def main(argv=None):
         music_transcription.setChecked(False)
         speech_priority.setChecked(False)
         speaker_provider.setCurrentIndex(0)
+        speaker_numbers.setChecked(False)
+        speaker_lines.setChecked(True)
+        voice_types.setChecked(False)
+        sound_events.setChecked(False)
+        overlap_enabled.setChecked(False)
+        manual_names.setChecked(False)
         for entry in speaker_alias_inputs:
             entry.clear()
         show_video.setChecked(True)
