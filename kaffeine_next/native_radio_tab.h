@@ -2796,11 +2796,19 @@ private:
 							"audio and error counters; actual audio output is not metered.")
 							.arg(name));
 						stationOpenProgress_->setFormat(tr("Player reports PLAYING · %1").arg(name));
+                        radioCanvas_->setText(tr(
+                            "♪ %1\nDAB+ %2 · player reports Playing\n"
+                            "Audible output is not independently measured.")
+                            .arg(name,activeChannel_));
 					} else {
 						playStatus_->setText(tr("NO AUDIO PLAYBACK reported for %1. "
 							"Check welle receiver, AAC decoding and stream endpoint.")
 							.arg(name));
 						stationOpenProgress_->setFormat(tr("Audio failed / stopped"));
+                        radioCanvas_->setText(tr(
+                            "♪ %1\nDAB+ %2 · decoder/player did not report Playing\n"
+                            "Inspect DAB RF errors and local stream.")
+                            .arg(name,activeChannel_));
 						stationOpenProgress_->setValue(0);
 					}
 				});
