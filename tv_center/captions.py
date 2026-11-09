@@ -172,7 +172,9 @@ def asr_from_clip(path: Path, language: str, model: str,
                   speaker_provider: str = "resemblyzer",
                   music_transcription: bool = False,
                   speech_priority: bool = False,
-                  overlap_separation: bool = False) -> str:
+                  overlap_separation: bool = False,
+                  show_sound_events: bool = False,
+                  show_voice_types: bool = False) -> str:
     # "auto" is a speech-detection MODE, not an ISO language code.
     # All existing speech backends except unverified NPUs handle it.
     if language != "auto" and language not in SUPPORTED:
@@ -468,7 +470,9 @@ def decode_segment(ts: bytes, *, mode="auto", page=150, source="de",
                    defer_asr_translation: bool = False,
                    speech_auto: bool = False,
                    auto_teletext_probe: bool = False,
-                   overlap_separation: bool = False) -> dict:
+                   overlap_separation: bool = False,
+                   show_sound_events: bool = False,
+                   show_voice_types: bool = False) -> dict:
     if mode not in ("teletext", "page", "asr", "auto"):
         raise ValueError("Unsupported caption source")
     if type(page) is not int or not 100 <= page <= 899:
@@ -556,6 +560,10 @@ def decode_segment(ts: bytes, *, mode="auto", page=150, source="de",
                     asr_kwargs["speaker_provider"] = speaker_provider
                 if overlap_separation:
                     asr_kwargs["overlap_separation"] = True
+                if show_sound_events:
+                    asr_kwargs["show_sound_events"] = True
+                if show_voice_types:
+                    asr_kwargs["show_voice_types"] = True
                 # Real DVB audio-language descriptors are a stronger hint
                 # than six seconds of noisy live TV speech. Do not ignore
                 # the selected/signalled audio language in Auto mode.
