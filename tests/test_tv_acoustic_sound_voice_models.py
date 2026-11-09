@@ -59,7 +59,7 @@ class AcousticClassifiersTests(unittest.TestCase):
                                 {"type":"hum","confidence":0.90,"source":"AST AudioSet"}]}
         labels_only=CaptionConfig(speaker_enabled=True,
             show_speaker_numbers=False,show_voice_types=False,
-            show_sound_events=True).validate()
+            show_sound_events=True,target_languages=("en",)).validate()
         first=labels_only.render(result)
         self.assertIn("[Music]",first)
         self.assertIn("[Humming]",first)
