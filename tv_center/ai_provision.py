@@ -67,28 +67,24 @@ class StarterAI:
         self.whisper = whisper or WhisperRuntime()
 
     def status(self):
-        try:
-            pairs = argos_installed_pairs()
-        except (ImportError, OSError, RuntimeError):
-            pairs = []
-        # On first install the desktop process may still run system Python
-        # while Argos has just been installed in the new user-owned venv.
-        # Read readiness from that runtime rather than falsely saying missing.
-        if not pairs and self.runtime.status()["installed"]:
+        # Market and live subtitles must use the SAME installed-pack source.
+        # A system Argos installation can differ from the private runtime;
+        # never report its packs as live-caption-ready when managed Argos
+        # exists. Run subprocess discovery only on an explicit inventory
+        # worker (the Qt first-paint path is deferred).
+        managed = self.runtime.status()["installed"]
+        if managed:
+            from .argos_market_bridge import run as argos_market
             try:
-                exe = self.runtime.status()["python"]
-                base = str(Path(__file__).resolve().parent.parent)
-                env = os.environ.copy()
-                env["PYTHONPATH"] = base + os.pathsep + env.get("PYTHONPATH", "")
-                proc = subprocess.run(
-                    [exe, "-m", "tv_center.ai_provision", "--argos-status-worker"],
-                    cwd=base, env=env, stdin=subprocess.DEVNULL,
-                    stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
-                    timeout=12, check=False)
-                if proc.returncode == 0:
-                    pairs = json.loads(proc.stdout.decode("utf-8", "replace"))
-            except (OSError, ValueError, UnicodeError, subprocess.TimeoutExpired):
-                pass
+                pairs = argos_market("installed",installed_timeout=9)
+            except (ImportError, OSError, RuntimeError, ValueError,
+                    subprocess.TimeoutExpired):
+                pairs = []
+        else:
+            try:
+                pairs = argos_installed_pairs()
+            except (ImportError, OSError, RuntimeError):
+                pairs = []
         model = self.library._path("tiny")
         active = self.ai.values.get("model_path", "")
         return {
@@ -96,7 +92,7 @@ class StarterAI:
             "tiny_model_ready": model.is_file(),
             "tiny_model": str(model),
             "active_model": active,
-            "argos_runtime_ready": self.runtime.status()["installed"],
+            "argos_runtime_ready": managed,
             "installed_pairs": [p["source"] + "→" + p["target"] for p in pairs],
             # Preserve the legacy trio for older callers; full profile
             # readiness now additionally checks French in both directions.
