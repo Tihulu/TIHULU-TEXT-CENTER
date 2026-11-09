@@ -34,7 +34,7 @@ def quick_hardware():
     Detailed GPU/NPU detection runs in a worker only after the UI is visible.
     """
     try:
-        ram=int(re.search(r"^MemTotal:\\s+(\\d+)\\s+kB",
+        ram=int(re.search(r"^MemTotal:\s+(\d+)\s+kB",
                           Path("/proc/meminfo").read_text(),re.M).group(1))//1024
     except (OSError,AttributeError,ValueError):
         ram=None
