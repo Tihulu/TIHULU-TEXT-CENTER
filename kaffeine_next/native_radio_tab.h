@@ -3005,9 +3005,113 @@ private:
 			state_->setText(tr("DAB+ %1 · %2 total known stations · local receiver")
 				.arg(ch).arg(stations_->topLevelItemCount()));
 	}
+    void loadStationLists() {
+        QSettings settings(QLatin1String("TIHULU"),QLatin1String("KaffeineRadio"));
+        const QByteArray raw=settings.value(QLatin1String("dabNamedLists")).toByteArray();
+        if(raw.size()>100000) return; // reject unbounded corrupt preferences
+        const QJsonDocument stored=QJsonDocument::fromJson(raw);
+        if(!stored.isObject()) return;
+        const QJsonObject lists=stored.object();
+        for(auto it=lists.begin();it!=lists.end() && stationLists_.size()<20;++it) {
+            const QString name=it.key().trimmed();
+            if(name.isEmpty() || name.size()>48 || !it.value().isArray())
+                continue;
+            QSet<QString> members;
+            for(const QJsonValue &entry:it.value().toArray()) {
+                const QString key=entry.toString();
+                if(members.size()<700 && stationChannels_.contains(key))
+                    members.insert(key);
+            }
+            stationLists_.insert(name,members);
+            stationListPicker_->addItem(name,name);
+        }
+    }
+    void saveStationLists() {
+        QJsonObject stored;
+        for(auto it=stationLists_.constBegin();it!=stationLists_.constEnd();++it) {
+            QJsonArray entries;
+            QStringList keys=it.value().values();
+            keys.sort();
+            for(const QString &key:keys)
+                if(stationChannels_.contains(key))
+                    entries.append(key);
+            stored.insert(it.key(),entries);
+        }
+        QSettings settings(QLatin1String("TIHULU"),QLatin1String("KaffeineRadio"));
+        settings.setValue(QLatin1String("dabNamedLists"),
+            QJsonDocument(stored).toJson(QJsonDocument::Compact));
+    }
+    void createNamedStationList() {
+        if(stationLists_.size()>=20) {
+            libraryStatus_->setText(tr("Maximum 20 personal station lists."));
+            return;
+        }
+        bool ok=false;
+        const QString name=QInputDialog::getText(this,tr("New DAB station list"),
+            tr("List name (e.g. NRW favourites):"),QLineEdit::Normal,
+            QString(),&ok).trimmed();
+        if(!ok) return;
+        if(name.isEmpty() || name.size()>48 ||
+           name.contains(QLatin1Char('\n')) ||
+           name.contains(QLatin1Char('\r'))) {
+            libraryStatus_->setText(tr("Use a list name of 1–48 characters."));
+            return;
+        }
+        for(const QString &existing:stationLists_.keys())
+            if(existing.compare(name,Qt::CaseInsensitive)==0) {
+                libraryStatus_->setText(tr("This station list already exists."));
+                return;
+            }
+        stationLists_.insert(name,QSet<QString>());
+        stationListPicker_->addItem(name,name);
+        stationListPicker_->setCurrentIndex(stationListPicker_->count()-1);
+        stationListOnly_->setChecked(false);
+        saveStationLists();
+        filterStations();
+        libraryStatus_->setText(tr("Created '%1'. Select any scanned station "
+            "and choose + Add selected.").arg(name));
+    }
+    void deleteNamedStationList() {
+        const QString name=stationListPicker_->currentData().toString();
+        if(!stationLists_.contains(name)) return;
+        if(QMessageBox::question(this,tr("Delete station list"),
+              tr("Delete the list '%1'? Saved stations and favourites "
+                 "will not be removed.").arg(name))!=QMessageBox::Yes)
+            return;
+        stationLists_.remove(name);
+        stationListPicker_->removeItem(stationListPicker_->currentIndex());
+        if(stationListPicker_->count()==0)
+            stationListOnly_->setChecked(false);
+        saveStationLists();
+        filterStations();
+    }
+    void changeSelectedStationList(bool add) {
+        const QString name=stationListPicker_->currentData().toString();
+        const QTreeWidgetItem *selected=stations_->currentItem();
+        if(!stationLists_.contains(name)) {
+            libraryStatus_->setText(tr("Create or select a station list first."));
+            return;
+        }
+        if(!selected) {
+            libraryStatus_->setText(tr("Select a scanned station first."));
+            return;
+        }
+        const QString key=selected->data(0,Qt::UserRole).toString();
+        if(!stationChannels_.contains(key)) return;
+        if(add) stationLists_[name].insert(key);
+        else stationLists_[name].remove(key);
+        saveStationLists();
+        filterStations();
+        libraryStatus_->setText(tr("%1 · %2 station(s) in personal list")
+            .arg(name).arg(stationLists_.value(name).size()));
+    }
 	void filterStations() {
 		const QString query=stationSearch_->text().trimmed();
 		const QString block=libraryBlock_->currentData().toString();
+        const QString listName=stationListPicker_?
+            stationListPicker_->currentData().toString():QString();
+        const bool onlyList=stationListOnly_ && stationListOnly_->isChecked() &&
+            stationLists_.contains(listName);
 		int visible=0, total=stations_->topLevelItemCount();
 		for (int i=0;i<total;++i) {
 			QTreeWidgetItem *item=stations_->topLevelItem(i);
@@ -3016,7 +3120,8 @@ private:
 				item->text(1).contains(query,Qt::CaseInsensitive) ||
 				item->text(2).contains(query,Qt::CaseInsensitive)) &&
 				(block.isEmpty() || item->text(2)==block) &&
-				(!favoritesOnly_->isChecked() || favorites_.contains(key));
+				(!favoritesOnly_->isChecked() || favorites_.contains(key)) &&
+                (!onlyList || stationLists_.value(listName).contains(key));
 			item->setHidden(!match);
 			if (match) ++visible;
 		}
