@@ -109,6 +109,11 @@ def _chunk_cues(pcm: bytes, *, position: float, lang: str, profile:dict,
             music_mode=music)
         text=str(result.get("text") or "").strip()
         words=result.get("words") or []
+        # Preserve only genuine GPU Whisper word timestamps for the
+        # independently audio-verified radio karaoke matcher. The grouped
+        # LyricCue display below is not a word clock.
+        if detection is not None:
+            detection["asr_words"]=words[:120]
         recognized_language=result.get("language") if lang=="auto" else lang
         if detection is not None:
             detected=result.get("language")
