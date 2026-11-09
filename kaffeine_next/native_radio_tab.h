@@ -1556,7 +1556,7 @@ public:
             }
             if(captionProcess_.state()!=QProcess::NotRunning) stopCaptioning();
             cueQueue_.clear();
-            lastRadioChunk_=-1;
+            lastRadioChunk_=-1; lastRadioRevision_=-1;
             displayedRadioChunk_=-1;
             startCaptioning();
             radioCaptionBanner_->setText(tr("Applying local caption options; "
@@ -3045,7 +3045,7 @@ private:
                 }
 				lastDetectedLanguage_.clear();
 				lagSamples_.clear();
-				lastRadioChunk_=-1;
+				lastRadioChunk_=-1; lastRadioRevision_=-1;
 				displayedRadioChunk_=-1;
                 lastCaptionVisibleMs_=0;
                 lastCanvasLyricMs_=0;
@@ -3523,7 +3523,7 @@ private:
             audioStartedMs_=lastAudioRetuneMs_;
             const bool wasAiRunning=captionProcess_.state()!=QProcess::NotRunning;
             if(wasAiRunning) stopCaptioning();
-			lastRadioChunk_=-1;
+			lastRadioChunk_=-1; lastRadioRevision_=-1;
 			displayedRadioChunk_=-1;
 			cueQueue_.clear();
 			plainLyricQueue_.clear();
@@ -3548,7 +3548,7 @@ private:
 		if (captionSource_->currentData().toString()==QLatin1String("dls")) {
 			stopCaptioning();
 			metadataCaptions_=true;
-			lastRadioChunk_=-1;
+			lastRadioChunk_=-1; lastRadioRevision_=-1;
 			displayedRadioChunk_=-1;
 			radioCaption_->setText(tr("Broadcaster DLS selected. "
 				"This is NOT a subtitle or spoken transcript; "
@@ -3721,7 +3721,10 @@ private:
             translationStatus_->setText(tr("AI input: waiting for decoded DAB "
                 "audio. Main radio playback is independent."));
         }
-		if(chunk>=0 && chunk!=lastRadioChunk_) {
+        const int revision=obj.value(QLatin1String("caption_revision")).toInt(1);
+        const bool newChunk=(chunk!=lastRadioChunk_);
+        const bool updatedRevision=(revision>lastRadioRevision_);
+		if(chunk>=0 && (newChunk || updatedRevision)) {
             lastCaptionUpdateMs_=now;
             const int lost=obj.value(
                 QLatin1String("ai_audio_windows_dropped")).toInt();
@@ -3731,7 +3734,8 @@ private:
                     "the live DAB server. Radio audio was NOT retuned. "
                     "Try one output language or a faster Whisper model.")
                     .arg(lost));
-			lastRadioChunk_=chunk;
+            lastRadioChunk_=chunk;
+            lastRadioRevision_=revision;
 			const double captured=obj.value(QLatin1String("captured_monotonic")).toDouble();
 			const double decoded=obj.value(QLatin1String("decoded_monotonic")).toDouble();
 			const int inference=(decoded>=captured && decoded-captured<=90.)
@@ -3843,10 +3847,28 @@ private:
                 lastUnmatchedVoiceUntilMs_=qMax(lastUnmatchedVoiceUntilMs_,
                                                 due+7000);
             }
-			if(!caption.isEmpty()) {
-				cueQueue_.append({chunk,due,now,caption.left(1300)});
-				while(cueQueue_.size()>12) cueQueue_.removeFirst();
-			}
+            if(!caption.isEmpty()) {
+                if(newChunk) {
+                    cueQueue_.append({chunk,due,now,caption.left(1300)});
+                    while(cueQueue_.size()>12) cueQueue_.removeFirst();
+                } else {
+                    // Revision 1 adds translations to the SAME original
+                    // caption instead of re-speaking it as another cue.
+                    bool queued=false;
+                    for(auto &cue:cueQueue_) {
+                        if(cue.chunkIndex==chunk) {
+                            cue.text=caption.left(1300);
+                            queued=true;
+                            break;
+                        }
+                    }
+                    if(!queued && displayedRadioChunk_==chunk &&
+                       radioCanvasCaption_ &&
+                       (!lyricsEnabled_ || lastVerifiedLyricMs_<=0 ||
+                        now-lastVerifiedLyricMs_>12000))
+                        showRadioCanvasCaption(caption.left(1300));
+                }
+            }
 			const QJsonObject matched=obj.value(QLatin1String("lyric_match")).toObject();
             const QJsonObject lyricTranslations=obj.value(
                 QLatin1String("lyric_translations")).toObject();
@@ -4396,7 +4418,8 @@ private:
 	QJsonArray lyricCues_;
 	QJsonObject lastMux_;
 	QList<int> lagSamples_;
-	int lastRadioChunk_=-1,displayedRadioChunk_=-1;
+	int lastRadioChunk_=-1,displayedRadioChunk_=-1,
+        lastRadioRevision_=-1;
 	qint64 lastAdjustmentMs_=0,radioCueDueMs_=0;
 	QString pendingRadioCue_;
 	QList<QPixmap> slideHistory_;
