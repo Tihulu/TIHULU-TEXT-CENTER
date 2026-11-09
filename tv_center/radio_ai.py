@@ -66,7 +66,8 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
                       speaker_labels: bool=False, prefer_verified_lyrics: bool=False,
                       sentence_hops: int=3,
                       host_audio_cache_ms: int=0,
-                      host_caption_offset_ms: int=0):
+                      host_caption_offset_ms: int=0,
+                      controls: str | None=None):
     if type(port) is not int or not 1024 <= port <= 65535:
         raise ValueError("Invalid loopback radio port")
     if not isinstance(sid,str) or not _SID.fullmatch(sid):
@@ -85,6 +86,10 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
             not -12000<=host_caption_offset_ms<=12000):
         raise ValueError("Radio caption offset must be ±12000 ms")
     location=checked_runtime_output(output,prefix="tihulu-radio-captions-")
+    controls_path=(checked_runtime_output(
+        controls,prefix="tihulu-radio-controls-") if controls else None)
+    controls_marker=None
+    controls_note=""
     ai=AISettings()
     ai.configure_environment()
     if not ai.values["asr_enabled"]:
@@ -140,6 +145,41 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
             if done or audio_window is None:
                 break
             capture_index,pcm,captured_at=audio_window
+            # Apply user-chosen source / output languages during playback
+            # without restarting Whisper and losing presenter audio.
+            # An invalid control file never disables existing languages.
+            if controls_path is not None:
+                try:
+                    stat=controls_path.lstat()
+                    marker=(stat.st_mtime_ns,stat.st_size)
+                    if (stat.st_uid==os.getuid() and
+                            controls_path.is_file() and
+                            not controls_path.is_symlink() and
+                            0<stat.st_size<=4096 and
+                            marker!=controls_marker):
+                        controls_marker=marker
+                        payload=json.loads(controls_path.read_text(
+                            encoding="utf-8"))
+                        requested=payload.get("targets")
+                        language=payload.get("source")
+                        if not isinstance(requested,list) or len(requested)>6:
+                            raise ValueError("Invalid requested output list")
+                        codes=tuple(dict.fromkeys(
+                            language_code(item,nllb=True)
+                            for item in requested))
+                        if not isinstance(language,str):
+                            raise ValueError("Invalid source language")
+                        chosen=("auto" if language=="auto" else
+                                language_code(language))
+                        destinations=codes
+                        if src!=chosen:
+                            src=chosen
+                            auto_language=RadioLanguageLock()
+                            sentence_joiner.reset()
+                        controls_note="live_preferences_applied"
+                except (OSError,ValueError,TypeError,KeyError,
+                        json.JSONDecodeError) as exc:
+                    controls_note="invalid_controls_"+type(exc).__name__
             gap=(last_capture_index is not None and
                  capture_index != last_capture_index+1)
             if gap:
@@ -324,6 +364,7 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
                 "translation_missing_targets":translation_info["missing_targets"],
                 "translation_pending_targets":translation_info["pending_targets"],
                 "requested_targets":list(destinations),
+                "control_status":controls_note,
                 "original":original[:1800],
                 "sentence_pending":bool(sentence_state.get("pending")),
                 "sentence_complete":bool(sentence_state.get("complete")),
@@ -494,6 +535,8 @@ def main(args=None):
     live.add_argument("--source",default="auto",
                       help="Auto-detect multilingual broadcast speech per chunk")
     live.add_argument("--targets",default="en,tr")
+    live.add_argument("--controls",default=None,
+                      help="Private XDG runtime JSON; live source/output settings")
     live.add_argument("--output",required=True)
     live.add_argument("--music",action="store_true")
     live.add_argument("--host-audio-cache-ms",type=int,default=0,
@@ -535,7 +578,7 @@ def main(args=None):
         decode_radio_live(port=opts.port,sid=opts.sid,
             source=opts.source,
             targets=tuple(x.strip() for x in opts.targets.split(",") if x.strip()),
-            output=opts.output,music=opts.music,
+            output=opts.output,controls=opts.controls,music=opts.music,
             speaker_labels=opts.speaker_labels,
             prefer_verified_lyrics=opts.prefer_verified_lyrics,
             sentence_hops=opts.sentence_hops,
