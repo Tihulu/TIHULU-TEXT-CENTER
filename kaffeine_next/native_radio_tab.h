@@ -2490,6 +2490,8 @@ private:
 				lastRadioChunk_=-1;
 				displayedRadioChunk_=-1;
                 lastCaptionVisibleMs_=0;
+                lastCanvasLyricMs_=0;
+                if(radioCanvasCaption_) radioCanvasCaption_->setVisible(false);
                 radioCaptionBanner_->setText(tr("Opening DAB station · waiting for audio…"));
 				pendingRadioCue_.clear();
 				playingKey_=key;
@@ -2920,6 +2922,22 @@ private:
 		else radioCaption_->setText(tr("Offline radio ASR/translation started. "
 			"Audio stays on this device; latency depends on model."));
 	}
+    void showRadioCanvasCaption(const QString &value,bool lyric=false) {
+        if(!radioCanvasCaption_) return;
+        const QString text=value.trimmed().left(1300);
+        if(text.isEmpty() || text==QLatin1String("[music]")) {
+            if(!lyric && !lyricsEnabled_) radioCanvasCaption_->setVisible(false);
+            return;
+        }
+        // Actual LRC / audio-matched lyric lines win over uncertain ASR;
+        // never replace the radioCanvas_'s station text or slideshow.
+        if(!lyric && lyricsEnabled_ &&
+           (plainLyricMode_ || !lyricCues_.isEmpty())) return;
+        if(radioCanvasCaption_->text()!=text)
+            radioCanvasCaption_->setText(text);
+        radioCanvasCaption_->setVisible(true);
+        if(lyric) lastCanvasLyricMs_=QDateTime::currentMSecsSinceEpoch();
+    }
 	void displayDueRadioCues(qint64 now) {
 		// Queue rather than overwrite: a new AI chunk must not erase the
 		// previous chunk before its estimated playback presentation time.
@@ -2939,8 +2957,17 @@ private:
 			const TimedRadioCue cue=cueQueue_.takeFirst();
 			if(cue.chunkIndex<=displayedRadioChunk_) continue;
 			displayedRadioChunk_=cue.chunkIndex;
-			radioCaption_->setText(cue.text);
-            radioCaptionBanner_->setText(cue.text.left(680));
+            const QString shown=cue.text.trimmed();
+            if(shown==QLatin1String("[music]")) {
+                radioCaption_->setText(tr("Music detected · waiting for "
+                    "verified or audio-matched lyrics; no words invented."));
+                radioCaptionBanner_->setText(tr("♪ Music · Find lyrics, "
+                    "import LRC or enable vocal transcription."));
+            } else {
+                radioCaption_->setText(cue.text);
+                radioCaptionBanner_->setText(cue.text.left(680));
+                showRadioCanvasCaption(cue.text);
+            }
             lastCaptionVisibleMs_=now;
             if(lyricsAudioFallbackActive_) {
                 const QString heard=tr("Whisper heard (unverified lyrics) · %1")
@@ -2954,8 +2981,11 @@ private:
         if(lastCaptionVisibleMs_>0 && now-lastCaptionVisibleMs_>=12000 &&
            cueQueue_.isEmpty() && !metadataCaptions_ &&
            captionProcess_.state()!=QProcess::NotRunning) {
-            radioCaptionBanner_->setText(tr("Listening for real radio speech… "
-                "No subtitle text is currently verified."));
+            if(!lyricsEnabled_)
+                radioCaptionBanner_->setText(tr(
+                    "Listening for radio speech · no confirmed words yet."));
+            if(!lyricsEnabled_ && radioCanvasCaption_)
+                radioCanvasCaption_->setVisible(false);
             lastCaptionVisibleMs_=0;
         }
 	}
@@ -3336,6 +3366,7 @@ private:
 				const auto cue=plainLyricQueue_.takeFirst();
 				lyricText_->setText(tr("Audio-matched lyric (~%1% confidence) · %2")
 					.arg(qRound(cue.confidence*100)).arg(cue.text));
+                showRadioCanvasCaption(cue.text,true);
 			}
 			return;
 		}
@@ -3367,6 +3398,7 @@ private:
 				if (!current.isEmpty()) {
                     const QString text=tr("Estimated lyric timing · %1").arg(current);
                     if(lyricText_->text()!=text)lyricText_->setText(text);
+                    showRadioCanvasCaption(current,true);
                 }
 			}
 			return;
@@ -3489,7 +3521,7 @@ private:
 	QProgressBar *captionProgress_=nullptr,*audioCacheProgress_=nullptr;
 	QLabel *bufferRecommendation_=nullptr;
 	qint64 audioStartedMs_=0,lastLyricSyncUpdateMs_=0,
-        lastCaptionVisibleMs_=0;
+        lastCaptionVisibleMs_=0,lastCanvasLyricMs_=0;
 	bool metadataCaptions_=false;
 	int dlsCaptionIndex_=0;
 	int lastLyricOffsetMs_=0;
