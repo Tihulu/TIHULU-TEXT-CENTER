@@ -536,6 +536,8 @@ def decode_segment(ts: bytes, *, mode="auto", page=150, source="de",
         translated = translations.get(target)
         return {"original": original, "raw_asr_original":raw_asr_original,
                 "translated": translated, "translations": translations,
+                "remote_error":speech_diagnostics.get("remote_error"),
+                "remote_fallback":speech_diagnostics.get("remote_fallback"),
                 "asr_backend": speech_diagnostics.get("backend"),
                 "asr_model": speech_diagnostics.get("model"),
                 "asr_engine": speech_diagnostics.get("engine"),
