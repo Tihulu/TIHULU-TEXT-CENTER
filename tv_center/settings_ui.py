@@ -110,6 +110,10 @@ def open_ai_settings(parent, ai, after_save=None):
             self._all_status_cache = None
             self._all_status_busy = False
             self._lazy_loaded_tabs = set()
+            self._applying_profile = False
+            self._manual_custom = False
+            self._active_profile = ai.values.get("active_profile","")
+            self._custom_base = self._active_profile or "performance"
             self.translation_market = TranslationModelMarket()
             outer = QVBoxLayout(self)
             outer.setContentsMargins(12, 12, 12, 10)
@@ -341,8 +345,10 @@ def open_ai_settings(parent, ai, after_save=None):
             self.translation_choice.setCurrentIndex(
                 max(0,self.translation_choice.findData(
                     ai.values.get("translation_model","argos"))))
+            # Translation selection must never synchronously probe NLLB,
+            # MADLAD or DeepL; those checks belong to the language tab.
             self.translation_choice.currentIndexChanged.connect(
-                lambda *_: self.inspect_nllb())
+                self.preview_translator)
             quality_layout.addWidget(self.translation_choice)
             self.translation_selected_label = QLabel("")
             self.translation_selected_label.setWordWrap(True)
@@ -450,10 +456,14 @@ def open_ai_settings(parent, ai, after_save=None):
             guided = QGroupBox("Recommended modes · install before selecting")
             guided_layout = QVBoxLayout(guided)
             self.profile_choice = QComboBox()
+            self.profile_choice.addItem("Custom · manually adjusted", "custom")
             for key, spec in PROFILES.items():
                 self.profile_choice.addItem(spec["name"], key)
-            initial = ai.values.get("active_profile") or (
+            default_recommendation=(
                 "pi5" if self.hardware["raspberry_pi_5"] else "performance")
+            initial = ai.values.get("active_profile") or default_recommendation
+            self._custom_base = (initial if initial in PROFILES
+                                 else default_recommendation)
             self.profile_choice.setCurrentIndex(
                 max(0, self.profile_choice.findData(initial)))
             guided_layout.addWidget(self.profile_choice)
@@ -749,6 +759,22 @@ def open_ai_settings(parent, ai, after_save=None):
             self.populate_models()
             self.refresh_all_models()
             self.model_tabs.currentChanged.connect(self.on_model_tab_changed)
+            # These are *user model-setting* changes, never page navigation.
+            # Connect after widget initialization so default assignments
+            # cannot incorrectly convert an existing preset to Custom.
+            self.asr.toggled.connect(self.mark_manual_custom)
+            self.translator.toggled.connect(self.mark_manual_custom)
+            self.backend.currentIndexChanged.connect(self.mark_manual_custom)
+            self.model_path.textChanged.connect(self.mark_manual_custom)
+            self.translation_choice.currentIndexChanged.connect(
+                self.mark_manual_custom)
+            self.pi_threads.currentIndexChanged.connect(self.mark_manual_custom)
+            self.hailo_fallback.toggled.connect(self.mark_manual_custom)
+            self.remote_enabled.toggled.connect(self.mark_manual_custom)
+            self.remote_fallback.toggled.connect(self.mark_manual_custom)
+            self.remote_endpoint.textEdited.connect(self.mark_manual_custom)
+            for field in (self.hailo_encoder,self.hailo_decoder,self.hailo_npy):
+                field.textEdited.connect(self.mark_manual_custom)
             QTimer.singleShot(180, self.inspect_profile)
 
         def on_model_tab_changed(self,index):
@@ -769,34 +795,74 @@ def open_ai_settings(parent, ai, after_save=None):
             elif index==4:  # all models
                 self.inspect_all_status()
 
+        def preview_translator(self, *_):
+            # Status text follows the pending choice immediately, but none
+            # of these UI events import a model or spawn an Argos worker.
+            if hasattr(self,"translation_selected_label"):
+                selected=self.translation_choice.currentData()
+                self.translation_selected_label.setText(
+                    "Pending translator: "+str(selected).upper()+
+                    " · Save settings to apply")
+ 
+        def mark_manual_custom(self, *_):
+            if self._applying_profile or not hasattr(self,"profile_choice"):
+                return
+            # Preserve all manual control values; change ONLY mode identity.
+            current=self.profile_choice.currentData()
+            if current in PROFILES:
+                self._custom_base=current
+            self._manual_custom=True
+            self.profile_choice.blockSignals(True)
+            self.profile_choice.setCurrentIndex(
+                self.profile_choice.findData("custom"))
+            self.profile_choice.blockSignals(False)
+            self.show_profile_description()
+            self.feedback.setText(
+                "Custom · other model settings edited. Save settings to keep "
+                "your adjustments, or choose a preset and Select mode to reset.")
+
         def profile_changed(self, *_):
             self.show_profile_description()
-            # Throttle rapid profile switching; a finishing old scan will
-            # hand over to the most recently selected profile.
+            # A pending preset choice is not applied until Select mode.
             QTimer.singleShot(80, self.inspect_profile)
 
-        def show_profile_description(self, *_):
+        def _display_profile_key(self):
             key=self.profile_choice.currentData()
+            return key if key in PROFILES else self._custom_base
+
+        def show_profile_description(self, *_):
+            chosen=self.profile_choice.currentData()
+            key=self._display_profile_key()
             if key not in PROFILES:
                 return
+            self.profile_select.setEnabled(chosen in PROFILES and not self.running)
+            self.profile_install.setEnabled(chosen in PROFILES and not self.running)
             spec=profile(key)
             issue=hardware_issue(key,self.hardware)
             if self.hardware["gpu"]["name"].startswith("Checking"):
                 issue="Hardware scan deferred; Select mode verifies requirements"
+            custom=(chosen=="custom")
+            selected=("Custom · modified from "+spec["name"]
+                      if custom else
+                      self.ai.values.get("active_profile") or "Custom")
             self.profile_description.setText(
-                spec["description"]+"\\nEstimated disk: "+
+                ("Manual settings · suggested model bundle below is for "
+                 "comparison only. Choose a preset + Select mode to apply it.\n"
+                 if custom else "")+
+                spec["description"]+"\nEstimated disk: "+
                 spec["disk_gb_estimate"]+
-                "\\nMinimum host RAM: "+str(round(spec["min_ram_mib"]/1024,1))+
+                "\nMinimum host RAM: "+str(round(spec["min_ram_mib"]/1024,1))+
                 " GiB · NVIDIA VRAM: "+
                 (str(round(spec["min_vram_mib"]/1024,1))+" GiB"
                  if spec["min_vram_mib"] else "not required")+
-                "\\nHardware: "+
+                "\nHardware: "+
                 (issue or "Meets minimum estimates; inference still untested")+
-                "\\nSelected: "+(self.ai.values.get("active_profile") or "Custom"))
+                "\nSelected: "+selected)
             self.hailo_group.setVisible(key=="pi5_hat2")
-            if getattr(self,"_visible_profile_key",None)==key:
+            current_view=("custom:" if custom else "")+key
+            if getattr(self,"_visible_profile_key",None)==current_view:
                 return
-            self._visible_profile_key=key
+            self._visible_profile_key=current_view
             self._profile_row_widgets={}
             while self.profile_rows_layout.count():
                 child=self.profile_rows_layout.takeAt(0)
@@ -835,8 +901,9 @@ def open_ai_settings(parent, ai, after_save=None):
                     self._set_component_state(
                         code,"installed" if status_cache[code] else "missing")
             self.profile_components.setText(
-                "Installed status is checked automatically, offline. "
-                "Download estimates may differ from actual transfer sizes.")
+                ("Custom settings · recommended components shown for reference. "
+                 if custom else "Installed status checked automatically, offline. ")+
+                "Download sizes are estimates, not actual transfer totals.")
 
         def _set_component_state(self,code,status,*,message="",received=None,total=None):
             row=self._profile_row_widgets.get(code)
