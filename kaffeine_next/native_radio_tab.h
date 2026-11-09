@@ -1210,13 +1210,24 @@ public:
 		connect(applyRf, &QPushButton::clicked, this, [this](){ applyRfOptions(); });
 		connect(detailsButton, &QPushButton::clicked, this, [this](){ showReceiverDetails(); });
 		connect(&backend_, &QProcess::readyReadStandardError, this, [this]() {
-			const QString tail = QString::fromUtf8(backend_.readAllStandardError());
+            const QString tail=QString::fromUtf8(backend_.readAllStandardError());
             if(!tail.trimmed().isEmpty()) lastWelleError_=tail.trimmed().right(600);
-			if (tail.contains(QLatin1String("Cannot")) ||
-			    tail.contains(QLatin1String("No device")) ||
-			    tail.contains(QLatin1String("Failed")))
-				state_->setText(tail.right(250));
-		});
+            const bool busy=tail.contains(QLatin1String("busy"),Qt::CaseInsensitive) ||
+                tail.contains(QLatin1String("No device"),Qt::CaseInsensitive) ||
+                tail.contains(QLatin1String("usb_claim"),Qt::CaseInsensitive) ||
+                tail.contains(QLatin1String("Failed to open"),Qt::CaseInsensitive);
+            if(busy) state_->setText(tr("DAB RTL-SDR not accessible · %1")
+                .arg(apiFailureDetails()));
+            else if(tail.contains(QLatin1String("Cannot")) ||
+                    tail.contains(QLatin1String("Failed")))
+                state_->setText(tail.right(250));
+        });
+        connect(&backend_,&QProcess::errorOccurred,this,[this](QProcess::ProcessError){
+            lastWelleError_=backend_.errorString().right(600);
+            if(!shuttingDown_) state_->setText(
+                tr("welle-cli process failure: %1 · no RF measurement")
+                .arg(lastWelleError_));
+        });
 		connect(&backend_, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
 			this, [this](int exitCode, QProcess::ExitStatus){
                 if(!shuttingDown_)
@@ -1229,6 +1240,11 @@ public:
                 scan_->setEnabled(true);
                 scanProgress_->setValue(0);
                 scanProgress_->setFormat(tr("Scan stopped: receiver exited"));
+                scanSNR_->setValue(0);
+                scanSNR_->setFormat(tr("DAB SNR NOT MEASURED · welle-cli exited"));
+                rfQuality_->setValue(0);
+                rfQuality_->setFormat(tr("DAB RF unmeasured · receiver exited"));
+                lastMux_=QJsonObject();
 				if (!shuttingDown_) state_->setText(tr("welle-cli stopped (%1): %2")
                     .arg(exitCode).arg(lastWelleError_));
 			});
@@ -1730,7 +1746,16 @@ private:
 	void startReceiver() {
 		stopAnalog();
 		if (webPlaying_) stopInternetRadio();
-		if (active()) { state_->setText(tr("DAB+ receiver already running.")); return; }
+		if (active() && apiReady_) {
+            state_->setText(tr("DAB+ receiver already running · localhost API ready."));
+            return;
+        }
+        if(active() && !apiReady_) {
+            // Only an explicit Start restarts this app's owned backend.
+            // Never kill readsb, rtl_tcp, WebUSB or arbitrary USB users.
+            stopReceiver();
+            state_->setText(tr("Restarting this app-owned DAB backend…"));
+        }
 		if (!prepared()) {
 			QMessageBox::information(this,tr("Optional local DAB+ receiver"),
 				tr("Install the pinned loopback-only welle-cli backend first:\n"
@@ -1754,6 +1779,13 @@ private:
 			state_->setText(tr("Invalid DAB frequency block.")); return;
 		}
 		shuttingDown_ = false;
+        lastWelleError_.clear();
+        lastMux_=QJsonObject(); // Old mux is NOT new live RF evidence.
+        apiReady_=false;apiWaitCount_=0;
+        scanSNR_->setValue(0);
+        scanSNR_->setFormat(tr("DAB receiver starting · SNR not measured"));
+        rfQuality_->setValue(0);
+        rfQuality_->setFormat(tr("DAB SNR unmeasured · receiver starting"));
 		QStringList receiverArgs{QLatin1String("-c"),current,
 			QLatin1String("-w"),QString::number(port_)};
 		const QString device=driver_->currentData().toString();
@@ -1761,7 +1793,9 @@ private:
 			receiverArgs<<QLatin1String("-F")<<device;
 		backend_.start(binaryPath(), receiverArgs);
 		if (!backend_.waitForStarted(1800)) {
-			state_->setText(tr("Could not start verified welle-cli receiver."));
+            lastWelleError_=backend_.errorString();
+            state_->setText(tr("Cannot start welle-cli: %1. This does NOT measure antenna signal.")
+                .arg(lastWelleError_));
 			return;
 		}
 		activeChannel_ = current;
@@ -1782,12 +1816,16 @@ private:
 		}
 		apiReady_=false;
 		apiWaitCount_=0;
-		state_->setText(tr("Initializing local DAB+ receiver on %1…").arg(current));
+        ++receiverGeneration_;
+		state_->setText(tr("welle-cli PID %1 · block %2 · API 127.0.0.1:%3; "
+            "waiting for SDR and localhost control…")
+            .arg(backend_.processId()).arg(current).arg(port_));
 		tick_.start();
 		probeReceiverApi();
 	}
 
 	void stopReceiver() {
+        ++receiverGeneration_; // Invalidate delayed replies from old process/port.
 		stopAnalog();
 		stopInternetRadio();
 		shuttingDown_ = true;
@@ -1810,30 +1848,66 @@ private:
 		port_ = 0;
 		if(!wellePortFile_.isEmpty()) QFile::remove(wellePortFile_);
 		wellePortFile_.clear();
-		apiReady_=false;
+		apiReady_=false;apiWaitCount_=0;
+        scanSNR_->setValue(0);
+        scanSNR_->setFormat(tr("DAB SNR unmeasured · receiver stopped"));
+        rfQuality_->setValue(0);
+        rfQuality_->setFormat(tr("DAB RF unmeasured · receiver stopped"));
+        lastMux_=QJsonObject();
 	}
 
-	void probeReceiverApi() {
-		if(!active() || apiReady_ || port_==0) return;
-		QNetworkRequest request(QUrl(base()+QLatin1String("/channel")));
-		request.setTransferTimeout(850);
-		QNetworkReply *reply=network_.get(request);
-		connect(reply,&QNetworkReply::finished,this,[this,reply]() {
-			const bool isReady=reply->error()==QNetworkReply::NoError;
-			reply->deleteLater();
-			if(!active()) return;
-			if(isReady) {
-				apiReady_=true;
-				apiWaitCount_=0;
-				state_->setText(tr("DAB control service ready; channels and scans available."));
-			} else if(++apiWaitCount_<12) {
-				QTimer::singleShot(450,this,[this](){probeReceiverApi();});
-			} else {
-				state_->setText(tr("DAB backend started, but its local audio/control server "
-					"did not answer. Check welle-cli stderr and SDR ownership."));
-			}
-		});
-	}
+
+    QString apiFailureDetails() const {
+        const QString stderrTail=lastWelleError_.trimmed().right(320);
+        const bool busy=stderrTail.contains(QLatin1String("busy"),Qt::CaseInsensitive) ||
+            stderrTail.contains(QLatin1String("usb_claim"),Qt::CaseInsensitive) ||
+            stderrTail.contains(QLatin1String("no device"),Qt::CaseInsensitive) ||
+            stderrTail.contains(QLatin1String("cannot open"),Qt::CaseInsensitive) ||
+            stderrTail.contains(QLatin1String("failed to open"),Qt::CaseInsensitive);
+        const QString cause=busy?
+            tr("SDR may be owned by readsb, rtl_tcp, WebUSB or a kernel DVB driver. "
+               "Release only the actual owner deliberately.") :
+            tr("Check the pinned welle-cli driver, SDR permissions and startup log.");
+        return tr("127.0.0.1:%1 · PID %2 · %3%4")
+            .arg(port_).arg(backend_.processId())
+            .arg(cause).arg(stderrTail.isEmpty()?QString():
+                 tr(" · welle-cli stderr: %1").arg(stderrTail));
+    }
+    void probeReceiverApi() {
+        if(!active() || apiReady_ || port_==0) return;
+        const quint64 generation=receiverGeneration_;
+        const quint16 targetPort=port_;
+        QNetworkRequest request(QUrl(base()+QLatin1String("/channel")));
+        request.setTransferTimeout(850);
+        QNetworkReply *reply=network_.get(request);
+        connect(reply,&QNetworkReply::finished,this,[this,reply,generation,targetPort]() {
+            const bool ready=reply->error()==QNetworkReply::NoError;
+            const QString networkError=reply->errorString();
+            reply->deleteLater();
+            // A delayed answer must never activate a new backend/port by mistake.
+            if(generation!=receiverGeneration_ || targetPort!=port_ || !active()) return;
+            if(ready) {
+                apiReady_=true;apiWaitCount_=0;
+                state_->setText(tr("DAB API READY · 127.0.0.1:%1 · %2. "
+                    "Live station scans are available.").arg(port_).arg(activeChannel_));
+            } else if(++apiWaitCount_<18) {
+                // welle-cli may be running before USB claim/server startup.
+                QTimer::singleShot(450,this,[this,generation](){
+                    if(generation==receiverGeneration_) probeReceiverApi();
+                });
+            } else {
+                apiReady_=false;
+                scanSNR_->setValue(0);
+                scanSNR_->setFormat(tr("DAB SNR NOT MEASURED · API unreachable"));
+                rfQuality_->setValue(0);
+                rfQuality_->setFormat(tr("DAB RF unmeasured · API unreachable"));
+                state_->setText(tr("DAB API unreachable (%1): %2. "
+                    "Press Start receiver to retry only this app's backend.")
+                    .arg(networkError,apiFailureDetails()));
+            }
+        });
+    }
+
 	void callJson(const QString &endpoint,
 	              const std::function<void(const QJsonObject&)> &done) {
 		if (!active() || !port_) return;
@@ -1853,7 +1927,7 @@ private:
 		});
 	}
 	void pollMux() {
-		if (!active() || scanning_) return;
+		if (!active() || !apiReady_ || scanning_) return;
 		const QString channel = activeChannel_;
 		callJson(QLatin1String("/mux.json"), [this,channel](const QJsonObject &object){
 			consumeMux(object,channel);
@@ -2059,8 +2133,12 @@ private:
 	void tune(const QString &block, const std::function<void()> &ready) {
 		if (!active()) return;
 		if (!apiReady_) {
-			if(apiWaitCount_>=12) {
-				state_->setText(tr("Cannot tune: local welle receiver API is unreachable."));
+			if(apiWaitCount_>=18) {
+				state_->setText(tr("Cannot tune DAB %1: %2. SNR has NOT been measured. "
+                    "Press Start receiver to retry this app-owned backend.")
+                    .arg(block,apiFailureDetails()));
+                scanSNR_->setValue(0);
+                scanSNR_->setFormat(tr("DAB SNR NOT MEASURED · no API connection"));
 				scanning_=false;
 				scan_->setEnabled(true);
 				return;
@@ -2349,7 +2427,7 @@ private:
 			if(requestId==stationRequestId_)
 				verifyStation(key,name,sid,requestId);
 		};
-		if(activeChannel_!=block) tune(block,ready);
+		if(activeChannel_!=block || !apiReady_) tune(block,ready);
 		else ready();
 	}
 
@@ -2574,7 +2652,14 @@ private:
 	void showReceiverDetails() {
 		if (lastMux_.isEmpty()) {
 			QMessageBox::information(this,tr("Receiver diagnostics"),
-				tr("No real welle.io demodulation metrics yet."));
+                tr("No fresh RF metrics. Native DAB: %1\n"
+                   "Binary: %2\nVerified local installation: %3\n"
+                   "The antenna alone does not start welle-cli. The SDR must "
+                   "be unclaimed and the local API must answer.\n"
+                   "Useful checks: lsusb; pgrep -af 'readsb|rtl_tcp|welle-cli'; "
+                   "ss -lntp | grep 127.0.0.1")
+                   .arg(hardwareDabStatus(),binaryPath(),
+                        prepared()?tr("yes"):tr("no")));
 			return;
 		}
 		QDialog dlg(this);
@@ -3304,6 +3389,7 @@ private:
 	quint16 port_=0;
 	bool apiReady_=false;
 	int apiWaitCount_=0;
+    quint64 receiverGeneration_=0;
 	bool scanning_=false,shuttingDown_=false,slidePending_=false,lyricLoaded_=false,
 		lyricsEnabled_=false,
 		plotPending_=false;
