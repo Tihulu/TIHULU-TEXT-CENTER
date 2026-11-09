@@ -3818,12 +3818,22 @@ private:
 				if(QRegularExpression(QLatin1String("^SPEAKER_[0-9]{2}$")).match(id).hasMatch())
 					caption=QLatin1String("[")+id+QLatin1String("] ")+caption;
 			}
-			const auto translations=obj.value(QLatin1String("translations")).toObject();
-			for(auto it=translations.begin();it!=translations.end();++it)
-				if(it.value().isString())
-					caption+=QLatin1String("\n[")+it.key().toUpper()+
-						QLatin1String("] ")+it.value().toString();
-
+            const auto translations=obj.value(
+                QLatin1String("translations")).toObject();
+            const QString language=detected.isEmpty()||
+                detected==QLatin1String("und")?tr("AUTO ?"):detected.toUpper();
+            if(!caption.trimmed().isEmpty())
+                caption=tr("[ORIGINAL %1] %2").arg(language,caption);
+            // Only actual translated strings are shown. Render exactly
+            // the checked target languages in user-selected UI order.
+            // Missing outputs are displayed as status, not fake subtitles.
+            const QStringList selectedOutputs=selectedRadioTargets();
+            for(const QString &code:selectedOutputs) {
+                const QString translated=translations.value(code).toString().trimmed();
+                if(code!=detected && !translated.isEmpty())
+                    caption+=QLatin1String("\n[")+code.toUpper()+
+                             QLatin1String("] ")+translated;
+            }
 			if(!caption.isEmpty() &&
                obj.value(QLatin1String("speech_preserved_when_lyrics_unmatched"))
                    .toBool()) {
