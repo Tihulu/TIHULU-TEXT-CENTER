@@ -61,6 +61,23 @@ class WordCueTests(unittest.TestCase):
         when=cue_window(100.0,106.0,107.0,cfg,data)
         self.assertGreater(when["expires"]-when["due"],2.8)
 
+    def test_complete_sentence_may_lead_but_not_by_many_seconds(self):
+        from kaffeine_next.caption_timing import cue_window
+        cfg=CaptionConfig(playback_delay_ms=12000,readable_pacing=True)
+        data=clip()
+        data["word_timing_source"]="CUDA"
+        first=data["words"][0]["start"]
+        last=data["words"][-1]["end"]
+        result=cue_window(100,106,107,cfg,data)
+        source_anchor=(result["due"]-12-0.55)-100
+        self.assertGreaterEqual(source_anchor,last-2.5)
+        self.assertGreaterEqual(source_anchor,first)
+        # No exact word timings -> conservative fallback; don't pretend
+        # to know the start of French/German source audio.
+        data["word_timing_source"]=None
+        untimed=cue_window(100,106,107,cfg,data)
+        self.assertGreater(untimed["due"],result["due"])
+
     def test_legacy_word_by_word_still_available_without_readable_pacing(self):
         cfg=CaptionConfig(playback_delay_ms=12000,readable_pacing=False)
         queue=CueQueue()
