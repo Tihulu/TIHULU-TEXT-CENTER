@@ -1933,8 +1933,10 @@ def main(argv=None):
                 getattr(selected, key) != getattr(previous, key)
                 for key in ("mode", "source", "target_languages", "page",
                             "teletext_pid", "audio_pid", "audio_language",
-                            "music_transcription", "speech_priority",
-                            "speaker_enabled", "speaker_provider"))
+                            "music_transcription", "speech_priority"))
+            # Speaker labels/diarization choices are optional per-clip
+            # processing, NOT a new TV channel or a reason to throw away
+            # incoming speech. New options apply on the next captured clip.
             # The native video/audio buffer really changes the media clock.
             # Unlike a cosmetic change, that requires fresh cue calibration.
             playback_changed = (selected.playback_delay_ms !=
