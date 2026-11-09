@@ -73,6 +73,18 @@ class AutoLyricsLiveMatchTests(unittest.TestCase):
         self.assertIn("lastUnmatchedVoiceUntilMs_",UI)
         self.assertIn("verifiedLyricQueue_.clear();",UI)
 
+    def test_rotating_dls_text_does_not_wipe_current_lyrics(self):
+        # Announcer or broadcaster metadata may rotate while the same
+        # song is playing. Only a *different song-looking* label should
+        # trigger a new lookup, never just any changed DLS string.
+        self.assertIn("const bool songMetadata=songParts.size()>=2",UI)
+        self.assertIn("const bool newSongMetadata=songMetadata &&",UI)
+        self.assertIn("dls!=lastSongDls_",UI)
+        self.assertIn("if(newSongMetadata) {",UI)
+        self.assertIn("lastSongDls_=dls;",UI)
+        self.assertIn("lastSongDls_.clear();",UI)
+        self.assertIn("lastDls_:lastSongDls_;",UI)
+
     def test_spoken_auto_detect_and_other_supported_languages_are_listed(self):
         self.assertIn('Auto detect · Whisper (selected local model)',UI)
         self.assertIn('QLatin1String("speech_languages")',UI)
