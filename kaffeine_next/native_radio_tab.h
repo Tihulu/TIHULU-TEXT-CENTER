@@ -243,7 +243,10 @@ public:
 		header->addWidget(driver_);
 		start_ = new QPushButton(tr("Start receiver"), this);
 		start_->setToolTip(tr("Open an actual DAB-capable RTL-SDR/Soapy device on demand."));
-		stop_ = new QPushButton(tr("Stop / release SDR"), this);
+		stop_ = new QPushButton(tr("Stop radio"), this);
+        stop_->setToolTip(tr("Stop DAB audio, AI captions and recordings. "
+            "By default also terminate welle-cli and release the RTL-SDR. "
+            "Use the option below to keep the receiver ready."));
 		record_ = new QPushButton(tr("Record station"), this);
 		record_->setToolTip(tr("Save selected radio service to a local MP3; "
 			"stop recording to release the file."));
@@ -259,11 +262,28 @@ public:
 		receiverActions->addWidget(start_,0,0);
 		receiverActions->addWidget(scan_,0,1);
 		receiverActions->addWidget(stop_,0,2);
-		subtitledRecord_=new QCheckBox(tr("Make subtitled recording"),this);
+        releaseOnStop_=new QCheckBox(
+            tr("Release SDR when radio stops (default)"),page);
+        QSettings radioResourceSettings(QLatin1String("TIHULU"),
+                                        QLatin1String("KaffeineRadio"));
+        releaseOnStop_->setChecked(radioResourceSettings.value(
+            QLatin1String("releaseSdrOnStop"),true).toBool());
+        releaseOnStop_->setToolTip(tr("ON (recommended): stopping radio, "
+            "including the main Kaffeine Stop button, ends TIHULU's "
+            "welle-cli receiver and releases the RTL-SDR to other apps. "
+            "OFF keeps this application's DAB receiver occupying the SDR "
+            "after playback stops; full application exit still releases."));
+        receiverActions->addWidget(releaseOnStop_,1,2);
+        forceRelease_=new QPushButton(tr("Release SDR now"),page);
+        forceRelease_->setToolTip(tr("Always stop this app-owned radio receiver "
+            "and release the RTL-SDR, regardless of the keep-ready preference. "
+            "Does not stop other applications' SDR processes."));
+        receiverActions->addWidget(forceRelease_,2,2);
+        subtitledRecord_=new QCheckBox(tr("Make subtitled recording"),this);
 		subtitledRecord_->setToolTip(tr("On Stop, create offline time-coded SRT from the "
 			"saved audio and mux a selectable-subtitle MKV. Never fake live synchronization."));
 		receiverActions->addWidget(record_,1,0);
-		receiverActions->addWidget(subtitledRecord_,1,1,1,2);
+		receiverActions->addWidget(subtitledRecord_,1,1);
 		receiverActions->setColumnStretch(2,1);
 		dabLayout->addLayout(receiverActions);
 		// Keep actual scan progress + SNR in view even when the RF graph and
@@ -289,6 +309,11 @@ public:
 		state_->setWordWrap(true);
 		state_->setTextFormat(Qt::PlainText);
 		dabLayout->addWidget(state_);
+        receiverOwnership_=new QLabel(tr(
+            "SDR: RELEASED by TIHULU · select a DAB station or Start "
+            "receiver to acquire it"),page);
+        receiverOwnership_->setWordWrap(true);
+        dabLayout->addWidget(receiverOwnership_);
 		playStatus_=new QLabel(tr("Station: no live stream verified"),page);
 		playStatus_->setWordWrap(true);
 		dabLayout->addWidget(playStatus_);
@@ -1271,7 +1296,22 @@ public:
 		});
 
 		connect(start_, &QPushButton::clicked, this, [this](){ startReceiver(); });
-		connect(stop_, &QPushButton::clicked, this, [this](){ stopReceiver(); });
+        connect(stop_, &QPushButton::clicked, this, [this](){ stopRadioListening(); });
+        connect(forceRelease_,&QPushButton::clicked,this,[this](){
+            stopReceiver();
+            state_->setText(active()?
+                tr("Radio Stop requested, but welle-cli has not exited; "
+                   "the SDR may still be in use. Check the receiver PID."):
+                tr("Radio stopped · TIHULU released its DAB receiver. "
+                   "Other applications may now claim the device."));
+            updateReceiverOwnership();
+        });
+        connect(releaseOnStop_,&QCheckBox::toggled,this,[this](bool enabled){
+            QSettings settings(QLatin1String("TIHULU"),
+                               QLatin1String("KaffeineRadio"));
+            settings.setValue(QLatin1String("releaseSdrOnStop"),enabled);
+            updateReceiverOwnership();
+        });
 		connect(record_, &QPushButton::clicked, this, [this](){ toggleRecording(); });
 		connect(&recordAi_,QOverload<int,QProcess::ExitStatus>::of(&QProcess::finished),
 			this,[this](int result,QProcess::ExitStatus status){
@@ -1543,6 +1583,9 @@ public:
                 rfQuality_->setValue(0);
                 rfQuality_->setFormat(tr("DAB RF unmeasured · receiver exited"));
                 lastMux_=QJsonObject();
+                dabPlaybackObserved_=false;
+                dabIdleSinceMs_=0;
+                updateReceiverOwnership();
 				if (!shuttingDown_) state_->setText(tr("welle-cli stopped (%1): %2")
                     .arg(exitCode).arg(lastWelleError_));
 			});
@@ -1550,6 +1593,7 @@ public:
 		// Audio captions no longer wait for the expensive 1600-ms RF poll.
 		captionTick_.setInterval(300);
 		connect(&captionTick_,&QTimer::timeout,this,[this](){
+            monitorRadioPlaybackStop();
 			pollCaption();updateLyrics();
 			if(audioCacheProgress_) {
 				const qint64 elapsed=audioStartedMs_>0?
@@ -1963,6 +2007,9 @@ private:
 		}
 		analogStatus_->setText(tr("Live analog frequency %1 Hz · volume/mute through "
 			"TIHULU player · RF retune briefly interrupts decoding.").arg(hz));
+        analogPlaybackObserved_=false;
+        analogIdleSinceMs_=0;
+        updateReceiverOwnership();
 	}
 	void stopAnalog() {
 		analogRetune_.stop();
@@ -1984,7 +2031,10 @@ private:
 			analogAudioVu_->setFormat(tr("Audio VU: stopped (not RF strength)"));
 		}
 		if(wasPlaying) { player_->stop(); audioStartedMs_=0; }
+        analogPlaybackObserved_=false;
+        analogIdleSinceMs_=0;
 		if(analogStatus_) analogStatus_->setText(tr("Analogue SDR released."));
+        updateReceiverOwnership();
 	}
 	void startAnalog() {
 		if(QStandardPaths::findExecutable(QLatin1String("rtl_fm")).isEmpty()) {
@@ -2126,6 +2176,7 @@ private:
             lastWelleError_=backend_.errorString();
             state_->setText(tr("Cannot start welle-cli: %1. This does NOT measure antenna signal.")
                 .arg(lastWelleError_));
+            updateReceiverOwnership();
 			return;
 		}
 		activeChannel_ = current;
@@ -2150,17 +2201,137 @@ private:
 		state_->setText(tr("welle-cli PID %1 · block %2 · API 127.0.0.1:%3; "
             "waiting for SDR and localhost control…")
             .arg(backend_.processId()).arg(current).arg(port_));
-		tick_.start();
+        tick_.start();
+        updateReceiverOwnership();
 		probeReceiverApi();
 	}
 
+    void updateReceiverOwnership() {
+        if(!receiverOwnership_) return;
+        const bool dab=backend_.state()!=QProcess::NotRunning;
+        const bool analog=analogDemod_.state()!=QProcess::NotRunning ||
+                          analogServer_.isListening();
+        if(dab) {
+            receiverOwnership_->setText(tr(
+                "SDR: IN USE by TIHULU DAB · welle-cli PID %1%2")
+                .arg(backend_.processId())
+                .arg(releaseOnStop_ && !releaseOnStop_->isChecked()?
+                    tr(" · keep receiver ready enabled"):
+                    tr(" · releases on radio Stop")));
+        } else if(analog) {
+            receiverOwnership_->setText(tr(
+                "SDR: IN USE by TIHULU analogue · rtl_fm PID %1")
+                .arg(analogDemod_.processId()));
+        } else {
+            receiverOwnership_->setText(tr(
+                "SDR: RELEASED by TIHULU · other applications may "
+                "claim the device"));
+        }
+    }
+    void stopRadioListening() {
+        // Scanning uses the receiver itself and always needs a hard stop.
+        if(scanning_ || !releaseOnStop_ || releaseOnStop_->isChecked()) {
+            stopReceiver();
+            if(state_) state_->setText(active()?
+                tr("Radio Stop requested, but the DAB receiver process "
+                   "is still active; SDR release not verified."):
+                tr("Radio stopped · this application's DAB receiver released."));
+            updateReceiverOwnership();
+            return;
+        }
+        // Optional keep-ready: stop all playback/AI/recording resources,
+        // leaving only our welle-cli receiver process alive.
+        ++stationRequestId_;
+        ++scanRequestId_;
+        stopCaptioning();
+        stopLyrics();
+        stopRecording();
+        if(!playingKey_.isEmpty()) player_->stop();
+        playingKey_.clear();
+        audioStartedMs_=0;
+        dabPlaybackObserved_=false;
+        dabIdleSinceMs_=0;
+        {
+            const QSignalBlocker block(quickAi_);
+            quickAi_->setChecked(false);
+            quickAi_->setText(tr("AI captions · OFF"));
+        }
+        if(stationOpenProgress_) {
+            stationOpenProgress_->setValue(0);
+            stationOpenProgress_->setFormat(tr(
+                "Radio stopped · SDR held (keep-ready selected)"));
+        }
+        if(playStatus_) playStatus_->setText(tr(
+            "Radio playback stopped. TIHULU still owns the SDR "
+            "because release-on-stop was unchecked."));
+        if(state_) state_->setText(tr(
+            "Receiver kept ready by choice. Use Release SDR now "
+            "before starting another SDR application."));
+        updateReceiverOwnership();
+    }
+    void monitorRadioPlaybackStop() {
+        if(shuttingDown_) return;
+        const qint64 now=QDateTime::currentMSecsSinceEpoch();
+        const auto playback=player_->getPlaybackStatus();
+        if(playback==MediaWidget::Playing) {
+            if(active() && !playingKey_.isEmpty())
+                dabPlaybackObserved_=true;
+            if(analogServer_.isListening())
+                analogPlaybackObserved_=true;
+            dabIdleSinceMs_=0;
+            analogIdleSinceMs_=0;
+            return;
+        }
+        if(playback!=MediaWidget::Idle) {
+            // Paused/buffering is not user Stop.
+            dabIdleSinceMs_=0;
+            analogIdleSinceMs_=0;
+            return;
+        }
+        // Kaffeine main playback Stop can leave welle-cli holding USB.
+        // Debounce only when this station was actually Playing before:
+        // transient Idle while tuning must not release the receiver.
+        if(active() && !playingKey_.isEmpty() && dabPlaybackObserved_
+           && !scanning_) {
+            if(!dabIdleSinceMs_) dabIdleSinceMs_=now;
+            if(now-dabIdleSinceMs_>=2300) {
+                stopRadioListening();
+                return;
+            }
+        } else dabIdleSinceMs_=0;
+        if(analogServer_.isListening() && analogPlaybackObserved_) {
+            if(!analogIdleSinceMs_) analogIdleSinceMs_=now;
+            if(now-analogIdleSinceMs_>=2300) {
+                analogPlaybackObserved_=false;
+                analogIdleSinceMs_=0;
+                if(releaseOnStop_ && releaseOnStop_->isChecked())
+                    stopAnalog();
+                else if(analogStatus_)
+                    analogStatus_->setText(tr(
+                        "Playback stopped; analogue SDR is still reserved. "
+                        "Press Stop / release to free it."));
+                updateReceiverOwnership();
+            }
+        } else analogIdleSinceMs_=0;
+    }
 	void stopReceiver() {
+        dabPlaybackObserved_=false;
+        analogPlaybackObserved_=false;
+        dabIdleSinceMs_=0;
+        analogIdleSinceMs_=0;
         ++receiverGeneration_; // Invalidate delayed replies from old process/port.
 		stopAnalog();
 		stopInternetRadio();
 		shuttingDown_ = true;
 		++stationRequestId_;
 		scanning_ = false;
+        // Stopping radio disarms optional AI, even when the next station
+        // is selected later. No hidden background capture survives Stop.
+        if(quickAi_) {
+            const QSignalBlocker block(quickAi_);
+            quickAi_->setChecked(false);
+            quickAi_->setText(tr("AI captions · OFF"));
+        }
 		stopCaptioning();
 		stopLyrics();
 		stopRecording();
@@ -2184,6 +2355,12 @@ private:
         rfQuality_->setValue(0);
         rfQuality_->setFormat(tr("DAB RF unmeasured · receiver stopped"));
         lastMux_=QJsonObject();
+        if(stationOpenProgress_) {
+            stationOpenProgress_->setValue(0);
+            stationOpenProgress_->setFormat(tr(
+                "Radio stopped · DAB receiver released"));
+        }
+        updateReceiverOwnership();
 	}
 
 
@@ -2859,6 +3036,10 @@ private:
 			startReceiver();
 			if(!active()) return;
 		}
+        // The old station stops temporarily during a new selection.
+        // Do not treat this internal retune as a user Stop.
+        dabPlaybackObserved_=false;
+        dabIdleSinceMs_=0;
 		const quint64 requestId=++stationRequestId_;
 		player_->stop();
 		playingKey_.clear();
@@ -3853,11 +4034,13 @@ private:
     QLabel *radioTranslationBanner_=nullptr;
     QLabel *radioCanvasCaption_=nullptr;
     QLabel *radioAudioHealth_=nullptr;
+    QLabel *receiverOwnership_=nullptr;
     QCheckBox *advancedLanguages_=nullptr;
 	QComboBox *channel_=nullptr, *driver_=nullptr, *speechLanguage_=nullptr,
 		*captionSource_=nullptr,
 		*plotKind_=nullptr, *fftPlacement_=nullptr;
-	QPushButton *start_=nullptr,*stop_=nullptr,*scan_=nullptr,*record_=nullptr,
+	QPushButton *start_=nullptr,*stop_=nullptr,*forceRelease_=nullptr,
+        *scan_=nullptr,*record_=nullptr,
 		*caption_=nullptr,*applyCaptions_=nullptr,
 		*stopCaption_=nullptr,*lyrics_=nullptr,*lyricsImport_=nullptr,*stopLyrics_=nullptr,
         *listenLyrics_=nullptr,
@@ -3934,10 +4117,12 @@ private:
     QComboBox *bufferUnit_=nullptr;
     bool bufferUnitsSeconds_=false;
     QHBoxLayout *radioQuickRow_=nullptr;
-    QCheckBox *quickAi_=nullptr,*quickBuffer_=nullptr;
+    QCheckBox *quickAi_=nullptr,*quickBuffer_=nullptr,*releaseOnStop_=nullptr;
 	QCheckBox *autoSync_=nullptr,*autoRestartAudio_=nullptr;
 	int lastCaptionOffsetMs_=0;
-    int activePlaybackCacheMs_=12000;
+    int activePlaybackCacheMs_=0;
+    bool dabPlaybackObserved_=false,analogPlaybackObserved_=false;
+    qint64 dabIdleSinceMs_=0,analogIdleSinceMs_=0;
     qint64 lastAudioRetuneMs_=0;
 	QList<TimedRadioCue> cueQueue_;
 	QLineEdit *extraTargets_=nullptr,*lyricsArtist_=nullptr,*lyricsTitle_=nullptr;
