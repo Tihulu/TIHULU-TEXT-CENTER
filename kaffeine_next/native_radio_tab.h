@@ -2516,7 +2516,7 @@ private:
                     activeChannel_=block;
                     channel_->setCurrentText(block);
                     ready();
-                } else if(retry<2) {
+                } else if(retry<(scanningRequest?2:5)) {
                     // DAB demodulator can take a little longer to acknowledge
                     // the selected frequency. Poll only this exact request;
                     // stale confirmations must not open a different service.
@@ -2766,6 +2766,9 @@ private:
                 lastRfFrameErrors_=-1;
                 lastRfRsErrors_=-1;
                 lastRfAacErrors_=-1;
+                radioAudioHealth_->setText(tr(
+                    "New service · collecting real DAB frame/RS/AAC error "
+                    "counter samples. Audio output is not measured."));
                 showSelectedSource(name,tr("DAB+ · live mux verified"),
                     tr("Block %1 · service %2 · stream opening").arg(block,sid));
 				lastDls_.clear();
