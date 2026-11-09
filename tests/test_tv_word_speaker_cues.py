@@ -42,6 +42,35 @@ class WordCueTests(unittest.TestCase):
         self.assertEqual(q.poll(109,0),None)
         self.assertIsNotNone(q.poll(111,0))
 
+    def test_bilingual_multi_clause_prefers_readable_full_sentence(self):
+        data=clip()
+        data["words"][3]["text"]="Freunde."
+        cfg=CaptionConfig(playback_delay_ms=12000,
+                          readable_pacing=True,target_languages=("en","tr"))
+        queue=CueQueue()
+        self.assertIsNone(enqueue_word_cues(queue,data,cfg,100,106,107))
+        self.assertEqual(queue.items,[])
+
+    def test_full_sentence_leads_at_most_2point5s_before_last_word(self):
+        from kaffeine_next.caption_timing import cue_window
+        cfg=CaptionConfig(playback_delay_ms=12000,readable_pacing=True)
+        data=clip()
+        data["word_timing_source"]="CUDA"
+        due=cue_window(100,106,107,cfg,data)["due"]
+        source_anchor=due-100-12-0.55
+        self.assertGreaterEqual(
+            source_anchor+0.0001,data["words"][-1]["end"]-2.5)
+        # Unknown word times must not pretend to know the phrase start.
+        data["word_timing_source"]=None
+        self.assertGreater(cue_window(100,106,107,cfg,data)["due"],due)
+
+    def test_fast_word_mode_remains_available(self):
+        cfg=CaptionConfig(playback_delay_ms=12000,readable_pacing=False)
+        queue=CueQueue()
+        self.assertIsNotNone(enqueue_word_cues(
+            queue,clip(),cfg,100,106,107))
+        self.assertGreater(len(queue.items),1)
+
     def test_timed_words_keep_actual_source_spacing_not_cumulative_ui_holds(self):
         cfg=CaptionConfig(playback_delay_ms=20000)
         queue=CueQueue(minimum_hold=1.75)

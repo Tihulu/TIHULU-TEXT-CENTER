@@ -457,11 +457,17 @@ def cue_window(started, ended, finished, config: CaptionConfig, result=None):
                 isinstance(result.get("words"),list) and result["words"]):
             first_word=result["words"][0]
         duration=max(0.0,float(ended)-float(started))
-        if (isinstance(first_word,dict) and
-                type(first_word.get("start")) in (int,float) and
-                0<=first_word["start"]<=duration+0.25 and
-                not (result.get("ts_integrity") or {}).get("critical_gaps")):
-            anchor=float(started)+max(0.0,float(first_word["start"]))
+        words=result.get("words")
+        last_word=words[-1] if isinstance(words,list) and words else None
+        if (isinstance(first_word,dict) and isinstance(last_word,dict)
+                and type(first_word.get("start")) in (int,float)
+                and type(last_word.get("end")) in (int,float)
+                and 0<=first_word["start"]<=last_word["end"]<=duration+0.25
+                and not (result.get("ts_integrity") or {}).get("critical_gaps")):
+            # Complete source-timed sentences are useful slightly ahead,
+            # but must never reveal a six-second scene five seconds early.
+            anchor=float(started)+max(
+                float(first_word["start"]),float(last_word["end"])-2.5)
         else:
             # CPU/untimed ASR cannot claim word alignment. Show near the
             # end of the observed six-second window as a conservative guess.
