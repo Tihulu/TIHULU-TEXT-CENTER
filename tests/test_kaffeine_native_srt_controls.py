@@ -131,7 +131,9 @@ class CaptionWindowControlsTests(unittest.TestCase):
     def test_tv_auto_language_prefers_dvb_descriptor(self):
         from tv_center import captions
         source = inspect.getsource(captions.decode_segment)
-        self.assertIn('speech_language = audio_source or source', source)
+        # Spoken Auto may now request real CUDA/remote language
+        # detection, rather than always forcing the DVB language hint.
+        self.assertIn('speech_language = "auto" if speech_auto else (audio_source or source)',source)
         from kaffeine_next import captions_overlay
         capture = inspect.getsource(captions_overlay.CaptionTap._reader)
         self.assertIn('captured_options["audio_source"] = code', capture)
