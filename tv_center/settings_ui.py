@@ -1252,67 +1252,89 @@ def open_ai_settings(parent, ai, after_save=None):
             # import each time the installed-model selection is refreshed.
 
         def inspect_compute(self):
-            try:
-                self.hardware = detect_hardware()
-                p = detect_devices(model_path=self.model_path.text().strip())
-                gpu = self.hardware["gpu"]
-                npu = self.hardware["npu"]
-                ram = self.hardware["ram_mib"]
-                self.install_cuda.setEnabled(bool(gpu["cuda_compile_possible"]))
-                self.install_cuda.setToolTip(
-                    "Optional source build requires nvcc (CUDA Toolkit >=12.8). "
-                    "Use the highlighted Faster-Whisper button below without nvcc.")
-                self.install_fast_cuda.setEnabled(bool(gpu["detected"]))
-                self.verify_fast_cuda.setEnabled(FasterWhisperCUDA().installed())
-                available = [key.upper() for key in ("cpu","gpu","npu")
-                             if p["speech"].get("ready_"+key)]
-                self.compute.setText(
-                    "CPU: " + self.hardware["cpu"] +
-                    (" · RAM ~"+str(round(ram/1024,1))+" GiB" if ram else "") +
-                    "\nGPU: " + gpu["name"] +
-                    (" · VRAM "+str(gpu["vram_mib"])+" MiB" if gpu["vram_mib"] else "") +
-                    "\nNPU: " + (", ".join(npu["devices"]) if npu["detected"]
-                                  else "not detected") +
-                    "\nSpeech runtime READY: " + (", ".join(available) if available else "none") +
-                    "\nDetected hardware is NOT proof of usable CUDA/NPU model.")
-                self.cuda_status.setText(
-                    "CUDA compiler: " + (gpu["cuda_version"] or "not installed") +
-                    " · GPU whisper.cpp built: " +
-                    ("YES" if WhisperRuntime().ready_gpu() else "NO") +
-                    "\nManaged Faster-Whisper CUDA (no nvcc): " +
-                    ("READY FOR GPU · use Auto/GPU" if (
-                        FasterWhisperCUDA().installed() and p["speech"].get(
-                            "gpu_engine") == "faster_whisper_managed") else
-                     "INSTALLED BUT CUDA TEST NEEDED" if FasterWhisperCUDA().installed()
-                     else "NOT INSTALLED · use installer above") +
-                    "\nNPU: " + (
-                        "Separate hardware detected · requires compatible model"
-                        if npu["detected"] else
-                        "No dedicated NPU found. RTX Tensor Cores are GPU, "
-                        "not an OpenVINO/Hailo NPU.") +
-                    "\nCompiler note (whisper.cpp ONLY): " + gpu["reason"])
-            except (ImportError, OSError, ValueError) as exc:
-                self.compute.setText("Hardware inference discovery failed: " + str(exc)[:140])
+            if self._compute_busy:
+                return
+            self._compute_busy=True
+            self.compute.setText("Scanning CUDA / CPU / NPU after first paint…")
+            source_model=self.model_path.text().strip()
+            def worker():
+                try:
+                    hardware=detect_hardware()
+                    runtime=detect_devices(model_path=source_model)
+                    result={"hardware":hardware,"runtime":runtime}
+                except Exception as exc:
+                    result={"error":str(exc)[:180]}
+                self.work.put(("hardware",result))
+            threading.Thread(target=worker,daemon=True,
+                             name="tihulu-compute-scan").start()
+
+        def _show_compute(self,result):
+            self._compute_busy=False
+            if "error" in result:
+                self.compute.setText("Compute scan unavailable: "+result["error"])
+                return
+            self.hardware=result["hardware"]
+            p=result["runtime"]
+            gpu=self.hardware["gpu"]
+            npu=self.hardware["npu"]
+            ram=self.hardware["ram_mib"]
+            self.install_cuda.setEnabled(bool(gpu["cuda_compile_possible"]))
+            self.install_fast_cuda.setEnabled(bool(gpu["detected"]))
+            self.verify_fast_cuda.setEnabled(FasterWhisperCUDA().installed())
+            available=[key.upper() for key in ("cpu","gpu","npu")
+                       if p["speech"].get("ready_"+key)]
+            self.compute.setText(
+                "CPU: "+self.hardware["cpu"]+
+                (" · RAM "+str(round(ram/1024,1))+" GiB" if ram else "")+
+                "\\nGPU: "+gpu["name"]+
+                (" · VRAM "+str(gpu["vram_mib"])+" MiB"
+                 if gpu["vram_mib"] else "")+
+                "\\nNPU: "+(", ".join(npu["devices"]) if npu["detected"]
+                              else "not detected")+
+                "\\nSpeech runtimes: "+(", ".join(available) if available
+                                         else "none detected")+
+                "\\nHardware detection never proves model compatibility.")
+            self.cuda_status.setText(
+                "CUDA compiler: "+(gpu["cuda_version"] or "not installed")+
+                " · GPU whisper.cpp compiled: "+
+                ("YES" if WhisperRuntime().ready_gpu() else "NO")+
+                "\\nFaster-Whisper CUDA installed: "+
+                ("YES" if FasterWhisperCUDA().installed() else "NO")+
+                "\\n"+gpu["reason"])
+            self.show_profile_description()
+            self.populate_models()
 
         def inspect_argos(self):
-            try:
-                if AIRuntime().status()["installed"]:
-                    pairs = run_argos_market("installed")
-                else:
-                    pairs = []
-                self.pairs.setText("Installed Argos packs (" + str(len(pairs)) +
-                    "): " + (", ".join(
-                    p["source"] + "→" + p["target"] for p in pairs) if pairs else
-                    "none — install starter bundle or select a catalog pair"))
-                self.installed_argos.clear()
-                for pair in pairs:
-                    item = QListWidgetItem(
-                        pair["source"].upper()+" → "+pair["target"].upper()+
-                        " · INSTALLED")
-                    item.setData(Qt.UserRole,pair)
-                    self.installed_argos.addItem(item)
-            except (ImportError, OSError, ValueError) as exc:
-                self.pairs.setText("Argos runtime unavailable: " + str(exc)[:100])
+            if self._argos_busy:
+                return
+            self._argos_busy=True
+            self.pairs.setText("Reading installed Argos packs in background…")
+            def worker():
+                try:
+                    pairs=(run_argos_market("installed",installed_timeout=9)
+                           if AIRuntime().status()["installed"] else [])
+                    result={"pairs":pairs}
+                except Exception as exc:
+                    result={"error":str(exc)[:160]}
+                self.work.put(("argos_state",result))
+            threading.Thread(target=worker,daemon=True,
+                             name="tihulu-argos-scan").start()
+
+        def _show_argos(self,result):
+            self._argos_busy=False
+            if "error" in result:
+                self.pairs.setText("Argos inventory unavailable: "+result["error"])
+                return
+            pairs=result["pairs"]
+            self.pairs.setText("Installed Argos packs ("+str(len(pairs))+"): "+
+                (", ".join(p["source"]+"→"+p["target"] for p in pairs)
+                 if pairs else "none"))
+            self.installed_argos.clear()
+            for pair in pairs:
+                item=QListWidgetItem(pair["source"].upper()+" → "+
+                                     pair["target"].upper()+" · INSTALLED")
+                item.setData(Qt.UserRole,pair)
+                self.installed_argos.addItem(item)
 
         def begin(self, label, fn):
             if self.running:
