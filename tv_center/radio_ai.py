@@ -183,7 +183,11 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
             else:
                 cues=_chunk_cues(pcm,position=capture_index*5,lang=src,
                                 profile=profile,backend=backend,
-                                music=music or plain_matcher is not None,
+                                # Lyrics metadata alone cannot turn an
+                                # announcer/advert into singing mode: this
+                                # made ordinary speech fall through the
+                                # music-oriented no-VAD path.
+                                music=music,
                                 detection=detection)
             if capture_index>0:
                 # Retain words crossing the genuine 1-second read overlap.
@@ -223,19 +227,14 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
                 original=sentence_state["text"]
             else:
                 sentence_joiner.reset()
-            # A verified song's plain lyric text is a much safer source than
-            # uncertain musical ASR. Unmatched lines remain [music], never
-            # a fabricated translation. DLS metadata != audio classifier.
+            # Verified lyrical wording wins only when the *heard* Whisper
+            # words actually match it. DLS may continue to advertise
+            # a song while the presenter/advert is speaking. Never erase
+            # genuine unmatched speech merely because an old LRC file is
+            # loaded or "Prefer verified lyrics" was selected.
             unverified_vocals_hidden=False
-            if plain_matcher is not None and prefer_verified_lyrics:
-                if lyric_match:
-                    original=lyric_match["text"]
-                else:
-                    # Silence/uncertain singing is metadata, NOT a spoken
-                    # subtitle. A repeated "[music]" cue used to occupy the
-                    # screen indefinitely and hide a synchronized LRC line.
-                    original=""
-                    unverified_vocals_hidden=True
+            if plain_matcher is not None and prefer_verified_lyrics and lyric_match:
+                original=lyric_match["text"]
             translated={}
             problems={}
             requested_translation_targets=tuple(
@@ -324,7 +323,10 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
                     "awaiting_confident_source_language_or_installed_translator"
                     if lyric_match else "no_verified_song_line"),
                 "unverified_song_asr_hidden":unverified_vocals_hidden,
-                "music_detected":bool(unverified_vocals_hidden),
+                "music_detected":False,
+                "lyric_match_verified":bool(lyric_match),
+                "speech_preserved_when_lyrics_unmatched":bool(
+                    original and plain_matcher is not None and not lyric_match),
                 "lyric_alignment":("observed_ASR_approximate" if plain_matcher
                                    else "none"),
                 "translations":translated,

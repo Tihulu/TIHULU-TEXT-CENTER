@@ -995,11 +995,16 @@ void DvbLiveView::replay()
 \t\tQSettings radioSettings(QLatin1String("TIHULU"),
 \t\t\tQLatin1String("KaffeineRadio"));
 \t\tconst int cacheMs=qBound(0,
-\t\t\tradioSettings.value(QLatin1String("playbackBufferMs"),12000).toInt(),
+\t\t\tradioSettings.value(QLatin1String("playbackBufferMs"),0).toInt(),
 \t\t\t60000);
-\t\tconst QByteArray cacheOpt=QByteArray(":network-caching=")+
-\t\t\tQByteArray::number(cacheMs);
-\t\tlibvlc_media_add_option(vlcMedia,cacheOpt.constData());
+\t\t// OFF disables only our extra buffering override. Do not
+\t\t// force network-caching=0: libVLC's internal jitter controls
+\t\t// still protect audible DAB playback from small packet gaps.
+\t\tif (cacheMs > 0) {
+\t\t\tconst QByteArray cacheOpt=QByteArray(":network-caching=")+
+\t\t\t\tQByteArray::number(cacheMs);
+\t\t\tlibvlc_media_add_option(vlcMedia,cacheOpt.constData());
+\t\t}
 \t} else if (localStreamUrl.startsWith("file://")) {
 \t\t// Local file AI may run BEFORE playback by user request.
 \t\t// This is only I/O read-ahead, not a fabricated subtitle offset.

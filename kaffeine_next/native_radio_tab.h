@@ -297,6 +297,28 @@ public:
 		stationOpenProgress_->setValue(0);
 		stationOpenProgress_->setFormat(tr("Stream status · choose a station"));
 		dabLayout->addWidget(stationOpenProgress_);
+        radioAudioHealth_=new QLabel(tr(
+            "Audio health · awaiting real RF error-counter deltas; "
+            "libVLC output clock not measured"),page);
+        radioAudioHealth_->setWordWrap(true);
+        dabLayout->addWidget(radioAudioHealth_);
+        // DAB playback is RF/audio first. Heavy AI and EXTRA network cache
+        // are opt-in; they must never be required just to tune or scan.
+        radioQuickRow_=new QHBoxLayout();
+        quickAi_=new QCheckBox(tr("AI captions · OFF"),page);
+        quickAi_->setChecked(false);
+        quickAi_->setToolTip(tr("Whisper and translation are OFF at startup. "
+            "When enabled, captions follow station changes; scanning disables them."));
+        quickBuffer_=new QCheckBox(tr("Extra audio buffer · OFF"),page);
+        quickBuffer_->setChecked(false);
+        quickBuffer_->setToolTip(tr("Enable a user-selected libVLC network cache. "
+            "OFF means no EXTRA cache request; demodulator and device "
+            "latency cannot be disabled. Changing this while playing "
+            "reopens the audio stream once."));
+        radioQuickRow_->addWidget(quickAi_);
+        radioQuickRow_->addWidget(quickBuffer_);
+        radioQuickRow_->addStretch(1);
+        dabLayout->addLayout(radioQuickRow_);
 
 		// Public internet radio requires no SDR, welle-cli or DVB frontend.
 		// Search happens only when clicked, and uses HTTPS Radio Browser API.
@@ -879,16 +901,30 @@ public:
 		bufferMs_->setSuffix(tr(" ms"));
 		QSettings radioSettings(QLatin1String("TIHULU"),QLatin1String("KaffeineRadio"));
 		bufferMs_->setValue(qBound(0,
-			radioSettings.value(QLatin1String("playbackBufferMs"),12000).toInt(),60000));
-        activePlaybackCacheMs_=bufferMs_->value();
+            radioSettings.value(QLatin1String("radioBufferDesiredMs"),
+                radioSettings.value(QLatin1String("playbackBufferMs"),12000)).toInt(),
+            60000));
+        quickBuffer_->setChecked(
+            radioSettings.value(QLatin1String("radioBufferEnabled"),false).toBool());
+        quickBuffer_->setText(quickBuffer_->isChecked()?
+            tr("Extra audio buffer · ON"):tr("Extra audio buffer · OFF"));
+        // Legacy 12s network cache is intentionally NOT reenabled just
+        // because an earlier installation had saved it. Preserve its
+        // numeric preference for the next explicit user enable.
+        activePlaybackCacheMs_=quickBuffer_->isChecked()?bufferMs_->value():0;
+        radioSettings.setValue(QLatin1String("playbackBufferMs"),activePlaybackCacheMs_);
 		bufferMs_->setToolTip(tr("Radio libVLC network cache requested at stream OPEN. "
             "Range 0–60000 ms (safety limit, 60 s). If changed during playback "
             "it remains PENDING until Apply or the next station; not verified "
             "physical DAC/ALSA delay."));
-		autoSync_=new QCheckBox(tr("Auto synchronize caption timing"),lab);
-		autoSync_->setChecked(true);
-		autoSync_->setToolTip(tr("Adapt caption timing to measured ASR delay. "
-			"Does not reopen audio unless separately enabled."));
+        autoSync_=new QCheckBox(tr("Auto-size buffer · ASR + safety"),page);
+        autoSync_->setChecked(quickBuffer_->isChecked() &&
+            radioSettings.value(QLatin1String("radioAutoBufferEnabled"),false).toBool());
+        autoSync_->setToolTip(tr("Optional. Estimate extra playback cache from "
+            "five-second speech capture, observed ASR/translation workload "
+            "and a three-second margin. NOT a measured DAC clock or RF "
+            "dropout detector. Does NOT restart live audio by default."));
+        radioQuickRow_->insertWidget(2,autoSync_);
 		radioOffsetMs_=new QSpinBox(lab);
 		radioOffsetMs_->setRange(-12000,12000);
 		radioOffsetMs_->setSingleStep(250);
@@ -905,10 +941,17 @@ public:
 		auto *applyBuffer=new QPushButton(tr("Apply radio buffer"),lab);
 		syncControls->addWidget(new QLabel(tr("Audio buffer:"),lab),0,0);
 		syncControls->addWidget(bufferMs_,0,1);
-		syncControls->addWidget(applyBuffer,0,2);
+        bufferUnit_=new QComboBox(lab);
+        bufferUnit_->addItem(tr("Milliseconds"),1);
+        bufferUnit_->addItem(tr("Seconds"),1000);
+        bufferUnit_->setToolTip(tr("Display and enter extra buffer in ms or s; "
+            "saved setting remains milliseconds."));
+        syncControls->addWidget(bufferUnit_,0,2);
+		syncControls->addWidget(applyBuffer,0,3);
 		syncControls->addWidget(new QLabel(tr("Caption offset:"),lab),1,0);
 		syncControls->addWidget(radioOffsetMs_,1,1);
-		syncControls->addWidget(autoSync_,1,2);
+        syncControls->addWidget(new QLabel(tr(
+            "Timing is estimated; no sound-card sample clock"),lab),1,2,1,2);
 		syncControls->setColumnStretch(2,1);
         // Keep latency diagnostics available without turning the normal
         // caption/lyrics workflow into a wall of timing controls.
@@ -920,6 +963,19 @@ public:
         advancedSyncLayout->setContentsMargins(0,2,0,2);
         advancedSyncLayout->addLayout(syncControls);
         advancedSyncLayout->addWidget(autoRestartAudio_);
+        connect(bufferUnit_,QOverload<int>::of(&QComboBox::currentIndexChanged),
+            this,[this](int){
+                const int previousMs=bufferMs_->value()*
+                    (bufferUnitsSeconds_?1000:1);
+                bufferUnitsSeconds_=(bufferUnit_->currentData().toInt()==1000);
+                const QSignalBlocker block(bufferMs_);
+                bufferMs_->setRange(0,bufferUnitsSeconds_?60:60000);
+                bufferMs_->setSingleStep(bufferUnitsSeconds_?1:500);
+                bufferMs_->setSuffix(bufferUnitsSeconds_?tr(" s"):tr(" ms"));
+                bufferMs_->setValue(bufferUnitsSeconds_?
+                    qBound(0,(previousMs+500)/1000,60):
+                    qBound(0,previousMs,60000));
+            });
         advancedSyncPanel->setVisible(false);
         connect(advancedSyncToggle,&QCheckBox::toggled,
                 advancedSyncPanel,&QWidget::setVisible);
@@ -955,8 +1011,45 @@ public:
 		captionProgress_->setFormat(tr("Caption timeline · waiting for decoded audio"));
 		captionProgress_->setToolTip(tr("Estimated time to hear the decoded phrase. "
 			"Audio cache is requested, not independently measured at the sound card."));
-        advancedSyncLayout->addWidget(captionProgress_);
-		connect(applyBuffer,&QPushButton::clicked,this,[this](){ applyRadioBuffer(); });
+        captionProgress_->setVisible(false);
+        v->addWidget(captionProgress_);
+        connect(applyBuffer,&QPushButton::clicked,this,[this](){ applyRadioBuffer(); });
+        connect(quickBuffer_,&QCheckBox::toggled,this,[this](bool enabled){
+            quickBuffer_->setText(enabled?
+                tr("Extra audio buffer · ON"):tr("Extra audio buffer · OFF"));
+            if(!enabled && autoSync_->isChecked()) {
+                const QSignalBlocker block(autoSync_);
+                autoSync_->setChecked(false);
+            }
+            QSettings saved(QLatin1String("TIHULU"),QLatin1String("KaffeineRadio"));
+            saved.setValue(QLatin1String("radioBufferEnabled"),enabled);
+            saved.setValue(QLatin1String("radioAutoBufferEnabled"),autoSync_->isChecked());
+            if(active() && !playingKey_.isEmpty()) applyRadioBuffer();
+            else {
+                activePlaybackCacheMs_=0;
+                saved.setValue(QLatin1String("playbackBufferMs"),0);
+            }
+        });
+        connect(autoSync_,&QCheckBox::toggled,this,[this](bool enabled){
+            QSettings saved(QLatin1String("TIHULU"),QLatin1String("KaffeineRadio"));
+            if(enabled && !quickBuffer_->isChecked()) {
+                // Never reopen with a legacy 12s setting just for Auto.
+                // Start from zero EXTRA delay and measure real ASR first.
+                // Save recommendation for next tune or explicit Apply.
+                const QSignalBlocker block(quickBuffer_);
+                quickBuffer_->setChecked(true);
+                quickBuffer_->setText(tr("Extra audio buffer · ON"));
+                setBufferDisplayMs(0);
+                saved.setValue(QLatin1String("radioBufferEnabled"),true);
+                saved.setValue(QLatin1String("radioBufferDesiredMs"),0);
+            }
+            saved.setValue(QLatin1String("radioAutoBufferEnabled"),enabled);
+            bufferRecommendation_->setText(enabled?
+                tr("Auto estimate enabled · measuring Whisper latency. "
+                   "No forced radio restart; next tune uses the estimate "
+                   "or choose Apply buffer now."):
+                tr("Auto estimate OFF · buffer controlled manually."));
+        });
 		auto *captionActions=new QHBoxLayout();
 		captionActions->addStretch(1);
 		captionActions->addWidget(caption_);
@@ -1039,7 +1132,8 @@ public:
 		});
 		lyricsRow->addWidget(lyrics_,0,0);
 		lyricsRow->addWidget(stopLyrics_,0,1);
-		lyricsRow->addWidget(autoLyrics_,0,2);
+		radioQuickRow_->insertWidget(3,autoLyrics_);
+        autoLyrics_->setText(tr("Auto-find lyrics · online opt-in"));
         lyricsRow->addWidget(listenLyrics_,5,0,1,2);
         lyricsRow->addWidget(listenFallbackOnMiss_,5,2);
 		lyricsRow->addWidget(autoLyricSync_,1,0,1,2);
@@ -1303,8 +1397,29 @@ public:
 			this,[this](){ filterStations(); });
 		connect(favoritesOnly_,&QCheckBox::toggled,this,
 			[this](){ filterStations(); });
-		connect(caption_, &QPushButton::clicked, this, [this](){ startCaptioning(); });
+		connect(quickAi_,&QCheckBox::toggled,this,[this](bool enabled){
+            quickAi_->setText(enabled?tr("AI captions · ON"):tr("AI captions · OFF"));
+            if(enabled) {
+                if(active() && !playingKey_.isEmpty()) startCaptioning();
+                else radioCaptionBanner_->setText(tr(
+                    "AI armed for the next station. No speech processing "
+                    "until a DAB station is playing."));
+            } else {
+                stopCaptioning();
+                if(captionProgress_) captionProgress_->setVisible(false);
+                radioCaptionBanner_->setText(tr("Live radio AI OFF · audio only"));
+            }
+        });
+        connect(caption_, &QPushButton::clicked, this, [this](){
+            if(!quickAi_->isChecked()) quickAi_->setChecked(true);
+            else startCaptioning();
+        });
         connect(applyCaptions_,&QPushButton::clicked,this,[this](){
+            if(!quickAi_->isChecked()) {
+                radioCaption_->setText(tr("AI is OFF. Choose Start captions "
+                    "or enable the AI switch first."));
+                return;
+            }
             if(captionProcess_.state()!=QProcess::NotRunning) stopCaptioning();
             cueQueue_.clear();
             lastRadioChunk_=-1;
@@ -1314,6 +1429,9 @@ public:
                 "waiting for a new real audio segment…"));
         });
 		connect(stopCaption_, &QPushButton::clicked, this, [this](){
+            const QSignalBlocker block(quickAi_);
+            quickAi_->setChecked(false);
+            quickAi_->setText(tr("AI captions · OFF"));
             const bool lyricOnly=lyricsAudioFallbackActive_;
             if(lyricOnly) {
                 lyricsAudioFallbackActive_=false;
@@ -1445,8 +1563,9 @@ public:
                     tr("Audio cache request · no stream opened"):
                     tr("Requested %1 ms · stream uptime %2 ms · queue/DAC UNVERIFIED%3")
                     .arg(requested).arg(elapsed)
-                    .arg(bufferMs_->value()!=requested?
-                        tr(" · next-tune request %1 ms pending").arg(bufferMs_->value()):
+                    .arg(requestedPlaybackBufferMs()!=requested?
+                        tr(" · next-tune request %1 ms pending")
+                            .arg(requestedPlaybackBufferMs()):
                         QString()));
 			}
 		});
@@ -2257,8 +2376,36 @@ private:
 						QTimer::singleShot(100,this,[this](){fetchLyrics(true);});
 					}
 				}
-				const QJsonObject errs=service.value(
-					QLatin1String("errorcounters")).toObject();
+                const QJsonObject errs=service.value(
+                    QLatin1String("errorcounters")).toObject();
+                const qint64 frames=errs.value(
+                    QLatin1String("frameerrors")).toVariant().toLongLong();
+                const qint64 rs=errs.value(
+                    QLatin1String("rserrors")).toVariant().toLongLong();
+                const qint64 aac=errs.value(
+                    QLatin1String("aacerrors")).toVariant().toLongLong();
+                if(lastErrorStation_==key && lastRfFrameErrors_>=0) {
+                    const qint64 frameDelta=frames>=lastRfFrameErrors_?
+                        frames-lastRfFrameErrors_:0;
+                    const qint64 rsDelta=rs>=lastRfRsErrors_?
+                        rs-lastRfRsErrors_:0;
+                    const qint64 aacDelta=aac>=lastRfAacErrors_?
+                        aac-lastRfAacErrors_:0;
+                    if(frameDelta+rsDelta+aacDelta>0)
+                        radioAudioHealth_->setText(tr(
+                            "DAB decoder error counters increased since "
+                            "last live mux: frame +%1 / RS +%2 / AAC +%3. "
+                            "Signal/demodulation may be causing audio gaps; "
+                            "more VLC buffering cannot repair RF errors.")
+                            .arg(frameDelta).arg(rsDelta).arg(aacDelta));
+                    else radioAudioHealth_->setText(tr(
+                        "DAB error counters stable this sample · "
+                        "audible audio/DAC buffer still unmeasured"));
+                }
+                lastErrorStation_=key;
+                lastRfFrameErrors_=frames;
+                lastRfRsErrors_=rs;
+                lastRfAacErrors_=aac;
 				const QString technical=tr("Frame / RS / AAC: %1 / %2 / %3")
 					.arg(errs.value(QLatin1String("frameerrors")).toVariant().toString())
 					.arg(errs.value(QLatin1String("rserrors")).toVariant().toString())
@@ -2346,74 +2493,114 @@ private:
 		settings.setValue(QLatin1String("dabFavorites"),
 			QStringList(favorites_.values()));
 	}
+    bool currentTuneRequest(bool scanningRequest,quint64 ticket) const {
+        return active() && (scanningRequest?
+            (scanning_ && ticket==scanRequestId_):
+            (!scanning_ && ticket==stationRequestId_));
+    }
+    void confirmTunedBlock(const QString &block,
+                           const std::function<void()> &ready,
+                           bool scanningRequest,quint64 ticket,int retry=0) {
+        if(!currentTuneRequest(scanningRequest,ticket)) return;
+        QNetworkReply *reply=network_.get(
+            QNetworkRequest(QUrl(base()+QLatin1String("/channel"))));
+        connect(reply,&QNetworkReply::finished,this,
+            [this,reply,block,ready,scanningRequest,ticket,retry](){
+                if(!currentTuneRequest(scanningRequest,ticket)) {
+                    reply->deleteLater();return;
+                }
+                const bool matched=reply->error()==QNetworkReply::NoError &&
+                    QString::fromUtf8(reply->readAll()).trimmed()==block;
+                reply->deleteLater();
+                if(matched) {
+                    activeChannel_=block;
+                    channel_->setCurrentText(block);
+                    ready();
+                } else if(retry<(scanningRequest?2:5)) {
+                    // DAB demodulator can take a little longer to acknowledge
+                    // the selected frequency. Poll only this exact request;
+                    // stale confirmations must not open a different service.
+                    QTimer::singleShot(scanningRequest?700:450,this,
+                        [this,block,ready,scanningRequest,ticket,retry](){
+                            confirmTunedBlock(block,ready,
+                                scanningRequest,ticket,retry+1);
+                        });
+                } else {
+                    state_->setText(tr("DAB %1 retune was not confirmed by "
+                        "the live receiver; no cached channel stream opened.")
+                        .arg(block));
+                    if(scanningRequest)
+                        QTimer::singleShot(300,this,[this](){scanStep();});
+                }
+            });
+    }
 	void tune(const QString &block, const std::function<void()> &ready) {
-		if (!active()) return;
-		if (!apiReady_) {
-			if(apiWaitCount_>=18) {
-				state_->setText(tr("Cannot tune DAB %1: %2. SNR has NOT been measured. "
-                    "Press Start receiver to retry this app-owned backend.")
+        if(!active()) return;
+        const bool scanningRequest=scanning_;
+        const quint64 ticket=scanningRequest?scanRequestId_:stationRequestId_;
+        if(!apiReady_) {
+            if(apiWaitCount_>=18) {
+                state_->setText(tr("Cannot tune DAB %1: %2. SNR has NOT "
+                    "been measured. Press Start receiver to retry.")
                     .arg(block,apiFailureDetails()));
                 scanSNR_->setValue(0);
                 scanSNR_->setFormat(tr("DAB SNR NOT MEASURED · no API connection"));
-				scanning_=false;
-				scan_->setEnabled(true);
-				return;
-			}
-			QTimer::singleShot(450,this,[this,block,ready](){tune(block,ready);});
-			return;
-		}
-		if (!QRegularExpression(QLatin1String("^(?:[5-9]|1[0-3])[A-F]$"))
-		        .match(block).hasMatch()) return;
-		QNetworkRequest req(QUrl(base()+QLatin1String("/channel")));
-		req.setHeader(QNetworkRequest::ContentTypeHeader,
-			QLatin1String("text/plain"));
-		QNetworkReply *reply=network_.post(req,block.toUtf8());
-		connect(reply,&QNetworkReply::finished,this,[this,reply,block,ready]() {
-			const bool ok=reply->error()==QNetworkReply::NoError;
-			reply->deleteLater();
-			if (!ok) {
-				state_->setText(tr("DAB retune failed; skipping unavailable block."));
-				if (scanning_) QTimer::singleShot(400,this,[this](){scanStep();});
-				return;
-			}
-			QTimer::singleShot(3200,this,[this,block,ready]() {
-				// welle-cli replies 200 even to unsupported DAB blocks.
-				// Verify its actual tuned /channel before assigning services
-				// to this frequency or playing their MP3 path.
-				if (!active()) return;
-				QNetworkReply *readback=network_.get(
-					QNetworkRequest(QUrl(base()+QLatin1String("/channel"))));
-				connect(readback,&QNetworkReply::finished,this,
-					[this,readback,block,ready]() {
-						const bool matched=readback->error()==QNetworkReply::NoError &&
-							QString::fromUtf8(readback->readAll()).trimmed()==block;
-						readback->deleteLater();
-						if (!matched) {
-							state_->setText(tr("DAB %1 is unavailable; not attributing "
-								"old station metadata to the wrong frequency.").arg(block));
-							if (scanning_) QTimer::singleShot(300,this,[this](){scanStep();});
-							return;
-						}
-						activeChannel_=block;
-						channel_->setCurrentText(block);
-						ready();
-					});
-			});
-		});
-	}
+                scanning_=false;
+                scan_->setEnabled(true);
+                return;
+            }
+            QTimer::singleShot(450,this,
+                [this,block,ready,scanningRequest,ticket](){
+                    if(currentTuneRequest(scanningRequest,ticket))
+                        tune(block,ready);
+                });
+            return;
+        }
+        if(!QRegularExpression(QLatin1String("^(?:[5-9]|1[0-3])[A-F]$"))
+            .match(block).hasMatch()) return;
+        QNetworkRequest request(QUrl(base()+QLatin1String("/channel")));
+        request.setHeader(QNetworkRequest::ContentTypeHeader,
+                          QLatin1String("text/plain"));
+        QNetworkReply *reply=network_.post(request,block.toUtf8());
+        connect(reply,&QNetworkReply::finished,this,
+            [this,reply,block,ready,scanningRequest,ticket](){
+                const bool valid=currentTuneRequest(scanningRequest,ticket);
+                const bool ok=reply->error()==QNetworkReply::NoError;
+                reply->deleteLater();
+                if(!valid) return;
+                if(!ok) {
+                    state_->setText(tr("DAB retune failed; receiver API error."));
+                    if(scanningRequest)
+                        QTimer::singleShot(400,this,[this](){scanStep();});
+                    return;
+                }
+                // Only the scan needs a longer FIC discovery/ensemble dwell.
+                // A station switch can start verifying the channel quickly;
+                // verifyStation separately waits for a real service URL.
+                QTimer::singleShot(scanningRequest?3200:650,this,
+                    [this,block,ready,scanningRequest,ticket](){
+                        confirmTunedBlock(block,ready,scanningRequest,ticket);
+                    });
+            });
+    }
 	void beginScan() {
 		if (webPlaying_) stopInternetRadio();
 		if (!active()) {
 			startReceiver();
 			if (!active()) return;
 		}
-		if (scanning_) return;
-		if (!playingKey_.isEmpty()) {
+        if(scanning_) return;
+        if(!playingKey_.isEmpty()) {
 			if (QMessageBox::question(this,tr("Full DAB scan"),
 				tr("Stop current radio playback, offline captions and "
 				"recording while scanning Band III frequencies?"),
 				QMessageBox::Yes|QMessageBox::No,QMessageBox::No)!=QMessageBox::Yes)
 				return;
+            {
+                const QSignalBlocker block(quickAi_);
+                quickAi_->setChecked(false);
+                quickAi_->setText(tr("AI captions · OFF"));
+            }
 			stopCaptioning();
 			stopLyrics();
 			stopRecording();
@@ -2421,6 +2608,14 @@ private:
 			playingKey_.clear();
 			lastDetectedLanguage_.clear();
 		}
+        // Disable AI only AFTER the user accepts the scan interruption;
+        // cancelling the scan must preserve the currently running captions.
+        {
+            const QSignalBlocker block(quickAi_);
+            quickAi_->setChecked(false);
+            quickAi_->setText(tr("AI captions · OFF"));
+        }
+        stopCaptioning();
 		scanning_=true;
 		++stationRequestId_;
 		scanRequestId_=0;
@@ -2545,10 +2740,18 @@ private:
 				}
 				// URL comes from the verified current welle mux, never fabricated
 				// from a possibly months-old cached service ID.
-				const bool restartAi=captionProcess_.state()!=QProcess::NotRunning;
-				stopCaptioning();
-				stopLyrics();
-				stopRecording();
+				const bool restartAi=quickAi_->isChecked();
+                stopCaptioning();
+                stopLyrics();
+                stopRecording();
+                // Stopping a lyrics-owned worker may clear its AI toggle,
+                // but an independently enabled live caption session must
+                // survive a station switch until the owner turns it OFF.
+                if(restartAi) {
+                    const QSignalBlocker block(quickAi_);
+                    quickAi_->setChecked(true);
+                    quickAi_->setText(tr("AI captions · ON"));
+                }
 				lastDetectedLanguage_.clear();
 				lagSamples_.clear();
 				lastRadioChunk_=-1;
@@ -2558,7 +2761,14 @@ private:
                 if(radioCanvasCaption_) radioCanvasCaption_->setVisible(false);
                 radioCaptionBanner_->setText(tr("Opening DAB station · waiting for audio…"));
 				pendingRadioCue_.clear();
-				playingKey_=key;
+                playingKey_=key;
+                lastErrorStation_.clear();
+                lastRfFrameErrors_=-1;
+                lastRfRsErrors_=-1;
+                lastRfAacErrors_=-1;
+                radioAudioHealth_->setText(tr(
+                    "New service · collecting real DAB frame/RS/AAC error "
+                    "counter samples. Audio output is not measured."));
                 showSelectedSource(name,tr("DAB+ · live mux verified"),
                     tr("Block %1 · service %2 · stream opening").arg(block,sid));
 				lastDls_.clear();
@@ -2567,8 +2777,14 @@ private:
 				slideHistory_.clear();
 				lastSlideHash_.clear();
 				slideIndex_=0;
-				player_->play(QUrl(base()+stream));
-                activePlaybackCacheMs_=bufferMs_->value();
+				activePlaybackCacheMs_=requestedPlaybackBufferMs();
+                QSettings playback(QLatin1String("TIHULU"),
+                                   QLatin1String("KaffeineRadio"));
+                playback.setValue(QLatin1String("playbackBufferMs"),
+                                  activePlaybackCacheMs_);
+                playback.setValue(QLatin1String("radioBufferDesiredMs"),
+                                  selectedBufferMs());
+                player_->play(QUrl(base()+stream));
 				audioStartedMs_=QDateTime::currentMSecsSinceEpoch();
 				radioCanvas_->setText(tr("♪ %1\nDAB+ %2 · verifying audio playback…")
 					.arg(name,block));
@@ -2583,11 +2799,19 @@ private:
 							"audio and error counters; actual audio output is not metered.")
 							.arg(name));
 						stationOpenProgress_->setFormat(tr("Player reports PLAYING · %1").arg(name));
+                        radioCanvas_->setText(tr(
+                            "♪ %1\nDAB+ %2 · player reports Playing\n"
+                            "Audible output is not independently measured.")
+                            .arg(name,activeChannel_));
 					} else {
 						playStatus_->setText(tr("NO AUDIO PLAYBACK reported for %1. "
 							"Check welle receiver, AAC decoding and stream endpoint.")
 							.arg(name));
 						stationOpenProgress_->setFormat(tr("Audio failed / stopped"));
+                        radioCanvas_->setText(tr(
+                            "♪ %1\nDAB+ %2 · decoder/player did not report Playing\n"
+                            "Inspect DAB RF errors and local stream.")
+                            .arg(name,activeChannel_));
 						stationOpenProgress_->setValue(0);
 					}
 				});
@@ -2889,10 +3113,31 @@ private:
 		layout->addWidget(textView);
 		dlg.exec();
 	}
-	void applyRadioBuffer() {
+	int selectedBufferMs() const {
+        return qBound(0,bufferMs_->value()*(bufferUnitsSeconds_?1000:1),60000);
+    }
+    int requestedPlaybackBufferMs() const {
+        return quickBuffer_->isChecked()?selectedBufferMs():0;
+    }
+    void setBufferDisplayMs(int milliseconds) {
+        const int bounded=qBound(0,milliseconds,60000);
+        const QSignalBlocker block(bufferMs_);
+        bufferMs_->setValue(bufferUnitsSeconds_?
+            qBound(0,(bounded+500)/1000,60):bounded);
+    }
+    void applyRadioBuffer() {
 		QSettings radioSettings(QLatin1String("TIHULU"),QLatin1String("KaffeineRadio"));
-		radioSettings.setValue(QLatin1String("playbackBufferMs"),bufferMs_->value());
-		radioSettings.sync();
+		const int desired=requestedPlaybackBufferMs();
+        radioSettings.setValue(QLatin1String("radioBufferDesiredMs"),selectedBufferMs());
+        radioSettings.setValue(QLatin1String("radioBufferEnabled"),
+                               quickBuffer_->isChecked());
+        radioSettings.setValue(QLatin1String("playbackBufferMs"),desired);
+        radioSettings.sync();
+        if(desired==activePlaybackCacheMs_) {
+            syncStatus_->setText(tr("Radio extra buffer unchanged: %1 ms. "
+                "No audio restart.").arg(desired));
+            return;
+        }
 		if (!playingKey_.isEmpty() && active()) {
 			const QString sid=playingKey_.section(QLatin1Char(':'),1);
 			if (!QRegularExpression(QLatin1String("^(?:0x)?[A-Fa-f0-9]{1,8}$"))
@@ -2901,7 +3146,7 @@ private:
 			// stream. Explicitly reopen when the owner chooses a new
 			// buffer; this can briefly interrupt sound.
 			player_->play(QUrl(base()+QLatin1String("/mp3/")+sid));
-            activePlaybackCacheMs_=bufferMs_->value();
+            activePlaybackCacheMs_=desired;
             lastAudioRetuneMs_=QDateTime::currentMSecsSinceEpoch();
             audioStartedMs_=lastAudioRetuneMs_;
             const bool wasAiRunning=captionProcess_.state()!=QProcess::NotRunning;
@@ -2920,8 +3165,8 @@ private:
                 "captions restarted to discard old audio timeline. DAC delay unverified.")
 				.arg(activePlaybackCacheMs_));
 		} else {
-			syncStatus_->setText(tr("Saved %1ms; will apply when station starts.")
-				.arg(bufferMs_->value()));
+			syncStatus_->setText(tr("Extra cache %1ms saved for the next station. "
+                "No receiver restart.").arg(desired));
 		}
 	}
 	void startCaptioning() {
@@ -2981,9 +3226,14 @@ private:
 		options<<QLatin1String("--output")<<captionPath_;
 		QFile::remove(captionPath_);
 		captionProcess_.start(QLatin1String("tihulu-tv-center"),options);
-        if (!captionProcess_.waitForStarted(1200))
+        if (!captionProcess_.waitForStarted(1200)) {
             radioCaption_->setText(tr("Offline radio AI sidecar could not start."));
-        else {
+            captionProgress_->setVisible(false);
+        } else {
+            captionProgress_->setVisible(true);
+            captionProgress_->setRange(0,0);
+            captionProgress_->setFormat(tr(
+                "Whisper starting · collecting ~5 s of real DAB audio…"));
             lastCaptionUpdateMs_=QDateTime::currentMSecsSinceEpoch();
             radioCaption_->setText(tr("Offline radio ASR/translation started. "
                 "Radio audio plays independently; heavy AI may fall behind."));
@@ -2998,8 +3248,10 @@ private:
         }
         // Actual LRC / audio-matched lyric lines win over uncertain ASR;
         // never replace the radioCanvas_'s station text or slideshow.
-        if(!lyric && lyricsEnabled_ &&
-           (plainLyricMode_ || !lyricCues_.isEmpty())) return;
+        // DLS metadata may still show a song while the announcer talks.
+        // Never let estimated timed lyrics erase actual Whisper speech.
+        if(lyric && lastUnmatchedVoiceUntilMs_>
+           QDateTime::currentMSecsSinceEpoch()) return;
         if(radioCanvasCaption_->text()!=text)
             radioCanvasCaption_->setText(text);
         radioCanvasCaption_->setVisible(true);
@@ -3010,9 +3262,17 @@ private:
 		// previous chunk before its estimated playback presentation time.
 		if(captionProgress_) {
 			if(cueQueue_.isEmpty()) {
-				captionProgress_->setValue(0);
-				captionProgress_->setFormat(tr("Caption timeline · awaiting next audio phrase"));
+                if(captionProcess_.state()!=QProcess::NotRunning) {
+                    captionProgress_->setRange(0,0);
+                    captionProgress_->setFormat(tr(
+                        "Listening / transcribing · awaiting next confirmed phrase"));
+                } else {
+                    captionProgress_->setRange(0,100);
+				    captionProgress_->setValue(0);
+				    captionProgress_->setFormat(tr("AI captions are OFF"));
+                }
 			} else {
+                captionProgress_->setRange(0,100);
 				const auto &next=cueQueue_.first();
 				const qint64 total=qMax(qint64(1),next.dueMs-next.queuedMs);
 				captionProgress_->setValue(qBound(0,int((now-next.queuedMs)*100/total),100));
@@ -3126,13 +3386,19 @@ private:
 					.arg(rawRecommended>60000?
 						tr(" · Above maximum: try fewer target languages or faster model"):
 						QString()));
-				if(recommended>bufferMs_->value()+1000) {
+				if(quickBuffer_->isChecked() &&
+                   qAbs(recommended-selectedBufferMs())>=1500) {
+                    // Hysteresis allows both safer increases AND measured
+                    // reductions without oscillating on each five-second hop.
                     // Auto selects a *future* cache request. libVLC cannot
                     // alter the already open media's audio buffering in-place.
                     // Never silently pretend that this changed live lip sync.
-                    bufferMs_->setValue(recommended);
+                    setBufferDisplayMs(recommended);
                     QSettings radio(QLatin1String("TIHULU"),QLatin1String("KaffeineRadio"));
-                    radio.setValue(QLatin1String("playbackBufferMs"),recommended);
+                    radio.setValue(QLatin1String("radioBufferDesiredMs"),
+                                   selectedBufferMs());
+                    radio.setValue(QLatin1String("playbackBufferMs"),
+                                   activePlaybackCacheMs_);
                     if(autoRestartAudio_->isChecked() &&
                        now-lastAudioRetuneMs_>=180000 &&
                        recommended>=activePlaybackCacheMs_+5000 &&
@@ -3164,6 +3430,12 @@ private:
 					caption+=QLatin1String("\n[")+it.key().toUpper()+
 						QLatin1String("] ")+it.value().toString();
 			const qint64 due=now+qMax(0,remaining)+radioOffsetMs_->value();
+			if(!caption.isEmpty() &&
+               obj.value(QLatin1String("speech_preserved_when_lyrics_unmatched"))
+                   .toBool()) {
+                lastUnmatchedVoiceUntilMs_=qMax(lastUnmatchedVoiceUntilMs_,
+                                                due+7000);
+            }
 			if(!caption.isEmpty()) {
 				cueQueue_.append({chunk,due,now,caption.left(1300)});
 				while(cueQueue_.size()>12) cueQueue_.removeFirst();
@@ -3182,11 +3454,12 @@ private:
                         if(it.value().isString() && !it.value().toString().isEmpty())
                             rendered+=QLatin1String("\n[")+it.key().toUpper()+
                                 QLatin1String("] ")+it.value().toString();
-                    if(!lyricTranslations.isEmpty()) {
-                        lastVerifiedLyricText_=line;
-                        lastVerifiedLyricTranslations_=lyricTranslations;
-                        lastVerifiedLyricMs_=now;
-                    }
+                    // A genuine audio match is evidence even without a translation.
+                    lastVerifiedLyricText_=line;
+                    lastVerifiedLyricTranslations_=lyricTranslations;
+                    lastVerifiedLyricMs_=now;
+                    lastUnmatchedVoiceUntilMs_=qMin(
+                        lastUnmatchedVoiceUntilMs_,now);
 					if(plainLyricMode_) {
 						plainLyricQueue_.append({due+lyricsOffset_->value(),rendered,confidence});
 						while(plainLyricQueue_.size()>10) plainLyricQueue_.removeFirst();
@@ -3308,6 +3581,7 @@ private:
 			if (!captionProcess_.waitForFinished(700))
 				captionProcess_.kill();
 		}
+        if(captionProgress_) captionProgress_->setVisible(false);
 		if (!captionPath_.isEmpty()) QFile::remove(captionPath_);
 		captionPath_.clear();
         if(!lyricsEnabled_ && radioCanvasCaption_)
@@ -3329,8 +3603,17 @@ private:
             lyricsFallbackStartedAi_=(!alreadyRunning || plainLyricsStartedAi_);
         plainLyricsStartedAi_=false;
         lyricsAudioFallbackActive_=true;
-        if(alreadyRunning) stopCaptioning();
-        startCaptioning();
+        if(!alreadyRunning) {
+            // Explicit Listen action opts into ASR, but NEVER interrupt
+            // an already-running presenter transcript just to switch
+            // music settings. The original speech stream stays continuous.
+            {
+                const QSignalBlocker block(quickAi_);
+                quickAi_->setChecked(true);
+                quickAi_->setText(tr("AI captions · ON"));
+            }
+            startCaptioning();
+        }
         if(captionProcess_.state()==QProcess::NotRunning) {
             lyricsAudioFallbackActive_=false;
             lyricText_->setText(tr("Offline music transcription unavailable. "
@@ -3355,10 +3638,12 @@ private:
         const bool startedByLyrics=lyricsFallbackStartedAi_;
         lyricsAudioFallbackActive_=false;
         lyricsFallbackStartedAi_=false;
-        if(hadListening && captionProcess_.state()!=QProcess::NotRunning) {
+        if(hadListening && startedByLyrics &&
+           captionProcess_.state()!=QProcess::NotRunning) {
             stopCaptioning();
-            if(!startedByLyrics && active() && !playingKey_.isEmpty())
-                startCaptioning();
+            const QSignalBlocker block(quickAi_);
+            quickAi_->setChecked(false);
+            quickAi_->setText(tr("AI captions · OFF"));
         } else if(plainLyricsStartedAi_ &&
                   captionProcess_.state()!=QProcess::NotRunning) {
             // An ASR worker started ONLY for plain-lyrics matching is
@@ -3382,6 +3667,8 @@ private:
         lastVerifiedLyricTranslations_=QJsonObject();
         lyricOffsetConsistency_=0;
 		lyricLoaded_=false;
+        lastLyricsAutoLookup_=false;
+        lastUnmatchedVoiceUntilMs_=0;
 		stopLyrics_->setEnabled(false);
         lyricProvider_->setText(tr("Lyrics stopped. Local DAB audio continues."));
 		lyricText_->setText(tr("Lyrics / lyric-triggered listening stopped."));
@@ -3415,6 +3702,7 @@ private:
 			QString::number(QCoreApplication::applicationPid())+QLatin1String(".json");
 		QFile::remove(lyricPath_);
 		lyricsEnabled_=true;
+        lastLyricsAutoLookup_=automatic;
 		lyricLoaded_=false;
 		plainLyricMode_=false;
 		plainLyricQueue_.clear();
@@ -3468,6 +3756,13 @@ private:
 			return;
 		}
 		if (lyricPath_.isEmpty() || lyricLoaded_) {
+            const qint64 currentEpoch=QDateTime::currentMSecsSinceEpoch();
+            // Automatic LRC from DLS is provisional until we actually
+            // hear a vocal line matching the current song.
+            if(lastLyricsAutoLookup_ &&
+               (lastVerifiedLyricMs_<=0 ||
+                currentEpoch-lastVerifiedLyricMs_>16000)) return;
+            if(lastUnmatchedVoiceUntilMs_>currentEpoch) return;
 			if (!lyricCues_.isEmpty() && songStartMs_>0) {
 				const qint64 start=autoLyricSync_->isChecked()
 					?songStartMs_:manualSongStartMs_;
@@ -3557,6 +3852,7 @@ private:
     QLabel *translationStatus_=nullptr;
     QLabel *radioTranslationBanner_=nullptr;
     QLabel *radioCanvasCaption_=nullptr;
+    QLabel *radioAudioHealth_=nullptr;
     QCheckBox *advancedLanguages_=nullptr;
 	QComboBox *channel_=nullptr, *driver_=nullptr, *speechLanguage_=nullptr,
 		*captionSource_=nullptr,
@@ -3623,7 +3919,8 @@ private:
 	QProgressBar *captionProgress_=nullptr,*audioCacheProgress_=nullptr;
 	QLabel *bufferRecommendation_=nullptr;
 	qint64 audioStartedMs_=0,lastLyricSyncUpdateMs_=0,
-        lastCaptionVisibleMs_=0,lastCanvasLyricMs_=0,lastCaptionUpdateMs_=0;
+        lastCaptionVisibleMs_=0,lastCanvasLyricMs_=0,lastCaptionUpdateMs_=0,lastUnmatchedVoiceUntilMs_=0;
+    bool lastLyricsAutoLookup_=false;
 	bool metadataCaptions_=false;
 	int dlsCaptionIndex_=0;
 	int lastLyricOffsetMs_=0;
@@ -3634,6 +3931,10 @@ private:
     bool lyricsAudioFallbackActive_=false,lyricsFallbackStartedAi_=false,
         plainLyricsStartedAi_=false,captionsStopping_=false;
 	QSpinBox *bufferMs_=nullptr,*radioOffsetMs_=nullptr;
+    QComboBox *bufferUnit_=nullptr;
+    bool bufferUnitsSeconds_=false;
+    QHBoxLayout *radioQuickRow_=nullptr;
+    QCheckBox *quickAi_=nullptr,*quickBuffer_=nullptr;
 	QCheckBox *autoSync_=nullptr,*autoRestartAudio_=nullptr;
 	int lastCaptionOffsetMs_=0;
     int activePlaybackCacheMs_=12000;
@@ -3662,6 +3963,8 @@ private:
 	qint64 songStartMs_=0,manualSongStartMs_=0;
 	QString lastWelleError_,lastAnalogError_;
     QString lastVerifiedLyricText_;
+    QString lastErrorStation_;
+    qint64 lastRfFrameErrors_=-1,lastRfRsErrors_=-1,lastRfAacErrors_=-1;
     QJsonObject lastVerifiedLyricTranslations_;
     qint64 lastVerifiedLyricMs_=0;
     int lastLyricDirection_=0,lyricOffsetConsistency_=0;
