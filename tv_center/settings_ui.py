@@ -940,19 +940,36 @@ def open_ai_settings(parent, ai, after_save=None):
                 "Base must be installed and configured separately using "
                 "official vendor HEF/NPY assets. Argos remains CPU-based."
                 if key=="pi5_hat2" else "")
+            if self.running:
+                QMessageBox.information(self,"Install all",
+                    "Another model operation is running.")
+                return
+            # Display each planned transfer BEFORE downloading. Existing
+            # components will be reverified by the worker, not trusted from
+            # stale UI cache. Counts include variable runtime dependencies.
+            known=self._profile_status_cache.get(key,{})
+            details="\n".join(
+                ("✓ Installed · " if known.get(code) else
+                 "• Check/install · ")+COMPONENTS[code][0]+
+                " — "+component_estimate(code)
+                for code in spec["components"])
             if QMessageBox.question(self,"Install all · "+spec["name"],
-                "Download/build missing components now?\n"+
-                spec["description"]+"\nEstimated disk: "+
+                "Review components BEFORE any download:\n\n"+
+                details+"\n\nEstimated total DISK: "+
                 spec["disk_gb_estimate"]+warning+caveat+
-                "\nInstall all does NOT activate the profile. "
-                "Partial successes remain installed for safe retry. Continue?"
+                "\n\nActual transferred bytes may differ, and shared "
+                "dependencies are installed once. The installation is "
+                "owner-approved and resumable; the mode is NOT selected. "
+                "Continue?"
                 ) != QMessageBox.Yes:
                 return
             self.begin("Installing "+spec["name"]+"…",
                 lambda: {"kind":"profile_install","profile":key,
                          "steps":install_components(
                              key,library=self.library,
-                             progress=lambda msg:self.work.put(("progress",msg)))})
+                             progress=lambda msg:self.work.put(("progress",msg)),
+                             events=lambda event:self.work.put((
+                                 "model_event",{"profile":key,**event})))})
 
         def select_profile(self):
             key=self.profile_choice.currentData()
@@ -1635,6 +1652,9 @@ def open_ai_settings(parent, ai, after_save=None):
                 QMessageBox.information(self, "Model operation", "A model operation is already running")
                 return
             self.running = True
+            self.profile_install.setEnabled(False)
+            self.profile_select.setEnabled(False)
+            self.profile_inspect.setEnabled(False)
             self.feedback.setText(label)
             def worker():
                 try:
@@ -1656,10 +1676,34 @@ def open_ai_settings(parent, ai, after_save=None):
                     self._show_starter(data)
                 elif kind == "profile_inventory":
                     self._show_profile_inventory(data)
+                elif kind == "all_status":
+                    self._all_status_busy=False
+                    if "status" in data:
+                        self._all_status_cache=data["status"]
+                        self.refresh_all_models()
+                    else:
+                        self.feedback.setText(
+                            "Optional model inventory failed: "+data["error"])
+                elif kind == "model_event":
+                    if data.get("profile")==self.profile_choice.currentData():
+                        self._set_component_state(
+                            data["component"],data["state"],
+                            message=data.get("message",""),
+                            received=data.get("received"),
+                            total=data.get("total"))
+                    if data["state"] in ("installed","already installed"):
+                        self._profile_status_cache.setdefault(
+                            data["profile"],{})[data["component"]]=True
+                    elif data["state"]=="failed":
+                        self._profile_status_cache.setdefault(
+                            data["profile"],{})[data["component"]]=False
                 elif kind == "progress":
                     self.feedback.setText(str(data))
                 elif kind == "done":
                     self.running = False
+                    self.profile_install.setEnabled(True)
+                    self.profile_select.setEnabled(True)
+                    self.profile_inspect.setEnabled(True)
                     if isinstance(data,dict) and data.get("kind") == "profile_selection":
                         try:
                             self.ai.update(data["patch"])
@@ -1718,16 +1762,24 @@ def open_ai_settings(parent, ai, after_save=None):
                     else:
                         self.feedback.setText("Completed: " + str(data))
                     self.populate_models()
-                    self.inspect_argos()
-                    self.inspect_runtime()
-                    self.inspect_starter()
-                    self.inspect_nllb()
-                    self.inspect_speaker()
-                    self.inspect_compute()
-                    if after_save:
-                        after_save()
+                    # Don't fan out many Argos/GPU/translator probes after
+                    # every completed model operation. Refresh only the
+                    # currently visible tab, and background expensive status.
+                    self._all_status_cache=None
+                    current=self.model_tabs.currentIndex()
+                    if current==0:
+                        self.inspect_profile()
+                    elif current==4:
+                        self.inspect_all_status()
+                    elif current==1:
+                        self.inspect_starter()
+                    elif current==2:
+                        self.inspect_argos()
                 else:
                     self.running = False
+                    self.profile_install.setEnabled(True)
+                    self.profile_select.setEnabled(True)
+                    self.profile_inspect.setEnabled(True)
                     self.feedback.setText("Failed: " + str(data))
 
         def download_model(self):
