@@ -1408,6 +1408,7 @@ public:
 			const int delta=value-lastLyricOffsetMs_;
 			lastLyricOffsetMs_=value;
 			for(auto &cue:plainLyricQueue_) cue.dueMs+=delta;
+            for(auto &cue:verifiedLyricQueue_) cue.dueMs+=delta;
 		});
 		lyricsRow->addWidget(lyrics_,0,0);
 		lyricsRow->addWidget(stopLyrics_,0,1);
@@ -1997,14 +1998,17 @@ private:
         int lineIndex;
         QString original;
         QJsonObject translations;
+        QJsonArray wordAnchors;
         // Qt5/C++11 builds do not treat a struct with default member
         // initializers as an aggregate. Accept old 3-field cues as well
         // as newer 6-field verified karaoke cues.
         TimedPlainLyric(qint64 due,const QString &rendered,double certainty,
                         int index=-1,const QString &source=QString(),
-                        const QJsonObject &translated=QJsonObject())
+                        const QJsonObject &translated=QJsonObject(),
+                        const QJsonArray &alignedWords=QJsonArray())
             : dueMs(due),text(rendered),confidence(certainty),
-              lineIndex(index),original(source),translations(translated) {}
+              lineIndex(index),original(source),translations(translated),
+              wordAnchors(alignedWords) {}
     };
 	static QString label(const QJsonValue &value) {
 		if (value.isString()) return value.toString();
@@ -3867,6 +3871,53 @@ private:
         if(karaokePanel_) karaokePanel_->setVisible(false);
         if(karaokeCurrent_) karaokeCurrent_->clear();
         if(karaokeTranslation_) karaokeTranslation_->clear();
+        karaokeLine_.clear();
+        karaokeWordAnchors_=QJsonArray();
+        lastHighlightedKaraokeWord_=-2;
+    }
+    void refreshKaraokeWordHighlight(qint64 now) {
+        if(!karaokeCurrent_ || karaokeLine_.isEmpty() ||
+           karaokeWordAnchors_.isEmpty()) return;
+        const int count=qMin(karaokeWordAnchors_.size(),90);
+        int active=-1;
+        for(int i=0;i<count;++i) {
+            const QJsonObject word=karaokeWordAnchors_.at(i).toObject();
+            const qint64 captured=qRound64(word.value(
+                QLatin1String("epoch_ms")).toDouble(0.));
+            if(captured<=0 || captured<now-180000 ||
+               captured>now+300000) continue;
+            // PCM capture clock + requested libVLC cache + user offset:
+            // no assertion about actual ALSA/DAC speaker presentation PTS.
+            const qint64 expected=captured+activePlaybackCacheMs_+
+                radioOffsetMs_->value()+lyricsOffset_->value();
+            if(now>=expected) active=i;
+        }
+        if(active==lastHighlightedKaraokeWord_) return;
+        lastHighlightedKaraokeWord_=active;
+        QString html=QLatin1String("<span style=\"color:#e8edf2\">");
+        int cursor=0;
+        for(int i=0;i<count;++i) {
+            const QJsonObject item=karaokeWordAnchors_.at(i).toObject();
+            const int begin=item.value(QLatin1String("start")).toInt(-1);
+            const int end=item.value(QLatin1String("end")).toInt(-1);
+            if(begin<cursor || end<=begin || end>karaokeLine_.size())
+                continue;
+            html+=karaokeLine_.mid(cursor,begin-cursor).toHtmlEscaped();
+            const QString color=i<active?QLatin1String("#96aab8"):
+                i==active?QLatin1String("#ffe17c"):
+                QLatin1String("#e8edf2");
+            html+=QLatin1String("<span style=\"color:")+color+
+                QLatin1String(";font-weight:")+
+                (i==active?QLatin1String("800"):QLatin1String("600"))+
+                QLatin1String("\">")+
+                karaokeLine_.mid(begin,end-begin).toHtmlEscaped()+
+                QLatin1String("</span>");
+            cursor=end;
+        }
+        html+=karaokeLine_.mid(cursor).toHtmlEscaped()+
+              QLatin1String("</span>");
+        karaokeCurrent_->setTextFormat(Qt::RichText);
+        karaokeCurrent_->setText(html);
     }
     void showKaraokeLine(const TimedPlainLyric &cue) {
         if(!karaokePanel_ || !karaokeCurrent_ ||
@@ -3885,7 +3936,12 @@ private:
             lyricRawLines_.at(index+1):QString();
         karaokePrevious_->setText(previous.left(230));
         karaokePrevious_->setVisible(!previous.isEmpty());
-        karaokeCurrent_->setText(line.left(300));
+        karaokeLine_=line.left(300);
+        karaokeWordAnchors_=cue.wordAnchors;
+        lastHighlightedKaraokeWord_=-2;
+        karaokeCurrent_->setTextFormat(Qt::PlainText);
+        karaokeCurrent_->setText(karaokeLine_);
+        refreshKaraokeWordHighlight(QDateTime::currentMSecsSinceEpoch());
         karaokeNext_->setText(next.left(230));
         karaokeNext_->setVisible(!next.isEmpty());
         QStringList translations;
@@ -3910,13 +3966,24 @@ private:
                 lyricsTitle_->text().trimmed():tr("live radio");
         karaokeSource_->setText(tr(
             "♪ %1 · SOURCE: %2 · AUDIO MATCH: %3% · LINE %4\n"
-            "Line-level sync estimated from Whisper PCM; no word PTS")
+            "%5")
             .arg(song.left(100),provider.left(55))
             .arg(qRound(cue.confidence*100))
-            .arg(index>=0?QString::number(index+1):QStringLiteral("?")));
+            .arg(index>=0?QString::number(index+1):QStringLiteral("?"))
+            .arg(cue.wordAnchors.isEmpty()?
+                tr("Line sync only · no verified word timestamps"):
+                tr("GPU Whisper words · estimated PCM/cache; DAC unverified")));
         const qint64 now=QDateTime::currentMSecsSinceEpoch();
         lastKaraokeUntilMs_=now+qMax(5500,radioCaptionReadingHoldMs(
             line+translations.join(QLatin1Char('\n'))));
+        if(!cue.wordAnchors.isEmpty()) {
+            const qint64 lastWord=qRound64(cue.wordAnchors.last()
+                .toObject().value(QLatin1String("epoch_ms")).toDouble(0.));
+            if(lastWord>now-120000 && lastWord<now+20000)
+                lastKaraokeUntilMs_=qMax(lastKaraokeUntilMs_,
+                    lastWord+activePlaybackCacheMs_+
+                    radioOffsetMs_->value()+lyricsOffset_->value()+2000);
+        }
         karaokePanel_->setVisible(karaokeEnabled_ &&
             karaokeEnabled_->isChecked());
     }
@@ -4231,6 +4298,8 @@ private:
 			const QJsonObject matched=obj.value(QLatin1String("lyric_match")).toObject();
             const QJsonObject lyricTranslations=obj.value(
                 QLatin1String("lyric_translations")).toObject();
+            const QJsonArray lyricWordAnchors=obj.value(
+                QLatin1String("lyric_word_anchors")).toArray();
 			if(matched.value(QLatin1String("kind")).toString()==
 				QLatin1String("observed_ASR_chunk_match") &&
 				matched.value(QLatin1String("confidence")).toDouble()>=0.74) {
@@ -4256,19 +4325,32 @@ private:
                         "LYRICS MATCHED %1% · real audio · line %2 · queued")
                         .arg(qRound(confidence*100))
                         .arg(matched.value(QLatin1String("index")).toInt()+1));
-					if(plainLyricMode_) {
-						plainLyricQueue_.append({due+lyricsOffset_->value(),rendered,confidence,
+					// Start at the first actually heard GPU word (never metadata).
+                    // The old phrase-end cue remains the CPU fallback.
+                    qint64 karaokeDue=due+lyricsOffset_->value();
+                    if(!lyricWordAnchors.isEmpty()) {
+                        const qint64 firstWord=qRound64(
+                            lyricWordAnchors.first().toObject().value(
+                                QLatin1String("epoch_ms")).toDouble(0.));
+                        if(firstWord>now-120000 && firstWord<now+20000)
+                            karaokeDue=qMax(now,firstWord+
+                                activePlaybackCacheMs_+
+                                radioOffsetMs_->value()+
+                                lyricsOffset_->value());
+                    }
+                    if(plainLyricMode_) {
+						plainLyricQueue_.append({karaokeDue,rendered,confidence,
                             matched.value(QLatin1String("index")).toInt(-1),
-                            line,lyricTranslations});
+                            line,lyricTranslations,lyricWordAnchors});
 						while(plainLyricQueue_.size()>10) plainLyricQueue_.removeFirst();
 						lyricsSyncState_->setText(tr("Verified text match %1% · "
 							"audio-derived line ordering, approximate 5s time resolution")
 							.arg(qRound(confidence*100)));
                     } else {
                         verifiedLyricQueue_.append({
-                            due+lyricsOffset_->value(),rendered,confidence,
+                            karaokeDue,rendered,confidence,
                             matched.value(QLatin1String("index")).toInt(-1),
-                            line,lyricTranslations});
+                            line,lyricTranslations,lyricWordAnchors});
                         while(verifiedLyricQueue_.size()>10)
                             verifiedLyricQueue_.removeFirst();
                     }
@@ -4595,6 +4677,7 @@ private:
         const qint64 now=QDateTime::currentMSecsSinceEpoch();
         if(lastKaraokeUntilMs_>0 && now>=lastKaraokeUntilMs_)
             clearKaraokeLine();
+        else refreshKaraokeWordHighlight(now);
         // Only ASR-confirmed matches enter this extra timed-LRC queue.
         while(!verifiedLyricQueue_.isEmpty() &&
               verifiedLyricQueue_.first().dueMs<=now) {
@@ -4866,6 +4949,9 @@ private:
     QStringList lyricRawLines_;
     QString lastLyricsProvider_;
     qint64 lastKaraokeUntilMs_=0;
+    QString karaokeLine_;
+    QJsonArray karaokeWordAnchors_;
+    int lastHighlightedKaraokeWord_=-2;
     QLabel *karaokeSource_=nullptr,*karaokePrevious_=nullptr,
         *karaokeCurrent_=nullptr,*karaokeNext_=nullptr,
         *karaokeTranslation_=nullptr;

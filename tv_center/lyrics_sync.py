@@ -80,6 +80,96 @@ def parse_lrc(content: str, *, duration: float | None = None,
     return cues
 
 
+
+_KARAOKE_WORD = re.compile(r"[^\W_]+(?:['’][^\W_]+)*", flags=re.UNICODE)
+
+
+def aligned_karaoke_word_anchors(
+    lyric_line: str, observed_words: list[dict], *,
+    capture_end_epoch_ms: int, window_seconds: float = 6.0,
+) -> list[dict]:
+    """Map actual GPU Whisper word timestamps onto an ASR-confirmed lyric line.
+
+    This does NOT determine whether a lyric line was heard: callers must
+    independently verify the whole line with LiveLyricMatcher first. Only
+    exact, order-preserving ASR word evidence receives timing. Unmatched
+    words, translations, CPU chunk cues and metadata never get fake times.
+    Epochs use the PCM capture clock, NOT a measured speaker/DAC clock.
+    """
+    from difflib import SequenceMatcher
+    import math
+
+    if (not isinstance(lyric_line, str) or not 1 <= len(lyric_line) <= 240
+            or not isinstance(observed_words, list)
+            or type(capture_end_epoch_ms) is not int
+            or capture_end_epoch_ms <= 0
+            or type(window_seconds) not in (int, float)
+            or not math.isfinite(window_seconds)
+            or not 1 <= window_seconds <= 15):
+        return []
+
+    def key(text: str) -> str:
+        return "".join(char for char in unicodedata.normalize(
+            "NFKD", text).casefold()
+            if char.isalnum() and not unicodedata.combining(char))
+
+    lyric_tokens = [
+        (match, key(match.group()))
+        for match in list(_KARAOKE_WORD.finditer(lyric_line))[:90]
+    ]
+    lyric_tokens = [(span, text) for span, text in lyric_tokens if text]
+    if len(lyric_tokens) < 2:
+        return []
+
+    heard = []
+    for record in observed_words[:120]:
+        if not isinstance(record, dict):
+            continue
+        word = record.get("text")
+        start, end = record.get("start"), record.get("end")
+        if (not isinstance(word, str) or len(word) > 100
+                or len(_KARAOKE_WORD.findall(word)) != 1
+                or type(start) not in (float, int)
+                or type(end) not in (float, int)
+                or not math.isfinite(start) or not math.isfinite(end)
+                or not 0 <= start < end <= window_seconds + .5):
+            continue
+        normalized = key(word)
+        if normalized:
+            heard.append((normalized, float(start)))
+    if len(heard) < 2:
+        return []
+
+    matches = SequenceMatcher(
+        None, [word for _, word in lyric_tokens],
+        [word for word, _ in heard], autojunk=False,
+    ).get_matching_blocks()
+    pairs = [(line_index + step, heard_index + step)
+             for block in matches
+             for line_index, heard_index, step in (
+                 (block.a, block.b, offset)
+                 for offset in range(block.size))]
+    if (len(pairs) < 2 or len(pairs) / len(heard) < .4
+            or len({heard[j][0] for _, j in pairs}) < 2):
+        return []
+
+    anchors = []
+    last_epoch = -1
+    for line_index, heard_index in pairs:
+        match = lyric_tokens[line_index][0]
+        epoch = capture_end_epoch_ms - round(
+            (window_seconds - heard[heard_index][1]) * 1000)
+        if epoch <= last_epoch:
+            continue
+        # Qt QString indices are UTF-16 code units (not Python codepoints).
+        start_utf16 = len(lyric_line[:match.start()].encode("utf-16-le")) // 2
+        end_utf16 = len(lyric_line[:match.end()].encode("utf-16-le")) // 2
+        anchors.append({"start": start_utf16, "end": end_utf16,
+                        "epoch_ms": epoch})
+        last_epoch = epoch
+    return anchors if len(anchors) >= 2 else []
+
+
 def cue_at(cues: list[LyricCue], position: float) -> LyricCue | None:
     if not cues or position < 0:
         return None
