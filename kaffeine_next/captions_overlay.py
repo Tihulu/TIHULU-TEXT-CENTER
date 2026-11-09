@@ -1603,7 +1603,7 @@ def main(argv=None):
                 for key in ("mode", "source", "target_languages", "page",
                             "teletext_pid", "audio_pid", "audio_language",
                             "music_transcription", "speech_priority",
-                            "speaker_enabled", "speaker_provider", "speaker_aliases"))
+                            "speaker_enabled", "speaker_provider"))
             # The native video/audio buffer really changes the media clock.
             # Unlike a cosmetic change, that requires fresh cue calibration.
             playback_changed = (selected.playback_delay_ms !=
@@ -2677,7 +2677,6 @@ def main(argv=None):
             current_text = applied.render(result)
             current_until = cue["expires"]
             source_language = str(result.get("source_language") or applied.source).upper()
-            speaker_head = applied.render(result).splitlines()
             label_prefix = ""
             if applied.speaker_enabled and result.get("speaker_index"):
                 n=result["speaker_index"]
@@ -2705,7 +2704,7 @@ def main(argv=None):
                         lang.upper() for lang in applied.target_languages
                         if lang in failures and lang not in translations]
                     translated.setText(
-                        heading + " · ".join(available) +
+                        label_prefix + heading + " · ".join(available) +
                         (" · " + ", ".join(missing) + " unavailable"
                          if missing else ""))
                 else:
