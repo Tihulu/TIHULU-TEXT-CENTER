@@ -3032,7 +3032,8 @@ private:
                     "import LRC or enable vocal transcription."));
             } else {
                 radioCaption_->setText(cue.text);
-                radioCaptionBanner_->setText(cue.text.left(680));
+                radioCaptionBanner_->setText(tr(
+                    "Live radio subtitles · displayed inside station view"));
                 showRadioCanvasCaption(cue.text);
             }
             lastCaptionVisibleMs_=now;
