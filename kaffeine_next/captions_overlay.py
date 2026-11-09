@@ -3282,6 +3282,12 @@ def main(argv=None):
                     f"queue {backlog['queued_clips']} clip(s) · "
                     f"last compute {recent.get('compute_ms','?')}ms")
             caption_pipeline_health.setText(message)
+            if (current_cue is None and service_running and shown_gap>=10):
+                # The main original-caption pane must not keep saying
+                # "Listening" when the backend is processing, stalled or
+                # receiving TS without a valid audio PID. This is telemetry,
+                # not a fabricated ASR transcript.
+                original.setText(message)
 
     timer = QTimer(window)
     timer.timeout.connect(pump)
