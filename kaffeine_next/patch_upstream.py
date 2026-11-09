@@ -995,7 +995,7 @@ void DvbLiveView::replay()
 \t\tQSettings radioSettings(QLatin1String("TIHULU"),
 \t\t\tQLatin1String("KaffeineRadio"));
 \t\tconst int cacheMs=qBound(0,
-\t\t\tradioSettings.value(QLatin1String("playbackBufferMs"),12000).toInt(),
+\t\t\tradioSettings.value(QLatin1String("playbackBufferMs"),0).toInt(),
 \t\t\t60000);
 \t\tconst QByteArray cacheOpt=QByteArray(":network-caching=")+
 \t\t\tQByteArray::number(cacheMs);
