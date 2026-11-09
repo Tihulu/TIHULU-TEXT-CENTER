@@ -3976,6 +3976,14 @@ private:
         const qint64 now=QDateTime::currentMSecsSinceEpoch();
         lastKaraokeUntilMs_=now+qMax(5500,radioCaptionReadingHoldMs(
             line+translations.join(QLatin1Char('\n'))));
+        if(!cue.wordAnchors.isEmpty()) {
+            const qint64 lastWord=qRound64(cue.wordAnchors.last()
+                .toObject().value(QLatin1String("epoch_ms")).toDouble(0.));
+            if(lastWord>now-120000 && lastWord<now+20000)
+                lastKaraokeUntilMs_=qMax(lastKaraokeUntilMs_,
+                    lastWord+activePlaybackCacheMs_+
+                    radioOffsetMs_->value()+lyricsOffset_->value()+2000);
+        }
         karaokePanel_->setVisible(karaokeEnabled_ &&
             karaokeEnabled_->isChecked());
     }
@@ -4290,6 +4298,8 @@ private:
 			const QJsonObject matched=obj.value(QLatin1String("lyric_match")).toObject();
             const QJsonObject lyricTranslations=obj.value(
                 QLatin1String("lyric_translations")).toObject();
+            const QJsonArray lyricWordAnchors=obj.value(
+                QLatin1String("lyric_word_anchors")).toArray();
 			if(matched.value(QLatin1String("kind")).toString()==
 				QLatin1String("observed_ASR_chunk_match") &&
 				matched.value(QLatin1String("confidence")).toDouble()>=0.74) {
@@ -4315,19 +4325,32 @@ private:
                         "LYRICS MATCHED %1% · real audio · line %2 · queued")
                         .arg(qRound(confidence*100))
                         .arg(matched.value(QLatin1String("index")).toInt()+1));
-					if(plainLyricMode_) {
-						plainLyricQueue_.append({due+lyricsOffset_->value(),rendered,confidence,
+					// Start at the first actually heard GPU word (never metadata).
+                    // The old phrase-end cue remains the CPU fallback.
+                    qint64 karaokeDue=due+lyricsOffset_->value();
+                    if(!lyricWordAnchors.isEmpty()) {
+                        const qint64 firstWord=qRound64(
+                            lyricWordAnchors.first().toObject().value(
+                                QLatin1String("epoch_ms")).toDouble(0.));
+                        if(firstWord>now-120000 && firstWord<now+20000)
+                            karaokeDue=qMax(now,firstWord+
+                                activePlaybackCacheMs_+
+                                radioOffsetMs_->value()+
+                                lyricsOffset_->value());
+                    }
+                    if(plainLyricMode_) {
+						plainLyricQueue_.append({karaokeDue,rendered,confidence,
                             matched.value(QLatin1String("index")).toInt(-1),
-                            line,lyricTranslations});
+                            line,lyricTranslations,lyricWordAnchors});
 						while(plainLyricQueue_.size()>10) plainLyricQueue_.removeFirst();
 						lyricsSyncState_->setText(tr("Verified text match %1% · "
 							"audio-derived line ordering, approximate 5s time resolution")
 							.arg(qRound(confidence*100)));
                     } else {
                         verifiedLyricQueue_.append({
-                            due+lyricsOffset_->value(),rendered,confidence,
+                            karaokeDue,rendered,confidence,
                             matched.value(QLatin1String("index")).toInt(-1),
-                            line,lyricTranslations});
+                            line,lyricTranslations,lyricWordAnchors});
                         while(verifiedLyricQueue_.size()>10)
                             verifiedLyricQueue_.removeFirst();
                     }
@@ -4654,6 +4677,7 @@ private:
         const qint64 now=QDateTime::currentMSecsSinceEpoch();
         if(lastKaraokeUntilMs_>0 && now>=lastKaraokeUntilMs_)
             clearKaraokeLine();
+        else refreshKaraokeWordHighlight(now);
         // Only ASR-confirmed matches enter this extra timed-LRC queue.
         while(!verifiedLyricQueue_.isEmpty() &&
               verifiedLyricQueue_.first().dueMs<=now) {
