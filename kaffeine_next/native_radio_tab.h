@@ -1004,7 +1004,8 @@ public:
 		captionProgress_->setFormat(tr("Caption timeline · waiting for decoded audio"));
 		captionProgress_->setToolTip(tr("Estimated time to hear the decoded phrase. "
 			"Audio cache is requested, not independently measured at the sound card."));
-        advancedSyncLayout->addWidget(captionProgress_);
+        captionProgress_->setVisible(false);
+        v->addWidget(captionProgress_);
         connect(applyBuffer,&QPushButton::clicked,this,[this](){ applyRadioBuffer(); });
         connect(quickBuffer_,&QCheckBox::toggled,this,[this](bool enabled){
             if(!enabled && autoSync_->isChecked()) {
@@ -1376,8 +1377,29 @@ public:
 			this,[this](){ filterStations(); });
 		connect(favoritesOnly_,&QCheckBox::toggled,this,
 			[this](){ filterStations(); });
-		connect(caption_, &QPushButton::clicked, this, [this](){ startCaptioning(); });
+		connect(quickAi_,&QCheckBox::toggled,this,[this](bool enabled){
+            quickAi_->setText(enabled?tr("AI captions · ON"):tr("AI captions · OFF"));
+            if(enabled) {
+                if(active() && !playingKey_.isEmpty()) startCaptioning();
+                else radioCaptionBanner_->setText(tr(
+                    "AI armed for the next station. No speech processing "
+                    "until a DAB station is playing."));
+            } else {
+                stopCaptioning();
+                if(captionProgress_) captionProgress_->setVisible(false);
+                radioCaptionBanner_->setText(tr("Live radio AI OFF · audio only"));
+            }
+        });
+        connect(caption_, &QPushButton::clicked, this, [this](){
+            if(!quickAi_->isChecked()) quickAi_->setChecked(true);
+            else startCaptioning();
+        });
         connect(applyCaptions_,&QPushButton::clicked,this,[this](){
+            if(!quickAi_->isChecked()) {
+                radioCaption_->setText(tr("AI is OFF. Choose Start captions "
+                    "or enable the AI switch first."));
+                return;
+            }
             if(captionProcess_.state()!=QProcess::NotRunning) stopCaptioning();
             cueQueue_.clear();
             lastRadioChunk_=-1;
@@ -1387,6 +1409,9 @@ public:
                 "waiting for a new real audio segment…"));
         });
 		connect(stopCaption_, &QPushButton::clicked, this, [this](){
+            const QSignalBlocker block(quickAi_);
+            quickAi_->setChecked(false);
+            quickAi_->setText(tr("AI captions · OFF"));
             const bool lyricOnly=lyricsAudioFallbackActive_;
             if(lyricOnly) {
                 lyricsAudioFallbackActive_=false;
@@ -2523,6 +2548,11 @@ private:
 				"recording while scanning Band III frequencies?"),
 				QMessageBox::Yes|QMessageBox::No,QMessageBox::No)!=QMessageBox::Yes)
 				return;
+            {
+                const QSignalBlocker block(quickAi_);
+                quickAi_->setChecked(false);
+                quickAi_->setText(tr("AI captions · OFF"));
+            }
 			stopCaptioning();
 			stopLyrics();
 			stopRecording();
@@ -2654,7 +2684,7 @@ private:
 				}
 				// URL comes from the verified current welle mux, never fabricated
 				// from a possibly months-old cached service ID.
-				const bool restartAi=captionProcess_.state()!=QProcess::NotRunning;
+				const bool restartAi=quickAi_->isChecked();
 				stopCaptioning();
 				stopLyrics();
 				stopRecording();
@@ -3117,9 +3147,14 @@ private:
 		options<<QLatin1String("--output")<<captionPath_;
 		QFile::remove(captionPath_);
 		captionProcess_.start(QLatin1String("tihulu-tv-center"),options);
-        if (!captionProcess_.waitForStarted(1200))
+        if (!captionProcess_.waitForStarted(1200)) {
             radioCaption_->setText(tr("Offline radio AI sidecar could not start."));
-        else {
+            captionProgress_->setVisible(false);
+        } else {
+            captionProgress_->setVisible(true);
+            captionProgress_->setRange(0,0);
+            captionProgress_->setFormat(tr(
+                "Whisper starting · collecting ~5 s of real DAB audio…"));
             lastCaptionUpdateMs_=QDateTime::currentMSecsSinceEpoch();
             radioCaption_->setText(tr("Offline radio ASR/translation started. "
                 "Radio audio plays independently; heavy AI may fall behind."));
@@ -3146,9 +3181,17 @@ private:
 		// previous chunk before its estimated playback presentation time.
 		if(captionProgress_) {
 			if(cueQueue_.isEmpty()) {
-				captionProgress_->setValue(0);
-				captionProgress_->setFormat(tr("Caption timeline · awaiting next audio phrase"));
+                if(captionProcess_.state()!=QProcess::NotRunning) {
+                    captionProgress_->setRange(0,0);
+                    captionProgress_->setFormat(tr(
+                        "Listening / transcribing · awaiting next confirmed phrase"));
+                } else {
+                    captionProgress_->setRange(0,100);
+				    captionProgress_->setValue(0);
+				    captionProgress_->setFormat(tr("AI captions are OFF"));
+                }
 			} else {
+                captionProgress_->setRange(0,100);
 				const auto &next=cueQueue_.first();
 				const qint64 total=qMax(qint64(1),next.dueMs-next.queuedMs);
 				captionProgress_->setValue(qBound(0,int((now-next.queuedMs)*100/total),100));
@@ -3447,6 +3490,7 @@ private:
 			if (!captionProcess_.waitForFinished(700))
 				captionProcess_.kill();
 		}
+        if(captionProgress_) captionProgress_->setVisible(false);
 		if (!captionPath_.isEmpty()) QFile::remove(captionPath_);
 		captionPath_.clear();
         if(!lyricsEnabled_ && radioCanvasCaption_)
