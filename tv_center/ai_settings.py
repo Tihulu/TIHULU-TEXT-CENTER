@@ -82,7 +82,15 @@ class AISettings:
         for name in names:
             os.environ.pop(name, None)
         os.environ.update(environment(self.values))
-        if self.values.get("active_profile") in ("pi5","pi5_hat2"):
+        active = self.values.get("active_profile")
+        try:
+            on_pi = "Raspberry Pi 5" in Path("/proc/device-tree/model").read_text(
+                encoding="utf-8", errors="replace")
+        except OSError:
+            on_pi = False
+        # Vanilla first install has no explicitly selected profile. Apply
+        # the Pi CPU budget then as well; no subprocess/driver probe on boot.
+        if active in ("pi5","pi5_hat2") or (on_pi and not active):
             os.environ["TIHULU_PI_CPU_THREADS"] = str(self.values["pi_cpu_threads"])
         else:
             os.environ.pop("TIHULU_PI_CPU_THREADS", None)
