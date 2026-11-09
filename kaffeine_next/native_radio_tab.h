@@ -59,6 +59,7 @@
 #include <QPushButton>
 #include <QRegularExpression>
 #include <QSettings>
+#include <QSaveFile>
 #include <QScrollArea>
 #include <QUrlQuery>
 #include <QSlider>
@@ -341,6 +342,12 @@ public:
             "latency cannot be disabled. Changing this while playing "
             "reopens the audio stream once."));
         radioQuickRow_->addWidget(quickAi_);
+        quickLanguageButton_=new QPushButton(
+            tr("IN: AUTO · OUT: EN, DE, TR · Edit"),page);
+        quickLanguageButton_->setToolTip(tr(
+            "Choose original speech and translation languages; "
+            "updates reach the current radio ASR worker live."));
+        radioQuickRow_->addWidget(quickLanguageButton_);
         radioQuickRow_->addWidget(quickBuffer_);
         radioQuickRow_->addStretch(1);
         dabLayout->addLayout(radioQuickRow_);
@@ -940,7 +947,22 @@ public:
                 QSettings preferences(QLatin1String("TIHULU"),
                                      QLatin1String("KaffeineRadio"));
                 preferences.setValue(QLatin1String("radioOutputs"),selected);
+                refreshRadioLanguageSummary();
+                writeRadioLanguageControls();
             });
+        connect(speechLanguage_,QOverload<int>::of(&QComboBox::currentIndexChanged),
+            this,[this](int){
+                refreshRadioLanguageSummary();
+                writeRadioLanguageControls();
+            });
+        connect(extraTargets_,&QLineEdit::editingFinished,this,[this](){
+            refreshRadioLanguageSummary();
+            writeRadioLanguageControls();
+        });
+        connect(advancedLanguages_,&QCheckBox::toggled,this,[this](bool){
+            refreshRadioLanguageSummary();
+            writeRadioLanguageControls();
+        });
 		auto *syncControls=new QGridLayout();
 		bufferMs_=new QSpinBox(lab);
 		bufferMs_->setRange(0,60000);
@@ -1228,6 +1250,11 @@ public:
 		lyricText_->setWordWrap(true);
 		v->addWidget(lyricText_);
 		modes_->addTab(lab,tr("AI subtitles / lyrics"));
+        connect(quickLanguageButton_,&QPushButton::clicked,this,[this,lab](){
+            modes_->setCurrentWidget(lab);
+            installedTargets_->setFocus();
+        });
+        refreshRadioLanguageSummary();
 
 		auto *diagnosticCard = new QGroupBox(tr("DAB receiver diagnostics / welle.io"),this);
 		auto *diagnosticLayout=new QVBoxLayout(diagnosticCard);
@@ -4128,7 +4155,8 @@ private:
 	QComboBox *channel_=nullptr, *driver_=nullptr, *speechLanguage_=nullptr,
 		*captionSource_=nullptr,
 		*plotKind_=nullptr, *fftPlacement_=nullptr;
-	QPushButton *start_=nullptr,*stop_=nullptr,*forceRelease_=nullptr,
+	QPushButton *quickLanguageButton_=nullptr;
+    QPushButton *start_=nullptr,*stop_=nullptr,*forceRelease_=nullptr,
         *scan_=nullptr,*record_=nullptr,
 		*caption_=nullptr,*applyCaptions_=nullptr,
 		*stopCaption_=nullptr,*lyrics_=nullptr,*lyricsImport_=nullptr,*stopLyrics_=nullptr,
@@ -4243,7 +4271,7 @@ private:
     QJsonObject lastVerifiedLyricTranslations_;
     qint64 lastVerifiedLyricMs_=0;
     int lastLyricDirection_=0,lyricOffsetConsistency_=0;
-	QString activeChannel_,playingKey_,lastDls_,captionPath_,lyricPath_,
+	QString activeChannel_,playingKey_,lastDls_,captionPath_,captionControlsPath_,lyricPath_,
 		wellePortFile_,
 		lastDetectedLanguage_;
 	QMap<QString,QJsonObject> stationData_;
