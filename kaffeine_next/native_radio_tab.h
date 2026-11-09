@@ -685,6 +685,11 @@ public:
             "QLabel{background:rgba(0,0,0,205);color:white;"
             "border-radius:5px;padding:8px;font-size:16px;}"));
         radioCanvasCaption_->setVisible(false);
+        radioCanvasCaption_->setMaximumHeight(210);
+        radioCanvasCaption_->setToolTip(tr(
+            "Original heard audio + selected translation outputs. "
+            "Captions are aligned to captured PCM timestamps, not "
+            "measured libVLC audio presentation timestamps."));
         captionSurface->addWidget(radioCanvasCaption_);
 
 		auto *meta = new QHBoxLayout();
@@ -739,7 +744,12 @@ public:
         for(const QString &code:QStringList{"de","en","tr","fr","es","pl","ar","ja"})
             speechLanguage_->addItem(code.toUpper(),code);
 		speechLanguage_->setEditable(false);
-		speechLanguage_->setCurrentIndex(0);
+        QSettings initialRadioLanguages(QLatin1String("TIHULU"),
+                                       QLatin1String("KaffeineRadio"));
+        const int savedSpeechIndex=speechLanguage_->findData(
+            initialRadioLanguages.value(
+                QLatin1String("radioSpeechLanguage"),"auto").toString());
+        speechLanguage_->setCurrentIndex(savedSpeechIndex>=0?savedSpeechIndex:0);
 		captionSource_=new QComboBox(lab);
 		captionSource_->addItem(tr("Whisper ASR · recognized live audio"),
 			QLatin1String("asr"));
@@ -968,10 +978,19 @@ public:
                                      QLatin1String("KaffeineRadio"));
                 preferences.setValue(QLatin1String("radioOutputs"),selected);
                 refreshRadioLanguageSummary();
-                writeRadioLanguageControls();
+                if(writeRadioLanguageControls() &&
+                   captionProcess_.state()!=QProcess::NotRunning)
+                    translationStatus_->setText(tr(
+                        "Output languages updated LIVE. New selections "
+                        "apply on the next decoded 5 s audio hop; no "
+                        "Whisper or radio restart."));
             });
         connect(speechLanguage_,QOverload<int>::of(&QComboBox::currentIndexChanged),
             this,[this](int){
+                QSettings settings(QLatin1String("TIHULU"),
+                                   QLatin1String("KaffeineRadio"));
+                settings.setValue(QLatin1String("radioSpeechLanguage"),
+                    speechLanguage_->currentData().toString());
                 refreshRadioLanguageSummary();
                 writeRadioLanguageControls();
             });
