@@ -46,7 +46,8 @@ class SharedArgosRuntimeTests(unittest.TestCase):
         ai=SimpleNamespace(values={"model_path":"",
               "asr_enabled":True,"translation_enabled":True})
         runtime=SimpleNamespace(status=lambda:{"installed":True})
-        library=SimpleNamespace(_path=lambda code:Path("/no-test-file"))
+        library=SimpleNamespace(root=Path("/no-test"),
+                                _path=lambda code:Path("/no-test-file"))
         whisper=SimpleNamespace(ready=lambda:True)
         starter=StarterAI(ai=ai,library=library,runtime=runtime,whisper=whisper)
         pairs=[
