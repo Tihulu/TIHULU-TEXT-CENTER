@@ -730,13 +730,13 @@ public:
 		stationSplit_=split;
         dabLayout->addWidget(split, 4);
 
-		auto *lab = new QGroupBox(tr("Offline radio AI · Whisper / translation / timed lyrics"), this);
+		auto *lab = new QGroupBox(tr("Captions · input language / output translations / lyrics"), this);
 		auto *v = new QVBoxLayout(lab);
 		auto *row = new QGridLayout();
         row->setHorizontalSpacing(7);
         row->setVerticalSpacing(5);
         v->addWidget(new QLabel(
-            tr("<b>1 · Recognize audio</b> · independent of the output languages"),lab));
+            tr("<b>1 · Heard audio (IN)</b> · Auto detect or choose English, German, etc."),lab));
 		speechLanguage_ = new QComboBox(lab);
 		speechLanguage_->addItem(tr("Auto detect · GPU Whisper"),"auto");
         // The complete supported Whisper input set is filled from the
@@ -792,8 +792,8 @@ public:
         row->setColumnStretch(1,1);
 		v->addLayout(row);
         v->addWidget(new QLabel(tr(
-            "<b>2 · Output subtitles</b> · choose up to six checked languages; "
-            "original audio is always included"),lab));
+            "<b>2 · Subtitle languages (OUT)</b> · check multiple languages. "
+            "The original is always shown; missing translations are reported."),lab));
         translationStatus_=new QLabel(tr(
             "Translations: show original audio first. Select output languages; "
             "automatic source translation waits for reliable Whisper detection."),lab);
@@ -1120,7 +1120,10 @@ public:
 		captionProgress_->setToolTip(tr("Estimated time to hear the decoded phrase. "
 			"Audio cache is requested, not independently measured at the sound card."));
         captionProgress_->setVisible(false);
-        v->addWidget(captionProgress_);
+        // Progress belongs next to the actual radio subtitle overlay,
+        // not underneath all Model Market / language settings. Hide it
+        // completely while ASR is off.
+        rightLayout->addWidget(captionProgress_);
         connect(applyBuffer,&QPushButton::clicked,this,[this](){ applyRadioBuffer(); });
         connect(quickBuffer_,&QCheckBox::toggled,this,[this](bool enabled){
             quickBuffer_->setText(enabled?
