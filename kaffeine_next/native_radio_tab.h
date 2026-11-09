@@ -42,6 +42,7 @@
 #include <QHash>
 #include <QSignalBlocker>
 #include <QHeaderView>
+#include <QInputDialog>
 #include <QMap>
 #include <QMessageBox>
 #include <QNetworkAccessManager>
@@ -706,6 +707,28 @@ public:
 		libraryFilters->addWidget(libraryBlock_,1);
 		libraryFilters->addWidget(favoritesOnly_);
 		libraryLayout->addLayout(libraryFilters);
+        // User-created playlists are local; only a station double-click tunes.
+        auto *listPickerRow=new QHBoxLayout();
+        listPickerRow->addWidget(new QLabel(tr("My station lists:"),library));
+        stationListPicker_=new QComboBox(library);
+        stationListPicker_->setToolTip(tr(
+            "Choose a list to edit. Uncheck Show only list to browse "
+            "all scanned stations and add them to this list."));
+        listPickerRow->addWidget(stationListPicker_,1);
+        newStationList_=new QPushButton(tr("New list"),library);
+        deleteStationList_=new QPushButton(tr("Delete list"),library);
+        listPickerRow->addWidget(newStationList_);
+        listPickerRow->addWidget(deleteStationList_);
+        libraryLayout->addLayout(listPickerRow);
+        auto *listActions=new QHBoxLayout();
+        addStationList_=new QPushButton(tr("+ Add selected"),library);
+        removeStationList_=new QPushButton(tr("− Remove selected"),library);
+        stationListOnly_=new QCheckBox(tr("Show only list"),library);
+        stationListOnly_->setChecked(false);
+        listActions->addWidget(addStationList_);
+        listActions->addWidget(removeStationList_);
+        listActions->addWidget(stationListOnly_);
+        libraryLayout->addLayout(listActions);
 		stations_ = new QTreeWidget(library);
 		stations_->setHeaderLabels({tr("★"),tr("Station"),tr("DAB block"),tr("Service ID")});
 		stations_->setRootIsDecorated(false);
@@ -1753,6 +1776,19 @@ public:
 			this,[this](){ filterStations(); });
 		connect(favoritesOnly_,&QCheckBox::toggled,this,
 			[this](){ filterStations(); });
+        connect(stationListPicker_,QOverload<int>::of(
+            &QComboBox::currentIndexChanged),this,
+            [this](int){ filterStations(); });
+        connect(stationListOnly_,&QCheckBox::toggled,this,
+            [this](bool){ filterStations(); });
+        connect(newStationList_,&QPushButton::clicked,this,
+            [this](){ createNamedStationList(); });
+        connect(deleteStationList_,&QPushButton::clicked,this,
+            [this](){ deleteNamedStationList(); });
+        connect(addStationList_,&QPushButton::clicked,this,
+            [this](){ changeSelectedStationList(true); });
+        connect(removeStationList_,&QPushButton::clicked,this,
+            [this](){ changeSelectedStationList(false); });
 		connect(quickAi_,&QCheckBox::toggled,this,[this](bool enabled){
             quickAi_->setText(enabled?tr("AI captions · ON"):tr("AI captions · OFF"));
             if(enabled) {
@@ -1940,6 +1976,7 @@ public:
             config.setValue(QLatin1String("radioModeTab"),tab);
         });
 		loadStations();
+        loadStationLists();
 		stations_->sortItems(1,Qt::AscendingOrder);
 		filterStations();
 	}
@@ -4853,6 +4890,11 @@ private:
         *listenLyrics_=nullptr,
 		*slidePrev_=nullptr,*slideNext_=nullptr;
 	QTreeWidget *stations_=nullptr;
+    QComboBox *stationListPicker_=nullptr;
+    QPushButton *newStationList_=nullptr,*deleteStationList_=nullptr,
+        *addStationList_=nullptr,*removeStationList_=nullptr;
+    QCheckBox *stationListOnly_=nullptr;
+    QMap<QString,QSet<QString>> stationLists_;
 	QComboBox *libraryBlock_=nullptr;
 	QLineEdit *stationSearch_=nullptr;
 	QLineEdit *webSearch_=nullptr,*webSource_=nullptr;
