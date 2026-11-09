@@ -203,7 +203,9 @@ class _PersistentCUDAWorker:
         return self.transcribe_details(pcm, language, model_path)["text"]
 
     def transcribe_details(self, pcm, language, model_path, *, music_mode=False,
-                           speech_priority=False):
+                           speech_priority=False, timeout_s=90):
+        if (type(timeout_s) not in (int,float) or not 4 <= timeout_s <= 90):
+            raise ValueError("Invalid CUDA transcription deadline")
         if not isinstance(pcm, bytes) or not 0 < len(pcm) <= 4_000_000:
             raise RuntimeError("Invalid 32-kHz PCM audio segment")
         worker = FasterWhisperCUDA()
@@ -227,10 +229,13 @@ class _PersistentCUDAWorker:
             try:
                 self.process.stdin.write(payload)
                 self.process.stdin.flush()
-                ready, _, _ = select.select([self.process.stdout], [], [], 90)
+                ready, _, _ = select.select(
+                    [self.process.stdout], [], [], float(timeout_s))
                 if not ready:
                     self._stop()
-                    raise TimeoutError("CUDA Faster-Whisper clip exceeded 90 seconds")
+                    raise TimeoutError(
+                        f"CUDA Faster-Whisper clip exceeded {timeout_s}s "
+                        "budget; real-time captions use a shorter deadline")
                 reply = self.process.stdout.readline(10000)
                 if not reply.endswith(b"\n"):
                     self._stop()
@@ -269,11 +274,12 @@ def transcribe_cuda(pcm, language, model_path):
 
 
 def transcribe_cuda_details(pcm, language, model_path, *,
-                            music_mode=False, speech_priority=False):
+                            music_mode=False, speech_priority=False,
+                            timeout_s=90):
     """Return real word timestamps; dialogue focus is independent of singing."""
     return _worker.transcribe_details(
         pcm, language, model_path, music_mode=music_mode,
-        speech_priority=speech_priority)
+        speech_priority=speech_priority, timeout_s=timeout_s)
 
 
 def _download(destination):
