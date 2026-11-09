@@ -11,6 +11,47 @@ from kaffeine_next.caption_timing import (CaptionConfig, CueQueue, KaffeineOSD, 
 from kaffeine_next.patch_upstream import PATHS
 
 class KaffeineTimingTests(unittest.TestCase):
+    def test_provisional_ai_startup_delay_is_bounded_and_separate_from_pts(self):
+        from kaffeine_next.caption_timing import provisional_ai_buffer_ms
+        self.assertEqual(provisional_ai_buffer_ms(False),10000)
+        self.assertEqual(provisional_ai_buffer_ms(True),6000)
+        with self.assertRaises(ValueError):
+            provisional_ai_buffer_ms(1)
+        from pathlib import Path
+        ui=(Path(__file__).resolve().parent.parent/
+            "kaffeine_next/captions_overlay.py").read_text(encoding="utf-8")
+        self.assertIn("startup_buffer_pending = True",ui)
+        self.assertIn("provisional_ai_buffer_ms(pi5)",ui)
+        self.assertIn('mode.addItem("Teletext Hard',ui)
+        self.assertIn('mode.currentData() in ("auto","asr")',ui)
+
+    def test_actual_ts_release_measures_fifo_not_vlc_presentation(self):
+        from kaffeine_next.caption_timing import (
+            confirmed_cue_config,effective_cue_config)
+        expected=CaptionConfig(playback_delay_ms=15000)
+        with tempfile.TemporaryDirectory() as root:
+            ipc=KaffeineOSD(513,root)
+            unix_ms=int(time.time()*1000)-100  # avoid rounded 1ms future timestamp
+            ipc.effective.write_text(
+                f"15000 15000 4200000 1 15030 14850 {unix_ms}")
+            state=ipc.read_effective_delay()
+            self.assertTrue(state["has_release_clock"])
+            self.assertTrue(state["release_fresh"])
+            self.assertEqual(state["released_age_ms"],14850)
+            mapped=confirmed_cue_config(expected,state)
+            self.assertEqual(mapped.playback_delay_ms,14850)
+            # Stale release samples must not claim confirmed buffering.
+            ipc.effective.write_text("15000 15000 4200000 1 15000 -1 0")
+            stale=ipc.read_effective_delay()
+            self.assertIsNone(stale["released_age_ms"])
+            self.assertIsNone(confirmed_cue_config(expected,stale))
+            # Old native status remains usable with less precision.
+            ipc.effective.write_text("15000 15000 4200000 1 15000")
+            legacy=ipc.read_effective_delay()
+            self.assertFalse(legacy["has_release_clock"])
+            self.assertEqual(
+                confirmed_cue_config(expected,legacy).playback_delay_ms,15000)
+
     def test_auto_sync_starts_disabled_and_checkbox_is_applied_only(self):
         self.assertFalse(CaptionConfig().automatic_sync)
         self.assertTrue(CaptionConfig(automatic_sync=True).validate().automatic_sync)

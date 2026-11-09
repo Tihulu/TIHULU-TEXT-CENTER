@@ -82,6 +82,8 @@ def worker(action,source,target):
                                    source+"→"+target+"; try English-pivot packs")
             archive=candidate.download()
             package.install_from_path(archive)
+            from .argos_generation import changed
+            changed()  # live Argos worker must reload its cached installed packs
             result={"status":"installed","pair":source+"→"+target}
     elif action=="remove":
         found=[p for p in package.get_installed_packages()
@@ -92,6 +94,8 @@ def worker(action,source,target):
         if not loc.is_relative_to(Path.home().resolve()):
             raise RuntimeError("Refusing removal of external package")
         package.uninstall(found[0])
+        from .argos_generation import changed
+        changed()
         result={"status":"removed","pair":source+"→"+target}
     else:
         raise ValueError("Unknown action")

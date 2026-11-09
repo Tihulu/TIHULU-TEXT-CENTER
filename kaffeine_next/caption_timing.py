@@ -34,6 +34,7 @@ class CaptionConfig:
     teletext_pid: int | None = None
     audio_pid: int | None = None
     audio_language: str | None = None
+    spoken_auto: bool = False  # user requests real ASR language re-detection
     speaker_enabled: bool = False
     music_transcription: bool = False
     speech_priority: bool = False  # optional dialogue focus when background music overlaps
@@ -105,7 +106,8 @@ class CaptionConfig:
                 raise ValueError(
                     field + " must be an RGB hex color such as #FFFFFF")
         for key in ("automatic_sync", "on_video", "show_original", "show_translation",
-                    "speaker_enabled", "music_transcription", "speech_priority"):
+                    "speaker_enabled", "music_transcription", "speech_priority",
+                    "spoken_auto"):
             if type(getattr(self, key)) is not bool:
                 raise ValueError("Caption display toggles must be boolean")
         return self
@@ -115,6 +117,7 @@ class CaptionConfig:
                 "target":self.target,"targets":self.target_languages,
                 "page":self.page,"teletext_pid":self.teletext_pid,
                 "audio_pid":self.audio_pid,"audio_source":self.audio_language,
+                "spoken_auto":self.spoken_auto,
                 "speaker_enabled":self.speaker_enabled,
                 "music_transcription":self.music_transcription,
                 "speech_priority":self.speech_priority,
@@ -124,13 +127,18 @@ class CaptionConfig:
     def render(self, result):
         """Produce independently selectable original/translated subtitle lines."""
         original = (result.get("original") or "").strip()
-        speaker = str(result.get("speaker_label") or "").strip()[:55]
+        speaker = ""
         speaker_index = result.get("speaker_index")
-        if (self.speaker_enabled and type(speaker_index) is int
-                and 1 <= speaker_index <= len(self.speaker_aliases)
-                and self.speaker_aliases[speaker_index-1].strip()):
-            speaker = ("[" + self.speaker_aliases[speaker_index-1].strip()[:30] +
-                       " · clip]")
+        if self.speaker_enabled:
+            # Only the actual voice-grouped ASR cue can carry this index.
+            # A configured alias is a user-entered display name, NOT an
+            # automatically inferred identity, sex or age.
+            speaker = str(result.get("speaker_label") or "").strip()[:55]
+            if (type(speaker_index) is int
+                    and 1 <= speaker_index <= len(self.speaker_aliases)
+                    and self.speaker_aliases[speaker_index-1].strip()):
+                speaker = ("[" + self.speaker_aliases[
+                    speaker_index-1].strip()[:30] + "]")
         raw = result.get("translations")
         translated = raw if isinstance(raw, dict) else {}
         lines = []
@@ -187,6 +195,14 @@ def effective_cue_config(config: CaptionConfig, native_status: dict | None) -> C
     actual = native_status.get("effective_ms")
     if type(actual) is not int or not 0 <= actual <= config.playback_delay_ms:
         return config
+    observed = native_status.get("released_age_ms")
+    # The native FIFO's measured TS age is more informative than the
+    # *target* duration, but the player may add further decode latency.
+    # Only trust an acknowledged, fresh release measurement.
+    if (native_status.get("primed") and
+            type(observed) is int and 0 <= observed <= config.playback_delay_ms
+            and native_status.get("release_fresh")):
+        actual=observed
     return replace(config, playback_delay_ms=actual)
 
 
@@ -206,12 +222,30 @@ def confirmed_cue_config(config: CaptionConfig,
             type(native_status.get("effective_ms")) is not int or
             native_status.get("primed") is False):
         return None
+    # Current native builds report the *actual* TS release age. Do not send
+    # early subtitles after the FIFO says "primed" but before the first
+    # measured TS release sample is available. Legacy 3/5-field builds
+    # remain supported with reduced synchronization accuracy.
+    if (config.playback_delay_ms > 0
+            and native_status.get("has_release_clock")
+            and not native_status.get("release_fresh")):
+        return None
     return effective_cue_config(config,native_status)
 
 
 # The audio/video native queue reports TS buffering, not the exact
 # libVLC presentation timestamp. Bias captions slightly BEHIND speech rather
 # than revealing the next line too early while dialogue is still playing.
+def provisional_ai_buffer_ms(is_pi5):
+    """One-time, conservative ASR startup delay; NEVER pretend it is a
+    measured lip-sync or sustained inference benchmark. The native TS FIFO
+    may cap it according to bitrate/RAM and must acknowledge priming.
+    """
+    if type(is_pi5) is not bool:
+        raise ValueError("Raspberry Pi flag must be boolean")
+    return 6000 if is_pi5 else 10000
+
+
 CAPTION_SAFETY_HOLD_SEC = 0.55
 # Faster-Whisper word boundaries already describe the source audio timeline.
 # An additional half-second safety hold noticeably desynchronizes dialogue.
@@ -579,16 +613,24 @@ class KaffeineOSD:
             if info.st_size > 120 or info.st_size < 3:
                 return None
             values = list(map(int, self.effective.read_text().split()))
-            if len(values) == 5:
-                requested, actual, bps, primed_flag, queue_age = values
+            released_age_ms = None
+            release_fresh = False
+            has_release_clock = len(values)==7
+            if len(values) in (5,7):
+                requested, actual, bps, primed_flag, queue_age = values[:5]
                 if primed_flag not in (0,1) or not 0 <= queue_age <= 60000:
                     return None
                 primed = bool(primed_flag)
                 has_queue_age = True
+                if len(values)==7:
+                    measured_age, released_at = values[5:7]
+                    now_ms=int(time.time()*1000)
+                    if (0 <= measured_age <= 60000 and
+                            0 <= now_ms-released_at <= 3500):
+                        released_age_ms = measured_age
+                        release_fresh = True
             elif len(values) == 3:
-                # Old native builds report ONLY the target queue setting,
-                # even while a new multi-second playback buffer fills.
-                # Do not treat their nonzero number as applied/ready.
+                # Old native builds report ONLY the target queue setting.
                 requested, actual, bps = values
                 primed = (actual == 0)
                 queue_age = 0
@@ -602,6 +644,9 @@ class KaffeineOSD:
                     "ts_bytes_per_second": bps,
                     "primed":primed, "queue_age_ms":queue_age,
                     "has_queue_age":has_queue_age,
+                    "released_age_ms":released_age_ms,
+                    "release_fresh":release_fresh,
+                    "has_release_clock":has_release_clock,
                     "capped": actual < requested}
         except (OSError, ValueError, UnicodeError):
             return None

@@ -27,11 +27,22 @@ def recommend(measurements, current_buffer_ms=0, clip_seconds=6):
     translations = [m for m in measurements if m.get("kind")=="translation"
                     and m.get("status")=="ok"]
     fastest = min(asr,key=lambda m:m["elapsed_s"]) if asr else None
+    # A translator is recommendable only when *every requested direction*
+    # was actually tested successfully, not just historical DE→EN / DE→TR.
+    requested_pairs = {
+        (m.get("source","de"),m.get("target"))
+        for m in translations if m.get("target")
+    }
     engine_scores = {}
     for eng in ("argos","nllb"):
-        seen = [m for m in translations if m.get("engine")==eng]
-        if len({m["target"] for m in seen})==2:
-            engine_scores[eng] = sum(m["elapsed_s"] for m in seen)
+        successful = {
+            (m.get("source","de"),m.get("target")):m
+            for m in translations
+            if m.get("engine")==eng and m.get("status")=="ok"
+        }
+        if requested_pairs and requested_pairs.issubset(successful):
+            engine_scores[eng] = sum(
+                successful[pair]["elapsed_s"] for pair in requested_pairs)
     engine = min(engine_scores,key=engine_scores.get) if engine_scores else None
     translation_s = engine_scores.get(engine,0)
     latency = (fastest["elapsed_s"]+translation_s+0.8) if fastest else None
@@ -187,7 +198,42 @@ def _child(args,timeout):
         _running_child=None
 
 
-def run_benchmark(audio_path, *, current_buffer_ms=0):
+# Benchmark examples are honest source-language samples, not synthetic
+# translated output or a claim of comprehensive language coverage.
+_TRANSLATION_SAMPLES = {
+    "de": "Guten Morgen. Heute sprechen wir über das Wetter.",
+    "en": "Good morning. Today we are talking about the weather.",
+    "tr": "Günaydın. Bugün hava durumu hakkında konuşuyoruz.",
+    "fr": "Bonjour. Aujourd'hui, nous parlons de la météo.",
+    "es": "Buenos días. Hoy hablamos del tiempo.",
+    "pl": "Dzień dobry. Dzisiaj rozmawiamy o pogodzie.",
+    "ar": "صباح الخير. اليوم نتحدث عن الطقس.",
+    "ja": "おはようございます。今日は天気について話します。",
+}
+
+
+def translation_pairs(sources=("de",), targets=("en","tr"), *, maximum=12):
+    """User-selected cross-language directions, no duplicates/same-language.
+
+    Explicitly omitted languages are not silently reported as benchmarked.
+    More languages may still be configured for actual playback; this
+    six-second benchmark deliberately caps heavy model loads at 12 pairs.
+    """
+    from .language_codes import language_code
+    normalized_sources=tuple(dict.fromkeys(language_code(s) for s in sources))
+    normalized_targets=tuple(dict.fromkeys(language_code(t) for t in targets))
+    if not normalized_sources or not normalized_targets:
+        raise ValueError("Choose a source and at least one destination language")
+    if len(normalized_sources)>6 or len(normalized_targets)>6:
+        raise ValueError("Benchmark accepts up to six source/target languages")
+    pairs=[(src,dst) for src in normalized_sources for dst in normalized_targets
+           if src!=dst]
+    return pairs[:maximum],pairs[maximum:]
+
+
+def run_benchmark(audio_path, *, current_buffer_ms=0,
+                  source_languages=("de",),
+                  target_languages=("en","tr")):
     """Use up to six seconds of explicit local audio; no TV tuner interaction."""
     media = Path(audio_path).expanduser()
     if (not media.is_file() or media.is_symlink() or
@@ -196,6 +242,7 @@ def run_benchmark(audio_path, *, current_buffer_ms=0):
     if not 0 <= current_buffer_ms <= 60000:
         raise ValueError("Invalid buffer")
     found = inventory()
+    pairs,not_tested=translation_pairs(source_languages,target_languages)
     measurements = []
     with tempfile.TemporaryDirectory(prefix="tihulu-private-ai-benchmark-") as root:
         sample=Path(root)/"six_seconds.wav"
@@ -214,11 +261,18 @@ def run_benchmark(audio_path, *, current_buffer_ms=0):
                            str(sample)],timeout=65)
             measurements.append({**candidate,"kind":"asr",**result})
         for engine in found["engines"]:
-            for target in ("en","tr"):
-                result=_child(["translation",engine,target],timeout=45)
+            for source,target in pairs:
+                if source not in _TRANSLATION_SAMPLES:
+                    result={"status":"not-tested","reason":
+                            "No verified offline benchmark sample for "+source.upper()}
+                else:
+                    result=_child(["translation",engine,source,target],
+                                  timeout=45)
                 measurements.append({"kind":"translation","engine":engine,
-                                     "target":target,**result})
+                                     "source":source,"target":target,**result})
     return {"version":1,"audio_duration_s":6,"offline":True,
+            "tested_directions":pairs,
+            "not_tested_directions":not_tested,
             "samples":measurements,
             "recommendation":recommend(
                 measurements,current_buffer_ms=current_buffer_ms),
@@ -242,13 +296,15 @@ def worker(kind,one,two=None,three=None):
                 "nonempty_text":bool(str(heard).strip()),
                 "speech_proven":bool(str(heard).strip())}
     if kind=="translation":
-        engine,target=one,two
-        if engine not in ("argos","nllb") or target not in ("en","tr"):
-            raise ValueError("Invalid translator candidate")
+        from .language_codes import language_code
+        engine,source,target=one,language_code(two),language_code(three)
+        if (engine not in ("argos","nllb") or source==target or
+                source not in _TRANSLATION_SAMPLES):
+            raise ValueError("Invalid translator direction or sample")
         os.environ["TIHULU_TRANSLATOR_MODEL"]=engine
         from .captions import translate
-        text,error=translate("Guten Morgen. Heute sprechen wir über das Wetter.",
-                             "de",target)
+        text,error=translate(_TRANSLATION_SAMPLES[source],
+                             source,target)
         if not text:
             raise RuntimeError("No real local translation: "+str(error)[:140])
         return {"status":"ok","elapsed_s":round(time.monotonic()-started,3),
@@ -260,6 +316,8 @@ def main(argv=None):
     parser=argparse.ArgumentParser(description="Local offline AI model benchmark")
     parser.add_argument("--audio",default="")
     parser.add_argument("--buffer-ms",type=int,default=0)
+    parser.add_argument("--sources",default="de")
+    parser.add_argument("--targets",default="en,tr")
     parser.add_argument("--worker",nargs="+")
     args=parser.parse_args(argv)
     try:
@@ -271,7 +329,10 @@ def main(argv=None):
         if args.worker:
             result=worker(*args.worker)
         elif args.audio:
-            result=run_benchmark(args.audio,current_buffer_ms=args.buffer_ms)
+            result=run_benchmark(
+                args.audio,current_buffer_ms=args.buffer_ms,
+                source_languages=tuple(filter(None,args.sources.split(","))),
+                target_languages=tuple(filter(None,args.targets.split(","))))
         else:
             parser.error("Choose --audio FILE; no model will download")
         print(json.dumps(result,ensure_ascii=False))

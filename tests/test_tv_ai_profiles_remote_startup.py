@@ -142,7 +142,11 @@ class DeferredStartupTests(unittest.TestCase):
         ui=(source/"settings_ui.py").read_text(encoding="utf-8")
         desktop=(source/"desktop.py").read_text(encoding="utf-8")
         self.assertIn("quick_hardware()",ui)
-        self.assertIn("QTimer.singleShot(0, self.inspect_compute)",ui)
+        # GPU/Argos scans now occur only on the corresponding tab; the
+        # selected preset gets one worker inventory after first paint.
+        self.assertIn("QTimer.singleShot(180, self.inspect_profile)",ui)
+        self.assertIn("self.model_tabs.currentChanged.connect(",ui)
+        self.assertIn("def on_model_tab_changed",ui)
         self.assertIn("threading.Thread(target=scan",ui)
         self.assertIn("def _show_argos",ui)
         self.assertIn("def _show_starter",ui)

@@ -786,6 +786,10 @@ void DvbLiveView::replay()
 \tint tihuluVideoDelayMs = 0;
 \tint tihuluPrimedTargetMs = -1;
 \tbool tihuluDelayPrimed = false;
+\t// Measured oldest DVB TS chunk age at release to libVLC's pipe.
+\t// The renderer may add latency; this is NOT video presentation PTS.
+\tqint64 tihuluReleasedAgeMs = -1;
+\tqint64 tihuluReleasedAtMs = 0;
 ''')
     change(live, '#include <QCoreApplication>\n',
            '#include <QCoreApplication>\n#include <QDateTime>\n')
@@ -803,7 +807,9 @@ void DvbLiveView::replay()
 \ttihuluDelayed.clear();
 \ttihuluDelayedBytes = 0;
 \ttihuluPrimedTargetMs = -1;
-\ttihuluDelayPrimed = false;''')
+\ttihuluDelayPrimed = false;
+\ttihuluReleasedAgeMs = -1;
+\ttihuluReleasedAtMs = 0;''')
     change(live, '''\tif (!timeShiftFile.isOpen()) {
 \t\tif (writeFd >= 0) {
 \t\t\tbuffers.append(buffer);
@@ -861,7 +867,9 @@ void DvbLiveView::replay()
 \t\t\t\tQByteArray::number(tihuluVideoDelayMs) + " " +
 \t\t\t\tQByteArray::number(tihuluObservedRate) + " " +
 \t\t\t\tQByteArray::number(tihuluDelayPrimed ? 1 : 0) + " " +
-\t\t\t\tQByteArray::number(queuedAgeMs));
+\t\t\t\tQByteArray::number(queuedAgeMs) + " " +
+\t\t\t\tQByteArray::number(tihuluReleasedAgeMs) + " " +
+\t\t\t\tQByteArray::number(tihuluReleasedAtMs));
 \t\t}
 \t}
 \tif (!timeShiftFile.isOpen()) {
@@ -875,14 +883,26 @@ void DvbLiveView::replay()
 \t\t\t\t\ttihuluVideoDelayMs = 0;
 \t\t\t\t\ttihuluDelayPrimed = true;
 \t\t\t\t\ttihuluPrimedTargetMs = 0;
+\t\t\t\t\ttihuluReleasedAgeMs = -1;
+\t\t\t\t\ttihuluReleasedAtMs = 0;
 \t\t\t\t\ttihuluDelayCooldownUntil = now + 5000;
 \t\t\t\t}
 \t\t\t}
 \t\t\twhile (!tihuluDelayed.isEmpty() &&
 \t\t\t       (tihuluVideoDelayMs == 0 ||
 \t\t\t        now - tihuluDelayed.first().first >= tihuluVideoDelayMs)) {
-\t\t\t\tconst QByteArray chunk = tihuluDelayed.takeFirst().second;
+\t\t\t\tconst QPair<qint64,QByteArray> released = tihuluDelayed.takeFirst();
+\t\t\t\tconst QByteArray chunk = released.second;
 \t\t\t\ttihuluDelayedBytes -= chunk.size();
+\t\t\t\t// Observe actual residence time IN the FIFO when handed off
+\t\t\t\t// to libVLC. Do not confuse this with decoded presentation PTS.
+\t\t\t\tif (tihuluVideoDelayMs > 0 && tihuluDelayPrimed) {
+\t\t\t\t\ttihuluReleasedAgeMs = qMax<qint64>(0, now - released.first);
+\t\t\t\t\ttihuluReleasedAtMs = now;
+\t\t\t\t} else {
+\t\t\t\t\ttihuluReleasedAgeMs = -1;
+\t\t\t\t\ttihuluReleasedAtMs = 0;
+\t\t\t\t}
 \t\t\t\tbuffers.append(chunk);
 \t\t\t}
 \t\t\tif (!queuedCurrent)
@@ -898,6 +918,8 @@ void DvbLiveView::replay()
     '''\t} else {
 \t\ttihuluDelayed.clear();
 \t\ttihuluDelayedBytes = 0;
+\t\ttihuluReleasedAgeMs = -1;
+\t\ttihuluReleasedAtMs = 0;
 \t\tnotifier->setEnabled(false);
 \t\ttimeShiftFile.write(buffer); // FIXME avoid buffer reallocation''')
 

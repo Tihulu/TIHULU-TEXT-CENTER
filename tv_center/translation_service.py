@@ -91,7 +91,11 @@ class NLLBService:
             self.close_locked()
 
 class ArgosService(NLLBService):
-    """One private Argos process across multiple subtitle chunks and targets."""
+    """One private Argos worker with cache refresh after package changes."""
+
+    def __init__(self):
+        super().__init__()
+        self._generation = None
 
     def _start(self):
         runtime=AIRuntime().status()
@@ -109,6 +113,37 @@ class ArgosService(NLLBService):
             cwd=root,env=env,stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,stderr=subprocess.DEVNULL,
             bufsize=0,close_fds=True)
+        from .argos_generation import generation
+        self._generation = generation()
+
+    def translate(self, text, source, target):
+        # Installation/removal happens in a DIFFERENT Python process.
+        # Argos caches installed-language metadata after the first import.
+        # Restart the private worker if the Market's generation changed.
+        from .argos_generation import generation
+        with self.lock:
+            current = generation()
+            if self.process is not None and current != self._generation:
+                self.close_locked()
+        try:
+            return super().translate(text,source,target)
+        except RuntimeError as exc:
+            # A pack installed without using our Market (e.g. user pip) has
+            # no marker. If the worker reports missing languages, retry ONCE
+            # in a fresh interpreter before diagnosing a missing package.
+            message = str(exc).lower()
+            missing = any(term in message for term in (
+                "argos language packages unavailable",
+                "argos translate model missing",
+                "argos direct translation package missing",
+                "argos route missing",
+                "translation package missing",
+                "no installed", "not installed", "language is not available"))
+            if not missing:
+                raise
+            with self.lock:
+                self.close_locked()
+            return super().translate(text,source,target)
 
 
 class MadladService(NLLBService):

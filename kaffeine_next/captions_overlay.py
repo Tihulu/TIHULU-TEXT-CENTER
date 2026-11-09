@@ -52,6 +52,9 @@ class CaptionTap:
         self.transport_health = TransportContinuityMeter()
         self.packet_guard = CaptionPacketGuard()
         self.subtitle_discovery = TeletextSubtitleDiscovery()
+        from .teletext_match import TeletextAudit
+        self.teletext_audit = TeletextAudit()
+        self.teletext_audit_session = None
         self.program_epoch = 0
         self.native_tune_state = None
         self.recv_buffer_bytes = None
@@ -392,6 +395,13 @@ class CaptionTap:
             ai = AISettings()
             ai.configure_environment()
             selected = options["mode"]
+            audit_session=(options.get("program_epoch"),
+                           options.get("revision",0))
+            if audit_session!=self.teletext_audit_session:
+                self.teletext_audit.reset()
+                self.teletext_audit_session=audit_session
+            if selected=="auto" and self.teletext_audit.prefer_asr:
+                selected="asr"
             if selected in ("asr", "auto") and not ai.values["asr_enabled"]:
                 if selected == "asr":
                     raise RuntimeError("Whisper disabled. Enable in AI Model Market.")
@@ -415,6 +425,7 @@ class CaptionTap:
                            if selected in ("auto", "asr") else None),
                 audio_source=(options.get("audio_source")
                               if selected in ("auto", "asr") else None),
+                speech_auto=bool(options.get("spoken_auto")),
                 speaker_enabled=bool(options.get("speaker_enabled",False))
                                 and selected in ("auto","asr"),
                 speaker_provider=options.get("speaker_provider","resemblyzer"),
@@ -422,7 +433,40 @@ class CaptionTap:
                 speech_priority=bool(options.get("speech_priority",False)),
                 previous_text=previous,
                 defer_asr_translation=not bool(
-                    options.get("music_transcription",False)))
+                    options.get("music_transcription",False)),
+                auto_teletext_probe=(
+                    selected=="auto" and ai.values["asr_enabled"] and
+                    self.teletext_audit.needs_probe()))
+            probe=result.pop("teletext_probe",None)
+            if (probe and selected=="auto" and
+                    str(result.get("source","")).startswith(
+                        "broadcaster_teletext")):
+                verdict=self.teletext_audit.observe(
+                    result.get("original"),probe.get("text"),
+                    result.get("source_language"),probe.get("source_language"))
+                result["teletext_audit"]=(
+                    f"{self.teletext_audit.attempts}/{self.teletext_audit.maximum}"
+                    " initial checks · "+verdict)
+                if verdict=="switched":
+                    # Use REAL recognition from the same TS capture; do not
+                    # invent dialogue or rerun the costly model twice.
+                    result["original"]=probe["text"]
+                    result["raw_asr_original"]=probe["text"]
+                    result["source_language"]=probe["source_language"]
+                    result["source"]="local_asr"
+                    result["word_timing_source"]=probe.get("word_timing_source")
+                    result["words"]=probe.get("words",[])
+                    result["translations"]={}
+                    result["translation_errors"]={}
+                    result["translation_warnings"]={}
+                    result["translation_engines"]={}
+                    result["teletext_audit"]=(
+                        "Teletext differed from confirmed spoken language "
+                        "in 3 initial checks; switched Auto to Whisper")
+            elif selected=="asr" and options["mode"]=="auto":
+                result["teletext_audit"]=(
+                    "Auto: Whisper selected after repeated early "
+                    "Teletext mismatch; Teletext Hard remains available")
             if options.get("program_epoch") != self.program_epoch:
                 return  # old channel's caption must never appear on new TV
             if result.get("source") == "local_asr" and result.get("original"):
@@ -469,6 +513,7 @@ class CaptionTap:
                 if self.sentence_captured_start is None:
                     self.sentence_captured_start=captured_start
                 observed=result.get("original","")
+                previous_language=self.sentence_joiner.language
                 joined=self.sentence_joiner.push(
                     observed,
                     language=result.get("source_language"),
@@ -486,6 +531,12 @@ class CaptionTap:
                     except queue.Full:
                         pass
                     return  # Keep words for the next clip.
+                if joined.get("language_switched") and previous_language:
+                    # The emitted phrase belongs to the OLD language.
+                    # New-language words remain held in the joiner; never
+                    # translate a French clause with the old German code.
+                    result["source_language"]=previous_language
+                    result["language_switch"]="pending new-language sentence"
                 # A loop may span several otherwise valid Whisper clips.
                 # Filter the FINAL assembled sentence too, after overlap
                 # removal, before the translation engine receives it.
@@ -698,7 +749,7 @@ def main(argv=None):
     row = QHBoxLayout()
     mode = QComboBox()
     mode.addItem("Teletext subtitles → Whisper fallback", "auto")
-    mode.addItem("Broadcaster Teletext subtitles", "teletext")
+    mode.addItem("Teletext Hard · broadcaster subtitles (no Whisper test)", "teletext")
     mode.addItem("Whisper live transcription", "asr")
     mode.addItem("Manual Teletext page", "page")
     mode.addItem("Off", "off")
@@ -786,6 +837,25 @@ def main(argv=None):
                 available[code]={**old,**item,"engines":engines}
             else:
                 available[code]=item
+        # Keep Spoken choices in sync with the actual output-language
+        # catalog while respecting Whisper's *source* language support.
+        # Discovery never changes the viewer's current Spoken selection.
+        previous_source=source.currentText()
+        previous_index=source.currentIndex()
+        source.blockSignals(True)
+        try:
+            for code in dict.fromkeys([*baseline,*sorted(available),
+                                           *sorted(requested_languages)]):
+                if code in WHISPER_LANGUAGES and source.findText(code)<0:
+                    source.addItem(code,code)
+            if previous_index==0:
+                source.setCurrentIndex(0)
+            elif source.findText(previous_source)>=0:
+                source.setCurrentIndex(source.findText(previous_source))
+            else:
+                source.setEditText(previous_source)
+        finally:
+            source.blockSignals(False)
         output_menu.clear()
         language_boxes.clear()
         content=QWidget(output_menu)
@@ -1005,9 +1075,11 @@ def main(argv=None):
     timing_layout.addRow(offsets)
     auto_row = QHBoxLayout()
     automatic = QCheckBox("Automatic sync · estimate ASR lag / TV buffer (not PTS lip-sync)")
-    automatic.setChecked(False)
+    automatic.setChecked(True)
     automatic.setToolTip(
-        "OFF by default. After 3 real Whisper samples, estimates speech-caption "
+        "ON: before any Whisper sample, use a provisional 10s desktop or "
+        "6s Pi 5 buffer (native bitrate/RAM limits still apply). After 3 real "
+        "Whisper samples, estimates speech-caption "
         "availability and suggests a conservative delay. When enabled and Applied, "
         "only raises an insufficient TV buffer. It NEVER reduces an existing "
         "larger user buffer; lowering it requires an explicit manual change. "
@@ -1068,8 +1140,35 @@ def main(argv=None):
         "Auto labels: checking installed local speaker model…")
     speaker_health.setWordWrap(True)
     timing_layout.addRow("Voice status", speaker_health)
-    # Automatic speaker names are generated by the local detector.
-    # No user-entered labels are required or offered by default.
+    # Cluster IDs are provisional; names are user-authored, never guessed
+    # as adult/child/gender based on pitch or voice embeddings.
+    voice_label_store = QSettings("TIHULU", "KaffeineSpeakerLabelNames")
+    speaker_alias_inputs = []
+    label_fields = QWidget()
+    label_fields_layout = QGridLayout(label_fields)
+    label_fields_layout.setContentsMargins(0,0,0,0)
+    for i in range(4):
+        name_input = QLineEdit()
+        name_input.setMaxLength(30)
+        name_input.setPlaceholderText(
+            ("e.g. Adam 1" if i == 0 else "e.g. Çocuk 2" if i == 1
+             else f"Optional name {i+1}"))
+        saved = voice_label_store.value(f"speaker_{i+1}","",type=str)
+        name_input.setText(saved if isinstance(saved,str) else "")
+        name_input.setToolTip(
+            f"Optional display label for provisional voice cluster {i+1}. "
+            "Examples are user-entered, not inferred age, gender or identity.")
+        label_fields_layout.addWidget(QLabel(f"Voice {i+1}"),i,0)
+        label_fields_layout.addWidget(name_input,i,1)
+        speaker_alias_inputs.append(name_input)
+    timing_layout.addRow("Speaker label names",label_fields)
+    voice_label_explanation=QLabel(
+        "Names appear as [Adam 1] or [Çocuk 2] before each attributed "
+        "subtitle. Leave empty for [Speaker N]. These are YOUR labels: "
+        "the model cannot reliably determine age, sex or identity, "
+        "and ambiguous/untimed words remain unlabelled.")
+    voice_label_explanation.setWordWrap(True)
+    timing_layout.addRow(voice_label_explanation)
     sync_estimate = QLabel("Automatic timing: collecting real ASR samples (0/3). "
                            "Live TV and manually entered delay are unchanged.")
     sync_estimate.setWordWrap(True)
@@ -1255,7 +1354,8 @@ def main(argv=None):
     apply = QPushButton("Apply")
     apply.setObjectName("apply")
     reset = QPushButton("Reset")
-    pending = QLabel("Applied: broadcaster auto · German → Turkish · video captions ON")
+    pending = QLabel("Pending: Spoken Auto detect · output English · "
+                     "apply to begin; broadcast language may change")
     buttons.addWidget(apply); buttons.addWidget(reset); buttons.addWidget(pending, 1)
     root.addLayout(buttons)
     behavior = QHBoxLayout()
@@ -1389,6 +1489,7 @@ def main(argv=None):
         pass
     estimator = AutoSyncEstimator(ceiling_ms=6000 if pi5 else 15000)
     auto_controller = AutoSyncController()
+    startup_buffer_pending = True
     last_service_id = None
     last_ui_program_epoch = 0
     last_effective_check = 0.0
@@ -1481,11 +1582,13 @@ def main(argv=None):
             audio_pid=chosen_audio["pid"] if chosen_audio else None,
             audio_language=(hinted if automatic_source and chosen_audio and
                             hinted in WHISPER_LANGUAGES else None),
+            spoken_auto=automatic_source,
             speaker_enabled=speaker_enabled.isChecked(),
             music_transcription=music_transcription.isChecked(),
             speech_priority=speech_priority.isChecked(),
             speaker_provider=speaker_provider.currentData(),
-            speaker_aliases=(),
+            speaker_aliases=tuple(entry.text().strip()
+                                  for entry in speaker_alias_inputs),
             offset_ms=round(caption_offset.value()*1000),
             playback_delay_ms=round(playback_delay.value()*1000),
             automatic_sync=automatic.isChecked(),
@@ -1562,10 +1665,20 @@ def main(argv=None):
     for w in (show_video,automatic,speaker_enabled,music_transcription,
               speech_priority):
         w.toggled.connect(set_pending)
+    for entry in speaker_alias_inputs:
+        entry.textChanged.connect(set_pending)
 
     def apply_settings():
         nonlocal applied, current_text, current_until, current_cue
+        nonlocal startup_buffer_pending
         try:
+            if startup_buffer_pending:
+                startup_buffer_pending=False
+                if (automatic.isChecked() and mode.currentData() in ("auto","asr")
+                        and playback_delay.value()==0):
+                    from .caption_timing import provisional_ai_buffer_ms
+                    playback_delay.setValue(
+                        provisional_ai_buffer_ms(pi5)/1000.0)
             selected = from_controls()
             previous = applied
             source_changed = any(
@@ -1573,7 +1686,7 @@ def main(argv=None):
                 for key in ("mode", "source", "target_languages", "page",
                             "teletext_pid", "audio_pid", "audio_language",
                             "music_transcription", "speech_priority",
-                            "speaker_enabled", "speaker_provider", "speaker_aliases"))
+                            "speaker_enabled", "speaker_provider"))
             # The native video/audio buffer really changes the media clock.
             # Unlike a cosmetic change, that requires fresh cue calibration.
             playback_changed = (selected.playback_delay_ms !=
@@ -1609,7 +1722,9 @@ def main(argv=None):
                 ipc.set_playback_delay(applied)
             automatic_active = applied.automatic_sync and applied.mode not in ("off","page","teletext")
             sync_estimate.setText(
-                ("Automatic timing (increase-only) · collecting live Whisper samples ("
+                ("Automatic timing (increase-only) · provisional startup buffer "
+                 "10s desktop / 6s Pi; awaiting real ASR samples and native "
+                 "TS-release confirmation ("
                  + str(len(estimator.values)) + "/3); conservative maximum "
                  + str(estimator.ceiling_ms / 1000) + " s.")
                 if automatic_active else
@@ -1621,6 +1736,9 @@ def main(argv=None):
             appearance_store.setValue("text_opacity",applied.text_opacity)
             appearance_store.setValue("renderer",applied.render_mode)
             appearance_store.sync()
+            for i,alias in enumerate(applied.speaker_aliases,1):
+                voice_label_store.setValue(f"speaker_{i}",alias)
+            voice_label_store.sync()
             pending.setText("Applied · " + applied.mode + " · " + applied.source.upper() +
                             " → " + (" + ".join(lang.upper() for lang in
                                 applied.target_languages) or "original only") +
@@ -1712,12 +1830,31 @@ def main(argv=None):
             return
         benchmark_button.setEnabled(False)
         cancel_benchmark_button.setEnabled(True)
+        try:
+            requested=from_controls()
+            # With Spoken=Auto, benchmark all four primary languages in
+            # both directions actually requested. Do not hardwire DE→EN/TR.
+            sources=(("de","en","tr","fr") if requested.spoken_auto else
+                     (requested.source,))
+            targets=requested.target_languages or ("en",)
+            from tv_center.performance_lab import translation_pairs
+            selected_pairs,omitted=translation_pairs(sources,targets)
+        except ValueError as exc:
+            QMessageBox.warning(window,"Benchmark languages",str(exc))
+            benchmark_button.setEnabled(True)
+            cancel_benchmark_button.setEnabled(False)
+            return
         benchmark_status.setText(
-            "Testing installed AI models locally on six seconds of selected "
-            "media. Main DVB player and caption service remain independent.")
+            "Testing selected translation directions: "+
+            ", ".join(a.upper()+"→"+b.upper() for a,b in selected_pairs)+
+            (" · additional pairs omitted by 12-pair benchmark limit"
+             if omitted else "")+
+            ". Main DVB player remains independent.")
         benchmark_process.start(
             sys.executable,["-m","tv_center.performance_lab","--audio",chosen,
-                           "--buffer-ms",str(applied.playback_delay_ms)])
+                           "--buffer-ms",str(applied.playback_delay_ms),
+                           "--sources",",".join(sources),
+                           "--targets",",".join(targets)])
         if not benchmark_process.waitForStarted(700):
             benchmark_status.setText(
                 "Could not start the local benchmark process.")
@@ -1745,6 +1882,12 @@ def main(argv=None):
                 raise ValueError("Untrusted benchmark result")
             rows=report["samples"]
             proposal=report["recommendation"]
+            tested_pairs={
+                tuple(item) for item in report.get("tested_directions",[])
+                if isinstance(item,list) and len(item)==2}
+            skipped_pairs={
+                tuple(item) for item in report.get("not_tested_directions",[])
+                if isinstance(item,list) and len(item)==2}
         except (ValueError,TypeError,KeyError) as exc:
             benchmark_status.setText(
                 "AI benchmark returned no valid performance report: "+str(exc))
@@ -1755,7 +1898,8 @@ def main(argv=None):
                   row.get("backend") or "model")
             label=str(name)[:70]
             if row.get("target"):
-                label+=" → "+str(row["target"]).upper()
+                label+=(" "+str(row.get("source") or "de").upper()+
+                        " → "+str(row["target"]).upper())
             if row.get("status")=="ok":
                 label+=f": {float(row['elapsed_s']):.2f}s"
                 if row.get("kind")=="asr":
@@ -1799,19 +1943,26 @@ def main(argv=None):
         translator=QComboBox()
         translator.addItem("Keep current translator",None)
         for eng in ("argos","nllb"):
-            measured={m["target"]:m for m in rows if
-                      m.get("kind")=="translation" and
+            measured={(m.get("source","de"),m.get("target")):m
+                      for m in rows if m.get("kind")=="translation" and
                       m.get("engine")==eng and m.get("status")=="ok"}
-            if set(measured)>={"en","tr"}:
+            if tested_pairs and not skipped_pairs and tested_pairs<=set(measured):
+                elapsed=sum(float(measured[p]["elapsed_s"]) for p in tested_pairs)
                 translator.addItem(
-                    eng.upper()+" · EN "+str(measured["en"]["elapsed_s"])+
-                    "s + TR "+str(measured["tr"]["elapsed_s"])+"s",eng)
+                    eng.upper()+f" · {len(tested_pairs)} tested language routes · "+
+                    f"{elapsed:.2f}s total",eng)
         proposed_engine=proposal.get("translation_model")
         if proposed_engine:
             for i in range(translator.count()):
                 if translator.itemData(i)==proposed_engine:
                     translator.setCurrentIndex(i)
-        pane.addWidget(QLabel("Translation engine (tested DE→EN and DE→TR):"))
+        pane.addWidget(QLabel(
+            "Translation engine (only ALL selected directions verified):"+
+            (" · "+", ".join(a.upper()+"→"+b.upper()
+                              for a,b in sorted(tested_pairs))
+             if tested_pairs else " · no direction tested")+
+            (" · "+str(len(skipped_pairs))+" untested (not recommended)"
+             if skipped_pairs else "")))
         pane.addWidget(translator)
         suggested_buffer=QDoubleSpinBox()
         suggested_buffer.setRange(0,60)
@@ -1898,6 +2049,8 @@ def main(argv=None):
         music_transcription.setChecked(False)
         speech_priority.setChecked(False)
         speaker_provider.setCurrentIndex(0)
+        for entry in speaker_alias_inputs:
+            entry.clear()
         show_video.setChecked(True)
         position.setCurrentText("bottom"); font.setValue(25)
         renderer.setCurrentIndex(0)
@@ -2556,6 +2709,9 @@ def main(argv=None):
                             str(data["remote_error"])[:140]+
                             " · fallback: "+
                             str(data.get("remote_fallback") or "disabled"))
+                    if data.get("teletext_audit"):
+                        status.setText(
+                            status.text()+" | "+str(data["teletext_audit"])[:200])
                     if data.get("speaker_error"):
                         status.setText(status.text() +
                             " | Diarization unavailable: " +
@@ -2642,8 +2798,17 @@ def main(argv=None):
             current_text = applied.render(result)
             current_until = cue["expires"]
             source_language = str(result.get("source_language") or applied.source).upper()
-            original.setText("ORIGINAL [" + source_language + "]: " +
-                             result.get("original", ""))
+            label_prefix = ""
+            if applied.speaker_enabled and result.get("speaker_index"):
+                n=result["speaker_index"]
+                if type(n) is int and 1<=n<=len(applied.speaker_aliases):
+                    alias=applied.speaker_aliases[n-1].strip()
+                    if alias:
+                        label_prefix=f"[{alias}] "
+                if not label_prefix:
+                    label_prefix=str(result.get("speaker_label") or "").strip()+" "
+            original.setText(label_prefix+"ORIGINAL [" + source_language +
+                             "]: " + result.get("original", ""))
             translations = result.get("translations") or {}
             failures = result.get("translation_errors") or {}
             fallback = result.get("translation_warnings") or {}
@@ -2660,7 +2825,7 @@ def main(argv=None):
                         lang.upper() for lang in applied.target_languages
                         if lang in failures and lang not in translations]
                     translated.setText(
-                        heading + " · ".join(available) +
+                        label_prefix + heading + " · ".join(available) +
                         (" · " + ", ".join(missing) + " unavailable"
                          if missing else ""))
                 else:

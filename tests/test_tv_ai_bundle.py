@@ -50,7 +50,7 @@ class AIBundleTests(unittest.TestCase):
             starter = StarterAI(ai, store, Runtime(), Whisper())
             with patch.object(starter, "_setup_argos_packs", return_value=[
                     {"source": s, "target": t} for s, t in PAIRS]):
-                with patch("tv_center.ai_provision.argos_installed_pairs", return_value=[
+                with patch("tv_center.argos_market_bridge.run", return_value=[
                         {"source": s, "target": t} for s, t in PAIRS]):
                     result = starter.install()
             self.assertTrue(ai.values["asr_enabled"])

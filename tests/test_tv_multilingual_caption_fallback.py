@@ -42,6 +42,25 @@ class MultilingualCaptions(unittest.TestCase):
         self.assertIn("TR unavailable", cfg.render(result))
         self.assertIn("tr", result["translation_errors"])
 
+    def test_french_dvb_hint_keeps_translation_working_when_cpu_asr_lacks_code(self):
+        # A CPU speech engine can return French text without returning its
+        # own detected-language metadata. Do not relabel it German/unknown
+        # when the actual DVB audio descriptor explicitly says FRA.
+        with patch("tv_center.captions.asr_from_clip",
+                   return_value="Bonjour, comment allez-vous?") as asr, patch(
+                   "tv_center.captions.translate",
+                   return_value=("Merhaba, nasılsınız?",None)) as translate:
+            result=decode_segment(
+                TS,mode="asr",source="auto",target="tr",
+                targets=("tr",),audio_source="fra",
+                speech_auto=True)
+        self.assertEqual(result["source_language"],"fr")
+        self.assertEqual(result["translations"]["tr"],"Merhaba, nasılsınız?")
+        self.assertIn("hint",result["source_language_note"])
+        translate.assert_called_once_with(
+            "Bonjour, comment allez-vous?","fr","tr")
+        self.assertEqual(asr.call_args.args[1],"auto")
+
     def test_custom_language_and_no_translation_needed(self):
         with patch("tv_center.captions.teletext_from_clip", return_value="Bonjour!"):
             with patch("tv_center.captions.translate") as translate:

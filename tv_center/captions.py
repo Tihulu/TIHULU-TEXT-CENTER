@@ -354,15 +354,19 @@ def asr_from_clip(path: Path, language: str, model: str,
                             channel=f"{service_id}:{audio_pid}")
 
 def _translate_argos_local(text: str, source: str, target: str) -> str:
-    """Translate offline through available system Argos or managed worker."""
-    try:
-        from textcenter.transcripts import translate_offline
-        return translate_offline(text, source, target)
-    except (ImportError, RuntimeError, ValueError, KeyError):
-        # The user-managed Argos venv is independent of the system Python
-        # used by Qt. Reuse its persistent worker for live caption windows.
+    """Use the SAME installed Argos runtime as Model Market and its language list.
+
+    Never prefer system Python when the user-owned Argos environment exists:
+    that environment can have different installed language packs. A genuinely
+    missing pair or runtime failure must be visible, not silently masked by
+    translating from another interpreter or cached package catalog.
+    """
+    from .runtime import AIRuntime
+    if AIRuntime().status()["installed"]:
         from .translation_service import translate_argos
         return translate_argos(text, source, target)
+    from textcenter.transcripts import translate_offline
+    return translate_offline(text, source, target, backend="cpu")
 
 
 def translate(text: str, source: str, target: str) -> tuple[str | None, str | None]:
@@ -429,7 +433,9 @@ def decode_segment(ts: bytes, *, mode="auto", page=150, source="de",
                    speaker_provider: str = "resemblyzer",
                    music_transcription: bool = False,
                    speech_priority: bool = False,
-                   defer_asr_translation: bool = False) -> dict:
+                   defer_asr_translation: bool = False,
+                   speech_auto: bool = False,
+                   auto_teletext_probe: bool = False) -> dict:
     if mode not in ("teletext", "page", "asr", "auto"):
         raise ValueError("Unsupported caption source")
     if type(page) is not int or not 100 <= page <= 899:
@@ -476,6 +482,32 @@ def decode_segment(ts: bytes, *, mode="auto", page=150, source="de",
                      if teletext_pid is not None else f"teletext_page_{page}")
                     if selected_page != "subtitle"
                     else "broadcaster_teletext_subtitles") if original else ""
+        # Auto mode may briefly check the *actual* speech against genuine
+        # broadcaster subtitles. Never run this in Teletext Hard or manual
+        # page mode. Three consecutive high-confidence conflicts are
+        # required by the caller before it may prefer Whisper.
+        teletext_probe = None
+        if (original and mode=="auto" and auto_teletext_probe):
+            details = {}
+            try:
+                opts={"diagnostics":details}
+                if audio_pid is not None:
+                    opts["audio_pid"]=audio_pid
+                probe_language=("auto" if speech_auto else
+                                (audio_source or source))
+                speech=asr_from_clip(p,probe_language,model,service_id,**opts)
+                if speech and isinstance(speech,str):
+                    teletext_probe={
+                        "text":speech[:2500],
+                        "source_language":(
+                            details.get("detected_language") or
+                            (probe_language if probe_language!="auto" else "und")),
+                        "word_timing_source":details.get("word_timing_source"),
+                        "words":details.get("words",[]),
+                    }
+            except (RuntimeError,ValueError,OSError,subprocess.TimeoutExpired):
+                # Teletext remains valid if optional test ASR is unavailable.
+                pass
         if not original and mode in ("asr", "auto"):
             asr_start = time.perf_counter()
             try:
@@ -492,7 +524,10 @@ def decode_segment(ts: bytes, *, mode="auto", page=150, source="de",
                 # Real DVB audio-language descriptors are a stronger hint
                 # than six seconds of noisy live TV speech. Do not ignore
                 # the selected/signalled audio language in Auto mode.
-                speech_language = audio_source or source
+                # Explicit GPU/remote Spoken=Auto permits a language
+                # switch inside the same TV channel. DVB descriptors remain
+                # hints, never a forced Whisper language in this mode.
+                speech_language = "auto" if speech_auto else (audio_source or source)
                 original = asr_from_clip(p, speech_language, model, service_id,
                                          **asr_kwargs)
                 # Filter only unmistakable repeated Whisper loops (often
@@ -515,9 +550,20 @@ def decode_segment(ts: bytes, *, mode="auto", page=150, source="de",
                         speech_diagnostics.get("detected_language") or
                         speech_language)
                     if used_language == "auto":
-                        # No invented translation source: display original
-                        # speech until the real model reports a language.
-                        used_language = "und"
+                        # Some CPU speech engines return text but no ASR
+                        # language metadata. Use an actual broadcaster audio
+                        # language descriptor (or user-selected source) as an
+                        # explicitly *hinted* translation source, never a
+                        # guessed DE default. If neither exists, keep the
+                        # untranslated original instead of fabricating FR.
+                        hinted = audio_source or (source if source!="auto" else None)
+                        if hinted:
+                            used_language = hinted
+                            speech_diagnostics["source_language_note"] = (
+                                "Translation uses broadcast/user language hint; "
+                                "speech language not confirmed by ASR")
+                        else:
+                            used_language = "und"
                 if original and previous_text:
                     from kaffeine_next.continuous_captions import remove_repeated_prefix
                     deduplicated = remove_repeated_prefix(previous_text, original)
@@ -574,6 +620,7 @@ def decode_segment(ts: bytes, *, mode="auto", page=150, source="de",
             translation_ms = round((time.perf_counter()-translate_start)*1000)
         translated = translations.get(target)
         return {"original": original, "raw_asr_original":raw_asr_original,
+                "teletext_probe":teletext_probe,
                 "translated": translated, "translations": translations,
                 "remote_error":speech_diagnostics.get("remote_error"),
                 "remote_fallback":speech_diagnostics.get("remote_fallback"),
@@ -582,6 +629,7 @@ def decode_segment(ts: bytes, *, mode="auto", page=150, source="de",
                 "asr_engine": speech_diagnostics.get("engine"),
                 "language_confidence":speech_diagnostics.get("language_confidence"),
                 "detected_language":speech_diagnostics.get("detected_language"),
+                "source_language_note":speech_diagnostics.get("source_language_note"),
                 "audio_notice": speech_diagnostics.get("audio_notice"),
                 "words":speech_diagnostics.get("words", []),
                 "word_timing_source":speech_diagnostics.get("word_timing_source"),

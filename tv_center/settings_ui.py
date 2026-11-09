@@ -10,7 +10,7 @@ def open_ai_settings(parent, ai, after_save=None):
         QFormLayout, QCheckBox, QComboBox, QLabel, QListWidget, QPushButton,
         QFileDialog, QMessageBox, QLineEdit, QWidget, QScrollArea,
         QTabWidget, QListWidgetItem, QInputDialog, QFrame, QGridLayout,
-        QSizePolicy, QToolButton)
+        QSizePolicy, QToolButton, QProgressBar)
 
     from .model_market import (CATALOG, ModelLibrary, ModelError,
         argos_available_pairs, argos_installed_pairs, argos_install, argos_remove)
@@ -23,7 +23,8 @@ def open_ai_settings(parent, ai, after_save=None):
     from .ai_provision import StarterAI
     from .hardware_market import detect_hardware, quick_hardware, model_fit
     from .ai_profiles import (PROFILES, COMPONENTS, profile, local_status,
-                              install_components, selection_patch, hardware_issue)
+                              install_components, selection_patch, hardware_issue,
+                              component_estimate, progress_fraction)
     from .remote_gpu import (validate_endpoint, save_token, read_token,
                              delete_token, test_connection)
     from .pi_hailo import readiness as hailo_readiness
@@ -103,6 +104,16 @@ def open_ai_settings(parent, ai, after_save=None):
             self._argos_busy = False
             self._starter_busy = False
             self._profile_inventory_busy = False
+            self._profile_scan_pending = False
+            self._profile_status_cache = {}
+            self._profile_row_widgets = {}
+            self._all_status_cache = None
+            self._all_status_busy = False
+            self._lazy_loaded_tabs = set()
+            self._applying_profile = False
+            self._manual_custom = False
+            self._active_profile = ai.values.get("active_profile","")
+            self._custom_base = self._active_profile or "performance"
             self.translation_market = TranslationModelMarket()
             outer = QVBoxLayout(self)
             outer.setContentsMargins(12, 12, 12, 10)
@@ -128,7 +139,7 @@ def open_ai_settings(parent, ai, after_save=None):
             quick_layout.addWidget(self.install_starter)
             starter_description = QLabel(
                 "Optional CPU fallback: Whisper Tiny (~78 MB) and four Argos "
-                "language pairs. RTX GPU Turbo is installed separately.")
+                "language pairs. NVIDIA CUDA Turbo is installed separately.")
             starter_description.setWordWrap(True)
             quick_layout.addWidget(starter_description)
             root.addWidget(quick)
@@ -154,7 +165,7 @@ def open_ai_settings(parent, ai, after_save=None):
                 ai.values["backend"] if self.backend.findText(
                     ai.values["backend"]) >= 0 else "auto")
             self.backend.setToolTip(
-                "RTX 5080 is GPU CUDA, NOT NPU. Remote requires explicit TLS and token. NPU is shown only when "
+                "NVIDIA CUDA is GPU, NOT NPU. Remote requires explicit TLS and token. NPU is shown only when "
                 "a compatible discrete Intel/Hailo accelerator is detected.")
             form.addRow("Inference engine", self.backend)
             self.compute = QLabel("")
@@ -168,7 +179,7 @@ def open_ai_settings(parent, ai, after_save=None):
             self.install_cuda.clicked.connect(self.install_cuda_runtime)
             form.addRow(self.install_cuda)
             self.install_fast_cuda = QPushButton(
-                "Install / repair RTX CUDA · Faster-Whisper Turbo (no nvcc)")
+                "Install / repair NVIDIA CUDA · Faster-Whisper Turbo (no nvcc)")
             self.install_fast_cuda.setToolTip(
                 "Isolated user-owned Python environment; verified CTranslate2 "
                 "model and CUDA 12 cuBLAS/cuDNN wheels. Does not replace NVIDIA "
@@ -181,7 +192,7 @@ def open_ai_settings(parent, ai, after_save=None):
                 "QPushButton:disabled{background:#444;color:#999}")
             form.addRow(self.install_fast_cuda)
             self.verify_fast_cuda = QPushButton(
-                "Test RTX CUDA · real local model inference")
+                "Test NVIDIA CUDA · real local model inference")
             self.verify_fast_cuda.clicked.connect(self.verify_cuda_inference)
             form.addRow(self.verify_fast_cuda)
             self.cuda_status = QLabel("")
@@ -236,7 +247,7 @@ def open_ai_settings(parent, ai, after_save=None):
             models_layout.addWidget(self.active_speech_label)
             self.model_path.textChanged.connect(lambda *_: self.populate_models())
             recommended = QLabel(
-                "RTX 5080 recommendation: prebuilt CUDA Large-v3 Turbo "
+                "NVIDIA CUDA recommendation (min 12 GB VRAM): prebuilt Large-v3 Turbo "
                 "(word-timed live captions). CPU fallback: Small → Medium. "
                 "Browse the official verified catalog for other quality "
                 "tiers and install/select them here.")
@@ -312,7 +323,13 @@ def open_ai_settings(parent, ai, after_save=None):
             install.clicked.connect(self.install_argos)
             remove = QPushButton("Uninstall selected pair")
             remove.clicked.connect(self.uninstall_argos)
-            for b in (update, install, remove): controls.addWidget(b)
+            test_live = QPushButton("Test selected pair · live Argos runtime")
+            test_live.setToolTip(
+                "Actually translate a short offline sentence using the SAME "
+                "managed Argos worker used by live TV. No receiver/network access.")
+            test_live.clicked.connect(self.test_live_argos_pair)
+            for b in (update, install, remove, test_live):
+                controls.addWidget(b)
             trans_layout.addLayout(controls)
             self.pairs = QLabel("Installed pairs: not inspected")
             trans_layout.addWidget(self.pairs)
@@ -334,8 +351,10 @@ def open_ai_settings(parent, ai, after_save=None):
             self.translation_choice.setCurrentIndex(
                 max(0,self.translation_choice.findData(
                     ai.values.get("translation_model","argos"))))
+            # Translation selection must never synchronously probe NLLB,
+            # MADLAD or DeepL; those checks belong to the language tab.
             self.translation_choice.currentIndexChanged.connect(
-                lambda *_: self.inspect_nllb())
+                self.preview_translator)
             quality_layout.addWidget(self.translation_choice)
             self.translation_selected_label = QLabel("")
             self.translation_selected_label.setWordWrap(True)
@@ -398,7 +417,10 @@ def open_ai_settings(parent, ai, after_save=None):
             self.deepl_status=QLabel("")
             quality_layout.addWidget(self.deepl_status)
             trans_layout.addWidget(quality)
-            self.inspect_nllb()
+            # No NLLB/MADLAD/PyTorch inventory during widget construction.
+            self.nllb_status.setText(
+                "Status not loaded yet. Open Language packs to inspect.")
+            self.madlad_state.setText("Model status available on Language packs tab.")
 
             # Keep one window but separate model selection, CUDA diagnostics
             # and translation catalogs into focused tabs, instead of a very
@@ -440,21 +462,31 @@ def open_ai_settings(parent, ai, after_save=None):
             guided = QGroupBox("Recommended modes · install before selecting")
             guided_layout = QVBoxLayout(guided)
             self.profile_choice = QComboBox()
+            self.profile_choice.addItem("Custom · manually adjusted", "custom")
             for key, spec in PROFILES.items():
                 self.profile_choice.addItem(spec["name"], key)
-            initial = ai.values.get("active_profile") or (
+            default_recommendation=(
                 "pi5" if self.hardware["raspberry_pi_5"] else "performance")
+            initial = ai.values.get("active_profile") or default_recommendation
+            self._custom_base = (initial if initial in PROFILES
+                                 else default_recommendation)
             self.profile_choice.setCurrentIndex(
                 max(0, self.profile_choice.findData(initial)))
-            self.profile_choice.currentIndexChanged.connect(
-                self.show_profile_description)
             guided_layout.addWidget(self.profile_choice)
             self.profile_description = QLabel("")
             self.profile_description.setWordWrap(True)
             guided_layout.addWidget(self.profile_description)
-            self.profile_components = QLabel("Choose a profile to inspect components.")
+            self.profile_components = QLabel(
+                "Checking installed models automatically · no downloads")
             self.profile_components.setWordWrap(True)
             guided_layout.addWidget(self.profile_components)
+            self.profile_rows_host = QWidget()
+            self.profile_rows_layout = QVBoxLayout(self.profile_rows_host)
+            self.profile_rows_layout.setContentsMargins(0,0,0,0)
+            self.profile_rows_layout.setSpacing(6)
+            guided_layout.addWidget(self.profile_rows_host)
+            self.profile_choice.currentIndexChanged.connect(
+                self.profile_changed)
             buttons = QHBoxLayout()
             self.profile_inspect = QPushButton("Check installed")
             self.profile_inspect.clicked.connect(self.inspect_profile)
@@ -586,7 +618,7 @@ def open_ai_settings(parent, ai, after_save=None):
                 "Resemblyzer · public Apache-2.0 model · NO Hugging Face "
                 "account, token or access approval. Install once; all TV "
                 "audio stays on this computer. Lightweight CPU inference "
-                "runs separately from the RTX 5080 Whisper GPU.")
+                "runs separately from a compatible NVIDIA CUDA Whisper GPU.")
             overview.setWordWrap(True)
             public_layout.addWidget(overview)
             self.free_speaker_status = QLabel("Checking public model…")
@@ -683,7 +715,7 @@ def open_ai_settings(parent, ai, after_save=None):
             all_open=QPushButton("Open selected model category")
             all_open.clicked.connect(self.open_all_model_category)
             all_refresh=QPushButton("Refresh installed model status")
-            all_refresh.clicked.connect(self.refresh_all_models)
+            all_refresh.clicked.connect(self.inspect_all_status)
             all_search=QPushButton("Search compatible online catalog")
             all_search.clicked.connect(self.search_selected_model_catalog)
             all_actions.addWidget(all_open)
@@ -725,27 +757,108 @@ def open_ai_settings(parent, ai, after_save=None):
             outer.addLayout(finish)
             self.timer = QTimer(self)
             self.timer.timeout.connect(self.process_events)
-            self.timer.start(250)
-            # Don't block the first paint on NVIDIA, Argos subprocesses
-            # or model readiness. Heavy probes run in read-only workers.
+            self.timer.start(120)
+            # First paint: lightweight widgets and local file labels only.
+            # Expensive NVIDIA, Argos, NLLB, speaker and CUDA probes are
+            # *lazy*: open their tab to inspect. Only the selected bundle
+            # gets an async inventory after the window is visible.
             self.populate_models()
             self.refresh_all_models()
-            self.inspect_runtime()
-            self.inspect_speaker()
-            QTimer.singleShot(0, self.inspect_compute)
-            QTimer.singleShot(0, self.inspect_argos)
-            QTimer.singleShot(0, self.inspect_starter)
+            self.model_tabs.currentChanged.connect(self.on_model_tab_changed)
+            # These are *user model-setting* changes, never page navigation.
+            # Connect after widget initialization so default assignments
+            # cannot incorrectly convert an existing preset to Custom.
+            self.asr.toggled.connect(self.mark_manual_custom)
+            self.translator.toggled.connect(self.mark_manual_custom)
+            self.backend.currentIndexChanged.connect(self.mark_manual_custom)
+            self.model_path.textChanged.connect(self.mark_manual_custom)
+            self.translation_choice.currentIndexChanged.connect(
+                self.mark_manual_custom)
+            self.pi_threads.currentIndexChanged.connect(self.mark_manual_custom)
+            self.hailo_fallback.toggled.connect(self.mark_manual_custom)
+            self.remote_enabled.toggled.connect(self.mark_manual_custom)
+            self.remote_fallback.toggled.connect(self.mark_manual_custom)
+            self.remote_endpoint.textEdited.connect(self.mark_manual_custom)
+            for field in (self.hailo_encoder,self.hailo_decoder,self.hailo_npy):
+                field.textEdited.connect(self.mark_manual_custom)
+            QTimer.singleShot(180, self.inspect_profile)
+
+        def on_model_tab_changed(self,index):
+            # Four tabs are created up front, but none needs to import a
+            # model, probe CUDA, or spawn Argos until explicitly opened.
+            if index in self._lazy_loaded_tabs:
+                return
+            self._lazy_loaded_tabs.add(index)
+            if index==1:  # speech/compute models
+                self.inspect_runtime()
+                self.inspect_compute()
+                self.inspect_starter()
+            elif index==2:  # language packs
+                self.inspect_nllb()
+                self.inspect_argos()
+            elif index==3:  # speaker models
+                self.inspect_speaker()
+            elif index==4:  # all models
+                self.inspect_all_status()
+
+        def preview_translator(self, *_):
+            # Status text follows the pending choice immediately, but none
+            # of these UI events import a model or spawn an Argos worker.
+            if hasattr(self,"translation_selected_label"):
+                selected=self.translation_choice.currentData()
+                self.translation_selected_label.setText(
+                    "Pending translator: "+str(selected).upper()+
+                    " · Save settings to apply")
+ 
+        def mark_manual_custom(self, *_):
+            if self._applying_profile or not hasattr(self,"profile_choice"):
+                return
+            # Preserve all manual control values; change ONLY mode identity.
+            current=self.profile_choice.currentData()
+            if current in PROFILES:
+                self._custom_base=current
+            self._manual_custom=True
+            self.profile_choice.blockSignals(True)
+            self.profile_choice.setCurrentIndex(
+                self.profile_choice.findData("custom"))
+            self.profile_choice.blockSignals(False)
+            self.show_profile_description()
+            self.feedback.setText(
+                "Custom · other model settings edited. Save settings to keep "
+                "your adjustments, or choose a preset and Select mode to reset.")
+
+        def profile_changed(self, *_):
+            # Choosing the Custom row explicitly also discards the preset
+            # identity, even before any other setting is edited.
+            if self.profile_choice.currentData()=="custom":
+                self._manual_custom=True
+            self.show_profile_description()
+            # A pending preset choice is not applied until Select mode.
+            QTimer.singleShot(80, self.inspect_profile)
+
+        def _display_profile_key(self):
+            key=self.profile_choice.currentData()
+            return key if key in PROFILES else self._custom_base
 
         def show_profile_description(self, *_):
-            key = self.profile_choice.currentData()
+            chosen=self.profile_choice.currentData()
+            key=self._display_profile_key()
             if key not in PROFILES:
                 return
-            spec = profile(key)
-            parts = "\n".join(
-                " • "+COMPONENTS[name][0]+" — "+COMPONENTS[name][1]
-                for name in spec["components"])
+            self.profile_select.setEnabled(chosen in PROFILES and not self.running)
+            self.profile_install.setEnabled(chosen in PROFILES and not self.running)
+            spec=profile(key)
             issue=hardware_issue(key,self.hardware)
+            if self.hardware["gpu"]["name"].startswith("Checking"):
+                issue="Hardware scan deferred; Select mode verifies requirements"
+            custom=(chosen=="custom")
+            selected=("Custom · modified from "+spec["name"]
+                      if custom else
+                      self.ai.values.get("active_profile") or "Custom")
             self.profile_description.setText(
+                ("Manual settings · suggested model bundle below is for "
+                 "comparison only. Choose a preset + Select mode to apply it.\n"
+                 if custom else "")+
                 spec["description"]+"\nEstimated disk: "+
                 spec["disk_gb_estimate"]+
                 "\nMinimum host RAM: "+str(round(spec["min_ram_mib"]/1024,1))+
@@ -754,44 +867,141 @@ def open_ai_settings(parent, ai, after_save=None):
                  if spec["min_vram_mib"] else "not required")+
                 "\nHardware: "+
                 (issue or "Meets minimum estimates; inference still untested")+
-                "\nSelected: "+(self.ai.values.get("active_profile") or "Custom"))
-            self.profile_components.setText(
-                "Required models:\n"+parts+
-                "\nUse Check installed to verify live status.")
+                "\nSelected: "+selected)
             self.hailo_group.setVisible(key=="pi5_hat2")
+            current_view=("custom:" if custom else "")+key
+            if getattr(self,"_visible_profile_key",None)==current_view:
+                return
+            self._visible_profile_key=current_view
+            self._profile_row_widgets={}
+            while self.profile_rows_layout.count():
+                child=self.profile_rows_layout.takeAt(0)
+                if child.widget():
+                    child.widget().deleteLater()
+            status_cache=self._profile_status_cache.get(key,{})
+            for code in spec["components"]:
+                widget=QWidget()
+                row=QVBoxLayout(widget)
+                row.setContentsMargins(3,3,3,3)
+                row.setSpacing(3)
+                header=QHBoxLayout()
+                name=QLabel(COMPONENTS[code][0])
+                name.setWordWrap(True)
+                name.setSizePolicy(QSizePolicy.Expanding,QSizePolicy.Preferred)
+                estimate=QLabel(component_estimate(code))
+                estimate.setWordWrap(True)
+                estimate.setStyleSheet("color:#a4bdd0;font-size:11px")
+                estimate.setMaximumWidth(320)
+                header.addWidget(name,3)
+                header.addWidget(estimate,2)
+                row.addLayout(header)
+                state=QLabel("Not inspected yet")
+                state.setStyleSheet("color:#bdd6e5;font-size:11px")
+                row.addWidget(state)
+                bar=QProgressBar()
+                bar.setMaximumHeight(12)
+                bar.setRange(0,1000)
+                bar.setValue(0)
+                bar.setTextVisible(False)
+                bar.hide()
+                row.addWidget(bar)
+                self.profile_rows_layout.addWidget(widget)
+                self._profile_row_widgets[code]={"state":state,"bar":bar}
+                if code in status_cache:
+                    self._set_component_state(
+                        code,"installed" if status_cache[code] else "missing")
+            self.profile_components.setText(
+                ("Custom settings · recommended components shown for reference. "
+                 if custom else "Installed status checked automatically, offline. ")+
+                "Download sizes are estimates, not actual transfer totals.")
+
+        def _set_component_state(self,code,status,*,message="",received=None,total=None):
+            row=self._profile_row_widgets.get(code)
+            if row is None:
+                return
+            lbl,bar=row["state"],row["bar"]
+            if status in ("installed","already installed"):
+                lbl.setText("✓ INSTALLED · verified local files")
+                bar.hide()
+            elif status=="missing":
+                lbl.setText("○ NOT INSTALLED · Install all downloads when approved")
+                bar.hide()
+            elif status=="checking":
+                lbl.setText("Checking local installation…")
+                bar.hide()
+            elif status in ("installing","downloading","verifying"):
+                if status=="verifying":
+                    lbl.setText("Verifying installed files…")
+                elif status=="downloading" and isinstance(received,int):
+                    count=f"{received / 1048576:.1f} MiB received"
+                    lbl.setText("Downloading · "+count+
+                                (f" / {total / 1048576:.1f} MiB"
+                                 if isinstance(total,int) and total>0 else
+                                 " · total not reported by server"))
+                else:
+                    lbl.setText(str(message or "Installing / preparing dependencies…")[:150])
+                fraction=progress_fraction(received,total)
+                if fraction is None or status!="downloading":
+                    bar.setRange(0,0)  # honest indeterminate progress
+                else:
+                    bar.setRange(0,1000)
+                    bar.setValue(fraction)
+                bar.show()
+            elif status=="failed":
+                lbl.setText("✕ FAILED · "+str(message)[:180])
+                bar.hide()
 
         def inspect_profile(self):
-            if self._profile_inventory_busy:
-                return
-            key=self.profile_choice.currentData()
+            key=self._display_profile_key()
             if key not in PROFILES:
                 return
+            if self._profile_inventory_busy:
+                self._profile_scan_pending=True
+                return
             self._profile_inventory_busy=True
-            self.profile_components.setText("Inspecting offline models in background…")
+            self._profile_scan_pending=False
+            self.profile_components.setText(
+                "Checking installed components for "+profile(key)["name"]+"…")
+            for code in profile(key)["components"]:
+                self._set_component_state(code,"checking")
             def scan():
-                try:
-                    statuses={name:local_status(name,library=self.library)
-                              for name in profile(key)["components"]}
-                    data={"profile":key,"status":statuses}
-                except Exception as exc:
-                    data={"profile":key,"error":str(exc)[:160]}
-                self.work.put(("profile_inventory",data))
+                # Local only; Argos may run an installed-pairs child process.
+                # None of it blocks the Qt event loop or downloads models.
+                statuses={}
+                failures={}
+                for code in profile(key)["components"]:
+                    try:
+                        statuses[code]=bool(local_status(code,library=self.library))
+                    except Exception as exc:
+                        failures[code]=str(exc)[:140]
+                self.work.put(("profile_inventory",{
+                    "profile":key,"status":statuses,"errors":failures}))
             threading.Thread(target=scan,daemon=True,
                              name="tihulu-profile-inventory").start()
 
         def _show_profile_inventory(self,data):
             self._profile_inventory_busy=False
-            if data["profile"]!=self.profile_choice.currentData():
-                return
-            if "error" in data:
+            key=data["profile"]
+            self._profile_status_cache[key]=data.get("status",{})
+            if key==self._display_profile_key():
+                status=data.get("status",{})
+                errors=data.get("errors",{})
+                for code in profile(key)["components"]:
+                    if code in errors:
+                        self._set_component_state(
+                            code,"failed",message="Status unavailable: "+errors[code])
+                    elif code in status:
+                        self._set_component_state(
+                            code,"installed" if status[code] else "missing")
+                installed=sum(bool(v) for v in status.values())
                 self.profile_components.setText(
-                    "Unable to verify models: "+data["error"])
-                return
-            self.profile_components.setText(
-                "\n".join(("✓ INSTALLED" if installed else "✗ MISSING")+
-                          " · "+COMPONENTS[name][0]
-                          for name,installed in data["status"].items())+
-                "\nMissing components block Select mode.")
+                    f"{installed}/{len(profile(key)['components'])} installed · "+
+                    ("Some checks failed; use Check installed to retry."
+                     if errors else
+                     "No downloads were started. Install all only if needed."))
+            if self._profile_scan_pending or key!=self._display_profile_key():
+                self._profile_scan_pending=False
+                QTimer.singleShot(0,self.inspect_profile)
 
         def install_profile(self):
             key=self.profile_choice.currentData()
@@ -807,19 +1017,36 @@ def open_ai_settings(parent, ai, after_save=None):
                 "Base must be installed and configured separately using "
                 "official vendor HEF/NPY assets. Argos remains CPU-based."
                 if key=="pi5_hat2" else "")
+            if self.running:
+                QMessageBox.information(self,"Install all",
+                    "Another model operation is running.")
+                return
+            # Display each planned transfer BEFORE downloading. Existing
+            # components will be reverified by the worker, not trusted from
+            # stale UI cache. Counts include variable runtime dependencies.
+            known=self._profile_status_cache.get(key,{})
+            details="\n".join(
+                ("✓ Installed · " if known.get(code) else
+                 "• Check/install · ")+COMPONENTS[code][0]+
+                " — "+component_estimate(code)
+                for code in spec["components"])
             if QMessageBox.question(self,"Install all · "+spec["name"],
-                "Download/build missing components now?\n"+
-                spec["description"]+"\nEstimated disk: "+
+                "Review components BEFORE any download:\n\n"+
+                details+"\n\nEstimated total DISK: "+
                 spec["disk_gb_estimate"]+warning+caveat+
-                "\nInstall all does NOT activate the profile. "
-                "Partial successes remain installed for safe retry. Continue?"
+                "\n\nActual transferred bytes may differ, and shared "
+                "dependencies are installed once. The installation is "
+                "owner-approved and resumable; the mode is NOT selected. "
+                "Continue?"
                 ) != QMessageBox.Yes:
                 return
             self.begin("Installing "+spec["name"]+"…",
                 lambda: {"kind":"profile_install","profile":key,
                          "steps":install_components(
                              key,library=self.library,
-                             progress=lambda msg:self.work.put(("progress",msg)))})
+                             progress=lambda msg:self.work.put(("progress",msg)),
+                             events=lambda event:self.work.put((
+                                 "model_event",{"profile":key,**event})))})
 
         def select_profile(self):
             key=self.profile_choice.currentData()
@@ -954,7 +1181,7 @@ def open_ai_settings(parent, ai, after_save=None):
                 "with the Python library, plus separate CPU PyTorch "
                 "dependencies? This uses disk space and a private venv, "
                 "but NO Hugging Face account, token or live audio upload. "
-                "Existing RTX 5080 GPU speech and translator models "
+                "Existing NVIDIA CUDA speech and translator models "
                 "remain untouched.") != QMessageBox.Yes:
                 return
             self.begin("Installing public token-free Resemblyzer runtime…",
@@ -1006,27 +1233,27 @@ def open_ai_settings(parent, ai, after_save=None):
             selected=(self.all_model_list.currentItem().data(Qt.UserRole)
                       if self.all_model_list.currentItem() else None)
             self.all_model_list.clear()
-            try:
-                cuda_ready=FasterWhisperCUDA().installed()
-                nllb_ready=self.translation_market.status()["installed"]
-                free_voice=FreeSpeakerMarket().status()["installed"]
-                private_voice=SpeakerMarket().status()["installed"]
-            except (OSError,RuntimeError,ValueError):
-                cuda_ready=nllb_ready=free_voice=private_voice=False
+            # No runtime probes for text filtering/first-paint.
+            checked=self._all_status_cache or {}
+            def availability(code):
+                state=checked.get(code)
+                return ("INSTALLED" if state is True else
+                        "NOT INSTALLED" if state is False else
+                        "not checked yet")
             entries=[
                 ("speech","Whisper GGML · CPU / CUDA · model library, official search and selectable weights"),
                 ("cuda","Faster-Whisper CUDA Large-v3 Turbo · "+
-                 ("INSTALLED" if cuda_ready else "NOT INSTALLED")+" · managed GPU inference"),
+                 availability("cuda")+" · managed GPU inference"),
                 ("argos","Argos Translate · installable source → target language packs"),
                 ("nllb","NLLB-200 600M · "+
-                 ("INSTALLED" if nllb_ready else "NOT INSTALLED")+
+                 availability("nllb")+
                  " · multilingual translator (noncommercial license)"),
                 ("madlad","MADLAD-400 3B · Apache-2.0 · optional large CUDA offline translator"),
                 ("deepl","DeepL API · proprietary online text-only translation; user API key needed"),
-                ("speaker","Resemblyzer · "+("INSTALLED" if free_voice else "NOT INSTALLED")+
+                ("speaker","Resemblyzer · "+availability("speaker")+
                  " · local voice clustering, no demographic labels"),
                 ("speaker-private","pyannote · "+
-                 ("INSTALLED" if private_voice else "NOT INSTALLED")+
+                 availability("speaker-private")+
                  " · separately licensed, token-gated diarization"),
                 ("lyrics","Plain lyric alignment · existing Whisper ASR + conservative text matcher"),
                 ("npu","Dedicated NPU · runtime/model compatibility must be verified")]
@@ -1038,6 +1265,26 @@ def open_ai_settings(parent, ai, after_save=None):
                 self.all_model_list.addItem(row)
                 if code==selected:
                     self.all_model_list.setCurrentItem(row)
+
+
+        def inspect_all_status(self):
+            if self._all_status_busy:
+                return
+            self._all_status_busy=True
+            def scan():
+                try:
+                    results={
+                        "cuda":FasterWhisperCUDA().installed(),
+                        "nllb":self.translation_market.status()["installed"],
+                        "speaker":FreeSpeakerMarket().status()["installed"],
+                        "speaker-private":SpeakerMarket().status()["installed"],
+                        "madlad":MadladMarket().status()["installed"],
+                    }
+                    self.work.put(("all_status",{"status":results}))
+                except Exception as exc:
+                    self.work.put(("all_status",{"error":str(exc)[:160]}))
+            threading.Thread(target=scan,daemon=True,
+                             name="tihulu-all-model-inventory").start()
 
         def open_all_model_category(self):
             item=self.all_model_list.currentItem()
@@ -1132,7 +1379,7 @@ def open_ai_settings(parent, ai, after_save=None):
                 QMessageBox.information(
                     self,"Optional source compiler unavailable",
                     "You pressed the whisper.cpp source-build button. "
-                    "For your RTX 5080 without nvcc, use the green-path "
+                    "For NVIDIA GPUs without nvcc, use the prebuilt CUDA "
                     "'Install CUDA Faster-Whisper Large-v3 Turbo' button "
                     "below instead. It requires no CUDA Toolkit compiler.\n\n" +
                     capability["reason"])
@@ -1154,7 +1401,7 @@ def open_ai_settings(parent, ai, after_save=None):
                 verified = FasterWhisperCUDA().inference_selftest()
                 if not verified["ready"]:
                     raise RuntimeError(str(verified.get("reason") or "GPU test failed"))
-                return "Real CUDA model inference self-test passed · RTX GPU ready."
+                return "Real CUDA model inference self-test passed · NVIDIA GPU ready."
             self.begin("Loading model and testing real CUDA kernels…", check)
 
         def install_fast_cuda_runtime(self):
@@ -1323,6 +1570,46 @@ def open_ai_settings(parent, ai, after_save=None):
                 " → " + pair["target"] + ". "
                 "Choose Argos translator and Save settings to use it.")
 
+        def test_live_argos_pair(self):
+            from .language_codes import language_code
+            try:
+                src=language_code(self.source.currentText())
+                dst=language_code(self.target.currentText())
+            except (ValueError,TypeError) as exc:
+                QMessageBox.warning(self,"Invalid translation direction",str(exc))
+                return
+            if src==dst:
+                QMessageBox.information(self,"Translation test",
+                    "Choose two different source and target languages.")
+                return
+            samples={
+                "de":"Guten Morgen, wie geht es Ihnen?",
+                "en":"Hello, how are you?",
+                "tr":"Merhaba, nasılsınız?",
+                "fr":"Bonjour, comment allez-vous?",
+                "es":"Buenos días, ¿cómo está?",
+                "pl":"Dzień dobry, jak się masz?",
+                "ar":"مرحبا، كيف حالك؟",
+                "ja":"こんにちは、お元気ですか？",
+            }
+            if src not in samples:
+                QMessageBox.information(self,"Translation test",
+                    "No locally validated sample for "+src.upper()+
+                    ". Use a supported common language or test from live speech.")
+                return
+            def verify():
+                from .runtime import AIRuntime
+                if not AIRuntime().status()["installed"]:
+                    raise RuntimeError("Managed Argos venv unavailable; install Argos first")
+                from .translation_service import translate_argos
+                result=translate_argos(samples[src],src,dst)
+                if not isinstance(result,str) or not result.strip():
+                    raise RuntimeError("Live Argos worker returned no translation")
+                return ("Managed live-worker "+src.upper()+" → "+dst.upper()+
+                        " PASS: "+result[:180])
+            self.begin("Testing installed Argos "+src.upper()+" → "+
+                       dst.upper()+" in real live worker…",verify)
+
         def refresh_online_models(self):
             query = self.online_query.text().strip()
             self.begin("Searching official online Whisper GGML model catalog…",
@@ -1482,6 +1769,9 @@ def open_ai_settings(parent, ai, after_save=None):
                 QMessageBox.information(self, "Model operation", "A model operation is already running")
                 return
             self.running = True
+            self.profile_install.setEnabled(False)
+            self.profile_select.setEnabled(False)
+            self.profile_inspect.setEnabled(False)
             self.feedback.setText(label)
             def worker():
                 try:
@@ -1503,21 +1793,61 @@ def open_ai_settings(parent, ai, after_save=None):
                     self._show_starter(data)
                 elif kind == "profile_inventory":
                     self._show_profile_inventory(data)
+                elif kind == "all_status":
+                    self._all_status_busy=False
+                    if "status" in data:
+                        self._all_status_cache=data["status"]
+                        self.refresh_all_models()
+                    else:
+                        self.feedback.setText(
+                            "Optional model inventory failed: "+data["error"])
+                elif kind == "model_event":
+                    if data.get("profile")==self._display_profile_key():
+                        self._set_component_state(
+                            data["component"],data["state"],
+                            message=data.get("message",""),
+                            received=data.get("received"),
+                            total=data.get("total"))
+                    if data["state"] in ("installed","already installed"):
+                        self._profile_status_cache.setdefault(
+                            data["profile"],{})[data["component"]]=True
+                    elif data["state"]=="failed":
+                        self._profile_status_cache.setdefault(
+                            data["profile"],{})[data["component"]]=False
                 elif kind == "progress":
                     self.feedback.setText(str(data))
                 elif kind == "done":
                     self.running = False
+                    self.profile_install.setEnabled(True)
+                    self.profile_select.setEnabled(True)
+                    self.profile_inspect.setEnabled(True)
                     if isinstance(data,dict) and data.get("kind") == "profile_selection":
                         try:
                             self.ai.update(data["patch"])
                             self.ai.configure_environment()
-                            self.backend.setCurrentText(data["patch"]["backend"])
-                            self.model_path.setText(data["patch"]["model_path"])
-                            self.translation_choice.setCurrentIndex(
-                                max(0,self.translation_choice.findData(
-                                    data["patch"]["translation_model"])))
-                            self.asr.setChecked(True)
-                            self.translator.setChecked(True)
+                            self._applying_profile=True
+                            try:
+                                backend=data["patch"]["backend"]
+                                if self.backend.findText(backend)<0:
+                                    self.backend.addItem(backend)
+                                self.backend.setCurrentText(backend)
+                                self.model_path.setText(data["patch"]["model_path"])
+                                translator_id=data["patch"]["translation_model"]
+                                self.translation_choice.setCurrentIndex(
+                                    max(0,self.translation_choice.findData(translator_id)))
+                                self.asr.setChecked(data["patch"]["asr_enabled"])
+                                self.translator.setChecked(data["patch"]["translation_enabled"])
+                                cpu_index=self.pi_threads.findData(
+                                    data["patch"].get("pi_cpu_threads",3))
+                                if cpu_index>=0:
+                                    self.pi_threads.setCurrentIndex(cpu_index)
+                                self._manual_custom=False
+                                self._active_profile=data["profile"]
+                                self._custom_base=data["profile"]
+                                self.profile_choice.setCurrentIndex(
+                                    self.profile_choice.findData(data["profile"]))
+                            finally:
+                                self._applying_profile=False
                             self.feedback.setText(
                                 "ACTIVE: "+profile(data["profile"])["name"]+
                                 (" · Hailo-10H Whisper selected (CPU fallback enabled)"
@@ -1565,16 +1895,24 @@ def open_ai_settings(parent, ai, after_save=None):
                     else:
                         self.feedback.setText("Completed: " + str(data))
                     self.populate_models()
-                    self.inspect_argos()
-                    self.inspect_runtime()
-                    self.inspect_starter()
-                    self.inspect_nllb()
-                    self.inspect_speaker()
-                    self.inspect_compute()
-                    if after_save:
-                        after_save()
+                    # Don't fan out many Argos/GPU/translator probes after
+                    # every completed model operation. Refresh only the
+                    # currently visible tab, and background expensive status.
+                    self._all_status_cache=None
+                    current=self.model_tabs.currentIndex()
+                    if current==0:
+                        self.inspect_profile()
+                    elif current==4:
+                        self.inspect_all_status()
+                    elif current==1:
+                        self.inspect_starter()
+                    elif current==2:
+                        self.inspect_argos()
                 else:
                     self.running = False
+                    self.profile_install.setEnabled(True)
+                    self.profile_select.setEnabled(True)
+                    self.profile_inspect.setEnabled(True)
                     self.feedback.setText("Failed: " + str(data))
 
         def download_model(self):
@@ -1706,10 +2044,13 @@ def open_ai_settings(parent, ai, after_save=None):
                 allowed=(
                     ("cpu","npu") if old_profile=="pi5_hat2"
                     else (spec["backend"],) if spec else ())
-                still_profile=bool(spec and
-                    self.backend.currentText() in allowed and
-                    self.translation_choice.currentData()==spec["translator"] and
-                    self.model_path.text().strip()==str(
+                still_profile=bool(
+                    not self._manual_custom and spec
+                    and self.asr.isChecked()
+                    and self.translator.isChecked()
+                    and self.backend.currentText() in allowed
+                    and self.translation_choice.currentData()==spec["translator"]
+                    and self.model_path.text().strip()==str(
                         self.library._path(spec["speech"])))
                 ai.update({
                     "active_profile":old_profile if still_profile else "",
@@ -1726,7 +2067,8 @@ def open_ai_settings(parent, ai, after_save=None):
                 })
                 ai.configure_environment()
                 self.populate_models()
-                self.inspect_nllb()
+                # Saving must not run large NLLB/Argos/PyTorch inventory on
+                # the UI thread; the language tab refreshes when opened.
                 if after_save: after_save()
             except (OSError, ValueError) as exc:
                 QMessageBox.warning(self, "Settings failed", str(exc))
