@@ -89,12 +89,16 @@ def translate_offline(text:str,source:str,target:str,backend:str="auto")->str:
         raise ValueError("Translation text must be 1–12000 characters")
     if source==target:
         return text
-    devices=translation_devices()
+    # An Argos CPU request must never enumerate every translation graph
+    # or initialise CTranslate2 CUDA merely to translate ONE phrase.
+    # Cold GPU discovery on each six-second live clip can exceed the
+    # caption budget and produce false "language pack unavailable" errors.
     if backend=="npu":
         raise TranslatorUnavailable("No tested NPU translation engine/model installed")
     if backend=="auto":
-        backend="gpu" if devices["gpu_available"] else "cpu"
+        backend="cpu"  # explicit GPU is separately selectable and verified
     if backend=="gpu":
+        devices=translation_devices()
         if not devices["gpu_available"]:
             raise TranslatorUnavailable("CUDA CTranslate2 GPU translation unavailable or models missing")
         env=os.environ.copy()
