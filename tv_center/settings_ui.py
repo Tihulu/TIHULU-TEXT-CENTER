@@ -161,7 +161,7 @@ def open_ai_settings(parent, ai, after_save=None):
                 ai.values["backend"] if self.backend.findText(
                     ai.values["backend"]) >= 0 else "auto")
             self.backend.setToolTip(
-                "RTX 5080 is GPU CUDA, NOT NPU. Remote requires explicit TLS and token. NPU is shown only when "
+                "NVIDIA CUDA is GPU, NOT NPU. Remote requires explicit TLS and token. NPU is shown only when "
                 "a compatible discrete Intel/Hailo accelerator is detected.")
             form.addRow("Inference engine", self.backend)
             self.compute = QLabel("")
@@ -243,7 +243,7 @@ def open_ai_settings(parent, ai, after_save=None):
             models_layout.addWidget(self.active_speech_label)
             self.model_path.textChanged.connect(lambda *_: self.populate_models())
             recommended = QLabel(
-                "RTX 5080 recommendation: prebuilt CUDA Large-v3 Turbo "
+                "NVIDIA CUDA recommendation (min 12 GB VRAM): prebuilt Large-v3 Turbo "
                 "(word-timed live captions). CPU fallback: Small → Medium. "
                 "Browse the official verified catalog for other quality "
                 "tiers and install/select them here.")
@@ -602,7 +602,7 @@ def open_ai_settings(parent, ai, after_save=None):
                 "Resemblyzer · public Apache-2.0 model · NO Hugging Face "
                 "account, token or access approval. Install once; all TV "
                 "audio stays on this computer. Lightweight CPU inference "
-                "runs separately from the RTX 5080 Whisper GPU.")
+                "runs separately from a compatible NVIDIA CUDA Whisper GPU.")
             overview.setWordWrap(True)
             public_layout.addWidget(overview)
             self.free_speaker_status = QLabel("Checking public model…")
@@ -1104,7 +1104,7 @@ def open_ai_settings(parent, ai, after_save=None):
                 "with the Python library, plus separate CPU PyTorch "
                 "dependencies? This uses disk space and a private venv, "
                 "but NO Hugging Face account, token or live audio upload. "
-                "Existing RTX 5080 GPU speech and translator models "
+                "Existing NVIDIA CUDA speech and translator models "
                 "remain untouched.") != QMessageBox.Yes:
                 return
             self.begin("Installing public token-free Resemblyzer runtime…",
@@ -1302,7 +1302,7 @@ def open_ai_settings(parent, ai, after_save=None):
                 QMessageBox.information(
                     self,"Optional source compiler unavailable",
                     "You pressed the whisper.cpp source-build button. "
-                    "For your RTX 5080 without nvcc, use the green-path "
+                    "For NVIDIA GPUs without nvcc, use the prebuilt CUDA "
                     "'Install CUDA Faster-Whisper Large-v3 Turbo' button "
                     "below instead. It requires no CUDA Toolkit compiler.\n\n" +
                     capability["reason"])
