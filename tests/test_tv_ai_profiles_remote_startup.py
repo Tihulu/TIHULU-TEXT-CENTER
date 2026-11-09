@@ -135,10 +135,11 @@ class RemoteGPUTests(unittest.TestCase):
 
 class DeferredStartupTests(unittest.TestCase):
     def test_model_market_and_native_tv_window_avoid_synchronous_ai_startup(self):
-        from tv_center.settings_ui import open_ai_settings
-        from tv_center.desktop import main
-        ui=inspect.getsource(open_ai_settings)
-        desktop=inspect.getsource(main)
+        # CI deliberately runs headless without PyQt5; inspect source
+        # rather than importing desktop.py's eagerly imported Qt scan UI.
+        source=Path(__file__).resolve().parent.parent/"tv_center"
+        ui=(source/"settings_ui.py").read_text(encoding="utf-8")
+        desktop=(source/"desktop.py").read_text(encoding="utf-8")
         self.assertIn("quick_hardware()",ui)
         self.assertIn("QTimer.singleShot(0, self.inspect_compute)",ui)
         self.assertIn("threading.Thread(target=scan",ui)
