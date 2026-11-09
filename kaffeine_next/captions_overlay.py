@@ -795,6 +795,25 @@ def main(argv=None):
                 available[code]={**old,**item,"engines":engines}
             else:
                 available[code]=item
+        # Keep Spoken choices in sync with the actual output-language
+        # catalog while respecting Whisper's *source* language support.
+        # Discovery never changes the viewer's current Spoken selection.
+        previous_source=source.currentText()
+        previous_index=source.currentIndex()
+        source.blockSignals(True)
+        try:
+            for code in dict.fromkeys([*baseline,*sorted(available),
+                                           *sorted(requested_languages)]):
+                if code in WHISPER_LANGUAGES and source.findText(code)<0:
+                    source.addItem(code,code)
+            if previous_index==0:
+                source.setCurrentIndex(0)
+            elif source.findText(previous_source)>=0:
+                source.setCurrentIndex(source.findText(previous_source))
+            else:
+                source.setEditText(previous_source)
+        finally:
+            source.blockSignals(False)
         output_menu.clear()
         language_boxes.clear()
         content=QWidget(output_menu)
@@ -1291,7 +1310,8 @@ def main(argv=None):
     apply = QPushButton("Apply")
     apply.setObjectName("apply")
     reset = QPushButton("Reset")
-    pending = QLabel("Applied: broadcaster auto · German → Turkish · video captions ON")
+    pending = QLabel("Pending: Spoken Auto detect · output English · "
+                     "apply to begin; broadcast language may change")
     buttons.addWidget(apply); buttons.addWidget(reset); buttons.addWidget(pending, 1)
     root.addLayout(buttons)
     behavior = QHBoxLayout()
@@ -1882,7 +1902,7 @@ def main(argv=None):
                 if translator.itemData(i)==proposed_engine:
                     translator.setCurrentIndex(i)
         pane.addWidget(QLabel(
-            "Translation engine (only ALL user-selected directions verified):"+
+            "Translation engine (only ALL selected directions verified):"+
             (" · "+", ".join(a.upper()+"→"+b.upper()
                               for a,b in sorted(tested_pairs))
              if tested_pairs else " · no direction tested")+
