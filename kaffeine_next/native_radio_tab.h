@@ -3772,11 +3772,26 @@ private:
                     }
 				}
 			}
-			// The stream cache is only a requested network delay; not a
-			// confirmed DAC timestamp. The user's manual offset is ALWAYS
-			// applied to the already-generated cue's display time.
-			const int remaining=activePlaybackCacheMs_-6000-inference-
-				sentenceHoldMs+550;
+            // Use a real captured PCM phrase-end time rather than
+            // anchoring captions to the end of potentially slow multi-
+            // language translation. This estimates stream presentation,
+            // NOT real libVLC audio/DAC PTS.
+            const qint64 wordEpoch=qRound64(obj.value(
+                QLatin1String("subtitle_audio_end_epoch_ms")).toDouble(0.));
+            const bool hasCaptureTime=wordEpoch>now-120000 &&
+                                      wordEpoch<now+20000;
+            const int remaining=activePlaybackCacheMs_-6000-inference-
+                sentenceHoldMs+550;
+            const qint64 requestedDue=hasCaptureTime?
+                wordEpoch+activePlaybackCacheMs_+radioOffsetMs_->value():
+                now+qMax(0,remaining)+radioOffsetMs_->value();
+            const qint64 lateBy=qMax(qint64(0),now-requestedDue);
+            const qint64 due=qMax(now,requestedDue);
+            if(lateBy>3000)
+                syncStatus_->setText(tr(
+                    "Radio AI %1 ms behind captured audio; captions are "
+                    "late. Reduce output languages or use faster models.")
+                    .arg(lateBy));
 			QString caption=obj.value(QLatin1String("original")).toString();
 			const QJsonArray speakers=obj.value(QLatin1String("speaker_turns")).toArray();
 			if(!caption.isEmpty() && !speakers.isEmpty() && !music_->isChecked()) {
@@ -3789,7 +3804,7 @@ private:
 				if(it.value().isString())
 					caption+=QLatin1String("\n[")+it.key().toUpper()+
 						QLatin1String("] ")+it.value().toString();
-			const qint64 due=now+qMax(0,remaining)+radioOffsetMs_->value();
+
 			if(!caption.isEmpty() &&
                obj.value(QLatin1String("speech_preserved_when_lyrics_unmatched"))
                    .toBool()) {
