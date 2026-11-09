@@ -54,7 +54,10 @@ class WordCueTests(unittest.TestCase):
         self.assertIsNotNone(queue.poll(120.2,cfg.revision))
         # Without the fix the 1.75s reading slot delayed voice 2
         # until 121.9s (and accumulated further with each new speaker).
-        self.assertEqual(queue.poll(120.8,cfg.revision)["result"]["original"],
+        # Comfort reading holds even a brief source-word group long
+        # enough to see it, without stacking a 1.75s delay for each word.
+        self.assertIsNone(queue.poll(120.8,cfg.revision))
+        self.assertEqual(queue.poll(121.05,cfg.revision)["result"]["original"],
                          "Second voice")
 
     def test_overlapping_speaker_windows_do_not_mislabel_a_new_voice(self):
