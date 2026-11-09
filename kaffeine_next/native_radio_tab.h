@@ -595,6 +595,21 @@ public:
 			"QLabel{background:#122637;color:#eef9fc;font-size:19px;"
 			"border:1px solid #2b566b;border-radius:8px;padding:12px;}"));
 		playerHostLayout_->addWidget(radioCanvas_);
+        // Radio subtitles belong INSIDE the large station surface, not
+        // in the settings-only panel. Preserve radioCanvas_'s station art/
+        // receiver text; a separate bottom child overlays real cues.
+        auto *captionSurface=new QVBoxLayout(radioCanvas_);
+        captionSurface->setContentsMargins(12,12,12,12);
+        captionSurface->addStretch(1);
+        radioCanvasCaption_=new QLabel(radioCanvas_);
+        radioCanvasCaption_->setTextFormat(Qt::PlainText);
+        radioCanvasCaption_->setWordWrap(true);
+        radioCanvasCaption_->setAlignment(Qt::AlignHCenter | Qt::AlignVCenter);
+        radioCanvasCaption_->setStyleSheet(QLatin1String(
+            "QLabel{background:rgba(0,0,0,205);color:white;"
+            "border-radius:5px;padding:8px;font-size:16px;}"));
+        radioCanvasCaption_->setVisible(false);
+        captionSurface->addWidget(radioCanvasCaption_);
 
 		auto *meta = new QHBoxLayout();
 		slide_ = new QLabel(tr("No DAB slideshow"), right);
@@ -639,9 +654,14 @@ public:
 		auto *row = new QGridLayout();
         row->setHorizontalSpacing(7);
         row->setVerticalSpacing(5);
+        v->addWidget(new QLabel(
+            tr("<b>1 · Recognize audio</b> · independent of the output languages"),lab));
 		speechLanguage_ = new QComboBox(lab);
 		speechLanguage_->addItem(tr("Auto detect · GPU Whisper"),"auto");
-		speechLanguage_->addItems({"de","en","tr","fr","es","pl","ar","ja"});
+        // The complete supported Whisper input set is filled from the
+        // shared catalog. Keep a usable offline fallback until it arrives.
+        for(const QString &code:QStringList{"de","en","tr","fr","es","pl","ar","ja"})
+            speechLanguage_->addItem(code.toUpper(),code);
 		speechLanguage_->setEditable(true);
 		speechLanguage_->setCurrentIndex(0);
 		captionSource_=new QComboBox(lab);
@@ -678,13 +698,16 @@ public:
         row->addWidget(captionSource_,0,1,1,2);
         row->addWidget(new QLabel(tr("Speech language:"),lab),1,0);
         row->addWidget(speechLanguage_,1,1,1,2);
-        row->addWidget(english_,2,0);
-        row->addWidget(german_,2,1);
-        row->addWidget(turkish_,2,2);
+        // Legacy quick checkboxes are retained as disabled compatibility
+        // objects only. ONE checkable multi-output list below owns targets.
+        english_->hide(); german_->hide(); turkish_->hide();
         row->addWidget(music_,3,0,1,2);
         row->addWidget(speakerLabels_,3,2);
         row->setColumnStretch(1,1);
 		v->addLayout(row);
+        v->addWidget(new QLabel(tr(
+            "<b>2 · Output subtitles</b> · choose up to six checked languages; "
+            "original audio is always included"),lab));
         translationStatus_=new QLabel(tr(
             "Translations: show original audio first. Select output languages; "
             "automatic source translation waits for reliable Whisper detection."),lab);
@@ -693,52 +716,162 @@ public:
         v->addWidget(translationStatus_);
 		extraTargets_=new QLineEdit(lab);
 		extraTargets_->setPlaceholderText(
-			tr("Extra translation targets (optional): fr, es, pl, ar, ja..."));
+			tr("Advanced · additional ISO targets not listed (comma-separated)"));
+        extraTargets_->setToolTip(tr(
+            "Advanced override for NLLB/MADLAD-supported ISO codes. "
+            "A model weight file is not proof of real translation ability."));
+        extraTargets_->setVisible(false);
+        advancedLanguages_=new QCheckBox(tr("Advanced · enter other output language codes"),lab);
+        connect(advancedLanguages_,&QCheckBox::toggled,extraTargets_,
+                &QWidget::setVisible);
+        v->addWidget(advancedLanguages_);
 		v->addWidget(extraTargets_);
 		auto *targetRow=new QHBoxLayout();
 		installedTargets_=new QListWidget(lab);
-		installedTargets_->setMaximumHeight(95);
-		installedTargets_->setToolTip(tr("Select any target languages actually installed "
-			"via Argos. NLLB multilingual targets may also be entered above."));
-		refreshTargets_=new QPushButton(tr("Refresh installed language packs"),lab);
+		installedTargets_->setMinimumHeight(110);
+        installedTargets_->setMaximumHeight(180);
+		installedTargets_->setToolTip(tr("Shared TV/Radio Model Market catalog: "
+            "Argos pairs, NLLB/MADLAD installed weights and explicitly configured "
+            "online DeepL. Check up to six outputs. Listed does not guarantee "
+            "the selected source-to-target translation will succeed."));
+		refreshTargets_=new QPushButton(tr("Refresh installed models / languages"),lab);
 		refreshTargets_->setToolTip(tr("Read-only local model catalog; never downloads models."));
 		targetRow->addWidget(installedTargets_,1);
-		targetRow->addWidget(refreshTargets_);
+        auto *modelButtons=new QVBoxLayout();
+        modelButtons->addWidget(refreshTargets_);
+        auto *openModelMarket=new QPushButton(tr("Open AI Model Market"),lab);
+        openModelMarket->setToolTip(tr(
+            "Open the same Whisper / translator manager used by TV. "
+            "Refresh this radio catalog after applying another model."));
+        connect(openModelMarket,&QPushButton::clicked,this,[this](){
+            if(!QProcess::startDetached(QLatin1String("tihulu-tv-center"),
+                {QLatin1String("ai-market")}))
+                translationStatus_->setText(tr(
+                    "Could not open Model Market; use the TIHULU AI menu."));
+        });
+        modelButtons->addWidget(openModelMarket);
+		targetRow->addLayout(modelButtons);
 		v->addLayout(targetRow);
 		connect(refreshTargets_,&QPushButton::clicked,this,[this](){refreshLanguagePacks();});
-		connect(&languagePackWorker_,
-			QOverload<int,QProcess::ExitStatus>::of(&QProcess::finished),this,
-			[this](int status,QProcess::ExitStatus exitStatus){
-				refreshTargets_->setEnabled(true);
-				if(status!=0 || exitStatus!=QProcess::NormalExit){
-					state_->setText(tr("Could not inspect installed translation packs."));
-					return;
-				}
-				const QJsonDocument doc=QJsonDocument::fromJson(languagePackWorker_.readAllStandardOutput());
-				const QJsonArray pairs=doc.object().value(QLatin1String("installed_pairs")).toArray();
-				QSet<QString> selected;
-				for(int i=0;i<installedTargets_->count();++i)
-					if(installedTargets_->item(i)->checkState()==Qt::Checked)
-						selected.insert(installedTargets_->item(i)->data(Qt::UserRole).toString());
-				QSet<QString> languages;
-				for(const QJsonValue &value:pairs){
-					const QString pair=value.toString();
-					const QString lang=pair.section(QChar(0x2192),1).trimmed();
-					if(QRegularExpression(QLatin1String("^[a-z]{2,3}$")).match(lang).hasMatch())
-						languages.insert(lang);
-				}
-				installedTargets_->clear();
-				QStringList langs=QStringList(languages.values());
-				langs.sort();
-				for(const QString &lang:langs){
-					auto *item=new QListWidgetItem(lang.toUpper()+tr(" · installed Argos target"),installedTargets_);
-					item->setData(Qt::UserRole,lang);
-					item->setFlags(item->flags()|Qt::ItemIsUserCheckable);
-					item->setCheckState(selected.contains(lang)?Qt::Checked:Qt::Unchecked);
-				}
-				state_->setText(tr("Installed Argos targets: %1. Select desired outputs above.")
-					.arg(langs.join(QLatin1String(", "))));
-			});
+        connect(&languagePackWorker_,
+            QOverload<int,QProcess::ExitStatus>::of(&QProcess::finished),this,
+            [this](int status,QProcess::ExitStatus exitStatus){
+                refreshTargets_->setEnabled(true);
+                if(status!=0 || exitStatus!=QProcess::NormalExit){
+                    translationStatus_->setText(tr(
+                        "Language catalog unavailable. Refresh to retry; "
+                        "current checked outputs are preserved."));
+                    return;
+                }
+                const QJsonDocument doc=QJsonDocument::fromJson(
+                    languagePackWorker_.readAllStandardOutput());
+                const QJsonObject info=doc.object();
+                const QJsonArray catalog=info.value(
+                    QLatin1String("languages")).toArray();
+                if(catalog.isEmpty() && !info.contains(
+                    QLatin1String("speech_languages"))) {
+                    translationStatus_->setText(tr(
+                        "No model catalog returned; previous language choices kept."));
+                    return;
+                }
+                QSet<QString> selected;
+                if(installedTargets_->count()>0) {
+                    for(int i=0;i<installedTargets_->count();++i) {
+                        const QListWidgetItem *item=installedTargets_->item(i);
+                        if(item->checkState()==Qt::Checked)
+                            selected.insert(item->data(Qt::UserRole).toString());
+                    }
+                } else {
+                    QSettings preferences(QLatin1String("TIHULU"),
+                                         QLatin1String("KaffeineRadio"));
+                    const QStringList saved=preferences.value(
+                        QLatin1String("radioOutputs"),
+                        QStringList{QLatin1String("en"),QLatin1String("de"),
+                                    QLatin1String("tr")}).toStringList();
+                    for(const QString &code:saved) selected.insert(code);
+                }
+                {
+                    const QSignalBlocker block(installedTargets_);
+                    installedTargets_->clear();
+                    for(const QJsonValue &value:catalog) {
+                        const QJsonObject model=value.toObject();
+                        const QString code=model.value(
+                            QLatin1String("code")).toString();
+                        if(!QRegularExpression(QLatin1String("^[a-z]{2,3}$"))
+                           .match(code).hasMatch()) continue;
+                        QStringList engines;
+                        for(const QJsonValue &engine:model.value(
+                            QLatin1String("engines")).toArray())
+                            engines<<engine.toString();
+                        auto *item=new QListWidgetItem(
+                            code.toUpper()+QLatin1String(" · ")+
+                            model.value(QLatin1String("label")).toString()+
+                            QLatin1String(" · ")+engines.join(QLatin1String(" / ")),
+                            installedTargets_);
+                        item->setData(Qt::UserRole,code);
+                        item->setFlags(item->flags()|Qt::ItemIsUserCheckable);
+                        item->setCheckState(selected.contains(code)?
+                            Qt::Checked:Qt::Unchecked);
+                        item->setToolTip(tr(
+                            "Installed/local model metadata, NOT verified "
+                            "source-to-target inference. Online DeepL sends "
+                            "text only with existing consent and API key."));
+                    }
+                }
+                const QString previous=speechLanguage_->currentData().isValid()?
+                    speechLanguage_->currentData().toString():
+                    speechLanguage_->currentText().trimmed().toLower();
+                const QJsonArray inputLanguages=info.value(
+                    QLatin1String("speech_languages")).toArray();
+                if(!inputLanguages.isEmpty()){
+                    const QSignalBlocker block(speechLanguage_);
+                    speechLanguage_->clear();
+                    speechLanguage_->addItem(tr("Auto detect · GPU Whisper"),"auto");
+                    for(const QJsonValue &value:inputLanguages){
+                        const QJsonObject entry=value.toObject();
+                        const QString code=entry.value(
+                            QLatin1String("code")).toString();
+                        if(code.isEmpty()) continue;
+                        speechLanguage_->addItem(
+                            entry.value(QLatin1String("label")).toString()+
+                            QLatin1String(" (")+code.toUpper()+QLatin1Char(')'),
+                            code);
+                    }
+                    const int index=speechLanguage_->findData(previous);
+                    speechLanguage_->setCurrentIndex(index>=0?index:0);
+                }
+                translationStatus_->setText(tr(
+                    "Selected TV/Radio translator: %1 · speech backend: %2. "
+                    "%3 candidate outputs from installed model metadata. "
+                    "Check up to six; inference is verified only during playback.")
+                    .arg(info.value(QLatin1String("selected_translator"))
+                            .toString(QLatin1String("unknown")),
+                         info.value(QLatin1String("selected_speech_backend"))
+                            .toString(QLatin1String("auto")))
+                    .arg(installedTargets_->count()));
+            });
+        // Keep output selections stable across AI tab and station changes.
+        connect(installedTargets_,&QListWidget::itemChanged,this,
+            [this](QListWidgetItem *changed){
+                if(!changed || changed->data(Qt::UserRole).toString().isEmpty())
+                    return;
+                QStringList selected;
+                for(int i=0;i<installedTargets_->count();++i) {
+                    QListWidgetItem *item=installedTargets_->item(i);
+                    if(item->checkState()==Qt::Checked)
+                        selected<<item->data(Qt::UserRole).toString();
+                }
+                if(selected.size()>6) {
+                    const QSignalBlocker block(installedTargets_);
+                    changed->setCheckState(Qt::Unchecked);
+                    translationStatus_->setText(tr(
+                        "Select at most six output languages."));
+                    return;
+                }
+                QSettings preferences(QLatin1String("TIHULU"),
+                                     QLatin1String("KaffeineRadio"));
+                preferences.setValue(QLatin1String("radioOutputs"),selected);
+            });
 		auto *syncControls=new QGridLayout();
 		bufferMs_=new QSpinBox(lab);
 		bufferMs_->setRange(0,60000);
@@ -777,8 +910,21 @@ public:
 		syncControls->addWidget(radioOffsetMs_,1,1);
 		syncControls->addWidget(autoSync_,1,2);
 		syncControls->setColumnStretch(2,1);
-		v->addLayout(syncControls);
-		v->addWidget(autoRestartAudio_);
+        // Keep latency diagnostics available without turning the normal
+        // caption/lyrics workflow into a wall of timing controls.
+        auto *advancedSyncToggle=new QCheckBox(
+            tr("Advanced · audio cache, timing & diagnostics"),lab);
+        advancedSyncToggle->setChecked(false);
+        auto *advancedSyncPanel=new QWidget(lab);
+        auto *advancedSyncLayout=new QVBoxLayout(advancedSyncPanel);
+        advancedSyncLayout->setContentsMargins(0,2,0,2);
+        advancedSyncLayout->addLayout(syncControls);
+        advancedSyncLayout->addWidget(autoRestartAudio_);
+        advancedSyncPanel->setVisible(false);
+        connect(advancedSyncToggle,&QCheckBox::toggled,
+                advancedSyncPanel,&QWidget::setVisible);
+        v->addWidget(advancedSyncToggle);
+        v->addWidget(advancedSyncPanel);
 		lastCaptionOffsetMs_=radioOffsetMs_->value();
 		connect(radioOffsetMs_,QOverload<int>::of(&QSpinBox::valueChanged),
 			this,[this](int newOffset){
@@ -792,24 +938,24 @@ public:
             "unverified physical audio clock. No automatic audio restarts.")
             .arg(activePlaybackCacheMs_),lab);
 		syncStatus_->setWordWrap(true);
-		v->addWidget(syncStatus_);
+        advancedSyncLayout->addWidget(syncStatus_);
 		audioCacheProgress_=new QProgressBar(lab);
 		audioCacheProgress_->setRange(0,100);
 		audioCacheProgress_->setValue(0);
 		audioCacheProgress_->setFormat(tr("Requested audio cache · not started"));
 		audioCacheProgress_->setToolTip(tr("Estimated time since opening a stream, NOT "
 			"verified buffer fill, actual DAC output clock or lip sync."));
-		v->addWidget(audioCacheProgress_);
+        advancedSyncLayout->addWidget(audioCacheProgress_);
 		bufferRecommendation_=new QLabel(tr("Buffer recommendation: awaiting real ASR timing"),lab);
 		bufferRecommendation_->setWordWrap(true);
-		v->addWidget(bufferRecommendation_);
+        advancedSyncLayout->addWidget(bufferRecommendation_);
 		captionProgress_=new QProgressBar(lab);
 		captionProgress_->setRange(0,100);
 		captionProgress_->setValue(0);
 		captionProgress_->setFormat(tr("Caption timeline · waiting for decoded audio"));
 		captionProgress_->setToolTip(tr("Estimated time to hear the decoded phrase. "
 			"Audio cache is requested, not independently measured at the sound card."));
-		v->addWidget(captionProgress_);
+        advancedSyncLayout->addWidget(captionProgress_);
 		connect(applyBuffer,&QPushButton::clicked,this,[this](){ applyRadioBuffer(); });
 		auto *captionActions=new QHBoxLayout();
 		captionActions->addStretch(1);
@@ -863,9 +1009,10 @@ public:
 			"buffer as an estimated timeline, not a verified sound-card timebase."));
 		preferLyrics_=new QCheckBox(tr("Prefer matched lyrics / hide uncertain sung words"),lab);
 		preferLyrics_->setChecked(true);
-		preferLyrics_->setToolTip(tr("When plain lyrics from an opted-in LRCLIB search are found, "
-			"show matched real-audio lines; unmatched song vocals are [music], not guessed text. "
-			"Presenter speech outside verified song metadata is unaffected."));
+        preferLyrics_->setToolTip(tr(
+            "Prefer actual retrieved and audio-matched lyric lines. "
+            "Unverified sung words are not invented or shown as [music] "
+            "in the on-screen radio caption. Presenter speech is unaffected."));
         lyricsSourceLanguage_=new QComboBox(lab);
         lyricsSourceLanguage_->addItem(
             tr("Auto · wait for confirmed sung audio language"),QLatin1String("auto"));
@@ -905,9 +1052,29 @@ public:
         lyricsRow->addWidget(new QLabel(tr("Song lyric language:"),lab),4,0);
         lyricsRow->addWidget(lyricsSourceLanguage_,4,1,1,2);
 		lyricsRow->setColumnStretch(1,1);
-		v->addLayout(lyricsRow);
-		v->addWidget(lyricsSyncState_);
-		v->addWidget(preferLyrics_);
+        v->addWidget(new QLabel(tr(
+            "<b>3 · Lyrics</b> · optional; no search until you choose Find lyrics"),lab));
+        auto *quickLyrics=new QPushButton(tr("Find lyrics for current song"),lab);
+        v->addWidget(quickLyrics);
+        auto *showLyricsOptions=new QCheckBox(
+            tr("Advanced · lyrics source, timing, import and auto search"),lab);
+        showLyricsOptions->setChecked(false);
+        // A quick lookup must expose Stop lyrics while it is active.
+        connect(quickLyrics,&QPushButton::clicked,this,[this,showLyricsOptions](){
+            showLyricsOptions->setChecked(true);
+            fetchLyrics();
+        });
+        v->addWidget(showLyricsOptions);
+        auto *lyricsPanel=new QWidget(lab);
+        auto *lyricsLayout=new QVBoxLayout(lyricsPanel);
+        lyricsLayout->setContentsMargins(0,2,0,2);
+        lyricsLayout->addLayout(lyricsRow);
+        lyricsLayout->addWidget(lyricsSyncState_);
+        lyricsLayout->addWidget(preferLyrics_);
+        lyricsPanel->setVisible(false);
+        connect(showLyricsOptions,&QCheckBox::toggled,
+                lyricsPanel,&QWidget::setVisible);
+        v->addWidget(lyricsPanel);
         lyricProvider_=new QLabel(tr("Sources: LRCLIB; lyrics.ovh; optional "
             "licensed Musixmatch API. Plain text must match heard audio."),lab);
         lyricProvider_->setWordWrap(true);
@@ -1159,8 +1326,21 @@ public:
         });
         connect(&captionProcess_,QOverload<int,QProcess::ExitStatus>::of(&QProcess::finished),
             this,[this](int code,QProcess::ExitStatus exitState){
-                if(captionsStopping_ || (code==0 && exitState==QProcess::NormalExit))
+                if(captionsStopping_) return;
+                if(code==0 && exitState==QProcess::NormalExit) {
+                    // An EOF from the AI-only welle HTTP client is not the
+                    // same as verified silence or a healthy ASR session.
+                    if(active() && !playingKey_.isEmpty()) {
+                        const QString note=tr(
+                            "Radio AI audio stream ended. Check welle HTTP "
+                            "and ffmpeg; station playback has a separate "
+                            "libVLC path and may still be running.");
+                        radioCaption_->setText(note);
+                        radioTranslationBanner_->setText(note);
+                        radioTranslationBanner_->setVisible(true);
+                    }
                     return;
+                }
                 const QString error=QString::fromLocal8Bit(
                     captionProcess_.readAllStandardError()).right(200);
                 const QString message=tr("Live radio Whisper stopped unexpectedly. "
@@ -1478,14 +1658,45 @@ private:
 				.arg(webStations_->topLevelItemCount()));
 		});
 	}
+    QStringList selectedRadioTargets() const {
+        // One output selection for live ASR, recorded SRT and lyric lookup.
+        // No hidden legacy checkboxes or duplicated language paths.
+        QStringList codes;
+        if(installedTargets_->count()==0) {
+            QSettings preferences(QLatin1String("TIHULU"),
+                                 QLatin1String("KaffeineRadio"));
+            codes=preferences.value(QLatin1String("radioOutputs"),
+                QStringList{QLatin1String("en"),QLatin1String("de"),
+                            QLatin1String("tr")}).toStringList();
+        } else {
+            for(int i=0;i<installedTargets_->count();++i) {
+                const QListWidgetItem *item=installedTargets_->item(i);
+                if(item->checkState()==Qt::Checked)
+                    codes<<item->data(Qt::UserRole).toString();
+            }
+        }
+        if(advancedLanguages_->isChecked()) {
+            for(const QString &part:extraTargets_->text().split(
+                QLatin1Char(','),Qt::SkipEmptyParts))
+                codes<<part.trimmed().toLower();
+        }
+        QStringList unique;
+        const QRegularExpression code(QLatin1String("^[a-z]{2,3}$"));
+        for(const QString &candidate:codes)
+            if(code.match(candidate).hasMatch() && !unique.contains(candidate)
+                    && unique.size()<6)
+                unique<<candidate;
+        return unique;
+    }
 	void refreshLanguagePacks() {
 		if(languagePackWorker_.state()!=QProcess::NotRunning) return;
 		refreshTargets_->setEnabled(false);
 		languagePackWorker_.start(QLatin1String("tihulu-tv-center"),
-			{QLatin1String("ai-pairs")});
+			{QLatin1String("ai-radio-languages")});
 		if(!languagePackWorker_.waitForStarted(1000)) {
 			refreshTargets_->setEnabled(true);
-			state_->setText(tr("AI companion not installed; target catalog unavailable."));
+			translationStatus_->setText(tr(
+                "AI companion not installed; radio language catalog unavailable."));
 		}
 	}
 	void configureAnalogBand() {
@@ -2343,6 +2554,8 @@ private:
 				lastRadioChunk_=-1;
 				displayedRadioChunk_=-1;
                 lastCaptionVisibleMs_=0;
+                lastCanvasLyricMs_=0;
+                if(radioCanvasCaption_) radioCanvasCaption_->setVisible(false);
                 radioCaptionBanner_->setText(tr("Opening DAB station · waiting for audio…"));
 				pendingRadioCue_.clear();
 				playingKey_=key;
@@ -2490,13 +2703,7 @@ private:
 			state_->setText(tr("A previous offline recording transcription is still running."));
 			return;
 		}
-		QStringList targets;
-		if(english_->isChecked()) targets<<QLatin1String("en");
-		if(german_->isChecked()) targets<<QLatin1String("de");
-		if(turkish_->isChecked()) targets<<QLatin1String("tr");
-		for(const QString &extra:extraTargets_->text().split(QLatin1Char(','),Qt::SkipEmptyParts))
-			if(!targets.contains(extra.trimmed()) && targets.size()<3)
-				targets<<extra.trimmed();
+        const QStringList targets=selectedRadioTargets();
 		QStringList args{QLatin1String("media-captions"),
 			QLatin1String("--input"),recordedPath_,
 			QLatin1String("--source"),QLatin1String("auto"),
@@ -2747,19 +2954,7 @@ private:
 			QLatin1String("--port"),QString::number(port_),
 			QLatin1String("--sid"),sid,
 			QLatin1String("--source"),sourceCode};
-		QStringList targets;
-		if (english_->isChecked()) targets<<QLatin1String("en");
-		if (german_->isChecked()) targets<<QLatin1String("de");
-		if (turkish_->isChecked()) targets<<QLatin1String("tr");
-		for(const QString &extra:extraTargets_->text().split(QLatin1Char(','),Qt::SkipEmptyParts))
-			if(!targets.contains(extra.trimmed()) && targets.size()<6)
-				targets<<extra.trimmed();
-		for(int i=0;i<installedTargets_->count();++i) {
-			const QListWidgetItem *item=installedTargets_->item(i);
-			const QString lang=item->data(Qt::UserRole).toString();
-			if(item->checkState()==Qt::Checked && !targets.contains(lang) && targets.size()<6)
-				targets<<lang;
-		}
+        const QStringList targets=selectedRadioTargets();
 		options<<QLatin1String("--targets")<<targets.join(QLatin1Char(','));
 		const int sentenceHops=activePlaybackCacheMs_<8000?2:
 			activePlaybackCacheMs_<14000?3:activePlaybackCacheMs_<18500?4:5;
@@ -2786,11 +2981,30 @@ private:
 		options<<QLatin1String("--output")<<captionPath_;
 		QFile::remove(captionPath_);
 		captionProcess_.start(QLatin1String("tihulu-tv-center"),options);
-		if (!captionProcess_.waitForStarted(1200))
-			radioCaption_->setText(tr("Offline radio AI sidecar could not start."));
-		else radioCaption_->setText(tr("Offline radio ASR/translation started. "
-			"Audio stays on this device; latency depends on model."));
+        if (!captionProcess_.waitForStarted(1200))
+            radioCaption_->setText(tr("Offline radio AI sidecar could not start."));
+        else {
+            lastCaptionUpdateMs_=QDateTime::currentMSecsSinceEpoch();
+            radioCaption_->setText(tr("Offline radio ASR/translation started. "
+                "Radio audio plays independently; heavy AI may fall behind."));
+        }
 	}
+    void showRadioCanvasCaption(const QString &value,bool lyric=false) {
+        if(!radioCanvasCaption_) return;
+        const QString text=value.trimmed().left(1300);
+        if(text.isEmpty() || text==QLatin1String("[music]")) {
+            if(!lyric && !lyricsEnabled_) radioCanvasCaption_->setVisible(false);
+            return;
+        }
+        // Actual LRC / audio-matched lyric lines win over uncertain ASR;
+        // never replace the radioCanvas_'s station text or slideshow.
+        if(!lyric && lyricsEnabled_ &&
+           (plainLyricMode_ || !lyricCues_.isEmpty())) return;
+        if(radioCanvasCaption_->text()!=text)
+            radioCanvasCaption_->setText(text);
+        radioCanvasCaption_->setVisible(true);
+        if(lyric) lastCanvasLyricMs_=QDateTime::currentMSecsSinceEpoch();
+    }
 	void displayDueRadioCues(qint64 now) {
 		// Queue rather than overwrite: a new AI chunk must not erase the
 		// previous chunk before its estimated playback presentation time.
@@ -2810,8 +3024,18 @@ private:
 			const TimedRadioCue cue=cueQueue_.takeFirst();
 			if(cue.chunkIndex<=displayedRadioChunk_) continue;
 			displayedRadioChunk_=cue.chunkIndex;
-			radioCaption_->setText(cue.text);
-            radioCaptionBanner_->setText(cue.text.left(680));
+            const QString shown=cue.text.trimmed();
+            if(shown==QLatin1String("[music]")) {
+                radioCaption_->setText(tr("Music detected · waiting for "
+                    "verified or audio-matched lyrics; no words invented."));
+                radioCaptionBanner_->setText(tr("♪ Music · Find lyrics, "
+                    "import LRC or enable vocal transcription."));
+            } else {
+                radioCaption_->setText(cue.text);
+                radioCaptionBanner_->setText(tr(
+                    "Live radio subtitles · displayed inside station view"));
+                showRadioCanvasCaption(cue.text);
+            }
             lastCaptionVisibleMs_=now;
             if(lyricsAudioFallbackActive_) {
                 const QString heard=tr("Whisper heard (unverified lyrics) · %1")
@@ -2825,8 +3049,11 @@ private:
         if(lastCaptionVisibleMs_>0 && now-lastCaptionVisibleMs_>=12000 &&
            cueQueue_.isEmpty() && !metadataCaptions_ &&
            captionProcess_.state()!=QProcess::NotRunning) {
-            radioCaptionBanner_->setText(tr("Listening for real radio speech… "
-                "No subtitle text is currently verified."));
+            if(!lyricsEnabled_)
+                radioCaptionBanner_->setText(tr(
+                    "Listening for radio speech · no confirmed words yet."));
+            if(!lyricsEnabled_ && radioCanvasCaption_)
+                radioCanvasCaption_->setVisible(false);
             lastCaptionVisibleMs_=0;
         }
 	}
@@ -2846,8 +3073,22 @@ private:
 		if(detected.size()>=2 && detected.size()<=3 &&
 		   detected!=QLatin1String("und"))
 			lastDetectedLanguage_=detected;
-		const int chunk=obj.value(QLatin1String("chunk_index")).toInt(-1);
+        const int chunk=obj.value(QLatin1String("chunk_index")).toInt(-1);
+        if(chunk<0 && obj.value(QLatin1String("status")).toString()
+                ==QLatin1String("waiting_audio")) {
+            translationStatus_->setText(tr("AI input: waiting for decoded DAB "
+                "audio. Main radio playback is independent."));
+        }
 		if(chunk>=0 && chunk!=lastRadioChunk_) {
+            lastCaptionUpdateMs_=now;
+            const int lost=obj.value(
+                QLatin1String("ai_audio_windows_dropped")).toInt();
+            if(lost>0)
+                syncStatus_->setText(tr(
+                    "AI overload: %1 old audio window(s) dropped to protect "
+                    "the live DAB server. Radio audio was NOT retuned. "
+                    "Try one output language or a faster Whisper model.")
+                    .arg(lost));
 			lastRadioChunk_=chunk;
 			const double captured=obj.value(QLatin1String("captured_monotonic")).toDouble();
 			const double decoded=obj.value(QLatin1String("decoded_monotonic")).toDouble();
@@ -3048,6 +3289,14 @@ private:
 				state_->setText(tr("Radio ASR: %1")
 					.arg(obj.value(QLatin1String("error")).toString().left(170)));
 		}
+        if(captionProcess_.state()!=QProcess::NotRunning &&
+            lastCaptionUpdateMs_>0 && now-lastCaptionUpdateMs_>20000) {
+            radioTranslationBanner_->setText(tr(
+                "AI has produced no new radio audio window for 20 s. "
+                "Check local welle MP3 stream, ffmpeg and Whisper; this "
+                "does not establish that the broadcaster is silent."));
+            radioTranslationBanner_->setVisible(true);
+        }
 		displayDueRadioCues(now);
 	}
 	void stopCaptioning() {
@@ -3061,6 +3310,8 @@ private:
 		}
 		if (!captionPath_.isEmpty()) QFile::remove(captionPath_);
 		captionPath_.clear();
+        if(!lyricsEnabled_ && radioCanvasCaption_)
+            radioCanvasCaption_->setVisible(false);
         if(radioTranslationBanner_) radioTranslationBanner_->setVisible(false);
         captionsStopping_=false;
 	}
@@ -3181,13 +3432,7 @@ private:
 		// an English or Turkish singer may follow a German-language host.
 		// Without independently verified song language, keep it auto and
 		// suppress ungrounded German/English/Turkish lyric translation.
-		QStringList dests;
-		if(english_->isChecked()) dests<<QLatin1String("en");
-		if(german_->isChecked()) dests<<QLatin1String("de");
-		if(turkish_->isChecked()) dests<<QLatin1String("tr");
-		for(const QString &part:extraTargets_->text().split(QLatin1Char(','),Qt::SkipEmptyParts))
-			if(dests.size()<6 && !dests.contains(part.trimmed()))
-				dests<<part.trimmed();
+        const QStringList dests=selectedRadioTargets();
 		lyricsProcess_.start(QLatin1String("tihulu-tv-center"),
 			{QLatin1String("lyrics-lookup"),QLatin1String("--artist"),artist,
 			 QLatin1String("--track"),title,QLatin1String("--output"),lyricPath_,
@@ -3213,7 +3458,13 @@ private:
 				const auto cue=plainLyricQueue_.takeFirst();
 				lyricText_->setText(tr("Audio-matched lyric (~%1% confidence) · %2")
 					.arg(qRound(cue.confidence*100)).arg(cue.text));
-			}
+                showRadioCanvasCaption(cue.text,true);
+            }
+            if(lastCanvasLyricMs_>0 && now-lastCanvasLyricMs_>8000 &&
+               radioCanvasCaption_) {
+                radioCanvasCaption_->setVisible(false);
+                lastCanvasLyricMs_=0;
+            }
 			return;
 		}
 		if (lyricPath_.isEmpty() || lyricLoaded_) {
@@ -3244,6 +3495,12 @@ private:
 				if (!current.isEmpty()) {
                     const QString text=tr("Estimated lyric timing · %1").arg(current);
                     if(lyricText_->text()!=text)lyricText_->setText(text);
+                    showRadioCanvasCaption(current,true);
+                } else if(lastCanvasLyricMs_>0 &&
+                    QDateTime::currentMSecsSinceEpoch()-lastCanvasLyricMs_>8000 &&
+                    radioCanvasCaption_) {
+                    radioCanvasCaption_->setVisible(false);
+                    lastCanvasLyricMs_=0;
                 }
 			}
 			return;
@@ -3299,6 +3556,8 @@ private:
 	QComboBox *lyricsSourceLanguage_=nullptr;
     QLabel *translationStatus_=nullptr;
     QLabel *radioTranslationBanner_=nullptr;
+    QLabel *radioCanvasCaption_=nullptr;
+    QCheckBox *advancedLanguages_=nullptr;
 	QComboBox *channel_=nullptr, *driver_=nullptr, *speechLanguage_=nullptr,
 		*captionSource_=nullptr,
 		*plotKind_=nullptr, *fftPlacement_=nullptr;
@@ -3364,7 +3623,7 @@ private:
 	QProgressBar *captionProgress_=nullptr,*audioCacheProgress_=nullptr;
 	QLabel *bufferRecommendation_=nullptr;
 	qint64 audioStartedMs_=0,lastLyricSyncUpdateMs_=0,
-        lastCaptionVisibleMs_=0;
+        lastCaptionVisibleMs_=0,lastCanvasLyricMs_=0,lastCaptionUpdateMs_=0;
 	bool metadataCaptions_=false;
 	int dlsCaptionIndex_=0;
 	int lastLyricOffsetMs_=0;

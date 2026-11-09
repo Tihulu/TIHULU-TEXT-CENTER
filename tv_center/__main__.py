@@ -11,6 +11,22 @@ def main():
     if len(sys.argv) >= 2 and sys.argv[1] == "ai-check":
         from .ai_diagnostics import main as diagnose_ai
         return diagnose_ai()
+    if len(sys.argv) >= 2 and sys.argv[1] == "ai-radio-languages":
+        # TV and radio share this same read-only installed-model catalog.
+        # Discover output targets without downloading models or accessing RF.
+        from .installed_languages import catalog
+        from textcenter.compute import LANGUAGES
+        from .installed_languages import NAMES
+        info=catalog(scan_argos=True)
+        selected=AISettings().values
+        info["selected_translator"]=selected.get("translation_model","argos")
+        info["selected_speech_backend"]=selected.get("backend","auto")
+        info["speech_enabled"]=bool(selected.get("asr_enabled"))
+        info["speech_languages"]=[
+            {"code":code,"label":NAMES.get(code,code.upper())}
+            for code in LANGUAGES]
+        print(json.dumps(info,ensure_ascii=False))
+        return 0
     if len(sys.argv) >= 2 and sys.argv[1] == "ai-pairs":
         # Read-only installed language directions; consumed by native DAB
         # selector. No model inference, download, USB or network access.

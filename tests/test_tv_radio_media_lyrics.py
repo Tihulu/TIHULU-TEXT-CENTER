@@ -75,7 +75,7 @@ class RadioAndLocalMediaTests(unittest.TestCase):
         self.assertIn("if _near_silent_pcm(pcm):",code)
         self.assertIn('detection["recognition_rejected"]="near_silent_pcm"',code)
         self.assertLess(code.index("if _near_silent_pcm(pcm):"),
-                        code.index("cues=_chunk_cues(pcm,position=chunks*5"))
+                        code.index("cues=_chunk_cues(pcm,position=capture_index*5"))
 
     def test_gpu_music_flag_is_explicitly_passed_not_auto_enabled(self):
         data=bytes(32000*2*2)
