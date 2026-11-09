@@ -1161,13 +1161,14 @@ def main(argv=None):
     settings_layout.addRow(audio_track_status)
     control_layout.addWidget(settings)
 
-    timing = QGroupBox("Synchronization & video overlay")
+    timing = QGroupBox("Playback timing, subtitle reading & voice extras")
     timing_layout = QFormLayout(timing)
     quick = QGroupBox("Quick subtitle appearance · always visible")
     quick_layout = QFormLayout(quick)
     quick_layout.setRowWrapPolicy(QFormLayout.WrapLongRows)
     timing_layout.setRowWrapPolicy(QFormLayout.WrapLongRows)
     timing_layout.setFieldGrowthPolicy(QFormLayout.AllNonFixedFieldsGrow)
+    timing_layout.addRow(QLabel("<b>1 · Timing — affects when captions appear</b>"))
     offsets = QHBoxLayout()
     caption_offset = QDoubleSpinBox()
     caption_offset.setRange(-10.0, 10.0)
@@ -1186,7 +1187,7 @@ def main(argv=None):
     offsets.addWidget(playback_delay)
     timing_layout.addRow(offsets)
     auto_row = QHBoxLayout()
-    automatic = QCheckBox("Automatic sync · estimate ASR lag / TV buffer (not PTS lip-sync)")
+    automatic = QCheckBox("Auto-size TV buffer if too short (increase only; not lip-sync)")
     automatic.setChecked(True)
     automatic.setToolTip(
         "ON: before any Whisper sample, use a provisional 10s desktop or "
@@ -1198,6 +1199,7 @@ def main(argv=None):
         "ASR availability is not exact spoken-word alignment.")
     auto_row.addWidget(automatic)
     timing_layout.addRow(auto_row)
+    timing_layout.addRow(QLabel("<b>2 · Subtitle quality & reading</b>"))
     music_transcription = QCheckBox(
         "Include singing / music vocals in Whisper (optional; less accurate)")
     music_transcription.setChecked(False)
@@ -1243,6 +1245,7 @@ def main(argv=None):
             speech_priority.setChecked(False)
     speech_priority.toggled.connect(choose_speech_priority)
     music_transcription.toggled.connect(choose_music_vocals)
+    timing_layout.addRow(QLabel("<b>3 · Optional voice separation & sound tags</b>"))
     speakers_row = QHBoxLayout()
     speaker_enabled = QCheckBox(
         "Detect distinct voices · Resemblyzer (name labels optional)")
@@ -1278,19 +1281,22 @@ def main(argv=None):
     speaker_lines.setChecked(True)
     timing_layout.addRow(speaker_lines)
     voice_types=QCheckBox(
-        "Estimated voice category · [Erkek sesi?] / [Kadın sesi?] / [Çocuk sesi?]")
+        "Estimated voice type · [Male voice?] / [Female voice?] / [Child voice?]")
     voice_types.setChecked(False)
     voice_types.setToolTip(
         "Requires a separate licensed age/gender acoustic classifier. "
         "Resemblyzer cannot predict these categories. With no reliable "
-        "classifier score, this option displays NO guessed category.")
+        "classifier score, this option displays NO guessed category. "
+        "Adult and child voices may overlap acoustically; uncertain or "
+        "contradictory predictions are hidden rather than labeled.")
     timing_layout.addRow(voice_types)
     sound_events=QCheckBox(
-        "Show detected non-speech sound labels · [Müzik] / [Uğultu] / [Alkış]")
+        "Show sound labels · [Music] / [Humming] / [Applause] (subtitle language)")
     sound_events.setChecked(False)
     sound_events.setToolTip(
         "Independent from speaker names; only real detector-backed events "
-        "with sufficient confidence are displayed. No guess from silence.")
+        "with sufficient confidence are displayed in the chosen output "
+        "subtitle language. No guess from silence.")
     timing_layout.addRow(sound_events)
     classifier_install_queue=queue.Queue(maxsize=4)
     from tv_center.audio_classifiers import AudioLabels
