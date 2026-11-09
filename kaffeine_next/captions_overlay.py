@@ -1755,12 +1755,31 @@ def main(argv=None):
             return
         benchmark_button.setEnabled(False)
         cancel_benchmark_button.setEnabled(True)
+        try:
+            requested=from_controls()
+            # With Spoken=Auto, benchmark all four primary languages in
+            # both directions actually requested. Do not hardwire DE→EN/TR.
+            sources=(("de","en","tr","fr") if requested.spoken_auto else
+                     (requested.source,))
+            targets=requested.target_languages or ("en",)
+            from tv_center.performance_lab import translation_pairs
+            selected_pairs,omitted=translation_pairs(sources,targets)
+        except ValueError as exc:
+            QMessageBox.warning(window,"Benchmark languages",str(exc))
+            benchmark_button.setEnabled(True)
+            cancel_benchmark_button.setEnabled(False)
+            return
         benchmark_status.setText(
-            "Testing installed AI models locally on six seconds of selected "
-            "media. Main DVB player and caption service remain independent.")
+            "Testing selected translation directions: "+
+            ", ".join(a.upper()+"→"+b.upper() for a,b in selected_pairs)+
+            (" · additional pairs omitted by 12-pair benchmark limit"
+             if omitted else "")+
+            ". Main DVB player remains independent.")
         benchmark_process.start(
             sys.executable,["-m","tv_center.performance_lab","--audio",chosen,
-                           "--buffer-ms",str(applied.playback_delay_ms)])
+                           "--buffer-ms",str(applied.playback_delay_ms),
+                           "--sources",",".join(sources),
+                           "--targets",",".join(targets)])
         if not benchmark_process.waitForStarted(700):
             benchmark_status.setText(
                 "Could not start the local benchmark process.")
@@ -1788,6 +1807,12 @@ def main(argv=None):
                 raise ValueError("Untrusted benchmark result")
             rows=report["samples"]
             proposal=report["recommendation"]
+            tested_pairs={
+                tuple(item) for item in report.get("tested_directions",[])
+                if isinstance(item,list) and len(item)==2}
+            skipped_pairs={
+                tuple(item) for item in report.get("not_tested_directions",[])
+                if isinstance(item,list) and len(item)==2}
         except (ValueError,TypeError,KeyError) as exc:
             benchmark_status.setText(
                 "AI benchmark returned no valid performance report: "+str(exc))
@@ -1798,7 +1823,8 @@ def main(argv=None):
                   row.get("backend") or "model")
             label=str(name)[:70]
             if row.get("target"):
-                label+=" → "+str(row["target"]).upper()
+                label+=" "+str(row.get("source") or "de").upper()+
+                       " → "+str(row["target"]).upper()
             if row.get("status")=="ok":
                 label+=f": {float(row['elapsed_s']):.2f}s"
                 if row.get("kind")=="asr":
@@ -1842,19 +1868,26 @@ def main(argv=None):
         translator=QComboBox()
         translator.addItem("Keep current translator",None)
         for eng in ("argos","nllb"):
-            measured={m["target"]:m for m in rows if
-                      m.get("kind")=="translation" and
+            measured={(m.get("source","de"),m.get("target")):m
+                      for m in rows if m.get("kind")=="translation" and
                       m.get("engine")==eng and m.get("status")=="ok"}
-            if set(measured)>={"en","tr"}:
+            if tested_pairs and not skipped_pairs and tested_pairs<=set(measured):
+                elapsed=sum(float(measured[p]["elapsed_s"]) for p in tested_pairs)
                 translator.addItem(
-                    eng.upper()+" · EN "+str(measured["en"]["elapsed_s"])+
-                    "s + TR "+str(measured["tr"]["elapsed_s"])+"s",eng)
+                    eng.upper()+f" · {len(tested_pairs)} tested language routes · "+
+                    f"{elapsed:.2f}s total",eng)
         proposed_engine=proposal.get("translation_model")
         if proposed_engine:
             for i in range(translator.count()):
                 if translator.itemData(i)==proposed_engine:
                     translator.setCurrentIndex(i)
-        pane.addWidget(QLabel("Translation engine (tested DE→EN and DE→TR):"))
+        pane.addWidget(QLabel(
+            "Translation engine (only ALL user-selected directions verified):"+
+            (" · "+", ".join(a.upper()+"→"+b.upper()
+                              for a,b in sorted(tested_pairs))
+             if tested_pairs else " · no direction tested")+
+            (" · "+str(len(skipped_pairs))+" untested (not recommended)"
+             if skipped_pairs else "")))
         pane.addWidget(translator)
         suggested_buffer=QDoubleSpinBox()
         suggested_buffer.setRange(0,60)
