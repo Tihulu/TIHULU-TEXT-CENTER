@@ -1224,6 +1224,35 @@ def main(argv=None):
         "English-trained SepFormer, quality and GPU speed not yet verified.")
     overlap_status.setWordWrap(True)
     timing_layout.addRow(overlap_status)
+    overlap_install_queue=queue.Queue(maxsize=2)
+    overlap_install_button=QPushButton(
+        "Install SepFormer · ~113 MB weights + larger Torch dependencies")
+    def install_sepformer_clicked():
+        from tv_center.overlap_separation import OverlapSeparation
+        if OverlapSeparation().installed():
+            overlap_status.setText("SepFormer already installed · inference untested")
+            return
+        response=QMessageBox.question(
+            window,"Install experimental two-speaker separation?",
+            "Download SepFormer weights (~113 MB) and potentially several GB "
+            "of isolated PyTorch dependencies? This English-trained model "
+            "is NOT verified for multilingual TV or real-time CUDA use. "
+            "Install only after owner approval.",
+            QMessageBox.Yes | QMessageBox.No,QMessageBox.No)
+        if response!=QMessageBox.Yes:
+            return
+        overlap_install_button.setEnabled(False)
+        overlap_status.setText("Owner-approved model setup running off UI thread")
+        def owner_install():
+            try:
+                text=OverlapSeparation().install()
+                overlap_install_queue.put(("ok",text))
+            except Exception as exc:
+                overlap_install_queue.put(("error",str(exc)[:250]))
+        threading.Thread(target=owner_install,daemon=True,
+                         name="tihulu-sepformer-owner-install").start()
+    overlap_install_button.clicked.connect(install_sepformer_clicked)
+    timing_layout.addRow(overlap_install_button)
     speaker_health = QLabel(
         "Auto labels: checking installed local speaker model…")
     speaker_health.setWordWrap(True)
