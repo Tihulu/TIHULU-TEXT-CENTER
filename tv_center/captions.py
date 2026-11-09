@@ -171,7 +171,8 @@ def asr_from_clip(path: Path, language: str, model: str,
                   speaker_enabled: bool = False,
                   speaker_provider: str = "resemblyzer",
                   music_transcription: bool = False,
-                  speech_priority: bool = False) -> str:
+                  speech_priority: bool = False,
+                  overlap_separation: bool = False) -> str:
     # "auto" is a speech-detection MODE, not an ISO language code.
     # All existing speech backends except unverified NPUs handle it.
     if language != "auto" and language not in SUPPORTED:
@@ -321,6 +322,37 @@ def asr_from_clip(path: Path, language: str, model: str,
             diagnostics["language_confidence"] = details.get("language_probability")
             diagnostics["word_timing_source"] = "faster_whisper_cuda_word_timestamps"
             diagnostics["recognition_rejected"] = details.get("recognition_rejected")
+        if overlap_separation:
+            # Experimental actual TWO-source speech separation followed
+            # by TWO independent ASR calls. Fail closed; never generate a
+            # second line by copying the ordinary Whisper transcript.
+            try:
+                from .overlap_separation import (
+                    separate_pcm, accept_two_transcripts)
+                streams=separate_pcm(audio.stdout)
+                recognized=[
+                    transcribe_cuda_details(
+                        track,language,str(profile["speech"]["gpu_model_path"]),
+                        music_mode=False,speech_priority=False)
+                    for track in streams]
+                voices=accept_two_transcripts(recognized)
+                if voices:
+                    if diagnostics is not None:
+                        diagnostics["overlap_lines"]=voices
+                        diagnostics["overlap_model"]="SpeechBrain SepFormer-wsj02mix"
+                        diagnostics["overlap_note"]=(
+                            "Two independent Whisper tracks; provisional A/B "
+                            "per clip, not verified speaker identity")
+                elif diagnostics is not None:
+                    diagnostics["overlap_note"]=(
+                        "Separation produced no TWO distinct, source-timed "
+                        "transcripts; kept original mixed audio")
+            except (OSError,ValueError,RuntimeError,TimeoutError,
+                    subprocess.TimeoutExpired) as exc:
+                if diagnostics is not None:
+                    diagnostics["overlap_note"]=(
+                        "Experimental 2-voice separation unavailable; kept "
+                        "original mixed audio: "+str(exc)[:130])
         return _speaker_details(audio.stdout, details["text"].strip(),
                                 diagnostics, speaker_enabled, speaker_provider,
                                 channel=f"{service_id}:{audio_pid}")
@@ -435,7 +467,8 @@ def decode_segment(ts: bytes, *, mode="auto", page=150, source="de",
                    speech_priority: bool = False,
                    defer_asr_translation: bool = False,
                    speech_auto: bool = False,
-                   auto_teletext_probe: bool = False) -> dict:
+                   auto_teletext_probe: bool = False,
+                   overlap_separation: bool = False) -> dict:
     if mode not in ("teletext", "page", "asr", "auto"):
         raise ValueError("Unsupported caption source")
     if type(page) is not int or not 100 <= page <= 899:
@@ -521,6 +554,8 @@ def decode_segment(ts: bytes, *, mode="auto", page=150, source="de",
                 if speaker_enabled:
                     asr_kwargs["speaker_enabled"] = True
                     asr_kwargs["speaker_provider"] = speaker_provider
+                if overlap_separation:
+                    asr_kwargs["overlap_separation"] = True
                 # Real DVB audio-language descriptors are a stronger hint
                 # than six seconds of noisy live TV speech. Do not ignore
                 # the selected/signalled audio language in Auto mode.
@@ -634,6 +669,9 @@ def decode_segment(ts: bytes, *, mode="auto", page=150, source="de",
                 "words":speech_diagnostics.get("words", []),
                 "word_timing_source":speech_diagnostics.get("word_timing_source"),
                 "speaker_turns":speech_diagnostics.get("speaker_turns", []),
+                "overlap_lines":speech_diagnostics.get("overlap_lines", []),
+                "overlap_model":speech_diagnostics.get("overlap_model"),
+                "overlap_note":speech_diagnostics.get("overlap_note"),
                 "speaker_engine":speech_diagnostics.get("speaker_engine"),
                 "speaker_error":speech_diagnostics.get("speaker_error"),
                 "speaker_note":speech_diagnostics.get("speaker_note"),
