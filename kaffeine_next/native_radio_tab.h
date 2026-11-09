@@ -1113,7 +1113,8 @@ public:
 		});
 		lyricsRow->addWidget(lyrics_,0,0);
 		lyricsRow->addWidget(stopLyrics_,0,1);
-		lyricsRow->addWidget(autoLyrics_,0,2);
+		radioQuickRow_->insertWidget(3,autoLyrics_);
+        autoLyrics_->setText(tr("Auto-find lyrics · online opt-in"));
         lyricsRow->addWidget(listenLyrics_,5,0,1,2);
         lyricsRow->addWidget(listenFallbackOnMiss_,5,2);
 		lyricsRow->addWidget(autoLyricSync_,1,0,1,2);
@@ -3169,8 +3170,10 @@ private:
         }
         // Actual LRC / audio-matched lyric lines win over uncertain ASR;
         // never replace the radioCanvas_'s station text or slideshow.
-        if(!lyric && lyricsEnabled_ &&
-           (plainLyricMode_ || !lyricCues_.isEmpty())) return;
+        // DLS metadata may still show a song while the announcer talks.
+        // Never let estimated timed lyrics erase actual Whisper speech.
+        if(lyric && lastUnmatchedVoiceUntilMs_>
+           QDateTime::currentMSecsSinceEpoch()) return;
         if(radioCanvasCaption_->text()!=text)
             radioCanvasCaption_->setText(text);
         radioCanvasCaption_->setVisible(true);
@@ -3346,6 +3349,12 @@ private:
 					caption+=QLatin1String("\n[")+it.key().toUpper()+
 						QLatin1String("] ")+it.value().toString();
 			const qint64 due=now+qMax(0,remaining)+radioOffsetMs_->value();
+			if(!caption.isEmpty() &&
+               obj.value(QLatin1String("speech_preserved_when_lyrics_unmatched"))
+                   .toBool()) {
+                lastUnmatchedVoiceUntilMs_=qMax(lastUnmatchedVoiceUntilMs_,
+                                                due+7000);
+            }
 			if(!caption.isEmpty()) {
 				cueQueue_.append({chunk,due,now,caption.left(1300)});
 				while(cueQueue_.size()>12) cueQueue_.removeFirst();
@@ -3364,11 +3373,12 @@ private:
                         if(it.value().isString() && !it.value().toString().isEmpty())
                             rendered+=QLatin1String("\n[")+it.key().toUpper()+
                                 QLatin1String("] ")+it.value().toString();
-                    if(!lyricTranslations.isEmpty()) {
-                        lastVerifiedLyricText_=line;
-                        lastVerifiedLyricTranslations_=lyricTranslations;
-                        lastVerifiedLyricMs_=now;
-                    }
+                    // A genuine audio match is evidence even without a translation.
+                    lastVerifiedLyricText_=line;
+                    lastVerifiedLyricTranslations_=lyricTranslations;
+                    lastVerifiedLyricMs_=now;
+                    lastUnmatchedVoiceUntilMs_=qMin(
+                        lastUnmatchedVoiceUntilMs_,now);
 					if(plainLyricMode_) {
 						plainLyricQueue_.append({due+lyricsOffset_->value(),rendered,confidence});
 						while(plainLyricQueue_.size()>10) plainLyricQueue_.removeFirst();
@@ -3512,8 +3522,17 @@ private:
             lyricsFallbackStartedAi_=(!alreadyRunning || plainLyricsStartedAi_);
         plainLyricsStartedAi_=false;
         lyricsAudioFallbackActive_=true;
-        if(alreadyRunning) stopCaptioning();
-        startCaptioning();
+        if(!alreadyRunning) {
+            // Explicit Listen action opts into ASR, but NEVER interrupt
+            // an already-running presenter transcript just to switch
+            // music settings. The original speech stream stays continuous.
+            {
+                const QSignalBlocker block(quickAi_);
+                quickAi_->setChecked(true);
+                quickAi_->setText(tr("AI captions · ON"));
+            }
+            startCaptioning();
+        }
         if(captionProcess_.state()==QProcess::NotRunning) {
             lyricsAudioFallbackActive_=false;
             lyricText_->setText(tr("Offline music transcription unavailable. "
@@ -3538,10 +3557,12 @@ private:
         const bool startedByLyrics=lyricsFallbackStartedAi_;
         lyricsAudioFallbackActive_=false;
         lyricsFallbackStartedAi_=false;
-        if(hadListening && captionProcess_.state()!=QProcess::NotRunning) {
+        if(hadListening && startedByLyrics &&
+           captionProcess_.state()!=QProcess::NotRunning) {
             stopCaptioning();
-            if(!startedByLyrics && active() && !playingKey_.isEmpty())
-                startCaptioning();
+            const QSignalBlocker block(quickAi_);
+            quickAi_->setChecked(false);
+            quickAi_->setText(tr("AI captions · OFF"));
         } else if(plainLyricsStartedAi_ &&
                   captionProcess_.state()!=QProcess::NotRunning) {
             // An ASR worker started ONLY for plain-lyrics matching is
@@ -3565,6 +3586,8 @@ private:
         lastVerifiedLyricTranslations_=QJsonObject();
         lyricOffsetConsistency_=0;
 		lyricLoaded_=false;
+        lastLyricsAutoLookup_=false;
+        lastUnmatchedVoiceUntilMs_=0;
 		stopLyrics_->setEnabled(false);
         lyricProvider_->setText(tr("Lyrics stopped. Local DAB audio continues."));
 		lyricText_->setText(tr("Lyrics / lyric-triggered listening stopped."));
@@ -3598,6 +3621,7 @@ private:
 			QString::number(QCoreApplication::applicationPid())+QLatin1String(".json");
 		QFile::remove(lyricPath_);
 		lyricsEnabled_=true;
+        lastLyricsAutoLookup_=automatic;
 		lyricLoaded_=false;
 		plainLyricMode_=false;
 		plainLyricQueue_.clear();
@@ -3651,6 +3675,13 @@ private:
 			return;
 		}
 		if (lyricPath_.isEmpty() || lyricLoaded_) {
+            const qint64 currentEpoch=QDateTime::currentMSecsSinceEpoch();
+            // Automatic LRC from DLS is provisional until we actually
+            // hear a vocal line matching the current song.
+            if(lastLyricsAutoLookup_ &&
+               (lastVerifiedLyricMs_<=0 ||
+                currentEpoch-lastVerifiedLyricMs_>16000)) return;
+            if(lastUnmatchedVoiceUntilMs_>currentEpoch) return;
 			if (!lyricCues_.isEmpty() && songStartMs_>0) {
 				const qint64 start=autoLyricSync_->isChecked()
 					?songStartMs_:manualSongStartMs_;
@@ -3806,7 +3837,8 @@ private:
 	QProgressBar *captionProgress_=nullptr,*audioCacheProgress_=nullptr;
 	QLabel *bufferRecommendation_=nullptr;
 	qint64 audioStartedMs_=0,lastLyricSyncUpdateMs_=0,
-        lastCaptionVisibleMs_=0,lastCanvasLyricMs_=0,lastCaptionUpdateMs_=0;
+        lastCaptionVisibleMs_=0,lastCanvasLyricMs_=0,lastCaptionUpdateMs_=0,lastUnmatchedVoiceUntilMs_=0;
+    bool lastLyricsAutoLookup_=false;
 	bool metadataCaptions_=false;
 	int dlsCaptionIndex_=0;
 	int lastLyricOffsetMs_=0;
