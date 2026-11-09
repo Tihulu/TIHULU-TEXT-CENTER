@@ -461,6 +461,40 @@ class CueQueue:
         self._recent.clear()
 
 
+class SpeakerLineHistory:
+    """Keep the previous actually transcribed voice on a separate line.
+
+    This NEVER generates overlap: both lines are captions emitted by ASR.
+    A true overlapping-source result is handled by CaptionConfig.render and
+    has two verified independently transcribed tracks already.
+    """
+    def __init__(self):
+        self.previous = None
+
+    def clear(self):
+        self.previous = None
+
+    def compose(self, result, rendered, config, now, epoch=None):
+        if (not config.break_speaker_lines or
+                not config.speaker_enabled or
+                result.get("source")!="local_asr" or
+                result.get("overlap_lines")):
+            self.clear()
+            return rendered
+        index=result.get("speaker_index")
+        if type(index) is not int or not 1<=index<=4:
+            self.clear()
+            return rendered
+        recent=self.previous
+        current=(index,rendered,float(now),config.revision,epoch)
+        self.previous=current
+        if (recent and recent[0]!=index and
+                recent[3]==config.revision and recent[4]==epoch
+                and 0 <= float(now)-recent[2] <= 3.5):
+            return recent[1]+"\n"+rendered
+        return rendered
+
+
 @dataclass(frozen=True)
 class SyncRecommendation:
     """Coarse caption-availability timing, *not* word-aligned lip sync."""
