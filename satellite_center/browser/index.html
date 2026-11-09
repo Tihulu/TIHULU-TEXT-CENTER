@@ -230,6 +230,13 @@ All location methods are optional. City suggestions are offline by default; GPS 
 <h3 id="predicted-pass-calendar-title">Predicted passes · orbital calendar</h3>
 <p class="hint">TLE-only geometric opportunities, separate from the RF recording calendar. Select Preview to inspect a pass in the sky/ground map. No receiver required.</p>
 <div id="predicted-pass-calendar-grid" class="predicted-pass-calendar-grid" aria-live="polite">Calculate passes to view their predicted local times.</div>
+ <div class="candidate-planner" id="candidate-planner" aria-label="Planning-only satellite calendar">
+  <div class="candidate-planner-title"><div><strong>Planning candidates · no antenna required</strong>
+    <small>Save TLE passes now, connect an SDR later. These are NOT armed RF recordings.</small></div>
+    <span id="candidate-count">0 planned</span></div>
+  <p id="candidate-hardware-warning" class="candidate-warning" role="status">RF connection not required for calendar planning. Recording will require a verified receiver.</p>
+  <div id="candidate-calendar-list" class="candidate-calendar-list" aria-live="polite">No planning candidates saved yet.</div>
+ </div>
 </section>
 <p id="scheduled-report" class="status" role="status">After a real capture, the sample-level report appears here. Only measured USB bytes are reported.</p>
 </section>
