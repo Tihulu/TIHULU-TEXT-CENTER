@@ -1986,7 +1986,14 @@ public:
 
 private:
 	struct TimedRadioCue { int chunkIndex; qint64 dueMs; qint64 queuedMs; QString text; };
-	struct TimedPlainLyric { qint64 dueMs; QString text; double confidence; };
+    struct TimedPlainLyric {
+        qint64 dueMs;
+        QString text;
+        double confidence;
+        int lineIndex=-1;
+        QString original;
+        QJsonObject translations;
+    };
 	static QString label(const QJsonValue &value) {
 		if (value.isString()) return value.toString();
 		if (value.isObject()) return value.toObject().value(QLatin1String("label")).toString();
@@ -3837,6 +3844,64 @@ private:
                 "Radio audio plays independently; heavy AI may fall behind."));
         }
 	}
+    void clearKaraokeLine() {
+        lastKaraokeUntilMs_=0;
+        if(karaokePanel_) karaokePanel_->setVisible(false);
+        if(karaokeCurrent_) karaokeCurrent_->clear();
+        if(karaokeTranslation_) karaokeTranslation_->clear();
+    }
+    void showKaraokeLine(const TimedPlainLyric &cue) {
+        if(!karaokePanel_ || !karaokeCurrent_ ||
+           !karaokeSource_ || !karaokePrevious_ || !karaokeNext_ ||
+           !karaokeTranslation_) return;
+        if(lastUnmatchedVoiceUntilMs_>QDateTime::currentMSecsSinceEpoch())
+            return; // New presenter/advert speech overrides old lyrics
+        const QString line=cue.original.trimmed().isEmpty()?
+            cue.text.section(QLatin1Char('\n'),0,0).trimmed():
+            cue.original.trimmed();
+        if(line.isEmpty()) return;
+        const int index=cue.lineIndex;
+        const QString previous=index>0 && index<=lyricRawLines_.size()?
+            lyricRawLines_.at(index-1):QString();
+        const QString next=index>=0 && index+1<lyricRawLines_.size()?
+            lyricRawLines_.at(index+1):QString();
+        karaokePrevious_->setText(previous.left(230));
+        karaokePrevious_->setVisible(!previous.isEmpty());
+        karaokeCurrent_->setText(line.left(300));
+        karaokeNext_->setText(next.left(230));
+        karaokeNext_->setVisible(!next.isEmpty());
+        QStringList translations;
+        // Follow OUT language selection and never invent a missing
+        // translation. Normal captions continue in their own band.
+        for(const QString &lang:selectedRadioTargets()) {
+            const QString value=cue.translations.value(lang).toString().trimmed();
+            if(!value.isEmpty())
+                translations<<QLatin1String("[")+lang.toUpper()+
+                    QLatin1String("] ")+value.left(360);
+        }
+        karaokeTranslation_->setText(translations.join(QLatin1Char('\n')));
+        karaokeTranslation_->setVisible(karaokeTranslationsEnabled_ &&
+            karaokeTranslationsEnabled_->isChecked() &&
+            !translations.isEmpty());
+        const QString provider=lastLyricsProvider_.isEmpty()?
+            tr("user-provided / source unavailable"):lastLyricsProvider_;
+        const QString song=(lyricsArtist_ && lyricsTitle_ &&
+            !lyricsArtist_->text().trimmed().isEmpty() &&
+            !lyricsTitle_->text().trimmed().isEmpty())?
+            lyricsArtist_->text().trimmed()+QLatin1String(" · ")+
+                lyricsTitle_->text().trimmed():tr("live radio");
+        karaokeSource_->setText(tr(
+            "♪ %1 · SOURCE: %2 · AUDIO MATCH: %3% · LINE %4\n"
+            "Line-level sync estimated from Whisper PCM; no word PTS")
+            .arg(song.left(100),provider.left(55))
+            .arg(qRound(cue.confidence*100))
+            .arg(index>=0?QString::number(index+1):QStringLiteral("?")));
+        const qint64 now=QDateTime::currentMSecsSinceEpoch();
+        lastKaraokeUntilMs_=now+qMax(5500,radioCaptionReadingHoldMs(
+            line+translations.join(QLatin1Char('\n'))));
+        karaokePanel_->setVisible(karaokeEnabled_ &&
+            karaokeEnabled_->isChecked());
+    }
     void updateRadioCaptionTypography() {
         if(!radioCanvasCaption_) return;
         const int font=radioCaptionFontSize_?
