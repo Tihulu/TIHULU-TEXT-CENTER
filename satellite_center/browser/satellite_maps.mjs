@@ -112,7 +112,8 @@ export function createSatelliteMaps({getTles,getSatLib,getPasses,getLastCapture,
    " ("+passPreview.steps[passPreview.steps.length-1].az.toFixed(0)+"°)"+
    " · Preview "+passTime(p.at_ms)+" · az "+p.az.toFixed(1)+"° "+direction(p.az)+
    ", el "+p.el.toFixed(1)+"°, "+Math.round(p.range_km)+" km."+
-   " TLE geometry only; ground obstructions and RF activity not verified.";
+   (passPreview.partialWindow?" · PARTIAL 25-minute preview only; original pass extends beyond this window.":"")+
+    " TLE geometry only; ground obstructions and RF activity not verified.";
   const mask=windowSector();
   if(mask){
    const hits=passPreview.steps.filter(sample=>insideWindow(sample,mask));
@@ -155,26 +156,28 @@ export function createSatelliteMaps({getTles,getSatLib,getPasses,getLastCapture,
   if(!item)throw Error("Satellite absent from loaded TLEs; refresh the catalog");
   stopPreview();passStatus.textContent="Calculating actual TLE pass geometry…";
   const o=observer();
-  let result;
-  if(typeof window.nativePassPreview==="function"){
-   result=await window.nativePassPreview(o.lat,o.lon,Number(pass.id),pass.aos,pass.los);
+   const previewLos=Math.min(pass.los,pass.aos+1500000);
+   const partialWindow=previewLos<pass.los; // truthful bounded native preview
+   let result;
+   if(typeof window.nativePassPreview==="function"){
+    result=await window.nativePassPreview(o.lat,o.lon,Number(pass.id),pass.aos,previewLos);
   }else{
    const lib=await getSatLib(),rec=lib.twoline2satrec(item.l1,item.l2),steps=[];
-   const spacing=Math.max(5000,Math.ceil((pass.los-pass.aos)/100000)*1000);
-   for(let t=pass.aos;t<=pass.los;t+=spacing){
+   const spacing=Math.max(5000,Math.ceil((previewLos-pass.aos)/100000)*1000);
+   for(let t=pass.aos;t<=previewLos;t+=spacing){
     const x=propagate(lib,rec,new Date(t),o.station);
     if(x)steps.push({at_ms:t,az:x.az,el:x.el,lat:x.lat,lon:x.lon,range_km:x.rangeKm});
    }
-   if(!steps.length||steps[steps.length-1].at_ms<pass.los){
-    const x=propagate(lib,rec,new Date(pass.los),o.station);
-    if(x)steps.push({at_ms:pass.los,az:x.az,el:x.el,lat:x.lat,lon:x.lon,range_km:x.rangeKm});
+   if(!steps.length||steps[steps.length-1].at_ms<previewLos){
+    const x=propagate(lib,rec,new Date(previewLos),o.station);
+    if(x)steps.push({at_ms:previewLos,az:x.az,el:x.el,lat:x.lat,lon:x.lon,range_km:x.rangeKm});
    }
    result={norad:Number(pass.id),name:pass.name,steps,
     peak:steps.reduce((a,b)=>a.el>b.el?a:b),source:"browser_satellitejs_tle"};
   }
   if(!Array.isArray(result.steps)||result.steps.length<2)
    throw Error("No valid positions in this TLE pass");
-  passPreview=result;passIndex=0;selectedId=Number(pass.id);
+  passPreview={...result,partialWindow};passIndex=0;selectedId=Number(pass.id);
   passSlider.min="0";passSlider.max=String(result.steps.length-1);
   passSlider.step="1";passSlider.value="0";passSlider.disabled=false;
   $("map-pass-play").disabled=false;$("map-pass-clear").disabled=false;
