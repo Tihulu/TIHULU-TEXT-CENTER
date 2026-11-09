@@ -84,7 +84,7 @@ class RadioModesAndSyncTests(unittest.TestCase):
         # occupancy. The UI must explain the estimate and cap it below 100
         # until the player actually reports Playing.
         self.assertIn("actual fill unmeasured",self.radio)
-        self.assertIn("requested extra libVLC cache",self.radio)
+        self.assertIn("extra libVLC cache, NOT measured buffer occupancy",self.radio)
         self.assertIn("percent=qMin(95,",self.radio)
         self.assertIn("percent=100; // The player STARTED",self.radio)
         self.assertIn("quickBufferProgress_->setVisible(enabled)",self.radio)
