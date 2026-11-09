@@ -444,9 +444,12 @@ class CueQueue:
             if len(self._recent)>80:
                 self._recent={k:v for k,v in self._recent.items()
                               if float(captured_start)-v[1]<12}
-        self.items = [item for item in self.items if
-                      item["revision"] == config.revision and
-                      item["expires"] > float(finished)-0.1]
+        # Expiration means the END of the preferred media display slot,
+        # NOT permission to discard a decoded phrase that has never been
+        # seen. Late ASR, UI stalls or one slow translation must not erase
+        # already-queued real speech. The maximum queue bound still applies.
+        self.items = [item for item in self.items
+                      if item["revision"] == config.revision]
         # Untimed phrases need reading slots; source-word-timed groups do
         # NOT. Stacking a fixed 1.75s gap per group can accumulate several
         # seconds of lag during fast alternating speakers, even with 20s
@@ -467,7 +470,7 @@ class CueQueue:
 
     def poll(self, now, revision):
         self.items=[item for item in self.items
-                    if item["revision"]==revision and item["expires"]>now]
+                    if item["revision"]==revision]
         if not self.items or self.items[0]["due"]>now:
             return None
         next_timed = bool(self.items[0]["result"].get("word_progress"))
