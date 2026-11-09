@@ -231,8 +231,12 @@ QAbstractButton *StartTab::addShortcut''')
     change(main, '''	gridLayout->setSpacing(15);
 
 	QAbstractButton *button =''',
-           '''	gridLayout->setSpacing(15);
-	frame->addLayout(gridLayout,1);
+           '''	gridLayout->setSpacing(12);
+	// Keep the launcher near its title instead of sinking to the
+	// bottom of large desktop windows. The remaining space is flexible.
+	frame->addSpacing(8);
+	frame->addLayout(gridLayout,0);
+	frame->addStretch(1);
 	QAbstractButton *button =''')
     change(main, '''	gridLayout->addWidget(button, 1, 2);
 #endif /* HAVE_DVB == 1 */''',
