@@ -13,6 +13,7 @@ import { selectAutomaticPasses, AUTO_TARGETS } from './auto_mission.mjs?v=202611
 import {localDayKey,shiftCalendarDay,renderSatelliteCalendar} from './satellite_calendar.mjs?v=20261106-calendar-zip-v2';
 import { localDateInput, parseLocalScheduleTime, createScheduledPass, evaluateScheduledJob, secondsToJob, captureLevelSummary } from './schedule_controller.mjs?v=20261106-direct-fm-wav-v1';
 import {planChainedCapture,secondsFromEntry,humanCountdown,scheduledOverlap} from './chained_capture.mjs?v=20261107-chained-v1';
+import {candidateFromPass,readPlanningCandidates,savePlanningCandidate,removePlanningCandidate} from './pass_candidates.mjs';
 import {captureBudget,formatCaptureBudget,STREAM_IQ_BYTES} from './capture_duration.mjs?v=20261106-stream-v1';
 import {createStreamingFmWavEncoder,createPcmWavHeader,wavOutputPlan} from './fm_wav_record.mjs?v=20261106-web-fm-wav-v1';
 // TIHULU Satellite Center — no-local-install receive-only browser mode.
@@ -1174,6 +1175,10 @@ function appendPass(pass){
   explanation.textContent='Choose seconds or minutes. WebUSB recordings over 60 seconds (or the 128 MiB RAM cap) are automatically split into independent <=60 s files with 6-second reserved gaps. The calendar displays every part. This is not continuous I/Q: USB reopen/download can add gaps. A visible awake Chromium tab and prior RTL-SDR permission are still required.';
   const alert=document.createElement('p');alert.className='pass-schedule-error schedule-wide';alert.setAttribute('role','status');
   const confirm=document.createElement('button');confirm.type='submit';confirm.textContent='Confirm scheduled RF scan';
+  const planOnly=document.createElement('button');planOnly.type='button';
+  planOnly.className='secondary';planOnly.textContent='Add planning candidate · no antenna';
+  planOnly.title='TLE-only calendar plan, never touches USB or starts any recording';
+  planOnly.onclick=()=>planCandidate(pass);
   const budgetLabel=document.createElement('p');
   budgetLabel.className='schedule-capture-budget schedule-wide';
   budgetLabel.setAttribute('role','status');
@@ -1204,7 +1209,7 @@ function appendPass(pass){
   duration.addEventListener('input',refreshBudget);rate.addEventListener('input',refreshBudget);
   updateNativeFormat();
   refreshBudget();
-  form.append(timeLabel,frequencyLabel,durationLabel,unitLabel,rateLabel,saveLabel,wavLabel,budgetLabel,localLink,explanation,alert,confirm);
+  form.append(timeLabel,frequencyLabel,durationLabel,unitLabel,rateLabel,saveLabel,wavLabel,budgetLabel,localLink,explanation,alert,planOnly,confirm);
   form.addEventListener('submit',async event=>{
     event.preventDefault();
     let prepared=null;
@@ -1254,6 +1259,51 @@ function appendPass(pass){
   details.append(form);item.append(details);
   return item;
 }
+// TLE-only calendar plans never claim a receiver or arm a capture job.
+let planningCandidates=readPlanningCandidates();
+function planCandidate(pass){
+ try{
+  const entry=candidateFromPass(pass,{observer:{lat:Number($('lat').value),lon:Number($('lon').value)}});
+  planningCandidates=savePlanningCandidate(entry);
+  if($('browser-calendar-date'))
+   $('browser-calendar-date').value=localDayKey(new Date(entry.aos));
+  renderPredictedPassCalendar();
+  const connected=Boolean(device||window.nativeHardwareState?.verified);
+  status('candidate-hardware-warning',connected
+   ?'Planning candidate saved only: no recording is armed. Use the real RF scheduler separately.'
+   :'⚠ Antenna not connected/verified. Planning candidate saved only; NOTHING will record until a real receiver is connected and an RF job armed.');
+  log('Saved planning-only TLE candidate '+entry.name+
+   ' at '+new Date(entry.aos).toLocaleString()+' · no USB or RF scheduling.');
+  return entry;
+ }catch(error){
+  status('candidate-hardware-warning','Cannot save planning candidate: '+String(error?.message||error));
+  return null;
+ }
+}
+function renderPlanningCandidates(){
+ const list=$('candidate-calendar-list');if(!list)return;
+ list.replaceChildren();
+ const day=$('browser-calendar-date')?.value||localDayKey(new Date());
+ const rows=planningCandidates.filter(x=>localDayKey(new Date(x.aos))===day);
+ $('candidate-count').textContent=planningCandidates.length+' planned · not recording';
+ if(!rows.length){
+  const hint=document.createElement('p');hint.className='hint';
+  hint.textContent='No planning candidates for this day. Add a predicted satellite pass even with no antenna.';
+  list.append(hint);return;
+ }
+ for(const p of rows){
+  const card=document.createElement('div');card.className='candidate-pass-card';
+  const title=document.createElement('strong');title.textContent=p.name+' · NORAD '+p.norad;
+  const meta=document.createElement('small');
+  meta.textContent=new Date(p.aos).toLocaleTimeString()+' – '+
+   new Date(p.los).toLocaleTimeString()+' · orbital estimate · NOT armed/recording'+
+   (p.observer?' · station '+p.observer.lat.toFixed(3)+', '+p.observer.lon.toFixed(3):'');
+  const remove=document.createElement('button');remove.type='button';remove.className='secondary';
+  remove.textContent='Remove plan';
+  remove.onclick=()=>{planningCandidates=removePlanningCandidate(p.id);renderPlanningCandidates();};
+  card.append(title,meta,remove);list.append(card);
+ }
+}
 let passRenderDeferred=false;
 $('passes').addEventListener('focusout',()=>{
   queueMicrotask(()=>{
@@ -1302,6 +1352,7 @@ function renderPasses(){
   window.dispatchEvent(new Event('tihulu-passes-updated'));
 }
 function renderPredictedPassCalendar(){
+ renderPlanningCandidates();
  const node=$('predicted-pass-calendar-grid');
  if(!node)return;
  node.replaceChildren();
@@ -1345,7 +1396,11 @@ function renderPredictedPassCalendar(){
     $('map-pass-summary').textContent='Preview failed: '+String(err?.message||err);
    }).finally(()=>{preview.disabled=false;});
   });
-  card.append(name,meta,preview);node.append(card);
+  const add=document.createElement('button');add.type='button';
+  add.className='secondary';add.textContent='Add to planning calendar';
+  add.title='Save a TLE-only opportunity with no SDR or RF scheduler';
+  add.onclick=()=>planCandidate(pass);
+  card.append(name,meta,preview,add);node.append(card);
  }
  if(items.length>50){
   const note=document.createElement('p');note.className='hint';
