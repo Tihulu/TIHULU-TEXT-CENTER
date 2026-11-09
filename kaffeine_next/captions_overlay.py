@@ -2542,6 +2542,12 @@ def main(argv=None):
                         status.setText(status.text() +
                             " | Speech-follow: real GPU word timestamps; "
                             "non-overlapping translated phrases are estimates")
+                    if data.get("remote_error"):
+                        status.setText(
+                            status.text()+" | Remote GPU unavailable: "+
+                            str(data["remote_error"])[:140]+
+                            " · fallback: "+
+                            str(data.get("remote_fallback") or "disabled"))
                     if data.get("speaker_error"):
                         status.setText(status.text() +
                             " | Diarization unavailable: " +
