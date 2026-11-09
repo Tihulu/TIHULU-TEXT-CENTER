@@ -50,6 +50,8 @@ def main():
             self.capture = TVCapture()
             self.scanner = AutoScanner()
             self.ai = AISettings()
+            self._ai_inventory_busy = False
+            self._ai_inventory_results = queue.Queue()
             self.ai.configure_environment()
             self.preferences = ChannelPreferences()
             self.scan_monitor = None
@@ -455,18 +457,36 @@ def main():
             open_ai_settings(self, self.ai, self.sync_ai_settings)
 
         def refresh_ai_banner(self):
-            try:
-                from .ai_provision import StarterAI
-                state = StarterAI(self.ai).status()
-                ready = (state["whisper_engine_ready"] and state["tiny_model_ready"]
-                         and state["translation_three_languages_ready"])
-                self.ai_banner.setText(
-                    ("Offline AI ready · Whisper + DE/EN/TR Translator"
-                     if ready else "Offline AI incomplete · Open AI Model Market to install starter pack")
-                    + " · ASR " + ("ON" if self.ai.values["asr_enabled"] else "OFF")
-                    + " / Translation " + ("ON" if self.ai.values["translation_enabled"] else "OFF"))
-            except (ImportError, OSError, RuntimeError) as exc:
-                self.ai_banner.setText("AI setup check failed: " + str(exc)[:120])
+            """Never block native window creation on Argos/Whisper subprocesses."""
+            if self._ai_inventory_busy:
+                return
+            self._ai_inventory_busy=True
+            self.ai_banner.setText("Checking offline AI inventory in background…")
+            def worker():
+                try:
+                    from .ai_provision import StarterAI
+                    state=StarterAI(self.ai).status()
+                    info={"state":state}
+                except Exception as exc:
+                    info={"error":str(exc)[:160]}
+                self._ai_inventory_results.put(info)
+            threading.Thread(target=worker,daemon=True,
+                             name="tihulu-tv-ai-startup-inventory").start()
+
+        def show_ai_inventory(self, info):
+            self._ai_inventory_busy=False
+            if "error" in info:
+                self.ai_banner.setText("AI readiness unavailable: "+info["error"])
+                return
+            state=info["state"]
+            ready=(state["whisper_engine_ready"] and state["tiny_model_ready"]
+                   and state["translation_three_languages_ready"])
+            self.ai_banner.setText(
+                ("Offline AI starter ready · DE/EN/TR"
+                 if ready else "Optional AI starter incomplete · Open Model Market")+
+                " · Profile: "+(self.ai.values.get("active_profile") or "Custom")+
+                " · ASR "+("ON" if self.ai.values["asr_enabled"] else "OFF")+
+                " / Translation "+("ON" if self.ai.values["translation_enabled"] else "OFF"))
 
         def sync_ai_settings(self):
             self.refresh_ai_banner()
@@ -721,6 +741,12 @@ def main():
                 self.bridge_token.clear()
 
         def poll(self):
+            try:
+                ai_info=self._ai_inventory_results.get_nowait()
+            except queue.Empty:
+                pass
+            else:
+                self.show_ai_inventory(ai_info)
             # HTTP worker threads never touch Qt widgets. Without draining
             # this queue, paired mobile requests timed out after ten seconds.
             self.web_commands.drain(self.web_action, limit=12)
