@@ -1594,6 +1594,36 @@ private:
 				.arg(webStations_->topLevelItemCount()));
 		});
 	}
+    QStringList selectedRadioTargets() const {
+        // One output selection for live ASR, recorded SRT and lyric lookup.
+        // No hidden legacy checkboxes or duplicated language paths.
+        QStringList codes;
+        if(installedTargets_->count()==0) {
+            QSettings preferences(QLatin1String("TIHULU"),
+                                 QLatin1String("KaffeineRadio"));
+            codes=preferences.value(QLatin1String("radioOutputs"),
+                QStringList{QLatin1String("en"),QLatin1String("de"),
+                            QLatin1String("tr")}).toStringList();
+        } else {
+            for(int i=0;i<installedTargets_->count();++i) {
+                const QListWidgetItem *item=installedTargets_->item(i);
+                if(item->checkState()==Qt::Checked)
+                    codes<<item->data(Qt::UserRole).toString();
+            }
+        }
+        if(advancedLanguages_->isChecked()) {
+            for(const QString &part:extraTargets_->text().split(
+                QLatin1Char(','),Qt::SkipEmptyParts))
+                codes<<part.trimmed().toLower();
+        }
+        QStringList unique;
+        const QRegularExpression code(QLatin1String("^[a-z]{2,3}$"));
+        for(const QString &candidate:codes)
+            if(code.match(candidate).hasMatch() && !unique.contains(candidate)
+                    && unique.size()<6)
+                unique<<candidate;
+        return unique;
+    }
 	void refreshLanguagePacks() {
 		if(languagePackWorker_.state()!=QProcess::NotRunning) return;
 		refreshTargets_->setEnabled(false);
@@ -2607,13 +2637,7 @@ private:
 			state_->setText(tr("A previous offline recording transcription is still running."));
 			return;
 		}
-		QStringList targets;
-		if(english_->isChecked()) targets<<QLatin1String("en");
-		if(german_->isChecked()) targets<<QLatin1String("de");
-		if(turkish_->isChecked()) targets<<QLatin1String("tr");
-		for(const QString &extra:extraTargets_->text().split(QLatin1Char(','),Qt::SkipEmptyParts))
-			if(!targets.contains(extra.trimmed()) && targets.size()<3)
-				targets<<extra.trimmed();
+        const QStringList targets=selectedRadioTargets();
 		QStringList args{QLatin1String("media-captions"),
 			QLatin1String("--input"),recordedPath_,
 			QLatin1String("--source"),QLatin1String("auto"),
@@ -2864,19 +2888,7 @@ private:
 			QLatin1String("--port"),QString::number(port_),
 			QLatin1String("--sid"),sid,
 			QLatin1String("--source"),sourceCode};
-		QStringList targets;
-		if (english_->isChecked()) targets<<QLatin1String("en");
-		if (german_->isChecked()) targets<<QLatin1String("de");
-		if (turkish_->isChecked()) targets<<QLatin1String("tr");
-		for(const QString &extra:extraTargets_->text().split(QLatin1Char(','),Qt::SkipEmptyParts))
-			if(!targets.contains(extra.trimmed()) && targets.size()<6)
-				targets<<extra.trimmed();
-		for(int i=0;i<installedTargets_->count();++i) {
-			const QListWidgetItem *item=installedTargets_->item(i);
-			const QString lang=item->data(Qt::UserRole).toString();
-			if(item->checkState()==Qt::Checked && !targets.contains(lang) && targets.size()<6)
-				targets<<lang;
-		}
+        const QStringList targets=selectedRadioTargets();
 		options<<QLatin1String("--targets")<<targets.join(QLatin1Char(','));
 		const int sentenceHops=activePlaybackCacheMs_<8000?2:
 			activePlaybackCacheMs_<14000?3:activePlaybackCacheMs_<18500?4:5;
@@ -3298,13 +3310,7 @@ private:
 		// an English or Turkish singer may follow a German-language host.
 		// Without independently verified song language, keep it auto and
 		// suppress ungrounded German/English/Turkish lyric translation.
-		QStringList dests;
-		if(english_->isChecked()) dests<<QLatin1String("en");
-		if(german_->isChecked()) dests<<QLatin1String("de");
-		if(turkish_->isChecked()) dests<<QLatin1String("tr");
-		for(const QString &part:extraTargets_->text().split(QLatin1Char(','),Qt::SkipEmptyParts))
-			if(dests.size()<6 && !dests.contains(part.trimmed()))
-				dests<<part.trimmed();
+        const QStringList dests=selectedRadioTargets();
 		lyricsProcess_.start(QLatin1String("tihulu-tv-center"),
 			{QLatin1String("lyrics-lookup"),QLatin1String("--artist"),artist,
 			 QLatin1String("--track"),title,QLatin1String("--output"),lyricPath_,
