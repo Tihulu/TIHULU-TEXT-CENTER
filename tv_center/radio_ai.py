@@ -230,7 +230,7 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
                     lyric_translation_cache.clear()
             translator_enabled=effective_radio_translation_enabled(
                 ai.values["translation_enabled"],radio_translations,
-                ai.values["translation_model"])
+                ai.values.get("translation_model","argos"))
             detection={}
             # DAB decoder may deliver actual near-silence. In music-mode
             # VAD is intentionally disabled, and Whisper can hallucinate
@@ -442,7 +442,7 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
                 "translation_state":translation_info["state"],
                 "radio_translation_opt_in":radio_translations,
                 "translation_enabled_effective":translator_enabled,
-                "translation_service":ai.values["translation_model"],
+                "translation_service":ai.values.get("translation_model","argos"),
                 "translation_note":translation_info["message"],
                 "translation_missing_targets":translation_info["missing_targets"],
                 "translation_pending_targets":translation_info["pending_targets"],
