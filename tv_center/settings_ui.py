@@ -828,13 +828,47 @@ def open_ai_settings(parent, ai, after_save=None):
                 "your adjustments, or choose a preset and Select mode to reset.")
 
         def profile_changed(self, *_):
-            # Choosing the Custom row explicitly also discards the preset
-            # identity, even before any other setting is edited.
-            if self.profile_choice.currentData()=="custom":
+            key=self.profile_choice.currentData()
+            if key=="custom":
+                # Preserve the user's current manual controls, never reset
+                # them to the previous preset when navigating tabs.
                 self._manual_custom=True
+            elif key in PROFILES:
+                self.preview_profile_controls(key)
             self.show_profile_description()
             # A pending preset choice is not applied until Select mode.
             QTimer.singleShot(80, self.inspect_profile)
+
+        def preview_profile_controls(self,key):
+            """Mirror pending mode across ALL model tabs without activation.
+
+            Merely choosing a combo item must never download a model, start
+            speech processing or persist settings. A manual edit subsequently
+            converts the pending choice into Custom with that edit intact.
+            """
+            spec=profile(key)
+            self._applying_profile=True
+            try:
+                if self.backend.findText(spec["backend"])<0:
+                    self.backend.addItem(spec["backend"])
+                self.backend.setCurrentText(spec["backend"])
+                self.model_path.setText(str(self.library._path(spec["speech"])))
+                index=self.translation_choice.findData(spec["translator"])
+                if index>=0:
+                    self.translation_choice.setCurrentIndex(index)
+                self.asr.setChecked(True)
+                self.translator.setChecked(True)
+                self.pi_threads.setCurrentIndex(max(
+                    0,self.pi_threads.findData(3)))
+            finally:
+                self._applying_profile=False
+            self.populate_models()
+            self.preview_translator()
+            self.feedback.setText(
+                "PREVIEW ONLY · "+spec["name"]+
+                ". Speech, compute and translation tabs now reflect this "
+                "pending mode. Check installed, then Select mode to verify "
+                "and activate; no downloads or settings changes were saved.")
 
         def _display_profile_key(self):
             key=self.profile_choice.currentData()
@@ -854,7 +888,10 @@ def open_ai_settings(parent, ai, after_save=None):
             custom=(chosen=="custom")
             selected=("Custom · modified from "+spec["name"]
                       if custom else
-                      self.ai.values.get("active_profile") or "Custom")
+                      ("Active · "+spec["name"] if
+                       self.ai.values.get("active_profile")==key and
+                       not self._manual_custom else
+                       "Preview · "+spec["name"]+" (Select mode to activate)"))
             self.profile_description.setText(
                 ("Manual settings · suggested model bundle below is for "
                  "comparison only. Choose a preset + Select mode to apply it.\n"
@@ -867,7 +904,11 @@ def open_ai_settings(parent, ai, after_save=None):
                  if spec["min_vram_mib"] else "not required")+
                 "\nHardware: "+
                 (issue or "Meets minimum estimates; inference still untested")+
-                "\nSelected: "+selected)
+                "\nSelected: "+selected+
+                ("\nManual values: "+self.backend.currentText()+
+                 " · "+str(self.translation_choice.currentData())+
+                 " · "+self.model_path.text().strip()
+                 if custom else ""))
             self.hailo_group.setVisible(key=="pi5_hat2")
             current_view=("custom:" if custom else "")+key
             if getattr(self,"_visible_profile_key",None)==current_view:
@@ -1854,6 +1895,9 @@ def open_ai_settings(parent, ai, after_save=None):
                                  if data.get("npu_ready") else
                                  " · Whisper Tiny CPU selected")+
                                 ". Restart live captions to apply the new profile.")
+                            self.populate_models()
+                            self.preview_translator()
+                            self.refresh_all_models()
                             self.show_profile_description()
                             if after_save: after_save()
                         except (OSError,RuntimeError,ValueError) as exc:
