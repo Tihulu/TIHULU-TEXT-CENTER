@@ -532,7 +532,8 @@ class CaptionTap:
                 joined=self.sentence_joiner.push(
                     observed,
                     language=result.get("source_language"),
-                    silent=not bool(observed))
+                    silent=not bool(observed),
+                    prefer_readable=bool(options.get("readable_pacing",True)))
                 if not joined["text"]:
                     # Tell the UI why nothing appeared; this is NOT evidence
                     # of silence or a hardware failure.
@@ -1900,7 +1901,7 @@ def main(argv=None):
             with lock:
                 applied = __import__("dataclasses").replace(
                     selected, revision=previous.revision +
-                    int(source_changed or playback_changed))
+                    int(source_changed))
             if source_changed:
                 # Only a genuine source/channel change invalidates speech.
                 cues.clear()
