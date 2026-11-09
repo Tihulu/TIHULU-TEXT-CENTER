@@ -288,6 +288,20 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
                             lyric_translations[lang]=translated_line
                         if issue:
                             problems[lang]=str(issue)[:180]
+            # Use capture-clock timing, not the time Whisper + multiple
+            # translators happened to finish. All cue times refer to the
+            # same absolute 5s hop with a 6s PCM decoding window.
+            #
+            # A queued/silence-flushed sentence may span earlier windows;
+            # this is an estimate of its LAST recognized word, never a
+            # claim of exact per-word libVLC presentation timestamps.
+            capture_epoch_ms=round(
+                (time.time()+captured_at-time.monotonic())*1000)
+            window_start=capture_index*5.
+            heard_end=max((float(cue.end) for cue in cues),default=window_start+6.)
+            heard_end=max(window_start,min(window_start+6.,heard_end))
+            phrase_end_epoch_ms=int(capture_epoch_ms-
+                                    round((window_start+6.-heard_end)*1000))
             # Do not report an unverified translation as success. Provide
             # exact reasons for the visible untranslated original, including
             # model disabled, unknown source, or missing language packs.
@@ -346,8 +360,10 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
                 "captured_monotonic":captured_at,
                 # Convert to wall-clock once, based on the same local
                 # monotonic reading; phone compensates for device clock skew.
-                "source_capture_epoch_ms":round(
-                    (time.time()+captured_at-time.monotonic())*1000),
+                "source_capture_epoch_ms":capture_epoch_ms,
+                "subtitle_audio_end_epoch_ms":phrase_end_epoch_ms,
+                "subtitle_clock_source":"welle_pcm_captured_approximate",
+                "subtitle_word_alignment":"Whisper cue end or PCM hop end; not DAC PTS",
                 "host_audio_cache_ms":host_audio_cache_ms,
                 "host_caption_offset_ms":host_caption_offset_ms,
                 "host_buffer_accuracy":"requested_not_DAC_verified",
@@ -357,6 +373,8 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
                 "chunk_index":capture_index,
                 "ai_audio_windows_dropped":capture.dropped_windows,
                 "ai_audio_gap":gap,
+                "requested_target_count":len(destinations),
+                "translated_target_count":len(translated),
                 "window_hop_seconds":5,
                 "audio_overlap_seconds":1 if capture_index else 0})
             chunks+=1
