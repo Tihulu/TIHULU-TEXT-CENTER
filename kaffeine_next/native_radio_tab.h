@@ -1027,13 +1027,22 @@ public:
             }
         });
         connect(autoSync_,&QCheckBox::toggled,this,[this](bool enabled){
-            if(enabled && !quickBuffer_->isChecked())
-                quickBuffer_->setChecked(true);
             QSettings saved(QLatin1String("TIHULU"),QLatin1String("KaffeineRadio"));
+            if(enabled && !quickBuffer_->isChecked()) {
+                // Never reopen with a legacy 12s setting just for Auto.
+                // Start from zero EXTRA delay and measure real ASR first.
+                // Save recommendation for next tune or explicit Apply.
+                const QSignalBlocker block(quickBuffer_);
+                quickBuffer_->setChecked(true);
+                setBufferDisplayMs(0);
+                saved.setValue(QLatin1String("radioBufferEnabled"),true);
+                saved.setValue(QLatin1String("radioBufferDesiredMs"),0);
+            }
             saved.setValue(QLatin1String("radioAutoBufferEnabled"),enabled);
             bufferRecommendation_->setText(enabled?
-                tr("Auto estimate enabled · waiting for actual Whisper timing "
-                   "(requires captions running)"):
+                tr("Auto estimate enabled · measuring Whisper latency. "
+                   "No forced radio restart; next tune uses the estimate "
+                   "or choose Apply buffer now."):
                 tr("Auto estimate OFF · buffer controlled manually."));
         });
 		auto *captionActions=new QHBoxLayout();
@@ -3361,7 +3370,10 @@ private:
 					.arg(rawRecommended>60000?
 						tr(" · Above maximum: try fewer target languages or faster model"):
 						QString()));
-				if(quickBuffer_->isChecked() && recommended>selectedBufferMs()+1000) {
+				if(quickBuffer_->isChecked() &&
+                   qAbs(recommended-selectedBufferMs())>=1500) {
+                    // Hysteresis allows both safer increases AND measured
+                    // reductions without oscillating on each five-second hop.
                     // Auto selects a *future* cache request. libVLC cannot
                     // alter the already open media's audio buffering in-place.
                     // Never silently pretend that this changed live lip sync.
