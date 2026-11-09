@@ -1584,6 +1584,13 @@ def main(argv=None):
     native_channel_status = QLabel("TV source: waiting for native Kaffeine channel")
     native_channel_status.setWordWrap(True)
     root.addWidget(native_channel_status)
+    caption_pipeline_health=QLabel(
+        "Live captions: preparing TV audio and offline speech worker…")
+    caption_pipeline_health.setWordWrap(True)
+    caption_pipeline_health.setToolTip(
+        "Real queued six-second clips, caption delivery losses, and time "
+        "since a subtitle was shown. Not a speech/silence detector.")
+    root.addWidget(caption_pipeline_health)
     root.addWidget(buffer_progress)
     buttons = QHBoxLayout()
     apply = QPushButton("Apply")
@@ -1764,6 +1771,8 @@ def main(argv=None):
     current_until = 0.0
     last_published = 0.0
     current_cue = None
+    last_cue_shown_at=time.monotonic()
+    last_pipeline_health_at=0.0
     # Captions decoded during a temporary native-buffer ACK delay are
     # HELD rather than silently dropped. They remain bounded in memory
     # and are discarded on actual channel/source changes.
@@ -2439,8 +2448,9 @@ def main(argv=None):
         """
         nonlocal applied, current_cue, current_text, current_until
         nonlocal last_published, last_service_id, last_applied_effective_ms
-        nonlocal pending_buffer_retime_ms
+        nonlocal pending_buffer_retime_ms,last_cue_shown_at
         nonlocal live_test_started_at
+        last_cue_shown_at=time.monotonic()
         if live_test_started_at:
             live_test_started_at=0
             live_test_button.setEnabled(True)
@@ -2513,6 +2523,7 @@ def main(argv=None):
         nonlocal last_applied_effective_ms, last_sync_audit_at
         nonlocal last_ui_program_epoch,live_test_started_at
         nonlocal pending_buffer_retime_ms
+        nonlocal last_cue_shown_at,last_pipeline_health_at
         try:
             state,message=overlap_install_queue.get_nowait()
         except queue.Empty:
@@ -3101,6 +3112,7 @@ def main(argv=None):
                if service_running and buffer_ready else None)
         if cue:
             current_cue = cue
+            last_cue_shown_at=now
             result = cue["result"]
             if srt_recorder.active:
                 try:
@@ -3192,6 +3204,48 @@ def main(argv=None):
             ipc.publish(current_text if current_cue and service_running else "",
                         heartbeat, ttl_ms=3500)
             last_published = now
+
+        if now-last_pipeline_health_at>=2.0:
+            last_pipeline_health_at=now
+            snap=tap.performance_snapshot()
+            backlog=snap["queue"]
+            shown_gap=max(0.0,now-last_cue_shown_at)
+            lost=snap.get("lost_ui_caption_events",0)
+            missed=backlog.get("missed_seconds",0.0)
+            recent=snap["samples"][-1] if snap["samples"] else {}
+            if not service_running:
+                message="Live captions paused."
+            elif lost:
+                message=(
+                    f"CAPTION DELIVERY LOSS: {lost} actual decoded events "
+                    "could not reach the UI; check system load.")
+            elif missed:
+                message=(
+                    f"CAPTURE OVERFLOW: {missed:.1f}s of real TV audio "
+                    "could not be retained; current scene may have no "
+                    "subtitles. Reduce optional AI load.")
+            elif backlog["queued_clips"]:
+                message=(
+                    f"ASR CATCH-UP: {backlog['queued_clips']} real audio "
+                    f"clips queued, last wait {recent.get('queue_wait_ms','?')}ms. "
+                    "TV playback may be ahead of captions.")
+            elif shown_gap>=10 and tap.packet_count:
+                message=(
+                    f"NO SUBTITLE SHOWN for {shown_gap:.0f}s while DVB TS "
+                    "packets are received. Could be speech recognition, "
+                    "an incomplete sentence, silence, wrong audio PID or "
+                    "native buffer ACK; inspect Diagnostics. "
+                    f"Last compute {recent.get('compute_ms','?')}ms.")
+            elif shown_gap>=10:
+                message=(
+                    "No subtitles and no confirmed live TV packet flow; "
+                    "check the native TV channel and selected audio PID.")
+            else:
+                message=(
+                    f"Live captions · last shown {shown_gap:.1f}s ago · "
+                    f"queue {backlog['queued_clips']} clip(s) · "
+                    f"last compute {recent.get('compute_ms','?')}ms")
+            caption_pipeline_health.setText(message)
 
     timer = QTimer(window)
     timer.timeout.connect(pump)
