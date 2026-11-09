@@ -699,7 +699,7 @@ def open_ai_settings(parent, ai, after_save=None):
             all_open=QPushButton("Open selected model category")
             all_open.clicked.connect(self.open_all_model_category)
             all_refresh=QPushButton("Refresh installed model status")
-            all_refresh.clicked.connect(self.refresh_all_models)
+            all_refresh.clicked.connect(self.inspect_all_status)
             all_search=QPushButton("Search compatible online catalog")
             all_search.clicked.connect(self.search_selected_model_catalog)
             all_actions.addWidget(all_open)
@@ -1139,27 +1139,27 @@ def open_ai_settings(parent, ai, after_save=None):
             selected=(self.all_model_list.currentItem().data(Qt.UserRole)
                       if self.all_model_list.currentItem() else None)
             self.all_model_list.clear()
-            try:
-                cuda_ready=FasterWhisperCUDA().installed()
-                nllb_ready=self.translation_market.status()["installed"]
-                free_voice=FreeSpeakerMarket().status()["installed"]
-                private_voice=SpeakerMarket().status()["installed"]
-            except (OSError,RuntimeError,ValueError):
-                cuda_ready=nllb_ready=free_voice=private_voice=False
+            # No runtime probes for text filtering/first-paint.
+            checked=self._all_status_cache or {}
+            def availability(code):
+                state=checked.get(code)
+                return ("INSTALLED" if state is True else
+                        "NOT INSTALLED" if state is False else
+                        "not checked yet")
             entries=[
                 ("speech","Whisper GGML · CPU / CUDA · model library, official search and selectable weights"),
                 ("cuda","Faster-Whisper CUDA Large-v3 Turbo · "+
-                 ("INSTALLED" if cuda_ready else "NOT INSTALLED")+" · managed GPU inference"),
+                 availability("cuda")+" · managed GPU inference"),
                 ("argos","Argos Translate · installable source → target language packs"),
                 ("nllb","NLLB-200 600M · "+
-                 ("INSTALLED" if nllb_ready else "NOT INSTALLED")+
+                 availability("nllb")+
                  " · multilingual translator (noncommercial license)"),
                 ("madlad","MADLAD-400 3B · Apache-2.0 · optional large CUDA offline translator"),
                 ("deepl","DeepL API · proprietary online text-only translation; user API key needed"),
-                ("speaker","Resemblyzer · "+("INSTALLED" if free_voice else "NOT INSTALLED")+
+                ("speaker","Resemblyzer · "+availability("speaker")+
                  " · local voice clustering, no demographic labels"),
                 ("speaker-private","pyannote · "+
-                 ("INSTALLED" if private_voice else "NOT INSTALLED")+
+                 availability("speaker-private")+
                  " · separately licensed, token-gated diarization"),
                 ("lyrics","Plain lyric alignment · existing Whisper ASR + conservative text matcher"),
                 ("npu","Dedicated NPU · runtime/model compatibility must be verified")]
@@ -1171,6 +1171,26 @@ def open_ai_settings(parent, ai, after_save=None):
                 self.all_model_list.addItem(row)
                 if code==selected:
                     self.all_model_list.setCurrentItem(row)
+
+
+        def inspect_all_status(self):
+            if self._all_status_busy:
+                return
+            self._all_status_busy=True
+            def scan():
+                try:
+                    results={
+                        "cuda":FasterWhisperCUDA().installed(),
+                        "nllb":self.translation_market.status()["installed"],
+                        "speaker":FreeSpeakerMarket().status()["installed"],
+                        "speaker-private":SpeakerMarket().status()["installed"],
+                        "madlad":MadladMarket().status()["installed"],
+                    }
+                    self.work.put(("all_status",{"status":results}))
+                except Exception as exc:
+                    self.work.put(("all_status",{"error":str(exc)[:160]}))
+            threading.Thread(target=scan,daemon=True,
+                             name="tihulu-all-model-inventory").start()
 
         def open_all_model_category(self):
             item=self.all_model_list.currentItem()
