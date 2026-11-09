@@ -222,6 +222,14 @@ def confirmed_cue_config(config: CaptionConfig,
             type(native_status.get("effective_ms")) is not int or
             native_status.get("primed") is False):
         return None
+    # Current native builds report the *actual* TS release age. Do not send
+    # early subtitles after the FIFO says "primed" but before the first
+    # measured TS release sample is available. Legacy 3/5-field builds
+    # remain supported with reduced synchronization accuracy.
+    if (config.playback_delay_ms > 0
+            and native_status.get("has_release_clock")
+            and not native_status.get("release_fresh")):
+        return None
     return effective_cue_config(config,native_status)
 
 
@@ -607,6 +615,7 @@ class KaffeineOSD:
             values = list(map(int, self.effective.read_text().split()))
             released_age_ms = None
             release_fresh = False
+            has_release_clock = len(values)==7
             if len(values) in (5,7):
                 requested, actual, bps, primed_flag, queue_age = values[:5]
                 if primed_flag not in (0,1) or not 0 <= queue_age <= 60000:
@@ -637,6 +646,7 @@ class KaffeineOSD:
                     "has_queue_age":has_queue_age,
                     "released_age_ms":released_age_ms,
                     "release_fresh":release_fresh,
+                    "has_release_clock":has_release_clock,
                     "capped": actual < requested}
         except (OSError, ValueError, UnicodeError):
             return None
