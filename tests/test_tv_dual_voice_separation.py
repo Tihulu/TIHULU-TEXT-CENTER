@@ -46,6 +46,14 @@ class SourceSeparationTests(unittest.TestCase):
                 self.assertFalse(model.installed())
         self.assertEqual(len(MODEL_FILES),4)
 
+    def test_sepformer_download_runtime_keeps_compatible_hub_major(self):
+        source=(Path(__file__).resolve().parents[1]/
+                "tv_center/overlap_separation.py").read_text(encoding="utf8")
+        ast.parse(source)
+        self.assertIn("huggingface_hub>=0.26,<1.0",source)
+        self.assertIn("HF_HUB_DISABLE_XET",source)
+        self.assertIn("SepFormer model download failed at",source)
+
     def test_actual_two_voice_subtitles_render_in_two_lines(self):
         branches=accept_two_transcripts([
             details("Merhaba nasılsın"),
