@@ -869,12 +869,14 @@ public:
                 {
                     const QSignalBlocker block(installedTargets_);
                     installedTargets_->clear();
+                    QSet<QString> available;
                     for(const QJsonValue &value:catalog) {
                         const QJsonObject model=value.toObject();
                         const QString code=model.value(
                             QLatin1String("code")).toString();
                         if(!QRegularExpression(QLatin1String("^[a-z]{2,3}$"))
                            .match(code).hasMatch()) continue;
+                        available.insert(code);
                         QStringList engines;
                         for(const QJsonValue &engine:model.value(
                             QLatin1String("engines")).toArray())
@@ -892,6 +894,24 @@ public:
                             "Installed/local model metadata, NOT verified "
                             "source-to-target inference. Online DeepL sends "
                             "text only with existing consent and API key."));
+                    }
+                    // Keep saved languages visible even if the translator
+                    // catalog cannot find any compatible installed model.
+                    for(const QString &code:selected) {
+                        if(available.contains(code) || !QRegularExpression(
+                            QLatin1String("^[a-z]{2,3}$"))
+                            .match(code).hasMatch()) continue;
+                        auto *item=new QListWidgetItem(
+                            code.toUpper()+tr(" · selected · model not found"),
+                            installedTargets_);
+                        item->setData(Qt::UserRole,code);
+                        item->setFlags(item->flags()|Qt::ItemIsUserCheckable);
+                        item->setCheckState(Qt::Checked);
+                        item->setToolTip(tr(
+                            "You requested this output language, but no "
+                            "installed translation model candidate was found. "
+                            "Install a compatible model and refresh. "
+                            "Unavailable text will never be invented."));
                     }
                 }
                 const QString previous=speechLanguage_->currentData().isValid()?
