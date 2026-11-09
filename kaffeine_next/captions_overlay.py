@@ -1166,14 +1166,14 @@ def main(argv=None):
     music_transcription.toggled.connect(choose_music_vocals)
     speakers_row = QHBoxLayout()
     speaker_enabled = QCheckBox(
-        "Auto-label distinct voices · Speaker 1, Speaker 2, …")
+        "Detect distinct voices · Resemblyzer (name labels optional)")
     speaker_enabled.setChecked(True)
     speaker_enabled.setToolTip(
         "Checked by default. Install the public Resemblyzer model in "
         "Model Market to activate local offline voice clustering. "
-        "No token required, no microphone or remote voice API. Labels "
-        "are automatically generated and provisional; gender and age "
-        "cannot be identified reliably from audio alone.")
+        "No token or microphone. Detect voice changes independently from "
+        "whether speaker ID labels are shown. Resemblyzer cannot estimate "
+        "gender/age and cannot separate overlapping speech.")
     speakers_row.addWidget(speaker_enabled)
     timing_layout.addRow(speakers_row)
     speaker_provider = QComboBox()
