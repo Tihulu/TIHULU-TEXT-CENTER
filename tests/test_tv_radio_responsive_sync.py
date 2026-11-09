@@ -66,7 +66,7 @@ class RadioModesAndSyncTests(unittest.TestCase):
         self.assertIn('lastAudioRetuneMs_>=180000',self.radio)
         self.assertIn('QCheckBox(tr("Allow automatic radio audio restart")',self.radio)
         self.assertIn('qMax(0,remaining)+radioOffsetMs_->value()',self.radio)
-        self.assertIn('radioSettings.value(QLatin1String("playbackBufferMs"),12000).toInt()',self.patch)
+        self.assertIn('radioSettings.value(QLatin1String("playbackBufferMs"),0).toInt()',self.patch)
         self.assertIn('60000);',self.patch)
         self.assertIn('60 s',self.radio)
 
