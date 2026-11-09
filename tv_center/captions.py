@@ -663,6 +663,19 @@ def decode_segment(ts: bytes, *, mode="auto", page=150, source="de",
                 error = str(exc)[:180]
             finally:
                 asr_ms = round((time.perf_counter()-asr_start)*1000)
+        # A global clip may contain multiple voices; never assign its
+        # acoustic category to an individual without a single diarized
+        # voice. In an overlap case each isolated stream was classified
+        # independently instead.
+        candidate=speech_diagnostics.pop("voice_type_candidate",None)
+        ids={str(turn.get("id")) for turn in
+             speech_diagnostics.get("speaker_turns",[])
+             if isinstance(turn,dict) and turn.get("id")}
+        if candidate and len(ids)==1:
+            speech_diagnostics.update(candidate)
+        elif candidate:
+            speech_diagnostics["voice_type_note"]=(
+                "Multiple/unknown voices; category intentionally withheld")
         translations = {}
         errors = {}
         warnings = {}
@@ -710,6 +723,11 @@ def decode_segment(ts: bytes, *, mode="auto", page=150, source="de",
                 "overlap_lines":speech_diagnostics.get("overlap_lines", []),
                 "overlap_model":speech_diagnostics.get("overlap_model"),
                 "overlap_note":speech_diagnostics.get("overlap_note"),
+                "sound_events":speech_diagnostics.get("sound_events",[]),
+                "sound_event_note":speech_diagnostics.get("sound_event_note"),
+                "voice_type":speech_diagnostics.get("voice_type"),
+                "voice_type_confidence":speech_diagnostics.get("voice_type_confidence"),
+                "voice_type_note":speech_diagnostics.get("voice_type_note"),
                 "speaker_engine":speech_diagnostics.get("speaker_engine"),
                 "speaker_error":speech_diagnostics.get("speaker_error"),
                 "speaker_note":speech_diagnostics.get("speaker_note"),
