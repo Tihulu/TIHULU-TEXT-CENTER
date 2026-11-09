@@ -98,8 +98,8 @@ class SourceSeparationTests(unittest.TestCase):
         result={"original":"Günaydın","source":"local_asr",
                 "speaker_index":1,"voice_type":"female",
                 "voice_type_confidence":0.92,
-                "sound_events":[{"type":"music","confidence":0.91},
-                                {"type":"hum","confidence":0.81}]}
+                "sound_events":[{"type":"music","confidence":0.91,"source":"AST AudioSet"},
+                                {"type":"hum","confidence":0.81,"source":"AST AudioSet"}]}
         shown=config.render(result)
         self.assertIn("Kadın sesi?",shown)
         self.assertIn("[Müzik]",shown)
