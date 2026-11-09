@@ -66,7 +66,8 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
                       speaker_labels: bool=False, prefer_verified_lyrics: bool=False,
                       sentence_hops: int=3,
                       host_audio_cache_ms: int=0,
-                      host_caption_offset_ms: int=0):
+                      host_caption_offset_ms: int=0,
+                      controls: str | None=None):
     if type(port) is not int or not 1024 <= port <= 65535:
         raise ValueError("Invalid loopback radio port")
     if not isinstance(sid,str) or not _SID.fullmatch(sid):
@@ -85,6 +86,10 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
             not -12000<=host_caption_offset_ms<=12000):
         raise ValueError("Radio caption offset must be ±12000 ms")
     location=checked_runtime_output(output,prefix="tihulu-radio-captions-")
+    controls_path=(checked_runtime_output(
+        controls,prefix="tihulu-radio-controls-") if controls else None)
+    controls_marker=None
+    controls_note=""
     ai=AISettings()
     ai.configure_environment()
     if not ai.values["asr_enabled"]:
@@ -140,6 +145,41 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
             if done or audio_window is None:
                 break
             capture_index,pcm,captured_at=audio_window
+            # Apply user-chosen source / output languages during playback
+            # without restarting Whisper and losing presenter audio.
+            # An invalid control file never disables existing languages.
+            if controls_path is not None:
+                try:
+                    stat=controls_path.lstat()
+                    marker=(stat.st_mtime_ns,stat.st_size)
+                    if (stat.st_uid==os.getuid() and
+                            controls_path.is_file() and
+                            not controls_path.is_symlink() and
+                            0<stat.st_size<=4096 and
+                            marker!=controls_marker):
+                        controls_marker=marker
+                        payload=json.loads(controls_path.read_text(
+                            encoding="utf-8"))
+                        requested=payload.get("targets")
+                        language=payload.get("source")
+                        if not isinstance(requested,list) or len(requested)>6:
+                            raise ValueError("Invalid requested output list")
+                        codes=tuple(dict.fromkeys(
+                            language_code(item,nllb=True)
+                            for item in requested))
+                        if not isinstance(language,str):
+                            raise ValueError("Invalid source language")
+                        chosen=("auto" if language=="auto" else
+                                language_code(language))
+                        destinations=codes
+                        if src!=chosen:
+                            src=chosen
+                            auto_language=RadioLanguageLock()
+                            sentence_joiner.reset()
+                        controls_note="live_preferences_applied"
+                except (OSError,ValueError,TypeError,KeyError,
+                        json.JSONDecodeError) as exc:
+                    controls_note="invalid_controls_"+type(exc).__name__
             gap=(last_capture_index is not None and
                  capture_index != last_capture_index+1)
             if gap:
@@ -235,6 +275,58 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
             unverified_vocals_hidden=False
             if plain_matcher is not None and prefer_verified_lyrics and lyric_match:
                 original=lyric_match["text"]
+            # Use capture-clock timing, not the time Whisper + multiple
+            # translators happened to finish. All cue times refer to the
+            # same absolute 5s hop with a 6s PCM decoding window.
+            #
+            # A queued/silence-flushed sentence may span earlier windows;
+            # this is an estimate of its LAST recognized word, never a
+            # claim of exact per-word libVLC presentation timestamps.
+            capture_epoch_ms=round(
+                (time.time()+captured_at-time.monotonic())*1000)
+            window_start=capture_index*5.
+            heard_end=max((float(cue.end) for cue in cues),default=window_start+6.)
+            heard_end=max(window_start,min(window_start+6.,heard_end))
+            phrase_end_epoch_ms=int(capture_epoch_ms-
+                                    round((window_start+6.-heard_end)*1000))
+
+            # Publish the ORIGINAL promptly after ASR. A slow sequential
+            # NLLB/MADLAD/Argos/DeepL translation must not block hearing
+            # the already recognized presenter or lyric words. The next
+            # write for the SAME chunk includes translations (revision 1).
+            if original:
+                preview_state=("language_pending" if language_pending else
+                    "translator_disabled" if not ai.values["translation_enabled"] else
+                    "translating" if any(x!=used_language for x in destinations) else
+                    "original_only")
+                write_runtime_json(location,{
+                    "status":"running",
+                    "chunk_index":capture_index,
+                    "caption_revision":0,
+                    "original":original[:1800],
+                    "source_language":used_language or "und",
+                    "language_source":language_reason,
+                    "language_detected":src=="auto",
+                    "language_confidence":round(confidence,3),
+                    "source_capture_epoch_ms":capture_epoch_ms,
+                    "subtitle_audio_end_epoch_ms":phrase_end_epoch_ms,
+                    "subtitle_clock_source":"welle_pcm_captured_approximate",
+                    "requested_targets":list(destinations),
+                    "translations":{},
+                    "translation_state":preview_state,
+                    "translation_note":(
+                        "Translation processing; original audio shown first"
+                        if preview_state=="translating" else
+                        "Choose a reliable spoken language" if language_pending else
+                        "Translation disabled in Model Market" if
+                        preview_state=="translator_disabled" else
+                        "Only source language selected"),
+                    "language_pending":language_pending,
+                    "control_status":controls_note,
+                    "ai_audio_windows_dropped":capture.dropped_windows,
+                    "ai_audio_gap":gap,
+                    "timestamp":time.time(),
+                })
             translated={}
             problems={}
             requested_translation_targets=tuple(
@@ -300,6 +392,7 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
                 language_pending=language_pending)
             write_runtime_json(location,{
                 "status":"running",
+                "caption_revision":1,
                 "source_language":used_language or "und",
                 "language_detected":src=="auto",
                 "language_confidence":round(confidence,3),
@@ -310,6 +403,7 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
                 "translation_missing_targets":translation_info["missing_targets"],
                 "translation_pending_targets":translation_info["pending_targets"],
                 "requested_targets":list(destinations),
+                "control_status":controls_note,
                 "original":original[:1800],
                 "sentence_pending":bool(sentence_state.get("pending")),
                 "sentence_complete":bool(sentence_state.get("complete")),
@@ -346,8 +440,10 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
                 "captured_monotonic":captured_at,
                 # Convert to wall-clock once, based on the same local
                 # monotonic reading; phone compensates for device clock skew.
-                "source_capture_epoch_ms":round(
-                    (time.time()+captured_at-time.monotonic())*1000),
+                "source_capture_epoch_ms":capture_epoch_ms,
+                "subtitle_audio_end_epoch_ms":phrase_end_epoch_ms,
+                "subtitle_clock_source":"welle_pcm_captured_approximate",
+                "subtitle_word_alignment":"Whisper cue end or PCM hop end; not DAC PTS",
                 "host_audio_cache_ms":host_audio_cache_ms,
                 "host_caption_offset_ms":host_caption_offset_ms,
                 "host_buffer_accuracy":"requested_not_DAC_verified",
@@ -357,6 +453,8 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
                 "chunk_index":capture_index,
                 "ai_audio_windows_dropped":capture.dropped_windows,
                 "ai_audio_gap":gap,
+                "requested_target_count":len(destinations),
+                "translated_target_count":len(translated),
                 "window_hop_seconds":5,
                 "audio_overlap_seconds":1 if capture_index else 0})
             chunks+=1
@@ -476,6 +574,8 @@ def main(args=None):
     live.add_argument("--source",default="auto",
                       help="Auto-detect multilingual broadcast speech per chunk")
     live.add_argument("--targets",default="en,tr")
+    live.add_argument("--controls",default=None,
+                      help="Private XDG runtime JSON; live source/output settings")
     live.add_argument("--output",required=True)
     live.add_argument("--music",action="store_true")
     live.add_argument("--host-audio-cache-ms",type=int,default=0,
@@ -517,7 +617,7 @@ def main(args=None):
         decode_radio_live(port=opts.port,sid=opts.sid,
             source=opts.source,
             targets=tuple(x.strip() for x in opts.targets.split(",") if x.strip()),
-            output=opts.output,music=opts.music,
+            output=opts.output,controls=opts.controls,music=opts.music,
             speaker_labels=opts.speaker_labels,
             prefer_verified_lyrics=opts.prefer_verified_lyrics,
             sentence_hops=opts.sentence_hops,
