@@ -4159,6 +4159,9 @@ private:
 		lyricCues_=QJsonArray();
 		plainLyricMode_=false;
 		plainLyricQueue_.clear();
+        verifiedLyricQueue_.clear();
+        lastMatchedLyricUntilMs_=0;
+        setRadioLyricMatchStatus(QString());
         lastVerifiedLyricMs_=0;
         lastVerifiedLyricText_.clear();
         lastVerifiedLyricTranslations_=QJsonObject();
@@ -4200,9 +4203,17 @@ private:
 		QFile::remove(lyricPath_);
 		lyricsEnabled_=true;
         lastLyricsAutoLookup_=automatic;
-		lyricLoaded_=false;
-		plainLyricMode_=false;
-		plainLyricQueue_.clear();
+        lyricLoaded_=false;
+        plainLyricMode_=false;
+        lyricCues_=QJsonArray();
+        plainLyricQueue_.clear();
+        verifiedLyricQueue_.clear();
+        lastVerifiedLyricMs_=0;
+        lastMatchedLyricUntilMs_=0;
+        lastVerifiedLyricText_.clear();
+        lastVerifiedLyricTranslations_=QJsonObject();
+        setRadioLyricMatchStatus(tr(
+            "LYRICS SEARCHING · metadata lookup in progress"));
         if(lyricsAudioFallbackActive_) {
             // The current fallback is only for this song's absent lyrics;
             // do not leave a previous track's plain/timed cues visible.
@@ -4325,6 +4336,10 @@ private:
 			plainLyricMode_=value.value(QLatin1String("alignment_mode")).toString()
 				==QLatin1String("asr_lexical");
 			lyricCues_=value.value(QLatin1String("cues")).toArray();
+            setRadioLyricMatchStatus(tr(
+                "LYRICS FOUND · %1 · %2 · matching live audio…")
+                .arg(provider.isEmpty()?tr("local file"):provider,
+                     plainLyricMode_?tr("plain text"):tr("timed LRC")));
 			if(plainLyricMode_) {
 				lyricText_->setText(tr("Plain lyrics found. Awaiting REAL Whisper vocal matches; "
 					"no fabricated timestamps."));
@@ -4349,6 +4364,7 @@ private:
             stopLyrics_->setEnabled(false);
             const QString reason=value.value(QLatin1String("reason")).toString().left(190);
 			lyricText_->setText(tr("Lyrics unavailable: %1").arg(reason));
+            setRadioLyricMatchStatus(tr("LYRICS NOT FOUND · Whisper fallback"));
             lyricProvider_->setText(tr("No trusted online lyrics; no radio audio uploaded."));
             if(listenFallbackOnMiss_->isChecked()) beginLyricListening();
 		}
