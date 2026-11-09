@@ -118,7 +118,10 @@ class OrbitEngine:
             fam=family(source,item)
             if family_filter not in ("all",fam):continue
             try:
-                point=wgs84.subpoint_of(sat.at(t))
+                # subpoint_of() projects onto the ellipsoid and reports
+                # elevation ~0 km. Use the satellite's actual geodetic
+                # position for coverage footprint and altitude readouts.
+                point=wgs84.geographic_position_of(sat.at(t))
                 el,az,distance=(sat-observer).at(t).altaz()
                 numbers=[point.latitude.degrees,point.longitude.degrees,point.elevation.km,
                          el.degrees,az.degrees,distance.km]
