@@ -296,6 +296,67 @@ def effective_cue_config(config: CaptionConfig, native_status: dict | None) -> C
     return replace(config, playback_delay_ms=actual)
 
 
+class NativeReleaseClock:
+    """Damp TS-release measurement jitter without claiming actual video PTS.
+
+    Kaffeine's FIFO age is refreshed many times per second. A single low
+    sample would advance subtitles relative to video, while a single high
+    sample would make them late. Median + bounded slew rate prevents
+    intermittent "perfect then suddenly early" subtitle jumps.
+    """
+
+    def __init__(self, window=7, max_step_ms=220):
+        if not 3 <= window <= 15 or not 50 <= max_step_ms <= 500:
+            raise ValueError("Invalid native release-clock filter")
+        self.window=window
+        self.max_step_ms=max_step_ms
+        self.clear()
+
+    def clear(self):
+        self.samples=deque(maxlen=self.window)
+        self.last_stamp=None
+        self.last_target=None
+        self.current_ms=None
+
+    def stabilized(self, state):
+        if not isinstance(state,dict):
+            return state
+        request=state.get("requested_ms")
+        effective=state.get("effective_ms")
+        if (type(request) is not int or type(effective) is not int or
+                request<0 or effective<0 or effective>request):
+            return state
+        key=(request,effective)
+        if self.last_target != key:
+            self.clear()
+            self.last_target=key
+        observed=state.get("released_age_ms")
+        stamp=state.get("released_at_ms")
+        if (not state.get("release_fresh") or
+                type(observed) is not int or type(stamp) is not int):
+            return state
+        if stamp!=self.last_stamp:
+            self.last_stamp=stamp
+            self.samples.append(observed)
+            import statistics
+            target=int(statistics.median(self.samples))
+            target=max(0,min(request,target))
+            if self.current_ms is None:
+                # Stay near actual applied FIFO target until repeated
+                # observations establish a trustworthy release age.
+                self.current_ms=max(0,min(
+                    request,max(effective-350,min(effective+350,target))))
+            else:
+                delta=max(-self.max_step_ms,
+                          min(self.max_step_ms,target-self.current_ms))
+                self.current_ms=max(0,min(request,self.current_ms+delta))
+        adjusted=dict(state)
+        adjusted["raw_released_age_ms"]=observed
+        adjusted["released_age_ms"]=self.current_ms
+        adjusted["release_clock_filtered"]=True
+        return adjusted
+
+
 def confirmed_cue_config(config: CaptionConfig,
                          native_status: dict | None) -> CaptionConfig | None:
     """Do not schedule captions ahead of an unacknowledged delay change.
@@ -783,6 +844,7 @@ class KaffeineOSD:
                 return None
             values = list(map(int, self.effective.read_text().split()))
             released_age_ms = None
+            released_at_ms = None
             release_fresh = False
             has_release_clock = len(values)==7
             if len(values) in (5,7):
@@ -797,6 +859,7 @@ class KaffeineOSD:
                     if (0 <= measured_age <= 60000 and
                             0 <= now_ms-released_at <= 3500):
                         released_age_ms = measured_age
+                        released_at_ms = released_at
                         release_fresh = True
             elif len(values) == 3:
                 # Old native builds report ONLY the target queue setting.
@@ -814,6 +877,7 @@ class KaffeineOSD:
                     "primed":primed, "queue_age_ms":queue_age,
                     "has_queue_age":has_queue_age,
                     "released_age_ms":released_age_ms,
+                    "released_at_ms":released_at_ms,
                     "release_fresh":release_fresh,
                     "has_release_clock":has_release_clock,
                     "capped": actual < requested}
