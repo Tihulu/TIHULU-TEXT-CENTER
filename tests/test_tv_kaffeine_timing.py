@@ -31,7 +31,7 @@ class KaffeineTimingTests(unittest.TestCase):
         expected=CaptionConfig(playback_delay_ms=15000)
         with tempfile.TemporaryDirectory() as root:
             ipc=KaffeineOSD(513,root)
-            unix_ms=round(time.time()*1000)
+            unix_ms=int(time.time()*1000)-100  # avoid rounded 1ms future timestamp
             ipc.effective.write_text(
                 f"15000 15000 4200000 1 15030 14850 {unix_ms}")
             state=ipc.read_effective_delay()
