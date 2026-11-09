@@ -357,6 +357,17 @@ def asr_from_clip(path: Path, language: str, model: str,
                         music_mode=False,speech_priority=False)
                     for track in streams]
                 voices=accept_two_transcripts(recognized)
+                if voices and show_voice_types:
+                    from .audio_classifiers import detect_voice_type
+                    for voice in voices:
+                        try:
+                            track=streams[voice["speaker_index"]-1]
+                            candidate=detect_voice_type(track)
+                            if candidate:
+                                voice.update(candidate)
+                        except (OSError,ValueError,RuntimeError,TimeoutError) as exc:
+                            if diagnostics is not None:
+                                diagnostics["voice_type_note"]=str(exc)[:160]
                 if voices:
                     if diagnostics is not None:
                         diagnostics["overlap_lines"]=voices
