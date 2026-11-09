@@ -3925,40 +3925,44 @@ private:
                 QLatin1String("translation_state")).toString();
             const QString translationNote=obj.value(
                 QLatin1String("translation_note")).toString();
-            if(!translationState.isEmpty() && !translationNote.isEmpty()) {
-                if(translationState==QLatin1String("translated")) {
-                    radioTranslationBanner_->setText(tr("Translation ready · %1")
-                        .arg(outputLanguages.keys().join(QLatin1String(", ")).toUpper()));
-                } else if(translationState==QLatin1String("listening")) {
-                    radioTranslationBanner_->setText(
-                        tr("Listening for translatable speech…"));
-                } else {
-                    radioTranslationBanner_->setText(
-                        tr("Translation pending/unavailable · %1")
-                        .arg(translationNote));
-                }
-                radioTranslationBanner_->setVisible(true);
-                translationStatus_->setText(translationNote);
-            } else if(obj.value(QLatin1String("language_pending")).toBool()) {
-                translationStatus_->setText(tr("Source language uncertain: "
-                    "original transcription shown; translations wait for two "
-                    "consistent high-confidence detections."));
-            } else if(!outputLanguages.isEmpty()) {
-                QStringList codes=outputLanguages.keys();
-                codes.sort();
-                translationStatus_->setText(tr("Original %1 + translations %2 "
-                    "from current recognized audio.")
-                    .arg(detected.isEmpty()?tr("undetected"):detected,
-                         codes.join(QLatin1String(", ")).toUpper()));
-            } else if(!translationWarnings.isEmpty()) {
-                translationStatus_->setText(tr(
-                    "No verified translation; check installed language pair/model. %1")
-                    .arg(translationWarnings.keys().join(QLatin1String(", "))));
-            } else {
-                translationStatus_->setText(tr("Original %1 available; no translated "
-                    "line verified yet. Check target selections and Model Market.")
-                    .arg(detected.isEmpty()?tr("unknown"):detected));
+            // This status is on the main Radio page, not hidden inside
+            // the AI settings tab. A checked language can be pending,
+            // ready, or missing; never report "ready" just because
+            // model weights exist on disk.
+            QStringList outputStates;
+            const QJsonArray requested=obj.value(
+                QLatin1String("requested_targets")).toArray();
+            for(const QJsonValue &entry:requested) {
+                const QString code=entry.toString();
+                if(code.isEmpty()) continue;
+                if(code==detected)
+                    outputStates<<code.toUpper()+tr(" original");
+                else if(!outputLanguages.value(code).toString().trimmed().isEmpty())
+                    outputStates<<code.toUpper()+tr(" ready");
+                else
+                    outputStates<<code.toUpper()+tr(" missing/pending");
             }
+            const QStringList selected=selectedRadioTargets();
+            const QString intended=outputStates.isEmpty()?
+                (selected.isEmpty()?tr("none"):selected.join(
+                    QLatin1String(", ")).toUpper()):
+                outputStates.join(QLatin1String(" · "));
+            const QString spoken=detected.isEmpty()||
+                detected==QLatin1String("und")?tr("auto detecting"):
+                detected.toUpper();
+            QString mainNote=tr("Spoken: %1 · output: %2").arg(spoken,intended);
+            if(translationState==QLatin1String("language_pending"))
+                mainNote+=tr(" · choose spoken language manually to translate sooner");
+            else if(translationState==QLatin1String("translator_disabled"))
+                mainNote+=tr(" · enable translation in AI Model Market");
+            else if(translationState==QLatin1String("failed") ||
+                    translationState==QLatin1String("unavailable") ||
+                    translationState==QLatin1String("partial"))
+                mainNote+=tr(" · inspect AI translations tab for missing model");
+            radioTranslationBanner_->setText(mainNote.left(420));
+            radioTranslationBanner_->setVisible(true);
+            translationStatus_->setText(translationNote.isEmpty()?
+                mainNote:translationNote);
 			if(obj.value(QLatin1String("language_pending")).toBool())
 				syncStatus_->setText(tr("Language change uncertain; translation held "
 					"until two reliable detections. Original audio kept."));
