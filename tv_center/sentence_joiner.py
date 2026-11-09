@@ -60,7 +60,8 @@ class LiveSentenceJoiner:
                 self.pending=text
                 self.chunks=1
             return {"text":previous+" …","complete":False,
-                    "pending":False,"chunks":1,"language_switched":True}
+                    "pending":bool(self.pending),"chunks":1,
+                    "language_switched":True}
         if language:
             self.language=language
         if text:
