@@ -354,6 +354,67 @@ public:
         radioPlaybackRow_->addWidget(quickBuffer_);
         radioPlaybackRow_->addStretch(1);
         dabLayout->addLayout(radioPlaybackRow_);
+        // Common controls must be reachable while listening, without
+        // opening the advanced Whisper/AI menu. Radio has no video lips:
+        // this is audio-to-subtitle timing, not a measured DAC clock.
+        auto *captionComfortRow=new QHBoxLayout();
+        captionComfortRow->addWidget(new QLabel(tr(
+            "Audio ↔ captions (estimated):"),page));
+        captionEarlier_=new QPushButton(tr("−250 ms"),page);
+        captionLater_=new QPushButton(tr("+250 ms"),page);
+        captionEarlier_->setToolTip(tr(
+            "Text appears 250 ms earlier. Does not retune radio audio."));
+        captionLater_->setToolTip(tr(
+            "Text appears 250 ms later. Does not retune radio audio."));
+        captionOffsetReadout_=new QLabel(tr("Offset +0 ms"),page);
+        captionOffsetReadout_->setToolTip(tr(
+            "Your manual subtitle offset (negative = earlier). "
+            "Actual libVLC/ALSA audio presentation time is unmeasured."));
+        captionComfortRow->addWidget(captionEarlier_);
+        captionComfortRow->addWidget(captionLater_);
+        captionComfortRow->addWidget(captionOffsetReadout_);
+        captionComfortRow->addSpacing(12);
+        captionComfortRow->addWidget(new QLabel(tr("Reading:"),page));
+        radioReadingPreset_=new QComboBox(page);
+        radioReadingPreset_->addItem(tr("Live · fast"),0);
+        radioReadingPreset_->addItem(tr("Comfort · recommended"),1);
+        radioReadingPreset_->addItem(tr("Relaxed · longer hold"),2);
+        radioReadingPreset_->addItem(
+            tr("TV-style Adaptive · readable + live"),3);
+        radioReadingPreset_->setToolTip(tr(
+            "TV-style Adaptive (recommended) uses whole-sentence captions "
+            "and a character-per-second reading budget, then shortens holds "
+            "when live speech is queued. Live is fastest; Relaxed is slowest. "
+            "Radio audio and the SDR are never delayed."));
+        QSettings captionPreferences(QLatin1String("TIHULU"),
+                                     QLatin1String("KaffeineRadio"));
+        const int readingPreference=qBound(0,captionPreferences.value(
+            QLatin1String("radioReadingPreset"),3).toInt(),3);
+        radioReadingPreset_->setCurrentIndex(readingPreference);
+        captionComfortRow->addWidget(radioReadingPreset_);
+        captionComfortRow->addWidget(new QLabel(tr("Text:"),page));
+        radioCaptionFontSize_=new QSpinBox(page);
+        radioCaptionFontSize_->setRange(14,28);
+        radioCaptionFontSize_->setSuffix(tr(" pt"));
+        radioCaptionFontSize_->setValue(qBound(14,captionPreferences.value(
+            QLatin1String("radioCaptionFontPt"),18).toInt(),28));
+        captionComfortRow->addWidget(radioCaptionFontSize_);
+        captionComfortRow->addStretch(1);
+        dabLayout->addLayout(captionComfortRow);
+        connect(radioReadingPreset_,QOverload<int>::of(
+            &QComboBox::currentIndexChanged),this,[this](int){
+            QSettings prefs(QLatin1String("TIHULU"),
+                            QLatin1String("KaffeineRadio"));
+            prefs.setValue(QLatin1String("radioReadingPreset"),
+                           radioReadingPreset_->currentData().toInt());
+        });
+        connect(radioCaptionFontSize_,QOverload<int>::of(
+            &QSpinBox::valueChanged),this,[this](int size){
+            QSettings prefs(QLatin1String("TIHULU"),
+                            QLatin1String("KaffeineRadio"));
+            prefs.setValue(QLatin1String("radioCaptionFontPt"),size);
+            updateRadioCaptionTypography();
+        });
         quickBufferProgress_=new QProgressBar(page);
         quickBufferProgress_->setRange(0,100);
         quickBufferProgress_->setValue(0);
@@ -680,6 +741,60 @@ public:
         auto *captionSurface=new QVBoxLayout(radioCanvas_);
         captionSurface->setContentsMargins(12,12,12,12);
         captionSurface->addStretch(1);
+        // A separate karaoke layer occupies the BLUE DAB station canvas.
+        // The bottom subtitles remain a distinct Whisper/translation
+        // display. Match confidence is measured at LINE level, not words.
+        karaokePanel_=new QWidget(radioCanvas_);
+        karaokePanel_->setObjectName(QStringLiteral("radioKaraokePanel"));
+        karaokePanel_->setStyleSheet(QLatin1String(
+            "QWidget#radioKaraokePanel{background:rgba(8,26,44,236);"
+            "border:1px solid #385c75;border-radius:12px;}"));
+        auto *karaokeLayout=new QVBoxLayout(karaokePanel_);
+        karaokeLayout->setContentsMargins(14,12,14,12);
+        karaokeLayout->setSpacing(5);
+        karaokeSource_=new QLabel(karaokePanel_);
+        karaokeSource_->setTextFormat(Qt::PlainText);
+        karaokeSource_->setWordWrap(true);
+        karaokeSource_->setAlignment(Qt::AlignCenter);
+        karaokeSource_->setStyleSheet(QLatin1String(
+            "color:#aec4d6;font-size:11pt;font-weight:500;"));
+        karaokePrevious_=new QLabel(karaokePanel_);
+        karaokePrevious_->setTextFormat(Qt::PlainText);
+        karaokePrevious_->setWordWrap(true);
+        karaokePrevious_->setAlignment(Qt::AlignCenter);
+        karaokePrevious_->setStyleSheet(QLatin1String(
+            "color:#94a7b9;font-size:13pt;"));
+        karaokeCurrent_=new QLabel(karaokePanel_);
+        karaokeCurrent_->setTextFormat(Qt::PlainText);
+        karaokeCurrent_->setWordWrap(true);
+        karaokeCurrent_->setAlignment(Qt::AlignCenter);
+        karaokeCurrent_->setStyleSheet(QLatin1String(
+            "color:#ffe17c;font-size:24pt;font-weight:700;"));
+        karaokeNext_=new QLabel(karaokePanel_);
+        karaokeNext_->setTextFormat(Qt::PlainText);
+        karaokeNext_->setWordWrap(true);
+        karaokeNext_->setAlignment(Qt::AlignCenter);
+        karaokeNext_->setStyleSheet(QLatin1String(
+            "color:#a8b9c6;font-size:13pt;"));
+        karaokeTranslation_=new QLabel(karaokePanel_);
+        karaokeTranslation_->setTextFormat(Qt::PlainText);
+        karaokeTranslation_->setWordWrap(true);
+        karaokeTranslation_->setAlignment(Qt::AlignCenter);
+        karaokeTranslation_->setStyleSheet(QLatin1String(
+            "color:#ffdc61;font-size:15pt;font-weight:600;"));
+        karaokeTranslation_->setToolTip(tr(
+            "Only real lyric translations from the selected model appear. "
+            "Source words remain prominent above; ordinary caption "
+            "translations remain independently in the bottom bar."));
+        karaokeLayout->addWidget(karaokeSource_);
+        karaokeLayout->addWidget(karaokePrevious_);
+        karaokeLayout->addWidget(karaokeCurrent_);
+        karaokeLayout->addWidget(karaokeTranslation_);
+        karaokeLayout->addWidget(karaokeNext_);
+        karaokePanel_->setMinimumHeight(235);
+        karaokePanel_->setVisible(false);
+        captionSurface->addWidget(karaokePanel_,2,Qt::AlignVCenter);
+        captionSurface->addStretch(1);
         radioCanvasCaption_=new QLabel(radioCanvas_);
         radioCanvasCaption_->setTextFormat(Qt::PlainText);
         radioCanvasCaption_->setWordWrap(true);
@@ -707,6 +822,7 @@ public:
             "exists, actual speech stays visible as a transcription."));
         captionSurface->addWidget(radioLyricMatchStatus_);
         captionSurface->addWidget(radioCanvasCaption_);
+        updateRadioCaptionTypography();
 
 		auto *meta = new QHBoxLayout();
 		slide_ = new QLabel(tr("No DAB slideshow"), right);
@@ -1124,7 +1240,22 @@ public:
                 advancedSyncPanel,&QWidget::setVisible);
         v->addWidget(advancedSyncToggle);
         v->addWidget(advancedSyncPanel);
-		lastCaptionOffsetMs_=radioOffsetMs_->value();
+        lastCaptionOffsetMs_=radioOffsetMs_->value();
+        const auto updateOffsetReadout=[this](){
+            if(captionOffsetReadout_) captionOffsetReadout_->setText(
+                tr("Offset %1%2 ms")
+                .arg(radioOffsetMs_->value()>=0?QLatin1String("+"):QString())
+                .arg(radioOffsetMs_->value()));
+        };
+        updateOffsetReadout();
+        connect(captionEarlier_,&QPushButton::clicked,this,[this](){
+            radioOffsetMs_->setValue(qMax(-12000,radioOffsetMs_->value()-250));
+        });
+        connect(captionLater_,&QPushButton::clicked,this,[this](){
+            radioOffsetMs_->setValue(qMin(12000,radioOffsetMs_->value()+250));
+        });
+        connect(radioOffsetMs_,QOverload<int>::of(&QSpinBox::valueChanged),
+            this,[updateOffsetReadout](int){ updateOffsetReadout(); });
 		connect(radioOffsetMs_,QOverload<int>::of(&QSpinBox::valueChanged),
 			this,[this](int newOffset){
 				QSettings saved(QLatin1String("TIHULU"),QLatin1String("KaffeineRadio"));
@@ -1282,6 +1413,43 @@ public:
 		lyricsRow->addWidget(stopLyrics_,0,1);
 		radioPlaybackRow_->insertWidget(2,autoLyrics_);
         autoLyrics_->setText(tr("Auto lyrics · online opt-in"));
+        karaokeEnabled_=new QCheckBox(tr("Karaoke · blue screen"),page);
+        karaokeTranslationsEnabled_=new QCheckBox(
+            tr("Lyrics translations · yellow"),page);
+        QSettings lyricDisplaySettings(QLatin1String("TIHULU"),
+                                       QLatin1String("KaffeineRadio"));
+        karaokeEnabled_->setChecked(lyricDisplaySettings.value(
+            QLatin1String("karaokeDisplayEnabled"),true).toBool());
+        karaokeTranslationsEnabled_->setChecked(lyricDisplaySettings.value(
+            QLatin1String("karaokeTranslationsEnabled"),true).toBool());
+        karaokeEnabled_->setToolTip(tr(
+            "AUDIO-MATCHED song lines in the big blue station panel. "
+            "The normal Whisper/translated subtitles stay independently "
+            "in the bottom caption bar."));
+        karaokeTranslationsEnabled_->setToolTip(tr(
+            "Show existing lyric translations in yellow under the active "
+            "karaoke line. OFF hides only these duplicates, not the "
+            "normal bottom subtitles."));
+        radioPlaybackRow_->insertWidget(3,karaokeEnabled_);
+        radioPlaybackRow_->insertWidget(4,karaokeTranslationsEnabled_);
+        connect(karaokeEnabled_,&QCheckBox::toggled,this,[this](bool enabled){
+            QSettings prefs(QLatin1String("TIHULU"),
+                            QLatin1String("KaffeineRadio"));
+            prefs.setValue(QLatin1String("karaokeDisplayEnabled"),enabled);
+            if(karaokePanel_) karaokePanel_->setVisible(enabled &&
+                lastKaraokeUntilMs_>QDateTime::currentMSecsSinceEpoch() &&
+                karaokeCurrent_ && !karaokeCurrent_->text().isEmpty());
+        });
+        connect(karaokeTranslationsEnabled_,&QCheckBox::toggled,
+            this,[this](bool enabled){
+                QSettings prefs(QLatin1String("TIHULU"),
+                                QLatin1String("KaffeineRadio"));
+                prefs.setValue(QLatin1String("karaokeTranslationsEnabled"),
+                               enabled);
+                if(karaokeTranslation_)
+                    karaokeTranslation_->setVisible(enabled &&
+                        !karaokeTranslation_->text().isEmpty());
+            });
         lyricsRow->addWidget(listenLyrics_,5,0,1,2);
         lyricsRow->addWidget(listenFallbackOnMiss_,5,2);
 		lyricsRow->addWidget(autoLyricSync_,1,0,1,2);
@@ -1822,7 +1990,22 @@ public:
 
 private:
 	struct TimedRadioCue { int chunkIndex; qint64 dueMs; qint64 queuedMs; QString text; };
-	struct TimedPlainLyric { qint64 dueMs; QString text; double confidence; };
+    struct TimedPlainLyric {
+        qint64 dueMs;
+        QString text;
+        double confidence;
+        int lineIndex;
+        QString original;
+        QJsonObject translations;
+        // Qt5/C++11 builds do not treat a struct with default member
+        // initializers as an aggregate. Accept old 3-field cues as well
+        // as newer 6-field verified karaoke cues.
+        TimedPlainLyric(qint64 due,const QString &rendered,double certainty,
+                        int index=-1,const QString &source=QString(),
+                        const QJsonObject &translated=QJsonObject())
+            : dueMs(due),text(rendered),confidence(certainty),
+              lineIndex(index),original(source),translations(translated) {}
+    };
 	static QString label(const QJsonValue &value) {
 		if (value.isString()) return value.toString();
 		if (value.isObject()) return value.toObject().value(QLatin1String("label")).toString();
@@ -2694,6 +2877,9 @@ private:
 					plainLyricQueue_.clear();
                     verifiedLyricQueue_.clear();
                     lastMatchedLyricUntilMs_=0;
+                    lyricRawLines_.clear();
+                    lastLyricsProvider_.clear();
+                    clearKaraokeLine();
                     setRadioLyricMatchStatus(QString());
                     // A DLS metadata change is NOT proof of new audible
                     // song, and must not disable Stop for an offline
@@ -3099,6 +3285,7 @@ private:
 				displayedRadioChunk_=-1;
                 lastCaptionVisibleMs_=0;
                 lastCanvasLyricMs_=0;
+                captionReadingHoldUntilMs_=0;
                 if(radioCanvasCaption_) radioCanvasCaption_->setVisible(false);
                 radioCaptionBanner_->setText(tr("Opening DAB station · waiting for audio…"));
 				pendingRadioCue_.clear();
@@ -3115,6 +3302,9 @@ private:
                         .arg(block,dabCenterFrequencyMHz(block),sid));
 				lastDls_.clear();
                 lastSongDls_.clear();
+                lyricRawLines_.clear();
+                lastLyricsProvider_.clear();
+                clearKaraokeLine();
 				lyricLoaded_=false;
 				lyricCues_=QJsonArray();
 				slideHistory_.clear();
@@ -3672,6 +3862,93 @@ private:
                 "Radio audio plays independently; heavy AI may fall behind."));
         }
 	}
+    void clearKaraokeLine() {
+        lastKaraokeUntilMs_=0;
+        if(karaokePanel_) karaokePanel_->setVisible(false);
+        if(karaokeCurrent_) karaokeCurrent_->clear();
+        if(karaokeTranslation_) karaokeTranslation_->clear();
+    }
+    void showKaraokeLine(const TimedPlainLyric &cue) {
+        if(!karaokePanel_ || !karaokeCurrent_ ||
+           !karaokeSource_ || !karaokePrevious_ || !karaokeNext_ ||
+           !karaokeTranslation_) return;
+        if(lastUnmatchedVoiceUntilMs_>QDateTime::currentMSecsSinceEpoch())
+            return; // New presenter/advert speech overrides old lyrics
+        const QString line=cue.original.trimmed().isEmpty()?
+            cue.text.section(QLatin1Char('\n'),0,0).trimmed():
+            cue.original.trimmed();
+        if(line.isEmpty()) return;
+        const int index=cue.lineIndex;
+        const QString previous=index>0 && index<=lyricRawLines_.size()?
+            lyricRawLines_.at(index-1):QString();
+        const QString next=index>=0 && index+1<lyricRawLines_.size()?
+            lyricRawLines_.at(index+1):QString();
+        karaokePrevious_->setText(previous.left(230));
+        karaokePrevious_->setVisible(!previous.isEmpty());
+        karaokeCurrent_->setText(line.left(300));
+        karaokeNext_->setText(next.left(230));
+        karaokeNext_->setVisible(!next.isEmpty());
+        QStringList translations;
+        // Follow OUT language selection and never invent a missing
+        // translation. Normal captions continue in their own band.
+        for(const QString &lang:selectedRadioTargets()) {
+            const QString value=cue.translations.value(lang).toString().trimmed();
+            if(!value.isEmpty())
+                translations<<QLatin1String("[")+lang.toUpper()+
+                    QLatin1String("] ")+value.left(360);
+        }
+        karaokeTranslation_->setText(translations.join(QLatin1Char('\n')));
+        karaokeTranslation_->setVisible(karaokeTranslationsEnabled_ &&
+            karaokeTranslationsEnabled_->isChecked() &&
+            !translations.isEmpty());
+        const QString provider=lastLyricsProvider_.isEmpty()?
+            tr("user-provided / source unavailable"):lastLyricsProvider_;
+        const QString song=(lyricsArtist_ && lyricsTitle_ &&
+            !lyricsArtist_->text().trimmed().isEmpty() &&
+            !lyricsTitle_->text().trimmed().isEmpty())?
+            lyricsArtist_->text().trimmed()+QLatin1String(" · ")+
+                lyricsTitle_->text().trimmed():tr("live radio");
+        karaokeSource_->setText(tr(
+            "♪ %1 · SOURCE: %2 · AUDIO MATCH: %3% · LINE %4\n"
+            "Line-level sync estimated from Whisper PCM; no word PTS")
+            .arg(song.left(100),provider.left(55))
+            .arg(qRound(cue.confidence*100))
+            .arg(index>=0?QString::number(index+1):QStringLiteral("?")));
+        const qint64 now=QDateTime::currentMSecsSinceEpoch();
+        lastKaraokeUntilMs_=now+qMax(5500,radioCaptionReadingHoldMs(
+            line+translations.join(QLatin1Char('\n'))));
+        karaokePanel_->setVisible(karaokeEnabled_ &&
+            karaokeEnabled_->isChecked());
+    }
+    void updateRadioCaptionTypography() {
+        if(!radioCanvasCaption_) return;
+        const int font=radioCaptionFontSize_?
+            radioCaptionFontSize_->value():18;
+        radioCanvasCaption_->setStyleSheet(QString::fromLatin1(
+            "QLabel{background:rgba(0,0,0,215);color:#ffffff;"
+            "border-radius:6px;padding:11px;font-size:%1pt;"
+            "font-weight:600;}").arg(font));
+    }
+    int radioCaptionReadingHoldMs(const QString &text) const {
+        const int preset=radioReadingPreset_?
+            radioReadingPreset_->currentData().toInt():1;
+        if(preset<=0) return 0;
+        // Readability budget for all visible source/translation lines.
+        // It does NOT delay audio or claim true sample-clock sync.
+        const int chars=qMin(1400,text.trimmed().size());
+        const int normal=preset==3?
+            // TV-style readability: a sentence-level ~16 cps budget
+            // for all visible source/translation lines, but bound the
+            // delay so radio speech does not accumulate endlessly.
+            qBound(2800,chars*63,9000):
+            preset==2?qBound(5500,chars*65,12000):
+            qBound(3300,chars*45,8500);
+        // Under load, avoid drifting tens of seconds behind live radio.
+        // Backlog contracts the hold to ~2–4s without dropping phrases.
+        if(cueQueue_.size()>=4) return qMin(normal,2500);
+        if(cueQueue_.size()>=2) return qMin(normal,4000);
+        return normal;
+    }
     void setRadioLyricMatchStatus(const QString &message) {
         if(!radioLyricMatchStatus_) return;
         const QString label=message.trimmed().left(210);
@@ -3694,8 +3971,13 @@ private:
         if(lyric && lastUnmatchedVoiceUntilMs_>currentMs) return;
         if(!lyric && lyricsEnabled_ && currentMs<lastMatchedLyricUntilMs_ &&
            currentMs>=lastUnmatchedVoiceUntilMs_) return;
-        if(radioCanvasCaption_->text()!=text)
+        if(radioCanvasCaption_->text()!=text) {
             radioCanvasCaption_->setText(text);
+            // Keep full multi-language phrases readable; never change
+            // actual libVLC playback or restart the SDR receiver.
+            captionReadingHoldUntilMs_=currentMs+
+                radioCaptionReadingHoldMs(text);
+        }
         radioCanvasCaption_->setVisible(true);
         if(lyric) {
             lastCanvasLyricMs_=currentMs;
@@ -3728,7 +4010,18 @@ private:
 					.arg(qMax(qint64(0),next.dueMs-now)).arg(activePlaybackCacheMs_));
 			}
 		}
-		while(!cueQueue_.isEmpty() && cueQueue_.first().dueMs<=now) {
+        while(!cueQueue_.isEmpty() && cueQueue_.first().dueMs<=now) {
+            if(captionReadingHoldUntilMs_>now &&
+               radioCanvasCaption_ && radioCanvasCaption_->isVisible()) {
+                // Keep queued phrases rather than flashing a new one
+                // before viewers can read the previous phrase.
+                if(captionProgress_) captionProgress_->setFormat(
+                    tr("Reading hold %1 ms · %2 phrase(s) queued · "
+                       "radio audio uninterrupted")
+                    .arg(captionReadingHoldUntilMs_-now)
+                    .arg(cueQueue_.size()));
+                break;
+            }
 			const TimedRadioCue cue=cueQueue_.takeFirst();
 			if(cue.chunkIndex<=displayedRadioChunk_) continue;
 			displayedRadioChunk_=cue.chunkIndex;
@@ -3964,14 +4257,18 @@ private:
                         .arg(qRound(confidence*100))
                         .arg(matched.value(QLatin1String("index")).toInt()+1));
 					if(plainLyricMode_) {
-						plainLyricQueue_.append({due+lyricsOffset_->value(),rendered,confidence});
+						plainLyricQueue_.append({due+lyricsOffset_->value(),rendered,confidence,
+                            matched.value(QLatin1String("index")).toInt(-1),
+                            line,lyricTranslations});
 						while(plainLyricQueue_.size()>10) plainLyricQueue_.removeFirst();
 						lyricsSyncState_->setText(tr("Verified text match %1% · "
 							"audio-derived line ordering, approximate 5s time resolution")
 							.arg(qRound(confidence*100)));
                     } else {
                         verifiedLyricQueue_.append({
-                            due+lyricsOffset_->value(),rendered,confidence});
+                            due+lyricsOffset_->value(),rendered,confidence,
+                            matched.value(QLatin1String("index")).toInt(-1),
+                            line,lyricTranslations});
                         while(verifiedLyricQueue_.size()>10)
                             verifiedLyricQueue_.removeFirst();
                     }
@@ -4033,6 +4330,7 @@ private:
                 lastMatchedLyricUntilMs_=0;
                 verifiedLyricQueue_.clear();
                 plainLyricQueue_.clear();
+                clearKaraokeLine();
                 lastUnmatchedVoiceUntilMs_=qMax(lastUnmatchedVoiceUntilMs_,
                                                 due+5000);
                 setRadioLyricMatchStatus(tr(
@@ -4104,6 +4402,7 @@ private:
 	}
 	void stopCaptioning() {
         captionsStopping_=true;
+        captionReadingHoldUntilMs_=0;
 		cueQueue_.clear();
 		metadataCaptions_=false;
 		if (captionProcess_.state()!=QProcess::NotRunning) {
@@ -4196,6 +4495,9 @@ private:
 		plainLyricQueue_.clear();
         verifiedLyricQueue_.clear();
         lastMatchedLyricUntilMs_=0;
+        lyricRawLines_.clear();
+        lastLyricsProvider_.clear();
+        clearKaraokeLine();
         setRadioLyricMatchStatus(QString());
         lastVerifiedLyricMs_=0;
         lastVerifiedLyricText_.clear();
@@ -4245,6 +4547,9 @@ private:
         lyricCues_=QJsonArray();
         plainLyricQueue_.clear();
         verifiedLyricQueue_.clear();
+        lyricRawLines_.clear();
+        lastLyricsProvider_.clear();
+        clearKaraokeLine();
         lastVerifiedLyricMs_=0;
         lastMatchedLyricUntilMs_=0;
         lastVerifiedLyricText_.clear();
@@ -4288,11 +4593,14 @@ private:
     void updateLyrics() {
         if(!lyricsEnabled_) return;
         const qint64 now=QDateTime::currentMSecsSinceEpoch();
+        if(lastKaraokeUntilMs_>0 && now>=lastKaraokeUntilMs_)
+            clearKaraokeLine();
         // Only ASR-confirmed matches enter this extra timed-LRC queue.
         while(!verifiedLyricQueue_.isEmpty() &&
               verifiedLyricQueue_.first().dueMs<=now) {
             const auto cue=verifiedLyricQueue_.takeFirst();
             showRadioCanvasCaption(cue.text,true);
+            showKaraokeLine(cue);
             setRadioLyricMatchStatus(tr(
                 "LYRICS MATCHED %1% · showing heard song words")
                 .arg(qRound(cue.confidence*100)));
@@ -4305,6 +4613,7 @@ private:
 				lyricText_->setText(tr("Audio-matched lyric (~%1% confidence) · %2")
 					.arg(qRound(cue.confidence*100)).arg(cue.text));
                 showRadioCanvasCaption(cue.text,true);
+                showKaraokeLine(cue);
                 setRadioLyricMatchStatus(tr(
                     "LYRICS MATCHED %1% · showing heard song words")
                     .arg(qRound(cue.confidence*100)));
@@ -4375,6 +4684,12 @@ private:
 			plainLyricMode_=value.value(QLatin1String("alignment_mode")).toString()
 				==QLatin1String("asr_lexical");
 			lyricCues_=value.value(QLatin1String("cues")).toArray();
+            lastLyricsProvider_=provider.isEmpty()?tr("local file"):provider;
+            lyricRawLines_.clear();
+            const QJsonArray originalLines=value.value(
+                QLatin1String("plain_lines")).toArray();
+            for(const QJsonValue &item:originalLines)
+                if(item.isString()) lyricRawLines_<<item.toString().left(350);
             setRadioLyricMatchStatus(tr(
                 "LYRICS FOUND · %1 · %2 · matching live audio…")
                 .arg(provider.isEmpty()?tr("local file"):provider,
@@ -4492,13 +4807,16 @@ private:
 	QLabel *bufferRecommendation_=nullptr;
 	qint64 audioStartedMs_=0,lastLyricSyncUpdateMs_=0,
         lastCaptionVisibleMs_=0,lastCanvasLyricMs_=0,lastCaptionUpdateMs_=0,
-        lastUnmatchedVoiceUntilMs_=0,lastMatchedLyricUntilMs_=0;
+        lastUnmatchedVoiceUntilMs_=0,lastMatchedLyricUntilMs_=0,
+        captionReadingHoldUntilMs_=0;
     bool lastLyricsAutoLookup_=false;
 	bool metadataCaptions_=false;
 	int dlsCaptionIndex_=0;
 	int lastLyricOffsetMs_=0;
 	bool plainLyricMode_=false;
 	QList<TimedPlainLyric> plainLyricQueue_,verifiedLyricQueue_;
+    QCheckBox *karaokeEnabled_=nullptr,
+        *karaokeTranslationsEnabled_=nullptr;
 	QCheckBox *autoLyrics_=nullptr,*autoLyricSync_=nullptr,
 		*preferLyrics_=nullptr,*listenFallbackOnMiss_=nullptr;
     bool lyricsAudioFallbackActive_=false,lyricsFallbackStartedAi_=false,
@@ -4508,6 +4826,10 @@ private:
     bool bufferUnitsSeconds_=false;
     QHBoxLayout *radioQuickRow_=nullptr,*radioPlaybackRow_=nullptr;
     QCheckBox *quickAi_=nullptr,*quickBuffer_=nullptr,*releaseOnStop_=nullptr;
+    QPushButton *captionEarlier_=nullptr,*captionLater_=nullptr;
+    QLabel *captionOffsetReadout_=nullptr;
+    QComboBox *radioReadingPreset_=nullptr;
+    QSpinBox *radioCaptionFontSize_=nullptr;
 	QCheckBox *autoSync_=nullptr,*autoRestartAudio_=nullptr;
 	int lastCaptionOffsetMs_=0;
     int activePlaybackCacheMs_=0;
@@ -4541,6 +4863,13 @@ private:
     QString lastErrorStation_;
     qint64 lastRfFrameErrors_=-1,lastRfRsErrors_=-1,lastRfAacErrors_=-1;
     QJsonObject lastVerifiedLyricTranslations_;
+    QStringList lyricRawLines_;
+    QString lastLyricsProvider_;
+    qint64 lastKaraokeUntilMs_=0;
+    QLabel *karaokeSource_=nullptr,*karaokePrevious_=nullptr,
+        *karaokeCurrent_=nullptr,*karaokeNext_=nullptr,
+        *karaokeTranslation_=nullptr;
+    QWidget *karaokePanel_=nullptr;
     qint64 lastVerifiedLyricMs_=0;
     int lastLyricDirection_=0,lyricOffsetConsistency_=0;
 	QString activeChannel_,playingKey_,lastDls_,lastSongDls_,captionPath_,captionControlsPath_,lyricPath_,
