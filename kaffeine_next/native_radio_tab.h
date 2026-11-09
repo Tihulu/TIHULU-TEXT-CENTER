@@ -4235,18 +4235,32 @@ private:
 		stopLyrics_->setEnabled(true);
 		lyricText_->setText(tr("Searching timed OR plain lyrics… Stop available."));
 	}
-	void updateLyrics() {
-		if (!lyricsEnabled_) return;
+    void updateLyrics() {
+        if(!lyricsEnabled_) return;
+        const qint64 now=QDateTime::currentMSecsSinceEpoch();
+        // Only ASR-confirmed matches enter this extra timed-LRC queue.
+        while(!verifiedLyricQueue_.isEmpty() &&
+              verifiedLyricQueue_.first().dueMs<=now) {
+            const auto cue=verifiedLyricQueue_.takeFirst();
+            showRadioCanvasCaption(cue.text,true);
+            setRadioLyricMatchStatus(tr(
+                "LYRICS MATCHED %1% · showing heard song words")
+                .arg(qRound(cue.confidence*100)));
+            lyricText_->setText(tr("Audio-matched lyric · %1")
+                                .arg(cue.text.left(400)));
+        }
 		if(plainLyricMode_) {
-			const qint64 now=QDateTime::currentMSecsSinceEpoch();
 			while(!plainLyricQueue_.isEmpty() && plainLyricQueue_.first().dueMs<=now) {
 				const auto cue=plainLyricQueue_.takeFirst();
 				lyricText_->setText(tr("Audio-matched lyric (~%1% confidence) · %2")
 					.arg(qRound(cue.confidence*100)).arg(cue.text));
                 showRadioCanvasCaption(cue.text,true);
+                setRadioLyricMatchStatus(tr(
+                    "LYRICS MATCHED %1% · showing heard song words")
+                    .arg(qRound(cue.confidence*100)));
             }
             if(lastCanvasLyricMs_>0 && now-lastCanvasLyricMs_>8000 &&
-               radioCanvasCaption_) {
+               now>=lastMatchedLyricUntilMs_ && radioCanvasCaption_) {
                 radioCanvasCaption_->setVisible(false);
                 lastCanvasLyricMs_=0;
             }
@@ -4254,11 +4268,12 @@ private:
 		}
 		if (lyricPath_.isEmpty() || lyricLoaded_) {
             const qint64 currentEpoch=QDateTime::currentMSecsSinceEpoch();
-            // Automatic LRC from DLS is provisional until we actually
-            // hear a vocal line matching the current song.
-            if(lastLyricsAutoLookup_ &&
-               (lastVerifiedLyricMs_<=0 ||
-                currentEpoch-lastVerifiedLyricMs_>16000)) return;
+            // A DLS song title is metadata, not an exact start time:
+            // automatic timed LRC requires real ASR-verified matches
+            // (processed above) rather than guessed positions.
+            // Manually imported/selected LRC may still estimate timing.
+            if(lastLyricsAutoLookup_) return;
+            if(now<lastMatchedLyricUntilMs_) return;
             if(lastUnmatchedVoiceUntilMs_>currentEpoch) return;
 			if (!lyricCues_.isEmpty() && songStartMs_>0) {
 				const qint64 start=autoLyricSync_->isChecked()
