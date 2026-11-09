@@ -2679,6 +2679,9 @@ private:
 					lyricsSyncState_->setText(tr("New DLS song · awaiting audible lyric verification"));
 					plainLyricMode_=false;
 					plainLyricQueue_.clear();
+                    verifiedLyricQueue_.clear();
+                    lastMatchedLyricUntilMs_=0;
+                    setRadioLyricMatchStatus(QString());
                     // A DLS metadata change is NOT proof of new audible
                     // song, and must not disable Stop for an offline
                     // listening worker the user explicitly started.
@@ -4259,6 +4262,8 @@ private:
 			lyrics_->setEnabled(true);
             stopLyrics_->setEnabled(false);
 			lyricText_->setText(tr("Lyrics lookup worker failed to start."));
+            setRadioLyricMatchStatus(tr(
+                "LYRICS LOOKUP FAILED · Whisper fallback"));
             if(listenFallbackOnMiss_->isChecked()) beginLyricListening();
 			return;
 		}
