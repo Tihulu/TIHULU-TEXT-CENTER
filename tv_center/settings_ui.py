@@ -1549,7 +1549,17 @@ def open_ai_settings(parent, ai, after_save=None):
                             if remote_enabled else self.remote_endpoint.text().strip())
                 if remote_enabled:
                     read_token()
+                # A manual model/backend change is a Custom mode rather
+                # than silently claiming the old verified preset is active.
+                old_profile=ai.values.get("active_profile","")
+                spec=PROFILES.get(old_profile)
+                still_profile=bool(spec and
+                    self.backend.currentText()==spec["backend"] and
+                    self.translation_choice.currentData()==spec["translator"] and
+                    self.model_path.text().strip()==str(
+                        self.library._path(spec["speech"])))
                 ai.update({
+                    "active_profile":old_profile if still_profile else "",
                     "remote_gpu_enabled": remote_enabled,
                     "remote_gpu_url": remote_url,
                     "remote_gpu_fallback": self.remote_fallback.isChecked(),
