@@ -1265,6 +1265,11 @@ function planCandidate(pass){
  try{
   const entry=candidateFromPass(pass,{observer:{lat:Number($('lat').value),lon:Number($('lon').value)}});
   planningCandidates=savePlanningCandidate(entry);
+  if(typeof window.nativeSavePlanningCandidate==="function")
+   void window.nativeSavePlanningCandidate(entry).then(rows=>{
+    if(Array.isArray(rows)){planningCandidates=rows;renderPlanningCandidates();}
+   }).catch(error=>status('candidate-hardware-warning',
+     'Planning saved in this session, but native disk save failed: '+String(error.message||error)));
   if($('browser-calendar-date'))
    $('browser-calendar-date').value=localDayKey(new Date(entry.aos));
   renderPredictedPassCalendar();
@@ -1300,10 +1305,24 @@ function renderPlanningCandidates(){
    (p.observer?' · station '+p.observer.lat.toFixed(3)+', '+p.observer.lon.toFixed(3):'');
   const remove=document.createElement('button');remove.type='button';remove.className='secondary';
   remove.textContent='Remove plan';
-  remove.onclick=()=>{planningCandidates=removePlanningCandidate(p.id);renderPlanningCandidates();};
+  remove.onclick=()=>{
+   planningCandidates=removePlanningCandidate(p.id);renderPlanningCandidates();
+   if(typeof window.nativeDeletePlanningCandidate==="function")
+    void window.nativeDeletePlanningCandidate(p.id).then(rows=>{
+     if(Array.isArray(rows)){planningCandidates=rows;renderPlanningCandidates();}
+    }).catch(error=>status('candidate-hardware-warning',
+      'Native disk removal failed: '+String(error.message||error)));
+  };
   card.append(title,meta,remove);list.append(card);
  }
 }
+window.addEventListener('tihulu-native-bridge-ready',()=>{
+ if(typeof window.nativeListPlanningCandidates!=="function")return;
+ void window.nativeListPlanningCandidates().then(rows=>{
+  if(Array.isArray(rows)){planningCandidates=rows;renderPlanningCandidates();}
+ }).catch(error=>status('candidate-hardware-warning',
+  'Native calendar unavailable; temporary browser planning remains usable: '+String(error.message||error)));
+});
 let passRenderDeferred=false;
 $('passes').addEventListener('focusout',()=>{
   queueMicrotask(()=>{
