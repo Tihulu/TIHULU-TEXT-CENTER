@@ -228,6 +228,16 @@ def confirmed_cue_config(config: CaptionConfig,
 # The audio/video native queue reports TS buffering, not the exact
 # libVLC presentation timestamp. Bias captions slightly BEHIND speech rather
 # than revealing the next line too early while dialogue is still playing.
+def provisional_ai_buffer_ms(is_pi5):
+    """One-time, conservative ASR startup delay; NEVER pretend it is a
+    measured lip-sync or sustained inference benchmark. The native TS FIFO
+    may cap it according to bitrate/RAM and must acknowledge priming.
+    """
+    if type(is_pi5) is not bool:
+        raise ValueError("Raspberry Pi flag must be boolean")
+    return 6000 if is_pi5 else 10000
+
+
 CAPTION_SAFETY_HOLD_SEC = 0.55
 # Faster-Whisper word boundaries already describe the source audio timeline.
 # An additional half-second safety hold noticeably desynchronizes dialogue.
