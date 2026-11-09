@@ -32,7 +32,8 @@ class RadioCaptionComfortContracts(unittest.TestCase):
         self.assertIn('radioReadingPreset_->addItem(tr("Live · fast"),0)',UI)
         self.assertIn('radioReadingPreset_->addItem(tr("Comfort · recommended"),1)',UI)
         self.assertIn('radioReadingPreset_->addItem(tr("Relaxed · longer hold"),2)',UI)
-        self.assertIn('QLatin1String("radioReadingPreset"),1',UI)
+        self.assertIn('QLatin1String("radioReadingPreset"),3',UI)
+        self.assertIn('TV-style Adaptive · readable + live',UI)
         self.assertIn('prefs.setValue(QLatin1String("radioReadingPreset")',UI)
         self.assertIn('QLatin1String("radioCaptionFontPt"),18',UI)
         self.assertIn('radioCaptionFontSize_->setRange(14,28)',UI)
@@ -44,6 +45,7 @@ class RadioCaptionComfortContracts(unittest.TestCase):
         self.assertIn('if(preset<=0) return 0;',hold)
         self.assertIn('qBound(3300,chars*45,8500)',hold)
         self.assertIn('qBound(5500,chars*65,12000)',hold)
+        self.assertIn('qBound(2800,chars*63,9000)',hold)
         self.assertIn('cueQueue_.size()>=4',hold)
         self.assertIn('cueQueue_.size()>=2',hold)
         queue=section("void displayDueRadioCues(qint64 now) {",
