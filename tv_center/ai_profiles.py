@@ -205,7 +205,14 @@ def install_components(key, *, library=None, progress=None,
                 from .whisper_engine import WhisperRuntime
                 WhisperRuntime().install()
             elif component in ("tiny","small"):
+                # Avoid flooding the Qt queue for each 256-KiB network read.
+                # Progress updates arrive every approximately 4 MiB.
+                last_bucket=[-1]
                 def bytes_progress(received,total,*,code=component):
+                    bucket=received // (4 * 1048576)
+                    if bucket==last_bucket[0]:
+                        return
+                    last_bucket[0]=bucket
                     notice(f"{code}: {received // 1048576} MiB received")
                     emit(code,"downloading",received=received,total=total)
                 lib.download(component,progress=bytes_progress)
