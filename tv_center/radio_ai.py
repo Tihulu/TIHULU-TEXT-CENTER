@@ -311,6 +311,17 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
             heard_end=max(window_start,min(window_start+6.,heard_end))
             phrase_end_epoch_ms=int(capture_epoch_ms-
                                     round((window_start+6.-heard_end)*1000))
+            # First ACTUAL GPU Whisper word, not guessed CPU chunk time.
+            # A carried multi-hop sentence cannot use a later hop's start.
+            first_word_epoch_ms=0
+            if cues and detection.get("asr_words") and not (
+                    sentence_state.get("continued") or
+                    sentence_state.get("chunks",0)>1):
+                heard_start=min(float(cue.start) for cue in cues)
+                heard_start=max(window_start,
+                                min(window_start+6.,heard_start))
+                first_word_epoch_ms=int(capture_epoch_ms-round(
+                    (window_start+6.-heard_start)*1000))
             # Only matched song lines may carry GPU word evidence.
             # No inferred word times for CPU, translations, DLS or LRC metadata.
             lyric_word_anchors=(aligned_karaoke_word_anchors(
@@ -339,6 +350,7 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
                     "language_confidence":round(confidence,3),
                     "source_capture_epoch_ms":capture_epoch_ms,
                     "subtitle_audio_end_epoch_ms":phrase_end_epoch_ms,
+                    "subtitle_audio_start_epoch_ms":first_word_epoch_ms,
                     "subtitle_clock_source":"welle_pcm_captured_approximate",
                     "requested_targets":list(destinations),
                     "translations":{},
@@ -477,6 +489,7 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
                 # monotonic reading; phone compensates for device clock skew.
                 "source_capture_epoch_ms":capture_epoch_ms,
                 "subtitle_audio_end_epoch_ms":phrase_end_epoch_ms,
+                    "subtitle_audio_start_epoch_ms":first_word_epoch_ms,
                 "subtitle_clock_source":"welle_pcm_captured_approximate",
                 "subtitle_word_alignment":"Whisper cue end or PCM hop end; not DAC PTS",
                 "host_audio_cache_ms":host_audio_cache_ms,
