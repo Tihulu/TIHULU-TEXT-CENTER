@@ -20,7 +20,7 @@ def tap_for_test():
     tap.sentence_joiner = LiveSentenceJoiner(max_words=90,max_chunks=2)
     tap.sentence_session = None
     tap.sentence_captured_start = None
-    from kaffeine_next.teletext_audit import TeletextAudit
+    from kaffeine_next.teletext_match import TeletextAudit
     tap.teletext_audit = TeletextAudit()
     tap.teletext_audit_session = None
     return tap
