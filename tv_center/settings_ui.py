@@ -323,7 +323,13 @@ def open_ai_settings(parent, ai, after_save=None):
             install.clicked.connect(self.install_argos)
             remove = QPushButton("Uninstall selected pair")
             remove.clicked.connect(self.uninstall_argos)
-            for b in (update, install, remove): controls.addWidget(b)
+            test_live = QPushButton("Test selected pair · live Argos runtime")
+            test_live.setToolTip(
+                "Actually translate a short offline sentence using the SAME "
+                "managed Argos worker used by live TV. No receiver/network access.")
+            test_live.clicked.connect(self.test_live_argos_pair)
+            for b in (update, install, remove, test_live):
+                controls.addWidget(b)
             trans_layout.addLayout(controls)
             self.pairs = QLabel("Installed pairs: not inspected")
             trans_layout.addWidget(self.pairs)
@@ -1563,6 +1569,46 @@ def open_ai_settings(parent, ai, after_save=None):
                 "Installed pack selected: " + pair["source"] +
                 " → " + pair["target"] + ". "
                 "Choose Argos translator and Save settings to use it.")
+
+        def test_live_argos_pair(self):
+            from .language_codes import language_code
+            try:
+                src=language_code(self.source.currentText())
+                dst=language_code(self.target.currentText())
+            except (ValueError,TypeError) as exc:
+                QMessageBox.warning(self,"Invalid translation direction",str(exc))
+                return
+            if src==dst:
+                QMessageBox.information(self,"Translation test",
+                    "Choose two different source and target languages.")
+                return
+            samples={
+                "de":"Guten Morgen, wie geht es Ihnen?",
+                "en":"Hello, how are you?",
+                "tr":"Merhaba, nasılsınız?",
+                "fr":"Bonjour, comment allez-vous?",
+                "es":"Buenos días, ¿cómo está?",
+                "pl":"Dzień dobry, jak się masz?",
+                "ar":"مرحبا، كيف حالك؟",
+                "ja":"こんにちは、お元気ですか？",
+            }
+            if src not in samples:
+                QMessageBox.information(self,"Translation test",
+                    "No locally validated sample for "+src.upper()+
+                    ". Use a supported common language or test from live speech.")
+                return
+            def verify():
+                from .runtime import AIRuntime
+                if not AIRuntime().status()["installed"]:
+                    raise RuntimeError("Managed Argos venv unavailable; install Argos first")
+                from .translation_service import translate_argos
+                result=translate_argos(samples[src],src,dst)
+                if not isinstance(result,str) or not result.strip():
+                    raise RuntimeError("Live Argos worker returned no translation")
+                return ("Managed live-worker "+src.upper()+" → "+dst.upper()+
+                        " PASS: "+result[:180])
+            self.begin("Testing installed Argos "+src.upper()+" → "+
+                       dst.upper()+" in real live worker…",verify)
 
         def refresh_online_models(self):
             query = self.online_query.text().strip()
