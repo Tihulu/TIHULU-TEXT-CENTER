@@ -3173,6 +3173,7 @@ private:
 				displayedRadioChunk_=-1;
                 lastCaptionVisibleMs_=0;
                 lastCanvasLyricMs_=0;
+                captionReadingHoldUntilMs_=0;
                 if(radioCanvasCaption_) radioCanvasCaption_->setVisible(false);
                 radioCaptionBanner_->setText(tr("Opening DAB station · waiting for audio…"));
 				pendingRadioCue_.clear();
@@ -3762,9 +3763,14 @@ private:
         // Readability budget for all visible source/translation lines.
         // It does NOT delay audio or claim true sample-clock sync.
         const int chars=qMin(1400,text.trimmed().size());
-        return preset==2?
+        const int normal=preset==2?
             qBound(5500,chars*65,12000):
             qBound(3300,chars*45,8500);
+        // Under load, avoid drifting tens of seconds behind live radio.
+        // Backlog contracts the hold to ~2–4s without dropping phrases.
+        if(cueQueue_.size()>=4) return qMin(normal,2500);
+        if(cueQueue_.size()>=2) return qMin(normal,4000);
+        return normal;
     }
     void setRadioLyricMatchStatus(const QString &message) {
         if(!radioLyricMatchStatus_) return;
@@ -4214,6 +4220,7 @@ private:
 	}
 	void stopCaptioning() {
         captionsStopping_=true;
+        captionReadingHoldUntilMs_=0;
 		cueQueue_.clear();
 		metadataCaptions_=false;
 		if (captionProcess_.state()!=QProcess::NotRunning) {
