@@ -9,6 +9,8 @@ from __future__ import annotations
 
 from functools import lru_cache
 import platform
+import os
+from pathlib import Path
 import re
 import shutil
 import subprocess
@@ -64,6 +66,38 @@ def detect_gpu_hardware() -> dict:
     return info
 
 
+def detect_compute_inventory(gpu_physical=None, npu_capability=None):
+    """Physical CPU/GPU/NPU discovery, separate from usable SSTV DSP kernels.
+
+    Similar to the Text Center's hardware inventory. A Hailo /dev node
+    proves only device presence; it is not an Intel OpenVINO NPU and cannot
+    automatically decode Robot36.
+    """
+    physical = gpu_physical if gpu_physical is not None else detect_gpu_hardware()
+    npu = npu_capability if npu_capability is not None else probe_real_sstv_npu()
+    hailo = []
+    if platform.system() == "Linux":
+        try:
+            hailo = sorted(p.name for p in Path("/dev").glob("hailo*"))[:8]
+        except OSError:
+            pass
+    cpu_model = platform.processor() or platform.machine() or "System CPU"
+    return {
+        "cpu": {"detected":True,"name":cpu_model,
+                "logical_cores":os.cpu_count() or 1,
+                "runtime_ready":True},
+        "gpu": {"detected":physical["detected"],
+                "names":list(physical["devices"]),
+                "driver":physical["driver"],
+                "source":physical["source"],
+                "runtime_ready":False},
+        "npu": {"detected":bool(hailo) or bool(npu.get("available")),
+                "names":["Hailo "+name for name in hailo] +
+                    (["Intel OpenVINO NPU"] if npu.get("available") else []),
+                "runtime_ready":bool(npu.get("available")),
+                "note":"Detected NPU is not an executable Robot36 kernel unless the model is verified"}
+    }
+
 @lru_cache(maxsize=1)
 def compute_capabilities() -> dict:
     cpu = {"available": True, "name": "Portable CPU",
@@ -101,9 +135,13 @@ def compute_capabilities() -> dict:
     elif not gpu["detected"] and not gpu["available"]:
         gpu["action"] = "Check the NVIDIA driver with nvidia-smi; CPU remains usable."
 
+    npu = probe_real_sstv_npu()
+    hardware = detect_compute_inventory(physical, npu)
+    hardware["gpu"]["runtime_ready"] = bool(gpu["available"])
     return {
         "cpu": cpu, "gpu": gpu,
-        "npu": probe_real_sstv_npu(),
+        "hardware": hardware,
+        "npu": npu,
         "auto": {"available": True, "name": "Optimized for this device",
                  "role": "Choose a tested backend for this WAV's length; keep CPU fallback"},
     }
