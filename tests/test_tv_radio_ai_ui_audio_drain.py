@@ -72,7 +72,9 @@ class RadioAIUXRegressionTests(unittest.TestCase):
 
     def test_radio_backend_preserves_music_as_nontext_status(self):
         code=(ROOT/"tv_center/radio_ai.py").read_text()
-        self.assertIn('original=""',code)
+        self.assertIn('original=lyric_match["text"]',code)
+        self.assertIn('and lyric_match:',code)
+        self.assertNotIn('original="[music]"',code)
         self.assertIn('"music_detected":False',code)
         self.assertIn('"speech_preserved_when_lyrics_unmatched"',code)
         self.assertIn('music=music,',code)
