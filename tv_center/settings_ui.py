@@ -1316,11 +1316,48 @@ def open_ai_settings(parent, ai, after_save=None):
             for _ in range(3):
                 try: kind, data = self.work.get_nowait()
                 except queue.Empty: break
-                if kind == "progress":
+                if kind == "hardware":
+                    self._show_compute(data)
+                elif kind == "argos_state":
+                    self._show_argos(data)
+                elif kind == "starter_state":
+                    self._show_starter(data)
+                elif kind == "profile_inventory":
+                    self._show_profile_inventory(data)
+                elif kind == "progress":
                     self.feedback.setText(str(data))
                 elif kind == "done":
                     self.running = False
-                    if isinstance(data,dict) and data.get("kind") == "argos_catalog":
+                    if isinstance(data,dict) and data.get("kind") == "profile_selection":
+                        try:
+                            self.ai.update(data["patch"])
+                            self.ai.configure_environment()
+                            self.backend.setCurrentText(data["patch"]["backend"])
+                            self.model_path.setText(data["patch"]["model_path"])
+                            self.translation_choice.setCurrentIndex(
+                                max(0,self.translation_choice.findData(
+                                    data["patch"]["translation_model"])))
+                            self.asr.setChecked(True)
+                            self.translator.setChecked(True)
+                            self.feedback.setText(
+                                "ACTIVE: "+profile(data["profile"])["name"]+
+                                ". Restart live captions to apply the new profile.")
+                            self.show_profile_description()
+                            if after_save: after_save()
+                        except (OSError,RuntimeError,ValueError) as exc:
+                            self.feedback.setText("Profile activation FAILED: "+str(exc))
+                    elif isinstance(data,dict) and data.get("kind")=="profile_install":
+                        self.feedback.setText(
+                            "Install all completed but NOT activated. "
+                            "Click Select mode. Components: "+
+                            ", ".join(name for name,_ in data["steps"]))
+                        self.inspect_profile()
+                    elif isinstance(data,dict) and data.get("kind")=="remote_probe":
+                        self.feedback.setText(
+                            "Remote TLS connection passed · CUDA installed marker: "+
+                            str(data["status"]["cuda_installed"])+
+                            " · no audio uploaded, actual inference untested.")
+                    elif isinstance(data,dict) and data.get("kind") == "argos_catalog":
                         self.argos_catalog_list.clear()
                         for pair in data["items"]:
                             item = QListWidgetItem(
@@ -1464,7 +1501,15 @@ def open_ai_settings(parent, ai, after_save=None):
                     "Install and real-GPU-test MADLAD before selecting.")
                 return
             try:
+                remote_enabled=self.remote_enabled.isChecked()
+                remote_url=(validate_endpoint(self.remote_endpoint.text())
+                            if remote_enabled else self.remote_endpoint.text().strip())
+                if remote_enabled:
+                    read_token()
                 ai.update({
+                    "remote_gpu_enabled": remote_enabled,
+                    "remote_gpu_url": remote_url,
+                    "remote_gpu_fallback": self.remote_fallback.isChecked(),
                     "asr_enabled": self.asr.isChecked(),
                     "translation_enabled": self.translator.isChecked(),
                     "backend": self.backend.currentText(),
