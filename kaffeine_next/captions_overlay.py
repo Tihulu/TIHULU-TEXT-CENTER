@@ -415,6 +415,8 @@ class CaptionTap:
                            if selected in ("auto", "asr") else None),
                 audio_source=(options.get("audio_source")
                               if selected in ("auto", "asr") else None),
+                speech_auto=(bool(options.get("spoken_auto")) and
+                             ai.values.get("backend") in ("gpu","remote")),
                 speaker_enabled=bool(options.get("speaker_enabled",False))
                                 and selected in ("auto","asr"),
                 speaker_provider=options.get("speaker_provider","resemblyzer"),
@@ -469,6 +471,7 @@ class CaptionTap:
                 if self.sentence_captured_start is None:
                     self.sentence_captured_start=captured_start
                 observed=result.get("original","")
+                previous_language=self.sentence_joiner.language
                 joined=self.sentence_joiner.push(
                     observed,
                     language=result.get("source_language"),
@@ -486,6 +489,12 @@ class CaptionTap:
                     except queue.Full:
                         pass
                     return  # Keep words for the next clip.
+                if joined.get("language_switched") and previous_language:
+                    # The emitted phrase belongs to the OLD language.
+                    # New-language words remain held in the joiner; never
+                    # translate a French clause with the old German code.
+                    result["source_language"]=previous_language
+                    result["language_switch"]="pending new-language sentence"
                 # A loop may span several otherwise valid Whisper clips.
                 # Filter the FINAL assembled sentence too, after overlap
                 # removal, before the translation engine receives it.
@@ -1508,6 +1517,7 @@ def main(argv=None):
             audio_pid=chosen_audio["pid"] if chosen_audio else None,
             audio_language=(hinted if automatic_source and chosen_audio and
                             hinted in WHISPER_LANGUAGES else None),
+            spoken_auto=automatic_source,
             speaker_enabled=speaker_enabled.isChecked(),
             music_transcription=music_transcription.isChecked(),
             speech_priority=speech_priority.isChecked(),
