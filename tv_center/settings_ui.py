@@ -822,6 +822,10 @@ def open_ai_settings(parent, ai, after_save=None):
                 "your adjustments, or choose a preset and Select mode to reset.")
 
         def profile_changed(self, *_):
+            # Choosing the Custom row explicitly also discards the preset
+            # identity, even before any other setting is edited.
+            if self.profile_choice.currentData()=="custom":
+                self._manual_custom=True
             self.show_profile_description()
             # A pending preset choice is not applied until Select mode.
             QTimer.singleShot(80, self.inspect_profile)
@@ -1391,7 +1395,7 @@ def open_ai_settings(parent, ai, after_save=None):
                 verified = FasterWhisperCUDA().inference_selftest()
                 if not verified["ready"]:
                     raise RuntimeError(str(verified.get("reason") or "GPU test failed"))
-                return "Real CUDA model inference self-test passed · RTX GPU ready."
+                return "Real CUDA model inference self-test passed · NVIDIA GPU ready."
             self.begin("Loading model and testing real CUDA kernels…", check)
 
         def install_fast_cuda_runtime(self):
