@@ -26,6 +26,7 @@ def open_ai_settings(parent, ai, after_save=None):
                               install_components, selection_patch, hardware_issue)
     from .remote_gpu import (validate_endpoint, save_token, read_token,
                              delete_token, test_connection)
+    from .pi_hailo import readiness as hailo_readiness
     from .translation_market import TranslationModelMarket, LICENSE as NLLB_LICENSE
     from .translation_madlad import MadladMarket
     from .deepl_api import read_key, save_key, remove_key
@@ -465,6 +466,74 @@ def open_ai_settings(parent, ai, after_save=None):
                 buttons.addWidget(btn)
             guided_layout.addLayout(buttons)
             profile_layout.addWidget(guided)
+            # CPU tuning and optional real Hailo-10H, never automatic downloads.
+            pi_group=QGroupBox("Raspberry Pi 5 · resource settings")
+            pi_form=QFormLayout(pi_group)
+            self.pi_threads=QComboBox()
+            for count in (1,2,3,4):
+                self.pi_threads.addItem(str(count)+" whisper.cpp CPU threads",count)
+            self.pi_threads.setCurrentIndex(max(0,self.pi_threads.findData(
+                ai.values.get("pi_cpu_threads",3))))
+            pi_form.addRow("Keep one Pi CPU core for TV / Argos",self.pi_threads)
+            profile_layout.addWidget(pi_group)
+            self.hailo_group=QGroupBox("AI HAT+ 2 · Hailo-10H Whisper Base")
+            hailo_form=QFormLayout(self.hailo_group)
+            self.hailo_encoder=QLineEdit(ai.values.get("hailo_encoder_hef",""))
+            self.hailo_decoder=QLineEdit(ai.values.get("hailo_decoder_hef",""))
+            self.hailo_npy=QLineEdit(ai.values.get("hailo_npy_dir",""))
+            def file_picker(field):
+                filename,_=QFileDialog.getOpenFileName(
+                    self,"Choose locally installed Hailo-10H model (.hef)",
+                    str(Path.home()),"Hailo executable (*.hef)")
+                if filename: field.setText(filename)
+            for label,field in (
+                ("Encoder HEF",self.hailo_encoder),
+                ("Decoder HEF",self.hailo_decoder)):
+                row=QHBoxLayout()
+                row.addWidget(field)
+                browse=QPushButton("Browse")
+                browse.clicked.connect(
+                    lambda _,target=field:file_picker(target))
+                row.addWidget(browse)
+                hailo_form.addRow(label,row)
+            npy_row=QHBoxLayout()
+            npy_row.addWidget(self.hailo_npy)
+            npy_button=QPushButton("Browse")
+            def choose_npy():
+                folder=QFileDialog.getExistingDirectory(
+                    self,"Select folder with Hailo Whisper .npy decoder files",
+                    str(Path.home()))
+                if folder:self.hailo_npy.setText(folder)
+            npy_button.clicked.connect(choose_npy)
+            npy_row.addWidget(npy_button)
+            hailo_form.addRow("Decoder .npy folder",npy_row)
+            self.hailo_fallback=QCheckBox(
+                "Fall back to Whisper Tiny CPU when Hailo fails or Spoken=Auto")
+            self.hailo_fallback.setChecked(ai.values.get("hailo_cpu_fallback",True))
+            hailo_form.addRow(self.hailo_fallback)
+            hailo_buttons=QHBoxLayout()
+            save_hailo=QPushButton("Save model paths")
+            save_hailo.clicked.connect(self.save_hailo_paths)
+            inspect_hailo=QPushButton("Check Hailo-10H")
+            inspect_hailo.clicked.connect(self.inspect_hailo)
+            test_hailo=QPushButton("Test NPU · local silence")
+            test_hailo.clicked.connect(self.test_hailo)
+            for btn in (save_hailo,inspect_hailo,test_hailo):
+                hailo_buttons.addWidget(btn)
+            hailo_form.addRow(hailo_buttons)
+            self.hailo_status=QLabel(
+                "NPU OFF until valid HailoRT, encoder/decoder HEF and NPY paths "
+                "are saved and device firmware identifies HAILO10H.")
+            self.hailo_status.setWordWrap(True)
+            hailo_form.addRow(self.hailo_status)
+            hailo_note=QLabel(
+                "Install official Raspberry Pi OS hailo-h10-all and Hailo Apps "
+                "separately; vendor examples may auto-download missing files. "
+                "TIHULU never downloads an NPU model during TV playback. "
+                "Argos remains CPU-based; HAT's 8 GB is NOT extra Pi RAM.")
+            hailo_note.setWordWrap(True)
+            hailo_form.addRow(hailo_note)
+            profile_layout.addWidget(self.hailo_group)
             remote_group = QGroupBox("Remote GPU · opt-in TLS speech processing")
             remote_layout = QFormLayout(remote_group)
             self.remote_enabled = QCheckBox(
@@ -689,6 +758,7 @@ def open_ai_settings(parent, ai, after_save=None):
             self.profile_components.setText(
                 "Required models:\n"+parts+
                 "\nUse Check installed to verify live status.")
+            self.hailo_group.setVisible(key=="pi5_hat2")
 
         def inspect_profile(self):
             if self._profile_inventory_busy:
@@ -733,8 +803,9 @@ def open_ai_settings(parent, ai, after_save=None):
                 "downloads ~12 GB weights, CUDA requires >=24GB VRAM."
                 if key=="experimental" else "")
             caveat=(
-                "\nHailo-10H acceleration of these specific Whisper/Argos "
-                "models is NOT provided. This is a CPU fallback preset."
+                "\nInstalls Tiny CPU + Argos fallback; Hailo-10H Whisper "
+                "Base must be installed and configured separately using "
+                "official vendor HEF/NPY assets. Argos remains CPU-based."
                 if key=="pi5_hat2" else "")
             if QMessageBox.question(self,"Install all · "+spec["name"],
                 "Download/build missing components now?\n"+
@@ -758,10 +829,75 @@ def open_ai_settings(parent, ai, after_save=None):
                 statuses={name:local_status(name,library=self.library)
                           for name in profile(key)["components"]}
                 hardware=detect_hardware()
+                npu_ready=False
+                if key=="pi5_hat2":
+                    npu_ready=hailo_readiness(
+                        self.ai.values,hardware=hardware)["ready"]
                 patch=selection_patch(key,library=self.library,
-                                      hardware=hardware,status=statuses)
-                return {"kind":"profile_selection","profile":key,"patch":patch}
+                                      hardware=hardware,status=statuses,
+                                      hailo_ready=npu_ready)
+                return {"kind":"profile_selection","profile":key,
+                        "patch":patch,"npu_ready":npu_ready}
             self.begin("Verifying selected mode…",verify)
+
+        def _hailo_input(self):
+            return {
+                "hailo_encoder_hef":self.hailo_encoder.text().strip(),
+                "hailo_decoder_hef":self.hailo_decoder.text().strip(),
+                "hailo_npy_dir":self.hailo_npy.text().strip(),
+                "hailo_cpu_fallback":self.hailo_fallback.isChecked(),
+                "pi_cpu_threads":self.pi_threads.currentData(),
+            }
+
+        def save_hailo_paths(self):
+            from .pi_hailo import model_files_ready
+            payload=self._hailo_input()
+            if not model_files_ready(payload):
+                QMessageBox.warning(
+                    self,"Hailo model files missing",
+                    "Choose existing Hailo-10H compatible encoder and decoder "
+                    ".hef files, and a folder containing actual .npy assets. "
+                    "Only official models that match your installed HailoRT "
+                    "and Hailo Apps versions are suitable.")
+                return
+            try:
+                self.ai.update(payload)
+                self.ai.configure_environment()
+                self.hailo_status.setText(
+                    "HEF/NPY paths saved; firmware and inference NOT YET tested. "
+                    "Use Check Hailo-10H and Test NPU, then Select mode.")
+            except (OSError,ValueError) as exc:
+                QMessageBox.warning(self,"Cannot save Hailo model paths",str(exc))
+
+        def inspect_hailo(self):
+            def inspect():
+                hardware=detect_hardware()
+                return {"kind":"hailo_status",
+                        "status":hailo_readiness(self.ai.values,
+                                                  hardware=hardware)}
+            self.begin("Checking Hailo-10H firmware/runtime/files (offline)…",inspect)
+
+        def test_hailo(self):
+            def verify():
+                hardware=detect_hardware()
+                ready=hailo_readiness(self.ai.values,hardware=hardware)
+                if not ready["ready"]:
+                    raise RuntimeError(ready["reason"])
+                # Owner-started model load and *real* inference on silence.
+                # No microphone / TV / network is opened.
+                from textcenter.speech import transcribe_pcm
+                settings=self.ai.values
+                sample={"speech":{
+                    "ready_npu":True,
+                    "npu_engine":"hailo_whisper",
+                    "hailo_encoder_hef":settings["hailo_encoder_hef"],
+                    "hailo_decoder_hef":settings["hailo_decoder_hef"],
+                    "hailo_npy_dir":settings["hailo_npy_dir"]}}
+                transcription=transcribe_pcm(
+                    bytes(64000),"de","npu",sample)
+                return {"kind":"hailo_test","text":transcription}
+            self.begin("Loading Hailo-10H Whisper and checking silence inference…",
+                       verify)
 
         def save_remote_token(self):
             try:
@@ -1384,6 +1520,9 @@ def open_ai_settings(parent, ai, after_save=None):
                             self.translator.setChecked(True)
                             self.feedback.setText(
                                 "ACTIVE: "+profile(data["profile"])["name"]+
+                                (" · Hailo-10H Whisper selected (CPU fallback enabled)"
+                                 if data.get("npu_ready") else
+                                 " · Whisper Tiny CPU selected")+
                                 ". Restart live captions to apply the new profile.")
                             self.show_profile_description()
                             if after_save: after_save()
@@ -1395,6 +1534,17 @@ def open_ai_settings(parent, ai, after_save=None):
                             "Click Select mode. Components: "+
                             ", ".join(name for name,_ in data["steps"]))
                         self.inspect_profile()
+                    elif isinstance(data,dict) and data.get("kind")=="hailo_status":
+                        self.hailo_status.setText(
+                            ("Hailo-10H CONFIGURED · " if data["status"]["ready"]
+                             else "NPU NOT READY · ")+data["status"]["reason"])
+                        self.feedback.setText(self.hailo_status.text())
+                    elif isinstance(data,dict) and data.get("kind")=="hailo_test":
+                        self.hailo_status.setText(
+                            "Hailo-10H Whisper model loaded and processed silence "
+                            "without an exception. Real spoken-language speed, "
+                            "accuracy, and live subtitle timing remain untested.")
+                        self.feedback.setText(self.hailo_status.text())
                     elif isinstance(data,dict) and data.get("kind")=="remote_probe":
                         self.feedback.setText(
                             "Remote TLS connection passed · CUDA installed marker: "+
@@ -1553,14 +1703,18 @@ def open_ai_settings(parent, ai, after_save=None):
                 # than silently claiming the old verified preset is active.
                 old_profile=ai.values.get("active_profile","")
                 spec=PROFILES.get(old_profile)
+                allowed=(
+                    ("cpu","npu") if old_profile=="pi5_hat2"
+                    else (spec["backend"],) if spec else ())
                 still_profile=bool(spec and
-                    self.backend.currentText()==spec["backend"] and
+                    self.backend.currentText() in allowed and
                     self.translation_choice.currentData()==spec["translator"] and
                     self.model_path.text().strip()==str(
                         self.library._path(spec["speech"])))
                 ai.update({
                     "active_profile":old_profile if still_profile else "",
                     "remote_gpu_enabled": remote_enabled,
+                    **self._hailo_input(),
                     "remote_gpu_url": remote_url,
                     "remote_gpu_fallback": self.remote_fallback.isChecked(),
                     "asr_enabled": self.asr.isChecked(),

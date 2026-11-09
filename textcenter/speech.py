@@ -179,6 +179,13 @@ def transcribe_pcm(pcm:bytes,language:str,backend:str,profile:dict)->str:
         src.write_bytes(_whisper_cli_wav(pcm))
         argv=[executable,"-m",model,"-f",str(src),"-l",language,
               "-nt","-otxt","-of",str(out)]
+        # Raspberry Pi 5 has four CPU cores. Leave one for live DVB/video,
+        # UI and Argos instead of oversubscribing whisper.cpp workers.
+        # No effect on NVIDIA, NPU or remotely executed speech backends.
+        if backend=="cpu":
+            requested=os.environ.get("TIHULU_PI_CPU_THREADS","")
+            if requested in ("1","2","3","4"):
+                argv.extend(["-t",requested])
         try:
             result=subprocess.run(argv,stdin=subprocess.DEVNULL,
                                   stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,

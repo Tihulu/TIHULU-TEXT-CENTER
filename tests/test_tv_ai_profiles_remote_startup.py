@@ -16,7 +16,8 @@ from tv_center.remote_gpu import (
 def hardware(*, pi5=False, ram=65536, vram=16303, hailo=False):
     return {"ram_mib":ram,"raspberry_pi_5":pi5,
             "gpu":{"detected":vram>0,"vram_mib":vram},
-            "npu":{"devices":["hailo0"] if hailo else []}}
+            "npu":{"devices":["hailo0"] if hailo else [],
+                   "hailo_arch":"HAILO10H" if hailo else ""}}
 
 
 class ProfileTests(unittest.TestCase):

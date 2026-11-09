@@ -11,6 +11,8 @@ DEFAULTS = {
     "translation_model": "argos",
     "active_profile": "", "remote_gpu_enabled": False,
     "remote_gpu_url": "", "remote_gpu_fallback": True,
+    "hailo_encoder_hef": "", "hailo_decoder_hef": "", "hailo_npy_dir": "",
+    "hailo_cpu_fallback": True, "pi_cpu_threads": 3,
 }
 
 class AISettings:
@@ -39,7 +41,7 @@ class AISettings:
         from .ai_profiles import PROFILES
         if updated["active_profile"] and updated["active_profile"] not in PROFILES:
             raise ValueError("Unknown selected AI mode")
-        for key in ("remote_gpu_enabled", "remote_gpu_fallback"):
+        for key in ("remote_gpu_enabled", "remote_gpu_fallback", "hailo_cpu_fallback"):
             if type(updated[key]) is not bool:
                 raise ValueError("Remote GPU switches must be boolean")
         if not isinstance(updated["remote_gpu_url"],str) or len(updated["remote_gpu_url"]) > 512:
@@ -48,7 +50,10 @@ class AISettings:
         # remote mode plus TLS/token requirements are checked by the client.
         if updated["backend"]=="remote" and not updated["remote_gpu_enabled"]:
             raise ValueError("Enable remote GPU explicitly before selecting it")
-        for field in ("model_path", "model_dir"):
+        if type(updated["pi_cpu_threads"]) is not int or not 1 <= updated["pi_cpu_threads"] <= 4:
+            raise ValueError("Raspberry Pi CPU threads must be 1–4")
+        for field in ("model_path", "model_dir", "hailo_encoder_hef",
+                      "hailo_decoder_hef", "hailo_npy_dir"):
             if not isinstance(updated[field], str) or len(updated[field]) > 1024:
                 raise ValueError("Model paths must be strings")
         self.values = updated
@@ -69,6 +74,26 @@ class AISettings:
         """Bridge existing TEXT CENTER runtime without loading model unless enabled."""
         from .whisper_engine import WhisperRuntime
         os.environ["TIHULU_TRANSLATOR_MODEL"] = self.values["translation_model"]
+        # Keep model loading and HailoRT device access deferred until speech
+        # starts. Environment only carries approved local asset paths.
+        from .pi_hailo import environment
+        names=("TIHULU_HAILO_ENCODER_HEF", "TIHULU_HAILO_DECODER_HEF",
+               "TIHULU_HAILO_WHISPER_NPY_DIR")
+        for name in names:
+            os.environ.pop(name, None)
+        os.environ.update(environment(self.values))
+        active = self.values.get("active_profile")
+        try:
+            on_pi = "Raspberry Pi 5" in Path("/proc/device-tree/model").read_text(
+                encoding="utf-8", errors="replace")
+        except OSError:
+            on_pi = False
+        # Vanilla first install has no explicitly selected profile. Apply
+        # the Pi CPU budget then as well; no subprocess/driver probe on boot.
+        if active in ("pi5","pi5_hat2") or (on_pi and not active):
+            os.environ["TIHULU_PI_CPU_THREADS"] = str(self.values["pi_cpu_threads"])
+        else:
+            os.environ.pop("TIHULU_PI_CPU_THREADS", None)
         managed = WhisperRuntime()
         if managed.ready():
             os.environ["TIHULU_WHISPER_CLI"] = str(managed.binary)
