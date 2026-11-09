@@ -72,16 +72,18 @@ class TranslationFailover:
             )
         except (RuntimeError, ValueError, OSError, TimeoutError, ImportError,
                 KeyError, NotImplementedError) as exc:
+            # A failure can be a stale worker, model-load problem or timeout
+            # EVEN when the Model Market lists both directed language packs.
+            # Preserve the real sanitized cause in diagnostics rather than
+            # falsely asserting that the package is absent.
+            cause = " ".join(str(exc).split())[:180] or type(exc).__name__
+            label = "Argos " + source.upper() + " → " + target.upper()
+            reason = label + " live translation failed: " + cause
             if nllb_issue is not None:
-                return TranslationOutcome(
-                    None,
-                    "NLLB unavailable; no compatible Argos language pack for " +
-                    source.upper() + " → " + target.upper() +
-                    ". Open AI Model Market.")
+                reason = ("NLLB unavailable (" + nllb_issue[:90] +
+                          "); " + reason)
             return TranslationOutcome(
-                None, "Argos language pack unavailable for " +
-                      source.upper() + " → " + target.upper() +
-                      ". Open AI Model Market.")
+                None, reason + ". Check live worker runtime and installed packs.")
 
 
 _live_failover = TranslationFailover()
