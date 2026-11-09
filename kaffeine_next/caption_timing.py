@@ -195,6 +195,14 @@ def effective_cue_config(config: CaptionConfig, native_status: dict | None) -> C
     actual = native_status.get("effective_ms")
     if type(actual) is not int or not 0 <= actual <= config.playback_delay_ms:
         return config
+    observed = native_status.get("released_age_ms")
+    # The native FIFO's measured TS age is more informative than the
+    # *target* duration, but the player may add further decode latency.
+    # Only trust an acknowledged, fresh release measurement.
+    if (native_status.get("primed") and
+            type(observed) is int and 0 <= observed <= config.playback_delay_ms
+            and native_status.get("release_fresh")):
+        actual=observed
     return replace(config, playback_delay_ms=actual)
 
 
@@ -587,16 +595,23 @@ class KaffeineOSD:
             if info.st_size > 120 or info.st_size < 3:
                 return None
             values = list(map(int, self.effective.read_text().split()))
-            if len(values) == 5:
-                requested, actual, bps, primed_flag, queue_age = values
+            released_age_ms = None
+            release_fresh = False
+            if len(values) in (5,7):
+                requested, actual, bps, primed_flag, queue_age = values[:5]
                 if primed_flag not in (0,1) or not 0 <= queue_age <= 60000:
                     return None
                 primed = bool(primed_flag)
                 has_queue_age = True
+                if len(values)==7:
+                    measured_age, released_at = values[5:7]
+                    now_ms=int(time.time()*1000)
+                    if (0 <= measured_age <= 60000 and
+                            0 <= now_ms-released_at <= 3500):
+                        released_age_ms = measured_age
+                        release_fresh = True
             elif len(values) == 3:
-                # Old native builds report ONLY the target queue setting,
-                # even while a new multi-second playback buffer fills.
-                # Do not treat their nonzero number as applied/ready.
+                # Old native builds report ONLY the target queue setting.
                 requested, actual, bps = values
                 primed = (actual == 0)
                 queue_age = 0
@@ -610,6 +625,8 @@ class KaffeineOSD:
                     "ts_bytes_per_second": bps,
                     "primed":primed, "queue_age_ms":queue_age,
                     "has_queue_age":has_queue_age,
+                    "released_age_ms":released_age_ms,
+                    "release_fresh":release_fresh,
                     "capped": actual < requested}
         except (OSError, ValueError, UnicodeError):
             return None
