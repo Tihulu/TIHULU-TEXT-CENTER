@@ -297,6 +297,11 @@ public:
 		stationOpenProgress_->setValue(0);
 		stationOpenProgress_->setFormat(tr("Stream status · choose a station"));
 		dabLayout->addWidget(stationOpenProgress_);
+        radioAudioHealth_=new QLabel(tr(
+            "Audio health · awaiting real RF error-counter deltas; "
+            "libVLC output clock not measured"),page);
+        radioAudioHealth_->setWordWrap(true);
+        dabLayout->addWidget(radioAudioHealth_);
         // DAB playback is RF/audio first. Heavy AI and EXTRA network cache
         // are opt-in; they must never be required just to tune or scan.
         radioQuickRow_=new QHBoxLayout();
@@ -2357,8 +2362,36 @@ private:
 						QTimer::singleShot(100,this,[this](){fetchLyrics(true);});
 					}
 				}
-				const QJsonObject errs=service.value(
-					QLatin1String("errorcounters")).toObject();
+                const QJsonObject errs=service.value(
+                    QLatin1String("errorcounters")).toObject();
+                const qint64 frames=errs.value(
+                    QLatin1String("frameerrors")).toVariant().toLongLong();
+                const qint64 rs=errs.value(
+                    QLatin1String("rserrors")).toVariant().toLongLong();
+                const qint64 aac=errs.value(
+                    QLatin1String("aacerrors")).toVariant().toLongLong();
+                if(lastErrorStation_==key && lastRfFrameErrors_>=0) {
+                    const qint64 frameDelta=frames>=lastRfFrameErrors_?
+                        frames-lastRfFrameErrors_:0;
+                    const qint64 rsDelta=rs>=lastRfRsErrors_?
+                        rs-lastRfRsErrors_:0;
+                    const qint64 aacDelta=aac>=lastRfAacErrors_?
+                        aac-lastRfAacErrors_:0;
+                    if(frameDelta+rsDelta+aacDelta>0)
+                        radioAudioHealth_->setText(tr(
+                            "DAB decoder error counters increased since "
+                            "last live mux: frame +%1 / RS +%2 / AAC +%3. "
+                            "Signal/demodulation may be causing audio gaps; "
+                            "more VLC buffering cannot repair RF errors.")
+                            .arg(frameDelta).arg(rsDelta).arg(aacDelta));
+                    else radioAudioHealth_->setText(tr(
+                        "DAB error counters stable this sample · "
+                        "audible audio/DAC buffer still unmeasured"));
+                }
+                lastErrorStation_=key;
+                lastRfFrameErrors_=frames;
+                lastRfRsErrors_=rs;
+                lastRfAacErrors_=aac;
 				const QString technical=tr("Frame / RS / AAC: %1 / %2 / %3")
 					.arg(errs.value(QLatin1String("frameerrors")).toVariant().toString())
 					.arg(errs.value(QLatin1String("rserrors")).toVariant().toString())
@@ -2542,8 +2575,15 @@ private:
 			startReceiver();
 			if (!active()) return;
 		}
-		if (scanning_) return;
-		if (!playingKey_.isEmpty()) {
+        if(scanning_) return;
+        // Scanning must never leave an armed AI job behind, including
+        // the case where no station is playing yet.
+        {
+            const QSignalBlocker block(quickAi_);
+            quickAi_->setChecked(false);
+            quickAi_->setText(tr("AI captions · OFF"));
+        }
+        if(!playingKey_.isEmpty()) {
 			if (QMessageBox::question(this,tr("Full DAB scan"),
 				tr("Stop current radio playback, offline captions and "
 				"recording while scanning Band III frequencies?"),
@@ -2698,7 +2738,11 @@ private:
                 if(radioCanvasCaption_) radioCanvasCaption_->setVisible(false);
                 radioCaptionBanner_->setText(tr("Opening DAB station · waiting for audio…"));
 				pendingRadioCue_.clear();
-				playingKey_=key;
+                playingKey_=key;
+                lastErrorStation_.clear();
+                lastRfFrameErrors_=-1;
+                lastRfRsErrors_=-1;
+                lastRfAacErrors_=-1;
                 showSelectedSource(name,tr("DAB+ · live mux verified"),
                     tr("Block %1 · service %2 · stream opening").arg(block,sid));
 				lastDls_.clear();
@@ -3771,6 +3815,7 @@ private:
     QLabel *translationStatus_=nullptr;
     QLabel *radioTranslationBanner_=nullptr;
     QLabel *radioCanvasCaption_=nullptr;
+    QLabel *radioAudioHealth_=nullptr;
     QCheckBox *advancedLanguages_=nullptr;
 	QComboBox *channel_=nullptr, *driver_=nullptr, *speechLanguage_=nullptr,
 		*captionSource_=nullptr,
@@ -3881,6 +3926,8 @@ private:
 	qint64 songStartMs_=0,manualSongStartMs_=0;
 	QString lastWelleError_,lastAnalogError_;
     QString lastVerifiedLyricText_;
+    QString lastErrorStation_;
+    qint64 lastRfFrameErrors_=-1,lastRfRsErrors_=-1,lastRfAacErrors_=-1;
     QJsonObject lastVerifiedLyricTranslations_;
     qint64 lastVerifiedLyricMs_=0;
     int lastLyricDirection_=0,lyricOffsetConsistency_=0;
