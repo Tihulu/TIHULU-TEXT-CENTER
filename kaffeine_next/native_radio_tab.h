@@ -297,6 +297,23 @@ public:
 		stationOpenProgress_->setValue(0);
 		stationOpenProgress_->setFormat(tr("Stream status · choose a station"));
 		dabLayout->addWidget(stationOpenProgress_);
+        // DAB playback is RF/audio first. Heavy AI and EXTRA network cache
+        // are opt-in; they must never be required just to tune or scan.
+        radioQuickRow_=new QHBoxLayout();
+        quickAi_=new QCheckBox(tr("AI captions · OFF"),page);
+        quickAi_->setChecked(false);
+        quickAi_->setToolTip(tr("Whisper and translation are OFF at startup. "
+            "When enabled, captions follow station changes; scanning disables them."));
+        quickBuffer_=new QCheckBox(tr("Extra audio buffer · OFF"),page);
+        quickBuffer_->setChecked(false);
+        quickBuffer_->setToolTip(tr("Enable a user-selected libVLC network cache. "
+            "OFF means no EXTRA cache request; demodulator and device "
+            "latency cannot be disabled. Changing this while playing "
+            "reopens the audio stream once."));
+        radioQuickRow_->addWidget(quickAi_);
+        radioQuickRow_->addWidget(quickBuffer_);
+        radioQuickRow_->addStretch(1);
+        dabLayout->addLayout(radioQuickRow_);
 
 		// Public internet radio requires no SDR, welle-cli or DVB frontend.
 		// Search happens only when clicked, and uses HTTPS Radio Browser API.
@@ -879,16 +896,28 @@ public:
 		bufferMs_->setSuffix(tr(" ms"));
 		QSettings radioSettings(QLatin1String("TIHULU"),QLatin1String("KaffeineRadio"));
 		bufferMs_->setValue(qBound(0,
-			radioSettings.value(QLatin1String("playbackBufferMs"),12000).toInt(),60000));
-        activePlaybackCacheMs_=bufferMs_->value();
+            radioSettings.value(QLatin1String("radioBufferDesiredMs"),
+                radioSettings.value(QLatin1String("playbackBufferMs"),12000)).toInt(),
+            60000));
+        quickBuffer_->setChecked(
+            radioSettings.value(QLatin1String("radioBufferEnabled"),false).toBool());
+        // Legacy 12s network cache is intentionally NOT reenabled just
+        // because an earlier installation had saved it. Preserve its
+        // numeric preference for the next explicit user enable.
+        activePlaybackCacheMs_=quickBuffer_->isChecked()?bufferMs_->value():0;
+        radioSettings.setValue(QLatin1String("playbackBufferMs"),activePlaybackCacheMs_);
 		bufferMs_->setToolTip(tr("Radio libVLC network cache requested at stream OPEN. "
             "Range 0–60000 ms (safety limit, 60 s). If changed during playback "
             "it remains PENDING until Apply or the next station; not verified "
             "physical DAC/ALSA delay."));
-		autoSync_=new QCheckBox(tr("Auto synchronize caption timing"),lab);
-		autoSync_->setChecked(true);
-		autoSync_->setToolTip(tr("Adapt caption timing to measured ASR delay. "
-			"Does not reopen audio unless separately enabled."));
+        autoSync_=new QCheckBox(tr("Auto-size buffer · ASR + safety"),page);
+        autoSync_->setChecked(quickBuffer_->isChecked() &&
+            radioSettings.value(QLatin1String("radioAutoBufferEnabled"),false).toBool());
+        autoSync_->setToolTip(tr("Optional. Estimate extra playback cache from "
+            "five-second speech capture, observed ASR/translation workload "
+            "and a three-second margin. NOT a measured DAC clock or RF "
+            "dropout detector. Does NOT restart live audio by default."));
+        radioQuickRow_->insertWidget(2,autoSync_);
 		radioOffsetMs_=new QSpinBox(lab);
 		radioOffsetMs_->setRange(-12000,12000);
 		radioOffsetMs_->setSingleStep(250);
@@ -905,10 +934,17 @@ public:
 		auto *applyBuffer=new QPushButton(tr("Apply radio buffer"),lab);
 		syncControls->addWidget(new QLabel(tr("Audio buffer:"),lab),0,0);
 		syncControls->addWidget(bufferMs_,0,1);
-		syncControls->addWidget(applyBuffer,0,2);
+        bufferUnit_=new QComboBox(lab);
+        bufferUnit_->addItem(tr("Milliseconds"),1);
+        bufferUnit_->addItem(tr("Seconds"),1000);
+        bufferUnit_->setToolTip(tr("Display and enter extra buffer in ms or s; "
+            "saved setting remains milliseconds."));
+        syncControls->addWidget(bufferUnit_,0,2);
+		syncControls->addWidget(applyBuffer,0,3);
 		syncControls->addWidget(new QLabel(tr("Caption offset:"),lab),1,0);
 		syncControls->addWidget(radioOffsetMs_,1,1);
-		syncControls->addWidget(autoSync_,1,2);
+        syncControls->addWidget(new QLabel(tr(
+            "Timing is estimated; no sound-card sample clock"),lab),1,2,1,2);
 		syncControls->setColumnStretch(2,1);
         // Keep latency diagnostics available without turning the normal
         // caption/lyrics workflow into a wall of timing controls.
@@ -920,6 +956,19 @@ public:
         advancedSyncLayout->setContentsMargins(0,2,0,2);
         advancedSyncLayout->addLayout(syncControls);
         advancedSyncLayout->addWidget(autoRestartAudio_);
+        connect(bufferUnit_,QOverload<int>::of(&QComboBox::currentIndexChanged),
+            this,[this](int){
+                const int previousMs=bufferMs_->value()*
+                    (bufferUnitsSeconds_?1000:1);
+                bufferUnitsSeconds_=(bufferUnit_->currentData().toInt()==1000);
+                const QSignalBlocker block(bufferMs_);
+                bufferMs_->setRange(0,bufferUnitsSeconds_?60:60000);
+                bufferMs_->setSingleStep(bufferUnitsSeconds_?1:500);
+                bufferMs_->setSuffix(bufferUnitsSeconds_?tr(" s"):tr(" ms"));
+                bufferMs_->setValue(bufferUnitsSeconds_?
+                    qBound(0,(previousMs+500)/1000,60):
+                    qBound(0,previousMs,60000));
+            });
         advancedSyncPanel->setVisible(false);
         connect(advancedSyncToggle,&QCheckBox::toggled,
                 advancedSyncPanel,&QWidget::setVisible);
@@ -956,7 +1005,31 @@ public:
 		captionProgress_->setToolTip(tr("Estimated time to hear the decoded phrase. "
 			"Audio cache is requested, not independently measured at the sound card."));
         advancedSyncLayout->addWidget(captionProgress_);
-		connect(applyBuffer,&QPushButton::clicked,this,[this](){ applyRadioBuffer(); });
+        connect(applyBuffer,&QPushButton::clicked,this,[this](){ applyRadioBuffer(); });
+        connect(quickBuffer_,&QCheckBox::toggled,this,[this](bool enabled){
+            if(!enabled && autoSync_->isChecked()) {
+                const QSignalBlocker block(autoSync_);
+                autoSync_->setChecked(false);
+            }
+            QSettings saved(QLatin1String("TIHULU"),QLatin1String("KaffeineRadio"));
+            saved.setValue(QLatin1String("radioBufferEnabled"),enabled);
+            saved.setValue(QLatin1String("radioAutoBufferEnabled"),autoSync_->isChecked());
+            if(active() && !playingKey_.isEmpty()) applyRadioBuffer();
+            else {
+                activePlaybackCacheMs_=0;
+                saved.setValue(QLatin1String("playbackBufferMs"),0);
+            }
+        });
+        connect(autoSync_,&QCheckBox::toggled,this,[this](bool enabled){
+            if(enabled && !quickBuffer_->isChecked())
+                quickBuffer_->setChecked(true);
+            QSettings saved(QLatin1String("TIHULU"),QLatin1String("KaffeineRadio"));
+            saved.setValue(QLatin1String("radioAutoBufferEnabled"),enabled);
+            bufferRecommendation_->setText(enabled?
+                tr("Auto estimate enabled · waiting for actual Whisper timing "
+                   "(requires captions running)"):
+                tr("Auto estimate OFF · buffer controlled manually."));
+        });
 		auto *captionActions=new QHBoxLayout();
 		captionActions->addStretch(1);
 		captionActions->addWidget(caption_);
