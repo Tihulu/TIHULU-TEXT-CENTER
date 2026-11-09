@@ -50,7 +50,7 @@ class MediaRadioUxTests(unittest.TestCase):
         self.assertFalse(effective_radio_translation_enabled(False,True,"deepl"))
         self.assertTrue(effective_radio_translation_enabled(True,False,"deepl"))
         for text in ('QLatin1String("radioTranslationOptIn"),false',
-                     'QLatin1String("radio_translations")',
+                     'QStringLiteral("radio_translations")',
                      'QLatin1String("--radio-translations")',
                      "writeRadioLanguageControls();",
                      'quickTranslate_=new QCheckBox(tr("Radio translate · OFF")'):
