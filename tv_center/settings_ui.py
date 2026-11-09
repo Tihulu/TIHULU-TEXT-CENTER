@@ -665,6 +665,124 @@ def open_ai_settings(parent, ai, after_save=None):
             self.inspect_starter()
             self.inspect_speaker()
 
+        def show_profile_description(self, *_):
+            key = self.profile_choice.currentData()
+            if key not in PROFILES:
+                return
+            spec = profile(key)
+            parts = "\\n".join(
+                " • "+COMPONENTS[name][0]+" — "+COMPONENTS[name][1]
+                for name in spec["components"])
+            issue=hardware_issue(key,self.hardware)
+            self.profile_description.setText(
+                spec["description"]+"\\nEstimated disk: "+
+                spec["disk_gb_estimate"]+"\\nHardware: "+
+                (issue or "Meets minimum estimates; inference still untested")+
+                "\\nSelected: "+(self.ai.values.get("active_profile") or "Custom"))
+            self.profile_components.setText(
+                "Required models:\\n"+parts+
+                "\\nUse Check installed to verify live status.")
+
+        def inspect_profile(self):
+            if self._profile_inventory_busy:
+                return
+            key=self.profile_choice.currentData()
+            if key not in PROFILES:
+                return
+            self._profile_inventory_busy=True
+            self.profile_components.setText("Inspecting offline models in background…")
+            def scan():
+                try:
+                    statuses={name:local_status(name,library=self.library)
+                              for name in profile(key)["components"]}
+                    data={"profile":key,"status":statuses}
+                except Exception as exc:
+                    data={"profile":key,"error":str(exc)[:160]}
+                self.work.put(("profile_inventory",data))
+            threading.Thread(target=scan,daemon=True,
+                             name="tihulu-profile-inventory").start()
+
+        def _show_profile_inventory(self,data):
+            self._profile_inventory_busy=False
+            if data["profile"]!=self.profile_choice.currentData():
+                return
+            if "error" in data:
+                self.profile_components.setText(
+                    "Unable to verify models: "+data["error"])
+                return
+            self.profile_components.setText(
+                "\\n".join(("✓ INSTALLED" if installed else "✗ MISSING")+
+                          " · "+COMPONENTS[name][0]
+                          for name,installed in data["status"].items())+
+                "\\nMissing components block Select mode.")
+
+        def install_profile(self):
+            key=self.profile_choice.currentData()
+            if key not in PROFILES:
+                return
+            spec=profile(key)
+            warning=(
+                "\\nNLLB: CC-BY-NC-4.0 non-commercial license; MADLAD "
+                "downloads ~12 GB weights, CUDA requires >=24GB VRAM."
+                if key=="experimental" else "")
+            caveat=(
+                "\\nHailo-10H acceleration of these specific Whisper/Argos "
+                "models is NOT provided. This is a CPU fallback preset."
+                if key=="pi5_hat2" else "")
+            if QMessageBox.question(self,"Install all · "+spec["name"],
+                "Download/build missing components now?\\n"+
+                spec["description"]+"\\nEstimated disk: "+
+                spec["disk_gb_estimate"]+warning+caveat+
+                "\\nInstall all does NOT activate the profile. "
+                "Partial successes remain installed for safe retry. Continue?"
+                ) != QMessageBox.Yes:
+                return
+            self.begin("Installing "+spec["name"]+"…",
+                lambda: {"kind":"profile_install","profile":key,
+                         "steps":install_components(
+                             key,library=self.library,
+                             progress=lambda msg:self.work.put(("progress",msg)))})
+
+        def select_profile(self):
+            key=self.profile_choice.currentData()
+            if key not in PROFILES:
+                return
+            def verify():
+                statuses={name:local_status(name,library=self.library)
+                          for name in profile(key)["components"]}
+                hardware=detect_hardware()
+                patch=selection_patch(key,library=self.library,
+                                      hardware=hardware,status=statuses)
+                return {"kind":"profile_selection","profile":key,"patch":patch}
+            self.begin("Verifying selected mode…",verify)
+
+        def save_remote_token(self):
+            try:
+                save_token(self.remote_token.text())
+                self.remote_token.clear()
+                self.feedback.setText(
+                    "Token saved privately. Remote remains OFF until explicitly selected.")
+            except (OSError,ValueError) as exc:
+                QMessageBox.warning(self,"Remote token",str(exc))
+
+        def remove_remote_token(self):
+            try:
+                delete_token()
+                self.feedback.setText("Remote GPU token removed.")
+            except (OSError,ValueError) as exc:
+                QMessageBox.warning(self,"Remove token",str(exc))
+
+        def test_remote_gpu(self):
+            try:
+                endpoint=validate_endpoint(self.remote_endpoint.text())
+                read_token()
+            except (OSError,ValueError) as exc:
+                QMessageBox.warning(self,"Remote GPU",str(exc))
+                return
+            self.begin("Testing TLS GPU endpoint (no audio uploaded)…",
+                lambda: {"kind":"remote_probe",
+                         "status":test_connection(endpoint)})
+
         def inspect_speaker(self):
             free = FreeSpeakerMarket().status()
             self.free_speaker_status.setText(
