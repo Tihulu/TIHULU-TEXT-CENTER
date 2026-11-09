@@ -42,6 +42,7 @@
 #include <QHash>
 #include <QSignalBlocker>
 #include <QHeaderView>
+#include <QInputDialog>
 #include <QMap>
 #include <QMessageBox>
 #include <QNetworkAccessManager>
@@ -342,6 +343,18 @@ public:
             "latency cannot be disabled. Changing this while playing "
             "reopens the audio stream once."));
         radioQuickRow_->addWidget(quickAi_);
+        quickTranslate_=new QCheckBox(tr("Radio translate · OFF"),page);
+        QSettings radioTranslatePrefs(QLatin1String("TIHULU"),
+                                      QLatin1String("KaffeineRadio"));
+        quickTranslate_->setChecked(radioTranslatePrefs.value(
+            QLatin1String("radioTranslationOptIn"),false).toBool());
+        quickTranslate_->setText(quickTranslate_->isChecked()?
+            tr("Radio translate · ON"):tr("Radio translate · OFF"));
+        quickTranslate_->setToolTip(tr(
+            "Explicitly use installed local Argos, NLLB or MADLAD for radio. "
+            "Never downloads models or opts into DeepL. Select OUT languages "
+            "using Edit; actual model availability is reported after processing."));
+        radioQuickRow_->addWidget(quickTranslate_);
         quickLanguageButton_=new QPushButton(
             tr("IN: AUTO · OUT: EN, DE, TR · Edit"),page);
         quickLanguageButton_->setToolTip(tr(
@@ -407,6 +420,15 @@ public:
                             QLatin1String("KaffeineRadio"));
             prefs.setValue(QLatin1String("radioReadingPreset"),
                            radioReadingPreset_->currentData().toInt());
+            // Apply selection immediately to the currently displayed cue.
+            if(radioCanvasCaption_ && radioCanvasCaption_->isVisible() &&
+               captionDisplayedStartedMs_>0) {
+                const qint64 now=QDateTime::currentMSecsSinceEpoch();
+                captionReadingHoldUntilMs_=qMax(now,
+                    captionDisplayedStartedMs_+
+                    radioCaptionReadingHoldMs(radioCanvasCaption_->text()));
+                displayDueRadioCues(now);
+            }
         });
         connect(radioCaptionFontSize_,QOverload<int>::of(
             &QSpinBox::valueChanged),this,[this](int size){
@@ -697,6 +719,28 @@ public:
 		libraryFilters->addWidget(libraryBlock_,1);
 		libraryFilters->addWidget(favoritesOnly_);
 		libraryLayout->addLayout(libraryFilters);
+        // User-created playlists are local; only a station double-click tunes.
+        auto *listPickerRow=new QHBoxLayout();
+        listPickerRow->addWidget(new QLabel(tr("My station lists:"),library));
+        stationListPicker_=new QComboBox(library);
+        stationListPicker_->setToolTip(tr(
+            "Choose a list to edit. Uncheck Show only list to browse "
+            "all scanned stations and add them to this list."));
+        listPickerRow->addWidget(stationListPicker_,1);
+        newStationList_=new QPushButton(tr("New list"),library);
+        deleteStationList_=new QPushButton(tr("Delete list"),library);
+        listPickerRow->addWidget(newStationList_);
+        listPickerRow->addWidget(deleteStationList_);
+        libraryLayout->addLayout(listPickerRow);
+        auto *listActions=new QHBoxLayout();
+        addStationList_=new QPushButton(tr("+ Add selected"),library);
+        removeStationList_=new QPushButton(tr("− Remove selected"),library);
+        stationListOnly_=new QCheckBox(tr("Show only list"),library);
+        stationListOnly_->setChecked(false);
+        listActions->addWidget(addStationList_);
+        listActions->addWidget(removeStationList_);
+        listActions->addWidget(stationListOnly_);
+        libraryLayout->addLayout(listActions);
 		stations_ = new QTreeWidget(library);
 		stations_->setHeaderLabels({tr("★"),tr("Station"),tr("DAB block"),tr("Service ID")});
 		stations_->setRootIsDecorated(false);
@@ -727,10 +771,10 @@ public:
 		// owned by Playback/Playlist/Television. Reparenting it into Radio
 		// broke file playback and left a duplicate transport bar in the
 		// video canvas. This is a radio visualization and caption surface.
-		radioCanvas_ = new QLabel(tr("Radio · choose a station to listen"), playerHost_);
+		radioCanvas_ = new QLabel(QString(), playerHost_);
 		radioCanvas_->setAlignment(Qt::AlignCenter);
 		radioCanvas_->setWordWrap(true);
-		radioCanvas_->setMinimumHeight(135);
+		radioCanvas_->setMinimumHeight(300);
 		radioCanvas_->setStyleSheet(QLatin1String(
 			"QLabel{background:#122637;color:#eef9fc;font-size:19px;"
 			"border:1px solid #2b566b;border-radius:8px;padding:12px;}"));
@@ -740,6 +784,15 @@ public:
         // receiver text; a separate bottom child overlays real cues.
         auto *captionSurface=new QVBoxLayout(radioCanvas_);
         captionSurface->setContentsMargins(12,12,12,12);
+        radioCanvasStation_=new QLabel(tr("Radio · choose a station to listen"),radioCanvas_);
+        radioCanvasStation_->setTextFormat(Qt::PlainText);
+        radioCanvasStation_->setWordWrap(true);
+        radioCanvasStation_->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+        radioCanvasStation_->setMaximumHeight(66);
+        radioCanvasStation_->setStyleSheet(QLatin1String(
+            "QLabel{color:#a6dbe9;background:#17384b;border:none;"
+            "border-radius:6px;padding:5px 9px;font-size:12px;}"));
+        captionSurface->addWidget(radioCanvasStation_,0,Qt::AlignTop);
         captionSurface->addStretch(1);
         // A separate karaoke layer occupies the BLUE DAB station canvas.
         // The bottom subtitles remain a distinct Whisper/translation
@@ -1735,6 +1788,36 @@ public:
 			this,[this](){ filterStations(); });
 		connect(favoritesOnly_,&QCheckBox::toggled,this,
 			[this](){ filterStations(); });
+        connect(stationListPicker_,QOverload<int>::of(
+            &QComboBox::currentIndexChanged),this,
+            [this](int){ filterStations(); });
+        connect(stationListOnly_,&QCheckBox::toggled,this,
+            [this](bool){ filterStations(); });
+        connect(newStationList_,&QPushButton::clicked,this,
+            [this](){ createNamedStationList(); });
+        connect(deleteStationList_,&QPushButton::clicked,this,
+            [this](){ deleteNamedStationList(); });
+        connect(addStationList_,&QPushButton::clicked,this,
+            [this](){ changeSelectedStationList(true); });
+        connect(removeStationList_,&QPushButton::clicked,this,
+            [this](){ changeSelectedStationList(false); });
+        connect(quickTranslate_,&QCheckBox::toggled,this,[this](bool enabled){
+            QSettings prefs(QLatin1String("TIHULU"),
+                            QLatin1String("KaffeineRadio"));
+            prefs.setValue(QLatin1String("radioTranslationOptIn"),enabled);
+            quickTranslate_->setText(enabled?
+                tr("Radio translate · ON"):tr("Radio translate · OFF"));
+            if(captionProcess_.state()!=QProcess::NotRunning)
+                writeRadioLanguageControls();
+            if(radioTranslationBanner_) {
+                radioTranslationBanner_->setText(enabled?
+                    tr("Offline translation requested · checking local model "
+                       "and selected OUT languages on next audio chunk"):
+                    tr("Radio-only translation OFF · global AI Market "
+                       "setting still applies"));
+                radioTranslationBanner_->setVisible(true);
+            }
+        });
 		connect(quickAi_,&QCheckBox::toggled,this,[this](bool enabled){
             quickAi_->setText(enabled?tr("AI captions · ON"):tr("AI captions · OFF"));
             if(enabled) {
@@ -1922,6 +2005,7 @@ public:
             config.setValue(QLatin1String("radioModeTab"),tab);
         });
 		loadStations();
+        loadStationLists();
 		stations_->sortItems(1,Qt::AscendingOrder);
 		filterStations();
 	}
@@ -2139,7 +2223,9 @@ private:
             speechLanguage_->currentText().trimmed().toLower();
         const QJsonDocument document(QJsonObject{
             {QStringLiteral("source"),source},
-            {QStringLiteral("targets"),targets}});
+            {QStringLiteral("targets"),targets},
+            {QStringLiteral("radio_translations"),
+             quickTranslate_ && quickTranslate_->isChecked()}});
         QSaveFile file(captionControlsPath_);
         if(!file.open(QIODevice::WriteOnly)) {
             if(translationStatus_) translationStatus_->setText(tr(
@@ -2446,7 +2532,7 @@ private:
             tr("Online stream · not an FM/MW/LW frequency"));
 		player_->play(url);
 		audioStartedMs_=QDateTime::currentMSecsSinceEpoch();
-		radioCanvas_->setText(tr("♪ Internet radio\\n%1\\nAudio uses the built-in player.")
+		radioCanvasStation_->setText(tr("♪ Internet radio\\n%1\\nAudio uses the built-in player.")
 			.arg(url.host()));
 		webStatus_->setText(tr("Opening internet radio stream · no DVB device required."));
 	}
@@ -2950,9 +3036,113 @@ private:
 			state_->setText(tr("DAB+ %1 · %2 total known stations · local receiver")
 				.arg(ch).arg(stations_->topLevelItemCount()));
 	}
+    void loadStationLists() {
+        QSettings settings(QLatin1String("TIHULU"),QLatin1String("KaffeineRadio"));
+        const QByteArray raw=settings.value(QLatin1String("dabNamedLists")).toByteArray();
+        if(raw.size()>100000) return; // reject unbounded corrupt preferences
+        const QJsonDocument stored=QJsonDocument::fromJson(raw);
+        if(!stored.isObject()) return;
+        const QJsonObject lists=stored.object();
+        for(auto it=lists.begin();it!=lists.end() && stationLists_.size()<20;++it) {
+            const QString name=it.key().trimmed();
+            if(name.isEmpty() || name.size()>48 || !it.value().isArray())
+                continue;
+            QSet<QString> members;
+            for(const QJsonValue &entry:it.value().toArray()) {
+                const QString key=entry.toString();
+                if(members.size()<700 && stationChannels_.contains(key))
+                    members.insert(key);
+            }
+            stationLists_.insert(name,members);
+            stationListPicker_->addItem(name,name);
+        }
+    }
+    void saveStationLists() {
+        QJsonObject stored;
+        for(auto it=stationLists_.constBegin();it!=stationLists_.constEnd();++it) {
+            QJsonArray entries;
+            QStringList keys=it.value().values();
+            keys.sort();
+            for(const QString &key:keys)
+                if(stationChannels_.contains(key))
+                    entries.append(key);
+            stored.insert(it.key(),entries);
+        }
+        QSettings settings(QLatin1String("TIHULU"),QLatin1String("KaffeineRadio"));
+        settings.setValue(QLatin1String("dabNamedLists"),
+            QJsonDocument(stored).toJson(QJsonDocument::Compact));
+    }
+    void createNamedStationList() {
+        if(stationLists_.size()>=20) {
+            libraryStatus_->setText(tr("Maximum 20 personal station lists."));
+            return;
+        }
+        bool ok=false;
+        const QString name=QInputDialog::getText(this,tr("New DAB station list"),
+            tr("List name (e.g. NRW favourites):"),QLineEdit::Normal,
+            QString(),&ok).trimmed();
+        if(!ok) return;
+        if(name.isEmpty() || name.size()>48 ||
+           name.contains(QLatin1Char('\n')) ||
+           name.contains(QLatin1Char('\r'))) {
+            libraryStatus_->setText(tr("Use a list name of 1–48 characters."));
+            return;
+        }
+        for(const QString &existing:stationLists_.keys())
+            if(existing.compare(name,Qt::CaseInsensitive)==0) {
+                libraryStatus_->setText(tr("This station list already exists."));
+                return;
+            }
+        stationLists_.insert(name,QSet<QString>());
+        stationListPicker_->addItem(name,name);
+        stationListPicker_->setCurrentIndex(stationListPicker_->count()-1);
+        stationListOnly_->setChecked(false);
+        saveStationLists();
+        filterStations();
+        libraryStatus_->setText(tr("Created '%1'. Select any scanned station "
+            "and choose + Add selected.").arg(name));
+    }
+    void deleteNamedStationList() {
+        const QString name=stationListPicker_->currentData().toString();
+        if(!stationLists_.contains(name)) return;
+        if(QMessageBox::question(this,tr("Delete station list"),
+              tr("Delete the list '%1'? Saved stations and favourites "
+                 "will not be removed.").arg(name))!=QMessageBox::Yes)
+            return;
+        stationLists_.remove(name);
+        stationListPicker_->removeItem(stationListPicker_->currentIndex());
+        if(stationListPicker_->count()==0)
+            stationListOnly_->setChecked(false);
+        saveStationLists();
+        filterStations();
+    }
+    void changeSelectedStationList(bool add) {
+        const QString name=stationListPicker_->currentData().toString();
+        const QTreeWidgetItem *selected=stations_->currentItem();
+        if(!stationLists_.contains(name)) {
+            libraryStatus_->setText(tr("Create or select a station list first."));
+            return;
+        }
+        if(!selected) {
+            libraryStatus_->setText(tr("Select a scanned station first."));
+            return;
+        }
+        const QString key=selected->data(0,Qt::UserRole).toString();
+        if(!stationChannels_.contains(key)) return;
+        if(add) stationLists_[name].insert(key);
+        else stationLists_[name].remove(key);
+        saveStationLists();
+        filterStations();
+        libraryStatus_->setText(tr("%1 · %2 station(s) in personal list")
+            .arg(name).arg(stationLists_.value(name).size()));
+    }
 	void filterStations() {
 		const QString query=stationSearch_->text().trimmed();
 		const QString block=libraryBlock_->currentData().toString();
+        const QString listName=stationListPicker_?
+            stationListPicker_->currentData().toString():QString();
+        const bool onlyList=stationListOnly_ && stationListOnly_->isChecked() &&
+            stationLists_.contains(listName);
 		int visible=0, total=stations_->topLevelItemCount();
 		for (int i=0;i<total;++i) {
 			QTreeWidgetItem *item=stations_->topLevelItem(i);
@@ -2961,7 +3151,8 @@ private:
 				item->text(1).contains(query,Qt::CaseInsensitive) ||
 				item->text(2).contains(query,Qt::CaseInsensitive)) &&
 				(block.isEmpty() || item->text(2)==block) &&
-				(!favoritesOnly_->isChecked() || favorites_.contains(key));
+				(!favoritesOnly_->isChecked() || favorites_.contains(key)) &&
+                (!onlyList || stationLists_.value(listName).contains(key));
 			item->setHidden(!match);
 			if (match) ++visible;
 		}
@@ -3290,6 +3481,7 @@ private:
                 lastCaptionVisibleMs_=0;
                 lastCanvasLyricMs_=0;
                 captionReadingHoldUntilMs_=0;
+                captionDisplayedStartedMs_=0;
                 if(radioCanvasCaption_) radioCanvasCaption_->setVisible(false);
                 radioCaptionBanner_->setText(tr("Opening DAB station · waiting for audio…"));
 				pendingRadioCue_.clear();
@@ -3323,7 +3515,7 @@ private:
                                   selectedBufferMs());
                 player_->play(QUrl(base()+stream));
 				audioStartedMs_=QDateTime::currentMSecsSinceEpoch();
-				radioCanvas_->setText(tr("♪ %1\nDAB+ %2 · verifying audio playback…")
+				radioCanvasStation_->setText(tr("♪ %1\nDAB+ %2 · verifying audio playback…")
 					.arg(name,block));
 				playStatus_->setText(tr("LIVE mux lists %1. Opening audio; "
 					"receiver lock does not guarantee decoded sound.").arg(name));
@@ -3336,7 +3528,7 @@ private:
 							"audio and error counters; actual audio output is not metered.")
 							.arg(name));
 						stationOpenProgress_->setFormat(tr("Player reports PLAYING · %1").arg(name));
-                        radioCanvas_->setText(tr(
+                        radioCanvasStation_->setText(tr(
                             "♪ %1\nDAB+ %2 · player reports Playing\n"
                             "Audible output is not independently measured.")
                             .arg(name,activeChannel_));
@@ -3345,7 +3537,7 @@ private:
 							"Check welle receiver, AAC decoding and stream endpoint.")
 							.arg(name));
 						stationOpenProgress_->setFormat(tr("Audio failed / stopped"));
-                        radioCanvas_->setText(tr(
+                        radioCanvasStation_->setText(tr(
                             "♪ %1\nDAB+ %2 · decoder/player did not report Playing\n"
                             "Inspect DAB RF errors and local stream.")
                             .arg(name,activeChannel_));
@@ -3831,6 +4023,8 @@ private:
                <<QString::number(radioOffsetMs_->value());
 		if (music_->isChecked() || lyricsAudioFallbackActive_)
             options<<QLatin1String("--music");
+        if(quickTranslate_ && quickTranslate_->isChecked())
+            options<<QLatin1String("--radio-translations");
 		if (preferLyrics_->isChecked())
 			options<<QLatin1String("--prefer-verified-lyrics");
 		if (speakerLabels_->isChecked() && !music_->isChecked() &&
@@ -4010,11 +4204,20 @@ private:
             qBound(2800,chars*63,9000):
             preset==2?qBound(5500,chars*65,12000):
             qBound(3300,chars*45,8500);
-        // Under load, avoid drifting tens of seconds behind live radio.
+        // TV-style Adaptive also reacts to actual observed Whisper model
+        // inference p80, rather than assuming every GPU/CPU model is fast.
+        // This only adjusts caption HOLD; it cannot change speaker PTS.
+        int adjusted=normal;
+        if(preset==3 && lagSamples_.size()>=3) {
+            QList<int> sorted=lagSamples_;
+            std::sort(sorted.begin(),sorted.end());
+            const int p80=sorted[sorted.size()*4/5];
+            adjusted=qMax(1800,normal-qBound(0,(p80-2500)/3,1700));
+        }
         // Backlog contracts the hold to ~2–4s without dropping phrases.
-        if(cueQueue_.size()>=4) return qMin(normal,2500);
-        if(cueQueue_.size()>=2) return qMin(normal,4000);
-        return normal;
+        if(cueQueue_.size()>=4) return qMin(adjusted,2500);
+        if(cueQueue_.size()>=2) return qMin(adjusted,4000);
+        return adjusted;
     }
     void setRadioLyricMatchStatus(const QString &message) {
         if(!radioLyricMatchStatus_) return;
@@ -4042,6 +4245,7 @@ private:
             radioCanvasCaption_->setText(text);
             // Keep full multi-language phrases readable; never change
             // actual libVLC playback or restart the SDR receiver.
+            captionDisplayedStartedMs_=currentMs;
             captionReadingHoldUntilMs_=currentMs+
                 radioCaptionReadingHoldMs(text);
         }
@@ -4224,12 +4428,15 @@ private:
                     }
 				}
 			}
-            // Use a real captured PCM phrase-end time rather than
-            // anchoring captions to the end of potentially slow multi-
-            // language translation. This estimates stream presentation,
-            // NOT real libVLC audio/DAC PTS.
-            const qint64 wordEpoch=qRound64(obj.value(
+            // Use the first real GPU word for earlier caption presentation
+            // when available. CPU and multi-hop sentences fall back to the
+            // observed phrase END. These are capture-clock estimates, not DAC PTS.
+            const qint64 phraseEndEpoch=qRound64(obj.value(
                 QLatin1String("subtitle_audio_end_epoch_ms")).toDouble(0.));
+            const qint64 firstWordEpoch=qRound64(obj.value(
+                QLatin1String("subtitle_audio_start_epoch_ms")).toDouble(0.));
+            const qint64 wordEpoch=firstWordEpoch>now-120000 &&
+                firstWordEpoch<now+20000 ? firstWordEpoch:phraseEndEpoch;
             const bool hasCaptureTime=wordEpoch>now-120000 &&
                                       wordEpoch<now+20000;
             const int remaining=activePlaybackCacheMs_-6000-inference-
@@ -4485,6 +4692,7 @@ private:
 	void stopCaptioning() {
         captionsStopping_=true;
         captionReadingHoldUntilMs_=0;
+        captionDisplayedStartedMs_=0;
 		cueQueue_.clear();
 		metadataCaptions_=false;
 		if (captionProcess_.state()!=QProcess::NotRunning) {
@@ -4807,7 +5015,7 @@ private:
 		}
 	}
 	MediaWidget *player_;
-	QLabel *radioCanvas_=nullptr;
+	QLabel *radioCanvas_=nullptr,*radioCanvasStation_=nullptr;
 	QWidget *playerHost_=nullptr;
 	QVBoxLayout *playerHostLayout_=nullptr;
 	QTabWidget *modes_=nullptr;
@@ -4832,6 +5040,11 @@ private:
         *listenLyrics_=nullptr,
 		*slidePrev_=nullptr,*slideNext_=nullptr;
 	QTreeWidget *stations_=nullptr;
+    QComboBox *stationListPicker_=nullptr;
+    QPushButton *newStationList_=nullptr,*deleteStationList_=nullptr,
+        *addStationList_=nullptr,*removeStationList_=nullptr;
+    QCheckBox *stationListOnly_=nullptr;
+    QMap<QString,QSet<QString>> stationLists_;
 	QComboBox *libraryBlock_=nullptr;
 	QLineEdit *stationSearch_=nullptr;
 	QLineEdit *webSearch_=nullptr,*webSource_=nullptr;
@@ -4891,7 +5104,7 @@ private:
 	qint64 audioStartedMs_=0,lastLyricSyncUpdateMs_=0,
         lastCaptionVisibleMs_=0,lastCanvasLyricMs_=0,lastCaptionUpdateMs_=0,
         lastUnmatchedVoiceUntilMs_=0,lastMatchedLyricUntilMs_=0,
-        captionReadingHoldUntilMs_=0;
+        captionReadingHoldUntilMs_=0,captionDisplayedStartedMs_=0;
     bool lastLyricsAutoLookup_=false;
 	bool metadataCaptions_=false;
 	int dlsCaptionIndex_=0;
@@ -4908,7 +5121,8 @@ private:
     QComboBox *bufferUnit_=nullptr;
     bool bufferUnitsSeconds_=false;
     QHBoxLayout *radioQuickRow_=nullptr,*radioPlaybackRow_=nullptr;
-    QCheckBox *quickAi_=nullptr,*quickBuffer_=nullptr,*releaseOnStop_=nullptr;
+    QCheckBox *quickAi_=nullptr,*quickTranslate_=nullptr,
+        *quickBuffer_=nullptr,*releaseOnStop_=nullptr;
     QPushButton *captionEarlier_=nullptr,*captionLater_=nullptr;
     QLabel *captionOffsetReadout_=nullptr;
     QComboBox *radioReadingPreset_=nullptr;
