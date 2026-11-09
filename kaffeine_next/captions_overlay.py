@@ -2429,6 +2429,16 @@ def main(argv=None):
             overlap_status.setText(
                 ("SepFormer installed · " if state=="ok" else
                  "SepFormer setup failed · ")+message)
+        try:
+            kind,state,message=classifier_install_queue.get_nowait()
+        except queue.Empty:
+            pass
+        else:
+            if kind=="sound": event_install_button.setEnabled(True)
+            elif kind=="voice": voice_install_button.setEnabled(True)
+            classifier_status.setText(
+                (kind+" installed · " if state=="ok" else
+                 kind+" install failed · ")+str(message)[:200])
         # Kaffeine is the DVB owner. Terminate sidecar when it disappears,
         # including when the settings window has been hidden.
         try:
