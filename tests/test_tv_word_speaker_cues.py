@@ -44,6 +44,9 @@ class WordCueTests(unittest.TestCase):
 
     def test_fast_bilingual_word_cues_use_complete_readable_phrase(self):
         data=clip()
+        # A real punctuation boundary yields two short word groups;
+        # one already-coherent group needs no extra fallback.
+        data["words"][3]["text"]="Freunde."
         cfg=CaptionConfig(playback_delay_ms=12000,
                           readable_pacing=True,target_languages=("en","tr"))
         from kaffeine_next.word_cues import enqueue_word_cues
