@@ -35,6 +35,10 @@
     // A persisted receiver_enabled flag is not the same as a newly acquired
     // physical IQ sample. Show Flight Radar-style process/ownership truth.
     hardwareState.verified=Boolean(hw.last_real_sample?.sample_bytes);
+    window.nativeHardwareState={
+      present,enabled:hardwareState.enabled,verified:hardwareState.verified,
+      recording:response?.session?.active===true
+    };
     const receiver=(hw.usb_devices||[]).find(d=>d.receiver_type==='rtl_sdr');
     const active=response?.session?.active===true;
     const competing=Array.isArray(response?.busy)?response.busy:[];
@@ -677,6 +681,13 @@
         lookup('orbit_snapshot',{lat,lon,at_ms,tracks});
       window.nativePassPreview=(lat,lon,norad,aos_ms,los_ms)=>
         lookup('pass_preview',{lat,lon,norad,aos_ms,los_ms});
+      // Planning-only calendar is isolated from physical RTL-SDR job scheduler.
+      window.nativeListPlanningCandidates=()=>lookup('plan_candidates')
+        .then(result=>result.candidates||[]);
+      window.nativeSavePlanningCandidate=candidate=>lookup('plan_candidate_add',{candidate})
+        .then(result=>result.candidates||[]);
+      window.nativeDeletePlanningCandidate=id=>lookup('plan_candidate_remove',{id})
+        .then(result=>result.candidates||[]);
       window.nativeScheduleStatus=()=>lookup('status');
       window.nativeComputeStatus=()=>lookup('status').then(info=>info.compute);
       window.nativeCancelScheduledJob=job_id=>lookup('cancel_schedule',{job_id});
