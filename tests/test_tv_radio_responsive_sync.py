@@ -80,9 +80,15 @@ class RadioModesAndSyncTests(unittest.TestCase):
         self.assertIn("stopCaptioning();",self.radio)
 
     def test_radio_cache_uptime_never_means_audio_is_fully_buffered(self):
-        self.assertIn("Stream uptime is NOT buffering progress",self.radio)
-        self.assertIn("audioCacheProgress_->setRange(0,audioStartedMs_>0?0:100)",self.radio)
-        self.assertIn("queue/DAC UNVERIFIED",self.radio)
+        # A radio playback-start progress bar is not actual libVLC buffer
+        # occupancy. The UI must explain the estimate and cap it below 100
+        # until the player actually reports Playing.
+        self.assertIn("actual fill unmeasured",self.radio)
+        self.assertIn("requested extra libVLC cache",self.radio)
+        self.assertIn("percent=qMin(95,",self.radio)
+        self.assertIn("percent=100; // The player STARTED",self.radio)
+        self.assertIn("quickBufferProgress_->setVisible(enabled)",self.radio)
+        self.assertNotIn("audioCacheProgress_->setRange(0,audioStartedMs_>0?0:100)",self.radio)
         self.assertNotIn("Applied at open %1 ms · elapsed %2 ms",self.radio)
         self.assertIn("EST. caption in ~%1 ms",self.radio)
 
