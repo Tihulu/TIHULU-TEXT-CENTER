@@ -66,6 +66,35 @@ COMPONENTS = {
 }
 
 
+# Pre-download planning hints (NOT exact transfer sizes). Python packages,
+# compiler dependencies and translation packs vary by OS and installation.
+# Values must never be used as actual download progress denominators.
+COMPONENT_DOWNLOADS = {
+    "whisper_cpu": "source/build · size varies (no model weight)",
+    "tiny": "~78 MB model download",
+    "small": "~488 MB model download",
+    "argos": "runtime + 4 language packs · size varies by platform",
+    "cuda_turbo": "~1.62 GB model + CUDA/Python dependencies (several GB possible)",
+    "resemblyzer": "model + CPU PyTorch dependencies · size varies",
+    "nllb": "~2.5 GB model + Python dependencies (non-commercial license)",
+    "madlad": "~12 GB model weights + CUDA/Python dependencies",
+}
+
+
+def component_estimate(component):
+    if component not in COMPONENT_DOWNLOADS:
+        raise ValueError("Unknown AI component")
+    return COMPONENT_DOWNLOADS[component]
+
+
+def progress_fraction(received, expected):
+    """Only report percentages based on an actual known, positive file length."""
+    if (type(received) is not int or received < 0 or
+            type(expected) is not int or expected <= 0):
+        return None
+    return min(1000, received * 1000 // expected)
+
+
 def profile(key):
     if key not in PROFILES:
         raise ValueError("Unknown AI profile")
@@ -137,11 +166,14 @@ def missing_components(key, status):
                  if not status.get(component, False))
 
 
-def install_components(key, *, library=None, progress=None, installer=None):
-    """Explicit user-confirmed batch install, sequential, resumable, no auto-select.
+def install_components(key, *, library=None, progress=None,
+                       installer=None, events=None):
+    """Install missing components sequentially; never select the mode.
 
-    `installer` is a test seam. A component is verified before marking success,
-    never reported installed just because a subprocess returned zero.
+    The optional event sink receives structured per-component status updates
+    on the worker thread. No Qt object is touched by this function.
+    For known GGML HTTP Content-Length, report actual bytes and true total.
+    For subprocess/pip/HF transfers, a stage-only indeterminate state is used.
     """
     spec=profile(key)
     from .model_market import ModelLibrary
@@ -149,52 +181,69 @@ def install_components(key, *, library=None, progress=None, installer=None):
     def notice(message):
         if progress:
             progress(message)
+    def emit(component, state, **extra):
+        if events:
+            events({"component":component, "state":state, **extra})
     steps=[]
-    # Check hardware BEFORE any irreversible network installs or large
-    # downloads; Pi CPU and experimental GPU requirements are not optional.
+    # Check hardware BEFORE large downloads. The test seam bypasses hardware.
     from .hardware_market import detect_hardware
     issue=hardware_issue(key,detect_hardware()) if installer is None else None
     if issue:
         raise RuntimeError("Cannot install this mode on current hardware: "+issue)
     for index,component in enumerate(spec["components"],1):
         notice(f"{index}/{len(spec['components'])} · {COMPONENTS[component][0]}")
-        if local_status(component,library=lib):
-            steps.append((component,"already installed"))
-            continue
-        if installer is not None:
-            installer(component)
-        elif component=="whisper_cpu":
-            WhisperRuntime().install()
-        elif component in ("tiny","small"):
-            lib.download(component,progress=lambda got,total:
-                notice(f"{component}: {got // 1048576} MiB downloaded"))
-        elif component=="argos":
-            from .ai_provision import StarterAI
-            from .runtime import AIRuntime
-            rt=AIRuntime()
-            if not rt.status()["installed"]:
-                rt.install_argos()
-            StarterAI(library=lib)._setup_argos_packs(progress=notice)
-        elif component=="cuda_turbo":
-            from .cuda_faster_whisper import FasterWhisperCUDA
-            FasterWhisperCUDA().install()
-        elif component=="resemblyzer":
-            from .free_speakers import FreeSpeakerMarket
-            FreeSpeakerMarket().install()
-        elif component=="nllb":
-            from .translation_market import TranslationModelMarket
-            TranslationModelMarket().install()
-        elif component=="madlad":
-            from .translation_madlad import MadladMarket
-            MadladMarket().install()
-        else:
-            raise RuntimeError("Unknown installer")
-        if not local_status(component,library=lib):
-            raise RuntimeError(COMPONENTS[component][0] +
-                               " is not verified after installation")
-        steps.append((component,"installed"))
+        emit(component,"checking")
+        try:
+            if local_status(component,library=lib):
+                steps.append((component,"already installed"))
+                emit(component,"already installed")
+                continue
+            emit(component,"installing")
+            if installer is not None:
+                installer(component)
+            elif component=="whisper_cpu":
+                from .whisper_engine import WhisperRuntime
+                WhisperRuntime().install()
+            elif component in ("tiny","small"):
+                def bytes_progress(received,total,*,code=component):
+                    notice(f"{code}: {received // 1048576} MiB received")
+                    emit(code,"downloading",received=received,total=total)
+                lib.download(component,progress=bytes_progress)
+                emit(component,"verifying")
+            elif component=="argos":
+                from .ai_provision import StarterAI
+                from .runtime import AIRuntime
+                rt=AIRuntime()
+                if not rt.status()["installed"]:
+                    rt.install_argos()
+                StarterAI(library=lib)._setup_argos_packs(
+                    progress=lambda msg:(
+                        notice(msg),
+                        emit(component,"installing",message=msg)))
+            elif component=="cuda_turbo":
+                from .cuda_faster_whisper import FasterWhisperCUDA
+                FasterWhisperCUDA().install()
+            elif component=="resemblyzer":
+                from .free_speakers import FreeSpeakerMarket
+                FreeSpeakerMarket().install()
+            elif component=="nllb":
+                from .translation_market import TranslationModelMarket
+                TranslationModelMarket().install()
+            elif component=="madlad":
+                from .translation_madlad import MadladMarket
+                MadladMarket().install()
+            else:
+                raise RuntimeError("Unknown installer")
+            emit(component,"verifying")
+            if not local_status(component,library=lib):
+                raise RuntimeError(COMPONENTS[component][0] +
+                                   " is not verified after installation")
+            steps.append((component,"installed"))
+            emit(component,"installed")
+        except Exception as exc:
+            emit(component,"failed",message=str(exc)[:200])
+            raise
     return steps
-
 
 def selection_patch(key, *, library, hardware, status, hailo_ready=False):
     """Plan activation separately from installing; fail closed on missing assets."""
