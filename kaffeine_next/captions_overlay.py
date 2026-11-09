@@ -1075,9 +1075,11 @@ def main(argv=None):
     timing_layout.addRow(offsets)
     auto_row = QHBoxLayout()
     automatic = QCheckBox("Automatic sync · estimate ASR lag / TV buffer (not PTS lip-sync)")
-    automatic.setChecked(False)
+    automatic.setChecked(True)
     automatic.setToolTip(
-        "OFF by default. After 3 real Whisper samples, estimates speech-caption "
+        "ON: before any Whisper sample, use a provisional 10s desktop or "
+        "6s Pi 5 buffer (native bitrate/RAM limits still apply). After 3 real "
+        "Whisper samples, estimates speech-caption "
         "availability and suggests a conservative delay. When enabled and Applied, "
         "only raises an insufficient TV buffer. It NEVER reduces an existing "
         "larger user buffer; lowering it requires an explicit manual change. "
@@ -1487,6 +1489,7 @@ def main(argv=None):
         pass
     estimator = AutoSyncEstimator(ceiling_ms=6000 if pi5 else 15000)
     auto_controller = AutoSyncController()
+    startup_buffer_pending = True
     last_service_id = None
     last_ui_program_epoch = 0
     last_effective_check = 0.0
@@ -1667,7 +1670,15 @@ def main(argv=None):
 
     def apply_settings():
         nonlocal applied, current_text, current_until, current_cue
+        nonlocal startup_buffer_pending
         try:
+            if startup_buffer_pending:
+                startup_buffer_pending=False
+                if (automatic.isChecked() and mode.currentData() in ("auto","asr")
+                        and playback_delay.value()==0):
+                    from .caption_timing import provisional_ai_buffer_ms
+                    playback_delay.setValue(
+                        provisional_ai_buffer_ms(pi5)/1000.0)
             selected = from_controls()
             previous = applied
             source_changed = any(
@@ -1711,7 +1722,9 @@ def main(argv=None):
                 ipc.set_playback_delay(applied)
             automatic_active = applied.automatic_sync and applied.mode not in ("off","page","teletext")
             sync_estimate.setText(
-                ("Automatic timing (increase-only) · collecting live Whisper samples ("
+                ("Automatic timing (increase-only) · provisional startup buffer "
+                 "10s desktop / 6s Pi; awaiting real ASR samples and native "
+                 "TS-release confirmation ("
                  + str(len(estimator.values)) + "/3); conservative maximum "
                  + str(estimator.ceiling_ms / 1000) + " s.")
                 if automatic_active else
