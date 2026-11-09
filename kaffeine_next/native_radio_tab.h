@@ -2727,9 +2727,17 @@ private:
 				// URL comes from the verified current welle mux, never fabricated
 				// from a possibly months-old cached service ID.
 				const bool restartAi=quickAi_->isChecked();
-				stopCaptioning();
-				stopLyrics();
-				stopRecording();
+                stopCaptioning();
+                stopLyrics();
+                stopRecording();
+                // Stopping a lyrics-owned worker may clear its AI toggle,
+                // but an independently enabled live caption session must
+                // survive a station switch until the owner turns it OFF.
+                if(restartAi) {
+                    const QSignalBlocker block(quickAi_);
+                    quickAi_->setChecked(true);
+                    quickAi_->setText(tr("AI captions · ON"));
+                }
 				lastDetectedLanguage_.clear();
 				lagSamples_.clear();
 				lastRadioChunk_=-1;
