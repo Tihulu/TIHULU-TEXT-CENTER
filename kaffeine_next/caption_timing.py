@@ -146,8 +146,8 @@ class CaptionConfig:
                 and isinstance(score,(float,int)) and score>=0.8):
             names={"male":"Erkek sesi?","female":"Kadın sesi?",
                    "child":"Çocuk sesi?"}
-            return "["+names[category]+
-                   (f" {index}" if type(index) is int else "")+"]"
+            return ("["+names[category]+
+                    (f" {index}" if type(index) is int else "")+"]")
         if not self.show_speaker_numbers:
             return ""
         if type(index) is int and 1<=index<=len(self.speaker_aliases):
@@ -171,8 +171,8 @@ class CaptionConfig:
                     float(result.get("voice_type_confidence") or 0) >= 0.8):
                 names={"male":"Erkek sesi?","female":"Kadın sesi?",
                        "child":"Çocuk sesi?"}
-                speaker="["+names[guessed]+
-                        (f" {speaker_index}" if type(speaker_index) is int else "")+"]"
+                speaker=("["+names[guessed]+
+                         (f" {speaker_index}" if type(speaker_index) is int else "")+"]")
             elif self.show_speaker_numbers:
                 speaker = str(result.get("speaker_label") or "").strip()[:55]
                 if (type(speaker_index) is int
