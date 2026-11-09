@@ -1408,6 +1408,7 @@ public:
 			const int delta=value-lastLyricOffsetMs_;
 			lastLyricOffsetMs_=value;
 			for(auto &cue:plainLyricQueue_) cue.dueMs+=delta;
+            for(auto &cue:verifiedLyricQueue_) cue.dueMs+=delta;
 		});
 		lyricsRow->addWidget(lyrics_,0,0);
 		lyricsRow->addWidget(stopLyrics_,0,1);
@@ -1997,14 +1998,17 @@ private:
         int lineIndex;
         QString original;
         QJsonObject translations;
+        QJsonArray wordAnchors;
         // Qt5/C++11 builds do not treat a struct with default member
         // initializers as an aggregate. Accept old 3-field cues as well
         // as newer 6-field verified karaoke cues.
         TimedPlainLyric(qint64 due,const QString &rendered,double certainty,
                         int index=-1,const QString &source=QString(),
-                        const QJsonObject &translated=QJsonObject())
+                        const QJsonObject &translated=QJsonObject(),
+                        const QJsonArray &alignedWords=QJsonArray())
             : dueMs(due),text(rendered),confidence(certainty),
-              lineIndex(index),original(source),translations(translated) {}
+              lineIndex(index),original(source),translations(translated),
+              wordAnchors(alignedWords) {}
     };
 	static QString label(const QJsonValue &value) {
 		if (value.isString()) return value.toString();
@@ -3867,6 +3871,9 @@ private:
         if(karaokePanel_) karaokePanel_->setVisible(false);
         if(karaokeCurrent_) karaokeCurrent_->clear();
         if(karaokeTranslation_) karaokeTranslation_->clear();
+        karaokeLine_.clear();
+        karaokeWordAnchors_=QJsonArray();
+        lastHighlightedKaraokeWord_=-2;
     }
     void showKaraokeLine(const TimedPlainLyric &cue) {
         if(!karaokePanel_ || !karaokeCurrent_ ||
@@ -3885,7 +3892,12 @@ private:
             lyricRawLines_.at(index+1):QString();
         karaokePrevious_->setText(previous.left(230));
         karaokePrevious_->setVisible(!previous.isEmpty());
-        karaokeCurrent_->setText(line.left(300));
+        karaokeLine_=line.left(300);
+        karaokeWordAnchors_=cue.wordAnchors;
+        lastHighlightedKaraokeWord_=-2;
+        karaokeCurrent_->setTextFormat(Qt::PlainText);
+        karaokeCurrent_->setText(karaokeLine_);
+        refreshKaraokeWordHighlight(QDateTime::currentMSecsSinceEpoch());
         karaokeNext_->setText(next.left(230));
         karaokeNext_->setVisible(!next.isEmpty());
         QStringList translations;
@@ -4866,6 +4878,9 @@ private:
     QStringList lyricRawLines_;
     QString lastLyricsProvider_;
     qint64 lastKaraokeUntilMs_=0;
+    QString karaokeLine_;
+    QJsonArray karaokeWordAnchors_;
+    int lastHighlightedKaraokeWord_=-2;
     QLabel *karaokeSource_=nullptr,*karaokePrevious_=nullptr,
         *karaokeCurrent_=nullptr,*karaokeNext_=nullptr,
         *karaokeTranslation_=nullptr;
