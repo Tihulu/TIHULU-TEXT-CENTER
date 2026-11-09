@@ -431,6 +431,9 @@ class CaptionTap:
                 speaker_provider=options.get("speaker_provider","resemblyzer"),
                 music_transcription=bool(options.get("music_transcription",False)),
                 speech_priority=bool(options.get("speech_priority",False)),
+                overlap_separation=(
+                    selected=="asr" and bool(options.get(
+                        "separate_overlapping_voices",False))),
                 previous_text=previous,
                 defer_asr_translation=not bool(
                     options.get("music_transcription",False)),
@@ -492,14 +495,20 @@ class CaptionTap:
             # Valid Faster-Whisper word positions must survive the joiner.
             # With native playback buffering these can follow real dialogue.
             from .word_cues import word_groups
+            actual_overlaps=bool(
+                selected=="asr" and options.get("separate_overlapping_voices")
+                and isinstance(result.get("overlap_lines"),list)
+                and len(result["overlap_lines"])==2)
             source_word_timed = (
-                result.get("source") == "local_asr"
+                not actual_overlaps
+                and result.get("source") == "local_asr"
                 and not options.get("music_transcription",False)
                 and bool(result.get("word_timing_source"))
                 and not (options.get("ts_integrity") or {}).get("critical_gaps")
                 and bool(word_groups(result)))
             if (result.get("source") == "local_asr" and not options.get(
-                    "music_transcription",False) and not source_word_timed):
+                    "music_transcription",False) and not source_word_timed
+                    and not actual_overlaps):
                 # Without valid word positions, keep the natural sentence
                 # joiner; those sentences are not speaker-word aligned.
                 # Only completed spoken phrases are sent to the TV subtitle
@@ -553,6 +562,17 @@ class CaptionTap:
                 captured_start=self.sentence_captured_start
                 self.sentence_captured_start=(
                     captured_end if joined.get("pending") else None)
+            elif actual_overlaps:
+                # Each line has its own verified source waveform and Whisper
+                # word positions. A single sentence joiner cannot merge two
+                # simultaneous speakers without losing one of them.
+                self.sentence_joiner.reset()
+                self.sentence_session=None
+                self.sentence_captured_start=None
+                result["words"]=[]
+                result["word_timing_source"]=None
+                result["caption_alignment"]=(
+                    "Separate audio sources · provisional voice A/B per clip")
             elif source_word_timed:
                 # Mixing an old untimed sentence with source-timed speech
                 # would reintroduce late or mixed-speaker captions.
@@ -565,7 +585,7 @@ class CaptionTap:
                     "windows; libVLC video PTS not yet calibrated")
             if (result.get("source") == "local_asr" and
                     not options.get("music_transcription",False) and
-                    result.get("original")):
+                    result.get("original") and not actual_overlaps):
                 # Translate ONCE after untimed sentence joining OR while
                 # preserving the real Whisper word timestamps for this clip.
                 # Never join partial independent translations: German/English
@@ -604,6 +624,33 @@ class CaptionTap:
                 spent=round((time.perf_counter()-translate_clock)*1000)
                 result.setdefault("processing_ms",{})["translation"]=spent
                 result["translation_languages_ms"]=translation_languages_ms
+            if actual_overlaps:
+                # Translate each separated voice INDEPENDENTLY; do not
+                # translate the original mixed waveform as a single sentence.
+                # This is permitted only when the owner enabled dual voices
+                # and SepFormer+both Whisper passes produced distinct text.
+                from tv_center.captions import translate as translate_sentence
+                for channel in result["overlap_lines"]:
+                    channel["translations"]={}
+                    channel["translation_errors"]={}
+                    used=channel.get("source_language")
+                    for target in enabled:
+                        if used not in (None,"und","auto"):
+                            if target==used:
+                                channel["translations"][target]=channel["original"]
+                                continue
+                            text,issue=translate_sentence(
+                                channel["original"],used,target)
+                            if text:
+                                channel["translations"][target]=text
+                            if issue and not text:
+                                channel["translation_errors"][target]=issue[:180]
+                        else:
+                            channel["translation_errors"][target]=(
+                                "Separated source language unconfirmed")
+                result["overlap_note"]=(
+                    "Two independently recognized tracks; order and speaker "
+                    "IDs are provisional, not fixed identity")
             if targets and not ai.values["translation_enabled"]:
                 result["translation_errors"] = {
                     lang: "Translation disabled in Model Market." for lang in targets}
@@ -2691,10 +2738,13 @@ def main(argv=None):
                             "TV channel state; increasing delay alone cannot "
                             "recover broken data.")
                         continue
-                    cue = enqueue_word_cues(
+                    cue = (None if (
+                        applied.separate_overlapping_voices and
+                        len(data.get("overlap_lines") or [])==2)
+                        else enqueue_word_cues(
                         cues, data, cue_config,
                         data["captured_start"],data["captured_end"],
-                        data["decoded_at"])
+                        data["decoded_at"]))
                     if cue is None:
                         cue = cues.add(data, cue_config,
                                        data["captured_start"],data["captured_end"],
