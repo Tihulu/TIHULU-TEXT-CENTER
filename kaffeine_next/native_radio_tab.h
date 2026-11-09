@@ -740,39 +740,121 @@ public:
 		targetRow->addWidget(refreshTargets_);
 		v->addLayout(targetRow);
 		connect(refreshTargets_,&QPushButton::clicked,this,[this](){refreshLanguagePacks();});
-		connect(&languagePackWorker_,
-			QOverload<int,QProcess::ExitStatus>::of(&QProcess::finished),this,
-			[this](int status,QProcess::ExitStatus exitStatus){
-				refreshTargets_->setEnabled(true);
-				if(status!=0 || exitStatus!=QProcess::NormalExit){
-					state_->setText(tr("Could not inspect installed translation packs."));
-					return;
-				}
-				const QJsonDocument doc=QJsonDocument::fromJson(languagePackWorker_.readAllStandardOutput());
-				const QJsonArray pairs=doc.object().value(QLatin1String("installed_pairs")).toArray();
-				QSet<QString> selected;
-				for(int i=0;i<installedTargets_->count();++i)
-					if(installedTargets_->item(i)->checkState()==Qt::Checked)
-						selected.insert(installedTargets_->item(i)->data(Qt::UserRole).toString());
-				QSet<QString> languages;
-				for(const QJsonValue &value:pairs){
-					const QString pair=value.toString();
-					const QString lang=pair.section(QChar(0x2192),1).trimmed();
-					if(QRegularExpression(QLatin1String("^[a-z]{2,3}$")).match(lang).hasMatch())
-						languages.insert(lang);
-				}
-				installedTargets_->clear();
-				QStringList langs=QStringList(languages.values());
-				langs.sort();
-				for(const QString &lang:langs){
-					auto *item=new QListWidgetItem(lang.toUpper()+tr(" · installed Argos target"),installedTargets_);
-					item->setData(Qt::UserRole,lang);
-					item->setFlags(item->flags()|Qt::ItemIsUserCheckable);
-					item->setCheckState(selected.contains(lang)?Qt::Checked:Qt::Unchecked);
-				}
-				state_->setText(tr("Installed Argos targets: %1. Select desired outputs above.")
-					.arg(langs.join(QLatin1String(", "))));
-			});
+        connect(&languagePackWorker_,
+            QOverload<int,QProcess::ExitStatus>::of(&QProcess::finished),this,
+            [this](int status,QProcess::ExitStatus exitStatus){
+                refreshTargets_->setEnabled(true);
+                if(status!=0 || exitStatus!=QProcess::NormalExit){
+                    translationStatus_->setText(tr(
+                        "Language catalog unavailable. Refresh to retry; "
+                        "current checked outputs are preserved."));
+                    return;
+                }
+                const QJsonDocument doc=QJsonDocument::fromJson(
+                    languagePackWorker_.readAllStandardOutput());
+                const QJsonObject info=doc.object();
+                const QJsonArray catalog=info.value(
+                    QLatin1String("languages")).toArray();
+                if(catalog.isEmpty() && !info.contains(
+                    QLatin1String("speech_languages"))) {
+                    translationStatus_->setText(tr(
+                        "No model catalog returned; previous language choices kept."));
+                    return;
+                }
+                QSet<QString> selected;
+                if(installedTargets_->count()>0) {
+                    for(int i=0;i<installedTargets_->count();++i) {
+                        const QListWidgetItem *item=installedTargets_->item(i);
+                        if(item->checkState()==Qt::Checked)
+                            selected.insert(item->data(Qt::UserRole).toString());
+                    }
+                } else {
+                    QSettings preferences(QLatin1String("TIHULU"),
+                                         QLatin1String("KaffeineRadio"));
+                    const QStringList saved=preferences.value(
+                        QLatin1String("radioOutputs"),
+                        QStringList{QLatin1String("en"),QLatin1String("de"),
+                                    QLatin1String("tr")}).toStringList();
+                    for(const QString &code:saved) selected.insert(code);
+                }
+                {
+                    const QSignalBlocker block(installedTargets_);
+                    installedTargets_->clear();
+                    for(const QJsonValue &value:catalog) {
+                        const QJsonObject model=value.toObject();
+                        const QString code=model.value(
+                            QLatin1String("code")).toString();
+                        if(!QRegularExpression(QLatin1String("^[a-z]{2,3}$"))
+                           .match(code).hasMatch()) continue;
+                        QStringList engines;
+                        for(const QJsonValue &engine:model.value(
+                            QLatin1String("engines")).toArray())
+                            engines<<engine.toString();
+                        auto *item=new QListWidgetItem(
+                            code.toUpper()+QLatin1String(" · ")+
+                            model.value(QLatin1String("label")).toString()+
+                            QLatin1String(" · ")+engines.join(QLatin1String(" / ")),
+                            installedTargets_);
+                        item->setData(Qt::UserRole,code);
+                        item->setFlags(item->flags()|Qt::ItemIsUserCheckable);
+                        item->setCheckState(selected.contains(code)?
+                            Qt::Checked:Qt::Unchecked);
+                        item->setToolTip(tr(
+                            "Installed/local model metadata, NOT verified "
+                            "source-to-target inference. Online DeepL sends "
+                            "text only with existing consent and API key."));
+                    }
+                }
+                const QString previous=speechLanguage_->currentData().isValid()?
+                    speechLanguage_->currentData().toString():
+                    speechLanguage_->currentText().trimmed().toLower();
+                const QJsonArray inputLanguages=info.value(
+                    QLatin1String("speech_languages")).toArray();
+                if(!inputLanguages.isEmpty()){
+                    const QSignalBlocker block(speechLanguage_);
+                    speechLanguage_->clear();
+                    speechLanguage_->addItem(tr("Auto detect · GPU Whisper"),"auto");
+                    for(const QJsonValue &value:inputLanguages){
+                        const QJsonObject entry=value.toObject();
+                        const QString code=entry.value(
+                            QLatin1String("code")).toString();
+                        if(code.isEmpty()) continue;
+                        speechLanguage_->addItem(
+                            entry.value(QLatin1String("label")).toString()+
+                            QLatin1String(" (")+code.toUpper()+QLatin1Char(')'),
+                            code);
+                    }
+                    const int index=speechLanguage_->findData(previous);
+                    speechLanguage_->setCurrentIndex(index>=0?index:0);
+                }
+                translationStatus_->setText(tr(
+                    "Language catalog: %1 possible outputs from installed "
+                    "Argos/NLLB/MADLAD or configured DeepL. Check up to six. "
+                    "Actual translation is verified only during playback.")
+                    .arg(installedTargets_->count()));
+            });
+        // Keep output selections stable across AI tab and station changes.
+        connect(installedTargets_,&QListWidget::itemChanged,this,
+            [this](QListWidgetItem *changed){
+                if(!changed || changed->data(Qt::UserRole).toString().isEmpty())
+                    return;
+                QStringList selected;
+                for(int i=0;i<installedTargets_->count();++i) {
+                    QListWidgetItem *item=installedTargets_->item(i);
+                    if(item->checkState()==Qt::Checked)
+                        selected<<item->data(Qt::UserRole).toString();
+                }
+                if(selected.size()>6) {
+                    const QSignalBlocker block(installedTargets_);
+                    changed->setCheckState(Qt::Unchecked);
+                    translationStatus_->setText(tr(
+                        "Select at most six output languages."));
+                    return;
+                }
+                QSettings preferences(QLatin1String("TIHULU"),
+                                     QLatin1String("KaffeineRadio"));
+                preferences.setValue(QLatin1String("radioOutputs"),selected);
+            });
 		auto *syncControls=new QGridLayout();
 		bufferMs_=new QSpinBox(lab);
 		bufferMs_->setRange(0,60000);
@@ -1516,10 +1598,11 @@ private:
 		if(languagePackWorker_.state()!=QProcess::NotRunning) return;
 		refreshTargets_->setEnabled(false);
 		languagePackWorker_.start(QLatin1String("tihulu-tv-center"),
-			{QLatin1String("ai-pairs")});
+			{QLatin1String("ai-radio-languages")});
 		if(!languagePackWorker_.waitForStarted(1000)) {
 			refreshTargets_->setEnabled(true);
-			state_->setText(tr("AI companion not installed; target catalog unavailable."));
+			translationStatus_->setText(tr(
+                "AI companion not installed; radio language catalog unavailable."));
 		}
 	}
 	void configureAnalogBand() {
