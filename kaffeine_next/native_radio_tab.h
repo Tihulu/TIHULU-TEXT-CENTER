@@ -1055,11 +1055,15 @@ public:
         v->addWidget(new QLabel(tr(
             "<b>3 · Lyrics</b> · optional; no search until you choose Find lyrics"),lab));
         auto *quickLyrics=new QPushButton(tr("Find lyrics for current song"),lab);
-        connect(quickLyrics,&QPushButton::clicked,this,[this](){fetchLyrics();});
         v->addWidget(quickLyrics);
         auto *showLyricsOptions=new QCheckBox(
             tr("Advanced · lyrics source, timing, import and auto search"),lab);
         showLyricsOptions->setChecked(false);
+        // A quick lookup must expose Stop lyrics while it is active.
+        connect(quickLyrics,&QPushButton::clicked,this,[this,showLyricsOptions](){
+            showLyricsOptions->setChecked(true);
+            fetchLyrics();
+        });
         v->addWidget(showLyricsOptions);
         auto *lyricsPanel=new QWidget(lab);
         auto *lyricsLayout=new QVBoxLayout(lyricsPanel);
