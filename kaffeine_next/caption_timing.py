@@ -42,6 +42,7 @@ class CaptionConfig:
     show_sound_events: bool = False
     separate_overlapping_voices: bool = False
     readable_pacing: bool = True  # prefer natural sentence display over flashing fragments
+    live_priority: bool = True  # reduce expensive optional models during ASR backlogs
     music_transcription: bool = False
     speech_priority: bool = False  # optional dialogue focus when background music overlaps
     speaker_provider: str = "resemblyzer"
@@ -116,7 +117,7 @@ class CaptionConfig:
                     "spoken_auto", "show_speaker_numbers",
                     "show_voice_types", "break_speaker_lines",
                     "show_sound_events", "separate_overlapping_voices",
-                    "readable_pacing"):
+                    "readable_pacing", "live_priority"):
             if type(getattr(self, key)) is not bool:
                 raise ValueError("Caption display toggles must be boolean")
         return self
@@ -134,6 +135,7 @@ class CaptionConfig:
                 "show_sound_events":self.show_sound_events,
                 "separate_overlapping_voices":self.separate_overlapping_voices,
                 "readable_pacing":self.readable_pacing,
+                "live_priority":self.live_priority,
                 "music_transcription":self.music_transcription,
                 "speech_priority":self.speech_priority,
                 "speaker_provider":self.speaker_provider,
