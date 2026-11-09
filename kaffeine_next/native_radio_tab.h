@@ -2320,6 +2320,13 @@ private:
 		shuttingDown_ = true;
 		++stationRequestId_;
 		scanning_ = false;
+        // Stopping radio disarms optional AI, even when the next station
+        // is selected later. No hidden background capture survives Stop.
+        if(quickAi_) {
+            const QSignalBlocker block(quickAi_);
+            quickAi_->setChecked(false);
+            quickAi_->setText(tr("AI captions · OFF"));
+        }
 		stopCaptioning();
 		stopLyrics();
 		stopRecording();
