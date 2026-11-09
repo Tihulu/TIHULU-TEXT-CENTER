@@ -1580,6 +1580,9 @@ public:
                 rfQuality_->setValue(0);
                 rfQuality_->setFormat(tr("DAB RF unmeasured · receiver exited"));
                 lastMux_=QJsonObject();
+                dabPlaybackObserved_=false;
+                dabIdleSinceMs_=0;
+                updateReceiverOwnership();
 				if (!shuttingDown_) state_->setText(tr("welle-cli stopped (%1): %2")
                     .arg(exitCode).arg(lastWelleError_));
 			});
@@ -2001,6 +2004,9 @@ private:
 		}
 		analogStatus_->setText(tr("Live analog frequency %1 Hz · volume/mute through "
 			"TIHULU player · RF retune briefly interrupts decoding.").arg(hz));
+        analogPlaybackObserved_=false;
+        analogIdleSinceMs_=0;
+        updateReceiverOwnership();
 	}
 	void stopAnalog() {
 		analogRetune_.stop();
@@ -2022,7 +2028,10 @@ private:
 			analogAudioVu_->setFormat(tr("Audio VU: stopped (not RF strength)"));
 		}
 		if(wasPlaying) { player_->stop(); audioStartedMs_=0; }
+        analogPlaybackObserved_=false;
+        analogIdleSinceMs_=0;
 		if(analogStatus_) analogStatus_->setText(tr("Analogue SDR released."));
+        updateReceiverOwnership();
 	}
 	void startAnalog() {
 		if(QStandardPaths::findExecutable(QLatin1String("rtl_fm")).isEmpty()) {
@@ -2164,6 +2173,7 @@ private:
             lastWelleError_=backend_.errorString();
             state_->setText(tr("Cannot start welle-cli: %1. This does NOT measure antenna signal.")
                 .arg(lastWelleError_));
+            updateReceiverOwnership();
 			return;
 		}
 		activeChannel_ = current;
