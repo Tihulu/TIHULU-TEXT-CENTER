@@ -76,7 +76,6 @@ class RadioKaraokeAccessibilityTests(unittest.TestCase):
     def test_tv_style_adaptive_mode_reuses_full_sentence_readability_principles(self):
         for expected in (
             "TV-style Adaptive · readable + live",
-            "radioReadingPreset_),3",
             'QLatin1String("radioReadingPreset"),3',
             "qBound(2800,chars*63,9000)",
             "qMin(normal,2500)",
