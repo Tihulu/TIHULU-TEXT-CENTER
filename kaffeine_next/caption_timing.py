@@ -156,6 +156,23 @@ class CaptionConfig:
                 return "["+alias+"]"
         return str(result.get("speaker_label") or "").strip()[:55]
 
+    @staticmethod
+    def _event_lines(result):
+        # Show only detector-backed events (AST), never invent noise from
+        # silence/voice pitch. Sound tags are INDEPENDENT of speaker labels.
+        names={"music":"Müzik","hum":"Uğultu","applause":"Alkış",
+               "noise":"Gürültü","laughter":"Gülüşme"}
+        labels=[]
+        for event in (result.get("sound_events") or [])[:3]:
+            if isinstance(event,dict):
+                kind=str(event.get("type","")).lower()
+                score=event.get("confidence")
+                if (kind in names and isinstance(score,(float,int))
+                        and score>=0.75 and
+                        event.get("source")=="AST AudioSet"):
+                    labels.append("["+names[kind]+"]")
+        return labels
+
     def render(self, result):
         """Produce independently selectable original/translated subtitle lines."""
         original = (result.get("original") or "").strip()
@@ -206,7 +223,10 @@ class CaptionConfig:
                 if chunks:
                     lines.append((label+" " if label else "")+" | ".join(chunks))
             if lines:
-                return "\n".join(lines[:2])
+                if self.show_sound_events:
+                    for label in self._event_lines(result):
+                        lines.append(label)
+                return "\n".join(lines[:4])[:1100]
         if self.show_original and original:
             original_language = result.get("source_language") or self.source
             prefix = (f"[{original_language.upper()}] " if
@@ -233,17 +253,7 @@ class CaptionConfig:
                 if legacy and legacy != original:
                     lines.append(legacy)
         if self.show_sound_events:
-            # The producer must provide evidence-backed events. Never infer
-            # music, hum or footsteps merely because Whisper was silent.
-            allowed={"music":"Müzik","hum":"Uğultu","applause":"Alkış",
-                     "noise":"Gürültü","laughter":"Gülüşme"}
-            for event in (result.get("sound_events") or [])[:3]:
-                if isinstance(event,dict):
-                    kind=str(event.get("type","")).lower()
-                    if (kind in allowed and
-                            isinstance(event.get("confidence"),(float,int))
-                            and event["confidence"]>=0.75):
-                        lines.append("["+allowed[kind]+"]")
+            lines.extend(self._event_lines(result))
         # If the viewer requested translated-only subtitles but no model
         # could translate into the selected language, never blank the screen.
         # Broadcast / Whisper original remains visible with an explicit label.
