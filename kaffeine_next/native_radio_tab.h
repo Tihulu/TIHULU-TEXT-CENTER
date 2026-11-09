@@ -1910,16 +1910,21 @@ private:
 
 	void callJson(const QString &endpoint,
 	              const std::function<void(const QJsonObject&)> &done) {
-		if (!active() || !port_) return;
+        if(!active() || !apiReady_ || !port_) return;
+        const quint64 generation=receiverGeneration_;
+        const quint16 sourcePort=port_;
 		QNetworkRequest request(QUrl(base() + endpoint));
 		request.setTransferTimeout(1200);
 		QNetworkReply *reply = network_.get(request);
-		connect(reply, &QNetworkReply::finished, this, [reply,done]() {
+		connect(reply, &QNetworkReply::finished, this, [this,reply,done,generation,sourcePort]() {
 			const QByteArray bytes = reply->readAll();
 			const bool ok = reply->error()==QNetworkReply::NoError &&
 				bytes.size() < 1024 * 1024;
 			reply->deleteLater();
-			if (!ok) return;
+            // Never paint stale 0.0 dB/mux data from a stopped or restarted
+            // radio. Station cache is separate and remains available offline.
+			if (!ok || !active() || !apiReady_ ||
+                generation!=receiverGeneration_ || sourcePort!=port_) return;
 			QJsonParseError error;
 			const QJsonDocument doc = QJsonDocument::fromJson(bytes,&error);
 			if (error.error==QJsonParseError::NoError && doc.isObject())
