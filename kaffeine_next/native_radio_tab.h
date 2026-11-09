@@ -791,6 +791,7 @@ public:
         karaokeLayout->addWidget(karaokeCurrent_);
         karaokeLayout->addWidget(karaokeTranslation_);
         karaokeLayout->addWidget(karaokeNext_);
+        karaokePanel_->setMinimumHeight(235);
         karaokePanel_->setVisible(false);
         captionSurface->addWidget(karaokePanel_,2,Qt::AlignVCenter);
         captionSurface->addStretch(1);
@@ -2868,6 +2869,9 @@ private:
 					plainLyricQueue_.clear();
                     verifiedLyricQueue_.clear();
                     lastMatchedLyricUntilMs_=0;
+                    lyricRawLines_.clear();
+                    lastLyricsProvider_.clear();
+                    clearKaraokeLine();
                     setRadioLyricMatchStatus(QString());
                     // A DLS metadata change is NOT proof of new audible
                     // song, and must not disable Stop for an offline
@@ -3290,6 +3294,9 @@ private:
                         .arg(block,dabCenterFrequencyMHz(block),sid));
 				lastDls_.clear();
                 lastSongDls_.clear();
+                lyricRawLines_.clear();
+                lastLyricsProvider_.clear();
+                clearKaraokeLine();
 				lyricLoaded_=false;
 				lyricCues_=QJsonArray();
 				slideHistory_.clear();
@@ -4480,6 +4487,9 @@ private:
 		plainLyricQueue_.clear();
         verifiedLyricQueue_.clear();
         lastMatchedLyricUntilMs_=0;
+        lyricRawLines_.clear();
+        lastLyricsProvider_.clear();
+        clearKaraokeLine();
         setRadioLyricMatchStatus(QString());
         lastVerifiedLyricMs_=0;
         lastVerifiedLyricText_.clear();
@@ -4529,6 +4539,9 @@ private:
         lyricCues_=QJsonArray();
         plainLyricQueue_.clear();
         verifiedLyricQueue_.clear();
+        lyricRawLines_.clear();
+        lastLyricsProvider_.clear();
+        clearKaraokeLine();
         lastVerifiedLyricMs_=0;
         lastMatchedLyricUntilMs_=0;
         lastVerifiedLyricText_.clear();
@@ -4572,6 +4585,8 @@ private:
     void updateLyrics() {
         if(!lyricsEnabled_) return;
         const qint64 now=QDateTime::currentMSecsSinceEpoch();
+        if(lastKaraokeUntilMs_>0 && now>=lastKaraokeUntilMs_)
+            clearKaraokeLine();
         // Only ASR-confirmed matches enter this extra timed-LRC queue.
         while(!verifiedLyricQueue_.isEmpty() &&
               verifiedLyricQueue_.first().dueMs<=now) {
