@@ -30,7 +30,9 @@ class WordCueTests(unittest.TestCase):
         self.assertTrue(all(len(g[2]["original"].split())<=3 for g in groups))
         self.assertTrue(all(len(g[2]["translations"]["tr"].split())<=9 for g in groups))
         q=CueQueue(maximum=32)
-        config=CaptionConfig(playback_delay_ms=10000)
+        # Explicit word-by-word mode keeps the legacy short groups; the
+        # new default comfort mode intentionally groups larger phrases.
+        config=CaptionConfig(playback_delay_ms=10000,readable_pacing=False)
         final=enqueue_word_cues(q,data,config,
                                 captured_start=100.0,captured_end=106.0,
                                 finished=107.0)
