@@ -19,7 +19,8 @@ class StandaloneNativePlayerTests(unittest.TestCase):
         self.assertNotIn("playerHostLayout_->addWidget(player_)",activation)
         self.assertIn("radioCanvas_->setFocus()",activation)
         self.assertIn("player_->play(QUrl(base()+stream))",radio)
-        self.assertIn("radioCanvas_->setText",radio)
+        self.assertIn("radioCanvasStation_->setText",radio)
+        self.assertNotIn("radioCanvas_->setText(",radio)
 
     def test_combined_library_favorites_search_all_blocks_and_live_welle(self):
         radio=(ROOT/"kaffeine_next/native_radio_tab.h").read_text()
