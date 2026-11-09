@@ -145,7 +145,12 @@ def word_groups(result: dict, *, maximum_words: int = 7, maximum_span: float = 2
 
 
 def enqueue_word_cues(queue, result, config, captured_start, captured_end, finished):
-    groups = word_groups(result)
+    # When the viewer is reading several subtitle languages, prefer
+    # complete clauses over rapid 1–2 word flashes. Never claim that
+    # word-sliced translations have exact time alignment.
+    groups = word_groups(
+        result,maximum_words=(10 if config.readable_pacing else 7),
+        maximum_span=(3.5 if config.readable_pacing else 2.7))
     if not groups:
         return None
     # Audio extraction can strip leading TS packets. Never schedule past the
@@ -159,7 +164,15 @@ def enqueue_word_cues(queue, result, config, captured_start, captured_end, finis
     # succession. Emit one coherent chunk with an honest late status.
     last_audio_due = captured_end + (
         config.playback_delay_ms + config.offset_ms) / 1000.0
-    if finished >= last_audio_due - 0.45:
+    first_audio_due = (captured_start+groups[0][0]+
+                       (config.playback_delay_ms+config.offset_ms)/1000.0+
+                       0.15)
+    if (finished >= last_audio_due - 0.45 or
+            (config.readable_pacing and
+             finished >= first_audio_due - 0.6)):
+        # Several source-word groups would already be overdue when the
+        # ASR result arrives. Don't flash obsolete phrases in a burst;
+        # use one coherent full sentence with a normal readable slot.
         return None
     prior = None
     for start,end,payload in groups:

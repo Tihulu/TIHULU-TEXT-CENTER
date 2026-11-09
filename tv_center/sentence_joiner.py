@@ -38,7 +38,8 @@ class LiveSentenceJoiner:
             last=match.end()
         return last
 
-    def push(self, phrase: str, *, language=None, silent=False):
+    def push(self, phrase: str, *, language=None, silent=False,
+             prefer_readable=False):
         """Return a complete phrase or an explicitly marked bounded continuation.
 
         Silent: no recognized words in a FULL new audio window, so a brief
@@ -92,6 +93,18 @@ class LiveSentenceJoiner:
             self.reset()
             return {"text":result,"complete":True,"pending":False,
                     "chunks":1,"closed_by_pause":True}
+        if (prefer_readable and text and self.chunks>=1 and
+                len(self.pending.split())>=10):
+            # Real six-second live Whisper speech should not wait another
+            # six-second capture just because punctuation is absent. Emit
+            # the observed words as a provisional readable clause.
+            # The next capture will be deduplicated by the overlap handler.
+            part=self.pending
+            self.pending=""
+            self.chunks=0
+            self.was_split=True
+            return {"text":part+" …","complete":False,"pending":False,
+                    "chunks":1,"continued":True,"readable_early":True}
         if self.chunks>=self.max_chunks or len(self.pending.split())>=self.max_words:
             part=self.pending
             self.pending=""

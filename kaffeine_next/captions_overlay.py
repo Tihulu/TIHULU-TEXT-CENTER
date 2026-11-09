@@ -81,12 +81,16 @@ class CaptionTap:
         self._performance_lock = threading.Lock()
         self._performance_samples = deque(maxlen=48)
         self._decoded_count = 0
+        self._lost_caption_events = 0
+        self._last_degrade_warning_at = 0.0
 
     def performance_snapshot(self):
         with self._performance_lock:
             samples = [dict(row) for row in self._performance_samples]
             decoded = self._decoded_count
+            lost_events = self._lost_caption_events
         return {"samples":samples,"completed_clips":decoded,
+                "lost_ui_caption_events":lost_events,
                 "queue":self.work_queue.snapshot(),
                 "ts":self.transport_health.snapshot()}
 
@@ -119,8 +123,41 @@ class CaptionTap:
                 continue
             began = time.monotonic()
             queue_wait = max(0.0,began-clip.ended)
+            options=dict(clip.options)
+            queue_state=self.work_queue.snapshot()
+            # Speech and translations are more important than optional
+            # speaker separation/sound classifiers if those extra GPU/CPU
+            # jobs make the six-second capture queue fall behind broadcast.
+            # This is opt-out, not a covert change to the selected AI model.
+            if options.get("live_priority",True):
+                behind=(queue_wait>3.0 or queue_state["queued_clips"]>=1)
+                severely_behind=(queue_wait>8.0 or
+                                 queue_state["queued_clips"]>=2)
+                extras=("separate_overlapping_voices","show_sound_events",
+                        "show_voice_types")
+                skipped=[name for name in extras if behind and options.get(name)]
+                for name in skipped:
+                    options[name]=False
+                if severely_behind and options.get("speaker_enabled"):
+                    options["speaker_enabled"]=False
+                    skipped.append("speaker_enabled")
+                if skipped and began-self._last_degrade_warning_at>12:
+                    self._last_degrade_warning_at=began
+                    self._note_warning(
+                        "LIVE PRIORITY: omitted slow optional "+
+                        ", ".join(skipped)+" for this clip; "
+                        "Whisper speech and chosen translations still run. "
+                        f"Queue: {queue_state['queued_clips']} clips, "
+                        f"wait {queue_wait:.1f}s")
             try:
-                self._decode(clip.data, clip.options, clip.started, clip.ended)
+                from tv_center.translation_service import live_translation_budget
+                # One bounded budget for ALL selected output languages,
+                # beginning at the FIRST translation request, not before
+                # Whisper. An unavailable translator cannot hold the TV
+                # subtitle worker for 10–30s PER target.
+                with live_translation_budget(
+                        7.0 if options.get("live_priority",True) else 30.0):
+                    self._decode(clip.data, options, clip.started, clip.ended)
             except Exception as error:
                 self._note_warning("Caption worker failed: "+str(error)[:120])
             finally:
@@ -529,7 +566,8 @@ class CaptionTap:
                 joined=self.sentence_joiner.push(
                     observed,
                     language=result.get("source_language"),
-                    silent=not bool(observed))
+                    silent=not bool(observed),
+                    prefer_readable=bool(options.get("readable_pacing",True)))
                 if not joined["text"]:
                     # Tell the UI why nothing appeared; this is NOT evidence
                     # of silence or a hardware failure.
@@ -684,9 +722,18 @@ class CaptionTap:
             if options.get("program_epoch") != self.program_epoch:
                 return
             try:
-                self.events.put_nowait(("caption", result))
+                # Captions, unlike status notices, are irreplaceable ASR
+                # results. Wait briefly for the Qt loop to drain before
+                # declaring an actual lost subtitle. Still bounded: if
+                # processing cannot match broadcast speed the user gets an
+                # explicit loss counter rather than false "listening".
+                self.events.put(("caption", result), timeout=1.25)
             except queue.Full:
-                self._note_warning("Caption UI event backlog full; output delayed")
+                with self._performance_lock:
+                    self._lost_caption_events += 1
+                self._note_warning(
+                    "LIVE CAPTION LOST: Qt event queue saturated for 1.25s; "
+                    "reduce simultaneous voice/translation model workload")
         except (OSError, RuntimeError, ImportError, ValueError) as error:
             self._note_warning(str(error)[:180])
 
@@ -721,7 +768,7 @@ def main(argv=None):
     from .caption_timing import (CaptionConfig, CueQueue, KaffeineOSD,
                                  AutoSyncEstimator, AutoSyncController,
                                  effective_cue_config, confirmed_cue_config,
-                                 buffer_fill_progress)
+                                 buffer_fill_progress, NativeReleaseClock)
     from .word_cues import enqueue_word_cues
     from .track_preferences import recommended_track, _signaled_language
     from PyQt5.QtCore import Qt, QTimer, QSettings, QProcess
@@ -1154,6 +1201,23 @@ def main(argv=None):
         "true music/speech source separation. May increase errors "
         "on some broadcasts; disable it if accuracy becomes worse.")
     timing_layout.addRow(speech_priority)
+    comfort_reading=QCheckBox(
+        "Comfort reading · stable phrases, no flashing words, readable hold")
+    comfort_reading.setChecked(True)
+    comfort_reading.setToolTip(
+        "Default ON. Longer, naturally paced clauses; decoded subtitles "
+        "remain on screen long enough to read. This does not guarantee "
+        "video-frame PTS lip synchronization.")
+    timing_layout.addRow(comfort_reading)
+    live_priority=QCheckBox(
+        "Protect live speech · skip heavy voice/sound extras if lag builds")
+    live_priority.setChecked(True)
+    live_priority.setToolTip(
+        "Default ON. If optional SepFormer or audio classifiers make the "
+        "caption worker fall behind broadcast, temporarily omit ONLY those "
+        "enhancements. Keep primary Whisper and selected translations. "
+        "Cannot overcome a core speech engine slower than real time.")
+    timing_layout.addRow(live_priority)
     # Voice/music-vocal recognition is a separate experiment; the two
     # goals conflict and must not be advertised as identical features.
     def choose_speech_priority(checked):
@@ -1520,6 +1584,13 @@ def main(argv=None):
     native_channel_status = QLabel("TV source: waiting for native Kaffeine channel")
     native_channel_status.setWordWrap(True)
     root.addWidget(native_channel_status)
+    caption_pipeline_health=QLabel(
+        "Live captions: preparing TV audio and offline speech worker…")
+    caption_pipeline_health.setWordWrap(True)
+    caption_pipeline_health.setToolTip(
+        "Real queued six-second clips, caption delivery losses, and time "
+        "since a subtitle was shown. Not a speech/silence detector.")
+    root.addWidget(caption_pipeline_health)
     root.addWidget(buffer_progress)
     buttons = QHBoxLayout()
     apply = QPushButton("Apply")
@@ -1667,6 +1738,8 @@ def main(argv=None):
     last_ui_program_epoch = 0
     last_effective_check = 0.0
     last_applied_effective_ms = None
+    pending_buffer_retime_ms = None
+    native_release_clock=NativeReleaseClock()
     last_sync_audit_at = 0.0
     def options():
         with lock:
@@ -1698,6 +1771,8 @@ def main(argv=None):
     current_until = 0.0
     last_published = 0.0
     current_cue = None
+    last_cue_shown_at=time.monotonic()
+    last_pipeline_health_at=0.0
     # Captions decoded during a temporary native-buffer ACK delay are
     # HELD rather than silently dropped. They remain bounded in memory
     # and are discarded on actual channel/source changes.
@@ -1764,6 +1839,8 @@ def main(argv=None):
             separate_overlapping_voices=overlap_enabled.isChecked(),
             music_transcription=music_transcription.isChecked(),
             speech_priority=speech_priority.isChecked(),
+            readable_pacing=comfort_reading.isChecked(),
+            live_priority=live_priority.isChecked(),
             speaker_provider=speaker_provider.currentData(),
             speaker_aliases=tuple(entry.text().strip()
                                   for entry in speaker_alias_inputs),
@@ -1842,14 +1919,15 @@ def main(argv=None):
     caption_offset.valueChanged.connect(apply_offset_immediately)
     for w in (show_video,automatic,speaker_enabled,speaker_numbers,
               speaker_lines,voice_types,sound_events,overlap_enabled,
-              music_transcription,speech_priority):
+              music_transcription,speech_priority,comfort_reading,
+              live_priority):
         w.toggled.connect(set_pending)
     for entry in speaker_alias_inputs:
         entry.textChanged.connect(set_pending)
 
     def apply_settings():
         nonlocal applied, current_text, current_until, current_cue
-        nonlocal startup_buffer_pending
+        nonlocal startup_buffer_pending,pending_buffer_retime_ms
         try:
             if startup_buffer_pending:
                 startup_buffer_pending=False
@@ -1864,8 +1942,10 @@ def main(argv=None):
                 getattr(selected, key) != getattr(previous, key)
                 for key in ("mode", "source", "target_languages", "page",
                             "teletext_pid", "audio_pid", "audio_language",
-                            "music_transcription", "speech_priority",
-                            "speaker_enabled", "speaker_provider"))
+                            "music_transcription", "speech_priority"))
+            # Speaker labels/diarization choices are optional per-clip
+            # processing, NOT a new TV channel or a reason to throw away
+            # incoming speech. New options apply on the next captured clip.
             # The native video/audio buffer really changes the media clock.
             # Unlike a cosmetic change, that requires fresh cue calibration.
             playback_changed = (selected.playback_delay_ms !=
@@ -1877,10 +1957,14 @@ def main(argv=None):
             with lock:
                 applied = __import__("dataclasses").replace(
                     selected, revision=previous.revision +
-                    int(source_changed or playback_changed))
-            if source_changed or playback_changed:
+                    int(source_changed))
+            if source_changed:
+                # Only a genuine source/channel change invalidates speech.
                 cues.clear()
                 deferred_captions.clear()
+                recent_voice_lines.clear()
+                native_release_clock.clear()
+                pending_buffer_retime_ms = None
                 current_cue = None
                 current_text = ""
                 current_until = 0.0
@@ -1888,6 +1972,19 @@ def main(argv=None):
                 translated.setText("")
                 ipc.publish("", applied if service_running else
                             __import__("dataclasses").replace(applied, mode="off"))
+            elif playback_changed:
+                # Keep REAL decoded sentences during temporary FIFO re-prime.
+                # Do NOT replay them against the old playback clock; the
+                # pump gates the cue queue until native status confirms.
+                pending_buffer_retime_ms = (
+                    last_applied_effective_ms if
+                    last_applied_effective_ms is not None else
+                    previous.playback_delay_ms)
+                cues.retime(0,applied)
+                native_release_clock.clear()
+                pending.setText(
+                    "TV buffer re-priming · decoded captions retained, "
+                    "timeline paused until native confirmation")
             else:
                 # Font, opacity, position, visible languages and caption
                 # offset are display-time changes, NOT a new ASR source.
@@ -2351,7 +2448,9 @@ def main(argv=None):
         """
         nonlocal applied, current_cue, current_text, current_until
         nonlocal last_published, last_service_id, last_applied_effective_ms
+        nonlocal pending_buffer_retime_ms,last_cue_shown_at
         nonlocal live_test_started_at
+        last_cue_shown_at=time.monotonic()
         if live_test_started_at:
             live_test_started_at=0
             live_test_button.setEnabled(True)
@@ -2377,6 +2476,9 @@ def main(argv=None):
         last_published = time.monotonic()
         last_service_id = None
         last_applied_effective_ms = None
+        pending_buffer_retime_ms = None
+        native_release_clock.clear()
+        recent_voice_lines.clear()
         subtitle_track.blockSignals(True)
         subtitle_track.clear()
         subtitle_track.addItem(
@@ -2420,6 +2522,8 @@ def main(argv=None):
         nonlocal applied, last_service_id, last_effective_check
         nonlocal last_applied_effective_ms, last_sync_audit_at
         nonlocal last_ui_program_epoch,live_test_started_at
+        nonlocal pending_buffer_retime_ms
+        nonlocal last_cue_shown_at,last_pipeline_health_at
         try:
             state,message=overlap_install_queue.get_nowait()
         except queue.Empty:
@@ -2490,7 +2594,8 @@ def main(argv=None):
             reset_channel_captions(last_ui_program_epoch,tap.native_tune_state)
         if now - last_effective_check >= 1.0:
             last_effective_check = now
-            effective = ipc.read_effective_delay()
+            effective = native_release_clock.stabilized(
+                ipc.read_effective_delay())
             progress = buffer_fill_progress(effective, applied.playback_delay_ms)
             percent = progress["percent"]
             if percent is None:
@@ -2538,19 +2643,19 @@ def main(argv=None):
                     and bool(effective["primed"]))
                 if confirmed:
                     current_actual = effective["effective_ms"]
-                    if (last_applied_effective_ms is not None and
-                            abs(current_actual-last_applied_effective_ms) >= 500):
-                        # The 64MiB queue may cap/shrink/change delay even
-                        # without the controls changing. Old timed cues
-                        # are no longer tied to the true playback timeline.
-                        cues.clear()
-                        current_cue = None
-                        current_text = ""
-                        current_until = 0.0
-                        ipc.publish("",applied)
+                    old_clock = (
+                        pending_buffer_retime_ms if
+                        pending_buffer_retime_ms is not None else
+                        last_applied_effective_ms)
+                    if old_clock is not None and current_actual!=old_clock:
+                        # Preserve decoded text and shift its pending due
+                        # dates to the NEW acknowledged FIFO time instead
+                        # of deleting subtitles on every bitrate adjustment.
+                        cues.retime(current_actual-old_clock,applied)
                         status.setText(
-                            "TV buffer changed on the native player: "
-                            "old subtitle timestamps cleared; re-synchronizing.")
+                            "Native buffer changed · retained queued captions "
+                            "and re-timed "+str(current_actual-old_clock)+" ms.")
+                    pending_buffer_retime_ms = None
                     last_applied_effective_ms = current_actual
                 else:
                     last_applied_effective_ms = None
@@ -2586,7 +2691,8 @@ def main(argv=None):
         # needs another acknowledgement. Replay older held results before
         # newer events as soon as the relevant buffer is verified.
         buffer_ready = confirmed_cue_config(
-            applied,ipc.read_effective_delay()) is not None
+            applied,native_release_clock.stabilized(
+                ipc.read_effective_delay())) is not None
         for _ in range(8):
             if buffer_ready and deferred_captions:
                 kind, data = "caption", deferred_captions.popleft()
@@ -2794,16 +2900,17 @@ def main(argv=None):
                             else:
                                 with lock:
                                     applied = revised
-                                # The control request is not the native
-                                # buffer ACK. Discard old queued word cues
-                                # and pause scheduling until player confirms.
-                                cues.clear()
-                                deferred_captions.clear()
-                                current_cue = None
-                                current_text = ""
-                                current_until = 0.0
+                                # New native buffer ACK is pending. Keep
+                                # already decoded subtitles and defer fresh
+                                # words; otherwise automatic 500ms increases
+                                # can erase whole scenes of dialogue.
+                                pending_buffer_retime_ms = (
+                                    last_applied_effective_ms if
+                                    last_applied_effective_ms is not None else
+                                    applied.playback_delay_ms)
+                                native_release_clock.clear()
                                 last_applied_effective_ms = None
-                                ipc.publish("",applied)
+                                buffer_ready = False
                                 # The text field mirrors the *active* delay,
                                 # not an uncommitted manual change.
                                 playback_delay.blockSignals(True)
@@ -2819,7 +2926,8 @@ def main(argv=None):
                     # than the UI requested. Schedule text against the
                     # confirmed playback delay when its status matches the
                     # current request; never reuse a stale channel setting.
-                    native_state = ipc.read_effective_delay()
+                    native_state = native_release_clock.stabilized(
+                        ipc.read_effective_delay())
                     cue_config = confirmed_cue_config(applied, native_state)
                     if cue_config is None:
                         if len(deferred_captions)>=deferred_captions.maxlen:
@@ -3000,9 +3108,11 @@ def main(argv=None):
                         "Building a sentence from real Whisper audio…")
             elif kind == "warning":
                 status.setText(str(data))
-        cue = cues.poll(now, applied.revision) if service_running else None
+        cue = (cues.poll(now, applied.revision)
+               if service_running and buffer_ready else None)
         if cue:
             current_cue = cue
+            last_cue_shown_at=now
             result = cue["result"]
             if srt_recorder.active:
                 try:
@@ -3094,6 +3204,48 @@ def main(argv=None):
             ipc.publish(current_text if current_cue and service_running else "",
                         heartbeat, ttl_ms=3500)
             last_published = now
+
+        if now-last_pipeline_health_at>=2.0:
+            last_pipeline_health_at=now
+            snap=tap.performance_snapshot()
+            backlog=snap["queue"]
+            shown_gap=max(0.0,now-last_cue_shown_at)
+            lost=snap.get("lost_ui_caption_events",0)
+            missed=backlog.get("missed_seconds",0.0)
+            recent=snap["samples"][-1] if snap["samples"] else {}
+            if not service_running:
+                message="Live captions paused."
+            elif lost:
+                message=(
+                    f"CAPTION DELIVERY LOSS: {lost} actual decoded events "
+                    "could not reach the UI; check system load.")
+            elif missed:
+                message=(
+                    f"CAPTURE OVERFLOW: {missed:.1f}s of real TV audio "
+                    "could not be retained; current scene may have no "
+                    "subtitles. Reduce optional AI load.")
+            elif backlog["queued_clips"]:
+                message=(
+                    f"ASR CATCH-UP: {backlog['queued_clips']} real audio "
+                    f"clips queued, last wait {recent.get('queue_wait_ms','?')}ms. "
+                    "TV playback may be ahead of captions.")
+            elif shown_gap>=10 and tap.packet_count:
+                message=(
+                    f"NO SUBTITLE SHOWN for {shown_gap:.0f}s while DVB TS "
+                    "packets are received. Could be speech recognition, "
+                    "an incomplete sentence, silence, wrong audio PID or "
+                    "native buffer ACK; inspect Diagnostics. "
+                    f"Last compute {recent.get('compute_ms','?')}ms.")
+            elif shown_gap>=10:
+                message=(
+                    "No subtitles and no confirmed live TV packet flow; "
+                    "check the native TV channel and selected audio PID.")
+            else:
+                message=(
+                    f"Live captions · last shown {shown_gap:.1f}s ago · "
+                    f"queue {backlog['queued_clips']} clip(s) · "
+                    f"last compute {recent.get('compute_ms','?')}ms")
+            caption_pipeline_health.setText(message)
 
     timer = QTimer(window)
     timer.timeout.connect(pump)

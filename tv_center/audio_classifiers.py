@@ -198,10 +198,10 @@ class _Worker:
             try:
                 self.process.stdin.write(request)
                 self.process.stdin.flush()
-                ready,_,_=select.select([self.process.stdout],[],[],50)
+                ready,_,_=select.select([self.process.stdout],[],[],3)
                 if not ready:
                     self._stop()
-                    raise TimeoutError("Acoustic model exceeded live 50s limit")
+                    raise TimeoutError("Acoustic model exceeded 3s live budget; optional labels skipped")
                 answer=self.process.stdout.readline(100_000)
                 if not answer.endswith(b"\n"):
                     self._stop()

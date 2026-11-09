@@ -336,7 +336,7 @@ def asr_from_clip(path: Path, language: str, model: str,
         details = transcribe_cuda_details(
             audio.stdout, language, str(profile["speech"]["gpu_model_path"]),
             music_mode=music_transcription,
-            speech_priority=speech_priority)
+            speech_priority=speech_priority, timeout_s=18)
         if diagnostics is not None:
             diagnostics["words"] = details.get("words", [])
             diagnostics["detected_language"] = details.get("language")
@@ -354,7 +354,8 @@ def asr_from_clip(path: Path, language: str, model: str,
                 recognized=[
                     transcribe_cuda_details(
                         track,language,str(profile["speech"]["gpu_model_path"]),
-                        music_mode=False,speech_priority=False)
+                        music_mode=False,speech_priority=False,
+                        timeout_s=6)
                     for track in streams]
                 voices=accept_two_transcripts(recognized)
                 if voices and show_voice_types:

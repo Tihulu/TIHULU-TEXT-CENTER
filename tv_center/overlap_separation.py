@@ -149,10 +149,10 @@ class _Worker:
                                    separators=(",",":")).encode("ascii")+b"\n"
                 self.proc.stdin.write(request)
                 self.proc.stdin.flush()
-                ready,_,_=select.select([self.proc.stdout],[],[],55)
+                ready,_,_=select.select([self.proc.stdout],[],[],6)
                 if not ready:
                     self._stop()
-                    raise TimeoutError("Two-speaker separation exceeded 55s; "
+                    raise TimeoutError("Two-speaker separation exceeded 6s live budget; "
                                        "normal Whisper must be used instead")
                 answer=self.proc.stdout.readline(MAX_LINE)
                 if not answer.endswith(b"\n"):

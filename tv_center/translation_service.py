@@ -6,6 +6,9 @@ selection and never accesses the network during inference.
 """
 from __future__ import annotations
 import atexit
+from contextlib import contextmanager
+from contextvars import ContextVar
+import time
 import json
 import os
 import select
@@ -14,6 +17,42 @@ import threading
 from pathlib import Path
 from .runtime import AIRuntime
 from .language_codes import language_code
+
+_live_translation_budget = ContextVar("tihulu_live_translation_budget",default=None)
+
+
+@contextmanager
+def live_translation_budget(seconds=7.0):
+    """One bounded time budget for ALL selected live subtitle languages.
+
+    Does not affect offline file translation or Model Market selftests.
+    Starts on first actual model call, AFTER Whisper has recognized speech.
+    This must never run network downloads in the caption worker.
+    """
+    if not 1.0 <= float(seconds) <= 60.0:
+        raise ValueError("Invalid live translation budget")
+    token=_live_translation_budget.set(
+        {"seconds":float(seconds),"started":None})
+    try:
+        yield
+    finally:
+        _live_translation_budget.reset(token)
+
+
+def _remaining_live_budget(default_seconds):
+    budget=_live_translation_budget.get()
+    if budget is None:
+        return default_seconds
+    now=time.monotonic()
+    if budget["started"] is None:
+        budget["started"]=now
+    remaining=budget["seconds"]-(now-budget["started"])
+    if remaining < 0.10:
+        raise TimeoutError(
+            "Combined live-translation budget exhausted; original "
+            "Whisper words retained while other target languages catch up")
+    return min(default_seconds,remaining)
+
 
 class NLLBService:
     def __init__(self):
@@ -57,7 +96,9 @@ class NLLBService:
                 # take over while the original transcript continues.
                 time_budget = (10 if isinstance(self, ArgosService) else
                                30 if cold and isinstance(self, MadladService) else 12)
-                ready,_,_=select.select([self.process.stdout],[],[],time_budget)
+                time_budget=_remaining_live_budget(time_budget)
+                ready,_,_=select.select(
+                    [self.process.stdout],[],[],time_budget)
                 if not ready:
                     self.close_locked()
                     raise TimeoutError(

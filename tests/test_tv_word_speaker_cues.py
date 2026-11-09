@@ -30,7 +30,9 @@ class WordCueTests(unittest.TestCase):
         self.assertTrue(all(len(g[2]["original"].split())<=3 for g in groups))
         self.assertTrue(all(len(g[2]["translations"]["tr"].split())<=9 for g in groups))
         q=CueQueue(maximum=32)
-        config=CaptionConfig(playback_delay_ms=10000)
+        # Explicit word-by-word mode keeps the legacy short groups; the
+        # new default comfort mode intentionally groups larger phrases.
+        config=CaptionConfig(playback_delay_ms=10000,readable_pacing=False)
         final=enqueue_word_cues(q,data,config,
                                 captured_start=100.0,captured_end=106.0,
                                 finished=107.0)
@@ -54,7 +56,10 @@ class WordCueTests(unittest.TestCase):
         self.assertIsNotNone(queue.poll(120.2,cfg.revision))
         # Without the fix the 1.75s reading slot delayed voice 2
         # until 121.9s (and accumulated further with each new speaker).
-        self.assertEqual(queue.poll(120.8,cfg.revision)["result"]["original"],
+        # Comfort reading holds even a brief source-word group long
+        # enough to see it, without stacking a 1.75s delay for each word.
+        self.assertIsNone(queue.poll(120.8,cfg.revision))
+        self.assertEqual(queue.poll(121.05,cfg.revision)["result"]["original"],
                          "Second voice")
 
     def test_overlapping_speaker_windows_do_not_mislabel_a_new_voice(self):
