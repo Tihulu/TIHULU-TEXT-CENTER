@@ -14,7 +14,7 @@ export function initComputeSelector(prefix,{capabilitiesProvider=null}={}){
            gpu:{available:false,reason:"Probing real GPU adapter…"},
            npu:{available:false,reason:"No compatible SSTV NPU model/kernel"}};
  let loaded=false;
- let nativeGpu=null;
+ let nativeGpu=null,nativeSystem=null;
  const describe=()=>{
    for(const name of ["cpu","gpu","npu"]){
      targets[name].disabled=mode.value!=="custom"||!caps[name]?.available;
@@ -34,7 +34,26 @@ export function initComputeSelector(prefix,{capabilitiesProvider=null}={}){
        " Native OS GPU detected: "+(nativeGpu.devices||[]).join(", ")+
        " · CUDA/CuPy Robot36 kernel "+(nativeGpu.available?"ready":"not working")+
        ". WebGPU and native CUDA are different execution engines.":
-       nativeGpu?" Native OS GPU not detected; see native GPU details.":"");
+       nativeGpu?" Native OS GPU not detected; see native GPU details.":"")+
+     (nativeSystem?" Native hardware inventory shown below. Auto only runs "+
+      "actually available in-page kernels; CU8 FFT remains on CPU.":"");
+   const hw=nativeSystem?.hardware;
+   const report=document.getElementById("native-compute-inventory");
+   if(hw&&report){
+     report.hidden=false;
+     const element=id=>document.getElementById(id);
+     element("native-compute-cpu").textContent=
+       "CPU: "+hw.cpu.name+" · "+hw.cpu.logical_cores+
+       " logical threads · usable (FFT, image reconstruction)";
+     element("native-compute-gpu").textContent=
+       "GPU: "+(hw.gpu.detected?hw.gpu.names.join(" / "):"not detected")+
+       " · CUDA/CuPy Robot36: "+(nativeSystem.gpu?.available?"VERIFIED":"NOT READY")+
+       (nativeSystem.gpu?.reason?" · "+nativeSystem.gpu.reason:"");
+     element("native-compute-npu").textContent=
+       "NPU: "+(hw.npu.detected?hw.npu.names.join(" / "):"not detected")+
+       " · OpenVINO SSTV: "+(nativeSystem.npu?.available?"VERIFIED":"NOT READY")+
+       (nativeSystem.npu?.reason?" · "+nativeSystem.npu.reason:"");
+   }
  };
  const getSelection=()=>{
    const list=Object.entries(targets).filter(([k,v])=>v.checked).map(([k])=>k);
@@ -46,7 +65,9 @@ export function initComputeSelector(prefix,{capabilitiesProvider=null}={}){
    if(typeof window.nativeComputeStatus!=="function")return;
    try{
      const system=await window.nativeComputeStatus();
-     if(system?.gpu){nativeGpu=system.gpu;describe();}
+     if(system?.cpu?.available){
+       nativeSystem=system;nativeGpu=system.gpu;describe();
+     }
    }catch(_error){ /* Browser GPU probe is independent. */ }
  };
  window.addEventListener("tihulu-native-bridge-ready",()=>{void checkNativeGpu();});
