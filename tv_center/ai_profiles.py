@@ -143,13 +143,16 @@ def install_components(key, *, library=None, progress=None, installer=None):
     spec=profile(key)
     from .model_market import ModelLibrary
     lib=library or ModelLibrary()
-    from .whisper_engine import WhisperRuntime
-    from .ai_provision import StarterAI
-    from .runtime import AIRuntime
     def notice(message):
         if progress:
             progress(message)
     steps=[]
+    # Check hardware BEFORE any irreversible network installs or large
+    # downloads; Pi CPU and experimental GPU requirements are not optional.
+    from .hardware_market import detect_hardware
+    issue=hardware_issue(key,detect_hardware()) if installer is None else None
+    if issue:
+        raise RuntimeError("Cannot install this mode on current hardware: "+issue)
     for index,component in enumerate(spec["components"],1):
         notice(f"{index}/{len(spec['components'])} · {COMPONENTS[component][0]}")
         if local_status(component,library=lib):
@@ -200,7 +203,7 @@ def selection_patch(key, *, library, hardware, status):
     if missing:
         raise RuntimeError("Install all first; missing: " +
                            ", ".join(COMPONENTS[x][0] for x in missing))
-    chosen=lib_model = library._path(spec["speech"])
+    chosen=library._path(spec["speech"])
     if not Path(chosen).is_file():
         raise RuntimeError("Missing local CPU Whisper fallback model")
     return {
