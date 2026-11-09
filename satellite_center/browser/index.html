@@ -364,6 +364,13 @@ All location methods are optional. City suggestions are offline by default; GPS 
  </fieldset>
  <p id="iq-compute-status" class="hint" role="status">Detecting compatible compute kernels…</p>
  <p id="native-gpu-discovery" class="hint" role="status" hidden>Native GPU inventory is available only inside the desktop application.</p>
+  <div id="native-compute-inventory" class="compute-hardware-inventory" role="status" aria-live="polite" hidden>
+   <strong>Native desktop hardware inventory</strong>
+   <div id="native-compute-cpu">CPU: checking OS inventory…</div>
+   <div id="native-compute-gpu">GPU: checking driver/runtime…</div>
+   <div id="native-compute-npu">NPU: checking device and supported kernels…</div>
+   <small>Detected hardware and usable decoding acceleration are DIFFERENT. IQ spectrum FFT currently executes on CPU; CUDA/CuPy or NPU models must run an actual compatible kernel before Auto can select them for native Robot36 processing.</small>
+  </div>
 </section>
 <div class="line">
 <button type="button" id="iq-analyze-last" disabled>Analyze last recording</button>
