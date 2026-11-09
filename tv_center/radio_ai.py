@@ -24,6 +24,7 @@ from .lyrics_sync import lookup_synced_lyrics, LiveLyricMatcher, parse_lrc
 from .sentence_joiner import LiveSentenceJoiner
 from .radio_language import RadioLanguageLock
 from .media_ai import _chunk_cues, _choose_model, _near_silent_pcm, CHUNK_SAMPLES
+from .radio_capture import BoundedRadioCapture
 
 _SID = re.compile(r"(?:0x)?[A-Fa-f0-9]{1,8}\Z")
 
@@ -111,7 +112,9 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
     for signum in (signal.SIGTERM,signal.SIGINT):
         signal.signal(signum,stop)
     chunks=0
-    overlap_pcm=b""
+    capture=BoundedRadioCapture(ffmpeg.stdout,
+        samples_per_second=CHUNK_SAMPLES,max_windows=max_chunks).start()
+    last_capture_index=None
     auto_language=RadioLanguageLock()
     lyric_path=location.with_name(location.name.replace(
         "tihulu-radio-captions-","tihulu-radio-lyrics-",1))
@@ -123,20 +126,26 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
     sentence_joiner=LiveSentenceJoiner(max_words=115,max_chunks=sentence_hops)
     write_runtime_json(location,{
         "status":"waiting_audio","source_language":src,
+        "language_source":"pending_audio","translation_state":"listening",
         "original":"","translations":{},"chunk_index":-1,
         "note":"Connecting to local DAB audio; radio playback is independent."
     })
     try:
         while not done:
-            # Five-second audio hops with a genuine 1-second overlapping window.
-            fresh=ffmpeg.stdout.read((6 if chunks==0 else 5)*CHUNK_SAMPLES*2)
-            if done or len(fresh)<CHUNK_SAMPLES*2:
+            # The independent capture thread ALWAYS drains this worker's
+            # local MP3 connection, even during a slow Whisper/translation
+            # pass. On overload, old *AI* windows are discarded explicitly,
+            # never the main libVLC radio playback stream.
+            audio_window=capture.next()
+            if done or audio_window is None:
                 break
-            pcm=overlap_pcm+fresh
-            overlap_pcm=pcm[-CHUNK_SAMPLES*2:]
-            # Source is actual radio audio. Whisper emits real word positions
-            # on CUDA; the output has no false claim of latency compensation.
-            captured_at=time.monotonic()
+            capture_index,pcm,captured_at=audio_window
+            gap=(last_capture_index is not None and
+                 capture_index != last_capture_index+1)
+            if gap:
+                # Never glue text from two non-contiguous audio windows.
+                sentence_joiner.reset()
+            last_capture_index=capture_index
             # The separately authorized lyrics worker writes only to a
             # private XDG_RUNTIME_DIR JSON; refresh when the song changes.
             # No additional Internet call and no second SDR owner.
@@ -172,14 +181,14 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
                 detection["confidence"]=0.0
                 cues=[]
             else:
-                cues=_chunk_cues(pcm,position=chunks*5,lang=src,
+                cues=_chunk_cues(pcm,position=capture_index*5,lang=src,
                                 profile=profile,backend=backend,
                                 music=music or plain_matcher is not None,
                                 detection=detection)
-            if chunks>0:
-                # Retain words that CROSS the hop boundary; ignore only
-                # items entirely inside the already-decoded overlap.
-                cues=[cue for cue in cues if cue.end>chunks*5+1.0]
+            if capture_index>0:
+                # Retain words crossing the genuine 1-second read overlap.
+                cues=[cue for cue in cues
+                      if cue.end>capture_index*5+1.0]
             original=" ".join(cue.text for cue in cues).strip()
             # Speaker identities are relative voice clusters (Speaker 1, 2...),
             # not inferred gender/age. Music-mode does NOT invoke diarization.
@@ -343,14 +352,17 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
                 "decoded_monotonic":time.monotonic(),
                 "timestamp":time.time(),
                 "station_sid":sid,
-                "chunk_index":chunks,
+                "chunk_index":capture_index,
+                "ai_audio_windows_dropped":capture.dropped_windows,
+                "ai_audio_gap":gap,
                 "window_hop_seconds":5,
-                "audio_overlap_seconds":1 if chunks else 0})
+                "audio_overlap_seconds":1 if capture_index else 0})
             chunks+=1
             if max_chunks>0 and chunks>=max_chunks:
                 break
     finally:
         stop()
+        capture.stop()
         try:
             ffmpeg.wait(timeout=3)
         except subprocess.TimeoutExpired:
