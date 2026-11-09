@@ -1994,9 +1994,17 @@ private:
         qint64 dueMs;
         QString text;
         double confidence;
-        int lineIndex=-1;
+        int lineIndex;
         QString original;
         QJsonObject translations;
+        // Qt5/C++11 builds do not treat a struct with default member
+        // initializers as an aggregate. Accept old 3-field cues as well
+        // as newer 6-field verified karaoke cues.
+        TimedPlainLyric(qint64 due,const QString &rendered,double certainty,
+                        int index=-1,const QString &source=QString(),
+                        const QJsonObject &translated=QJsonObject())
+            : dueMs(due),text(rendered),confidence(certainty),
+              lineIndex(index),original(source),translations(translated) {}
     };
 	static QString label(const QJsonValue &value) {
 		if (value.isString()) return value.toString();
