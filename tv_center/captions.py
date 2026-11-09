@@ -229,6 +229,25 @@ def asr_from_clip(path: Path, language: str, model: str,
             "This is not music/source separation." if focus_filter else None)
     if audio.returncode or len(audio.stdout) < 32000:
         raise RuntimeError("No usable audio stream in recorded TV segment")
+    # Optional acoustic classifiers are independent, offline and opt-in.
+    if show_sound_events:
+        try:
+            from .audio_classifiers import detect_sound_events
+            actual_events=detect_sound_events(audio.stdout)
+            if diagnostics is not None:
+                diagnostics["sound_events"]=actual_events
+        except (OSError,ValueError,RuntimeError,TimeoutError) as exc:
+            if diagnostics is not None:
+                diagnostics["sound_event_note"]=str(exc)[:160]
+    if show_voice_types and not overlap_separation:
+        try:
+            from .audio_classifiers import detect_voice_type
+            category=detect_voice_type(audio.stdout)
+            if diagnostics is not None and category:
+                diagnostics["voice_type_candidate"]=category
+        except (OSError,ValueError,RuntimeError,TimeoutError) as exc:
+            if diagnostics is not None:
+                diagnostics["voice_type_note"]=str(exc)[:160]
     # Remote speech is an explicit user-approved HTTPS+token backend.
     # Device ownership remains local: only the bounded decoded audio PCM
     # is sent to the configured GPU host; video/RF data are NOT uploaded.
