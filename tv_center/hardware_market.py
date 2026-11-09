@@ -54,7 +54,8 @@ def quick_hardware():
                "driver_tool":False,"cuda_compiler":None,"cuda_version":None,
                "cuda_compile_possible":False,
                "reason":"Full CUDA discovery is deferred until after first paint"},
-        "npu":{"detected":bool(hailo),"devices":hailo,"ready":False,
+        "npu":{"detected":bool(hailo),"devices":hailo,"hailo_arch":"",
+               "ready":False,
                "detail":"NPU model compatibility unverified"},
     }
 
@@ -122,6 +123,8 @@ def detect_hardware():
     except OSError:
         pass
     npu=list(Path("/dev").glob("hailo*"))
+    from .pi_hailo import hardware_architecture
+    hailo_arch=hardware_architecture() if npu else ""
     intel_npu = False
     try:
         import openvino as ov
@@ -157,8 +160,9 @@ def detect_hardware():
                    "CUDA compile toolchain detected; inference still requires a compiled runtime and tested model"
                    if name else "No NVIDIA GPU found")},
         "npu":{"detected":bool(available_npu),"devices":available_npu,
-               "ready":False,
-               "detail":("Hailo detected: requires a compatible Hailo HEF/NPY Whisper pipeline"
+               "hailo_arch":hailo_arch,"ready":False,
+               "detail":("Hailo "+(hailo_arch or "unverified device")+
+                         ": compatible HEF/NPY and runtime are required"
                          if npu else
                          "Intel NPU detected: requires OpenVINO GenAI and NPU-exported Whisper model"
                          if available_npu else
