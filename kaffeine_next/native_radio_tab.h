@@ -693,6 +693,19 @@ public:
             "Original heard audio + selected translation outputs. "
             "Captions are aligned to captured PCM timestamps, not "
             "measured libVLC audio presentation timestamps."));
+        radioLyricMatchStatus_=new QLabel(radioCanvas_);
+        radioLyricMatchStatus_->setTextFormat(Qt::PlainText);
+        radioLyricMatchStatus_->setWordWrap(true);
+        radioLyricMatchStatus_->setAlignment(Qt::AlignCenter);
+        radioLyricMatchStatus_->setStyleSheet(QLatin1String(
+            "QLabel{background:rgba(0,0,0,205);color:#cdebf5;"
+            "border-radius:5px;padding:4px;font-size:13px;}"));
+        radioLyricMatchStatus_->setVisible(false);
+        radioLyricMatchStatus_->setToolTip(tr(
+            "Lyrics FOUND means matching song metadata. Audio MATCHED "
+            "requires a real Whisper lyric line match; when no match "
+            "exists, actual speech stays visible as a transcription."));
+        captionSurface->addWidget(radioLyricMatchStatus_);
         captionSurface->addWidget(radioCanvasCaption_);
 
 		auto *meta = new QHBoxLayout();
@@ -741,12 +754,20 @@ public:
         v->addWidget(new QLabel(
             tr("<b>1 · Heard audio (IN)</b> · Auto detect or choose English, German, etc."),lab));
 		speechLanguage_ = new QComboBox(lab);
-		speechLanguage_->addItem(tr("Auto detect · GPU Whisper"),"auto");
+		speechLanguage_->addItem(tr("Auto detect · Whisper (selected local model)"),"auto");
         // The complete supported Whisper input set is filled from the
         // shared catalog. Keep a usable offline fallback until it arrives.
         for(const QString &code:QStringList{"de","en","tr","fr","es","pl","ar","ja"})
             speechLanguage_->addItem(code.toUpper(),code);
-		speechLanguage_->setEditable(false);
+        speechLanguage_->setEditable(false);
+        speechLanguage_->setToolTip(tr(
+            "Auto detect uses the selected Whisper model. Every other IN "
+            "language is supported by a multilingual speech model, NOT a "
+            "separately installed translation package. Actual source "
+            "detection confidence depends on engine and the audio."));
+        spokenModelStatus_=new QLabel(tr(
+            "Checking locally installed Whisper model…"),lab);
+        spokenModelStatus_->setWordWrap(true);
         QSettings initialRadioLanguages(QLatin1String("TIHULU"),
                                        QLatin1String("KaffeineRadio"));
         const int savedSpeechIndex=speechLanguage_->findData(
@@ -787,6 +808,7 @@ public:
         row->addWidget(captionSource_,0,1,1,2);
         row->addWidget(new QLabel(tr("Speech language:"),lab),1,0);
         row->addWidget(speechLanguage_,1,1,1,2);
+        row->addWidget(spokenModelStatus_,2,0,1,3);
         // Legacy quick checkboxes are retained as disabled compatibility
         // objects only. ONE checkable multi-output list below owns targets.
         english_->hide(); german_->hide(); turkish_->hide();
@@ -935,7 +957,7 @@ public:
                 if(!inputLanguages.isEmpty()){
                     const QSignalBlocker block(speechLanguage_);
                     speechLanguage_->clear();
-                    speechLanguage_->addItem(tr("Auto detect · GPU Whisper"),"auto");
+                    speechLanguage_->addItem(tr("Auto detect · Whisper (selected local model)"),"auto");
                     for(const QJsonValue &value:inputLanguages){
                         const QJsonObject entry=value.toObject();
                         const QString code=entry.value(
@@ -949,6 +971,16 @@ public:
                     const int index=speechLanguage_->findData(previous);
                     speechLanguage_->setCurrentIndex(index>=0?index:0);
                 }
+                spokenModelStatus_->setText(info.value(
+                    QLatin1String("speech_model_present")).toBool()?
+                    tr("IN · Whisper model files found: %1. Listed spoken "
+                       "languages use the selected multilingual model "
+                       "(not installed one by one). Auto detect remains available.")
+                        .arg(info.value(QLatin1String("speech_models_installed"))
+                            .toArray().size()):
+                    tr("IN · No local Whisper model found. Choose or install "
+                       "one in Model Market. Auto detect is listed but "
+                       "cannot run until a speech model is available."));
                 translationStatus_->setText(tr(
                     "Selected TV/Radio translator: %1 · speech backend: %2. "
                     "%3 candidate outputs from installed model metadata. "
@@ -2633,6 +2665,19 @@ private:
 							tr("[DLS broadcaster metadata] %1").arg(dls).left(700)});
 						while(cueQueue_.size()>12) cueQueue_.removeFirst();
 					}
+                    // Many stations rotate DLS song title, announcements
+                    // and station slogans while playing the SAME song.
+                    // An arbitrary DLS change MUST NOT erase the current
+                    // lyric match and start another lookup repeatedly.
+                    const QStringList songParts=dls.split(QLatin1String(" - "));
+                    const bool songMetadata=songParts.size()>=2 &&
+                        !songParts.first().trimmed().isEmpty() &&
+                        !songParts.mid(1).join(QLatin1String(" - "))
+                            .trimmed().isEmpty();
+                    const bool newSongMetadata=songMetadata &&
+                        dls!=lastSongDls_;
+                    if(newSongMetadata) {
+                        lastSongDls_=dls;
 					// DLS is live; the audible audio may be delayed by radio caching.
 					// This is approximate metadata sync, NOT audio fingerprinting.
 					songStartMs_=QDateTime::currentMSecsSinceEpoch()+
@@ -2647,6 +2692,9 @@ private:
 					lyricsSyncState_->setText(tr("New DLS song · awaiting audible lyric verification"));
 					plainLyricMode_=false;
 					plainLyricQueue_.clear();
+                    verifiedLyricQueue_.clear();
+                    lastMatchedLyricUntilMs_=0;
+                    setRadioLyricMatchStatus(QString());
                     // A DLS metadata change is NOT proof of new audible
                     // song, and must not disable Stop for an offline
                     // listening worker the user explicitly started.
@@ -2664,10 +2712,9 @@ private:
                            "listening; no proven song boundary.") :
                         tr("New DLS metadata. Automatic lookup requires opt-in; "
                            "timing is only an estimate."));
-					if(autoLyrics_->isChecked() &&
-					   dls.contains(QLatin1String(" - "))) {
-						QTimer::singleShot(100,this,[this](){fetchLyrics(true);});
-					}
+                    if(autoLyrics_->isChecked())
+                        QTimer::singleShot(100,this,[this](){fetchLyrics(true);});
+                    } // New song metadata; ordinary rotating DLS does not reset lyrics.
 				}
                 const QJsonObject errs=service.value(
                     QLatin1String("errorcounters")).toObject();
@@ -3067,6 +3114,7 @@ private:
                     tr("Block %1 · %2 · service %3 · stream opening")
                         .arg(block,dabCenterFrequencyMHz(block),sid));
 				lastDls_.clear();
+                lastSongDls_.clear();
 				lyricLoaded_=false;
 				lyricCues_=QJsonArray();
 				slideHistory_.clear();
@@ -3624,6 +3672,13 @@ private:
                 "Radio audio plays independently; heavy AI may fall behind."));
         }
 	}
+    void setRadioLyricMatchStatus(const QString &message) {
+        if(!radioLyricMatchStatus_) return;
+        const QString label=message.trimmed().left(210);
+        if(label!=radioLyricMatchStatus_->text())
+            radioLyricMatchStatus_->setText(label);
+        radioLyricMatchStatus_->setVisible(!label.isEmpty());
+    }
     void showRadioCanvasCaption(const QString &value,bool lyric=false) {
         if(!radioCanvasCaption_) return;
         const QString text=value.trimmed().left(1300);
@@ -3635,12 +3690,20 @@ private:
         // never replace the radioCanvas_'s station text or slideshow.
         // DLS metadata may still show a song while the announcer talks.
         // Never let estimated timed lyrics erase actual Whisper speech.
-        if(lyric && lastUnmatchedVoiceUntilMs_>
-           QDateTime::currentMSecsSinceEpoch()) return;
+        const qint64 currentMs=QDateTime::currentMSecsSinceEpoch();
+        if(lyric && lastUnmatchedVoiceUntilMs_>currentMs) return;
+        if(!lyric && lyricsEnabled_ && currentMs<lastMatchedLyricUntilMs_ &&
+           currentMs>=lastUnmatchedVoiceUntilMs_) return;
         if(radioCanvasCaption_->text()!=text)
             radioCanvasCaption_->setText(text);
         radioCanvasCaption_->setVisible(true);
-        if(lyric) lastCanvasLyricMs_=QDateTime::currentMSecsSinceEpoch();
+        if(lyric) {
+            lastCanvasLyricMs_=currentMs;
+            // Keep a verified lyric line readable between 5s ASR hops;
+            // a new unmatched presenter/advert immediately cancels this.
+            lastMatchedLyricUntilMs_=qMax(lastMatchedLyricUntilMs_,
+                                          currentMs+7500);
+        }
     }
 	void displayDueRadioCues(qint64 now) {
 		// Queue rather than overwrite: a new AI chunk must not erase the
@@ -3892,14 +3955,28 @@ private:
                     lastVerifiedLyricMs_=now;
                     lastUnmatchedVoiceUntilMs_=qMin(
                         lastUnmatchedVoiceUntilMs_,now);
+                    // Found lyrics get to the real radio caption bar at
+                    // their audio-derived due time. The plain and timed
+                    // forms share the same evidence requirement, but no
+                    // unreliable DLS timestamp is used as proof of match.
+                    setRadioLyricMatchStatus(tr(
+                        "LYRICS MATCHED %1% · real audio · line %2 · queued")
+                        .arg(qRound(confidence*100))
+                        .arg(matched.value(QLatin1String("index")).toInt()+1));
 					if(plainLyricMode_) {
 						plainLyricQueue_.append({due+lyricsOffset_->value(),rendered,confidence});
 						while(plainLyricQueue_.size()>10) plainLyricQueue_.removeFirst();
 						lyricsSyncState_->setText(tr("Verified text match %1% · "
 							"audio-derived line ordering, approximate 5s time resolution")
 							.arg(qRound(confidence*100)));
-					} else if(autoLyricSync_->isChecked() && confidence>=0.92 &&
-                         !lyricCues_.isEmpty()) {
+                    } else {
+                        verifiedLyricQueue_.append({
+                            due+lyricsOffset_->value(),rendered,confidence});
+                        while(verifiedLyricQueue_.size()>10)
+                            verifiedLyricQueue_.removeFirst();
+                    }
+                    if(!plainLyricMode_ && autoLyricSync_->isChecked() &&
+                       confidence>=0.92 && !lyricCues_.isEmpty()) {
 						const int idx=matched.value(QLatin1String("index")).toInt(-1);
 						if(idx>=0 && idx<lyricCues_.size() && songStartMs_>0) {
 							const double lrcSeconds=lyricCues_.at(idx).toObject()
@@ -3945,6 +4022,23 @@ private:
 					}
 				}
 			}
+            // A lyrics lookup proves metadata only. If real speech is
+            // heard but fails the line matcher, prioritize Whisper and
+            // explain the fallback (especially for adverts/presenters).
+            if(lyricsEnabled_ && lyricLoaded_ && revision>=1 &&
+               !obj.value(QLatin1String("original")).toString().trimmed().isEmpty() &&
+               (matched.value(QLatin1String("kind")).toString()!=
+                QLatin1String("observed_ASR_chunk_match") ||
+                matched.value(QLatin1String("confidence")).toDouble()<0.74)) {
+                lastMatchedLyricUntilMs_=0;
+                verifiedLyricQueue_.clear();
+                plainLyricQueue_.clear();
+                lastUnmatchedVoiceUntilMs_=qMax(lastUnmatchedVoiceUntilMs_,
+                                                due+5000);
+                setRadioLyricMatchStatus(tr(
+                    "LYRICS FOUND · NOT MATCHED to this audio · "
+                    "Whisper speech/advert fallback"));
+            }
             const QJsonObject translationWarnings=obj.value(
                 QLatin1String("translation_warnings")).toObject();
             const QJsonObject outputLanguages=obj.value(
@@ -4100,6 +4194,9 @@ private:
 		lyricCues_=QJsonArray();
 		plainLyricMode_=false;
 		plainLyricQueue_.clear();
+        verifiedLyricQueue_.clear();
+        lastMatchedLyricUntilMs_=0;
+        setRadioLyricMatchStatus(QString());
         lastVerifiedLyricMs_=0;
         lastVerifiedLyricText_.clear();
         lastVerifiedLyricTranslations_=QJsonObject();
@@ -4115,7 +4212,9 @@ private:
 		if (!active() || playingKey_.isEmpty()) {
 			lyricText_->setText(tr("Play a station first.")); return;
 		}
-		const QStringList fields=lastDls_.split(QLatin1String(" - "));
+        const QString lyricDls=lastDls_.contains(QLatin1String(" - "))?
+            lastDls_:lastSongDls_;
+		const QStringList fields=lyricDls.split(QLatin1String(" - "));
 		const bool overridden=!automatic && !lyricsArtist_->text().trimmed().isEmpty()
 			&& !lyricsTitle_->text().trimmed().isEmpty();
 		if(fields.size()<2 && !overridden) {
@@ -4141,9 +4240,17 @@ private:
 		QFile::remove(lyricPath_);
 		lyricsEnabled_=true;
         lastLyricsAutoLookup_=automatic;
-		lyricLoaded_=false;
-		plainLyricMode_=false;
-		plainLyricQueue_.clear();
+        lyricLoaded_=false;
+        plainLyricMode_=false;
+        lyricCues_=QJsonArray();
+        plainLyricQueue_.clear();
+        verifiedLyricQueue_.clear();
+        lastVerifiedLyricMs_=0;
+        lastMatchedLyricUntilMs_=0;
+        lastVerifiedLyricText_.clear();
+        lastVerifiedLyricTranslations_=QJsonObject();
+        setRadioLyricMatchStatus(tr(
+            "LYRICS SEARCHING · metadata lookup in progress"));
         if(lyricsAudioFallbackActive_) {
             // The current fallback is only for this song's absent lyrics;
             // do not leave a previous track's plain/timed cues visible.
@@ -4170,24 +4277,40 @@ private:
 			lyrics_->setEnabled(true);
             stopLyrics_->setEnabled(false);
 			lyricText_->setText(tr("Lyrics lookup worker failed to start."));
+            setRadioLyricMatchStatus(tr(
+                "LYRICS LOOKUP FAILED · Whisper fallback"));
             if(listenFallbackOnMiss_->isChecked()) beginLyricListening();
 			return;
 		}
 		stopLyrics_->setEnabled(true);
 		lyricText_->setText(tr("Searching timed OR plain lyrics… Stop available."));
 	}
-	void updateLyrics() {
-		if (!lyricsEnabled_) return;
+    void updateLyrics() {
+        if(!lyricsEnabled_) return;
+        const qint64 now=QDateTime::currentMSecsSinceEpoch();
+        // Only ASR-confirmed matches enter this extra timed-LRC queue.
+        while(!verifiedLyricQueue_.isEmpty() &&
+              verifiedLyricQueue_.first().dueMs<=now) {
+            const auto cue=verifiedLyricQueue_.takeFirst();
+            showRadioCanvasCaption(cue.text,true);
+            setRadioLyricMatchStatus(tr(
+                "LYRICS MATCHED %1% · showing heard song words")
+                .arg(qRound(cue.confidence*100)));
+            lyricText_->setText(tr("Audio-matched lyric · %1")
+                                .arg(cue.text.left(400)));
+        }
 		if(plainLyricMode_) {
-			const qint64 now=QDateTime::currentMSecsSinceEpoch();
 			while(!plainLyricQueue_.isEmpty() && plainLyricQueue_.first().dueMs<=now) {
 				const auto cue=plainLyricQueue_.takeFirst();
 				lyricText_->setText(tr("Audio-matched lyric (~%1% confidence) · %2")
 					.arg(qRound(cue.confidence*100)).arg(cue.text));
                 showRadioCanvasCaption(cue.text,true);
+                setRadioLyricMatchStatus(tr(
+                    "LYRICS MATCHED %1% · showing heard song words")
+                    .arg(qRound(cue.confidence*100)));
             }
             if(lastCanvasLyricMs_>0 && now-lastCanvasLyricMs_>8000 &&
-               radioCanvasCaption_) {
+               now>=lastMatchedLyricUntilMs_ && radioCanvasCaption_) {
                 radioCanvasCaption_->setVisible(false);
                 lastCanvasLyricMs_=0;
             }
@@ -4195,11 +4318,12 @@ private:
 		}
 		if (lyricPath_.isEmpty() || lyricLoaded_) {
             const qint64 currentEpoch=QDateTime::currentMSecsSinceEpoch();
-            // Automatic LRC from DLS is provisional until we actually
-            // hear a vocal line matching the current song.
-            if(lastLyricsAutoLookup_ &&
-               (lastVerifiedLyricMs_<=0 ||
-                currentEpoch-lastVerifiedLyricMs_>16000)) return;
+            // A DLS song title is metadata, not an exact start time:
+            // automatic timed LRC requires real ASR-verified matches
+            // (processed above) rather than guessed positions.
+            // Manually imported/selected LRC may still estimate timing.
+            if(lastLyricsAutoLookup_) return;
+            if(now<lastMatchedLyricUntilMs_) return;
             if(lastUnmatchedVoiceUntilMs_>currentEpoch) return;
 			if (!lyricCues_.isEmpty() && songStartMs_>0) {
 				const qint64 start=autoLyricSync_->isChecked()
@@ -4251,6 +4375,10 @@ private:
 			plainLyricMode_=value.value(QLatin1String("alignment_mode")).toString()
 				==QLatin1String("asr_lexical");
 			lyricCues_=value.value(QLatin1String("cues")).toArray();
+            setRadioLyricMatchStatus(tr(
+                "LYRICS FOUND · %1 · %2 · matching live audio…")
+                .arg(provider.isEmpty()?tr("local file"):provider,
+                     plainLyricMode_?tr("plain text"):tr("timed LRC")));
 			if(plainLyricMode_) {
 				lyricText_->setText(tr("Plain lyrics found. Awaiting REAL Whisper vocal matches; "
 					"no fabricated timestamps."));
@@ -4275,6 +4403,7 @@ private:
             stopLyrics_->setEnabled(false);
             const QString reason=value.value(QLatin1String("reason")).toString().left(190);
 			lyricText_->setText(tr("Lyrics unavailable: %1").arg(reason));
+            setRadioLyricMatchStatus(tr("LYRICS NOT FOUND · Whisper fallback"));
             lyricProvider_->setText(tr("No trusted online lyrics; no radio audio uploaded."));
             if(listenFallbackOnMiss_->isChecked()) beginLyricListening();
 		}
@@ -4288,9 +4417,9 @@ private:
     QLabel *selectedSource_=nullptr,*selectedStationVintage_=nullptr,
            *vintageDabReadout_=nullptr;
 	QComboBox *lyricsSourceLanguage_=nullptr;
-    QLabel *translationStatus_=nullptr;
+    QLabel *translationStatus_=nullptr,*spokenModelStatus_=nullptr;
     QLabel *radioTranslationBanner_=nullptr;
-    QLabel *radioCanvasCaption_=nullptr;
+    QLabel *radioCanvasCaption_=nullptr,*radioLyricMatchStatus_=nullptr;
     QLabel *radioAudioHealth_=nullptr;
     QLabel *receiverOwnership_=nullptr;
     QCheckBox *advancedLanguages_=nullptr;
@@ -4362,13 +4491,14 @@ private:
                  *quickBufferProgress_=nullptr;
 	QLabel *bufferRecommendation_=nullptr;
 	qint64 audioStartedMs_=0,lastLyricSyncUpdateMs_=0,
-        lastCaptionVisibleMs_=0,lastCanvasLyricMs_=0,lastCaptionUpdateMs_=0,lastUnmatchedVoiceUntilMs_=0;
+        lastCaptionVisibleMs_=0,lastCanvasLyricMs_=0,lastCaptionUpdateMs_=0,
+        lastUnmatchedVoiceUntilMs_=0,lastMatchedLyricUntilMs_=0;
     bool lastLyricsAutoLookup_=false;
 	bool metadataCaptions_=false;
 	int dlsCaptionIndex_=0;
 	int lastLyricOffsetMs_=0;
 	bool plainLyricMode_=false;
-	QList<TimedPlainLyric> plainLyricQueue_;
+	QList<TimedPlainLyric> plainLyricQueue_,verifiedLyricQueue_;
 	QCheckBox *autoLyrics_=nullptr,*autoLyricSync_=nullptr,
 		*preferLyrics_=nullptr,*listenFallbackOnMiss_=nullptr;
     bool lyricsAudioFallbackActive_=false,lyricsFallbackStartedAi_=false,
@@ -4413,7 +4543,7 @@ private:
     QJsonObject lastVerifiedLyricTranslations_;
     qint64 lastVerifiedLyricMs_=0;
     int lastLyricDirection_=0,lyricOffsetConsistency_=0;
-	QString activeChannel_,playingKey_,lastDls_,captionPath_,captionControlsPath_,lyricPath_,
+	QString activeChannel_,playingKey_,lastDls_,lastSongDls_,captionPath_,captionControlsPath_,lyricPath_,
 		wellePortFile_,
 		lastDetectedLanguage_;
 	QMap<QString,QJsonObject> stationData_;

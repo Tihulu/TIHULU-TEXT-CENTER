@@ -22,9 +22,36 @@ def main():
         info["selected_translator"]=selected.get("translation_model","argos")
         info["selected_speech_backend"]=selected.get("backend","auto")
         info["speech_enabled"]=bool(selected.get("asr_enabled"))
+        # Whisper multilingual weights cover MANY speech languages without
+        # separate per-language installations. Report real local model
+        # inventory, not imaginary language packs. Explicit .en-only CPU
+        # weights cannot reliably recognize other source languages.
+        from pathlib import Path
+        from .model_market import ModelLibrary
+        from .cuda_faster_whisper import FasterWhisperCUDA
+        model_path=str(selected.get("model_path") or "")
+        speech_inventory=[
+            row["name"] for row in ModelLibrary().installed()
+            if row["installed"]]
+        cuda_available=FasterWhisperCUDA().installed()
+        if cuda_available:
+            speech_inventory.append("Faster-Whisper Large-v3 Turbo multilingual")
+        active_on_disk=bool(model_path and Path(model_path).is_file())
+        speech_model_present=active_on_disk or cuda_available or bool(speech_inventory)
+        english_only=(bool(model_path) and
+                      Path(model_path).stem.lower().endswith(".en")
+                      and not cuda_available)
+        info["speech_model_present"]=speech_model_present
+        info["speech_model_selected"]=(
+            Path(model_path).name if model_path else
+            "CUDA Faster-Whisper" if cuda_available else
+            "No speech model explicitly selected")
+        info["speech_models_installed"]=speech_inventory[:25]
         info["speech_languages"]=[
-            {"code":code,"label":NAMES.get(code,code.upper())}
-            for code in LANGUAGES]
+            {"code":code,"label":NAMES.get(code,code.upper()),
+             "source":"Whisper multilingual speech support, not a separate language pack",
+             "requires_local_model":True}
+            for code in LANGUAGES if not english_only or code=="en"]
         print(json.dumps(info,ensure_ascii=False))
         return 0
     if len(sys.argv) >= 2 and sys.argv[1] == "ai-pairs":
