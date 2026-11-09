@@ -2420,61 +2420,96 @@ private:
 		settings.setValue(QLatin1String("dabFavorites"),
 			QStringList(favorites_.values()));
 	}
+    bool currentTuneRequest(bool scanningRequest,quint64 ticket) const {
+        return active() && (scanningRequest?
+            (scanning_ && ticket==scanRequestId_):
+            (!scanning_ && ticket==stationRequestId_));
+    }
+    void confirmTunedBlock(const QString &block,
+                           const std::function<void()> &ready,
+                           bool scanningRequest,quint64 ticket,int retry=0) {
+        if(!currentTuneRequest(scanningRequest,ticket)) return;
+        QNetworkReply *reply=network_.get(
+            QNetworkRequest(QUrl(base()+QLatin1String("/channel"))));
+        connect(reply,&QNetworkReply::finished,this,
+            [this,reply,block,ready,scanningRequest,ticket,retry](){
+                if(!currentTuneRequest(scanningRequest,ticket)) {
+                    reply->deleteLater();return;
+                }
+                const bool matched=reply->error()==QNetworkReply::NoError &&
+                    QString::fromUtf8(reply->readAll()).trimmed()==block;
+                reply->deleteLater();
+                if(matched) {
+                    activeChannel_=block;
+                    channel_->setCurrentText(block);
+                    ready();
+                } else if(retry<2) {
+                    // DAB demodulator can take a little longer to acknowledge
+                    // the selected frequency. Poll only this exact request;
+                    // stale confirmations must not open a different service.
+                    QTimer::singleShot(scanningRequest?700:450,this,
+                        [this,block,ready,scanningRequest,ticket,retry](){
+                            confirmTunedBlock(block,ready,
+                                scanningRequest,ticket,retry+1);
+                        });
+                } else {
+                    state_->setText(tr("DAB %1 retune was not confirmed by "
+                        "the live receiver; no cached channel stream opened.")
+                        .arg(block));
+                    if(scanningRequest)
+                        QTimer::singleShot(300,this,[this](){scanStep();});
+                }
+            });
+    }
 	void tune(const QString &block, const std::function<void()> &ready) {
-		if (!active()) return;
-		if (!apiReady_) {
-			if(apiWaitCount_>=18) {
-				state_->setText(tr("Cannot tune DAB %1: %2. SNR has NOT been measured. "
-                    "Press Start receiver to retry this app-owned backend.")
+        if(!active()) return;
+        const bool scanningRequest=scanning_;
+        const quint64 ticket=scanningRequest?scanRequestId_:stationRequestId_;
+        if(!apiReady_) {
+            if(apiWaitCount_>=18) {
+                state_->setText(tr("Cannot tune DAB %1: %2. SNR has NOT "
+                    "been measured. Press Start receiver to retry.")
                     .arg(block,apiFailureDetails()));
                 scanSNR_->setValue(0);
                 scanSNR_->setFormat(tr("DAB SNR NOT MEASURED · no API connection"));
-				scanning_=false;
-				scan_->setEnabled(true);
-				return;
-			}
-			QTimer::singleShot(450,this,[this,block,ready](){tune(block,ready);});
-			return;
-		}
-		if (!QRegularExpression(QLatin1String("^(?:[5-9]|1[0-3])[A-F]$"))
-		        .match(block).hasMatch()) return;
-		QNetworkRequest req(QUrl(base()+QLatin1String("/channel")));
-		req.setHeader(QNetworkRequest::ContentTypeHeader,
-			QLatin1String("text/plain"));
-		QNetworkReply *reply=network_.post(req,block.toUtf8());
-		connect(reply,&QNetworkReply::finished,this,[this,reply,block,ready]() {
-			const bool ok=reply->error()==QNetworkReply::NoError;
-			reply->deleteLater();
-			if (!ok) {
-				state_->setText(tr("DAB retune failed; skipping unavailable block."));
-				if (scanning_) QTimer::singleShot(400,this,[this](){scanStep();});
-				return;
-			}
-			QTimer::singleShot(3200,this,[this,block,ready]() {
-				// welle-cli replies 200 even to unsupported DAB blocks.
-				// Verify its actual tuned /channel before assigning services
-				// to this frequency or playing their MP3 path.
-				if (!active()) return;
-				QNetworkReply *readback=network_.get(
-					QNetworkRequest(QUrl(base()+QLatin1String("/channel"))));
-				connect(readback,&QNetworkReply::finished,this,
-					[this,readback,block,ready]() {
-						const bool matched=readback->error()==QNetworkReply::NoError &&
-							QString::fromUtf8(readback->readAll()).trimmed()==block;
-						readback->deleteLater();
-						if (!matched) {
-							state_->setText(tr("DAB %1 is unavailable; not attributing "
-								"old station metadata to the wrong frequency.").arg(block));
-							if (scanning_) QTimer::singleShot(300,this,[this](){scanStep();});
-							return;
-						}
-						activeChannel_=block;
-						channel_->setCurrentText(block);
-						ready();
-					});
-			});
-		});
-	}
+                scanning_=false;
+                scan_->setEnabled(true);
+                return;
+            }
+            QTimer::singleShot(450,this,
+                [this,block,ready,scanningRequest,ticket](){
+                    if(currentTuneRequest(scanningRequest,ticket))
+                        tune(block,ready);
+                });
+            return;
+        }
+        if(!QRegularExpression(QLatin1String("^(?:[5-9]|1[0-3])[A-F]$"))
+            .match(block).hasMatch()) return;
+        QNetworkRequest request(QUrl(base()+QLatin1String("/channel")));
+        request.setHeader(QNetworkRequest::ContentTypeHeader,
+                          QLatin1String("text/plain"));
+        QNetworkReply *reply=network_.post(request,block.toUtf8());
+        connect(reply,&QNetworkReply::finished,this,
+            [this,reply,block,ready,scanningRequest,ticket](){
+                const bool valid=currentTuneRequest(scanningRequest,ticket);
+                const bool ok=reply->error()==QNetworkReply::NoError;
+                reply->deleteLater();
+                if(!valid) return;
+                if(!ok) {
+                    state_->setText(tr("DAB retune failed; receiver API error."));
+                    if(scanningRequest)
+                        QTimer::singleShot(400,this,[this](){scanStep();});
+                    return;
+                }
+                // Only the scan needs a longer FIC discovery/ensemble dwell.
+                // A station switch can start verifying the channel quickly;
+                // verifyStation separately waits for a real service URL.
+                QTimer::singleShot(scanningRequest?3200:650,this,
+                    [this,block,ready,scanningRequest,ticket](){
+                        confirmTunedBlock(block,ready,scanningRequest,ticket);
+                    });
+            });
+    }
 	void beginScan() {
 		if (webPlaying_) stopInternetRadio();
 		if (!active()) {
