@@ -3920,14 +3920,28 @@ private:
                     lastVerifiedLyricMs_=now;
                     lastUnmatchedVoiceUntilMs_=qMin(
                         lastUnmatchedVoiceUntilMs_,now);
+                    // Found lyrics get to the real radio caption bar at
+                    // their audio-derived due time. The plain and timed
+                    // forms share the same evidence requirement, but no
+                    // unreliable DLS timestamp is used as proof of match.
+                    setRadioLyricMatchStatus(tr(
+                        "LYRICS MATCHED %1% · real audio · line %2 · queued")
+                        .arg(qRound(confidence*100))
+                        .arg(matched.value(QLatin1String("index")).toInt()+1));
 					if(plainLyricMode_) {
 						plainLyricQueue_.append({due+lyricsOffset_->value(),rendered,confidence});
 						while(plainLyricQueue_.size()>10) plainLyricQueue_.removeFirst();
 						lyricsSyncState_->setText(tr("Verified text match %1% · "
 							"audio-derived line ordering, approximate 5s time resolution")
 							.arg(qRound(confidence*100)));
-					} else if(autoLyricSync_->isChecked() && confidence>=0.92 &&
-                         !lyricCues_.isEmpty()) {
+                    } else {
+                        verifiedLyricQueue_.append({
+                            due+lyricsOffset_->value(),rendered,confidence});
+                        while(verifiedLyricQueue_.size()>10)
+                            verifiedLyricQueue_.removeFirst();
+                    }
+                    if(!plainLyricMode_ && autoLyricSync_->isChecked() &&
+                       confidence>=0.92 && !lyricCues_.isEmpty()) {
 						const int idx=matched.value(QLatin1String("index")).toInt(-1);
 						if(idx>=0 && idx<lyricCues_.size() && songStartMs_>0) {
 							const double lrcSeconds=lyricCues_.at(idx).toObject()
@@ -3973,6 +3987,23 @@ private:
 					}
 				}
 			}
+            // A lyrics lookup proves metadata only. If real speech is
+            // heard but fails the line matcher, prioritize Whisper and
+            // explain the fallback (especially for adverts/presenters).
+            if(lyricsEnabled_ && lyricLoaded_ && revision>=1 &&
+               !obj.value(QLatin1String("original")).toString().trimmed().isEmpty() &&
+               (matched.value(QLatin1String("kind")).toString()!=
+                QLatin1String("observed_ASR_chunk_match") ||
+                matched.value(QLatin1String("confidence")).toDouble()<0.74)) {
+                lastMatchedLyricUntilMs_=0;
+                verifiedLyricQueue_.clear();
+                plainLyricQueue_.clear();
+                lastUnmatchedVoiceUntilMs_=qMax(lastUnmatchedVoiceUntilMs_,
+                                                due+5000);
+                setRadioLyricMatchStatus(tr(
+                    "LYRICS FOUND · NOT MATCHED to this audio · "
+                    "Whisper speech/advert fallback"));
+            }
             const QJsonObject translationWarnings=obj.value(
                 QLatin1String("translation_warnings")).toObject();
             const QJsonObject outputLanguages=obj.value(
