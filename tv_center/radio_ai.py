@@ -30,6 +30,18 @@ from .radio_capture import BoundedRadioCapture
 _SID = re.compile(r"(?:0x)?[A-Fa-f0-9]{1,8}\Z")
 
 
+def effective_radio_translation_enabled(market_enabled: bool,
+                                        radio_requested: bool,
+                                        model_name: str) -> bool:
+    """Explicit radio opt-in uses installed LOCAL models only.
+
+    Market-enabled DeepL stays under its current setting; a radio toggle
+    alone cannot opt users into a remote translation service.
+    """
+    return bool(market_enabled or
+                (radio_requested and model_name in ("argos", "nllb", "madlad")))
+
+
 def checked_runtime_output(value: str, *, prefix: str) -> Path:
     root = Path(os.environ.get("XDG_RUNTIME_DIR", "")).expanduser()
     if (not root.is_dir() or not root.is_absolute() or root.is_symlink() or
@@ -68,7 +80,8 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
                       sentence_hops: int=3,
                       host_audio_cache_ms: int=0,
                       host_caption_offset_ms: int=0,
-                      controls: str | None=None):
+                      controls: str | None=None,
+                      radio_translations: bool=False):
     if type(port) is not int or not 1024 <= port <= 65535:
         raise ValueError("Invalid loopback radio port")
     if not isinstance(sid,str) or not _SID.fullmatch(sid):
@@ -86,6 +99,8 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
     if (type(host_caption_offset_ms) is not int or
             not -12000<=host_caption_offset_ms<=12000):
         raise ValueError("Radio caption offset must be ±12000 ms")
+    if type(radio_translations) is not bool:
+        raise ValueError("Radio translator opt-in must be boolean")
     location=checked_runtime_output(output,prefix="tihulu-radio-captions-")
     controls_path=(checked_runtime_output(
         controls,prefix="tihulu-radio-controls-") if controls else None)
@@ -177,6 +192,9 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
                             src=chosen
                             auto_language=RadioLanguageLock()
                             sentence_joiner.reset()
+                        requested_translation=payload.get("radio_translations")
+                        if type(requested_translation) is bool:
+                            radio_translations=requested_translation
                         controls_note="live_preferences_applied"
                 except (OSError,ValueError,TypeError,KeyError,
                         json.JSONDecodeError) as exc:
@@ -210,6 +228,9 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
                     lyric_source_language="auto"
                     lyric_target_codes=()
                     lyric_translation_cache.clear()
+            translator_enabled=effective_radio_translation_enabled(
+                ai.values["translation_enabled"],radio_translations,
+                ai.values["translation_model"])
             detection={}
             # DAB decoder may deliver actual near-silence. In music-mode
             # VAD is intentionally disabled, and Whisper can hallucinate
@@ -304,7 +325,7 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
             # write for the SAME chunk includes translations (revision 1).
             if original:
                 preview_state=("language_pending" if language_pending else
-                    "translator_disabled" if not ai.values["translation_enabled"] else
+                    "translator_disabled" if not translator_enabled else
                     "translating" if any(x!=used_language for x in destinations) else
                     "original_only")
                 write_runtime_json(location,{
@@ -341,7 +362,7 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
                 lang for lang in destinations if lang != used_language)
             if (original and used_language and not language_pending
                     and not unverified_vocals_hidden
-                    and ai.values["translation_enabled"]):
+                    and translator_enabled):
                 from .captions import translate
                 for lang in destinations:
                     if lang == used_language:
@@ -361,7 +382,7 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
                 dict(translated)
                 if lyric_match and original==lyric_match.get("text")
                    and used_language and not language_pending else {})
-            if (lyric_match and ai.values["translation_enabled"]):
+            if (lyric_match and translator_enabled):
                 song_language=(lyric_source_language
                                if lyric_source_language!="auto" else
                                used_language if not language_pending else None)
@@ -396,7 +417,7 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
                 original=original, source_language=used_language,
                 requested_targets=destinations, translated=translated,
                 failures=problems,
-                translator_enabled=ai.values["translation_enabled"],
+                translator_enabled=translator_enabled,
                 language_pending=language_pending)
             write_runtime_json(location,{
                 "status":"running",
@@ -407,6 +428,9 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
                 "language_pending":language_pending,
                 "language_source":language_reason,
                 "translation_state":translation_info["state"],
+                "radio_translation_opt_in":radio_translations,
+                "translation_enabled_effective":translator_enabled,
+                "translation_service":ai.values["translation_model"],
                 "translation_note":translation_info["message"],
                 "translation_missing_targets":translation_info["missing_targets"],
                 "translation_pending_targets":translation_info["pending_targets"],
@@ -589,6 +613,9 @@ def main(args=None):
                       help="Private XDG runtime JSON; live source/output settings")
     live.add_argument("--output",required=True)
     live.add_argument("--music",action="store_true")
+    live.add_argument("--radio-translations",action="store_true",
+                      help="Use an installed offline translator for this radio session; "
+                           "never opt into DeepL or download models")
     live.add_argument("--host-audio-cache-ms",type=int,default=0,
                       help="Host REQUESTED radio cache; not measured DAC delay")
     live.add_argument("--host-caption-offset-ms",type=int,default=0,
@@ -633,7 +660,8 @@ def main(args=None):
             prefer_verified_lyrics=opts.prefer_verified_lyrics,
             sentence_hops=opts.sentence_hops,
             host_audio_cache_ms=opts.host_audio_cache_ms,
-            host_caption_offset_ms=opts.host_caption_offset_ms)
+            host_caption_offset_ms=opts.host_caption_offset_ms,
+            radio_translations=opts.radio_translations)
         return 0
     except (OSError,ValueError,RuntimeError,subprocess.TimeoutExpired) as exc:
         print("Offline radio AI unavailable: "+str(exc)[:250],file=sys.stderr)
