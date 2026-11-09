@@ -95,6 +95,7 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
     ffmpeg=subprocess.Popen(
         ["ffmpeg","-nostdin","-hide_banner","-loglevel","error",
          "-protocol_whitelist","file,http,tcp",
+         "-rw_timeout","15000000",
          "-i",url,"-map","0:a:0","-ac","1","-ar","32000",
          "-vn","-f","s16le","pipe:1"],
         stdin=subprocess.DEVNULL,stdout=subprocess.PIPE,
@@ -120,6 +121,11 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
     lyric_target_codes=()
     lyric_translation_cache={}
     sentence_joiner=LiveSentenceJoiner(max_words=115,max_chunks=sentence_hops)
+    write_runtime_json(location,{
+        "status":"waiting_audio","source_language":src,
+        "original":"","translations":{},"chunk_index":-1,
+        "note":"Connecting to local DAB audio; radio playback is independent."
+    })
     try:
         while not done:
             # Five-second audio hops with a genuine 1-second overlapping window.
@@ -216,7 +222,10 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
                 if lyric_match:
                     original=lyric_match["text"]
                 else:
-                    original="[music]"
+                    # Silence/uncertain singing is metadata, NOT a spoken
+                    # subtitle. A repeated "[music]" cue used to occupy the
+                    # screen indefinitely and hide a synchronized LRC line.
+                    original=""
                     unverified_vocals_hidden=True
             translated={}
             problems={}
@@ -306,6 +315,7 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
                     "awaiting_confident_source_language_or_installed_translator"
                     if lyric_match else "no_verified_song_line"),
                 "unverified_song_asr_hidden":unverified_vocals_hidden,
+                "music_detected":bool(unverified_vocals_hidden),
                 "lyric_alignment":("observed_ASR_approximate" if plain_matcher
                                    else "none"),
                 "translations":translated,
