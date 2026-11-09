@@ -3746,6 +3746,26 @@ private:
                 "Radio audio plays independently; heavy AI may fall behind."));
         }
 	}
+    void updateRadioCaptionTypography() {
+        if(!radioCanvasCaption_) return;
+        const int font=radioCaptionFontSize_?
+            radioCaptionFontSize_->value():18;
+        radioCanvasCaption_->setStyleSheet(QString::fromLatin1(
+            "QLabel{background:rgba(0,0,0,215);color:#ffffff;"
+            "border-radius:6px;padding:11px;font-size:%1pt;"
+            "font-weight:600;}").arg(font));
+    }
+    int radioCaptionReadingHoldMs(const QString &text) const {
+        const int preset=radioReadingPreset_?
+            radioReadingPreset_->currentData().toInt():1;
+        if(preset<=0) return 0;
+        // Readability budget for all visible source/translation lines.
+        // It does NOT delay audio or claim true sample-clock sync.
+        const int chars=qMin(1400,text.trimmed().size());
+        return preset==2?
+            qBound(5500,chars*65,12000):
+            qBound(3300,chars*45,8500);
+    }
     void setRadioLyricMatchStatus(const QString &message) {
         if(!radioLyricMatchStatus_) return;
         const QString label=message.trimmed().left(210);
@@ -3768,8 +3788,13 @@ private:
         if(lyric && lastUnmatchedVoiceUntilMs_>currentMs) return;
         if(!lyric && lyricsEnabled_ && currentMs<lastMatchedLyricUntilMs_ &&
            currentMs>=lastUnmatchedVoiceUntilMs_) return;
-        if(radioCanvasCaption_->text()!=text)
+        if(radioCanvasCaption_->text()!=text) {
             radioCanvasCaption_->setText(text);
+            // Keep full multi-language phrases readable; never change
+            // actual libVLC playback or restart the SDR receiver.
+            captionReadingHoldUntilMs_=currentMs+
+                radioCaptionReadingHoldMs(text);
+        }
         radioCanvasCaption_->setVisible(true);
         if(lyric) {
             lastCanvasLyricMs_=currentMs;
@@ -3802,7 +3827,18 @@ private:
 					.arg(qMax(qint64(0),next.dueMs-now)).arg(activePlaybackCacheMs_));
 			}
 		}
-		while(!cueQueue_.isEmpty() && cueQueue_.first().dueMs<=now) {
+        while(!cueQueue_.isEmpty() && cueQueue_.first().dueMs<=now) {
+            if(captionReadingHoldUntilMs_>now &&
+               radioCanvasCaption_ && radioCanvasCaption_->isVisible()) {
+                // Keep queued phrases rather than flashing a new one
+                // before viewers can read the previous phrase.
+                if(captionProgress_) captionProgress_->setFormat(
+                    tr("Reading hold %1 ms · %2 phrase(s) queued · "
+                       "radio audio uninterrupted")
+                    .arg(captionReadingHoldUntilMs_-now)
+                    .arg(cueQueue_.size()));
+                break;
+            }
 			const TimedRadioCue cue=cueQueue_.takeFirst();
 			if(cue.chunkIndex<=displayedRadioChunk_) continue;
 			displayedRadioChunk_=cue.chunkIndex;
@@ -4566,7 +4602,8 @@ private:
 	QLabel *bufferRecommendation_=nullptr;
 	qint64 audioStartedMs_=0,lastLyricSyncUpdateMs_=0,
         lastCaptionVisibleMs_=0,lastCanvasLyricMs_=0,lastCaptionUpdateMs_=0,
-        lastUnmatchedVoiceUntilMs_=0,lastMatchedLyricUntilMs_=0;
+        lastUnmatchedVoiceUntilMs_=0,lastMatchedLyricUntilMs_=0,
+        captionReadingHoldUntilMs_=0;
     bool lastLyricsAutoLookup_=false;
 	bool metadataCaptions_=false;
 	int dlsCaptionIndex_=0;
