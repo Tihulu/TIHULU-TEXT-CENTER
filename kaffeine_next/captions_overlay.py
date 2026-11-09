@@ -434,6 +434,9 @@ class CaptionTap:
                 overlap_separation=(
                     selected=="asr" and bool(options.get(
                         "separate_overlapping_voices",False))),
+                show_sound_events=bool(options.get("show_sound_events",False)),
+                show_voice_types=(bool(options.get("show_voice_types",False))
+                                  and selected in ("auto","asr")),
                 previous_text=previous,
                 defer_asr_translation=not bool(
                     options.get("music_transcription",False)),
@@ -2862,6 +2865,12 @@ def main(argv=None):
                     if data.get("teletext_audit"):
                         status.setText(
                             status.text()+" | "+str(data["teletext_audit"])[:200])
+                    if data.get("sound_event_note"):
+                        status.setText(status.text() + " | Sound model: " +
+                            str(data["sound_event_note"])[:140])
+                    if data.get("voice_type_note"):
+                        status.setText(status.text() + " | Voice type: " +
+                            str(data["voice_type_note"])[:140])
                     if data.get("overlap_note"):
                         status.setText(status.text() +
                             " | Dual voices: "+str(data["overlap_note"])[:180])
