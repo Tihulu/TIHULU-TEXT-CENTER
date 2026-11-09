@@ -120,7 +120,17 @@ class WordCueTests(unittest.TestCase):
                              speaker_aliases=("Woman","Man","Child")).validate()
         rendered=manual.render({"original":"Test",
                     "speaker_index":3,"speaker_label":"[Speaker 3 · clip]"})
-        self.assertIn("[Child · clip]",rendered)
+        self.assertTrue(rendered.startswith("[Child]  Test"))
+        prefixed=CaptionConfig(
+            speaker_enabled=True,show_original=True,
+            show_translation=True,target_languages=("en",),
+            speaker_aliases=("Adam 1","Çocuk 2")).validate()
+        result={"original":"Merhaba", "source_language":"tr",
+                "translations":{"en":"Hello"},
+                "speaker_index":2,"speaker_label":"[Speaker 2 · clip]"}
+        lines=prefixed.render(result).splitlines()
+        self.assertEqual(len(lines),2)
+        self.assertTrue(all(line.startswith("[Çocuk 2]  ") for line in lines))
         untouched=CaptionConfig(speaker_enabled=False,
                                  speaker_aliases=("Woman",)).validate()
         self.assertNotIn("Woman",untouched.render(
