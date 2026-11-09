@@ -81,12 +81,15 @@ class CaptionTap:
         self._performance_lock = threading.Lock()
         self._performance_samples = deque(maxlen=48)
         self._decoded_count = 0
+        self._lost_caption_events = 0
 
     def performance_snapshot(self):
         with self._performance_lock:
             samples = [dict(row) for row in self._performance_samples]
             decoded = self._decoded_count
+            lost_events = self._lost_caption_events
         return {"samples":samples,"completed_clips":decoded,
+                "lost_ui_caption_events":lost_events,
                 "queue":self.work_queue.snapshot(),
                 "ts":self.transport_health.snapshot()}
 
@@ -684,9 +687,18 @@ class CaptionTap:
             if options.get("program_epoch") != self.program_epoch:
                 return
             try:
-                self.events.put_nowait(("caption", result))
+                # Captions, unlike status notices, are irreplaceable ASR
+                # results. Wait briefly for the Qt loop to drain before
+                # declaring an actual lost subtitle. Still bounded: if
+                # processing cannot match broadcast speed the user gets an
+                # explicit loss counter rather than false "listening".
+                self.events.put(("caption", result), timeout=1.25)
             except queue.Full:
-                self._note_warning("Caption UI event backlog full; output delayed")
+                with self._performance_lock:
+                    self._lost_caption_events += 1
+                self._note_warning(
+                    "LIVE CAPTION LOST: Qt event queue saturated for 1.25s; "
+                    "reduce simultaneous voice/translation model workload")
         except (OSError, RuntimeError, ImportError, ValueError) as error:
             self._note_warning(str(error)[:180])
 
