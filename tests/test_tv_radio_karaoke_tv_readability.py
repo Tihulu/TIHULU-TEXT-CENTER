@@ -56,7 +56,8 @@ class RadioKaraokeAccessibilityTests(unittest.TestCase):
         self.assertNotIn("radioCanvasCaption_->setVisible(false)",renderer)
 
     def test_real_audio_matched_lyric_index_drives_karaoke_neighbors(self):
-        self.assertIn("int lineIndex=-1",UI)
+        self.assertIn("int lineIndex;",UI)
+        self.assertIn("int index=-1",UI)
         self.assertIn("QString original;",UI)
         self.assertIn("QJsonObject translations;",UI)
         self.assertIn("lyricRawLines_.at(index-1)",UI)
