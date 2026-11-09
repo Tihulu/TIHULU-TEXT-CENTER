@@ -893,8 +893,21 @@ public:
 		syncControls->addWidget(radioOffsetMs_,1,1);
 		syncControls->addWidget(autoSync_,1,2);
 		syncControls->setColumnStretch(2,1);
-		v->addLayout(syncControls);
-		v->addWidget(autoRestartAudio_);
+        // Keep latency diagnostics available without turning the normal
+        // caption/lyrics workflow into a wall of timing controls.
+        auto *advancedSyncToggle=new QCheckBox(
+            tr("Advanced · audio cache, timing & diagnostics"),lab);
+        advancedSyncToggle->setChecked(false);
+        auto *advancedSyncPanel=new QWidget(lab);
+        auto *advancedSyncLayout=new QVBoxLayout(advancedSyncPanel);
+        advancedSyncLayout->setContentsMargins(0,2,0,2);
+        advancedSyncLayout->addLayout(syncControls);
+        advancedSyncLayout->addWidget(autoRestartAudio_);
+        advancedSyncPanel->setVisible(false);
+        connect(advancedSyncToggle,&QCheckBox::toggled,
+                advancedSyncPanel,&QWidget::setVisible);
+        v->addWidget(advancedSyncToggle);
+        v->addWidget(advancedSyncPanel);
 		lastCaptionOffsetMs_=radioOffsetMs_->value();
 		connect(radioOffsetMs_,QOverload<int>::of(&QSpinBox::valueChanged),
 			this,[this](int newOffset){
@@ -908,24 +921,24 @@ public:
             "unverified physical audio clock. No automatic audio restarts.")
             .arg(activePlaybackCacheMs_),lab);
 		syncStatus_->setWordWrap(true);
-		v->addWidget(syncStatus_);
+        advancedSyncLayout->addWidget(syncStatus_);
 		audioCacheProgress_=new QProgressBar(lab);
 		audioCacheProgress_->setRange(0,100);
 		audioCacheProgress_->setValue(0);
 		audioCacheProgress_->setFormat(tr("Requested audio cache · not started"));
 		audioCacheProgress_->setToolTip(tr("Estimated time since opening a stream, NOT "
 			"verified buffer fill, actual DAC output clock or lip sync."));
-		v->addWidget(audioCacheProgress_);
+        advancedSyncLayout->addWidget(audioCacheProgress_);
 		bufferRecommendation_=new QLabel(tr("Buffer recommendation: awaiting real ASR timing"),lab);
 		bufferRecommendation_->setWordWrap(true);
-		v->addWidget(bufferRecommendation_);
+        advancedSyncLayout->addWidget(bufferRecommendation_);
 		captionProgress_=new QProgressBar(lab);
 		captionProgress_->setRange(0,100);
 		captionProgress_->setValue(0);
 		captionProgress_->setFormat(tr("Caption timeline · waiting for decoded audio"));
 		captionProgress_->setToolTip(tr("Estimated time to hear the decoded phrase. "
 			"Audio cache is requested, not independently measured at the sound card."));
-		v->addWidget(captionProgress_);
+        advancedSyncLayout->addWidget(captionProgress_);
 		connect(applyBuffer,&QPushButton::clicked,this,[this](){ applyRadioBuffer(); });
 		auto *captionActions=new QHBoxLayout();
 		captionActions->addStretch(1);
@@ -979,9 +992,10 @@ public:
 			"buffer as an estimated timeline, not a verified sound-card timebase."));
 		preferLyrics_=new QCheckBox(tr("Prefer matched lyrics / hide uncertain sung words"),lab);
 		preferLyrics_->setChecked(true);
-		preferLyrics_->setToolTip(tr("When plain lyrics from an opted-in LRCLIB search are found, "
-			"show matched real-audio lines; unmatched song vocals are [music], not guessed text. "
-			"Presenter speech outside verified song metadata is unaffected."));
+        preferLyrics_->setToolTip(tr(
+            "Prefer actual retrieved and audio-matched lyric lines. "
+            "Unverified sung words are not invented or shown as [music] "
+            "in the on-screen radio caption. Presenter speech is unaffected."));
         lyricsSourceLanguage_=new QComboBox(lab);
         lyricsSourceLanguage_->addItem(
             tr("Auto · wait for confirmed sung audio language"),QLatin1String("auto"));
@@ -1021,9 +1035,25 @@ public:
         lyricsRow->addWidget(new QLabel(tr("Song lyric language:"),lab),4,0);
         lyricsRow->addWidget(lyricsSourceLanguage_,4,1,1,2);
 		lyricsRow->setColumnStretch(1,1);
-		v->addLayout(lyricsRow);
-		v->addWidget(lyricsSyncState_);
-		v->addWidget(preferLyrics_);
+        v->addWidget(new QLabel(tr(
+            "<b>3 · Lyrics</b> · optional; no search until you choose Find lyrics"),lab));
+        auto *quickLyrics=new QPushButton(tr("Find lyrics for current song"),lab);
+        connect(quickLyrics,&QPushButton::clicked,this,[this](){fetchLyrics();});
+        v->addWidget(quickLyrics);
+        auto *showLyricsOptions=new QCheckBox(
+            tr("Advanced · lyrics source, timing, import and auto search"),lab);
+        showLyricsOptions->setChecked(false);
+        v->addWidget(showLyricsOptions);
+        auto *lyricsPanel=new QWidget(lab);
+        auto *lyricsLayout=new QVBoxLayout(lyricsPanel);
+        lyricsLayout->setContentsMargins(0,2,0,2);
+        lyricsLayout->addLayout(lyricsRow);
+        lyricsLayout->addWidget(lyricsSyncState_);
+        lyricsLayout->addWidget(preferLyrics_);
+        lyricsPanel->setVisible(false);
+        connect(showLyricsOptions,&QCheckBox::toggled,
+                lyricsPanel,&QWidget::setVisible);
+        v->addWidget(lyricsPanel);
         lyricProvider_=new QLabel(tr("Sources: LRCLIB; lyrics.ovh; optional "
             "licensed Musixmatch API. Plain text must match heard audio."),lab);
         lyricProvider_->setWordWrap(true);
