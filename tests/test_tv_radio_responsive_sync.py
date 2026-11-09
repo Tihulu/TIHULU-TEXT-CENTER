@@ -72,7 +72,8 @@ class RadioModesAndSyncTests(unittest.TestCase):
 
     def test_radio_picture_is_preserved_and_captions_use_small_banner(self):
         self.assertIn("radioCaptionBanner_=new QLabel",self.radio)
-        self.assertIn("radioCaptionBanner_->setText(cue.text.left(680))",self.radio)
+        self.assertIn("Live radio subtitles · displayed inside station view",self.radio)
+        self.assertIn("showRadioCanvasCaption(cue.text)",self.radio)
         self.assertNotIn("radioCanvas_->setText(cue.text.left(680))",self.radio)
         self.assertIn("applyCaptions_=new QPushButton",self.radio)
         self.assertIn('tr("Apply caption settings")',self.radio)
