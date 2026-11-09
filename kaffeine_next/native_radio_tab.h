@@ -1210,13 +1210,24 @@ public:
 		connect(applyRf, &QPushButton::clicked, this, [this](){ applyRfOptions(); });
 		connect(detailsButton, &QPushButton::clicked, this, [this](){ showReceiverDetails(); });
 		connect(&backend_, &QProcess::readyReadStandardError, this, [this]() {
-			const QString tail = QString::fromUtf8(backend_.readAllStandardError());
+            const QString tail=QString::fromUtf8(backend_.readAllStandardError());
             if(!tail.trimmed().isEmpty()) lastWelleError_=tail.trimmed().right(600);
-			if (tail.contains(QLatin1String("Cannot")) ||
-			    tail.contains(QLatin1String("No device")) ||
-			    tail.contains(QLatin1String("Failed")))
-				state_->setText(tail.right(250));
-		});
+            const bool busy=tail.contains(QLatin1String("busy"),Qt::CaseInsensitive) ||
+                tail.contains(QLatin1String("No device"),Qt::CaseInsensitive) ||
+                tail.contains(QLatin1String("usb_claim"),Qt::CaseInsensitive) ||
+                tail.contains(QLatin1String("Failed to open"),Qt::CaseInsensitive);
+            if(busy) state_->setText(tr("DAB RTL-SDR not accessible · %1")
+                .arg(apiFailureDetails()));
+            else if(tail.contains(QLatin1String("Cannot")) ||
+                    tail.contains(QLatin1String("Failed")))
+                state_->setText(tail.right(250));
+        });
+        connect(&backend_,&QProcess::errorOccurred,this,[this](QProcess::ProcessError){
+            lastWelleError_=backend_.errorString().right(600);
+            if(!shuttingDown_) state_->setText(
+                tr("welle-cli process failure: %1 · no RF measurement")
+                .arg(lastWelleError_));
+        });
 		connect(&backend_, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
 			this, [this](int exitCode, QProcess::ExitStatus){
                 if(!shuttingDown_)
@@ -1229,6 +1240,11 @@ public:
                 scan_->setEnabled(true);
                 scanProgress_->setValue(0);
                 scanProgress_->setFormat(tr("Scan stopped: receiver exited"));
+                scanSNR_->setValue(0);
+                scanSNR_->setFormat(tr("DAB SNR NOT MEASURED · welle-cli exited"));
+                rfQuality_->setValue(0);
+                rfQuality_->setFormat(tr("DAB RF unmeasured · receiver exited"));
+                lastMux_=QJsonObject();
 				if (!shuttingDown_) state_->setText(tr("welle-cli stopped (%1): %2")
                     .arg(exitCode).arg(lastWelleError_));
 			});
