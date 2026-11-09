@@ -80,8 +80,9 @@ class TranslationFailover:
             label = "Argos " + source.upper() + " → " + target.upper()
             reason = label + " live translation failed: " + cause
             if nllb_issue is not None:
-                reason = ("NLLB unavailable (" + nllb_issue[:90] +
-                          "); " + reason)
+                # Do not surface raw NLLB tensor/debug strings in user
+                # subtitle diagnostics; the Argos failure is actionable.
+                reason = "NLLB unavailable; " + reason
             return TranslationOutcome(
                 None, reason + ". Check live worker runtime and installed packs.")
 
