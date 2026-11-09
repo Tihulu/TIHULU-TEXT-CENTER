@@ -678,7 +678,12 @@ def open_ai_settings(parent, ai, after_save=None):
             issue=hardware_issue(key,self.hardware)
             self.profile_description.setText(
                 spec["description"]+"\nEstimated disk: "+
-                spec["disk_gb_estimate"]+"\nHardware: "+
+                spec["disk_gb_estimate"]+
+                "\nMinimum host RAM: "+str(round(spec["min_ram_mib"]/1024,1))+
+                " GiB · NVIDIA VRAM: "+
+                (str(round(spec["min_vram_mib"]/1024,1))+" GiB"
+                 if spec["min_vram_mib"] else "not required")+
+                "\nHardware: "+
                 (issue or "Meets minimum estimates; inference still untested")+
                 "\nSelected: "+(self.ai.values.get("active_profile") or "Custom"))
             self.profile_components.setText(
