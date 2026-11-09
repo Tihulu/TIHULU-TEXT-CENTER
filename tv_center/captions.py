@@ -354,15 +354,19 @@ def asr_from_clip(path: Path, language: str, model: str,
                             channel=f"{service_id}:{audio_pid}")
 
 def _translate_argos_local(text: str, source: str, target: str) -> str:
-    """Translate offline through available system Argos or managed worker."""
-    try:
-        from textcenter.transcripts import translate_offline
-        return translate_offline(text, source, target)
-    except (ImportError, RuntimeError, ValueError, KeyError):
-        # The user-managed Argos venv is independent of the system Python
-        # used by Qt. Reuse its persistent worker for live caption windows.
+    """Use the SAME installed Argos runtime as Model Market and its language list.
+
+    Never prefer system Python when the user-owned Argos environment exists:
+    that environment can have different installed language packs. A genuinely
+    missing pair or runtime failure must be visible, not silently masked by
+    translating from another interpreter or cached package catalog.
+    """
+    from .runtime import AIRuntime
+    if AIRuntime().status()["installed"]:
         from .translation_service import translate_argos
         return translate_argos(text, source, target)
+    from textcenter.transcripts import translate_offline
+    return translate_offline(text, source, target, backend="cpu")
 
 
 def translate(text: str, source: str, target: str) -> tuple[str | None, str | None]:
