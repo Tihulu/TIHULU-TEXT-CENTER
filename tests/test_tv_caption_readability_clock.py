@@ -145,6 +145,53 @@ class StableClockTests(unittest.TestCase):
         self.assertIsNone(confirmed_cue_config(cfg,smooth.stabilized(invalid)))
 
 
+class LiveWorkloadProtectionTests(unittest.TestCase):
+    def test_translation_deadline_shared_across_target_languages(self):
+        from unittest.mock import patch
+        from tv_center.translation_service import (
+            live_translation_budget,_remaining_live_budget)
+        with patch("tv_center.translation_service.time.monotonic",
+                   side_effect=[100.0,100.5,107.0]):
+            with live_translation_budget(7.0):
+                self.assertEqual(_remaining_live_budget(12.0),7.0)
+                self.assertAlmostEqual(_remaining_live_budget(12.0),6.5)
+                with self.assertRaises(TimeoutError):
+                    _remaining_live_budget(12.0)
+        # Normal file translations are not artificially constrained.
+        self.assertEqual(_remaining_live_budget(30.0),30.0)
+
+    def test_live_faster_whisper_has_timeout_without_affecting_offline(self):
+        from tv_center.cuda_faster_whisper import _PersistentCUDAWorker
+        transcriber=_PersistentCUDAWorker()
+        with self.assertRaises(ValueError):
+            transcriber.transcribe_details(b"valid", "en",
+                                           "/not/installed", timeout_s=1)
+        from tv_center.captions import _asr_from_clip
+        import inspect
+        source=inspect.getsource(_asr_from_clip)
+        self.assertIn("timeout_s=18",source)
+        self.assertIn("timeout_s=6",source)
+
+    def test_experimental_models_never_hold_live_caption_for_50_seconds(self):
+        sep=(Path(__file__).resolve().parents[1]/
+             "tv_center/overlap_separation.py").read_text("utf-8")
+        classifiers=(Path(__file__).resolve().parents[1]/
+                     "tv_center/audio_classifiers.py").read_text("utf-8")
+        self.assertIn("select.select([self.proc.stdout],[],[],6)",sep)
+        self.assertIn("select.select([self.process.stdout],[],[],3)",
+                      classifiers)
+
+    def test_live_priority_does_not_disable_primary_whisper_or_translation(self):
+        src=(Path(__file__).resolve().parents[1]/
+             "kaffeine_next/captions_overlay.py").read_text("utf-8")
+        self.assertIn('options.get("live_priority",True)',src)
+        self.assertIn('("separate_overlapping_voices","show_sound_events",',src)
+        self.assertIn('self._decode(clip.data, options, clip.started, clip.ended)',
+                      src)
+        self.assertIn("live_translation_budget(",src)
+        self.assertIn("live_priority.setChecked(True)",src)
+
+
 class WiringTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
