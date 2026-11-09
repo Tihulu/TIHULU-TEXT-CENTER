@@ -10,7 +10,7 @@ def open_ai_settings(parent, ai, after_save=None):
         QFormLayout, QCheckBox, QComboBox, QLabel, QListWidget, QPushButton,
         QFileDialog, QMessageBox, QLineEdit, QWidget, QScrollArea,
         QTabWidget, QListWidgetItem, QInputDialog, QFrame, QGridLayout,
-        QSizePolicy, QToolButton)
+        QSizePolicy, QToolButton, QProgressBar)
 
     from .model_market import (CATALOG, ModelLibrary, ModelError,
         argos_available_pairs, argos_installed_pairs, argos_install, argos_remove)
@@ -23,7 +23,8 @@ def open_ai_settings(parent, ai, after_save=None):
     from .ai_provision import StarterAI
     from .hardware_market import detect_hardware, quick_hardware, model_fit
     from .ai_profiles import (PROFILES, COMPONENTS, profile, local_status,
-                              install_components, selection_patch, hardware_issue)
+                              install_components, selection_patch, hardware_issue,
+                              component_estimate, progress_fraction)
     from .remote_gpu import (validate_endpoint, save_token, read_token,
                              delete_token, test_connection)
     from .pi_hailo import readiness as hailo_readiness
@@ -103,6 +104,12 @@ def open_ai_settings(parent, ai, after_save=None):
             self._argos_busy = False
             self._starter_busy = False
             self._profile_inventory_busy = False
+            self._profile_scan_pending = False
+            self._profile_status_cache = {}
+            self._profile_row_widgets = {}
+            self._all_status_cache = None
+            self._all_status_busy = False
+            self._lazy_loaded_tabs = set()
             self.translation_market = TranslationModelMarket()
             outer = QVBoxLayout(self)
             outer.setContentsMargins(12, 12, 12, 10)
@@ -446,15 +453,21 @@ def open_ai_settings(parent, ai, after_save=None):
                 "pi5" if self.hardware["raspberry_pi_5"] else "performance")
             self.profile_choice.setCurrentIndex(
                 max(0, self.profile_choice.findData(initial)))
-            self.profile_choice.currentIndexChanged.connect(
-                self.show_profile_description)
             guided_layout.addWidget(self.profile_choice)
             self.profile_description = QLabel("")
             self.profile_description.setWordWrap(True)
             guided_layout.addWidget(self.profile_description)
-            self.profile_components = QLabel("Choose a profile to inspect components.")
+            self.profile_components = QLabel(
+                "Checking installed models automatically · no downloads")
             self.profile_components.setWordWrap(True)
             guided_layout.addWidget(self.profile_components)
+            self.profile_rows_host = QWidget()
+            self.profile_rows_layout = QVBoxLayout(self.profile_rows_host)
+            self.profile_rows_layout.setContentsMargins(0,0,0,0)
+            self.profile_rows_layout.setSpacing(6)
+            guided_layout.addWidget(self.profile_rows_host)
+            self.profile_choice.currentIndexChanged.connect(
+                self.profile_changed)
             buttons = QHBoxLayout()
             self.profile_inspect = QPushButton("Check installed")
             self.profile_inspect.clicked.connect(self.inspect_profile)
