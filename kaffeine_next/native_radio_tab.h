@@ -2947,10 +2947,13 @@ private:
 		options<<QLatin1String("--output")<<captionPath_;
 		QFile::remove(captionPath_);
 		captionProcess_.start(QLatin1String("tihulu-tv-center"),options);
-		if (!captionProcess_.waitForStarted(1200))
-			radioCaption_->setText(tr("Offline radio AI sidecar could not start."));
-		else radioCaption_->setText(tr("Offline radio ASR/translation started. "
-			"Audio stays on this device; latency depends on model."));
+        if (!captionProcess_.waitForStarted(1200))
+            radioCaption_->setText(tr("Offline radio AI sidecar could not start."));
+        else {
+            lastCaptionUpdateMs_=QDateTime::currentMSecsSinceEpoch();
+            radioCaption_->setText(tr("Offline radio ASR/translation started. "
+                "Radio audio plays independently; heavy AI may fall behind."));
+        }
 	}
     void showRadioCanvasCaption(const QString &value,bool lyric=false) {
         if(!radioCanvasCaption_) return;
@@ -3035,8 +3038,22 @@ private:
 		if(detected.size()>=2 && detected.size()<=3 &&
 		   detected!=QLatin1String("und"))
 			lastDetectedLanguage_=detected;
-		const int chunk=obj.value(QLatin1String("chunk_index")).toInt(-1);
+        const int chunk=obj.value(QLatin1String("chunk_index")).toInt(-1);
+        if(chunk<0 && obj.value(QLatin1String("status")).toString()
+                ==QLatin1String("waiting_audio")) {
+            translationStatus_->setText(tr("AI input: waiting for decoded DAB "
+                "audio. Main radio playback is independent."));
+        }
 		if(chunk>=0 && chunk!=lastRadioChunk_) {
+            lastCaptionUpdateMs_=now;
+            const int lost=obj.value(
+                QLatin1String("ai_audio_windows_dropped")).toInt();
+            if(lost>0)
+                syncStatus_->setText(tr(
+                    "AI overload: %1 old audio window(s) dropped to protect "
+                    "the live DAB server. Radio audio was NOT retuned. "
+                    "Try one output language or a faster Whisper model.")
+                    .arg(lost));
 			lastRadioChunk_=chunk;
 			const double captured=obj.value(QLatin1String("captured_monotonic")).toDouble();
 			const double decoded=obj.value(QLatin1String("decoded_monotonic")).toDouble();
@@ -3237,6 +3254,14 @@ private:
 				state_->setText(tr("Radio ASR: %1")
 					.arg(obj.value(QLatin1String("error")).toString().left(170)));
 		}
+        if(captionProcess_.state()!=QProcess::NotRunning &&
+            lastCaptionUpdateMs_>0 && now-lastCaptionUpdateMs_>20000) {
+            radioTranslationBanner_->setText(tr(
+                "AI has produced no new radio audio window for 20 s. "
+                "Check local welle MP3 stream, ffmpeg and Whisper; this "
+                "does not establish that the broadcaster is silent."));
+            radioTranslationBanner_->setVisible(true);
+        }
 		displayDueRadioCues(now);
 	}
 	void stopCaptioning() {
@@ -3551,7 +3576,7 @@ private:
 	QProgressBar *captionProgress_=nullptr,*audioCacheProgress_=nullptr;
 	QLabel *bufferRecommendation_=nullptr;
 	qint64 audioStartedMs_=0,lastLyricSyncUpdateMs_=0,
-        lastCaptionVisibleMs_=0,lastCanvasLyricMs_=0;
+        lastCaptionVisibleMs_=0,lastCanvasLyricMs_=0,lastCaptionUpdateMs_=0;
 	bool metadataCaptions_=false;
 	int dlsCaptionIndex_=0;
 	int lastLyricOffsetMs_=0;
