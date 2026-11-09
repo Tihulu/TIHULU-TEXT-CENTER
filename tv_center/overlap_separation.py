@@ -207,6 +207,7 @@ def accept_two_transcripts(results):
         # the OTHER channel has a longer independent phrase. Require real
         # word timing, sufficient duration and distinct transcripts below.
         if (not valid or
+                (len(valid)==1 and len(valid[0]["text"].strip())<3) or
                 float(valid[-1]["end"])-float(valid[0]["start"])<0.18 or
                 not isinstance(item.get("language"),str)):
             return None
