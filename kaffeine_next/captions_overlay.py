@@ -431,6 +431,12 @@ class CaptionTap:
                 speaker_provider=options.get("speaker_provider","resemblyzer"),
                 music_transcription=bool(options.get("music_transcription",False)),
                 speech_priority=bool(options.get("speech_priority",False)),
+                overlap_separation=(
+                    selected=="asr" and bool(options.get(
+                        "separate_overlapping_voices",False))),
+                show_sound_events=bool(options.get("show_sound_events",False)),
+                show_voice_types=(bool(options.get("show_voice_types",False))
+                                  and selected in ("auto","asr")),
                 previous_text=previous,
                 defer_asr_translation=not bool(
                     options.get("music_transcription",False)),
@@ -492,14 +498,20 @@ class CaptionTap:
             # Valid Faster-Whisper word positions must survive the joiner.
             # With native playback buffering these can follow real dialogue.
             from .word_cues import word_groups
+            actual_overlaps=bool(
+                selected=="asr" and options.get("separate_overlapping_voices")
+                and isinstance(result.get("overlap_lines"),list)
+                and len(result["overlap_lines"])==2)
             source_word_timed = (
-                result.get("source") == "local_asr"
+                not actual_overlaps
+                and result.get("source") == "local_asr"
                 and not options.get("music_transcription",False)
                 and bool(result.get("word_timing_source"))
                 and not (options.get("ts_integrity") or {}).get("critical_gaps")
                 and bool(word_groups(result)))
             if (result.get("source") == "local_asr" and not options.get(
-                    "music_transcription",False) and not source_word_timed):
+                    "music_transcription",False) and not source_word_timed
+                    and not actual_overlaps):
                 # Without valid word positions, keep the natural sentence
                 # joiner; those sentences are not speaker-word aligned.
                 # Only completed spoken phrases are sent to the TV subtitle
@@ -553,6 +565,17 @@ class CaptionTap:
                 captured_start=self.sentence_captured_start
                 self.sentence_captured_start=(
                     captured_end if joined.get("pending") else None)
+            elif actual_overlaps:
+                # Each line has its own verified source waveform and Whisper
+                # word positions. A single sentence joiner cannot merge two
+                # simultaneous speakers without losing one of them.
+                self.sentence_joiner.reset()
+                self.sentence_session=None
+                self.sentence_captured_start=None
+                result["words"]=[]
+                result["word_timing_source"]=None
+                result["caption_alignment"]=(
+                    "Separate audio sources · provisional voice A/B per clip")
             elif source_word_timed:
                 # Mixing an old untimed sentence with source-timed speech
                 # would reintroduce late or mixed-speaker captions.
@@ -565,7 +588,7 @@ class CaptionTap:
                     "windows; libVLC video PTS not yet calibrated")
             if (result.get("source") == "local_asr" and
                     not options.get("music_transcription",False) and
-                    result.get("original")):
+                    result.get("original") and not actual_overlaps):
                 # Translate ONCE after untimed sentence joining OR while
                 # preserving the real Whisper word timestamps for this clip.
                 # Never join partial independent translations: German/English
@@ -604,6 +627,33 @@ class CaptionTap:
                 spent=round((time.perf_counter()-translate_clock)*1000)
                 result.setdefault("processing_ms",{})["translation"]=spent
                 result["translation_languages_ms"]=translation_languages_ms
+            if actual_overlaps:
+                # Translate each separated voice INDEPENDENTLY; do not
+                # translate the original mixed waveform as a single sentence.
+                # This is permitted only when the owner enabled dual voices
+                # and SepFormer+both Whisper passes produced distinct text.
+                from tv_center.captions import translate as translate_sentence
+                for channel in result["overlap_lines"]:
+                    channel["translations"]={}
+                    channel["translation_errors"]={}
+                    used=channel.get("source_language")
+                    for target in enabled:
+                        if used not in (None,"und","auto"):
+                            if target==used:
+                                channel["translations"][target]=channel["original"]
+                                continue
+                            text,issue=translate_sentence(
+                                channel["original"],used,target)
+                            if text:
+                                channel["translations"][target]=text
+                            if issue and not text:
+                                channel["translation_errors"][target]=issue[:180]
+                        else:
+                            channel["translation_errors"][target]=(
+                                "Separated source language unconfirmed")
+                result["overlap_note"]=(
+                    "Two independently recognized tracks; order and speaker "
+                    "IDs are provisional, not fixed identity")
             if targets and not ai.values["translation_enabled"]:
                 result["translation_errors"] = {
                     lang: "Translation disabled in Model Market." for lang in targets}
@@ -1116,14 +1166,14 @@ def main(argv=None):
     music_transcription.toggled.connect(choose_music_vocals)
     speakers_row = QHBoxLayout()
     speaker_enabled = QCheckBox(
-        "Auto-label distinct voices · Speaker 1, Speaker 2, …")
+        "Detect distinct voices · Resemblyzer (name labels optional)")
     speaker_enabled.setChecked(True)
     speaker_enabled.setToolTip(
         "Checked by default. Install the public Resemblyzer model in "
         "Model Market to activate local offline voice clustering. "
-        "No token required, no microphone or remote voice API. Labels "
-        "are automatically generated and provisional; gender and age "
-        "cannot be identified reliably from audio alone.")
+        "No token or microphone. Detect voice changes independently from "
+        "whether speaker ID labels are shown. Resemblyzer cannot estimate "
+        "gender/age and cannot separate overlapping speech.")
     speakers_row.addWidget(speaker_enabled)
     timing_layout.addRow(speakers_row)
     speaker_provider = QComboBox()
@@ -1136,6 +1186,121 @@ def main(argv=None):
         "runs locally without any Hugging Face token. It estimates "
         "voice similarity, not real identity, gender or age.")
     timing_layout.addRow("Speaker model", speaker_provider)
+    # Speaker separation, display names, approximate voice categories and
+    # environmental sound labels are INDEPENDENT owner preferences.
+    speaker_numbers=QCheckBox("Show speaker names/numbers · [Speaker 1]")
+    speaker_numbers.setChecked(False)
+    speaker_numbers.setToolTip(
+        "Optional. Leave OFF to show different speakers on separate lines "
+        "WITHOUT [Speaker 1] labels. Manual names are optional overrides.")
+    timing_layout.addRow(speaker_numbers)
+    speaker_lines=QCheckBox(
+        "New subtitle line when Resemblyzer detects a different speaker")
+    speaker_lines.setChecked(True)
+    timing_layout.addRow(speaker_lines)
+    voice_types=QCheckBox(
+        "Estimated voice category · [Erkek sesi?] / [Kadın sesi?] / [Çocuk sesi?]")
+    voice_types.setChecked(False)
+    voice_types.setToolTip(
+        "Requires a separate licensed age/gender acoustic classifier. "
+        "Resemblyzer cannot predict these categories. With no reliable "
+        "classifier score, this option displays NO guessed category.")
+    timing_layout.addRow(voice_types)
+    sound_events=QCheckBox(
+        "Show detected non-speech sound labels · [Müzik] / [Uğultu] / [Alkış]")
+    sound_events.setChecked(False)
+    sound_events.setToolTip(
+        "Independent from speaker names; only real detector-backed events "
+        "with sufficient confidence are displayed. No guess from silence.")
+    timing_layout.addRow(sound_events)
+    classifier_install_queue=queue.Queue(maxsize=4)
+    from tv_center.audio_classifiers import AudioLabels
+    classifier_status=QLabel(
+        "Optional sound: "+("installed" if AudioLabels().installed("sound")
+                             else "not installed")+
+        " · Voice type: "+("installed" if AudioLabels().installed("voice")
+                           else "not installed")+
+        ". Models load ONLY when the corresponding box is checked.")
+    classifier_status.setWordWrap(True)
+    timing_layout.addRow(classifier_status)
+    classifier_actions=QHBoxLayout()
+    event_install_button=QPushButton("Install sound detector · ~346 MB weights")
+    voice_install_button=QPushButton(
+        "Install voice-type estimator · ~363 MB · noncommercial license")
+    def install_classifier(kind):
+        lic=("This audEERING model is CC BY-NC-SA 4.0, NON-COMMERCIAL "
+             "ONLY. Its child/female/male predictions are uncertain "
+             "voice characteristics, NOT actual identities. "
+             if kind=="voice" else
+             "The MIT AudioSet AST classifier is BSD-3-Clause. ")
+        reply=QMessageBox.question(
+            window,"Install optional audio model?",
+            lic+"Download model weights and CPU PyTorch dependencies (may "
+            "use several GB total)? Runs offline only when enabled. Continue?",
+            QMessageBox.Yes | QMessageBox.No,QMessageBox.No)
+        if reply!=QMessageBox.Yes:
+            return
+        button=voice_install_button if kind=="voice" else event_install_button
+        button.setEnabled(False)
+        classifier_status.setText(
+            "Owner-approved "+kind+" classifier installation in background…")
+        def install_worker():
+            try:
+                info=AudioLabels().install(
+                    kind,noncommercial_acknowledged=(kind=="voice"))
+                classifier_install_queue.put((kind,"ok",info))
+            except Exception as exc:
+                classifier_install_queue.put((kind,"error",str(exc)[:220]))
+        threading.Thread(target=install_worker,daemon=True,
+                         name="tihulu-"+kind+"-classifier-install").start()
+    event_install_button.clicked.connect(lambda:install_classifier("sound"))
+    voice_install_button.clicked.connect(lambda:install_classifier("voice"))
+    classifier_actions.addWidget(event_install_button)
+    classifier_actions.addWidget(voice_install_button)
+    timing_layout.addRow(classifier_actions)
+    overlap_enabled=QCheckBox(
+        "Experimental · separate TWO simultaneous voices (SepFormer + 2× Whisper)")
+    overlap_enabled.setChecked(False)
+    overlap_enabled.setToolTip(
+        "Runs real SpeechBrain SepFormer audio-source separation in an "
+        "isolated worker and transcribes each source separately. Requires "
+        "an owner-installed model, extra GPU/CPU time and TV buffer. "
+        "Not verified on multilingual TV; never invents a second transcript.")
+    timing_layout.addRow(overlap_enabled)
+    overlap_status=QLabel(
+        "Overlap separation OFF · model installed separately on demand; "
+        "English-trained SepFormer, quality and GPU speed not yet verified.")
+    overlap_status.setWordWrap(True)
+    timing_layout.addRow(overlap_status)
+    overlap_install_queue=queue.Queue(maxsize=2)
+    overlap_install_button=QPushButton(
+        "Install SepFormer · ~113 MB weights + larger Torch dependencies")
+    def install_sepformer_clicked():
+        from tv_center.overlap_separation import OverlapSeparation
+        if OverlapSeparation().installed():
+            overlap_status.setText("SepFormer already installed · inference untested")
+            return
+        response=QMessageBox.question(
+            window,"Install experimental two-speaker separation?",
+            "Download SepFormer weights (~113 MB) and potentially several GB "
+            "of isolated PyTorch dependencies? This English-trained model "
+            "is NOT verified for multilingual TV or real-time CUDA use. "
+            "Install only after owner approval.",
+            QMessageBox.Yes | QMessageBox.No,QMessageBox.No)
+        if response!=QMessageBox.Yes:
+            return
+        overlap_install_button.setEnabled(False)
+        overlap_status.setText("Owner-approved model setup running off UI thread")
+        def owner_install():
+            try:
+                text=OverlapSeparation().install()
+                overlap_install_queue.put(("ok",text))
+            except Exception as exc:
+                overlap_install_queue.put(("error",str(exc)[:250]))
+        threading.Thread(target=owner_install,daemon=True,
+                         name="tihulu-sepformer-owner-install").start()
+    overlap_install_button.clicked.connect(install_sepformer_clicked)
+    timing_layout.addRow(overlap_install_button)
     speaker_health = QLabel(
         "Auto labels: checking installed local speaker model…")
     speaker_health.setWordWrap(True)
@@ -1161,12 +1326,18 @@ def main(argv=None):
         label_fields_layout.addWidget(QLabel(f"Voice {i+1}"),i,0)
         label_fields_layout.addWidget(name_input,i,1)
         speaker_alias_inputs.append(name_input)
-    timing_layout.addRow("Speaker label names",label_fields)
+    label_fields.setVisible(False)
+    manual_names=QCheckBox("Optional manual voice name overrides · advanced")
+    manual_names.setChecked(False)
+    manual_names.toggled.connect(label_fields.setVisible)
+    timing_layout.addRow(manual_names)
+    timing_layout.addRow(label_fields)
     voice_label_explanation=QLabel(
-        "Names appear as [Adam 1] or [Çocuk 2] before each attributed "
-        "subtitle. Leave empty for [Speaker N]. These are YOUR labels: "
-        "the model cannot reliably determine age, sex or identity, "
-        "and ambiguous/untimed words remain unlabelled.")
+        "Speaker names are optional, not required. Leave names OFF for "
+        "unlabelled voice changes. Age/gender categories require a separate "
+        "acoustic model and are never inferred from Resemblyzer clusters. "
+        "Two simultaneous lines require real separated audio and two "
+        "different Whisper transcripts.")
     voice_label_explanation.setWordWrap(True)
     timing_layout.addRow(voice_label_explanation)
     sync_estimate = QLabel("Automatic timing: collecting real ASR samples (0/3). "
@@ -1476,6 +1647,8 @@ def main(argv=None):
     from .live_srt import LiveSRTRecorder
     srt_recorder = LiveSRTRecorder()
     cues = CueQueue(maximum=32)
+    from .caption_timing import SpeakerLineHistory
+    recent_voice_lines=SpeakerLineHistory()
     # A six-second Whisper clip plus inference/translation may arrive more
     # than six seconds after speaking began. On desktop allow up to 15s,
     # but still obey the measured 48 MiB memory budget and native FIFO cap.
@@ -1584,6 +1757,11 @@ def main(argv=None):
                             hinted in WHISPER_LANGUAGES else None),
             spoken_auto=automatic_source,
             speaker_enabled=speaker_enabled.isChecked(),
+            show_speaker_numbers=speaker_numbers.isChecked(),
+            show_voice_types=voice_types.isChecked(),
+            break_speaker_lines=speaker_lines.isChecked(),
+            show_sound_events=sound_events.isChecked(),
+            separate_overlapping_voices=overlap_enabled.isChecked(),
             music_transcription=music_transcription.isChecked(),
             speech_priority=speech_priority.isChecked(),
             speaker_provider=speaker_provider.currentData(),
@@ -1662,8 +1840,9 @@ def main(argv=None):
         pending.setText("Caption offset applied live · " +
                         str(new_offset/1000) + "s. Other changes: Apply")
     caption_offset.valueChanged.connect(apply_offset_immediately)
-    for w in (show_video,automatic,speaker_enabled,music_transcription,
-              speech_priority):
+    for w in (show_video,automatic,speaker_enabled,speaker_numbers,
+              speaker_lines,voice_types,sound_events,overlap_enabled,
+              music_transcription,speech_priority):
         w.toggled.connect(set_pending)
     for entry in speaker_alias_inputs:
         entry.textChanged.connect(set_pending)
@@ -2049,6 +2228,12 @@ def main(argv=None):
         music_transcription.setChecked(False)
         speech_priority.setChecked(False)
         speaker_provider.setCurrentIndex(0)
+        speaker_numbers.setChecked(False)
+        speaker_lines.setChecked(True)
+        voice_types.setChecked(False)
+        sound_events.setChecked(False)
+        overlap_enabled.setChecked(False)
+        manual_names.setChecked(False)
         for entry in speaker_alias_inputs:
             entry.clear()
         show_video.setChecked(True)
@@ -2099,6 +2284,7 @@ def main(argv=None):
             applied = __import__("dataclasses").replace(
                 applied, revision=applied.revision + 1)
         cues.clear()
+        recent_voice_lines.clear()
         deferred_captions.clear()
         current_cue = None
         current_text = ""
@@ -2234,6 +2420,25 @@ def main(argv=None):
         nonlocal applied, last_service_id, last_effective_check
         nonlocal last_applied_effective_ms, last_sync_audit_at
         nonlocal last_ui_program_epoch,live_test_started_at
+        try:
+            state,message=overlap_install_queue.get_nowait()
+        except queue.Empty:
+            pass
+        else:
+            overlap_install_button.setEnabled(True)
+            overlap_status.setText(
+                ("SepFormer installed · " if state=="ok" else
+                 "SepFormer setup failed · ")+message)
+        try:
+            kind,state,message=classifier_install_queue.get_nowait()
+        except queue.Empty:
+            pass
+        else:
+            if kind=="sound": event_install_button.setEnabled(True)
+            elif kind=="voice": voice_install_button.setEnabled(True)
+            classifier_status.setText(
+                (kind+" installed · " if state=="ok" else
+                 kind+" install failed · ")+str(message)[:200])
         # Kaffeine is the DVB owner. Terminate sidecar when it disappears,
         # including when the settings window has been hidden.
         try:
@@ -2632,10 +2837,13 @@ def main(argv=None):
                             "TV channel state; increasing delay alone cannot "
                             "recover broken data.")
                         continue
-                    cue = enqueue_word_cues(
+                    cue = (None if (
+                        applied.separate_overlapping_voices and
+                        len(data.get("overlap_lines") or [])==2)
+                        else enqueue_word_cues(
                         cues, data, cue_config,
                         data["captured_start"],data["captured_end"],
-                        data["decoded_at"])
+                        data["decoded_at"]))
                     if cue is None:
                         cue = cues.add(data, cue_config,
                                        data["captured_start"],data["captured_end"],
@@ -2712,6 +2920,15 @@ def main(argv=None):
                     if data.get("teletext_audit"):
                         status.setText(
                             status.text()+" | "+str(data["teletext_audit"])[:200])
+                    if data.get("sound_event_note"):
+                        status.setText(status.text() + " | Sound model: " +
+                            str(data["sound_event_note"])[:140])
+                    if data.get("voice_type_note"):
+                        status.setText(status.text() + " | Voice type: " +
+                            str(data["voice_type_note"])[:140])
+                    if data.get("overlap_note"):
+                        status.setText(status.text() +
+                            " | Dual voices: "+str(data["overlap_note"])[:180])
                     if data.get("speaker_error"):
                         status.setText(status.text() +
                             " | Diarization unavailable: " +
@@ -2795,7 +3012,8 @@ def main(argv=None):
                 except (OSError, ValueError) as error:
                     end_srt_recording()
                     srt_status.setText("SRT save error: " + str(error))
-            current_text = applied.render(result)
+            current_text = recent_voice_lines.compose(
+                result,applied.render(result),applied,now,tap.program_epoch)
             current_until = cue["expires"]
             source_language = str(result.get("source_language") or applied.source).upper()
             label_prefix = ""
@@ -2848,6 +3066,10 @@ def main(argv=None):
             else:
                 translated.setText("")
                 translated.setToolTip("Translations are not selected.")
+            if (applied.separate_overlapping_voices and
+                    len(result.get("overlap_lines") or [])==2):
+                original.setText(current_text)
+                translated.setText("")
             ipc.publish(current_text,applied,ttl_ms=3000)
             last_published = now
         elif current_cue and now >= current_until + 1.0:

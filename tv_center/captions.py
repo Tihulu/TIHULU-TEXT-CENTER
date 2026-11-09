@@ -171,7 +171,10 @@ def asr_from_clip(path: Path, language: str, model: str,
                   speaker_enabled: bool = False,
                   speaker_provider: str = "resemblyzer",
                   music_transcription: bool = False,
-                  speech_priority: bool = False) -> str:
+                  speech_priority: bool = False,
+                  overlap_separation: bool = False,
+                  show_sound_events: bool = False,
+                  show_voice_types: bool = False) -> str:
     # "auto" is a speech-detection MODE, not an ISO language code.
     # All existing speech backends except unverified NPUs handle it.
     if language != "auto" and language not in SUPPORTED:
@@ -226,6 +229,25 @@ def asr_from_clip(path: Path, language: str, model: str,
             "This is not music/source separation." if focus_filter else None)
     if audio.returncode or len(audio.stdout) < 32000:
         raise RuntimeError("No usable audio stream in recorded TV segment")
+    # Optional acoustic classifiers are independent, offline and opt-in.
+    if show_sound_events:
+        try:
+            from .audio_classifiers import detect_sound_events
+            actual_events=detect_sound_events(audio.stdout)
+            if diagnostics is not None:
+                diagnostics["sound_events"]=actual_events
+        except (OSError,ValueError,RuntimeError,TimeoutError) as exc:
+            if diagnostics is not None:
+                diagnostics["sound_event_note"]=str(exc)[:160]
+    if show_voice_types and not overlap_separation:
+        try:
+            from .audio_classifiers import detect_voice_type
+            category=detect_voice_type(audio.stdout)
+            if diagnostics is not None and category:
+                diagnostics["voice_type_candidate"]=category
+        except (OSError,ValueError,RuntimeError,TimeoutError) as exc:
+            if diagnostics is not None:
+                diagnostics["voice_type_note"]=str(exc)[:160]
     # Remote speech is an explicit user-approved HTTPS+token backend.
     # Device ownership remains local: only the bounded decoded audio PCM
     # is sent to the configured GPU host; video/RF data are NOT uploaded.
@@ -321,7 +343,56 @@ def asr_from_clip(path: Path, language: str, model: str,
             diagnostics["language_confidence"] = details.get("language_probability")
             diagnostics["word_timing_source"] = "faster_whisper_cuda_word_timestamps"
             diagnostics["recognition_rejected"] = details.get("recognition_rejected")
-        return _speaker_details(audio.stdout, details["text"].strip(),
+        if overlap_separation:
+            # Experimental actual TWO-source speech separation followed
+            # by TWO independent ASR calls. Fail closed; never generate a
+            # second line by copying the ordinary Whisper transcript.
+            try:
+                from .overlap_separation import (
+                    separate_pcm, accept_two_transcripts)
+                streams=separate_pcm(audio.stdout)
+                recognized=[
+                    transcribe_cuda_details(
+                        track,language,str(profile["speech"]["gpu_model_path"]),
+                        music_mode=False,speech_priority=False)
+                    for track in streams]
+                voices=accept_two_transcripts(recognized)
+                if voices and show_voice_types:
+                    from .audio_classifiers import detect_voice_type
+                    for voice in voices:
+                        try:
+                            track=streams[voice["speaker_index"]-1]
+                            candidate=detect_voice_type(track)
+                            if candidate:
+                                voice.update(candidate)
+                        except (OSError,ValueError,RuntimeError,TimeoutError) as exc:
+                            if diagnostics is not None:
+                                diagnostics["voice_type_note"]=str(exc)[:160]
+                if voices:
+                    if diagnostics is not None:
+                        diagnostics["overlap_lines"]=voices
+                        diagnostics["overlap_model"]="SpeechBrain SepFormer-wsj02mix"
+                        diagnostics["overlap_note"]=(
+                            "Two independent Whisper tracks; provisional A/B "
+                            "per clip, not verified speaker identity")
+                elif diagnostics is not None:
+                    diagnostics["overlap_note"]=(
+                        "Separation produced no TWO distinct, source-timed "
+                        "transcripts; kept original mixed audio")
+            except (OSError,ValueError,RuntimeError,TimeoutError,
+                    subprocess.TimeoutExpired) as exc:
+                if diagnostics is not None:
+                    diagnostics["overlap_note"]=(
+                        "Experimental 2-voice separation unavailable; kept "
+                        "original mixed audio: "+str(exc)[:130])
+        primary_text=details["text"].strip()
+        if not primary_text and diagnostics is not None and diagnostics.get(
+                "overlap_lines"):
+            # The mixed waveform can be unintelligible although source A
+            # and B are independently recognized. Use actual source A ASR,
+            # not an invented blended transcript, as the original fallback.
+            primary_text=diagnostics["overlap_lines"][0]["original"]
+        return _speaker_details(audio.stdout,primary_text,
                                 diagnostics, speaker_enabled, speaker_provider,
                                 channel=f"{service_id}:{audio_pid}")
     try:
@@ -435,7 +506,10 @@ def decode_segment(ts: bytes, *, mode="auto", page=150, source="de",
                    speech_priority: bool = False,
                    defer_asr_translation: bool = False,
                    speech_auto: bool = False,
-                   auto_teletext_probe: bool = False) -> dict:
+                   auto_teletext_probe: bool = False,
+                   overlap_separation: bool = False,
+                   show_sound_events: bool = False,
+                   show_voice_types: bool = False) -> dict:
     if mode not in ("teletext", "page", "asr", "auto"):
         raise ValueError("Unsupported caption source")
     if type(page) is not int or not 100 <= page <= 899:
@@ -521,6 +595,12 @@ def decode_segment(ts: bytes, *, mode="auto", page=150, source="de",
                 if speaker_enabled:
                     asr_kwargs["speaker_enabled"] = True
                     asr_kwargs["speaker_provider"] = speaker_provider
+                if overlap_separation:
+                    asr_kwargs["overlap_separation"] = True
+                if show_sound_events:
+                    asr_kwargs["show_sound_events"] = True
+                if show_voice_types:
+                    asr_kwargs["show_voice_types"] = True
                 # Real DVB audio-language descriptors are a stronger hint
                 # than six seconds of noisy live TV speech. Do not ignore
                 # the selected/signalled audio language in Auto mode.
@@ -590,6 +670,19 @@ def decode_segment(ts: bytes, *, mode="auto", page=150, source="de",
                 error = str(exc)[:180]
             finally:
                 asr_ms = round((time.perf_counter()-asr_start)*1000)
+        # A global clip may contain multiple voices; never assign its
+        # acoustic category to an individual without a single diarized
+        # voice. In an overlap case each isolated stream was classified
+        # independently instead.
+        candidate=speech_diagnostics.pop("voice_type_candidate",None)
+        ids={str(turn.get("id")) for turn in
+             speech_diagnostics.get("speaker_turns",[])
+             if isinstance(turn,dict) and turn.get("id")}
+        if candidate and len(ids)==1:
+            speech_diagnostics.update(candidate)
+        elif candidate:
+            speech_diagnostics["voice_type_note"]=(
+                "Multiple/unknown voices; category intentionally withheld")
         translations = {}
         errors = {}
         warnings = {}
@@ -634,6 +727,14 @@ def decode_segment(ts: bytes, *, mode="auto", page=150, source="de",
                 "words":speech_diagnostics.get("words", []),
                 "word_timing_source":speech_diagnostics.get("word_timing_source"),
                 "speaker_turns":speech_diagnostics.get("speaker_turns", []),
+                "overlap_lines":speech_diagnostics.get("overlap_lines", []),
+                "overlap_model":speech_diagnostics.get("overlap_model"),
+                "overlap_note":speech_diagnostics.get("overlap_note"),
+                "sound_events":speech_diagnostics.get("sound_events",[]),
+                "sound_event_note":speech_diagnostics.get("sound_event_note"),
+                "voice_type":speech_diagnostics.get("voice_type"),
+                "voice_type_confidence":speech_diagnostics.get("voice_type_confidence"),
+                "voice_type_note":speech_diagnostics.get("voice_type_note"),
                 "speaker_engine":speech_diagnostics.get("speaker_engine"),
                 "speaker_error":speech_diagnostics.get("speaker_error"),
                 "speaker_note":speech_diagnostics.get("speaker_note"),

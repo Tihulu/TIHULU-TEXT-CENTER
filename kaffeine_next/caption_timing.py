@@ -36,6 +36,11 @@ class CaptionConfig:
     audio_language: str | None = None
     spoken_auto: bool = False  # user requests real ASR language re-detection
     speaker_enabled: bool = False
+    show_speaker_numbers: bool = True
+    show_voice_types: bool = False
+    break_speaker_lines: bool = False
+    show_sound_events: bool = False
+    separate_overlapping_voices: bool = False
     music_transcription: bool = False
     speech_priority: bool = False  # optional dialogue focus when background music overlaps
     speaker_provider: str = "resemblyzer"
@@ -107,7 +112,9 @@ class CaptionConfig:
                     field + " must be an RGB hex color such as #FFFFFF")
         for key in ("automatic_sync", "on_video", "show_original", "show_translation",
                     "speaker_enabled", "music_transcription", "speech_priority",
-                    "spoken_auto"):
+                    "spoken_auto", "show_speaker_numbers",
+                    "show_voice_types", "break_speaker_lines",
+                    "show_sound_events", "separate_overlapping_voices"):
             if type(getattr(self, key)) is not bool:
                 raise ValueError("Caption display toggles must be boolean")
         return self
@@ -119,10 +126,52 @@ class CaptionConfig:
                 "audio_pid":self.audio_pid,"audio_source":self.audio_language,
                 "spoken_auto":self.spoken_auto,
                 "speaker_enabled":self.speaker_enabled,
+                "show_speaker_numbers":self.show_speaker_numbers,
+                "show_voice_types":self.show_voice_types,
+                "break_speaker_lines":self.break_speaker_lines,
+                "show_sound_events":self.show_sound_events,
+                "separate_overlapping_voices":self.separate_overlapping_voices,
                 "music_transcription":self.music_transcription,
                 "speech_priority":self.speech_priority,
                 "speaker_provider":self.speaker_provider,
                 "revision":self.revision}
+
+    def _voice_prefix(self,result):
+        if not self.speaker_enabled:
+            return ""
+        index=result.get("speaker_index")
+        category=str(result.get("voice_type") or "").lower()
+        score=result.get("voice_type_confidence")
+        if (self.show_voice_types and category in ("male","female","child")
+                and isinstance(score,(float,int)) and score>=0.8):
+            names={"male":"Erkek sesi?","female":"Kadın sesi?",
+                   "child":"Çocuk sesi?"}
+            return ("["+names[category]+
+                    (f" {index}" if type(index) is int else "")+"]")
+        if not self.show_speaker_numbers:
+            return ""
+        if type(index) is int and 1<=index<=len(self.speaker_aliases):
+            alias=self.speaker_aliases[index-1].strip()
+            if alias:
+                return "["+alias+"]"
+        return str(result.get("speaker_label") or "").strip()[:55]
+
+    @staticmethod
+    def _event_lines(result):
+        # Show only detector-backed events (AST), never invent noise from
+        # silence/voice pitch. Sound tags are INDEPENDENT of speaker labels.
+        names={"music":"Müzik","hum":"Uğultu","applause":"Alkış",
+               "noise":"Gürültü","laughter":"Gülüşme"}
+        labels=[]
+        for event in (result.get("sound_events") or [])[:3]:
+            if isinstance(event,dict):
+                kind=str(event.get("type","")).lower()
+                score=event.get("confidence")
+                if (kind in names and isinstance(score,(float,int))
+                        and score>=0.75 and
+                        event.get("source")=="AST AudioSet"):
+                    labels.append("["+names[kind]+"]")
+        return labels
 
     def render(self, result):
         """Produce independently selectable original/translated subtitle lines."""
@@ -130,18 +179,54 @@ class CaptionConfig:
         speaker = ""
         speaker_index = result.get("speaker_index")
         if self.speaker_enabled:
-            # Only the actual voice-grouped ASR cue can carry this index.
-            # A configured alias is a user-entered display name, NOT an
-            # automatically inferred identity, sex or age.
-            speaker = str(result.get("speaker_label") or "").strip()[:55]
-            if (type(speaker_index) is int
-                    and 1 <= speaker_index <= len(self.speaker_aliases)
-                    and self.speaker_aliases[speaker_index-1].strip()):
-                speaker = ("[" + self.speaker_aliases[
-                    speaker_index-1].strip()[:30] + "]")
+            # Estimated voice category is metadata from a separate model.
+            # Resemblyzer alone only clusters identities; do NOT invent
+            # "man", "woman", "child" from cluster IDs or pitch.
+            guessed = str(result.get("voice_type") or "").lower()
+            if (self.show_voice_types and guessed in
+                    ("male","female","child") and
+                    float(result.get("voice_type_confidence") or 0) >= 0.8):
+                names={"male":"Erkek sesi?","female":"Kadın sesi?",
+                       "child":"Çocuk sesi?"}
+                speaker=("["+names[guessed]+
+                         (f" {speaker_index}" if type(speaker_index) is int else "")+"]")
+            elif self.show_speaker_numbers:
+                speaker = str(result.get("speaker_label") or "").strip()[:55]
+                if (type(speaker_index) is int
+                        and 1 <= speaker_index <= len(self.speaker_aliases)
+                        and self.speaker_aliases[speaker_index-1].strip()):
+                    speaker = ("[" + self.speaker_aliases[
+                        speaker_index-1].strip()[:30] + "]")
         raw = result.get("translations")
         translated = raw if isinstance(raw, dict) else {}
         lines = []
+        # Real overlap: independently separated audio and independently
+        # recognized texts only. No fabricated second speaker.
+        streams=result.get("overlap_lines")
+        if (self.separate_overlapping_voices and isinstance(streams,list)
+                and len(streams)==2):
+            for item in streams:
+                if not isinstance(item,dict):
+                    continue
+                label=self._voice_prefix(item)
+                speech=str(item.get("original") or "").strip()
+                translation=item.get("translations") or {}
+                chunks=[]
+                if self.show_original and speech:
+                    chunks.append(speech)
+                if self.show_translation:
+                    for code in self.target_languages:
+                        phrase=translation.get(code)
+                        if isinstance(phrase,str) and phrase.strip():
+                            if not (self.show_original and phrase.strip()==speech):
+                                chunks.append(f"[{code.upper()}] "+phrase.strip())
+                if chunks:
+                    lines.append((label+" " if label else "")+" | ".join(chunks))
+            if lines:
+                if self.show_sound_events:
+                    for label in self._event_lines(result):
+                        lines.append(label)
+                return "\n".join(lines[:4])[:1100]
         if self.show_original and original:
             original_language = result.get("source_language") or self.source
             prefix = (f"[{original_language.upper()}] " if
@@ -167,6 +252,8 @@ class CaptionConfig:
                 legacy = (result.get("translated") or "").strip()
                 if legacy and legacy != original:
                     lines.append(legacy)
+        if self.show_sound_events:
+            lines.extend(self._event_lines(result))
         # If the viewer requested translated-only subtitles but no model
         # could translate into the selected language, never blank the screen.
         # Broadcast / Whisper original remains visible with an explicit label.
@@ -382,6 +469,40 @@ class CueQueue:
         self.items.clear()
         self.last_shown_at=None
         self._recent.clear()
+
+
+class SpeakerLineHistory:
+    """Keep the previous actually transcribed voice on a separate line.
+
+    This NEVER generates overlap: both lines are captions emitted by ASR.
+    A true overlapping-source result is handled by CaptionConfig.render and
+    has two verified independently transcribed tracks already.
+    """
+    def __init__(self):
+        self.previous = None
+
+    def clear(self):
+        self.previous = None
+
+    def compose(self, result, rendered, config, now, epoch=None):
+        if (not config.break_speaker_lines or
+                not config.speaker_enabled or
+                result.get("source")!="local_asr" or
+                result.get("overlap_lines")):
+            self.clear()
+            return rendered
+        index=result.get("speaker_index")
+        if type(index) is not int or not 1<=index<=4:
+            self.clear()
+            return rendered
+        recent=self.previous
+        current=(index,rendered,float(now),config.revision,epoch)
+        self.previous=current
+        if (recent and recent[0]!=index and
+                recent[3]==config.revision and recent[4]==epoch
+                and 0 <= float(now)-recent[2] <= 3.5):
+            return recent[1]+"\n"+rendered
+        return rendered
 
 
 @dataclass(frozen=True)
