@@ -32,6 +32,7 @@ from PyQt5.QtWebEngineCore import QWebEngineUrlScheme,QWebEngineUrlSchemeHandler
 from PyQt5.QtWebEngineWidgets import QWebEngineView,QWebEnginePage,QWebEngineProfile
 from .__main__ import Station, PROFILES, SOURCE_URLS, parse_tle, family, selectable
 from .native_orbit import OrbitEngine
+from .planning_store import load_candidates, add_candidate, remove_candidate
 
 ASSETS=Path(__file__).resolve().parent/"browser"
 SCHEME=b"tihulu"
@@ -165,7 +166,7 @@ class NativeReceiver(QObject):
             "status","connect","usb_open","sample","disconnect","stop",
             "capture","auto","auto_cancel","schedule","refresh","passes","geocode",
             "tle_catalog","orbit_snapshot","pass_preview","tle_custom","world_outline","tle_import",
-            "cancel_schedule",
+            "cancel_schedule","plan_candidates","plan_candidate_add","plan_candidate_remove",
         }:
             self.reply.emit(request_id,json.dumps({
                 "ok":False,"error":"Native command is not allowlisted"}))
@@ -340,6 +341,14 @@ class NativeReceiver(QObject):
             self._cache_manual_tles(content.decode("ascii","strict"))
             return {"entries":[{**row,"family":family("manual",row)} for row in rows[:1]],
                     "source":"native_celestrak_custom_norad"}
+        if command=="plan_candidates":
+            return {"candidates":load_candidates(st.directory),"source":"local-only"}
+        if command=="plan_candidate_add":
+            return {"candidates":add_candidate(st.directory,args.get("candidate")),
+                    "source":"local-only","recording_scheduled":False}
+        if command=="plan_candidate_remove":
+            return {"candidates":remove_candidate(st.directory,args.get("id")),
+                    "source":"local-only","recording_scheduled":False}
         if command=="cancel_schedule":
             job_id=args.get("job_id")
             if not isinstance(job_id,str) or not re.fullmatch(r"[A-Za-z0-9_-]{1,40}",job_id):
