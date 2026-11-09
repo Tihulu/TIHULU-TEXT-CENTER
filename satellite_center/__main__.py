@@ -32,6 +32,7 @@ from .capture_budget import (MAX_IQ_BYTES, MAX_CAPTURE_SECONDS,
                              plan_capture_budget, END_MARGIN_SECONDS)
 from .sstv_series35 import extract_robot36_wav
 from .compute_backends import compute_capabilities, resolve_compute_backend
+from .window_visibility import validate_window, summarize_window
 from .bridge import (app_data_dir, lock_receiver, unlock_receiver, start_receiver_process,
                      stop_receiver_process, pairing_secret, allowed_origin,
                      local_host_allowed, request_is_remote)
@@ -147,10 +148,8 @@ def family(source, item):
 
 def selectable(source, item):
     if source == "amateur":
-        # Opt-in, bounded subset of orbit candidates; RF activity is unverified.
-        return item["id"] in {27607, 43017, 43678, 44909} or (
-            len(item["name"]) < 48 and "CUBESAT" in item["name"].upper()
-        )
+        # TLE presence is NOT evidence of an active radio downlink.
+        return bool(item.get("name")) and 1000 <= item["id"] <= 99999
     return source != "iridium" or "IRIDIUM" in item["name"].upper()
 
 
@@ -695,15 +694,16 @@ class Station:
                                 "Try a longer lookahead or lower elevation."]
         return report
 
-    def passes(self, *, city="Cologne", lat=None, lon=None, hours=24, elevation=15):
+    def passes(self, *, city="Cologne", lat=None, lon=None, hours=24, elevation=15, window=None):
         try:
             from skyfield.api import EarthSatellite, load, wgs84
         except ImportError as exc:
             raise ValueError("Install optional orbit dependency: pip install skyfield") from exc
         if type(hours) is not int or not 1 <= hours <= 72:
             raise ValueError("hours must be 1–72")
-        if not isinstance(elevation, (float, int)) or not 5 <= elevation <= 75:
-            raise ValueError("minimum elevation must be 5–75 degrees")
+        if not isinstance(elevation, (float, int)) or not 0 <= elevation <= 75:
+            raise ValueError("minimum elevation must be 0–75 degrees")
+        window=validate_window(window)
         if lat is None or lon is None:
             if city not in LOCATIONS:
                 raise ValueError("Unknown location preset")
@@ -732,11 +732,11 @@ class Station:
                 continue
             if age > 2:
                 warnings.append(f"{source}: TLE cache {age:.1f} days old; predictions less reliable")
-            entries = parse_tle(file.read_text(encoding="ascii", errors="ignore"))
+            entries = parse_tle(file.read_text(encoding="ascii", errors="ignore"),limit=240)
             if source == "amateur":
-                entries = [it for it in entries if selectable(source, it)][:15]
+                entries = [it for it in entries if selectable(source, it)][:80]
             if source == "manual":
-                entries = entries[:30]
+                entries = entries[:80]
             for item in entries:
                 if not selectable(source, item) or item["id"] in processed_norad:
                     continue
@@ -768,17 +768,30 @@ class Station:
                                          "status": "PREDICTED_GEOMETRY_NOT_SIGNAL",
                                          "tle_source": SOURCE_URLS.get(source,"user-imported local TLE"),
                                          "tle_age_days": round(age, 2)}
+                                if window is not None:
+                                    # Skyfield topocentric geometry every 10s.
+                                    # No actual USB reception or optical guarantee.
+                                    observations=[]
+                                    for offset in range(0,int((end-rising).total_seconds())+1,10):
+                                        instant=rising+timedelta(seconds=offset)
+                                        el,az,_distance=(sat-observer).at(
+                                            clock.from_datetime(instant)).altaz()
+                                        observations.append((instant.timestamp(),
+                                                             az.degrees,el.degrees))
+                                    event["window_visibility"]=summarize_window(
+                                        observations,window)
                                 events.append(event)
                             rising = None
                 except (ValueError, OverflowError, RuntimeError):
                     continue
         events.sort(key=lambda x: x["aos"])
-        events = events[:400]
+        events = events[:900]
         with self.lock:
             self.predicted = {x["id"]: x for x in events}
         return {"observer": {"label": city if lat is None else city, "lat": lat, "lon": lon},
                 "predictions": events, "warnings": warnings,
-                "as_of": stamp(), "note": "Potential passes only. TLE geometry cannot establish any active transmission."}
+                "as_of": stamp(), "window_profile": window,
+                "note": "Potential passes only. TLE geometry cannot establish any active transmission."}
 
     def sky(self, city="Cologne", lat=None, lon=None):
         """Observed sky positions calculated from cached orbits, not RF identification."""
@@ -883,7 +896,14 @@ class Station:
             if not event:
                 raise ValueError("Pass not in native prediction results; refresh local TLE and recalculate")
             if profile not in event["profiles"] or mode not in MODES or not allowed_mode(profile, mode):
-                raise ValueError("Unsupported pass/profile/mode combination")
+                if profile in ("meteor", "meteor_backup") and mode in ("sstv_audio", "fm_audio", "iq_and_fm_wav"):
+                    raise ValueError(
+                        "Unsupported pass/profile/mode combination: Meteor LRPT requires original raw IQ (.cu8); "
+                        "Robot36/FM WAV and combined IQ+WAV are ISS audio modes. Select IQ only.")
+                raise ValueError(
+                    "Unsupported pass/profile/mode combination: " + str(profile) +
+                    " / " + str(mode) + "; supported profiles for this pass: " +
+                    ", ".join(event["profiles"]))
             if mode not in ("iq", "survey"):
                 # Manual users may explicitly choose the catalogued pass
                 # receiver profile and the matching approved audio/packet
@@ -1414,17 +1434,35 @@ class Station:
         # Platform-native rtl-sdr tools report actual device errors.
         if platform.system() == "Linux" and not tuner_present():
             raise RuntimeError("Exactly one Linux RTL2832U must be present")
-        if detect_busy():
-            raise RuntimeError("Another receiver appears active; scan not started")
+        conflicts = detect_busy()
+        if conflicts:
+            names = sorted({str(row.get("process", "unknown") if isinstance(row, dict) else row)
+                            for row in conflicts})[:8]
+            raise RuntimeError(
+                "RTL-SDR may be occupied by another receiver: " + ", ".join(names) +
+                ". Stop that program (e.g. Flight Radar/readsb) explicitly, "
+                "then retry. Satellite Center does not stop external processes.")
         TEXT_CENTER_LOCK.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
         fd = os.open(TEXT_CENTER_LOCK, os.O_CREAT|os.O_RDWR|getattr(os, "O_CLOEXEC", 0)|getattr(os, "O_NOFOLLOW", 0), 0o600)
         try:
             lock_receiver(fd)
-            if detect_busy():
-                raise RuntimeError("Receiver occupied during preflight")
-        except (RuntimeError, OSError):
-            os.close(fd)
-            raise RuntimeError("RTL-SDR receiver lease unavailable")
+            conflicts = detect_busy()
+            if conflicts:
+                raise RuntimeError(
+                    "RTL-SDR receiver became busy during acquisition: " +
+                    ", ".join(sorted({str(row.get("process", "unknown") if isinstance(row, dict)
+                                           else row) for row in conflicts})[:8]) +
+                    ". Close the competing application before retrying.")
+        except (RuntimeError, OSError) as exc:
+            try:
+                unlock_receiver(fd)
+            finally:
+                os.close(fd)
+            if isinstance(exc, RuntimeError) and "became busy" in str(exc):
+                raise
+            raise RuntimeError(
+                "RTL-SDR receiver lease unavailable; another app may own the USB tuner. "
+                "Check Flight Radar/readsb, SatDump, or Gqrx before retrying.") from exc
         self.device_lock = fd
 
     def _release(self):
@@ -1665,19 +1703,39 @@ class Station:
                 self._release()
 
     def _run_bounded(self, command, timeout):
-        proc = self._launch_receiver(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        with self.lock: self.process = proc
-        try:
-            until = time.monotonic()+timeout
-            while proc.poll() is None and not self.stopping.is_set() and time.monotonic()<until:
-                time.sleep(0.2)
-            if self.stopping.is_set() or proc.poll() is None:
-                raise RuntimeError("Receiver stopped or timed out")
-            if proc.returncode:
-                raise RuntimeError("RF recorder exited unsuccessfully (device busy, permission or signal)")
-        finally:
-            stop_process(proc)
-            with self.lock: self.process = None
+        """Bounded native receiver with real stderr evidence, like Flight Radar.
+
+        Keep diagnostics in an ephemeral local file, never a potentially
+        blocking PIPE. Only the child launched by this Station may be stopped.
+        """
+        import tempfile
+        with tempfile.TemporaryFile() as diagnostic:
+            proc = self._launch_receiver(
+                command, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                stderr=diagnostic)
+            with self.lock: self.process = proc
+            try:
+                until = time.monotonic()+timeout
+                while proc.poll() is None and not self.stopping.is_set() and time.monotonic()<until:
+                    time.sleep(0.2)
+                if self.stopping.is_set():
+                    raise RuntimeError("RF recording stopped by operator")
+                if proc.poll() is None:
+                    raise RuntimeError("RF recorder exceeded its time limit")
+                if proc.returncode:
+                    diagnostic.flush()
+                    diagnostic.seek(0)
+                    excerpt = diagnostic.read(8192).decode("utf-8", "replace")[-700:]
+                    excerpt = re.sub(r"[\x00-\x1f\x7f]+", " ", excerpt).strip()
+                    raise RuntimeError(
+                        "rtl_sdr exited with code " + str(proc.returncode) +
+                        (": " + excerpt if excerpt else
+                         "; check SDR ownership, USB permissions and driver access"))
+            finally:
+                stop_process(proc)
+                with self.lock:
+                    if self.process is proc:
+                        self.process = None
 
     def _wait_decode(self, procs, seconds):
         finish = time.monotonic()+seconds
@@ -1958,7 +2016,8 @@ class Handler(BaseHTTPRequestHandler):
                 result = app.refresh()
             elif route == "/api/schedule":
                 result = app.schedule(data.get("pass_id"), data.get("profile"), data.get("mode"),
-                                      data.get("run_at"), data.get("duration_seconds"))
+                                      data.get("run_at"), data.get("duration_seconds"),
+                                      sample_rate=data.get("sample_rate", 1024000))
             elif route == "/api/schedule-chain":
                 result = app.schedule_chain(data.get("pass_id"),data.get("profile"),
                     data.get("mode"),data.get("run_at"),data.get("duration_seconds"),

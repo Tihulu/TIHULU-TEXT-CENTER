@@ -302,3 +302,68 @@ border:1px solid #375471;border-radius:8px;margin:0;background:#081727}
 .web-runtime-strip span{flex:1 1 270px;min-width:180px}
 .web-runtime-strip a{color:#9fd7ff;font-weight:650}
 @media(max-width:560px){.web-runtime-strip{padding:10px;gap:10px}.web-runtime-strip span{flex-basis:100%}}
+
+
+/* SatDump-like orbital previews share the native/browser TLE geometry. */
+.pass-preview-toolbar{display:grid;grid-template-columns:minmax(200px,2fr) repeat(4,minmax(100px,auto));gap:8px;align-items:end;
+ padding:12px;margin-bottom:12px;border:1px solid #45607e;border-radius:12px;background:#0c2139}
+.pass-preview-toolbar>label{margin:0;min-width:0}
+.pass-preview-toolbar>button{min-width:0;padding:9px 10px}
+.pass-preview-toolbar .pass-preview-scrubber{grid-column:1/-1}
+.pass-preview-scrubber input{accent-color:#78dcff}
+.pass-preview-toolbar #map-pass-summary{grid-column:1/-1;margin:3px 0;line-height:1.6;overflow-wrap:anywhere}
+.pass-prediction-calendar{border-color:#355b78;background:#10243a}
+.predicted-pass-calendar-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:9px;max-height:450px;overflow:auto}
+.predicted-pass-card{border:1px solid #46617e;border-radius:9px;padding:10px;background:#102e49;display:flex;flex-direction:column;gap:6px}
+.predicted-pass-card strong{font-size:13px}.predicted-pass-card small{font-size:12px;color:#c2d8ed;line-height:1.5}
+.predicted-pass-card button{font-size:12px;padding:7px;min-height:34px}
+@media(max-width:850px){.pass-preview-toolbar{grid-template-columns:repeat(2,minmax(0,1fr))}.pass-preview-toolbar>label:first-child{grid-column:1/-1}}
+
+
+.pass-window-settings{grid-column:1/-1;border:1px solid #3c5d73;border-radius:9px;padding:9px 12px;background:#0e2940}
+.pass-window-settings>summary{cursor:pointer;font-size:13px;color:#cfe6f7;font-weight:600}
+.pass-window-fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(142px,1fr));gap:7px;align-items:end}
+.pass-window-fields>label{margin:3px 0;font-size:12px}
+.pass-window-fields input[type="number"]{font-size:13px}
+.pass-window-fields .map-check{font-size:12px;align-self:center}
+
+/* Live native map / candidate planning cockpit. Keeps global map legible. */
+#satellite-tracking-maps .map-toolbar{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));
+ gap:10px;align-items:end;margin:12px 0;padding:12px;border:1px solid #42617b;
+ background:#10263d;border-radius:12px}
+#satellite-tracking-maps .map-toolbar>button{min-width:0;min-height:38px;font-size:12px}
+#satellite-tracking-maps .map-toolbar>label{min-width:0;margin:0;display:flex;
+ flex-direction:column;align-items:stretch;gap:5px;font-size:12px}
+#satellite-tracking-maps .map-toolbar select{margin:0;min-height:38px;font-size:12px}
+#satellite-tracking-maps .map-toolbar .map-check:has(input[type=checkbox]){
+ flex-direction:row;align-items:center;min-height:38px}
+#satellite-tracking-maps .world-overview{padding:12px;border:1px solid #355b79;
+ background:#0b2035;border-radius:12px}
+#satellite-tracking-maps .map-sidebar{position:relative}
+#satellite-tracking-maps .map-detail{border-left:4px solid #5ecce9}
+#satellite-tracking-maps .map-caption{white-space:normal;overflow-wrap:anywhere}
+.candidate-planner{border:1px solid #46688a;border-radius:12px;background:#0b2335;
+ padding:12px;margin-top:12px}
+.candidate-planner-title{display:flex;flex-wrap:wrap;justify-content:space-between;
+ align-items:center;gap:8px;font-size:14px;color:#ecf7ff}
+.candidate-planner-title small{display:block;font-size:12px;font-weight:400;color:#b6d0e9;
+ margin-top:4px}
+#candidate-count{font-size:11px;padding:5px 9px;color:#9ce4ff;border:1px solid #508ba7;
+ border-radius:20px}
+.candidate-warning{margin:10px 0;padding:8px 11px;border-left:3px solid #e4b569;
+ background:#2b2a2d;border-radius:5px;color:#f9d9a1;font-size:12px;line-height:1.5}
+.candidate-calendar-list{display:grid;gap:8px}
+.candidate-pass-card{display:flex;align-items:center;flex-wrap:wrap;gap:8px;
+ padding:9px 11px;border:1px solid #446b88;border-radius:9px;background:#152e45}
+.candidate-pass-card strong{flex:1 1 170px;font-size:13px}
+.candidate-pass-card small{flex:2 1 230px;font-size:11px;color:#c5d9eb}
+.candidate-pass-card button{padding:5px 8px;min-height:30px;font-size:11px}
+.predicted-pass-card{gap:8px}
+.predicted-pass-card button{flex:1 1 160px}
+@media(max-width:700px){
+ #satellite-tracking-maps .map-toolbar{grid-template-columns:repeat(2,minmax(0,1fr));padding:8px}
+ .candidate-planner{padding:9px}
+}
+@media(max-width:440px){
+ #satellite-tracking-maps .map-toolbar{grid-template-columns:minmax(0,1fr)}
+}

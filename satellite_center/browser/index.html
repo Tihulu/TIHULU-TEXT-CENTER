@@ -123,7 +123,7 @@
 <option value="Cologne">Cologne</option><option value="Izmir">İzmir</option><option value="Berlin">Berlin</option>
 <option value="Istanbul">İstanbul</option><option value="Ankara">Ankara</option><option value="Brussels">Brussels</option>
 </select></label>
-<label>Lookahead<select id="hours"><option value="12">12 hours</option><option value="24" selected>24 hours</option><option value="48">48 hours</option></select></label></div>
+<label>Lookahead<select id="hours"><option value="12">12 hours</option><option value="24" selected>24 hours</option><option value="48">48 hours</option><option value="72">72 hours · 3 days</option></select></label></div>
 <div class="location-picker">
 <div class="location-search-row">
 <label class="location-query-label" for="city-query">Search city or town · 8,084 Germany &amp; Türkiye locations included offline
@@ -148,10 +148,17 @@ All location methods are optional. City suggestions are offline by default; GPS 
 </div>
 <div class="line"><label>Latitude (°) · editable<input id="lat" type="number" value="50.938" step="0.00001" min="-90" max="90"></label>
 <label>Longitude (°) · editable<input id="lon" type="number" value="6.960" step="0.00001" min="-180" max="180"></label>
-<label>Min elevation<select id="elev"><option value="5">5°</option><option value="15" selected>15°</option><option value="30">30°</option></select></label></div>
+<label>Min elevation<select id="elev">
+<option value="0">0° · every geometric horizon pass</option>
+<option value="5" selected>5° · low passes included</option>
+<option value="10">10°</option><option value="15">15°</option>
+<option value="20">20°</option><option value="30">30°</option>
+</select></label></div>
 <p class="hint">You can always enter fully custom latitude and longitude anywhere on Earth. Selecting a city or granting GPS permission updates both numbers, the pass planner and Earth/Sky tracking coordinates. Recalculate passes after changing ground station.</p>
 <div class="line"><button id="orbit-fetch">Refresh orbit data</button><button id="orbit-calc" class="secondary">Calculate passes</button></div>
-<label>Import local TLE file (fallback; remains in this tab)<input type="file" id="tle-file" accept=".txt,.tle,text/plain"></label>
+<label>Import TLE/3LE orbital data from SatDump or another tracker (manual and read-only)
+<input type="file" id="tle-file" accept=".txt,.tle,text/plain"></label>
+<p class="hint">Optional cross-tool input: choose a standard 2/3-line TLE exported or saved by SatDump. Valid NORAD entries are merged by satellite identity, with newer local selections taking priority. This does not access SatDump automatically or read its private settings. Sky-dip is an atmospheric calibration scan, not a satellite pass/TLE feed.</p>
 <div class="line"><button id="saved-tle-fetch" class="secondary" type="button">Load TLEs for my saved NORAD profiles</button></div>
 <p id="saved-tle-status" class="hint" role="status">User profiles are references only. Loading their TLEs is optional and requires Internet; private I/Q data is not sent.</p>
 <p id="orbit-state" class="status">No orbit data loaded. Predictions are not RF detections.</p>
@@ -179,6 +186,26 @@ All location methods are optional. City suggestions are offline by default; GPS 
 <span id="pass-list-count" class="hint">No calculated passes yet.</span>
 <p class="hint pass-capability-help">Protocol labels mean a published, possible downlink — <strong>not a detected transmission</strong>. Modes, active frequencies and decoder availability can change. NOAA-15/18/19 APT are archive-only.</p>
 </div>
+<div class="line" id="window-filter-panel">
+<label>Window eligibility
+<select id="pass-window-filter">
+<option value="all">Show all passes (recommended)</option>
+<option value="overlap">Only passes entering window sector</option>
+<option value="usable">At least 60 s in window sector</option>
+</select></label>
+<p id="window-filter-count" class="hint" role="status">Optional sector settings below. Geometry cannot confirm RF reception.</p>
+</div>
+<details id="map-window-settings" class="pass-window-settings">
+<summary>Estimated window view · optional obstruction sector</summary>
+<div class="pass-window-fields">
+<label class="map-check"><input type="checkbox" id="map-window-enabled"> Show estimated window sector</label>
+<label>Window facing azimuth (°)<input id="map-window-az" type="number" min="0" max="359" step="1" value="300"></label>
+<label>Half-width (°)<input id="map-window-halfwidth" type="number" min="1" max="90" step="1" value="30"></label>
+<label>Minimum elevation (°)<input id="map-window-minel" type="number" min="0" max="85" step="1" value="10"></label>
+<label>Maximum elevation (°)<input id="map-window-maxel" type="number" min="1" max="90" step="1" value="40"></label>
+</div>
+<p class="hint">These are editable starting estimates for a west-northwest-facing window, not a measured horizon mask. Buildings, walls and glazing can still block the signal.</p>
+</details>
 <div id="passes" class="pass-list"></div>
 <div class="line"><button id="pass-show-more" class="secondary" type="button" hidden>Show more passes</button></div>
 </section>
@@ -198,6 +225,18 @@ All location methods are optional. City suggestions are offline by default; GPS 
 <button id="browser-calendar-prev" class="secondary" type="button">Previous day</button>
 <button id="browser-calendar-next" class="secondary" type="button">Next day</button></div>
 <div id="browser-calendar-grid" class="sat-calendar-grid" aria-live="polite">No scheduled RF jobs.</div>
+</section>
+<section id="predicted-pass-calendar" class="pass-prediction-calendar" aria-labelledby="predicted-pass-calendar-title">
+<h3 id="predicted-pass-calendar-title">Predicted passes · orbital calendar</h3>
+<p class="hint">TLE-only geometric opportunities, separate from the RF recording calendar. Select Preview to inspect a pass in the sky/ground map. No receiver required.</p>
+<div id="predicted-pass-calendar-grid" class="predicted-pass-calendar-grid" aria-live="polite">Calculate passes to view their predicted local times.</div>
+ <div class="candidate-planner" id="candidate-planner" aria-label="Planning-only satellite calendar">
+  <div class="candidate-planner-title"><div><strong>Planning candidates · no antenna required</strong>
+    <small>Save TLE passes now, connect an SDR later. These are NOT armed RF recordings.</small></div>
+    <span id="candidate-count">0 planned</span></div>
+  <p id="candidate-hardware-warning" class="candidate-warning" role="status">RF connection not required for calendar planning. Recording will require a verified receiver.</p>
+  <div id="candidate-calendar-list" class="candidate-calendar-list" aria-live="polite">No planning candidates saved yet.</div>
+ </div>
 </section>
 <p id="scheduled-report" class="status" role="status">After a real capture, the sample-level report appears here. Only measured USB bytes are reported.</p>
 </section>
@@ -231,6 +270,18 @@ All location methods are optional. City suggestions are offline by default; GPS 
 <p id="map-state" class="status" aria-live="polite">Load orbital elements to populate the maps. No RF data detected.</p>
 <div class="sat-map-layout">
 <div class="map-primary">
+<div class="pass-preview-toolbar" id="pass-preview-controls">
+<label>Selected predicted pass
+<select id="map-pass-select" aria-label="Select an upcoming predicted satellite pass"><option value="">Calculate passes to preview a trajectory</option></select></label>
+<button id="map-pass-preview" type="button" class="secondary">Preview trajectory</button>
+<button id="map-pass-play" type="button" class="secondary" disabled>Play pass</button>
+<button id="map-pass-stop" type="button" class="secondary" disabled>Pause preview</button>
+<button id="map-pass-clear" type="button" class="secondary" disabled>Clear</button>
+<label class="pass-preview-scrubber">Pass progress
+<input id="map-pass-time" type="range" min="0" max="1" step="1" value="0" disabled></label>
+<p id="map-pass-summary" class="map-caption" role="status">Select a calculated pass to preview its north/east sky trajectory, AOS, peak and LOS. This works without SDR hardware.</p>
+
+</div>
 <div id="map-sky-pane" role="tabpanel" aria-labelledby="map-tab-sky">
 <canvas id="sky-chart" width="760" height="620" tabindex="0" aria-label="Polar sky plot: north up, east right; click a satellite to inspect it"></canvas>
 <p class="map-caption">Horizon = outside circle · zenith = center · north at top, east at right. Click a colored satellite dot to inspect the pass. This is an estimated sky position, not optical visibility or RF reception.</p>
@@ -312,6 +363,14 @@ All location methods are optional. City suggestions are offline by default; GPS 
   <label><input type="checkbox" id="iq-compute-npu"> NPU</label>
  </fieldset>
  <p id="iq-compute-status" class="hint" role="status">Detecting compatible compute kernels…</p>
+ <p id="native-gpu-discovery" class="hint" role="status" hidden>Native GPU inventory is available only inside the desktop application.</p>
+  <div id="native-compute-inventory" class="compute-hardware-inventory" role="status" aria-live="polite" hidden>
+   <strong>Native desktop hardware inventory</strong>
+   <div id="native-compute-cpu">CPU: checking OS inventory…</div>
+   <div id="native-compute-gpu">GPU: checking driver/runtime…</div>
+   <div id="native-compute-npu">NPU: checking device and supported kernels…</div>
+   <small>Detected hardware and usable decoding acceleration are DIFFERENT. IQ spectrum FFT currently executes on CPU; CUDA/CuPy or NPU models must run an actual compatible kernel before Auto can select them for native Robot36 processing.</small>
+  </div>
 </section>
 <div class="line">
 <button type="button" id="iq-analyze-last" disabled>Analyze last recording</button>

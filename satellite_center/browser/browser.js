@@ -6,12 +6,14 @@ import { recordingName } from './satellite_imagery.mjs?v=20261106-images-v15';
 import { initStationLocationUI } from './location_search.mjs';
 import { probeUsbSamples, sampleBytes } from './usb_live_probe.mjs?v=20261106-map-usb-v07';
 import { sortPassList } from './pass_sort.mjs';
+import {validatedWindow,windowSummary} from './pass_window.mjs';
 import { protocolsForPass, protocolCategories, passesFilteredByContent } from './pass_protocol_catalog.mjs';
 import {readUserProfiles} from './saved_satellite_protocols.mjs';
 import { selectAutomaticPasses, AUTO_TARGETS } from './auto_mission.mjs?v=20261106-iss-npu-release-v1';
 import {localDayKey,shiftCalendarDay,renderSatelliteCalendar} from './satellite_calendar.mjs?v=20261106-calendar-zip-v2';
 import { localDateInput, parseLocalScheduleTime, createScheduledPass, evaluateScheduledJob, secondsToJob, captureLevelSummary } from './schedule_controller.mjs?v=20261106-direct-fm-wav-v1';
 import {planChainedCapture,secondsFromEntry,humanCountdown,scheduledOverlap} from './chained_capture.mjs?v=20261107-chained-v1';
+import {candidateFromPass,readPlanningCandidates,savePlanningCandidate,removePlanningCandidate} from './pass_candidates.mjs';
 import {captureBudget,formatCaptureBudget,STREAM_IQ_BYTES} from './capture_duration.mjs?v=20261106-stream-v1';
 import {createStreamingFmWavEncoder,createPcmWavHeader,wavOutputPlan} from './fm_wav_record.mjs?v=20261106-web-fm-wav-v1';
 // TIHULU Satellite Center — no-local-install receive-only browser mode.
@@ -55,6 +57,7 @@ const preparedLongStreams=new Map();
 const CHAIN_SEGMENT_GAP_SECONDS=6;
 const diskStreamingAvailable=()=>Boolean(window.isSecureContext&&typeof window.showSaveFilePicker==="function");
 const nativeLocal=()=>location.protocol==="http:"&&["localhost","127.0.0.1"].includes(location.hostname);
+const nativeReceiver=()=>nativeLocal()||window.nativeRFTransport==="rtl_sdr";
 async function nativeRequest(route,payload=null,csrf=null){
  const opts={cache:"no-store",credentials:"same-origin"};
  if(payload!==null){opts.method="POST";opts.headers={"Content-Type":"application/json"};opts.body=JSON.stringify({...payload,csrf});}
@@ -65,10 +68,15 @@ async function nativeRequest(route,payload=null,csrf=null){
 }
 async function nativeScheduledPass(pass,{when,durationSeconds,frequency,sampleRate,saveRaw,saveWav=false}){
  if(!nativeLocal())throw Error("Start the Debian app and open http://127.0.0.1:8791/browser/index.html");
- if(sampleRate!==1024000)throw Error("Native rtl_sdr uses 1.024 MS/s; select that sample rate.");
+ if(![1024000,2048000].includes(sampleRate))throw Error("Native SDR sample rate must be 1.024 or 2.048 MS/s.");
  if(!Number.isInteger(durationSeconds)||durationSeconds<8||durationSeconds>7200)
    throw Error("Native capture chain must be 8–7200 whole seconds and fit the predicted pass.");
- if(saveRaw&&saveWav)throw Error("One native scheduled receiver mode can write either CU8 or WAV; for both choose browser dual-format recording.");
+ if(!saveRaw&&!saveWav)throw Error("Select at least one recording format.");
+ if(pass.family==="meteor"&&!saveRaw)throw Error("Meteor LRPT requires original IQ (.cu8). FM WAV / Robot36 is not a Meteor LRPT format.");
+ if(pass.family==="meteor"&&saveWav)throw Error("Meteor LRPT cannot use FM WAV or dual-format recording. Uncheck WAV and record original IQ (.cu8).");
+ if(saveWav&&!["iss_voice","iss_sstv","iss_uhf"].includes(
+   frequency===437550000?"iss_sstv":frequency===145800000?"iss_voice":frequency===437800000?"iss_uhf":""))
+   throw Error("This frequency has no native FM WAV profile. Select original IQ (.cu8).");
  // Native survey is limited to 180 s PER FILE. Longer jobs use the same
  // opt-in backend chain scheduler, each part a separately persisted file.
  const state=await nativeRequest("/api/status");
@@ -90,10 +98,12 @@ async function nativeScheduledPass(pass,{when,durationSeconds,frequency,sampleRa
    events=await predict();target=matched();
  }
  if(!target)throw Error("Native TLE pass differs from browser estimate. Refresh catalog and recalculate.");
- const endpoint=durationSeconds>180?"/api/schedule-chain":"/api/schedule";
- return nativeRequest(endpoint,{pass_id:target.id,profile,
-   mode:saveRaw?"iq":saveWav?"sstv_audio":"survey",
-   run_at:new Date(when).toISOString(),duration_seconds:durationSeconds},state.csrf);
+ const endpoint=durationSeconds>900?"/api/schedule-chain":"/api/schedule";
+ const mode=saveRaw&&saveWav?"iq_and_fm_wav":
+   saveRaw?"iq":profile==="iss_sstv"?"sstv_audio":"fm_audio";
+ return nativeRequest(endpoint,{pass_id:target.id,profile,mode,
+   run_at:new Date(when).toISOString(),duration_seconds:durationSeconds,
+   sample_rate:sampleRate},state.csrf);
 }
 
 function captureWavName(job,frequency,at=new Date()){
@@ -848,7 +858,7 @@ function parseTle(text,source='uploaded') {
   return matches;
 }
 function boundedCatalog(records) {
-  const caps={iss:1,meteor:3,cubesat:24,iridium:14},counts={},ids=new Set();
+  const caps={iss:1,meteor:3,cubesat:80,iridium:24},counts={},ids=new Set();
   const result=[];
   for(const obj of records){
     if(ids.has(obj.id))continue;
@@ -998,6 +1008,26 @@ function satElevation(satlib,rec,observer,date) {
   const angle=deg(look.elevation);
   return angle>=-90&&angle<=90?angle:null;
 }
+function currentWindow(){
+ if(!$('map-window-enabled')?.checked)return null;
+ return validatedWindow({
+  az:$('map-window-az').value,half:$('map-window-halfwidth').value,
+  min:$('map-window-minel').value,max:$('map-window-maxel').value
+ });
+}
+function assessBrowserWindow(satlib,rec,observer,pass,profile){
+ if(!profile)return null;
+ const records=[];
+ for(let ms=pass.aos;ms<=pass.los;ms+=10000){
+  const when=new Date(ms),state=satlib.propagate(rec,when);
+  if(!state?.position||!Number.isFinite(state.position.x))continue;
+  const look=satlib.ecfToLookAngles(observer,satlib.eciToEcf(
+   state.position,satlib.gstime(when)));
+  if(Number.isFinite(look.azimuth)&&Number.isFinite(look.elevation))
+   records.push({ms,az:(deg(look.azimuth)+360)%360,el:deg(look.elevation)});
+ }
+ return windowSummary(records,profile);
+}
 function fmtTime(time){return new Date(time).toLocaleString(undefined,{dateStyle:'short',timeStyle:'short'});}
 function scheduleFrequencyChoices(family,pass=null){
   const known={
@@ -1034,6 +1064,18 @@ function appendPass(pass){
     ' · max elevation '+pass.maximum.toFixed(1)+'° · '+
     Math.max(1,Math.round((pass.los-pass.aos)/60000))+' min geometric pass (not an RF detection)';
   item.append(strong,description);
+  if(pass.windowVisibility){
+   const w=pass.windowVisibility;
+   const chip=document.createElement('small');
+   chip.className='pass-window-result '+String(w.status);
+   chip.textContent=w.status==='outside'
+    ?'Estimated window: no overlap'
+    :'Estimated window: '+Math.round(w.seconds||0)+' s geometric exposure · '+
+      (w.status==='good_geometry'?'longer potential reception window':
+       w.status==='short_window'?'short reception opportunity':'very brief / difficult');
+   chip.title='Only a modeled azimuth/elevation sector; cannot prove reception through a window.';
+   item.append(chip);
+  }
   const known=protocolsForPass(pass), kinds=protocolCategories(pass);
   if(kinds.length){
     const badges=document.createElement('div');badges.className='pass-capability-list';
@@ -1106,9 +1148,23 @@ function appendPass(pass){
   wav.checked=Number(frequency.value)===437550000;
   if(wav.checked)raw.checked=false;
   wavLabel.append(wav,' Record real FM-demodulated audio (.wav, mono PCM 48 kHz), suitable for Robot36 analysis.');
+  const updateNativeFormat=()=>{
+    if(!nativeReceiver())return;
+    const hz=Number(frequency.value);
+    const supportsAudio=pass.family==="iss"&&[145800000,437550000,437800000].includes(hz);
+    wav.disabled=!supportsAudio;
+    if(!supportsAudio){wav.checked=false;raw.checked=true;}
+    wavLabel.title=supportsAudio
+      ?"Optional ISS FM audio for this native receiving profile."
+      :"Unavailable for this RF profile. Meteor LRPT must be saved as raw IQ.";
+    localLink.hidden=true;
+    explanation.textContent="Native RTL-SDR: continuous direct-to-disk capture up to 900 s / "+
+      "2 GB if the requested window fits the predicted pass. No WebUSB and no 60-second "+
+      "browser segmentation. Keep the application open and prevent OS sleep.";
+  };
   frequency.addEventListener('change',()=>{
     const iss=Number(frequency.value)===437550000;
-    wav.checked=iss;raw.checked=!iss;refreshBudget();
+    wav.checked=iss;raw.checked=!iss;updateNativeFormat();refreshBudget();
   });
   const localLink=document.createElement('a');
   localLink.className="iq-jump-link schedule-wide";
@@ -1119,14 +1175,29 @@ function appendPass(pass){
   explanation.textContent='Choose seconds or minutes. WebUSB recordings over 60 seconds (or the 128 MiB RAM cap) are automatically split into independent <=60 s files with 6-second reserved gaps. The calendar displays every part. This is not continuous I/Q: USB reopen/download can add gaps. A visible awake Chromium tab and prior RTL-SDR permission are still required.';
   const alert=document.createElement('p');alert.className='pass-schedule-error schedule-wide';alert.setAttribute('role','status');
   const confirm=document.createElement('button');confirm.type='submit';confirm.textContent='Confirm scheduled RF scan';
+  const planOnly=document.createElement('button');planOnly.type='button';
+  planOnly.className='secondary';planOnly.textContent='Add planning candidate · no antenna';
+  planOnly.title='TLE-only calendar plan, never touches USB or starts any recording';
+  planOnly.onclick=()=>planCandidate(pass);
   const budgetLabel=document.createElement('p');
   budgetLabel.className='schedule-capture-budget schedule-wide';
   budgetLabel.setAttribute('role','status');
   const refreshBudget=()=>{
     try{
       const total=secondsFromEntry(duration.value,lengthUnit.value);
+      if(nativeReceiver()){
+        const bytes=2*Number(rate.value)*total*(raw.checked?1:0)+96000*total*(wav.checked?1:0);
+        budgetLabel.textContent=total<=900
+          ?"Native direct-to-disk: one continuous "+total+" s capture · "+
+            (bytes/1e6).toFixed(1)+" MB estimated · no WebUSB 60 s segmentation. "+
+            (bytes>2e9?"EXCEEDS 2 GB cap. ":"")+
+            "Capture must fit the native TLE-defined pass and LOS margin."
+          :"Native long capture: "+total+" s exceeds the single 900 s limit. "+
+            "Native segments with receiver restart gaps must fit before LOS; no WebUSB.";
+        return;
+      }
       const plan=planChainedCapture({startMs:Date.now()+60000,totalSeconds:total,
-        rate:Number(rate.value),raw:raw.checked,wav:wav.checked});
+        rate:Number(rate.value),raw:raw.checked,wav:w.checked});
       budgetLabel.textContent=plan.segments.length+' separate calendar recording(s) · '+
         total+' s captured over '+plan.elapsedSeconds+' s · '+
         (plan.segments.reduce((n,x)=>n+x.estimatedRawBytes+x.estimatedWavBytes,0)/1e6).toFixed(1)+
@@ -1136,8 +1207,9 @@ function appendPass(pass){
   };
   for(const element of [duration,rate,raw,wav,lengthUnit])element.addEventListener('change',refreshBudget);
   duration.addEventListener('input',refreshBudget);rate.addEventListener('input',refreshBudget);
+  updateNativeFormat();
   refreshBudget();
-  form.append(timeLabel,frequencyLabel,durationLabel,unitLabel,rateLabel,saveLabel,wavLabel,budgetLabel,localLink,explanation,alert,confirm);
+  form.append(timeLabel,frequencyLabel,durationLabel,unitLabel,rateLabel,saveLabel,wavLabel,budgetLabel,localLink,explanation,alert,planOnly,confirm);
   form.addEventListener('submit',async event=>{
     event.preventDefault();
     let prepared=null;
@@ -1187,6 +1259,70 @@ function appendPass(pass){
   details.append(form);item.append(details);
   return item;
 }
+// TLE-only calendar plans never claim a receiver or arm a capture job.
+let planningCandidates=readPlanningCandidates();
+function planCandidate(pass){
+ try{
+  const entry=candidateFromPass(pass,{observer:{lat:Number($('lat').value),lon:Number($('lon').value)}});
+  planningCandidates=savePlanningCandidate(entry);
+  if(typeof window.nativeSavePlanningCandidate==="function")
+   void window.nativeSavePlanningCandidate(entry).then(rows=>{
+    if(Array.isArray(rows)){planningCandidates=rows;renderPlanningCandidates();}
+   }).catch(error=>status('candidate-hardware-warning',
+     'Planning saved in this session, but native disk save failed: '+String(error.message||error)));
+  if($('browser-calendar-date'))
+   $('browser-calendar-date').value=localDayKey(new Date(entry.aos));
+  renderPredictedPassCalendar();
+  const connected=Boolean(device||window.nativeHardwareState?.verified);
+  status('candidate-hardware-warning',connected
+   ?'Planning candidate saved only: no recording is armed. Use the real RF scheduler separately.'
+   :'⚠ Antenna not connected/verified. Planning candidate saved only; NOTHING will record until a real receiver is connected and an RF job armed.');
+  log('Saved planning-only TLE candidate '+entry.name+
+   ' at '+new Date(entry.aos).toLocaleString()+' · no USB or RF scheduling.');
+  return entry;
+ }catch(error){
+  status('candidate-hardware-warning','Cannot save planning candidate: '+String(error?.message||error));
+  return null;
+ }
+}
+function renderPlanningCandidates(){
+ const list=$('candidate-calendar-list');if(!list)return;
+ list.replaceChildren();
+ const day=$('browser-calendar-date')?.value||localDayKey(new Date());
+ const rows=planningCandidates.filter(x=>localDayKey(new Date(x.aos))===day);
+ $('candidate-count').textContent=planningCandidates.length+' planned · not recording';
+ if(!rows.length){
+  const hint=document.createElement('p');hint.className='hint';
+  hint.textContent='No planning candidates for this day. Add a predicted satellite pass even with no antenna.';
+  list.append(hint);return;
+ }
+ for(const p of rows){
+  const card=document.createElement('div');card.className='candidate-pass-card';
+  const title=document.createElement('strong');title.textContent=p.name+' · NORAD '+p.norad;
+  const meta=document.createElement('small');
+  meta.textContent=new Date(p.aos).toLocaleTimeString()+' – '+
+   new Date(p.los).toLocaleTimeString()+' · orbital estimate · NOT armed/recording'+
+   (p.observer?' · station '+p.observer.lat.toFixed(3)+', '+p.observer.lon.toFixed(3):'');
+  const remove=document.createElement('button');remove.type='button';remove.className='secondary';
+  remove.textContent='Remove plan';
+  remove.onclick=()=>{
+   planningCandidates=removePlanningCandidate(p.id);renderPlanningCandidates();
+   if(typeof window.nativeDeletePlanningCandidate==="function")
+    void window.nativeDeletePlanningCandidate(p.id).then(rows=>{
+     if(Array.isArray(rows)){planningCandidates=rows;renderPlanningCandidates();}
+    }).catch(error=>status('candidate-hardware-warning',
+      'Native disk removal failed: '+String(error.message||error)));
+  };
+  card.append(title,meta,remove);list.append(card);
+ }
+}
+window.addEventListener('tihulu-native-bridge-ready',()=>{
+ if(typeof window.nativeListPlanningCandidates!=="function")return;
+ void window.nativeListPlanningCandidates().then(rows=>{
+  if(Array.isArray(rows)){planningCandidates=rows;renderPlanningCandidates();}
+ }).catch(error=>status('candidate-hardware-warning',
+  'Native calendar unavailable; temporary browser planning remains usable: '+String(error.message||error)));
+});
 let passRenderDeferred=false;
 $('passes').addEventListener('focusout',()=>{
   queueMicrotask(()=>{
@@ -1202,7 +1338,19 @@ function renderPasses(){
   }
   passRenderDeferred=false;
   target.replaceChildren();
-  const items=passesFilteredByContent(sortPassList(passes,sort,family),contentKind);
+  const baseItems=passesFilteredByContent(sortPassList(passes,sort,family),contentKind);
+  const sectorFilter=$('pass-window-filter')?.value||'all';
+  const enabled=Boolean($('map-window-enabled')?.checked);
+  const items=sectorFilter==='all'||!enabled?baseItems:baseItems.filter(p=>
+    sectorFilter==='usable'?p.windowVisibility?.seconds>=60:
+    p.windowVisibility?.status!=='outside'&&p.windowVisibility!=null);
+  const eligible=baseItems.filter(p=>(p.windowVisibility?.seconds||0)>=60).length;
+  const count=$('window-filter-count');
+  if(count)count.textContent=enabled?
+    eligible+' / '+baseItems.length+' shown candidates have ≥60 s estimated window exposure. '+
+      (sectorFilter==='all'?'All passes shown.':'Window-only filter active.')+
+      ' Buildings and radio activity remain unknown.':
+    'Window profile OFF — all orbital passes shown; enable the sector above to evaluate geometry.';
   const shown=items.slice(0,visiblePassCount);
   $('pass-list-count').textContent='Showing '+shown.length+' of '+items.length+
     ' matches ('+passes.length+' total computed passes).';
@@ -1212,11 +1360,72 @@ function renderPasses(){
     target.append(Object.assign(document.createElement('p'),{
       className:'hint',textContent:passes.length?'No passes match the selected satellite filter.':'Calculate potential passes first.'
     }));
+    renderPredictedPassCalendar();
+    window.dispatchEvent(new Event('tihulu-passes-updated'));
     return;
   }
   const fragment=document.createDocumentFragment();
   for(const pass of shown)fragment.append(appendPass(pass));
   target.append(fragment);
+  renderPredictedPassCalendar();
+  window.dispatchEvent(new Event('tihulu-passes-updated'));
+}
+function renderPredictedPassCalendar(){
+ renderPlanningCandidates();
+ const node=$('predicted-pass-calendar-grid');
+ if(!node)return;
+ node.replaceChildren();
+ const day=$('browser-calendar-date')?.value||localDayKey(new Date());
+ const filter=$('pass-window-filter')?.value||'all';
+ const enabled=Boolean($('map-window-enabled')?.checked);
+ const items=passes.filter(p=>p.los>p.aos&&
+  (localDayKey(new Date(p.aos))===day||
+   localDayKey(new Date(p.los-1))===day)).filter(p=>
+    !enabled||filter==='all'||(filter==='usable'
+     ?(p.windowVisibility?.seconds||0)>=60
+     :p.windowVisibility!=null&&p.windowVisibility.status!=='outside'
+    )).sort((a,b)=>a.aos-b.aos);
+ if(!items.length){
+  const p=document.createElement('p');p.className='hint';
+  p.textContent=passes.length
+   ?'No predicted passes fall on this selected day. Change the calendar date.'
+   :'No orbital predictions yet. Click Calculate passes first; the receiver is not needed.';
+  node.append(p);return;
+ }
+ for(const pass of items.slice(0,50)){
+  const card=document.createElement('div');card.className='predicted-pass-card';
+  const name=document.createElement('strong');name.textContent=pass.name;
+  const meta=document.createElement('small');
+  meta.textContent=new Date(pass.aos).toLocaleString(undefined,{hour:"2-digit",minute:"2-digit"})+
+   ' – '+new Date(pass.los).toLocaleString(undefined,{hour:"2-digit",minute:"2-digit"})+
+   ' local · maximum '+pass.maximum.toFixed(1)+'° · '+pass.family.toUpperCase()+
+   (pass.windowVisibility?
+     ' · window '+(pass.windowVisibility.seconds||0)+' s ('+
+     String(pass.windowVisibility.status||'unrated').replaceAll('_',' ')+')':'');
+  const preview=document.createElement('button');preview.type='button';
+  preview.textContent='Preview sky / ground track';
+  preview.addEventListener('click',()=>{
+   if(!satelliteMaps?.showPassPreview){
+    preview.textContent='Map module unavailable';return;
+   }
+   preview.disabled=true;
+   satelliteMaps.showPassPreview(pass).then(()=>{
+    $('satellite-tracking-maps').scrollIntoView({behavior:'smooth',block:'start'});
+   }).catch(err=>{
+    $('map-pass-summary').textContent='Preview failed: '+String(err?.message||err);
+   }).finally(()=>{preview.disabled=false;});
+  });
+  const add=document.createElement('button');add.type='button';
+  add.className='secondary';add.textContent='Add to planning calendar';
+  add.title='Save a TLE-only opportunity with no SDR or RF scheduler';
+  add.onclick=()=>planCandidate(pass);
+  card.append(name,meta,preview,add);node.append(card);
+ }
+ if(items.length>50){
+  const note=document.createElement('p');note.className='hint';
+  note.textContent='Showing the first 50 of '+items.length+' geometric passes on this day.';
+  node.append(note);
+ }
 }
 window.addEventListener('storage',event=>{
  if(event.key==='tihulu-satellite-user-downlinks-v1'){visiblePassCount=40;renderPasses();}
@@ -1229,18 +1438,29 @@ for(const id of ['pass-sort','pass-family','pass-content']){
 }
 $('pass-show-more').addEventListener('click',()=>{visiblePassCount+=40;renderPasses();});
 async function calculateOrbitalPasses(){
-  if(!tleEntries.length){status('orbit-state','Load orbit TLEs from CelesTrak or an uploaded file first.');return;}
+  // Calculate passes is an explicit user action: native desktop can refresh
+  // its orbit cache on demand without requiring a separate prerequisite click.
+  if(!tleEntries.length)await refreshOrbitalCatalog();
+  if(!tleEntries.length){
+    status('orbit-state','No valid TLE catalog: check native HTTPS/cache or import a local TLE file.');
+    return;
+  }
   const lat=Number($('lat').value),lon=Number($('lon').value),hours=Number($('hours').value),minimum=Number($('elev').value);
+  let windowProfile;
+  try{windowProfile=currentWindow();}
+  catch(error){status('orbit-state','Invalid window sector: '+error.message);return;}
   if(!$('lat').value.trim()||!$('lon').value.trim()||!Number.isFinite(lat)||!Number.isFinite(lon)||lat<-90||lat>90||lon<-180||lon>180){status('orbit-state','Enter valid latitude (−90…90) and longitude (−180…180) before calculating passes.');return;}
   if(typeof window.nativeOrbitPasses==='function'){
     status('orbit-state','Calculating genuine orbital passes with native Skyfield (no USB or browser CDN)…');
     try{
-      const answer=await window.nativeOrbitPasses(lat,lon,hours,minimum);
+      const answer=await window.nativeOrbitPasses(lat,lon,hours,minimum,windowProfile);
       const found=(answer.predictions||[]).map(row=>({
         id:Number(row.norad),name:String(row.name||'NORAD '+row.norad),
         family:String(row.family||'cubesat'),
         aos:Date.parse(row.aos),los:Date.parse(row.los),
-        maximum:Number(row.max_elevation_deg)
+        maximum:Number(row.max_elevation_deg),
+        windowVisibility:row.window_visibility||null,
+        tleSource:row.tle_source||'native Skyfield TLE'
       })).filter(row=>Number.isInteger(row.id)&&Number.isFinite(row.aos)&&
         Number.isFinite(row.los)&&Number.isFinite(row.maximum)&&row.los>row.aos);
       found.sort((a,b)=>a.aos-b.aos);
@@ -1264,7 +1484,7 @@ async function calculateOrbitalPasses(){
     const observer={longitude:rad(lon),latitude:rad(lat),height:0};
     const start=Date.now(),end=start+hours*3600000,step=30000;
     const found=[];
-    for(const item of tleEntries.slice(0,45)){
+    for(const item of tleEntries.slice(0,100)){
       const rec=satlib.twoline2satrec(item.l1,item.l2);
       let current=null;
       for(let t=start;t<=end;t+=step){
@@ -1275,7 +1495,11 @@ async function calculateOrbitalPasses(){
           current.maximum=Math.max(current.maximum,el);
         }else if(current){
           current.los=t;
-          if(current.maximum>=minimum&&current.maximum<=90)found.push(current);
+          if(current.maximum>=minimum&&current.maximum<=90){
+           if(windowProfile)current.windowVisibility=assessBrowserWindow(
+             satlib,rec,observer,current,windowProfile);
+           found.push(current);
+          }
           current=null;
         }
       }
@@ -1285,10 +1509,21 @@ async function calculateOrbitalPasses(){
     visiblePassCount=40;
     renderPasses();
     notifyMaps();
-    status('orbit-state','Calculated '+found.length+' geometric passes from '+tleEntries.length+' TLE candidates at '+lat.toFixed(3)+', '+lon.toFixed(3)+'. Approximate 30-second resolution; no satellite signals identified.');
+    status('orbit-state','Calculated '+found.length+' geometric passes from '+tleEntries.length+' TLE candidates at '+lat.toFixed(3)+', '+lon.toFixed(3)+
+      (windowProfile?'. Window-sector geometric exposure assessed for each pass.':'. No window filter active.')+
+      '. Approximate 30-second resolution; no satellite signals identified.');
   }catch(err){status('orbit-state','Orbit computation failed: '+err.message+'. Check browser connectivity to the JS library CDN.');}
 }
 $('orbit-calc').addEventListener('click',()=>{void calculateOrbitalPasses();});
+$('pass-window-filter').addEventListener('change',renderPasses);
+for(const id of ['map-window-enabled','map-window-az','map-window-halfwidth',
+                 'map-window-minel','map-window-maxel']){
+ $(id).addEventListener('change',()=>{
+  status('orbit-state','Window settings changed: click Calculate passes to rescore every satellite.');
+  if(!$('map-window-enabled').checked)$('pass-window-filter').value='all';
+  renderPasses();
+ });
+}
 function readableJobState(job,now=Date.now()){
  if(job.state!=='armed')return job.state;
  const action=evaluateScheduledJob(job,now,{visible:!document.hidden,receiverBusy:!!capturePromise||usbTestRunning});
@@ -1299,6 +1534,8 @@ function readableJobState(job,now=Date.now()){
  return 'armed / '+humanCountdown(secondsToJob(job,now))+' remaining';
 }
 let browserCalendarSignature="";
+let nativeScheduledJobs=[];
+const nativeMode=()=>typeof window.nativeScheduleStatus==="function";
 const browserCalendarDay=$('browser-calendar-date');
 browserCalendarDay.value=localDayKey(new Date());
 function showCalendarEdit(job,card){
@@ -1378,15 +1615,26 @@ function showCalendarEdit(job,card){
 }
 function paintBrowserCalendar(force=false){
  const day=browserCalendarDay.value;
- const signature=day+'|'+jobs.map(j=>[j.id,j.when,j.state,j.frequency,j.durationSeconds,j.chainId,j.chainIndex].join(':')).join('|');
+ const source=nativeMode()?nativeScheduledJobs:jobs;
+ const signature=day+'|'+source.map(j=>[
+   j.id,j.run_at??j.when,j.state,j.capture_seconds??j.durationSeconds,j.result
+ ].join(':')).join('|');
  const editingCard=$('browser-calendar-grid').querySelector('.calendar-edit')?.closest('.sat-calendar-job');
  const editedJob=jobs.find(j=>j.id===editingCard?.dataset.jobId);
- if(!force&&editingCard&&editedJob?.state==='armed')return;
+ if(!force&&!nativeMode()&&editingCard&&editedJob?.state==='armed')return;
  if(!force&&signature===browserCalendarSignature)return;
  browserCalendarSignature=signature;
- renderSatelliteCalendar($('browser-calendar-grid'),jobs,day,{
-   onEdit:showCalendarEdit,
+ renderSatelliteCalendar($('browser-calendar-grid'),source,day,{
+   onEdit:nativeMode()?null:showCalendarEdit,
    onCancel:job=>{
+    if(nativeMode()){
+     if(!window.nativeCancelScheduledJob)return;
+     window.nativeCancelScheduledJob(String(job.id)).then(()=>{
+      void syncNativeScheduler();
+     }).catch(err=>{
+      $('schedule-readiness').textContent='Native cancellation failed: '+String(err?.message||err);
+     });return;
+    }
      if(job.state==='armed'){
        for(const related of jobs.filter(j=>j.id===job.id||(job.chainId&&j.chainId===job.chainId))){
          if(related.state!=='armed')continue;
@@ -1398,14 +1646,82 @@ function paintBrowserCalendar(force=false){
    }
  });
 }
-browserCalendarDay.addEventListener('change',()=>paintBrowserCalendar(true));
+browserCalendarDay.addEventListener('change',()=>{
+ paintBrowserCalendar(true);renderPredictedPassCalendar();
+});
 $('browser-calendar-prev').addEventListener('click',()=>{
- browserCalendarDay.value=shiftCalendarDay(browserCalendarDay.value,-1);paintBrowserCalendar(true);
+ browserCalendarDay.value=shiftCalendarDay(browserCalendarDay.value,-1);
+ paintBrowserCalendar(true);renderPredictedPassCalendar();
 });
 $('browser-calendar-next').addEventListener('click',()=>{
- browserCalendarDay.value=shiftCalendarDay(browserCalendarDay.value,1);paintBrowserCalendar(true);
+ browserCalendarDay.value=shiftCalendarDay(browserCalendarDay.value,1);
+ paintBrowserCalendar(true);renderPredictedPassCalendar();
 });
 
+function renderNativeJobCards(){
+ const container=$('jobs');
+ container.replaceChildren();
+ if(!nativeScheduledJobs.length){
+  const empty=document.createElement('p');empty.className='hint';
+  empty.textContent='No native RF recordings scheduled. Predicted passes appear in the orbital calendar below, not as recorded data.';
+  container.append(empty);
+ }else for(const job of [...nativeScheduledJobs].reverse().slice(0,40)){
+  const card=document.createElement('div');card.className='scheduled-job';
+  const title=document.createElement('h4');
+  title.textContent=String(job.satellite||'Unknown satellite')+' · '+String(job.state||'unknown').toUpperCase();
+  const meta=document.createElement('p');
+  const hz=job.profile==='meteor'||job.profile==='meteor_backup'
+   ?job.profile==='meteor'?137.900:137.100:null;
+  meta.textContent='Native OS job · start '+new Date(job.run_at||job.aos).toLocaleString()+
+   ' · '+Number(job.capture_seconds||0)+' s'+
+   (hz?' · '+hz.toFixed(3)+' MHz':'')+
+   ' · '+String(job.mode||'unknown')+
+   ' · '+(job.estimated_bytes?(job.estimated_bytes/1e6).toFixed(1)+' MB estimated':'');
+  card.append(title,meta);
+  if(job.result){
+   const detail=document.createElement('p');detail.className='hint';
+   detail.textContent=typeof job.result==='string'?job.result:
+    job.result.file?'Saved '+job.result.file+' · '+job.result.bytes+' actual bytes':
+    JSON.stringify(job.result).slice(0,350);
+   card.append(detail);
+  }
+  if(job.state==='pending'&&window.nativeCancelScheduledJob){
+   const cancel=document.createElement('button');cancel.className='secondary';cancel.type='button';
+   cancel.textContent='Cancel native job';
+   cancel.addEventListener('click',()=>{
+    cancel.disabled=true;
+    window.nativeCancelScheduledJob(String(job.id))
+     .then(()=>syncNativeScheduler()).catch(err=>{
+      $('schedule-readiness').textContent='Cancellation failed: '+err.message;
+      cancel.disabled=false;
+     });
+   });card.append(cancel);
+  }
+  container.append(card);
+ }
+ paintBrowserCalendar(true);
+}
+let nativeSyncRunning=false;
+async function syncNativeScheduler(){
+ if(!nativeMode()||nativeSyncRunning)return;
+ nativeSyncRunning=true;
+ try{
+  const data=await window.nativeScheduleStatus();
+  nativeScheduledJobs=Array.isArray(data?.jobs)?data.jobs:[];
+  renderNativeJobCards();
+  const heading=$('browser-calendar-title');
+  if(heading)heading.textContent='Native reception calendar · actual scheduled RF jobs';
+  const help=$('browser-schedule-calendar')?.querySelector('p.hint');
+  if(help)help.textContent='Persistent native RTL-SDR recordings, loaded from the local OS scheduler. These are not WebUSB jobs. Predictions are listed separately below; no radio samples are implied by a predicted pass.';
+ }catch(err){
+  $('schedule-readiness').textContent='Native calendar status unavailable: '+String(err?.message||err);
+ }finally{nativeSyncRunning=false;}
+}
+window.addEventListener('tihulu-native-bridge-ready',()=>{void syncNativeScheduler();});
+window.addEventListener('tihulu-native-schedule-changed',()=>{void syncNativeScheduler();});
+setInterval(()=>{
+ if(!document.hidden&&nativeMode())void syncNativeScheduler();
+},15000);
 let lastRenderedJobCardsSignature='';
 function jobCardsSignature(){
  return JSON.stringify(jobs.map(j=>[j.id,j.state,j.when,j.until,j.frequency,
@@ -1413,6 +1729,7 @@ function jobCardsSignature(){
    j.report,lastScheduledFile?.jobId===j.id]));
 }
 function renderJobs(){
+ if(nativeMode()){renderNativeJobCards();return;}
  const container=$('jobs');
  const signature=jobCardsSignature();
  if(signature===lastRenderedJobCardsSignature){

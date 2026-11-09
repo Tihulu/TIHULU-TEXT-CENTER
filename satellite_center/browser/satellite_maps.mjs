@@ -78,6 +78,138 @@ export function createSatelliteMaps({getTles,getSatLib,getPasses,getLastCapture,
  // Installed desktop uses native Skyfield; web/PWA keeps browser satellite.js.
  let nativeSnapshotPending=false,nativeTrackAt=0;
  const nativeTrackCache=new Map();
+ const nativeSkyTrackCache=new Map();
+ let passPreview=null,passIndex=0,passTimer=null,previewLayer=null,previewDot=null;
+ const passSelect=$("map-pass-select"),passSlider=$("map-pass-time"),passStatus=$("map-pass-summary");
+ const passTime=ms=>new Date(ms).toLocaleString(undefined,{dateStyle:"short",timeStyle:"medium"});
+ const direction=az=>["N","NE","E","SE","S","SW","W","NW"][Math.round(((az%360)+360)%360/45)%8];
+ const windowSector=()=>{
+  if(!$("map-window-enabled")?.checked)return null;
+  const az=Number($("map-window-az").value),half=Number($("map-window-halfwidth").value);
+  const min=Number($("map-window-minel").value),max=Number($("map-window-maxel").value);
+  return [az,half,min,max].every(Number.isFinite)&&az>=0&&az<360&&
+   half>0&&half<=90&&min>=0&&max<=90&&max>min?{az,half,min,max}:null;
+ };
+ const insideWindow=(p,sector)=>{
+  if(!sector||!p)return false;
+  const delta=Math.abs(((p.az-sector.az+540)%360)-180);
+  return delta<=sector.half&&p.el>=sector.min&&p.el<=sector.max;
+ };
+ const previewPoint=()=>passPreview?.steps?.[passIndex]||null;
+ function stopPreview(){
+  if(passTimer!==null){clearInterval(passTimer);passTimer=null;}
+  $("map-pass-play").disabled=!passPreview;$("map-pass-stop").disabled=true;
+ }
+ function updatePreview(){
+  const p=previewPoint();
+  if(!p)return;
+  const peak=passPreview.peak||passPreview.steps.reduce((a,b)=>a.el>b.el?a:b);
+  passStatus.textContent=passPreview.name+" · AOS "+passTime(passPreview.steps[0].at_ms)+
+   " · Peak "+passTime(peak.at_ms)+" ("+peak.el.toFixed(1)+"°) · LOS "+
+   passTime(passPreview.steps[passPreview.steps.length-1].at_ms)+
+   " · Enter from "+direction(passPreview.steps[0].az)+" ("+
+   passPreview.steps[0].az.toFixed(0)+"°) → exit "+direction(passPreview.steps[passPreview.steps.length-1].az)+
+   " ("+passPreview.steps[passPreview.steps.length-1].az.toFixed(0)+"°)"+
+   " · Preview "+passTime(p.at_ms)+" · az "+p.az.toFixed(1)+"° "+direction(p.az)+
+   ", el "+p.el.toFixed(1)+"°, "+Math.round(p.range_km)+" km."+
+   (passPreview.partialWindow?" · PARTIAL 25-minute preview only; original pass extends beyond this window.":"")+
+    " TLE geometry only; ground obstructions and RF activity not verified.";
+  const mask=windowSector();
+  if(mask){
+   const hits=passPreview.steps.filter(sample=>insideWindow(sample,mask));
+   passStatus.textContent+=hits.length
+    ?" · Estimated window-sector overlap "+passTime(hits[0].at_ms)+" to "+
+      passTime(hits[hits.length-1].at_ms)+" ("+hits.length+" samples)."
+    :" · No predicted trajectory samples in the assumed window sector.";
+  }
+ }
+ function seekPreview(index){
+  if(!passPreview)return;
+  passIndex=Math.max(0,Math.min(passPreview.steps.length-1,Number(index)||0));
+  passSlider.value=String(passIndex);updatePreview();drawSky();drawDetail();
+  if(view==="earth")drawEarth();
+ }
+ function clearPreview(){
+  stopPreview();passPreview=null;passIndex=0;
+  passSlider.disabled=true;$("map-pass-play").disabled=true;
+  $("map-pass-clear").disabled=true;
+  passStatus.textContent="Choose a calculated pass to see its future path in sky and Earth maps.";
+  if(previewLayer&&earthMap){earthMap.removeLayer(previewLayer);previewLayer=null;}
+  if(previewDot&&earthMap){earthMap.removeLayer(previewDot);previewDot=null;}
+  drawSky();if(view==="earth")drawEarth();drawDetail();
+ }
+ function refreshPassOptions(){
+  const upcoming=getPasses().filter(p=>Number.isFinite(p.aos)&&p.los>Date.now()&&p.los>p.aos)
+   .sort((a,b)=>a.aos-b.aos).slice(0,150),old=passSelect.value;
+  passSelect.replaceChildren(new Option(upcoming.length?"Select a predicted pass":"Calculate passes first",""));
+  for(const p of upcoming)passSelect.append(new Option(
+   p.name+" · "+passTime(p.aos)+" · "+p.maximum.toFixed(0)+"° peak",
+   String(p.id)+"|"+String(p.aos)));
+  passSelect.value=[...passSelect.options].some(x=>x.value===old)?old:"";
+  if(passPreview&&!upcoming.some(p=>Number(p.id)===passPreview.norad&&
+    Math.abs(p.aos-passPreview.steps[0].at_ms)<60000))clearPreview();
+ }
+ async function showPassPreview(pass){
+  if(!pass||!Number.isFinite(pass.aos)||!Number.isFinite(pass.los)||pass.los<=pass.aos)
+   throw Error("Calculate and select a valid predicted pass first");
+  const item=getTles().find(x=>Number(x.id)===Number(pass.id));
+  if(!item)throw Error("Satellite absent from loaded TLEs; refresh the catalog");
+  stopPreview();passStatus.textContent="Calculating actual TLE pass geometry…";
+  const o=observer();
+   const previewLos=Math.min(pass.los,pass.aos+1500000);
+   const partialWindow=previewLos<pass.los; // truthful bounded native preview
+   let result;
+   if(typeof window.nativePassPreview==="function"){
+    result=await window.nativePassPreview(o.lat,o.lon,Number(pass.id),pass.aos,previewLos);
+  }else{
+   const lib=await getSatLib(),rec=lib.twoline2satrec(item.l1,item.l2),steps=[];
+   const spacing=Math.max(5000,Math.ceil((previewLos-pass.aos)/100000)*1000);
+   for(let t=pass.aos;t<=previewLos;t+=spacing){
+    const x=propagate(lib,rec,new Date(t),o.station);
+    if(x)steps.push({at_ms:t,az:x.az,el:x.el,lat:x.lat,lon:x.lon,range_km:x.rangeKm});
+   }
+   if(!steps.length||steps[steps.length-1].at_ms<previewLos){
+    const x=propagate(lib,rec,new Date(previewLos),o.station);
+    if(x)steps.push({at_ms:previewLos,az:x.az,el:x.el,lat:x.lat,lon:x.lon,range_km:x.rangeKm});
+   }
+   result={norad:Number(pass.id),name:pass.name,steps,
+    peak:steps.reduce((a,b)=>a.el>b.el?a:b),source:"browser_satellitejs_tle"};
+  }
+  if(!Array.isArray(result.steps)||result.steps.length<2)
+   throw Error("No valid positions in this TLE pass");
+  passPreview={...result,partialWindow};passIndex=0;selectedId=Number(pass.id);
+  passSlider.min="0";passSlider.max=String(result.steps.length-1);
+  passSlider.step="1";passSlider.value="0";passSlider.disabled=false;
+  $("map-pass-play").disabled=false;$("map-pass-clear").disabled=false;
+  const value=String(pass.id)+"|"+String(pass.aos);
+  if([...passSelect.options].some(x=>x.value===value))passSelect.value=value;
+  updatePreview();drawList();drawDetail();drawSky();if(view==="earth")drawEarth();
+  return result;
+ }
+ $("map-pass-preview").addEventListener("click",()=>{
+  const pass=getPasses().find(p=>String(p.id)+"|"+String(p.aos)===passSelect.value);
+  if(!pass){passStatus.textContent="Select a calculated pass first.";return;}
+  showPassPreview(pass).catch(e=>passStatus.textContent="Preview failed: "+e.message);
+ });
+ passSlider.addEventListener("input",()=>{stopPreview();seekPreview(passSlider.value);});
+ $("map-pass-play").addEventListener("click",()=>{
+  if(!passPreview)return;
+  if(passIndex>=passPreview.steps.length-1)seekPreview(0);
+  stopPreview();$("map-pass-play").disabled=true;$("map-pass-stop").disabled=false;
+  passTimer=setInterval(()=>{
+   if(document.hidden||!passPreview||passIndex>=passPreview.steps.length-1){stopPreview();return;}
+   seekPreview(passIndex+1);
+  },500);
+ });
+ $("map-pass-stop").addEventListener("click",stopPreview);
+ $("map-pass-clear").addEventListener("click",clearPreview);
+ for(const id of ["map-window-enabled","map-window-az","map-window-halfwidth",
+                  "map-window-minel","map-window-maxel"]){
+  $(id).addEventListener("change",()=>{if(passPreview)updatePreview();drawSky();});
+  $(id).addEventListener("input",()=>{if(passPreview)updatePreview();drawSky();});
+ }
+ window.addEventListener("tihulu-passes-updated",refreshPassOptions);
+
  let lastVisibleMarkerCount=0,initialCatalogFitDone=false;
  const status=text=>$("map-state").textContent=String(text);
  const observer=()=>{
@@ -126,6 +258,11 @@ export function createSatelliteMaps({getTles,getSatLib,getPasses,getLastCapture,
  }
  function choose(id){
   selectedId=id;drawList();drawDetail();
+  const future=getPasses().filter(p=>String(p.id)===String(id)&&p.los>Date.now())
+   .sort((a,b)=>a.aos-b.aos)[0];
+  if(future)void showPassPreview(future).catch(e=>{
+   passStatus.textContent="Selected pass preview failed: "+e.message;
+  });
   if(view==="sky")drawSky();
   else{
     drawEarth();
@@ -220,6 +357,12 @@ export function createSatelliteMaps({getTles,getSatLib,getPasses,getLastCapture,
   const match=getPasses().find(p=>String(p.id)===String(s.id)&&p.los>Date.now());
   if(match)info.append(detailsNode("p","Next predicted pass: "+fmtDate(match.aos)+" → "+fmtDate(match.los)+
    " · maximum elevation "+elFormat(match.maximum)+".","hint"));
+  if(passPreview?.norad===Number(s.id)){
+   const p=previewPoint();
+   if(p)info.append(detailsNode("p","PASS PREVIEW · "+passTime(p.at_ms)+
+    " · Az "+elFormat(p.az)+" ("+direction(p.az)+") · El "+elFormat(p.el)+
+    " · TLE only, not a measured RF signal.","map-warning"));
+  }
   const previous=getLastCapture();
   if(previous){
    info.append(detailsNode("p","Last measured USB sample: "+(previous.frequency_hz/1e6).toFixed(3)+
@@ -244,8 +387,25 @@ export function createSatelliteMaps({getTles,getSatLib,getPasses,getLastCapture,
    const [x,y]=mapSkyPoint(az,0,cx,cy,R+30);ctx.fillText(name,x,y+7);
   }
   ctx.font="16px system-ui";ctx.fillText("ZENITH · 90°",cx,cy-10);
+  const mask=windowSector();
+  if(mask){
+   const polygon=[];
+   for(let az=mask.az-mask.half;az<=mask.az+mask.half;az+=2)
+    polygon.push(mapSkyPoint(az,mask.min,cx,cy,R));
+   polygon.push(mapSkyPoint(mask.az+mask.half,mask.min,cx,cy,R));
+   for(let az=mask.az+mask.half;az>=mask.az-mask.half;az-=2)
+    polygon.push(mapSkyPoint(az,mask.max,cx,cy,R));
+   polygon.push(mapSkyPoint(mask.az-mask.half,mask.max,cx,cy,R));
+   if(polygon.length>3){
+    ctx.beginPath();polygon.forEach(([x,y],i)=>i?ctx.lineTo(x,y):ctx.moveTo(x,y));
+    ctx.closePath();ctx.fillStyle="rgba(80,235,170,0.14)";
+    ctx.fill();ctx.strokeStyle="#68dcac";ctx.lineWidth=1.5;ctx.stroke();
+   }
+  }
   const s=selected();
-  if(s&&s.el>=0){
+  // Native rows have real Skyfield coordinates but no browser satellite.js
+  // propagator. Never call propagate(undefined) when a satellite rises.
+  if(s&&s.el>=0&&s.lib&&s.rec){
    let started=false;ctx.strokeStyle="#f0f8ff";ctx.lineWidth=3;ctx.beginPath();
    const o=observer().station;
    for(let minute=-15;minute<=15;minute++){
@@ -255,6 +415,55 @@ export function createSatelliteMaps({getTles,getSatLib,getPasses,getLastCapture,
     if(!started){ctx.moveTo(x,y);started=true;}else ctx.lineTo(x,y);
    }
    ctx.stroke();
+  }
+  // Real native topocentric Skyfield track for currently selected spacecraft.
+  // Segments below the local horizon are explicitly omitted (not connected).
+  if(s&&Array.isArray(s.nativeSkyCoordinates)&&s.nativeSkyCoordinates.length>1){
+   ctx.strokeStyle="#78c9fd";ctx.lineWidth=2.5;ctx.beginPath();
+   let penDown=false;
+   for(const item of s.nativeSkyCoordinates){
+    if(!Array.isArray(item)||item.length!==2){penDown=false;continue;}
+    const [x,y]=mapSkyPoint(item[0],item[1],cx,cy,R);
+    if(!penDown){ctx.moveTo(x,y);penDown=true;}else ctx.lineTo(x,y);
+   }
+   ctx.stroke();
+  }
+  // Explicit AOS → PEAK → LOS geometry, independent of current horizon.
+  if(passPreview?.steps?.length){
+   const samples=passPreview.steps.filter(p=>p.el>=0);
+   ctx.strokeStyle="#f4f5ff";ctx.lineWidth=3.5;ctx.beginPath();
+   let first=true;
+   for(const p of samples){
+    const [x,y]=mapSkyPoint(p.az,p.el,cx,cy,R);
+    if(first){ctx.moveTo(x,y);first=false;}else ctx.lineTo(x,y);
+   }
+   if(!first)ctx.stroke();
+   if(mask){
+    ctx.strokeStyle="#61ffb4";ctx.lineWidth=5;ctx.beginPath();
+    let active=false;
+    for(const p of samples){
+     if(!insideWindow(p,mask)){active=false;continue;}
+     const [x,y]=mapSkyPoint(p.az,p.el,cx,cy,R);
+     if(!active){ctx.moveTo(x,y);active=true;}else ctx.lineTo(x,y);
+    }
+    ctx.stroke();
+   }
+   const peak=passPreview.peak||samples.reduce((a,b)=>a.el>b.el?a:b);
+   const markers=[["AOS",samples[0]],["PEAK",peak],["LOS",samples[samples.length-1]]];
+   ctx.font="bold 12px system-ui";ctx.textAlign="left";ctx.fillStyle="#ffffff";
+   for(const [label,p] of markers){
+    if(!p||p.el<0)continue;
+    const [x,y]=mapSkyPoint(p.az,p.el,cx,cy,R);
+    ctx.beginPath();ctx.arc(x,y,4,0,2*Math.PI);ctx.fill();
+    ctx.fillText(label,Math.min(W-70,x+8),Math.max(14,y-7));
+   }
+   const p=previewPoint();
+   if(p&&p.el>=0){
+    const [x,y]=mapSkyPoint(p.az,p.el,cx,cy,R);
+    ctx.beginPath();ctx.arc(x,y,10,0,2*Math.PI);
+    ctx.fillStyle="#ffd47e";ctx.fill();
+    ctx.strokeStyle="#ffffff";ctx.lineWidth=2;ctx.stroke();
+   }
   }
   skyHit=[];
   for(const s of filtered().filter(x=>x.el>=0).slice(0,30)){
@@ -267,7 +476,7 @@ export function createSatelliteMaps({getTles,getSatLib,getPasses,getLastCapture,
    }
    skyHit.push({x,y,id:s.id});
   }
-  if(!skyHit.length){
+  if(!skyHit.length&&!passPreview?.steps?.length){
    ctx.fillStyle="#c5d9ef";ctx.font="16px system-ui";ctx.textAlign="center";
    ctx.fillText(getTles().length?"No satellites above horizon in this subset.":"Load orbital elements to display the sky.",cx,H-24);
   }
@@ -367,6 +576,23 @@ export function createSatelliteMaps({getTles,getSatLib,getPasses,getLastCapture,
        }
        ctx.globalAlpha=1;
      }
+   }
+   // Full future ground track for the selected pass, including its sample cursor.
+   if(passPreview?.steps?.length){
+    ctx.strokeStyle="#ffd47e";ctx.lineWidth=3;ctx.globalAlpha=0.98;
+    for(const path of mapSplitDateline(passPreview.steps.map(p=>[p.lat,p.lon]))){
+     ctx.beginPath();path.forEach(([lat,lon],i)=>{
+      const [x,y]=geoCanvasXY(lon,lat,W,H);
+      if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);
+     });ctx.stroke();
+    }
+    const p=previewPoint();
+    if(p){
+     const [x,y]=geoCanvasXY(p.lon,p.lat,W,H);
+     ctx.beginPath();ctx.arc(x,y,8,0,2*Math.PI);
+     ctx.fillStyle="#ffd47e";ctx.fill();ctx.strokeStyle="#ffffff";ctx.lineWidth=2;ctx.stroke();
+    }
+    ctx.globalAlpha=1;
    }
    // Ground station and orbit positions use the same locally calculated
    // coordinates as the pass calendar (never fabricated receptions).
@@ -522,6 +748,20 @@ export function createSatelliteMaps({getTles,getSatLib,getPasses,getLastCapture,
    }
    pruneSegments(trackLayers,validTracks);
    pruneSegments(coverageLayers,validCoverage);
+   if(previewLayer){earthMap.removeLayer(previewLayer);previewLayer=null;}
+   if(passPreview?.steps?.length){
+    const segments=mapSplitDateline(passPreview.steps.map(p=>[p.lat,p.lon]));
+    previewLayer=leaflet.layerGroup(segments.map(path=>leaflet.polyline(path,{
+     pane:"sat-tracks",color:"#ffd47e",weight:4,opacity:0.98
+    }))).addTo(earthMap);
+    const p=previewPoint();
+    if(p){
+     if(!previewDot)previewDot=leaflet.circleMarker([p.lat,p.lon],{
+      pane:"sat-markers",radius:9,color:"#fff",weight:2,fillColor:"#ffd47e",fillOpacity:1
+     }).bindTooltip("Selected pass preview · orbital prediction").addTo(earthMap);
+     else previewDot.setLatLng([p.lat,p.lon]);
+    }
+   }else if(previewDot){earthMap.removeLayer(previewDot);previewDot=null;}
    updateEarthViewportCount();
    const counts=layerCounts();
    $("map-overlay-count").textContent+=" | "+trackCount+" track segments, "+
@@ -658,17 +898,30 @@ export function createSatelliteMaps({getTles,getSatLib,getPasses,getLastCapture,
   if(loading)return loading;
   loading=(async()=>{
    status("Loading built-in land geography; OSM tiles are optional.");
-   const css=document.createElement("link");css.rel="stylesheet";
-   css.href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css";
-   css.crossOrigin="anonymous";css.integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=";
-   document.head.append(css);
+   // Leaflet 1.9.4 is bundled under the BSD-2-Clause license. Native
+   // tihulu:// and the website use the same local files, not a CDN.
+   if(!document.getElementById("tihulu-bundled-leaflet-css")){
+    const css=document.createElement("link");css.rel="stylesheet";
+    css.id="tihulu-bundled-leaflet-css";css.href="./leaflet.css";
+    document.head.append(css);
+   }
    const L=await new Promise((resolve,reject)=>{
     if(window.L)return resolve(window.L);
-    const script=document.createElement("script");script.crossOrigin="anonymous";
-    script.integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=";
-    script.src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js";
+    const old=document.getElementById("tihulu-bundled-leaflet-js");
+    if(old&&old.dataset.failed!=="true"){
+     old.addEventListener("load",()=>resolve(window.L),{once:true});
+     old.addEventListener("error",()=>reject(Error("Bundled Leaflet did not load")),{once:true});
+     return;
+    }
+    old?.remove();
+    const script=document.createElement("script");
+    script.id="tihulu-bundled-leaflet-js";script.src="./leaflet.js";
     script.onload=()=>resolve(window.L);
-    script.onerror=()=>reject(Error("Leaflet unavailable: check network/CDN"));document.head.append(script);
+    script.onerror=()=>{
+     script.dataset.failed="true";
+     reject(Error("Bundled Leaflet is missing. Reinstall the Satellite Center package."));
+    };
+    document.head.append(script);
    });
    if(!L)throw Error("Leaflet did not initialize");
    leaflet=L;const o=observer();
@@ -722,8 +975,12 @@ export function createSatelliteMaps({getTles,getSatLib,getPasses,getLastCapture,
     if(tracksDue){
      nativeTrackAt=Date.now();
      nativeTrackCache.clear();
+     nativeSkyTrackCache.clear();
      for(const [id,path] of Object.entries(snapshot.track_paths_by_norad||{})){
       if(Array.isArray(path))nativeTrackCache.set(String(id),path);
+     }
+     for(const [id,path] of Object.entries(snapshot.sky_paths_by_norad||{})){
+      if(Array.isArray(path))nativeSkyTrackCache.set(String(id),path);
      }
     }
     const byId=new Map(catalog.map(record=>[String(record.id),record]));
@@ -734,7 +991,8 @@ export function createSatelliteMaps({getTles,getSatLib,getPasses,getLastCapture,
      rows.push({...item,lat:sat.lat,lon:sat.lon,el:sat.el,az:sat.az,
        altKm:sat.alt_km,rangeKm:sat.range_km,
        ageDays:sat.tle_age_days,
-       nativeTrackCoordinates:nativeTrackCache.get(String(sat.norad))||[]});
+       nativeTrackCoordinates:nativeTrackCache.get(String(sat.norad))||[],
+       nativeSkyCoordinates:nativeSkyTrackCache.get(String(sat.norad))||[]});
     }
     if(!rows.length&&catalog.length){
      status("No native Skyfield positions matched the TLE cache. Refresh orbit data; imported browser-only TLEs may need a refreshed native catalog.");
@@ -922,7 +1180,7 @@ export function createSatelliteMaps({getTles,getSatLib,getPasses,getLastCapture,
   clearTileDeadline();removeOsm();
   if(earthMap){earthMap.remove();earthMap=null;}
  });
- mapStarted=true;setView("sky");drawList();updateLiveControls();
+ mapStarted=true;setView("sky");drawList();updateLiveControls();refreshPassOptions();
  status("LIVE orbital geometry updates every second when TLEs are loaded and this tab is visible. USB reception remains opt-in.");
- return {refresh,choose};
+ return {refresh,choose,showPassPreview,refreshPassOptions};
 }

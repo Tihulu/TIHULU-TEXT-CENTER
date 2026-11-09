@@ -729,3 +729,65 @@ On Pop!_OS/COSMIC, open Applications, right-click the Satellite Center entry and
 - Browser manual receiver, automatic pass planner, pass scheduling and calendar editing accept **seconds or minutes**. For 300 seconds of Meteor I/Q at 1.024 MS/s, the website schedules five real 60-second CU8 jobs, one downloadable RF file per job, with 6-second reserved restart slots. At 2.048 MS/s the per-file 128 MiB CU8 memory ceiling reduces clips to at most 32 seconds. User-selected WAV and CU8 may be recorded together, with separate outputs. All chunks appear independently with countdowns, part indices and measured-signal status.
 - Browser clips are **not continuous**: WebUSB re-open, transfer, file-download permissions and hidden tabs can cause additional data gaps. Keep Chromium visible and awake. Never merge disjoint IQ parts without representing missing samples; native continuous disk acquisition is recommended where an uninterrupted Meteor LRPT stream is required.
 - Native Qt manual pass scheduling and the local companion `/api/schedule-chain` split recordings longer than 180 s into separately persisted jobs (up to 180 s per file, 21-second reserved gaps) while checking the complete satellite visibility window and single-receiver conflicts. Native auto pass planning reserves time for the gaps and marks truncated recordings **partial**. Qt pass/auto/manual recording forms provide seconds/minutes controls and the reception calendar shows a live `days hours minutes seconds` countdown. The local app remains the native Qt process, not a WebView.
+
+
+## 9 November 2026 — native satellite map / coverage / planning fixes (draft PR #37)
+
+The original installed Qt5 WebEngine "exact web UI" reported **orbital
+altitude 0 km** for real orbit candidates, despite nonzero slant range.
+The native Skyfield snapshot was calling `wgs84.subpoint_of()`, which
+projects onto the Earth ellipsoid and necessarily returns height ~0.
+It now calls `wgs84.geographic_position_of(sat.at(t))` and publishes
+the actual sub-satellite latitude/longitude **and geodetic satellite
+height**, allowing the positive-altitude geometric coverage footprint
+for the selected/eligible satellite to render in both maps. It is
+**not radio reception**, coverage is only a TLE line-of-sight estimate
+based on the chosen minimum elevation, and it cannot verify CubeSat
+transmission frequencies.
+
+The optional Qt Leaflet/OSM map formerly imported the Leaflet engine from
+a browser CDN, which can be blocked from the restricted `tihulu://`
+origin. Leaflet **v1.9.4** JavaScript and CSS now ship inside the
+`browser/` asset directory together with its BSD-2-Clause license.
+The map opens with the bundled engine **without an Internet connection**.
+Actual OSM raster tiles (`tile.openstreetmap.org`) still require
+permitted Internet access. When those fail, the existing bundled
+Natural Earth coastline/country outline remains a working fallback.
+Long orbital passes exceeding the native 25-minute preview limit offer
+a **clearly marked partial 25-minute trajectory preview**, not a
+false full-duration simulation or an exception.
+
+**Plan before connecting the dongle:** pass cards and the orbital
+calendar now have **Add planning candidate (no antenna)** actions.
+These save TLE-only AOS/LOS/name/NORAD and optional manually selected
+station to the separate planning calendar. Without a verified SDR,
+the warning explicitly says the pass is **NOT armed and will NOT record**.
+Planning neither claims the USB nor starts background services nor
+adds entries to the actual RF capture job scheduler. In the installed
+native app, the notes are persisted in a bounded, atomic local JSON
+file at `Station.directory/planning_candidates.json` to survive the
+ephemeral Qt WebEngine profile. The separate browser/PWA version uses
+local browser storage where available (and a session-only fallback).
+
+**Compute hardware vs actual acceleration:** the native OS inventory
+lists CPU/core count, NVIDIA/other GPU hardware when `nvidia-smi` or
+`lspci` sees it, and Hailo device nodes (`/dev/hailo*`) when present.
+Physical hardware presence **does not mean** a specific Robot36/CU8
+kernel is usable. Verified native CUDA/CuPy Robot36 tone traces and
+Intel OpenVINO-NPU tone scans are shown separately from those device
+names. Hailo hardware is NOT automatically supported by OpenVINO
+and is never marked a working SSTV acceleration backend based solely
+on the device node. The current browser CU8 spectrum FFT runs on CPU;
+Browser WebGPU can accelerate compatible Robot36 trace operations only
+if its actual compute adapter is available. The Auto selector chooses
+runnable kernels for the actual current processing path; native OS
+discovery alone does not silently hand a browser task to the native GPU.
+
+**Release/testing:** CI on Linux x64, Linux ARM64, Windows, macOS,
+browser WebUSB and Debian package building covers changes plus new
+hardware-free regression fixtures. **Real Qt GUI, offline map tiles,
+CUDA/NPU kernels and Nooelec SDR hardware still require acceptance
+tests on the target desktop.** Changes are restricted to draft PR #37;
+`main` and public `gh-pages` stay unchanged until verified. The
+dedicated Pages/source-parity gate consequently remains red while
+the draft branch intentionally differs from the published site.

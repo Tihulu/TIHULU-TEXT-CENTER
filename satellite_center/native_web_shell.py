@@ -32,6 +32,7 @@ from PyQt5.QtWebEngineCore import QWebEngineUrlScheme,QWebEngineUrlSchemeHandler
 from PyQt5.QtWebEngineWidgets import QWebEngineView,QWebEnginePage,QWebEngineProfile
 from .__main__ import Station, PROFILES, SOURCE_URLS, parse_tle, family, selectable
 from .native_orbit import OrbitEngine
+from .planning_store import load_candidates, add_candidate, remove_candidate
 
 ASSETS=Path(__file__).resolve().parent/"browser"
 SCHEME=b"tihulu"
@@ -164,7 +165,8 @@ class NativeReceiver(QObject):
         if method not in {
             "status","connect","usb_open","sample","disconnect","stop",
             "capture","auto","auto_cancel","schedule","refresh","passes","geocode",
-            "tle_catalog","orbit_snapshot","tle_custom","world_outline","tle_import",
+            "tle_catalog","orbit_snapshot","pass_preview","tle_custom","world_outline","tle_import",
+            "cancel_schedule","plan_candidates","plan_candidate_add","plan_candidate_remove",
         }:
             self.reply.emit(request_id,json.dumps({
                 "ok":False,"error":"Native command is not allowlisted"}))
@@ -233,7 +235,7 @@ class NativeReceiver(QObject):
             chosen={}
             for record in incoming+previous:
                 chosen.setdefault(record["id"],record)
-                if len(chosen)>=30:break
+                if len(chosen)>=80:break
             content="".join(row["name"].encode("ascii","replace").decode("ascii")+"\n"+
                             row["l1"]+"\n"+row["l2"]+"\n"
                             for row in chosen.values())
@@ -281,7 +283,7 @@ class NativeReceiver(QObject):
             errors=[]
             sources={}
             caps={"iss":1,"meteor3":1,"meteor4":1,
-                  "amateur":24,"iridium":14}
+                  "amateur":80,"iridium":24}
             for source in SOURCE_URLS:
                 path=st.directory/(source+".tle")
                 report=refresh_report.get(source,{})
@@ -297,7 +299,7 @@ class NativeReceiver(QObject):
                     continue
                 try:
                     text=path.read_text(encoding="ascii",errors="replace")
-                    items=parse_tle(text,limit=200)
+                    items=parse_tle(text,limit=300)
                     accepted=0
                     for item in items:
                         if not selectable(source,item):continue
@@ -316,7 +318,7 @@ class NativeReceiver(QObject):
                 sources["manual"]={"downloaded":False,"cached":True,
                                    "age_days":round(age_days,2),"error":None}
                 if age_days<=7:
-                    for item in parse_tle(manual.read_text(encoding="ascii",errors="replace"),limit=30):
+                    for item in parse_tle(manual.read_text(encoding="ascii",errors="replace"),limit=80):
                         result.append({**item,"family":family("manual",item)})
                 else:errors.append("manual: imported TLE cache is over 7 days old")
             self.orbit_engine.invalidate()
@@ -339,6 +341,34 @@ class NativeReceiver(QObject):
             self._cache_manual_tles(content.decode("ascii","strict"))
             return {"entries":[{**row,"family":family("manual",row)} for row in rows[:1]],
                     "source":"native_celestrak_custom_norad"}
+        if command=="plan_candidates":
+            return {"candidates":load_candidates(st.directory),"source":"local-only"}
+        if command=="plan_candidate_add":
+            return {"candidates":add_candidate(st.directory,args.get("candidate")),
+                    "source":"local-only","recording_scheduled":False}
+        if command=="plan_candidate_remove":
+            return {"candidates":remove_candidate(st.directory,args.get("id")),
+                    "source":"local-only","recording_scheduled":False}
+        if command=="cancel_schedule":
+            job_id=args.get("job_id")
+            if not isinstance(job_id,str) or not re.fullmatch(r"[A-Za-z0-9_-]{1,40}",job_id):
+                raise ValueError("Select a valid native pending job")
+            return st.cancel(job_id)
+        if command=="pass_preview":
+            lat=float(args.get("lat"));lon=float(args.get("lon"))
+            norad=args.get("norad")
+            aos_ms=args.get("aos_ms");los_ms=args.get("los_ms")
+            if type(norad) is not int or not 1000<=norad<=99999:
+                raise ValueError("Selected satellite NORAD number required")
+            if type(aos_ms) not in (int,float) or type(los_ms) not in (int,float):
+                raise ValueError("AOS and LOS must be numeric UTC milliseconds")
+            if not 0 < los_ms-aos_ms <= 1500000:
+                raise ValueError("Pass preview limited to a real 25 minute window")
+            if abs(time.time()*1000-aos_ms)>86400000*4:
+                raise ValueError("Pass preview must be within four days of now")
+            start=datetime.fromtimestamp(aos_ms/1000,timezone.utc)
+            end=datetime.fromtimestamp(los_ms/1000,timezone.utc)
+            return self.orbit_engine.preview_pass(lat,lon,norad,start,end)
         if command=="orbit_snapshot":
             lat=float(args.get("lat"))
             lon=float(args.get("lon"))
@@ -387,7 +417,8 @@ class NativeReceiver(QObject):
             return st.plan_passes(city="Cologne",
                 lat=float(args["lat"]),lon=float(args["lon"]),
                 hours=int(args.get("hours",24)),
-                elevation=float(args.get("elevation",15)))
+                elevation=float(args.get("elevation",15)),
+                window=args.get("window"))
         if command=="capture":
             frequency=int(args["frequency"])
             profile=next((key for key,setting in PROFILES.items()
@@ -424,12 +455,17 @@ class NativeReceiver(QObject):
         if command=="auto_cancel":return st.cancel_auto_missions()
         if command=="schedule":
             # All scheduled passes must match native TLE-derived geometry.
+            # Match the exact elevation cutoff used by the displayed pass
+            # planner. Hardcoding 5 degrees shifted AOS by minutes when the
+            # user planned at 15/20/30 degrees and rejected valid schedules.
+            elevation=float(args.get("elevation",5))
+            if not 0<=elevation<=75:
+                raise ValueError("Native schedule elevation must be 0–75 degrees")
             data=st.plan_passes(
                 city="Cologne",lat=float(args["lat"]),lon=float(args["lon"]),
-                hours=int(args.get("hours",24)),elevation=5)
+                hours=int(args.get("hours",24)),elevation=elevation)
             norad=int(args["norad"])
             at=int(args["aos_millis"])/1000
-            from datetime import datetime,timezone
             possible=[p for p in data["predictions"] if p["norad"]==norad
                       and abs(datetime.fromisoformat(p["aos"]).timestamp()-at)<180]
             if not possible:

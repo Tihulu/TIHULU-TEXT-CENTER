@@ -32,11 +32,23 @@
     const present=(hw.usb_devices||[]).some(d=>d.receiver_type==='rtl_sdr') ||
       Number(hw.usb_rtl_count)>0;
     hardwareState.enabled=hw.receiver_enabled===true;
-    hardwareState.verified=hardwareState.enabled;
+    // A persisted receiver_enabled flag is not the same as a newly acquired
+    // physical IQ sample. Show Flight Radar-style process/ownership truth.
+    hardwareState.verified=Boolean(hw.last_real_sample?.sample_bytes);
+    window.nativeHardwareState={
+      present,enabled:hardwareState.enabled,verified:hardwareState.verified,
+      recording:response?.session?.active===true
+    };
     const receiver=(hw.usb_devices||[]).find(d=>d.receiver_type==='rtl_sdr');
     const active=response?.session?.active===true;
+    const competing=Array.isArray(response?.busy)?response.busy:[];
+    const busyNames=[...new Set(competing.map(x=>
+      String(typeof x==='string'?x:x?.process||'other SDR process')))].slice(0,5);
     const phase=active?'RECORDING · native SDR process running':
-      hardwareState.enabled?'READY · real IQ tested; receiver armed':
+      busyNames.length?'OTHER SDR ACTIVE · '+busyNames.join(', ')+
+        ' · release it before using Satellite Center':
+      hardwareState.enabled&&hardwareState.verified?'READY · actual IQ verified; USB released while idle':
+      hardwareState.enabled?'ARMED · previous session state; run Connect to verify current USB/IQ':
       present?'DETECTED · press Connect to verify actual IQ':'NO COMPATIBLE SDR DETECTED';
     say('native-receiver-status',phase);
     say('native-rx-phase',phase);
@@ -53,8 +65,10 @@
       hardwareState.enabled?'Armed; click Start direct native RF capture':
       'Disabled until USB + IQ verification succeeds');
     say('native-rx-release',hw.app_released
-      ? 'Released while idle · available for other SDR apps'
-      : active?'Owned by Satellite Center recording':
+      ?(busyNames.length
+         ?'Satellite Center released its lease; another process may still own USB: '+busyNames.join(', ')
+         :'Satellite Center has released USB while idle')
+      :active?'Owned by Satellite Center recording':
                'Busy, connecting or release not yet confirmed');
     say('native-rx-pll',hw.last_real_sample?.pll_warning===true
       ? 'PLL warning observed · tuner lock not proven'
@@ -143,6 +157,17 @@
     }
     const install=document.querySelector('#desktop-install');
     if(install)install.hidden=true; // PWA install is browser-only, desktop is installed.
+    // The schedule area retains the same layout as Pages, but instructions
+    // cannot tell a native Qt receiver to request browser WebUSB permission.
+    const scheduleHelp=$('schedule-center')?.querySelectorAll(':scope > p.hint')||[];
+    if(scheduleHelp[0])scheduleHelp[0].textContent=
+      'To schedule: calculate genuine TLE passes, open a pass, choose a local start time, '+
+      'duration, compatible frequency and native format; then confirm OS-native SDR authorization. '+
+      'The native scheduler persists jobs while Satellite Center runs.';
+    if(scheduleHelp[1])scheduleHelp[1].textContent=
+      'Native rtl_sdr/rtl_fm records actual local USB samples to disk without WebUSB. '+
+      'TLE geometry does not prove a transmission; decoding Meteor LRPT still needs a valid signal.';
+    if(scheduleHelp[2])scheduleHelp[2].hidden=true;
     for(const id of ['connect','usb-live-test','disconnect','start','stop']){
       if($(id))$(id).disabled=false;
     }
@@ -159,6 +184,77 @@
     if($('auto-plan'))$('auto-plan').textContent='1 · Schedule native RF passes';
     if($('auto-stop'))$('auto-stop').textContent='Cancel native auto jobs';
     if($('schedule-check'))$('schedule-check').textContent='Check native scheduler status';
+    // Native direct capture has its OWN real receiver limits, not the website
+    // 60-second WebUSB segmented download workflow. The shared HTML remains
+    // identical, but these labels and choices must reflect the OS backend.
+    const manualDuration=$('duration');
+    if(manualDuration){manualDuration.min='8';manualDuration.max='900';}
+    const nativeManualFormats=()=>{
+      const hz=Number($('preset')?.value||137900000);
+      const raw=$('record'),wav=$('wav-record');
+      const supportsWav=[145800000,437550000,437800000].includes(hz);
+      if(wav)wav.disabled=!supportsWav;
+      if(!supportsWav){
+        if(wav)wav.checked=false;
+        if(raw)raw.checked=true;
+      }
+      for(const id of ['record-both','record-wav-only']){
+        const button=$(id);
+        if(button){
+          button.disabled=!supportsWav;
+          button.title=supportsWav
+            ?'ISS audio can be captured as FM WAV or with raw IQ'
+            :'This profile cannot be recorded as FM WAV; select CU8.';
+        }
+      }
+      const summary=$('capture-format-summary');
+      if(summary)summary.textContent=supportsWav
+        ?(raw?.checked&&wav?.checked?'Native raw IQ + FM WAV selected':
+          wav?.checked?'Native FM WAV selected':'Native raw IQ selected')
+        :'Native original IQ (.cu8) only · required for Meteor LRPT.';
+      const unit=$('duration-unit')?.value;
+      const value=Number(manualDuration?.value||0);
+      const seconds=Math.round(value*(unit==='minutes'?60:1));
+      const rate=Number($('rate')?.value||1024000);
+      const bytes=seconds*((raw?.checked?rate*2:0)+(wav?.checked?96000:0));
+      const label=$('capture-budget');
+      if(label){
+        label.textContent=seconds<8||seconds>900||!Number.isFinite(seconds)
+          ?'Native recording duration must be 8–900 seconds. Choose a valid length.'
+          :'Native direct-to-disk: 1 continuous '+seconds+' s capture · '+
+            (bytes/1e6).toFixed(1)+' MB estimated · '+
+            (bytes>2000000000?'EXCEEDS the native 2 GB limit. ':
+             'No WebUSB or 60-second downloads. ')+
+            'Receiver must be enabled; prevent OS sleep.';
+      }
+    };
+    nativeManualFormats();
+    // Existing website controls calculate browser budgets first; the native
+    // handler runs on document bubbling after those listeners, without timers.
+    document.addEventListener('change',event=>{
+      if(['preset','duration','duration-unit','rate','record','wav-record'].includes(event.target?.id))
+        nativeManualFormats();
+    });
+    document.addEventListener('input',event=>{
+      if(event.target?.id==='duration')nativeManualFormats();
+    });
+    document.addEventListener('click',event=>{
+      if(['record-both','record-wav-only','record-cu8-only'].includes(event.target?.id))
+        nativeManualFormats();
+    });
+    const hints=document.querySelectorAll('#manual-format-picker p.hint');
+    for(const el of hints){
+      el.textContent='Native RTL-SDR: record real radio samples locally to disk. '+
+        'FM WAV applies to supported ISS audio profiles only; Meteor LRPT needs IQ (.cu8).';
+    }
+    const manualCard=document.querySelector('#start')?.closest('section');
+    for(const el of manualCard?.querySelectorAll('p.hint')||[]){
+      if(/RF requests exceeding 60 seconds|WebUSB file, with|Manual uninterrupted disk/.test(el.textContent||'')){
+        el.textContent='Native OS receiver writes RF to disk without WebUSB or 60 s chunks. '+
+          'Capture duration 8–900 seconds subject to the 2 GB safety limit. '+
+          'Signals are unverified until actually received and decoded.';
+      }
+    }
     // Website source remains unchanged; only desktop-specific hardware copy.
     const lead=$('device-status');
     if(lead)lead.textContent='Native RTL-SDR backend · hardware not yet verified';
@@ -341,7 +437,15 @@
         const params={frequency:selectedFrequency(),
           seconds:duration('duration','duration-unit'),
           rate:Number($('rate')?.value||1024000),raw,wav};
-        if(!raw&&!wav)throw Error('Select CU8, WAV or both');
+        if(!Number.isInteger(params.seconds)||params.seconds<8||params.seconds>900)
+          throw Error('Native recording requires 8–900 whole seconds. The previous 6-second input is not supported.');
+        if(!raw&&!wav)throw Error('Select CU8 or a supported ISS WAV mode.');
+        if([137900000,137100000].includes(params.frequency)&&(!raw||wav))
+          throw Error('Meteor LRPT requires original CU8/IQ only. Uncheck WAV.');
+        if(wav&&![145800000,437550000,437800000].includes(params.frequency))
+          throw Error('This frequency has no supported native FM WAV mode. Choose CU8 only.');
+        if(params.seconds*params.rate*2>2000000000&&raw)
+          throw Error('Raw IQ exceeds 2 GB native recording limit; lower sample rate or duration.');
         try{
           const result=await invoke('capture',params,'device-status');
           if(!result.file||!Number(result.bytes))
@@ -367,11 +471,13 @@
         say('auto-plan-status',JSON.stringify(result,null,2).slice(0,1200));
         say('native-receiver-status','Native auto scheduling completed; '+String(
           result.scheduled_count||0)+' actual OS-RF jobs stored locally');
+        window.dispatchEvent(new Event('tihulu-native-schedule-changed'));
         return;
       }
       case 'auto-stop': {
         const result=await invoke('auto_cancel',{},'auto-plan-status');
         say('auto-plan-status','Native auto jobs canceled: '+JSON.stringify(result));
+        window.dispatchEvent(new Event('tihulu-native-schedule-changed'));
         return;
       }
       case 'schedule-check': {
@@ -394,6 +500,75 @@
     }
   };
   // Pass card forms are native SDR schedules, never browser-local/WebUSB jobs.
+  // They reuse browser HTML, but every scheduling hint/budget must describe
+  // the native OS receiver rather than WebUSB's <=60 second segmented capture.
+  const enhanceNativePassForm=form=>{
+    if(!form)return;
+    const card=form.closest('.pass');
+    const norad=Number(card?.dataset?.norad);
+    const selects=[...form.querySelectorAll('select')];
+    const checks=[...form.querySelectorAll('input[type="checkbox"]')];
+    const secondsInput=form.querySelector('input[type="number"]');
+    const freq=selects[0],unit=selects[1],rate=selects[2];
+    const raw=checks[0],wav=checks[1];
+    if(!freq||!raw||!wav)return;
+    const hint=form.querySelector('p.hint.schedule-wide');
+    const budget=form.querySelector('.schedule-capture-budget');
+    const legacyLink=form.querySelector('a[href^="http://127.0.0.1:8791/"]');
+    if(legacyLink)legacyLink.hidden=true;
+    const update=()=>{
+      const hz=Number(freq.value);
+      const meteor=(norad===57166||norad===59051);
+      const supportsWav= !meteor && [145800000,437550000,437800000].includes(hz);
+      wav.disabled=!supportsWav;
+      if(!supportsWav){wav.checked=false;raw.checked=true;}
+      wav.title=supportsWav
+        ?'ISS FM WAV audio is available for this selected downlink'
+        :'This native profile does not support FM WAV. Meteor LRPT requires original IQ (.cu8).';
+      if(hint)hint.textContent=
+        'Native OS RTL-SDR: continuous local-disk IQ recording up to 900 seconds / 2 GB, '+
+        'if this duration fits the predicted pass. No WebUSB, browser downloads, '+
+        'or 60-second file segmentation. Keep the PC awake and Satellite Center running.';
+      if(budget){
+        const n=Number(secondsInput?.value||0);
+        const secs=Math.round(n*(unit?.value==='minutes'?60:1));
+        const sr=Number(rate?.value||1024000);
+        const bytes=secs*((raw.checked?2*sr:0)+(wav.checked?96000:0));
+        const tooLarge=bytes>2000000000;
+        budget.textContent=secs<=900
+          ?'Native capture: 1 continuous file · '+secs+' s · '+
+            (bytes/1e6).toFixed(1)+' MB estimated'+
+            (tooLarge?' · exceeds the 2 GB safety cap':'')+
+            '. Must finish before predicted LOS.'
+          :'Native long request: '+secs+' s. Exceeds 900 s single-file limit; '+
+            'separate OS capture segments and restart gaps required. '+
+            'All segments must fit the predicted pass.';
+      }
+    };
+    if(form.dataset.nativeScheduleEnhanced!=='true'){
+      form.dataset.nativeScheduleEnhanced='true';
+      for(const el of [freq,unit,rate,raw,wav,secondsInput]){
+        el?.addEventListener('change',update);
+        if(el===secondsInput)el?.addEventListener('input',update);
+      }
+    }
+    update();
+  };
+  const enhanceAllNativePassForms=()=>{
+    document.querySelectorAll('form.pass-schedule-form').forEach(enhanceNativePassForm);
+  };
+  enhanceAllNativePassForms();
+  const passList=$('passes');
+  if(passList){
+    new MutationObserver(entries=>{
+      // Only new pass cards/forms qualify. Updating a hint's text node must
+      // NOT trigger an observer/update loop.
+      const addedForm=entries.some(entry=>[...entry.addedNodes].some(node=>
+        node.nodeType===1&&(node.matches?.('form.pass-schedule-form, .pass')||
+          node.querySelector?.('form.pass-schedule-form'))));
+      if(addedForm)enhanceAllNativePassForms();
+    }).observe(passList,{childList:true,subtree:true});
+  }
   document.addEventListener('submit',event=>{
     const form=event.target.closest?.('form.pass-schedule-form');
     if(!form)return;
@@ -414,15 +589,29 @@
       if(warn)warn.textContent='Native pass metadata missing; refresh TLE and recalculate.';
       return;
     }
+    // Guard against stale/browser-only media selections, including imported
+    // form state from before the desktop native bridge was initialized.
+    enhanceNativePassForm(form);
     const args={...coordinateArgs(),norad,aos_millis,when_millis:at,
       frequency:Number(selections[0]?.value),
       rate:Number(selections[2]?.value||1024000),
+      elevation:Number($('elev')?.value||5),
+      hours:Number($('hours')?.value||24),
       seconds,raw:Boolean(checks[0]?.checked),wav:Boolean(checks[1]?.checked)};
+    if(!args.raw&&!args.wav){
+      if(warn)warn.textContent='Choose original IQ (.cu8), or ISS FM WAV when supported.';
+      return;
+    }
+    if((norad===57166||norad===59051)&&(!args.raw||args.wav)){
+      if(warn)warn.textContent='Meteor LRPT requires original IQ (.cu8) only. Disable WAV / Robot36.';
+      return;
+    }
     if(warn)warn.textContent='Verifying native orbital geometry and receiver availability…';
     lookup('schedule',args).then(result=>{
       if(warn)warn.textContent='Native TLE-backed RF capture scheduled: '+
          result.satellite+' · '+result.run_at+' · '+result.capture_seconds+
          ' s. No WebUSB and no fabricated satellite content.';
+      window.dispatchEvent(new Event('tihulu-native-schedule-changed'));
     }).catch(error=>{
       if(warn)warn.textContent='Native schedule rejected: '+String(error.message);
     });
@@ -486,17 +675,44 @@
       // Skyfield computes real TLE geometry; website keeps its own JS path.
       window.nativeOrbitCatalog=()=>lookup('tle_catalog');
       window.nativeCustomTle=norad=>lookup('tle_custom',{norad});
-      window.nativeOrbitPasses=(lat,lon,hours,elevation)=>
-        lookup('passes',{lat,lon,hours,elevation});
+      window.nativeOrbitPasses=(lat,lon,hours,elevation,windowProfile=null)=>
+        lookup('passes',{lat,lon,hours,elevation,window:windowProfile});
       window.nativeOrbitSnapshot=(lat,lon,at_ms,tracks=false)=>
         lookup('orbit_snapshot',{lat,lon,at_ms,tracks});
+      window.nativePassPreview=(lat,lon,norad,aos_ms,los_ms)=>
+        lookup('pass_preview',{lat,lon,norad,aos_ms,los_ms});
+      // Planning-only calendar is isolated from physical RTL-SDR job scheduler.
+      window.nativeListPlanningCandidates=()=>lookup('plan_candidates')
+        .then(result=>result.candidates||[]);
+      window.nativeSavePlanningCandidate=candidate=>lookup('plan_candidate_add',{candidate})
+        .then(result=>result.candidates||[]);
+      window.nativeDeletePlanningCandidate=id=>lookup('plan_candidate_remove',{id})
+        .then(result=>result.candidates||[]);
+      window.nativeScheduleStatus=()=>lookup('status');
+      window.nativeComputeStatus=()=>lookup('status').then(info=>info.compute);
+      window.nativeCancelScheduledJob=job_id=>lookup('cancel_schedule',{job_id});
       window.nativeWorldOutline=()=>lookup('world_outline');
       window.nativeImportTle=text=>lookup('tle_import',{text});
       setHardwareLabels();
       window.nativeWebBridgeReady=true;
       window.nativeRFTransport='rtl_sdr';
+      window.dispatchEvent(new Event('tihulu-native-bridge-ready'));
       log('Exact bundled web UI ready · native Qt SDR WebChannel · WebUSB DISABLED');
       refreshNativeStatus().then(result=>{
+        const g=result.compute?.gpu||{};
+        const label=$('native-gpu-discovery');
+        if(label){
+          label.hidden=false;
+          const devices=Array.isArray(g.devices)?g.devices:[];
+          label.textContent=g.detected?
+            'Native GPU detected: '+devices.join(' / ')+
+            (g.driver?' · NVIDIA driver '+g.driver:'')+
+            ' · CUDA/CuPy Robot36 kernel: '+(g.available?'WORKING':'NOT READY')+
+            (g.available?'':'. '+(g.reason||'')+' '+(g.action||''))+
+            '. Browser WebGPU is tested separately; I/Q FFT does not automatically run on this GPU.':
+            'No native GPU detected by nvidia-smi/lspci. '+(g.reason||'')+
+            '. Check that the NVIDIA driver and nvidia-smi are available in this application environment.';
+        }
         say('device-status',result.hardware?.receiver_enabled?
           'Native RF enabled · press Start native RF capture to record':
           'RF disabled · press Connect & verify physical RTL-SDR to arm real recording');
