@@ -60,7 +60,7 @@ class KaffeineTimingTests(unittest.TestCase):
         from pathlib import Path
         source = (Path(__file__).resolve().parent.parent /
                   "kaffeine_next" / "captions_overlay.py").read_text()
-        self.assertIn('QCheckBox("Automatic sync', source)
+        self.assertIn('QCheckBox("Auto-size TV buffer', source)
         self.assertIn("automatic_sync=automatic.isChecked()", source)
         self.assertIn("for w in (show_video,automatic,speaker_enabled,speaker_numbers,", source)
         self.assertIn("speaker_lines,voice_types,sound_events,overlap_enabled,", source)
