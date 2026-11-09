@@ -41,6 +41,7 @@ class CaptionConfig:
     break_speaker_lines: bool = False
     show_sound_events: bool = False
     separate_overlapping_voices: bool = False
+    readable_pacing: bool = True  # prefer natural sentence display over flashing fragments
     music_transcription: bool = False
     speech_priority: bool = False  # optional dialogue focus when background music overlaps
     speaker_provider: str = "resemblyzer"
@@ -114,7 +115,8 @@ class CaptionConfig:
                     "speaker_enabled", "music_transcription", "speech_priority",
                     "spoken_auto", "show_speaker_numbers",
                     "show_voice_types", "break_speaker_lines",
-                    "show_sound_events", "separate_overlapping_voices"):
+                    "show_sound_events", "separate_overlapping_voices",
+                    "readable_pacing"):
             if type(getattr(self, key)) is not bool:
                 raise ValueError("Caption display toggles must be boolean")
         return self
@@ -131,6 +133,7 @@ class CaptionConfig:
                 "break_speaker_lines":self.break_speaker_lines,
                 "show_sound_events":self.show_sound_events,
                 "separate_overlapping_voices":self.separate_overlapping_voices,
+                "readable_pacing":self.readable_pacing,
                 "music_transcription":self.music_transcription,
                 "speech_priority":self.speech_priority,
                 "speaker_provider":self.speaker_provider,
@@ -333,6 +336,34 @@ def provisional_ai_buffer_ms(is_pi5):
     return 6000 if is_pi5 else 10000
 
 
+def readable_display_seconds(result, config):
+    """Human reading time, without asserting word-perfect source timing.
+
+    Translating can double the visible text. A cue is allowed to remain
+    AFTER its audio slot; it must not flash away because ASR was late.
+    Pacing is capped so another complete sentence can still make progress.
+    """
+    if not config.readable_pacing:
+        return 1.75 if result.get("word_progress") else 2.3
+    original = str(result.get("original") or "").strip()
+    translated = result.get("translations") or {}
+    visible = []
+    if config.show_original and original:
+        visible.append(original)
+    if config.show_translation:
+        visible.extend(str(translated[lang]) for lang in config.target_languages
+                       if isinstance(translated.get(lang),str) and
+                       translated[lang].strip() and
+                       not (config.show_original and
+                            translated[lang].strip()==original))
+    chars=sum(len(line) for line in visible)
+    # Around 16 visible characters per second incl. reading transitions.
+    # Short timed snippets are not overwritten at 200ms intervals.
+    if result.get("word_progress"):
+        return max(1.35,min(3.8,0.65+chars/19.0))
+    return max(2.8,min(8.0,0.85+chars/16.0))
+
+
 CAPTION_SAFETY_HOLD_SEC = 0.55
 # Faster-Whisper word boundaries already describe the source audio timeline.
 # An additional half-second safety hold noticeably desynchronizes dialogue.
@@ -361,7 +392,8 @@ def cue_window(started, ended, finished, config: CaptionConfig, result=None):
     spoken = max(0.0,float(ended)-float(started))
     # A chunk/word snippet should be readable before replacement. A
     # Teletext line naturally persists longer than a rapidly changing word.
-    duration = max(2.3,min(7.0, spoken+1.0))
+    duration = max(readable_display_seconds(result or {},config),
+                   max(2.3,min(7.0,spoken+1.0)))
     return {
         "due":due,
         "expires":due+duration,
@@ -439,11 +471,24 @@ class CueQueue:
         if not self.items or self.items[0]["due"]>now:
             return None
         next_timed = bool(self.items[0]["result"].get("word_progress"))
-        hold = min(self.minimum_hold, 0.2) if next_timed else self.minimum_hold
+        # A 200-ms word flash is almost impossible to read, especially
+        # with two translated languages. Apply a modest minimum without
+        # serially adding 1.75s to every source-timed word.
+        hold = (min(self.minimum_hold,0.8) if next_timed
+                and self.items[0]["config"].readable_pacing
+                else min(self.minimum_hold,0.2) if next_timed
+                else self.minimum_hold)
         if (self.last_shown_at is not None and
                 now-self.last_shown_at < hold):
             return None
         selected=self.items.pop(0)
+        # Expiry is a DISPLAY deadline, not merely an ASR speech-clock
+        # deadline. If the GUI is briefly busy, don't show a subtitle that
+        # is already expired or make it vanish before humans can read it.
+        selected["expires"]=max(
+            selected["expires"],
+            float(now)+readable_display_seconds(
+                selected["result"],selected["config"]))
         self.last_shown_at=float(now)
         return selected
 
