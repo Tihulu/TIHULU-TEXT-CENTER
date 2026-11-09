@@ -2379,6 +2379,7 @@ def main(argv=None):
         """
         nonlocal applied, current_cue, current_text, current_until
         nonlocal last_published, last_service_id, last_applied_effective_ms
+        nonlocal pending_buffer_retime_ms
         nonlocal live_test_started_at
         if live_test_started_at:
             live_test_started_at=0
@@ -2405,6 +2406,9 @@ def main(argv=None):
         last_published = time.monotonic()
         last_service_id = None
         last_applied_effective_ms = None
+        pending_buffer_retime_ms = None
+        native_release_clock.clear()
+        recent_voice_lines.clear()
         subtitle_track.blockSignals(True)
         subtitle_track.clear()
         subtitle_track.addItem(
@@ -2448,7 +2452,7 @@ def main(argv=None):
         nonlocal applied, last_service_id, last_effective_check
         nonlocal last_applied_effective_ms, last_sync_audit_at
         nonlocal last_ui_program_epoch,live_test_started_at
-        nonlocal pending_buffer_retime_ms,buffer_ready
+        nonlocal pending_buffer_retime_ms
         try:
             state,message=overlap_install_queue.get_nowait()
         except queue.Empty:
