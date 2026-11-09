@@ -550,9 +550,20 @@ def decode_segment(ts: bytes, *, mode="auto", page=150, source="de",
                         speech_diagnostics.get("detected_language") or
                         speech_language)
                     if used_language == "auto":
-                        # No invented translation source: display original
-                        # speech until the real model reports a language.
-                        used_language = "und"
+                        # Some CPU speech engines return text but no ASR
+                        # language metadata. Use an actual broadcaster audio
+                        # language descriptor (or user-selected source) as an
+                        # explicitly *hinted* translation source, never a
+                        # guessed DE default. If neither exists, keep the
+                        # untranslated original instead of fabricating FR.
+                        hinted = audio_source or (source if source!="auto" else None)
+                        if hinted:
+                            used_language = hinted
+                            speech_diagnostics["source_language_note"] = (
+                                "Translation uses broadcast/user language hint; "
+                                "speech language not confirmed by ASR")
+                        else:
+                            used_language = "und"
                 if original and previous_text:
                     from kaffeine_next.continuous_captions import remove_repeated_prefix
                     deduplicated = remove_repeated_prefix(previous_text, original)
@@ -618,6 +629,7 @@ def decode_segment(ts: bytes, *, mode="auto", page=150, source="de",
                 "asr_engine": speech_diagnostics.get("engine"),
                 "language_confidence":speech_diagnostics.get("language_confidence"),
                 "detected_language":speech_diagnostics.get("detected_language"),
+                "source_language_note":speech_diagnostics.get("source_language_note"),
                 "audio_notice": speech_diagnostics.get("audio_notice"),
                 "words":speech_diagnostics.get("words", []),
                 "word_timing_source":speech_diagnostics.get("word_timing_source"),
