@@ -738,7 +738,7 @@ public:
         // shared catalog. Keep a usable offline fallback until it arrives.
         for(const QString &code:QStringList{"de","en","tr","fr","es","pl","ar","ja"})
             speechLanguage_->addItem(code.toUpper(),code);
-		speechLanguage_->setEditable(true);
+		speechLanguage_->setEditable(false);
 		speechLanguage_->setCurrentIndex(0);
 		captionSource_=new QComboBox(lab);
 		captionSource_->addItem(tr("Whisper ASR · recognized live audio"),
@@ -1857,6 +1857,40 @@ private:
 				.arg(webStations_->topLevelItemCount()));
 		});
 	}
+    void refreshRadioLanguageSummary() {
+        if(!quickLanguageButton_ || !speechLanguage_) return;
+        const QStringList langs=selectedRadioTargets();
+        const QString source=speechLanguage_->currentData().toString();
+        quickLanguageButton_->setText(tr("IN: %1 · OUT: %2 · Edit")
+            .arg(source.isEmpty()?tr("AUTO"):source.toUpper(),
+                 langs.isEmpty()?tr("none"):langs.join(
+                     QLatin1String(", ")).toUpper()));
+    }
+    bool writeRadioLanguageControls() {
+        if(captionControlsPath_.isEmpty() || !speechLanguage_) return false;
+        QJsonArray targets;
+        for(const QString &code:selectedRadioTargets()) targets.append(code);
+        const QString source=speechLanguage_->currentData().isValid()?
+            speechLanguage_->currentData().toString():
+            speechLanguage_->currentText().trimmed().toLower();
+        const QJsonDocument document(QJsonObject{
+            {QStringLiteral("source"),source},
+            {QStringLiteral("targets"),targets}});
+        QSaveFile file(captionControlsPath_);
+        if(!file.open(QIODevice::WriteOnly)) {
+            if(translationStatus_) translationStatus_->setText(tr(
+                "Live radio language preferences could not be written. "
+                "Check your private runtime directory."));
+            return false;
+        }
+        if(file.write(document.toJson(QJsonDocument::Compact))<0 ||
+           !file.commit()) {
+            if(translationStatus_) translationStatus_->setText(tr(
+                "Language changes were NOT applied; keep previous worker settings."));
+            return false;
+        }
+        return true;
+    }
     QStringList selectedRadioTargets() const {
         // One output selection for live ASR, recorded SRT and lyric lookup.
         // No hidden legacy checkboxes or duplicated language paths.
@@ -3519,7 +3553,17 @@ private:
 		if (runtime.isEmpty()) return;
 		captionPath_=runtime + QLatin1String("/tihulu-radio-captions-")+
 			QString::number(QCoreApplication::applicationPid())+QLatin1String(".json");
-		options<<QLatin1String("--output")<<captionPath_;
+        captionControlsPath_=runtime+QLatin1String("/tihulu-radio-controls-")+
+            QString::number(QCoreApplication::applicationPid())+
+            QLatin1String(".json");
+        if(!writeRadioLanguageControls()) {
+            captionControlsPath_.clear();
+            radioCaption_->setText(tr("Cannot save private AI controls; "
+                "Whisper was not started."));
+            return;
+        }
+		options<<QLatin1String("--output")<<captionPath_
+               <<QLatin1String("--controls")<<captionControlsPath_;
 		QFile::remove(captionPath_);
 		captionProcess_.start(QLatin1String("tihulu-tv-center"),options);
         if (!captionProcess_.waitForStarted(1200)) {
@@ -3880,6 +3924,8 @@ private:
         if(captionProgress_) captionProgress_->setVisible(false);
 		if (!captionPath_.isEmpty()) QFile::remove(captionPath_);
 		captionPath_.clear();
+        if(!captionControlsPath_.isEmpty()) QFile::remove(captionControlsPath_);
+        captionControlsPath_.clear();
         if(!lyricsEnabled_ && radioCanvasCaption_)
             radioCanvasCaption_->setVisible(false);
         if(radioTranslationBanner_) radioTranslationBanner_->setVisible(false);
