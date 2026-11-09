@@ -124,13 +124,18 @@ class CaptionConfig:
     def render(self, result):
         """Produce independently selectable original/translated subtitle lines."""
         original = (result.get("original") or "").strip()
-        speaker = str(result.get("speaker_label") or "").strip()[:55]
+        speaker = ""
         speaker_index = result.get("speaker_index")
-        if (self.speaker_enabled and type(speaker_index) is int
-                and 1 <= speaker_index <= len(self.speaker_aliases)
-                and self.speaker_aliases[speaker_index-1].strip()):
-            speaker = ("[" + self.speaker_aliases[speaker_index-1].strip()[:30] +
-                       " · clip]")
+        if self.speaker_enabled:
+            # Only the actual voice-grouped ASR cue can carry this index.
+            # A configured alias is a user-entered display name, NOT an
+            # automatically inferred identity, sex or age.
+            speaker = str(result.get("speaker_label") or "").strip()[:55]
+            if (type(speaker_index) is int
+                    and 1 <= speaker_index <= len(self.speaker_aliases)
+                    and self.speaker_aliases[speaker_index-1].strip()):
+                speaker = ("[" + self.speaker_aliases[
+                    speaker_index-1].strip()[:30] + "]")
         raw = result.get("translations")
         translated = raw if isinstance(raw, dict) else {}
         lines = []
