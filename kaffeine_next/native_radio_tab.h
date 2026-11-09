@@ -738,6 +738,59 @@ public:
         auto *captionSurface=new QVBoxLayout(radioCanvas_);
         captionSurface->setContentsMargins(12,12,12,12);
         captionSurface->addStretch(1);
+        // A separate karaoke layer occupies the BLUE DAB station canvas.
+        // The bottom subtitles remain a distinct Whisper/translation
+        // display. Match confidence is measured at LINE level, not words.
+        karaokePanel_=new QWidget(radioCanvas_);
+        karaokePanel_->setObjectName(QStringLiteral("radioKaraokePanel"));
+        karaokePanel_->setStyleSheet(QLatin1String(
+            "QWidget#radioKaraokePanel{background:rgba(8,26,44,236);"
+            "border:1px solid #385c75;border-radius:12px;}"));
+        auto *karaokeLayout=new QVBoxLayout(karaokePanel_);
+        karaokeLayout->setContentsMargins(14,12,14,12);
+        karaokeLayout->setSpacing(5);
+        karaokeSource_=new QLabel(karaokePanel_);
+        karaokeSource_->setTextFormat(Qt::PlainText);
+        karaokeSource_->setWordWrap(true);
+        karaokeSource_->setAlignment(Qt::AlignCenter);
+        karaokeSource_->setStyleSheet(QLatin1String(
+            "color:#aec4d6;font-size:11pt;font-weight:500;"));
+        karaokePrevious_=new QLabel(karaokePanel_);
+        karaokePrevious_->setTextFormat(Qt::PlainText);
+        karaokePrevious_->setWordWrap(true);
+        karaokePrevious_->setAlignment(Qt::AlignCenter);
+        karaokePrevious_->setStyleSheet(QLatin1String(
+            "color:#94a7b9;font-size:13pt;"));
+        karaokeCurrent_=new QLabel(karaokePanel_);
+        karaokeCurrent_->setTextFormat(Qt::PlainText);
+        karaokeCurrent_->setWordWrap(true);
+        karaokeCurrent_->setAlignment(Qt::AlignCenter);
+        karaokeCurrent_->setStyleSheet(QLatin1String(
+            "color:#ffe17c;font-size:24pt;font-weight:700;"));
+        karaokeNext_=new QLabel(karaokePanel_);
+        karaokeNext_->setTextFormat(Qt::PlainText);
+        karaokeNext_->setWordWrap(true);
+        karaokeNext_->setAlignment(Qt::AlignCenter);
+        karaokeNext_->setStyleSheet(QLatin1String(
+            "color:#a8b9c6;font-size:13pt;"));
+        karaokeTranslation_=new QLabel(karaokePanel_);
+        karaokeTranslation_->setTextFormat(Qt::PlainText);
+        karaokeTranslation_->setWordWrap(true);
+        karaokeTranslation_->setAlignment(Qt::AlignCenter);
+        karaokeTranslation_->setStyleSheet(QLatin1String(
+            "color:#ffdc61;font-size:15pt;font-weight:600;"));
+        karaokeTranslation_->setToolTip(tr(
+            "Only real lyric translations from the selected model appear. "
+            "Source words remain prominent above; ordinary caption "
+            "translations remain independently in the bottom bar."));
+        karaokeLayout->addWidget(karaokeSource_);
+        karaokeLayout->addWidget(karaokePrevious_);
+        karaokeLayout->addWidget(karaokeCurrent_);
+        karaokeLayout->addWidget(karaokeTranslation_);
+        karaokeLayout->addWidget(karaokeNext_);
+        karaokePanel_->setVisible(false);
+        captionSurface->addWidget(karaokePanel_,2,Qt::AlignVCenter);
+        captionSurface->addStretch(1);
         radioCanvasCaption_=new QLabel(radioCanvas_);
         radioCanvasCaption_->setTextFormat(Qt::PlainText);
         radioCanvasCaption_->setWordWrap(true);
