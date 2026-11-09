@@ -82,6 +82,7 @@ class CaptionTap:
         self._performance_samples = deque(maxlen=48)
         self._decoded_count = 0
         self._lost_caption_events = 0
+        self._last_degrade_warning_at = 0.0
 
     def performance_snapshot(self):
         with self._performance_lock:
@@ -122,8 +123,34 @@ class CaptionTap:
                 continue
             began = time.monotonic()
             queue_wait = max(0.0,began-clip.ended)
+            options=dict(clip.options)
+            queue_state=self.work_queue.snapshot()
+            # Speech and translations are more important than optional
+            # speaker separation/sound classifiers if those extra GPU/CPU
+            # jobs make the six-second capture queue fall behind broadcast.
+            # This is opt-out, not a covert change to the selected AI model.
+            if options.get("live_priority",True):
+                behind=(queue_wait>3.0 or queue_state["queued_clips"]>=1)
+                severely_behind=(queue_wait>8.0 or
+                                 queue_state["queued_clips"]>=2)
+                extras=("separate_overlapping_voices","show_sound_events",
+                        "show_voice_types")
+                skipped=[name for name in extras if behind and options.get(name)]
+                for name in skipped:
+                    options[name]=False
+                if severely_behind and options.get("speaker_enabled"):
+                    options["speaker_enabled"]=False
+                    skipped.append("speaker_enabled")
+                if skipped and began-self._last_degrade_warning_at>12:
+                    self._last_degrade_warning_at=began
+                    self._note_warning(
+                        "LIVE PRIORITY: omitted slow optional "+
+                        ", ".join(skipped)+" for this clip; "
+                        "Whisper speech and chosen translations still run. "
+                        f"Queue: {queue_state['queued_clips']} clips, "
+                        f"wait {queue_wait:.1f}s")
             try:
-                self._decode(clip.data, clip.options, clip.started, clip.ended)
+                self._decode(clip.data, options, clip.started, clip.ended)
             except Exception as error:
                 self._note_warning("Caption worker failed: "+str(error)[:120])
             finally:
