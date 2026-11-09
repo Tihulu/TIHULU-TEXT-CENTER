@@ -672,18 +672,18 @@ def open_ai_settings(parent, ai, after_save=None):
             if key not in PROFILES:
                 return
             spec = profile(key)
-            parts = "\\n".join(
+            parts = "\n".join(
                 " • "+COMPONENTS[name][0]+" — "+COMPONENTS[name][1]
                 for name in spec["components"])
             issue=hardware_issue(key,self.hardware)
             self.profile_description.setText(
-                spec["description"]+"\\nEstimated disk: "+
-                spec["disk_gb_estimate"]+"\\nHardware: "+
+                spec["description"]+"\nEstimated disk: "+
+                spec["disk_gb_estimate"]+"\nHardware: "+
                 (issue or "Meets minimum estimates; inference still untested")+
-                "\\nSelected: "+(self.ai.values.get("active_profile") or "Custom"))
+                "\nSelected: "+(self.ai.values.get("active_profile") or "Custom"))
             self.profile_components.setText(
-                "Required models:\\n"+parts+
-                "\\nUse Check installed to verify live status.")
+                "Required models:\n"+parts+
+                "\nUse Check installed to verify live status.")
 
         def inspect_profile(self):
             if self._profile_inventory_busy:
@@ -713,10 +713,10 @@ def open_ai_settings(parent, ai, after_save=None):
                     "Unable to verify models: "+data["error"])
                 return
             self.profile_components.setText(
-                "\\n".join(("✓ INSTALLED" if installed else "✗ MISSING")+
+                "\n".join(("✓ INSTALLED" if installed else "✗ MISSING")+
                           " · "+COMPONENTS[name][0]
                           for name,installed in data["status"].items())+
-                "\\nMissing components block Select mode.")
+                "\nMissing components block Select mode.")
 
         def install_profile(self):
             key=self.profile_choice.currentData()
@@ -724,18 +724,18 @@ def open_ai_settings(parent, ai, after_save=None):
                 return
             spec=profile(key)
             warning=(
-                "\\nNLLB: CC-BY-NC-4.0 non-commercial license; MADLAD "
+                "\nNLLB: CC-BY-NC-4.0 non-commercial license; MADLAD "
                 "downloads ~12 GB weights, CUDA requires >=24GB VRAM."
                 if key=="experimental" else "")
             caveat=(
-                "\\nHailo-10H acceleration of these specific Whisper/Argos "
+                "\nHailo-10H acceleration of these specific Whisper/Argos "
                 "models is NOT provided. This is a CPU fallback preset."
                 if key=="pi5_hat2" else "")
             if QMessageBox.question(self,"Install all · "+spec["name"],
-                "Download/build missing components now?\\n"+
-                spec["description"]+"\\nEstimated disk: "+
+                "Download/build missing components now?\n"+
+                spec["description"]+"\nEstimated disk: "+
                 spec["disk_gb_estimate"]+warning+caveat+
-                "\\nInstall all does NOT activate the profile. "
+                "\nInstall all does NOT activate the profile. "
                 "Partial successes remain installed for safe retry. Continue?"
                 ) != QMessageBox.Yes:
                 return
@@ -956,8 +956,8 @@ def open_ai_settings(parent, ai, after_save=None):
                 " | Tiny: "+("READY" if state["tiny_model_ready"] else "missing")+
                 " | DE/EN/TR: "+("READY" if state["translation_three_languages_ready"]
                                else "missing packs")+
-                "\\nInstalled directions: "+(", ".join(state["installed_pairs"]) or "none")+
-                "\\nASR: "+("ENABLED" if state["enabled_asr"] else "OFF")+
+                "\nInstalled directions: "+(", ".join(state["installed_pairs"]) or "none")+
+                "\nASR: "+("ENABLED" if state["enabled_asr"] else "OFF")+
                 " | Translation: "+("ENABLED" if state["enabled_translation"] else "OFF"))
 
         def setup_starter(self):
@@ -1286,21 +1286,21 @@ def open_ai_settings(parent, ai, after_save=None):
             self.compute.setText(
                 "CPU: "+self.hardware["cpu"]+
                 (" · RAM "+str(round(ram/1024,1))+" GiB" if ram else "")+
-                "\\nGPU: "+gpu["name"]+
+                "\nGPU: "+gpu["name"]+
                 (" · VRAM "+str(gpu["vram_mib"])+" MiB"
                  if gpu["vram_mib"] else "")+
-                "\\nNPU: "+(", ".join(npu["devices"]) if npu["detected"]
+                "\nNPU: "+(", ".join(npu["devices"]) if npu["detected"]
                               else "not detected")+
-                "\\nSpeech runtimes: "+(", ".join(available) if available
+                "\nSpeech runtimes: "+(", ".join(available) if available
                                          else "none detected")+
-                "\\nHardware detection never proves model compatibility.")
+                "\nHardware detection never proves model compatibility.")
             self.cuda_status.setText(
                 "CUDA compiler: "+(gpu["cuda_version"] or "not installed")+
                 " · GPU whisper.cpp compiled: "+
                 ("YES" if WhisperRuntime().ready_gpu() else "NO")+
-                "\\nFaster-Whisper CUDA installed: "+
+                "\nFaster-Whisper CUDA installed: "+
                 ("YES" if FasterWhisperCUDA().installed() else "NO")+
-                "\\n"+gpu["reason"])
+                "\n"+gpu["reason"])
             self.show_profile_description()
             self.populate_models()
 
