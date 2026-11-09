@@ -1175,6 +1175,15 @@ def main(argv=None):
         "remain on screen long enough to read. This does not guarantee "
         "video-frame PTS lip synchronization.")
     timing_layout.addRow(comfort_reading)
+    live_priority=QCheckBox(
+        "Protect live speech · skip heavy voice/sound extras if lag builds")
+    live_priority.setChecked(True)
+    live_priority.setToolTip(
+        "Default ON. If optional SepFormer or audio classifiers make the "
+        "caption worker fall behind broadcast, temporarily omit ONLY those "
+        "enhancements. Keep primary Whisper and selected translations. "
+        "Cannot overcome a core speech engine slower than real time.")
+    timing_layout.addRow(live_priority)
     # Voice/music-vocal recognition is a separate experiment; the two
     # goals conflict and must not be advertised as identical features.
     def choose_speech_priority(checked):
@@ -1788,6 +1797,7 @@ def main(argv=None):
             music_transcription=music_transcription.isChecked(),
             speech_priority=speech_priority.isChecked(),
             readable_pacing=comfort_reading.isChecked(),
+            live_priority=live_priority.isChecked(),
             speaker_provider=speaker_provider.currentData(),
             speaker_aliases=tuple(entry.text().strip()
                                   for entry in speaker_alias_inputs),
@@ -1866,7 +1876,8 @@ def main(argv=None):
     caption_offset.valueChanged.connect(apply_offset_immediately)
     for w in (show_video,automatic,speaker_enabled,speaker_numbers,
               speaker_lines,voice_types,sound_events,overlap_enabled,
-              music_transcription,speech_priority,comfort_reading):
+              music_transcription,speech_priority,comfort_reading,
+              live_priority):
         w.toggled.connect(set_pending)
     for entry in speaker_alias_inputs:
         entry.textChanged.connect(set_pending)
