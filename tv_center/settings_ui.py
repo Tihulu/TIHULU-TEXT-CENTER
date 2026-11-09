@@ -139,7 +139,7 @@ def open_ai_settings(parent, ai, after_save=None):
             quick_layout.addWidget(self.install_starter)
             starter_description = QLabel(
                 "Optional CPU fallback: Whisper Tiny (~78 MB) and four Argos "
-                "language pairs. RTX GPU Turbo is installed separately.")
+                "language pairs. NVIDIA CUDA Turbo is installed separately.")
             starter_description.setWordWrap(True)
             quick_layout.addWidget(starter_description)
             root.addWidget(quick)
@@ -179,7 +179,7 @@ def open_ai_settings(parent, ai, after_save=None):
             self.install_cuda.clicked.connect(self.install_cuda_runtime)
             form.addRow(self.install_cuda)
             self.install_fast_cuda = QPushButton(
-                "Install / repair RTX CUDA · Faster-Whisper Turbo (no nvcc)")
+                "Install / repair NVIDIA CUDA · Faster-Whisper Turbo (no nvcc)")
             self.install_fast_cuda.setToolTip(
                 "Isolated user-owned Python environment; verified CTranslate2 "
                 "model and CUDA 12 cuBLAS/cuDNN wheels. Does not replace NVIDIA "
@@ -192,7 +192,7 @@ def open_ai_settings(parent, ai, after_save=None):
                 "QPushButton:disabled{background:#444;color:#999}")
             form.addRow(self.install_fast_cuda)
             self.verify_fast_cuda = QPushButton(
-                "Test RTX CUDA · real local model inference")
+                "Test NVIDIA CUDA · real local model inference")
             self.verify_fast_cuda.clicked.connect(self.verify_cuda_inference)
             form.addRow(self.verify_fast_cuda)
             self.cuda_status = QLabel("")
