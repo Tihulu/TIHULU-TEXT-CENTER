@@ -34,6 +34,7 @@ class CaptionConfig:
     teletext_pid: int | None = None
     audio_pid: int | None = None
     audio_language: str | None = None
+    spoken_auto: bool = False  # user requests real ASR language re-detection
     speaker_enabled: bool = False
     music_transcription: bool = False
     speech_priority: bool = False  # optional dialogue focus when background music overlaps
@@ -105,7 +106,8 @@ class CaptionConfig:
                 raise ValueError(
                     field + " must be an RGB hex color such as #FFFFFF")
         for key in ("automatic_sync", "on_video", "show_original", "show_translation",
-                    "speaker_enabled", "music_transcription", "speech_priority"):
+                    "speaker_enabled", "music_transcription", "speech_priority",
+                    "spoken_auto"):
             if type(getattr(self, key)) is not bool:
                 raise ValueError("Caption display toggles must be boolean")
         return self
@@ -115,6 +117,7 @@ class CaptionConfig:
                 "target":self.target,"targets":self.target_languages,
                 "page":self.page,"teletext_pid":self.teletext_pid,
                 "audio_pid":self.audio_pid,"audio_source":self.audio_language,
+                "spoken_auto":self.spoken_auto,
                 "speaker_enabled":self.speaker_enabled,
                 "music_transcription":self.music_transcription,
                 "speech_priority":self.speech_priority,
