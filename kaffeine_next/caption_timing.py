@@ -445,8 +445,27 @@ def cue_window(started, ended, finished, config: CaptionConfig, result=None):
     without calibrated DVB PTS, not lip-sync accuracy.
     """
     anchor = float(started)
-    if isinstance(result, dict) and result.get("source") == "local_asr" and not result.get("word_progress"):
-        anchor = max(float(started), float(ended) - 0.75)
+    if (isinstance(result,dict) and result.get("source")=="local_asr"
+            and not result.get("word_progress")):
+        # A completed *whole sentence* can still have real source-word
+        # timestamps even when the reader chose not to show flashing word
+        # fragments. Reveal that finished sentence near the first VERIFIED
+        # spoken word, allowing longer text to be read naturally. Never
+        # reuse this for untimed CPU ASR or merged multi-clip text.
+        first_word = None
+        if (result.get("word_timing_source") and
+                isinstance(result.get("words"),list) and result["words"]):
+            first_word=result["words"][0]
+        duration=max(0.0,float(ended)-float(started))
+        if (isinstance(first_word,dict) and
+                type(first_word.get("start")) in (int,float) and
+                0<=first_word["start"]<=duration+0.25 and
+                not (result.get("ts_integrity") or {}).get("critical_gaps")):
+            anchor=float(started)+max(0.0,float(first_word["start"]))
+        else:
+            # CPU/untimed ASR cannot claim word alignment. Show near the
+            # end of the observed six-second window as a conservative guess.
+            anchor=max(float(started),float(ended)-0.75)
     source_due = anchor + (
         config.playback_delay_ms + config.offset_ms) / 1000.0
     timed = bool(isinstance(result, dict) and result.get("word_progress"))
