@@ -21,7 +21,11 @@ def open_ai_settings(parent, ai, after_save=None):
     from .speaker_market import SpeakerMarket
     from .free_speakers import FreeSpeakerMarket
     from .ai_provision import StarterAI
-    from .hardware_market import detect_hardware, model_fit
+    from .hardware_market import detect_hardware, quick_hardware, model_fit
+    from .ai_profiles import (PROFILES, COMPONENTS, profile, local_status,
+                              install_components, selection_patch, hardware_issue)
+    from .remote_gpu import (validate_endpoint, save_token, read_token,
+                             delete_token, test_connection)
     from .translation_market import TranslationModelMarket, LICENSE as NLLB_LICENSE
     from .translation_madlad import MadladMarket
     from .deepl_api import read_key, save_key, remove_key
@@ -93,7 +97,11 @@ def open_ai_settings(parent, ai, after_save=None):
             self.work = queue.Queue()
             self.running = False
             self.library = ModelLibrary(ai.values["model_dir"] or None)
-            self.hardware = detect_hardware()
+            self.hardware = quick_hardware()
+            self._compute_busy = False
+            self._argos_busy = False
+            self._starter_busy = False
+            self._profile_inventory_busy = False
             self.translation_market = TranslationModelMarket()
             outer = QVBoxLayout(self)
             outer.setContentsMargins(12, 12, 12, 10)
@@ -138,14 +146,14 @@ def open_ai_settings(parent, ai, after_save=None):
             self.translator.setChecked(ai.values["translation_enabled"])
             form.addRow(self.translator)
             self.backend = QComboBox()
-            self.backend.addItems(["auto", "gpu", "cpu"])
+            self.backend.addItems(["auto", "gpu", "cpu", "remote"])
             if self.hardware["npu"]["detected"]:
                 self.backend.addItem("npu")
             self.backend.setCurrentText(
                 ai.values["backend"] if self.backend.findText(
                     ai.values["backend"]) >= 0 else "auto")
             self.backend.setToolTip(
-                "RTX 5080 uses GPU CUDA, NOT NPU. NPU is shown only when "
+                "RTX 5080 is GPU CUDA, NOT NPU. Remote requires explicit TLS and token. NPU is shown only when "
                 "a compatible discrete Intel/Hailo accelerator is detected.")
             form.addRow("Inference engine", self.backend)
             self.compute = QLabel("")
@@ -424,6 +432,77 @@ def open_ai_settings(parent, ai, after_save=None):
             root.removeWidget(langs)
             language_stack.addWidget(langs)
             language_stack.addStretch()
+            profile_page = QWidget()
+            profile_layout = QVBoxLayout(profile_page)
+            profile_layout.setContentsMargins(12, 16, 12, 12)
+            profile_layout.setSpacing(14)
+            guided = QGroupBox("Recommended modes · install before selecting")
+            guided_layout = QVBoxLayout(guided)
+            self.profile_choice = QComboBox()
+            for key, spec in PROFILES.items():
+                self.profile_choice.addItem(spec["name"], key)
+            initial = ai.values.get("active_profile") or (
+                "pi5" if self.hardware["raspberry_pi_5"] else "performance")
+            self.profile_choice.setCurrentIndex(
+                max(0, self.profile_choice.findData(initial)))
+            self.profile_choice.currentIndexChanged.connect(
+                self.show_profile_description)
+            guided_layout.addWidget(self.profile_choice)
+            self.profile_description = QLabel("")
+            self.profile_description.setWordWrap(True)
+            guided_layout.addWidget(self.profile_description)
+            self.profile_components = QLabel("Choose a profile to inspect components.")
+            self.profile_components.setWordWrap(True)
+            guided_layout.addWidget(self.profile_components)
+            buttons = QHBoxLayout()
+            self.profile_inspect = QPushButton("Check installed")
+            self.profile_inspect.clicked.connect(self.inspect_profile)
+            self.profile_install = QPushButton("Install all")
+            self.profile_install.clicked.connect(self.install_profile)
+            self.profile_select = QPushButton("Select mode")
+            self.profile_select.clicked.connect(self.select_profile)
+            for btn in (self.profile_inspect, self.profile_install, self.profile_select):
+                buttons.addWidget(btn)
+            guided_layout.addLayout(buttons)
+            profile_layout.addWidget(guided)
+            remote_group = QGroupBox("Remote GPU · opt-in TLS speech processing")
+            remote_layout = QFormLayout(remote_group)
+            self.remote_enabled = QCheckBox(
+                "Allow sending spoken TV audio to another GPU computer")
+            self.remote_enabled.setChecked(ai.values.get("remote_gpu_enabled", False))
+            remote_layout.addRow(self.remote_enabled)
+            self.remote_endpoint = QLineEdit(ai.values.get("remote_gpu_url", ""))
+            self.remote_endpoint.setPlaceholderText("https://gpu-host.example:8443")
+            remote_layout.addRow("HTTPS GPU host", self.remote_endpoint)
+            self.remote_fallback = QCheckBox(
+                "Fall back to local Auto when remote server unavailable")
+            self.remote_fallback.setChecked(ai.values.get("remote_gpu_fallback", True))
+            remote_layout.addRow(self.remote_fallback)
+            self.remote_token = QLineEdit()
+            self.remote_token.setEchoMode(QLineEdit.Password)
+            self.remote_token.setPlaceholderText("16–256 character shared private token")
+            remote_layout.addRow("Shared secret", self.remote_token)
+            remote_buttons = QHBoxLayout()
+            save_remote = QPushButton("Save token")
+            save_remote.clicked.connect(self.save_remote_token)
+            probe = QPushButton("Test TLS · no audio")
+            probe.clicked.connect(self.test_remote_gpu)
+            remove_remote = QPushButton("Remove token")
+            remove_remote.clicked.connect(self.remove_remote_token)
+            for btn in (save_remote, probe, remove_remote):
+                remote_buttons.addWidget(btn)
+            remote_layout.addRow(remote_buttons)
+            warning = QLabel(
+                "Install and explicitly start the TLS CUDA service on the remote "
+                "computer. Remote inference occurs ONLY when enabled here AND "
+                "Inference engine = remote is saved. Voice audio leaves this "
+                "device; TV video and DVB tuner never do. No automatic discovery.")
+            warning.setWordWrap(True)
+            remote_layout.addRow(warning)
+            profile_layout.addWidget(remote_group)
+            profile_layout.addStretch()
+            tabs.addTab(scroll_tab(profile_page), "Ready modes · Install all")
+            self.show_profile_description()
             tabs.addTab(scroll_tab(speech_page), "Speech models · GPU / NPU")
             tabs.addTab(scroll_tab(language_page), "Language packs · Translation")
 
