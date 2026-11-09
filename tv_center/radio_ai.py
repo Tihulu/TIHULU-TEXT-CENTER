@@ -275,6 +275,55 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
             unverified_vocals_hidden=False
             if plain_matcher is not None and prefer_verified_lyrics and lyric_match:
                 original=lyric_match["text"]
+            # Use capture-clock timing, not the time Whisper + multiple
+            # translators happened to finish. All cue times refer to the
+            # same absolute 5s hop with a 6s PCM decoding window.
+            #
+            # A queued/silence-flushed sentence may span earlier windows;
+            # this is an estimate of its LAST recognized word, never a
+            # claim of exact per-word libVLC presentation timestamps.
+            capture_epoch_ms=round(
+                (time.time()+captured_at-time.monotonic())*1000)
+            window_start=capture_index*5.
+            heard_end=max((float(cue.end) for cue in cues),default=window_start+6.)
+            heard_end=max(window_start,min(window_start+6.,heard_end))
+            phrase_end_epoch_ms=int(capture_epoch_ms-
+                                    round((window_start+6.-heard_end)*1000))
+
+            # Publish the ORIGINAL promptly after ASR. A slow sequential
+            # NLLB/MADLAD/Argos/DeepL translation must not block hearing
+            # the already recognized presenter or lyric words. The next
+            # write for the SAME chunk includes translations (revision 1).
+            if original:
+                preview_state=("language_pending" if language_pending else
+                    "translator_disabled" if not ai.values["translation_enabled"] else
+                    "translating" if any(x!=used_language for x in destinations) else
+                    "original_only")
+                write_runtime_json(location,{
+                    "status":"running",
+                    "chunk_index":capture_index,
+                    "caption_revision":0,
+                    "original":original[:1800],
+                    "source_language":used_language or "und",
+                    "source_capture_epoch_ms":capture_epoch_ms,
+                    "subtitle_audio_end_epoch_ms":phrase_end_epoch_ms,
+                    "subtitle_clock_source":"welle_pcm_captured_approximate",
+                    "requested_targets":list(destinations),
+                    "translations":{},
+                    "translation_state":preview_state,
+                    "translation_note":(
+                        "Translation processing; original audio shown first"
+                        if preview_state=="translating" else
+                        "Choose a reliable spoken language" if language_pending else
+                        "Translation disabled in Model Market" if
+                        preview_state=="translator_disabled" else
+                        "Only source language selected"),
+                    "language_pending":language_pending,
+                    "control_status":controls_note,
+                    "ai_audio_windows_dropped":capture.dropped_windows,
+                    "ai_audio_gap":gap,
+                    "timestamp":time.time(),
+                })
             translated={}
             problems={}
             requested_translation_targets=tuple(
@@ -328,20 +377,6 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
                             lyric_translations[lang]=translated_line
                         if issue:
                             problems[lang]=str(issue)[:180]
-            # Use capture-clock timing, not the time Whisper + multiple
-            # translators happened to finish. All cue times refer to the
-            # same absolute 5s hop with a 6s PCM decoding window.
-            #
-            # A queued/silence-flushed sentence may span earlier windows;
-            # this is an estimate of its LAST recognized word, never a
-            # claim of exact per-word libVLC presentation timestamps.
-            capture_epoch_ms=round(
-                (time.time()+captured_at-time.monotonic())*1000)
-            window_start=capture_index*5.
-            heard_end=max((float(cue.end) for cue in cues),default=window_start+6.)
-            heard_end=max(window_start,min(window_start+6.,heard_end))
-            phrase_end_epoch_ms=int(capture_epoch_ms-
-                                    round((window_start+6.-heard_end)*1000))
             # Do not report an unverified translation as success. Provide
             # exact reasons for the visible untranslated original, including
             # model disabled, unknown source, or missing language packs.
@@ -354,6 +389,7 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
                 language_pending=language_pending)
             write_runtime_json(location,{
                 "status":"running",
+                "caption_revision":1,
                 "source_language":used_language or "und",
                 "language_detected":src=="auto",
                 "language_confidence":round(confidence,3),
