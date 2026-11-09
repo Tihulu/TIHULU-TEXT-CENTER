@@ -407,6 +407,15 @@ public:
                             QLatin1String("KaffeineRadio"));
             prefs.setValue(QLatin1String("radioReadingPreset"),
                            radioReadingPreset_->currentData().toInt());
+            // Apply selection immediately to the currently displayed cue.
+            if(radioCanvasCaption_ && radioCanvasCaption_->isVisible() &&
+               captionDisplayedStartedMs_>0) {
+                const qint64 now=QDateTime::currentMSecsSinceEpoch();
+                captionReadingHoldUntilMs_=qMax(now,
+                    captionDisplayedStartedMs_+
+                    radioCaptionReadingHoldMs(radioCanvasCaption_->text()));
+                displayDueRadioCues(now);
+            }
         });
         connect(radioCaptionFontSize_,QOverload<int>::of(
             &QSpinBox::valueChanged),this,[this](int size){
@@ -727,10 +736,10 @@ public:
 		// owned by Playback/Playlist/Television. Reparenting it into Radio
 		// broke file playback and left a duplicate transport bar in the
 		// video canvas. This is a radio visualization and caption surface.
-		radioCanvas_ = new QLabel(tr("Radio · choose a station to listen"), playerHost_);
+		radioCanvas_ = new QLabel(QString(), playerHost_);
 		radioCanvas_->setAlignment(Qt::AlignCenter);
 		radioCanvas_->setWordWrap(true);
-		radioCanvas_->setMinimumHeight(135);
+		radioCanvas_->setMinimumHeight(300);
 		radioCanvas_->setStyleSheet(QLatin1String(
 			"QLabel{background:#122637;color:#eef9fc;font-size:19px;"
 			"border:1px solid #2b566b;border-radius:8px;padding:12px;}"));
@@ -740,6 +749,15 @@ public:
         // receiver text; a separate bottom child overlays real cues.
         auto *captionSurface=new QVBoxLayout(radioCanvas_);
         captionSurface->setContentsMargins(12,12,12,12);
+        radioCanvasStation_=new QLabel(tr("Radio · choose a station to listen"),radioCanvas_);
+        radioCanvasStation_->setTextFormat(Qt::PlainText);
+        radioCanvasStation_->setWordWrap(true);
+        radioCanvasStation_->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+        radioCanvasStation_->setMaximumHeight(66);
+        radioCanvasStation_->setStyleSheet(QLatin1String(
+            "QLabel{color:#a6dbe9;background:#17384b;border:none;"
+            "border-radius:6px;padding:5px 9px;font-size:12px;}"));
+        captionSurface->addWidget(radioCanvasStation_,0,Qt::AlignTop);
         captionSurface->addStretch(1);
         // A separate karaoke layer occupies the BLUE DAB station canvas.
         // The bottom subtitles remain a distinct Whisper/translation
@@ -2446,7 +2464,7 @@ private:
             tr("Online stream · not an FM/MW/LW frequency"));
 		player_->play(url);
 		audioStartedMs_=QDateTime::currentMSecsSinceEpoch();
-		radioCanvas_->setText(tr("♪ Internet radio\\n%1\\nAudio uses the built-in player.")
+		radioCanvasStation_->setText(tr("♪ Internet radio\\n%1\\nAudio uses the built-in player.")
 			.arg(url.host()));
 		webStatus_->setText(tr("Opening internet radio stream · no DVB device required."));
 	}
@@ -3290,6 +3308,7 @@ private:
                 lastCaptionVisibleMs_=0;
                 lastCanvasLyricMs_=0;
                 captionReadingHoldUntilMs_=0;
+                captionDisplayedStartedMs_=0;
                 if(radioCanvasCaption_) radioCanvasCaption_->setVisible(false);
                 radioCaptionBanner_->setText(tr("Opening DAB station · waiting for audio…"));
 				pendingRadioCue_.clear();
@@ -3323,7 +3342,7 @@ private:
                                   selectedBufferMs());
                 player_->play(QUrl(base()+stream));
 				audioStartedMs_=QDateTime::currentMSecsSinceEpoch();
-				radioCanvas_->setText(tr("♪ %1\nDAB+ %2 · verifying audio playback…")
+				radioCanvasStation_->setText(tr("♪ %1\nDAB+ %2 · verifying audio playback…")
 					.arg(name,block));
 				playStatus_->setText(tr("LIVE mux lists %1. Opening audio; "
 					"receiver lock does not guarantee decoded sound.").arg(name));
@@ -3336,7 +3355,7 @@ private:
 							"audio and error counters; actual audio output is not metered.")
 							.arg(name));
 						stationOpenProgress_->setFormat(tr("Player reports PLAYING · %1").arg(name));
-                        radioCanvas_->setText(tr(
+                        radioCanvasStation_->setText(tr(
                             "♪ %1\nDAB+ %2 · player reports Playing\n"
                             "Audible output is not independently measured.")
                             .arg(name,activeChannel_));
@@ -3345,7 +3364,7 @@ private:
 							"Check welle receiver, AAC decoding and stream endpoint.")
 							.arg(name));
 						stationOpenProgress_->setFormat(tr("Audio failed / stopped"));
-                        radioCanvas_->setText(tr(
+                        radioCanvasStation_->setText(tr(
                             "♪ %1\nDAB+ %2 · decoder/player did not report Playing\n"
                             "Inspect DAB RF errors and local stream.")
                             .arg(name,activeChannel_));
@@ -4042,6 +4061,7 @@ private:
             radioCanvasCaption_->setText(text);
             // Keep full multi-language phrases readable; never change
             // actual libVLC playback or restart the SDR receiver.
+            captionDisplayedStartedMs_=currentMs;
             captionReadingHoldUntilMs_=currentMs+
                 radioCaptionReadingHoldMs(text);
         }
@@ -4485,6 +4505,7 @@ private:
 	void stopCaptioning() {
         captionsStopping_=true;
         captionReadingHoldUntilMs_=0;
+        captionDisplayedStartedMs_=0;
 		cueQueue_.clear();
 		metadataCaptions_=false;
 		if (captionProcess_.state()!=QProcess::NotRunning) {
@@ -4807,7 +4828,7 @@ private:
 		}
 	}
 	MediaWidget *player_;
-	QLabel *radioCanvas_=nullptr;
+	QLabel *radioCanvas_=nullptr,*radioCanvasStation_=nullptr;
 	QWidget *playerHost_=nullptr;
 	QVBoxLayout *playerHostLayout_=nullptr;
 	QTabWidget *modes_=nullptr;
@@ -4891,7 +4912,7 @@ private:
 	qint64 audioStartedMs_=0,lastLyricSyncUpdateMs_=0,
         lastCaptionVisibleMs_=0,lastCanvasLyricMs_=0,lastCaptionUpdateMs_=0,
         lastUnmatchedVoiceUntilMs_=0,lastMatchedLyricUntilMs_=0,
-        captionReadingHoldUntilMs_=0;
+        captionReadingHoldUntilMs_=0,captionDisplayedStartedMs_=0;
     bool lastLyricsAutoLookup_=false;
 	bool metadataCaptions_=false;
 	int dlsCaptionIndex_=0;
