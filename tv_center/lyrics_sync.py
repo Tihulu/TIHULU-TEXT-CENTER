@@ -372,6 +372,7 @@ class LiveLyricMatcher:
         self.position=0
         self.seen_chunks=0
         self.previous_text=""
+        self.unmatched_chunks=0
 
     def observe(self, recognized: str) -> dict | None:
         if not isinstance(recognized,str) or not recognized.strip():
@@ -383,8 +384,17 @@ class LiveLyricMatcher:
             return None
         hearing=set(heard)
         best=None
-        # At most 8 forward lines. Never jump to a random distant refrain.
-        for index in range(self.position, min(len(self.lines),self.position+8)):
+        # Users can enable Auto Lyrics after joining a song already in
+        # progress. Its first heard verse may be line 40, not line 1.
+        # Initial acquisition can search all lyrics only with stronger
+        # lexical evidence; once locked, remain forward-only (up to 8)
+        # to avoid matching unrelated adverts or distant repetitions.
+        acquiring=self.position==0 and self.seen_chunks<=8
+        if acquiring:
+            indexes=range(len(self.lines))
+        else:
+            indexes=range(self.position,min(len(self.lines),self.position+8))
+        for index in indexes:
             original=self.lines[index]
             expected=_lyric_tokens(original)
             if len(expected)<3:
@@ -402,11 +412,19 @@ class LiveLyricMatcher:
             precision=evidence/max(1,len(hearing))
             confidence=0.82*coverage+0.18*min(1.,precision*2.)
             threshold=0.90 if short_refrain else 0.74
+            if acquiring and index>=8:
+                # A broad search needs a distinctive multiword phrase;
+                # generic 2-word refrains may only match near the start.
+                if len(distinctive)<3 or evidence<3:
+                    continue
+                threshold=max(threshold,0.89)
             if confidence>=threshold and (best is None or confidence>best[0]):
                 best=(confidence,index,original)
         if best is None:
+            self.unmatched_chunks+=1
             return None
         score,index,line=best
+        self.unmatched_chunks=0
         self.position=index+1
         return {"index":index,"text":line,"confidence":round(score,3),
                 "kind":"observed_ASR_chunk_match","approximate":True}
