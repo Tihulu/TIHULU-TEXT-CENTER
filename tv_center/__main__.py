@@ -18,6 +18,10 @@ def main():
         from textcenter.compute import LANGUAGES
         from .installed_languages import NAMES
         info=catalog(scan_argos=True)
+        selected=AISettings().values
+        info["selected_translator"]=selected.get("translation_model","argos")
+        info["selected_speech_backend"]=selected.get("backend","auto")
+        info["speech_enabled"]=bool(selected.get("asr_enabled"))
         info["speech_languages"]=[
             {"code":code,"label":NAMES.get(code,code.upper())}
             for code in LANGUAGES]
