@@ -2372,6 +2372,15 @@ def main(argv=None):
         nonlocal applied, last_service_id, last_effective_check
         nonlocal last_applied_effective_ms, last_sync_audit_at
         nonlocal last_ui_program_epoch,live_test_started_at
+        try:
+            state,message=overlap_install_queue.get_nowait()
+        except queue.Empty:
+            pass
+        else:
+            overlap_install_button.setEnabled(True)
+            overlap_status.setText(
+                ("SepFormer installed · " if state=="ok" else
+                 "SepFormer setup failed · ")+message)
         # Kaffeine is the DVB owner. Terminate sidecar when it disappears,
         # including when the settings window has been hidden.
         try:
