@@ -49,8 +49,8 @@ class AcousticClassifiersTests(unittest.TestCase):
         result={"source":"local_asr","original":"Merhaba",
                 "speaker_index":1,"speaker_label":"[Speaker 1 · clip]",
                 "voice_type":"female","voice_type_confidence":0.95,
-                "sound_events":[{"type":"music","confidence":0.96},
-                                {"type":"hum","confidence":0.90}]}
+                "sound_events":[{"type":"music","confidence":0.96,"source":"AST AudioSet"},
+                                {"type":"hum","confidence":0.90,"source":"AST AudioSet"}]}
         labels_only=CaptionConfig(speaker_enabled=True,
             show_speaker_numbers=False,show_voice_types=False,
             show_sound_events=True).validate()
