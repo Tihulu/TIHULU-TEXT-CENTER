@@ -166,9 +166,9 @@ class LiveWorkloadProtectionTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             transcriber.transcribe_details(b"valid", "en",
                                            "/not/installed", timeout_s=1)
-        from tv_center.captions import _asr_from_clip
+        from tv_center.captions import asr_from_clip
         import inspect
-        source=inspect.getsource(_asr_from_clip)
+        source=inspect.getsource(asr_from_clip)
         self.assertIn("timeout_s=18",source)
         self.assertIn("timeout_s=6",source)
 
