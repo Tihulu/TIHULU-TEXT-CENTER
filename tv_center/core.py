@@ -546,6 +546,59 @@ class TVCapture:
         finally:
             self._pending = False
 
+    def control_player(self, action: str, value=None) -> dict:
+        """Control only THIS running mpv over its private, owner-local socket.
+
+        Called from the Qt GUI thread after PIN+allowlisted dispatch. It
+        never launches a second tuner or uses an arbitrary client path.
+        """
+        if action not in ("resume","pause","volume","mute"):
+            raise ValueError("Unsupported native playback action")
+        if self.player is None or self.player.poll() is not None or self._ipc_dir is None:
+            raise RuntimeError("No running native TV player to control")
+        if action=="volume":
+            if type(value) is not int or not 0<=value<=100:
+                raise ValueError("Volume must be an integer 0–100")
+            command=["set_property","volume",value]
+        elif action=="mute":
+            if type(value) is not bool:
+                raise ValueError("Mute must be boolean")
+            command=["set_property","mute",value]
+        else:
+            command=["set_property","pause",action=="pause"]
+        path=Path(self._ipc_dir.name)/"mpv.sock"
+        if path.is_symlink() or not path.exists():
+            raise RuntimeError("Native player control socket is not ready")
+        # The process owns this 0700 temporary directory. Never accept
+        # command strings, paths or JSON from remote clients.
+        payload=json.dumps({"command":command},separators=(",",":")).encode()+b"\n"
+        with socket.socket(socket.AF_UNIX,socket.SOCK_STREAM) as control:
+            control.settimeout(1.5)
+            try:
+                control.connect(str(path))
+                control.sendall(payload)
+                received=b""
+                for _ in range(6):
+                    received+=control.recv(16384)
+                    if len(received)>64000:
+                        raise RuntimeError("Native player response exceeds limit")
+                    for line in received.split(b"\n")[:-1]:
+                        try:
+                            reply=json.loads(line)
+                        except (ValueError,UnicodeError):
+                            continue
+                        if isinstance(reply,dict) and "error" in reply:
+                            if reply["error"]!="success":
+                                raise RuntimeError("Native player rejected remote action: "
+                                                   +str(reply["error"])[:100])
+                            return {"ok":True,"action":action,
+                                    "note":"Acknowledged by the existing mpv player"}
+                    if b"\n" in received:
+                        received=received.rsplit(b"\n",1)[-1]
+            except (OSError,TimeoutError) as exc:
+                raise RuntimeError("Native player control socket unavailable") from exc
+        raise RuntimeError("Native player did not acknowledge the command")
+
     def stop(self):
         self.stop_flag.set()
         self.stop_mobile_video()

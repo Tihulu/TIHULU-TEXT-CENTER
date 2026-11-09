@@ -51,6 +51,22 @@ def serve_nllb():
         print(json.dumps(result,ensure_ascii=False),flush=True)
 
 
+def serve_madlad():
+    from .translation_madlad import run_madlad
+    for line in sys.stdin:
+        if not line.strip():
+            continue
+        try:
+            if len(line)>10000:
+                raise ValueError("Oversized translation request")
+            data=json.loads(line)
+            result={"translated":run_madlad(data["text"],
+                                            data["source"],data["target"])}
+        except (RuntimeError,ValueError,TypeError,KeyError,OSError,ImportError) as exc:
+            result={"error":str(exc)[:230]}
+        print(json.dumps(result,ensure_ascii=False),flush=True)
+
+
 def serve_argos():
     """Reuse the same isolated Argos Python process for live TV captions."""
     from textcenter.transcripts import translate_offline
@@ -81,5 +97,7 @@ if __name__ == "__main__":
         serve_nllb()
     elif sys.argv[1:] == ["--serve-argos"]:
         serve_argos()
+    elif sys.argv[1:] == ["--serve-madlad"]:
+        serve_madlad()
     else:
         main()

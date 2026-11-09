@@ -17,11 +17,14 @@ from .model_market import ModelLibrary, argos_installed_pairs
 from .runtime import AIRuntime
 from .whisper_engine import WhisperRuntime
 
-PAIRS = (("de", "en"), ("en", "de"), ("en", "tr"), ("tr", "en"))
-LANGUAGES = ("de", "en", "tr")
+# Default offline translation mesh: any pair can route via English.
+# Bidirectional FR is important for multilingual German/NRW broadcasts.
+PAIRS = (("de", "en"), ("en", "de"), ("en", "tr"), ("tr", "en"),
+         ("fr", "en"), ("en", "fr"))
+LANGUAGES = ("de", "en", "tr", "fr")
 
 def translate_ready(pairs):
-    """Full DE/EN/TR translation by direct or English-pivot Argos paths."""
+    """All installed DE/EN/TR/FR paths must work in BOTH directions."""
     graph = {x: set() for x in LANGUAGES}
     for item in pairs:
         source, target = item["source"], item["target"]
@@ -38,6 +41,24 @@ def translate_ready(pairs):
             return False
     return True
 
+def translate_ready_three(pairs):
+    graph={code:set() for code in ("de","en","tr")}
+    for item in pairs:
+        a,b=item["source"],item["target"]
+        if a in graph and b in graph:
+            graph[a].add(b)
+    for code in graph:
+        seen,pending={code},[code]
+        while pending:
+            for nxt in graph[pending.pop()]:
+                if nxt not in seen:
+                    seen.add(nxt)
+                    pending.append(nxt)
+        if len(seen)!=3:
+            return False
+    return True
+
+
 class StarterAI:
     def __init__(self, ai=None, library=None, runtime=None, whisper=None):
         self.ai = ai or AISettings()
@@ -46,28 +67,24 @@ class StarterAI:
         self.whisper = whisper or WhisperRuntime()
 
     def status(self):
-        try:
-            pairs = argos_installed_pairs()
-        except (ImportError, OSError, RuntimeError):
-            pairs = []
-        # On first install the desktop process may still run system Python
-        # while Argos has just been installed in the new user-owned venv.
-        # Read readiness from that runtime rather than falsely saying missing.
-        if not pairs and self.runtime.status()["installed"]:
+        # Market and live subtitles must use the SAME installed-pack source.
+        # A system Argos installation can differ from the private runtime;
+        # never report its packs as live-caption-ready when managed Argos
+        # exists. Run subprocess discovery only on an explicit inventory
+        # worker (the Qt first-paint path is deferred).
+        managed = self.runtime.status()["installed"]
+        if managed:
+            from .argos_market_bridge import run as argos_market
             try:
-                exe = self.runtime.status()["python"]
-                base = str(Path(__file__).resolve().parent.parent)
-                env = os.environ.copy()
-                env["PYTHONPATH"] = base + os.pathsep + env.get("PYTHONPATH", "")
-                proc = subprocess.run(
-                    [exe, "-m", "tv_center.ai_provision", "--argos-status-worker"],
-                    cwd=base, env=env, stdin=subprocess.DEVNULL,
-                    stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
-                    timeout=12, check=False)
-                if proc.returncode == 0:
-                    pairs = json.loads(proc.stdout.decode("utf-8", "replace"))
-            except (OSError, ValueError, UnicodeError, subprocess.TimeoutExpired):
-                pass
+                pairs = argos_market("installed",installed_timeout=9)
+            except (ImportError, OSError, RuntimeError, ValueError,
+                    subprocess.TimeoutExpired):
+                pairs = []
+        else:
+            try:
+                pairs = argos_installed_pairs()
+            except (ImportError, OSError, RuntimeError):
+                pairs = []
         model = self.library._path("tiny")
         active = self.ai.values.get("model_path", "")
         return {
@@ -75,9 +92,12 @@ class StarterAI:
             "tiny_model_ready": model.is_file(),
             "tiny_model": str(model),
             "active_model": active,
-            "argos_runtime_ready": self.runtime.status()["installed"],
+            "argos_runtime_ready": managed,
             "installed_pairs": [p["source"] + "→" + p["target"] for p in pairs],
-            "translation_three_languages_ready": translate_ready(pairs),
+            # Preserve the legacy trio for older callers; full profile
+            # readiness now additionally checks French in both directions.
+            "translation_three_languages_ready": translate_ready_three(pairs),
+            "translation_four_languages_ready": translate_ready(pairs),
             "enabled_asr": self.ai.values["asr_enabled"],
             "enabled_translation": self.ai.values["translation_enabled"],
             "storage": str(self.library.root),
@@ -104,7 +124,7 @@ class StarterAI:
                 show(f"Whisper Tiny: {got//1048576} MiB received"))
         if not model.is_file():
             raise RuntimeError("Verified Whisper model unavailable")
-        show("3/3 · Creating offline Argos runtime and installing four language pairs")
+        show("3/3 · Creating offline Argos runtime and installing six bidirectional DE/EN/TR/FR language packs")
         if not self.runtime.status()["installed"]:
             self.runtime.install_argos()
         packages = self._setup_argos_packs(progress=show)
@@ -176,6 +196,10 @@ def argos_worker():
             done.append(source + "→" + target)
         except (OSError, RuntimeError, ValueError) as exc:
             errors.append(source + "→" + target + ": " + str(exc)[:120])
+    if any(item not in installed for item in PAIRS if
+           item[0]+"→"+item[1] in done):
+        from .argos_generation import changed
+        changed()
     print(json.dumps({"installed": done, "errors": errors,
                       "pairs": argos_installed_pairs()}, ensure_ascii=False))
 

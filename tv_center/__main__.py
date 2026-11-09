@@ -11,6 +11,17 @@ def main():
     if len(sys.argv) >= 2 and sys.argv[1] == "ai-check":
         from .ai_diagnostics import main as diagnose_ai
         return diagnose_ai()
+    if len(sys.argv) >= 2 and sys.argv[1] == "ai-pairs":
+        # Read-only installed language directions; consumed by native DAB
+        # selector. No model inference, download, USB or network access.
+        from .ai_provision import StarterAI
+        ai = AISettings()
+        state = StarterAI(ai).status()
+        print(json.dumps({
+            "installed_pairs": state["installed_pairs"],
+            "selected_translator": ai.values.get("translation_model", "argos"),
+        }, ensure_ascii=False))
+        return 0
     if len(sys.argv) >= 2 and sys.argv[1] == "ai-market":
         from .settings_ui import open_ai_settings
         from PyQt5.QtWidgets import QApplication
@@ -28,9 +39,15 @@ def main():
     if len(sys.argv) >= 2 and sys.argv[1] == "media-captions-ui":
         from .media_ui import main as local_media_gui
         return local_media_gui(sys.argv[2:])
-    if len(sys.argv) >= 2 and sys.argv[1] in ("radio-captions","lyrics-lookup"):
+    if len(sys.argv) >= 2 and sys.argv[1] in ("radio-captions","lyrics-lookup","lyrics-import"):
         from .radio_ai import main as radio
         return radio(sys.argv[1:])
+    if len(sys.argv) >= 2 and sys.argv[1] == "hardware-status":
+        from .hardware_status import main as hardware_main
+        return hardware_main(sys.argv[2:])
+    if len(sys.argv) >= 2 and sys.argv[1] == "remote-hub":
+        from .remote_hub import main as remote_main
+        return remote_main(sys.argv[2:])
     if len(sys.argv) >= 2 and sys.argv[1] == "kaffeine-doctor":
         from kaffeine_next.diagnostics import main as diagnose
         return diagnose(sys.argv[2:])
@@ -76,7 +93,7 @@ def main():
         os.execv(str(launcher), [str(launcher), "--lastchannel", *arguments])
     print("Unknown command. Use: tv, ai-market, ai, doctor, "
           "kaffeine-captions, kaffeine-doctor, ai-check, media-captions, "
-          "media-captions-ui, radio-captions, lyrics-lookup, legacy-player", file=sys.stderr)
+          "media-captions-ui, radio-captions, lyrics-lookup, lyrics-import, remote-hub, legacy-player", file=sys.stderr)
     return 2
 
 if __name__ == "__main__":

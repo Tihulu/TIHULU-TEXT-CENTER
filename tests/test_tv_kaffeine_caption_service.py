@@ -56,6 +56,7 @@ class PersistentCaptionServiceTests(unittest.TestCase):
         self.assertIn("event.ignore()", source)
         self.assertIn('kind == "show_settings"', source)
         self.assertIn("control.close()", source)
-        self.assertIn("stop_subtitles.clicked.connect(stop_caption_service)", source)
+        self.assertIn("stop_subtitles.clicked.connect(lambda: set_subtitles_running(False))", source)
+        self.assertIn("exit_subtitles.clicked.connect(stop_caption_service)", source)
         self.assertIn("timer.timeout.connect(pump)", source)
 

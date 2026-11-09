@@ -14,12 +14,35 @@ REVISION = "e7ea15b86dafed3b20b151cbcb080578ab8e2d5c"
 PATHS = ("src/mainwindow.cpp", "src/mainwindow.h", "src/CMakeLists.txt",
          "src/dvb/dvbliveview.cpp",
          "src/dvb/dvbliveview_p.h", "src/dvb/dvbmanager.cpp", "src/dvb/dvbtab.cpp",
-         "src/dvb/dvbtab.h", "src/backend-vlc/vlcmediawidget.cpp",
+         "src/dvb/dvbtab.h", "src/dvb/dvbconfigdialog.cpp", "src/dvb/dvbscandialog.cpp",
+         "src/dvb/dvbscandialog.h", "src/backend-vlc/vlcmediawidget.cpp",
+         "src/backend-vlc/vlcmediawidget.h",
          "src/mediawidget.cpp", "src/mediawidget.h", "src/osdwidget.cpp",
-         "src/osdwidget.h", "src/main.cpp", "src/dvb/dvbepg.cpp")
+         "src/osdwidget.h", "src/main.cpp", "src/dvb/dvbepg.cpp",
+         "src/sqlinterface.h")
+
+def fix_sql_free_key(source: str) -> str:
+    """Fix Kaffeine 2.0.19's invalid QMap iterator in scan/channel import.
+
+    Guard the expected implementation shape to avoid applying this
+    narrowly targeted fix against an unrelated upstream revision.
+    """
+    old = "std::prev(container.constEnd(), -1)"
+    fixed = "std::prev(container.constEnd())"
+    if "if (!container.isEmpty()) {" not in source:
+        raise ValueError("Unexpected Kaffeine SQL allocator: missing empty-container guard")
+    if source.count(old) == 1:
+        return source.replace(old, fixed)
+    if old not in source and source.count(fixed) == 1:
+        return source
+    raise ValueError("Unexpected Kaffeine SQL allocator: cannot identify invalid iterator")
+
 
 def transform(files):
     files = dict(files)
+    # Used by the native caption bridge and global player changes.
+    # Keep this bound before any source transformation or conditional path.
+    mediac = "src/mediawidget.cpp"
     def change(path, before, after):
         source = files[path]
         if after in source:
@@ -56,7 +79,8 @@ def transform(files):
     # INSIDE its own tab; the older launched media-captions-ui remains
     # available only as an optional legacy menu entry.
     change(main, '#include "tihulu_radio_tab.h"\n',
-           '#include "tihulu_radio_tab.h"\n#include "tihulu_media_panel.h"\n')
+           '#include "tihulu_radio_tab.h"\n#include "tihulu_media_panel.h"\n'
+           '#include "tihulu_web_tv_dialog.h"\n')
     change(main, '''	void activate() override
 	{
 		layout()->addWidget(mediaWidget);
@@ -114,6 +138,59 @@ private:
 
 void MainWindow::configureKeys()
 {''')
+    # Hardware lives as an actual native tab next to Radio, NOT a floating
+    # dialog. The UI never USB-opens to determine a device's state.
+    change(main, '#include "tihulu_radio_tab.h"\n',
+           '#include "tihulu_radio_tab.h"\n#include "tihulu_hardware_tab.h"\n')
+    change(main, '''	tabBar->addTab(QIcon::fromTheme(QLatin1String("audio-radio")),
+		i18n("Radio (DAB+)"));
+	tabBar->setShape(QTabBar::RoundedWest);''',
+    '''	tabBar->addTab(QIcon::fromTheme(QLatin1String("audio-radio")),
+		i18n("Radio (DAB+)"));
+	tabBar->addTab(QIcon::fromTheme(QLatin1String("drive-removable-media")),
+		i18n("Hardware"));
+	tabBar->setShape(QTabBar::RoundedWest);''')
+    change(main, '''	TabBase *radioTab = new TihuluRadioTab(mediaWidget, this);
+	tabs.append(radioTab);
+	stackedLayout->addWidget(radioTab);
+
+	currentTabIndex = StartTabId;''',
+    '''	TabBase *radioTab = new TihuluRadioTab(mediaWidget, this);
+	tabs.append(radioTab);
+	stackedLayout->addWidget(radioTab);
+	TabBase *hardwareTab = new TihuluHardwareTab(
+		static_cast<TihuluRadioTab *>(radioTab), dvbTab, mediaWidget,
+		[this]() { activateTab(RadioTabId); },
+		[this]() { activateTab(DvbTabId); }, this);
+	tabs.append(hardwareTab);
+	stackedLayout->addWidget(hardwareTab);
+
+	currentTabIndex = StartTabId;''')
+    hdrmain = "src/mainwindow.h"
+    change(hdrmain, '''		RadioTabId = 4
+''', '''		RadioTabId = 4,
+		HardwareTabId = 5
+''')
+    change(hdrmain, '\tvoid playRadio();\n',
+           '\tvoid playRadio();\n\tvoid playHardware();\n')
+    change(main, '''void MainWindow::playRadio()
+{
+	activateTab(RadioTabId);
+}
+
+void MainWindow::configureKeys()''',
+    '''void MainWindow::playRadio()
+{
+	activateTab(RadioTabId);
+}
+
+void MainWindow::playHardware()
+{
+	activateTab(HardwareTabId);
+}
+
+void MainWindow::configureKeys()''')
+
     change(main, '''#endif /* HAVE_DVB == 1 */
 }
 
@@ -166,6 +243,71 @@ QAbstractButton *StartTab::addShortcut''')
 	connect(button,SIGNAL(clicked()),mainWindow,SLOT(open()));
 	gridLayout->addWidget(button,2,0,1,3);
 #endif /* HAVE_DVB == 1 */''')
+    # An explicit shortcut supports keyboard-only use without introducing
+    # a second hardware-dialog window.
+    change(main, '''	gridLayout->addWidget(button,2,0,1,3);
+#endif /* HAVE_DVB == 1 */''',
+    '''	gridLayout->addWidget(button,2,0,1,3);
+	button = addShortcut(i18n("&8 Hardware and receiver ownership"),
+		QIcon::fromTheme(QLatin1String("drive-removable-media")),this);
+	button->setShortcut(Qt::Key_8);
+	connect(button,SIGNAL(clicked()),mainWindow,SLOT(playHardware()));
+	gridLayout->addWidget(button,3,0,1,3);
+#endif /* HAVE_DVB == 1 */''')
+
+    # Single bottom-bar recorder is available across Playback, TV, Radio
+    # and Internet streams. Non-DVB sources are tracked only when libVLC
+    # actually receives a URL; no stale source from a previous media type.
+    change(main, '#include "tihulu_hardware_tab.h"\n',
+           '#include "tihulu_hardware_tab.h"\n#include "tihulu_unified_recorder.h"\n')
+    change(main, '''\tstackedLayout->addWidget(hardwareTab);
+
+\tcurrentTabIndex = StartTabId;''',
+    '''\tstackedLayout->addWidget(hardwareTab);
+\t// Shared Record/Stop and Recordings library remain in the bottom
+\t// transport bar on every tab, including Web TV and radio.
+\tnew TihuluUnifiedRecorder(mediaWidget,dvbTab,controlBar,
+		[this]() { activateTab(PlayerTabId); },this);
+
+\tcurrentTabIndex = StartTabId;''')
+    media="src/mediawidget.cpp"
+    change(media, '''void MediaWidget::play(MediaSource *source_)
+{
+\tif (source != source_) {''',
+    '''void MediaWidget::play(MediaSource *source_)
+{
+\t// Invalidates a previously played Internet/local URL when a DVB,
+\t// disc or other non-URL media source takes ownership of libVLC.
+\tsetProperty("tihulu_recordable_url",
+\t\tsource_ && source_->getType()==MediaSource::Url ?
+\t\tQVariant(source_->getUrl()) : QVariant());
+\tif (source != source_) {''')
+    change(media, '''\tplay(new MediaSourceUrl(url, subtitleUrl));
+}''',
+    '''\tplay(new MediaSourceUrl(url, subtitleUrl));
+\tsetProperty("tihulu_recordable_url",url);
+}''')
+
+    # Window management: default to a usable, contained viewport; restoring
+    # a stale large window from another display must never strand controls
+    # outside the current COSMIC / XWayland screen.
+    change(main, '''        resize(availableGeometry.width() / 3, availableGeometry.height() / 2);''',
+           '''        resize(qMax(1,availableGeometry.width()*4/5),
+               qMax(1,availableGeometry.height()*4/5));''')
+    change(main, '''    } else {
+        restoreGeometry(geometry);
+    }
+}''', '''    } else {
+        restoreGeometry(geometry);
+        // Keep restored geometry inside the current screen. Preserve
+        // smaller user sizes and the normal window manager maximized state.
+        const QRect screen=QApplication::desktop()->availableGeometry(this);
+        resize(qMin(width(),screen.width()),qMin(height(),screen.height()));
+        move(qBound(screen.left(),x(),screen.right()-width()+1),
+             qBound(screen.top(),y(),screen.bottom()-height()+1));
+    }
+}''')
+
     # Use a unique application ID and KConfig/SQLite user-data path.
     # This is a distinctly installed app, not the system KDE Kaffeine
     # process or a secondary window inside the existing binary.
@@ -184,14 +326,29 @@ QAbstractButton *StartTab::addShortcut''')
 	setOrganizationName("TIHULU");
 	setOrganizationDomain("tihulu.local");
 	QString path = QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation);''')
+    change(appmain, '#include <QPointer>\n',
+           '#include <QPointer>\n#include <QFileInfo>\n')
     change(appmain, '''	app.setApplicationName("kaffeine");
 	app.setOrganizationDomain("kde.org");
 	app.setWindowIcon(QIcon::fromTheme(QLatin1String("kaffeine"), QIcon(":kaffeine")));''',
            '''	app.setApplicationName("tihulu-media-center");
 	app.setOrganizationName("TIHULU");
 	app.setOrganizationDomain("tihulu.local");
-	app.setWindowIcon(QIcon::fromTheme(QLatin1String("tihulu-media-center"),
-		QIcon(":kaffeine")));''')
+	// A previously installed portrait PNG must not silently override the
+	// standalone PLAY-button application icon after an update. Explicit
+	// TIHULU_USE_LEGACY_LOGO=1 restores that user-owned PNG without deleting it.
+	const QString iconsRoot=QStandardPaths::writableLocation(
+		QStandardPaths::GenericDataLocation)+QLatin1String("/icons/hicolor/");
+	const QString playerSvg=iconsRoot+
+		QLatin1String("scalable/apps/tihulu-media-center.svg");
+	const QString legacyPng=iconsRoot+
+		QLatin1String("64x64/apps/tihulu-media-center.png");
+	const bool preferLegacy=qgetenv("TIHULU_USE_LEGACY_LOGO")=="1" &&
+		QFileInfo::exists(legacyPng);
+	const QIcon chosen=preferLegacy ? QIcon(legacyPng) :
+		QFileInfo::exists(playerSvg) ? QIcon(playerSvg) :
+		QIcon::fromTheme(QLatin1String("tihulu-media-center"),QIcon(":kaffeine"));
+	app.setWindowIcon(chosen);''')
     change(main, '''	menu = new QMenu(i18n("Kaffeine"), this);''',
            '''	menu = new QMenu(i18n("TIHULU Media Center"), this);''')
     change(main, '''	trayIcon->setToolTip(i18n("Kaffeine"));''',
@@ -216,7 +373,9 @@ QAbstractButton *StartTab::addShortcut''')
            "#include <QMainWindow>\n#include <QCoreApplication>\n"
            "#include <QProcess>\n#include <QMessageBox>\n#include <QStandardPaths>\n")
     change(main, "#include <QStandardPaths>\n",
-           "#include <QStandardPaths>\n#include <QLabel>\n#include <QVBoxLayout>\n")
+           "#include <QStandardPaths>\n#include <QLabel>\n#include <QVBoxLayout>\n"
+           "#include <QDir>\n#include <QDialog>\n#include <QPlainTextEdit>\n"
+           "#include <QPushButton>\n")
     change(main, '''#if HAVE_DVB == 1
 	QMenu *dvbMenu = new QMenu(i18n("&Television"), this);
 	menuBar->addMenu(dvbMenu);
@@ -224,6 +383,47 @@ QAbstractButton *StartTab::addShortcut''')
 ''', '''#if HAVE_DVB == 1
 	QMenu *dvbMenu = new QMenu(i18n("&Television"), this);
 	menuBar->addMenu(dvbMenu);
+	QAction *receiverStatus = dvbMenu->addAction(i18n("Receiver / tuner diagnostics..."));
+	connect(receiverStatus, &QAction::triggered, this, [this]() {
+		// Read-only diagnostics: never force-close another SDR application's tuner.
+		QDialog *dialog = new QDialog(this);
+		dialog->setAttribute(Qt::WA_DeleteOnClose);
+		dialog->setWindowTitle(i18n("DVB tuner ownership and scan setup"));
+		dialog->resize(800, 480);
+		QVBoxLayout *layout = new QVBoxLayout(dialog);
+		QPlainTextEdit *console = new QPlainTextEdit(dialog);
+		console->setReadOnly(true);
+		console->setPlainText(i18n("Inspecting local DVB frontend ownership..."));
+		layout->addWidget(console);
+		QPushButton *close = new QPushButton(i18n("Close"), dialog);
+		connect(close, &QPushButton::clicked, dialog, &QDialog::accept);
+		layout->addWidget(close);
+		QProcess *diagnostics = new QProcess(dialog);
+		connect(diagnostics, &QProcess::readyReadStandardOutput, dialog,
+			[diagnostics, console]() {
+				console->appendPlainText(QString::fromLocal8Bit(
+					diagnostics->readAllStandardOutput()));
+			});
+		connect(diagnostics, &QProcess::readyReadStandardError, dialog,
+			[diagnostics, console]() {
+				console->appendPlainText(QString::fromLocal8Bit(
+					diagnostics->readAllStandardError()));
+			});
+		connect(diagnostics, QOverload<int,QProcess::ExitStatus>::of(&QProcess::finished),
+			dialog, [console](int code, QProcess::ExitStatus) {
+				console->appendPlainText(QStringLiteral("\\nCompleted (exit %1).").arg(code));
+			});
+		dialog->show();
+		diagnostics->start(QLatin1String("/bin/bash"),
+			QStringList() << QDir::homePath() +
+				QLatin1String("/.local/share/tihulu-kaffeine/dvb_diagnostics.sh"));
+	});
+	QAction *webTvAction = dvbMenu->addAction(i18n("Web TV / Internet channels..."));
+	connect(webTvAction, &QAction::triggered, this, [this]() {
+		TihuluWebTvDialog *dialog = new TihuluWebTvDialog(mediaWidget,
+			[this]() { activateTab(PlayerTabId); }, this);
+		dialog->show();
+	});
 	// Keep native Kaffeine channel switching, Teletext and player unchanged.
 	QMenu *aiMenu = new QMenu(i18n("TIHULU &AI"), this);
 	menuBar->addMenu(aiMenu);
@@ -233,6 +433,16 @@ QAbstractButton *StartTab::addShortcut''')
 			QStringList() << QLatin1String("ai-market")))
 			QMessageBox::warning(this, i18n("Whisper Market"),
 				i18n("Install the TIHULU offline AI companion first."));
+	});
+	QAction *generatedSrtAction = aiMenu->addAction(i18n("Load generated SRT in native player..."));
+	connect(generatedSrtAction, &QAction::triggered, this, [this]() {
+		// Use Kaffeine's own libVLC subtitle loader for completed sidecars.
+		// A growing SRT is NOT guaranteed to refresh during a live TV stream.
+		const QString subtitle = QFileDialog::getOpenFileName(this,
+			i18n("Select completed AI subtitles (SRT)"),
+			QDir::homePath(), i18n("SubRip subtitles (*.srt);;All files (*)"));
+		if (!subtitle.isEmpty())
+			mediaWidget->setSubtitle(QUrl::fromLocalFile(subtitle));
 	});
 	QAction *captionAction = aiMenu->addAction(i18n("Live Teletext / Whisper subtitles"));
 	connect(captionAction, &QAction::triggered, this, [this]() {
@@ -253,6 +463,80 @@ QAbstractButton *StartTab::addShortcut''')
 	});
 #endif /* HAVE_DVB == 1 */
 ''')
+    # Explicit in-app remote media sharing: default LOOPBACK, not WAN.
+    # The Python hub performs host-side HLS conversion and prints a random
+    # pairing PIN. Qt captures stdout privately and shows that PIN only
+    # in the host GUI. No raw PIN in process arguments, file or GitHub.
+    change(main, '''	QAction *marketAction = aiMenu->addAction(i18n("Whisper + Translator Market"));''',
+    '''	QAction *hubStart = aiMenu->addAction(i18n("Start paired remote media hub..."));
+	QAction *hubStop = aiMenu->addAction(i18n("Stop remote media sharing"));
+	hubStop->setEnabled(false);
+	QProcess *hubProcess = new QProcess(this);
+	connect(hubProcess, &QProcess::readyReadStandardOutput, this,
+		[this,hubProcess]() {
+			const QByteArray combined=hubProcess->property("partial").toByteArray()+
+				hubProcess->readAllStandardOutput();
+			const QByteArray marker("Pairing PIN (host terminal only): ");
+			const int offset=combined.indexOf(marker);
+			if(!hubProcess->property("pinShown").toBool() && offset>=0 &&
+			   combined.size()>=offset+marker.size()+8) {
+				const QByteArray pin=combined.mid(offset+marker.size(),8);
+				bool valid=pin.size()==8;
+				for(char digit:pin) if(digit<'0' || digit>'9') valid=false;
+				if(valid) {
+					hubProcess->setProperty("pinShown",true);
+					QMessageBox::information(this,i18n("Paired remote media hub"),
+						i18n("Local media remote is active on "
+						"127.0.0.1:8788. Pairing PIN: %1\\n\\n"
+						"Only your explicitly selected media folder is shared. "
+						"Other devices require a private HTTPS proxy, "
+						"for example Tailscale Serve. "
+						"Live DVB television/DVD is NOT yet rebroadcast."),
+						QString::fromLatin1(pin));
+				}
+			}
+			hubProcess->setProperty("partial",combined.right(450));
+		});
+	connect(hubProcess,QOverload<int,QProcess::ExitStatus>::of(&QProcess::finished),
+		this,[hubStop](int,QProcess::ExitStatus) {hubStop->setEnabled(false);});
+	connect(hubStart,&QAction::triggered,this,[this,hubProcess,hubStop]() {
+		if(hubProcess->state()!=QProcess::NotRunning) {
+			QMessageBox::information(this,i18n("Remote hub"),
+				i18n("The local paired remote hub is already running."));
+			return;
+		}
+		const QString folder=QFileDialog::getExistingDirectory(this,
+			i18n("Choose media directory to share with paired devices"),
+			QDir::homePath());
+		if(folder.isEmpty()) return;
+		hubProcess->setProperty("pinShown",false);
+		hubProcess->setProperty("partial",QByteArray());
+		hubProcess->start(QLatin1String("tihulu-tv-center"),
+			{QLatin1String("remote-hub"),QLatin1String("--media-root"),folder,
+			 QLatin1String("--bind"),QLatin1String("127.0.0.1"),
+			 QLatin1String("--native-pid"),
+			 QString::number(QCoreApplication::applicationPid())});
+		if(!hubProcess->waitForStarted(1500)) {
+			QMessageBox::warning(this,i18n("Remote hub"),
+				i18n("Cannot start Python companion; run "
+				"'tihulu-tv-center remote-hub --help' in terminal."));
+			return;
+		}
+		hubStop->setEnabled(true);
+	});
+	connect(hubStop,&QAction::triggered,this,[hubProcess]() {
+		if(hubProcess->state()!=QProcess::NotRunning)
+			hubProcess->terminate();
+	});
+	connect(QCoreApplication::instance(),&QCoreApplication::aboutToQuit,
+		hubProcess,[hubProcess]() {
+			if(hubProcess->state()!=QProcess::NotRunning) {
+				hubProcess->terminate();
+				if(!hubProcess->waitForFinished(1200)) hubProcess->kill();
+			}
+		});
+	QAction *marketAction = aiMenu->addAction(i18n("Whisper + Translator Market"));''')
+
     # Give locally opened video/audio files the SAME managed offline
     # Whisper/translation engines via optional SRT creation dialogue.
     # No file uploads and no interference with native playback.
@@ -280,6 +564,7 @@ QAbstractButton *StartTab::addShortcut''')
     live = "src/dvb/dvbliveview.cpp"
     change(live, '#include <QDir>\n',
            '#include <QDir>\n#include <QCoreApplication>\n'
+           '#include <QSaveFile>\n'
            '#include <sys/socket.h>\n#include <sys/un.h>\n')
     change(live, '\treadFd(-1), writeFd(-1), notifier(NULL)\n{',
            '\treadFd(-1), writeFd(-1), notifier(NULL), tihuluCaptionFd(-1)\n{')
@@ -319,6 +604,71 @@ QAbstractButton *StartTab::addShortcut''')
 		if (writeFd >= 0) {
 			buffers.append(buffer);
 ''')
+    # A channel switch may release the old DVB frontend and immediately
+    # reacquire it for a different multiplex. Allow the USB/backend release
+    # to settle, but NEVER retry a nonconfigured source or steal a tuner from
+    # recordings. The guard is scoped to the selected channel generation.
+    change(hdr, '''\tint retryCounter;
+''', '''\tint retryCounter;
+\tint tihuluDeviceRetryCount = 0;
+\tquint64 tihuluTuneEpoch = 0;
+''')
+    change(live, '''void DvbLiveView::replay()
+{
+\tif (device == NULL) {''', '''// One-way notification of the DVB owner's selected channel. It is
+// an atomic, private runtime marker, NOT a tuner command or second
+// receiver. The captions panel can invalidate old-PID work immediately,
+// even before a new multiplex supplies its next PAT packet.
+static void tihuluNotifyNativeCaptionTune(quint64 epoch, int sid, int tsid)
+{
+\tconst QString runtime = QStandardPaths::writableLocation(
+\t\tQStandardPaths::RuntimeLocation);
+\tif (runtime.isEmpty()) return;
+\tQSaveFile file(runtime + QLatin1String("/tihulu-tv-tune-") +
+\t\tQString::number(QCoreApplication::applicationPid()) +
+\t\tQLatin1String(".txt"));
+\tif (file.open(QIODevice::WriteOnly)) {
+\t\tQByteArray state = QByteArray::number(epoch) + ' ' +
+\t\t\tQByteArray::number(sid) + ' ' + QByteArray::number(tsid) + '\\n';
+\t\tif (file.write(state) != state.size()) file.cancelWriting();
+\t\telse file.commit();
+\t}
+}
+
+void DvbLiveView::replay()
+{
+\tif (channel.constData() == NULL) return;
+\tif (device == NULL) {''')
+    change(live, '''\tplaybackStatusChanged(MediaWidget::Idle);
+\tchannel = channel_;
+\tdevice = newDevice;
+
+\treplay();''', '''\t// Invalidate any pending reacquire from the previous channel.
+\t// Do not persist a temporary retry across channel switches.
+\t++internal->tihuluTuneEpoch;
+\tinternal->tihuluDeviceRetryCount = 0;
+\tplaybackStatusChanged(MediaWidget::Idle);
+\tchannel = channel_;
+\tdevice = newDevice;
+\t// A native tune epoch makes changes visible even when service IDs are
+\t// recycled by a different DVB multiplex or the TS feed is interrupted.
+\ttihuluNotifyNativeCaptionTune(internal->tihuluTuneEpoch,
+\t\tchannel.constData()!=NULL ? int(channel->serviceId) : 0,
+\t\tchannel.constData()!=NULL ? int(channel->transportStreamId) : 0);
+
+\treplay();''')
+
+    # An unrelated Playback, radio, media file or explicit Stop must cancel
+    # any pending asynchronous TV reacquire. Otherwise a delayed callback
+    # could unexpectedly steal the shared player after leaving Television.
+    change(live, '''\tcase MediaWidget::Idle:
+\t\tif (device != NULL) {''', '''\tcase MediaWidget::Idle:
+\t\t++internal->tihuluTuneEpoch;
+\t\t// Stop or retune: invalidate the old captions immediately. The
+\t\t// subsequent playChannel event advertises the new selected DVB SID.
+\t\ttihuluNotifyNativeCaptionTune(internal->tihuluTuneEpoch, 0, 0);
+\t\tinternal->tihuluDeviceRetryCount = 0;
+\t\tif (device != NULL) {''')
     # DvbManager only forward-declares DvbConfig; the diagnostic iterates
     # QList<DvbConfig> so include the complete shared-pointer definition.
     change(live, '#include "dvbdevice.h"\n',
@@ -336,23 +686,85 @@ QAbstractButton *StartTab::addShortcut''')
 \t\tconst QString requestedSource = channel->source;
 \t\tQStringList usableSources;
 \t\tint connectedDvbFrontends = 0;
+\t\tbool hasConnectedMatchingSource = false;
 \t\tfor (const DvbDeviceConfig &entry : manager->getDeviceConfigs()) {
 \t\t\tif (entry.device == NULL) continue;
 \t\t\t++connectedDvbFrontends;
-\t\t\tfor (const DvbConfig &configured : entry.configs)
-\t\t\t\tif (!configured->name.isEmpty())
-\t\t\t\t\tusableSources.append(configured->name);
+\t\t\tfor (const DvbConfig &configured : entry.configs) {
+\t\t\t\tif (configured->name.isEmpty()) continue;
+\t\t\t\tusableSources.append(configured->name);
+\t\t\t\tif (configured->name == requestedSource)
+\t\t\t\t\thasConnectedMatchingSource = true;
+\t\t\t}
+\t\t}
+\t\tconst bool recording = manager->getRecordingModel()->hasActiveRecordings();
+\t\t// The first immediate reacquire may fail while the USB frontend is
+\t\t// still releasing. Retry only when the physical tuner and matching
+\t\t// named source exist. Never reopen a missing frontend or override a
+\t\t// recording, and never loop without an upper bound.
+\t\tif (hasConnectedMatchingSource && !recording &&
+\t\t    internal->tihuluDeviceRetryCount < 2) {
+\t\t\tconst int attempt = ++internal->tihuluDeviceRetryCount;
+\t\t\tconst quint64 epoch = internal->tihuluTuneEpoch;
+\t\t\tqCWarning(logDvb,
+\t\t\t\t"TIHULU DVB channel retune pending: source='%s', "
+\t\t\t\t"attempt %d/2; waiting for the previous frontend release.",
+\t\t\t\tqPrintable(requestedSource), attempt);
+\t\t\tQTimer::singleShot(attempt * 400, this, [this,epoch]() {
+\t\t\t\tif (internal->tihuluTuneEpoch != epoch ||
+\t\t\t\t    channel.constData() == NULL) return;
+\t\t\t\treplay();
+\t\t\t});
+\t\t\treturn;
 \t\t}
 \t\tqCWarning(logDvb,
 \t\t\t"TIHULU no usable DVB frontend: requested channel source='%s'; "
-\t\t\t"connected receivers=%d; configured channel sources='%s'. "
-\t\t\t"Check Configure Television, USB ownership and access permissions.",
+\t\t\t"connected receivers=%d; configured channel sources='%s'; "
+\t\t\t"source matches connected tuner=%d; attempts=%d. "
+\t\t\t"Inspect Configure Television and run --diagnose-tuner.",
 \t\t\tqPrintable(requestedSource), connectedDvbFrontends,
-\t\t\tqPrintable(usableSources.join(QLatin1String(", "))));
+\t\t\tqPrintable(usableSources.join(QLatin1String(", "))),
+\t\t\tint(hasConnectedMatchingSource), internal->tihuluDeviceRetryCount);
 \t\tchannel = DvbSharedChannel();
 \t\tmediaWidget->stop();
 
-\t\tif (manager->getRecordingModel()->hasActiveRecordings()) {''')
+\t\tif (recording) {''')
+
+    # Keep the stock recording-specific explanation, but do not tell the
+    # user to randomly change permissions when a tuned channel's Source is
+    # absent from the *connected* device configuration. This dialog only
+    # appears after transient reacquire attempts were exhausted.
+    change(live, '''\t\t} else {
+\t\t\tKMessageBox::information(manager->getParentWidget(),
+\t\t\t\ti18nc("@info",
+\t\t\t\t      "Didn't find a device with valid settings or access permissions are wrong.\\n\\n"
+\t\t\t\t      "Please check the Configure Television window."));
+\t\t}
+
+\t\treturn;
+\t}''', '''\t\t} else if (connectedDvbFrontends == 0) {
+\t\t\tKMessageBox::information(manager->getParentWidget(),
+\t\t\t\ti18nc("@info", "No connected DVB television tuner is available. "
+\t\t\t\t"Check the USB device, its driver, and Television → Receiver / tuner diagnostics."));
+\t\t} else if (!hasConnectedMatchingSource) {
+\t\t\tKMessageBox::information(manager->getParentWidget(),
+\t\t\t\ti18nc("@info", "This TV channel uses the source '%1', but no connected "
+\t\t\t\t"DVB tuner has that exact source name. Configured sources: %2.\\n\\n"
+\t\t\t\t"Open Television → Configure Television and match the DVB-T2 "
+\t\t\t\t"source Name used by the saved channel, or rescan the service.",
+\t\t\t\trequestedSource,usableSources.join(QLatin1String(", "))));
+\t\t} else {
+\t\t\tKMessageBox::information(manager->getParentWidget(),
+\t\t\t\ti18nc("@info", "The DVB tuner was detected and its channel source "
+\t\t\t\t"matches, but the tuner could not be acquired after a short retry. "
+\t\t\t\t"Check whether another TV program, a scan, or a driver operation "
+\t\t\t\t"is holding the frontend.\\n\\n"
+\t\t\t\t"Run tihulu-media-center --diagnose-tuner. "
+\t\t\t\t"No tuner reset or channel settings were performed."));
+\t\t}
+
+\t\treturn;
+\t}''')
 
     # Delay *both* audio and video by buffering already-filtered TS bytes
     # before Kaffeine's existing FIFO -> libVLC. The AI tap above stays
@@ -374,6 +786,10 @@ QAbstractButton *StartTab::addShortcut''')
 \tint tihuluVideoDelayMs = 0;
 \tint tihuluPrimedTargetMs = -1;
 \tbool tihuluDelayPrimed = false;
+\t// Measured oldest DVB TS chunk age at release to libVLC's pipe.
+\t// The renderer may add latency; this is NOT video presentation PTS.
+\tqint64 tihuluReleasedAgeMs = -1;
+\tqint64 tihuluReleasedAtMs = 0;
 ''')
     change(live, '#include <QCoreApplication>\n',
            '#include <QCoreApplication>\n#include <QDateTime>\n')
@@ -391,7 +807,9 @@ QAbstractButton *StartTab::addShortcut''')
 \ttihuluDelayed.clear();
 \ttihuluDelayedBytes = 0;
 \ttihuluPrimedTargetMs = -1;
-\ttihuluDelayPrimed = false;''')
+\ttihuluDelayPrimed = false;
+\ttihuluReleasedAgeMs = -1;
+\ttihuluReleasedAtMs = 0;''')
     change(live, '''\tif (!timeShiftFile.isOpen()) {
 \t\tif (writeFd >= 0) {
 \t\t\tbuffers.append(buffer);
@@ -449,7 +867,9 @@ QAbstractButton *StartTab::addShortcut''')
 \t\t\t\tQByteArray::number(tihuluVideoDelayMs) + " " +
 \t\t\t\tQByteArray::number(tihuluObservedRate) + " " +
 \t\t\t\tQByteArray::number(tihuluDelayPrimed ? 1 : 0) + " " +
-\t\t\t\tQByteArray::number(queuedAgeMs));
+\t\t\t\tQByteArray::number(queuedAgeMs) + " " +
+\t\t\t\tQByteArray::number(tihuluReleasedAgeMs) + " " +
+\t\t\t\tQByteArray::number(tihuluReleasedAtMs));
 \t\t}
 \t}
 \tif (!timeShiftFile.isOpen()) {
@@ -463,14 +883,26 @@ QAbstractButton *StartTab::addShortcut''')
 \t\t\t\t\ttihuluVideoDelayMs = 0;
 \t\t\t\t\ttihuluDelayPrimed = true;
 \t\t\t\t\ttihuluPrimedTargetMs = 0;
+\t\t\t\t\ttihuluReleasedAgeMs = -1;
+\t\t\t\t\ttihuluReleasedAtMs = 0;
 \t\t\t\t\ttihuluDelayCooldownUntil = now + 5000;
 \t\t\t\t}
 \t\t\t}
 \t\t\twhile (!tihuluDelayed.isEmpty() &&
 \t\t\t       (tihuluVideoDelayMs == 0 ||
 \t\t\t        now - tihuluDelayed.first().first >= tihuluVideoDelayMs)) {
-\t\t\t\tconst QByteArray chunk = tihuluDelayed.takeFirst().second;
+\t\t\t\tconst QPair<qint64,QByteArray> released = tihuluDelayed.takeFirst();
+\t\t\t\tconst QByteArray chunk = released.second;
 \t\t\t\ttihuluDelayedBytes -= chunk.size();
+\t\t\t\t// Observe actual residence time IN the FIFO when handed off
+\t\t\t\t// to libVLC. Do not confuse this with decoded presentation PTS.
+\t\t\t\tif (tihuluVideoDelayMs > 0 && tihuluDelayPrimed) {
+\t\t\t\t\ttihuluReleasedAgeMs = qMax<qint64>(0, now - released.first);
+\t\t\t\t\ttihuluReleasedAtMs = now;
+\t\t\t\t} else {
+\t\t\t\t\ttihuluReleasedAgeMs = -1;
+\t\t\t\t\ttihuluReleasedAtMs = 0;
+\t\t\t\t}
 \t\t\t\tbuffers.append(chunk);
 \t\t\t}
 \t\t\tif (!queuedCurrent)
@@ -486,6 +918,8 @@ QAbstractButton *StartTab::addShortcut''')
     '''\t} else {
 \t\ttihuluDelayed.clear();
 \t\ttihuluDelayedBytes = 0;
+\t\ttihuluReleasedAgeMs = -1;
+\t\ttihuluReleasedAtMs = 0;
 \t\tnotifier->setEnabled(false);
 \t\ttimeShiftFile.write(buffer); // FIXME avoid buffer reallocation''')
 
@@ -562,7 +996,7 @@ QAbstractButton *StartTab::addShortcut''')
 \t\t\tQLatin1String("KaffeineRadio"));
 \t\tconst int cacheMs=qBound(0,
 \t\t\tradioSettings.value(QLatin1String("playbackBufferMs"),12000).toInt(),
-\t\t\t20000);
+\t\t\t60000);
 \t\tconst QByteArray cacheOpt=QByteArray(":network-caching=")+
 \t\t\tQByteArray::number(cacheMs);
 \t\tlibvlc_media_add_option(vlcMedia,cacheOpt.constData());
@@ -584,6 +1018,182 @@ QAbstractButton *StartTab::addShortcut''')
 \tif (appliedProfile == "software" || appliedProfile == "software-no-audio")
 \t\tlibvlc_media_add_option(vlcMedia, ":avcodec-hw=none");''')
 
+    # Native VLC marquee renders inside the actual decoded video surface.
+    # Unlike a full-size transparent QWidget over an X11 video window, this
+    # cannot retain stale rectangles from past video frames.
+    vlch = "src/backend-vlc/vlcmediawidget.h"
+    change(vlch, '''\tvoid setExternalSubtitle(const QUrl &subtitleUrl) override;''',
+           '''\tvoid setExternalSubtitle(const QUrl &subtitleUrl) override;
+\tvoid setTihuluNativeCaption(const QString &text, bool atTop,
+\t\tint fontSize, int textOpacity, const QString &color,
+\t\tint backgroundPercent = 0,
+\t\tconst QString &backgroundColor = QString());''')
+    change(vlch, '''\tQByteArray typeOfDevice;''',
+           '''\tQByteArray typeOfDevice;
+\tQString tihuluCaptionCacheKey;
+\tqint64 tihuluCaptionLastSentMs = 0;
+\t// Private temporary PNGs are composited by libVLC's logo filter, not a
+\t// QWidget covering live video. Keep recent files until VLC has read them.
+\tQTemporaryDir tihuluCaptionLogoDir;
+\tQString tihuluCaptionLogoActiveFile;
+\tQStringList tihuluCaptionLogoFiles;
+\tquint64 tihuluCaptionLogoSequence = 0;''')
+    # QTemporaryDir owns short-lived AI caption images and removes them at
+    # player destruction; the directory is private to this process.
+    change(vlch, '#include "../abstractmediawidget.h"\n',
+           '#include "../abstractmediawidget.h"\n'
+           '#include <QTemporaryDir>\n#include <QStringList>\n')
+    vlcc = "src/backend-vlc/vlcmediawidget.cpp"
+    change(vlcc, '#include "vlcmediawidget.h"\n',
+           '#include "vlcmediawidget.h"\n#include <QColor>\n#include <QDateTime>\n'
+           '#include <QDir>\n#include <QFile>\n#include <QFont>\n'
+           '#include <QFontMetrics>\n#include <QImage>\n'
+           '#include <QPainter>\n')
+    change(vlcc, '''\tlibvlc_media_player_set_media(vlcMediaPlayer, vlcMedia);''',
+           '''\tlibvlc_media_player_set_media(vlcMediaPlayer, vlcMedia);
+\t// A new media/video compositor invalidates the last caption render.
+\ttihuluCaptionCacheKey.clear();
+\ttihuluCaptionLogoActiveFile.clear();''')
+    change(vlcc, '''void VlcMediaWidget::setExternalSubtitle(const QUrl &url)
+{''', '''void VlcMediaWidget::setTihuluNativeCaption(const QString &text, bool atTop,
+\tint fontSize, int textOpacity, const QString &color,
+\tint backgroundPercent, const QString &backgroundColor)
+{
+\tif (vlcMediaPlayer == NULL) return;
+\tif (text.isEmpty() || textOpacity <= 0) {
+\t\tif (!tihuluCaptionCacheKey.isEmpty() ||
+\t\t    !tihuluCaptionLogoActiveFile.isEmpty()) {
+\t\t\tlibvlc_video_set_marquee_int(vlcMediaPlayer, libvlc_marquee_Enable, 0);
+\t\t\tlibvlc_video_set_logo_int(vlcMediaPlayer, libvlc_logo_enable, 0);
+\t\t\ttihuluCaptionCacheKey.clear();
+\t\t\ttihuluCaptionLogoActiveFile.clear();
+\t\t}
+\t\treturn;
+\t}
+\tconst QString requestedKey = text + QLatin1Char('|')
+\t\t+ QString::number(int(atTop)) + QLatin1Char('|')
+\t\t+ QString::number(fontSize) + QLatin1Char('|')
+\t\t+ QString::number(textOpacity) + QLatin1Char('|') + color
+\t\t+ QLatin1Char('|') + QString::number(backgroundPercent)
+\t\t+ QLatin1Char('|') + backgroundColor;
+\t// On a DVB tune, VOUT starts after the UI first publishes the caption.
+\t// Do not cache an unrenderable caption, and periodically reassert an active
+\t// caption after video-output restarts or renderer reconfiguration.
+\tif (libvlc_media_player_has_vout(vlcMediaPlayer) <= 0) {
+\t\ttihuluCaptionCacheKey.clear();
+\t\treturn;
+\t}
+\tconst qint64 nowMs = QDateTime::currentMSecsSinceEpoch();
+\tif (requestedKey == tihuluCaptionCacheKey &&
+\t    nowMs - tihuluCaptionLastSentMs < 2000) return;
+\tconst bool changed = requestedKey != tihuluCaptionCacheKey;
+\ttihuluCaptionCacheKey = requestedKey;
+\ttihuluCaptionLastSentMs = nowMs;
+\tconst QColor rawColor(color);
+\tconst QColor safeColor = rawColor.isValid() ? rawColor : QColor(Qt::white);
+\t// VLC marquee has no background-color or background-alpha option.
+\t// For nonzero backing opacity, render BOTH the text and its background into
+\t// one transparent PNG and composite it INSIDE the native VLC video using
+\t// the logo subpicture filter. No QWidget can freeze pixels on top of DVB.
+\tif (backgroundPercent > 0 && tihuluCaptionLogoDir.isValid()) {
+\t\tif (changed || tihuluCaptionLogoActiveFile.isEmpty()) {
+\t\t\tunsigned int videoWidth = 1280, videoHeight = 720;
+\t\t\tif (libvlc_video_get_size(vlcMediaPlayer, 0, &videoWidth, &videoHeight) != 0) {
+\t\t\t\tvideoWidth = 1280; videoHeight = 720;
+\t\t\t}
+\t\t\tvideoWidth = qBound(320u, videoWidth, 3840u);
+\t\t\tvideoHeight = qBound(240u, videoHeight, 2160u);
+\t\t\tconst int maxWidth = qMin(1350, int(videoWidth * 0.86));
+\t\t\tconst int fontPx = qBound(16, fontSize, 44);
+\t\t\tQFont font;
+\t\t\tfont.setPixelSize(fontPx);
+\t\t\tfont.setBold(true);
+\t\t\tQFontMetrics metrics(font);
+\t\t\tconst QString displayText = text.left(1100);
+\t\t\tconst int maxHeight = qMin(320, qMax(60, int(videoHeight / 3)));
+\t\t\tconst QRect measured = metrics.boundingRect(
+\t\t\t\tQRect(0, 0, maxWidth - 44, maxHeight - 20),
+\t\t\t\tQt::AlignHCenter | Qt::TextWordWrap, displayText);
+\t\t\tconst int width = qBound(160, measured.width() + 44, maxWidth);
+\t\t\tconst int height = qBound(42, measured.height() + 24, maxHeight);
+\t\t\t// Transparent inset adds a small safe distance from video edges.
+\t\t\tconst int edge = 26;
+\t\t\tQImage artwork(width, height + edge, QImage::Format_ARGB32);
+\t\t\tartwork.fill(Qt::transparent);
+\t\t\t{
+\t\t\t\tQPainter painter(&artwork);
+\t\t\t\tpainter.setRenderHint(QPainter::Antialiasing, true);
+\t\t\t\tpainter.setRenderHint(QPainter::TextAntialiasing, true);
+\t\t\t\tconst QRect box(2, atTop ? edge : 0, width - 4, height);
+\t\t\t\tQColor backing(backgroundColor);
+\t\t\t\tif (!backing.isValid()) backing = QColor(Qt::black);
+\t\t\t\tbacking.setAlpha(qBound(0, backgroundPercent, 100)*255/100);
+\t\t\t\tpainter.setPen(Qt::NoPen);
+\t\t\t\tpainter.setBrush(backing);
+\t\t\t\tpainter.drawRoundedRect(box, 9, 9);
+\t\t\t\tQColor ink(safeColor);
+\t\t\t\tink.setAlpha(qBound(0, textOpacity, 100)*255/100);
+\t\t\t\tpainter.setPen(ink);
+\t\t\t\tpainter.setFont(font);
+\t\t\t\tpainter.drawText(box.adjusted(16, 9, -16, -9),
+\t\t\t\t\tQt::AlignCenter | Qt::TextWordWrap, displayText);
+\t\t\t}
+\t\t\tconst QString png = tihuluCaptionLogoDir.path()
+\t\t\t\t+ QLatin1String("/subtitle-")
+\t\t\t\t+ QString::number(++tihuluCaptionLogoSequence)
+\t\t\t\t+ QLatin1String(".png");
+\t\t\tif (artwork.save(png, "PNG")) {
+\t\t\t\ttihuluCaptionLogoFiles.append(png);
+\t\t\t\ttihuluCaptionLogoActiveFile = png;
+\t\t\t\t// Keep older PNGs through an asynchronous filter reload; bound
+\t\t\t\t// disk use even for long-running TV sessions.
+\t\t\t\twhile (tihuluCaptionLogoFiles.size() > 8)
+\t\t\t\t\tQFile::remove(tihuluCaptionLogoFiles.takeFirst());
+\t\t\t} else {
+\t\t\t\t// Do not lose speech if the private temporary folder is full.
+\t\t\t\t// The text-only marquee remains a safe fallback.
+\t\t\t\ttihuluCaptionLogoActiveFile.clear();
+\t\t\t}
+\t\t}
+\t\tif (!tihuluCaptionLogoActiveFile.isEmpty()) {
+\t\t\tlibvlc_video_set_marquee_int(vlcMediaPlayer, libvlc_marquee_Enable, 0);
+\t\t\tconst QByteArray filename = QFile::encodeName(tihuluCaptionLogoActiveFile);
+\t\t\tlibvlc_video_set_logo_string(vlcMediaPlayer, libvlc_logo_file,
+\t\t\t\tfilename.constData());
+\t\t\t// VLC subtitle/logo native placement: 4=top-centre, 8=bottom-centre.
+\t\t\tlibvlc_video_set_logo_int(vlcMediaPlayer, libvlc_logo_position,
+\t\t\t\tatTop ? 4 : 8);
+\t\t\tlibvlc_video_set_logo_int(vlcMediaPlayer, libvlc_logo_opacity, 255);
+\t\t\tlibvlc_video_set_logo_int(vlcMediaPlayer, libvlc_logo_repeat, -1);
+\t\t\tlibvlc_video_set_logo_int(vlcMediaPlayer, libvlc_logo_enable, 1);
+\t\t\treturn;
+\t\t}
+\t}
+\t// Transparently backed subtitles keep the lightweight existing native
+\t// marquee renderer. Never leave both video subtitle filters enabled.
+\tlibvlc_video_set_logo_int(vlcMediaPlayer, libvlc_logo_enable, 0);
+\ttihuluCaptionLogoActiveFile.clear();
+\t// Set subtitle text/attributes BEFORE starting the libVLC filter.
+\tlibvlc_video_set_marquee_int(vlcMediaPlayer, libvlc_marquee_Size,
+\t\tqBound(16,fontSize,44));
+\tlibvlc_video_set_marquee_int(vlcMediaPlayer, libvlc_marquee_Color,
+\t\t(safeColor.red()<<16) | (safeColor.green()<<8) | safeColor.blue());
+\tlibvlc_video_set_marquee_int(vlcMediaPlayer, libvlc_marquee_Opacity,
+\t\tqBound(0,textOpacity,100)*255/100);
+\t// Marquee positions are BIT FLAGS: 4=top-centre, 8=bottom-centre.
+\t// libvlc_position_top/bottom are DIFFERENT sequential enum values.
+\t// Passing those enum values incorrectly positioned subtitles off-corner.
+\tlibvlc_video_set_marquee_int(vlcMediaPlayer, libvlc_marquee_Position,
+\t\tatTop ? 4 : 8);
+\tconst QByteArray utf8 = text.left(1100).toUtf8();
+\tlibvlc_video_set_marquee_string(vlcMediaPlayer, libvlc_marquee_Text,
+\t\tutf8.constData());
+\tlibvlc_video_set_marquee_int(vlcMediaPlayer, libvlc_marquee_Enable, 1);
+}
+
+void VlcMediaWidget::setExternalSubtitle(const QUrl &url)
+{''')
+
     # Kaffeine's OsdWidget already renders ABOVE libVLC's native video
     # surface. Reuse that mechanism in a *separate* caption OSD so the
     # original channel/volume OSD and DVB Teletext continue to work.
@@ -591,7 +1201,8 @@ QAbstractButton *StartTab::addShortcut''')
     change(osdh, '''\tvoid showText(const QString &text, int duration); // duration: msecs
 ''', '''\tvoid showText(const QString &text, int duration); // duration: msecs
 \tvoid showCaption(const QString &text, bool atTop, int pixelSize, int backgroundPercent, int textPercent,
-\t\tconst QString &foregroundColor, const QString &backgroundColor);
+\t\tconst QString &foregroundColor, const QString &backgroundColor,
+\t\tconst QRect &videoViewport);
 \tvoid hideCaption();
 ''')
     change(osdh, '''\tOsdObject *osdObject;
@@ -611,7 +1222,8 @@ QAbstractButton *StartTab::addShortcut''')
 {''',
     '''void OsdWidget::showCaption(const QString &text, bool atTop,
 \tint pixelSize, int backgroundPercent, int textPercent,
-\tconst QString &foregroundColor, const QString &backgroundColor)
+\tconst QString &foregroundColor, const QString &backgroundColor,
+\tconst QRect &videoViewport)
 {
 \tif (text.isEmpty() || (backgroundPercent <= 0 && textPercent <= 0)) {
 \t\thideCaption();
@@ -635,6 +1247,33 @@ QAbstractButton *StartTab::addShortcut''')
 \tconst QColor chosenBackground(backgroundColor);
 \ttihuluCaptionForeground = chosenText.isValid() ? foregroundColor : QLatin1String("#FFFFFF");
 \ttihuluCaptionBackground = chosenBackground.isValid() ? backgroundColor : QLatin1String("#000000");
+\t// The legacy Qt mode MUST NOT own an X/Wayland window covering the whole
+\t// video. A full-size transparent child was retaining stale video frames.
+\t// Anchor to the actual VIDEO widget, not the MediaWidget (which includes
+\t// controls and may be letterboxed). The small caption strip cannot cover
+\t// the whole video or float over an unrelated part of the application.
+\tif (parentWidget() != NULL) {
+\t\tconst QRect video = videoViewport.intersected(parentWidget()->rect());
+\t\tif (video.width() < 120 || video.height() < 80) {
+\t\t\thideCaption();
+\t\t\treturn;
+\t\t}
+\t\tQFont face = font();
+\t\tface.setPixelSize(tihuluCaptionSize);
+\t\tface.setBold(true);
+\t\tQFontMetrics metrics(face);
+\t\tconst int stripWidth = qMax(100, video.width()-qMin(56,video.width()/10));
+\t\tconst QRect measured = metrics.boundingRect(
+\t\t\tQRect(0,0,qMax(80,stripWidth-30),270),
+\t\t\tQt::TextWordWrap | Qt::AlignHCenter, tihuluCaptionText);
+\t\tconst int stripHeight = qBound(48, measured.height()+30,
+\t\t\tqMax(48,video.height()/3));
+\t\tconst int left = video.left()+qMax(0,(video.width()-stripWidth)/2);
+\t\tconst int top = tihuluCaptionTop ? video.top()+18 :
+\t\t\tvideo.bottom()-stripHeight-24;
+\t\tsetGeometry(left,qBound(video.top(),top,
+\t\t\tqMax(video.top(),video.bottom()-stripHeight)),stripWidth,stripHeight);
+\t}
 \ttimer->stop();
 \tshow();
 \traise();
@@ -646,7 +1285,8 @@ void OsdWidget::hideCaption()
 \tif (tihuluCaptionMode) {
 \t\ttihuluCaptionMode = false;
 \t\ttihuluCaptionText.clear();
-\t\tsetMask(QRegion());
+\t\t// No setMask() here: all pixels are cleared transparently
+\t\t// by paintEvent, and hiding no longer reconfigures a native window.
 \t\thide();
 \t}
 }
@@ -662,15 +1302,9 @@ void OsdWidget::showObject(OsdObject *osdObject_, int duration)
 \t\tQFont face = font();
 \t\tface.setPixelSize(tihuluCaptionSize);
 \t\tface.setBold(true);
-\t\tQFontMetrics metrics(face);
-\t\tconst int limit = qMax(200, width() - 56);
-\t\tQRect bounds = metrics.boundingRect(
-\t\t\tQRect(0, 0, limit - 24, height()),
-\t\t\tQt::AlignHCenter | Qt::TextWordWrap, tihuluCaptionText);
-\t\tconst int boxHeight = qMin(qMax(40, bounds.height() + 22), qMax(40, height() - 30));
-\t\tQRect box((width() - limit) / 2,
-\t\t\ttihuluCaptionTop ? 35 : qMax(12, height() - boxHeight - 40),
-\t\t\tlimit, boxHeight);
+\t\t// Geometry is sized and anchored only on caption changes.
+\t\t// Do not mutate the mask or geometry inside paintEvent.
+\t\tQRect box = QWidget::rect().adjusted(7, 7, -7, -7);
 \t\tQPainter painter(this);
 \t\t// A child QWidget covering libVLC is opaque by default on some
 \t\t// X11/Wayland paths. Explicitly CLEAR every repainted pixel;
@@ -695,12 +1329,63 @@ void OsdWidget::showObject(OsdObject *osdObject_, int duration)
 \t\t\t\tQt::AlignHCenter | Qt::AlignVCenter | Qt::TextWordWrap,
 \t\t\t\ttihuluCaptionText);
 \t\t}
-\t\tsetMask(box);
+\t\t// Qt must not repeatedly alter a QWidget mask from paintEvent:
+\t\t// that schedules further repaints and makes live subtitles flicker.
+\t\t// The child is already WA_TranslucentBackground and mouse-transparent.
 \t\treturn;
 \t}
 \tif (osdObject == NULL) {''')
 
     mediah = "src/mediawidget.h"
+    change(mediah, '''\tQString textSubtitlesOff;''',
+           '''\tQString textSubtitlesOff;
+\t// AI live subtitle is a virtual, user-selectable DVB track in Kaffeine.
+\t// Broadcast Teletext/DVB tracks remain owned by their original providers.
+\tbool tihuluAiCaptionAvailable = false;
+\tbool tihuluAiCaptionSelected = false;
+\tbool tihuluAiCaptionUserOverride = false;''')
+    mediac = "src/mediawidget.cpp"
+    change(mediac, '''void MediaWidget::currentSubtitleChanged(int currentSubtitle)
+{
+\tif (blockBackendUpdates)
+\t\treturn;
+''', '''void MediaWidget::currentSubtitleChanged(int currentSubtitle)
+{
+\tif (blockBackendUpdates)
+\t\treturn;
+\tif (source->getType() == MediaSource::Dvb && tihuluAiCaptionAvailable) {
+\t\tconst bool aiEntry = currentSubtitle == subtitleModel->rowCount()-1;
+\t\ttihuluAiCaptionUserOverride = true;
+\t\ttihuluAiCaptionSelected = aiEntry;
+\t\tif (aiEntry) {
+\t\t\t// Selecting the virtual AI track disables broadcast tracks, but
+\t\t\t// NEVER closes the DVB stream nor the user-run Whisper service.
+\t\t\tsource->setCurrentSubtitle(-1);
+\t\t\tbackend->setCurrentSubtitle(0);
+\t\t\tsubtitlesChanged();
+\t\t\treturn;
+\t\t}
+\t\t// Choosing off / broadcaster subtitles hides only our overlay.
+\t\ttihuluCaptionWidget->hideCaption();
+\t\tif (auto *vlc = qobject_cast<VlcMediaWidget *>(backend))
+\t\t\tvlc->setTihuluNativeCaption(QString(),false,25,0,QLatin1String("#FFFFFF"));
+\t}
+''')
+    change(mediac, '''\tblockBackendUpdates = true;
+
+\tif (subtitleModel->stringList() != items) {''',
+           '''\tif (source->getType() == MediaSource::Dvb && tihuluAiCaptionAvailable) {
+\t\t// Add ONE virtual AI entry after all existing Kaffeine subtitles.
+\t\t// It is selectable from Playback -> Subtitle without inventing
+\t\t// an MPEG-TS subtitle PID, libVLC SPU or external SRT track.
+\t\titems << i18n("TIHULU AI · Live Whisper / translations");
+\t\tif (tihuluAiCaptionSelected)
+\t\t\tcurrentIndex = items.size()-1;
+\t}
+\tblockBackendUpdates = true;
+
+\tif (subtitleModel->stringList() != items) {''')
+
     change(mediah, '''\tOsdWidget *osdWidget;
 ''', '''\tOsdWidget *osdWidget;
 \tOsdWidget *tihuluCaptionWidget;
@@ -709,7 +1394,7 @@ void OsdWidget::showObject(OsdObject *osdObject_, int duration)
     change(mediac, '#include <QComboBox>\n',
            '#include <QComboBox>\n#include <QCoreApplication>\n'
            '#include <QDateTime>\n#include <QFile>\n#include <QJsonDocument>\n'
-           '#include <QJsonObject>\n#include <QStandardPaths>\n')
+           '#include <QJsonObject>\n#include <QStandardPaths>\n#include <QSharedPointer>\n')
     change(mediac, '''\tosdWidget = new OsdWidget(this);
 ''',
     '''\tosdWidget = new OsdWidget(this);
@@ -721,49 +1406,120 @@ void OsdWidget::showObject(OsdObject *osdObject_, int duration)
 \ttihuluCaptionWidget->setAttribute(Qt::WA_TranslucentBackground, true);
 \ttihuluCaptionWidget->setAttribute(Qt::WA_NoSystemBackground, true);
 \ttihuluCaptionWidget->setAttribute(Qt::WA_OpaquePaintEvent, false);
+\ttihuluCaptionWidget->setAttribute(Qt::WA_StyledBackground, false);
 \ttihuluCaptionWidget->setAutoFillBackground(false);
 \ttihuluCaptionWidget->setAttribute(Qt::WA_TransparentForMouseEvents);
-\ttihuluCaptionWidget->resize(size());
+\t// Leave hidden legacy caption child at its minimal initial geometry.
+\t// It is resized only into a small caption strip after an opt-in.
+\ttihuluCaptionWidget->resize(1, 1);
 \tconst QString runtime = QStandardPaths::writableLocation(QStandardPaths::RuntimeLocation);
 \tif (!runtime.isEmpty()) {
 \t\tconst QString captionPath = runtime + QLatin1String("/tihulu-caption-")
 \t\t\t+ QString::number(QCoreApplication::applicationPid()) + QLatin1String(".json");
 \t\tQTimer *captionPoll = new QTimer(this);
-\t\tconnect(captionPoll, &QTimer::timeout, this, [this, captionPath]() {
-\t\t\tif (source->getType() != MediaSource::Dvb) {
+\t\t// Resist transient missing/partially written caption IPC files.
+\t\tQSharedPointer<qint64> lastValidMs(new qint64(0));
+\t\tconnect(captionPoll, &QTimer::timeout, this, [this, captionPath, lastValidMs]() {
+\t\t\tauto clearCaption = [this]() {
 \t\t\t\ttihuluCaptionWidget->hideCaption();
+\t\t\t\tif (auto *vlc = qobject_cast<VlcMediaWidget *>(backend))
+\t\t\t\t\tvlc->setTihuluNativeCaption(QString(),false,25,0,QLatin1String("#FFFFFF"));
+\t\t\t};
+\t\t\tauto setAiAvailability = [this](bool available) {
+\t\t\t\tif (tihuluAiCaptionAvailable == available) return;
+\t\t\t\ttihuluAiCaptionAvailable = available;
+\t\t\t\tif (available && !tihuluAiCaptionUserOverride) {
+\t\t\t\t\t// Existing Live Captions default-on behavior is preserved:
+\t\t\t\t\t// the AI track becomes the selected native Kaffeine entry.
+\t\t\t\t\ttihuluAiCaptionSelected = true;
+\t\t\t\t\tsource->setCurrentSubtitle(-1);
+\t\t\t\t\tbackend->setCurrentSubtitle(0);
+\t\t\t\t} else if (!available) {
+\t\t\t\t\ttihuluAiCaptionSelected = false;
+\t\t\t\t\ttihuluAiCaptionUserOverride = false;
+\t\t\t\t}
+\t\t\t\tsubtitlesChanged();
+\t\t\t};
+\t\t\tif (source->getType() != MediaSource::Dvb) {
+\t\t\t\tclearCaption();
+\t\t\t\tsetAiAvailability(false);
 \t\t\t\treturn;
 \t\t\t}
+\t\t\tconst qint64 now = QDateTime::currentMSecsSinceEpoch();
 \t\t\tQFile file(captionPath);
 \t\t\tif (!file.exists() || !file.open(QIODevice::ReadOnly)) {
-\t\t\t\ttihuluCaptionWidget->hideCaption();
+\t\t\t\tif (now - *lastValidMs > 1000) {
+\t\t\t\t\tclearCaption();
+\t\t\t\t\tsetAiAvailability(false);
+\t\t\t\t}
 \t\t\t\treturn;
 \t\t\t}
 \t\t\tQByteArray bytes = file.read(16385);
 \t\t\tif (bytes.size() > 16384) {
-\t\t\t\ttihuluCaptionWidget->hideCaption();
+\t\t\t\tif (now - *lastValidMs > 1000) {
+\t\t\t\t\tclearCaption();
+\t\t\t\t\tsetAiAvailability(false);
+\t\t\t\t}
 \t\t\t\treturn;
 \t\t\t}
 \t\t\tQJsonDocument doc = QJsonDocument::fromJson(bytes);
 \t\t\tif (!doc.isObject()) {
-\t\t\t\ttihuluCaptionWidget->hideCaption();
+\t\t\t\tif (now - *lastValidMs > 1000) {
+\t\t\t\t\tclearCaption();
+\t\t\t\t\tsetAiAvailability(false);
+\t\t\t\t}
 \t\t\t\treturn;
 \t\t\t}
 \t\t\tQJsonObject obj = doc.object();
-\t\t\tif (!obj.value(QLatin1String("enabled")).toBool(false) ||
-\t\t\t    obj.value(QLatin1String("expires_ms")).toDouble(0)
-\t\t\t      < static_cast<double>(QDateTime::currentMSecsSinceEpoch())) {
-\t\t\t\ttihuluCaptionWidget->hideCaption();
+\t\t\tif (!obj.value(QLatin1String("enabled")).toBool(false)) {
+\t\t\t\t// An explicit OFF remains immediate.
+\t\t\t\t*lastValidMs = 0;
+\t\t\t\tclearCaption();
+\t\t\t\tsetAiAvailability(false);
 \t\t\t\treturn;
 \t\t\t}
+\t\t\tif (obj.value(QLatin1String("expires_ms")).toDouble(0)
+\t\t\t      + 1000 < static_cast<double>(now)) {
+\t\t\t\tclearCaption();
+\t\t\t\tsetAiAvailability(false);
+\t\t\t\treturn;
+\t\t\t}
+\t\t\t*lastValidMs = now;
+\t\t\tsetAiAvailability(true);
+\t\t\t// The AI reader may keep recognizing for SRT export even when
+\t\t\t// Kaffeine's Subtitle menu selects OFF or a broadcaster track.
+\t\t\tif (!tihuluAiCaptionSelected) {
+\t\t\t\tclearCaption();
+\t\t\t\treturn;
+\t\t\t}
+\t\t\tconst QString text = obj.value(QLatin1String("text")).toString();
+\t\t\tconst QString renderMode = obj.value(QLatin1String("render_mode"))
+\t\t\t\t.toString(QLatin1String("native"));
+\t\t\tVlcMediaWidget *vlc = qobject_cast<VlcMediaWidget *>(backend);
+\t\t\tif (renderMode != QLatin1String("legacy-qt")) {
+\t\t\t\t// Native video compositing, never a transparent QWidget over XVideo.
+\t\t\t\ttihuluCaptionWidget->hideCaption();
+\t\t\t\tif (vlc)
+\t\t\t\t\tvlc->setTihuluNativeCaption(text,
+\t\t\t\t\t\tobj.value(QLatin1String("position")).toString()==QLatin1String("top"),
+\t\t\t\t\t\tobj.value(QLatin1String("size")).toInt(25),
+\t\t\t\t\t\tobj.value(QLatin1String("text_opacity")).toInt(100),
+\t\t\t\t\t\tobj.value(QLatin1String("text_color")).toString(QLatin1String("#FFFFFF")),
+\t\t\t\t\t\tobj.value(QLatin1String("opacity")).toInt(0),
+\t\t\t\t\t\tobj.value(QLatin1String("background_color")).toString(QLatin1String("#000000")));
+\t\t\t\treturn;
+\t\t\t}
+\t\t\tif (vlc)
+\t\t\t\tvlc->setTihuluNativeCaption(QString(),false,25,0,QLatin1String("#FFFFFF"));
 \t\t\ttihuluCaptionWidget->showCaption(
-\t\t\t\tobj.value(QLatin1String("text")).toString(),
+\t\t\t\ttext,
 \t\t\t\tobj.value(QLatin1String("position")).toString() == QLatin1String("top"),
 \t\t\t\tobj.value(QLatin1String("size")).toInt(25),
 \t\t\t\tobj.value(QLatin1String("opacity")).toInt(70),
 \t\t\t\tobj.value(QLatin1String("text_opacity")).toInt(100),
 \t\t\tobj.value(QLatin1String("text_color")).toString(QLatin1String("#FFFFFF")),
-\t\t\tobj.value(QLatin1String("background_color")).toString(QLatin1String("#000000")));
+\t\t\tobj.value(QLatin1String("background_color")).toString(QLatin1String("#000000")),
+\t\t\tbackend->geometry());
 \t\t});
 \t\tcaptionPoll->start(150);
 \t}
@@ -771,8 +1527,9 @@ void OsdWidget::showObject(OsdObject *osdObject_, int duration)
     change(mediac, '''\tosdWidget->resize(event->size());
 \tQWidget::resizeEvent(event);''',
     '''\tosdWidget->resize(event->size());
-\ttihuluCaptionWidget->resize(event->size());
-\ttihuluCaptionWidget->raise();
+\t// Re-anchor the optional legacy strip on the next caption poll.
+\t// Never resize a transparent overlay to cover the native video surface.
+\ttihuluCaptionWidget->hideCaption();
 \tQWidget::resizeEvent(event);''')
 
     # Use Kaffeine's OWN DVB scan engine; absolutely no w_scan_cpp,
@@ -838,6 +1595,13 @@ void OsdWidget::showObject(OsdObject *osdObject_, int duration)
 \tQDialog *dialog = new DvbScanDialog(manager, this);
 ''', '''void DvbTab::showFullScanDialog()
 {
+\t// A running scan owns the sole frontend: resume its existing window.
+\tif (scanDialog) {
+\t\tscanDialog->show();
+\t\tscanDialog->raise();
+\t\tscanDialog->activateWindow();
+\t\treturn;
+\t}
 \t// The native DVB scanner needs exclusive tuner ownership for
 \t// changing frequencies; Kaffeine's Channels editor can instead
 \t// stay attached to a single currently playing transponder.
@@ -849,7 +1613,7 @@ void OsdWidget::showObject(OsdObject *osdObject_, int duration)
 \t\tmediaWidget->stop();
 \t\t// Give Kaffeine's asynchronous player status updates one event
 \t\t// loop turn to release the DVB frontend before the scan dialog opens.
-\t\tQTimer::singleShot(100, this, [this]() { showChannelDialog(); });
+\t\tQTimer::singleShot(750, this, [this]() { showChannelDialog(); });
 \t\treturn;
 \t}
 \tshowChannelDialog();
@@ -859,6 +1623,204 @@ void DvbTab::showChannelDialog()
 {
 \tQDialog *dialog = new DvbScanDialog(manager, this);
 ''')
+
+    # Kaffeine's stock Channels dialog is application-modal even while the
+    # scanner runs asynchronously. Make it modeless so the user may navigate
+    # local media, online radio, subtitles and settings during a long RF sweep.
+    # Keep exactly ONE scan dialog / frontend owner, and protect live DVB tuning
+    # from stealing the single receiver while it is scanning.
+    change(tab, '''void DvbTab::showChannelDialog()
+{
+\tQDialog *dialog = new DvbScanDialog(manager, this);
+\tdialog->setAttribute(Qt::WA_DeleteOnClose, true);
+\tdialog->setModal(true);
+\tdialog->show();
+}''', '''void DvbTab::showChannelDialog()
+{
+\tif (scanDialog) {
+\t\t// Reopening Channels focuses the original running scan.
+\t\tscanDialog->show();
+\t\tscanDialog->raise();
+\t\tscanDialog->activateWindow();
+\t\treturn;
+\t}
+\tDvbScanDialog *dialog = new DvbScanDialog(manager, this);
+\tscanDialog = dialog; // QPointer clears when WA_DeleteOnClose destroys it.
+\tdialog->setAttribute(Qt::WA_DeleteOnClose, true);
+\tdialog->setModal(false);
+\tdialog->show();
+}''')
+    change(tab, '''DvbTab::~DvbTab()
+{
+\tKSharedConfig::openConfig()->group("DVB")''', '''DvbTab::~DvbTab()
+{
+\t// Child QObjects may otherwise destroy the manager BEFORE the dialog.
+\t// Stop the scanner / release the tuner while its manager still exists.
+\tif (scanDialog) {
+\t\tdelete scanDialog;
+\t\tscanDialog = NULL;
+\t}
+\tKSharedConfig::openConfig()->group("DVB")''')
+    change(tab, '''void DvbTab::playChannel(const DvbSharedChannel &channel, const QModelIndex &index)
+{
+\tQIcon *icon;''', '''void DvbTab::playChannel(const DvbSharedChannel &channel, const QModelIndex &index)
+{
+\tif (scanDialog && scanDialog->isScanning()) {
+\t\tQMessageBox::information(this, i18n("Antenna scan in progress"),
+\t\t\ti18n("Stop or finish the antenna scan before tuning another TV channel. "
+\t\t\t     "Other media and application tools remain available."));
+\t\treturn;
+\t}
+\tQIcon *icon;''')
+    change(tab, '''void DvbTab::configureDvb()
+{
+\tQDialog *dialog = new DvbConfigDialog(manager, this);''', '''void DvbTab::configureDvb()
+{
+\tif (scanDialog) {
+\t\t// Changing DVB sources while its channel editor is open would race
+\t\t// the editor's cloned channel model or active tuner ownership.
+\t\tscanDialog->raise();
+\t\tQMessageBox::information(this, i18n("Channel editor is open"),
+\t\t\ti18n("Close the Channels window before changing DVB receiver settings."));
+\t\treturn;
+\t}
+\tQDialog *dialog = new DvbConfigDialog(manager, this);''')
+    change(tab, '''void DvbTab::instantRecord(bool checked)
+{
+\tif (checked) {''', '''void DvbTab::instantRecord(bool checked)
+{
+\tif (checked && scanDialog && scanDialog->isScanning()) {
+\t\tinstantRecordAction->setChecked(false);
+\t\tQMessageBox::information(this, i18n("Antenna scan in progress"),
+\t\t\ti18n("An instant DVB recording cannot start on the tuner during its scan."));
+\t\treturn;
+\t}
+\tif (checked) {''')
+    tabhdr = "src/dvb/dvbtab.h"
+    change(tabhdr, 'class DvbEpgDialog;', 'class DvbEpgDialog;\nclass DvbScanDialog;')
+    change(tabhdr, '\tQPointer<DvbEpgDialog> epgDialog;',
+           '\tQPointer<DvbEpgDialog> epgDialog;\n\tQPointer<DvbScanDialog> scanDialog;')
+    scan_hdr = "src/dvb/dvbscandialog.h"
+    change(scan_hdr, '''\t~DvbScanDialog();
+
+private slots:''', '''\t~DvbScanDialog();
+\t// When true, this dialog has a real DvbScan worker and must retain its frontend.
+\tbool isScanning() const { return internal != NULL; }
+
+private slots:''')
+
+    # Upstream Kaffeine 2.0.19 returns a pointer to a local QSharedPointer
+    # copy in getInstantRecording(). The dangling pointer is dereferenced
+    # during channel changes and can crash immediately after scan/import.
+    change(tab, '''DvbSharedRecording *DvbTab::getInstantRecording(DvbSharedChannel ch) {
+	DvbSharedRecording *ret = NULL;
+
+	QListIterator<DvbSharedRecording> i(instantRecordings);
+	while (i.hasNext()) {
+		DvbSharedRecording r = i.next();
+		if(r.constData()->channel == ch) {
+			ret = &r;
+			break;
+		}
+	}
+
+	return ret;
+}''', '''DvbSharedRecording *DvbTab::getInstantRecording(DvbSharedChannel ch) {
+	// Return the address of an element OWNED by the container, never
+	// the address of a loop-local QSharedPointer which dies at scope exit.
+	for (int index = 0; index < instantRecordings.size(); ++index) {
+		DvbSharedRecording &recording = instantRecordings[index];
+		if (recording.constData() != NULL && recording.constData()->channel == ch)
+			return &recording;
+	}
+	return NULL;
+}''')
+
+    # Kaffeine 2.0.19 upstream crash in DVB scan result import:
+    # sqlFindFreeKey() uses std::prev(end, -1), which tries to move
+    # FORWARD from end() rather than backwards to the final QMap entry.
+    # With two or more channel additions DvbChannelModel::cloneFrom()
+    # dereferences an invalid map iterator and can SIGSEGV. Reported as
+    # KDE #503740 / Debian #1110405 / #1103728; fix the actual cause.
+    # This is idempotent with change(), so an already-corrected upstream
+    # checkout also remains valid. The original empty-container check is
+    # retained so prev(end) is never evaluated for an empty map.
+    sql_hdr = "src/sqlinterface.h"
+    files[sql_hdr] = fix_sql_free_key(files[sql_hdr])
+
+    # Critical guard for native scan/channel-import crashes.
+    # The pinned upstream DvbScanDialog releases its exclusive tuner *before*
+    # destroying the DvbScan worker in ~DvbScanDialog. The worker can still
+    # reference the frontend during destruction. Stop it before releasing.
+    scan_cpp = "src/dvb/dvbscandialog.cpp"
+    change(scan_cpp, '''DvbScanDialog::~DvbScanDialog()
+{
+	if (!isLive && device)
+		manager->releaseDevice(device, DvbManager::Exclusive);
+	delete internal;
+}''', '''DvbScanDialog::~DvbScanDialog()
+{
+	// Stop pending signal/quality polling while the frontend is torn down.
+	statusTimer.stop();
+	// A live scan must stop using the frontend BEFORE exclusive release.
+	delete internal;
+	internal = NULL;
+	if (!isLive && device) {
+		manager->releaseDevice(device, DvbManager::Exclusive);
+		device = NULL;
+	}
+}''')
+    change(scan_cpp, '''void DvbScanDialog::dialogAccepted()
+{
+	manager->getChannelModel()->cloneFrom(channelModel);''',
+    '''void DvbScanDialog::dialogAccepted()
+{
+	// Never mutate/flush the channel model while the scanner is still
+	// delivering foundChannels and holding a backend tuner.
+	if (internal != NULL) {
+		QSignalBlocker blocker(scanButton);
+		scanButton->setChecked(false);
+		scanButtonClicked(false);
+	}
+	manager->getChannelModel()->cloneFrom(channelModel);''')
+    change(scan_cpp, '#include <QComboBox>\n',
+           '#include <QComboBox>\n#include <QSignalBlocker>\n')
+    change(scan_cpp, '''void DvbScanDialog::updateStatus()
+{
+	if (device->getDeviceState() != DvbDevice::DeviceIdle) {''',
+    '''void DvbScanDialog::updateStatus()
+{
+	// A queued status tick can arrive just after stop/release.
+	if (device == NULL) return;
+	if (device->getDeviceState() != DvbDevice::DeviceIdle) {''')
+    change(scan_cpp, '''			DvbChannel newChannel(*channel);
+			channelModel->addChannel(newChannel);''',
+    '''			if (channel == NULL) continue; // removed during scan/selection
+			DvbChannel newChannel(*channel);
+			channelModel->addChannel(newChannel);''')
+    change(scan_cpp, '''void DvbScanDialog::scanFinished()
+{
+	// the state may have changed because the signal is queued''',
+    '''void DvbScanDialog::scanFinished()
+{
+	// A previously queued completion must not stop a different scan.
+	if (internal == NULL) return;
+	// the state may have changed because the signal is queued''')
+
+    # Selecting a fresh DVB-T2 tuner must be immediately scannable.
+    # Do not override a saved user-selected source; use Kaffeine's own
+    # real full-frequency AUTO-T2-Normal scan only if none is configured.
+    config_page = "src/dvb/dvbconfigdialog.cpp"
+    change(config_page,
+           '''	sourceBox->setCurrentIndex(sourceIndex + 1);''',
+           '''	// No Source is not a usable default for an auto-scannable T2 tuner.
+	// Keep all explicit saved scan sources unchanged.
+	if (isGen2 && config->getTransmissionType() == DvbConfigBase::DvbT &&
+	    config->scanSource.isEmpty())
+		sourceBox->setCurrentIndex(1); // Kaffeine AUTO-T2-Normal
+	else
+		sourceBox->setCurrentIndex(sourceIndex + 1);''')
+
     tabhdr = "src/dvb/dvbtab.h"
     change(tabhdr, '\tvoid showChannelDialog();',
            '\tvoid showChannelDialog();\n\tvoid showFullScanDialog();')
@@ -919,6 +1881,24 @@ def apply(root: Path):
         raise RuntimeError("Refusing to overwrite unrelated native radio header")
     dest.write_text(widget.read_text(encoding="utf-8"),encoding="utf-8")
     print("Installed native Kaffeine radio page:", dest)
+    hardware = Path(__file__).with_name("native_hardware_tab.h")
+    if not hardware.is_file():
+        raise RuntimeError("Native hardware tab template missing")
+    hardware_dest = root / "src/tihulu_hardware_tab.h"
+    if hardware_dest.exists() and (
+            hardware_dest.read_text(encoding="utf-8") != hardware.read_text(encoding="utf-8")):
+        raise RuntimeError("Refusing to overwrite unrelated native hardware header")
+    hardware_dest.write_text(hardware.read_text(encoding="utf-8"),encoding="utf-8")
+    print("Installed native Hardware page:",hardware_dest)
+    recording_template=Path(__file__).with_name("native_unified_recorder.h")
+    if not recording_template.is_file():
+        raise RuntimeError("Native universal recorder template missing")
+    record_dest=root / "src/tihulu_unified_recorder.h"
+    if record_dest.exists() and (
+        record_dest.read_text(encoding="utf-8") != recording_template.read_text(encoding="utf-8")):
+        raise RuntimeError("Refusing to overwrite unrelated recording header")
+    record_dest.write_text(recording_template.read_text(encoding="utf-8"),encoding="utf-8")
+    print("Installed native unified Record/Stop + Library:",record_dest)
     panel = Path(__file__).with_name("native_media_panel.h")
     if not panel.is_file():
         raise RuntimeError("In-player local media AI template is missing")
@@ -927,6 +1907,14 @@ def apply(root: Path):
         raise RuntimeError("Refusing to overwrite unrelated native media panel")
     media_dest.write_text(panel.read_text(encoding="utf-8"),encoding="utf-8")
     print("Installed in-player offline media AI controls:",media_dest)
+    web_template = Path(__file__).with_name("native_web_tv_dialog.h")
+    if not web_template.is_file():
+        raise RuntimeError("Native internet television dialog is missing")
+    web_dest = root / "src/tihulu_web_tv_dialog.h"
+    if web_dest.exists() and web_dest.read_text(encoding="utf-8") != web_template.read_text(encoding="utf-8"):
+        raise RuntimeError("Refusing to overwrite unrelated internet television header")
+    web_dest.write_text(web_template.read_text(encoding="utf-8"), encoding="utf-8")
+    print("Installed native internet television catalogue:", web_dest)
 
 if __name__ == "__main__":
     if len(sys.argv) != 2:

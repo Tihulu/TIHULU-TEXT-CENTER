@@ -51,15 +51,37 @@ def word_groups(result: dict, *, maximum_words: int = 7, maximum_span: float = 2
         return []
     turns = result.get("speaker_turns") or []
     def speaker_at(start, end):
-        midpoint = (start+end)/2
-        if not isinstance(turns,list):
+        """Assign only with meaningful overlap; never pick the first window.
+
+        Resemblyzer emits provisional, sometimes overlapping 0.8s windows.
+        A first-match lookup can incorrectly attribute a new speaker's words
+        to the previous voice when two windows overlap.
+        """
+        if not isinstance(turns, list):
             return None
-        for turn in turns:
-            if (isinstance(turn,dict) and type(turn.get("start")) in (int,float)
-                    and type(turn.get("end")) in (int,float)
-                    and turn["start"] <= midpoint <= turn["end"]):
-                return str(turn.get("id") or "")[:40] or None
-        return None
+        duration = max(0.04, end-start)
+        overlap_by_id = {}
+        for turn in turns[:30]:
+            if (not isinstance(turn,dict)
+                    or type(turn.get("start")) not in (int,float)
+                    or type(turn.get("end")) not in (int,float)):
+                continue
+            label = str(turn.get("id") or "")[:40]
+            if not label.startswith("SPEAKER_"):
+                continue
+            overlap = max(0.0, min(end,float(turn["end"])) -
+                          max(start,float(turn["start"])))
+            overlap_by_id[label] = overlap_by_id.get(label,0.0) + overlap
+        if not overlap_by_id:
+            return None
+        ranked = sorted(overlap_by_id.items(), key=lambda entry:entry[1],
+                        reverse=True)
+        top = ranked[0][1]
+        # A word split between two provisional voices stays UNLABELED.
+        if (top < 0.45 * duration or
+                (len(ranked) > 1 and ranked[1][1] >= top * 0.8)):
+            return None
+        return ranked[0][0]
 
     groups = []
     index = 0
@@ -80,7 +102,9 @@ def word_groups(result: dict, *, maximum_words: int = 7, maximum_span: float = 2
                     current[1]-valid[first][0] >= 1.3):
                 break
             next_speaker = speaker_at(following[0],following[1])
-            if first_speaker and next_speaker and first_speaker != next_speaker:
+            if first_speaker != next_speaker:
+                # Unknown-to-known boundaries must not inherit the wrong
+                # person's label either.
                 break
             finish += 1
         snippet = " ".join(x[2] for x in valid[first:finish+1])
@@ -90,8 +114,8 @@ def word_groups(result: dict, *, maximum_words: int = 7, maximum_span: float = 2
         payload["word_progress"] = {"start":first,"end":finish,"count":len(valid)}
         payload["caption_alignment"] = "ASR word timestamps"
         if first_speaker:
-            # Community-1 assigns SPEAKER_00 ... only within each audio clip.
-            # Keep that scope visible: do not imply stable person identity
+            # Both backends emit estimated SPEAKER_00-style voice clusters.
+            # Keep provisional scope visible; do not imply a real identity
             # or infer gender/age from voice characteristics.
             number = first_speaker.rsplit("_",1)[-1]
             speaker_number = int(number)+1 if number.isdigit() else number[:12]
@@ -121,7 +145,12 @@ def word_groups(result: dict, *, maximum_words: int = 7, maximum_span: float = 2
 
 
 def enqueue_word_cues(queue, result, config, captured_start, captured_end, finished):
-    groups = word_groups(result)
+    # When the viewer is reading several subtitle languages, prefer
+    # complete clauses over rapid 1–2 word flashes. Never claim that
+    # word-sliced translations have exact time alignment.
+    groups = word_groups(
+        result,maximum_words=(10 if config.readable_pacing else 7),
+        maximum_span=(3.5 if config.readable_pacing else 2.7))
     if not groups:
         return None
     # Audio extraction can strip leading TS packets. Never schedule past the
@@ -135,7 +164,23 @@ def enqueue_word_cues(queue, result, config, captured_start, captured_end, finis
     # succession. Emit one coherent chunk with an honest late status.
     last_audio_due = captured_end + (
         config.playback_delay_ms + config.offset_ms) / 1000.0
-    if finished >= last_audio_due - 0.45:
+    first_audio_due = (captured_start+groups[0][0]+
+                       (config.playback_delay_ms+config.offset_ms)/1000.0+
+                       0.15)
+    # Avoid rapid unreadable multilingual word flashes. If the source
+    # includes several short timed groups, let the normal queue present
+    # one complete phrase with real source-word timing instead.
+    if config.readable_pacing and len(groups)>1:
+        source_span=max(0.25,groups[-1][1]-groups[0][0])
+        if (0.85*len(groups)>source_span+0.6 or
+                len(config.target_languages)>=2):
+            return None
+    if (finished >= last_audio_due - 0.45 or
+            (config.readable_pacing and
+             finished >= first_audio_due - 0.6)):
+        # Several source-word groups would already be overdue when the
+        # ASR result arrives. Don't flash obsolete phrases in a burst;
+        # use one coherent full sentence with a normal readable slot.
         return None
     prior = None
     for start,end,payload in groups:

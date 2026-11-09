@@ -8,8 +8,8 @@ from __future__ import annotations
 
 TS_PACKET = 188
 
-def current_program_id(chunk: bytes) -> int | None:
-    """Return first non-network MPEG-TS program ID from a complete PAT.
+def current_program_identity(chunk: bytes) -> tuple[int, int] | None:
+    """Return (service ID, transport stream ID) from a complete PAT.
 
     Works with single-packet PAT sections; refuses truncated data. The
     MPEG-TS reader rechecks each new PAT when the owner switches channels.
@@ -42,6 +42,11 @@ def current_program_id(chunk: bytes) -> int | None:
         while i + 4 <= end:
             program = int.from_bytes(packet[i:i + 2], "big")
             if program != 0:
-                return program
+                return program, int.from_bytes(packet[pos + 3:pos + 5], "big")
             i += 4
     return None
+
+def current_program_id(chunk: bytes) -> int | None:
+    """Backwards-compatible selected service ID (PAT), without guessing."""
+    result = current_program_identity(chunk)
+    return result[0] if result is not None else None

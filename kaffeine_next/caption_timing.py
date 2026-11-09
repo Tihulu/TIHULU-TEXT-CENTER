@@ -34,14 +34,24 @@ class CaptionConfig:
     teletext_pid: int | None = None
     audio_pid: int | None = None
     audio_language: str | None = None
+    spoken_auto: bool = False  # user requests real ASR language re-detection
     speaker_enabled: bool = False
+    show_speaker_numbers: bool = True
+    show_voice_types: bool = False
+    break_speaker_lines: bool = False
+    show_sound_events: bool = False
+    separate_overlapping_voices: bool = False
+    readable_pacing: bool = True  # prefer natural sentence display over flashing fragments
+    live_priority: bool = True  # reduce expensive optional models during ASR backlogs
     music_transcription: bool = False
+    speech_priority: bool = False  # optional dialogue focus when background music overlaps
     speaker_provider: str = "resemblyzer"
     speaker_aliases: tuple[str, ...] = ()
     offset_ms: int = 0
     playback_delay_ms: int = 0
     automatic_sync: bool = False
     on_video: bool = True
+    render_mode: str = "native"  # libVLC compositor, never a QWidget over video
     show_original: bool = True
     show_translation: bool = True
     position: str = "bottom"
@@ -86,6 +96,8 @@ class CaptionConfig:
             raise ValueError("Output languages must be distinct (up to six)")
         if not self.show_original and not self.show_translation:
             raise ValueError("Select original transcript and/or translation")
+        if self.render_mode not in ("native", "legacy-qt"):
+            raise ValueError("Unknown subtitle renderer")
         if self.position not in ("bottom", "top"):
             raise ValueError("Unknown caption position")
         if type(self.font_px) is not int or not 16 <= self.font_px <= 44:
@@ -101,7 +113,11 @@ class CaptionConfig:
                 raise ValueError(
                     field + " must be an RGB hex color such as #FFFFFF")
         for key in ("automatic_sync", "on_video", "show_original", "show_translation",
-                    "speaker_enabled", "music_transcription"):
+                    "speaker_enabled", "music_transcription", "speech_priority",
+                    "spoken_auto", "show_speaker_numbers",
+                    "show_voice_types", "break_speaker_lines",
+                    "show_sound_events", "separate_overlapping_voices",
+                    "readable_pacing", "live_priority"):
             if type(getattr(self, key)) is not bool:
                 raise ValueError("Caption display toggles must be boolean")
         return self
@@ -111,24 +127,111 @@ class CaptionConfig:
                 "target":self.target,"targets":self.target_languages,
                 "page":self.page,"teletext_pid":self.teletext_pid,
                 "audio_pid":self.audio_pid,"audio_source":self.audio_language,
+                "spoken_auto":self.spoken_auto,
                 "speaker_enabled":self.speaker_enabled,
+                "show_speaker_numbers":self.show_speaker_numbers,
+                "show_voice_types":self.show_voice_types,
+                "break_speaker_lines":self.break_speaker_lines,
+                "show_sound_events":self.show_sound_events,
+                "separate_overlapping_voices":self.separate_overlapping_voices,
+                "readable_pacing":self.readable_pacing,
+                "live_priority":self.live_priority,
                 "music_transcription":self.music_transcription,
+                "speech_priority":self.speech_priority,
                 "speaker_provider":self.speaker_provider,
                 "revision":self.revision}
+
+    def _voice_prefix(self,result):
+        if not self.speaker_enabled:
+            return ""
+        index=result.get("speaker_index")
+        category=str(result.get("voice_type") or "").lower()
+        score=result.get("voice_type_confidence")
+        if (self.show_voice_types and category in ("male","female","child")
+                and isinstance(score,(float,int)) and score>=0.8):
+            names={"male":"Erkek sesi?","female":"Kadın sesi?",
+                   "child":"Çocuk sesi?"}
+            return ("["+names[category]+
+                    (f" {index}" if type(index) is int else "")+"]")
+        if not self.show_speaker_numbers:
+            return ""
+        if type(index) is int and 1<=index<=len(self.speaker_aliases):
+            alias=self.speaker_aliases[index-1].strip()
+            if alias:
+                return "["+alias+"]"
+        return str(result.get("speaker_label") or "").strip()[:55]
+
+    @staticmethod
+    def _event_lines(result):
+        # Show only detector-backed events (AST), never invent noise from
+        # silence/voice pitch. Sound tags are INDEPENDENT of speaker labels.
+        names={"music":"Müzik","hum":"Uğultu","applause":"Alkış",
+               "noise":"Gürültü","laughter":"Gülüşme"}
+        labels=[]
+        for event in (result.get("sound_events") or [])[:3]:
+            if isinstance(event,dict):
+                kind=str(event.get("type","")).lower()
+                score=event.get("confidence")
+                if (kind in names and isinstance(score,(float,int))
+                        and score>=0.75 and
+                        event.get("source")=="AST AudioSet"):
+                    labels.append("["+names[kind]+"]")
+        return labels
 
     def render(self, result):
         """Produce independently selectable original/translated subtitle lines."""
         original = (result.get("original") or "").strip()
-        speaker = str(result.get("speaker_label") or "").strip()[:55]
+        speaker = ""
         speaker_index = result.get("speaker_index")
-        if (self.speaker_enabled and type(speaker_index) is int
-                and 1 <= speaker_index <= len(self.speaker_aliases)
-                and self.speaker_aliases[speaker_index-1].strip()):
-            speaker = ("[" + self.speaker_aliases[speaker_index-1].strip()[:30] +
-                       " · clip]")
+        if self.speaker_enabled:
+            # Estimated voice category is metadata from a separate model.
+            # Resemblyzer alone only clusters identities; do NOT invent
+            # "man", "woman", "child" from cluster IDs or pitch.
+            guessed = str(result.get("voice_type") or "").lower()
+            if (self.show_voice_types and guessed in
+                    ("male","female","child") and
+                    float(result.get("voice_type_confidence") or 0) >= 0.8):
+                names={"male":"Erkek sesi?","female":"Kadın sesi?",
+                       "child":"Çocuk sesi?"}
+                speaker=("["+names[guessed]+
+                         (f" {speaker_index}" if type(speaker_index) is int else "")+"]")
+            elif self.show_speaker_numbers:
+                speaker = str(result.get("speaker_label") or "").strip()[:55]
+                if (type(speaker_index) is int
+                        and 1 <= speaker_index <= len(self.speaker_aliases)
+                        and self.speaker_aliases[speaker_index-1].strip()):
+                    speaker = ("[" + self.speaker_aliases[
+                        speaker_index-1].strip()[:30] + "]")
         raw = result.get("translations")
         translated = raw if isinstance(raw, dict) else {}
         lines = []
+        # Real overlap: independently separated audio and independently
+        # recognized texts only. No fabricated second speaker.
+        streams=result.get("overlap_lines")
+        if (self.separate_overlapping_voices and isinstance(streams,list)
+                and len(streams)==2):
+            for item in streams:
+                if not isinstance(item,dict):
+                    continue
+                label=self._voice_prefix(item)
+                speech=str(item.get("original") or "").strip()
+                translation=item.get("translations") or {}
+                chunks=[]
+                if self.show_original and speech:
+                    chunks.append(speech)
+                if self.show_translation:
+                    for code in self.target_languages:
+                        phrase=translation.get(code)
+                        if isinstance(phrase,str) and phrase.strip():
+                            if not (self.show_original and phrase.strip()==speech):
+                                chunks.append(f"[{code.upper()}] "+phrase.strip())
+                if chunks:
+                    lines.append((label+" " if label else "")+" | ".join(chunks))
+            if lines:
+                if self.show_sound_events:
+                    for label in self._event_lines(result):
+                        lines.append(label)
+                return "\n".join(lines[:4])[:1100]
         if self.show_original and original:
             original_language = result.get("source_language") or self.source
             prefix = (f"[{original_language.upper()}] " if
@@ -154,6 +257,8 @@ class CaptionConfig:
                 legacy = (result.get("translated") or "").strip()
                 if legacy and legacy != original:
                     lines.append(legacy)
+        if self.show_sound_events:
+            lines.extend(self._event_lines(result))
         # If the viewer requested translated-only subtitles but no model
         # could translate into the selected language, never blank the screen.
         # Broadcast / Whisper original remains visible with an explicit label.
@@ -182,7 +287,76 @@ def effective_cue_config(config: CaptionConfig, native_status: dict | None) -> C
     actual = native_status.get("effective_ms")
     if type(actual) is not int or not 0 <= actual <= config.playback_delay_ms:
         return config
+    observed = native_status.get("released_age_ms")
+    # The native FIFO's measured TS age is more informative than the
+    # *target* duration, but the player may add further decode latency.
+    # Only trust an acknowledged, fresh release measurement.
+    if (native_status.get("primed") and
+            type(observed) is int and 0 <= observed <= config.playback_delay_ms
+            and native_status.get("release_fresh")):
+        actual=observed
     return replace(config, playback_delay_ms=actual)
+
+
+class NativeReleaseClock:
+    """Damp TS-release measurement jitter without claiming actual video PTS.
+
+    Kaffeine's FIFO age is refreshed many times per second. A single low
+    sample would advance subtitles relative to video, while a single high
+    sample would make them late. Median + bounded slew rate prevents
+    intermittent "perfect then suddenly early" subtitle jumps.
+    """
+
+    def __init__(self, window=7, max_step_ms=220):
+        if not 3 <= window <= 15 or not 50 <= max_step_ms <= 500:
+            raise ValueError("Invalid native release-clock filter")
+        self.window=window
+        self.max_step_ms=max_step_ms
+        self.clear()
+
+    def clear(self):
+        self.samples=deque(maxlen=self.window)
+        self.last_stamp=None
+        self.last_target=None
+        self.current_ms=None
+
+    def stabilized(self, state):
+        if not isinstance(state,dict):
+            return state
+        request=state.get("requested_ms")
+        effective=state.get("effective_ms")
+        if (type(request) is not int or type(effective) is not int or
+                request<0 or effective<0 or effective>request):
+            return state
+        key=(request,effective)
+        if self.last_target != key:
+            self.clear()
+            self.last_target=key
+        observed=state.get("released_age_ms")
+        stamp=state.get("released_at_ms")
+        if (not state.get("release_fresh") or
+                type(observed) is not int or type(stamp) is not int):
+            return state
+        if stamp!=self.last_stamp:
+            self.last_stamp=stamp
+            self.samples.append(observed)
+            import statistics
+            target=int(statistics.median(self.samples))
+            target=max(0,min(request,target))
+            if self.current_ms is None:
+                # Stay near actual applied FIFO target until repeated
+                # observations establish a trustworthy release age.
+                self.current_ms=max(0,min(
+                    request,max(effective-350,min(effective+350,target))))
+            else:
+                delta=max(-self.max_step_ms,
+                          min(self.max_step_ms,target-self.current_ms))
+                self.current_ms=max(0,min(request,self.current_ms+delta))
+        adjusted=dict(state)
+        adjusted["raw_released_age_ms"]=observed
+        adjusted["released_age_ms"]=self.current_ms
+        adjusted["release_clock_filtered"]=True
+        return adjusted
 
 
 def confirmed_cue_config(config: CaptionConfig,
@@ -201,25 +375,113 @@ def confirmed_cue_config(config: CaptionConfig,
             type(native_status.get("effective_ms")) is not int or
             native_status.get("primed") is False):
         return None
+    # Current native builds report the *actual* TS release age. Do not send
+    # early subtitles after the FIFO says "primed" but before the first
+    # measured TS release sample is available. Legacy 3/5-field builds
+    # remain supported with reduced synchronization accuracy.
+    if (config.playback_delay_ms > 0
+            and native_status.get("has_release_clock")
+            and not native_status.get("release_fresh")):
+        return None
     return effective_cue_config(config,native_status)
 
 
 # The audio/video native queue reports TS buffering, not the exact
 # libVLC presentation timestamp. Bias captions slightly BEHIND speech rather
 # than revealing the next line too early while dialogue is still playing.
+def provisional_ai_buffer_ms(is_pi5):
+    """One-time, conservative ASR startup delay; NEVER pretend it is a
+    measured lip-sync or sustained inference benchmark. The native TS FIFO
+    may cap it according to bitrate/RAM and must acknowledge priming.
+    """
+    if type(is_pi5) is not bool:
+        raise ValueError("Raspberry Pi flag must be boolean")
+    return 6000 if is_pi5 else 10000
+
+
+def readable_display_seconds(result, config):
+    """Human reading time, without asserting word-perfect source timing.
+
+    Translating can double the visible text. A cue is allowed to remain
+    AFTER its audio slot; it must not flash away because ASR was late.
+    Pacing is capped so another complete sentence can still make progress.
+    """
+    if not config.readable_pacing:
+        return 1.75 if result.get("word_progress") else 2.3
+    original = str(result.get("original") or "").strip()
+    translated = result.get("translations") or {}
+    visible = []
+    if config.show_original and original:
+        visible.append(original)
+    if config.show_translation:
+        visible.extend(str(translated[lang]) for lang in config.target_languages
+                       if isinstance(translated.get(lang),str) and
+                       translated[lang].strip() and
+                       not (config.show_original and
+                            translated[lang].strip()==original))
+    chars=sum(len(line) for line in visible)
+    # Around 16 visible characters per second incl. reading transitions.
+    # Short timed snippets are not overwritten at 200ms intervals.
+    if result.get("word_progress"):
+        return max(1.35,min(3.8,0.65+chars/19.0))
+    return max(2.8,min(8.0,0.85+chars/16.0))
+
+
 CAPTION_SAFETY_HOLD_SEC = 0.55
+# Faster-Whisper word boundaries already describe the source audio timeline.
+# An additional half-second safety hold noticeably desynchronizes dialogue.
+# A modest bias remains until libVLC video PTS is calibrated end-to-end.
+WORD_TIMESTAMP_HOLD_SEC = 0.15
 
 
-def cue_window(started, ended, finished, config: CaptionConfig):
-    """A stable phrase window on the observed, pre-buffer source timeline."""
-    source_due = float(started) + (
+def cue_window(started, ended, finished, config: CaptionConfig, result=None):
+    """Schedule from observed speech, never the Whisper-completion wall clock.
+
+    Multi-chunk/sentence ASR outputs describe completed speech near the END
+    of the captured audio, not the beginning of a six-second (or longer)
+    collection window. Starting the clock at the first TS packet made live
+    transcriptions lead speech by several seconds. Genuine word groups still
+    use their source-relative start timestamps. This is a coarse alignment
+    without calibrated DVB PTS, not lip-sync accuracy.
+    """
+    anchor = float(started)
+    if (isinstance(result,dict) and result.get("source")=="local_asr"
+            and not result.get("word_progress")):
+        # A completed *whole sentence* can still have real source-word
+        # timestamps even when the reader chose not to show flashing word
+        # fragments. Reveal that finished sentence near the first VERIFIED
+        # spoken word, allowing longer text to be read naturally. Never
+        # reuse this for untimed CPU ASR or merged multi-clip text.
+        first_word = None
+        if (result.get("word_timing_source") and
+                isinstance(result.get("words"),list) and result["words"]):
+            first_word=result["words"][0]
+        duration=max(0.0,float(ended)-float(started))
+        words=result.get("words")
+        last_word=words[-1] if isinstance(words,list) and words else None
+        if (isinstance(first_word,dict) and isinstance(last_word,dict)
+                and type(first_word.get("start")) in (int,float)
+                and type(last_word.get("end")) in (int,float)
+                and 0<=first_word["start"]<=last_word["end"]<=duration+0.25
+                and not (result.get("ts_integrity") or {}).get("critical_gaps")):
+            # Complete source-timed sentences are useful slightly ahead,
+            # but must never reveal a six-second scene five seconds early.
+            anchor=float(started)+max(
+                float(first_word["start"]),float(last_word["end"])-2.5)
+        else:
+            # CPU/untimed ASR cannot claim word alignment. Show near the
+            # end of the observed six-second window as a conservative guess.
+            anchor=max(float(started),float(ended)-0.75)
+    source_due = anchor + (
         config.playback_delay_ms + config.offset_ms) / 1000.0
-    source_due += CAPTION_SAFETY_HOLD_SEC
+    timed = bool(isinstance(result, dict) and result.get("word_progress"))
+    source_due += (WORD_TIMESTAMP_HOLD_SEC if timed else CAPTION_SAFETY_HOLD_SEC)
     due = max(float(finished), source_due)
     spoken = max(0.0,float(ended)-float(started))
     # A chunk/word snippet should be readable before replacement. A
     # Teletext line naturally persists longer than a rapidly changing word.
-    duration = max(2.3,min(7.0, spoken+1.0))
+    duration = max(readable_display_seconds(result or {},config),
+                   max(2.3,min(7.0,spoken+1.0)))
     return {
         "due":due,
         "expires":due+duration,
@@ -246,7 +508,7 @@ class CueQueue:
         self._recent = {}
 
     def add(self, result, config, captured_start, captured_end, finished):
-        when = cue_window(captured_start, captured_end, finished, config)
+        when = cue_window(captured_start, captured_end, finished, config, result)
         original = str(result.get("original") or "").strip()
         key = (" ".join(original.casefold().split()),
                str(result.get("source") or ""))
@@ -270,12 +532,18 @@ class CueQueue:
             if len(self._recent)>80:
                 self._recent={k:v for k,v in self._recent.items()
                               if float(captured_start)-v[1]<12}
-        self.items = [item for item in self.items if
-                      item["revision"] == config.revision and
-                      item["expires"] > float(finished)-0.1]
-        # If decoder produces 5 groups at the same timestamp, enforce
-        # stable minimum duration instead of an immediate flush/burst.
-        if self.items:
+        # Expiration means the END of the preferred media display slot,
+        # NOT permission to discard a decoded phrase that has never been
+        # seen. Late ASR, UI stalls or one slow translation must not erase
+        # already-queued real speech. The maximum queue bound still applies.
+        self.items = [item for item in self.items
+                      if item["revision"] == config.revision]
+        # Untimed phrases need reading slots; source-word-timed groups do
+        # NOT. Stacking a fixed 1.75s gap per group can accumulate several
+        # seconds of lag during fast alternating speakers, even with 20s
+        # of video buffer. Respect the speech clock for timed groups.
+        timed = bool(result.get("word_progress"))
+        if self.items and not timed:
             last = max(item["due"] for item in self.items)
             when["due"] = max(when["due"], last+self.minimum_hold)
             when["expires"] = max(when["expires"],
@@ -290,20 +558,87 @@ class CueQueue:
 
     def poll(self, now, revision):
         self.items=[item for item in self.items
-                    if item["revision"]==revision and item["expires"]>now]
-        if (self.last_shown_at is not None and
-                now-self.last_shown_at < self.minimum_hold):
-            return None
+                    if item["revision"]==revision]
         if not self.items or self.items[0]["due"]>now:
             return None
+        next_timed = bool(self.items[0]["result"].get("word_progress"))
+        # A 200-ms word flash is almost impossible to read, especially
+        # with two translated languages. Apply a modest minimum without
+        # serially adding 1.75s to every source-timed word.
+        hold = (min(self.minimum_hold,0.8) if next_timed
+                and self.items[0]["config"].readable_pacing
+                else min(self.minimum_hold,0.2) if next_timed
+                else self.minimum_hold)
+        if (self.last_shown_at is not None and
+                now-self.last_shown_at < hold):
+            return None
         selected=self.items.pop(0)
+        # Expiry is a DISPLAY deadline, not merely an ASR speech-clock
+        # deadline. If the GUI is briefly busy, don't show a subtitle that
+        # is already expired or make it vanish before humans can read it.
+        selected["expires"]=max(
+            selected["expires"],
+            float(now)+readable_display_seconds(
+                selected["result"],selected["config"]))
         self.last_shown_at=float(now)
         return selected
+
+    def retime(self, offset_delta_ms, config):
+        """Shift pending caption display times without re-running ASR.
+
+        A user changing subtitle offset or appearance must not delete
+        already decoded speech. Revalidate the cue's revision at rendering,
+        and apply even negative offsets to the pending display deadlines.
+        """
+        if type(offset_delta_ms) is not int or abs(offset_delta_ms) > 20000:
+            raise ValueError("Invalid subtitle offset adjustment")
+        delta = offset_delta_ms / 1000.0
+        for item in self.items:
+            item["due"] += delta
+            item["expires"] = max(item["due"] + 0.6,
+                                  item["expires"] + delta)
+            item["config"] = config
+            item["revision"] = config.revision
+        self.items.sort(key=lambda item: item["due"])
 
     def clear(self):
         self.items.clear()
         self.last_shown_at=None
         self._recent.clear()
+
+
+class SpeakerLineHistory:
+    """Keep the previous actually transcribed voice on a separate line.
+
+    This NEVER generates overlap: both lines are captions emitted by ASR.
+    A true overlapping-source result is handled by CaptionConfig.render and
+    has two verified independently transcribed tracks already.
+    """
+    def __init__(self):
+        self.previous = None
+
+    def clear(self):
+        self.previous = None
+
+    def compose(self, result, rendered, config, now, epoch=None):
+        if (not config.break_speaker_lines or
+                not config.speaker_enabled or
+                result.get("source")!="local_asr" or
+                result.get("overlap_lines")):
+            self.clear()
+            return rendered
+        index=result.get("speaker_index")
+        if type(index) is not int or not 1<=index<=4:
+            self.clear()
+            return rendered
+        recent=self.previous
+        current=(index,rendered,float(now),config.revision,epoch)
+        self.previous=current
+        if (recent and recent[0]!=index and
+                recent[3]==config.revision and recent[4]==epoch
+                and 0 <= float(now)-recent[2] <= 3.5):
+            return recent[1]+"\n"+rendered
+        return rendered
 
 
 @dataclass(frozen=True)
@@ -408,25 +743,75 @@ class AutoSyncController:
         self.has_applied = False
 
     def next_delay(self, recommendation, current_ms, now, enabled):
+        """Automatic mode can ONLY raise an insufficient user TV delay.
+
+        A previously configured 14.5-second buffer must never be reduced to
+        a fresh 9-second ASR recommendation, even if the estimator's bitrate
+        memory cap subsequently drops. Too much existing delay is not a
+        subtitle safety problem; too little can show text prematurely.
+        Only an explicit manual user action may lower playback buffering.
+        """
         if not enabled or recommendation is None:
             return None
-        desired = recommendation.suggested_delay_ms
+        current_ms = int(current_ms)
+        desired = int(recommendation.suggested_delay_ms)
+        # The measured safe capacity may be below the existing buffer. That
+        # does not authorize erasing the user's larger stable configuration.
+        if desired <= current_ms or recommendation.safety_cap_ms <= current_ms:
+            return None
         if not self.has_applied:
             self.has_applied = True
             self.last_change_at = now
-            return desired if desired != current_ms else None
+            return desired
         if self.last_change_at is not None and (
                 now - self.last_change_at < self.cooldown_seconds):
             return None
-        if abs(desired - current_ms) < self.deadband_ms:
+        if desired - current_ms < self.deadband_ms:
             return None
-        delta = max(-self.step_ms, min(self.step_ms, desired - current_ms))
-        next_ms = max(0, min(recommendation.safety_cap_ms,
-                             round((current_ms + delta) / 500) * 500))
-        if next_ms == current_ms:
+        next_ms = min(recommendation.safety_cap_ms,
+                      current_ms + self.step_ms)
+        next_ms = max(current_ms, (next_ms // 500) * 500)
+        if next_ms <= current_ms:
             return None
         self.last_change_at = now
         return next_ms
+
+
+def buffer_fill_progress(native: dict | None, requested_ms: int) -> dict:
+    """Measured native DVB playback-buffer fill, never a GUI-timer estimate.
+
+    Return None for percent if the receiver status is missing, stale, for an
+    earlier request, or from an old native build lacking queue-age telemetry.
+    100% means the native producer explicitly marked the buffer primed.
+    """
+    if type(requested_ms) is not int or not 0 <= requested_ms <= 20000:
+        raise ValueError("Invalid requested TV buffer")
+    unknown = {"percent": None, "state": "waiting", "queued_ms": None,
+               "effective_ms": None, "requested_ms": requested_ms}
+    if not isinstance(native, dict) or native.get("requested_ms") != requested_ms:
+        return unknown
+    effective = native.get("effective_ms")
+    if type(effective) is not int or not 0 <= effective <= requested_ms:
+        return unknown
+    if requested_ms == 0:
+        return {"percent": 100, "state": "live", "queued_ms": 0,
+                "effective_ms": 0, "requested_ms": 0}
+    if effective == 0:
+        return {"percent": 0, "state": "unavailable", "queued_ms": 0,
+                "effective_ms": 0, "requested_ms": requested_ms}
+    if not native.get("has_queue_age", True):
+        return unknown
+    queued = native.get("queue_age_ms")
+    if type(queued) is not int or queued < 0 or queued > 60000:
+        return unknown
+    primed = native.get("primed") is True
+    percentage = (100 if primed else
+                  max(0, min(99, round(100 * queued / effective))))
+    return {"percent": percentage,
+            "state": "ready" if primed else "filling",
+            "queued_ms": min(queued, effective),
+            "effective_ms": effective,
+            "requested_ms": requested_ms}
 
 
 class KaffeineOSD:
@@ -458,6 +843,7 @@ class KaffeineOSD:
         if not config.on_video or config.mode == "off":
             text = ""
         obj = {"text":str(text)[:1100], "position":config.position,
+               "render_mode":config.render_mode,
                "size":config.font_px, "opacity":config.opacity,
                "text_opacity":config.text_opacity,
                "text_color":config.text_color,
@@ -484,18 +870,30 @@ class KaffeineOSD:
             if info.st_size > 120 or info.st_size < 3:
                 return None
             values = list(map(int, self.effective.read_text().split()))
-            if len(values) == 5:
-                requested, actual, bps, primed_flag, queue_age = values
+            released_age_ms = None
+            released_at_ms = None
+            release_fresh = False
+            has_release_clock = len(values)==7
+            if len(values) in (5,7):
+                requested, actual, bps, primed_flag, queue_age = values[:5]
                 if primed_flag not in (0,1) or not 0 <= queue_age <= 60000:
                     return None
                 primed = bool(primed_flag)
+                has_queue_age = True
+                if len(values)==7:
+                    measured_age, released_at = values[5:7]
+                    now_ms=int(time.time()*1000)
+                    if (0 <= measured_age <= 60000 and
+                            0 <= now_ms-released_at <= 3500):
+                        released_age_ms = measured_age
+                        released_at_ms = released_at
+                        release_fresh = True
             elif len(values) == 3:
-                # Old native builds report ONLY the target queue setting,
-                # even while a new multi-second playback buffer fills.
-                # Do not treat their nonzero number as applied/ready.
+                # Old native builds report ONLY the target queue setting.
                 requested, actual, bps = values
                 primed = (actual == 0)
                 queue_age = 0
+                has_queue_age = False
             else:
                 return None
             if (not 0 <= requested <= 20000 or not 0 <= actual <= requested or
@@ -504,6 +902,11 @@ class KaffeineOSD:
             return {"requested_ms": requested, "effective_ms": actual,
                     "ts_bytes_per_second": bps,
                     "primed":primed, "queue_age_ms":queue_age,
+                    "has_queue_age":has_queue_age,
+                    "released_age_ms":released_age_ms,
+                    "released_at_ms":released_at_ms,
+                    "release_fresh":release_fresh,
+                    "has_release_clock":has_release_clock,
                     "capped": actual < requested}
         except (OSError, ValueError, UnicodeError):
             return None

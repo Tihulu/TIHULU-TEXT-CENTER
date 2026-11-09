@@ -138,6 +138,11 @@ def choose_audio_stream(streams, language, preferred_pid=None):
 
 def _speaker_details(pcm, transcript, diagnostics, enabled,
                      provider="resemblyzer", channel=None):
+    # Never invoke speaker clustering for a silent/rejected ASR result.
+    # Short genuine dialogue still supports optional diarization, and its
+    # engine/error diagnostics remain visible to the user.
+    if not transcript:
+        return transcript
     if enabled:
         try:
             if provider == "resemblyzer":
@@ -165,13 +170,19 @@ def asr_from_clip(path: Path, language: str, model: str,
                   audio_pid: int | None = None,
                   speaker_enabled: bool = False,
                   speaker_provider: str = "resemblyzer",
-                  music_transcription: bool = False) -> str:
-    if language not in SUPPORTED:
-        raise ValueError("Unsupported transcription language")
+                  music_transcription: bool = False,
+                  speech_priority: bool = False,
+                  overlap_separation: bool = False,
+                  show_sound_events: bool = False,
+                  show_voice_types: bool = False) -> str:
+    # "auto" is a speech-detection MODE, not an ISO language code.
+    # All existing speech backends except unverified NPUs handle it.
+    if language != "auto" and language not in SUPPORTED:
+        raise ValueError("Unsupported transcription language: " + str(language))
     selected_backend = os.environ.get("TIHULU_TV_ASR_BACKEND", "auto")
     if selected_backend == "off":
         raise RuntimeError("Offline transcription disabled in Settings")
-    if selected_backend not in ("auto", "cpu", "gpu", "npu"):
+    if selected_backend not in ("auto", "cpu", "gpu", "npu", "remote"):
         raise RuntimeError("Invalid offline speech backend")
     streams = _program_streams(path, service_id)
     audio_index = choose_audio_stream(streams, language, audio_pid)
@@ -205,17 +216,95 @@ def asr_from_clip(path: Path, language: str, model: str,
                 choices + ". Select another language/audio channel or use Teletext.")
     if audio_index is None:
         raise RuntimeError("No audio track in the selected TV service")
+    from .speech_focus import ffmpeg_audio_filter
+    focus_filter = ffmpeg_audio_filter(
+        speech_priority=speech_priority, music_transcription=music_transcription)
     audio = _run(["ffmpeg", "-hide_banner", "-loglevel", "error", "-i", str(path),
                   "-map", f"0:{audio_index}", "-vn", "-ar", "32000", "-ac", "1",
-                  "-f", "s16le", "-"], timeout=35)
+                  *focus_filter, "-f", "s16le", "-"], timeout=35)
+    if diagnostics is not None:
+        diagnostics["speech_priority"] = bool(focus_filter)
+        diagnostics["speech_priority_note"] = (
+            "Gentle dialogue-band ASR conditioning; TV audio unchanged. "
+            "This is not music/source separation." if focus_filter else None)
     if audio.returncode or len(audio.stdout) < 32000:
         raise RuntimeError("No usable audio stream in recorded TV segment")
+    # Optional acoustic classifiers are independent, offline and opt-in.
+    if show_sound_events:
+        try:
+            from .audio_classifiers import detect_sound_events
+            actual_events=detect_sound_events(audio.stdout)
+            if diagnostics is not None:
+                diagnostics["sound_events"]=actual_events
+        except (OSError,ValueError,RuntimeError,TimeoutError) as exc:
+            if diagnostics is not None:
+                diagnostics["sound_event_note"]=str(exc)[:160]
+    if show_voice_types and not overlap_separation:
+        try:
+            from .audio_classifiers import detect_voice_type
+            category=detect_voice_type(audio.stdout)
+            if diagnostics is not None and category:
+                diagnostics["voice_type_candidate"]=category
+        except (OSError,ValueError,RuntimeError,TimeoutError) as exc:
+            if diagnostics is not None:
+                diagnostics["voice_type_note"]=str(exc)[:160]
+    # Remote speech is an explicit user-approved HTTPS+token backend.
+    # Device ownership remains local: only the bounded decoded audio PCM
+    # is sent to the configured GPU host; video/RF data are NOT uploaded.
+    if selected_backend == "remote":
+        from .ai_settings import AISettings
+        chosen = AISettings().values
+        if not chosen["remote_gpu_enabled"]:
+            raise RuntimeError("Remote GPU not enabled in AI Model Market")
+        try:
+            from .remote_gpu import transcribe as remote_transcribe
+            details = remote_transcribe(
+                audio.stdout, language, chosen["remote_gpu_url"])
+        except (OSError, RuntimeError, ValueError, TimeoutError) as exc:
+            if not chosen["remote_gpu_fallback"]:
+                raise RuntimeError("Remote GPU unavailable: "+str(exc)[:150]) from exc
+            if diagnostics is not None:
+                diagnostics["remote_error"] = str(exc)[:140]
+                diagnostics["remote_fallback"] = "local auto"
+            selected_backend = "auto"  # explicit configured fallback
+        else:
+            if diagnostics is not None:
+                diagnostics["backend"] = "remote"
+                diagnostics["model"] = "Remote managed Faster-Whisper CUDA"
+                diagnostics["engine"] = "authenticated HTTPS remote GPU"
+                diagnostics["ready"] = True
+                diagnostics["words"] = details["words"]
+                diagnostics["detected_language"] = details["language"]
+                diagnostics["language_confidence"] = details["language_probability"]
+                diagnostics["word_timing_source"] = "remote_cuda_word_timestamps"
+                diagnostics["recognition_rejected"] = details.get(
+                    "recognition_rejected")
+            return _speaker_details(
+                audio.stdout, details["text"].strip(), diagnostics,
+                speaker_enabled, speaker_provider,
+                channel=f"{service_id}:{audio_pid}")
     # Existing TEXT CENTER speech implementation handles local CPU/GPU selection.
     os.environ["TIHULU_WHISPER_MODEL"] = str(Path(model).expanduser())
     from textcenter.compute import detect_devices, choose_backend
     from textcenter.speech import transcribe_pcm
     profile = detect_devices()
     selected = choose_backend(profile, selected_backend)
+    # This vendor Whisper Base path currently lacks a proven automatic
+    # language-detection contract. Keep spoken=Auto useful via CPU Tiny,
+    # instead of labeling an unsupported NPU language mode as working.
+    if selected.get("selected")=="npu" and language=="auto":
+        from .ai_settings import AISettings
+        settings=AISettings().values
+        if (settings.get("active_profile")=="pi5_hat2"
+                and settings.get("hailo_cpu_fallback")):
+            selected=choose_backend(profile,"cpu")
+            if diagnostics is not None:
+                diagnostics["npu_notice"]=(
+                    "Spoken Auto detect uses Pi CPU fallback; set a language "
+                    "to test Hailo Whisper Base")
+        else:
+            raise RuntimeError(
+                "Selected NPU Whisper requires a known source language")
     if diagnostics is not None:
         diagnostics["backend"] = selected.get("selected", "unknown")
         # The user may have a GGML Tiny selected for CPU fallback while
@@ -246,31 +335,110 @@ def asr_from_clip(path: Path, language: str, model: str,
         from .cuda_faster_whisper import transcribe_cuda_details
         details = transcribe_cuda_details(
             audio.stdout, language, str(profile["speech"]["gpu_model_path"]),
-            music_mode=music_transcription)
+            music_mode=music_transcription,
+            speech_priority=speech_priority, timeout_s=18)
         if diagnostics is not None:
             diagnostics["words"] = details.get("words", [])
             diagnostics["detected_language"] = details.get("language")
             diagnostics["language_confidence"] = details.get("language_probability")
             diagnostics["word_timing_source"] = "faster_whisper_cuda_word_timestamps"
-        return _speaker_details(audio.stdout, details["text"].strip(),
+            diagnostics["recognition_rejected"] = details.get("recognition_rejected")
+        if overlap_separation:
+            # Experimental actual TWO-source speech separation followed
+            # by TWO independent ASR calls. Fail closed; never generate a
+            # second line by copying the ordinary Whisper transcript.
+            try:
+                from .overlap_separation import (
+                    separate_pcm, accept_two_transcripts)
+                streams=separate_pcm(audio.stdout)
+                recognized=[
+                    transcribe_cuda_details(
+                        track,language,str(profile["speech"]["gpu_model_path"]),
+                        music_mode=False,speech_priority=False,
+                        timeout_s=6)
+                    for track in streams]
+                voices=accept_two_transcripts(recognized)
+                if voices and show_voice_types:
+                    from .audio_classifiers import detect_voice_type
+                    for voice in voices:
+                        try:
+                            track=streams[voice["speaker_index"]-1]
+                            candidate=detect_voice_type(track)
+                            if candidate:
+                                voice.update(candidate)
+                        except (OSError,ValueError,RuntimeError,TimeoutError) as exc:
+                            if diagnostics is not None:
+                                diagnostics["voice_type_note"]=str(exc)[:160]
+                if voices:
+                    if diagnostics is not None:
+                        diagnostics["overlap_lines"]=voices
+                        diagnostics["overlap_model"]="SpeechBrain SepFormer-wsj02mix"
+                        diagnostics["overlap_note"]=(
+                            "Two independent Whisper tracks; provisional A/B "
+                            "per clip, not verified speaker identity")
+                elif diagnostics is not None:
+                    diagnostics["overlap_note"]=(
+                        "Separation produced no TWO distinct, source-timed "
+                        "transcripts; kept original mixed audio")
+            except (OSError,ValueError,RuntimeError,TimeoutError,
+                    subprocess.TimeoutExpired) as exc:
+                if diagnostics is not None:
+                    diagnostics["overlap_note"]=(
+                        "Experimental 2-voice separation unavailable; kept "
+                        "original mixed audio: "+str(exc)[:130])
+        primary_text=details["text"].strip()
+        if not primary_text and diagnostics is not None and diagnostics.get(
+                "overlap_lines"):
+            # The mixed waveform can be unintelligible although source A
+            # and B are independently recognized. Use actual source A ASR,
+            # not an invented blended transcript, as the original fallback.
+            primary_text=diagnostics["overlap_lines"][0]["original"]
+        return _speaker_details(audio.stdout,primary_text,
                                 diagnostics, speaker_enabled, speaker_provider,
                                 channel=f"{service_id}:{audio_pid}")
-    transcription = transcribe_pcm(
-        audio.stdout, language, selected["selected"], profile).strip()
+    try:
+        transcription = transcribe_pcm(
+            audio.stdout, language, selected["selected"], profile).strip()
+    except (RuntimeError, OSError, ValueError, TimeoutError) as exc:
+        # A failed Hailo device/model must NOT drop original dialogue when
+        # the owner explicitly selected this Pi preset with CPU fallback.
+        if selected.get("selected") != "npu":
+            raise
+        from .ai_settings import AISettings
+        settings=AISettings().values
+        if (settings.get("active_profile")!="pi5_hat2"
+                or not settings.get("hailo_cpu_fallback")):
+            raise
+        cpu=choose_backend(profile,"cpu")
+        if not cpu.get("ready"):
+            raise RuntimeError(
+                "Hailo ASR failed and Whisper Tiny CPU fallback is unavailable") from exc
+        if diagnostics is not None:
+            diagnostics["npu_error"]=str(exc)[:180]
+            diagnostics["npu_fallback"]="Whisper Tiny CPU"
+            diagnostics["backend"]="cpu"
+            diagnostics["model"]=Path(model).name if model else "CPU model"
+            diagnostics["engine"]="whisper.cpp CPU fallback"
+        transcription=transcribe_pcm(
+            audio.stdout, language,"cpu",profile).strip()
     return _speaker_details(audio.stdout, transcription,
                             diagnostics, speaker_enabled, speaker_provider,
                             channel=f"{service_id}:{audio_pid}")
 
 def _translate_argos_local(text: str, source: str, target: str) -> str:
-    """Translate offline through available system Argos or managed worker."""
-    try:
-        from textcenter.transcripts import translate_offline
-        return translate_offline(text, source, target)
-    except (ImportError, RuntimeError, ValueError, KeyError):
-        # The user-managed Argos venv is independent of the system Python
-        # used by Qt. Reuse its persistent worker for live caption windows.
+    """Use the SAME installed Argos runtime as Model Market and its language list.
+
+    Never prefer system Python when the user-owned Argos environment exists:
+    that environment can have different installed language packs. A genuinely
+    missing pair or runtime failure must be visible, not silently masked by
+    translating from another interpreter or cached package catalog.
+    """
+    from .runtime import AIRuntime
+    if AIRuntime().status()["installed"]:
         from .translation_service import translate_argos
         return translate_argos(text, source, target)
+    from textcenter.transcripts import translate_offline
+    return translate_offline(text, source, target, backend="cpu")
 
 
 def translate(text: str, source: str, target: str) -> tuple[str | None, str | None]:
@@ -293,6 +461,34 @@ def translate(text: str, source: str, target: str) -> tuple[str | None, str | No
     from .translation_failover import live_failover
     from .translation_service import translate_nllb
     selected = os.environ.get("TIHULU_TRANSLATOR_MODEL", "argos")
+    if selected=="deepl":
+        # Explicit online-provider opt-in. Only the decoded text is sent;
+        # live RF, TV transport and original audio never leave this device.
+        try:
+            from .deepl_api import translate_deepl
+            translated=translate_deepl(text,source,target)
+            return translated,None
+        except (ValueError,RuntimeError,OSError,TimeoutError) as exc:
+            try:
+                replacement=_translate_argos_local(text,source,target)
+                return replacement,"DeepL unavailable; offline Argos fallback: "+str(exc)[:100]
+            except (ImportError,RuntimeError,ValueError,OSError,KeyError):
+                return None,"DeepL unavailable; no compatible offline Argos pair"
+    if selected=="madlad":
+        from .translation_service import translate_madlad
+        import time
+        now=time.monotonic()
+        blocked=getattr(translate,"_madlad_blocked_until",0.)
+        if now>=blocked:
+            try:
+                return translate_madlad(text,source,target),None
+            except (RuntimeError,OSError,ValueError,TimeoutError,ImportError):
+                translate._madlad_blocked_until=now+180.
+        try:
+            return _translate_argos_local(text,source,target),(
+                "MADLAD unavailable or too slow; switched to installed offline Argos")
+        except (RuntimeError,OSError,ValueError,ImportError,KeyError):
+            return None,"MADLAD unavailable; offline Argos pair not installed"
     outcome = live_failover().translate(
         text, source, target, preferred=selected,
         nllb=translate_nllb, argos=_translate_argos_local)
@@ -307,7 +503,14 @@ def decode_segment(ts: bytes, *, mode="auto", page=150, source="de",
                    audio_source: str | None = None,
                    speaker_enabled: bool = False,
                    speaker_provider: str = "resemblyzer",
-                   music_transcription: bool = False) -> dict:
+                   music_transcription: bool = False,
+                   speech_priority: bool = False,
+                   defer_asr_translation: bool = False,
+                   speech_auto: bool = False,
+                   auto_teletext_probe: bool = False,
+                   overlap_separation: bool = False,
+                   show_sound_events: bool = False,
+                   show_voice_types: bool = False) -> dict:
     if mode not in ("teletext", "page", "asr", "auto"):
         raise ValueError("Unsupported caption source")
     if type(page) is not int or not 100 <= page <= 899:
@@ -354,6 +557,32 @@ def decode_segment(ts: bytes, *, mode="auto", page=150, source="de",
                      if teletext_pid is not None else f"teletext_page_{page}")
                     if selected_page != "subtitle"
                     else "broadcaster_teletext_subtitles") if original else ""
+        # Auto mode may briefly check the *actual* speech against genuine
+        # broadcaster subtitles. Never run this in Teletext Hard or manual
+        # page mode. Three consecutive high-confidence conflicts are
+        # required by the caller before it may prefer Whisper.
+        teletext_probe = None
+        if (original and mode=="auto" and auto_teletext_probe):
+            details = {}
+            try:
+                opts={"diagnostics":details}
+                if audio_pid is not None:
+                    opts["audio_pid"]=audio_pid
+                probe_language=("auto" if speech_auto else
+                                (audio_source or source))
+                speech=asr_from_clip(p,probe_language,model,service_id,**opts)
+                if speech and isinstance(speech,str):
+                    teletext_probe={
+                        "text":speech[:2500],
+                        "source_language":(
+                            details.get("detected_language") or
+                            (probe_language if probe_language!="auto" else "und")),
+                        "word_timing_source":details.get("word_timing_source"),
+                        "words":details.get("words",[]),
+                    }
+            except (RuntimeError,ValueError,OSError,subprocess.TimeoutExpired):
+                # Teletext remains valid if optional test ASR is unavailable.
+                pass
         if not original and mode in ("asr", "auto"):
             asr_start = time.perf_counter()
             try:
@@ -362,22 +591,60 @@ def decode_segment(ts: bytes, *, mode="auto", page=150, source="de",
                     asr_kwargs["audio_pid"] = audio_pid
                 if music_transcription:
                     asr_kwargs["music_transcription"] = True
+                if speech_priority:
+                    asr_kwargs["speech_priority"] = True
                 if speaker_enabled:
                     asr_kwargs["speaker_enabled"] = True
                     asr_kwargs["speaker_provider"] = speaker_provider
-                speech_language = (
-                    source if source == "auto" else audio_source or source)
+                if overlap_separation:
+                    asr_kwargs["overlap_separation"] = True
+                if show_sound_events:
+                    asr_kwargs["show_sound_events"] = True
+                if show_voice_types:
+                    asr_kwargs["show_voice_types"] = True
+                # Real DVB audio-language descriptors are a stronger hint
+                # than six seconds of noisy live TV speech. Do not ignore
+                # the selected/signalled audio language in Auto mode.
+                # Explicit GPU/remote Spoken=Auto permits a language
+                # switch inside the same TV channel. DVB descriptors remain
+                # hints, never a forced Whisper language in this mode.
+                speech_language = "auto" if speech_auto else (audio_source or source)
                 original = asr_from_clip(p, speech_language, model, service_id,
                                          **asr_kwargs)
+                # Filter only unmistakable repeated Whisper loops (often
+                # music/jingle hallucinations). Keep real twice-spoken
+                # phrases and opt-in singing/lyrics exactly as transcribed.
+                from kaffeine_next.continuous_captions import (
+                    collapse_asr_repetition_loops)
+                cleaned = (original if music_transcription else
+                           collapse_asr_repetition_loops(original))
+                if cleaned != original:
+                    original = cleaned
+                    speech_diagnostics["asr_repetitions_removed"] = True
+                    # Removed words break original ASR timestamp indexing.
+                    # Prefer an accurate whole-phrase cue to forged timing.
+                    speech_diagnostics["words"] = []
+                    speech_diagnostics["word_timing_source"] = None
                 raw_asr_original = original[:2500]  # private overlap bookkeeping
                 if original:
                     used_language = (
                         speech_diagnostics.get("detected_language") or
                         speech_language)
                     if used_language == "auto":
-                        # No invented translation source: display original
-                        # speech until the real model reports a language.
-                        used_language = "und"
+                        # Some CPU speech engines return text but no ASR
+                        # language metadata. Use an actual broadcaster audio
+                        # language descriptor (or user-selected source) as an
+                        # explicitly *hinted* translation source, never a
+                        # guessed DE default. If neither exists, keep the
+                        # untranslated original instead of fabricating FR.
+                        hinted = audio_source or (source if source!="auto" else None)
+                        if hinted:
+                            used_language = hinted
+                            speech_diagnostics["source_language_note"] = (
+                                "Translation uses broadcast/user language hint; "
+                                "speech language not confirmed by ASR")
+                        else:
+                            used_language = "und"
                 if original and previous_text:
                     from kaffeine_next.continuous_captions import remove_repeated_prefix
                     deduplicated = remove_repeated_prefix(previous_text, original)
@@ -404,11 +671,28 @@ def decode_segment(ts: bytes, *, mode="auto", page=150, source="de",
                 error = str(exc)[:180]
             finally:
                 asr_ms = round((time.perf_counter()-asr_start)*1000)
+        # A global clip may contain multiple voices; never assign its
+        # acoustic category to an individual without a single diarized
+        # voice. In an overlap case each isolated stream was classified
+        # independently instead.
+        candidate=speech_diagnostics.pop("voice_type_candidate",None)
+        ids={str(turn.get("id")) for turn in
+             speech_diagnostics.get("speaker_turns",[])
+             if isinstance(turn,dict) and turn.get("id")}
+        if candidate and len(ids)==1:
+            speech_diagnostics.update(candidate)
+        elif candidate:
+            speech_diagnostics["voice_type_note"]=(
+                "Multiple/unknown voices; category intentionally withheld")
         translations = {}
         errors = {}
         warnings = {}
         engines = {}
-        if original:
+        if original and not (defer_asr_translation and used=="local_asr"):
+            # When ASR sentence assembly is enabled, translate only once
+            # AFTER completed phrases are joined by the live sidecar.
+            # Previously Auto mode translated EN/TR here and discarded
+            # those results, translating both languages a second time.
             translate_start = time.perf_counter()
             for language in targets:
                 if language == used_language:
@@ -430,19 +714,35 @@ def decode_segment(ts: bytes, *, mode="auto", page=150, source="de",
             translation_ms = round((time.perf_counter()-translate_start)*1000)
         translated = translations.get(target)
         return {"original": original, "raw_asr_original":raw_asr_original,
+                "teletext_probe":teletext_probe,
                 "translated": translated, "translations": translations,
+                "remote_error":speech_diagnostics.get("remote_error"),
+                "remote_fallback":speech_diagnostics.get("remote_fallback"),
                 "asr_backend": speech_diagnostics.get("backend"),
                 "asr_model": speech_diagnostics.get("model"),
                 "asr_engine": speech_diagnostics.get("engine"),
                 "language_confidence":speech_diagnostics.get("language_confidence"),
                 "detected_language":speech_diagnostics.get("detected_language"),
+                "source_language_note":speech_diagnostics.get("source_language_note"),
                 "audio_notice": speech_diagnostics.get("audio_notice"),
                 "words":speech_diagnostics.get("words", []),
                 "word_timing_source":speech_diagnostics.get("word_timing_source"),
                 "speaker_turns":speech_diagnostics.get("speaker_turns", []),
+                "overlap_lines":speech_diagnostics.get("overlap_lines", []),
+                "overlap_model":speech_diagnostics.get("overlap_model"),
+                "overlap_note":speech_diagnostics.get("overlap_note"),
+                "sound_events":speech_diagnostics.get("sound_events",[]),
+                "sound_event_note":speech_diagnostics.get("sound_event_note"),
+                "voice_type":speech_diagnostics.get("voice_type"),
+                "voice_type_confidence":speech_diagnostics.get("voice_type_confidence"),
+                "voice_type_note":speech_diagnostics.get("voice_type_note"),
                 "speaker_engine":speech_diagnostics.get("speaker_engine"),
                 "speaker_error":speech_diagnostics.get("speaker_error"),
                 "speaker_note":speech_diagnostics.get("speaker_note"),
+                "recognition_rejected":speech_diagnostics.get("recognition_rejected"),
+                "asr_repetitions_removed":speech_diagnostics.get("asr_repetitions_removed",False),
+                "speech_priority":speech_diagnostics.get("speech_priority", False),
+                "speech_priority_note":speech_diagnostics.get("speech_priority_note"),
                 "processing_ms": {
                     "teletext":teletext_ms,"asr":asr_ms,
                     "translation":translation_ms,

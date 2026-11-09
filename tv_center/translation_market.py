@@ -111,7 +111,16 @@ class TranslationModelMarket:
                 outcome.stderr.decode("utf-8","replace")[-600:])
         if not self.status()["installed"]:
             raise RuntimeError("NLLB safetensors or tokenizer files missing")
-        return "NLLB translator model installed locally; choose it in AI Market and Save"
+        # Installing weights alone previously displayed INSTALLED while
+        # model.shared.weight was still a meta tensor. Prove real inference.
+        check=self.selftest()
+        if not check.get("ready"):
+            raise RuntimeError(
+                "NLLB weights downloaded, but real offline inference failed: "+
+                str(check.get("reason") or "unknown failure")[:360]+
+                ". Original files kept; Argos stays available.")
+        return ("NLLB real offline inference VERIFIED ("+
+                str(check.get("device"))+"). Select NLLB and Save settings.")
 
     def _download(self):
         from huggingface_hub import snapshot_download
@@ -122,6 +131,21 @@ class TranslationModelMarket:
         for name in ("model.safetensors","config.json","tokenizer_config.json"):
             if not (self.model/name).is_file():
                 raise RuntimeError("Expected NLLB model file missing: "+name)
+        from safetensors import safe_open
+        checkpoint=self.model/"model.safetensors"
+        if checkpoint.stat().st_size < 200_000_000:
+            raise RuntimeError("NLLB checkpoint unexpectedly short; refusing ready marker")
+        with safe_open(str(checkpoint),framework="pt",device="cpu") as reader:
+            keys=set(reader.keys())
+            shared=("model.shared.weight","model.encoder.embed_tokens.weight",
+                    "model.decoder.embed_tokens.weight","lm_head.weight",
+                    "shared.weight")
+            found=next((k for k in shared if k in keys),None)
+            if not found:
+                raise RuntimeError("NLLB genuine shared embedding checkpoint missing")
+            shape=reader.get_slice(found).get_shape()
+            if len(shape)!=2 or shape[0]<100_000 or shape[1]<500:
+                raise RuntimeError("NLLB checkpoint shared embedding shape invalid")
         self.marker.write_text(
             f"TIHULU managed optional NLLB; revision={MODEL_REVISION}\n",
             encoding="utf-8")
@@ -143,6 +167,7 @@ class TranslationModelMarket:
         env["PYTHONPATH"]=root+os.pathsep+env.get("PYTHONPATH","")
         env["HF_HUB_OFFLINE"]="1"
         env["TRANSFORMERS_OFFLINE"]="1"
+        env["TOKENIZERS_PARALLELISM"]="false"
         try:
             process=subprocess.run(
                 [runtime["python"], "-m", "tv_center.translation_market", "--selftest"],
@@ -150,9 +175,31 @@ class TranslationModelMarket:
                 stdout=subprocess.PIPE,stderr=subprocess.PIPE,
                 timeout=180,check=False)
             if process.returncode:
-                return {"ready":False,"reason":
-                        process.stderr.decode("utf-8","replace")[-500:] or
-                        "NLLB offline self-test failed"}
+                # The last 500 raw traceback bytes often start halfway through
+                # a Python caret line (^^) and hide the actual exception.
+                stderr = process.stderr.decode("utf-8", "replace")
+                lines = [line.strip() for line in stderr.splitlines()
+                         if line.strip()]
+                if process.returncode < 0 and not lines:
+                    reason = ("NLLB subprocess terminated by signal " +
+                              str(-process.returncode) +
+                              " (possible memory pressure; check available RAM)")
+                elif lines:
+                    reason = next(
+                        (line for line in reversed(lines)
+                         if (line.startswith(("RuntimeError:", "OSError:",
+                                              "ValueError:", "ImportError:",
+                                              "ModuleNotFoundError:",
+                                              "NotImplementedError:",
+                                              "TypeError:", "KeyError:",
+                                              "AssertionError:", "CUDA")))),
+                        lines[-1])
+                else:
+                    reason = ("NLLB offline self-test exited with code " +
+                              str(process.returncode))
+                return {"ready":False, "reason":reason[:600],
+                        "exit_code":process.returncode,
+                        "traceback_tail":stderr[-3000:]}
             result=json.loads(process.stdout.decode("utf-8","replace"))
             return result if isinstance(result,dict) and result.get("ready") else {
                 "ready":False,"reason":"NLLB self-test returned invalid result"}
@@ -181,6 +228,70 @@ def unmaterialized_tensors(model, maximum=8):
     return entries
 
 
+
+def repair_meta_embeddings_from_checkpoint(model, checkpoint):
+    """Repair ONLY tied embedding parameters from actual safetensors values.
+
+    Some Transformers versions leave tied M2M100 shared embedding parameters
+    on the 'meta' device despite a complete HF checkpoint. This function
+    never invents or reinitializes weights and never uses to_empty().
+    It reads only canonical shared/encoder/decoder/lm_head aliases and
+    validates shape and dtype before binding a real tensor.
+    """
+    missing=unmaterialized_tensors(model,maximum=64)
+    if not missing:
+        return []
+    if not checkpoint.is_file() or checkpoint.stat().st_size < 200_000_000:
+        raise RuntimeError("NLLB has unmaterialized meta tensors; "
+                           "checkpoint file is missing or implausibly short. "
+                           "Install/repair genuine weights.")
+    try:
+        import torch
+        from safetensors import safe_open
+    except ImportError as exc:
+        raise RuntimeError("NLLB repair requires local torch and safetensors "
+                           "in the managed Python runtime") from exc
+    shared_aliases=(
+        "model.shared.weight", "model.encoder.embed_tokens.weight",
+        "model.decoder.embed_tokens.weight", "lm_head.weight",
+        "shared.weight", "encoder.embed_tokens.weight",
+        "decoder.embed_tokens.weight")
+    if not all(key in shared_aliases for key in missing):
+        raise RuntimeError("NLLB has non-embedding meta parameters ("+
+                           ", ".join(missing[:4])+
+                           "); genuine checkpoint or runtime repair needed")
+    source=None
+    with safe_open(str(checkpoint),framework="pt",device="cpu") as reader:
+        keys=set(reader.keys())
+        for alias in shared_aliases:
+            if alias in keys:
+                source=reader.get_tensor(alias)
+                if source is not None and source.numel()>0:
+                    break
+    if source is None:
+        raise RuntimeError("NLLB checkpoint has no real tied embedding weights")
+    if source.device.type=="meta" or not source.is_floating_point():
+        raise RuntimeError("NLLB shared checkpoint tensor was not materialized")
+    # A single genuine materialized tensor can be tied across all compatible
+    # embedding aliases without multiplying the model's memory usage.
+    genuine=torch.nn.Parameter(source.contiguous(),requires_grad=False)
+    for fullname in missing:
+        current=model.get_parameter(fullname)
+        if tuple(current.shape)!=tuple(genuine.shape):
+            raise RuntimeError("Checkpoint shared-embedding shape mismatch for "+
+                               fullname)
+        parent_name,leaf=fullname.rsplit(".",1)
+        parent=model.get_submodule(parent_name)
+        setattr(parent,leaf,genuine)
+    if hasattr(model,"tie_weights"):
+        model.tie_weights()
+    remaining=unmaterialized_tensors(model,maximum=64)
+    if remaining:
+        raise RuntimeError("Unmaterialized NLLB weights remain after genuine "
+                           "checkpoint recovery: "+", ".join(remaining[:4]))
+    return missing
+
+
 @lru_cache(maxsize=1)
 def _load_nllb():
     from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
@@ -199,18 +310,19 @@ def _load_nllb():
         trust_remote_code=False, low_cpu_mem_usage=False, device_map=None)
     missing = unmaterialized_tensors(model)
     if missing:
-        # Some tied checkpoint embeddings can be restored by reapplying
-        # their *existing initialized* tied weights. Never reinitialize
-        # missing weights or claim a model with empty params works.
-        if hasattr(model, "tie_weights"):
+        # First try the ordinary framework tie operation; only then load a
+        # canonical tied embedding from the pinned, real safetensors file.
+        if hasattr(model,"tie_weights"):
             model.tie_weights()
-        missing = unmaterialized_tensors(model)
-    if missing:
+        if unmaterialized_tensors(model):
+            repair_meta_embeddings_from_checkpoint(
+                model,Path(location.model)/"model.safetensors")
+    remaining=unmaterialized_tensors(model)
+    if remaining:
         raise RuntimeError(
-            "NLLB checkpoint has unmaterialized meta tensors (" +
-            ", ".join(missing[:4]) +
-            "). Model is unsafe for inference. Reinstall/repair NLLB in "
-            "AI Model Market; use installed Argos packs meanwhile.")
+            "NLLB still has unmaterialized meta tensors: " +
+            ", ".join(remaining[:4]) +
+            ". Model remains disabled; use Argos while repairing.")
     model.eval()
     device = "cpu"
     if torch.cuda.is_available():

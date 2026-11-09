@@ -124,20 +124,32 @@ def detect_devices(*, executable_lookup=None, device_root=None,
     henc=Path(hailo_encoder).expanduser() if hailo_encoder else None
     hdec=Path(hailo_decoder).expanduser() if hailo_decoder else None
     hnpy=Path(hailo_npy).expanduser() if hailo_npy else None
-    hailo_ready=bool(
-        npus and
-        importlib.util.find_spec("hailo_apps") is not None and
-        importlib.util.find_spec("hailo_platform") is not None and
-        henc and henc.is_file() and
-        hdec and hdec.is_file() and
-        hnpy and hnpy.is_dir() and any(hnpy.glob("*.npy"))
-    )
+    # Hailo-8/8L nodes or an unverified architecture must not make the
+    # Pi HAT+ 2 profile claim a working Hailo-10H Whisper runtime.
+    from tv_center.pi_hailo import readiness, hardware_architecture
+    pi5 = False
+    try:
+        pi5 = "Raspberry Pi 5" in Path("/proc/device-tree/model").read_text(
+            encoding="utf-8", errors="replace")
+    except OSError:
+        pass
+    hailo_state = readiness({
+        "hailo_encoder_hef": hailo_encoder,
+        "hailo_decoder_hef": hailo_decoder,
+        "hailo_npy_dir": hailo_npy,
+    }, hardware={
+        "raspberry_pi_5": pi5,
+        "npu": {"devices": npus,
+                "hailo_arch": hardware_architecture() if npus else ""},
+    })
+    hailo_ready = bool(hailo_state["ready"])
     detected_npu=bool(npus or intel_npu)
     npu_label=("Intel OpenVINO "+intel_npu if intel_npu else
                "Hailo NPU ("+", ".join(npus)+")" if npus else "No NPU detected")
     devices.append({"id":"npu","name":npu_label,
                     "detected":detected_npu,"runtime_ready":ov_ready or hailo_ready,
-                    "detail":("Hailo local HEF/NPY Whisper model configured" if hailo_ready else
+                    "detail":("Hailo-10H local Whisper Base HEF/NPY configured "
+                              "(inference not yet benchmarked)" if hailo_ready else
                               "OpenVINO NPU Whisper model locally configured" if ov_ready
                               else "NPU device alone is insufficient; compatible model/runtime missing.")})
     explicit_cli = os.environ.get("TIHULU_WHISPER_CLI", "")

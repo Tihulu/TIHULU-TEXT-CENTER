@@ -32,7 +32,7 @@ class StandaloneNativePlayerTests(unittest.TestCase):
                      "livePlot_->isChecked()", "QImage waterfall_",
                      "slideHistory_", "slideMove(",
                      "stopLyrics()","lyricsProcess_.start(",
-                     "autoSync_->isChecked()", "bufferMs_->setRange(0,20000)",
+                     "autoSync_->isChecked()", "bufferMs_->setRange(0,60000)",
                      "lagSamples_.size()>=4",
                      "QSettings radioSettings"):
             self.assertIn(term,radio)
@@ -49,7 +49,9 @@ class StandaloneNativePlayerTests(unittest.TestCase):
             self.assertIn(term,patches)
         self.assertNotIn('QStringList() << QLatin1String("media-captions-ui")',patches)
         installer=(ROOT/"kaffeine_next/install.sh").read_text()
-        self.assertIn("Icon=tihulu-media-center",installer)
+        self.assertTrue("Icon=tihulu-media-center" in installer or
+                        "Icon=$DESKTOP_ICON" in installer)
+        self.assertIn("tihulu-media-center.svg",installer)
         self.assertIn("Name=TIHULU Media Center",installer)
         self.assertIn('ln -sfn kaffeine "$PREFIX/bin/tihulu-media-center"',installer)
         self.assertIn("tihulu-media-centerrc",installer)
@@ -80,6 +82,8 @@ class StandaloneNativePlayerTests(unittest.TestCase):
                     online=True,source="en",targets=("en","de","tr"))
                 self.assertEqual(code,0)
                 record=json.loads(Path(path).read_text())
+                self.assertEqual(record["alignment_mode"],"timed_lrc")
+                self.assertEqual(record["plain_lines"],["Hello everyone"])
                 cue=record["cues"][0]
                 self.assertEqual((cue["start"],cue["end"]),(1.0,3.0))
                 self.assertNotIn("en",cue["translations"])
@@ -94,7 +98,32 @@ class StandaloneNativePlayerTests(unittest.TestCase):
                     artist="Test Artist",track="Test Song",output=path,
                     online=True,source="auto",targets=("de",)),0)
                 record=json.loads(Path(path).read_text())
+                self.assertEqual(record["alignment_mode"],"timed_lrc")
                 self.assertNotIn("translations",record["cues"][0])
+
+    def test_untimed_song_lyrics_retain_targets_for_later_asr_matching(self):
+        import json
+        import os
+        import tempfile
+        from tv_center.radio_ai import lyrics_lookup_to_file
+        with tempfile.TemporaryDirectory() as temp:
+            path=str(Path(temp)/"tihulu-radio-lyrics-901.json")
+            with patch.dict(os.environ,{"XDG_RUNTIME_DIR":temp}), (
+                    patch("tv_center.radio_ai.lookup_synced_lyrics",
+                          return_value=([],{
+                              "provider":"LRCLIB","status":"plain",
+                              "plain_lines":["Hello everyone","Next refrain"]}))):
+                result=lyrics_lookup_to_file(
+                    artist="Artist",track="Track",output=path,online=True,
+                    source="en",targets=("de","tr"))
+                self.assertEqual(result,0)
+                record=json.loads(Path(path).read_text())
+                self.assertEqual(record["alignment_mode"],"asr_lexical")
+                self.assertEqual(record["source_language"],"en")
+                self.assertEqual(record["translation_targets"],["de","tr"])
+                self.assertEqual(record["plain_lines"],
+                                 ["Hello everyone","Next refrain"])
+                self.assertEqual(record["cues"],[])
 
     def test_auto_detected_en_translates_de_and_tr_with_correct_source(self):
         profile={"speech":{"gpu_engine":"faster_whisper_managed",

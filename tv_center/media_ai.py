@@ -19,7 +19,7 @@ import sys
 
 from .ai_settings import AISettings
 from .captions import translate
-from .lyrics_sync import (LyricCue, local_lrc, lookup_synced_lyrics,
+from .lyrics_sync import (LyricCue, LiveLyricMatcher, local_lrc, lookup_synced_lyrics,
                           parse_lrc, write_srt, srt_timestamp)
 from .language_codes import language_code
 
@@ -67,12 +67,40 @@ def _choose_model(ai: AISettings):
     return profile,selected["selected"]
 
 
+def _near_silent_pcm(pcm: bytes) -> bool:
+    """Fail closed only on effectively inaudible signed 16-bit 32kHz PCM.
+
+    Whisper can hallucinate speech (especially when music mode disables VAD)
+    over dead-air/silent receiver buffers. Sample a bounded number of native
+    little-endian PCM frames; no third-party package or network is needed.
+    This is not a voice activity detector: normal quiet speech/music stays
+    eligible for Whisper, and music with audible instruments may still
+    produce uncertain transcripts.
+    """
+    if not pcm or len(pcm) % 2:
+        return True
+    from array import array
+    import sys as _sys
+    samples = array("h")
+    samples.frombytes(pcm)
+    if _sys.byteorder != "little":
+        samples.byteswap()
+    step = max(1, len(samples) // 4096)
+    subset = samples[::step]
+    if not subset:
+        return True
+    squared = sum(int(value) * int(value) for value in subset)
+    peak = max(abs(int(value)) for value in subset)
+    return (squared / len(subset) < 22.0 ** 2 and peak < 65)
+
+
 def _chunk_cues(pcm: bytes, *, position: float, lang: str, profile:dict,
                 backend: str, music:bool=False, detection:dict|None=None) -> list[LyricCue]:
     """Real GPU word cues; legacy CPU models use honest eight-second chunks."""
     text=""
     words=[]
     recognized_language=lang
+
     if (backend=="gpu" and profile["speech"].get("gpu_engine") ==
             "faster_whisper_managed"):
         from .cuda_faster_whisper import transcribe_cuda_details
@@ -87,11 +115,18 @@ def _chunk_cues(pcm: bytes, *, position: float, lang: str, profile:dict,
             if isinstance(detected,str) and len(detected) in (2,3):
                 detection["language"]=detected
                 detection["confidence"]=result.get("language_probability",0.0)
+            detection["recognition_rejected"]=result.get("recognition_rejected")
     else:
-        if lang=="auto":
-            raise RuntimeError("Automatic source detection requires installed Faster-Whisper GPU model")
+        # CPU whisper.cpp can transcribe with -l auto, but this API does
+        # not provide a verified language code. Never guess a translation
+        # source from an unspecified language; keep original words only.
         from textcenter.speech import transcribe_pcm
         text=transcribe_pcm(pcm,lang,backend,profile).strip()
+        if lang=="auto":
+            recognized_language="und"
+            if detection is not None:
+                detection["language"]=None
+                detection["confidence"]=0.0
     if not text:
         return []
     duration=len(pcm)/(2*CHUNK_SAMPLES)
@@ -128,7 +163,7 @@ def _chunk_cues(pcm: bytes, *, position: float, lang: str, profile:dict,
                      text,"Whisper chunk / not word-aligned",recognized_language)]
 
 
-def transcribe_local_media(filename: str, *, source: str="de",
+def transcribe_local_media(filename: str, *, source: str="auto",
                            targets=(), music:bool=False,
                            max_seconds:int=7200):
     media=validate_local_media(filename)
@@ -174,8 +209,39 @@ def transcribe_local_media(filename: str, *, source: str="de",
     return cues,targets,backend
 
 
+
+def _align_plain_lyrics_to_local_audio(lines, transcript_cues):
+    """No guessed lyric positions. Only approximate times where local ASR confirms words."""
+    matcher=LiveLyricMatcher(lines)
+    aligned=[]
+    window=[]
+    window_start=None
+    def evaluate():
+        if not window:
+            return
+        evidence=matcher.observe(" ".join(c.text for c in window))
+        if evidence is None:
+            return
+        start=min(c.start for c in window)
+        end=max(c.end for c in window)
+        lang=next((c.language for c in window if c.language),None)
+        aligned.append(LyricCue(max(0.,start),max(end,start+1.5),
+                                evidence["text"],"plain lyrics / observed ASR",lang))
+    for cue in transcript_cues:
+        if window_start is None:
+            window_start=cue.start
+        if window and (cue.start-window_start>=6 or
+                       sum(len(c.text) for c in window)>290):
+            evaluate()
+            window=[]
+            window_start=cue.start
+        window.append(cue)
+    evaluate()
+    return aligned
+
+
 def _lyrics_for_file(media:Path, meta:dict, *,
-                     fetch_lyrics:bool=False,artist:str="",track:str=""):
+                     fetch_lyrics:bool=False,artist:str="",track:str="",source:str="auto"):
     local=local_lrc(media)
     if local:
         cues=parse_lrc(local.read_text(encoding="utf-8"),
@@ -193,11 +259,25 @@ def _lyrics_for_file(media:Path, meta:dict, *,
         raise ValueError("Artist metadata missing; provide --artist")
     lines,provenance=lookup_synced_lyrics(
         title=title,artist=singer,album=meta.get("album",""),
-        duration=meta.get("duration") or None,online=True)
-    if not lines:
-        raise RuntimeError(
-            "No confirmed time-coded lyrics: "+provenance.get("status","unknown"))
-    return lines,provenance
+        duration=meta.get("duration") or None,online=True,
+        allow_plain=True)
+    if lines:
+        return lines,provenance
+    plain=provenance.get("plain_lines",[])
+    if plain and provenance.get("status")=="plain":
+        heard,_,engine=transcribe_local_media(str(media),source=source,
+                                               targets=(),music=True)
+        aligned=_align_plain_lyrics_to_local_audio(plain,heard)
+        if not aligned:
+            raise RuntimeError("Plain lyrics found, but no reliable match with "
+                               "heard vocals; not inventing subtitle timestamps")
+        return aligned,{"provider":"LRCLIB",
+                        "status":"plain_matched_approximate",
+                        "matched_lines":len(aligned),
+                        "total_plain_lines":len(plain),
+                        "alignment":"observed_local_ASR_audio",
+                        "backend":engine}
+    raise RuntimeError("No matching lyrics: "+provenance.get("status","unknown"))
 
 
 def _translate_cues(cues:list[LyricCue],targets,source):
@@ -211,7 +291,7 @@ def _translate_cues(cues:list[LyricCue],targets,source):
             if dest==source:
                 continue
             cue_source=cue.language or source
-            if cue_source=="auto":
+            if cue_source in ("auto", "und"):
                 warnings.append({"cue":i,"target":dest,"warning":
                     "Lyrics language not identified: choose an ISO source code"})
                 continue
@@ -227,7 +307,7 @@ def _translate_cues(cues:list[LyricCue],targets,source):
     return translated,warnings
 
 
-def create_subtitles(filename, *, source="de", targets=(),music=False,
+def create_subtitles(filename, *, source="auto", targets=(),music=False,
                      lyrics=False,fetch_lyrics=False,artist="",track="",
                      output=None,overwrite=False):
     media=validate_local_media(filename)
@@ -239,8 +319,10 @@ def create_subtitles(filename, *, source="de", targets=(),music=False,
     if lyrics:
         meta=media_metadata(media)
         cues,origin=_lyrics_for_file(media,meta,fetch_lyrics=fetch_lyrics,
-                                     artist=artist,track=track)
-        backend="synced lyrics"
+                                     artist=artist,track=track,source=source)
+        backend=("ASR-based approximate lyric alignment"
+                 if origin.get("status")=="plain_matched_approximate"
+                 else "time-coded lyrics")
     else:
         if fetch_lyrics:
             raise ValueError("--fetch-lyrics requires --lyrics")
@@ -266,7 +348,8 @@ def main(args=None):
     parser=argparse.ArgumentParser(description=
         "Offline Kaffeine video/audio subtitles using installed AI models")
     parser.add_argument("--input",required=True)
-    parser.add_argument("--source",default="de")
+    parser.add_argument("--source",default="auto",
+                        help="Automatic per-chunk speech language detection, or ISO code")
     parser.add_argument("--targets",default="",help="CSV such as en,tr")
     parser.add_argument("--music",action="store_true",
                         help="Transcribe singing as well as speech; accuracy varies")

@@ -28,6 +28,38 @@ def _find_executable(executable, alternatives=()):
          and os.access(name,os.X_OK)), None)
 
 
+def quick_hardware():
+    """Cheap startup snapshot; NO subprocess, compiler probe or model import.
+
+    Detailed GPU/NPU detection runs in a worker only after the UI is visible.
+    """
+    try:
+        ram=int(re.search(r"^MemTotal:\s+(\d+)\s+kB",
+                          Path("/proc/meminfo").read_text(),re.M).group(1))//1024
+    except (OSError,AttributeError,ValueError):
+        ram=None
+    try:
+        pi5="Raspberry Pi 5" in Path("/proc/device-tree/model").read_text(
+            encoding="utf-8",errors="replace")
+    except OSError:
+        pi5=False
+    hailo=[p.name for p in Path("/dev").glob("hailo*")]
+    return {
+        "cpu":platform.machine() or "CPU",
+        "architecture":platform.machine(),
+        "ram_mib":ram,
+        "raspberry_pi_5":pi5,
+        "gpu":{"detected":False,"name":"Checking in background…",
+               "vram_mib":None,"compute_capability":None,
+               "driver_tool":False,"cuda_compiler":None,"cuda_version":None,
+               "cuda_compile_possible":False,
+               "reason":"Full CUDA discovery is deferred until after first paint"},
+        "npu":{"detected":bool(hailo),"devices":hailo,"hailo_arch":"",
+               "ready":False,
+               "detail":"NPU model compatibility unverified"},
+    }
+
+
 def detect_hardware():
     nvidia_smi = _find_executable("nvidia-smi",
                                  ("/usr/bin/nvidia-smi","/bin/nvidia-smi",
@@ -91,6 +123,8 @@ def detect_hardware():
     except OSError:
         pass
     npu=list(Path("/dev").glob("hailo*"))
+    from .pi_hailo import hardware_architecture
+    hailo_arch=hardware_architecture() if npu else ""
     intel_npu = False
     try:
         import openvino as ov
@@ -126,8 +160,9 @@ def detect_hardware():
                    "CUDA compile toolchain detected; inference still requires a compiled runtime and tested model"
                    if name else "No NVIDIA GPU found")},
         "npu":{"detected":bool(available_npu),"devices":available_npu,
-               "ready":False,
-               "detail":("Hailo detected: requires a compatible Hailo HEF/NPY Whisper pipeline"
+               "hailo_arch":hailo_arch,"ready":False,
+               "detail":("Hailo "+(hailo_arch or "unverified device")+
+                         ": compatible HEF/NPY and runtime are required"
                          if npu else
                          "Intel NPU detected: requires OpenVINO GenAI and NPU-exported Whisper model"
                          if available_npu else

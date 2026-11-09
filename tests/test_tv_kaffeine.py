@@ -22,6 +22,7 @@ class KaffeineCaptionTapTests(TestCase):
         self.assertIn("538000000, 586000000, 626000000", source)
         self.assertIn("Channels / Antenna Scan", source)
         self.assertIn("Full Antenna Scan...", source)
+        self.assertIn("Load generated SRT in native player...", source)
         self.assertIn("mediaWidget->stop()", source)
         self.assertIn("QTimer::singleShot", source)
         self.assertNotIn('QProcess::startDetached(QLatin1String("w_scan_cpp")', source)
@@ -85,9 +86,49 @@ scanSource=TIHULU tested: 538 / 586 / 626 MHz
         self.assertIn("requested channel source=", source)
         self.assertIn("configured channel sources=", source)
 
+    def test_switching_dvb_channels_uses_bounded_acquire_and_diagnostic(self):
+        import inspect
+        from kaffeine_next.patch_upstream import transform
+        source=inspect.getsource(transform)
+        self.assertIn("tihuluDeviceRetryCount < 2",source)
+        self.assertIn("hasConnectedMatchingSource && !recording",source)
+        self.assertIn("QTimer::singleShot(attempt * 400, this",source)
+        self.assertIn("internal->tihuluTuneEpoch != epoch",source)
+        self.assertIn("++internal->tihuluTuneEpoch",source)
+        self.assertIn("channel.constData() == NULL",source)
+        self.assertIn("source matches connected tuner=",source)
+        self.assertIn("source Name used by the saved channel",source)
+        self.assertIn("No tuner reset or channel settings were performed",source)
+        self.assertNotIn("udevadm trigger",source)
+        self.assertNotIn("systemctl stop",source)
+
+    def test_dvb_diagnostics_displays_channel_source_names_read_only(self):
+        import subprocess
+        script=Path(__file__).resolve().parent.parent / "kaffeine_next" / "dvb_diagnostics.sh"
+        subprocess.run(["bash","-n",str(script)],check=True)
+        with tempfile.TemporaryDirectory() as root:
+            config=Path(root) / ".local/share/tihulu-media-center/config.dvb"
+            config.parent.mkdir(parents=True)
+            config.write_text("[device]\nfrontendName=Silicon Labs Si2168\n"
+                              "[config]\nname=Terrestrial (T2)\n"
+                              "scanSource=AUTO-T2-Normal\n"
+                              "deviceId=do-not-print-this\n")
+            result=subprocess.run(["bash",str(script)],env={**os.environ,"HOME":root},
+                                  capture_output=True,text=True,check=True)
+            self.assertIn("Terrestrial (T2)",result.stdout)
+            self.assertIn("Silicon Labs Si2168",result.stdout)
+            self.assertIn("AUTO-T2-Normal",result.stdout)
+            self.assertNotIn("do-not-print-this",result.stdout)
+
     def test_upstream_release_is_immutable(self):
         self.assertEqual(REVISION, "e7ea15b86dafed3b20b151cbcb080578ab8e2d5c")
-        self.assertEqual(len(PATHS), 15)
+        # The pinned KDE revision is immutable; patching its SQL allocator
+        # adds one deliberately version-guarded upstream header to our list.
+        self.assertEqual(len(PATHS), 20)
+        self.assertIn("src/sqlinterface.h", PATHS)
+        self.assertIn("src/dvb/dvbscandialog.cpp", PATHS)
+        self.assertIn("src/dvb/dvbscandialog.h", PATHS)
+        self.assertIn("src/dvb/dvbconfigdialog.cpp", PATHS)
         self.assertIn("src/mainwindow.h", PATHS)
         self.assertIn("src/CMakeLists.txt", PATHS)
         self.assertIn("src/main.cpp", PATHS)

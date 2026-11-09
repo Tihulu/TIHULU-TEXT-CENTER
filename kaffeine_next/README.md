@@ -885,3 +885,44 @@ Python tests. It cannot verify physical receiver scans, live
 latency/quality, hardware audio output or desktop compositor behavior.
 Keep the PR draft pending physical verification.
 
+
+
+## 2026-11-09 — DAB antenna connected but local welle API unreachable
+
+Antenna hardware, welle-cli process startup, and welle-cli's private HTTP
+control readiness are **three separate states**. The native Media Center launches
+only its own pinned loopback-only welle-cli using `-c <DAB-block> -w <dynamic-port>`
+and `-F rtl_sdr` when the user selects **RTL-SDR**. Do **not** assume the port
+is 7979: this app reserves a free 127.0.0.1 port for each native launch and
+keeps a separate PID-scoped private runtime port file. Only after `GET /channel`
+answers does the radio permit retuning or rely on `/mux.json` SNR/lock data.
+
+If the process starts but the API does not answer, the UI now displays the
+actual port, welle-cli PID, and recent device-open stderr. If stderr suggests
+`Device or resource busy`, `usb_claim_interface`, or no usable device, it
+warns that the local SDR *may* be owned by Flight Radar `readsb`, `rtl_tcp`,
+a browser WebUSB session or a kernel DVB driver. **It never kills those
+programs, disables system services, or unbinds USB drivers.** Explicitly
+pressing Start receiver can restart only the backend Media Center owns. A
+bounded readiness retry handles slower physical SDR initialization; late
+network callbacks from a previous process/port are invalidated. UI values
+revert to **SNR not measured** when there is no current receiver; the saved
+DAB station catalog remains a cache, NOT live proof of radio lock.
+
+Safe desktop diagnostics (read-only, without claiming the tuner):
+
+```bash
+lsusb -d 0bda:2838
+pgrep -af 'readsb|rtl_tcp|welle-cli|rtl_fm|gqrx|welle-io' || true
+systemctl is-active readsb || true
+ss -ltnp | grep -E 'welle-cli|127\.0\.0\.1' || true
+ls -l ~/.local/opt/tihulu-welle/bin/welle-cli
+```
+
+Switch **Auto SDR → RTL-SDR** in the radio tab for the NooElec RTL2832U
+device; if `readsb` owns the *same* SDR, stop/release it **manually** before
+starting DAB, then restore it afterwards if desired. Running two SDR receivers
+on one exclusive USB tuner at the same time does not work. The WinTV-soloHD
+DVB-T2 tuner is a different USB device and is not automatically a supported
+DAB receiver. No live RF/Qt test is performed by CI; the actual receiver and
+window should be exercised on Pop!_OS.

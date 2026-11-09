@@ -17,11 +17,13 @@ fi
 # Explicit opt out for users who only want Kaffeine's DVB reception.
 MODE=default
 WITH_DAB=0
+WITH_ANALOG=0
 for argument in "$@"; do
   case "$argument" in
     --no-ai) MODE=--no-ai ;;
     --with-dab) WITH_DAB=1 ;;
-    *) echo "Usage: bash install.sh [--no-ai] [--with-dab]" >&2; exit 2 ;;
+    --with-analog) WITH_ANALOG=1 ;;
+    *) echo "Usage: bash install.sh [--no-ai] [--with-dab] [--with-analog]" >&2; exit 2 ;;
   esac
 done
 echo "Building a separate GPL-compatible Kaffeine v2.0.19 fork."
@@ -36,6 +38,10 @@ sudo apt-get install -y --no-install-recommends \
  libdvbv5-dev libudev-dev libqt5sql5-sqlite vlc \
  python3 python3-venv python3-pip python3-pyqt5 ffmpeg \
  dvb-tools psmisc
+if (( WITH_ANALOG == 1 )); then
+  echo "Installing optional local RTL-SDR analogue tools and ALSA PCM output."
+  sudo apt-get install -y --no-install-recommends rtl-sdr alsa-utils
+fi
 
 APPROOT="$HOME/.local/share/tihulu-kaffeine"
 SOURCE="$APPROOT/upstream-v2.0.19"
@@ -97,7 +103,10 @@ cleanup() {
 }
 trap cleanup EXIT
 
-git clone --depth 1 --branch architecture/kaffeine-core-tv-2026-11-07 \
+# Read the matching feature branch during this standalone preview.
+# Override only when installing a release from another compatible branch.
+TIHULU_SOURCE_BRANCH="${TIHULU_SOURCE_BRANCH:-fix/tihulu-media-radio-dvb-2026-11-08}"
+git clone --depth 1 --single-branch --branch "$TIHULU_SOURCE_BRANCH" \
   https://github.com/Tihulu/TIHULU-TEXT-CENTER.git "$temp/tihulu"
 if [[ ! -d "$SOURCE/.git" ]]; then
   git clone --depth 1 --branch v2.0.19 \
@@ -117,11 +126,24 @@ fi
 BUILDSRC="$temp/kaffeine-source"
 git -C "$SOURCE" worktree add --detach "$BUILDSRC" "$UPSTREAM_SHA"
 python3 "$temp/tihulu/kaffeine_next/patch_upstream.py" "$BUILDSRC"
+# Refuse to ship Kaffeine 2.0.19 with the known channel-import crash
+# (KDE #503740 / Debian #1110405). The wrong -1 to std::prev(end)
+# reads past the QMap end while several scanned channels are inserted.
+SQL_HEADER="$BUILDSRC/src/sqlinterface.h"
+if grep -Fq 'std::prev(container.constEnd(), -1)' "$SQL_HEADER" ||
+   ! grep -Fq 'std::prev(container.constEnd())' "$SQL_HEADER"; then
+  echo "FATAL: DVB scan channel-import SQL iterator fix missing." >&2
+  exit 1
+fi
+echo "Verified Kaffeine DVB channel-import SQL iterator fix (no past-end iterator)."
 git -C "$BUILDSRC" diff --check
 # Keep the user-approved, loopback-only welle.io backend installer on disk
 # instead of trying to run an untrusted internet pipe from the native GUI.
 cp "$temp/tihulu/kaffeine_next/install_welle.sh" "$APPROOT/install_welle.sh"
 chmod 755 "$APPROOT/install_welle.sh"
+# Read-only frontend ownership check, accessible in the TV menu or CLI.
+cp "$temp/tihulu/kaffeine_next/dvb_diagnostics.sh" "$APPROOT/dvb_diagnostics.sh"
+chmod 755 "$APPROOT/dvb_diagnostics.sh"
 
 echo "Configuring clean Kaffeine native DVB scanner with isolated system Qt5"
 if ! "${SYSTEM_BUILD_ENV[@]}" /usr/bin/cmake --fresh -S "$BUILDSRC" -B "$BUILD" \
@@ -148,6 +170,31 @@ mkdir -p "$HOME/.local/share/icons/hicolor/scalable/apps"
 cp "$temp/tihulu/kaffeine_next/assets/tihulu-media-center.svg" \
   "$HOME/.local/share/icons/hicolor/scalable/apps/tihulu-media-center.svg"
 
+# The standalone PLAY-button player SVG is the new default. The user's
+# earlier, unmodified portrait PNG is preserved but is NOT implicitly reused
+# on every upgrade. An explicitly provided TIHULU_CUSTOM_LOGO chooses PNG
+# for this installation; TIHULU_USE_LEGACY_LOGO=1 restores the saved portrait
+# at runtime without modifying its bytes.
+DESKTOP_ICON="$HOME/.local/share/icons/hicolor/scalable/apps/tihulu-media-center.svg"
+if [[ -n "${TIHULU_CUSTOM_LOGO:-}" ]]; then
+  if [[ ! -f "$TIHULU_CUSTOM_LOGO" || -L "$TIHULU_CUSTOM_LOGO" ]]; then
+    echo "Custom logo must be a readable regular PNG file." >&2
+    exit 1
+  fi
+  if ! python3 -c 'import pathlib,sys; b=pathlib.Path(sys.argv[1]).read_bytes(); sys.exit(0 if len(b)<4194304 and b.startswith(bytes((137,80,78,71,13,10,26,10))) else 1)' "$TIHULU_CUSTOM_LOGO"; then
+    echo "Custom logo failed PNG signature / 4 MiB safety check." >&2
+    exit 1
+  fi
+  mkdir -p "$HOME/.local/share/icons/hicolor/64x64/apps"
+  cp -- "$TIHULU_CUSTOM_LOGO" "$HOME/.local/share/icons/hicolor/64x64/apps/tihulu-media-center.png"
+  DESKTOP_ICON="$HOME/.local/share/icons/hicolor/64x64/apps/tihulu-media-center.png"
+fi
+if [[ -f "$HOME/.local/share/icons/hicolor/64x64/apps/tihulu-media-center.png" &&
+      -z "${TIHULU_CUSTOM_LOGO:-}" ]]; then
+  echo "Kept legacy user portrait PNG unchanged; player SVG is now the default icon."
+  echo "To use the portrait again: TIHULU_USE_LEGACY_LOGO=1 tihulu-media-center"
+fi
+
 TIHULU_KAFFEINE_PRIMARY=1 bash "$temp/tihulu/tv_center/packaging/build-deb.sh" "$temp/debs"
 # The AI sidecar may already be installed at the same preview version.
 # Force reinstall so the previously visible legacy player is hidden.
@@ -169,13 +216,28 @@ if [ -z "${TIHULU_VLC_PROFILE:-}" ]; then
 fi
 # Explicit per-session overrides for isolating decoder vs AAC audio faults.
 case "${1:-}" in
+  --diagnose-tuner) shift; exec /bin/bash "$HOME/.local/share/tihulu-kaffeine/dvb_diagnostics.sh" "$@" ;;
   --software-video) TIHULU_VLC_PROFILE=software; shift ;;
   --auto-video) TIHULU_VLC_PROFILE=auto; shift ;;
   --diagnose-no-audio) TIHULU_VLC_PROFILE=software-no-audio; shift ;;
 esac
 export TIHULU_VLC_PROFILE
-if [ "$#" -eq 0 ]; then
+# Fast, on-demand first paint: don't open or tune DVB automatically just
+# because the user opened Media Center. Explicitly set the opt-in below
+# to restore the former --lastchannel autoplay behavior.
+if [ "$#" -eq 0 ] && [ "${TIHULU_AUTOPLAY_LAST_CHANNEL:-0}" = 1 ]; then
   set -- --lastchannel
+fi
+# Do not launch two TIHULU instances that fight for the same frontend.
+# The exclusive lock is inherited by the player process and released on exit;
+# it never locks /dev/dvb or interferes with system Kaffeine.
+if command -v flock >/dev/null 2>&1; then
+  mkdir -p "$HOME/.cache"
+  exec 9>"$HOME/.cache/tihulu-media-center.lock"
+  if ! flock -n 9; then
+    echo "TIHULU Media Center is already running. Focus or close that window first." >&2
+    exit 2
+  fi
 fi
 # Avoid mixing native system libVLC/Qt5 with the user's Conda installation.
 exec env -u LD_LIBRARY_PATH -u LD_PRELOAD -u QT_PLUGIN_PATH \
@@ -192,7 +254,7 @@ GenericName=TV · DAB+ Radio · Local Video/Audio · AI Subtitles
 Comment=Standalone native TV and radio player with offline AI, based on KDE Kaffeine
 Exec=$HOME/.local/bin/tihulu-media-center
 TryExec=$HOME/.local/bin/tihulu-media-center
-Icon=tihulu-media-center
+Icon=$DESKTOP_ICON
 StartupWMClass=tihulu-media-center
 Terminal=false
 Categories=AudioVideo;Video;TV;Audio;Player;
@@ -207,7 +269,10 @@ fi
 echo "Open TIHULU Media Center (separate app, icon and channel database):"
 echo "  $HOME/.local/bin/tihulu-media-center"
 echo "Use TV -> TIHULU AI for Model Market and live subtitles."
-echo "Close the other Kaffeine instance first; only one frontend owner at a time."
+echo "Only one DVB frontend owner at a time. Inspect with:"
+echo "  $HOME/.local/bin/tihulu-media-center --diagnose-tuner"
+echo "Set DVB-T2 Source in Configure Television before the first channel scan."
+echo "FM/MW/LW requires a suitable SDR; optional tools: bash install.sh --with-analog"
 echo "DAB+ Radio is a native tab. Optional welle.io backend (separate SDR):"
 echo "  bash $APPROOT/install_welle.sh"
 if (( WITH_DAB == 1 )); then

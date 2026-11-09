@@ -202,7 +202,10 @@ class _PersistentCUDAWorker:
     def transcribe(self, pcm, language, model_path):
         return self.transcribe_details(pcm, language, model_path)["text"]
 
-    def transcribe_details(self, pcm, language, model_path, *, music_mode=False):
+    def transcribe_details(self, pcm, language, model_path, *, music_mode=False,
+                           speech_priority=False, timeout_s=90):
+        if (type(timeout_s) not in (int,float) or not 4 <= timeout_s <= 90):
+            raise ValueError("Invalid CUDA transcription deadline")
         if not isinstance(pcm, bytes) or not 0 < len(pcm) <= 4_000_000:
             raise RuntimeError("Invalid 32-kHz PCM audio segment")
         worker = FasterWhisperCUDA()
@@ -212,6 +215,7 @@ class _PersistentCUDAWorker:
             "audio": base64.b64encode(pcm).decode("ascii"),
             "language": language, "model": str(worker.model_dir),
             "music_mode":bool(music_mode),
+            "speech_priority":bool(speech_priority),
         }, separators=(",", ":")).encode("utf-8") + b"\n"
         with self.lock:
             if self.process is None or self.process.poll() is not None:
@@ -225,10 +229,13 @@ class _PersistentCUDAWorker:
             try:
                 self.process.stdin.write(payload)
                 self.process.stdin.flush()
-                ready, _, _ = select.select([self.process.stdout], [], [], 90)
+                ready, _, _ = select.select(
+                    [self.process.stdout], [], [], float(timeout_s))
                 if not ready:
                     self._stop()
-                    raise TimeoutError("CUDA Faster-Whisper clip exceeded 90 seconds")
+                    raise TimeoutError(
+                        f"CUDA Faster-Whisper clip exceeded {timeout_s}s "
+                        "budget; real-time captions use a shorter deadline")
                 reply = self.process.stdout.readline(10000)
                 if not reply.endswith(b"\n"):
                     self._stop()
@@ -251,7 +258,8 @@ class _PersistentCUDAWorker:
                 return {"text":output[:3000],"words":words,
                         "language": detected if isinstance(detected,str) else language,
                         "language_probability": float(
-                            result.get("language_probability",0.0) or 0.0)}
+                            result.get("language_probability",0.0) or 0.0),
+                        "recognition_rejected":result.get("recognition_rejected")}
             except (OSError, ValueError, BrokenPipeError) as exc:
                 self._stop()
                 raise RuntimeError("CUDA worker unavailable: " + str(exc)[:180]) from exc
@@ -265,10 +273,13 @@ def transcribe_cuda(pcm, language, model_path):
     return _worker.transcribe(pcm, language, model_path)
 
 
-def transcribe_cuda_details(pcm, language, model_path, *, music_mode=False):
-    """Return real word timestamps; singing mode keeps possible vocal audio."""
-    return _worker.transcribe_details(pcm, language, model_path,
-                                      music_mode=music_mode)
+def transcribe_cuda_details(pcm, language, model_path, *,
+                            music_mode=False, speech_priority=False,
+                            timeout_s=90):
+    """Return real word timestamps; dialogue focus is independent of singing."""
+    return _worker.transcribe_details(
+        pcm, language, model_path, music_mode=music_mode,
+        speech_priority=speech_priority, timeout_s=timeout_s)
 
 
 def _download(destination):
@@ -356,15 +367,33 @@ def main():
             samples = np.frombuffer(pcm, dtype="<i2").astype(np.float32)
             samples = samples[:len(samples) // 2 * 2]
             waveform = (samples[0::2] + samples[1::2]) / 65536.0
+            from tv_center.speech_focus import whisper_vad_settings
+            dialogue_priority = (bool(request.get("speech_priority")) and
+                                 not bool(request.get("music_mode")))
+            vad = whisper_vad_settings(
+                speech_priority=dialogue_priority,
+                music_transcription=bool(request.get("music_mode")))
             segments, language_info = model.transcribe(
                 waveform, language=(None if request["language"]=="auto" else
                                     request["language"]), task="transcribe",
-                beam_size=3, vad_filter=not bool(request.get("music_mode")),
-                condition_on_previous_text=False, word_timestamps=True)
+                beam_size=3, **vad,
+                condition_on_previous_text=False, word_timestamps=True,
+                hallucination_silence_threshold=1.0)
             all_segments = list(segments)
-            text = " ".join(segment.text.strip() for segment in all_segments).strip()
+            from tv_center.asr_quality import accepted_whisper_segments
+            detected = getattr(language_info,"language",None)
+            detected_probability = getattr(
+                language_info,"language_probability",None)
+            trusted_segments, rejection = accepted_whisper_segments(
+                all_segments, source_language=request["language"],
+                detected_probability=detected_probability,
+                music_mode=bool(request.get("music_mode")),
+                speech_priority=dialogue_priority)
+            # Never translate hallucinated phrases or attach speaker labels
+            # to empty/no-speech clips. Preserve the reason as diagnostics.
+            text = " ".join(seg.text.strip() for seg in trusted_segments).strip()
             words = []
-            for segment in all_segments:
+            for segment in trusted_segments:
                 for word in segment.words or ():
                     token = word.word.strip()
                     if token and len(token) <= 100 and len(words) < 240:
@@ -376,7 +405,8 @@ def main():
                       "language":detected if isinstance(detected,str) else
                                  request["language"],
                       "language_probability":float(
-                          getattr(language_info,"language_probability",0.0) or 0.0)}
+                          getattr(language_info,"language_probability",0.0) or 0.0),
+                      "recognition_rejected":rejection}
         except (ImportError, OSError, RuntimeError, ValueError, KeyError,
                 TypeError) as exc:
             output = {"error": str(exc)[:300]}

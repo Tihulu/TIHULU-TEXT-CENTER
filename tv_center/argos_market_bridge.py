@@ -16,12 +16,18 @@ from .language_codes import language_code, translation_language
 ACTIONS=("catalog","installed","install","remove")
 
 
-def run(action,source="de",target="tr"):
+def run(action,source="de",target="tr",*,installed_timeout=None):
     if action not in ACTIONS:
         raise ValueError("Invalid Argos Market command")
     source, target = language_code(source), language_code(target)
     if action in ("install","remove") and source==target:
         raise ValueError("Choose distinct source/target languages")
+    # Only local installed-package discovery may request a shorter
+    # deadline. Catalog/download and install/remove retain prior budgets.
+    if installed_timeout is not None and (
+            action!="installed" or type(installed_timeout) not in (int,float)
+            or not 0.5<=installed_timeout<=60):
+        raise ValueError("Invalid installed-package discovery deadline")
     from .runtime import AIRuntime
     rt=AIRuntime().status()
     if not rt["installed"]:
@@ -34,7 +40,9 @@ def run(action,source="de",target="tr"):
          "--worker",action,source,target],
         cwd=root,env=env,stdin=subprocess.DEVNULL,
         stdout=subprocess.PIPE,stderr=subprocess.PIPE,
-        timeout=1800 if action=="install" else 60,check=False)
+        timeout=(1800 if action=="install" else
+                 float(installed_timeout) if installed_timeout is not None else 60),
+        check=False)
     if proc.returncode:
         raise RuntimeError("Argos Market: "+
             proc.stderr.decode("utf-8","replace")[-400:])
@@ -74,6 +82,8 @@ def worker(action,source,target):
                                    source+"→"+target+"; try English-pivot packs")
             archive=candidate.download()
             package.install_from_path(archive)
+            from .argos_generation import changed
+            changed()  # live Argos worker must reload its cached installed packs
             result={"status":"installed","pair":source+"→"+target}
     elif action=="remove":
         found=[p for p in package.get_installed_packages()
@@ -84,6 +94,8 @@ def worker(action,source,target):
         if not loc.is_relative_to(Path.home().resolve()):
             raise RuntimeError("Refusing removal of external package")
         package.uninstall(found[0])
+        from .argos_generation import changed
+        changed()
         result={"status":"removed","pair":source+"→"+target}
     else:
         raise ValueError("Unknown action")

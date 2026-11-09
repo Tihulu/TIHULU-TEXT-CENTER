@@ -11,6 +11,47 @@ from kaffeine_next.caption_timing import (CaptionConfig, CueQueue, KaffeineOSD, 
 from kaffeine_next.patch_upstream import PATHS
 
 class KaffeineTimingTests(unittest.TestCase):
+    def test_provisional_ai_startup_delay_is_bounded_and_separate_from_pts(self):
+        from kaffeine_next.caption_timing import provisional_ai_buffer_ms
+        self.assertEqual(provisional_ai_buffer_ms(False),10000)
+        self.assertEqual(provisional_ai_buffer_ms(True),6000)
+        with self.assertRaises(ValueError):
+            provisional_ai_buffer_ms(1)
+        from pathlib import Path
+        ui=(Path(__file__).resolve().parent.parent/
+            "kaffeine_next/captions_overlay.py").read_text(encoding="utf-8")
+        self.assertIn("startup_buffer_pending = True",ui)
+        self.assertIn("provisional_ai_buffer_ms(pi5)",ui)
+        self.assertIn('mode.addItem("Teletext Hard',ui)
+        self.assertIn('mode.currentData() in ("auto","asr")',ui)
+
+    def test_actual_ts_release_measures_fifo_not_vlc_presentation(self):
+        from kaffeine_next.caption_timing import (
+            confirmed_cue_config,effective_cue_config)
+        expected=CaptionConfig(playback_delay_ms=15000)
+        with tempfile.TemporaryDirectory() as root:
+            ipc=KaffeineOSD(513,root)
+            unix_ms=int(time.time()*1000)-100  # avoid rounded 1ms future timestamp
+            ipc.effective.write_text(
+                f"15000 15000 4200000 1 15030 14850 {unix_ms}")
+            state=ipc.read_effective_delay()
+            self.assertTrue(state["has_release_clock"])
+            self.assertTrue(state["release_fresh"])
+            self.assertEqual(state["released_age_ms"],14850)
+            mapped=confirmed_cue_config(expected,state)
+            self.assertEqual(mapped.playback_delay_ms,14850)
+            # Stale release samples must not claim confirmed buffering.
+            ipc.effective.write_text("15000 15000 4200000 1 15000 -1 0")
+            stale=ipc.read_effective_delay()
+            self.assertIsNone(stale["released_age_ms"])
+            self.assertIsNone(confirmed_cue_config(expected,stale))
+            # Old native status remains usable with less precision.
+            ipc.effective.write_text("15000 15000 4200000 1 15000")
+            legacy=ipc.read_effective_delay()
+            self.assertFalse(legacy["has_release_clock"])
+            self.assertEqual(
+                confirmed_cue_config(expected,legacy).playback_delay_ms,15000)
+
     def test_auto_sync_starts_disabled_and_checkbox_is_applied_only(self):
         self.assertFalse(CaptionConfig().automatic_sync)
         self.assertTrue(CaptionConfig(automatic_sync=True).validate().automatic_sync)
@@ -21,7 +62,8 @@ class KaffeineTimingTests(unittest.TestCase):
                   "kaffeine_next" / "captions_overlay.py").read_text()
         self.assertIn('QCheckBox("Automatic sync', source)
         self.assertIn("automatic_sync=automatic.isChecked()", source)
-        self.assertIn("for w in (show_video,automatic,speaker_enabled,music_transcription,", source)
+        self.assertIn("for w in (show_video,automatic,speaker_enabled,speaker_numbers,", source)
+        self.assertIn("speaker_lines,voice_types,sound_events,overlap_enabled,", source)
         self.assertIn("music_transcription=music_transcription.isChecked()", source)
         self.assertIn("speaker_enabled.setChecked(True)", source)
         self.assertIn("auto_controller.next_delay(", source)
@@ -77,6 +119,59 @@ class KaffeineTimingTests(unittest.TestCase):
         self.assertEqual(ctrl.next_delay(unchanged,5000,50,enabled=True),5500)
         ctrl.reset()
         self.assertFalse(ctrl.has_applied)
+
+
+    def test_automatic_sync_never_shrinks_user_buffer_when_estimator_drops(self):
+        ctrl = AutoSyncController(cooldown_seconds=1, deadband_ms=500, step_ms=500)
+        recommended_9s = SyncRecommendation(12,7800,8500,9500,9000,15000,False)
+        # User's stable, primed 14.5s buffer is already longer than needed.
+        for now in (10, 12, 80, 180, 1800):
+            self.assertIsNone(ctrl.next_delay(recommended_9s,14500,now,True))
+        self.assertIsNone(ctrl.next_delay(recommended_9s,14500,1900,False))
+        # Even a lowered memory safety cap must not reduce this user setting.
+        capped = SyncRecommendation(12,7000,4000,4000,4000,4000,True)
+        self.assertIsNone(ctrl.next_delay(capped,14500,2000,True))
+        self.assertFalse(ctrl.has_applied)
+
+    def test_automatic_sync_only_raises_insufficient_buffer(self):
+        ctrl = AutoSyncController(cooldown_seconds=2,deadband_ms=500,step_ms=500)
+        rec = SyncRecommendation(7,10000,11000,12500,12000,15000,False)
+        self.assertEqual(ctrl.next_delay(rec,9000,1,True),12000)
+        self.assertIsNone(ctrl.next_delay(rec,12000,4,True))
+        higher = SyncRecommendation(9,12500,12500,14000,13500,15000,False)
+        self.assertEqual(ctrl.next_delay(higher,12000,6,True),12500)
+        lower = SyncRecommendation(9,5000,5000,6000,5500,7000,False)
+        self.assertIsNone(ctrl.next_delay(lower,12500,12,True))
+
+    def test_asr_complete_sentence_anchors_to_end_not_start_of_six_second_clip(self):
+        cfg = CaptionConfig(playback_delay_ms=14500)
+        full = {"original":"Guten Morgen zusammen","source":"local_asr"}
+        due = cue_window(100,106,108,cfg,full)
+        self.assertAlmostEqual(due["due"],120.30)
+        q = CueQueue()
+        cue = q.add(full,cfg,100,106,108)
+        self.assertAlmostEqual(cue["due"],120.30)
+        self.assertIsNone(q.poll(116,cfg.revision))
+        self.assertEqual(q.poll(120.4,cfg.revision)["result"]["original"],
+                         "Guten Morgen zusammen")
+        # Only actual ASR word positions use source-relative begin time.
+        word = {"original":"Guten","source":"local_asr",
+                "word_progress":{"start":0,"end":0,"count":3}}
+        self.assertAlmostEqual(cue_window(100,100.5,102,cfg,word)["due"],114.65)
+        # Teletext remains broadcaster-timed, independent of Whisper behavior.
+        tele = {"source":"broadcaster_teletext_subtitles","original":"Hallo"}
+        self.assertAlmostEqual(cue_window(100,106,108,cfg,tele)["due"],115.05)
+
+    def test_native_video_composition_retries_after_dvb_vout_starts(self):
+        import inspect
+        from kaffeine_next.patch_upstream import transform
+        source = inspect.getsource(transform)
+        self.assertIn("libvlc_media_player_has_vout(vlcMediaPlayer) <= 0",source)
+        self.assertIn("nowMs - tihuluCaptionLastSentMs < 2000",source)
+        self.assertIn("libvlc_video_set_marquee_int(vlcMediaPlayer, libvlc_marquee_Enable, 1)",source)
+        self.assertIn("videoViewport.intersected(parentWidget()->rect())",source)
+        self.assertIn("backend->geometry());",source)
+        self.assertNotIn("setGeometry(0,0,parentWidget()->width(),parentWidget()->height())",source)
 
     def test_timestamp_only_estimators_never_claim_exact_word_alignment(self):
         e=AutoSyncEstimator(minimum=3)
@@ -237,7 +332,7 @@ class KaffeineTimingTests(unittest.TestCase):
                 "text_button.clicked.connect", "update_appearance_preview",
                 "speaker_enabled.setChecked(True)", "speaker_provider.currentData()",
                 "Background opacity", "Text opacity",
-                "extra_targets = QLineEdit()", "root.addWidget(control_scroll, 1)"):
+                "extra_targets = QLineEdit()", "pages.addTab(control_scroll, \"Source & sync\")"):
             self.assertIn(expected,source)
         self.assertNotIn("speaker_roles = QLineEdit()",source)
 

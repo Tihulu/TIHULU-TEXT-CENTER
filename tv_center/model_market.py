@@ -135,6 +135,16 @@ class ModelLibrary:
             with urllib.request.urlopen(req, timeout=20) as response:
                 if response.url.split("/")[0] != "https:":
                     raise ModelError("Insecure model download redirect")
+                # Max_bytes is a safety cap, NOT the content's true size.
+                # Only display a percentage when the server supplies a
+                # plausible Content-Length; otherwise show bytes received.
+                raw_length = response.headers.get("Content-Length")
+                try:
+                    expected = int(raw_length)
+                except (TypeError, ValueError):
+                    expected = None
+                if expected is not None and not 0 < expected <= desc["max_bytes"]:
+                    expected = None
                 with tempfile.NamedTemporaryFile(dir=self.root, prefix=".tihulu-download-",
                                                  delete=False) as out:
                     tmp = Path(out.name)
@@ -145,7 +155,7 @@ class ModelLibrary:
                             raise ModelError("Download exceeds size limit")
                         out.write(chunk)
                         if progress:
-                            progress(total, desc["max_bytes"])
+                            progress(total, expected)
             self._copy_verified(tmp, key)
             return str(self._path(key))
         except (OSError, TimeoutError, ValueError) as exc:
