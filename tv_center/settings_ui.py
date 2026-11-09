@@ -405,7 +405,10 @@ def open_ai_settings(parent, ai, after_save=None):
             self.deepl_status=QLabel("")
             quality_layout.addWidget(self.deepl_status)
             trans_layout.addWidget(quality)
-            self.inspect_nllb()
+            # No NLLB/MADLAD/PyTorch inventory during widget construction.
+            self.nllb_status.setText(
+                "Status not loaded yet. Open Language packs to inspect.")
+            self.madlad_state.setText("Model status available on Language packs tab.")
 
             # Keep one window but separate model selection, CUDA diagnostics
             # and translation catalogs into focused tabs, instead of a very
@@ -738,73 +741,190 @@ def open_ai_settings(parent, ai, after_save=None):
             outer.addLayout(finish)
             self.timer = QTimer(self)
             self.timer.timeout.connect(self.process_events)
-            self.timer.start(250)
-            # Don't block the first paint on NVIDIA, Argos subprocesses
-            # or model readiness. Heavy probes run in read-only workers.
+            self.timer.start(120)
+            # First paint: lightweight widgets and local file labels only.
+            # Expensive NVIDIA, Argos, NLLB, speaker and CUDA probes are
+            # *lazy*: open their tab to inspect. Only the selected bundle
+            # gets an async inventory after the window is visible.
             self.populate_models()
             self.refresh_all_models()
-            self.inspect_runtime()
-            self.inspect_speaker()
-            QTimer.singleShot(0, self.inspect_compute)
-            QTimer.singleShot(0, self.inspect_argos)
-            QTimer.singleShot(0, self.inspect_starter)
+            self.model_tabs.currentChanged.connect(self.on_model_tab_changed)
+            QTimer.singleShot(180, self.inspect_profile)
+
+        def on_model_tab_changed(self,index):
+            # Four tabs are created up front, but none needs to import a
+            # model, probe CUDA, or spawn Argos until explicitly opened.
+            if index in self._lazy_loaded_tabs:
+                return
+            self._lazy_loaded_tabs.add(index)
+            if index==1:  # speech/compute models
+                self.inspect_runtime()
+                self.inspect_compute()
+                self.inspect_starter()
+            elif index==2:  # language packs
+                self.inspect_nllb()
+                self.inspect_argos()
+            elif index==3:  # speaker models
+                self.inspect_speaker()
+            elif index==4:  # all models
+                self.inspect_all_status()
+
+        def profile_changed(self, *_):
+            self.show_profile_description()
+            # Throttle rapid profile switching; a finishing old scan will
+            # hand over to the most recently selected profile.
+            QTimer.singleShot(80, self.inspect_profile)
 
         def show_profile_description(self, *_):
-            key = self.profile_choice.currentData()
-            if key not in PROFILES:
-                return
-            spec = profile(key)
-            parts = "\n".join(
-                " • "+COMPONENTS[name][0]+" — "+COMPONENTS[name][1]
-                for name in spec["components"])
-            issue=hardware_issue(key,self.hardware)
-            self.profile_description.setText(
-                spec["description"]+"\nEstimated disk: "+
-                spec["disk_gb_estimate"]+
-                "\nMinimum host RAM: "+str(round(spec["min_ram_mib"]/1024,1))+
-                " GiB · NVIDIA VRAM: "+
-                (str(round(spec["min_vram_mib"]/1024,1))+" GiB"
-                 if spec["min_vram_mib"] else "not required")+
-                "\nHardware: "+
-                (issue or "Meets minimum estimates; inference still untested")+
-                "\nSelected: "+(self.ai.values.get("active_profile") or "Custom"))
-            self.profile_components.setText(
-                "Required models:\n"+parts+
-                "\nUse Check installed to verify live status.")
-            self.hailo_group.setVisible(key=="pi5_hat2")
-
-        def inspect_profile(self):
-            if self._profile_inventory_busy:
-                return
             key=self.profile_choice.currentData()
             if key not in PROFILES:
                 return
+            spec=profile(key)
+            issue=hardware_issue(key,self.hardware)
+            if self.hardware["gpu"]["name"].startswith("Checking"):
+                issue="Hardware scan deferred; Select mode verifies requirements"
+            self.profile_description.setText(
+                spec["description"]+"\\nEstimated disk: "+
+                spec["disk_gb_estimate"]+
+                "\\nMinimum host RAM: "+str(round(spec["min_ram_mib"]/1024,1))+
+                " GiB · NVIDIA VRAM: "+
+                (str(round(spec["min_vram_mib"]/1024,1))+" GiB"
+                 if spec["min_vram_mib"] else "not required")+
+                "\\nHardware: "+
+                (issue or "Meets minimum estimates; inference still untested")+
+                "\\nSelected: "+(self.ai.values.get("active_profile") or "Custom"))
+            self.hailo_group.setVisible(key=="pi5_hat2")
+            if getattr(self,"_visible_profile_key",None)==key:
+                return
+            self._visible_profile_key=key
+            self._profile_row_widgets={}
+            while self.profile_rows_layout.count():
+                child=self.profile_rows_layout.takeAt(0)
+                if child.widget():
+                    child.widget().deleteLater()
+            status_cache=self._profile_status_cache.get(key,{})
+            for code in spec["components"]:
+                widget=QWidget()
+                row=QVBoxLayout(widget)
+                row.setContentsMargins(3,3,3,3)
+                row.setSpacing(3)
+                header=QHBoxLayout()
+                name=QLabel(COMPONENTS[code][0])
+                name.setWordWrap(True)
+                name.setSizePolicy(QSizePolicy.Expanding,QSizePolicy.Preferred)
+                estimate=QLabel(component_estimate(code))
+                estimate.setWordWrap(True)
+                estimate.setStyleSheet("color:#a4bdd0;font-size:11px")
+                estimate.setMaximumWidth(320)
+                header.addWidget(name,3)
+                header.addWidget(estimate,2)
+                row.addLayout(header)
+                state=QLabel("Not inspected yet")
+                state.setStyleSheet("color:#bdd6e5;font-size:11px")
+                row.addWidget(state)
+                bar=QProgressBar()
+                bar.setMaximumHeight(12)
+                bar.setRange(0,1000)
+                bar.setValue(0)
+                bar.setTextVisible(False)
+                bar.hide()
+                row.addWidget(bar)
+                self.profile_rows_layout.addWidget(widget)
+                self._profile_row_widgets[code]={"state":state,"bar":bar}
+                if code in status_cache:
+                    self._set_component_state(
+                        code,"installed" if status_cache[code] else "missing")
+            self.profile_components.setText(
+                "Installed status is checked automatically, offline. "
+                "Download estimates may differ from actual transfer sizes.")
+
+        def _set_component_state(self,code,status,*,message="",received=None,total=None):
+            row=self._profile_row_widgets.get(code)
+            if row is None:
+                return
+            lbl,bar=row["state"],row["bar"]
+            if status in ("installed","already installed"):
+                lbl.setText("✓ INSTALLED · verified local files")
+                bar.hide()
+            elif status=="missing":
+                lbl.setText("○ NOT INSTALLED · Install all downloads when approved")
+                bar.hide()
+            elif status=="checking":
+                lbl.setText("Checking local installation…")
+                bar.hide()
+            elif status in ("installing","downloading","verifying"):
+                if status=="verifying":
+                    lbl.setText("Verifying installed files…")
+                elif status=="downloading" and isinstance(received,int):
+                    count=f"{received / 1048576:.1f} MiB received"
+                    lbl.setText("Downloading · "+count+
+                                (f" / {total / 1048576:.1f} MiB"
+                                 if isinstance(total,int) and total>0 else
+                                 " · total not reported by server"))
+                else:
+                    lbl.setText(str(message or "Installing / preparing dependencies…")[:150])
+                fraction=progress_fraction(received,total)
+                if fraction is None or status!="downloading":
+                    bar.setRange(0,0)  # honest indeterminate progress
+                else:
+                    bar.setRange(0,1000)
+                    bar.setValue(fraction)
+                bar.show()
+            elif status=="failed":
+                lbl.setText("✕ FAILED · "+str(message)[:180])
+                bar.hide()
+
+        def inspect_profile(self):
+            key=self.profile_choice.currentData()
+            if key not in PROFILES:
+                return
+            if self._profile_inventory_busy:
+                self._profile_scan_pending=True
+                return
             self._profile_inventory_busy=True
-            self.profile_components.setText("Inspecting offline models in background…")
+            self._profile_scan_pending=False
+            self.profile_components.setText(
+                "Checking installed components for "+profile(key)["name"]+"…")
+            for code in profile(key)["components"]:
+                self._set_component_state(code,"checking")
             def scan():
-                try:
-                    statuses={name:local_status(name,library=self.library)
-                              for name in profile(key)["components"]}
-                    data={"profile":key,"status":statuses}
-                except Exception as exc:
-                    data={"profile":key,"error":str(exc)[:160]}
-                self.work.put(("profile_inventory",data))
+                # Local only; Argos may run an installed-pairs child process.
+                # None of it blocks the Qt event loop or downloads models.
+                statuses={}
+                failures={}
+                for code in profile(key)["components"]:
+                    try:
+                        statuses[code]=bool(local_status(code,library=self.library))
+                    except Exception as exc:
+                        failures[code]=str(exc)[:140]
+                self.work.put(("profile_inventory",{
+                    "profile":key,"status":statuses,"errors":failures}))
             threading.Thread(target=scan,daemon=True,
                              name="tihulu-profile-inventory").start()
 
         def _show_profile_inventory(self,data):
             self._profile_inventory_busy=False
-            if data["profile"]!=self.profile_choice.currentData():
-                return
-            if "error" in data:
+            key=data["profile"]
+            self._profile_status_cache[key]=data.get("status",{})
+            if key==self.profile_choice.currentData():
+                status=data.get("status",{})
+                errors=data.get("errors",{})
+                for code in profile(key)["components"]:
+                    if code in errors:
+                        self._set_component_state(
+                            code,"failed",message="Status unavailable: "+errors[code])
+                    elif code in status:
+                        self._set_component_state(
+                            code,"installed" if status[code] else "missing")
+                installed=sum(bool(v) for v in status.values())
                 self.profile_components.setText(
-                    "Unable to verify models: "+data["error"])
-                return
-            self.profile_components.setText(
-                "\n".join(("✓ INSTALLED" if installed else "✗ MISSING")+
-                          " · "+COMPONENTS[name][0]
-                          for name,installed in data["status"].items())+
-                "\nMissing components block Select mode.")
+                    f"{installed}/{len(profile(key)['components'])} installed · "+
+                    ("Some checks failed; use Check installed to retry."
+                     if errors else
+                     "No downloads were started. Install all only if needed."))
+            if self._profile_scan_pending or key!=self.profile_choice.currentData():
+                self._profile_scan_pending=False
+                QTimer.singleShot(0,self.inspect_profile)
 
         def install_profile(self):
             key=self.profile_choice.currentData()
