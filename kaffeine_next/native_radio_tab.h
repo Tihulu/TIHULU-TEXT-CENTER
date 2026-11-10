@@ -6602,7 +6602,18 @@ private:
             const QJsonArray originalLines=value.value(
                 QLatin1String("plain_lines")).toArray();
             for(const QJsonValue &item:originalLines)
-                if(item.isString()) lyricRawLines_<<item.toString().left(350);
+                if(item.isString() && !item.toString().trimmed().isEmpty())
+                    lyricRawLines_<<item.toString().trimmed().left(350);
+            if(lyricRawLines_.isEmpty() && lyricCues_.isEmpty()) {
+                lyricLoaded_=false;
+                lyricsEnabled_=lyricsAudioFallbackActive_;
+                const QString note=tr(
+                    "LYRICS TEXT UNAVAILABLE · provider returned no actual words. "
+                    "Whisper vocal listening continues independently.");
+                lyricText_->setText(note);
+                setRadioLyricMatchStatus(note);
+                return;
+            }
             setRadioLyricMatchStatus(tr(
                 "LYRICS FOUND · %1 · %2 · matching live audio…")
                 .arg(provider.isEmpty()?tr("local file"):provider,
