@@ -6164,11 +6164,16 @@ private:
         const QString title=manual?lyricsTitle_->text().trimmed():song.title;
         if(artist.isEmpty() || title.isEmpty() ||
            artist.size()>130 || title.size()>130) return;
-        // Clicking Lyrics Refresh is an explicit owner action to re-search
-        // artist/title; the UI already discloses that metadata may be sent.
-        // Do not open a second blocking modal that can appear behind the
-        // separate full-screen Kaffeine window and make Refresh look inert.
-        // No audio is ever transmitted to lyrics providers.
+        // Preserve explicit confirmation before contacting external lyric
+        // providers. The dialog is parented to the radio window.
+        if(QMessageBox::question(this,tr("Lyrics Refresh · online search"),
+           tr("Search LRCLIB, lyrics.ovh and optional licensed Musixmatch "
+              "again for %1 — %2?\n\nOnly artist/title and selected "
+              "language codes are sent; NO radio audio is uploaded. "
+              "Current Karaoke remains while searching and on failure.")
+              .arg(artist,title),
+           QMessageBox::Yes|QMessageBox::No,QMessageBox::No)!=QMessageBox::Yes)
+            return;
         const QString runtime=QStandardPaths::writableLocation(
             QStandardPaths::RuntimeLocation);
         if(runtime.isEmpty()) {
