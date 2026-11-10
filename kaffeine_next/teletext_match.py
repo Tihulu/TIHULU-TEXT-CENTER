@@ -28,13 +28,26 @@ bir ve ile için ama gibi olan daha çok bu şu biz siz onlar ben sen var yok
 """.split())
 
 
+def _normalize_spoken_lang(value):
+    """DVB ISO3 codes, Whisper ISO2 and NLLB script tags compare equally."""
+    if not isinstance(value,str):
+        return None
+    value=value.strip()
+    if "_" in value and len(value.split("_",1)[0])==3:
+        value=value.split("_",1)[0]
+    try:
+        from tv_center.language_codes import language_code
+        normalized=language_code(value)
+    except ValueError:
+        return None
+    return normalized if normalized not in ("auto","und") else None
+
+
 def compare_text(teletext,spoken,teletext_language,spoken_language):
     """matching/conflicting/unknown; not a semantic or timestamp guarantee."""
-    if (not isinstance(teletext_language,str) or
-            not isinstance(spoken_language,str) or
-            teletext_language in ("","auto","und") or
-            spoken_language in ("","auto","und") or
-            teletext_language != spoken_language):
+    broadcaster_lang=_normalize_spoken_lang(teletext_language)
+    audio_lang=_normalize_spoken_lang(spoken_language)
+    if not broadcaster_lang or not audio_lang or broadcaster_lang!=audio_lang:
         return "unknown"
     a,b=_tokens(teletext),_tokens(spoken)
     if len(a)<5 or len(b)<5:
