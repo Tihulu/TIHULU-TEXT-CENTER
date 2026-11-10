@@ -257,9 +257,15 @@ Categories=AudioVideo;Video;TV;Audio;Player;
 DESKTOP
 
 if [[ "$MODE" != --no-ai ]]; then
-  echo "Installing requested offline Whisper Tiny and DE/EN/TR Argos starter."
-  if ! tihulu-tv-center ai install; then
-    echo "AI setup incomplete; TV itself is installed. Retry from AI Model Market." >&2
+  echo "Installing baseline offline models for the device: Whisper Tiny,"
+  echo "Argos DE/EN/TR/FR and, where hardware permits, starter sound labels,"
+  echo "speaker embeddings and Qwen 0.6B lyrics alignment weights."
+  echo "Heavy upgrades stay in AI Market; no AI service starts in background."
+  # This is the user-triggered install command, NEVER a model download on
+  # application startup, radio tuning, background polling or library scan.
+  if ! tihulu-tv-center ai install-baseline; then
+    echo "Some baseline AI models failed or were skipped; TV and existing" >&2
+    echo "Whisper/translation models are preserved. See AI Model Market." >&2
   fi
 fi
 echo "Open TIHULU Media Center (separate app, icon and channel database):"
