@@ -259,6 +259,14 @@ public:
               tr("Open Television and tune the most recently selected channel? "
                  "This may claim the DVB-T2 frontend. No channel scan is started."))!=
                 QMessageBox::Yes) return;
+            // The Hardware page can open TV without first visiting Radio.
+            // Require the same owned-SDR release contract as the side tabs.
+            if(radio_ && !radio_->releaseForTelevision()) {
+                tvStatus_->setText(tr(
+                    "TV switch cancelled: app-owned SDR is still busy. "
+                    "Radio/TV playback unchanged."));
+                return;
+            }
             openTv_();
             dvb_->playLastChannel();
         });
