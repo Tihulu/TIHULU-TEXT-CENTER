@@ -244,6 +244,8 @@ inline TihuluDlsSong tihuluDlsSongFromService(const QJsonObject &service) {
     }
     // Some receivers represent DL+/RT+ as ITEM.ARTIST / ITEM.TITLE tags.
     const QList<QJsonObject> tagged={dls,service,
+        dls.value(QLatin1String("dlplus")).toObject(),
+        dls.value(QLatin1String("dl_plus")).toObject(),
         service.value(QLatin1String("dlplus")).toObject(),
         service.value(QLatin1String("rtplus")).toObject()};
     for(const QJsonObject &root:tagged) {
@@ -266,6 +268,8 @@ inline TihuluDlsSong tihuluDlsSongFromService(const QJsonObject &service) {
         str(dls.value(QLatin1String("text"))),
         str(service.value(QLatin1String("radiotext"))),
         str(service.value(QLatin1String("radio_text"))),
+        str(service.value(QLatin1String("radioText"))),
+        str(service.value(QLatin1String("dls"))),
         str(service.value(QLatin1String("now_playing")))};
     for(const QString &text:texts) {
         const TihuluDlsSong song=tihuluDlsSong(text,station);
