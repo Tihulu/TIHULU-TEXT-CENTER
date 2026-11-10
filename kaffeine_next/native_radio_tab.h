@@ -106,38 +106,172 @@ struct TihuluDlsSong {
         return canonical(artist)+QLatin1Char('|')+canonical(title);
     }
 };
-inline TihuluDlsSong tihuluDlsSong(const QString &dls) {
+inline bool tihuluStationSong(const TihuluDlsSong &song,const QString &station) {
+    if(!song.valid()) return true;
+    auto normalize=[](QString s)->QString {
+        s=s.normalized(QString::NormalizationForm_KD).toCaseFolded();
+        s.remove(QRegularExpression(QLatin1String("[\\p{M}]")));
+        s.replace(QRegularExpression(QLatin1String("[^\\p{L}\\p{N}]+")),
+                  QLatin1String(" "));
+        return s.simplified();
+    };
+    const QString st=normalize(station);
+    const QString a=normalize(song.artist),t=normalize(song.title);
+    if(!st.isEmpty() && (a==st || t==st ||
+       a.startsWith(st+QLatin1Char(' ')) ||
+       t.startsWith(st+QLatin1Char(' ')) ||
+       (a.size()>=4 && st.startsWith(a+QLatin1Char(' '))) ||
+       (t.size()>=4 && st.startsWith(t+QLatin1Char(' ')))))
+        return true;
+    return a==t || a.startsWith(QLatin1String("www ")) ||
+        t.startsWith(QLatin1String("www "));
+}
+inline TihuluDlsSong tihuluDlsSong(const QString &dls,
+                                   const QString &station=QString()) {
     TihuluDlsSong result;
     if(dls.size()<5 || dls.size()>330) return result;
-    const QString text=dls.simplified();
+    QString text=dls.simplified();
     if(text.contains(QLatin1String("::"))) {
-        const QStringList fields=text.split(QLatin1String("::"));
-        if(fields.size()>=3) {
-            const QString prefix=fields.at(0).trimmed().toCaseFolded();
+        const QStringList parts=text.split(QLatin1String("::"));
+        if(parts.size()>=3) {
+            const QString prefix=parts.first().trimmed().toCaseFolded();
             if(prefix==QLatin1String("jetzt on air") ||
                prefix==QLatin1String("now on air") ||
                prefix==QLatin1String("now playing") ||
                prefix==QLatin1String("şimdi çalıyor") ||
                prefix==QLatin1String("simdi caliyor")) {
-                result.title=fields.at(1).trimmed();
-                result.artist=fields.at(2).trimmed();
-                result.format=QLatin1String("track_first_station");
+                result.title=parts.at(1).trimmed();
+                result.artist=parts.at(2).trimmed();
+                result.format=QLatin1String("DLS track-first");
             }
         }
     } else {
-        const QRegularExpression separator(
-            QLatin1String("\\s+[-–—]\\s+"));
-        const QRegularExpressionMatch hit=separator.match(text);
-        if(hit.hasMatch()) {
-            result.artist=text.left(hit.capturedStart()).trimmed();
-            result.title=text.mid(hit.capturedEnd()).trimmed();
-            result.format=QLatin1String("artist_first");
+        text.remove(QRegularExpression(QLatin1String(
+            "^(?:jetzt on air|now on air|now playing|jetzt läuft|"
+            "aktuell|şimdi çalıyor|simdi caliyor)\\s*:\\s*"),
+            QRegularExpression::CaseInsensitiveOption));
+        const QRegularExpression named(QLatin1String(
+            "^(?:artist|interpret|künstler)\\s*:\\s*(.+?)\\s*[|;]\\s*"
+            "(?:title|titel|song|track)\\s*:\\s*(.+)$"),
+            QRegularExpression::CaseInsensitiveOption);
+        const auto match=named.match(text);
+        if(match.hasMatch()) {
+            result.artist=match.captured(1).trimmed();
+            result.title=match.captured(2).trimmed();
+            result.format=QLatin1String("DLS named fields");
+        } else {
+            const auto sep=QRegularExpression(QLatin1String(
+                "\\s+[-–—]\\s+")).match(text);
+            if(sep.hasMatch()) {
+                result.artist=text.left(sep.capturedStart()).trimmed();
+                result.title=text.mid(sep.capturedEnd()).trimmed();
+                result.format=QLatin1String("DLS artist-first");
+            }
         }
     }
     if(result.artist.size()>130 || result.title.size()>130 ||
-       result.artist.compare(result.title,Qt::CaseInsensitive)==0)
-        return TihuluDlsSong();
+       tihuluStationSong(result,station)) return TihuluDlsSong();
     return result;
+}
+// welle-cli generally emits dls.label only. If a richer DAB/RDS receiver
+// exposes typed artist/title or DL+/RT+ tags, use those fields instead.
+// Station/PS labels, MOT captions and promotional text never become titles.
+inline TihuluDlsSong tihuluDlsSongFromService(const QJsonObject &service) {
+    auto str=[](const QJsonValue &v)->QString {
+        if(v.isString()) return v.toString().trimmed();
+        if(v.isObject()) return v.toObject().value(
+            QLatin1String("label")).toString().trimmed();
+        return QString();
+    };
+    auto field=[&](const QJsonObject &o,const QStringList &names)->QString {
+        for(const QString &key:names) {
+            const QString value=str(o.value(key));
+            if(!value.isEmpty()) return value;
+        }
+        return QString();
+    };
+    const QString station=str(service.value(QLatin1String("label")));
+    const QJsonObject dls=service.value(QLatin1String("dls")).toObject();
+    auto typed=[&](const QJsonObject &o,const QString &source)->TihuluDlsSong {
+        TihuluDlsSong song;
+        song.artist=field(o,{QLatin1String("artist"),
+            QLatin1String("item_artist"),QLatin1String("itemArtist"),
+            QLatin1String("item.artist"),QLatin1String("performer"),
+            QLatin1String("song_artist"),QLatin1String("track_artist")});
+        song.title=field(o,{QLatin1String("title"),
+            QLatin1String("item_title"),QLatin1String("itemTitle"),
+            QLatin1String("item.title"),QLatin1String("trackTitle"),
+            QLatin1String("song_title"),QLatin1String("track_title")});
+        const QJsonObject item=o.value(QLatin1String("item")).toObject();
+        if(song.artist.isEmpty()) song.artist=field(item,
+            {QLatin1String("artist"),QLatin1String("performer")});
+        if(song.title.isEmpty()) song.title=field(item,
+            {QLatin1String("title"),QLatin1String("track")});
+        song.format=source;
+        if(song.artist.size()>130 || song.title.size()>130 ||
+           tihuluStationSong(song,station)) return TihuluDlsSong();
+        return song;
+    };
+    const QList<QPair<QString,QJsonObject>> objects={
+        {QLatin1String("Now playing"),
+            service.value(QLatin1String("now_playing")).toObject()},
+        {QLatin1String("Now playing"),
+            service.value(QLatin1String("nowPlaying")).toObject()},
+        {QLatin1String("Track tags"),
+            service.value(QLatin1String("song")).toObject()},
+        {QLatin1String("Track tags"),
+            service.value(QLatin1String("track")).toObject()},
+        {QLatin1String("DLS+"),
+            service.value(QLatin1String("dlplus")).toObject()},
+        {QLatin1String("DLS+"),
+            service.value(QLatin1String("dl_plus")).toObject()},
+        {QLatin1String("DLS+"),
+            dls.value(QLatin1String("dlplus")).toObject()},
+        {QLatin1String("DLS+"),
+            dls.value(QLatin1String("dl_plus")).toObject()},
+        {QLatin1String("DLS"),dls},
+        {QLatin1String("RDS RadioText+"),
+            service.value(QLatin1String("rtplus")).toObject()},
+        {QLatin1String("Radio metadata"),
+            service.value(QLatin1String("metadata")).toObject()},
+        {QLatin1String("Radio info"),
+            service.value(QLatin1String("radio_info")).toObject()},
+        {QLatin1String("Track fields"),service}
+    };
+    for(const auto &source:objects) {
+        const TihuluDlsSong song=typed(source.second,source.first);
+        if(song.valid()) return song;
+    }
+    // Some receivers represent DL+/RT+ as ITEM.ARTIST / ITEM.TITLE tags.
+    const QList<QJsonObject> tagged={dls,service,
+        service.value(QLatin1String("dlplus")).toObject(),
+        service.value(QLatin1String("rtplus")).toObject()};
+    for(const QJsonObject &root:tagged) {
+        QString artist,title;
+        for(const QJsonValue &v:root.value(QLatin1String("tags")).toArray()) {
+            const QJsonObject tag=v.toObject();
+            const QString name=field(tag,{QLatin1String("type"),
+                QLatin1String("tag"),QLatin1String("name")}).toCaseFolded();
+            const QString value=field(tag,{QLatin1String("text"),
+                QLatin1String("value"),QLatin1String("label")});
+            if(name.endsWith(QLatin1String("artist"))) artist=value;
+            else if(name.endsWith(QLatin1String("title"))) title=value;
+        }
+        TihuluDlsSong song{artist,title,QLatin1String("DL+/RT+ tags")};
+        if(song.artist.size()<=130 && song.title.size()<=130 &&
+           !tihuluStationSong(song,station)) return song;
+    }
+    const QStringList texts={
+        str(dls.value(QLatin1String("label"))),
+        str(dls.value(QLatin1String("text"))),
+        str(service.value(QLatin1String("radiotext"))),
+        str(service.value(QLatin1String("radio_text"))),
+        str(service.value(QLatin1String("now_playing")))};
+    for(const QString &text:texts) {
+        const TihuluDlsSong song=tihuluDlsSong(text,station);
+        if(song.valid()) return song;
+    }
+    return TihuluDlsSong();
 }
 
 class TihuluBrassDial final : public QDial {
@@ -1947,7 +2081,7 @@ public:
                 "No lyrics are copied automatically; import only a locally "
                 "authorized TXT/LRC file.").arg(site));
             connect(button,&QPushButton::clicked,this,[this,site](){
-                const TihuluDlsSong song=tihuluDlsSong(lastDls_);
+                const TihuluDlsSong song=lastAcceptedSongHint_;
                 const QString artist=lyricsArtist_->text().trimmed().isEmpty()?
                     song.artist:lyricsArtist_->text().trimmed();
                 const QString title=lyricsTitle_->text().trimmed().isEmpty()?
@@ -3582,29 +3716,36 @@ private:
 							tr("[DLS broadcaster metadata] %1").arg(dls).left(700)});
 						while(cueQueue_.size()>12) cueQueue_.removeFirst();
 					}
-                    // Distinct normalized DLS metadata alone is not proof
-                    // the current song ended. Wait for a stable candidate.
-                    const TihuluDlsSong newSong=tihuluDlsSong(dls);
-                    if(newSong.valid()) {
-                        const QString candidate=newSong.normalizedKey();
-                        if(candidate==lastSongMetadataKey_) {
-                            pendingSongKey_.clear();
-                            pendingSongDls_.clear();
-                        } else if(candidate!=pendingSongKey_) {
-                            pendingSongKey_=candidate;
-                            pendingSongDls_=dls;
-                            pendingSongSinceMs_=QDateTime::currentMSecsSinceEpoch();
-                            const QString station=playingKey_;
-                            const quint64 ticket=stationRequestId_;
-                            QTimer::singleShot(5000,this,
-                                [this,candidate,station,ticket](){
-                                    commitPendingDlsSong(candidate,station,ticket);
-                                });
-                            if(lyricsSyncState_) lyricsSyncState_->setText(tr(
-                                "New DLS candidate · waiting 5s; Karaoke preserved"));
-                        }
-                    } // Ignore station slogans and non-song DLS.
 				}
+                // Check all radio metadata on EVERY mux update, even if
+                // rotating dls.label has not changed this cycle.
+                const TihuluDlsSong newSong=tihuluDlsSongFromService(service);
+                if(newSong.valid()) {
+                    lastObservedSongHint_=newSong;
+                    lastObservedSongMs_=QDateTime::currentMSecsSinceEpoch();
+                    const QString candidate=newSong.normalizedKey();
+                    if(candidate==lastSongMetadataKey_) {
+                        pendingSongKey_.clear();
+                        pendingSongDls_.clear();
+                        pendingSongObservations_=0;
+                    } else if(candidate!=pendingSongKey_) {
+                        pendingSongKey_=candidate;
+                        pendingSongHint_=newSong;
+                        pendingSongDls_=dls;
+                        pendingSongObservations_=1;
+                        pendingSongSinceMs_=lastObservedSongMs_;
+                        const QString station=playingKey_;
+                        const quint64 ticket=stationRequestId_;
+                        QTimer::singleShot(5000,this,
+                            [this,candidate,station,ticket](){
+                                commitPendingDlsSong(candidate,station,ticket);
+                            });
+                        if(lyricsSyncState_) lyricsSyncState_->setText(tr(
+                            "Song candidate (%1) · verifying; Karaoke preserved")
+                            .arg(newSong.format));
+                    } else pendingSongObservations_=
+                        qMin(20,pendingSongObservations_+1);
+                } // Unknown text/station slogans leave current song intact.
                 const QJsonObject errs=service.value(
                     QLatin1String("errorcounters")).toObject();
                 const qint64 frames=errs.value(
@@ -4115,6 +4256,11 @@ private:
                 pendingSongDls_.clear();
                 pendingSongSinceMs_=0;
                 lastSongDls_.clear();
+                lastAcceptedSongHint_=TihuluDlsSong();
+                lastObservedSongHint_=TihuluDlsSong();
+                pendingSongHint_=TihuluDlsSong();
+                pendingSongObservations_=0;
+                lastObservedSongMs_=0;
         lastSongMetadataKey_.clear();
                 lyricRawLines_.clear();
                 lastLyricsProvider_.clear();
@@ -4848,8 +4994,7 @@ private:
     }
     void renderFullLyricsWindow(QLabel *info,QPlainTextEdit *view) {
         if(!info || !view) return;
-        const TihuluDlsSong song=tihuluDlsSong(
-            lastSongDls_.isEmpty()?lastDls_:lastSongDls_);
+        const TihuluDlsSong song=lastAcceptedSongHint_;
         const QString songName=song.valid()?
             song.artist+QLatin1String(" — ")+song.title:
             tr("Current radio station · song unknown");
@@ -5244,7 +5389,7 @@ private:
         karaokeTranslation_->setVisible(karaokeTranslationsEnabled_ &&
             karaokeTranslationsEnabled_->isChecked() &&
             !available.isEmpty());
-        const TihuluDlsSong song=tihuluDlsSong(lastDls_);
+        const TihuluDlsSong song=lastAcceptedSongHint_;
         const QString title=song.valid()?
             song.artist+QLatin1String(" · ")+song.title:tr("current song");
         const QString provider=lastLyricsProvider_.isEmpty()?
@@ -5301,11 +5446,9 @@ private:
             !translations.isEmpty());
         const QString provider=lastLyricsProvider_.isEmpty()?
             tr("user-provided / source unavailable"):lastLyricsProvider_;
-        const QString song=(lyricsArtist_ && lyricsTitle_ &&
-            !lyricsArtist_->text().trimmed().isEmpty() &&
-            !lyricsTitle_->text().trimmed().isEmpty())?
-            lyricsArtist_->text().trimmed()+QLatin1String(" · ")+
-                lyricsTitle_->text().trimmed():tr("live radio");
+        const QString song=lastAcceptedSongHint_.valid()?
+            lastAcceptedSongHint_.artist+QLatin1String(" · ")+
+                lastAcceptedSongHint_.title:tr("live radio");
         karaokeSource_->setText(tr(
             "♪ %1 · SOURCE: %2 · AUDIO MATCH: %3% · LINE %4\n"
             "%5")
@@ -6212,10 +6355,13 @@ private:
         // The proposed metadata must STILL be on air after the debounce.
         // Station promos/slogans interrupt candidacy rather than certifying
         // a different song on the basis of a single transient DLS message.
-        const TihuluDlsSong currentHint=tihuluDlsSong(lastDls_);
-        if(!currentHint.valid() || currentHint.normalizedKey()!=candidate) {
+        if(pendingSongObservations_<2 ||
+           !lastObservedSongHint_.valid() ||
+           lastObservedSongHint_.normalizedKey()!=candidate ||
+           now-lastObservedSongMs_>10000) {
             pendingSongKey_.clear();
             pendingSongDls_.clear();
+            pendingSongObservations_=0;
             return;
         }
         // Recent matching Whisper lyrics are evidence that the old song
@@ -6231,13 +6377,16 @@ private:
             return;
         }
         const QString acceptedDls=pendingSongDls_;
+        const TihuluDlsSong acceptedSong=pendingSongHint_;
         pendingSongKey_.clear();
         pendingSongDls_.clear();
+        pendingSongObservations_=0;
         cancelLyricsRefresh();
         clearLiveRadioLyricsCatalog(); // old accepted song is no longer live
         recentKaraokeEvidence_.clear();
         lastSongMetadataKey_=candidate;
         lastSongDls_=acceptedDls;
+        lastAcceptedSongHint_=acceptedSong;
         // DLS is metadata; this time is not measured audio/DAC PTS.
         songStartMs_=now+activePlaybackCacheMs_;
         lyricCues_=QJsonArray();
@@ -6373,8 +6522,7 @@ private:
         }
         const bool manual=!lyricsArtist_->text().trimmed().isEmpty() &&
                           !lyricsTitle_->text().trimmed().isEmpty();
-        const TihuluDlsSong song=tihuluDlsSong(
-            lastSongDls_.isEmpty()?lastDls_:lastSongDls_);
+        const TihuluDlsSong song=lastAcceptedSongHint_;
         if(!manual && (!song.valid() || lastSongMetadataKey_.isEmpty())) {
             const QString note=tr(
                 "Lyrics Refresh needs artist/title; DLS may contain an advert "
@@ -6565,8 +6713,7 @@ private:
 		if (!active() || playingKey_.isEmpty()) {
 			lyricText_->setText(tr("Play a station first.")); return;
 		}
-        const TihuluDlsSong song=tihuluDlsSong(
-            automatic && !lastSongDls_.isEmpty()?lastSongDls_:lastDls_);
+        const TihuluDlsSong song=lastAcceptedSongHint_;
 		const bool overridden=!automatic && !lyricsArtist_->text().trimmed().isEmpty()
 			&& !lyricsTitle_->text().trimmed().isEmpty();
 		if(!song.valid() && !overridden) {
@@ -6997,7 +7144,10 @@ private:
     bool tvHandoffInProgress_=false;
     bool lastLyricsAutoLookup_=false;
     QString pendingSongKey_,pendingSongDls_,lyricsRequestKey_;
-    qint64 pendingSongSinceMs_=0,lyricsLookupCooldownUntilMs_=0;
+    TihuluDlsSong pendingSongHint_,lastObservedSongHint_,lastAcceptedSongHint_;
+    int pendingSongObservations_=0;
+    qint64 pendingSongSinceMs_=0,lastObservedSongMs_=0,
+           lyricsLookupCooldownUntilMs_=0;
     quint64 lyricsLookupGeneration_=0;
     QMap<QString,QJsonObject> lyricsCache_;
     QMap<QString,qint64> lyricsCacheTime_;
