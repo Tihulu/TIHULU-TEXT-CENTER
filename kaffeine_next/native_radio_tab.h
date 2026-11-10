@@ -481,8 +481,11 @@ public:
             "retuning the receiver or restarting radio audio."));
         radioSyncRefresh_=new QPushButton(tr("Lip-sync Refresh"),page);
         radioSyncRefresh_->setToolTip(tr(
-            "Recalculate estimated subtitle timing from new ASR samples. "
-            "Preserves manual offset and audio buffer; DAC still unmeasured."));
+            "Refresh BOTH the lower Whisper subtitle timing and blue-screen "
+            "Karaoke word/preview timing. Retains current lyrics, verified "
+            "audio word anchors, manual offsets and independent Reading modes. "
+            "Never restarts SDR, MP3 playback, AI or online lyric search; "
+            "speaker DAC time remains unmeasured."));
         captionComfortRow->addWidget(captionRefresh_);
         captionComfortRow->addWidget(radioSyncRefresh_);
         captionComfortRow->addSpacing(12);
@@ -519,6 +522,11 @@ public:
                             QLatin1String("KaffeineRadio"));
             prefs.setValue(QLatin1String("radioReadingPreset"),
                            radioReadingPreset_->currentData().toInt());
+            // Live/fast halves caption polling jitter. Other modes keep
+            // the quieter 300-ms update cadence. Neither alters Karaoke
+            // word timestamps nor SDR/libVLC buffering.
+            captionTick_.setInterval(
+                radioReadingPreset_->currentData().toInt()==0?150:300);
             // Apply selection immediately to the currently displayed cue.
             if(radioCanvasCaption_ && radioCanvasCaption_->isVisible() &&
                captionDisplayedStartedMs_>0) {
@@ -2216,16 +2224,8 @@ public:
                 "Radio ASR refreshed · waiting for new captured audio; "
                 "DAB playback, Lyrics consent and manual offsets retained."));
         });
-        connect(radioSyncRefresh_,&QPushButton::clicked,this,[this](){
-            lagSamples_.clear();
-            lastAdjustmentMs_=QDateTime::currentMSecsSinceEpoch();
-            lyricOffsetConsistency_=0;
-            lastLyricSyncUpdateMs_=0;
-            syncStatus_->setText(tr(
-                "Lip-sync refresh: recomputing PCM/ASR estimates; "
-                "manual offset %1 ms preserved; DAC time unmeasured.")
-                .arg(radioOffsetMs_->value()));
-        });
+        connect(radioSyncRefresh_,&QPushButton::clicked,
+                this,[this](){refreshRadioLipSync();});
 		connect(quickAi_,&QCheckBox::toggled,this,[this](bool enabled){
             quickAi_->setText(enabled?tr("AI captions · ON"):tr("AI captions · OFF"));
             if(enabled) {
@@ -2421,7 +2421,9 @@ public:
 			});
 		tick_.setInterval(1400);
 		// Audio captions no longer wait for the expensive 1600-ms RF poll.
-		captionTick_.setInterval(300);
+		captionTick_.setInterval(
+            radioReadingPreset_ && radioReadingPreset_->currentData().toInt()==0
+                ?150:300);
 		connect(&captionTick_,&QTimer::timeout,this,[this](){
             monitorRadioPlaybackStop();
 			pollCaption();updateLyrics();
@@ -4604,6 +4606,68 @@ private:
         lastHighlightedKaraokeWord_=-2;
         previewLastHighlightedWord_=-2;
     }
+    void refreshRadioLipSync() {
+        const qint64 now=QDateTime::currentMSecsSinceEpoch();
+        // Refresh the lower Whisper timing estimator; never start/stop
+        // the capture worker or libVLC. Existing manual offsets are kept.
+        lagSamples_.clear();
+        lastAdjustmentMs_=now;
+        lyricOffsetConsistency_=0;
+        lastLyricDirection_=0;
+        lastLyricSyncUpdateMs_=0;
+
+        // Pending VERIFIED Karaoke words have actual ASR capture epochs.
+        // Recalculate their due times from the current cache and both
+        // independent user offsets instead of flushing words or captions.
+        int reanchored=0;
+        const auto updatePending=[this,now,&reanchored](
+                QList<TimedPlainLyric> &queue) {
+            for(auto &entry:queue) {
+                if(entry.wordAnchors.isEmpty()) continue;
+                const qint64 captured=qRound64(entry.wordAnchors.first()
+                    .toObject().value(QLatin1String("epoch_ms")).toDouble(0.));
+                if(captured<=now-120000 || captured>=now+20000)
+                    continue;
+                entry.dueMs=qMax(now,captured+activePlaybackCacheMs_+
+                    radioOffsetMs_->value()+lyricsOffset_->value());
+                ++reanchored;
+            }
+        };
+        updatePending(verifiedLyricQueue_);
+        updatePending(plainLyricQueue_);
+
+        // A user refresh must not restart a song or re-download lyrics.
+        // For a verified line redraw its *unchanged* Whisper word anchors.
+        // For opted-in Lyrics Found preview, recompute line/word position
+        // on its existing timeline; never reset previewStartedMs_.
+        lastHighlightedKaraokeWord_=-2;
+        previewLastHighlightedWord_=-2;
+        previewLastIndex_=-1;
+        if(karaokePanel_ && karaokePanel_->isVisible()) {
+            refreshKaraokeWordHighlight(now);
+            showFoundKaraokePreview(now);
+        }
+        const QString policy=karaokePolicy_?
+            karaokePolicy_->currentData().toString():QString();
+        const bool preview=policy==QLatin1String("found") ||
+                           policy==QLatin1String("found-sync");
+        if(lyricsSyncState_) lyricsSyncState_->setText(tr(
+            "Karaoke lip-sync refreshed · %1 pending verified line(s) "
+            "reanchored · %2 · next ASR match recalibrates LRC. "
+            "Manual lyric offset %3 ms retained; DAC not measured.")
+            .arg(reanchored)
+            .arg(preview?tr("estimated preview timeline kept"):
+                        tr("Whisper word timestamps kept"))
+            .arg(lyricsOffset_?lyricsOffset_->value():0));
+        syncStatus_->setText(tr(
+            "Lip-sync refreshed: Whisper caption estimator + Karaoke. "
+            "Reading=%1 (independent); caption offset %2 ms and "
+            "Karaoke offset %3 ms preserved; audio untouched.")
+            .arg(radioReadingPreset_?
+                 radioReadingPreset_->currentText():tr("default"))
+            .arg(radioOffsetMs_?radioOffsetMs_->value():0)
+            .arg(lyricsOffset_?lyricsOffset_->value():0));
+    }
     void refreshKaraokeWordHighlight(qint64 now) {
         if(!karaokeCurrent_ || karaokeLine_.isEmpty() ||
            karaokeWordAnchors_.isEmpty()) return;
@@ -4896,7 +4960,12 @@ private:
     int radioCaptionReadingHoldMs(const QString &text) const {
         const int preset=radioReadingPreset_?
             radioReadingPreset_->currentData().toInt():1;
-        if(preset<=0) return 0;
+        if(preset<=0) {
+            // Fast must still prevent a rapidly revised ASR chunk from
+            // flashing two phrases in one 150-ms polling tick. This is only
+            // a short visual anti-flicker hold, NOT an audio delay.
+            return cueQueue_.size()>=2?250:900;
+        }
         // Readability budget for all visible source/translation lines.
         // It does NOT delay audio or claim true sample-clock sync.
         const int chars=qMin(1400,text.trimmed().size());
@@ -5174,7 +5243,16 @@ private:
                 now+qMax(0,remaining)+radioOffsetMs_->value();
             const qint64 lateBy=qMax(qint64(0),now-requestedDue);
             const qint64 due=qMax(now,requestedDue);
-            if(lateBy>3000)
+            const bool fastReading=radioReadingPreset_ &&
+                radioReadingPreset_->currentData().toInt()==0;
+            if(fastReading && lateBy>800)
+                syncStatus_->setText(tr(
+                    "Live-fast: ASR result %1 ms behind its estimated audio "
+                    "presentation; showing without extra reading delay. "
+                    "Lip-sync Refresh cannot undo model latency. Use faster "
+                    "Whisper/fewer translations, or opt in to extra audio buffer.")
+                    .arg(lateBy));
+            else if(lateBy>3000)
                 syncStatus_->setText(tr(
                     "Radio AI %1 ms behind captured audio; captions are "
                     "late. Reduce output languages or use faster models.")
