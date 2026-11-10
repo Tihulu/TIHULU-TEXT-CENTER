@@ -48,12 +48,23 @@ class RadioFrequencyAndCacheUX(unittest.TestCase):
         self.assertIn('refreshRadioBufferProgress();',RADIO)
         self.assertIn('captionTick_.setInterval(',RADIO)
         self.assertIn('?150:300',RADIO)  # fast gets 150 ms; others retain 300 ms
-        self.assertIn('qMin(95,int(qMin(elapsed,qint64(requested))*95/requested))',
+        # A player that remains silent must NOT show an infinite 95% fill
+        # with elapsed 100s when only 9.5s of cache were requested.
+        self.assertNotIn('qMin(95,int(qMin(elapsed,qint64(requested))*95/requested))',
+                         RADIO)
+        self.assertIn('const qint64 startupTimeoutMs=qMax(qint64(12000)',RADIO)
+        self.assertIn('qint64(requested)+8000',RADIO)
+        self.assertIn('if(elapsed>=startupTimeoutMs)',RADIO)
+        self.assertIn('percent=0;',RADIO)
+        self.assertIn('DAB AUDIO STARTUP FAILED / TIMEOUT',RADIO)
+        self.assertIn('const qint64 bounded=qMin(elapsed,qint64(requested))',RADIO)
+        self.assertIn('percent=qMin(90,int(bounded*90/requested))',RADIO)
+        self.assertIn('actual fill and audible output NOT measured',RADIO)
+        self.assertIn('percent=100;',RADIO)
+        self.assertIn('if(!stationSelected)',RADIO)
+        self.assertIn('const int verificationMs=qMax(12000,activePlaybackCacheMs_+8000)',
                       RADIO)
-        self.assertIn('actual fill unmeasured',RADIO)
-        self.assertIn('Player reports PLAYING',RADIO)
-        self.assertIn('percent=100; // The player STARTED',RADIO)
-        self.assertIn('if(!stationOpened)',RADIO)
+        self.assertIn('QTimer::singleShot(verificationMs',RADIO)
         self.assertIn('for(QProgressBar *bar:{quickBufferProgress_,audioCacheProgress_})',
                       RADIO)
         self.assertNotIn('audioCacheProgress_->setRange(0,audioStartedMs_>0?0:100)',
