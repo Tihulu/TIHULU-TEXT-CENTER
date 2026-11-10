@@ -6164,14 +6164,11 @@ private:
         const QString title=manual?lyricsTitle_->text().trimmed():song.title;
         if(artist.isEmpty() || title.isEmpty() ||
            artist.size()>130 || title.size()>130) return;
-        if(QMessageBox::question(this,tr("Lyrics Refresh · online search"),
-           tr("Search LRCLIB, lyrics.ovh and optional licensed Musixmatch "
-              "again for %1 — %2?\n\nOnly artist/title and selected "
-              "language codes are sent; NO radio audio is uploaded. "
-              "Current Karaoke remains while searching and on failure.")
-              .arg(artist,title),
-           QMessageBox::Yes|QMessageBox::No,QMessageBox::No)!=QMessageBox::Yes)
-            return;
+        // Clicking Lyrics Refresh is an explicit owner action to re-search
+        // artist/title; the UI already discloses that metadata may be sent.
+        // Do not open a second blocking modal that can appear behind the
+        // separate full-screen Kaffeine window and make Refresh look inert.
+        // No audio is ever transmitted to lyrics providers.
         const QString runtime=QStandardPaths::writableLocation(
             QStandardPaths::RuntimeLocation);
         if(runtime.isEmpty()) {
@@ -6189,7 +6186,7 @@ private:
         lyricsRefreshSongKey_=lastSongMetadataKey_;
         lyricsRefreshStationTicket_=stationRequestId_;
         lyricsRefreshStartedMs_=QDateTime::currentMSecsSinceEpoch();
-        lyricsRefreshPath_=runtime+QLatin1String("/tihulu-lyrics-refresh-")+
+        lyricsRefreshPath_=runtime+QLatin1String("/tihulu-radio-lyrics-refresh-")+
             QString::number(QCoreApplication::applicationPid())+
             QLatin1Char('-')+QString::number(++lyricsLookupGeneration_)+
             QLatin1String(".json");
@@ -6614,10 +6611,14 @@ private:
                 setRadioLyricMatchStatus(note);
                 return;
             }
-            setRadioLyricMatchStatus(tr(
-                "LYRICS FOUND · %1 · %2 · matching live audio…")
-                .arg(provider.isEmpty()?tr("local file"):provider,
-                     plainLyricMode_?tr("plain text"):tr("timed LRC")));
+            const bool realLyrics=!lyricRawLines_.isEmpty() ||
+                !lyricCues_.isEmpty();
+            setRadioLyricMatchStatus(realLyrics?
+                tr("LYRICS FOUND · %1 actual lines · %2 · matching live audio…")
+                    .arg(lyricRawLines_.isEmpty()?lyricCues_.size():
+                         lyricRawLines_.size())
+                    .arg(provider.isEmpty()?tr("local file"):provider):
+                tr("LYRICS NOT FOUND · provider returned no usable text"));
             // Show the first real lyric line immediately on successful
             // lookup in static-preview modes, without waiting for the next
             // ASR chunk, song-start estimate or a second station tune.
