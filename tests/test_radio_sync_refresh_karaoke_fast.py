@@ -1,8 +1,4 @@
-"""Contracts for shared Lip-sync Refresh and Live-fast radio caption timing.
-
-Static source-contract tests complement separate Qt5/native compile checks.
-Real DAC latency must be measured on the user's Linux desktop.
-"""
+"""10s reusable Whisper sync history and independent Live-fast caption timing."""
 from pathlib import Path
 import unittest
 
@@ -10,33 +6,35 @@ RADIO=(Path(__file__).resolve().parents[1] /
        "kaffeine_next/native_radio_tab.h").read_text(encoding="utf-8")
 
 
-def section(start, end):
-    a=RADIO.index(start)
-    return RADIO[a:RADIO.index(end,a)]
+def section(start,end):
+    start_i=RADIO.index(start)
+    return RADIO[start_i:RADIO.index(end,start_i)]
 
 
 class KaraokeAndFastRefreshTests(unittest.TestCase):
-    def test_refresh_button_updates_both_lipsync_paths(self):
+    def test_refresh_button_reuses_timestamps_without_audio_buffer_reset(self):
         click=section("connect(radioSyncRefresh_,&QPushButton::clicked",
                       "connect(quickAi_,&QCheckBox::toggled")
         self.assertIn("refreshRadioLipSync();",click)
         method=section("void refreshRadioLipSync() {",
                        "void refreshKaraokeWordHighlight(")
-        for marker in (
-            "lagSamples_.clear();", "lyricOffsetConsistency_=0;",
-            "lastLyricSyncUpdateMs_=0;", "lastLyricDirection_=0;",
-            "lastHighlightedKaraokeWord_=-2;",
-            "previewLastHighlightedWord_=-2;",
-            "previewLastIndex_=-1;",
-            "refreshKaraokeWordHighlight(now);",
-            "showFoundKaraokePreview(now);",
-            "lyricsOffset_->value()",
-            "radioOffsetMs_->value()",
-        ):
+        for marker in ("lagSamples_.clear();", "lyricOffsetConsistency_=0;",
+                       "lastLyricSyncUpdateMs_=0;", "lastLyricDirection_=0;",
+                       "lastHighlightedKaraokeWord_=-2;",
+                       "refreshKaraokeWordHighlight(now);",
+                       "karaokeSyncHistorySeconds_", "recentKaraokeEvidence_",
+                       "showKaraokeLine(e.cue);",
+                       "lyricsOffset_->value()", "radioOffsetMs_->value()",
+                       "activePlaybackCacheMs_"):
             with self.subTest(marker=marker):
-                self.assertIn(marker, method)
+                self.assertIn(marker,method)
+        for forbidden in ("stopReceiver(", "startReceiver(", "player_->stop(",
+                          "player_->play(", "stopCaptioning(", "startCaptioning(",
+                          "fetchLyrics(", "clearKaraokeLine(", "cueQueue_.clear(",
+                          "karaokeWordAnchors_.clear(", "previewStartedMs_=0;"):
+            self.assertNotIn(forbidden,method)
 
-    def test_refresh_reanchors_only_real_whisper_word_times(self):
+    def test_only_Whisper_epoch_times_recalculate_pending_cues(self):
         method=section("void refreshRadioLipSync() {",
                        "void refreshKaraokeWordHighlight(")
         self.assertIn("entry.wordAnchors.isEmpty()",method)
@@ -44,41 +42,33 @@ class KaraokeAndFastRefreshTests(unittest.TestCase):
         self.assertIn("entry.dueMs=qMax(now,captured+activePlaybackCacheMs_",method)
         self.assertIn("updatePending(verifiedLyricQueue_);",method)
         self.assertIn("updatePending(plainLyricQueue_);",method)
-        # The current song, original text and audio stream are retained.
-        for forbidden in (
-            "stopReceiver(", "startReceiver(", "player_->stop(",
-            "player_->play(", "stopCaptioning(", "startCaptioning(",
-            "fetchLyrics(", "clearKaraokeLine(", "previewStartedMs_=0",
-            "lyricRawLines_.clear(", "karaokeWordAnchors_.clear(",
-            "cueQueue_.clear(",
-        ):
-            with self.subTest(forbidden=forbidden):
-                self.assertNotIn(forbidden,method)
 
-    def test_live_fast_avoids_rapid_flicker_without_reading_delay(self):
+    def test_fast_caption_polls_faster_without_affecting_karaoke(self):
         hold=section("int radioCaptionReadingHoldMs(",
                      "void setRadioLyricMatchStatus(")
         self.assertIn("cueQueue_.size()>=2?250:900",hold)
         self.assertIn("if(preset<=0) {",hold)
         self.assertNotIn("karaokeWordAnchors_",hold)
         self.assertIn("150:300",RADIO)
-        poll=section("void pollCaption() {",
-                     "void stopCaptioning() {")
-        self.assertIn("fastReading && lateBy>800",poll)
-        self.assertIn("Lip-sync Refresh cannot undo model latency",poll)
 
-    def test_estimated_preview_uses_independent_timeline_on_refresh(self):
-        method=section("void refreshRadioLipSync() {",
-                       "void refreshKaraokeWordHighlight(")
-        self.assertIn("estimated preview timeline kept",method)
+    def test_legacy_speed_does_not_guess_lip_sync(self):
         preview=section("void showFoundKaraokePreview(qint64 now)",
                         "void showKaraokeLine(")
-        self.assertIn("karaokePreviewSpeed_->value()",preview)
-        self.assertIn("previewStartedMs_",preview)
-        self.assertIn("previewSpeedCompensationMs_",preview)
-        self.assertIn("previewSpeedCompensationMs_+=qRound64(",RADIO)
-        self.assertIn("previewPreviousSpeedPercent_=percent",RADIO)
-        self.assertNotIn("radioCaptionReadingHoldMs(",preview)
+        self.assertNotIn("previewSeconds",preview)
+        self.assertNotIn("qRound64(lrc",preview)
+        self.assertNotIn("wordPattern",preview)
+        self.assertIn("No guessed word sweep",preview)
+        self.assertIn("karaokePreviewSpeed_->setEnabled(false)",RADIO)
+
+    def test_10s_window_bounded_and_keeps_same_song(self):
+        helper=section("void pruneRecentKaraokeEvidence(qint64 now)",
+                       "void refreshRadioLipSync() {")
+        self.assertIn("karaokeSyncHistorySeconds_->value():10",helper)
+        self.assertIn("recentKaraokeEvidence_.removeFirst()",helper)
+        self.assertIn("recentKaraokeEvidence_.size()>48",helper)
+        self.assertIn("first().songKey!=lastSongMetadataKey_",helper)
+        self.assertIn("first().stationKey!=playingKey_",helper)
+        self.assertIn("recentKaraokeEvidence_.append",helper)
 
 
 if __name__=="__main__":
