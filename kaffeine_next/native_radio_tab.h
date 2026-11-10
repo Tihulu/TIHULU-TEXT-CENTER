@@ -4997,7 +4997,7 @@ private:
             .arg(lyricsOffset_?lyricsOffset_->value():0)
             .arg(requestedRematch?
                  tr("checking current song with next Whisper result"):
-                 tr("Whisper or verified lyrics unavailable"));
+                 tr("Whisper or verified lyrics unavailable")));
     }
     void refreshKaraokeWordHighlight(qint64 now) {
         if(!karaokeCurrent_ || karaokeLine_.isEmpty() ||
