@@ -2628,46 +2628,47 @@ public:
             radioCaptionBanner_->setText(tr("Live radio captions stopped."));
             lastCaptionVisibleMs_=0;
         });
-        connect(&captionProcess_,QOverload<int,QProcess::ExitStatus>::of(&QProcess::finished),
-            this,[this](int code,QProcess::ExitStatus exitState){
-                if(captionsStopping_) return;
-                // A dead FFmpeg/Whisper worker cannot supply live speech.
-                // Do not leave the UI promising "AI captions · ON".
-                if(quickAi_ && quickAi_->isChecked()) {
-                    const QSignalBlocker hold(quickAi_);
-                    quickAi_->setChecked(false);
-                    quickAi_->setText(tr("AI captions · OFF (input ended)"));
-                }
+        connect(&captionProcess_,QOverload<int,QProcess::ExitStatus>::of(
+            &QProcess::finished),this,
+            [this](int code,QProcess::ExitStatus exitState){
+                if(captionsStopping_ || shuttingDown_ || tvHandoffInProgress_)
+                    return;
+                if(!quickAi_ || !quickAi_->isChecked()) return;
+                // An AI HTTP client EOF is not a user OFF request. Preserve
+                // the requested ON state and recover ONLY the caption worker.
+                // Never retune the SDR or restart libVLC/radio audio.
+                const QString stderrText=QString::fromLocal8Bit(
+                    captionProcess_.readAllStandardError()).right(190);
                 if(captionProgress_) {
                     captionProgress_->setVisible(true);
                     captionProgress_->setRange(0,100);
                     captionProgress_->setValue(0);
                     captionProgress_->setFormat(tr(
-                        "AI input ended · inspect DAB MP3 / FFmpeg and use AI Caption Refresh"));
+                        "AI captions ON · recovering local Whisper input"));
                 }
-                if(code==0 && exitState==QProcess::NormalExit) {
-                    // An EOF from the AI-only welle HTTP client is not the
-                    // same as verified silence or a healthy ASR session.
-                    if(active() && !playingKey_.isEmpty()) {
-                        const QString note=tr(
-                            "Radio AI audio stream ended. Check welle HTTP "
-                            "and ffmpeg; station playback has a separate "
-                            "libVLC path and may still be running.");
-                        radioCaption_->setText(note);
-                        radioTranslationBanner_->setText(note);
-                        radioTranslationBanner_->setVisible(true);
-                    }
-                    return;
+                const QString reason=code==0 &&
+                    exitState==QProcess::NormalExit?
+                    tr("audio reader reached EOF"):tr("Whisper/FFmpeg exited");
+                if(radioCaptionBanner_) {
+                    radioCaptionBanner_->setText(tr(
+                        "AI captions ON · %1 · retrying local ASR only. %2")
+                        .arg(reason,stderrText));
+                    radioCaptionBanner_->setVisible(true);
                 }
-                const QString error=QString::fromLocal8Bit(
-                    captionProcess_.readAllStandardError()).right(200);
-                const QString message=tr("Live radio Whisper stopped unexpectedly. "
-                    "Check the installed AI model, DAB stream and ffmpeg. %1")
-                    .arg(error.isEmpty()?tr("No decoder details"):error);
-                radioCaption_->setText(message);
-                radioCaptionBanner_->setText(message);
-                if(lyricsAudioFallbackActive_) lyricText_->setText(message);
+                if(lyricsAudioFallbackActive_ && lyricText_)
+                    lyricText_->setText(tr(
+                        "Whisper reconnecting · Karaoke lyrics remain loaded."));
+                scheduleCaptionRecovery();
             });
+        connect(&captionProcess_,&QProcess::errorOccurred,this,
+            [this](QProcess::ProcessError){
+                if(captionsStopping_ || shuttingDown_ || !quickAi_ ||
+                   !quickAi_->isChecked()) return;
+                // FailedToStart may never emit finished: periodic tick
+                // checks this same deadline. Do not spin in errorOccurred.
+                scheduleCaptionRecovery();
+            });
+
 		connect(lyrics_, &QPushButton::clicked, this, [this](){ fetchLyrics(); });
 		connect(lyricsImport_,&QPushButton::clicked,this,[this](){
 			const QString path=QFileDialog::getOpenFileName(
@@ -2757,6 +2758,7 @@ public:
                 ?150:300);
 		connect(&captionTick_,&QTimer::timeout,this,[this](){
             monitorRadioPlaybackStop();
+            checkCaptionRecovery();
 			pollCaption();updateLyrics();
             pollLyricsRefreshResult();
             refreshRadioBufferProgress();
@@ -4947,6 +4949,49 @@ private:
                 "No receiver restart.").arg(desired));
 		}
 	}
+    void scheduleCaptionRecovery() {
+        if(!quickAi_ || !quickAi_->isChecked() || shuttingDown_ ||
+           tvHandoffInProgress_ || scanning_) return;
+        const qint64 now=QDateTime::currentMSecsSinceEpoch();
+        // Backoff 2, 4, 8, 16, up to 60 seconds, never a busy loop.
+        const int shift=qMin(captionRecoveryFailures_,5);
+        const qint64 delay=qMin(qint64(60000),qint64(2000)*(1LL<<shift));
+        captionRecoveryFailures_=qMin(captionRecoveryFailures_+1,6);
+        captionRecoveryNextMs_=qMax(captionRecoveryNextMs_,now+delay);
+    }
+    void checkCaptionRecovery() {
+        if(!quickAi_ || !quickAi_->isChecked() || shuttingDown_ ||
+           scanning_ || tvHandoffInProgress_ || !active() ||
+           playingKey_.isEmpty() || !captionSource_ ||
+           captionSource_->currentData().toString()==QLatin1String("dls"))
+            return;
+        const qint64 now=QDateTime::currentMSecsSinceEpoch();
+        if(captionProcess_.state()!=QProcess::NotRunning) {
+            // Reset retry backoff only after a real ASR chunk, not after
+            // QProcess::start() or an unverified player "Playing" status.
+            if(lastCaptionUpdateMs_>captionRecoveryLastSuccessMs_ &&
+               lastCaptionUpdateMs_>captionRecoveryLastAttemptMs_) {
+                captionRecoveryFailures_=0;
+                captionRecoveryNextMs_=0;
+                captionRecoveryLastSuccessMs_=lastCaptionUpdateMs_;
+            }
+            return;
+        }
+        if(captionRecoveryNextMs_<=0)
+            scheduleCaptionRecovery();
+        if(now<captionRecoveryNextMs_) return;
+        captionRecoveryNextMs_=0;
+        captionRecoveryLastAttemptMs_=now;
+        if(radioCaptionBanner_) {
+            radioCaptionBanner_->setText(tr(
+                "AI captions ON · reconnecting Whisper to existing DAB audio "
+                "(radio playback and SDR unchanged)"));
+            radioCaptionBanner_->setVisible(true);
+        }
+        startCaptioning();
+        // FailedToStart and immediate EOF must also have a bounded retry.
+        if(captionRecoveryNextMs_<=0) scheduleCaptionRecovery();
+    }
 	void startCaptioning() {
 		if (!active() || playingKey_.isEmpty()) {
 			state_->setText(tr("Play a real DAB+ station before starting offline AI.")); return;
@@ -4969,6 +5014,7 @@ private:
 		}
 		metadataCaptions_=false;
 		if (captionProcess_.state()!=QProcess::NotRunning) return;
+        captionRecoveryLastAttemptMs_=QDateTime::currentMSecsSinceEpoch();
         captionBoundStationKey_=playingKey_;
 		const QString sid=playingKey_.section(QLatin1Char(':'),1);
 		const QString sourceCode=speechLanguage_->currentData().isValid()?
@@ -6373,6 +6419,7 @@ private:
 	}
 	void stopCaptioning() {
         captionsStopping_=true;
+        captionRecoveryNextMs_=0;
         captionReadingHoldUntilMs_=0;
         captionDisplayedStartedMs_=0;
 		cueQueue_.clear();
@@ -7278,6 +7325,9 @@ private:
 		*preferLyrics_=nullptr,*listenFallbackOnMiss_=nullptr;
     bool lyricsAudioFallbackActive_=false,lyricsFallbackStartedAi_=false,
         plainLyricsStartedAi_=false,captionsStopping_=false;
+    int captionRecoveryFailures_=0;
+    qint64 captionRecoveryNextMs_=0,captionRecoveryLastAttemptMs_=0,
+           captionRecoveryLastSuccessMs_=0;
 	QSpinBox *bufferMs_=nullptr,*radioOffsetMs_=nullptr,
         *lyricMatchThreshold_=nullptr,*karaokePreviewSpeed_=nullptr;
     QComboBox *bufferUnit_=nullptr;
