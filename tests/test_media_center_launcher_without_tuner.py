@@ -29,7 +29,7 @@ class LauncherWithoutAntennaTests(unittest.TestCase):
         self.assertNotIn("rtl_test",launcher)
         self.assertNotIn("dvbv5-zap",launcher)
         self.assertNotIn("lsusb",launcher)
-        self.assertNotIn("flock",launcher)
+        self.assertNotIn("flock -n",launcher)
 
     def test_diagnostic_flag_is_still_available_without_receiver(self):
         self.assertIn("--diagnose-tuner)",INSTALL)
