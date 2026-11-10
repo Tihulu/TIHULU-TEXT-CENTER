@@ -6171,6 +6171,20 @@ private:
     }
     void pollLyricsRefreshResult() {
         if(!lyricsRefreshPending_) return;
+        // Never strand the Lyrics Refresh button disabled if an upstream
+        // provider stalls indefinitely (or the process dies without JSON).
+        // Preserve the existing lyric catalog and all radio/ASR processes.
+        const qint64 elapsed=QDateTime::currentMSecsSinceEpoch()-
+            lyricsRefreshStartedMs_;
+        if(elapsed>30000) {
+            cancelLyricsRefresh();
+            const QString note=tr(
+                "Lyrics Refresh timed out (30s) · original lyrics retained. "
+                "Try again or import a local TXT/LRC.");
+            lyricText_->setText(note);
+            if(lyricsSyncState_) lyricsSyncState_->setText(note);
+            return;
+        }
         if(lyricsRefreshStationTicket_!=stationRequestId_ ||
            lyricsRefreshStationKey_!=playingKey_ ||
            lyricsRefreshSongKey_!=lastSongMetadataKey_) {
@@ -6185,8 +6199,11 @@ private:
             if(lyricsRefreshProcess_.state()==QProcess::NotRunning &&
                QDateTime::currentMSecsSinceEpoch()-lyricsRefreshStartedMs_>2500) {
                 cancelLyricsRefresh();
-                lyricText_->setText(tr(
-                    "Lyrics Refresh returned no result · existing Karaoke kept."));
+                const QString note=tr(
+                    "Lyrics Refresh worker returned no result · existing "
+                    "Karaoke kept. Check network/lyrics provider.");
+                lyricText_->setText(note);
+                if(lyricsSyncState_) lyricsSyncState_->setText(note);
             }
             return;
         }
