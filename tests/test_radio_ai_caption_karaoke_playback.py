@@ -40,10 +40,16 @@ class CaptionsAndKaraokePlaybackTests(unittest.TestCase):
         self.assertIn("Whisper input failed",status)
         self.assertNotIn('obj.value(QLatin1String("original")).toString("music")',status)
 
-    def test_worker_ending_does_not_leave_false_ai_on(self):
-        self.assertIn('AI captions · OFF (input ended)',RADIO)
-        self.assertIn("const QSignalBlocker hold(quickAi_);",RADIO)
-        self.assertIn("AI input ended · inspect DAB MP3 / FFmpeg",RADIO)
+    def test_worker_ending_preserves_requested_ai_on_and_recovers(self):
+        self.assertNotIn('AI captions · OFF (input ended)',RADIO)
+        self.assertIn('if(!quickAi_ || !quickAi_->isChecked()) return;',RADIO)
+        self.assertIn('"AI captions ON · %1 · retrying local ASR only. %2"',RADIO)
+        self.assertIn('scheduleCaptionRecovery();',RADIO)
+        self.assertIn('checkCaptionRecovery();',RADIO)
+        self.assertIn('"AI captions ON · reconnecting Whisper to existing DAB audio "',RADIO)
+        self.assertIn('captionRecoveryNextMs_',RADIO)
+        self.assertIn('captionRecoveryFailures_',RADIO)
+        self.assertIn('captionProcess_.state()!=QProcess::NotRunning',RADIO)
 
     def test_found_sync_cannot_move_without_real_whisper_audio_evidence(self):
         preview=section("void showFoundKaraokePreview(qint64 now)", "void showKaraokeLine(")
