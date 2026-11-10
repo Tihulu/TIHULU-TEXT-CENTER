@@ -39,6 +39,10 @@ class LocalFullFileAndFullscreenTests(unittest.TestCase):
         self.assertIn('if(pausedForAi_) player_->stop();',PANEL)
         self.assertIn('player_->play(QUrl::fromLocalFile(path_));',PANEL)
         self.assertIn('player_->setSubtitle(QUrl::fromLocalFile(srtPath_));',PANEL)
+        self.assertIn('beforeOpenMode_=beforeOpen;',PANEL)
+        self.assertIn('cancelledByUser_=true;',PANEL)
+        self.assertIn('if(cancelledByUser_)',PANEL)
+        self.assertIn('!beforeOpenMode_',PANEL)
 
     def test_video_settings_follow_applied_tv_not_dvb_playback_cache(self):
         self.assertIn('KaffeineTVFileCaptionDefaults',TV)
