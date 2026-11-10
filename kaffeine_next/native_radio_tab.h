@@ -4950,6 +4950,21 @@ private:
             return;
         if(lastVerifiedLyricMs_>0 && now-lastVerifiedLyricMs_<10000)
             return; // Genuine audio-verified Karaoke always takes priority.
+        // If a verified line is still displayed after ASR went quiet,
+        // do not overwrite the last genuinely heard word with an
+        // autonomous DLS/LRC or plain-text sweep.
+        if(captionProcess_.state()!=QProcess::NotRunning &&
+           lastVerifiedLyricIndex_>=0 &&
+           karaokePanel_ && karaokePanel_->isVisible() &&
+           !karaokeWordAnchors_.isEmpty() &&
+           lastUnmatchedVoiceUntilMs_<=now) {
+            if(karaokeSource_ && !karaokeSource_->text().contains(
+                   QLatin1String("WAITING FOR NEXT VERIFIED VOCAL")))
+                karaokeSource_->setText(karaokeSource_->text()+
+                    tr("\nWAITING FOR NEXT VERIFIED VOCAL · last word held; "
+                       "not an instrumental detector"));
+            return;
+        }
         const bool timed=!plainLyricMode_ && !lyricCues_.isEmpty();
         const int count=timed?lyricCues_.size():lyricRawLines_.size();
         if(count<1) return;
@@ -5918,6 +5933,7 @@ private:
         lastLyricDirection_=0;
         lyricOffsetConsistency_=0;
         lastVerifiedLyricMs_=0;
+        lastVerifiedLyricIndex_=-1;
         lastVerifiedLyricText_.clear();
         lastVerifiedLyricTranslations_=QJsonObject();
         plainLyricMode_=false;
@@ -5928,6 +5944,7 @@ private:
         lastLyricsProvider_.clear();
         clearKaraokeLine();
         previewStartedMs_=0;
+        previewPauseStartedMs_=0;
         previewSpeedCompensationMs_=0;
         previewPreviousSpeedPercent_=karaokePreviewSpeed_?
             karaokePreviewSpeed_->value():100;
@@ -5988,6 +6005,7 @@ private:
         clearKaraokeLine();
         setRadioLyricMatchStatus(QString());
         lastVerifiedLyricMs_=0;
+        lastVerifiedLyricIndex_=-1;
         lastVerifiedLyricText_.clear();
         lastVerifiedLyricTranslations_=QJsonObject();
         lyricOffsetConsistency_=0;
@@ -6243,6 +6261,7 @@ private:
         lastLyricsProvider_.clear();
         clearKaraokeLine();
         previewStartedMs_=0;
+        previewPauseStartedMs_=0;
         previewSpeedCompensationMs_=0;
         previewPreviousSpeedPercent_=karaokePreviewSpeed_?
             karaokePreviewSpeed_->value():100;
@@ -6304,9 +6323,21 @@ private:
     void updateLyrics() {
         if(!lyricsEnabled_) return;
         const qint64 now=QDateTime::currentMSecsSinceEpoch();
-        if(lastKaraokeUntilMs_>0 && now>=lastKaraokeUntilMs_)
-            clearKaraokeLine();
-        else refreshKaraokeWordHighlight(now);
+        if(lastKaraokeUntilMs_>0 && now>=lastKaraokeUntilMs_) {
+            // Instrumental/quiet intervals cannot advance a confirmed
+            // Karaoke lyric without fresh ASR evidence. Hold the LAST
+            // heard word while Whisper is listening for the next match.
+            // This is not a claim of instrument/vocal classification.
+            const bool keepLastMatchedWord=karaokePanel_ &&
+                karaokePanel_->isVisible() &&
+                lastVerifiedLyricIndex_>=0 &&
+                captionProcess_.state()!=QProcess::NotRunning &&
+                lastUnmatchedVoiceUntilMs_<=now;
+            if(keepLastMatchedWord)
+                lastKaraokeUntilMs_=now+1500;
+            else
+                clearKaraokeLine();
+        } else refreshKaraokeWordHighlight(now);
         // Found-only preview is entirely separate from the verified cue
         // queue and never writes an invented lyric into Whisper captions.
         showFoundKaraokePreview(now);
@@ -6422,6 +6453,9 @@ private:
             lastLyricsProvider_=provider.isEmpty()?tr("local file"):provider;
             lyricRawLines_.clear();
             previewStartedMs_=now;
+            previewPauseStartedMs_=0;
+            previewSpeedCompensationMs_=0;
+            lastVerifiedLyricIndex_=-1;
             previewIndexShift_=0;
             previewLastIndex_=-1;
             const QJsonArray originalLines=value.value(
