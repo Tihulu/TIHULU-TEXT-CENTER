@@ -76,10 +76,11 @@ class RadioLowLatencyAndSpeechTests(unittest.TestCase):
             self.assertFalse(result["lyric_match_verified"])
             self.assertFalse(result["music_detected"])
             self.assertNotIn("[music]",result["original"])
-            # A loaded, owner-approved song catalog may relax VAD so ASR
-            # can hear sung vocals. Even then an unmatched broadcaster
-            # presenter sentence MUST stay in the original output.
-            self.assertEqual(seen_modes,[True])
+            # DLS text alone does not force the music-oriented Whisper
+            # VAD: actual presenter speech stays in ordinary ASR mode.
+            # The bounded router probes vocals periodically to pick up a
+            # song midstream without blocking presenter transcription.
+            self.assertEqual(seen_modes,[False])
 
     def test_auto_lyrics_require_actual_vocal_evidence(self):
         source=(ROOT/"kaffeine_next/native_radio_tab.h").read_text()
