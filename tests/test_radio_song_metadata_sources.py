@@ -119,7 +119,7 @@ class RadioSongMetadataSourceTests(unittest.TestCase):
             "lastAcceptedSongHint_=acceptedSong",
             "const TihuluDlsSong song=lastAcceptedSongHint_;",
             "pendingSongObservations_<2",
-            "now-lastObservedSongMs_>10000",
+            "now-lastObservedSongMs_>12000",
         ):
             with self.subTest(contract=contract):
                 self.assertIn(contract,HEADER)
