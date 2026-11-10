@@ -2049,7 +2049,8 @@ public:
         const auto updatePreviewControls=[this](){
             const QString policy=karaokePolicy_->currentData().toString();
             const bool active=policy==QLatin1String("found") ||
-                policy==QLatin1String("found-sync");
+                policy==QLatin1String("found-sync") ||
+                (policy==QLatin1String("estimated") && lyricCues_.isEmpty());
             previewPrevious_->setVisible(active);
             previewNext_->setVisible(active);
         };
@@ -2075,7 +2076,9 @@ public:
         connect(previewPrevious_,&QPushButton::clicked,this,[this](){
             const QString policy=karaokePolicy_->currentData().toString();
             if(policy!=QLatin1String("found") &&
-               policy!=QLatin1String("found-sync")) return;
+               policy!=QLatin1String("found-sync") &&
+               !(policy==QLatin1String("estimated") && lyricCues_.isEmpty()))
+               return;
             previewIndexShift_=qMax(-200,previewIndexShift_-1);
             previewLastIndex_=-1;
             updateLyrics();
@@ -5453,8 +5456,14 @@ private:
         const QString policy=karaokePolicy_?
             karaokePolicy_->currentData().toString():QString();
         const bool previewLipSync=policy==QLatin1String("found-sync");
+        // Estimated LRC cannot run without *real* timestamps. Show the
+        // existing verified-provider text as STATIC preview instead of a
+        // completely blank blue Karaoke screen. No invented word sweep.
+        const bool estimatedNoLrc=policy==QLatin1String("estimated") &&
+                                   lyricCues_.isEmpty();
         if(!lyricsEnabled_ || !lyricLoaded_ ||
-           (policy!=QLatin1String("found") && !previewLipSync) ||
+           (policy!=QLatin1String("found") && !previewLipSync &&
+            !estimatedNoLrc) ||
            !karaokeEnabled_ || !karaokeEnabled_->isChecked() ||
            !karaokePanel_ || !karaokeCurrent_ || !karaokeSource_ ||
            !karaokePrevious_ || !karaokeNext_ || !karaokeTranslation_)
@@ -5536,7 +5545,10 @@ private:
             "%5 · No guessed word sweep, no fake instrumental position.")
             .arg(title.left(100),provider.left(60))
             .arg(index+1).arg(count)
-            .arg(previewLipSync?
+            .arg(estimatedNoLrc?
+                tr("No timestamped LRC: preview only; choose Audio matched "
+                   "for Whisper word sync, or import LRC for timed flow"):
+                previewLipSync?
                 tr("Lip-sync waiting for AUDIO MATCH; 10s evidence history adjustable"):
                 tr("Manual lyrics viewer; no automatic progression")));
         karaokePanel_->setVisible(true);
