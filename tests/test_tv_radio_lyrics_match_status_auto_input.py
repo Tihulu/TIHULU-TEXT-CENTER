@@ -81,7 +81,7 @@ class AutoLyricsLiveMatchTests(unittest.TestCase):
         # song is playing. Only a *different song-looking* label should
         # trigger a new lookup, never just any changed DLS string.
         self.assertIn("inline TihuluDlsSong tihuluDlsSong",UI)
-        self.assertIn("const TihuluDlsSong newSong=tihuluDlsSong(dls)",UI)
+        self.assertIn("const TihuluDlsSong newSong=tihuluDlsSongFromService(service)",UI)
         self.assertIn("const QString candidate=newSong.normalizedKey();",UI)
         self.assertIn("candidate==lastSongMetadataKey_",UI)
         self.assertIn("QTimer::singleShot(5000,this,",UI)
