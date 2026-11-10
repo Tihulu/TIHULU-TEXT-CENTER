@@ -164,6 +164,20 @@ def align_observed_phrase(pcm,text,language,timeout=3):
     return _WORKER.align(pcm,text,language,timeout)
 
 
+def stop_alignment():
+    """Release the separate acoustic worker without blocking SDR shutdown.
+
+    Intentional non-blocking termination: a still-loading Qwen model must not
+    prevent the user from closing/stopping DAB or ordinary Whisper captions.
+    """
+    proc=_WORKER.proc
+    if proc is not None and proc.poll() is None:
+        try:
+            proc.terminate()
+        except (OSError,ProcessLookupError):
+            pass
+
+
 def _serve():
     # Import heavy packages only in the isolated, explicitly requested worker.
     import numpy as np
@@ -186,7 +200,9 @@ def _serve():
             if not 32000<=len(pcm)<=640000 or len(pcm)%2:
                 raise ValueError("Invalid radio audio")
             samples=np.frombuffer(pcm,dtype="<i2").astype("float32")/32768
-            result=model.align(audio=(samples,16000),text=request["text"],
+            # welle/FFmpeg is captured at 32 kHz; Qwen will resample.
+            # Never claim 16 kHz for 32 kHz bytes (would double time).
+            result=model.align(audio=(samples,32000),text=request["text"],
                                language=LANGUAGE_NAMES[language])
             words=[{"text":str(w.text),"start":float(w.start_time),
                     "end":float(w.end_time)} for w in result[0]][:150]
