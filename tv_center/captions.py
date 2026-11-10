@@ -718,15 +718,14 @@ def decode_segment(ts: bytes, *, mode="auto", page=150, source="de",
                     # or selected audio language; original IS the answer.
                     translations[language] = original
                     continue
-                phrase, failed = translate(original, used_language, language)
+                phrase, failed, real_engine = translate_with_engine(
+                    original, used_language, language)
                 if phrase:
                     translations[language] = phrase
+                    if real_engine:
+                        engines[language] = real_engine
                     if failed:
                         warnings[language] = failed
-                        engines[language] = "argos-fallback"
-                    else:
-                        engines[language] = os.environ.get(
-                            "TIHULU_TRANSLATOR_MODEL", "argos")
                 elif failed:
                     errors[language] = failed
             translation_ms = round((time.perf_counter()-translate_start)*1000)
