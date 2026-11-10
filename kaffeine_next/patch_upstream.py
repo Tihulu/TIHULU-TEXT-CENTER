@@ -284,6 +284,125 @@ QAbstractButton *StartTab::addShortcut''')
 		[this]() { activateTab(PlayerTabId); },this);
 
 \tcurrentTabIndex = StartTabId;''')
+    # Show truthful *stage completion*, not estimated USB/SDR timing.
+    # Radio and DVB-T2 have separate adapters, but share the libVLC player.
+    # Stop only app-owned radio workers before selecting the Television tab.
+    change(main, '#include "tihulu_unified_recorder.h"\n',
+           '#include "tihulu_unified_recorder.h"\n'
+           '#include <QProgressBar>\n#include <QStatusBar>\n'
+           '#include <QSignalBlocker>\n')
+    change(main, '''	new TihuluUnifiedRecorder(mediaWidget,dvbTab,controlBar,
+		[this]() { activateTab(PlayerTabId); },this);
+
+	currentTabIndex = StartTabId;''',
+    '''	new TihuluUnifiedRecorder(mediaWidget,dvbTab,controlBar,
+		[this]() { activateTab(PlayerTabId); },this);
+	// A real stage-based percentage stays visible on every native tab.
+	QProgressBar *tihuluReceiverSwitchProgress = new QProgressBar(this);
+	tihuluReceiverSwitchProgress->setObjectName(
+		QLatin1String("tihuluReceiverSwitchProgress"));
+	tihuluReceiverSwitchProgress->setRange(0,100);
+	tihuluReceiverSwitchProgress->setValue(0);
+	tihuluReceiverSwitchProgress->setFormat(
+		i18n("SDR / TV handoff · ready"));
+	tihuluReceiverSwitchProgress->setMinimumWidth(240);
+	tihuluReceiverSwitchProgress->setVisible(false);
+	statusBar()->addPermanentWidget(tihuluReceiverSwitchProgress,1);
+
+	currentTabIndex = StartTabId;''')
+    change(main, '''void MainWindow::activateTab(int tabIndex)
+{
+	currentTabIndex = tabIndex;
+	tabBar->setCurrentIndex(tabIndex);''',
+    '''void MainWindow::activateTab(int tabIndex)
+{
+	if (tabIndex < 0 || tabIndex >= tabs.size()) return;
+	// Programmatic switches also trigger QTabBar::currentChanged.
+	// Prevent nested handoffs and accidental double SDR shutdown.
+	if (property("tihuluTabSwitchBusy").toBool()) return;
+	setProperty("tihuluTabSwitchBusy",true);
+	QProgressBar *progress = findChild<QProgressBar *>(
+		QLatin1String("tihuluReceiverSwitchProgress"));
+	const bool toTelevision = tabIndex == DvbTabId &&
+		currentTabIndex != DvbTabId;
+	const bool toRadio = tabIndex == RadioTabId &&
+		currentTabIndex != RadioTabId;
+	if (toTelevision) {
+		const auto *radio = static_cast<TihuluRadioTab *>(tabs.at(RadioTabId));
+		const bool radioOwned = radio->hardwareDabOwned() ||
+			radio->hardwareAnalogOwned();
+		if (progress) {
+			progress->show();
+			progress->setValue(10);
+			progress->setFormat(
+				i18n("10%% · TV selected; inspecting owned radio receiver"));
+			progress->repaint();
+		}
+		if (radioOwned) {
+			if (progress) {
+				progress->setValue(35);
+				progress->setFormat(
+					i18n("35%% · invalidating radio and releasing SDR"));
+				progress->repaint();
+			}
+			if (!static_cast<TihuluRadioTab *>(
+				tabs.at(RadioTabId))->releaseForTelevision()) {
+				if (progress) {
+					progress->setValue(0);
+					progress->setFormat(
+						i18n("0%% · SDR release failed; TV switch cancelled"));
+				}
+				QSignalBlocker keepCurrent(tabBar);
+				tabBar->setCurrentIndex(currentTabIndex);
+				setProperty("tihuluTabSwitchBusy",false);
+				return;
+			}
+		}
+		if (progress) {
+			progress->setValue(85);
+			progress->setFormat(i18n(
+				"85%% · radio released/idle; activating native DVB page"));
+			progress->repaint();
+		}
+	}
+	if (toRadio && progress) {
+		progress->show();
+		progress->setValue(70);
+		progress->setFormat(i18n(
+			"70%% · opening Radio without claiming SDR yet"));
+		progress->repaint();
+	}
+	currentTabIndex = tabIndex;
+	// The side bar may already have selected the target. For direct
+	// Start/Home keyboard buttons, set it without recursive currentChanged.
+	{
+		QSignalBlocker noRecursiveTabChange(tabBar);
+		tabBar->setCurrentIndex(tabIndex);
+	}''')
+    change(main, '''	tabs.at(currentTabIndex)->activate();
+
+	emit displayModeChanged();
+}''',
+    '''	tabs.at(currentTabIndex)->activate();
+	if (progress && (toTelevision || toRadio)) {
+		progress->setValue(100);
+		progress->setFormat(toTelevision ?
+			i18n("100%% · TV tab ready; RF lock not yet measured") :
+			i18n("100%% · Radio tab ready; SDR on-demand"));
+	}
+	setProperty("tihuluTabSwitchBusy",false);
+	emit displayModeChanged();
+}''')
+    # The main Television shortcut must not tune a DVB frontend when the
+    # radio release failed and its tab transition was rejected.
+    change(main, '''	activateTab(DvbTabId);
+	dvbTab->playLastChannel();
+}''',
+    '''	activateTab(DvbTabId);
+	if (currentTabIndex != DvbTabId) return;
+	dvbTab->playLastChannel();
+}''')
+
     media="src/mediawidget.cpp"
     change(media, '''void MediaWidget::play(MediaSource *source_)
 {
