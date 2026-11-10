@@ -120,6 +120,26 @@ class TeletextVsLiveSpeech(unittest.TestCase):
         self.assertFalse(monitor.prefer_asr)
         self.assertEqual(monitor.status,"TELETEXT · SYNCED")
 
+    def test_persistent_one_clip_lag_uses_whisper_not_stale_teletext(self):
+        check=TeletextAudit(required_conflicts=3)
+        phrases=[
+            "Green satellites circle above tall silver buildings tonight",
+            "Three bicycles crossed the narrow bridge before sunrise today",
+            "Scientists studied six marine species across distant coral reefs",
+            "Gardeners collected ripe yellow peaches near the old railway",
+            "Researchers measured rainfall over the southern mountains again",
+        ]
+        self.assertEqual(check.observe(phrases[0],phrases[1],"en","en"),
+                         "conflicting")
+        self.assertEqual(check.observe(phrases[1],phrases[2],"en","en"),
+                         "delayed")
+        self.assertEqual(check.observe(phrases[2],phrases[3],"en","en"),
+                         "delayed")
+        self.assertEqual(check.observe(phrases[3],phrases[4],"en","en"),
+                         "switched")
+        self.assertTrue(check.prefer_asr)
+        self.assertIn("PTS",check.last_reason)
+
     def test_silent_empty_or_unconfirmed_language_is_not_false_mismatch(self):
         monitor=TeletextAudit(required_conflicts=1)
         self.assertEqual(monitor.observe(self.tt,"","eng","en"),"unknown")
