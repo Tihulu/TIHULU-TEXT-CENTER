@@ -82,7 +82,8 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
                       host_audio_cache_ms: int=0,
                       host_caption_offset_ms: int=0,
                       controls: str | None=None,
-                      radio_translations: bool=False):
+                      radio_translations: bool=False,
+                      lyric_match_threshold: float=0.74):
     if type(port) is not int or not 1024 <= port <= 65535:
         raise ValueError("Invalid loopback radio port")
     if not isinstance(sid,str) or not _SID.fullmatch(sid):
@@ -102,6 +103,10 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
         raise ValueError("Radio caption offset must be ±12000 ms")
     if type(radio_translations) is not bool:
         raise ValueError("Radio translator opt-in must be boolean")
+    if (not isinstance(lyric_match_threshold,(int,float)) or
+            isinstance(lyric_match_threshold,bool) or
+            not 0.65<=lyric_match_threshold<=0.96):
+        raise ValueError("Lyrics similarity threshold must be 65–96%")
     location=checked_runtime_output(output,prefix="tihulu-radio-captions-")
     controls_path=(checked_runtime_output(
         controls,prefix="tihulu-radio-controls-") if controls else None)
@@ -196,6 +201,13 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
                         requested_translation=payload.get("radio_translations")
                         if type(requested_translation) is bool:
                             radio_translations=requested_translation
+                        requested_threshold=payload.get("lyric_match_threshold")
+                        if (isinstance(requested_threshold,(float,int)) and
+                                not isinstance(requested_threshold,bool) and
+                                0.65<=requested_threshold<=0.96):
+                            lyric_match_threshold=float(requested_threshold)
+                            if plain_matcher is not None:
+                                plain_matcher.set_threshold(lyric_match_threshold)
                         controls_note="live_preferences_applied"
                 except (OSError,ValueError,TypeError,KeyError,
                         json.JSONDecodeError) as exc:
@@ -215,7 +227,8 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
                     lyric_marker=marker
                     payload=json.loads(lyric_path.read_text(encoding="utf-8"))
                     lines=payload.get("plain_lines",[])
-                    plain_matcher=(LiveLyricMatcher(lines)
+                    plain_matcher=(LiveLyricMatcher(
+                        lines,threshold=lyric_match_threshold)
                                    if payload.get("alignment_mode") in
                                    ("asr_lexical","timed_lrc")
                                    and isinstance(lines,list) and lines else None)
@@ -461,6 +474,8 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
                 "sentence_continuation":bool(sentence_state.get("continued",False)),
                 "sentence_hops_limit":sentence_hops,
                 "lyric_match":lyric_match,
+                "lyric_match_threshold":round(lyric_match_threshold,3),
+                "lyric_match_metric":"lexical_overlap_not_sync_accuracy",
                 "lyric_word_anchors":lyric_word_anchors,
                 "lyric_word_clock":"gpu_whisper_pcm_estimated_not_dac"
                     if lyric_word_anchors else "line_only_no_word_evidence",
@@ -632,6 +647,8 @@ def main(args=None):
                       help="Private XDG runtime JSON; live source/output settings")
     live.add_argument("--output",required=True)
     live.add_argument("--music",action="store_true")
+    live.add_argument("--lyric-match-threshold",type=float,default=0.74,
+                      help="65–96%% lyric/ASR lexical overlap minimum; not sync confidence")
     live.add_argument("--radio-translations",action="store_true",
                       help="Use an installed offline translator for this radio session; "
                            "never opt into DeepL or download models")
@@ -680,7 +697,8 @@ def main(args=None):
             sentence_hops=opts.sentence_hops,
             host_audio_cache_ms=opts.host_audio_cache_ms,
             host_caption_offset_ms=opts.host_caption_offset_ms,
-            radio_translations=opts.radio_translations)
+            radio_translations=opts.radio_translations,
+            lyric_match_threshold=opts.lyric_match_threshold)
         return 0
     except (OSError,ValueError,RuntimeError,subprocess.TimeoutExpired) as exc:
         print("Offline radio AI unavailable: "+str(exc)[:250],file=sys.stderr)
