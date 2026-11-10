@@ -97,6 +97,11 @@ private:
 		static_cast<QVBoxLayout *>(layout())->insertWidget(0, mediaWidget, 1);
 		mediaWidget->setFocus();
 	}
+	void toggleDisplayMode(MediaWidget::DisplayMode mode) override {
+        // Local-video fullscreen must also hide the Playback AI panel;
+        // Kaffeine's base PlayerTab has an empty toggleDisplayMode().
+        aiPanel->setVisible(mode==MediaWidget::NormalMode);
+    }
 	void setLocalFile(const QUrl &url) { aiPanel->setLocalFile(url); }
     bool prepareLocalFileOpen(const QUrl &url) {
         return aiPanel->prepareLocalFileOpen(url);
