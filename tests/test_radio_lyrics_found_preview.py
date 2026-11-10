@@ -56,6 +56,37 @@ class LyricsFoundPreviewTests(unittest.TestCase):
         self.assertIn("previewNext_=new QPushButton",RADIO)
         self.assertIn("karaokePreviewSpeed_->setEnabled(false)",RADIO)
 
+    def test_unmatched_speech_never_overwrites_loaded_preview(self):
+        status=RADIO.split(
+            "void setRadioLyricMatchStatus(const QString &message) {",1)[1].split(
+            "void showRadioCanvasCaption(",1)[0]
+        self.assertIn('const bool previewMode=policy==QLatin1String("found")',status)
+        self.assertIn('policy==QLatin1String("found-sync")',status)
+        self.assertIn("lyricsEnabled_ && lyricLoaded_",status)
+        self.assertIn("!lyricRawLines_.isEmpty() || !lyricCues_.isEmpty()",status)
+        self.assertIn("showFoundKaraokePreview(QDateTime::currentMSecsSinceEpoch());",status)
+        self.assertLess(status.index("showFoundKaraokePreview("),
+                        status.index("Lyrics retrieved · listening for actual sung words"))
+        polling=RADIO.split("void pollCaption() {",1)[1].split(
+            "void stopCaptioning()",1)[0]
+        self.assertIn("clearKaraokeLine();",polling)
+        self.assertIn("showFoundKaraokePreview(now);",polling)
+        self.assertLess(polling.index("clearKaraokeLine();"),
+                        polling.index("showFoundKaraokePreview(now);"))
+
+    def test_lookup_result_and_refresh_render_lyrics_immediately(self):
+        loader=RADIO.split("void updateLyrics() {",1)[1].split(
+            "MediaWidget *player_",1)[0]
+        self.assertIn("showFoundKaraokePreview(now);",loader)
+        refresher=RADIO.split("void pollLyricsRefreshResult() {",1)[1].split(
+            "void fetchLyrics(bool automatic=false) {",1)[0]
+        self.assertIn("showFoundKaraokePreview(now);",refresher)
+        preview=RADIO.split("void showFoundKaraokePreview(qint64 now) {",1)[1].split(
+            "void showKaraokeLine(",1)[0]
+        self.assertIn("!lyricCues_.isEmpty() &&",preview)
+        self.assertIn("lyricRawLines_.isEmpty()",preview)
+        self.assertIn("karaokeCurrent_->setText(line)",preview)
+
     def test_song_change_resets_verified_evidence(self):
         self.assertIn("recentKaraokeEvidence_.clear();",RADIO)
         self.assertIn("lastVerifiedLyricIndex_=-1;",RADIO)
