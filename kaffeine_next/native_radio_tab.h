@@ -2559,6 +2559,34 @@ public:
                  (analogBand_->currentData().toString()==QLatin1String("fm")?1000000.:1000.)))
             .arg(analogServer_.isListening()?tr("ready"):tr("not listening"));
     }
+    // Shared libVLC and receiver ownership must be settled before native
+    // Television takes over playback. Merely changing Qt tabs leaves
+    // welle-cli / RTL-SDR and delayed station callbacks alive.
+    // This never touches the DVB-T2 frontend or another application's SDR.
+    bool releaseForTelevision() {
+        if(tvHandoffInProgress_) return false;
+        tvHandoffInProgress_=true;
+        const bool hadOwnedSdr=hardwareDabOwned() || hardwareAnalogOwned();
+        const bool hadAudio=!playingKey_.isEmpty() || webPlaying_;
+        const bool hadWork=scanning_ || captionProcess_.state()!=QProcess::NotRunning;
+        if(hadOwnedSdr || hadAudio || hadWork) {
+            // Invalidate old welle HTTP replies and station timers before
+            // any new DVB request can take the shared MediaWidget.
+            ++stationRequestId_;
+            ++scanRequestId_;
+            stopReceiver();
+        }
+        const bool released=!hardwareDabOwned() && !hardwareAnalogOwned();
+        if(!released && state_)
+            state_->setText(tr(
+                "TV handoff blocked: TIHULU radio SDR not released. "
+                "Use Release SDR now; no DVB tuner was claimed by this method."));
+        else if(state_) state_->setText(tr(
+            "TV handoff: radio processes and shared audio stopped; "
+            "SDR released by TIHULU. DVB-T2 remains independently managed."));
+        tvHandoffInProgress_=false;
+        return released;
+    }
     void hardwareStartDab() { startReceiver(); }
     void hardwareStopDab() { stopReceiver(); }
     void hardwareStartAnalog() { startAnalog(); }
@@ -6436,6 +6464,7 @@ private:
         lastCaptionVisibleMs_=0,lastCanvasLyricMs_=0,lastCaptionUpdateMs_=0,
         lastUnmatchedVoiceUntilMs_=0,lastMatchedLyricUntilMs_=0,
         captionReadingHoldUntilMs_=0,captionDisplayedStartedMs_=0;
+    bool tvHandoffInProgress_=false;
     bool lastLyricsAutoLookup_=false;
     QString pendingSongKey_,pendingSongDls_,lyricsRequestKey_;
     qint64 pendingSongSinceMs_=0,lyricsLookupCooldownUntilMs_=0;
