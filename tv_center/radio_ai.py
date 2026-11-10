@@ -28,8 +28,7 @@ from .sentence_joiner import LiveSentenceJoiner
 from .radio_language import RadioLanguageLock
 from .media_ai import _chunk_cues, _choose_model, _near_silent_pcm, CHUNK_SAMPLES
 from .radio_capture import BoundedRadioCapture
-from .radio_karaoke_router import (MusicSpeechRouter, karaoke_alignment_choice,
-                                   QWEN_ALIGN_LANGUAGES)
+from .radio_karaoke_router import MusicSpeechRouter, karaoke_alignment_choice
 
 _SID = re.compile(r"(?:0x)?[A-Fa-f0-9]{1,8}\Z")
 
@@ -478,7 +477,7 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
             # Whisper's ordinary radio transcript retains its own language.
             alignment_language=(
                 lyric_source_language
-                if lyric_source_language in QWEN_ALIGN_LANGUAGES else
+                if lyric_source_language!="auto" else
                 used_language if not language_pending else None)
             alignment_option=karaoke_alignment_choice(
                 alignment_language,
