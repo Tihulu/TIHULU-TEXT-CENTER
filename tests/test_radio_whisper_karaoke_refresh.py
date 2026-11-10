@@ -42,6 +42,20 @@ class WhisperKaraokeRefreshTests(unittest.TestCase):
         self.assertIsNone(matcher.reacquire(""))
         self.assertEqual(matcher.position,position)
 
+    def test_repeated_chorus_does_not_guess_a_distant_verse(self):
+        refrain="Crystal harmonies awaken beyond the distant skyline"
+        lyrics=["Gentle water rises over bright forests"] + [
+            "Quiet sunset drifts behind the glowing hills"]*11 + [refrain] + [
+            "Brave cloud patterns meet the open ocean"]*10 + [refrain]
+        matcher=LiveLyricMatcher(lyrics)
+        self.assertIsNone(matcher.reacquire(refrain))
+        # Once actual earlier verse establishes proximity, only one
+        # chorus occurrence is plausible, not a fabricated song-wide seek.
+        matcher.position=12
+        found=matcher.reacquire(refrain)
+        self.assertIsNotNone(found)
+        self.assertEqual(found["index"],12)
+
     def test_refresh_does_not_accept_generic_short_refrain_far_ahead(self):
         lines=["Morning chorus runs softly past the meadow"]*10 + [
             "Gül kokar gül"]
