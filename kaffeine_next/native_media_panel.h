@@ -169,6 +169,7 @@ public:
 			});
 		connect(cancel_,&QPushButton::clicked,this,[this](){
 			if(process_.state()!=QProcess::NotRunning) {
+                cancelledByUser_=true;
 				process_.kill();
 				message_->setText(tr("Transcription cancelled; source media untouched."));
 			}
@@ -180,8 +181,21 @@ public:
                 workProgress_->setVisible(false);
                 if(cancelledForFileChange_) {
                     cancelledForFileChange_=false;
+                    cancelledByUser_=false;
                     pausedForAi_=false;
+                    beforeOpenMode_=false;
                     return; // Never reopen a previous selected file.
+                }
+                if(cancelledByUser_) {
+                    cancelledByUser_=false;
+                    const bool manualPause=pausedForAi_ && !beforeOpenMode_;
+                    pausedForAi_=false;
+                    beforeOpenMode_=false;
+                    if(manualPause && !path_.isEmpty())
+                        player_->play(QUrl::fromLocalFile(path_));
+                    message_->setText(tr("Whole-file transcription cancelled. "
+                        "Automatic file opening cancelled; source untouched."));
+                    return;
                 }
 				if(exitCode==0 && exitStatus==QProcess::NormalExit &&
 				   !path_.isEmpty() && QFile::exists(srtPath_)) {
@@ -189,6 +203,7 @@ public:
 						pausedForAi_=false;
 						player_->play(QUrl::fromLocalFile(path_));
 					}
+                    beforeOpenMode_=false;
 					player_->setSubtitle(QUrl::fromLocalFile(srtPath_));
                     // libVLC can still be opening the just-started file.
                     // Retry attaching once, but never to a newly opened
@@ -203,10 +218,10 @@ public:
 					message_->setText(tr("Attached generated subtitles to current "
 						"file playback · %1").arg(srtPath_));
 				} else {
-					if (pausedForAi_ && !path_.isEmpty()) {
-						pausedForAi_=false;
+					if (pausedForAi_ && !path_.isEmpty() && !beforeOpenMode_)
 						player_->play(QUrl::fromLocalFile(path_));
-					}
+                    pausedForAi_=false;
+                    beforeOpenMode_=false;
 					const QString err=QString::fromUtf8(process_.readAllStandardError());
 					message_->setText(tr("Offline captions unavailable: %1")
 						.arg(err.left(220)));
@@ -384,6 +399,8 @@ private:
         QSettings mediaSettings(QLatin1String("TIHULU"),QLatin1String("MediaPlayer"));
         mediaSettings.setValue(QLatin1String("fileCacheMs"),caching_->value());
         mediaSettings.sync();
+        beforeOpenMode_=beforeOpen;
+        cancelledByUser_=false;
         pausedForAi_=beforeOpen || wait_->isChecked();
         if(pausedForAi_) player_->stop();
         process_.start(QLatin1String("tihulu-tv-center"),args);
@@ -391,6 +408,7 @@ private:
             if(pausedForAi_ && !beforeOpen)
                 player_->play(QUrl::fromLocalFile(path_));
             pausedForAi_=false;
+            beforeOpenMode_=false;
             message_->setText(tr("Could not launch the offline AI worker."));
             return false;
         }
@@ -418,6 +436,8 @@ private:
 	QCheckBox *wait_=nullptr;
 	bool pausedForAi_=false;
     bool cancelledForFileChange_=false;
+    bool cancelledByUser_=false;
+    bool beforeOpenMode_=false;
     bool isAudio_=false;
 	QString path_,srtPath_,exportPath_;
 };
