@@ -342,10 +342,12 @@ private:
         if(de_->isChecked()) targets<<QLatin1String("de");
         if(en_->isChecked()) targets<<QLatin1String("en");
         if(tr_->isChecked()) targets<<QLatin1String("tr");
-        const QRegularExpression validTarget(QLatin1String("^[a-z]{2,3}$"));
+        // Preserve script-specific TV outputs such as zho_Hant.
+        const QRegularExpression validTarget(
+            QLatin1String("^[a-z]{2,3}(?:_[A-Za-z]{4})?$"));
         for(const QString &item:extraTargets_->text().split(
             QLatin1Char(','),Qt::SkipEmptyParts)) {
-            const QString code=item.trimmed().toLower();
+            const QString code=item.trimmed();
             if(validTarget.match(code).hasMatch() && !targets.contains(code))
                 targets<<code;
         }
