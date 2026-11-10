@@ -149,7 +149,8 @@ def parse_service_song(service: dict) -> SongHint | None:
         if song is not None:
             return song
 
-    for obj in (dls, service, service.get("dlplus"), service.get("rtplus")):
+    for obj in (dls, service, dls.get("dlplus"), dls.get("dl_plus"),
+                service.get("dlplus"), service.get("rtplus")):
         if not isinstance(obj, dict) or not isinstance(obj.get("tags"), list):
             continue
         artist = title = ""
@@ -169,7 +170,7 @@ def parse_service_song(service: dict) -> SongHint | None:
     for value in (
         dls.get("label"), dls.get("text"),
         service.get("radiotext"), service.get("radio_text"),
-        service.get("now_playing"),
+        service.get("radioText"), service.get("dls"), service.get("now_playing"),
     ):
         song = parse_dls_song(_text(value), station=station)
         if song is not None:
