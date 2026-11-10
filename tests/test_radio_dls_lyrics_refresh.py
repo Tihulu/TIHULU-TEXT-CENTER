@@ -91,7 +91,8 @@ class DlsAndRefreshTests(unittest.TestCase):
                 "The sun is shining now inside my home",
                 "Summer dreams are everywhere around the world"]
         with self.assertRaises(ValueError):
-            LiveLyricMatcher(lyrics, threshold=0.55)
+            LiveLyricMatcher(lyrics, threshold=-0.01)
+        self.assertAlmostEqual(LiveLyricMatcher(lyrics, threshold=0.55).threshold,0.55)
         matcher=LiveLyricMatcher(lyrics,threshold=0.74)
         first=matcher.observe("The sun is shining now inside my home")
         self.assertIsNotNone(first)
@@ -109,7 +110,7 @@ class DlsAndRefreshTests(unittest.TestCase):
             "mainCaptionOffsetSlider_=new QSlider(Qt::Horizontal,page)",
             "mainLyricOffsetSlider_=new QSlider(Qt::Horizontal,page)",
             "lyricMatchThreshold_=new QSpinBox(page)",
-            "lyricMatchThreshold_->setRange(65,96)",
+            "lyricMatchThreshold_->setRange(0,100)",
             "lyricMatchThresholdPercent",
             'QLatin1String("--lyric-match-threshold")',
             "setBufferDisplayMs(value*500)",
