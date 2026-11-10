@@ -1598,6 +1598,7 @@ public:
         karaokePreviewSpeed_->setValue(qBound(50,
             karaokeSpeedPreferences.value(
                 QLatin1String("karaokePreviewSpeedPercent"),100).toInt(),200));
+        previewPreviousSpeedPercent_=karaokePreviewSpeed_->value();
         karaokePreviewSpeed_->setToolTip(tr(
             "Independent Karaoke speed (0.50x–2.00x) only for UNVERIFIED "
             "Lyrics Found previews. Actual matched Whisper words and "
@@ -1605,11 +1606,28 @@ public:
             "TV-style/Comfort Reading only controls lower transcribed captions."));
         connect(karaokePreviewSpeed_,QOverload<int>::of(&QSpinBox::valueChanged),
             this,[this](int percent){
+                // A speed change must not multiply elapsed time since the
+                // beginning of the song and skip whole Karaoke verses.
+                // Preserve the current estimated playhead before applying
+                // the new preview speed. No DAC alignment is claimed.
+                const qint64 now=QDateTime::currentMSecsSinceEpoch();
+                if(previewStartedMs_>0) {
+                    const bool timed=!plainLyricMode_ && !lyricCues_.isEmpty();
+                    const qint64 anchor=timed?
+                        (autoLyricSync_->isChecked() && songStartMs_>0?
+                            songStartMs_:manualSongStartMs_>0?
+                            manualSongStartMs_:previewStartedMs_):
+                        previewStartedMs_;
+                    previewSpeedCompensationMs_+=qRound64(
+                        (now-anchor)*(previewPreviousSpeedPercent_-percent)/100.);
+                }
+                previewPreviousSpeedPercent_=percent;
                 QSettings prefs(QLatin1String("TIHULU"),
                                 QLatin1String("KaffeineRadio"));
                 prefs.setValue(QLatin1String("karaokePreviewSpeedPercent"),
                                percent);
                 previewLastIndex_=-1;
+                previewLastHighlightedWord_=-2;
                 updateLyrics(); // refresh Karaoke independently of Reading
             });
         mainLyricOffsetRow->addWidget(new QLabel(tr("Karaoke offset:"),page));
@@ -4742,8 +4760,8 @@ private:
             // Separate Karaoke timeline. Positive lyric offset means
             // lyrics LATER; caption Reading mode and manual caption offset
             // must never change this clock.
-            const double elapsed=((now-anchor)*speed/100.-
-                lyricsOffset_->value())/1000.;
+            const double elapsed=((now-anchor)*speed/100.+
+                previewSpeedCompensationMs_-lyricsOffset_->value())/1000.;
             previewSeconds=elapsed;
             // LRC times describe track-relative positions, while the DLS
             // clock is an APPROXIMATION. Never infer sample-accurate audio.
@@ -4757,8 +4775,8 @@ private:
             // six-second-per-line display is explicitly labeled unverified.
             const int speed=karaokePreviewSpeed_?
                 karaokePreviewSpeed_->value():100;
-            previewSeconds=((now-previewStartedMs_)*speed/100.-
-                lyricsOffset_->value())/1000.;
+            previewSeconds=((now-previewStartedMs_)*speed/100.+
+                previewSpeedCompensationMs_-lyricsOffset_->value())/1000.;
             estimate=qMax(0,int(previewSeconds*1000./6000.));
         }
         const int index=qBound(0,estimate+previewIndexShift_,count-1);
@@ -5644,6 +5662,9 @@ private:
         lastLyricsProvider_.clear();
         clearKaraokeLine();
         previewStartedMs_=0;
+        previewSpeedCompensationMs_=0;
+        previewPreviousSpeedPercent_=karaokePreviewSpeed_?
+            karaokePreviewSpeed_->value():100;
         previewIndexShift_=0;
         previewLastIndex_=-1;
         setRadioLyricMatchStatus(QString());
@@ -5779,6 +5800,9 @@ private:
         lastLyricsProvider_.clear();
         clearKaraokeLine();
         previewStartedMs_=0;
+        previewSpeedCompensationMs_=0;
+        previewPreviousSpeedPercent_=karaokePreviewSpeed_?
+            karaokePreviewSpeed_->value():100;
         previewIndexShift_=0;
         previewLastIndex_=-1;
         lastVerifiedLyricMs_=0;
@@ -6105,7 +6129,8 @@ private:
         *soundLabels_=nullptr;
     QComboBox *karaokePolicy_=nullptr;
     QPushButton *previewPrevious_=nullptr,*previewNext_=nullptr;
-    qint64 previewStartedMs_=0;
+    qint64 previewStartedMs_=0,previewSpeedCompensationMs_=0;
+    int previewPreviousSpeedPercent_=100;
     int previewIndexShift_=0,previewLastIndex_=-1,
         previewLastHighlightedWord_=-2;
 	QCheckBox *autoLyrics_=nullptr,*autoLyricSync_=nullptr,
