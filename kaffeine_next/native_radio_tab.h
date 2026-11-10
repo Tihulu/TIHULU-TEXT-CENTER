@@ -5800,7 +5800,9 @@ private:
             // A lyrics lookup proves metadata only. If real speech is
             // heard but fails the line matcher, prioritize Whisper and
             // explain the fallback (especially for adverts/presenters).
-            if(lyricsEnabled_ && lyricLoaded_ && revision>=1 &&
+            if(lyricsEnabled_ && lyricLoaded_ &&
+               (!lyricRawLines_.isEmpty() || !lyricCues_.isEmpty()) &&
+               revision>=1 &&
                !obj.value(QLatin1String("original")).toString().trimmed().isEmpty() &&
                (matched.value(QLatin1String("kind")).toString()!=
                 QLatin1String("observed_ASR_chunk_match") ||
@@ -5971,7 +5973,11 @@ private:
         plainLyricQueue_.clear();
         if(!lyricPath_.isEmpty()) QFile::remove(lyricPath_);
         lyricsEnabled_=true;
-        lyricLoaded_=true;
+        // Whisper vocal listening is NOT a loaded lyric catalog. Marking
+        // this true made the native UI falsely say LYRICS FOUND while
+        // Full Lyrics had no text and no actual source provenance.
+        lyricLoaded_=false;
+        lyricRawLines_.clear();
         lyrics_->setEnabled(true);
         stopLyrics_->setEnabled(true);
         lyricProvider_->setText(tr("Local Whisper on actual DAB audio; no "
@@ -6040,7 +6046,9 @@ private:
         previewLastIndex_=-1;
         setRadioLyricMatchStatus(QString());
         const bool listening=lyricsAudioFallbackActive_;
-        lyricLoaded_=listening;
+        // A newly announced DLS song has metadata only. An ASR listener
+        // can remain enabled but must not masquerade as fetched lyrics.
+        lyricLoaded_=false;
         lyricsEnabled_=listening;
         if(lyricsProcess_.state()!=QProcess::NotRunning) {
             lyricsProcess_.kill();
