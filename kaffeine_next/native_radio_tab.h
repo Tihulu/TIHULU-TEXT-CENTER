@@ -417,6 +417,8 @@ public:
         dabLayout->addLayout(mainBufferRow);
         auto *mainOffsetRow=new QHBoxLayout();
         dabLayout->addLayout(mainOffsetRow);
+        auto *mainMatchRow=new QHBoxLayout();
+        dabLayout->addLayout(mainMatchRow);
         // Common controls must be reachable while listening, without
         // opening the advanced Whisper/AI menu. Radio has no video lips:
         // this is audio-to-subtitle timing, not a measured DAC clock.
@@ -1532,7 +1534,31 @@ public:
 		lyricsOffset_ = new QSlider(Qt::Horizontal, lab);
 		lyricsOffset_->setRange(-90000, 90000);
 		lyricsOffset_->setValue(0);
-		lyricsOffset_->setToolTip(tr("Manual lyric sync offset, milliseconds (-90s to +90s)."));
+        lyricsOffset_->setToolTip(tr("Manual lyric sync offset, milliseconds (-90s to +90s)."));
+        QSettings matchPrefs(QLatin1String("TIHULU"),
+                             QLatin1String("KaffeineRadio"));
+        lyricMatchThreshold_=new QSpinBox(page);
+        lyricMatchThreshold_->setRange(65,96);
+        lyricMatchThreshold_->setSuffix(tr(" %"));
+        lyricMatchThreshold_->setValue(qBound(65,matchPrefs.value(
+            QLatin1String("lyricMatchThresholdPercent"),74).toInt(),96));
+        lyricMatchThreshold_->setToolTip(tr(
+            "Minimum lexical overlap of heard Whisper tokens and known "
+            "lyric words (65–96%). NOT calibrated accuracy or sync. "
+            "Short repeated lyrics and broad acquisition have stricter "
+            "guardrails; lowering this may cause false matches."));
+        mainMatchRow->addWidget(new QLabel(tr("Lyrics MATCH ≥"),page));
+        mainMatchRow->addWidget(lyricMatchThreshold_);
+        mainMatchRow->addWidget(new QLabel(tr(
+            "Whisper text similarity · not timing accuracy"),page));
+        mainMatchRow->addStretch(1);
+        connect(lyricMatchThreshold_,QOverload<int>::of(&QSpinBox::valueChanged),
+            this,[this](int percent){
+                QSettings prefs(QLatin1String("TIHULU"),
+                                QLatin1String("KaffeineRadio"));
+                prefs.setValue(QLatin1String("lyricMatchThresholdPercent"),percent);
+                writeRadioLanguageControls();
+            });
 		autoLyrics_=new QCheckBox(tr("Auto search lyrics on new DLS song"),lab);
 		autoLyrics_->setChecked(false);
 		autoLyrics_->setToolTip(tr("OFF by default. When enabled, the current radio DLS "
@@ -2474,7 +2500,9 @@ private:
             {QStringLiteral("source"),source},
             {QStringLiteral("targets"),targets},
             {QStringLiteral("radio_translations"),
-             quickTranslate_ && quickTranslate_->isChecked()}});
+             quickTranslate_ && quickTranslate_->isChecked()},
+            {QStringLiteral("lyric_match_threshold"),
+             lyricMatchThreshold_?lyricMatchThreshold_->value()/100.:0.74}});
         QSaveFile file(captionControlsPath_);
         if(!file.open(QIODevice::WriteOnly)) {
             if(translationStatus_) translationStatus_->setText(tr(
@@ -4261,7 +4289,10 @@ private:
 		options<<QLatin1String("--targets")<<targets.join(QLatin1Char(','));
 		const int sentenceHops=activePlaybackCacheMs_<8000?2:
 			activePlaybackCacheMs_<14000?3:activePlaybackCacheMs_<18500?4:5;
-		options<<QLatin1String("--sentence-hops")<<QString::number(sentenceHops);
+        options<<QLatin1String("--sentence-hops")<<QString::number(sentenceHops);
+        options<<QLatin1String("--lyric-match-threshold")
+               <<QString::number(lyricMatchThreshold_?
+                                  lyricMatchThreshold_->value()/100.:0.74,'f',2);
         // Transfer the CURRENT desktop radio timing settings to the
         // separately paired phone. This is a requested native audio cache,
         // not a measured DAC clock. The mobile browser must NOT blindly
@@ -4783,10 +4814,13 @@ private:
                 QLatin1String("lyric_word_anchors")).toArray();
 			if(matched.value(QLatin1String("kind")).toString()==
 				QLatin1String("observed_ASR_chunk_match") &&
-				matched.value(QLatin1String("confidence")).toDouble()>=0.74) {
+				matched.value(QLatin1String("confidence")).toDouble()>=
+                (lyricMatchThreshold_?lyricMatchThreshold_->value()/100.:0.74)) {
 				const QString line=matched.value(QLatin1String("text")).toString();
 				const double confidence=matched.value(QLatin1String("confidence")).toDouble();
-				if(!line.isEmpty() && line.size()<=240) {
+				if(!line.isEmpty() && line.size()<=240 &&
+                   !(line==lastVerifiedLyricText_ &&
+                     lastVerifiedLyricMs_>0 && now-lastVerifiedLyricMs_<7000)) {
                     QString rendered=line;
                     for(auto it=lyricTranslations.begin();it!=lyricTranslations.end();++it)
                         if(it.value().isString() && !it.value().toString().isEmpty())
@@ -4803,7 +4837,7 @@ private:
                     // forms share the same evidence requirement, but no
                     // unreliable DLS timestamp is used as proof of match.
                     setRadioLyricMatchStatus(tr(
-                        "LYRICS MATCHED %1% · real audio · line %2 · queued")
+                        "LYRICS TEXT MATCH %1% · heard audio · line %2 · queued")
                         .arg(qRound(confidence*100))
                         .arg(matched.value(QLatin1String("index")).toInt()+1));
 					// Start at the first actually heard GPU word (never metadata).
@@ -4889,7 +4923,8 @@ private:
                !obj.value(QLatin1String("original")).toString().trimmed().isEmpty() &&
                (matched.value(QLatin1String("kind")).toString()!=
                 QLatin1String("observed_ASR_chunk_match") ||
-                matched.value(QLatin1String("confidence")).toDouble()<0.74)) {
+                matched.value(QLatin1String("confidence")).toDouble()<
+                (lyricMatchThreshold_?lyricMatchThreshold_->value()/100.:0.74))) {
                 lastMatchedLyricUntilMs_=0;
                 verifiedLyricQueue_.clear();
                 plainLyricQueue_.clear();
@@ -5391,7 +5426,8 @@ private:
 		*preferLyrics_=nullptr,*listenFallbackOnMiss_=nullptr;
     bool lyricsAudioFallbackActive_=false,lyricsFallbackStartedAi_=false,
         plainLyricsStartedAi_=false,captionsStopping_=false;
-	QSpinBox *bufferMs_=nullptr,*radioOffsetMs_=nullptr;
+	QSpinBox *bufferMs_=nullptr,*radioOffsetMs_=nullptr,
+        *lyricMatchThreshold_=nullptr;
     QComboBox *bufferUnit_=nullptr;
     bool bufferUnitsSeconds_=false;
     QHBoxLayout *radioQuickRow_=nullptr,*radioPlaybackRow_=nullptr;
