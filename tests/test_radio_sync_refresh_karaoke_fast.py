@@ -18,7 +18,7 @@ class KaraokeAndFastRefreshTests(unittest.TestCase):
         self.assertIn("refreshRadioLipSync();",click)
         method=section("void refreshRadioLipSync() {",
                        "void refreshKaraokeWordHighlight(")
-        for marker in ("lagSamples_.clear();", "lyricOffsetConsistency_=0;",
+        for marker in ("lyricOffsetConsistency_=0;",
                        "lastLyricSyncUpdateMs_=0;", "lastLyricDirection_=0;",
                        "lastHighlightedKaraokeWord_=-2;",
                        "refreshKaraokeWordHighlight(now);",
@@ -28,10 +28,28 @@ class KaraokeAndFastRefreshTests(unittest.TestCase):
                        "activePlaybackCacheMs_"):
             with self.subTest(marker=marker):
                 self.assertIn(marker,method)
-        for forbidden in ("stopReceiver(", "startReceiver(", "player_->stop(",
+        for forbidden in ("lagSamples_.clear();", "cueQueue_", "retimedWhisperCues",
+                          "stopReceiver(", "startReceiver(", "player_->stop(",
                           "player_->play(", "stopCaptioning(", "startCaptioning(",
                           "fetchLyrics(", "clearKaraokeLine(", "cueQueue_.clear(",
                           "karaokeWordAnchors_.clear(", "previewStartedMs_=0;"):
+            self.assertNotIn(forbidden,method)
+
+    def test_ai_lipsync_refresh_only_reschedules_unshown_speech(self):
+        click=section("connect(aiSyncRefresh_,&QPushButton::clicked",
+                      "connect(radioSyncRefresh_,&QPushButton::clicked")
+        self.assertIn("refreshRadioCaptionLipSync();",click)
+        method=section("void refreshRadioCaptionLipSync() {",
+                       "void refreshRadioLipSync() {")
+        for marker in ("lagSamples_.clear();","cueQueue_",
+                       "unoffsetDueMs", "requestedCacheAtQueueMs",
+                       "displayedRadioChunk_", "displayDueRadioCues(now)",
+                       "radioOffsetMs_->value()"):
+            self.assertIn(marker,method)
+        for forbidden in ("plainLyricQueue_", "verifiedLyricQueue_",
+                          "karaokeWordAnchors_", "karaokeSyncRefreshToken_",
+                          "refreshKaraokeWordHighlight(", "startCaptioning(",
+                          "stopCaptioning(", "player_->play("):
             self.assertNotIn(forbidden,method)
 
     def test_only_Whisper_epoch_times_recalculate_pending_cues(self):
