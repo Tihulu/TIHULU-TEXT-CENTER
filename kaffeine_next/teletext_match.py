@@ -86,6 +86,7 @@ class TeletextAudit:
     def reset(self):
         self.attempts=0
         self.conflicts=0
+        self.delayed_count=0
         self.prefer_asr=False
         self.complete=False
         self.clips=0
@@ -108,6 +109,7 @@ class TeletextAudit:
 
     def missing(self):
         self.prefer_asr=True
+        self.delayed_count=0
         self.recoveries=0
         self.last_verdict="missing"
         self.last_reason="No usable broadcaster subtitle text; Whisper active"
@@ -154,15 +156,32 @@ class TeletextAudit:
             return verdict
         if verdict=="matching":
             self.conflicts=0
+            self.delayed_count=0
             self.complete=True
             self.status="TELETEXT · SYNCED"
             self.last_reason="Current caption text corroborated by real speech"
         elif verdict=="delayed":
             self.conflicts=0
+            self.delayed_count+=1
             self.status="TELETEXT · DELAY CHECK"
-            self.last_reason=("Neighbouring captured phrases match; timing "
-                              "may lag. No verified libVLC output PTS.")
+            self.last_reason=(
+                f"Neighbouring real speech suggests ±1 capture lag "
+                f"({self.delayed_count}/{self.required_conflicts}); checking "
+                "timeline, actual DAC/video PTS not calibrated")
+            if self.delayed_count>=self.required_conflicts:
+                # Exact audio/video PTS calibration isn't available here.
+                # Never continue showing confirmed delayed programme text
+                # indefinitely or claim a fabricated subtitle correction.
+                self.prefer_asr=True
+                self.complete=True
+                self.recoveries=0
+                self.status="WHISPER · AUTO FALLBACK"
+                self.last_reason=(
+                    "Repeated Teletext delay with no reliable measured PTS "
+                    "correction; using heard Whisper until corroborated again")
+                return "switched"
         elif verdict=="conflicting":
+            self.delayed_count=0
             self.conflicts+=1
             self.status="TELETEXT · MISMATCH"
             self.last_reason=f"{self.conflicts}/{self.required_conflicts} independent mismatches"
