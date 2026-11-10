@@ -5826,42 +5826,38 @@ private:
 	void displayDueRadioCues(qint64 now) {
 		// Queue rather than overwrite: a new AI chunk must not erase the
 		// previous chunk before its estimated playback presentation time.
-		if(captionProgress_) {
-			if(cueQueue_.isEmpty()) {
-                if(captionProcess_.state()!=QProcess::NotRunning) {
-                    captionProgress_->setRange(0,0);
-                    captionProgress_->setFormat(tr(
-                        "Listening / transcribing · awaiting next confirmed phrase"));
-                } else {
-                    captionProgress_->setRange(0,100);
-				    captionProgress_->setValue(0);
-				    captionProgress_->setFormat(tr("AI captions are OFF"));
-                }
-			} else {
-                captionProgress_->setRange(0,100);
-				const auto &next=cueQueue_.first();
-				const qint64 total=qMax(qint64(1),next.dueMs-next.queuedMs);
-                const int percent=qBound(0,int((now-next.queuedMs)*100/total),100);
-                if(qAbs(percent-captionProgress_->value())>=5)
-                    captionProgress_->setValue(percent);
-                // Progress is an estimated playback due time, not ASR refresh.
-                // Update this readout only at whole-second granularity.
-                const qint64 seconds=(qMax(qint64(0),next.dueMs-now)+999)/1000;
-                const QString message=tr(
-                    "Estimated audio delay ~%1 s · Whisper queued · cache %2 ms")
-                    .arg(seconds).arg(activePlaybackCacheMs_);
-                if(captionProgress_->format()!=message)
-                    captionProgress_->setFormat(message);
-			}
-		}
+        if(captionProgress_) {
+            // These are independent 5-second live ASR chunks, not new
+            // audio-buffer fills. The one-time user-selected playback cache
+            // and caption offset are already baked into each capture-clock
+            // dueMs. A repeatedly resetting EST countdown suggested that
+            // every phrase rebuffered audio, and caused noisy UI repainting.
+            const bool workerRunning=captionProcess_.state()!=QProcess::NotRunning;
+            const bool waitingForAudio=cueQueue_.isEmpty();
+            const QString status=!workerRunning?
+                (quickAi_ && quickAi_->isChecked()?
+                    tr("AI captions ON · Whisper recovering (radio unchanged)"):
+                    tr("AI captions OFF")):
+                waitingForAudio?
+                    tr("AI captions ON · listening for next spoken phrase"):
+                    tr("AI captions ON · Whisper ready · fixed audio cache %1 ms")
+                      .arg(activePlaybackCacheMs_);
+            captionProgress_->setRange(0,100);
+            const int value=workerRunning?100:0;
+            if(captionProgress_->value()!=value)
+                captionProgress_->setValue(value);
+            if(captionProgress_->format()!=status)
+                captionProgress_->setFormat(status);
+        }
         while(!cueQueue_.isEmpty() && cueQueue_.first().dueMs<=now) {
             if(captionReadingHoldUntilMs_>now &&
                radioCanvasCaption_ && radioCanvasCaption_->isVisible() &&
-               // TV-style long reading holds must NOT block the next
-               // genuinely due speech phrase for 9–12 seconds. If the next
-               // phrase is >1.2s late or a backlog exists, show it now.
-               cueQueue_.size()==1 &&
-               now-cueQueue_.first().dueMs<1200) {
+               // Readability is a SOFT display preference, not a second
+               // subtitle buffer. Audio cache and manual caption offset
+               // were already applied to the capture timestamp. Allow only
+               // a short visual anti-flicker hold for ONE queued phrase.
+               cueQueue_.size()==1 && now-lastCaptionVisibleMs_<350 &&
+               now-cueQueue_.first().dueMs<350) {
                 // Keep queued phrases rather than flashing a new one
                 // before viewers can read the previous phrase.
                 if(captionProgress_) captionProgress_->setFormat(
