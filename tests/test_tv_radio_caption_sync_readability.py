@@ -63,10 +63,10 @@ class RadioCaptionComfortContracts(unittest.TestCase):
 
     def test_existing_lyrics_audio_priority_is_unchanged(self):
         bar=section("void showRadioCanvasCaption(","void displayDueRadioCues(")
-        self.assertIn('if(lyric && lastUnmatchedVoiceUntilMs_>currentMs) return;',bar)
-        self.assertIn('lastMatchedLyricUntilMs_',bar)
+        self.assertIn('if(lyric) return;',bar)
+        self.assertNotIn('currentMs<lastMatchedLyricUntilMs_',bar)
         self.assertIn('radioCaptionReadingHoldMs(text)',bar)
-        self.assertIn('lastCanvasLyricMs_=currentMs;',bar)
+        self.assertIn('radioCanvasCaption_->setText(text)',bar)
 
 
 if __name__=="__main__":
