@@ -341,6 +341,9 @@ def open_ai_settings(parent, ai, after_save=None):
             quality = QGroupBox("Translation engines · Argos / NLLB / MADLAD / DeepL")
             quality_layout = QVBoxLayout(quality)
             self.translation_choice = QComboBox()
+            self.translation_choice.addItem(
+                "Direct DE → TR · installed NLLB → MADLAD → Argos fallback (offline)",
+                "de_tr_direct")
             self.translation_choice.addItem("Argos Translate · compact offline language packs","argos")
             self.translation_choice.addItem(
                 "NLLB-200 600M · multilingual; enter ISO or NLLB codes", "nllb")
@@ -358,6 +361,11 @@ def open_ai_settings(parent, ai, after_save=None):
             quality_layout.addWidget(self.translation_choice)
             self.translation_selected_label = QLabel("")
             self.translation_selected_label.setWordWrap(True)
+            self.translation_choice.setToolTip(
+                "Direct DE→TR uses installed NLLB or MADLAD without English. "
+                "If neither succeeds, Argos may route through English; "
+                "the actual engine is reported in captions diagnostics. "
+                "No model is downloaded or cloud provider enabled automatically.")
             quality_layout.addWidget(self.translation_selected_label)
             self.nllb_status = QLabel("")
             self.nllb_status.setWordWrap(True)
@@ -375,7 +383,8 @@ def open_ai_settings(parent, ai, after_save=None):
             nllb_remove.clicked.connect(self.remove_nllb_model)
             use_argos = QPushButton("Use Argos instead · faster backup")
             use_argos.clicked.connect(lambda: (
-                self.translation_choice.setCurrentIndex(0),
+                self.translation_choice.setCurrentIndex(
+                    self.translation_choice.findData("argos")),
                 self.feedback.setText(
                     "Argos selected. Click Save settings to use installed packs.")))
             nllb_buttons.addWidget(nllb_install,0,0)
@@ -1471,6 +1480,8 @@ def open_ai_settings(parent, ai, after_save=None):
             for index in range(self.translation_choice.count()):
                 key = self.translation_choice.itemData(index)
                 name = {
+                    "de_tr_direct":"Direct DE → TR · installed NLLB first, MADLAD second, "
+                                   "Argos possible EN pivot fallback · offline only",
                     "argos":"Argos Translate · compact offline language packs",
                     "nllb":"NLLB-200 600M · multilingual; ISO / NLLB codes",
                     "madlad":"MADLAD-400 3B · Apache-2.0 · GPU · large offline model",
