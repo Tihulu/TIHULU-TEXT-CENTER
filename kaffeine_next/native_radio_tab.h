@@ -492,7 +492,8 @@ public:
             "Speaker DAC time remains unmeasured."));
         captionComfortRow->addWidget(captionRefresh_);
         captionComfortRow->addWidget(radioSyncRefresh_);
-        captionComfortRow->addWidget(new QLabel(tr("Karaoke sync history:"),page));
+        // The Karaoke history control belongs by Karaoke offset below,
+        // not in the already crowded AI/Reading quick-control row.
         karaokeSyncHistorySeconds_=new QSpinBox(page);
         karaokeSyncHistorySeconds_->setRange(3,30);
         karaokeSyncHistorySeconds_->setSuffix(tr(" s"));
@@ -506,7 +507,6 @@ public:
             "This is an in-memory SYNC EVIDENCE window, NOT a second PCM/audio "
             "buffer or added playback delay. Lip-sync Refresh reuses these "
             "observations immediately; it never empties or refills libVLC cache."));
-        captionComfortRow->addWidget(karaokeSyncHistorySeconds_);
         connect(karaokeSyncHistorySeconds_,
             QOverload<int>::of(&QSpinBox::valueChanged),this,
             [this](int seconds){
@@ -1660,11 +1660,14 @@ public:
         mainLyricOffsetRow->addWidget(new QLabel(tr("Karaoke offset:"),page));
         mainLyricOffsetRow->addWidget(mainLyricOffsetSlider_,1);
         mainLyricOffsetRow->addWidget(mainLyricOffsetReadout_);
+        // The old speed control is obsolete: no unverified word sweep.
+        karaokePreviewSpeed_->hide();
         mainLyricOffsetRow->addWidget(new QLabel(tr(
-            "Legacy preview speed (disabled):"),page));
-        mainLyricOffsetRow->addWidget(karaokePreviewSpeed_);
+            "Karaoke sync history:"),page));
+        mainLyricOffsetRow->addWidget(karaokeSyncHistorySeconds_);
         mainLyricOffsetRow->addWidget(new QLabel(tr(
-            "Reading affects lower Whisper captions only"),page));
+            "Verified Whisper words · no audio rebuffer · Reading independent"),
+            page));
         connect(mainLyricOffsetSlider_,&QSlider::valueChanged,
             this,[this](int n){ lyricsOffset_->setValue(n*250); });
         connect(lyricsOffset_,&QSlider::valueChanged,this,[this](int ms){
@@ -4927,10 +4930,9 @@ private:
         updatePending(plainLyricQueue_);
 
         // A user refresh must not restart a song or re-download lyrics.
-        // For a verified line redraw its *unchanged* Whisper word anchors.
-        // For opted-in Lyrics Found preview, recompute line/word position
-        // on its existing timeline; never reset previewStartedMs_.
-        // Reuse evidence already captured by this running session. No
+        // For a verified line redraw unchanged Whisper word anchors.
+        // Unverified Lyrics Found stays STATIC, without estimated time
+        // or interpolation. Reuse captured evidence; no
         // new 10s waiting period, audio-buffer flush or ASR re-inference.
         pruneRecentKaraokeEvidence(now);
         int reused=0;
