@@ -168,8 +168,9 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
     qwen_future=None
     qwen_meta=None
     song_router=MusicSpeechRouter()
-    # Raw *heard Whisper* text/word epochs only, never catalog lyrics or PCM.
-    # The last ten seconds can be searched again without audio or ASR restart.
+    # Bounded <=10s genuine Whisper ASR and matching short PCM windows.
+    # Owner-triggered Karaoke Refresh reuses these in RAM, not playback
+    # rebuffering, and never writes raw audio to disk or an online service.
     recent_lyric_asr=deque(maxlen=4)
     sync_refresh_token=0
     sync_refresh_pending=0
@@ -408,6 +409,7 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
                     "text":heard_asr,
                     "words":detection.get("asr_words",[]),
                     "window_seconds":window_seconds,
+                    "pcm":pcm,
                 })
             while (recent_lyric_asr and
                    capture_epoch_ms-recent_lyric_asr[0]["epoch_ms"]>10000):
@@ -415,6 +417,9 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
             lyric_word_source=detection.get("asr_words",[])
             lyric_word_epoch=capture_epoch_ms
             lyric_word_window=window_seconds
+            qwen_audio_pcm=pcm
+            qwen_audio_epoch=capture_epoch_ms
+            qwen_audio_window=window_seconds
             sync_refresh_status="idle"
             sync_refresh_applied=0
             if sync_refresh_windows_left:
@@ -432,6 +437,9 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
                         lyric_word_source=recent["words"]
                         lyric_word_epoch=recent["epoch_ms"]
                         lyric_word_window=recent["window_seconds"]
+                        qwen_audio_pcm=recent["pcm"]
+                        qwen_audio_epoch=recent["epoch_ms"]
+                        qwen_audio_window=recent["window_seconds"]
                         sync_refresh_status="reacquired"
                         sync_refresh_applied=sync_refresh_pending
                         sync_refresh_windows_left=0
@@ -465,8 +473,7 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
                 try:
                     observed_qwen_words=qwen_future.result()
                     if (isinstance(observed_qwen_words,list) and qwen_meta
-                            and qwen_meta["catalog"]==lyric_marker
-                            and (not heard_asr or lyric_match is not None)):
+                            and qwen_meta["catalog"]==lyric_marker):
                         anchors=aligned_karaoke_word_anchors(
                             qwen_meta["line"],observed_qwen_words,
                             capture_end_epoch_ms=qwen_meta["epoch_ms"],
@@ -483,7 +490,7 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
                     pass  # Whisper continues without model failures leaking
                 qwen_future=None
                 qwen_meta=None
-            if (lyric_match and heard_asr and
+            if (lyric_match and (heard_asr or sync_refresh_applied) and
                     alignment_option["engine"]=="qwen" and
                     qwen_future is None):
                 from .qwen_forced_aligner import align_observed_phrase
@@ -492,13 +499,15 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
                         max_workers=1,thread_name_prefix="tihulu-qwen-karaoke")
                 qwen_meta={
                     "line":lyric_match["text"],
-                    "epoch_ms":capture_epoch_ms,
-                    "window_seconds":window_seconds,
+                    "epoch_ms":qwen_audio_epoch,
+                    "window_seconds":qwen_audio_window,
                     "catalog":lyric_marker,
                 }
+                # Feed Qwen the VERIFIED catalog line instead of imperfect
+                # Whisper ASR words. It predicts word timing, not song ID.
                 qwen_future=qwen_pool.submit(
-                    align_observed_phrase,pcm,heard_asr,
-                    alignment_option["language"],12)
+                    align_observed_phrase,qwen_audio_pcm,
+                    lyric_match["text"],alignment_option["language"],12)
             # All languages retain genuine Whisper ASR word timing, even
             # when Qwen is installed, pending, failed or unsupported.
 
@@ -520,7 +529,7 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
                     "lyric_translations":{},
                     "karaoke_sync_refresh_status":sync_refresh_status,
                     "karaoke_sync_refresh_applied":sync_refresh_applied,
-                    "karaoke_alignment_engine":"whisper",
+                    "karaoke_alignment_engine":("qwen" if qwen_refinement else "whisper"),
                     "karaoke_alignment_candidate":alignment_option["engine"],
                     "karaoke_alignment_reason":alignment_option["reason"],
                     "karaoke_qwen_refinement":qwen_refinement,
@@ -672,7 +681,7 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
                 "lyric_match":lyric_match,
                 "karaoke_sync_refresh_status":sync_refresh_status,
                 "karaoke_sync_refresh_applied":sync_refresh_applied,
-                "karaoke_alignment_engine":"whisper",
+                "karaoke_alignment_engine":("qwen" if qwen_refinement else "whisper"),
                 "karaoke_alignment_candidate":alignment_option["engine"],
                 "karaoke_alignment_reason":alignment_option["reason"],
                 "karaoke_qwen_refinement":qwen_refinement,
