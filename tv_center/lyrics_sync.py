@@ -642,7 +642,8 @@ def srt_timestamp(seconds: float) -> str:
 
 
 def write_srt(cues: list[LyricCue], path: str | Path, *,
-              overwrite: bool = False, translations: dict[int,str] | None = None):
+              overwrite: bool = False, translations: dict[int,str] | None = None,
+              include_original: bool = True):
     target=Path(path).expanduser()
     if target.is_symlink() or not target.parent.is_dir():
         raise ValueError("Output directory invalid or destination is symlink")
@@ -650,9 +651,12 @@ def write_srt(cues: list[LyricCue], path: str | Path, *,
     for i, cue in enumerate(cues,1):
         if cue.end <= cue.start:
             continue
-        text = cue.text
-        if translations and translations.get(i):
-            text += "\n" + translations[i]
+        translated = translations.get(i) if translations else None
+        # "translated only" mirrors the TV output preference. Never write
+        # an empty subtitle if the chosen translator has no usable result.
+        text = cue.text if include_original or not translated else ""
+        if translated:
+            text += ("\n" if text else "") + translated
         lines.append(f"{i}\n{srt_timestamp(cue.start)} --> {srt_timestamp(cue.end)}\n{text}\n")
     if len(lines) > 1500:
         raise ValueError("Subtitle cue budget exceeded")
