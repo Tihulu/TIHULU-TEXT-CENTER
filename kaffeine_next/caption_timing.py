@@ -149,6 +149,7 @@ class CaptionConfig:
     def options(self):
         return {"mode":self.mode,"source":self.source,
                 "target":self.target,"targets":self.target_languages,
+                "translation_requested":bool(self.show_translation),
                 "page":self.page,"teletext_pid":self.teletext_pid,
                 "audio_pid":self.audio_pid,"audio_source":self.audio_language,
                 "spoken_auto":self.spoken_auto,
