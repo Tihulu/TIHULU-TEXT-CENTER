@@ -18,6 +18,16 @@ def _tokens(text):
     return re.findall(r"[^\W_]+",clean,flags=re.UNICODE)[:120]
 
 
+# High-frequency connector words cannot prove audio-to-subtitle identity.
+_CONNECTORS=set("""
+der die das den dem des ein eine einer eines einem und oder aber über auf
+ist sind war waren wird werden nicht mit von aus für im in am an zum zur
+dass weil wie was wer wo wenn wir ihr sie er es ich du mir dir ja nein
+the and with from that this have were will about there for you are they
+bir ve ile için ama gibi olan daha çok bu şu biz siz onlar ben sen var yok
+""".split())
+
+
 def compare_text(teletext,spoken,teletext_language,spoken_language):
     """matching/conflicting/unknown; not a semantic or timestamp guarantee."""
     if (not isinstance(teletext_language,str) or
@@ -31,9 +41,14 @@ def compare_text(teletext,spoken,teletext_language,spoken_language):
         return "unknown"
     common=len(set(a)&set(b))/max(1,min(len(set(a)),len(set(b))))
     similarity=SequenceMatcher(None,a,b,autojunk=False).ratio()
-    if similarity>=.47 or common>=.48:
+    content_a={w for w in a if len(w)>=4 and w not in _CONNECTORS}
+    content_b={w for w in b if len(w)>=4 and w not in _CONNECTORS}
+    lexical=(len(content_a&content_b) /
+             max(1,min(len(content_a),len(content_b))))
+    if similarity>=.55 or (lexical>=.65 and common>=.4):
         return "matching"
-    if similarity<.18 and common<.12:
+    if (len(content_a)>=3 and len(content_b)>=3 and
+            lexical<=.12 and similarity<.38):
         return "conflicting"
     return "unknown"
 
