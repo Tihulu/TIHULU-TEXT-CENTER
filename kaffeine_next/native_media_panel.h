@@ -9,6 +9,11 @@
 #include <QCheckBox>
 #include <QComboBox>
 #include <QFile>
+#include <QDir>
+#include <QDateTime>
+#include <QMimeDatabase>
+#include <QProgressBar>
+#include <QRegularExpression>
 #include <QFileInfo>
 #include <QFileDialog>
 #include <QMessageBox>
@@ -45,6 +50,24 @@ public:
 		file_->setMinimumWidth(120);
 		h->addWidget(file_,1);
 		v->addLayout(h);
+        QSettings openSettings(QLatin1String("TIHULU"),QLatin1String("MediaPlayer"));
+        preprocessOnOpen_=new QCheckBox(tr(
+            "Entire local file · transcribe/translate first, then play"),this);
+        preprocessOnOpen_->setChecked(openSettings.value(
+            QLatin1String("transcribeBeforeOpen"),false).toBool());
+        preprocessOnOpen_->setToolTip(tr(
+            "Optional for local video and audio. Prevents initial playback "
+            "until complete offline transcription and translations finish. "
+            "Live TV/radio and URLs remain untouched."));
+        v->addWidget(preprocessOnOpen_);
+        connect(preprocessOnOpen_,&QCheckBox::toggled,this,[](bool enabled){
+            QSettings prefs(QLatin1String("TIHULU"),QLatin1String("MediaPlayer"));
+            prefs.setValue(QLatin1String("transcribeBeforeOpen"),enabled);
+        });
+        profile_=new QLabel(tr(
+            "Local video uses TV AI preferences; audio uses Radio AI preferences."),this);
+        profile_->setWordWrap(true);
+        v->addWidget(profile_);
         auto *expand=new QToolButton(this);
         expand->setText(tr("Show offline AI / lyric / export options"));
         expand->setCheckable(true);
@@ -77,16 +100,24 @@ public:
 		lyricsOnline_=new QCheckBox(tr("Find lyrics online (optional)"),this);
 		lyricsOnline_->setToolTip(tr("Only song title/artist metadata is sent "
 			"to LRCLIB after pressing Generate, never file audio. No API key."));
+        extraTargets_=new QLineEdit(this);
+        extraTargets_->setPlaceholderText(tr("Other targets · fr, es, pl, ja…"));
+        extraTargets_->setToolTip(tr(
+            "Additional output languages from the same installed translation models."));
+        original_=new QCheckBox(tr("Include original transcription"),this);
+        original_->setChecked(true);
 		tools->addWidget(de_,1,0);
         tools->addWidget(en_,1,1);
         tools->addWidget(tr_,1,2);
         tools->addWidget(music_,2,0,1,2);
         tools->addWidget(lyrics_,2,2);
+        tools->addWidget(extraTargets_,3,0,1,2);
+        tools->addWidget(original_,3,2);
         tools->setColumnStretch(1,1);
 		detailsLayout->addLayout(tools);
 		auto *actions = new QGridLayout();
 		actions->addWidget(lyricsOnline_,0,0,1,3);
-		run_=new QPushButton(tr("Generate + load captions"),this);
+		run_=new QPushButton(tr("Transcribe entire file + load captions"),this);
 		cancel_=new QPushButton(tr("Cancel"),this);
 		cancel_->setEnabled(false);
 		export_=new QPushButton(tr("Save video/audio + subtitles (.mkv)"),this);
@@ -102,7 +133,7 @@ public:
 			mediaSettings.value(QLatin1String("fileCacheMs"),1500).toInt(),20000));
 		caching_->setToolTip(tr("libVLC file read-ahead; this is not the "
 			"same as the Whisper subtitle creation budget."));
-		wait_=new QCheckBox(tr("Preprocess before playback"),this);
+		wait_=new QCheckBox(tr("Finish before playback"),this);
 		wait_->setChecked(true);
 		wait_->setToolTip(tr("Stops the selected media during offline transcription, "
 			"then restarts it at the beginning with synchronized SRT. "
@@ -118,7 +149,11 @@ public:
 		message_=new QLabel(tr("Caption file will attach to the same playing video/audio."),this);
 		message_->setWordWrap(true);
 		v->addWidget(message_);
-		connect(run_,&QPushButton::clicked,this,[this](){generate();});
+        workProgress_=new QProgressBar(this);
+        workProgress_->setRange(0,0); // Indeterminate until worker reports completion
+        workProgress_->setVisible(false);
+        v->addWidget(workProgress_);
+		connect(run_,&QPushButton::clicked,this,[this](){generate(false);});
 		connect(export_,&QPushButton::clicked,this,[this](){exportWithCaptions();});
 		connect(&exportProcess_,QOverload<int,QProcess::ExitStatus>::of(&QProcess::finished),
 			this,[this](int exitCode,QProcess::ExitStatus exitStatus){
@@ -133,13 +168,19 @@ public:
 		connect(cancel_,&QPushButton::clicked,this,[this](){
 			if(process_.state()!=QProcess::NotRunning) {
 				process_.kill();
-				message_->setText(tr("Subtitle generation stopped. Original playback untouched."));
+				message_->setText(tr("Transcription cancelled; source media untouched."));
 			}
 		});
 		connect(&process_,QOverload<int,QProcess::ExitStatus>::of(&QProcess::finished),
 			this,[this](int exitCode,QProcess::ExitStatus exitStatus) {
 				run_->setEnabled(true);
 				cancel_->setEnabled(false);
+                workProgress_->setVisible(false);
+                if(cancelledForFileChange_) {
+                    cancelledForFileChange_=false;
+                    pausedForAi_=false;
+                    return; // Never reopen a previous selected file.
+                }
 				if(exitCode==0 && exitStatus==QProcess::NormalExit &&
 				   !path_.isEmpty() && QFile::exists(srtPath_)) {
 					if (pausedForAi_) {
@@ -162,16 +203,39 @@ public:
 			});
 	}
 	void setLocalFile(const QUrl &url) {
-		if(!url.isLocalFile()) return;
-		const QString candidate=url.toLocalFile();
-		if(!QFileInfo(candidate).isFile()) return;
-		path_=candidate;
-		srtPath_=QFileInfo(candidate).absolutePath()+QLatin1Char('/')+
-			QFileInfo(candidate).completeBaseName()+QLatin1String(".srt");
-		export_->setEnabled(QFileInfo(srtPath_).isFile());
-		file_->setText(QFileInfo(candidate).fileName());
-		file_->setToolTip(candidate);
-	}
+        if(!url.isLocalFile()) return;
+        const QString candidate=url.toLocalFile();
+        if(!QFileInfo(candidate).isFile()) return;
+        if(candidate!=path_ && process_.state()!=QProcess::NotRunning) {
+            cancelledForFileChange_=true;
+            process_.kill();
+            process_.waitForFinished(950);
+        }
+        path_=candidate;
+        const QFileInfo info(candidate);
+        const QMimeType mime=QMimeDatabase().mimeTypeForFile(
+            candidate,QMimeDatabase::MatchExtension);
+        const QString ext=info.suffix().toLower();
+        isAudio_=mime.name().startsWith(QLatin1String("audio/")) ||
+            QStringList{QLatin1String("mp3"),QLatin1String("wav"),
+                QLatin1String("flac"),QLatin1String("m4a"),
+                QLatin1String("aac"),QLatin1String("ogg"),
+                QLatin1String("opus"),QLatin1String("wma"),
+                QLatin1String("aiff"),QLatin1String("alac"),
+                QLatin1String("mka")}.contains(ext);
+        loadSharedCaptionProfile();
+        srtPath_=info.absolutePath()+QLatin1Char('/')+
+            info.completeBaseName()+QLatin1String(".srt");
+        export_->setEnabled(QFileInfo(srtPath_).isFile());
+        file_->setText(info.fileName());
+        file_->setToolTip(candidate);
+    }
+    bool prepareLocalFileOpen(const QUrl &url) {
+        // No live TV, DAB, HTTP or Web TV source may enter this gate.
+        if(!url.isLocalFile() || !preprocessOnOpen_->isChecked()) return false;
+        setLocalFile(url);
+        return generate(true);
+    }
 private:
 	void exportWithCaptions() {
 		if(exportProcess_.state()!=QProcess::NotRunning || path_.isEmpty() ||
