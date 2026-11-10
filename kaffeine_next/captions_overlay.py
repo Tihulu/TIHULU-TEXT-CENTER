@@ -460,7 +460,14 @@ class CaptionTap:
                 selected = "teletext"
             source = options["source"]
             targets = tuple(options.get("targets", ()))
-            enabled = targets if ai.values["translation_enabled"] else ()
+            # Selecting OUT targets + translation display is explicit LOCAL
+            # consent. Do not require a second hidden Market toggle; do not
+            # silently opt in to DeepL/cloud if global translation is OFF.
+            translation_allowed=bool(ai.values["translation_enabled"] or (
+                options.get("translation_requested",False) and
+                ai.values.get("translation_model") in
+                ("argos","nllb","madlad","de_tr_direct")))
+            enabled = targets if translation_allowed else ()
             primary = targets[0] if targets else source
             previous = (self.previous_original
                         if self.previous_revision == options.get("revision", 0)
@@ -707,7 +714,7 @@ class CaptionTap:
                 result["overlap_note"]=(
                     "Two independently recognized tracks; order and speaker "
                     "IDs are provisional, not fixed identity")
-            if targets and not ai.values["translation_enabled"]:
+            if targets and not translation_allowed:
                 result["translation_errors"] = {
                     lang: "Translation disabled in Model Market." for lang in targets}
             if targets and not result.get("translations"):
