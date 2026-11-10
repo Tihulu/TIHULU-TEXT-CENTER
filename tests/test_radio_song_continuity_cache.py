@@ -12,7 +12,7 @@ RADIO=(Path(__file__).resolve().parents[1] /
 
 class RadioSongContinuityTests(unittest.TestCase):
     def test_dls_update_does_not_directly_clear_karaoke(self):
-        dls = RADIO.split("const TihuluDlsSong newSong=tihuluDlsSong(dls);")[1]
+        dls = RADIO.split("const TihuluDlsSong newSong=tihuluDlsSongFromService(service);")[1]
         dls = dls.split("const QJsonObject errs=service.value(", 1)[0]
         self.assertIn("pendingSongKey_=candidate", dls)
         self.assertIn("QTimer::singleShot(5000,this,", dls)
@@ -51,7 +51,7 @@ class RadioSongContinuityTests(unittest.TestCase):
         self.assertIn("lyricsLookupCooldownUntilMs_",lookup)
         self.assertIn("lyricsLookupGeneration_",lookup)
         self.assertIn("pendingSongKey_.isEmpty()",lookup)
-        self.assertIn("lastSongDls_",lookup)
+        self.assertIn("lastAcceptedSongHint_",lookup)
         self.assertIn("sourceCode",lookup)
         self.assertIn("dests.join(",lookup)
 
