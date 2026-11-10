@@ -843,25 +843,16 @@ def lyrics_lookup_to_file(*, artist:str, track:str,output:str,
         if not cues and not plain_lines:
             raise RuntimeError(
                 "No matching lyrics ("+str(provenance.get("status"))+")")
-        from .captions import translate
+        # Return the fetched catalog immediately. Translating up to 150 LRC
+        # lines synchronously here used to make Lyrics Refresh hit its 30s
+        # timeout (especially with NLLB/MADLAD on CPU). Lyrics are displayed
+        # first; only actually heard/matched lines are translated later by
+        # the running radio AI worker, without delaying the lookup result.
         source_code=("auto" if source=="auto" else language_code(source))
         target_codes=tuple(dict.fromkeys(language_code(t,nllb=True)
                                          for t in targets))[:6]
-        timed=[]
-        for cue in cues[:150]:
-            line={"start":cue.start,"end":cue.end,
-                  "text":cue.text[:700]}
-            translated={}
-            if source_code!="auto":
-                for lang in target_codes:
-                    if lang==source_code:
-                        continue
-                    rendered,problem=translate(cue.text,source_code,lang)
-                    if rendered:
-                        translated[lang]=rendered[:700]
-            if translated:
-                line["translations"]=translated
-            timed.append(line)
+        timed=[{"start":cue.start,"end":cue.end,"text":cue.text[:700]}
+               for cue in cues[:150]]
         payload={"status":"completed","provenance":{
                      key:value for key,value in provenance.items()
                      if key!="plain_lines"},
