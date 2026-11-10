@@ -129,12 +129,16 @@ class TeletextVsLiveSpeech(unittest.TestCase):
             "Gardeners collected ripe yellow peaches near the old railway",
             "Researchers measured rainfall over the southern mountains again",
         ]
+        check.mark_clip()
         self.assertEqual(check.observe(phrases[0],phrases[1],"en","en"),
                          "conflicting")
+        check.mark_clip()
         self.assertEqual(check.observe(phrases[1],phrases[2],"en","en"),
                          "delayed")
+        check.mark_clip()
         self.assertEqual(check.observe(phrases[2],phrases[3],"en","en"),
                          "delayed")
+        check.mark_clip()
         self.assertEqual(check.observe(phrases[3],phrases[4],"en","en"),
                          "switched")
         self.assertTrue(check.prefer_asr)
