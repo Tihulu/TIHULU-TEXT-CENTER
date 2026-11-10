@@ -47,11 +47,18 @@ def decorate_caption(text: str, events, language: str) -> str:
     prefix=sound_prefix(events, language)
     if not prefix:
         return text
-    return prefix + (" " + text if text else "")
+    # This helper is used by native Radio as a display-only text:
+    # the acoustic tag is a separate row, never the first spoken word.
+    return prefix + ("\n" + text if text else "")
 
 
 def decorate_result(result: dict, enabled: bool) -> dict:
-    """Produce a separate display copy, leaving raw ASR and translations intact."""
+    """Attach optional display-only acoustic lines, NEVER rewrite speech.
+
+    Whisper original, translated text, source and measured word positions
+    remain byte-for-byte unchanged. In particular an acoustic event alone
+    must not masquerade as an ASR transcript or be submitted for translation.
+    """
     if not isinstance(result, dict):
         raise ValueError("Expected caption result object")
     output=dict(result)
@@ -60,26 +67,18 @@ def decorate_result(result: dict, enabled: bool) -> dict:
     events=result.get("sound_events") or []
     if not events:
         return output
-    original=result.get("original","")
-    output["original"]=decorate_caption(
-        original,events,result.get("source_language","en"))
-    output["translations"]={
-        lang:decorate_caption(line,events,lang)
-        for lang,line in (result.get("translations") or {}).items()
-    }
-    # For a confirmed sound with no recognized words, emit a stand-alone
-    # sound cue. NEVER claim those tags were transcribed song lyrics.
-    if not original.strip():
-        output["source"]="acoustic_event"
-        output["sound_event_only"]=True
-        output["word_timing_source"]=None
-        output["words"]=[]
-        if not output["translations"]:
-            output["translations"]={
-                lang:sound_prefix(events,lang) for lang in (
-                    result.get("target_languages") or [])
-                if sound_prefix(events,lang)}
-    # UI status can still explain which detector produced the label; this
-    # metadata never claims sample-accurate event boundaries.
+    source_language=result.get("source_language") or "en"
+    labels={"original":sound_prefix(events,source_language),
+            "translations":{
+                lang:sound_prefix(events,lang)
+                for lang in (result.get("target_languages") or
+                             tuple((result.get("translations") or {}).keys()))
+                if sound_prefix(events,lang)}}
+    if not labels["original"] and not labels["translations"]:
+        return output
+    output["sound_event_lines"]=labels
+    output["sound_event_only"]=not bool(str(result.get("original") or "").strip())
     output["sound_labels_source"]="AST AudioSet · approximate clip"
+    # Do not modify original, translations, translated, source, words,
+    # or word_timing_source. Native render places labels on another line.
     return output
