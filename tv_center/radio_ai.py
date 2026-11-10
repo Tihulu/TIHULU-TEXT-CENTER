@@ -28,7 +28,8 @@ from .sentence_joiner import LiveSentenceJoiner
 from .radio_language import RadioLanguageLock
 from .media_ai import _chunk_cues, _choose_model, _near_silent_pcm, CHUNK_SAMPLES
 from .radio_capture import BoundedRadioCapture
-from .radio_karaoke_router import MusicSpeechRouter, karaoke_alignment_choice
+from .radio_karaoke_router import (MusicSpeechRouter, karaoke_alignment_choice,
+                                   QWEN_ALIGN_LANGUAGES)
 
 _SID = re.compile(r"(?:0x)?[A-Fa-f0-9]{1,8}\Z")
 
@@ -471,8 +472,16 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
                 capture_end_epoch_ms=lyric_word_epoch,
                 window_seconds=lyric_word_window)
                 if lyric_match else [])
+            # A singer may be English while the presenter is German.
+            # An explicitly selected lyric source language takes priority
+            # over the spoken-language detector for karaoke alignment ONLY.
+            # Whisper's ordinary radio transcript retains its own language.
+            alignment_language=(
+                lyric_source_language
+                if lyric_source_language in QWEN_ALIGN_LANGUAGES else
+                used_language if not language_pending else None)
             alignment_option=karaoke_alignment_choice(
-                used_language if not language_pending else None,
+                alignment_language,
                 qwen_installed=qwen_installed)
             # Qwen cannot claim the song matches; Whisper's lexical match
             # must already have accepted it. Non-blocking future: presenter
