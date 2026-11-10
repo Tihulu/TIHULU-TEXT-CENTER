@@ -4939,6 +4939,8 @@ private:
                 QLatin1String("translation_warnings")).toObject();
             const QJsonObject outputLanguages=obj.value(
                 QLatin1String("translations")).toObject();
+            const QJsonObject realEngines=obj.value(
+                QLatin1String("translation_engines")).toObject();
             const QString translationState=obj.value(
                 QLatin1String("translation_state")).toString();
             const QString translationNote=obj.value(
@@ -4955,8 +4957,12 @@ private:
                 if(code.isEmpty()) continue;
                 if(code==detected)
                     outputStates<<code.toUpper()+tr(" original");
-                else if(!outputLanguages.value(code).toString().trimmed().isEmpty())
-                    outputStates<<code.toUpper()+tr(" ready");
+                else if(!outputLanguages.value(code).toString().trimmed().isEmpty()) {
+                    const QString actual=realEngines.value(code).toString();
+                    outputStates<<code.toUpper()+tr(" ready")+
+                        (actual.isEmpty()?QString():
+                         QLatin1String(" · ")+actual.left(45));
+                }
                 else
                     outputStates<<code.toUpper()+tr(" missing/pending");
             }
@@ -4969,6 +4975,13 @@ private:
                 detected==QLatin1String("und")?tr("auto detecting"):
                 detected.toUpper();
             QString mainNote=tr("Spoken: %1 · output: %2").arg(spoken,intended);
+            const QString requestedEngine=obj.value(
+                QLatin1String("translation_service")).toString();
+            if(!requestedEngine.isEmpty())
+                mainNote+=tr(" · translator selected: %1")
+                    .arg(requestedEngine.left(30));
+            // A listed installed model is not evidence of an actual run.
+            // Every language's delivered subtitle states its REAL engine.
             if(translationState==QLatin1String("language_pending"))
                 mainNote+=tr(" · choose spoken language manually to translate sooner");
             else if(translationState==QLatin1String("translator_disabled"))
