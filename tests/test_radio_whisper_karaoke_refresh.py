@@ -65,8 +65,12 @@ class WhisperKaraokeRefreshTests(unittest.TestCase):
     def test_worker_uses_last_10_seconds_original_asr_not_lyrics(self):
         for marker in (
             "heard_asr=original",
-            "recent_lyric_asr=deque(maxlen=4)",
-            "capture_epoch_ms-recent_lyric_asr[0][\"epoch_ms\"]>10000",
+            "recent_lyric_asr=deque(maxlen=8)",
+            "sync_history_seconds*1000",
+            '"karaoke_sync_history_seconds"',
+            '"pcm":pcm',
+            'align_observed_phrase,qwen_audio_pcm',
+            'lyric_match["text"],alignment_option["language"],12',
             "plain_matcher.reacquire(recent[\"text\"])",
             '"karaoke_sync_refresh_token"',
             '"karaoke_sync_refresh_applied":sync_refresh_applied',
