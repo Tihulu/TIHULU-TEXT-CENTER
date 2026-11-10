@@ -2802,6 +2802,8 @@ private:
              karaokeEnabled_ && karaokeEnabled_->isChecked()},
             {QStringLiteral("lyric_match_threshold"),
              lyricMatchThreshold_?lyricMatchThreshold_->value()/100.:0.74},
+            {QStringLiteral("karaoke_sync_refresh_token"),
+             karaokeSyncRefreshToken_},
             {QStringLiteral("sound_labels"),
              soundLabels_ && soundLabels_->isChecked()}});
         QSaveFile file(captionControlsPath_);
@@ -4908,6 +4910,19 @@ private:
         lyricOffsetConsistency_=0;
         lastLyricDirection_=0;
         lastLyricSyncUpdateMs_=0;
+        // Request re-acquisition from the ALREADY RUNNING offline Whisper
+        // worker: compare recent real ASR text against the full song catalog.
+        // No second SDR, playback buffer reset, or ASR restart.
+        const bool canRematch=captionProcess_.state()!=QProcess::NotRunning &&
+            !captionControlsPath_.isEmpty() && lyricsEnabled_ &&
+            lyricLoaded_ && !lyricRawLines_.isEmpty();
+        bool requestedRematch=false;
+        if(canRematch) {
+            if(karaokeSyncRefreshToken_>=2147483647)
+                karaokeSyncRefreshToken_=0;
+            ++karaokeSyncRefreshToken_;
+            requestedRematch=writeRadioLanguageControls();
+        }
 
         // Pending VERIFIED Karaoke words have actual ASR capture epochs.
         // Recalculate their due times from the current cache and both
@@ -4942,8 +4957,7 @@ private:
                 const RecentKaraokeEvidence &e=recentKaraokeEvidence_.at(i);
                 if(e.stationKey!=playingKey_ ||
                    e.songKey!=lastSongMetadataKey_ ||
-                   e.cue.wordAnchors.isEmpty() ||
-                   e.cue.lineIndex!=lastVerifiedLyricIndex_) continue;
+                   e.cue.wordAnchors.isEmpty()) continue;
                 // Re-show the last truly heard line and recompute its
                 // EXISTING word timestamps at the current user offsets.
                 // Never synthesize unheard lyrics from DLS/LRC times.
@@ -4960,26 +4974,30 @@ private:
         const bool preview=policy==QLatin1String("found") ||
                            policy==QLatin1String("found-sync");
         if(lyricsSyncState_) lyricsSyncState_->setText(tr(
-            "Karaoke sync refresh · %1s recent observed-match history reused "
-            "(%2 existing word anchors, %3 pending cues recalculated). "
-            "%4 · manual lyric offset %5 ms retained. "
-            "No audio buffer refill or 10s playback delay; DAC not measured.")
+            "Karaoke Sync Refresh · %1 · recent history %2s "
+            "(%3 verified word anchors, %4 queued cues updated). "
+            "%5 · manual offset %6 ms retained · DAC not measured.")
+            .arg(requestedRematch?
+                 tr("Whisper re-match requested; next audio hop will confirm"):
+                 tr("no active Whisper + lyric catalog; no new match"))
             .arg(karaokeSyncHistorySeconds_?
                 karaokeSyncHistorySeconds_->value():10)
             .arg(reused).arg(reanchored)
-            .arg(preview?tr("unverified preview HELD until audio match"):
+            .arg(preview?tr("Lyrics Found preview stays unverified"):
                          tr("audio-verified words only"))
             .arg(lyricsOffset_?lyricsOffset_->value():0));
         syncStatus_->setText(tr(
-            "Lip-sync refreshed from existing word observations, without "
-            "restarting the %1ms requested audio buffer or SDR/ASR. "
-            "Reading=%2 (independent); caption offset %3 ms and "
-            "Karaoke offset %4 ms preserved.")
+            "Karaoke Refresh: %5. Requested playback cache %1ms unchanged; "
+            "SDR/Whisper not restarted. Reading=%2 (independent); "
+            "caption offset %3 ms, Karaoke offset %4 ms preserved.")
             .arg(activePlaybackCacheMs_)
             .arg(radioReadingPreset_?
                  radioReadingPreset_->currentText():tr("default"))
             .arg(radioOffsetMs_?radioOffsetMs_->value():0)
-            .arg(lyricsOffset_?lyricsOffset_->value():0));
+            .arg(lyricsOffset_?lyricsOffset_->value():0)
+            .arg(requestedRematch?
+                 tr("checking current song with next Whisper result"):
+                 tr("Whisper or verified lyrics unavailable"));
     }
     void refreshKaraokeWordHighlight(qint64 now) {
         if(!karaokeCurrent_ || karaokeLine_.isEmpty() ||
@@ -5563,7 +5581,25 @@ private:
                         showRadioCanvasCaption(caption.left(1300));
                 }
             }
-			const QJsonObject matched=obj.value(QLatin1String("lyric_match")).toObject();
+            const QJsonObject matched=obj.value(QLatin1String("lyric_match")).toObject();
+            const int syncApplied=obj.value(
+                QLatin1String("karaoke_sync_refresh_applied")).toInt(0);
+            const bool freshRefreshMatch=syncApplied>0 &&
+                syncApplied==karaokeSyncRefreshToken_ &&
+                syncApplied>lastHandledKaraokeSyncToken_;
+            const QString refreshResult=obj.value(
+                QLatin1String("karaoke_sync_refresh_status")).toString();
+            if(refreshResult==QLatin1String("listening_for_Whisper_match"))
+                lyricsSyncState_->setText(tr(
+                    "Sync Refresh · searching recent Whisper vocals and next "
+                    "audio hops; no reliable lyric match yet."));
+            else if(refreshResult==QLatin1String("no_confident_match"))
+                lyricsSyncState_->setText(tr(
+                    "Sync Refresh · no confident Whisper/lyrics match. "
+                    "Karaoke held; spoken subtitles continue."));
+            else if(refreshResult==QLatin1String("no_loaded_lyrics"))
+                lyricsSyncState_->setText(tr(
+                    "Sync Refresh requires loaded song lyrics; Whisper captions continue."));
             const QJsonObject lyricTranslations=obj.value(
                 QLatin1String("lyric_translations")).toObject();
             const QJsonArray lyricWordAnchors=obj.value(
@@ -5575,13 +5611,18 @@ private:
 				const QString line=matched.value(QLatin1String("text")).toString();
 				const double confidence=matched.value(QLatin1String("confidence")).toDouble();
 				if(!line.isEmpty() && line.size()<=240 &&
-                   !(line==lastVerifiedLyricText_ &&
-                     lastVerifiedLyricMs_>0 && now-lastVerifiedLyricMs_<7000)) {
+                   (freshRefreshMatch ||
+                    !(line==lastVerifiedLyricText_ &&
+                      lastVerifiedLyricMs_>0 && now-lastVerifiedLyricMs_<7000))) {
                     QString rendered=line;
                     for(auto it=lyricTranslations.begin();it!=lyricTranslations.end();++it)
                         if(it.value().isString() && !it.value().toString().isEmpty())
                             rendered+=QLatin1String("\n[")+it.key().toUpper()+
                                 QLatin1String("] ")+it.value().toString();
+                    // Accept each manually triggered refresh exactly once.
+                    // Revision 1 must not replay the same matched syllables.
+                    if(freshRefreshMatch)
+                        lastHandledKaraokeSyncToken_=syncApplied;
                     // A genuine audio match is evidence even without a translation.
                     lastVerifiedLyricText_=line;
                     lastVerifiedLyricTranslations_=lyricTranslations;
@@ -6602,6 +6643,7 @@ private:
         *quickBuffer_=nullptr,*releaseOnStop_=nullptr;
     QSpinBox *karaokeSyncHistorySeconds_=nullptr;
     QList<RecentKaraokeEvidence> recentKaraokeEvidence_;
+    int karaokeSyncRefreshToken_=0,lastHandledKaraokeSyncToken_=0;
     QPushButton *captionEarlier_=nullptr,*captionLater_=nullptr,
         *captionRefresh_=nullptr,*radioSyncRefresh_=nullptr,
         *lyricsRefresh_=nullptr;
