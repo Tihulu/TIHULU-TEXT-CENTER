@@ -46,7 +46,8 @@ class RadioFrequencyAndCacheUX(unittest.TestCase):
         self.assertIn('dabLayout->addWidget(quickBufferProgress_)',RADIO)
         self.assertIn('quickBufferProgress_->setVisible(enabled)',RADIO)
         self.assertIn('refreshRadioBufferProgress();',RADIO)
-        self.assertIn('captionTick_.setInterval(300)',RADIO)
+        self.assertIn('captionTick_.setInterval(',RADIO)
+        self.assertIn('?150:300',RADIO)  # fast gets 150 ms; others retain 300 ms
         self.assertIn('qMin(95,int(qMin(elapsed,qint64(requested))*95/requested))',
                       RADIO)
         self.assertIn('actual fill unmeasured',RADIO)
