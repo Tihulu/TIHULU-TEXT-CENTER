@@ -3174,6 +3174,12 @@ def main(argv=None):
                             " | Stages: TT "+str(timing.get("teletext",0))+"ms"+
                             " / ASR "+str(timing.get("asr",0))+"ms"+
                             " / translation "+str(timing.get("translation",0))+"ms")
+                    used_engines=data.get("translation_engines") or {}
+                    if used_engines:
+                        status.setText(status.text()+" | Translator actual: "+
+                            " / ".join(str(k).upper()+" "+
+                                     str(v)[:65] for k,v in
+                                     sorted(used_engines.items())))
                     by_language=data.get("translation_languages_ms") or {}
                     if by_language:
                         status.setText(status.text()+" | Per target: "+
