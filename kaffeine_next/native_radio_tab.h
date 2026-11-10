@@ -5622,6 +5622,44 @@ private:
                 }
             }
             const QJsonObject matched=obj.value(QLatin1String("lyric_match")).toObject();
+            // The optional Qwen model is speech-trained. Its asynchronous
+            // word timing can refine only an ALREADY Whisper-verified song
+            // line. It cannot invent a lyric match, and its completion must
+            // never remove a presenter subtitle or restart audio.
+            const QJsonObject acoustic=obj.value(
+                QLatin1String("karaoke_qwen_refinement")).toObject();
+            const QString acousticLine=acoustic.value(
+                QLatin1String("text")).toString().trimmed();
+            const QJsonArray acousticWords=acoustic.value(
+                QLatin1String("word_anchors")).toArray();
+            const qint64 acousticEpoch=qRound64(acoustic.value(
+                QLatin1String("capture_epoch_ms")).toDouble(0.));
+            if(acousticEpoch>lastHandledQwenCaptureEpochMs_ &&
+               acousticEpoch>now-30000 && acousticEpoch<now+1500 &&
+               acousticWords.size()>=2 &&
+               acousticLine==lastVerifiedLyricText_ &&
+               lastVerifiedLyricMs_>0 && now-lastVerifiedLyricMs_<15000) {
+                for(auto &cue:plainLyricQueue_)
+                    if(cue.original==acousticLine)
+                        cue.wordAnchors=acousticWords;
+                for(auto &cue:verifiedLyricQueue_)
+                    if(cue.original==acousticLine)
+                        cue.wordAnchors=acousticWords;
+                for(auto &observed:recentKaraokeEvidence_)
+                    if(observed.cue.original==acousticLine &&
+                       observed.stationKey==playingKey_ &&
+                       observed.songKey==lastSongMetadataKey_)
+                        observed.cue.wordAnchors=acousticWords;
+                if(karaokeLine_==acousticLine) {
+                    karaokeWordAnchors_=acousticWords;
+                    lastHighlightedKaraokeWord_=-2;
+                    refreshKaraokeWordHighlight(now);
+                }
+                lastHandledQwenCaptureEpochMs_=acousticEpoch;
+                if(lyricsSyncState_) lyricsSyncState_->setText(tr(
+                    "Qwen acoustic word alignment applied to Whisper-matched "
+                    "lyrics · timing estimated from PCM, not measured DAC."));
+            }
             const int syncApplied=obj.value(
                 QLatin1String("karaoke_sync_refresh_applied")).toInt(0);
             const bool freshRefreshMatch=syncApplied>0 &&
@@ -6735,6 +6773,7 @@ private:
     QSpinBox *karaokeSyncHistorySeconds_=nullptr;
     QList<RecentKaraokeEvidence> recentKaraokeEvidence_;
     int karaokeSyncRefreshToken_=0,lastHandledKaraokeSyncToken_=0;
+    qint64 lastHandledQwenCaptureEpochMs_=0;
     QPushButton *captionEarlier_=nullptr,*captionLater_=nullptr,
         *captionRefresh_=nullptr,*radioSyncRefresh_=nullptr,
         *lyricsRefresh_=nullptr;
