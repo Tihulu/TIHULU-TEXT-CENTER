@@ -475,6 +475,29 @@ class LiveLyricMatcher:
             raise ValueError("Lyrics lexical match threshold must be 65–96%")
         self.threshold=float(threshold)
 
+    def reacquire(self, recognized: str) -> dict | None:
+        """Reposition on genuinely heard words after an explicit Sync Refresh.
+
+        Unlike the normal forward-only matcher, this searches the whole
+        catalog with >=89% lexical confidence. It consumes NO new audio and
+        leaves the existing match position untouched if evidence is weak.
+        Never use lyrics metadata or a previous catalog line as `recognized`.
+        """
+        if not isinstance(recognized, str) or not recognized.strip():
+            return None
+        candidate=LiveLyricMatcher(self.lines,
+            threshold=max(0.89, self.threshold))
+        match=candidate.observe(recognized)
+        if match is None:
+            return None
+        self.position=candidate.position
+        self.previous_text=recognized[-480:]
+        self.unmatched_chunks=0
+        self.last_match_index=candidate.last_match_index
+        self.last_match_text=candidate.last_match_text
+        self.last_match_at_chunk=self.seen_chunks
+        return {**match, "refresh_reacquired":True}
+
     def observe(self, recognized: str) -> dict | None:
         if not isinstance(recognized,str) or not recognized.strip():
             return None
