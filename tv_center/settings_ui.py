@@ -200,7 +200,13 @@ def open_ai_settings(parent, ai, after_save=None):
             form.addRow("GPU acceleration",self.cuda_status)
             self.model_path = QLineEdit(ai.values["model_path"])
             self.model_path.setPlaceholderText("No active Whisper model selected")
-            form.addRow("Active model (CPU GGML or runtime-specific)", self.model_path)
+            form.addRow("CPU GGML model / fallback path", self.model_path)
+            self.primary_speech_status = QLabel(
+                "CPU model path is NOT proof of the active GPU model. "
+                "Choose a profile and Select mode; see live ASR diagnostics "
+                "for the engine actually processing audio.")
+            self.primary_speech_status.setWordWrap(True)
+            form.addRow("GPU primary / CPU fallback",self.primary_speech_status)
             whisper_buttons = QHBoxLayout()
             self.install_whisper = QPushButton("Install CPU Whisper engine (source build)")
             self.install_whisper.clicked.connect(self.install_whisper_runtime)
@@ -873,6 +879,12 @@ def open_ai_settings(parent, ai, after_save=None):
                 self._applying_profile=False
             self.populate_models()
             self.preview_translator()
+            self.primary_speech_status.setText(
+                ("PENDING · Faster-Whisper Large-v3 Turbo on NVIDIA GPU; "
+                 "Whisper Small is CPU fallback, NOT the active GPU model."
+                 if key in ("performance","experimental") else
+                 "PENDING · "+spec["speech"].title()+
+                 " CPU model. Press Select mode to activate."))
             self.feedback.setText(
                 "PREVIEW ONLY · "+spec["name"]+
                 ". Speech, compute and translation tabs now reflect this "
@@ -1900,12 +1912,23 @@ def open_ai_settings(parent, ai, after_save=None):
                                     self.profile_choice.findData(data["profile"]))
                             finally:
                                 self._applying_profile=False
+                            selected_profile=data["profile"]
+                            primary=(
+                                "Faster-Whisper Large-v3 Turbo GPU (if runtime ready) "
+                                "+ CPU Whisper Small fallback"
+                                if selected_profile in ("performance","experimental")
+                                else "Hailo-10H GPU/NPU with Tiny CPU fallback"
+                                if data.get("npu_ready") else
+                                "CPU Whisper "+profile(selected_profile)["speech"].title())
+                            self.primary_speech_status.setText(
+                                "SAVED · "+primary+" · RUNNING worker may still "
+                                "use previous model until AI Caption Refresh.")
                             self.feedback.setText(
-                                "ACTIVE: "+profile(data["profile"])["name"]+
-                                (" · Hailo-10H Whisper selected (CPU fallback enabled)"
-                                 if data.get("npu_ready") else
-                                 " · Whisper Tiny CPU selected")+
-                                ". Restart live captions to apply the new profile.")
+                                "SAVED: "+profile(selected_profile)["name"]+
+                                " · "+primary+
+                                ". Use AI Caption Refresh in TV/Radio to apply "
+                                "to a running worker; real active model is shown "
+                                "in live diagnostics.")
                             self.populate_models()
                             self.preview_translator()
                             self.refresh_all_models()
