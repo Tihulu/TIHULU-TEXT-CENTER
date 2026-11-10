@@ -42,7 +42,8 @@ class RadioCaptionComfortContracts(unittest.TestCase):
 
     def test_readable_held_phrases_without_faking_true_av_clock(self):
         hold=section("int radioCaptionReadingHoldMs(","void setRadioLyricMatchStatus(")
-        self.assertIn('if(preset<=0) return 0;',hold)
+        self.assertIn('if(preset<=0) {',hold)
+        self.assertIn('cueQueue_.size()>=2?250:900',hold)
         self.assertIn('qBound(3300,chars*45,8500)',hold)
         self.assertIn('qBound(5500,chars*65,12000)',hold)
         self.assertIn('qBound(2800,chars*63,9000)',hold)
