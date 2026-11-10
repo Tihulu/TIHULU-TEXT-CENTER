@@ -182,7 +182,11 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
     sync_refresh_token=0
     sync_refresh_pending=0
     sync_refresh_windows_left=0
-    sentence_joiner=LiveSentenceJoiner(max_words=115,max_chunks=sentence_hops)
+    # Mirror the proven TV caption path: 2 hops at most, and release
+    # readable >=10-word clauses immediately. A larger AUDIO cache must
+    # NEVER imply a longer ASR text buffering budget.
+    sentence_joiner=LiveSentenceJoiner(max_words=115,
+                                       max_chunks=min(sentence_hops,2))
     write_runtime_json(location,{
         "status":"waiting_audio","source_language":src,
         "language_source":"pending_audio","translation_state":"listening",
@@ -385,7 +389,8 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
             sentence_state={"text":original,"complete":True,"pending":False,"chunks":0}
             if plain_matcher is None and not music_for_matching:
                 sentence_state=sentence_joiner.push(
-                    original, language=used_language, silent=not bool(original))
+                    original, language=used_language, silent=not bool(original),
+                    prefer_readable=True)
                 original=sentence_state["text"]
             else:
                 sentence_joiner.reset()
@@ -939,7 +944,7 @@ def main(args=None):
                       help="Host REQUESTED radio cache; not measured DAC delay")
     live.add_argument("--host-caption-offset-ms",type=int,default=0,
                       help="Native radio caption offset milliseconds")
-    live.add_argument("--sentence-hops",type=int,default=3,
+    live.add_argument("--sentence-hops",type=int,default=2,
                       help="2–5 Whisper 5s hops; higher buffer can preserve "
                            "longer sentences before translating")
     live.add_argument("--speaker-labels",action="store_true",
