@@ -13,6 +13,7 @@ import json
 import os
 from pathlib import Path
 import re
+import difflib
 import ssl
 import unicodedata
 import urllib.error
@@ -454,10 +455,14 @@ class LiveLyricMatcher:
     insufficient evidence for a match. This is approximate chunk timing,
     NOT sample-accurate forced alignment.
     """
-    def __init__(self, lines: list[str], *, threshold: float=0.74):
-        if not isinstance(threshold,(int,float)) or isinstance(threshold,bool) or not 0.65 <= threshold <= 0.96:
-            raise ValueError("Lyrics lexical match threshold must be 65–96%")
+    def __init__(self, lines: list[str], *, threshold: float=0.74,
+                 mode: str="lexical"):
+        if not isinstance(threshold,(int,float)) or isinstance(threshold,bool) or not 0.0 <= threshold <= 1.0:
+            raise ValueError("Lyrics lexical match threshold must be 0–100%")
+        if mode not in ("lexical","fuzzy"):
+            raise ValueError("Unsupported Lyrics Match method")
         self.threshold=float(threshold)
+        self.mode=mode
         if not isinstance(lines,list) or len(lines)>150:
             raise ValueError("Invalid plain lyric line catalog")
         self.lines=[line for line in lines if isinstance(line,str) and
@@ -471,9 +476,28 @@ class LiveLyricMatcher:
         self.last_match_at_chunk=-999
 
     def set_threshold(self, threshold: float):
-        if not isinstance(threshold,(int,float)) or isinstance(threshold,bool) or not 0.65 <= threshold <= 0.96:
-            raise ValueError("Lyrics lexical match threshold must be 65–96%")
+        if not isinstance(threshold,(int,float)) or isinstance(threshold,bool) or not 0.0 <= threshold <= 1.0:
+            raise ValueError("Lyrics lexical match threshold must be 0–100%")
         self.threshold=float(threshold)
+
+    def set_mode(self, mode: str):
+        if mode not in ("lexical","fuzzy"):
+            raise ValueError("Unsupported Lyrics Match method")
+        if self.mode!=mode:
+            self.mode=mode
+            self.previous_text=""
+            self.unmatched_chunks=0
+
+    def _matches_token(self, token: str, heard: set[str]) -> bool:
+        if token in heard:
+            return True
+        if self.mode!="fuzzy" or len(token)<5:
+            return False
+        # A fuzzy spelling match is not acoustic evidence on its own:
+        # normal lyric lines still require THREE distinct overlapping words.
+        return any(len(word)>=5 and abs(len(word)-len(token))<=2
+                   and difflib.SequenceMatcher(None,token,word).ratio()>=0.83
+                   for word in heard)
 
     def reacquire(self, recognized: str) -> dict | None:
         """Reposition on genuinely heard words after an explicit Sync Refresh.
@@ -486,7 +510,7 @@ class LiveLyricMatcher:
         if not isinstance(recognized, str) or not recognized.strip():
             return None
         candidate=LiveLyricMatcher(self.lines,
-            threshold=max(0.89, self.threshold))
+            threshold=self.threshold,mode=self.mode)
         match=candidate.observe(recognized)
         if match is None:
             return None
@@ -537,7 +561,8 @@ class LiveLyricMatcher:
             if len(expected)<3:
                 continue
             distinctive={word for word in expected if len(word)>=3}
-            evidence=sum(1 for word in distinctive if word in hearing)
+            evidence=sum(1 for word in distinctive
+                         if self._matches_token(word,hearing))
             # Short refrains such as "Gül kokar gül" contain only two
             # DISTINCTIVE words. Require BOTH, with higher confidence;
             # do not match "Rose kokar rose" to "Gül kokar gül".
@@ -548,13 +573,15 @@ class LiveLyricMatcher:
             coverage=evidence/max(1,len(distinctive))
             precision=evidence/max(1,len(hearing))
             confidence=0.82*coverage+0.18*min(1.,precision*2.)
-            threshold=max(0.90,self.threshold) if short_refrain else self.threshold
+            threshold=self.threshold
             if acquiring and index>=8:
                 # A broad search needs a distinctive multiword phrase;
                 # generic 2-word refrains may only match near the start.
                 if len(distinctive)<3 or evidence<3:
                     continue
-                threshold=max(threshold,0.89)
+                # Broad seeks still require three distinctive matching
+                # tokens; 0% does not mean auto-progress on silence.
+                threshold=max(threshold,0.40)
             # Avoid replaying the same recognized line in consecutive
             # overlapping 5 s chunks. A later real refrain stays possible.
             if (index==self.last_match_index or
@@ -575,6 +602,7 @@ class LiveLyricMatcher:
         return {"index":index,"text":line,"confidence":round(score,3),
                 "threshold":round(self.threshold,3),
                 "metric":"lexical_overlap_not_audio_sync_probability",
+                "mode":self.mode,
                 "kind":"observed_ASR_chunk_match","approximate":True}
 
 def srt_timestamp(seconds: float) -> str:
