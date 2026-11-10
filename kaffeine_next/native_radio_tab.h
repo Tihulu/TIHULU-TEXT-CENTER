@@ -4030,7 +4030,11 @@ private:
 					"receiver lock does not guarantee decoded sound.").arg(name));
 				stationOpenProgress_->setValue(4);
 				stationOpenProgress_->setFormat(tr("Live service verified · audio opening"));
-				QTimer::singleShot(3500,this,[this,requestId,name](){
+                // Buffer setup is a requested media-open delay, so do not
+                // falsely label a 9.5s cache as failed after just 3.5s.
+                // Match the bounded startup timeout shown by the buffer bar.
+                const int verificationMs=qMax(12000,activePlaybackCacheMs_+8000);
+				QTimer::singleShot(verificationMs,this,[this,requestId,name](){
 					if(requestId!=stationRequestId_) return;
 					if(player_->getPlaybackStatus()==MediaWidget::Playing) {
 						playStatus_->setText(tr("libVLC reports PLAYING · %1 · audible sound NOT confirmed. "
