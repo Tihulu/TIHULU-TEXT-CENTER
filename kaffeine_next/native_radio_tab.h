@@ -1890,6 +1890,26 @@ public:
             [this](){ changeSelectedStationList(true); });
         connect(removeStationList_,&QPushButton::clicked,this,
             [this](){ changeSelectedStationList(false); });
+        // User overrides remain sticky across subsequent AI ON/OFF cycles.
+        // The master toggle may enable local features, never silently opt a
+        // person into third-party lyric lookups or switch a cloud provider on.
+        auto rememberAuto=[this](QCheckBox *check,const char *name){
+            connect(check,&QCheckBox::clicked,this,[name](bool on){
+                QSettings prefs(QLatin1String("TIHULU"),
+                                QLatin1String("KaffeineRadio"));
+                prefs.setValue(QLatin1String(name),on);
+            });
+        };
+        rememberAuto(quickTranslate_,"radioAiAutoTranslate");
+        rememberAuto(quickBuffer_,"radioAiAutoBuffer");
+        rememberAuto(autoSync_,"radioAiAutoSync");
+        rememberAuto(karaokeEnabled_,"radioAiAutoKaraoke");
+        rememberAuto(karaokeTranslationsEnabled_,"radioAiAutoKaraokeTranslations");
+        connect(autoLyrics_,&QCheckBox::clicked,this,[](bool allowed){
+            QSettings prefs(QLatin1String("TIHULU"),
+                            QLatin1String("KaffeineRadio"));
+            prefs.setValue(QLatin1String("lyricsOnlineOptIn"),allowed);
+        });
         connect(quickTranslate_,&QCheckBox::toggled,this,[this](bool enabled){
             QSettings prefs(QLatin1String("TIHULU"),
                             QLatin1String("KaffeineRadio"));
@@ -1910,14 +1930,53 @@ public:
 		connect(quickAi_,&QCheckBox::toggled,this,[this](bool enabled){
             quickAi_->setText(enabled?tr("AI captions · ON"):tr("AI captions · OFF"));
             if(enabled) {
+                QSettings prefs(QLatin1String("TIHULU"),
+                                QLatin1String("KaffeineRadio"));
+                if(prefs.value(QLatin1String("radioAiAutoTranslate"),true).toBool())
+                    quickTranslate_->setChecked(true);
+                if(prefs.value(QLatin1String("radioAiAutoSync"),true).toBool())
+                    autoSync_->setChecked(true); // only recommend; no forced retune
+                if(prefs.value(QLatin1String("radioAiAutoKaraoke"),true).toBool())
+                    karaokeEnabled_->setChecked(true);
+                if(prefs.value(QLatin1String("radioAiAutoKaraokeTranslations"),true).toBool())
+                    karaokeTranslationsEnabled_->setChecked(true);
+                // Online metadata is shared with external providers only
+                // after one informed user click/consent.
+                bool onlineConsent=prefs.value(
+                    QLatin1String("lyricsOnlineOptIn"),false).toBool();
+                if(!onlineConsent && !prefs.value(
+                        QLatin1String("lyricsOnlineConsentAsked"),false).toBool()) {
+                    onlineConsent=(QMessageBox::question(this,
+                        tr("Enable automatic online song lyrics?"),
+                        tr("When AI captions is ON, send station DLS song "
+                           "artist/title (never radio audio) to LRCLIB, "
+                           "lyrics.ovh and optional licensed Musixmatch? "
+                           "Offline Whisper still works if you decline."))==
+                        QMessageBox::Yes);
+                    prefs.setValue(QLatin1String("lyricsOnlineConsentAsked"),true);
+                    prefs.setValue(QLatin1String("lyricsOnlineOptIn"),onlineConsent);
+                }
+                if(onlineConsent) {
+                    autoLyrics_->setChecked(true);
+                    // Existing DLS should be searched on AI activation too.
+                    if(tihuluDlsSong(lastDls_).valid() && !lyricsEnabled_)
+                        QTimer::singleShot(100,this,[this](){fetchLyrics(true);});
+                }
                 if(active() && !playingKey_.isEmpty()) startCaptioning();
                 else radioCaptionBanner_->setText(tr(
                     "AI armed for the next station. No speech processing "
                     "until a DAB station is playing."));
+                setRadioLyricMatchStatus(tr(
+                    "KARAOKE · AI ON · waiting for verified lyrics / Whisper"));
             } else {
                 stopCaptioning();
                 if(captionProgress_) captionProgress_->setVisible(false);
                 radioCaptionBanner_->setText(tr("Live radio AI OFF · audio only"));
+                // Disable only the automatic search behaviour; keep user's
+                // stored consent, lists, Karaoke and buffer preferences.
+                const QSignalBlocker block(autoLyrics_);
+                autoLyrics_->setChecked(false);
+                if(karaokePanel_) karaokePanel_->setVisible(false);
             }
         });
         connect(caption_, &QPushButton::clicked, this, [this](){
