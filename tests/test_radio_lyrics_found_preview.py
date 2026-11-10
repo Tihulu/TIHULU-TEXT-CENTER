@@ -38,7 +38,7 @@ class LyricsFoundPreviewTests(unittest.TestCase):
         snippet=RADIO.split("void showFoundKaraokePreview(qint64 now)")[1].split("void showKaraokeLine")[0]
         for token in ("songStartMs_", "manualSongStartMs_", "lyricsOffset_->value()",
                       'QLatin1String("start")', "previewIndexShift_",
-                      "estimated broadcaster-DLS/LRC clock"):
+                      "estimated DLS/LRC clock"):
             with self.subTest(token=token):
                 self.assertIn(token,snippet)
 
