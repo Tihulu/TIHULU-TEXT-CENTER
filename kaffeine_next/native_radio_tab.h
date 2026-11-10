@@ -5879,6 +5879,182 @@ private:
         lyricProvider_->setText(tr("Lyrics stopped. Local DAB audio continues."));
 		lyricText_->setText(tr("Lyrics / lyric-triggered listening stopped."));
 	}
+    void cancelLyricsRefresh() {
+        if(lyricsRefreshProcess_.state()!=QProcess::NotRunning) {
+            lyricsRefreshProcess_.kill();
+            lyricsRefreshProcess_.waitForFinished(500);
+        }
+        if(!lyricsRefreshPath_.isEmpty()) QFile::remove(lyricsRefreshPath_);
+        lyricsRefreshPath_.clear();
+        lyricsRefreshRequestKey_.clear();
+        lyricsRefreshStationKey_.clear();
+        lyricsRefreshSongKey_.clear();
+        lyricsRefreshPending_=false;
+        if(lyricsRefresh_) lyricsRefresh_->setEnabled(true);
+    }
+    void refreshCurrentLyrics() {
+        // Explicit opt-in online refresh; independent from ASR and lip-sync.
+        if(!active() || playingKey_.isEmpty() || scanning_ ||
+           !pendingSongKey_.isEmpty()) {
+            lyricText_->setText(tr("Lyrics Refresh requires a stable DAB song."));
+            return;
+        }
+        if(lyricsRefreshPending_ ||
+           lyricsRefreshProcess_.state()!=QProcess::NotRunning ||
+           lyricsProcess_.state()!=QProcess::NotRunning) {
+            lyricText_->setText(tr("A lyrics search is already running; Karaoke kept."));
+            return;
+        }
+        const bool manual=!lyricsArtist_->text().trimmed().isEmpty() &&
+                          !lyricsTitle_->text().trimmed().isEmpty();
+        const TihuluDlsSong song=tihuluDlsSong(
+            lastSongDls_.isEmpty()?lastDls_:lastSongDls_);
+        if(!manual && (!song.valid() || lastSongMetadataKey_.isEmpty())) {
+            lyricText_->setText(tr("Enter artist and title, or wait for stable DLS metadata."));
+            return;
+        }
+        const QString artist=manual?lyricsArtist_->text().trimmed():song.artist;
+        const QString title=manual?lyricsTitle_->text().trimmed():song.title;
+        if(artist.isEmpty() || title.isEmpty() ||
+           artist.size()>130 || title.size()>130) return;
+        if(QMessageBox::question(this,tr("Lyrics Refresh · online search"),
+           tr("Search LRCLIB, lyrics.ovh and optional licensed Musixmatch "
+              "again for %1 — %2?\n\nOnly artist/title and selected "
+              "language codes are sent; NO radio audio is uploaded. "
+              "Current Karaoke remains while searching and on failure.")
+              .arg(artist,title),
+           QMessageBox::Yes|QMessageBox::No,QMessageBox::No)!=QMessageBox::Yes)
+            return;
+        const QString runtime=QStandardPaths::writableLocation(
+            QStandardPaths::RuntimeLocation);
+        if(runtime.isEmpty()) {
+            lyricText_->setText(tr("Private runtime directory unavailable."));
+            return;
+        }
+        const QString sourceCode=lyricsSourceLanguage_->currentData().toString();
+        const QStringList targets=selectedRadioTargets();
+        const QString identity=manual?
+            artist.simplified().toCaseFolded()+QLatin1Char('|')+
+            title.simplified().toCaseFolded():song.normalizedKey();
+        lyricsRefreshRequestKey_=identity+QLatin1Char('|')+sourceCode+
+            QLatin1Char('|')+targets.join(QLatin1Char(','));
+        lyricsRefreshStationKey_=playingKey_;
+        lyricsRefreshSongKey_=lastSongMetadataKey_;
+        lyricsRefreshStationTicket_=stationRequestId_;
+        lyricsRefreshStartedMs_=QDateTime::currentMSecsSinceEpoch();
+        lyricsRefreshPath_=runtime+QLatin1String("/tihulu-lyrics-refresh-")+
+            QString::number(QCoreApplication::applicationPid())+
+            QLatin1Char('-')+QString::number(++lyricsLookupGeneration_)+
+            QLatin1String(".json");
+        QFile::remove(lyricsRefreshPath_);
+        lyricsRefreshPending_=true;
+        lyricsRefresh_->setEnabled(false);
+        // Independent worker/file: do not unset lyricLoaded_, reset the
+        // preview song clock, clear word anchors, or restart SDR/Whisper.
+        lyricsRefreshProcess_.start(QLatin1String("tihulu-tv-center"),
+            {QLatin1String("lyrics-lookup"),QLatin1String("--artist"),artist,
+             QLatin1String("--track"),title,QLatin1String("--output"),
+             lyricsRefreshPath_,QLatin1String("--source"),sourceCode,
+             QLatin1String("--targets"),targets.join(QLatin1Char(',')),
+             QLatin1String("--online")});
+        if(!lyricsRefreshProcess_.waitForStarted(900)) {
+            cancelLyricsRefresh();
+            lyricText_->setText(tr("Lyrics Refresh worker failed; old words kept."));
+            return;
+        }
+        lyricText_->setText(tr(
+            "Lyrics Refresh searching · existing lyric/Karaoke display preserved."));
+    }
+    void pollLyricsRefreshResult() {
+        if(!lyricsRefreshPending_) return;
+        if(lyricsRefreshStationTicket_!=stationRequestId_ ||
+           lyricsRefreshStationKey_!=playingKey_ ||
+           lyricsRefreshSongKey_!=lastSongMetadataKey_ ||
+           !pendingSongKey_.isEmpty()) {
+            cancelLyricsRefresh(); // stale result from old track
+            return;
+        }
+        QFile file(lyricsRefreshPath_);
+        if(!file.open(QIODevice::ReadOnly) || file.size()>250000) {
+            if(lyricsRefreshProcess_.state()==QProcess::NotRunning &&
+               QDateTime::currentMSecsSinceEpoch()-lyricsRefreshStartedMs_>2500) {
+                cancelLyricsRefresh();
+                lyricText_->setText(tr(
+                    "Lyrics Refresh returned no result · existing Karaoke kept."));
+            }
+            return;
+        }
+        const QJsonObject value=QJsonDocument::fromJson(file.readAll()).object();
+        const QString state=value.value(QLatin1String("status")).toString();
+        if(state!=QLatin1String("completed") && state!=QLatin1String("error"))
+            return;
+        const QJsonArray newCues=value.value(QLatin1String("cues")).toArray();
+        const QJsonArray newPlain=value.value(QLatin1String("plain_lines")).toArray();
+        if(state!=QLatin1String("completed") ||
+           (newCues.isEmpty() && newPlain.isEmpty())) {
+            cancelLyricsRefresh();
+            lyricText_->setText(tr(
+                "Lyrics Refresh found no usable lyrics; old Karaoke preserved."));
+            return;
+        }
+        QStringList newLines;
+        for(const QJsonValue &entry:newPlain)
+            if(entry.isString()) newLines<<entry.toString().left(350);
+        const bool newPlainMode=value.value(QLatin1String("alignment_mode"))
+            .toString()==QLatin1String("asr_lexical");
+        const bool changed=newCues!=lyricCues_ ||
+                           newLines!=lyricRawLines_ ||
+                           newPlainMode!=plainLyricMode_;
+        const qint64 now=QDateTime::currentMSecsSinceEpoch();
+        lyricCues_=newCues;
+        lyricRawLines_=newLines;
+        plainLyricMode_=newPlainMode;
+        const QString provider=value.value(QLatin1String("provenance"))
+            .toObject().value(QLatin1String("provider")).toString();
+        lastLyricsProvider_=provider.isEmpty()?tr("online source"):provider;
+        lyricLoaded_=true;
+        lyricsEnabled_=true;
+        lastLyricsAutoLookup_=true;
+        lyricsRequestKey_=lyricsRefreshRequestKey_;
+        lyricsLookupCooldownUntilMs_=now+90000;
+        if(lyricsCache_.size()>=12 &&
+           !lyricsCache_.contains(lyricsRequestKey_)) {
+            QString oldest;
+            qint64 lowest=std::numeric_limits<qint64>::max();
+            for(auto it=lyricsCacheTime_.cbegin();
+                it!=lyricsCacheTime_.cend();++it)
+                if(it.value()<lowest) {lowest=it.value();oldest=it.key();}
+            if(!oldest.isEmpty()) {
+                lyricsCache_.remove(oldest);
+                lyricsCacheTime_.remove(oldest);
+            }
+        }
+        lyricsCache_.insert(lyricsRequestKey_,value);
+        lyricsCacheTime_.insert(lyricsRequestKey_,now);
+        if(changed) {
+            // Only retire old Karaoke AFTER a usable replacement arrived.
+            // Do not make a second DLS/song start by resetting songStartMs_.
+            verifiedLyricQueue_.clear();
+            plainLyricQueue_.clear();
+            clearKaraokeLine();
+            lastVerifiedLyricMs_=0;
+            lastVerifiedLyricText_.clear();
+            lastVerifiedLyricTranslations_=QJsonObject();
+            previewLastIndex_=-1;
+            previewLastHighlightedWord_=-2;
+            if(previewStartedMs_<=0) previewStartedMs_=now;
+            if(manualSongStartMs_<=0) manualSongStartMs_=now;
+        }
+        lyricProvider_->setText(tr(
+            "Lyrics source: %1 · refreshed · audio verification is independent")
+            .arg(lastLyricsProvider_));
+        lyricText_->setText(tr(
+            "Lyrics Refresh completed · %1; radio and Whisper unchanged.")
+            .arg(changed?tr("new text applied"):tr("same text retained")));
+        if(changed) setRadioLyricMatchStatus(tr(
+            "LYRICS REFRESHED · new words await Whisper audio match"));
+        cancelLyricsRefresh();
+    }
 	void fetchLyrics(bool automatic=false) {
 		if (!active() || playingKey_.isEmpty()) {
 			lyricText_->setText(tr("Play a station first.")); return;
