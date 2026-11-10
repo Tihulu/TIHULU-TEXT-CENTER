@@ -76,8 +76,10 @@ class RadioLowLatencyAndSpeechTests(unittest.TestCase):
             self.assertFalse(result["lyric_match_verified"])
             self.assertFalse(result["music_detected"])
             self.assertNotIn("[music]",result["original"])
-            # Loaded lyrics must NOT implicitly disable Whisper VAD.
-            self.assertEqual(seen_modes,[False])
+            # A loaded, owner-approved song catalog may relax VAD so ASR
+            # can hear sung vocals. Even then an unmatched broadcaster
+            # presenter sentence MUST stay in the original output.
+            self.assertEqual(seen_modes,[True])
 
     def test_auto_lyrics_require_actual_vocal_evidence(self):
         source=(ROOT/"kaffeine_next/native_radio_tab.h").read_text()
