@@ -1706,11 +1706,19 @@ public:
 		autoLyrics_->setToolTip(tr("OFF by default. When enabled, the current radio DLS "
 			"artist/title is sent to LRCLIB on each new song. No audio or private RF data are uploaded."));
 		connect(autoLyrics_,&QCheckBox::toggled,this,[this](bool enabled){
-			if(enabled && active() && !playingKey_.isEmpty() &&
-               !lyricsEnabled_ && !lastSongMetadataKey_.isEmpty() &&
-               pendingSongKey_.isEmpty())
-				QTimer::singleShot(100,this,[this](){fetchLyrics(true);});
-		});
+            if(enabled && active() && !playingKey_.isEmpty() &&
+               !lyricLoaded_ && !lastSongMetadataKey_.isEmpty() &&
+               pendingSongKey_.isEmpty() &&
+               lyricsProcess_.state()==QProcess::NotRunning)
+                QTimer::singleShot(100,this,[this](){
+                    if(autoLyrics_->isChecked() && !lyricLoaded_)
+                        fetchLyrics(true);
+                });
+            else if(!enabled && !lastSongMetadataKey_.isEmpty() && !lyricLoaded_)
+                setRadioLyricMatchStatus(tr(
+                    "DLS SONG DETECTED · automatic online lyrics OFF · "
+                    "enable Auto search or use Lyrics Refresh"));
+        });
 		autoLyricSync_=new QCheckBox(tr("Auto lyric timing (DLS estimate)"),lab);
 		autoLyricSync_->setChecked(true);
 		autoLyricSync_->setToolTip(tr("Use song metadata change and requested audio "
@@ -2326,8 +2334,12 @@ public:
                     autoLyrics_->setChecked(true);
                     // Existing DLS should be searched on AI activation too.
                     if(!lastSongMetadataKey_.isEmpty() &&
-                       pendingSongKey_.isEmpty() && !lyricsEnabled_)
-                        QTimer::singleShot(100,this,[this](){fetchLyrics(true);});
+                       pendingSongKey_.isEmpty() && !lyricLoaded_ &&
+                       lyricsProcess_.state()==QProcess::NotRunning)
+                        QTimer::singleShot(100,this,[this](){
+                            if(autoLyrics_->isChecked() && !lyricLoaded_)
+                                fetchLyrics(true);
+                        });
                 }
                 if(active() && !playingKey_.isEmpty()) startCaptioning();
                 else radioCaptionBanner_->setText(tr(
@@ -2635,7 +2647,20 @@ public:
     void hardwareStopAnalog() { stopAnalog(); }
 
 private:
-	struct TimedRadioCue { int chunkIndex; qint64 dueMs; qint64 queuedMs; QString text; };
+	struct TimedRadioCue {
+        int chunkIndex;
+        qint64 dueMs;
+        qint64 queuedMs;
+        QString text;
+        // Original estimated presentation timestamp, before the user offset.
+        // No change to the device clock or current speaker's DAC.
+        qint64 unoffsetDueMs;
+        int requestedCacheAtQueueMs;
+        TimedRadioCue(int chunk,qint64 due,qint64 queued,
+                      const QString &value,qint64 unoffset=0,int cache=-1)
+            : chunkIndex(chunk),dueMs(due),queuedMs(queued),text(value),
+              unoffsetDueMs(unoffset),requestedCacheAtQueueMs(cache) {}
+    };
     struct TimedPlainLyric {
         qint64 dueMs;
         QString text;
@@ -4958,6 +4983,20 @@ private:
         };
         updatePending(verifiedLyricQueue_);
         updatePending(plainLyricQueue_);
+        // Resynchronize normal Whisper captions using their ORIGINAL,
+        // offset-free timebase. Already displayed spoken lines are never
+        // replayed or reclassified as lyrics by a Lip-sync Refresh.
+        int retimedWhisperCues=0;
+        for(auto &cue:cueQueue_) {
+            if(cue.unoffsetDueMs<=0 || cue.chunkIndex<=displayedRadioChunk_)
+                continue;
+            const int cacheDelta=cue.requestedCacheAtQueueMs>=0?
+                activePlaybackCacheMs_-cue.requestedCacheAtQueueMs:0;
+            cue.dueMs=qMax(now,cue.unoffsetDueMs+
+                radioOffsetMs_->value()+cacheDelta);
+            ++retimedWhisperCues;
+        }
+        displayDueRadioCues(now);
 
         // A user refresh must not restart a song or re-download lyrics.
         // For a verified line redraw unchanged Whisper word anchors.
@@ -5004,7 +5043,8 @@ private:
         syncStatus_->setText(tr(
             "Karaoke Refresh: %5. Requested playback cache %1ms unchanged; "
             "SDR/Whisper not restarted. Reading=%2 (independent); "
-            "caption offset %3 ms, Karaoke offset %4 ms preserved.")
+            "caption offset %3 ms, Karaoke offset %4 ms preserved. "
+            "%6 pending Whisper phrases resynced; shown text not replayed.")
             .arg(activePlaybackCacheMs_)
             .arg(radioReadingPreset_?
                  radioReadingPreset_->currentText():tr("default"))
@@ -5012,7 +5052,8 @@ private:
             .arg(lyricsOffset_?lyricsOffset_->value():0)
             .arg(requestedRematch?
                  tr("checking current song with next Whisper result"):
-                 tr("Whisper or verified lyrics unavailable")));
+                 tr("Whisper or verified lyrics unavailable"))
+            .arg(retimedWhisperCues));
     }
     void refreshKaraokeWordHighlight(qint64 now) {
         if(!karaokeCurrent_ || karaokeLine_.isEmpty() ||
@@ -5601,7 +5642,9 @@ private:
             }
             if(!caption.isEmpty()) {
                 if(newChunk) {
-                    cueQueue_.append({chunk,due,now,caption.left(1300)});
+                    cueQueue_.append({chunk,due,now,caption.left(1300),
+                        requestedDue-radioOffsetMs_->value(),
+                        activePlaybackCacheMs_});
                     while(cueQueue_.size()>12) cueQueue_.removeFirst();
                 } else {
                     // Revision 1 adds translations to the SAME original
@@ -6063,6 +6106,10 @@ private:
             tr("Stable new DLS song · changing Karaoke after debounce."));
         if(autoLyrics_ && autoLyrics_->isChecked())
             fetchLyrics(true);
+        else
+            setRadioLyricMatchStatus(tr(
+                "DLS SONG DETECTED · online lyrics search OFF · "
+                "enable Auto search or use Lyrics Refresh"));
     }
 	void stopLyrics() {
         cancelLyricsRefresh();
@@ -6652,7 +6699,9 @@ private:
             stopLyrics_->setEnabled(false);
             const QString reason=value.value(QLatin1String("reason")).toString().left(190);
 			lyricText_->setText(tr("Lyrics unavailable: %1").arg(reason));
-            setRadioLyricMatchStatus(tr("LYRICS NOT FOUND · Whisper fallback"));
+            setRadioLyricMatchStatus(tr(
+                "LYRICS NOT FOUND · Whisper fallback · %1")
+                .arg(reason.isEmpty()?tr("provider returned no text"):reason));
             lyricProvider_->setText(tr("No trusted online lyrics; no radio audio uploaded."));
             if(listenFallbackOnMiss_->isChecked()) beginLyricListening();
 		}
