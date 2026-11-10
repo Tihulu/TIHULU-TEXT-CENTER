@@ -1233,6 +1233,12 @@ public:
 		english_ = new QCheckBox(tr("English"), lab); english_->setChecked(true);
 		turkish_ = new QCheckBox(tr("Turkish"), lab); turkish_->setChecked(true);
 		music_ = new QCheckBox(tr("Transcribe singing / music vocals"), lab);
+        music_->setChecked(initialRadioLanguages.value(
+            QLatin1String("radioMusicTranscription"),false).toBool());
+        connect(music_,&QCheckBox::toggled,this,[](bool enabled){
+            QSettings prefs(QLatin1String("TIHULU"),QLatin1String("KaffeineRadio"));
+            prefs.setValue(QLatin1String("radioMusicTranscription"),enabled);
+        });
         music_->setToolTip(tr("Show original sung words and selected translations "
             "when Whisper confirms song language. If matched lyrics exist, "
             "prefer their text; uncertain language is NEVER guessed. "
