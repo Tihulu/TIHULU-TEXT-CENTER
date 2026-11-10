@@ -87,7 +87,7 @@ class StandaloneNativePlayerTests(unittest.TestCase):
                 self.assertEqual(record["plain_lines"],["Hello everyone"])
                 cue=record["cues"][0]
                 self.assertEqual((cue["start"],cue["end"]),(1.0,3.0))
-                self.assertNotIn("en",cue["translations"])
+                self.assertNotIn("translations",cue)
                 # Lyrics Refresh returns the real timed words immediately; the
                 # running Whisper worker translates actually heard lyric lines
                 # later, without blocking the entire catalog for 30 seconds.
