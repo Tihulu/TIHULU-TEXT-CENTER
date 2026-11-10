@@ -6696,10 +6696,9 @@ private:
         // manual lookup of the already-loaded song. Result application
         // below still checks station identity and pending song stability.
         if(lyricsRefreshPending_ ||
-           lyricsRefreshProcess_.state()!=QProcess::NotRunning ||
-           lyricsProcess_.state()!=QProcess::NotRunning) {
+           lyricsRefreshProcess_.state()!=QProcess::NotRunning) {
             const QString note=tr(
-                "Lyrics lookup still running · existing Karaoke preserved.");
+                "Lyrics Refresh already running · existing Karaoke preserved.");
             lyricText_->setText(note);
             if(lyricsSyncState_) lyricsSyncState_->setText(note);
             return;
@@ -6734,6 +6733,18 @@ private:
         if(runtime.isEmpty()) {
             lyricText_->setText(tr("Private runtime directory unavailable."));
             return;
+        }
+        // Explicit Lyrics Refresh supersedes an older automatic lookup.
+        // Otherwise a slow provider keeps the original worker alive and
+        // the Refresh button appears broken. Do this only AFTER the owner
+        // accepts the online search; do not clear already displayed lyrics
+        // or restart Whisper, radio playback, Karaoke or any SDR.
+        if(lyricsProcess_.state()!=QProcess::NotRunning) {
+            lyricsProcess_.kill();
+            lyricsProcess_.waitForFinished(900);
+            if(!lyricPath_.isEmpty()) QFile::remove(lyricPath_);
+            lyricPath_.clear();
+            if(lyrics_) lyrics_->setEnabled(true);
         }
         const QString sourceCode=lyricsSourceLanguage_->currentData().toString();
         const QStringList targets=selectedRadioTargets();
