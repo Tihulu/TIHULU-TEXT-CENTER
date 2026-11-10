@@ -38,7 +38,7 @@ class DlsAndRefreshTests(unittest.TestCase):
     def test_cxx_radio_lookup_uses_parsed_hint_and_not_raw_dash_only(self):
         for anchor in ("inline TihuluDlsSong tihuluDlsSong",
                        'QLatin1String("jetzt on air")',
-                       "const TihuluDlsSong newSong=tihuluDlsSong(dls);",
+                       "const TihuluDlsSong newSong=tihuluDlsSongFromService(service);",
                        "candidate==lastSongMetadataKey_",
                        "pendingSongKey_=candidate",
                        "commitPendingDlsSong(candidate,station,ticket)",
