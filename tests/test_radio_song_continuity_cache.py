@@ -15,7 +15,7 @@ class RadioSongContinuityTests(unittest.TestCase):
         dls = RADIO.split("const TihuluDlsSong newSong=tihuluDlsSongFromService(service);")[1]
         dls = dls.split("const QJsonObject errs=service.value(", 1)[0]
         self.assertIn("pendingSongKey_=candidate", dls)
-        self.assertIn("QTimer::singleShot(5000,this,", dls)
+        self.assertIn("QTimer::singleShot(5100,this,", dls)
         self.assertIn("commitPendingDlsSong(candidate,station,ticket)", dls)
         self.assertIn("candidate==lastSongMetadataKey_", dls)
         for forbidden in ("clearKaraokeLine();", "lyricCues_=QJsonArray();",
