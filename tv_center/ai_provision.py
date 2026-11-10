@@ -131,12 +131,20 @@ class StarterAI:
         ready = translate_ready(packages)
         # These features are installed but idle until a caption source is
         # selected. Users can disable either toggle in the market at any time.
+        # Updating the one-line installer must NOT downgrade an existing
+        # RTX/CUDA/remote setup to Whisper Tiny. The starter is only a safe
+        # offline fallback for new users or missing saved model paths.
+        saved_model=str(self.ai.values.get("model_path") or "")
+        keep_saved=bool(saved_model and Path(saved_model).is_file())
         self.ai.update({
-            "model_path": str(model),
-            "model_dir": str(self.library.root),
-            "backend": "auto",
+            "model_path": saved_model if keep_saved else str(model),
+            "model_dir": str(self.ai.values.get("model_dir") or
+                             self.library.root),
+            "backend": (self.ai.values.get("backend","auto") if keep_saved
+                        else "auto"),
             "asr_enabled": True,
-            "translation_enabled": ready,
+            "translation_enabled": bool(
+                self.ai.values.get("translation_enabled") or ready),
         })
         self.ai.configure_environment()
         status = self.status()
@@ -172,6 +180,90 @@ class StarterAI:
             if result["errors"]:
                 progress("Pack catalog limitations: " + "; ".join(result["errors"])[:220])
         return result["pairs"]
+
+def install_baseline_models(progress=None):
+    """One-line install: lightest practical working model per AI capability.
+
+    Reuse owner-installed weights. Each non-critical enhancement fails
+    independently; a missing GPU, unsupported ARM wheel or noncommercial
+    license must never prevent TV/Whisper radio captions from working.
+    Explicit --no-ai in install.sh skips the whole bundle.
+    """
+    def note(message):
+        if progress:
+            progress(message)
+    report={"installed":[],"existing":[],"skipped":[],"failed":[]}
+    from .ai_profiles import local_status
+    # Speech + DE/EN/TR/FR translations are the universal CPU baseline.
+    note("Baseline 1/4 · Whisper Tiny + offline Argos")
+    try:
+        StarterAI().install(progress=note)
+        report["installed"].extend(["whisper_tiny","argos"])
+    except (OSError,RuntimeError,ValueError,subprocess.TimeoutExpired) as exc:
+        report["failed"].append({"component":"whisper_argos",
+                                 "reason":str(exc)[:220]})
+        # Continue with independent sound/speaker models when possible.
+    # No USB receiver or model imports are needed by this cheap preflight.
+    from .hardware_market import detect_hardware
+    hardware=detect_hardware()
+    ram=hardware.get("ram_mib") or 0
+    is_pi=bool(hardware.get("raspberry_pi_5"))
+    if is_pi or ram < 7500:
+        report["skipped"].extend([
+            {"component":"speaker_embedding",
+             "reason":"Pi/low-memory device: Whisper speech remains usable"},
+            {"component":"sound_labels",
+             "reason":"Heavy PyTorch audio classifier excluded from low-resource baseline"},
+        ])
+    else:
+        from .free_speakers import FreeSpeakerMarket
+        from .audio_classifiers import AudioLabels
+        for index,(name,market,installed,install) in enumerate((
+            ("speaker_embedding",FreeSpeakerMarket,
+             lambda x:x.status()["installed"],lambda x:x.install()),
+            ("sound_labels",AudioLabels,
+             lambda x:x.installed("sound"),lambda x:x.install("sound")),
+        ),2):
+            note(f"Baseline {index}/4 · {name}")
+            try:
+                instance=market()
+                if installed(instance):
+                    report["existing"].append(name)
+                else:
+                    install(instance)
+                    if not installed(instance):
+                        raise RuntimeError("Model files not verified")
+                    report["installed"].append(name)
+            except (OSError,RuntimeError,ValueError,subprocess.TimeoutExpired) as exc:
+                report["failed"].append({"component":name,
+                                         "reason":str(exc)[:220]})
+    # Qwen is the *smallest supported acoustic aligner*, but it is not
+    # a reasonable forced download on Raspberry Pi or low-VRAM desktops.
+    # Whisper lexical/word timing is the universally installed karaoke base.
+    gpu=hardware.get("gpu") or {}
+    vram=gpu.get("vram_mib") or 0
+    if not is_pi and vram>=12000 and ram>=16000:
+        from .qwen_forced_aligner import QwenForcedAlignerMarket
+        note("Baseline 4/4 · Qwen3 0.6B optional CUDA acoustic aligner")
+        try:
+            market=QwenForcedAlignerMarket()
+            if market.installed():
+                report["existing"].append("qwen_aligner")
+            else:
+                market.install()
+                if not market.installed():
+                    raise RuntimeError("Weights not verified")
+                report["installed"].append("qwen_aligner")
+        except (OSError,RuntimeError,ValueError,subprocess.TimeoutExpired) as exc:
+            report["failed"].append({"component":"qwen_aligner",
+                                     "reason":str(exc)[:220]})
+    else:
+        report["skipped"].append(
+            {"component":"qwen_aligner",
+             "reason":"Whisper karaoke fallback used; Qwen requires performance GPU"})
+    report["complete"]=not report["failed"]
+    return report
+
 
 def argos_worker():
     """Run inside the user-owned Argos virtual environment."""
@@ -220,7 +312,12 @@ def main(args=None):
         result = starter.install(progress=lambda msg: print(msg, flush=True))
         print(json.dumps(result, indent=2, ensure_ascii=False))
         return 0
-    print("Usage: tihulu-tv-center ai [status|install]", file=sys.stderr)
+    if args == ["install-baseline"]:
+        result=install_baseline_models(progress=lambda msg:print(msg,flush=True))
+        print(json.dumps(result,indent=2,ensure_ascii=False))
+        return 0 if result["complete"] else 1
+    print("Usage: tihulu-tv-center ai [status|install|install-baseline]",
+          file=sys.stderr)
     return 2
 
 if __name__ == "__main__":

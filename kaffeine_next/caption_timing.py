@@ -56,6 +56,7 @@ class CaptionConfig:
     target_languages: tuple[str, ...] = ("tr",)
     page: int = 150
     teletext_pid: int | None = None
+    teletext_language: str | None = None
     audio_pid: int | None = None
     audio_language: str | None = None
     spoken_auto: bool = False  # user requests real ASR language re-detection
@@ -97,6 +98,8 @@ class CaptionConfig:
         if self.teletext_pid is not None and (
                 type(self.teletext_pid) is not int or not 1 <= self.teletext_pid <= 8190):
             raise ValueError("Invalid broadcaster Teletext subtitle PID")
+        if self.teletext_language is not None:
+            language_code(self.teletext_language)
         if self.audio_pid is not None and (
                 type(self.audio_pid) is not int or not 1 <= self.audio_pid <= 8190):
             raise ValueError("Invalid selected broadcaster audio PID")
@@ -149,7 +152,9 @@ class CaptionConfig:
     def options(self):
         return {"mode":self.mode,"source":self.source,
                 "target":self.target,"targets":self.target_languages,
+                "translation_requested":bool(self.show_translation),
                 "page":self.page,"teletext_pid":self.teletext_pid,
+                "teletext_language":self.teletext_language,
                 "audio_pid":self.audio_pid,"audio_source":self.audio_language,
                 "spoken_auto":self.spoken_auto,
                 "speaker_enabled":self.speaker_enabled,
@@ -196,7 +201,7 @@ class CaptionConfig:
                 kind=str(event.get("type","")).lower()
                 score=event.get("confidence")
                 if (kind in names and isinstance(score,(float,int))
-                        and score>=0.75 and
+                        and score>=0.80 and
                         event.get("source")=="AST AudioSet"):
                     labels.append("["+names[kind]+"]")
         return labels
@@ -238,8 +243,9 @@ class CaptionConfig:
                     event_language=(self.target_languages[0]
                                     if self.show_translation and self.target_languages
                                     else original_language)
-                    for label in self._event_lines(result,event_language):
-                        lines.append(label)
+                    detected=self._event_lines(result,event_language)
+                    if detected:
+                        lines.append(" ".join(dict.fromkeys(detected)))
                 return "\n".join(lines[:4])[:1100]
         if self.show_original and original:
             original_language = result.get("source_language") or self.source
@@ -268,10 +274,14 @@ class CaptionConfig:
                 if legacy and legacy != original:
                     lines.append(legacy)
         if self.show_sound_events:
+            # Independent acoustic evidence is a NEW line after speech and
+            # translations, not a prefix to ASR or translator input.
             event_language=(self.target_languages[0]
                             if self.show_translation and self.target_languages
                             else original_language)
-            lines.extend(self._event_lines(result,event_language))
+            detected=self._event_lines(result,event_language)
+            if detected:
+                lines.append(" ".join(dict.fromkeys(detected)))
         # If the viewer requested translated-only subtitles but no model
         # could translate into the selected language, never blank the screen.
         # Broadcast / Whisper original remains visible with an explicit label.
@@ -645,7 +655,19 @@ class SpeakerLineHistory:
             self.clear()
             return rendered
         recent=self.previous
-        current=(index,rendered,float(now),config.revision,epoch)
+        # Speaker history contains only genuine utterances. A sound tag
+        # belongs to its own acoustic window and must never be replayed
+        # as a previous speaker's words on the next speaker change.
+        history_text=rendered
+        if config.show_sound_events:
+            event_language=(config.target_languages[0]
+                            if config.show_translation and config.target_languages
+                            else result.get("source_language") or config.source)
+            tags=config._event_lines(result,event_language)
+            suffix="\n"+" ".join(dict.fromkeys(tags)) if tags else ""
+            if suffix and history_text.endswith(suffix):
+                history_text=history_text[:-len(suffix)]
+        current=(index,history_text,float(now),config.revision,epoch)
         self.previous=current
         if (recent and recent[0]!=index and
                 recent[3]==config.revision and recent[4]==epoch

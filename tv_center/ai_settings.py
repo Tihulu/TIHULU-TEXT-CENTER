@@ -36,7 +36,8 @@ class AISettings:
             raise ValueError("AI toggles must be boolean")
         if updated["backend"] not in ("auto", "cpu", "gpu", "npu", "remote"):
             raise ValueError("Unsupported AI backend")
-        if updated["translation_model"] not in ("argos", "nllb", "deepl", "madlad"):
+        if updated["translation_model"] not in ("argos", "nllb", "deepl", "madlad",
+                                                "de_tr_direct", "auto_offline"):
             raise ValueError("Unsupported translation model")
         from .ai_profiles import PROFILES
         if updated["active_profile"] and updated["active_profile"] not in PROFILES:

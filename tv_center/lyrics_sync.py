@@ -13,6 +13,7 @@ import json
 import os
 from pathlib import Path
 import re
+import difflib
 import ssl
 import unicodedata
 import urllib.error
@@ -359,7 +360,18 @@ def lookup_synced_lyrics(*, title: str, artist: str,
     if duration is not None and 1 <= float(duration) <= 3600:
         params["duration"] = round(float(duration))
     url = "https://lrclib.net/api/get?" + urllib.parse.urlencode(params)
-    record = _get_json(url)
+    # A temporary LRCLIB DNS/HTTP/timeout failure must not prevent the
+    # explicitly authorized lyrics.ovh / licensed-provider fallback. Never
+    # retry the same failed origin in a busy loop; if the exact GET failed,
+    # bypass its search endpoint and proceed directly to plain sources.
+    lrclib_issue = None
+    try:
+        record = _get_json(url)
+    except (OSError, ValueError, RuntimeError, urllib.error.URLError) as exc:
+        if not allow_plain:
+            raise
+        record = {}
+        lrclib_issue = str(exc)[:120]
     # LRCLIB occasionally returns a fuzzy result for a structured /api/get,
     # especially for RDS/DLS spelling and punctuation. Never crash the
     # lookup worker or display another song; search the catalog for a
@@ -369,7 +381,14 @@ def lookup_synced_lyrics(*, title: str, artist: str,
                       + urllib.parse.urlencode({
                           "track_name": title.strip(),
                           "artist_name": artist.strip()}))
-        results = _get_json(search_url, allow_list=True)
+        try:
+            results = (_get_json(search_url, allow_list=True)
+                       if lrclib_issue is None else [])
+        except (OSError, ValueError, RuntimeError, urllib.error.URLError) as exc:
+            if not allow_plain:
+                raise
+            results = []
+            lrclib_issue = str(exc)[:120]
         exact = [item for item in results
                  if _matches_record(item, title, artist)
                  and not item.get("instrumental")]
@@ -389,9 +408,11 @@ def lookup_synced_lyrics(*, title: str, artist: str,
             if lines:
                 return [], {**alternative, "plain_lines": lines,
                             "artist": artist, "track": title}
-        return [], {"status": "not_found",
+        return [], {"status": "lrclib_unavailable" if lrclib_issue else "not_found",
                     "provider": "LRCLIB; licensed Musixmatch; lyrics.ovh",
-                    "message": "No trusted matching lyric metadata"}
+                    "message": ("LRCLIB unavailable; alternative text sources also "
+                                "did not return usable song words" if lrclib_issue else
+                                "No trusted matching lyric metadata")}
     if duration is not None and isinstance(record.get("duration"),(int,float)):
         if abs(float(record["duration"])-float(duration)) > 3:
             raise ValueError("Lyrics duration mismatch; refusing unsafe auto-sync")
@@ -432,6 +453,17 @@ def lookup_synced_lyrics(*, title: str, artist: str,
         return [], {"status":"unsynced_only","provider":"LRCLIB; licensed Musixmatch; lyrics.ovh",
                     "message":"No usable lyrics from allowed sources"}
     cues = parse_lrc(synced,duration=duration,provenance="LRCLIB")
+    if not cues and allow_plain:
+        # Some catalogs advertise syncedLyrics but deliver invalid LRC tags.
+        # Preserve genuine plainLyrics rather than pretending no lyrics exist.
+        lines = _clean_plain(record.get("plainLyrics",""))
+        if lines:
+            return [], {"status":"plain","provider":"LRCLIB",
+                        "record_id":record.get("id"),
+                        "track":title,"artist":artist,
+                        "plain_lines":lines,
+                        "alignment":"awaiting_real_audio_ASR",
+                        "online_lookup":True}
     return cues, {"status":"synced" if cues else "invalid",
                   "provider":"LRCLIB","record_id":record.get("id"),
                   "track":title,"artist":artist,
@@ -454,7 +486,14 @@ class LiveLyricMatcher:
     insufficient evidence for a match. This is approximate chunk timing,
     NOT sample-accurate forced alignment.
     """
-    def __init__(self, lines: list[str]):
+    def __init__(self, lines: list[str], *, threshold: float=0.74,
+                 mode: str="lexical"):
+        if not isinstance(threshold,(int,float)) or isinstance(threshold,bool) or not 0.0 <= threshold <= 1.0:
+            raise ValueError("Lyrics lexical match threshold must be 0–100%")
+        if mode not in ("lexical","fuzzy"):
+            raise ValueError("Unsupported Lyrics Match method")
+        self.threshold=float(threshold)
+        self.mode=mode
         if not isinstance(lines,list) or len(lines)>150:
             raise ValueError("Invalid plain lyric line catalog")
         self.lines=[line for line in lines if isinstance(line,str) and
@@ -463,6 +502,69 @@ class LiveLyricMatcher:
         self.seen_chunks=0
         self.previous_text=""
         self.unmatched_chunks=0
+        self.last_match_index=-1
+        self.last_match_text=""
+        self.last_match_at_chunk=-999
+
+    def set_threshold(self, threshold: float):
+        if not isinstance(threshold,(int,float)) or isinstance(threshold,bool) or not 0.0 <= threshold <= 1.0:
+            raise ValueError("Lyrics lexical match threshold must be 0–100%")
+        self.threshold=float(threshold)
+
+    def set_mode(self, mode: str):
+        if mode not in ("lexical","fuzzy"):
+            raise ValueError("Unsupported Lyrics Match method")
+        if self.mode!=mode:
+            self.mode=mode
+            self.previous_text=""
+            self.unmatched_chunks=0
+
+    def _matches_token(self, token: str, heard: set[str]) -> bool:
+        if token in heard:
+            return True
+        if self.mode!="fuzzy" or len(token)<5:
+            return False
+        # A fuzzy spelling match is not acoustic evidence on its own:
+        # normal lyric lines still require THREE distinct overlapping words.
+        return any(len(word)>=5 and abs(len(word)-len(token))<=2
+                   and difflib.SequenceMatcher(None,token,word).ratio()>=0.83
+                   for word in heard)
+
+    def reacquire(self, recognized: str) -> dict | None:
+        """Reposition on genuinely heard words after an explicit Sync Refresh.
+
+        Unlike the normal forward-only matcher, this searches the whole
+        catalog with >=89% lexical confidence. It consumes NO new audio and
+        leaves the existing match position untouched if evidence is weak.
+        Never use lyrics metadata or a previous catalog line as `recognized`.
+        """
+        if not isinstance(recognized, str) or not recognized.strip():
+            return None
+        candidate=LiveLyricMatcher(self.lines,
+            threshold=self.threshold,mode=self.mode)
+        match=candidate.observe(recognized)
+        if match is None:
+            return None
+        # Identical refrains can appear several times in one song. Text
+        # similarity alone cannot identify which chorus is playing, so
+        # reject a long-range ambiguous seek instead of jumping to verse 1.
+        same=[index for index,line in enumerate(self.lines)
+              if _metadata_key(line)==_metadata_key(match["text"])]
+        if len(same)>1:
+            nearby=[index for index in same
+                    if abs(index-max(0,self.position-1))<=8]
+            if len(nearby)!=1:
+                return None
+            match["index"]=nearby[0]
+            candidate.position=nearby[0]+1
+            candidate.last_match_index=nearby[0]
+        self.position=candidate.position
+        self.previous_text=recognized[-480:]
+        self.unmatched_chunks=0
+        self.last_match_index=candidate.last_match_index
+        self.last_match_text=candidate.last_match_text
+        self.last_match_at_chunk=self.seen_chunks
+        return {**match, "refresh_reacquired":True}
 
     def observe(self, recognized: str) -> dict | None:
         if not isinstance(recognized,str) or not recognized.strip():
@@ -490,7 +592,8 @@ class LiveLyricMatcher:
             if len(expected)<3:
                 continue
             distinctive={word for word in expected if len(word)>=3}
-            evidence=sum(1 for word in distinctive if word in hearing)
+            evidence=sum(1 for word in distinctive
+                         if self._matches_token(word,hearing))
             # Short refrains such as "Gül kokar gül" contain only two
             # DISTINCTIVE words. Require BOTH, with higher confidence;
             # do not match "Rose kokar rose" to "Gül kokar gül".
@@ -501,13 +604,21 @@ class LiveLyricMatcher:
             coverage=evidence/max(1,len(distinctive))
             precision=evidence/max(1,len(hearing))
             confidence=0.82*coverage+0.18*min(1.,precision*2.)
-            threshold=0.90 if short_refrain else 0.74
+            threshold=self.threshold
             if acquiring and index>=8:
                 # A broad search needs a distinctive multiword phrase;
                 # generic 2-word refrains may only match near the start.
                 if len(distinctive)<3 or evidence<3:
                     continue
-                threshold=max(threshold,0.89)
+                # Broad seeks still require three distinctive matching
+                # tokens; 0% does not mean auto-progress on silence.
+                threshold=max(threshold,0.40)
+            # Avoid replaying the same recognized line in consecutive
+            # overlapping 5 s chunks. A later real refrain stays possible.
+            if (index==self.last_match_index or
+                _metadata_key(original)==_metadata_key(self.last_match_text)) and (
+                    self.seen_chunks-self.last_match_at_chunk<=2):
+                continue
             if confidence>=threshold and (best is None or confidence>best[0]):
                 best=(confidence,index,original)
         if best is None:
@@ -516,7 +627,13 @@ class LiveLyricMatcher:
         score,index,line=best
         self.unmatched_chunks=0
         self.position=index+1
+        self.last_match_index=index
+        self.last_match_text=line
+        self.last_match_at_chunk=self.seen_chunks
         return {"index":index,"text":line,"confidence":round(score,3),
+                "threshold":round(self.threshold,3),
+                "metric":"lexical_overlap_not_audio_sync_probability",
+                "mode":self.mode,
                 "kind":"observed_ASR_chunk_match","approximate":True}
 
 def srt_timestamp(seconds: float) -> str:
@@ -525,7 +642,8 @@ def srt_timestamp(seconds: float) -> str:
 
 
 def write_srt(cues: list[LyricCue], path: str | Path, *,
-              overwrite: bool = False, translations: dict[int,str] | None = None):
+              overwrite: bool = False, translations: dict[int,str] | None = None,
+              include_original: bool = True):
     target=Path(path).expanduser()
     if target.is_symlink() or not target.parent.is_dir():
         raise ValueError("Output directory invalid or destination is symlink")
@@ -533,12 +651,15 @@ def write_srt(cues: list[LyricCue], path: str | Path, *,
     for i, cue in enumerate(cues,1):
         if cue.end <= cue.start:
             continue
-        text = cue.text
-        if translations and translations.get(i):
-            text += "\n" + translations[i]
+        translated = translations.get(i) if translations else None
+        # "translated only" mirrors the TV output preference. Never write
+        # an empty subtitle if the chosen translator has no usable result.
+        text = cue.text if include_original or not translated else ""
+        if translated:
+            text += ("\n" if text else "") + translated
         lines.append(f"{i}\n{srt_timestamp(cue.start)} --> {srt_timestamp(cue.end)}\n{text}\n")
-    if len(lines) > 1500:
-        raise ValueError("Subtitle cue budget exceeded")
+    if len(lines) > 12000:
+        raise ValueError("Subtitle cue budget exceeded (12000 cues)")
     flags = "w" if overwrite else "x"
     with target.open(flags,encoding="utf-8") as output:
         output.write("\n".join(lines))

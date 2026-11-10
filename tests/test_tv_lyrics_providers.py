@@ -100,5 +100,68 @@ class LyricsProviderTests(unittest.TestCase):
             self.assertNotIn("cues",source)
 
 
+    def test_lrclib_connection_failure_uses_authorized_plain_fallback(self):
+        import urllib.error
+        calls=[]
+        def request(url,**kwargs):
+            calls.append(url)
+            if "lrclib.net/api/get?" in url:
+                raise urllib.error.URLError("offline")
+            if "lrclib.net/api/search?" in url:
+                self.fail("Do not retry failed LRCLIB origin during this lookup")
+            if "api.lyrics.ovh/v1/" in url:
+                return {"lyrics":"First heard line\nThe second heard line"}
+            self.fail("Unexpected provider "+url)
+        with mock.patch.dict("os.environ",{"TIHULU_MUSIXMATCH_API_KEY":""}):
+            with mock.patch("tv_center.lyrics_sync._get_json",side_effect=request):
+                cues,meta=lookup_synced_lyrics(
+                    title="Track",artist="Artist",online=True,allow_plain=True)
+        self.assertEqual(cues,[])
+        self.assertEqual(meta["provider"],"lyrics.ovh")
+        self.assertEqual(meta["plain_lines"],
+                         ["First heard line","The second heard line"])
+        self.assertEqual(len(calls),2)
+
+    def test_lrclib_search_failure_still_uses_alternative(self):
+        def request(url,**_):
+            if "lrclib.net/api/get?" in url:return {}
+            if "lrclib.net/api/search?" in url:
+                raise RuntimeError("catalog service temporarily unavailable")
+            if "api.lyrics.ovh/v1/" in url:
+                return {"lyrics":"Vocal line from user-approved lyrics service"}
+            self.fail("Unexpected provider "+url)
+        with mock.patch.dict("os.environ",{"TIHULU_MUSIXMATCH_API_KEY":""}):
+            with mock.patch("tv_center.lyrics_sync._get_json",side_effect=request):
+                cues,meta=lookup_synced_lyrics(
+                    title="Track",artist="Artist",online=True,allow_plain=True)
+        self.assertFalse(cues)
+        self.assertEqual(meta["provider"],"lyrics.ovh")
+        self.assertEqual(meta["alignment"],"awaiting_real_audio_ASR")
+
+    def test_malformed_synced_lyrics_uses_actual_plain_text(self):
+        record={"trackName":"Track","artistName":"Artist",
+                "syncedLyrics":"[bad timestamp]This is not valid LRC",
+                "plainLyrics":"The first real line\nThe second real line",
+                "instrumental":False,"id":3}
+        with mock.patch("tv_center.lyrics_sync._get_json",return_value=record) as net:
+            cues,meta=lookup_synced_lyrics(
+                title="Track",artist="Artist",online=True,allow_plain=True)
+        self.assertFalse(cues)
+        self.assertEqual(meta["provider"],"LRCLIB")
+        self.assertEqual(meta["plain_lines"],
+                         ["The first real line","The second real line"])
+        self.assertEqual(meta["alignment"],"awaiting_real_audio_ASR")
+        self.assertEqual(net.call_count,1)
+
+    def test_lrclib_outage_without_plain_opt_in_stays_error(self):
+        import urllib.error
+        with mock.patch("tv_center.lyrics_sync._get_json",
+                        side_effect=urllib.error.URLError("offline")) as net:
+            with self.assertRaises(urllib.error.URLError):
+                lookup_synced_lyrics(
+                    title="Track",artist="Artist",online=True,allow_plain=False)
+        self.assertEqual(net.call_count,1)
+
+
 if __name__=="__main__":
     unittest.main()

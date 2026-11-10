@@ -10,6 +10,7 @@ import re
 import subprocess
 import tempfile
 import time
+import threading
 from pathlib import Path
 
 from textcenter.compute import LANGUAGES as SUPPORTED
@@ -73,6 +74,9 @@ def ass_text(raw: str) -> str:
         txt = (txt.replace(r"\N", " ").replace(r"\n", " ")
                .replace(r"\h", " ").replace("\u00a0", " "))
         txt = re.sub(r"[ \t]+", " ", txt).strip()
+        # Drop broadcaster test-page titles, never real spoken subtitles.
+        from .asr_quality import strip_test_page_artifact
+        txt, _ = strip_test_page_artifact(txt,broadcaster=True)
         if txt and (not lines or txt != lines[-1]):
             lines.append(txt)
     return "\n".join(lines[-6:])[:1600]
@@ -441,58 +445,129 @@ def _translate_argos_local(text: str, source: str, target: str) -> str:
     return translate_offline(text, source, target, backend="cpu")
 
 
-def translate(text: str, source: str, target: str) -> tuple[str | None, str | None]:
-    """Return (verified translated text, error/warning), never made-up output.
+_live_translator_info = threading.local()
 
-    If NLLB cannot materialize its weights or exceeds the live time budget,
-    the user still gets the requested translation when a suitable Argos pack
-    exists. A circuit breaker prevents a bad 2.5-GB NLLB cold start from
-    blocking every following live audio segment. Any fallback is reported
-    explicitly in diagnostics, not embedded in the on-video subtitle text.
+
+def translate(text: str, source: str, target: str) -> tuple[str | None, str | None]:
+    """Public backwards-compatible (text, warning/error) API.
+
+    Keep this call seam for DVB, radio and the existing translators/tests.
+    Real-engine diagnostics are stored per worker thread separately.
+    """
+    translated, issue, actual_engine = translate_with_engine(
+        text, source, target)
+    _live_translator_info.last = (
+        (text, source, target), actual_engine if translated else None)
+    return translated, issue
+
+
+def translation_engine_for(text: str, source: str, target: str):
+    """Engine of the actual immediately preceding translation on this thread.
+
+    Never infer engine from selected settings when inference was unavailable.
+    """
+    key, engine = getattr(_live_translator_info, "last", (None, None))
+    return engine if key == (text, source, target) else None
+
+
+def translate_with_engine(text: str, source: str, target: str):
+    """Return (text, warning/error, ACTUAL engine) for honest UI diagnostics.
+
+    Whisper remains ASR, not an invisible English-pivot translator. The
+    owner's explicit 'Direct DE→TR' choice uses installed NLLB/MADLAD first,
+    only then reports Argos's possible English pivot. Other settings behave
+    as before. No language model is downloaded during inference.
     """
     try:
         source = language_code(source, nllb=True)
         target = language_code(target, nllb=True)
     except ValueError as exc:
-        return None, str(exc)
+        return None, str(exc), None
     if source == target:
-        return None, None
+        return None, None, "original"
+
+    selected = os.environ.get("TIHULU_TRANSLATOR_MODEL", "argos")
+    if selected == "auto_offline":
+        # Per-language local policy: direct DE→TR is preferred to English
+        # pivot; other targets try NLLB with existing circuit breaker, then
+        # Argos and finally installed MADLAD. No network or auto-download.
+        if source in ("de", "deu_Latn") and target in ("tr", "tur_Latn"):
+            from .direct_de_tr import translate_de_tr_direct
+            result=translate_de_tr_direct(text)
+            return result.text, result.error or result.warning, result.engine
+        from .translation_failover import live_failover
+        from .translation_service import translate_nllb, translate_madlad
+        from .translation_market import TranslationModelMarket
+        try:
+            nllb_ready=bool(TranslationModelMarket().status().get("installed"))
+        except (OSError,ValueError,RuntimeError):
+            nllb_ready=False
+        outcome=live_failover().translate(
+            text,source,target,preferred="nllb" if nllb_ready else "argos",
+            nllb=translate_nllb,argos=_translate_argos_local)
+        if outcome.text:
+            return outcome.text,outcome.error or outcome.warning,outcome.engine
+        from .translation_madlad import MadladMarket
+        try:
+            madlad_ready=bool(MadladMarket().status().get("installed"))
+        except (OSError,ValueError,RuntimeError):
+            madlad_ready=False
+        if madlad_ready:
+            try:
+                value=translate_madlad(text,source,target)
+                if isinstance(value,str) and value.strip():
+                    return value.strip(),outcome.error or outcome.warning,"madlad-fallback"
+            except (OSError,RuntimeError,ValueError,TimeoutError,ImportError):
+                pass
+        return None,outcome.error or "No working installed offline translator",None
+
+    if selected == "de_tr_direct":
+        if source in ("de", "deu_Latn") and target in ("tr", "tur_Latn"):
+            from .direct_de_tr import translate_de_tr_direct
+            result = translate_de_tr_direct(text)
+            return result.text, result.error or result.warning, result.engine
+        # The preference is pair-specific. Keep other requested languages
+        # available using local Argos, and label the actual route honestly.
+        try:
+            return _translate_argos_local(text, source, target), None, "argos"
+        except (ImportError, RuntimeError, ValueError, OSError, KeyError):
+            return None, "No local Argos route for non-DE→TR language pair", None
 
     from .translation_failover import live_failover
     from .translation_service import translate_nllb
-    selected = os.environ.get("TIHULU_TRANSLATOR_MODEL", "argos")
-    if selected=="deepl":
-        # Explicit online-provider opt-in. Only the decoded text is sent;
-        # live RF, TV transport and original audio never leave this device.
+    if selected == "deepl":
+        # Only an EXPLICIT previously authorized DeepL selection sends text.
         try:
             from .deepl_api import translate_deepl
-            translated=translate_deepl(text,source,target)
-            return translated,None
-        except (ValueError,RuntimeError,OSError,TimeoutError) as exc:
+            translated = translate_deepl(text, source, target)
+            return translated, None, "deepl"
+        except (ValueError, RuntimeError, OSError, TimeoutError) as exc:
             try:
-                replacement=_translate_argos_local(text,source,target)
-                return replacement,"DeepL unavailable; offline Argos fallback: "+str(exc)[:100]
-            except (ImportError,RuntimeError,ValueError,OSError,KeyError):
-                return None,"DeepL unavailable; no compatible offline Argos pair"
-    if selected=="madlad":
+                replacement = _translate_argos_local(text, source, target)
+                return (replacement, "DeepL unavailable; offline Argos fallback: "+
+                        str(exc)[:100], "argos-fallback")
+            except (ImportError, RuntimeError, ValueError, OSError, KeyError):
+                return None, "DeepL unavailable; no compatible offline Argos pair", None
+    if selected == "madlad":
         from .translation_service import translate_madlad
         import time
-        now=time.monotonic()
-        blocked=getattr(translate,"_madlad_blocked_until",0.)
-        if now>=blocked:
+        now = time.monotonic()
+        blocked = getattr(translate, "_madlad_blocked_until", 0.)
+        if now >= blocked:
             try:
-                return translate_madlad(text,source,target),None
-            except (RuntimeError,OSError,ValueError,TimeoutError,ImportError):
-                translate._madlad_blocked_until=now+180.
+                return translate_madlad(text, source, target), None, "madlad"
+            except (RuntimeError, OSError, ValueError, TimeoutError, ImportError):
+                translate._madlad_blocked_until = now + 180.
         try:
-            return _translate_argos_local(text,source,target),(
-                "MADLAD unavailable or too slow; switched to installed offline Argos")
-        except (RuntimeError,OSError,ValueError,ImportError,KeyError):
-            return None,"MADLAD unavailable; offline Argos pair not installed"
+            return (_translate_argos_local(text, source, target),
+                    "MADLAD unavailable or too slow; switched to installed offline Argos",
+                    "argos-fallback")
+        except (RuntimeError, OSError, ValueError, ImportError, KeyError):
+            return None, "MADLAD unavailable; offline Argos pair not installed", None
     outcome = live_failover().translate(
         text, source, target, preferred=selected,
         nllb=translate_nllb, argos=_translate_argos_local)
-    return outcome.text, outcome.error or outcome.warning
+    return outcome.text, outcome.error or outcome.warning, outcome.engine
 
 
 def decode_segment(ts: bytes, *, mode="auto", page=150, source="de",
@@ -508,6 +583,8 @@ def decode_segment(ts: bytes, *, mode="auto", page=150, source="de",
                    defer_asr_translation: bool = False,
                    speech_auto: bool = False,
                    auto_teletext_probe: bool = False,
+                   auto_teletext_recovery: bool = False,
+                   teletext_language: str | None = None,
                    overlap_separation: bool = False,
                    show_sound_events: bool = False,
                    show_voice_types: bool = False) -> dict:
@@ -562,6 +639,7 @@ def decode_segment(ts: bytes, *, mode="auto", page=150, source="de",
         # page mode. Three consecutive high-confidence conflicts are
         # required by the caller before it may prefer Whisper.
         teletext_probe = None
+        teletext_shadow = None
         if (original and mode=="auto" and auto_teletext_probe):
             details = {}
             try:
@@ -618,9 +696,14 @@ def decode_segment(ts: bytes, *, mode="auto", page=150, source="de",
                     collapse_asr_repetition_loops)
                 cleaned = (original if music_transcription else
                            collapse_asr_repetition_loops(original))
+                from .asr_quality import strip_test_page_artifact
+                cleaned, page_marker_removed = strip_test_page_artifact(cleaned)
                 if cleaned != original:
                     original = cleaned
-                    speech_diagnostics["asr_repetitions_removed"] = True
+                    if page_marker_removed:
+                        speech_diagnostics["asr_test_page_artifact_removed"] = True
+                    else:
+                        speech_diagnostics["asr_repetitions_removed"] = True
                     # Removed words break original ASR timestamp indexing.
                     # Prefer an accurate whole-phrase cue to forged timing.
                     speech_diagnostics["words"] = []
@@ -671,6 +754,22 @@ def decode_segment(ts: bytes, *, mode="auto", page=150, source="de",
                 error = str(exc)[:180]
             finally:
                 asr_ms = round((time.perf_counter()-asr_start)*1000)
+        # While Whisper protects viewers from mismatched Teletext, sample
+        # the broadcaster text on the SAME selected TS/SID periodically.
+        # The ASR above already ran; do NOT trigger a second expensive ASR
+        # or revive stale text from an earlier programme. The caller decides
+        # whether two trusted matching probes justify returning to Teletext.
+        if auto_teletext_recovery and mode=="asr":
+            try:
+                shadow_page=page if teletext_pid is not None else "subtitle"
+                shadow=teletext_from_clip(p,shadow_page,service_id,teletext_pid)
+                if shadow and len(shadow.strip())>=15:
+                    teletext_shadow={
+                        "text":shadow[:2500],
+                        "source_language":teletext_language or
+                            (source if source!="auto" else "und")}
+            except (OSError,RuntimeError,ValueError,subprocess.TimeoutExpired):
+                pass
         # A global clip may contain multiple voices; never assign its
         # acoustic category to an individual without a single diarized
         # voice. In an overlap case each isolated stream was classified
@@ -700,21 +799,23 @@ def decode_segment(ts: bytes, *, mode="auto", page=150, source="de",
                     # or selected audio language; original IS the answer.
                     translations[language] = original
                     continue
-                phrase, failed = translate(original, used_language, language)
+                phrase, failed = translate(
+                    original, used_language, language)
+                real_engine = translation_engine_for(
+                    original, used_language, language)
                 if phrase:
                     translations[language] = phrase
+                    if real_engine:
+                        engines[language] = real_engine
                     if failed:
                         warnings[language] = failed
-                        engines[language] = "argos-fallback"
-                    else:
-                        engines[language] = os.environ.get(
-                            "TIHULU_TRANSLATOR_MODEL", "argos")
                 elif failed:
                     errors[language] = failed
             translation_ms = round((time.perf_counter()-translate_start)*1000)
         translated = translations.get(target)
         return {"original": original, "raw_asr_original":raw_asr_original,
                 "teletext_probe":teletext_probe,
+                "teletext_shadow":teletext_shadow,
                 "translated": translated, "translations": translations,
                 "remote_error":speech_diagnostics.get("remote_error"),
                 "remote_fallback":speech_diagnostics.get("remote_fallback"),
@@ -741,6 +842,8 @@ def decode_segment(ts: bytes, *, mode="auto", page=150, source="de",
                 "speaker_note":speech_diagnostics.get("speaker_note"),
                 "recognition_rejected":speech_diagnostics.get("recognition_rejected"),
                 "asr_repetitions_removed":speech_diagnostics.get("asr_repetitions_removed",False),
+                "asr_test_page_artifact_removed":speech_diagnostics.get(
+                    "asr_test_page_artifact_removed",False),
                 "speech_priority":speech_diagnostics.get("speech_priority", False),
                 "speech_priority_note":speech_diagnostics.get("speech_priority_note"),
                 "processing_ms": {

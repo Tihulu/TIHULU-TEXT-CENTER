@@ -97,7 +97,15 @@ private:
 		static_cast<QVBoxLayout *>(layout())->insertWidget(0, mediaWidget, 1);
 		mediaWidget->setFocus();
 	}
+	void toggleDisplayMode(MediaWidget::DisplayMode mode) override {
+        // Local-video fullscreen must also hide the Playback AI panel;
+        // Kaffeine's base PlayerTab has an empty toggleDisplayMode().
+        aiPanel->setVisible(mode==MediaWidget::NormalMode);
+    }
 	void setLocalFile(const QUrl &url) { aiPanel->setLocalFile(url); }
+    bool prepareLocalFileOpen(const QUrl &url) {
+        return aiPanel->prepareLocalFileOpen(url);
+    }
 
 private:
 	MediaWidget *mediaWidget;
@@ -123,6 +131,16 @@ private:
 	// Keep local video/audio player *inside* this Playback tab.
 	// Its optional AI captions are generated in the bottom panel.
 	playerTab->setLocalFile(copy);
+    // Optional, user-controlled full-file prepass. Prevent the playlist
+    // from starting audible/video playback before the complete SRT exists.
+    // On completion the same MediaWidget opens the file with its SRT.
+    // Normal live-TV/radio, HTTP streams, Playlist and default file-open
+    // behavior remain unchanged.
+    if (copy.isLocalFile() && playerTab->prepareLocalFileOpen(copy)) {
+        actionOpenRecent->addUrl(copy);
+        if (currentTabIndex != PlayerTabId) activateTab(PlayerTabId);
+        return;
+    }
 	actionOpenRecent->addUrl(copy);''')
     hdrmain = "src/mainwindow.h"
     change(hdrmain, '\t\tDvbTabId = 3\n',
@@ -199,7 +217,7 @@ QAbstractButton *StartTab::addShortcut''',
 		QIcon::fromTheme(QLatin1String("audio-radio")), this);
 	button->setShortcut(Qt::Key_6);
 	button->setWhatsThis(i18n("Open the native TIHULU DAB+ station library."));
-	connect(button, SIGNAL(clicked()), mainWindow, SLOT(playRadio()));
+	connect(button, SIGNAL(clicked(bool)), mainWindow, SLOT(playRadio()));
 	gridLayout->addWidget(button, 1, 2);
 #endif /* HAVE_DVB == 1 */
 }
@@ -259,6 +277,16 @@ QAbstractButton *StartTab::addShortcut''')
 	gridLayout->addWidget(button,3,0,1,3);
 #endif /* HAVE_DVB == 1 */''')
 
+    # Native Start tile uses Qt5 clicked(bool); clicked() has no matching
+    # signal and silently leaves the Radio tile nonfunctional. Normalize
+    # other Kaffeine home shortcuts for consistent pointer/keyboard access.
+    # Only StartTab connectors are changed, not the general mainwindow.
+    home_marker = 'class PlayerTab : public TabBase'
+    home_end = files[main].index(home_marker)
+    files[main] = (files[main][:home_end].replace(
+        'SIGNAL(clicked())', 'SIGNAL(clicked(bool))')+
+        files[main][home_end:])
+
     # Single bottom-bar recorder is available across Playback, TV, Radio
     # and Internet streams. Non-DVB sources are tracked only when libVLC
     # actually receives a URL; no stale source from a previous media type.
@@ -274,6 +302,145 @@ QAbstractButton *StartTab::addShortcut''')
 		[this]() { activateTab(PlayerTabId); },this);
 
 \tcurrentTabIndex = StartTabId;''')
+    # Show truthful *stage completion*, not estimated USB/SDR timing.
+    # Radio and DVB-T2 have separate adapters, but share the libVLC player.
+    # Stop only app-owned radio workers before selecting the Television tab.
+    change(main, '#include "tihulu_unified_recorder.h"\n',
+           '#include "tihulu_unified_recorder.h"\n'
+           '#include <QProgressBar>\n#include <QStatusBar>\n'
+           '#include <QSignalBlocker>\n')
+    change(main, '''	new TihuluUnifiedRecorder(mediaWidget,dvbTab,controlBar,
+		[this]() { activateTab(PlayerTabId); },this);
+
+	currentTabIndex = StartTabId;''',
+    '''	new TihuluUnifiedRecorder(mediaWidget,dvbTab,controlBar,
+		[this]() { activateTab(PlayerTabId); },this);
+	// A real stage-based percentage stays visible on every native tab.
+	QProgressBar *tihuluReceiverSwitchProgress = new QProgressBar(this);
+	tihuluReceiverSwitchProgress->setObjectName(
+		QLatin1String("tihuluReceiverSwitchProgress"));
+	tihuluReceiverSwitchProgress->setRange(0,100);
+	tihuluReceiverSwitchProgress->setValue(0);
+	tihuluReceiverSwitchProgress->setFormat(
+		i18n("SDR / TV handoff · ready"));
+	tihuluReceiverSwitchProgress->setMinimumWidth(240);
+	tihuluReceiverSwitchProgress->setVisible(false);
+	statusBar()->addPermanentWidget(tihuluReceiverSwitchProgress,1);
+
+	currentTabIndex = StartTabId;''')
+    change(main, '''void MainWindow::activateTab(int tabIndex)
+{
+	currentTabIndex = tabIndex;
+	tabBar->setCurrentIndex(tabIndex);''',
+    '''void MainWindow::activateTab(int tabIndex)
+{
+	if (tabIndex < 0 || tabIndex >= tabs.size()) return;
+	// Programmatic switches also trigger QTabBar::currentChanged.
+	// Prevent nested handoffs and accidental double SDR shutdown.
+	if (property("tihuluTabSwitchBusy").toBool()) return;
+	setProperty("tihuluTabSwitchBusy",true);
+	QProgressBar *progress = findChild<QProgressBar *>(
+		QLatin1String("tihuluReceiverSwitchProgress"));
+	const bool toTelevision = tabIndex == DvbTabId &&
+		currentTabIndex != DvbTabId;
+	const bool toRadio = tabIndex == RadioTabId &&
+		currentTabIndex != RadioTabId;
+	if (toTelevision) {
+		const auto *radio = static_cast<TihuluRadioTab *>(tabs.at(RadioTabId));
+		const bool radioOwned = radio->hardwareDabOwned() ||
+			radio->hardwareAnalogOwned();
+		if (progress) {
+			progress->show();
+			progress->setValue(10);
+			progress->setFormat(
+				i18n("%p% · TV selected; inspecting owned radio receiver"));
+			progress->repaint();
+		}
+		if (radioOwned) {
+			if (progress) {
+				progress->setValue(35);
+				progress->setFormat(
+					i18n("%p% · invalidating radio and releasing SDR"));
+				progress->repaint();
+			}
+			if (!static_cast<TihuluRadioTab *>(
+				tabs.at(RadioTabId))->releaseForTelevision()) {
+				if (progress) {
+					progress->setValue(0);
+					progress->setFormat(
+						i18n("%p% · SDR release failed; TV switch cancelled"));
+				}
+				QSignalBlocker keepCurrent(tabBar);
+				tabBar->setCurrentIndex(currentTabIndex);
+				setProperty("tihuluTabSwitchBusy",false);
+				return;
+			}
+		}
+		if (progress) {
+			progress->setValue(85);
+			progress->setFormat(i18n(
+				"%p% · radio released/idle; activating native DVB page"));
+			progress->repaint();
+		}
+	}
+	if (toRadio && progress) {
+		progress->show();
+		progress->setValue(70);
+		progress->setFormat(i18n(
+			"%p% · opening Radio without claiming SDR yet"));
+		progress->repaint();
+	}
+	currentTabIndex = tabIndex;
+	// The side bar may already have selected the target. For direct
+	// Start/Home keyboard buttons, set it without recursive currentChanged.
+	{
+		QSignalBlocker noRecursiveTabChange(tabBar);
+		tabBar->setCurrentIndex(tabIndex);
+	}''')
+    change(main, '''	tabs.at(currentTabIndex)->activate();
+
+	emit displayModeChanged();
+}''',
+    '''	tabs.at(currentTabIndex)->activate();
+	if (progress && (toTelevision || toRadio)) {
+		progress->setValue(100);
+		progress->setFormat(toTelevision ?
+			i18n("%p% · TV tab ready; RF lock not yet measured") :
+			i18n("%p% · Radio tab ready; SDR on-demand"));
+	}
+	setProperty("tihuluTabSwitchBusy",false);
+	emit displayModeChanged();
+}''')
+    # Kaffeine hides the menu/toolbars in fullscreen, but QMainWindow's
+    # QStatusBar remains visible by default. Our stage-based cyan handoff
+    # widget lives IN that bar and must never overlay fullscreen video.
+    # Restore the original status area immediately on leaving fullscreen,
+    # including FullScreenReturnToMinimalMode -> MinimalMode transitions.
+    change(main, '''\tMediaWidget::DisplayMode displayMode = mediaWidget->getDisplayMode();
+
+\tswitch (displayMode) {''',
+    '''\tMediaWidget::DisplayMode displayMode = mediaWidget->getDisplayMode();
+\tconst bool tihuluFullVideo =
+\t\tdisplayMode == MediaWidget::FullScreenMode ||
+\t\tdisplayMode == MediaWidget::FullScreenReturnToMinimalMode;
+\tstatusBar()->setVisible(!tihuluFullVideo);
+\tif (tihuluFullVideo) {
+\t\tQProgressBar *handoff = findChild<QProgressBar *>(
+\t\t\tQLatin1String("tihuluReceiverSwitchProgress"));
+\t\tif (handoff) handoff->hide();
+\t}
+
+\tswitch (displayMode) {''')
+    # The main Television shortcut must not tune a DVB frontend when the
+    # radio release failed and its tab transition was rejected.
+    change(main, '''	activateTab(DvbTabId);
+	dvbTab->playLastChannel();
+}''',
+    '''	activateTab(DvbTabId);
+	if (currentTabIndex != DvbTabId) return;
+	dvbTab->playLastChannel();
+}''')
+
     media="src/mediawidget.cpp"
     change(media, '''void MediaWidget::play(MediaSource *source_)
 {
@@ -942,6 +1109,14 @@ void DvbLiveView::replay()
 \t\tQStringList existing = args.split(QLatin1Char(' '), Qt::SkipEmptyParts);
 \t\tfor (int n = existing.size() - 1; n >= 0; --n) {
 \t\t\tconst QString option = existing.at(n);
+\t\t\t// The normal software profile must not inherit the disabling
+\t\t\t// --no-audio option from a previous troubleshooting configuration.
+\t\t\t// Only an explicit software-no-audio profile may disable sound.
+\t\t\tif (tihuluProfile == "software" &&
+\t\t\t    option == QLatin1String("--no-audio")) {
+\t\t\t\texisting.removeAt(n);
+\t\t\t\tcontinue;
+\t\t\t}
 \t\t\tif (option == QLatin1String("--avcodec-hw")) {
 \t\t\t\tif (n+1 < existing.size()) existing.removeAt(n+1);
 \t\t\t\texisting.removeAt(n);

@@ -63,7 +63,10 @@ class RadioModesAndSyncTests(unittest.TestCase):
     def test_cache_guard_matches_actual_vlc_media_option(self):
         self.assertIn('bufferMs_->setRange(0,60000)',self.radio)
         self.assertIn('activePlaybackCacheMs_',self.radio)
-        self.assertIn('lastAudioRetuneMs_>=180000',self.radio)
+        # Auto-size is only advisory: no periodic audio retune / ASR restart.
+        estimate=self.radio.split('if(autoSync_->isChecked() && lagSamples_.size()>=4')[1].split('// Use the first real GPU word')[0]
+        self.assertNotIn('applyRadioBuffer();',estimate)
+        self.assertIn('Suggested audio cache',estimate)
         self.assertIn('QCheckBox(tr("Allow automatic radio audio restart")',self.radio)
         self.assertIn('qMax(0,remaining)+radioOffsetMs_->value()',self.radio)
         self.assertIn('radioSettings.value(QLatin1String("playbackBufferMs"),0).toInt()',self.patch)
@@ -83,14 +86,18 @@ class RadioModesAndSyncTests(unittest.TestCase):
         # A radio playback-start progress bar is not actual libVLC buffer
         # occupancy. The UI must explain the estimate and cap it below 100
         # until the player actually reports Playing.
-        self.assertIn("actual fill unmeasured",self.radio)
-        self.assertIn("extra libVLC cache, NOT measured buffer occupancy",self.radio)
-        self.assertIn("percent=qMin(95,",self.radio)
-        self.assertIn("percent=100; // The player STARTED",self.radio)
+        self.assertIn("buffer fill unmeasured",self.radio)
+        self.assertIn("NOT actual libVLC",self.radio)
+        self.assertIn("percent=qMin(90,int(bounded*90/requested))",self.radio)
+        self.assertIn("DAB AUDIO STARTUP FAILED / TIMEOUT",self.radio)
+        self.assertIn("if(elapsed>=startupTimeoutMs)",self.radio)
+        self.assertIn("percent=100;",self.radio)
+        self.assertIn("actual fill and audible output NOT measured",self.radio)
         self.assertIn("quickBufferProgress_->setVisible(enabled)",self.radio)
         self.assertNotIn("audioCacheProgress_->setRange(0,audioStartedMs_>0?0:100)",self.radio)
         self.assertNotIn("Applied at open %1 ms · elapsed %2 ms",self.radio)
-        self.assertIn("EST. caption in ~%1 ms",self.radio)
+        self.assertNotIn("EST. caption in ~%1 ms",self.radio)
+        self.assertIn('Whisper ready · fixed audio cache',self.radio)
 
     def test_missing_lyrics_fall_back_to_real_local_whisper_audio(self):
         for field in ("listenLyrics_","listenFallbackOnMiss_",
@@ -111,7 +118,7 @@ class RadioModesAndSyncTests(unittest.TestCase):
     def test_lyric_listening_keeps_stop_control_across_dls_metadata(self):
         self.assertIn("const bool listening=lyricsAudioFallbackActive_",self.radio)
         self.assertIn("stopLyrics_->setEnabled(listening)",self.radio)
-        self.assertIn("DLS metadata updated. Continuing offline vocal",self.radio)
+        self.assertIn("New stable DLS song · offline vocal listening continues.",self.radio)
         self.assertIn("plainLyricsStartedAi_",self.radio)
         self.assertIn("lastCaptionVisibleMs_=now",self.radio)
         self.assertIn("now-lastCaptionVisibleMs_>=12000",self.radio)

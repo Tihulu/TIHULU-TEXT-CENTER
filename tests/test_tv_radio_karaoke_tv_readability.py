@@ -66,7 +66,8 @@ class RadioKaraokeAccessibilityTests(unittest.TestCase):
         self.assertIn('lastLyricsProvider_=provider.isEmpty()',UI)
         self.assertIn('matched.value(QLatin1String("index")).toInt(-1)',UI)
         self.assertIn("showKaraokeLine(cue);",UI)
-        self.assertIn("showRadioCanvasCaption(cue.text,true);",UI)
+        self.assertNotIn("showRadioCanvasCaption(cue.text,true);",UI)
+        self.assertIn("showRadioCanvasCaption(cue.text);",UI)
         self.assertIn("clearKaraokeLine();",UI)
         self.assertIn("lastKaraokeUntilMs_",UI)
         self.assertIn("lastUnmatchedVoiceUntilMs_",UI)
@@ -82,7 +83,7 @@ class RadioKaraokeAccessibilityTests(unittest.TestCase):
             "qMin(adjusted,2500)",
             "qMin(adjusted,4000)",
             "captionReadingHoldUntilMs_",
-            "Audio ↔ captions (estimated)",
+            "AI captions ↔ audio (estimated)",
             "Actual libVLC/ALSA audio presentation time is unmeasured",
         ):
             self.assertIn(expected,UI)
