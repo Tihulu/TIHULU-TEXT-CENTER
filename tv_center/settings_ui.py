@@ -348,6 +348,9 @@ def open_ai_settings(parent, ai, after_save=None):
             quality_layout = QVBoxLayout(quality)
             self.translation_choice = QComboBox()
             self.translation_choice.addItem(
+                "Auto · compatible installed offline model; per-language real fallback",
+                "auto_offline")
+            self.translation_choice.addItem(
                 "Direct DE → TR · installed NLLB → MADLAD → Argos fallback (offline)",
                 "de_tr_direct")
             self.translation_choice.addItem("Argos Translate · compact offline language packs","argos")
@@ -1492,6 +1495,7 @@ def open_ai_settings(parent, ai, after_save=None):
             for index in range(self.translation_choice.count()):
                 key = self.translation_choice.itemData(index)
                 name = {
+                    "auto_offline":"Auto · installed offline models; per-target live fallback; no cloud",
                     "de_tr_direct":"Direct DE → TR · installed NLLB first, MADLAD second, "
                                    "Argos possible EN pivot fallback · offline only",
                     "argos":"Argos Translate · compact offline language packs",
