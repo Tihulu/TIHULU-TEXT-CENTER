@@ -15,6 +15,7 @@
 #include <QComboBox>
 #include <QCompleter>
 #include <QDateTime>
+#include <QDesktopServices>
 #include <QDial>
 #include <QDoubleSpinBox>
 #include <QDialog>
@@ -1564,6 +1565,50 @@ public:
             "<b>3 · Lyrics</b> · optional; no search until you choose Find lyrics"),lab));
         auto *quickLyrics=new QPushButton(tr("Find lyrics for current song"),lab);
         v->addWidget(quickLyrics);
+        // Regional catalogs without a licensed retrieval API are discovery
+        // links only: no scraping, automated extraction or caching of lyrics.
+        // A click sends ONLY the user-visible artist/title query to browser.
+        auto *regionalLyrics=new QHBoxLayout();
+        auto addRegional=[this,lab,regionalLyrics](
+                const QString &label,const QString &site){
+            auto *button=new QPushButton(label,lab);
+            button->setToolTip(tr(
+                "Open a browser search on %1 for current DLS artist/title. "
+                "No lyrics are copied automatically; import only a locally "
+                "authorized TXT/LRC file.").arg(site));
+            connect(button,&QPushButton::clicked,this,[this,site](){
+                const TihuluDlsSong song=tihuluDlsSong(lastDls_);
+                const QString artist=lyricsArtist_->text().trimmed().isEmpty()?
+                    song.artist:lyricsArtist_->text().trimmed();
+                const QString title=lyricsTitle_->text().trimmed().isEmpty()?
+                    song.title:lyricsTitle_->text().trimmed();
+                if(artist.isEmpty() || title.isEmpty()) {
+                    lyricText_->setText(tr(
+                        "Choose a song or fill Artist and Title before opening a catalog."));
+                    return;
+                }
+                QUrl url(QLatin1String("https://www.google.com/search"));
+                QUrlQuery query;
+                query.addQueryItem(QLatin1String("q"),
+                    QLatin1String("site:")+site+QLatin1Char(' ')+
+                    artist+QLatin1Char(' ')+title+QLatin1String(" lyrics"));
+                url.setQuery(query);
+                QDesktopServices::openUrl(url);
+            });
+            regionalLyrics->addWidget(button);
+        };
+        addRegional(tr("Global · Genius"),QLatin1String("genius.com"));
+        addRegional(tr("DE · SoundChapter"),QLatin1String("soundchapter.com"));
+        addRegional(tr("DE · Liedertexte"),QLatin1String("liedertexte.com"));
+        addRegional(tr("TR · Müzik Sözleri"),QLatin1String("muziksozleri.com.tr"));
+        addRegional(tr("TR · Söz Müzik"),QLatin1String("sarki.sozmuzik.net"));
+        v->addLayout(regionalLyrics);
+        auto *regionalInfo=new QLabel(tr(
+            "Regional sites open as browser searches only (copyright/licence). "
+            "Automatic in-app lyrics: LRCLIB, lyrics.ovh, official Musixmatch "
+            "with your licensed API key. TXT/LRC import remains available."),lab);
+        regionalInfo->setWordWrap(true);
+        v->addWidget(regionalInfo);
         auto *showLyricsOptions=new QCheckBox(
             tr("Advanced · lyrics source, timing, import and auto search"),lab);
         showLyricsOptions->setChecked(false);
