@@ -1649,6 +1649,61 @@ public:
             "normal bottom subtitles."));
         radioPlaybackRow_->insertWidget(3,karaokeEnabled_);
         radioPlaybackRow_->insertWidget(4,karaokeTranslationsEnabled_);
+        karaokePolicy_=new QComboBox(page);
+        karaokePolicy_->addItem(tr("Karaoke · Audio matched"),"verified");
+        karaokePolicy_->addItem(tr("Karaoke · Lyrics found (preview)"),"found");
+        karaokePolicy_->setToolTip(tr(
+            "Audio matched (default): only verified heard song lines. "
+            "Lyrics found preview: show source lyrics WITHOUT a Whisper match. "
+            "Timed LRC uses a broadcaster-DLS estimate; plain text auto-advances "
+            "roughly every 6 seconds. Neither is verified audio synchronization. "
+            "Regular Whisper captions remain separate below."));
+        const QString savedPolicy=lyricDisplaySettings.value(
+            QLatin1String("karaokeMatchPolicy"),
+            QLatin1String("verified")).toString();
+        const int policyIndex=karaokePolicy_->findData(savedPolicy);
+        karaokePolicy_->setCurrentIndex(policyIndex<0?0:policyIndex);
+        radioPlaybackRow_->insertWidget(4,karaokePolicy_);
+        previewPrevious_=new QPushButton(tr("◀ Lyric"),page);
+        previewNext_=new QPushButton(tr("Lyric ▶"),page);
+        previewPrevious_->setToolTip(tr(
+            "Manually move the UNVERIFIED lyric preview one line back."));
+        previewNext_->setToolTip(tr(
+            "Manually move the UNVERIFIED lyric preview one line forward."));
+        radioPlaybackRow_->insertWidget(5,previewPrevious_);
+        radioPlaybackRow_->insertWidget(6,previewNext_);
+        const auto updatePreviewControls=[this](){
+            const bool active=karaokePolicy_->currentData().toString()==
+                QLatin1String("found");
+            previewPrevious_->setVisible(active);
+            previewNext_->setVisible(active);
+        };
+        updatePreviewControls();
+        connect(karaokePolicy_,QOverload<int>::of(&QComboBox::currentIndexChanged),
+            this,[this,updatePreviewControls](int){
+                QSettings prefs(QLatin1String("TIHULU"),
+                                QLatin1String("KaffeineRadio"));
+                prefs.setValue(QLatin1String("karaokeMatchPolicy"),
+                               karaokePolicy_->currentData().toString());
+                previewIndexShift_=0;
+                clearKaraokeLine();
+                updatePreviewControls();
+                updateLyrics(); // switching mode never restarts the radio
+            });
+        connect(previewPrevious_,&QPushButton::clicked,this,[this](){
+            if(karaokePolicy_->currentData().toString()!=QLatin1String("found"))
+                return;
+            previewIndexShift_=qMax(-200,previewIndexShift_-1);
+            previewLastIndex_=-1;
+            updateLyrics();
+        });
+        connect(previewNext_,&QPushButton::clicked,this,[this](){
+            if(karaokePolicy_->currentData().toString()!=QLatin1String("found"))
+                return;
+            previewIndexShift_=qMin(200,previewIndexShift_+1);
+            previewLastIndex_=-1;
+            updateLyrics();
+        });
         soundLabels_=new QCheckBox(tr("Sound labels · [Music] / [Humming] / [Applause]"),page);
         soundLabels_->setChecked(lyricDisplaySettings.value(
             QLatin1String("radioSoundLabelsEnabled"),false).toBool());
@@ -1675,6 +1730,7 @@ public:
             if(karaokePanel_) karaokePanel_->setVisible(enabled &&
                 lastKaraokeUntilMs_>QDateTime::currentMSecsSinceEpoch() &&
                 karaokeCurrent_ && !karaokeCurrent_->text().isEmpty());
+            if(enabled) updateLyrics();
         });
         connect(karaokeTranslationsEnabled_,&QCheckBox::toggled,
             this,[this](bool enabled){
@@ -5500,6 +5556,10 @@ private:
     QCheckBox *karaokeEnabled_=nullptr,
         *karaokeTranslationsEnabled_=nullptr,
         *soundLabels_=nullptr;
+    QComboBox *karaokePolicy_=nullptr;
+    QPushButton *previewPrevious_=nullptr,*previewNext_=nullptr;
+    qint64 previewStartedMs_=0;
+    int previewIndexShift_=0,previewLastIndex_=-1;
 	QCheckBox *autoLyrics_=nullptr,*autoLyricSync_=nullptr,
 		*preferLyrics_=nullptr,*listenFallbackOnMiss_=nullptr;
     bool lyricsAudioFallbackActive_=false,lyricsFallbackStartedAi_=false,
