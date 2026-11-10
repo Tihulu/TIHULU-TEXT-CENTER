@@ -110,7 +110,7 @@ class LyricsProviderTests(unittest.TestCase):
             if "lrclib.net/api/search?" in url:
                 self.fail("Do not retry failed LRCLIB origin during this lookup")
             if "api.lyrics.ovh/v1/" in url:
-                return {"lyrics":"First heard line\\nThe second heard line"}
+                return {"lyrics":"First heard line\nThe second heard line"}
             self.fail("Unexpected provider "+url)
         with mock.patch.dict("os.environ",{"TIHULU_MUSIXMATCH_API_KEY":""}):
             with mock.patch("tv_center.lyrics_sync._get_json",side_effect=request):
@@ -141,7 +141,7 @@ class LyricsProviderTests(unittest.TestCase):
     def test_malformed_synced_lyrics_uses_actual_plain_text(self):
         record={"trackName":"Track","artistName":"Artist",
                 "syncedLyrics":"[bad timestamp]This is not valid LRC",
-                "plainLyrics":"The first real line\\nThe second real line",
+                "plainLyrics":"The first real line\nThe second real line",
                 "instrumental":False,"id":3}
         with mock.patch("tv_center.lyrics_sync._get_json",return_value=record) as net:
             cues,meta=lookup_synced_lyrics(
