@@ -360,7 +360,18 @@ def lookup_synced_lyrics(*, title: str, artist: str,
     if duration is not None and 1 <= float(duration) <= 3600:
         params["duration"] = round(float(duration))
     url = "https://lrclib.net/api/get?" + urllib.parse.urlencode(params)
-    record = _get_json(url)
+    # A temporary LRCLIB DNS/HTTP/timeout failure must not prevent the
+    # explicitly authorized lyrics.ovh / licensed-provider fallback. Never
+    # retry the same failed origin in a busy loop; if the exact GET failed,
+    # bypass its search endpoint and proceed directly to plain sources.
+    lrclib_issue = None
+    try:
+        record = _get_json(url)
+    except (OSError, ValueError, RuntimeError, urllib.error.URLError) as exc:
+        if not allow_plain:
+            raise
+        record = {}
+        lrclib_issue = str(exc)[:120]
     # LRCLIB occasionally returns a fuzzy result for a structured /api/get,
     # especially for RDS/DLS spelling and punctuation. Never crash the
     # lookup worker or display another song; search the catalog for a
@@ -370,7 +381,14 @@ def lookup_synced_lyrics(*, title: str, artist: str,
                       + urllib.parse.urlencode({
                           "track_name": title.strip(),
                           "artist_name": artist.strip()}))
-        results = _get_json(search_url, allow_list=True)
+        try:
+            results = (_get_json(search_url, allow_list=True)
+                       if lrclib_issue is None else [])
+        except (OSError, ValueError, RuntimeError, urllib.error.URLError) as exc:
+            if not allow_plain:
+                raise
+            results = []
+            lrclib_issue = str(exc)[:120]
         exact = [item for item in results
                  if _matches_record(item, title, artist)
                  and not item.get("instrumental")]
@@ -390,9 +408,11 @@ def lookup_synced_lyrics(*, title: str, artist: str,
             if lines:
                 return [], {**alternative, "plain_lines": lines,
                             "artist": artist, "track": title}
-        return [], {"status": "not_found",
+        return [], {"status": "lrclib_unavailable" if lrclib_issue else "not_found",
                     "provider": "LRCLIB; licensed Musixmatch; lyrics.ovh",
-                    "message": "No trusted matching lyric metadata"}
+                    "message": ("LRCLIB unavailable; alternative text sources also "
+                                "did not return usable song words" if lrclib_issue else
+                                "No trusted matching lyric metadata")}
     if duration is not None and isinstance(record.get("duration"),(int,float)):
         if abs(float(record["duration"])-float(duration)) > 3:
             raise ValueError("Lyrics duration mismatch; refusing unsafe auto-sync")
@@ -433,6 +453,17 @@ def lookup_synced_lyrics(*, title: str, artist: str,
         return [], {"status":"unsynced_only","provider":"LRCLIB; licensed Musixmatch; lyrics.ovh",
                     "message":"No usable lyrics from allowed sources"}
     cues = parse_lrc(synced,duration=duration,provenance="LRCLIB")
+    if not cues and allow_plain:
+        # Some catalogs advertise syncedLyrics but deliver invalid LRC tags.
+        # Preserve genuine plainLyrics rather than pretending no lyrics exist.
+        lines = _clean_plain(record.get("plainLyrics",""))
+        if lines:
+            return [], {"status":"plain","provider":"LRCLIB",
+                        "record_id":record.get("id"),
+                        "track":title,"artist":artist,
+                        "plain_lines":lines,
+                        "alignment":"awaiting_real_audio_ASR",
+                        "online_lookup":True}
     return cues, {"status":"synced" if cues else "invalid",
                   "provider":"LRCLIB","record_id":record.get("id"),
                   "track":title,"artist":artist,
