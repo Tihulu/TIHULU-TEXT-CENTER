@@ -54,6 +54,24 @@ class LyricsRefreshAndFullWindowTests(unittest.TestCase):
             with self.subTest(forbidden=forbidden):
                 self.assertNotIn(forbidden, refresh)
 
+    def test_manual_refresh_supersedes_stuck_auto_lookup_without_asr_restart(self):
+        refresh=section("void refreshCurrentLyrics() {",
+                        "void pollLyricsRefreshResult() {")
+        # A previous automatic provider request must not disable the
+        # manual refresh button or allow an old result to overwrite it.
+        self.assertIn("if(lyricsProcess_.state()!=QProcess::NotRunning) {",refresh)
+        self.assertIn("lyricsProcess_.kill();",refresh)
+        self.assertIn("lyricsProcess_.waitForFinished(900);",refresh)
+        self.assertIn("lyricPath_.clear();",refresh)
+        self.assertIn("if(lyrics_) lyrics_->setEnabled(true);",refresh)
+        self.assertLess(refresh.index("QMessageBox::question("),
+                        refresh.index("lyricsProcess_.kill();"))
+        self.assertLess(refresh.index("lyricsProcess_.kill();"),
+                        refresh.index("lyricsRefreshProcess_.start("))
+        self.assertNotIn("stopCaptioning(",refresh)
+        self.assertNotIn("startCaptioning(",refresh)
+        self.assertNotIn("player_->play(",refresh)
+
     def test_only_valid_current_song_result_is_applied(self):
         result=section("void pollLyricsRefreshResult() {", "void fetchLyrics(bool automatic=false) {")
         for needle in ("lyricsRefreshStationTicket_!=stationRequestId_",
