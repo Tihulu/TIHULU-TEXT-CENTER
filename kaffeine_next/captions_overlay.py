@@ -666,7 +666,12 @@ class CaptionTap:
                 # removal, before the translation engine receives it.
                 from .continuous_captions import collapse_asr_repetition_loops
                 result["original"] = collapse_asr_repetition_loops(joined["text"])
-                if result["original"] != joined["text"]:
+                from tv_center.asr_quality import strip_test_page_artifact
+                result["original"], removed_page_marker=strip_test_page_artifact(
+                    result["original"])
+                if removed_page_marker:
+                    result["asr_test_page_artifact_removed"]=True
+                elif result["original"] != joined["text"]:
                     result["asr_repetitions_removed"] = True
                 result["words"]=[]
                 result["word_timing_source"]=None
@@ -1744,6 +1749,15 @@ def main(argv=None):
     preview_layout.setContentsMargins(5, 4, 5, 4)
     preview_layout.addWidget(original)
     preview_layout.addWidget(translated)
+    # Acoustic cues are a separate row; never mutate ASR/translated words.
+    sound_line = QLabel("")
+    sound_line.setObjectName("sound_event_subtitle")
+    sound_line.setWordWrap(True)
+    sound_line.setVisible(False)
+    sound_line.setToolTip(
+        "Detector-backed sound cues are display-only, independent of "
+        "real Whisper speech and translations.")
+    preview_layout.addWidget(sound_line)
     preview_scroll = QScrollArea()
     preview_scroll.setWidgetResizable(True)
     preview_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
@@ -2075,6 +2089,8 @@ def main(argv=None):
                 current_until = 0.0
                 original.setText("Waiting for captions under the new source settings…")
                 translated.setText("")
+                sound_line.clear()
+                sound_line.setVisible(False)
                 ipc.publish("", applied if service_running else
                             __import__("dataclasses").replace(applied, mode="off"))
             elif playback_changed:
@@ -3226,6 +3242,10 @@ def main(argv=None):
                     if data.get("sound_event_note"):
                         status.setText(status.text() + " | Sound model: " +
                             str(data["sound_event_note"])[:140])
+                    if data.get("asr_test_page_artifact_removed"):
+                        status.setText(status.text() +
+                            " | TESTSEITE letter-spaced artifact removed "
+                            "before translation; speech retained")
                     if data.get("voice_type_note"):
                         status.setText(status.text() + " | Voice type: " +
                             str(data["voice_type_note"])[:140])
@@ -3342,6 +3362,15 @@ def main(argv=None):
                     label_prefix=str(result.get("speaker_label") or "").strip()+" "
             original.setText(label_prefix+"ORIGINAL [" + source_language +
                              "]: " + result.get("original", ""))
+            # Sound classes are visual-only and independent of translation.
+            event_language=(applied.target_languages[0]
+                            if applied.show_translation and
+                            applied.target_languages else
+                            result.get("source_language") or applied.source)
+            acoustic=(applied._event_lines(result,event_language)
+                      if applied.show_sound_events else [])
+            sound_line.setText(" ".join(dict.fromkeys(acoustic)))
+            sound_line.setVisible(bool(acoustic))
             translations = result.get("translations") or {}
             failures = result.get("translation_errors") or {}
             fallback = result.get("translation_warnings") or {}
@@ -3400,6 +3429,8 @@ def main(argv=None):
                 if pending_words else
                 "No subtitle available for this interval · checking TV audio / ASR…")
             translated.setText("")
+            sound_line.clear()
+            sound_line.setVisible(False)
         elif now-last_published >= 1.5:
             # A real local caption-service heartbeat keeps Kaffeine's
             # virtual subtitle entry stable BETWEEN spoken phrases, including
