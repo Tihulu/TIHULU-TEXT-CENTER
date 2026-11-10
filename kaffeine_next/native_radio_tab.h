@@ -4313,6 +4313,29 @@ private:
         if(label!=radioLyricMatchStatus_->text())
             radioLyricMatchStatus_->setText(label);
         radioLyricMatchStatus_->setVisible(!label.isEmpty());
+        // Keep a readable state INSIDE the karaoke blue canvas even while
+        // lyrics are absent or not yet audio verified. Never invent lyrics.
+        if(karaokePanel_ && karaokeEnabled_ && karaokeEnabled_->isChecked()
+           && quickAi_ && quickAi_->isChecked() &&
+           lastKaraokeUntilMs_<=QDateTime::currentMSecsSinceEpoch()) {
+            karaokePanel_->setVisible(true);
+            if(karaokeSource_)
+                karaokeSource_->setText(label.isEmpty()?
+                    tr("KARAOKE · awaiting song metadata / lyrics"):
+                    label);
+            if(karaokeCurrent_) {
+                karaokeCurrent_->setTextFormat(Qt::PlainText);
+                karaokeCurrent_->setText(
+                    label.contains(QLatin1String("NOT FOUND"))?
+                    tr("No licensed/verified lyrics · Whisper captions below"):
+                    label.contains(QLatin1String("FOUND"))?
+                    tr("Lyrics retrieved · listening for actual sung words"):
+                    tr("Searching / waiting for verified song lyrics…"));
+            }
+            if(karaokePrevious_) karaokePrevious_->clear();
+            if(karaokeNext_) karaokeNext_->clear();
+            if(karaokeTranslation_) karaokeTranslation_->clear();
+        }
     }
     void showRadioCanvasCaption(const QString &value,bool lyric=false) {
         if(!radioCanvasCaption_) return;
