@@ -83,7 +83,7 @@ class RadioKaraokeAccessibilityTests(unittest.TestCase):
             "qMin(adjusted,2500)",
             "qMin(adjusted,4000)",
             "captionReadingHoldUntilMs_",
-            "Audio ↔ captions (estimated)",
+            "AI captions ↔ audio (estimated)",
             "Actual libVLC/ALSA audio presentation time is unmeasured",
         ):
             self.assertIn(expected,UI)
