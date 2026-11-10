@@ -370,20 +370,24 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
                 })
             translated={}
             problems={}
+            translation_engines={}
             requested_translation_targets=tuple(
                 lang for lang in destinations if lang != used_language)
             if (original and used_language and not language_pending
                     and not unverified_vocals_hidden
                     and translator_enabled):
-                from .captions import translate
+                from .captions import translate_with_engine
                 for lang in destinations:
                     if lang == used_language:
                         # Source language selected as output, not a
                         # pointless second translation of the same text.
                         continue
-                    value,issue=translate(original,used_language,lang)
+                    value,issue,actual=translate_with_engine(
+                        original,used_language,lang)
                     if value:
                         translated[lang]=value
+                        if actual:
+                            translation_engines[lang]=actual
                     if issue:
                         problems[lang]=issue[:180]
             # The authorized lyrics text, not DLS metadata, is the
@@ -443,6 +447,7 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
                 "radio_translation_opt_in":radio_translations,
                 "translation_enabled_effective":translator_enabled,
                 "translation_service":ai.values.get("translation_model","argos"),
+                "translation_engines":translation_engines,
                 "translation_note":translation_info["message"],
                 "translation_missing_targets":translation_info["missing_targets"],
                 "translation_pending_targets":translation_info["pending_targets"],
