@@ -1796,12 +1796,16 @@ public:
         karaokePolicy_->addItem(tr("Karaoke · Audio matched"),"verified");
         karaokePolicy_->addItem(tr("Karaoke · Lyrics found (preview)"),"found");
         karaokePolicy_->addItem(tr("Karaoke · Lyrics found + lip-sync (audio gated)"),"found-sync");
+        karaokePolicy_->addItem(tr("Karaoke · Timed LRC flow (estimated)"),"estimated");
         karaokePolicy_->setToolTip(tr(
-            "Audio matched: only genuine Whisper vocal/word timestamps move "
-            "Karaoke. Lyrics Found: show text but NEVER auto-advance from "
-            "DLS/LRC or six-second timers. Lyrics Found + lip-sync waits "
-            "for an actual acoustic lyric match; no guessed word sweep. "
-            "Whisper speech/translations continue independently below."));
+            "Audio matched: use actually heard Whisper lyrics + installed "
+            "Qwen word timing where supported. Lyrics Found: static preview. "
+            "Lyrics Found + lip-sync: acoustic evidence required to move. "
+            "Timed LRC flow: opt-in estimated LINE flow based only on REAL "
+            "source timestamps (never guessed 6-second lines or word sweeps); "
+            "DLS song clock can be late, manual offset may be needed. "
+            "No timed LRC means no estimated flow. Whisper presenter speech "
+            "and translations remain independent below."));
         const QString savedPolicy=lyricDisplaySettings.value(
             QLatin1String("karaokeMatchPolicy"),
             QLatin1String("verified")).toString();
@@ -5252,6 +5256,90 @@ private:
                 tr("Manual lyrics viewer; no automatic progression")));
         karaokePanel_->setVisible(true);
     }
+    void showEstimatedLrcFlow(qint64 now) {
+        // Explicit, separately labeled fallback for owners with an actual
+        // timestamped LRC but insufficient acoustic verification. It is
+        // NEVER an audio-model or verified Karaoke match; NO word animation.
+        if(!karaokePolicy_ || karaokePolicy_->currentData().toString()!=
+             QLatin1String("estimated") ||
+           !karaokeEnabled_ || !karaokeEnabled_->isChecked() ||
+           !lyricsEnabled_ || !lyricLoaded_ || lyricCues_.isEmpty() ||
+           !karaokePanel_ || !karaokeCurrent_ || !karaokeSource_ ||
+           !karaokePrevious_ || !karaokeNext_ || !karaokeTranslation_)
+            return;
+        if(lastUnmatchedVoiceUntilMs_>now) {
+            // A presenter/advert has the normal Whisper caption strip.
+            // Do not keep advertising old lyrics as currently sung.
+            if(karaokeSource_->text().contains(QLatin1String("ESTIMATED LRC")))
+                clearKaraokeLine();
+            return;
+        }
+        if(lastVerifiedLyricMs_>0 && now-lastVerifiedLyricMs_<8000 &&
+           karaokeSource_->text().contains(QLatin1String("AUDIO MATCH")))
+            return;
+        const qint64 start=lastLyricsAutoLookup_?songStartMs_:manualSongStartMs_;
+        if(start<=0) return;
+        const qint64 position=qMax(qint64(0),now-start-
+            qint64(lyricsOffset_?lyricsOffset_->value():0));
+        int index=-1;
+        for(int i=0;i<lyricCues_.size() && i<150;++i) {
+            const QJsonObject cue=lyricCues_.at(i).toObject();
+            const double from=cue.value(QLatin1String("start")).toDouble(-1.);
+            const double until=cue.value(QLatin1String("end")).toDouble(-1.);
+            if(from<0. || until<=from) continue;
+            const qint64 fromMs=qRound64(from*1000.);
+            const qint64 endMs=qRound64(until*1000.);
+            if(fromMs>position) break;
+            if(position>=fromMs && position<endMs)
+                index=i;
+        }
+        if(index<0) {
+            if(karaokeSource_->text().contains(QLatin1String("ESTIMATED LRC")))
+                clearKaraokeLine();
+            return; // intro / instrumental / end gaps, never fill with fake text
+        }
+        const QJsonObject cue=lyricCues_.at(index).toObject();
+        const QString line=cue.value(QLatin1String("text")).toString().trimmed();
+        if(line.isEmpty()) return;
+        if(karaokeLine_==line && karaokePanel_->isVisible() &&
+           karaokeSource_->text().contains(QLatin1String("ESTIMATED LRC")))
+            return;
+        const auto neighboring=[this](int at)->QString {
+            return at>=0 && at<lyricCues_.size()?
+                lyricCues_.at(at).toObject().value(
+                    QLatin1String("text")).toString().trimmed():QString();
+        };
+        karaokeLine_=line;
+        karaokeWordAnchors_=QJsonArray(); // no fabricated word positions
+        lastHighlightedKaraokeWord_=-2;
+        karaokeCurrent_->setTextFormat(Qt::PlainText);
+        karaokeCurrent_->setText(line);
+        karaokePrevious_->setText(neighboring(index-1));
+        karaokePrevious_->setVisible(index>0);
+        karaokeNext_->setText(neighboring(index+1));
+        karaokeNext_->setVisible(index+1<lyricCues_.size());
+        QStringList translations;
+        const QJsonObject translated=cue.value(
+            QLatin1String("translations")).toObject();
+        for(const QString &language:selectedRadioTargets()) {
+            const QString text=translated.value(language).toString().trimmed();
+            if(!text.isEmpty())
+                translations<<QLatin1String("[")+language.toUpper()+
+                    QLatin1String("] ")+text.left(360);
+        }
+        karaokeTranslation_->setText(translations.join(QLatin1Char('\n')));
+        karaokeTranslation_->setVisible(karaokeTranslationsEnabled_ &&
+            karaokeTranslationsEnabled_->isChecked() &&
+            !translations.isEmpty());
+        karaokeSource_->setText(tr(
+            "ESTIMATED LRC · NOT AUDIO VERIFIED · %1 · line %2/%3 · "
+            "DLS clock and user offset, no actual DAC timing. "
+            "Whisper speech runs independently.")
+            .arg(lastLyricsProvider_.left(80))
+            .arg(index+1).arg(lyricCues_.size()));
+        lastKaraokeUntilMs_=now+1500; // redraw only, NOT a line timer
+        karaokePanel_->setVisible(true);
+    }
     void showKaraokeLine(const TimedPlainLyric &cue) {
         if(!karaokePanel_ || !karaokeCurrent_ ||
            !karaokeSource_ || !karaokePrevious_ || !karaokeNext_ ||
@@ -6592,9 +6680,10 @@ private:
             else
                 clearKaraokeLine();
         } else refreshKaraokeWordHighlight(now);
-        // Found-only preview is entirely separate from the verified cue
-        // queue and never writes an invented lyric into Whisper captions.
+        // Preview and opt-in LRC estimated flow are both independent from
+        // Whisper speech; only acoustic matches can supply word anchors.
         showFoundKaraokePreview(now);
+        showEstimatedLrcFlow(now);
         // Only ASR-confirmed matches enter this extra timed-LRC queue.
         while(!verifiedLyricQueue_.isEmpty() &&
               verifiedLyricQueue_.first().dueMs<=now) {
