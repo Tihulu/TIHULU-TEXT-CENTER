@@ -484,6 +484,40 @@ def translate_with_engine(text: str, source: str, target: str):
         return None, None, "original"
 
     selected = os.environ.get("TIHULU_TRANSLATOR_MODEL", "argos")
+    if selected == "auto_offline":
+        # Per-language local policy: direct DE→TR is preferred to English
+        # pivot; other targets try NLLB with existing circuit breaker, then
+        # Argos and finally installed MADLAD. No network or auto-download.
+        if source in ("de", "deu_Latn") and target in ("tr", "tur_Latn"):
+            from .direct_de_tr import translate_de_tr_direct
+            result=translate_de_tr_direct(text)
+            return result.text, result.error or result.warning, result.engine
+        from .translation_failover import live_failover
+        from .translation_service import translate_nllb, translate_madlad
+        from .translation_market import TranslationModelMarket
+        try:
+            nllb_ready=bool(TranslationModelMarket().status().get("installed"))
+        except (OSError,ValueError,RuntimeError):
+            nllb_ready=False
+        outcome=live_failover().translate(
+            text,source,target,preferred="nllb" if nllb_ready else "argos",
+            nllb=translate_nllb,argos=_translate_argos_local)
+        if outcome.text:
+            return outcome.text,outcome.error or outcome.warning,outcome.engine
+        from .translation_madlad import MadladMarket
+        try:
+            madlad_ready=bool(MadladMarket().status().get("installed"))
+        except (OSError,ValueError,RuntimeError):
+            madlad_ready=False
+        if madlad_ready:
+            try:
+                value=translate_madlad(text,source,target)
+                if isinstance(value,str) and value.strip():
+                    return value.strip(),outcome.error or outcome.warning,"madlad-fallback"
+            except (OSError,RuntimeError,ValueError,TimeoutError,ImportError):
+                pass
+        return None,outcome.error or "No working installed offline translator",None
+
     if selected == "de_tr_direct":
         if source in ("de", "deu_Latn") and target in ("tr", "tur_Latn"):
             from .direct_de_tr import translate_de_tr_direct
