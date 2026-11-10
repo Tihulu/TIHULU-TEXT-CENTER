@@ -389,14 +389,16 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
                 original=sentence_state["text"]
             else:
                 sentence_joiner.reset()
-            # Verified lyrical wording wins only when the *heard* Whisper
-            # words actually match it. DLS may continue to advertise
-            # a song while the presenter/advert is speaking. Never erase
-            # genuine unmatched speech merely because an old LRC file is
-            # loaded or "Prefer verified lyrics" was selected.
+            # The owner's AI captions are ALWAYS the actual recognized
+            # Whisper transcript. The Lyrics Match threshold can be set to
+            # zero and fuzzy mode can yield false-positive lyric suggestions,
+            # so even a "verified" catalog candidate MUST NOT replace
+            # spoken ASR or its translations. Prefer Verified Lyrics is a
+            # presentation choice for the separate karaoke/lyrics band.
             unverified_vocals_hidden=False
-            if plain_matcher is not None and prefer_verified_lyrics and lyric_match:
-                original=lyric_match["text"]
+            preferred_lyric_text=(lyric_match.get("text","")
+                if plain_matcher is not None and prefer_verified_lyrics
+                and lyric_match else "")
             # Use capture-clock timing, not the time Whisper + multiple
             # translators happened to finish. All cue times refer to the
             # same absolute 5s hop with a 6s PCM decoding window.
@@ -559,6 +561,7 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
                     "chunk_index":capture_index,
                     "caption_revision":0,
                     "lyric_match":lyric_match,
+                    "preferred_lyric_text":preferred_lyric_text[:240],
                     "lyric_word_anchors":lyric_word_anchors,
                     "lyric_translations":{},
                     "karaoke_sync_refresh_status":sync_refresh_status,
@@ -715,6 +718,7 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
                 "sentence_continuation":bool(sentence_state.get("continued",False)),
                 "sentence_hops_limit":sentence_hops,
                 "lyric_match":lyric_match,
+                "preferred_lyric_text":preferred_lyric_text[:240],
                 "karaoke_sync_refresh_status":sync_refresh_status,
                 "karaoke_sync_refresh_applied":sync_refresh_applied,
                 "karaoke_alignment_engine":("qwen" if qwen_refinement else "whisper"),
