@@ -79,10 +79,11 @@ class AutoLyricsLiveMatchTests(unittest.TestCase):
         # trigger a new lookup, never just any changed DLS string.
         self.assertIn("inline TihuluDlsSong tihuluDlsSong",UI)
         self.assertIn("const TihuluDlsSong newSong=tihuluDlsSong(dls)",UI)
-        self.assertIn("const bool newSongMetadata=songMetadata &&",UI)
-        self.assertIn("newSong.normalizedKey()!=lastSongMetadataKey_",UI)
-        self.assertIn("if(newSongMetadata) {",UI)
-        self.assertIn("lastSongDls_=dls;",UI)
+        self.assertIn("const QString candidate=newSong.normalizedKey();",UI)
+        self.assertIn("candidate==lastSongMetadataKey_",UI)
+        self.assertIn("QTimer::singleShot(5000,this,",UI)
+        self.assertIn("commitPendingDlsSong(candidate,station,ticket)",UI)
+        self.assertIn("lastSongDls_=acceptedDls;",UI)
         self.assertIn("lastSongDls_.clear();",UI)
         self.assertIn("lastSongMetadataKey_.clear();",UI)
 
