@@ -45,19 +45,22 @@ class CaptionsAndKaraokePlaybackTests(unittest.TestCase):
         self.assertIn("const QSignalBlocker hold(quickAi_);",RADIO)
         self.assertIn("AI input ended · inspect DAB MP3 / FFmpeg",RADIO)
 
-    def test_estimated_karaoke_pauses_without_actual_audio_or_vocals(self):
+    def test_found_sync_cannot_move_without_real_whisper_audio_evidence(self):
         preview=section("void showFoundKaraokePreview(qint64 now)", "void showKaraokeLine(")
-        for token in ("player_->getPlaybackStatus()==MediaWidget::Playing",
-                      "asrListening && noFreshVocalMatch",
-                      "lastUnmatchedVoiceUntilMs_>now",
-                      "previewPauseStartedMs_",
-                      "previewClockNow", "lastVerifiedLyricIndex_",
-                      "if(!holdPreview)", "if(previewLipSync && !holdPreview)",
-                      "KARAOKE HOLD", "not claiming instrumental detection"):
+        for token in ("lastVerifiedLyricIndex_", "previewIndexShift_",
+                      "karaokeWordAnchors_=QJsonArray()", 
+                      "STATIC until Whisper hears matching words",
+                      "Lip-sync waiting for AUDIO MATCH"):
             with self.subTest(token=token):
                 self.assertIn(token,preview)
+        for forbidden in ("previewClockNow","previewSeconds",
+                          "previewStartedMs_","songStartMs_",
+                          "wordPattern.globalMatch", "6000.",
+                          "int(fraction*words.size())"):
+            with self.subTest(forbidden=forbidden):
+                self.assertNotIn(forbidden,preview)
         self.assertNotIn("showRadioCanvasCaption(",preview)
-        self.assertIn("previewSpeedCompensationMs_-=",preview)
+        self.assertIn("karaokePreviewSpeed_->setEnabled(false)",RADIO)
 
     def test_verified_word_hold_preserves_last_sung_line_until_new_match(self):
         lyrics=section("void updateLyrics() {","MediaWidget *player_")
