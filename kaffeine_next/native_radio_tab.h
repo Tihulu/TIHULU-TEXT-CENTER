@@ -4768,7 +4768,11 @@ private:
         const QString songName=song.valid()?
             song.artist+QLatin1String(" — ")+song.title:
             tr("Current radio station · song unknown");
-        const bool timed=!plainLyricMode_ && !lyricCues_.isEmpty();
+        // A source may contain only LRC cues, even if its alignment_mode
+        // flags a plain-text workflow. Prefer any actual loaded text over
+        // an empty array; never show "found" based on metadata alone.
+        const bool timed=!lyricCues_.isEmpty() &&
+            (!plainLyricMode_ || lyricRawLines_.isEmpty());
         const int count=timed?lyricCues_.size():lyricRawLines_.size();
         const qint64 now=QDateTime::currentMSecsSinceEpoch();
         const bool audioVerified=lastVerifiedLyricMs_>0 &&
@@ -4801,9 +4805,11 @@ private:
             currentLine=previewLastIndex_; // ESTIMATED, never proof of singing
         QString all;
         if(count<=0) {
-            all=tr("No lyrics loaded. Find lyrics with your consent, or "
-                   "import a legally obtained TXT/LRC file.\n"
-                   "Opening this window never starts network or SDR operations.");
+            all=tr("No usable lyric TEXT is loaded. A broadcaster DLS song "
+                   "title or a LYRICS FOUND status is not itself song words.\n"
+                   "Use Lyrics Refresh for the stable artist/title or import "
+                   "an authorized TXT/LRC file.\n"
+                   "Full Lyrics never starts network or SDR operations.");
         } else {
             for(int i=0;i<count && i<350 && all.size()<70000;++i) {
                 const QJsonObject cue=timed?
@@ -4851,7 +4857,7 @@ private:
     }
     void showFullLyricsWindow() {
         if(fullLyricsDialog_) {
-            fullLyricsDialog_->show();
+            fullLyricsDialog_->showNormal();
             fullLyricsDialog_->raise();
             fullLyricsDialog_->activateWindow();
             return;
@@ -4883,6 +4889,15 @@ private:
         });
         timer->start();
         dialog->show();
+        dialog->raise();
+        dialog->activateWindow();
+        if(lyricsSyncState_)
+            lyricsSyncState_->setText(tr(
+                "Full Lyrics window opened · %1 actual lines loaded · source %2")
+                .arg(lyricRawLines_.isEmpty()?lyricCues_.size():
+                     lyricRawLines_.size())
+                .arg(lastLyricsProvider_.isEmpty()?tr("unknown"):
+                     lastLyricsProvider_));
     }
     void pruneRecentKaraokeEvidence(qint64 now) {
         const qint64 windowMs=qint64(karaokeSyncHistorySeconds_?
@@ -6068,15 +6083,23 @@ private:
     }
     void refreshCurrentLyrics() {
         // Explicit opt-in online refresh; independent from ASR and lip-sync.
-        if(!active() || playingKey_.isEmpty() || scanning_ ||
-           !pendingSongKey_.isEmpty()) {
-            lyricText_->setText(tr("Lyrics Refresh requires a stable DAB song."));
+        if(!active() || playingKey_.isEmpty() || scanning_) {
+            const QString note=tr(
+                "Lyrics Refresh blocked: station not playing or DAB scanning.");
+            lyricText_->setText(note);
+            if(lyricsSyncState_) lyricsSyncState_->setText(note);
             return;
         }
+        // A transient DLS update is not grounds to disable an explicit
+        // manual lookup of the already-loaded song. Result application
+        // below still checks station identity and pending song stability.
         if(lyricsRefreshPending_ ||
            lyricsRefreshProcess_.state()!=QProcess::NotRunning ||
            lyricsProcess_.state()!=QProcess::NotRunning) {
-            lyricText_->setText(tr("A lyrics search is already running; Karaoke kept."));
+            const QString note=tr(
+                "Lyrics lookup still running · existing Karaoke preserved.");
+            lyricText_->setText(note);
+            if(lyricsSyncState_) lyricsSyncState_->setText(note);
             return;
         }
         const bool manual=!lyricsArtist_->text().trimmed().isEmpty() &&
@@ -6084,7 +6107,11 @@ private:
         const TihuluDlsSong song=tihuluDlsSong(
             lastSongDls_.isEmpty()?lastDls_:lastSongDls_);
         if(!manual && (!song.valid() || lastSongMetadataKey_.isEmpty())) {
-            lyricText_->setText(tr("Enter artist and title, or wait for stable DLS metadata."));
+            const QString note=tr(
+                "Lyrics Refresh needs artist/title; DLS may contain an advert "
+                "or delayed song name. Enter them manually in Lyrics settings.");
+            lyricText_->setText(note);
+            if(lyricsSyncState_) lyricsSyncState_->setText(note);
             return;
         }
         const QString artist=manual?lyricsArtist_->text().trimmed():song.artist;
@@ -6136,8 +6163,11 @@ private:
             lyricText_->setText(tr("Lyrics Refresh worker failed; old words kept."));
             return;
         }
-        lyricText_->setText(tr(
-            "Lyrics Refresh searching · existing lyric/Karaoke display preserved."));
+        const QString note=tr(
+            "Lyrics Refresh searching %1 — %2 · old Karaoke preserved")
+            .arg(artist.left(80),title.left(80));
+        lyricText_->setText(note);
+        if(lyricsSyncState_) lyricsSyncState_->setText(note);
     }
     void pollLyricsRefreshResult() {
         if(!lyricsRefreshPending_) return;
@@ -6166,9 +6196,11 @@ private:
         const QJsonArray newPlain=value.value(QLatin1String("plain_lines")).toArray();
         if(state!=QLatin1String("completed") ||
            (newCues.isEmpty() && newPlain.isEmpty())) {
+            const QString note=tr(
+                "Lyrics Refresh returned no actual song text; previous Karaoke kept.");
             cancelLyricsRefresh();
-            lyricText_->setText(tr(
-                "Lyrics Refresh found no usable lyrics; old Karaoke preserved."));
+            lyricText_->setText(note);
+            if(lyricsSyncState_) lyricsSyncState_->setText(note);
             return;
         }
         QStringList newLines;
@@ -6223,9 +6255,14 @@ private:
         lyricProvider_->setText(tr(
             "Lyrics source: %1 · refreshed · audio verification is independent")
             .arg(lastLyricsProvider_));
-        lyricText_->setText(tr(
-            "Lyrics Refresh completed · %1; radio and Whisper unchanged.")
-            .arg(changed?tr("new text applied"):tr("same text retained")));
+        const QString note=tr(
+            "Lyrics Refresh completed · %1 · %2 song lines loaded · "
+            "Whisper/radio unchanged")
+            .arg(changed?tr("new text applied"):tr("same text retained"))
+            .arg(lyricRawLines_.isEmpty()?lyricCues_.size():
+                 lyricRawLines_.size());
+        lyricText_->setText(note);
+        if(lyricsSyncState_) lyricsSyncState_->setText(note);
         if(changed) setRadioLyricMatchStatus(tr(
             "LYRICS REFRESHED · new words await Whisper audio match"));
         showFoundKaraokePreview(now);
