@@ -431,6 +431,16 @@ public:
         captionComfortRow->addWidget(captionEarlier_);
         captionComfortRow->addWidget(captionLater_);
         captionComfortRow->addWidget(captionOffsetReadout_);
+        captionRefresh_=new QPushButton(tr("AI Caption Refresh"),page);
+        captionRefresh_->setToolTip(tr(
+            "Restart this radio's ASR and clear stale results without "
+            "retuning the receiver or restarting radio audio."));
+        radioSyncRefresh_=new QPushButton(tr("Lip-sync Refresh"),page);
+        radioSyncRefresh_->setToolTip(tr(
+            "Recalculate estimated subtitle timing from new ASR samples. "
+            "Preserves manual offset and audio buffer; DAC still unmeasured."));
+        captionComfortRow->addWidget(captionRefresh_);
+        captionComfortRow->addWidget(radioSyncRefresh_);
         captionComfortRow->addSpacing(12);
         captionComfortRow->addWidget(new QLabel(tr("Reading:"),page));
         radioReadingPreset_=new QComboBox(page);
@@ -1926,6 +1936,38 @@ public:
                        "setting still applies"));
                 radioTranslationBanner_->setVisible(true);
             }
+        });
+        connect(captionRefresh_,&QPushButton::clicked,this,[this](){
+            if(!quickAi_->isChecked() || playingKey_.isEmpty()) {
+                radioCaptionBanner_->setText(tr(
+                    "Select a DAB station and enable AI Captions before refresh."));
+                return;
+            }
+            stopCaptioning();
+            cueQueue_.clear();
+            plainLyricQueue_.clear();
+            verifiedLyricQueue_.clear();
+            lastRadioChunk_=-1;
+            lastRadioRevision_=-1;
+            displayedRadioChunk_=-1;
+            lastDetectedLanguage_.clear();
+            lastCaptionUpdateMs_=0;
+            lastCaptionVisibleMs_=0;
+            if(radioCanvasCaption_) radioCanvasCaption_->clear();
+            startCaptioning(); // re-read shared AI settings, no RF retune
+            radioCaptionBanner_->setText(tr(
+                "Radio ASR refreshed · waiting for new captured audio; "
+                "DAB playback, Lyrics consent and manual offsets retained."));
+        });
+        connect(radioSyncRefresh_,&QPushButton::clicked,this,[this](){
+            lagSamples_.clear();
+            lastAdjustmentMs_=QDateTime::currentMSecsSinceEpoch();
+            lyricOffsetConsistency_=0;
+            lastLyricSyncUpdateMs_=0;
+            syncStatus_->setText(tr(
+                "Lip-sync refresh: recomputing PCM/ASR estimates; "
+                "manual offset %1 ms preserved; DAC time unmeasured.")
+                .arg(radioOffsetMs_->value()));
         });
 		connect(quickAi_,&QCheckBox::toggled,this,[this](bool enabled){
             quickAi_->setText(enabled?tr("AI captions · ON"):tr("AI captions · OFF"));
@@ -4147,6 +4189,7 @@ private:
 		}
 		metadataCaptions_=false;
 		if (captionProcess_.state()!=QProcess::NotRunning) return;
+        captionBoundStationKey_=playingKey_;
 		const QString sid=playingKey_.section(QLatin1Char(':'),1);
 		const QString sourceCode=speechLanguage_->currentData().isValid()?
 			speechLanguage_->currentData().toString():
@@ -4501,7 +4544,9 @@ private:
 	}
 	void pollCaption() {
 		const qint64 now=QDateTime::currentMSecsSinceEpoch();
-		if(captionPath_.isEmpty()) {
+		if(captionPath_.isEmpty() ||
+           (!captionBoundStationKey_.isEmpty() &&
+            captionBoundStationKey_!=playingKey_)) {
 			displayDueRadioCues(now);
 			return;
 		}
@@ -4873,6 +4918,7 @@ private:
         if(captionProgress_) captionProgress_->setVisible(false);
 		if (!captionPath_.isEmpty()) QFile::remove(captionPath_);
 		captionPath_.clear();
+        captionBoundStationKey_.clear();
         if(!captionControlsPath_.isEmpty()) QFile::remove(captionControlsPath_);
         captionControlsPath_.clear();
         if(!lyricsEnabled_ && radioCanvasCaption_)
@@ -5290,7 +5336,8 @@ private:
     QHBoxLayout *radioQuickRow_=nullptr,*radioPlaybackRow_=nullptr;
     QCheckBox *quickAi_=nullptr,*quickTranslate_=nullptr,
         *quickBuffer_=nullptr,*releaseOnStop_=nullptr;
-    QPushButton *captionEarlier_=nullptr,*captionLater_=nullptr;
+    QPushButton *captionEarlier_=nullptr,*captionLater_=nullptr,
+        *captionRefresh_=nullptr,*radioSyncRefresh_=nullptr;
     QLabel *captionOffsetReadout_=nullptr;
     QComboBox *radioReadingPreset_=nullptr;
     QSpinBox *radioCaptionFontSize_=nullptr;
@@ -5339,7 +5386,7 @@ private:
     QWidget *karaokePanel_=nullptr;
     qint64 lastVerifiedLyricMs_=0;
     int lastLyricDirection_=0,lyricOffsetConsistency_=0;
-	QString activeChannel_,playingKey_,lastDls_,lastSongDls_,lastSongMetadataKey_,captionPath_,captionControlsPath_,lyricPath_,
+	QString activeChannel_,playingKey_,captionBoundStationKey_,lastDls_,lastSongDls_,lastSongMetadataKey_,captionPath_,captionControlsPath_,lyricPath_,
 		wellePortFile_,
 		lastDetectedLanguage_;
 	QMap<QString,QJsonObject> stationData_;
