@@ -27,6 +27,8 @@
 #include <QSpinBox>
 #include <QPushButton>
 #include <QStandardPaths>
+#include <QTimer>
+#include <QCoreApplication>
 #include <QUrl>
 #include <QVBoxLayout>
 #include <QWidget>
@@ -188,6 +190,15 @@ public:
 						player_->play(QUrl::fromLocalFile(path_));
 					}
 					player_->setSubtitle(QUrl::fromLocalFile(srtPath_));
+                    // libVLC can still be opening the just-started file.
+                    // Retry attaching once, but never to a newly opened
+                    // different media file or a different transcription.
+                    const QString opened=path_, subtitle=srtPath_;
+                    QTimer::singleShot(650,this,[this,opened,subtitle](){
+                        if(path_==opened && srtPath_==subtitle &&
+                           QFileInfo(subtitle).isFile())
+                            player_->setSubtitle(QUrl::fromLocalFile(subtitle));
+                    });
 					export_->setEnabled(true);
 					message_->setText(tr("Attached generated subtitles to current "
 						"file playback · %1").arg(srtPath_));
@@ -363,8 +374,10 @@ private:
         if(!original_->isChecked() && !targets.isEmpty())
             args<<QLatin1String("--translations-only");
         if(music_->isChecked()) args<<QLatin1String("--music");
-        if(lyrics_->isChecked()) args<<QLatin1String("--lyrics");
-        if(lyrics_->isChecked() && lyricsOnline_->isChecked())
+        // Whole-file-before-open always uses actual local Whisper audio;
+        // optional lyric-only matching remains available on manual Generate.
+        if(lyrics_->isChecked() && !beforeOpen) args<<QLatin1String("--lyrics");
+        if(lyrics_->isChecked() && !beforeOpen && lyricsOnline_->isChecked())
             args<<QLatin1String("--fetch-lyrics");
         QSettings mediaSettings(QLatin1String("TIHULU"),QLatin1String("MediaPlayer"));
         mediaSettings.setValue(QLatin1String("fileCacheMs"),caching_->value());
