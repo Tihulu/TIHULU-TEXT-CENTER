@@ -769,6 +769,12 @@ class CaptionTap:
             result["revision"] = options.get("revision", 0)
             result["program_epoch"] = options.get("program_epoch")
             result["native_tune_state"] = options.get("native_tune_state")
+            # Sound detector tags are added only AFTER Whisper recognition,
+            # sentence assembly and translation. They never erase/replace
+            # genuine lyrics or speech, and do not enter translator inputs.
+            if options.get("show_sound_events") and result.get("sound_events"):
+                from tv_center.sound_event_captions import decorate_result
+                result=decorate_result(result,enabled=True)
             # Recheck before publishing. Decoder/translator can take
             # seconds; no result from a previous tune may be displayed.
             if options.get("program_epoch") != self.program_epoch:
@@ -3194,6 +3200,16 @@ def main(argv=None):
                     if data.get("speech_priority_note"):
                         status.setText(status.text() + "\nSpeech priority: " +
                                        str(data["speech_priority_note"]))
+                    if sound_events.isChecked():
+                        if data.get("sound_labels_source"):
+                            status.setText(status.text() + " | Sound tags: " +
+                                str(data["sound_labels_source"]) +
+                                " (speech transcription kept)")
+                        elif data.get("sound_event_note"):
+                            status.setText(status.text() +
+                                " | Sound labels unavailable: " +
+                                str(data["sound_event_note"])[:130] +
+                                " · spoken subtitles unaffected")
                     failures = data.get("translation_errors") or {}
                     backup = data.get("translation_warnings") or {}
                     actual_engines = data.get("translation_engines") or {}
