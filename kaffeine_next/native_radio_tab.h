@@ -419,6 +419,8 @@ public:
         dabLayout->addLayout(mainOffsetRow);
         auto *mainMatchRow=new QHBoxLayout();
         dabLayout->addLayout(mainMatchRow);
+        auto *mainLyricOffsetRow=new QHBoxLayout();
+        dabLayout->addLayout(mainLyricOffsetRow);
         // Common controls must be reachable while listening, without
         // opening the advanced Whisper/AI menu. Radio has no video lips:
         // this is audio-to-subtitle timing, not a measured DAC clock.
@@ -1535,6 +1537,27 @@ public:
 		lyricsOffset_->setRange(-90000, 90000);
 		lyricsOffset_->setValue(0);
         lyricsOffset_->setToolTip(tr("Manual lyric sync offset, milliseconds (-90s to +90s)."));
+        mainLyricOffsetSlider_=new QSlider(Qt::Horizontal,page);
+        mainLyricOffsetSlider_->setRange(-360,360); // 250 ms steps
+        mainLyricOffsetSlider_->setValue(lyricsOffset_->value()/250);
+        mainLyricOffsetSlider_->setMinimumWidth(150);
+        mainLyricOffsetSlider_->setToolTip(tr(
+            "Adjust ONLY the currently playing lyric/Karaoke timing in "
+            "250 ms steps, ±90 s; does not alter ASR subtitles, radio "
+            "buffer or restart the SDR. Positive is later, negative earlier."));
+        mainLyricOffsetReadout_=new QLabel(tr("0.00 s"),page);
+        mainLyricOffsetRow->addWidget(new QLabel(tr("Karaoke offset:"),page));
+        mainLyricOffsetRow->addWidget(mainLyricOffsetSlider_,1);
+        mainLyricOffsetRow->addWidget(mainLyricOffsetReadout_);
+        connect(mainLyricOffsetSlider_,&QSlider::valueChanged,
+            this,[this](int n){ lyricsOffset_->setValue(n*250); });
+        connect(lyricsOffset_,&QSlider::valueChanged,this,[this](int ms){
+            const QSignalBlocker hold(mainLyricOffsetSlider_);
+            mainLyricOffsetSlider_->setValue(ms/250);
+            mainLyricOffsetReadout_->setText(
+                tr("%1%2 s").arg(ms>=0?QLatin1String("+"):QString())
+                .arg(QString::number(ms/1000.,'f',2)));
+        });
         QSettings matchPrefs(QLatin1String("TIHULU"),
                              QLatin1String("KaffeineRadio"));
         lyricMatchThreshold_=new QSpinBox(page);
@@ -5390,8 +5413,8 @@ private:
 	QDoubleSpinBox *analogFrequency_=nullptr;
 	QDial *analogDial_=nullptr;
 	QSlider *analogVolume_=nullptr,*mainBufferSlider_=nullptr,
-        *mainCaptionOffsetSlider_=nullptr;
-    QLabel *mainBufferReadout_=nullptr;
+        *mainCaptionOffsetSlider_=nullptr,*mainLyricOffsetSlider_=nullptr;
+    QLabel *mainBufferReadout_=nullptr,*mainLyricOffsetReadout_=nullptr;
 	QPushButton *analogMute_=nullptr;
 	QLabel *analogDigital_=nullptr;
 	QProgressBar *analogAudioVu_=nullptr;
