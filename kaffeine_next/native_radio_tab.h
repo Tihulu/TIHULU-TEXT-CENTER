@@ -4581,7 +4581,7 @@ private:
                 karaokePreviewSpeed_->value():100;
             previewSeconds=((now-previewStartedMs_)*speed/100.-
                 lyricsOffset_->value())/1000.;
-            estimate=qMax(0,int(previewSeconds/6.));
+            estimate=qMax(0,int(previewSeconds*1000./6000.));
         }
         const int index=qBound(0,estimate+previewIndexShift_,count-1);
         const auto lineAt=[this,timed](int i)->QString {
