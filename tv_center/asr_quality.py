@@ -81,3 +81,33 @@ def accepted_whisper_segments(
             accepted.append(segment)
     return accepted, (None if accepted else
                       reasons[0] if reasons else "no_speech_detected")
+
+
+# Some DVB test pages/jingles and Whisper loop errors emit the title
+# T E S T S E I T E letter by letter before genuine German dialogue.
+# Remove ONLY that distinctive spelled-out prefix, not the spoken word
+# "Testseite" in an ordinary sentence. No generic upper-case filters.
+_SPELLED_TESTSEITE = re.compile(
+    r"^\s*T[\s.\-]+E[\s.\-]+S[\s.\-]+T[\s.\-]+"
+    r"S[\s.\-]+E[\s.\-]+I[\s.\-]+T[\s.\-]+E"
+    r"(?=\s|[,.!?;:\u2013\u2014]|$)[\s,.:;!\?\-\u2013\u2014]*",
+    re.IGNORECASE)
+_TEST_PAGE_ONLY = re.compile(
+    r"^\s*(?:testseite|t[\s.\-]+e[\s.\-]+s[\s.\-]+t"
+    r"[\s.\-]+s[\s.\-]+e[\s.\-]+i[\s.\-]+t[\s.\-]+e)"
+    r"\s*[:.\-]?\s*$", re.IGNORECASE)
+
+
+def strip_test_page_artifact(text, *, broadcaster=False):
+    """Return (clean text, removed). Preserve real dialogue after the marker.
+
+    An isolated broadcaster test-page title is not subtitle speech. For ASR,
+    suppress only the unnatural nine-letter spelled prefix. Never strip an
+    ordinary "Testseite" word out of a genuine spoken German sentence.
+    """
+    if not isinstance(text,str) or not text:
+        return text, False
+    if broadcaster and _TEST_PAGE_ONLY.fullmatch(text):
+        return "", True
+    cleaned, removed = _SPELLED_TESTSEITE.subn("",text,count=1)
+    return (cleaned.strip(),True) if removed else (text,False)
