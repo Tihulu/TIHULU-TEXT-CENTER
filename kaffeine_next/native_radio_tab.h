@@ -1696,23 +1696,14 @@ public:
         });
         connect(autoSync_,&QCheckBox::toggled,this,[this](bool enabled){
             QSettings saved(QLatin1String("TIHULU"),QLatin1String("KaffeineRadio"));
-            if(enabled && !quickBuffer_->isChecked()) {
-                // Never reopen with a legacy 12s setting just for Auto.
-                // Start from zero EXTRA delay and measure real ASR first.
-                // Save recommendation for next tune or explicit Apply.
-                const QSignalBlocker block(quickBuffer_);
-                quickBuffer_->setChecked(true);
-                quickBuffer_->setText(tr("Extra audio buffer · ON"));
-                setBufferDisplayMs(0);
-                saved.setValue(QLatin1String("radioBufferEnabled"),true);
-                saved.setValue(QLatin1String("radioBufferDesiredMs"),0);
-            }
+            // TV-style separation: checking ASR processing time is
+            // diagnostic ONLY, never enable Extra Buffer or change its
+            // chosen value. Radio sound and captions continue uninterrupted.
             saved.setValue(QLatin1String("radioAutoBufferEnabled"),enabled);
             bufferRecommendation_->setText(enabled?
-                tr("Auto estimate enabled · measuring Whisper latency. "
-                   "No forced radio restart; next tune uses the estimate "
-                   "or choose Apply buffer now."):
-                tr("Auto estimate OFF · buffer controlled manually."));
+                tr("ASR estimate ON · advice only; fixed audio cache/offset "
+                   "unchanged. Apply buffer manually if desired."):
+                tr("ASR estimate OFF · audio buffer unchanged."));
             refreshRadioBufferProgress();
         });
 		auto *captionActions=new QHBoxLayout();
@@ -2549,8 +2540,9 @@ public:
                                 QLatin1String("KaffeineRadio"));
                 if(prefs.value(QLatin1String("radioAiAutoTranslate"),true).toBool())
                     quickTranslate_->setChecked(true);
-                if(prefs.value(QLatin1String("radioAiAutoSync"),true).toBool())
-                    autoSync_->setChecked(true); // only recommend; no forced retune
+                // Starting AI captions NEVER toggles Auto Size or Extra
+                // Buffer. TV likewise keeps playback controls separate
+                // from Whisper worker lifecycle.
                 if(prefs.value(QLatin1String("radioAiAutoKaraoke"),true).toBool())
                     karaokeEnabled_->setChecked(true);
                 if(prefs.value(QLatin1String("radioAiAutoKaraokeTranslations"),true).toBool())
@@ -5085,7 +5077,8 @@ private:
             captionProgress_->setRange(0,0);
             captionProgress_->setFormat(tr(
                 "Whisper starting · collecting ~5 s of real DAB audio…"));
-            lastCaptionUpdateMs_=QDateTime::currentMSecsSinceEpoch();
+            // Only a REAL decoded Whisper chunk may count as success
+            // for the ASR reconnection backoff.
             radioCaption_->setText(tr("Offline radio ASR/translation started. "
                 "Radio audio plays independently; heavy AI may fall behind."));
         }
@@ -6031,31 +6024,15 @@ private:
 					.arg(rawRecommended>60000?
 						tr(" · Above maximum: try fewer target languages or faster model"):
 						QString()));
-				if(quickBuffer_->isChecked() &&
-                   qAbs(recommended-selectedBufferMs())>=1500) {
-                    // Hysteresis allows both safer increases AND measured
-                    // reductions without oscillating on each five-second hop.
-                    // Auto selects a *future* cache request. libVLC cannot
-                    // alter the already open media's audio buffering in-place.
-                    // Never silently pretend that this changed live lip sync.
-                    setBufferDisplayMs(recommended);
-                    QSettings radio(QLatin1String("TIHULU"),QLatin1String("KaffeineRadio"));
-                    radio.setValue(QLatin1String("radioBufferDesiredMs"),
-                                   selectedBufferMs());
-                    radio.setValue(QLatin1String("playbackBufferMs"),
-                                   activePlaybackCacheMs_);
-                    if(autoRestartAudio_->isChecked() &&
-                       now-lastAudioRetuneMs_>=180000 &&
-                       recommended>=activePlaybackCacheMs_+5000 &&
-                       active() && !playingKey_.isEmpty()) {
-                        applyRadioBuffer();
-                    } else {
-                        syncStatus_->setText(tr("Computed buffer %1ms is SAVED "
-                            "for next tune; current live audio still requests %2ms. "
-                            "No restart; audio uninterrupted.")
-                            .arg(recommended).arg(activePlaybackCacheMs_));
-                    }
-				}
+                // Advisory only: no slider/prefs mutation and no automatic
+                // libVLC/Whisper restart every time ASR latency changes.
+                // Offset and actual playback cache remain fixed until
+                // explicit user Apply, as with the stable TV captions.
+                if(qAbs(recommended-selectedBufferMs())>=1500)
+                    syncStatus_->setText(tr(
+                        "Suggested audio cache %1 ms · currently %2 ms. "
+                        "Advice only, radio and AI captions uninterrupted.")
+                        .arg(recommended).arg(activePlaybackCacheMs_));
 			}
             // Use the first real GPU word for earlier caption presentation
             // when available. CPU and multi-hop sentences fall back to the
