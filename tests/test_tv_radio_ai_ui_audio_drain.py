@@ -79,7 +79,7 @@ class RadioAIUXRegressionTests(unittest.TestCase):
         self.assertIn('preferred_lyric_text=(lyric_match.get("text","")',code)
         self.assertIn('source_word_timed=bool(detection.get("asr_words"))',code)
         self.assertIn('prefer_readable=True',code)
-        self.assertIn('and lyric_match:',code)
+        self.assertIn('and lyric_match else "")',code)
         self.assertNotIn('original="[music]"',code)
         self.assertIn('"music_detected":False',code)
         self.assertIn('"speech_preserved_when_lyrics_unmatched"',code)
