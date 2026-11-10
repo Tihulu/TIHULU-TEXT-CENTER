@@ -248,6 +248,12 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
                     lyric_source_language="auto"
                     lyric_target_codes=()
                     lyric_translation_cache.clear()
+            # Lyrics lookup itself does not recognize singing. As soon as a
+            # real, authorized TXT/LRC song catalog has arrived, let Whisper
+            # observe vocals for matching WITHOUT restarting the radio or
+            # sidecar. On a new song / file removal restore normal speech
+            # VAD automatically. Metadata alone NEVER enables vocal mode.
+            music_for_matching=bool(music or plain_matcher is not None)
             translator_enabled=effective_radio_translation_enabled(
                 ai.values["translation_enabled"],radio_translations,
                 ai.values.get("translation_model","argos"))
@@ -269,7 +275,7 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
                                 # announcer/advert into singing mode: this
                                 # made ordinary speech fall through the
                                 # music-oriented no-VAD path.
-                                music=music,
+                                music=music_for_matching,
                                 detection=detection)
             if capture_index>0:
                 # Retain words crossing the genuine 1-second read overlap.
@@ -280,7 +286,7 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
             # not inferred gender/age. Music-mode does NOT invoke diarization.
             speaker_turns=[]
             speaker_warning=None
-            if speaker_labels and original and not music and plain_matcher is None:
+            if speaker_labels and original and not music_for_matching and plain_matcher is None:
                 try:
                     from .free_speakers import FreeSpeakerMarket, diarize_pcm
                     if FreeSpeakerMarket().status()["installed"]:
@@ -303,7 +309,7 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
             lyric_match=(plain_matcher.observe(original)
                          if plain_matcher is not None and original else None)
             sentence_state={"text":original,"complete":True,"pending":False,"chunks":0}
-            if plain_matcher is None and not music:
+            if plain_matcher is None and not music_for_matching:
                 sentence_state=sentence_joiner.push(
                     original, language=used_language, silent=not bool(original))
                 original=sentence_state["text"]
@@ -528,7 +534,10 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
                 "translations":rendered_translations,
                 "translation_warnings":problems,
                 "backend":backend,
-                "music_mode":bool(music),
+                "music_mode":music_for_matching,
+                "vocal_match_mode":("lyrics_catalog_vad_relaxed"
+                    if plain_matcher is not None and not music else
+                    "user_music_transcribe" if music else "speech_default"),
                 "content_type":("music_lyrics_metadata" if plain_matcher is not None
                                  else "speech_or_unclassified"),
                 "recognition_rejected":detection.get("recognition_rejected"),
