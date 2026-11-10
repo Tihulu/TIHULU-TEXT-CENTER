@@ -4093,6 +4093,7 @@ private:
                     tr("Block %1 · %2 · service %3 · stream opening")
                         .arg(block,dabCenterFrequencyMHz(block),sid));
 				lastDls_.clear();
+                clearLiveRadioLyricsCatalog(); // another station, no old song
                 pendingSongKey_.clear();
                 pendingSongDls_.clear();
                 pendingSongSinceMs_=0;
@@ -4796,6 +4797,37 @@ private:
         karaokeWordAnchors_=QJsonArray();
         lastHighlightedKaraokeWord_=-2;
         previewLastHighlightedWord_=-2;
+    }
+    QString liveRadioLyricsCatalogPath() const {
+        // radio_ai.py derives this stable per-session path by replacing
+        // "tihulu-radio-captions-" with "tihulu-radio-lyrics-".
+        // Search jobs keep generation-suffixed temporary output;
+        // only an accepted current-song result is published here.
+        const QString runtime=QStandardPaths::writableLocation(
+            QStandardPaths::RuntimeLocation);
+        if(runtime.isEmpty()) return QString();
+        return runtime+QLatin1String("/tihulu-radio-lyrics-")+
+            QString::number(QCoreApplication::applicationPid())+
+            QLatin1String(".json");
+    }
+    void clearLiveRadioLyricsCatalog() {
+        const QString path=liveRadioLyricsCatalogPath();
+        if(!path.isEmpty()) QFile::remove(path);
+    }
+    bool publishLiveRadioLyricsCatalog(const QJsonObject &lyrics) {
+        if(lyrics.value(QLatin1String("status")).toString()!=
+           QLatin1String("completed")) return false;
+        if(lyrics.value(QLatin1String("plain_lines")).toArray().isEmpty() &&
+           lyrics.value(QLatin1String("cues")).toArray().isEmpty()) return false;
+        const QString path=liveRadioLyricsCatalogPath();
+        if(path.isEmpty()) return false;
+        const QByteArray data=QJsonDocument(lyrics).toJson(
+            QJsonDocument::Compact);
+        if(data.isEmpty() || data.size()>120000) return false;
+        QSaveFile output(path);
+        if(!output.open(QIODevice::WriteOnly)) return false;
+        if(output.write(data)!=data.size()) return false;
+        return output.commit();
     }
     void renderFullLyricsWindow(QLabel *info,QPlainTextEdit *view) {
         if(!info || !view) return;
@@ -6071,6 +6103,7 @@ private:
         pendingSongKey_.clear();
         pendingSongDls_.clear();
         cancelLyricsRefresh();
+        clearLiveRadioLyricsCatalog(); // old accepted song is no longer live
         recentKaraokeEvidence_.clear();
         lastSongMetadataKey_=candidate;
         lastSongDls_=acceptedDls;
@@ -6150,6 +6183,7 @@ private:
 		}
 		if (!lyricPath_.isEmpty()) QFile::remove(lyricPath_);
 		lyricPath_.clear();
+        clearLiveRadioLyricsCatalog(); // manual Stop Lyrics ends matching
 		lyricCues_=QJsonArray();
 		plainLyricMode_=false;
 		plainLyricQueue_.clear();
@@ -6347,6 +6381,7 @@ private:
         lyricsEnabled_=true;
         lastLyricsAutoLookup_=true;
         lyricsRequestKey_=lyricsRefreshRequestKey_;
+        const bool liveCatalogPublished=publishLiveRadioLyricsCatalog(value);
         lyricsLookupCooldownUntilMs_=now+90000;
         if(lyricsCache_.size()>=12 &&
            !lyricsCache_.contains(lyricsRequestKey_)) {
@@ -6381,11 +6416,13 @@ private:
             "Lyrics source: %1 · refreshed · audio verification is independent")
             .arg(lastLyricsProvider_));
         const QString note=tr(
-            "Lyrics Refresh completed · %1 · %2 song lines loaded · "
-            "Whisper/radio unchanged")
+            "Lyrics Refresh completed · %1 · %2 lines · live matcher %3 · "
+            "DAB radio/Whisper uninterrupted")
             .arg(changed?tr("new text applied"):tr("same text retained"))
             .arg(lyricRawLines_.isEmpty()?lyricCues_.size():
-                 lyricRawLines_.size());
+                 lyricRawLines_.size())
+            .arg(liveCatalogPublished?tr("catalog synchronized"):
+                 tr("catalog publish failed — check runtime permissions"));
         lyricText_->setText(note);
         if(lyricsSyncState_) lyricsSyncState_->setText(note);
         if(changed) setRadioLyricMatchStatus(tr(
@@ -6460,6 +6497,7 @@ private:
         recentKaraokeEvidence_.clear();
         lyricRawLines_.clear();
         lastLyricsProvider_.clear();
+        clearLiveRadioLyricsCatalog(); // prevent stale matching mid-lookup
         clearKaraokeLine();
         previewStartedMs_=0;
         previewPauseStartedMs_=0;
@@ -6676,6 +6714,13 @@ private:
             }
             const bool realLyrics=!lyricRawLines_.isEmpty() ||
                 !lyricCues_.isEmpty();
+            // The live Whisper/Qwen matcher watches a fixed PID filename,
+            // not this lookup's generation-suffixed source file.
+            const bool liveCatalogPublished=publishLiveRadioLyricsCatalog(value);
+            if(!liveCatalogPublished && lyricsSyncState_)
+                lyricsSyncState_->setText(tr(
+                    "Lyrics loaded but not shared with karaoke aligner · "
+                    "check private runtime directory"));
             setRadioLyricMatchStatus(realLyrics?
                 tr("LYRICS FOUND · %1 actual lines · %2 · matching live audio…")
                     .arg(lyricRawLines_.isEmpty()?lyricCues_.size():
