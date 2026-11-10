@@ -91,8 +91,18 @@ struct TihuluDlsSong {
     QString artist,title,format;
     bool valid() const {return !artist.isEmpty() && !title.isEmpty();}
     QString normalizedKey() const {
-        return artist.simplified().toCaseFolded()+QLatin1Char('|')+
-               title.simplified().toCaseFolded();
+        // Ignore DLS case, accents and punctuation variation across repeats.
+        // Match the offline Python song-hint key without conflating distinct
+        // artist and title tokens.
+        const auto canonical=[](const QString &text)->QString {
+            QString value=text.normalized(QString::NormalizationForm_KD)
+                .toCaseFolded();
+            value.remove(QRegularExpression(QLatin1String("[\\p{M}]")));
+            value.replace(QRegularExpression(
+                QLatin1String("[^\\p{L}\\p{N}]+")),QLatin1String(" "));
+            return value.simplified();
+        };
+        return canonical(artist)+QLatin1Char('|')+canonical(title);
     }
 };
 inline TihuluDlsSong tihuluDlsSong(const QString &dls) {
