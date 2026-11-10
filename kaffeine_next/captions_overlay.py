@@ -452,6 +452,11 @@ class CaptionTap:
             if audit_session!=self.teletext_audit_session:
                 self.teletext_audit.reset()
                 self.teletext_audit_session=audit_session
+            if selected=="auto":
+                self.teletext_audit.mark_clip()
+            probe_due=(selected=="auto" and
+                       self.teletext_audit.needs_probe())
+            recovery_probe=bool(probe_due and self.teletext_audit.prefer_asr)
             if selected=="auto" and self.teletext_audit.prefer_asr:
                 selected="asr"
             if selected in ("asr", "auto") and not ai.values["asr_enabled"]:
@@ -479,7 +484,9 @@ class CaptionTap:
                 model=ai.values["model_path"],
                 service_id=options.get("service_id"),
                 teletext_pid=(options.get("teletext_pid")
-                              if selected in ("auto", "teletext", "page") else None),
+                              if selected in ("auto", "teletext", "page")
+                              or recovery_probe else None),
+                teletext_language=options.get("teletext_language"),
                 audio_pid=(options.get("audio_pid")
                            if selected in ("auto", "asr") else None),
                 audio_source=(options.get("audio_source")
@@ -501,20 +508,24 @@ class CaptionTap:
                     options.get("music_transcription",False)),
                 auto_teletext_probe=(
                     selected=="auto" and ai.values["asr_enabled"] and
-                    self.teletext_audit.needs_probe()))
+                    probe_due),
+                auto_teletext_recovery=bool(
+                    recovery_probe and ai.values["asr_enabled"]))
             probe=result.pop("teletext_probe",None)
+            shadow=result.pop("teletext_shadow",None)
             if (probe and selected=="auto" and
-                    str(result.get("source","")).startswith(
-                        "broadcaster_teletext")):
+                    str(result.get("source","")).startswith("broadcaster_teletext")):
                 verdict=self.teletext_audit.observe(
                     result.get("original"),probe.get("text"),
-                    result.get("source_language"),probe.get("source_language"))
+                    options.get("teletext_language") or result.get("source_language"),
+                    probe.get("source_language"))
                 result["teletext_audit"]=(
-                    f"{self.teletext_audit.attempts}/{self.teletext_audit.maximum}"
-                    " initial checks · "+verdict)
+                    f"{self.teletext_audit.attempts} speech checks · "
+                    f"{verdict} · {self.teletext_audit.last_reason}")
                 if verdict=="switched":
-                    # Use REAL recognition from the same TS capture; do not
-                    # invent dialogue or rerun the costly model twice.
+                    # The real concurrent ASR audio is already available.
+                    # Discard OLD Teletext translations; translate the heard
+                    # speech after natural sentence assembly below.
                     result["original"]=probe["text"]
                     result["raw_asr_original"]=probe["text"]
                     result["source_language"]=probe["source_language"]
@@ -525,13 +536,32 @@ class CaptionTap:
                     result["translation_errors"]={}
                     result["translation_warnings"]={}
                     result["translation_engines"]={}
-                    result["teletext_audit"]=(
-                        "Teletext differed from confirmed spoken language "
-                        "in 3 initial checks; switched Auto to Whisper")
-            elif selected=="asr" and options["mode"]=="auto":
+            elif selected=="asr" and options["mode"]=="auto" and shadow:
+                verdict=self.teletext_audit.observe(
+                    shadow.get("text"),result.get("original"),
+                    shadow.get("source_language"),
+                    result.get("source_language"))
                 result["teletext_audit"]=(
-                    "Auto: Whisper selected after repeated early "
-                    "Teletext mismatch; Teletext Hard remains available")
+                    "Whisper safe fallback · sampled actual broadcaster text: "+
+                    verdict+" · "+self.teletext_audit.last_reason)
+                # If recovered, keep THIS segment's genuine ASR; begin
+                # broadcasting Teletext from the NEXT capture only.
+            elif (selected=="auto" and options["mode"]=="auto"
+                  and result.get("source")=="local_asr"):
+                self.teletext_audit.missing()
+                result["teletext_audit"]=(
+                    "No usable broadcaster Teletext, switched to real Whisper")
+            if options["mode"]=="auto":
+                result["teletext_status"]=(
+                    "WHISPER · AUTO FALLBACK"
+                    if result.get("source")=="local_asr" else
+                    self.teletext_audit.status)
+                result["teletext_detail"]=self.teletext_audit.last_reason
+                result["teletext_probe_attempts"]=self.teletext_audit.attempts
+            else:
+                result["teletext_status"]=(
+                    "WHISPER · MANUAL" if selected=="asr" else
+                    "TELETEXT · MANUAL")
             if options.get("program_epoch") != self.program_epoch:
                 return  # old channel's caption must never appear on new TV
             if result.get("source") == "local_asr" and result.get("original"):
@@ -1153,6 +1183,16 @@ def main(argv=None):
     track_status.setWordWrap(True)
     settings_layout.addRow(tracks_row)
     settings_layout.addRow(track_status)
+    teletext_speech_status = QLabel(
+        "TELETEXT · CHECKING · waiting for live same-language audio evidence")
+    teletext_speech_status.setWordWrap(True)
+    teletext_speech_status.setToolTip(
+        "Auto source: periodically verifies broadcaster subtitle words "
+        "against real Whisper speech. Text-only/PTSs alone do not prove "
+        "content sync; separate languages are not treated as mismatches. "
+        "Three conflicts trigger Whisper and two later matches allow "
+        "return to Teletext.")
+    settings_layout.addRow("Teletext ↔ speech",teletext_speech_status)
     audio_row = QHBoxLayout()
     audio_row.addWidget(QLabel("Whisper source audio channel"))
     audio_track = QComboBox()
@@ -1861,6 +1901,7 @@ def main(argv=None):
             target_languages=target_langs if output != "original" else (),
             page=chosen_track["page"] if chosen_track else page.value(),
             teletext_pid=chosen_track["pid"] if chosen_track else None,
+            teletext_language=(hinted if chosen_track else None),
             audio_pid=chosen_audio["pid"] if chosen_audio else None,
             audio_language=(hinted if automatic_source and chosen_audio and
                             hinted in WHISPER_LANGUAGES else None),
@@ -2579,6 +2620,8 @@ def main(argv=None):
             # silently become a real caption channel in the next service.
             mode.setCurrentIndex(0)
         track_status.setText("Switched service · waiting for fresh Teletext descriptors.")
+        teletext_speech_status.setText(
+            "TELETEXT · CHECKING · new programme; previous subtitles invalidated")
         audio_track_status.setText("Switched service · waiting for new audio PID/language.")
         original.setText("TV channel changed · waiting for NEW channel captions…")
         translated.setText("")
@@ -2952,6 +2995,11 @@ def main(argv=None):
                 if (data.get("revision") != applied.revision or
                         data.get("program_epoch") != tap.program_epoch):
                     continue
+                if data.get("teletext_status"):
+                    teletext_speech_status.setText(
+                        str(data["teletext_status"])+
+                        (" · "+str(data["teletext_detail"])[:190]
+                         if data.get("teletext_detail") else ""))
                 if data.get("original"):
                     real_source = data.get("source", "")
                     estimator.observe(
