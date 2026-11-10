@@ -73,6 +73,31 @@ class LyricsRefreshAndFullWindowTests(unittest.TestCase):
         self.assertNotIn("stopReceiver(", result)
         self.assertNotIn("stopCaptioning(", result)
 
+    def test_fallback_listening_is_not_falsely_reported_as_lyrics_found(self):
+        listening=section("void beginLyricListening() {",
+                          "void commitPendingDlsSong(")
+        self.assertIn("lyricsEnabled_=true;", listening)
+        self.assertIn("lyricLoaded_=false;", listening)
+        self.assertNotIn("lyricLoaded_=true;", listening)
+        transition=section("void commitPendingDlsSong(", "void stopLyrics()")
+        self.assertIn("lyricLoaded_=false;", transition)
+        captions=section("void pollCaption() {", "void updateLyrics() {")
+        self.assertIn("!lyricRawLines_.isEmpty() || !lyricCues_.isEmpty()",captions)
+
+    def test_lyrics_refresh_timeout_reenables_button_and_keeps_text(self):
+        polling=section("void pollLyricsRefreshResult() {",
+                        "void fetchLyrics(bool automatic=false) {")
+        self.assertIn("if(elapsed>30000)",polling)
+        self.assertIn("cancelLyricsRefresh();",polling)
+        self.assertIn("lyricsSyncState_->setText(note)",polling)
+        cancel=section("void cancelLyricsRefresh() {",
+                       "void refreshCurrentLyrics() {")
+        self.assertIn("lyricsRefresh_->setEnabled(true)",cancel)
+        full=section("void showFullLyricsWindow() {",
+                     "void pruneRecentKaraokeEvidence(")
+        self.assertIn("dialog->raise();",full)
+        self.assertIn("dialog->activateWindow();",full)
+
     def test_refresh_polling_and_song_boundary_cancels_stale_search(self):
         self.assertIn("pollCaption();updateLyrics();", RADIO)
         self.assertIn("pollLyricsRefreshResult();", RADIO)
