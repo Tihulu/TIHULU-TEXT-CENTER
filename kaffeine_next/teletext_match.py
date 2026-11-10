@@ -117,6 +117,11 @@ class TeletextAudit:
         return "missing"
 
     def observe(self,teletext,spoken,source_lang,speech_lang):
+        # Direct audit consumers may supply one observed clip at a time,
+        # without calling mark_clip(). The live CaptionTap already calls
+        # mark_clip() once before each decoding window. Never double-count.
+        if self.clips<=self.attempts:
+            self.mark_clip()
         verdict=compare_text(teletext,spoken,source_lang,speech_lang)
         if verdict=="conflicting":
             # Speech and Teletext may be one capture apart. Check bounded
