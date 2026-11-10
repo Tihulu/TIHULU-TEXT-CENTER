@@ -8,6 +8,7 @@ The receiver UI/CLI starts this worker only on a user click.
 from __future__ import annotations
 
 import argparse
+from collections import deque
 import json
 import os
 from pathlib import Path
@@ -156,6 +157,12 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
     lyric_source_language="auto"
     lyric_target_codes=()
     lyric_translation_cache={}
+    # Raw *heard Whisper* text/word epochs only, never catalog lyrics or PCM.
+    # The last ten seconds can be searched again without audio or ASR restart.
+    recent_lyric_asr=deque(maxlen=4)
+    sync_refresh_token=0
+    sync_refresh_pending=0
+    sync_refresh_windows_left=0
     sentence_joiner=LiveSentenceJoiner(max_words=115,max_chunks=sentence_hops)
     write_runtime_json(location,{
         "status":"waiting_audio","source_language":src,
@@ -213,6 +220,16 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
                         requested_labels=payload.get("sound_labels")
                         if type(requested_labels) is bool:
                             sound_labels=requested_labels
+                        requested_refresh=payload.get(
+                            "karaoke_sync_refresh_token",0)
+                        if (type(requested_refresh) is int and
+                                0<=requested_refresh<=2147483647 and
+                                requested_refresh>sync_refresh_token):
+                            sync_refresh_token=requested_refresh
+                            sync_refresh_pending=requested_refresh
+                            # A missed line can be reacquired across three
+                            # consecutive audio hops, without new receivers.
+                            sync_refresh_windows_left=3
                         requested_threshold=payload.get("lyric_match_threshold")
                         if (isinstance(requested_threshold,(float,int)) and
                                 not isinstance(requested_threshold,bool) and
@@ -247,6 +264,8 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
                     lyric_source_language=payload.get("source_language","auto")
                     lyric_target_codes=tuple(payload.get("translation_targets",[]))[:6]
                     lyric_translation_cache.clear()
+                    # Prevent preceding song ASR from matching the new song.
+                    recent_lyric_asr.clear()
             except (OSError,ValueError,TypeError,json.JSONDecodeError):
                 if not lyric_path.is_file():
                     lyric_marker=None
@@ -254,6 +273,7 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
                     lyric_source_language="auto"
                     lyric_target_codes=()
                     lyric_translation_cache.clear()
+                    recent_lyric_asr.clear()
             # Lyrics lookup itself does not recognize singing. As soon as a
             # real, authorized TXT/LRC song catalog has arrived, let Whisper
             # observe vocals for matching WITHOUT restarting the radio or
@@ -313,8 +333,9 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
                 used_language=src
                 language_pending=False
                 language_reason="manual_source_language"
-            lyric_match=(plain_matcher.observe(original)
-                         if plain_matcher is not None and original else None)
+            heard_asr=original  # preserve actual Whisper words before any substitution
+            lyric_match=(plain_matcher.observe(heard_asr)
+                         if plain_matcher is not None and heard_asr else None)
             sentence_state={"text":original,"complete":True,"pending":False,"chunks":0}
             if plain_matcher is None and not music_for_matching:
                 sentence_state=sentence_joiner.push(
@@ -355,12 +376,61 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
                                 min(window_start+6.,heard_start))
                 first_word_epoch_ms=int(capture_epoch_ms-round(
                     (window_start+6.-heard_start)*1000))
-            # Only matched song lines may carry GPU word evidence.
-            # No inferred word times for CPU, translations, DLS or LRC metadata.
+            # Sync Refresh re-searches recent HEARD Whisper phrases across
+            # the full lyric catalog. It never downloads text, plays or
+            # restarts PCM, and never invents karaoke word timestamps.
+            # A nonmatching refresh remains pending for at most three hops.
+            window_seconds=len(pcm)/(2*CHUNK_SAMPLES)
+            if heard_asr and plain_matcher is not None:
+                recent_lyric_asr.append({
+                    "epoch_ms":capture_epoch_ms,
+                    "text":heard_asr,
+                    "words":detection.get("asr_words",[]),
+                    "window_seconds":window_seconds,
+                })
+            while (recent_lyric_asr and
+                   capture_epoch_ms-recent_lyric_asr[0]["epoch_ms"]>10000):
+                recent_lyric_asr.popleft()
+            lyric_word_source=detection.get("asr_words",[])
+            lyric_word_epoch=capture_epoch_ms
+            lyric_word_window=window_seconds
+            sync_refresh_status="idle"
+            sync_refresh_applied=0
+            if sync_refresh_windows_left:
+                if plain_matcher is None:
+                    sync_refresh_status="no_loaded_lyrics"
+                    sync_refresh_windows_left=0
+                else:
+                    # Newest phrase first: an instrumental-only chunk may
+                    # safely reuse the preceding 10 seconds of ASR text.
+                    for recent in reversed(recent_lyric_asr):
+                        reacquired=plain_matcher.reacquire(recent["text"])
+                        if reacquired is None:
+                            continue
+                        lyric_match=reacquired
+                        lyric_word_source=recent["words"]
+                        lyric_word_epoch=recent["epoch_ms"]
+                        lyric_word_window=recent["window_seconds"]
+                        sync_refresh_status="reacquired"
+                        sync_refresh_applied=sync_refresh_pending
+                        sync_refresh_windows_left=0
+                        break
+                    if sync_refresh_windows_left:
+                        if lyric_match is not None:
+                            sync_refresh_status="matched_live"
+                            sync_refresh_applied=sync_refresh_pending
+                            sync_refresh_windows_left=0
+                        else:
+                            sync_refresh_windows_left-=1
+                            sync_refresh_status=("listening_for_Whisper_match"
+                                if sync_refresh_windows_left else
+                                "no_confident_match")
+            # Only genuinely aligned GPU words have karaoke epoch anchors.
+            # A lexical line match alone can show the line, never word sync.
             lyric_word_anchors=(aligned_karaoke_word_anchors(
-                lyric_match["text"], detection.get("asr_words", []),
-                capture_end_epoch_ms=capture_epoch_ms,
-                window_seconds=len(pcm)/(2*CHUNK_SAMPLES))
+                lyric_match["text"], lyric_word_source,
+                capture_end_epoch_ms=lyric_word_epoch,
+                window_seconds=lyric_word_window)
                 if lyric_match else [])
 
             # Publish the ORIGINAL promptly after ASR. A slow sequential
@@ -376,6 +446,11 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
                     "status":"running",
                     "chunk_index":capture_index,
                     "caption_revision":0,
+                    "lyric_match":lyric_match,
+                    "lyric_word_anchors":lyric_word_anchors,
+                    "lyric_translations":{},
+                    "karaoke_sync_refresh_status":sync_refresh_status,
+                    "karaoke_sync_refresh_applied":sync_refresh_applied,
                     "original":original[:1800],
                     "source_language":used_language or "und",
                     "language_source":language_reason,
@@ -521,6 +596,8 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
                 "sentence_continuation":bool(sentence_state.get("continued",False)),
                 "sentence_hops_limit":sentence_hops,
                 "lyric_match":lyric_match,
+                "karaoke_sync_refresh_status":sync_refresh_status,
+                "karaoke_sync_refresh_applied":sync_refresh_applied,
                 "lyric_match_threshold":round(lyric_match_threshold,3),
                 "lyric_match_metric":"lexical_overlap_not_sync_accuracy",
                 "lyric_word_anchors":lyric_word_anchors,
