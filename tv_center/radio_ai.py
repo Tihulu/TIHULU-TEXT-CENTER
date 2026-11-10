@@ -193,6 +193,10 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
             if done or audio_window is None:
                 break
             capture_index,pcm,captured_at=audio_window
+            # Detect a newly owner-installed/removed Qwen model with cheap
+            # filesystem checks. No downloads, imports of torch or audio
+            # restarts; the active Whisper worker stays untouched.
+            qwen_installed=QwenForcedAlignerMarket().installed()
             # Apply user-chosen source / output languages during playback
             # without restarting Whisper and losing presenter audio.
             # An invalid control file never disables existing languages.
