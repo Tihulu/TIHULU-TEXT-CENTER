@@ -3825,7 +3825,7 @@ private:
                         pendingSongSinceMs_=lastObservedSongMs_;
                         const QString station=playingKey_;
                         const quint64 ticket=stationRequestId_;
-                        QTimer::singleShot(5000,this,
+                        QTimer::singleShot(5100,this,
                             [this,candidate,station,ticket](){
                                 commitPendingDlsSong(candidate,station,ticket);
                             });
@@ -6506,17 +6506,40 @@ private:
            station!=playingKey_ || ticket!=stationRequestId_ ||
            !active() || scanning_) return;
         const qint64 now=QDateTime::currentMSecsSinceEpoch();
-        if(now-pendingSongSinceMs_<5000) return;
+        if(now-pendingSongSinceMs_<5000) {
+            // QTimer may fire slightly early: never lose the only callback
+            // that can commit a valid artist/title hint.
+            const int remaining=int(5000-(now-pendingSongSinceMs_)+50);
+            QTimer::singleShot(remaining,this,
+                [this,candidate,station,ticket](){
+                    commitPendingDlsSong(candidate,station,ticket);
+                });
+            return;
+        }
         // The proposed metadata must STILL be on air after the debounce.
         // Station promos/slogans interrupt candidacy rather than certifying
         // a different song on the basis of a single transient DLS message.
-        if(pendingSongObservations_<2 ||
-           !lastObservedSongHint_.valid() ||
+        if(!lastObservedSongHint_.valid() ||
            lastObservedSongHint_.normalizedKey()!=candidate ||
-           now-lastObservedSongMs_>10000) {
+           now-lastObservedSongMs_>12000) {
             pendingSongKey_.clear();
             pendingSongDls_.clear();
             pendingSongObservations_=0;
+            return;
+        }
+        // Some DLS services rotate artist/title and station slides
+        // faster than two consecutive mux snapshots. A credible structured
+        // track tag can be accepted after 5s; a single generic "A - B"
+        // item is given extra time for a second observation, but must not
+        // strand Lyrics forever when broadcasts rotate very fast.
+        const bool typedSource=pendingSongHint_.format!=
+            QLatin1String("DLS artist-first");
+        if(pendingSongObservations_<2 && !typedSource &&
+           now-pendingSongSinceMs_<8000) {
+            QTimer::singleShot(3000,this,
+                [this,candidate,station,ticket](){
+                    commitPendingDlsSong(candidate,station,ticket);
+                });
             return;
         }
         // Recent matching Whisper lyrics are evidence that the old song
