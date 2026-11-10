@@ -67,6 +67,18 @@ def decorate_result(result: dict, enabled: bool) -> dict:
         lang:decorate_caption(line,events,lang)
         for lang,line in (result.get("translations") or {}).items()
     }
+    # For a confirmed sound with no recognized words, emit a stand-alone
+    # sound cue. NEVER claim those tags were transcribed song lyrics.
+    if not original.strip():
+        output["source"]="acoustic_event"
+        output["sound_event_only"]=True
+        output["word_timing_source"]=None
+        output["words"]=[]
+        if not output["translations"]:
+            output["translations"]={
+                lang:sound_prefix(events,lang) for lang in (
+                    result.get("target_languages") or [])
+                if sound_prefix(events,lang)}
     # UI status can still explain which detector produced the label; this
     # metadata never claims sample-accurate event boundaries.
     output["sound_labels_source"]="AST AudioSet · approximate clip"
