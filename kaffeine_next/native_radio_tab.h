@@ -6173,8 +6173,10 @@ private:
         if(!lyricsRefreshPending_) return;
         if(lyricsRefreshStationTicket_!=stationRequestId_ ||
            lyricsRefreshStationKey_!=playingKey_ ||
-           lyricsRefreshSongKey_!=lastSongMetadataKey_ ||
-           !pendingSongKey_.isEmpty()) {
+           lyricsRefreshSongKey_!=lastSongMetadataKey_) {
+            // Pending DLS is only a hint. Cancel only once a DIFFERENT
+            // song is accepted or the actual station/ticket changed.
+            // Otherwise presenter promos could prevent every manual refresh.
             cancelLyricsRefresh(); // stale result from old track
             return;
         }
