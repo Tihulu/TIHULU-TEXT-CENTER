@@ -98,6 +98,9 @@ private:
 		mediaWidget->setFocus();
 	}
 	void setLocalFile(const QUrl &url) { aiPanel->setLocalFile(url); }
+    bool prepareLocalFileOpen(const QUrl &url) {
+        return aiPanel->prepareLocalFileOpen(url);
+    }
 
 private:
 	MediaWidget *mediaWidget;
