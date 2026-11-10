@@ -199,7 +199,7 @@ QAbstractButton *StartTab::addShortcut''',
 		QIcon::fromTheme(QLatin1String("audio-radio")), this);
 	button->setShortcut(Qt::Key_6);
 	button->setWhatsThis(i18n("Open the native TIHULU DAB+ station library."));
-	connect(button, SIGNAL(clicked()), mainWindow, SLOT(playRadio()));
+	connect(button, SIGNAL(clicked(bool)), mainWindow, SLOT(playRadio()));
 	gridLayout->addWidget(button, 1, 2);
 #endif /* HAVE_DVB == 1 */
 }
@@ -258,6 +258,16 @@ QAbstractButton *StartTab::addShortcut''')
 	connect(button,SIGNAL(clicked()),mainWindow,SLOT(playHardware()));
 	gridLayout->addWidget(button,3,0,1,3);
 #endif /* HAVE_DVB == 1 */''')
+
+    # Native Start tile uses Qt5 clicked(bool); clicked() has no matching
+    # signal and silently leaves the Radio tile nonfunctional. Normalize
+    # other Kaffeine home shortcuts for consistent pointer/keyboard access.
+    # Only StartTab connectors are changed, not the general mainwindow.
+    home_marker = 'class PlayerTab : public TabBase'
+    home_end = files[main].index(home_marker)
+    files[main] = (files[main][:home_end].replace(
+        'SIGNAL(clicked())', 'SIGNAL(clicked(bool))')+
+        files[main][home_end:])
 
     # Single bottom-bar recorder is available across Playback, TV, Radio
     # and Internet streams. Non-DVB sources are tracked only when libVLC
