@@ -1616,7 +1616,8 @@ public:
 			"artist/title is sent to LRCLIB on each new song. No audio or private RF data are uploaded."));
 		connect(autoLyrics_,&QCheckBox::toggled,this,[this](bool enabled){
 			if(enabled && active() && !playingKey_.isEmpty() &&
-			   !lyricsEnabled_ && lastDls_.contains(QLatin1String(" - ")))
+               !lyricsEnabled_ && !lastSongMetadataKey_.isEmpty() &&
+               pendingSongKey_.isEmpty())
 				QTimer::singleShot(100,this,[this](){fetchLyrics(true);});
 		});
 		autoLyricSync_=new QCheckBox(tr("Auto lyric timing (DLS estimate)"),lab);
@@ -2218,7 +2219,8 @@ public:
                 if(onlineConsent) {
                     autoLyrics_->setChecked(true);
                     // Existing DLS should be searched on AI activation too.
-                    if(tihuluDlsSong(lastDls_).valid() && !lyricsEnabled_)
+                    if(!lastSongMetadataKey_.isEmpty() &&
+                       pendingSongKey_.isEmpty() && !lyricsEnabled_)
                         QTimer::singleShot(100,this,[this](){fetchLyrics(true);});
                 }
                 if(active() && !playingKey_.isEmpty()) startCaptioning();
@@ -2303,6 +2305,7 @@ public:
 				tr("Lyric files (*.txt *.lrc)"));
 			if(path.isEmpty()) return;
 			stopLyrics();
+            lyricsRequestKey_.clear(); // imports never poison online cache
 			const QString runtime=QStandardPaths::writableLocation(
 				QStandardPaths::RuntimeLocation);
 			if(runtime.isEmpty()) {
@@ -5476,6 +5479,7 @@ private:
         lyricOffsetConsistency_=0;
 		lyricLoaded_=false;
         lastLyricsAutoLookup_=false;
+        lyricsRequestKey_.clear();
         lastUnmatchedVoiceUntilMs_=0;
 		stopLyrics_->setEnabled(false);
         lyricProvider_->setText(tr("Lyrics stopped. Local DAB audio continues."));
@@ -5499,16 +5503,40 @@ private:
 		const QString title=overridden?lyricsTitle_->text().trimmed():song.title;
 		if (artist.isEmpty() || title.isEmpty() || artist.size()>130 || title.size()>130)
 			return;
-		if (automatic && !autoLyrics_->isChecked()) return;
+		if (automatic && (!autoLyrics_->isChecked() ||
+            lastSongMetadataKey_.isEmpty() || !pendingSongKey_.isEmpty()))
+            return;
 		if(!automatic && QMessageBox::question(this,tr("Optional online lyrics lookup"),
 			tr("Search LRCLIB, lyrics.ovh and optional licensed Musixmatch?\nArtist: %1\nTitle: %2\n\n"
 			   "Only these metadata are sent; no radio audio is uploaded. "
 			   "Start time estimated from DLS, so adjust the timing slider manually.")
 			   .arg(artist,title))!=QMessageBox::Yes) return;
+        // Key cached lyrics by song identity plus requested translation
+        // languages, never by fragile changing broadcaster DLS text.
+        const QString sourceCode=lyricsSourceLanguage_->currentData().toString();
+        const QStringList dests=selectedRadioTargets();
+        const QString requestKey=(overridden?
+            artist.simplified().toCaseFolded()+QLatin1Char('|')+
+            title.simplified().toCaseFolded():song.normalizedKey())+
+            QLatin1Char('|')+sourceCode+QLatin1Char('|')+
+            dests.join(QLatin1Char(','));
+        const qint64 lookupNow=QDateTime::currentMSecsSinceEpoch();
+        if(automatic && requestKey==lyricsRequestKey_ &&
+           (lyricsEnabled_ || lyricLoaded_ ||
+            lookupNow<lyricsLookupCooldownUntilMs_)) return;
+        // Never allow an old worker to overwrite a newer song result.
+        if(lyricsProcess_.state()!=QProcess::NotRunning) {
+            lyricsProcess_.kill();
+            lyricsProcess_.waitForFinished(900);
+        }
+        if(!lyricPath_.isEmpty()) QFile::remove(lyricPath_);
+        lyricsRequestKey_=requestKey;
+        lyricsLookupCooldownUntilMs_=lookupNow+90000;
 		const QString runtime=QStandardPaths::writableLocation(QStandardPaths::RuntimeLocation);
 		lyricPath_=runtime+QLatin1String("/tihulu-radio-lyrics-")+
-			QString::number(QCoreApplication::applicationPid())+QLatin1String(".json");
-		QFile::remove(lyricPath_);
+            QString::number(QCoreApplication::applicationPid())+
+            QLatin1Char('-')+QString::number(++lyricsLookupGeneration_)+
+            QLatin1String(".json");
 		lyricsEnabled_=true;
         lastLyricsAutoLookup_=automatic;
         lyricLoaded_=false;
@@ -5536,13 +5564,26 @@ private:
 		lyrics_->setEnabled(false);
         lyricProvider_->setText(tr("Searching LRCLIB, optional licensed "
             "Musixmatch and lyrics.ovh (metadata only)."));
-		QString sourceCode=lyricsSourceLanguage_->currentData().toString();
         // Song-specific manual choice never changes automatic spoken ASR.
         // Do not reuse previous spoken presenter language for the NEXT song:
 		// an English or Turkish singer may follow a German-language host.
 		// Without independently verified song language, keep it auto and
 		// suppress ungrounded German/English/Turkish lyric translation.
-        const QStringList dests=selectedRadioTargets();
+        // Session-only bounded cache of previously retrieved licensed/local
+        // metadata lyrics. Parsing follows the normal result path; cached
+        // data never becomes a verified Whisper audio match.
+        if(automatic && lyricsCache_.contains(requestKey) &&
+           lookupNow-lyricsCacheTime_.value(requestKey,0)<7200000) {
+            const QByteArray json=QJsonDocument(
+                lyricsCache_.value(requestKey)).toJson(QJsonDocument::Compact);
+            QSaveFile cacheOutput(lyricPath_);
+            if(json.size()<=250000 && cacheOutput.open(QIODevice::WriteOnly) &&
+               cacheOutput.write(json)==json.size() && cacheOutput.commit()) {
+                lyricText_->setText(tr("Lyrics cache hit · no network search"));
+                updateLyrics();
+                return;
+            }
+        }
 		lyricsProcess_.start(QLatin1String("tihulu-tv-center"),
 			{QLatin1String("lyrics-lookup"),QLatin1String("--artist"),artist,
 			 QLatin1String("--track"),title,QLatin1String("--output"),lyricPath_,
@@ -5651,6 +5692,24 @@ private:
 		if (!file.open(QIODevice::ReadOnly) || file.size()>250000) return;
 		const auto value=QJsonDocument::fromJson(file.readAll()).object();
 		if (value.value(QLatin1String("status")).toString()==QLatin1String("completed")) {
+            // Bounded in-memory lyric cache (max 12 songs, 2h per entry).
+            if(!lyricsRequestKey_.isEmpty()) {
+                if(lyricsCache_.size()>=12 && !lyricsCache_.contains(lyricsRequestKey_)) {
+                    QString oldest;
+                    qint64 oldestTime=std::numeric_limits<qint64>::max();
+                    for(auto it=lyricsCacheTime_.cbegin();
+                        it!=lyricsCacheTime_.cend();++it)
+                        if(it.value()<oldestTime) {
+                            oldestTime=it.value(); oldest=it.key();
+                        }
+                    if(!oldest.isEmpty()) {
+                        lyricsCache_.remove(oldest);
+                        lyricsCacheTime_.remove(oldest);
+                    }
+                }
+                lyricsCache_.insert(lyricsRequestKey_,value);
+                lyricsCacheTime_.insert(lyricsRequestKey_,now);
+            }
 			lyricLoaded_=true;
             const QString provider=value.value(QLatin1String("provenance"))
                 .toObject().value(QLatin1String("provider")).toString();
@@ -5796,8 +5855,11 @@ private:
         lastUnmatchedVoiceUntilMs_=0,lastMatchedLyricUntilMs_=0,
         captionReadingHoldUntilMs_=0,captionDisplayedStartedMs_=0;
     bool lastLyricsAutoLookup_=false;
-    QString pendingSongKey_,pendingSongDls_;
-    qint64 pendingSongSinceMs_=0;
+    QString pendingSongKey_,pendingSongDls_,lyricsRequestKey_;
+    qint64 pendingSongSinceMs_=0,lyricsLookupCooldownUntilMs_=0;
+    quint64 lyricsLookupGeneration_=0;
+    QMap<QString,QJsonObject> lyricsCache_;
+    QMap<QString,qint64> lyricsCacheTime_;
 	bool metadataCaptions_=false;
 	int dlsCaptionIndex_=0;
 	int lastLyricOffsetMs_=0;
