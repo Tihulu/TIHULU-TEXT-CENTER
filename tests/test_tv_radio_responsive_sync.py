@@ -83,10 +83,13 @@ class RadioModesAndSyncTests(unittest.TestCase):
         # A radio playback-start progress bar is not actual libVLC buffer
         # occupancy. The UI must explain the estimate and cap it below 100
         # until the player actually reports Playing.
-        self.assertIn("actual fill unmeasured",self.radio)
-        self.assertIn("extra libVLC cache, NOT measured buffer occupancy",self.radio)
-        self.assertIn("percent=qMin(95,",self.radio)
-        self.assertIn("percent=100; // The player STARTED",self.radio)
+        self.assertIn("buffer fill unmeasured",self.radio)
+        self.assertIn("NOT actual libVLC",self.radio)
+        self.assertIn("percent=qMin(90,int(bounded*90/requested))",self.radio)
+        self.assertIn("DAB AUDIO STARTUP FAILED / TIMEOUT",self.radio)
+        self.assertIn("if(elapsed>=startupTimeoutMs)",self.radio)
+        self.assertIn("percent=100;",self.radio)
+        self.assertIn("actual fill and audible output NOT measured",self.radio)
         self.assertIn("quickBufferProgress_->setVisible(enabled)",self.radio)
         self.assertNotIn("audioCacheProgress_->setRange(0,audioStartedMs_>0?0:100)",self.radio)
         self.assertNotIn("Applied at open %1 ms · elapsed %2 ms",self.radio)
