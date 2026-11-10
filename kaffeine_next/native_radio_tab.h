@@ -593,6 +593,8 @@ public:
         dabLayout->addLayout(mainOffsetRow);
         auto *mainMatchRow=new QHBoxLayout();
         dabLayout->addLayout(mainMatchRow);
+        auto *mainModelRow=new QHBoxLayout();
+        dabLayout->addLayout(mainModelRow);
         auto *mainLyricOffsetRow=new QHBoxLayout();
         dabLayout->addLayout(mainLyricOffsetRow);
         // Common controls must be reachable while listening, without
@@ -600,7 +602,7 @@ public:
         // this is audio-to-subtitle timing, not a measured DAC clock.
         auto *captionComfortRow=new QHBoxLayout();
         captionComfortRow->addWidget(new QLabel(tr(
-            "Audio ↔ captions (estimated):"),page));
+            "AI captions ↔ audio (estimated):"),page));
         captionEarlier_=new QPushButton(tr("−250 ms"),page);
         captionLater_=new QPushButton(tr("+250 ms"),page);
         captionEarlier_->setToolTip(tr(
@@ -1566,7 +1568,7 @@ public:
         mainCaptionOffsetSlider_->setToolTip(tr(
             "Caption timing ±12 seconds in 250 ms steps. "
             "The radio audio never restarts."));
-        mainOffsetRow->addWidget(new QLabel(tr("Caption offset:"),page));
+        mainOffsetRow->addWidget(new QLabel(tr("AI captions offset (only):"),page));
         mainOffsetRow->addWidget(mainCaptionOffsetSlider_,1);
         connect(mainCaptionOffsetSlider_,&QSlider::valueChanged,
             this,[this](int n){ radioOffsetMs_->setValue(n*250); });
@@ -1799,7 +1801,7 @@ public:
                 previewLastHighlightedWord_=-2;
                 updateLyrics(); // refresh Karaoke independently of Reading
             });
-        mainLyricOffsetRow->addWidget(new QLabel(tr("Karaoke offset:"),page));
+        mainLyricOffsetRow->addWidget(new QLabel(tr("Karaoke offset (only):"),page));
         mainLyricOffsetRow->addWidget(mainLyricOffsetSlider_,1);
         mainLyricOffsetRow->addWidget(mainLyricOffsetReadout_);
         // The old speed control is obsolete: no unverified word sweep.
@@ -1827,20 +1829,45 @@ public:
         QSettings matchPrefs(QLatin1String("TIHULU"),
                              QLatin1String("KaffeineRadio"));
         lyricMatchThreshold_=new QSpinBox(page);
-        lyricMatchThreshold_->setRange(65,96);
+        lyricMatchThreshold_->setRange(0,100);
         lyricMatchThreshold_->setSuffix(tr(" %"));
-        lyricMatchThreshold_->setValue(qBound(65,matchPrefs.value(
-            QLatin1String("lyricMatchThresholdPercent"),74).toInt(),96));
+        lyricMatchThreshold_->setValue(qBound(0,matchPrefs.value(
+            QLatin1String("lyricMatchThresholdPercent"),74).toInt(),100));
         lyricMatchThreshold_->setToolTip(tr(
             "Minimum lexical overlap of heard Whisper tokens and known "
-            "lyric words (65–96%). NOT calibrated accuracy or sync. "
-            "Short repeated lyrics and broad acquisition have stricter "
-            "guardrails; lowering this may cause false matches."));
+            "lyric words (0–100%). NOT calibrated accuracy or sync. "
+            "0% does not auto-progress during silence; at least 2–3 actual "
+            "matching distinctive words are still required. Very low "
+            "thresholds can yield false Karaoke matches."));
         mainMatchRow->addWidget(new QLabel(tr("Lyrics MATCH ≥"),page));
         mainMatchRow->addWidget(lyricMatchThreshold_);
         mainMatchRow->addWidget(new QLabel(tr(
             "Whisper text similarity · not timing accuracy"),page));
         mainMatchRow->addStretch(1);
+        lyricMatchMode_=new QComboBox(page);
+        lyricMatchMode_->addItem(tr("Whisper · exact word overlap"),
+                                 QLatin1String("lexical"));
+        lyricMatchMode_->addItem(tr("Whisper · tolerant word overlap"),
+                                 QLatin1String("fuzzy"));
+        lyricMatchMode_->setToolTip(tr(
+            "Choose how actual Whisper ASR words are compared with retrieved "
+            "Lyrics. Tolerant mode accepts limited spelling differences in "
+            "long words. Neither method invents audio evidence, and Qwen3 "
+            "ForcedAligner only aligns word timestamps AFTER a text match."));
+        const QString savedMatchMode=matchPrefs.value(
+            QLatin1String("lyricMatchMode"),QLatin1String("lexical")).toString();
+        const int matchIndex=lyricMatchMode_->findData(savedMatchMode);
+        lyricMatchMode_->setCurrentIndex(matchIndex>=0?matchIndex:0);
+        mainModelRow->addWidget(new QLabel(tr("Lyrics Match AI:"),page));
+        mainModelRow->addWidget(lyricMatchMode_);
+        connect(lyricMatchMode_,QOverload<int>::of(&QComboBox::currentIndexChanged),
+            this,[this](int){
+                QSettings prefs(QLatin1String("TIHULU"),
+                                QLatin1String("KaffeineRadio"));
+                prefs.setValue(QLatin1String("lyricMatchMode"),
+                               lyricMatchMode_->currentData().toString());
+                writeRadioLanguageControls(); // live worker, no caption restart
+            });
         connect(lyricMatchThreshold_,QOverload<int>::of(&QSpinBox::valueChanged),
             this,[this](int percent){
                 QSettings prefs(QLatin1String("TIHULU"),
@@ -1956,6 +1983,45 @@ public:
         karaokePolicy_->setCurrentIndex(policyIndex<0?0:policyIndex);
         mainMatchRow->addWidget(new QLabel(tr("Karaoke trigger:"),page));
         mainMatchRow->addWidget(karaokePolicy_);
+        karaokeAligner_=new QComboBox(page);
+        karaokeAligner_->addItem(tr("Auto · Qwen3 → Whisper"),
+                                QLatin1String("auto"));
+        karaokeAligner_->addItem(tr("Whisper word timing"),
+                                QLatin1String("whisper"));
+        karaokeAligner_->addItem(tr("Qwen3 ForcedAligner (Whisper fallback)"),
+                                QLatin1String("qwen"));
+        karaokeAligner_->setToolTip(tr(
+            "Word timing engine for the selected Karaoke trigger mode. "
+            "Preference is saved separately per trigger mode. Qwen3 "
+            "ForcedAligner cannot identify singing or select lyric lines: "
+            "it needs audio-matched text, compatible language and installed "
+            "weights; otherwise Whisper word timestamps are used. "
+            "Lyrics Found preview and Timed LRC flow do not fabricate word sync."));
+        const auto loadModeAligner=[this](){
+            QSettings prefs(QLatin1String("TIHULU"),
+                            QLatin1String("KaffeineRadio"));
+            const QString mode=karaokePolicy_->currentData().toString();
+            const QString engine=prefs.value(
+                QLatin1String("karaokeAligner_")+mode,
+                QLatin1String("auto")).toString();
+            const int index=karaokeAligner_->findData(engine);
+            const QSignalBlocker block(karaokeAligner_);
+            karaokeAligner_->setCurrentIndex(index>=0?index:0);
+            writeRadioLanguageControls();
+        };
+        mainModelRow->addWidget(new QLabel(tr("Karaoke timing AI (per trigger):"),page));
+        mainModelRow->addWidget(karaokeAligner_);
+        mainModelRow->addStretch(1);
+        loadModeAligner();
+        connect(karaokeAligner_,QOverload<int>::of(
+            &QComboBox::currentIndexChanged),this,[this](int){
+                QSettings prefs(QLatin1String("TIHULU"),
+                                QLatin1String("KaffeineRadio"));
+                const QString mode=karaokePolicy_->currentData().toString();
+                prefs.setValue(QLatin1String("karaokeAligner_")+mode,
+                               karaokeAligner_->currentData().toString());
+                writeRadioLanguageControls();
+        });
         fullLyricsButton_=new QPushButton(tr("Full Lyrics"),page);
         fullLyricsButton_->setToolTip(tr(
             "Show all currently loaded lyrics in a separate resizable window, "
@@ -1988,7 +2054,7 @@ public:
         };
         updatePreviewControls();
         connect(karaokePolicy_,QOverload<int>::of(&QComboBox::currentIndexChanged),
-            this,[this,updatePreviewControls](int){
+            this,[this,updatePreviewControls,loadModeAligner](int){
                 QSettings prefs(QLatin1String("TIHULU"),
                                 QLatin1String("KaffeineRadio"));
                 prefs.setValue(QLatin1String("karaokeMatchPolicy"),
@@ -1996,6 +2062,13 @@ public:
                 previewIndexShift_=0;
                 clearKaraokeLine();
                 updatePreviewControls();
+                loadModeAligner();
+                if(karaokePolicy_->currentData().toString()==
+                   QLatin1String("estimated") && lyricCues_.isEmpty() &&
+                   lyricsSyncState_)
+                    lyricsSyncState_->setText(tr(
+                        "Timed LRC needs real timestamps. Plain lyrics: choose "
+                        "Audio matched or Lyrics Found; Whisper speech continues."));
                 updateLyrics(); // switching mode never restarts the radio
             });
         connect(previewPrevious_,&QPushButton::clicked,this,[this](){
@@ -2991,6 +3064,12 @@ private:
              karaokeEnabled_ && karaokeEnabled_->isChecked()},
             {QStringLiteral("lyric_match_threshold"),
              lyricMatchThreshold_?lyricMatchThreshold_->value()/100.:0.74},
+            {QStringLiteral("lyric_match_mode"),
+             lyricMatchMode_?lyricMatchMode_->currentData().toString():
+                              QLatin1String("lexical")},
+            {QStringLiteral("karaoke_aligner"),
+             karaokeAligner_?karaokeAligner_->currentData().toString():
+                              QLatin1String("auto")},
             {QStringLiteral("karaoke_sync_refresh_token"),
              karaokeSyncRefreshToken_},
             {QStringLiteral("karaoke_sync_history_seconds"),
@@ -7171,7 +7250,8 @@ private:
     QCheckBox *karaokeEnabled_=nullptr,
         *karaokeTranslationsEnabled_=nullptr,
         *soundLabels_=nullptr;
-    QComboBox *karaokePolicy_=nullptr;
+    QComboBox *karaokePolicy_=nullptr,*karaokeAligner_=nullptr,
+              *lyricMatchMode_=nullptr;
     QPushButton *previewPrevious_=nullptr,*previewNext_=nullptr,
                 *fullLyricsButton_=nullptr;
     QPointer<QDialog> fullLyricsDialog_;
