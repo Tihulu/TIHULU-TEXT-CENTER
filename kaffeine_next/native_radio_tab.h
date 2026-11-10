@@ -3963,8 +3963,9 @@ private:
 				QTimer::singleShot(3500,this,[this,requestId,name](){
 					if(requestId!=stationRequestId_) return;
 					if(player_->getPlaybackStatus()==MediaWidget::Playing) {
-						playStatus_->setText(tr("PLAYER RUNNING · %1 · verify audible "
-							"audio and error counters; actual audio output is not metered.")
+						playStatus_->setText(tr("libVLC reports PLAYING · %1 · audible sound NOT confirmed. "
+                            "If captions work but audio is silent, check mute, volume, "
+                            "Audio outputs... or Retry DAB sound.")
 							.arg(name));
 						stationOpenProgress_->setFormat(tr("Player reports PLAYING · %1").arg(name));
                         radioCanvasStation_->setText(tr(
