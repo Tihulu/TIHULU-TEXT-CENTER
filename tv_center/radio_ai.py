@@ -589,6 +589,27 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
             ffmpeg.wait(timeout=2)
         if ffmpeg.stdout:
             ffmpeg.stdout.close()
+    if chunks == 0 and max_chunks != 0:
+        # An FFmpeg EOF, invalid local MP3 endpoint or failed DAB decoder
+        # cannot produce actual Whisper subtitles. Report the diagnostic
+        # through the same atomic status file; do NOT invent words or
+        # silently label this as broadcaster silence. FFmpeg stderr is not
+        # captured here, so the exit code does not identify the root cause.
+        write_runtime_json(location, {
+            "status":"audio_unavailable",
+            "chunk_index":-1,
+            "source_language":src,
+            "original":"",
+            "translations":{},
+            "reason":("No decodable PCM from local welle MP3 stream. "
+                      "Verify receiver, service ID, /mp3 endpoint and "
+                      "FFmpeg. AI subtitles need the decoded stream; "
+                      "libVLC reports its own independent playback status."),
+            "ffmpeg_returncode":ffmpeg.returncode,
+            "captured_windows":capture.captured_windows,
+        })
+        return {"status":"audio_unavailable","chunks":0,
+                "ffmpeg_returncode":ffmpeg.returncode}
     return {"status":"stopped","chunks":chunks}
 
 
