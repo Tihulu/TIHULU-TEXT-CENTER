@@ -2133,6 +2133,24 @@ def main(argv=None):
             appearance_store.setValue("text_opacity",applied.text_opacity)
             appearance_store.setValue("renderer",applied.render_mode)
             appearance_store.sync()
+            # File playback inherits the user's applied TV language / output
+            # choices, not the DVB transport, Teletext PIDs, live buffer or
+            # channel-specific audio clock. The native Playback tab reads this
+            # preset when it opens a local video. Audio-only files instead
+            # read the independently saved KaffeineRadio language choices.
+            file_video_defaults = QSettings("TIHULU", "KaffeineTVFileCaptionDefaults")
+            file_video_defaults.setValue("spokenSource",
+                                         "auto" if applied.spoken_auto else applied.source)
+            file_video_defaults.setValue("outputLanguages",
+                                         list(applied.target_languages))
+            file_video_defaults.setValue("showOriginal", applied.show_original)
+            file_video_defaults.setValue("showTranslation", applied.show_translation)
+            file_video_defaults.setValue("musicTranscription",
+                                         applied.music_transcription)
+            file_video_defaults.setValue("readablePacing", applied.readable_pacing)
+            file_video_defaults.setValue("soundEvents", applied.show_sound_events)
+            file_video_defaults.setValue("speakerEnabled", applied.speaker_enabled)
+            file_video_defaults.sync()
             for i,alias in enumerate(applied.speaker_aliases,1):
                 voice_label_store.setValue(f"speaker_{i}",alias)
             voice_label_store.sync()
