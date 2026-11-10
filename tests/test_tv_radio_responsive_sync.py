@@ -111,7 +111,7 @@ class RadioModesAndSyncTests(unittest.TestCase):
     def test_lyric_listening_keeps_stop_control_across_dls_metadata(self):
         self.assertIn("const bool listening=lyricsAudioFallbackActive_",self.radio)
         self.assertIn("stopLyrics_->setEnabled(listening)",self.radio)
-        self.assertIn("DLS metadata updated. Continuing offline vocal",self.radio)
+        self.assertIn("New stable DLS song · offline vocal listening continues.",self.radio)
         self.assertIn("plainLyricsStartedAi_",self.radio)
         self.assertIn("lastCaptionVisibleMs_=now",self.radio)
         self.assertIn("now-lastCaptionVisibleMs_>=12000",self.radio)
