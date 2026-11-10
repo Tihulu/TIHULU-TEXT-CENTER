@@ -55,7 +55,7 @@ class KaraokeLanguageRouterTests(unittest.TestCase):
         code=(ROOT/"tv_center/radio_ai.py").read_text()
         self.assertIn('karaoke_alignment_choice(',code)
         self.assertIn('"karaoke_alignment_candidate":alignment_option["engine"]',code)
-        self.assertIn('"karaoke_alignment_engine":"whisper"',code)
+        self.assertIn('"karaoke_alignment_engine":("qwen" if qwen_refinement else "whisper")',code)
         self.assertIn("qwen_future=qwen_pool.submit(",code)
         self.assertIn("qwen_pool.shutdown(wait=False",code)
         self.assertIn('"radio_content_route":radio_content_route',code)
