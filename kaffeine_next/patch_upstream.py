@@ -942,6 +942,14 @@ void DvbLiveView::replay()
 \t\tQStringList existing = args.split(QLatin1Char(' '), Qt::SkipEmptyParts);
 \t\tfor (int n = existing.size() - 1; n >= 0; --n) {
 \t\t\tconst QString option = existing.at(n);
+\t\t\t// The normal software profile must not inherit the disabling
+\t\t\t// --no-audio option from a previous troubleshooting configuration.
+\t\t\t// Only an explicit software-no-audio profile may disable sound.
+\t\t\tif (tihuluProfile == "software" &&
+\t\t\t    option == QLatin1String("--no-audio")) {
+\t\t\t\texisting.removeAt(n);
+\t\t\t\tcontinue;
+\t\t\t}
 \t\t\tif (option == QLatin1String("--avcodec-hw")) {
 \t\t\t\tif (n+1 < existing.size()) existing.removeAt(n+1);
 \t\t\t\texisting.removeAt(n);
