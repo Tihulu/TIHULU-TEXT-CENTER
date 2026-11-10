@@ -55,6 +55,7 @@ class CaptionTap:
         from .teletext_match import TeletextAudit
         self.teletext_audit = TeletextAudit()
         self.teletext_audit_session = None
+        self._teletext_return_pending=False
         self.program_epoch = 0
         self.native_tune_state = None
         self.recv_buffer_bytes = None
@@ -452,6 +453,7 @@ class CaptionTap:
             if audit_session!=self.teletext_audit_session:
                 self.teletext_audit.reset()
                 self.teletext_audit_session=audit_session
+                self._teletext_return_pending=False
             if selected=="auto":
                 self.teletext_audit.mark_clip()
             probe_due=(selected=="auto" and
@@ -554,6 +556,9 @@ class CaptionTap:
                     verdict+" · "+self.teletext_audit.last_reason)
                 if verdict=="recovered":
                     result["teletext_return_pending"]=True
+                    self._teletext_return_pending=True
+                    self.previous_original=""
+                    self.previous_revision=-1
                 # If recovered, keep THIS segment's genuine ASR; begin
                 # broadcasting Teletext from the NEXT capture only.
             elif (selected=="auto" and options["mode"]=="auto"
@@ -561,6 +566,13 @@ class CaptionTap:
                 self.teletext_audit.missing()
                 result["teletext_audit"]=(
                     "No usable broadcaster Teletext, switched to real Whisper")
+            if (options["mode"]=="auto" and
+                    str(result.get("source","")).startswith("broadcaster_teletext")
+                    and self._teletext_return_pending):
+                # Accept the first NEW verified Teletext from this tune, then
+                # replace only the stale Whisper cues; do not clear early.
+                result["teletext_source_transition"]="teletext"
+                self._teletext_return_pending=False
             if options["mode"]=="auto":
                 result["teletext_status"]=(
                     "WHISPER · AUTO FALLBACK"
@@ -3011,7 +3023,8 @@ def main(argv=None):
                 if (data.get("revision") != applied.revision or
                         data.get("program_epoch") != tap.program_epoch):
                     continue
-                if data.get("teletext_source_transition")=="whisper":
+                if data.get("teletext_source_transition") in (
+                        "whisper","teletext"):
                     # Drop OLD Teletext cues in this same channel once
                     # audio has disproved them; don't show them while new
                     # Whisper and translations are being assembled.
@@ -3023,8 +3036,10 @@ def main(argv=None):
                     current_until=0.0
                     ipc.publish("",applied)
                     original.setText(
-                        "WHISPER · AUTO FALLBACK · real spoken audio replacing "
-                        "mismatched Teletext…")
+                        ("WHISPER · AUTO FALLBACK · real spoken audio replacing "
+                         "mismatched Teletext…")
+                        if data.get("teletext_source_transition")=="whisper" else
+                        "TELETEXT · SYNCED · broadcaster subtitles verified again…")
                     translated.clear()
                 if data.get("teletext_sync_recheck"):
                     estimator.clear()
