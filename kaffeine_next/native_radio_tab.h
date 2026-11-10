@@ -2353,6 +2353,20 @@ public:
         connect(&captionProcess_,QOverload<int,QProcess::ExitStatus>::of(&QProcess::finished),
             this,[this](int code,QProcess::ExitStatus exitState){
                 if(captionsStopping_) return;
+                // A dead FFmpeg/Whisper worker cannot supply live speech.
+                // Do not leave the UI promising "AI captions · ON".
+                if(quickAi_ && quickAi_->isChecked()) {
+                    const QSignalBlocker hold(quickAi_);
+                    quickAi_->setChecked(false);
+                    quickAi_->setText(tr("AI captions · OFF (input ended)"));
+                }
+                if(captionProgress_) {
+                    captionProgress_->setVisible(true);
+                    captionProgress_->setRange(0,100);
+                    captionProgress_->setValue(0);
+                    captionProgress_->setFormat(tr(
+                        "AI input ended · inspect DAB MP3 / FFmpeg and use AI Caption Refresh"));
+                }
                 if(code==0 && exitState==QProcess::NormalExit) {
                     // An EOF from the AI-only welle HTTP client is not the
                     // same as verified silence or a healthy ASR session.
