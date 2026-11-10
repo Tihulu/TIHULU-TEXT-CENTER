@@ -39,7 +39,9 @@ class DlsAndRefreshTests(unittest.TestCase):
         for anchor in ("inline TihuluDlsSong tihuluDlsSong",
                        'QLatin1String("jetzt on air")',
                        "const TihuluDlsSong newSong=tihuluDlsSong(dls);",
-                       "newSong.normalizedKey()!=lastSongMetadataKey_",
+                       "candidate==lastSongMetadataKey_",
+                       "pendingSongKey_=candidate",
+                       "commitPendingDlsSong(candidate,station,ticket)",
                        "const TihuluDlsSong song=tihuluDlsSong(lastDls_)",
                        "const QString title=overridden?lyricsTitle_->text().trimmed():song.title",
                        "fetchLyrics(true);"):
