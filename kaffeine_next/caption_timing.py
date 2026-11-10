@@ -56,6 +56,7 @@ class CaptionConfig:
     target_languages: tuple[str, ...] = ("tr",)
     page: int = 150
     teletext_pid: int | None = None
+    teletext_language: str | None = None
     audio_pid: int | None = None
     audio_language: str | None = None
     spoken_auto: bool = False  # user requests real ASR language re-detection
@@ -97,6 +98,8 @@ class CaptionConfig:
         if self.teletext_pid is not None and (
                 type(self.teletext_pid) is not int or not 1 <= self.teletext_pid <= 8190):
             raise ValueError("Invalid broadcaster Teletext subtitle PID")
+        if self.teletext_language is not None:
+            language_code(self.teletext_language)
         if self.audio_pid is not None and (
                 type(self.audio_pid) is not int or not 1 <= self.audio_pid <= 8190):
             raise ValueError("Invalid selected broadcaster audio PID")
@@ -151,6 +154,7 @@ class CaptionConfig:
                 "target":self.target,"targets":self.target_languages,
                 "translation_requested":bool(self.show_translation),
                 "page":self.page,"teletext_pid":self.teletext_pid,
+                "teletext_language":self.teletext_language,
                 "audio_pid":self.audio_pid,"audio_source":self.audio_language,
                 "spoken_auto":self.spoken_auto,
                 "speaker_enabled":self.speaker_enabled,
