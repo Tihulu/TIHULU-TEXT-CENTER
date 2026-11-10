@@ -249,6 +249,13 @@ public:
                 QLatin1String("opus"),QLatin1String("wma"),
                 QLatin1String("aiff"),QLatin1String("alac"),
                 QLatin1String("mka")}.contains(ext);
+        isLocalMedia_=isAudio_ ||
+            mime.name().startsWith(QLatin1String("video/")) ||
+            QStringList{QLatin1String("mp4"),QLatin1String("mkv"),
+                QLatin1String("avi"),QLatin1String("mov"),
+                QLatin1String("webm"),QLatin1String("ts"),
+                QLatin1String("m2ts"),QLatin1String("mpeg"),
+                QLatin1String("mpg"),QLatin1String("m4v")}.contains(ext);
         loadSharedCaptionProfile();
         srtPath_=info.absolutePath()+QLatin1Char('/')+
             info.completeBaseName()+QLatin1String(".srt");
@@ -260,6 +267,7 @@ public:
         // No live TV, DAB, HTTP or Web TV source may enter this gate.
         if(!url.isLocalFile() || !preprocessOnOpen_->isChecked()) return false;
         setLocalFile(url);
+        if(!isLocalMedia_) return false;
         return generate(true);
     }
 private:
@@ -439,6 +447,7 @@ private:
     bool cancelledByUser_=false;
     bool beforeOpenMode_=false;
     bool isAudio_=false;
+    bool isLocalMedia_=false;
 	QString path_,srtPath_,exportPath_;
 };
 #endif
