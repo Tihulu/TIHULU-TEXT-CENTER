@@ -127,7 +127,9 @@ class DlsAndRefreshTests(unittest.TestCase):
         self.assertIn('"vocal_match_mode":',worker)
         # Online station metadata alone must never activate music ASR.
         self.assertIn("if payload.get(\"alignment_mode\") in",worker)
-        self.assertIn("lyric_match=(plain_matcher.observe(original)",worker)
+        # Match only raw heard Whisper text, never a catalog-substituted caption.
+        self.assertIn("heard_asr=original",worker)
+        self.assertIn("lyric_match=(plain_matcher.observe(heard_asr)",worker)
 
     def test_direct_translation_prefers_installed_direct_models(self):
         self.assertEqual(direct_de_tr_order(
