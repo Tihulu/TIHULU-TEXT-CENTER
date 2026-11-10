@@ -31,7 +31,9 @@ class LocalFullFileAndFullscreenTests(unittest.TestCase):
     def test_local_prepass_is_user_opt_in_and_does_not_block_live_sources(self):
         self.assertIn('transcribeBeforeOpen"),false',PANEL)
         self.assertIn('if(!url.isLocalFile() || !preprocessOnOpen_->isChecked())',PANEL)
-        self.assertIn('return generate(true);',PANEL)
+        self.assertIn('generate(true);',PANEL)
+        self.assertIn('if(!isLocalMedia_) return false;',PANEL)
+        self.assertIn('return true;',PANEL.split('bool prepareLocalFileOpen(',1)[1].split('private:',1)[0])
         self.assertIn('if(!isLocalMedia_) return false;',PANEL)
         self.assertIn('playerTab->prepareLocalFileOpen(copy)',PATCH)
         self.assertIn('if (copy.isLocalFile()',PATCH)
