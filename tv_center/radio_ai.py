@@ -387,7 +387,13 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
                 recognized_speech=bool(heard_asr),
                 chunk=capture_index)
             sentence_state={"text":original,"complete":True,"pending":False,"chunks":0}
-            if plain_matcher is None and not music_for_matching:
+            # Use the same source-word-timing priority as TV. A phrase
+            # with genuine Faster-Whisper words can be published immediately:
+            # buffering it for another 5s sentence hop delays subtitles.
+            # Join only untimed/CPU speech, with early readable clause flush.
+            source_word_timed=bool(detection.get("asr_words"))
+            if (plain_matcher is None and not music_for_matching
+                    and not source_word_timed):
                 sentence_state=sentence_joiner.push(
                     original, language=used_language, silent=not bool(original),
                     prefer_readable=True)
