@@ -658,8 +658,8 @@ def write_srt(cues: list[LyricCue], path: str | Path, *,
         if translated:
             text += ("\n" if text else "") + translated
         lines.append(f"{i}\n{srt_timestamp(cue.start)} --> {srt_timestamp(cue.end)}\n{text}\n")
-    if len(lines) > 1500:
-        raise ValueError("Subtitle cue budget exceeded")
+    if len(lines) > 12000:
+        raise ValueError("Subtitle cue budget exceeded (12000 cues)")
     flags = "w" if overwrite else "x"
     with target.open(flags,encoding="utf-8") as output:
         output.write("\n".join(lines))
