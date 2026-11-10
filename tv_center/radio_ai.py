@@ -475,6 +475,7 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
                             qwen_refinement={
                                 "text":qwen_meta["line"],
                                 "word_anchors":anchors,
+                                "capture_epoch_ms":qwen_meta["epoch_ms"],
                                 "source":"Qwen3-ForcedAligner-0.6B",
                                 "speech_trained_singing_unverified":True,
                             }
