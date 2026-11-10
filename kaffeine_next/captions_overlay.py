@@ -466,7 +466,7 @@ class CaptionTap:
             translation_allowed=bool(ai.values["translation_enabled"] or (
                 options.get("translation_requested",False) and
                 ai.values.get("translation_model") in
-                ("argos","nllb","madlad","de_tr_direct")))
+                ("argos","nllb","madlad","de_tr_direct","auto_offline")))
             enabled = targets if translation_allowed else ()
             primary = targets[0] if targets else source
             previous = (self.previous_original
