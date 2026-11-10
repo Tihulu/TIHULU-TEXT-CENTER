@@ -201,7 +201,7 @@ class CaptionConfig:
                 kind=str(event.get("type","")).lower()
                 score=event.get("confidence")
                 if (kind in names and isinstance(score,(float,int))
-                        and score>=0.75 and
+                        and score>=0.80 and
                         event.get("source")=="AST AudioSet"):
                     labels.append("["+names[kind]+"]")
         return labels
@@ -239,12 +239,13 @@ class CaptionConfig:
                 if chunks:
                     lines.append((label+" " if label else "")+" | ".join(chunks))
             if lines:
-                if self.show_sound_events and not result.get("sound_labels_source"):
+                if self.show_sound_events:
                     event_language=(self.target_languages[0]
                                     if self.show_translation and self.target_languages
                                     else original_language)
-                    for label in self._event_lines(result,event_language):
-                        lines.append(label)
+                    detected=self._event_lines(result,event_language)
+                    if detected:
+                        lines.append(" ".join(dict.fromkeys(detected)))
                 return "\n".join(lines[:4])[:1100]
         if self.show_original and original:
             original_language = result.get("source_language") or self.source
@@ -272,11 +273,15 @@ class CaptionConfig:
                 legacy = (result.get("translated") or "").strip()
                 if legacy and legacy != original:
                     lines.append(legacy)
-        if self.show_sound_events and not result.get("sound_labels_source"):
+        if self.show_sound_events:
+            # Independent acoustic evidence is a NEW line after speech and
+            # translations, not a prefix to ASR or translator input.
             event_language=(self.target_languages[0]
                             if self.show_translation and self.target_languages
                             else original_language)
-            lines.extend(self._event_lines(result,event_language))
+            detected=self._event_lines(result,event_language)
+            if detected:
+                lines.append(" ".join(dict.fromkeys(detected)))
         # If the viewer requested translated-only subtitles but no model
         # could translate into the selected language, never blank the screen.
         # Broadcast / Whisper original remains visible with an explicit label.
@@ -650,7 +655,19 @@ class SpeakerLineHistory:
             self.clear()
             return rendered
         recent=self.previous
-        current=(index,rendered,float(now),config.revision,epoch)
+        # Speaker history contains only genuine utterances. A sound tag
+        # belongs to its own acoustic window and must never be replayed
+        # as a previous speaker's words on the next speaker change.
+        history_text=rendered
+        if config.show_sound_events:
+            event_language=(config.target_languages[0]
+                            if config.show_translation and config.target_languages
+                            else result.get("source_language") or config.source)
+            tags=config._event_lines(result,event_language)
+            suffix="\n"+" ".join(dict.fromkeys(tags)) if tags else ""
+            if suffix and history_text.endswith(suffix):
+                history_text=history_text[:-len(suffix)]
+        current=(index,history_text,float(now),config.revision,epoch)
         self.previous=current
         if (recent and recent[0]!=index and
                 recent[3]==config.revision and recent[4]==epoch
