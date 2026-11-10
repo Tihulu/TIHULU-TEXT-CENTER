@@ -51,7 +51,7 @@ class AutoLyricsLiveMatchTests(unittest.TestCase):
         self.assertIsNone(matcher.observe(
             "Now another quick message from our sponsors"))
 
-    def test_verified_match_is_shown_in_radio_subtitle_bar(self):
+    def test_verified_match_is_shown_in_karaoke_without_hiding_speech(self):
         for required in (
             "radioLyricMatchStatus_=new QLabel(radioCanvas_)",
             "captionSurface->addWidget(radioLyricMatchStatus_)",
@@ -63,13 +63,16 @@ class AutoLyricsLiveMatchTests(unittest.TestCase):
             "LYRICS NOT FOUND",
             "verifiedLyricQueue_.append",
             "verifiedLyricQueue_.first().dueMs<=now",
-            "showRadioCanvasCaption(cue.text,true)",
+            "showKaraokeLine(cue)",
             "lastMatchedLyricUntilMs_",
             "real audio",
             "Whisper speech/advert fallback",
         ):
             self.assertIn(required,UI)
         self.assertIn("if(lastLyricsAutoLookup_) return;",UI)
+        self.assertIn("if(lyric) return;",UI)
+        self.assertIn("showRadioCanvasCaption(cue.text);",UI)
+        self.assertNotIn("showRadioCanvasCaption(cue.text,true)",UI)
         self.assertIn("lastUnmatchedVoiceUntilMs_",UI)
         self.assertIn("verifiedLyricQueue_.clear();",UI)
 
@@ -77,13 +80,15 @@ class AutoLyricsLiveMatchTests(unittest.TestCase):
         # Announcer or broadcaster metadata may rotate while the same
         # song is playing. Only a *different song-looking* label should
         # trigger a new lookup, never just any changed DLS string.
-        self.assertIn("const bool songMetadata=songParts.size()>=2",UI)
-        self.assertIn("const bool newSongMetadata=songMetadata &&",UI)
-        self.assertIn("dls!=lastSongDls_",UI)
-        self.assertIn("if(newSongMetadata) {",UI)
-        self.assertIn("lastSongDls_=dls;",UI)
+        self.assertIn("inline TihuluDlsSong tihuluDlsSong",UI)
+        self.assertIn("const TihuluDlsSong newSong=tihuluDlsSongFromService(service)",UI)
+        self.assertIn("const QString candidate=newSong.normalizedKey();",UI)
+        self.assertIn("candidate==lastSongMetadataKey_",UI)
+        self.assertIn("QTimer::singleShot(5100,this,",UI)
+        self.assertIn("commitPendingDlsSong(candidate,station,ticket)",UI)
+        self.assertIn("lastSongDls_=acceptedDls;",UI)
         self.assertIn("lastSongDls_.clear();",UI)
-        self.assertIn("lastDls_:lastSongDls_;",UI)
+        self.assertIn("lastSongMetadataKey_.clear();",UI)
 
     def test_spoken_auto_detect_and_other_supported_languages_are_listed(self):
         self.assertIn('Auto detect · Whisper (selected local model)',UI)

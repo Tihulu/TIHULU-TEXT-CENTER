@@ -18,7 +18,7 @@ def section(start: str,end: str) -> str:
 
 class RadioCaptionComfortContracts(unittest.TestCase):
     def test_audio_sync_controls_are_on_main_radio_page(self):
-        self.assertIn('"Audio ↔ captions (estimated):"',UI)
+        self.assertIn('"AI captions ↔ audio (estimated):"',UI)
         self.assertIn('captionEarlier_=new QPushButton(tr("−250 ms"),page)',UI)
         self.assertIn('captionLater_=new QPushButton(tr("+250 ms"),page)',UI)
         self.assertIn('captionOffsetReadout_=new QLabel(tr("Offset +0 ms"),page)',UI)
@@ -42,7 +42,8 @@ class RadioCaptionComfortContracts(unittest.TestCase):
 
     def test_readable_held_phrases_without_faking_true_av_clock(self):
         hold=section("int radioCaptionReadingHoldMs(","void setRadioLyricMatchStatus(")
-        self.assertIn('if(preset<=0) return 0;',hold)
+        self.assertIn('if(preset<=0) {',hold)
+        self.assertIn('cueQueue_.size()>=2?250:900',hold)
         self.assertIn('qBound(3300,chars*45,8500)',hold)
         self.assertIn('qBound(5500,chars*65,12000)',hold)
         self.assertIn('qBound(2800,chars*63,9000)',hold)
@@ -62,10 +63,10 @@ class RadioCaptionComfortContracts(unittest.TestCase):
 
     def test_existing_lyrics_audio_priority_is_unchanged(self):
         bar=section("void showRadioCanvasCaption(","void displayDueRadioCues(")
-        self.assertIn('if(lyric && lastUnmatchedVoiceUntilMs_>currentMs) return;',bar)
-        self.assertIn('lastMatchedLyricUntilMs_',bar)
+        self.assertIn('if(lyric) return;',bar)
+        self.assertNotIn('currentMs<lastMatchedLyricUntilMs_',bar)
         self.assertIn('radioCaptionReadingHoldMs(text)',bar)
-        self.assertIn('lastCanvasLyricMs_=currentMs;',bar)
+        self.assertIn('radioCanvasCaption_->setText(text)',bar)
 
 
 if __name__=="__main__":

@@ -61,7 +61,7 @@ class ProfileTests(unittest.TestCase):
             with patch("tv_center.ai_profiles.local_status",side_effect=status):
                 result=ai_profiles.install_components(
                     "normal",library=lib,installer=install)
-            self.assertEqual(calls,["small","argos"])
+            self.assertEqual(calls,["small","argos","resemblyzer","sound_labels"])
             self.assertEqual(result[0],("whisper_cpu","already installed"))
             self.assertEqual(ai_profiles.missing_components(
                 "normal",{key:True for key,_ in result}),())
@@ -78,7 +78,8 @@ class ProfileTests(unittest.TestCase):
                     status={"whisper_cpu":True,"small":True,"argos":False})
             chosen=ai_profiles.selection_patch("normal",library=lib,
                 hardware=hardware(),
-                status={"whisper_cpu":True,"small":True,"argos":True})
+                status={"whisper_cpu":True,"small":True,"argos":True,
+                            "resemblyzer":True,"sound_labels":True})
             self.assertEqual(chosen["active_profile"],"normal")
             self.assertEqual(chosen["backend"],"cpu")
 

@@ -228,17 +228,13 @@ export TIHULU_VLC_PROFILE
 if [ "$#" -eq 0 ] && [ "${TIHULU_AUTOPLAY_LAST_CHANNEL:-0}" = 1 ]; then
   set -- --lastchannel
 fi
-# Do not launch two TIHULU instances that fight for the same frontend.
-# The exclusive lock is inherited by the player process and released on exit;
-# it never locks /dev/dvb or interferes with system Kaffeine.
-if command -v flock >/dev/null 2>&1; then
-  mkdir -p "$HOME/.cache"
-  exec 9>"$HOME/.cache/tihulu-media-center.lock"
-  if ! flock -n 9; then
-    echo "TIHULU Media Center is already running. Focus or close that window first." >&2
-    exit 2
-  fi
-fi
+# KDE Kaffeine already uses KDBusService::Unique and activates the
+# existing window on a second launch. Do NOT add an inherited shell flock:
+# helper processes may keep its FD alive after the player exits, causing a
+# false "already running" error and preventing KDBusService from focusing
+# the actual window. Device ownership is handled separately by the receiver.
+# Never probe, claim, or require DVB/RTL-SDR hardware at application launch.
+# Offline media, web TV, settings and diagnostics must open without antennas.
 # Avoid mixing native system libVLC/Qt5 with the user's Conda installation.
 exec env -u LD_LIBRARY_PATH -u LD_PRELOAD -u QT_PLUGIN_PATH \
   -u QT_QPA_PLATFORM_PLUGIN_PATH -u QML2_IMPORT_PATH -u QML_IMPORT_PATH \
@@ -261,9 +257,15 @@ Categories=AudioVideo;Video;TV;Audio;Player;
 DESKTOP
 
 if [[ "$MODE" != --no-ai ]]; then
-  echo "Installing requested offline Whisper Tiny and DE/EN/TR Argos starter."
-  if ! tihulu-tv-center ai install; then
-    echo "AI setup incomplete; TV itself is installed. Retry from AI Model Market." >&2
+  echo "Installing baseline offline models for the device: Whisper Tiny,"
+  echo "Argos DE/EN/TR/FR and, where hardware permits, starter sound labels,"
+  echo "speaker embeddings and Qwen 0.6B lyrics alignment weights."
+  echo "Heavy upgrades stay in AI Market; no AI service starts in background."
+  # This is the user-triggered install command, NEVER a model download on
+  # application startup, radio tuning, background polling or library scan.
+  if ! tihulu-tv-center ai install-baseline; then
+    echo "Some baseline AI models failed or were skipped; TV and existing" >&2
+    echo "Whisper/translation models are preserved. See AI Model Market." >&2
   fi
 fi
 echo "Open TIHULU Media Center (separate app, icon and channel database):"

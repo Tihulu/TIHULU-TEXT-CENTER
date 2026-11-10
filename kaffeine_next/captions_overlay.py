@@ -55,6 +55,7 @@ class CaptionTap:
         from .teletext_match import TeletextAudit
         self.teletext_audit = TeletextAudit()
         self.teletext_audit_session = None
+        self._teletext_return_pending=False
         self.program_epoch = 0
         self.native_tune_state = None
         self.recv_buffer_bytes = None
@@ -452,6 +453,12 @@ class CaptionTap:
             if audit_session!=self.teletext_audit_session:
                 self.teletext_audit.reset()
                 self.teletext_audit_session=audit_session
+                self._teletext_return_pending=False
+            if selected=="auto":
+                self.teletext_audit.mark_clip()
+            probe_due=(selected=="auto" and
+                       self.teletext_audit.needs_probe())
+            recovery_probe=bool(probe_due and self.teletext_audit.prefer_asr)
             if selected=="auto" and self.teletext_audit.prefer_asr:
                 selected="asr"
             if selected in ("asr", "auto") and not ai.values["asr_enabled"]:
@@ -460,7 +467,14 @@ class CaptionTap:
                 selected = "teletext"
             source = options["source"]
             targets = tuple(options.get("targets", ()))
-            enabled = targets if ai.values["translation_enabled"] else ()
+            # Selecting OUT targets + translation display is explicit LOCAL
+            # consent. Do not require a second hidden Market toggle; do not
+            # silently opt in to DeepL/cloud if global translation is OFF.
+            translation_allowed=bool(ai.values["translation_enabled"] or (
+                options.get("translation_requested",False) and
+                ai.values.get("translation_model") in
+                ("argos","nllb","madlad","de_tr_direct","auto_offline")))
+            enabled = targets if translation_allowed else ()
             primary = targets[0] if targets else source
             previous = (self.previous_original
                         if self.previous_revision == options.get("revision", 0)
@@ -472,7 +486,9 @@ class CaptionTap:
                 model=ai.values["model_path"],
                 service_id=options.get("service_id"),
                 teletext_pid=(options.get("teletext_pid")
-                              if selected in ("auto", "teletext", "page") else None),
+                              if selected in ("auto", "teletext", "page")
+                              or recovery_probe else None),
+                teletext_language=options.get("teletext_language"),
                 audio_pid=(options.get("audio_pid")
                            if selected in ("auto", "asr") else None),
                 audio_source=(options.get("audio_source")
@@ -494,20 +510,32 @@ class CaptionTap:
                     options.get("music_transcription",False)),
                 auto_teletext_probe=(
                     selected=="auto" and ai.values["asr_enabled"] and
-                    self.teletext_audit.needs_probe()))
+                    probe_due),
+                auto_teletext_recovery=bool(
+                    recovery_probe and ai.values["asr_enabled"]))
             probe=result.pop("teletext_probe",None)
+            shadow=result.pop("teletext_shadow",None)
             if (probe and selected=="auto" and
-                    str(result.get("source","")).startswith(
-                        "broadcaster_teletext")):
+                    str(result.get("source","")).startswith("broadcaster_teletext")):
+                previous_teletext_state=self.teletext_audit.status
                 verdict=self.teletext_audit.observe(
                     result.get("original"),probe.get("text"),
-                    result.get("source_language"),probe.get("source_language"))
+                    options.get("teletext_language") or result.get("source_language"),
+                    probe.get("source_language"))
                 result["teletext_audit"]=(
-                    f"{self.teletext_audit.attempts}/{self.teletext_audit.maximum}"
-                    " initial checks · "+verdict)
+                    f"{self.teletext_audit.attempts} speech checks · "
+                    f"{verdict} · {self.teletext_audit.last_reason}")
+                if verdict=="delayed" and previous_teletext_state!=(
+                        "TELETEXT · DELAY CHECK"):
+                    # Re-sample *actual available* transport/audio clocks.
+                    # We do not have trusted decoded Teletext PTS or sound
+                    # card presentation PTS, so NEVER manufacture a 6s jump.
+                    result["teletext_sync_recheck"]=True
                 if verdict=="switched":
-                    # Use REAL recognition from the same TS capture; do not
-                    # invent dialogue or rerun the costly model twice.
+                    result["teletext_source_transition"]="whisper"
+                    # The real concurrent ASR audio is already available.
+                    # Discard OLD Teletext translations; translate the heard
+                    # speech after natural sentence assembly below.
                     result["original"]=probe["text"]
                     result["raw_asr_original"]=probe["text"]
                     result["source_language"]=probe["source_language"]
@@ -518,13 +546,44 @@ class CaptionTap:
                     result["translation_errors"]={}
                     result["translation_warnings"]={}
                     result["translation_engines"]={}
-                    result["teletext_audit"]=(
-                        "Teletext differed from confirmed spoken language "
-                        "in 3 initial checks; switched Auto to Whisper")
-            elif selected=="asr" and options["mode"]=="auto":
+            elif selected=="asr" and options["mode"]=="auto" and shadow:
+                verdict=self.teletext_audit.observe(
+                    shadow.get("text"),result.get("original"),
+                    shadow.get("source_language"),
+                    result.get("source_language"))
                 result["teletext_audit"]=(
-                    "Auto: Whisper selected after repeated early "
-                    "Teletext mismatch; Teletext Hard remains available")
+                    "Whisper safe fallback · sampled actual broadcaster text: "+
+                    verdict+" · "+self.teletext_audit.last_reason)
+                if verdict=="recovered":
+                    result["teletext_return_pending"]=True
+                    self._teletext_return_pending=True
+                    self.previous_original=""
+                    self.previous_revision=-1
+                # If recovered, keep THIS segment's genuine ASR; begin
+                # broadcasting Teletext from the NEXT capture only.
+            elif (selected=="auto" and options["mode"]=="auto"
+                  and result.get("source")=="local_asr"):
+                self.teletext_audit.missing()
+                result["teletext_audit"]=(
+                    "No usable broadcaster Teletext, switched to real Whisper")
+            if (options["mode"]=="auto" and
+                    str(result.get("source","")).startswith("broadcaster_teletext")
+                    and self._teletext_return_pending):
+                # Accept the first NEW verified Teletext from this tune, then
+                # replace only the stale Whisper cues; do not clear early.
+                result["teletext_source_transition"]="teletext"
+                self._teletext_return_pending=False
+            if options["mode"]=="auto":
+                result["teletext_status"]=(
+                    "WHISPER · AUTO FALLBACK"
+                    if result.get("source")=="local_asr" else
+                    self.teletext_audit.status)
+                result["teletext_detail"]=self.teletext_audit.last_reason
+                result["teletext_probe_attempts"]=self.teletext_audit.attempts
+            else:
+                result["teletext_status"]=(
+                    "WHISPER · MANUAL" if selected=="asr" else
+                    "TELETEXT · MANUAL")
             if options.get("program_epoch") != self.program_epoch:
                 return  # old channel's caption must never appear on new TV
             if result.get("source") == "local_asr" and result.get("original"):
@@ -607,7 +666,12 @@ class CaptionTap:
                 # removal, before the translation engine receives it.
                 from .continuous_captions import collapse_asr_repetition_loops
                 result["original"] = collapse_asr_repetition_loops(joined["text"])
-                if result["original"] != joined["text"]:
+                from tv_center.asr_quality import strip_test_page_artifact
+                result["original"], removed_page_marker=strip_test_page_artifact(
+                    result["original"])
+                if removed_page_marker:
+                    result["asr_test_page_artifact_removed"]=True
+                elif result["original"] != joined["text"]:
                     result["asr_repetitions_removed"] = True
                 result["words"]=[]
                 result["word_timing_source"]=None
@@ -707,7 +771,7 @@ class CaptionTap:
                 result["overlap_note"]=(
                     "Two independently recognized tracks; order and speaker "
                     "IDs are provisional, not fixed identity")
-            if targets and not ai.values["translation_enabled"]:
+            if targets and not translation_allowed:
                 result["translation_errors"] = {
                     lang: "Translation disabled in Model Market." for lang in targets}
             if targets and not result.get("translations"):
@@ -732,6 +796,12 @@ class CaptionTap:
             result["revision"] = options.get("revision", 0)
             result["program_epoch"] = options.get("program_epoch")
             result["native_tune_state"] = options.get("native_tune_state")
+            # Sound detector tags are added only AFTER Whisper recognition,
+            # sentence assembly and translation. They never erase/replace
+            # genuine lyrics or speech, and do not enter translator inputs.
+            if options.get("show_sound_events") and result.get("sound_events"):
+                from tv_center.sound_event_captions import decorate_result
+                result=decorate_result(result,enabled=True)
             # Recheck before publishing. Decoder/translator can take
             # seconds; no result from a previous tune may be displayed.
             if options.get("program_epoch") != self.program_epoch:
@@ -1146,6 +1216,15 @@ def main(argv=None):
     track_status.setWordWrap(True)
     settings_layout.addRow(tracks_row)
     settings_layout.addRow(track_status)
+    teletext_speech_status = QLabel(
+        "TELETEXT · CHECKING · waiting for live same-language audio evidence")
+    teletext_speech_status.setWordWrap(True)
+    teletext_speech_status.setToolTip(
+        "Auto source: periodically verifies broadcaster subtitle words "
+        "against real Whisper speech. Text-only/PTSs alone do not prove "
+        "content sync; separate languages are not treated as mismatches. "
+        "Three conflicts trigger Whisper and two later matches allow "
+        "return to Teletext.")
     audio_row = QHBoxLayout()
     audio_row.addWidget(QLabel("Whisper source audio channel"))
     audio_track = QComboBox()
@@ -1612,6 +1691,9 @@ def main(argv=None):
         "Real queued six-second clips, caption delivery losses, and time "
         "since a subtitle was shown. Not a speech/silence detector.")
     root.addWidget(caption_pipeline_health)
+    # Always visible on every tab, including Caption preview and diagnostics.
+    # Never merely equate Teletext existence or PTS with spoken correctness.
+    root.addWidget(teletext_speech_status)
     root.addWidget(buffer_progress)
     buttons = QHBoxLayout()
     apply = QPushButton("Apply")
@@ -1630,10 +1712,16 @@ def main(argv=None):
         "translations continue in this process.")
     start_subtitles = QPushButton("Start subtitles")
     stop_subtitles = QPushButton("Stop subtitles")
+    caption_refresh = QPushButton("AI Caption Refresh")
+    sync_refresh = QPushButton("Lip-sync Refresh")
+    caption_refresh.setToolTip("Re-read AI settings and replace only subtitle session; Kaffeine TV remains playing")
+    sync_refresh.setToolTip("Reset estimated subtitle timing samples without touching media audio or your manual offset")
     exit_subtitles = QPushButton("Exit caption service")
     start_subtitles.setEnabled(False)
     behavior.addWidget(start_subtitles)
     behavior.addWidget(stop_subtitles)
+    behavior.addWidget(caption_refresh)
+    behavior.addWidget(sync_refresh)
     behavior.addWidget(back_to_tv)
     behavior.addWidget(hide_panel)
     behavior.addWidget(exit_subtitles)
@@ -1661,6 +1749,15 @@ def main(argv=None):
     preview_layout.setContentsMargins(5, 4, 5, 4)
     preview_layout.addWidget(original)
     preview_layout.addWidget(translated)
+    # Acoustic cues are a separate row; never mutate ASR/translated words.
+    sound_line = QLabel("")
+    sound_line.setObjectName("sound_event_subtitle")
+    sound_line.setWordWrap(True)
+    sound_line.setVisible(False)
+    sound_line.setToolTip(
+        "Detector-backed sound cues are display-only, independent of "
+        "real Whisper speech and translations.")
+    preview_layout.addWidget(sound_line)
     preview_scroll = QScrollArea()
     preview_scroll.setWidgetResizable(True)
     preview_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
@@ -1848,6 +1945,7 @@ def main(argv=None):
             target_languages=target_langs if output != "original" else (),
             page=chosen_track["page"] if chosen_track else page.value(),
             teletext_pid=chosen_track["pid"] if chosen_track else None,
+            teletext_language=(hinted if chosen_track else None),
             audio_pid=chosen_audio["pid"] if chosen_audio else None,
             audio_language=(hinted if automatic_source and chosen_audio and
                             hinted in WHISPER_LANGUAGES else None),
@@ -1991,6 +2089,8 @@ def main(argv=None):
                 current_until = 0.0
                 original.setText("Waiting for captions under the new source settings…")
                 translated.setText("")
+                sound_line.clear()
+                sound_line.setVisible(False)
                 ipc.publish("", applied if service_running else
                             __import__("dataclasses").replace(applied, mode="off"))
             elif playback_changed:
@@ -2033,6 +2133,24 @@ def main(argv=None):
             appearance_store.setValue("text_opacity",applied.text_opacity)
             appearance_store.setValue("renderer",applied.render_mode)
             appearance_store.sync()
+            # File playback inherits the user's applied TV language / output
+            # choices, not the DVB transport, Teletext PIDs, live buffer or
+            # channel-specific audio clock. The native Playback tab reads this
+            # preset when it opens a local video. Audio-only files instead
+            # read the independently saved KaffeineRadio language choices.
+            file_video_defaults = QSettings("TIHULU", "KaffeineTVFileCaptionDefaults")
+            file_video_defaults.setValue("spokenSource",
+                                         "auto" if applied.spoken_auto else applied.source)
+            file_video_defaults.setValue("outputLanguages",
+                                         list(applied.target_languages))
+            file_video_defaults.setValue("showOriginal", applied.show_original)
+            file_video_defaults.setValue("showTranslation", applied.show_translation)
+            file_video_defaults.setValue("musicTranscription",
+                                         applied.music_transcription)
+            file_video_defaults.setValue("readablePacing", applied.readable_pacing)
+            file_video_defaults.setValue("soundEvents", applied.show_sound_events)
+            file_video_defaults.setValue("speakerEnabled", applied.speaker_enabled)
+            file_video_defaults.sync()
             for i,alias in enumerate(applied.speaker_aliases,1):
                 voice_label_store.setValue(f"speaker_{i}",alias)
             voice_label_store.sync()
@@ -2428,6 +2546,57 @@ def main(argv=None):
         status.setText("Caption worker active." if should_run else
                        "Subtitle recognition paused. No new Whisper clips queued.")
 
+    def refresh_tv_captions():
+        """Reset stale *AI* state and re-read configured local models.
+
+        Keep the DVB tap, channel, native audio/video FIFO, offset, and
+        existing SRT file untouched. Revision gates discard late ASR jobs.
+        """
+        nonlocal applied, current_cue, current_text, current_until
+        if not service_running:
+            status.setText("Enable subtitles first; TV remains playing.")
+            return
+        try:
+            from tv_center.ai_settings import AISettings
+            AISettings().configure_environment()
+        except (ValueError, RuntimeError, OSError) as exc:
+            status.setText("AI settings refresh failed: "+str(exc)[:170])
+            return
+        with lock:
+            applied = __import__("dataclasses").replace(
+                applied, revision=applied.revision + 1)
+        cues.clear()
+        deferred_captions.clear()
+        recent_voice_lines.clear()
+        tap.work_queue.clear() # no old audio windows after model change
+        current_cue = None
+        current_text = ""
+        current_until = 0.0
+        mobile.set_caption({"original":"","source":"caption_refresh"})
+        ipc.publish("", applied)
+        original.setText("AI Caption Refresh · waiting for NEW TV audio…")
+        translated.setText("")
+        translation_health.setText(
+            "Model settings reloaded; next confirmed ASR/translation shown.")
+        status.setText("TV AI refreshed without stopping the receiver or video. "
+                       "Pending older ASR results rejected by revision.")
+
+    def refresh_tv_sync():
+        """Resample timebase; do not pretend we measured output PTS."""
+        nonlocal last_sync_audit_at
+        estimator.clear()
+        auto_controller.reset()
+        last_sync_audit_at = 0.0
+        sync_estimate.setText(
+            "Lip-sync Refresh · awaiting fresh TV TS/ASR samples. "
+            f"Manual subtitle offset {applied.offset_ms:+d} ms preserved. "
+            "Video/audio/DAC presentation PTS remains unmeasured.")
+        status.setText("TV sync estimates reset. No tuner retune, no buffer "
+                       "reopen and no AI transcript dropped.")
+
+    caption_refresh.clicked.connect(refresh_tv_captions)
+    sync_refresh.clicked.connect(refresh_tv_sync)
+
     def begin_srt_recording():
         if not service_running:
             srt_status.setText("Start subtitles before recording an SRT.")
@@ -2515,6 +2684,8 @@ def main(argv=None):
             # silently become a real caption channel in the next service.
             mode.setCurrentIndex(0)
         track_status.setText("Switched service · waiting for fresh Teletext descriptors.")
+        teletext_speech_status.setText(
+            "TELETEXT · CHECKING · new programme; previous subtitles invalidated")
         audio_track_status.setText("Switched service · waiting for new audio PID/language.")
         original.setText("TV channel changed · waiting for NEW channel captions…")
         translated.setText("")
@@ -2888,6 +3059,37 @@ def main(argv=None):
                 if (data.get("revision") != applied.revision or
                         data.get("program_epoch") != tap.program_epoch):
                     continue
+                if data.get("teletext_source_transition") in (
+                        "whisper","teletext"):
+                    # Drop OLD Teletext cues in this same channel once
+                    # audio has disproved them; don't show them while new
+                    # Whisper and translations are being assembled.
+                    cues.clear()
+                    deferred_captions.clear()
+                    recent_voice_lines.clear()
+                    current_cue=None
+                    current_text=""
+                    current_until=0.0
+                    ipc.publish("",applied)
+                    original.setText(
+                        ("WHISPER · AUTO FALLBACK · real spoken audio replacing "
+                         "mismatched Teletext…")
+                        if data.get("teletext_source_transition")=="whisper" else
+                        "TELETEXT · SYNCED · broadcaster subtitles verified again…")
+                    translated.clear()
+                if data.get("teletext_sync_recheck"):
+                    estimator.clear()
+                    auto_controller.reset()
+                    sync_estimate.setText(
+                        "Teletext appears shifted relative to adjacent "
+                        "verified speech. Re-sampling native TS buffer and "
+                        "ASR timing before changing source. No trusted "
+                        "libVLC/DAC PTS; no forced subtitle time jump.")
+                if data.get("teletext_status"):
+                    teletext_speech_status.setText(
+                        str(data["teletext_status"])+
+                        (" · "+str(data["teletext_detail"])[:190]
+                         if data.get("teletext_detail") else ""))
                 if data.get("original"):
                     real_source = data.get("source", "")
                     estimator.observe(
@@ -3008,6 +3210,12 @@ def main(argv=None):
                             " | Stages: TT "+str(timing.get("teletext",0))+"ms"+
                             " / ASR "+str(timing.get("asr",0))+"ms"+
                             " / translation "+str(timing.get("translation",0))+"ms")
+                    used_engines=data.get("translation_engines") or {}
+                    if used_engines:
+                        status.setText(status.text()+" | Translator actual: "+
+                            " / ".join(str(k).upper()+" "+
+                                     str(v)[:65] for k,v in
+                                     sorted(used_engines.items())))
                     by_language=data.get("translation_languages_ms") or {}
                     if by_language:
                         status.setText(status.text()+" | Per target: "+
@@ -3052,6 +3260,10 @@ def main(argv=None):
                     if data.get("sound_event_note"):
                         status.setText(status.text() + " | Sound model: " +
                             str(data["sound_event_note"])[:140])
+                    if data.get("asr_test_page_artifact_removed"):
+                        status.setText(status.text() +
+                            " | TESTSEITE letter-spaced artifact removed "
+                            "before translation; speech retained")
                     if data.get("voice_type_note"):
                         status.setText(status.text() + " | Voice type: " +
                             str(data["voice_type_note"])[:140])
@@ -3082,6 +3294,16 @@ def main(argv=None):
                     if data.get("speech_priority_note"):
                         status.setText(status.text() + "\nSpeech priority: " +
                                        str(data["speech_priority_note"]))
+                    if sound_events.isChecked():
+                        if data.get("sound_labels_source"):
+                            status.setText(status.text() + " | Sound tags: " +
+                                str(data["sound_labels_source"]) +
+                                " (speech transcription kept)")
+                        elif data.get("sound_event_note"):
+                            status.setText(status.text() +
+                                " | Sound labels unavailable: " +
+                                str(data["sound_event_note"])[:130] +
+                                " · spoken subtitles unaffected")
                     failures = data.get("translation_errors") or {}
                     backup = data.get("translation_warnings") or {}
                     actual_engines = data.get("translation_engines") or {}
@@ -3158,6 +3380,15 @@ def main(argv=None):
                     label_prefix=str(result.get("speaker_label") or "").strip()+" "
             original.setText(label_prefix+"ORIGINAL [" + source_language +
                              "]: " + result.get("original", ""))
+            # Sound classes are visual-only and independent of translation.
+            event_language=(applied.target_languages[0]
+                            if applied.show_translation and
+                            applied.target_languages else
+                            result.get("source_language") or applied.source)
+            acoustic=(applied._event_lines(result,event_language)
+                      if applied.show_sound_events else [])
+            sound_line.setText(" ".join(dict.fromkeys(acoustic)))
+            sound_line.setVisible(bool(acoustic))
             translations = result.get("translations") or {}
             failures = result.get("translation_errors") or {}
             fallback = result.get("translation_warnings") or {}
@@ -3216,6 +3447,8 @@ def main(argv=None):
                 if pending_words else
                 "No subtitle available for this interval · checking TV audio / ASR…")
             translated.setText("")
+            sound_line.clear()
+            sound_line.setVisible(False)
         elif now-last_published >= 1.5:
             # A real local caption-service heartbeat keeps Kaffeine's
             # virtual subtitle entry stable BETWEEN spoken phrases, including

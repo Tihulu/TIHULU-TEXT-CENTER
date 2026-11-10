@@ -62,7 +62,8 @@ class RadioAIUXRegressionTests(unittest.TestCase):
         self.assertIn("const QStringList targets=selectedRadioTargets()",source)
         self.assertIn("const QStringList dests=selectedRadioTargets()",source)
         self.assertIn("radioCanvasCaption_=new QLabel(radioCanvas_)",source)
-        self.assertIn("showRadioCanvasCaption(current,true)",source)
+        self.assertNotIn("showRadioCanvasCaption(current,true)",source)
+        self.assertIn("showKaraokeLine(cue);",source)
         self.assertIn("showRadioCanvasCaption(cue.text)",source)
         self.assertIn("QSignalBlocker block(installedTargets_)",source)
         self.assertIn("Advanced · audio cache, timing & diagnostics",source)
@@ -72,12 +73,18 @@ class RadioAIUXRegressionTests(unittest.TestCase):
 
     def test_radio_backend_preserves_music_as_nontext_status(self):
         code=(ROOT/"tv_center/radio_ai.py").read_text()
-        self.assertIn('original=lyric_match["text"]',code)
-        self.assertIn('and lyric_match:',code)
+        # Lower AI captions are the raw Whisper ASR stream, never a
+        # potentially fuzzy/low-threshold lyric substitution.
+        self.assertNotIn('original=lyric_match["text"]',code)
+        self.assertIn('preferred_lyric_text=(lyric_match.get("text","")',code)
+        self.assertIn('source_word_timed=bool(detection.get("asr_words"))',code)
+        self.assertIn('prefer_readable=True',code)
+        self.assertIn('and lyric_match else "")',code)
         self.assertNotIn('original="[music]"',code)
         self.assertIn('"music_detected":False',code)
         self.assertIn('"speech_preserved_when_lyrics_unmatched"',code)
-        self.assertIn('music=music,',code)
+        self.assertIn("music=music_for_matching,",code)
+        self.assertIn("plain_matcher is not None and karaoke_enabled",code)
         self.assertIn("BoundedRadioCapture(ffmpeg.stdout",code)
         self.assertIn('"ai_audio_windows_dropped":capture.dropped_windows',code)
         self.assertIn("capture_index*5",code)

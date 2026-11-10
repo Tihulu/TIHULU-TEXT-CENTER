@@ -1,0 +1,83 @@
+"""Independent live Whisper captions and lyric playback-position guards.
+
+Offline source-contract tests. No claims of DAC/ALSA presentation timestamps
+or acoustic instrumental classification.
+"""
+from pathlib import Path
+import unittest
+
+ROOT=Path(__file__).resolve().parents[1]
+RADIO=(ROOT/"kaffeine_next/native_radio_tab.h").read_text(encoding="utf-8")
+AI=(ROOT/"tv_center/radio_ai.py").read_text(encoding="utf-8")
+
+
+def section(begin,end):
+    a=RADIO.index(begin)
+    return RADIO[a:RADIO.index(end,a)]
+
+
+class CaptionsAndKaraokePlaybackTests(unittest.TestCase):
+    def test_main_whisper_subtitle_not_hidden_by_karaoke(self):
+        render=section("void showRadioCanvasCaption(", "void displayDueRadioCues(")
+        self.assertIn("if(lyric) return;",render)
+        self.assertNotIn("currentMs<lastMatchedLyricUntilMs_",render)
+        self.assertIn("radioCanvasCaption_->setText(text);",render)
+        self.assertIn("showRadioCanvasCaption(cue.text);",RADIO)
+        lyrics=section("void updateLyrics() {","MediaWidget *player_")
+        self.assertIn("showKaraokeLine(cue);",lyrics)
+        self.assertNotIn("showRadioCanvasCaption(cue.text,true)",lyrics)
+        self.assertNotIn("showRadioCanvasCaption(current,true)",lyrics)
+
+    def test_no_pcm_error_is_explicit_not_fabricated_as_silence(self):
+        self.assertIn('if chunks == 0 and not was_cancelled:',AI)
+        self.assertIn('"status":"audio_unavailable"',AI)
+        self.assertIn('"ffmpeg_returncode":ffmpeg.returncode',AI)
+        self.assertIn('"captured_windows":capture.captured_windows',AI)
+        status=section("void pollCaption() {", "void stopCaptioning()")
+        self.assertIn('aiStatus==QLatin1String("audio_unavailable")',status)
+        self.assertIn("Whisper has NO DAB PCM audio",status)
+        self.assertIn('aiStatus==QLatin1String("waiting_audio")',status)
+        self.assertIn("Whisper input failed",status)
+        self.assertNotIn('obj.value(QLatin1String("original")).toString("music")',status)
+
+    def test_worker_ending_preserves_requested_ai_on_and_recovers(self):
+        self.assertNotIn('AI captions · OFF (input ended)',RADIO)
+        self.assertIn('if(!quickAi_ || !quickAi_->isChecked()) return;',RADIO)
+        self.assertIn('"AI captions ON · %1 · retrying local ASR only. %2"',RADIO)
+        self.assertIn('scheduleCaptionRecovery();',RADIO)
+        self.assertIn('checkCaptionRecovery();',RADIO)
+        self.assertIn('"AI captions ON · reconnecting Whisper to existing DAB audio "',RADIO)
+        self.assertIn('captionRecoveryNextMs_',RADIO)
+        self.assertIn('captionRecoveryFailures_',RADIO)
+        self.assertIn('captionProcess_.state()!=QProcess::NotRunning',RADIO)
+
+    def test_found_sync_cannot_move_without_real_whisper_audio_evidence(self):
+        preview=section("void showFoundKaraokePreview(qint64 now)", "void showKaraokeLine(")
+        for token in ("lastVerifiedLyricIndex_", "previewIndexShift_",
+                      "karaokeWordAnchors_=QJsonArray()", 
+                      "STATIC until Whisper hears matching words",
+                      "Lip-sync waiting for AUDIO MATCH"):
+            with self.subTest(token=token):
+                self.assertIn(token,preview)
+        for forbidden in ("previewClockNow","previewSeconds",
+                          "previewStartedMs_","songStartMs_",
+                          "wordPattern.globalMatch", "6000.",
+                          "int(fraction*words.size())"):
+            with self.subTest(forbidden=forbidden):
+                self.assertNotIn(forbidden,preview)
+        self.assertNotIn("showRadioCanvasCaption(",preview)
+        self.assertIn("karaokePreviewSpeed_->setEnabled(false)",RADIO)
+
+    def test_verified_word_hold_preserves_last_sung_line_until_new_match(self):
+        lyrics=section("void updateLyrics() {","MediaWidget *player_")
+        self.assertIn("const bool keepLastMatchedWord",lyrics)
+        self.assertIn("lastVerifiedLyricIndex_>=0",lyrics)
+        self.assertIn("lastKaraokeUntilMs_=now+1500;",lyrics)
+        poll=section("void pollCaption() {", "void stopCaptioning()")
+        self.assertIn("lastVerifiedLyricIndex_=matched.value(",poll)
+        self.assertIn('QLatin1String("index")',poll)
+        self.assertIn("lastVerifiedLyricIndex_=-1;",RADIO)
+
+
+if __name__=="__main__":
+    unittest.main()
