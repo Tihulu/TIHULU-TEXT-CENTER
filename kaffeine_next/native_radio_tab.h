@@ -3347,6 +3347,9 @@ private:
                     lyricRawLines_.clear();
                     lastLyricsProvider_.clear();
                     clearKaraokeLine();
+                    previewStartedMs_=0;
+                    previewIndexShift_=0;
+                    previewLastIndex_=-1;
                     setRadioLyricMatchStatus(QString());
                     // A DLS metadata change is NOT proof of new audible
                     // song, and must not disable Stop for an offline
@@ -4497,6 +4500,100 @@ private:
         karaokeCurrent_->setTextFormat(Qt::RichText);
         karaokeCurrent_->setText(html);
     }
+    void showFoundKaraokePreview(qint64 now) {
+        // The user explicitly selected a NON-audio-verified lyric viewer.
+        // It never overwrites the actual Whisper/translated caption band
+        // and never presents guessed timing as an ASR lyric match.
+        if(!lyricsEnabled_ || !lyricLoaded_ ||
+           !karaokePolicy_ || karaokePolicy_->currentData().toString()!=
+               QLatin1String("found") ||
+           !karaokeEnabled_ || !karaokeEnabled_->isChecked() ||
+           !karaokePanel_ || !karaokeCurrent_ || !karaokeSource_ ||
+           !karaokePrevious_ || !karaokeNext_ || !karaokeTranslation_)
+            return;
+        if(lastVerifiedLyricMs_>0 && now-lastVerifiedLyricMs_<10000)
+            return; // Genuine audio-verified Karaoke always takes priority.
+        const bool timed=!plainLyricMode_ && !lyricCues_.isEmpty();
+        const int count=timed?lyricCues_.size():lyricRawLines_.size();
+        if(count<1) return;
+        if(previewStartedMs_<=0) previewStartedMs_=now;
+        int estimate=0;
+        if(timed) {
+            const qint64 anchor=autoLyricSync_->isChecked() && songStartMs_>0?
+                songStartMs_:manualSongStartMs_>0?
+                manualSongStartMs_:previewStartedMs_;
+            const double elapsed=(now-anchor+lyricsOffset_->value())/1000.;
+            // LRC times describe track-relative positions, while the DLS
+            // clock is an APPROXIMATION. Never infer sample-accurate audio.
+            for(int i=0;i<count && i<300;++i) {
+                const double start=lyricCues_.at(i).toObject().value(
+                    QLatin1String("start")).toDouble(-1);
+                if(start>=0 && start<=elapsed) estimate=i;
+            }
+        } else {
+            // Plain text has no timing. A user-requested exploratory
+            // six-second-per-line display is explicitly labeled unverified.
+            estimate=qMax(0,int((now-previewStartedMs_+
+                lyricsOffset_->value())/6000));
+        }
+        const int index=qBound(0,estimate+previewIndexShift_,count-1);
+        const auto lineAt=[this,timed](int i)->QString {
+            if(i<0) return QString();
+            if(timed) {
+                if(i>=lyricCues_.size()) return QString();
+                return lyricCues_.at(i).toObject().value(
+                    QLatin1String("text")).toString().trimmed().left(300);
+            }
+            if(i>=lyricRawLines_.size()) return QString();
+            return lyricRawLines_.at(i).trimmed().left(300);
+        };
+        const QString line=lineAt(index);
+        if(line.isEmpty()) return;
+        const bool alreadyShown=(previewLastIndex_==index &&
+            karaokePanel_->isVisible() &&
+            karaokeSource_->text().contains(QLatin1String("UNVERIFIED")) &&
+            karaokeCurrent_->text()==line);
+        // Keep the preview alive, but do not reflow text every 300 ms.
+        lastKaraokeUntilMs_=now+1500;
+        if(alreadyShown) return;
+        previewLastIndex_=index;
+        karaokeLine_=line;
+        karaokeWordAnchors_=QJsonArray(); // no fabricated word timestamps
+        lastHighlightedKaraokeWord_=-2;
+        karaokeCurrent_->setTextFormat(Qt::PlainText);
+        karaokeCurrent_->setText(line);
+        karaokePrevious_->setText(lineAt(index-1));
+        karaokePrevious_->setVisible(index>0);
+        karaokeNext_->setText(lineAt(index+1));
+        karaokeNext_->setVisible(index+1<count);
+        QJsonObject translated;
+        if(timed) translated=lyricCues_.at(index).toObject().value(
+            QLatin1String("translations")).toObject();
+        QStringList translatedLines;
+        for(const QString &language:selectedRadioTargets()) {
+            const QString value=translated.value(language).toString().trimmed();
+            if(!value.isEmpty())
+                translatedLines<<QLatin1String("[")+language.toUpper()+
+                    QLatin1String("] ")+value.left(360);
+        }
+        karaokeTranslation_->setText(translatedLines.join(QLatin1Char('\n')));
+        karaokeTranslation_->setVisible(karaokeTranslationsEnabled_ &&
+            karaokeTranslationsEnabled_->isChecked() &&
+            !translatedLines.isEmpty());
+        const TihuluDlsSong song=tihuluDlsSong(lastDls_);
+        const QString songText=song.valid()?
+            song.artist+QLatin1String(" · ")+song.title:tr("current song");
+        const QString provider=lastLyricsProvider_.isEmpty()?
+            tr("local file"):lastLyricsProvider_;
+        karaokeSource_->setText(tr(
+            "♪ %1 · SOURCE: %2 · LYRICS FOUND · UNVERIFIED\n"
+            "LINE %3/%4 · %5 · use Lyric ◀/▶ and Karaoke offset")
+            .arg(songText.left(100),provider.left(50))
+            .arg(index+1).arg(count)
+            .arg(timed?tr("estimated broadcaster-DLS/LRC clock"):
+                       tr("plain lyrics · approximate 6s/line")));
+        karaokePanel_->setVisible(true);
+    }
     void showKaraokeLine(const TimedPlainLyric &cue) {
         if(!karaokePanel_ || !karaokeCurrent_ ||
            !karaokeSource_ || !karaokePrevious_ || !karaokeNext_ ||
@@ -5280,6 +5377,9 @@ private:
         lyricRawLines_.clear();
         lastLyricsProvider_.clear();
         clearKaraokeLine();
+        previewStartedMs_=0;
+        previewIndexShift_=0;
+        previewLastIndex_=-1;
         lastVerifiedLyricMs_=0;
         lastMatchedLyricUntilMs_=0;
         lastVerifiedLyricText_.clear();
@@ -5326,6 +5426,9 @@ private:
         if(lastKaraokeUntilMs_>0 && now>=lastKaraokeUntilMs_)
             clearKaraokeLine();
         else refreshKaraokeWordHighlight(now);
+        // Found-only preview is entirely separate from the verified cue
+        // queue and never writes an invented lyric into Whisper captions.
+        showFoundKaraokePreview(now);
         // Only ASR-confirmed matches enter this extra timed-LRC queue.
         while(!verifiedLyricQueue_.isEmpty() &&
               verifiedLyricQueue_.first().dueMs<=now) {
@@ -5417,6 +5520,9 @@ private:
 			lyricCues_=value.value(QLatin1String("cues")).toArray();
             lastLyricsProvider_=provider.isEmpty()?tr("local file"):provider;
             lyricRawLines_.clear();
+            previewStartedMs_=now;
+            previewIndexShift_=0;
+            previewLastIndex_=-1;
             const QJsonArray originalLines=value.value(
                 QLatin1String("plain_lines")).toArray();
             for(const QJsonValue &item:originalLines)
