@@ -1663,15 +1663,16 @@ public:
             QLatin1String("verified")).toString();
         const int policyIndex=karaokePolicy_->findData(savedPolicy);
         karaokePolicy_->setCurrentIndex(policyIndex<0?0:policyIndex);
-        radioPlaybackRow_->insertWidget(4,karaokePolicy_);
+        mainMatchRow->addWidget(new QLabel(tr("Karaoke trigger:"),page));
+        mainMatchRow->addWidget(karaokePolicy_);
         previewPrevious_=new QPushButton(tr("◀ Lyric"),page);
         previewNext_=new QPushButton(tr("Lyric ▶"),page);
         previewPrevious_->setToolTip(tr(
             "Manually move the UNVERIFIED lyric preview one line back."));
         previewNext_->setToolTip(tr(
             "Manually move the UNVERIFIED lyric preview one line forward."));
-        radioPlaybackRow_->insertWidget(5,previewPrevious_);
-        radioPlaybackRow_->insertWidget(6,previewNext_);
+        mainMatchRow->addWidget(previewPrevious_);
+        mainMatchRow->addWidget(previewNext_);
         const auto updatePreviewControls=[this](){
             const bool active=karaokePolicy_->currentData().toString()==
                 QLatin1String("found");
