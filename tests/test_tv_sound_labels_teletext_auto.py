@@ -16,12 +16,12 @@ class AdditiveSoundLabels(unittest.TestCase):
     def test_label_and_real_speech_are_kept_together(self):
         english="It starts here, and we are still speaking."
         self.assertEqual(decorate_caption(english,MUSIC,"en"),
-                         "[Music] "+english)
+                         "[Music]\n"+english)
         self.assertEqual(decorate_caption(
-            "Das ist unser Text",MUSIC,"de"),"[Musik] Das ist unser Text")
+            "Das ist unser Text",MUSIC,"de"),"[Musik]\nDas ist unser Text")
         self.assertEqual(decorate_caption(
             "Konuşma devam ediyor",MUSIC,"tr"),
-            "[Müzik] Konuşma devam ediyor")
+            "[Müzik]\nKonuşma devam ediyor")
 
     def test_sound_label_is_display_only_after_translation(self):
         original={"original":"I can hear your voice","raw_asr_original":"I can hear your voice",
@@ -31,12 +31,13 @@ class AdditiveSoundLabels(unittest.TestCase):
         decorated=decorate_result(original,True)
         self.assertEqual(original["original"],"I can hear your voice")
         self.assertEqual(original["translations"]["de"],"Ich höre deine Stimme")
-        self.assertEqual(decorated["original"],
-                         "[Music] I can hear your voice")
-        self.assertEqual(decorated["translations"]["de"],
-                         "[Musik] Ich höre deine Stimme")
-        self.assertEqual(decorated["translations"]["tr"],
-                         "[Müzik] Sesini duyabiliyorum")
+        self.assertEqual(decorated["original"], "I can hear your voice")
+        self.assertEqual(decorated["translations"]["de"], "Ich höre deine Stimme")
+        self.assertEqual(decorated["translations"]["tr"], "Sesini duyabiliyorum")
+        self.assertEqual(decorated["sound_event_lines"]["original"], "[Music]")
+        self.assertEqual(decorated["sound_event_lines"]["translations"]["de"],
+                         "[Musik]")
+        self.assertEqual(decorated["source"], "local_asr")
         self.assertEqual(decorated["word_timing_source"],"Whisper timed")
 
     def test_detector_backed_sound_only_has_no_fake_lyrics(self):
@@ -45,11 +46,15 @@ class AdditiveSoundLabels(unittest.TestCase):
                 "source":"local_asr","sound_events":APPLAUSE,
                 "word_timing_source":"estimated","words":[{"text":"fake"}]}
         decorated=decorate_result(result,True)
-        self.assertEqual(decorated["original"],"[Applause]")
-        self.assertEqual(decorated["translations"]["tr"],"[Alkış]")
-        self.assertEqual(decorated["source"],"acoustic_event")
-        self.assertEqual(decorated["words"],[])
-        self.assertIsNone(decorated["word_timing_source"])
+        self.assertEqual(decorated["original"],"")
+        self.assertEqual(decorated["translations"],{})
+        self.assertEqual(decorated["sound_event_lines"]["original"],"[Applause]")
+        self.assertEqual(decorated["sound_event_lines"]["translations"]["tr"],
+                         "[Alkış]")
+        self.assertEqual(decorated["source"],"local_asr")
+        self.assertTrue(decorated["sound_event_only"])
+        self.assertEqual(decorated["words"],[{"text":"fake"}])
+        self.assertEqual(decorated["word_timing_source"],"estimated")
 
     def test_uncertain_detector_labels_do_not_change_speech(self):
         utterance="The programme continues."
@@ -81,7 +86,7 @@ class AdditiveSoundLabels(unittest.TestCase):
     def test_two_real_events_keep_transcript(self):
         words="Real dialogue"
         joined=decorate_caption(words,MUSIC+APPLAUSE,"en")
-        self.assertEqual(joined,"[Music] [Applause] Real dialogue")
+        self.assertEqual(joined,"[Music] [Applause]\nReal dialogue")
 
 
 class TeletextVsLiveSpeech(unittest.TestCase):
