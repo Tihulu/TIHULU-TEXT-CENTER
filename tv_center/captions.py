@@ -580,6 +580,8 @@ def decode_segment(ts: bytes, *, mode="auto", page=150, source="de",
                    defer_asr_translation: bool = False,
                    speech_auto: bool = False,
                    auto_teletext_probe: bool = False,
+                   auto_teletext_recovery: bool = False,
+                   teletext_language: str | None = None,
                    overlap_separation: bool = False,
                    show_sound_events: bool = False,
                    show_voice_types: bool = False) -> dict:
@@ -634,6 +636,7 @@ def decode_segment(ts: bytes, *, mode="auto", page=150, source="de",
         # page mode. Three consecutive high-confidence conflicts are
         # required by the caller before it may prefer Whisper.
         teletext_probe = None
+        teletext_shadow = None
         if (original and mode=="auto" and auto_teletext_probe):
             details = {}
             try:
@@ -743,6 +746,22 @@ def decode_segment(ts: bytes, *, mode="auto", page=150, source="de",
                 error = str(exc)[:180]
             finally:
                 asr_ms = round((time.perf_counter()-asr_start)*1000)
+        # While Whisper protects viewers from mismatched Teletext, sample
+        # the broadcaster text on the SAME selected TS/SID periodically.
+        # The ASR above already ran; do NOT trigger a second expensive ASR
+        # or revive stale text from an earlier programme. The caller decides
+        # whether two trusted matching probes justify returning to Teletext.
+        if auto_teletext_recovery and mode=="asr":
+            try:
+                shadow_page=page if teletext_pid is not None else "subtitle"
+                shadow=teletext_from_clip(p,shadow_page,service_id,teletext_pid)
+                if shadow and len(shadow.strip())>=15:
+                    teletext_shadow={
+                        "text":shadow[:2500],
+                        "source_language":teletext_language or
+                            (source if source!="auto" else "und")}
+            except (OSError,RuntimeError,ValueError,subprocess.TimeoutExpired):
+                pass
         # A global clip may contain multiple voices; never assign its
         # acoustic category to an individual without a single diarized
         # voice. In an overlap case each isolated stream was classified
@@ -788,6 +807,7 @@ def decode_segment(ts: bytes, *, mode="auto", page=150, source="de",
         translated = translations.get(target)
         return {"original": original, "raw_asr_original":raw_asr_original,
                 "teletext_probe":teletext_probe,
+                "teletext_shadow":teletext_shadow,
                 "translated": translated, "translations": translations,
                 "remote_error":speech_diagnostics.get("remote_error"),
                 "remote_fallback":speech_diagnostics.get("remote_fallback"),
