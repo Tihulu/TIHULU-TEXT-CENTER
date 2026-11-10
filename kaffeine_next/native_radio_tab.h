@@ -1763,8 +1763,16 @@ public:
             "Show all currently loaded lyrics in a separate resizable window, "
             "with real source and available translations. No online search."));
         mainMatchRow->addWidget(fullLyricsButton_);
+        lyricsRefresh_=new QPushButton(tr("Lyrics Refresh"),page);
+        lyricsRefresh_->setToolTip(tr(
+            "Explicitly re-search current song lyrics after consent. Bypass "
+            "cache, retain current Karaoke during lookup, and never discard "
+            "good lyrics when online search fails."));
+        mainMatchRow->addWidget(lyricsRefresh_);
         connect(fullLyricsButton_,&QPushButton::clicked,this,
                 [this](){showFullLyricsWindow();});
+        connect(lyricsRefresh_,&QPushButton::clicked,this,
+                [this](){refreshCurrentLyrics();});
         previewPrevious_=new QPushButton(tr("◀ Lyric"),page);
         previewNext_=new QPushButton(tr("Lyric ▶"),page);
         previewPrevious_->setToolTip(tr(
@@ -2458,6 +2466,7 @@ public:
 		connect(&captionTick_,&QTimer::timeout,this,[this](){
             monitorRadioPlaybackStop();
 			pollCaption();updateLyrics();
+            pollLyricsRefreshResult();
             refreshRadioBufferProgress();
 		});
 		captionTick_.start();
@@ -5779,6 +5788,7 @@ private:
         const QString acceptedDls=pendingSongDls_;
         pendingSongKey_.clear();
         pendingSongDls_.clear();
+        cancelLyricsRefresh();
         lastSongMetadataKey_=candidate;
         lastSongDls_=acceptedDls;
         // DLS is metadata; this time is not measured audio/DAC PTS.
@@ -5822,6 +5832,7 @@ private:
             fetchLyrics(true);
     }
 	void stopLyrics() {
+        cancelLyricsRefresh();
         const bool hadListening=lyricsAudioFallbackActive_;
         const bool startedByLyrics=lyricsFallbackStartedAi_;
         lyricsAudioFallbackActive_=false;
@@ -6255,6 +6266,11 @@ private:
     quint64 lyricsLookupGeneration_=0;
     QMap<QString,QJsonObject> lyricsCache_;
     QMap<QString,qint64> lyricsCacheTime_;
+    QString lyricsRefreshPath_,lyricsRefreshRequestKey_,
+            lyricsRefreshStationKey_,lyricsRefreshSongKey_;
+    qint64 lyricsRefreshStartedMs_=0;
+    quint64 lyricsRefreshStationTicket_=0;
+    bool lyricsRefreshPending_=false;
 	bool metadataCaptions_=false;
 	int dlsCaptionIndex_=0;
 	int lastLyricOffsetMs_=0;
@@ -6283,7 +6299,8 @@ private:
     QCheckBox *quickAi_=nullptr,*quickTranslate_=nullptr,
         *quickBuffer_=nullptr,*releaseOnStop_=nullptr;
     QPushButton *captionEarlier_=nullptr,*captionLater_=nullptr,
-        *captionRefresh_=nullptr,*radioSyncRefresh_=nullptr;
+        *captionRefresh_=nullptr,*radioSyncRefresh_=nullptr,
+        *lyricsRefresh_=nullptr;
     QLabel *captionOffsetReadout_=nullptr;
     QComboBox *radioReadingPreset_=nullptr;
     QSpinBox *radioCaptionFontSize_=nullptr;
@@ -6296,7 +6313,8 @@ private:
 	QList<TimedRadioCue> cueQueue_;
 	QLineEdit *extraTargets_=nullptr,*lyricsArtist_=nullptr,*lyricsTitle_=nullptr;
 	QLabel *syncStatus_=nullptr;
-	QProcess backend_,captionProcess_,recorder_,lyricsProcess_,recordAi_,recordMux_,languagePackWorker_;
+	QProcess backend_,captionProcess_,recorder_,lyricsProcess_,
+        lyricsRefreshProcess_,recordAi_,recordMux_,languagePackWorker_;
 	QListWidget *installedTargets_=nullptr;
 	QPushButton *refreshTargets_=nullptr;
 	QString recordedPath_;
