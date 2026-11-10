@@ -393,6 +393,26 @@ QAbstractButton *StartTab::addShortcut''')
 	setProperty("tihuluTabSwitchBusy",false);
 	emit displayModeChanged();
 }''')
+    # Kaffeine hides the menu/toolbars in fullscreen, but QMainWindow's
+    # QStatusBar remains visible by default. Our stage-based cyan handoff
+    # widget lives IN that bar and must never overlay fullscreen video.
+    # Restore the original status area immediately on leaving fullscreen,
+    # including FullScreenReturnToMinimalMode -> MinimalMode transitions.
+    change(main, '''\tMediaWidget::DisplayMode displayMode = mediaWidget->getDisplayMode();
+
+\tswitch (displayMode) {''',
+    '''\tMediaWidget::DisplayMode displayMode = mediaWidget->getDisplayMode();
+\tconst bool tihuluFullVideo =
+\t\tdisplayMode == MediaWidget::FullScreenMode ||
+\t\tdisplayMode == MediaWidget::FullScreenReturnToMinimalMode;
+\tstatusBar()->setVisible(!tihuluFullVideo);
+\tif (tihuluFullVideo) {
+\t\tQProgressBar *handoff = findChild<QProgressBar *>(
+\t\t\tQLatin1String("tihuluReceiverSwitchProgress"));
+\t\tif (handoff) handoff->hide();
+\t}
+
+\tswitch (displayMode) {''')
     # The main Television shortcut must not tune a DVB frontend when the
     # radio release failed and its tab transition was rejected.
     change(main, '''	activateTab(DvbTabId);
