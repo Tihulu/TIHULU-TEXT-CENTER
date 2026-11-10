@@ -171,7 +171,8 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
     # Bounded <=10s genuine Whisper ASR and matching short PCM windows.
     # Owner-triggered Karaoke Refresh reuses these in RAM, not playback
     # rebuffering, and never writes raw audio to disk or an online service.
-    recent_lyric_asr=deque(maxlen=4)
+    recent_lyric_asr=deque(maxlen=8)
+    sync_history_seconds=10
     sync_refresh_token=0
     sync_refresh_pending=0
     sync_refresh_windows_left=0
@@ -232,6 +233,10 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
                         requested_labels=payload.get("sound_labels")
                         if type(requested_labels) is bool:
                             sound_labels=requested_labels
+                        requested_history=payload.get(
+                            "karaoke_sync_history_seconds",10)
+                        if type(requested_history) is int and 3<=requested_history<=30:
+                            sync_history_seconds=requested_history
                         requested_refresh=payload.get(
                             "karaoke_sync_refresh_token",0)
                         if (type(requested_refresh) is int and
@@ -412,7 +417,8 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
                     "pcm":pcm,
                 })
             while (recent_lyric_asr and
-                   capture_epoch_ms-recent_lyric_asr[0]["epoch_ms"]>10000):
+                   capture_epoch_ms-recent_lyric_asr[0]["epoch_ms"]>
+                   sync_history_seconds*1000):
                 recent_lyric_asr.popleft()
             lyric_word_source=detection.get("asr_words",[])
             lyric_word_epoch=capture_epoch_ms
