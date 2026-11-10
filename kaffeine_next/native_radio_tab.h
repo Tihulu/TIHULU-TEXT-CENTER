@@ -1649,6 +1649,24 @@ public:
             "normal bottom subtitles."));
         radioPlaybackRow_->insertWidget(3,karaokeEnabled_);
         radioPlaybackRow_->insertWidget(4,karaokeTranslationsEnabled_);
+        soundLabels_=new QCheckBox(tr("Sound labels · [Music] / [Humming] / [Applause]"),page);
+        soundLabels_->setChecked(lyricDisplaySettings.value(
+            QLatin1String("radioSoundLabelsEnabled"),false).toBool());
+        soundLabels_->setToolTip(tr(
+            "Optional INSTALLED local AST AudioSet model classifies music, "
+            "humming and applause; labels are shown beside, not instead of, "
+            "Whisper words. OFF by default. If model is missing, no guessed "
+            "labels or downloads; speech still transcribes normally."));
+        radioPlaybackRow_->insertWidget(5,soundLabels_);
+        connect(soundLabels_,&QCheckBox::toggled,this,[this](bool enabled){
+            QSettings prefs(QLatin1String("TIHULU"),
+                            QLatin1String("KaffeineRadio"));
+            prefs.setValue(QLatin1String("radioSoundLabelsEnabled"),enabled);
+            writeRadioLanguageControls(); // next ASR window; no radio restart
+            if(enabled && radioCaptionBanner_) radioCaptionBanner_->setText(tr(
+                "Optional local sound labels requested · independent from "
+                "Whisper. No audio-classifier model is downloaded."));
+        });
         connect(karaokeEnabled_,&QCheckBox::toggled,this,[this](bool enabled){
             QSettings prefs(QLatin1String("TIHULU"),
                             QLatin1String("KaffeineRadio"));
@@ -2525,7 +2543,9 @@ private:
             {QStringLiteral("radio_translations"),
              quickTranslate_ && quickTranslate_->isChecked()},
             {QStringLiteral("lyric_match_threshold"),
-             lyricMatchThreshold_?lyricMatchThreshold_->value()/100.:0.74}});
+             lyricMatchThreshold_?lyricMatchThreshold_->value()/100.:0.74},
+            {QStringLiteral("sound_labels"),
+             soundLabels_ && soundLabels_->isChecked()}});
         QSaveFile file(captionControlsPath_);
         if(!file.open(QIODevice::WriteOnly)) {
             if(translationStatus_) translationStatus_->setText(tr(
@@ -4328,6 +4348,8 @@ private:
             options<<QLatin1String("--music");
         if(quickTranslate_ && quickTranslate_->isChecked())
             options<<QLatin1String("--radio-translations");
+        if(soundLabels_ && soundLabels_->isChecked())
+            options<<QLatin1String("--sound-labels");
 		if (preferLyrics_->isChecked())
 			options<<QLatin1String("--prefer-verified-lyrics");
 		if (speakerLabels_->isChecked() && !music_->isChecked() &&
@@ -5457,7 +5479,8 @@ private:
 	bool plainLyricMode_=false;
 	QList<TimedPlainLyric> plainLyricQueue_,verifiedLyricQueue_;
     QCheckBox *karaokeEnabled_=nullptr,
-        *karaokeTranslationsEnabled_=nullptr;
+        *karaokeTranslationsEnabled_=nullptr,
+        *soundLabels_=nullptr;
 	QCheckBox *autoLyrics_=nullptr,*autoLyricSync_=nullptr,
 		*preferLyrics_=nullptr,*listenFallbackOnMiss_=nullptr;
     bool lyricsAudioFallbackActive_=false,lyricsFallbackStartedAi_=false,
