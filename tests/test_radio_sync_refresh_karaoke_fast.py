@@ -75,6 +75,9 @@ class KaraokeAndFastRefreshTests(unittest.TestCase):
                         "void showKaraokeLine(")
         self.assertIn("karaokePreviewSpeed_->value()",preview)
         self.assertIn("previewStartedMs_",preview)
+        self.assertIn("previewSpeedCompensationMs_",preview)
+        self.assertIn("previewSpeedCompensationMs_+=qRound64(",RADIO)
+        self.assertIn("previewPreviousSpeedPercent_=percent",RADIO)
         self.assertNotIn("radioCaptionReadingHoldMs(",preview)
 
 
