@@ -29,16 +29,18 @@ PROFILES = {
     },
     "normal": {
         "name": "Normal · regular desktop / laptop",
-        "description": "Whisper Small CPU + compact Argos DE/EN/TR. Optional Resemblyzer can be installed separately.",
-        "components": ("whisper_cpu", "small", "argos"),
+        "description": "Whisper Small CPU + offline Argos + lightest supported speaker and sound-label models. Whisper lyric alignment remains the default fallback.",
+        "components": ("whisper_cpu", "small", "argos",
+                       "resemblyzer", "sound_labels"),
         "speech": "small", "backend": "cpu", "translator": "argos",
         "min_ram_mib": 7500, "min_vram_mib": 0,
         "disk_gb_estimate": "3–5 GB including runtime and translations",
     },
     "performance": {
         "name": "Performance · NVIDIA CUDA · min 12 GB VRAM / 16 GB RAM",
-        "description": "NVIDIA CUDA Faster-Whisper Large-v3 Turbo + Argos + Resemblyzer; Small CPU fallback. Requires at least 12 GB NVIDIA VRAM and 16 GB host RAM. Live speed depends on the actual GPU, driver, and models.",
-        "components": ("cuda_turbo", "whisper_cpu", "small", "argos", "resemblyzer"),
+        "description": "CUDA Whisper Large-v3 Turbo + Argos + Resemblyzer + AST sound labels + Qwen3 ForcedAligner 0.6B. Whisper stays live for presenters and unsupported lyric languages. Requires 12 GB VRAM/16 GB RAM; music performance unverified.",
+        "components": ("cuda_turbo", "whisper_cpu", "small", "argos",
+                       "resemblyzer", "sound_labels", "qwen_aligner"),
         "speech": "small", "backend": "gpu", "translator": "argos",
         "min_ram_mib": 16000, "min_vram_mib": 12000,
         "disk_gb_estimate": "7–12 GB including CUDA wheels and fallback",
@@ -47,7 +49,7 @@ PROFILES = {
         "name": "Experimental · NVIDIA CUDA · min 24 GB VRAM / 32 GB RAM",
         "description": "NVIDIA CUDA Turbo speech, MADLAD-400 3B, NLLB comparison and CPU fallback. Requires at least 24 GB NVIDIA VRAM and 32 GB host RAM; live speed unverified.",
         "components": ("cuda_turbo", "whisper_cpu", "small", "argos",
-                       "resemblyzer", "nllb", "madlad"),
+                       "resemblyzer", "sound_labels", "qwen_aligner", "nllb", "madlad"),
         "speech": "small", "backend": "gpu", "translator": "madlad",
         "min_ram_mib": 32000, "min_vram_mib": 24000,
         "disk_gb_estimate": "30–50 GB (large translations and dependencies)",
@@ -61,6 +63,8 @@ COMPONENTS = {
     "argos": ("Argos DE / EN / TR / FR", "6 directed language packs; all 12 cross-language directions via English pivot"),
     "cuda_turbo": ("Faster-Whisper Large-v3 Turbo CUDA", "CTranslate2 NVIDIA CUDA + checked model"),
     "resemblyzer": ("Resemblyzer speaker clustering", "Estimated voice clusters, not identity"),
+    "sound_labels": ("AST AudioSet sound labels (CPU)", "Optional acoustic labels; Whisper speech unaffected"),
+    "qwen_aligner": ("Qwen3 ForcedAligner 0.6B", "11 supported languages, Apache-2.0; Whisper fallback for TR/unsupported"),
     "nllb": ("NLLB-200 distilled 600M", "CC-BY-NC-4.0; non-commercial only"),
     "madlad": ("MADLAD-400 3B", "Apache-2.0; large CUDA-only translation"),
 }
@@ -76,6 +80,8 @@ COMPONENT_DOWNLOADS = {
     "argos": "runtime + 6 DE/EN/TR/FR language packs · size varies by platform",
     "cuda_turbo": "~1.62 GB model + CUDA/Python dependencies (several GB possible)",
     "resemblyzer": "model + CPU PyTorch dependencies · size varies",
+    "sound_labels": "AST AudioSet model + isolated CPU PyTorch · several GB possible",
+    "qwen_aligner": "Qwen 0.6B weights + isolated PyTorch/CUDA · several GB possible",
     "nllb": "~2.5 GB model + Python dependencies (non-commercial license)",
     "madlad": "~12 GB model weights + CUDA/Python dependencies",
 }
@@ -151,6 +157,12 @@ def local_status(key, *, library=None, starter=None):
     if key == "resemblyzer":
         from .free_speakers import FreeSpeakerMarket
         return FreeSpeakerMarket().status()["installed"]
+    if key == "sound_labels":
+        from .audio_classifiers import AudioLabels
+        return AudioLabels().installed("sound")
+    if key == "qwen_aligner":
+        from .qwen_forced_aligner import QwenForcedAlignerMarket
+        return QwenForcedAlignerMarket().installed()
     if key == "nllb":
         from .translation_market import TranslationModelMarket
         return TranslationModelMarket().status()["installed"]
@@ -233,6 +245,12 @@ def install_components(key, *, library=None, progress=None,
             elif component=="resemblyzer":
                 from .free_speakers import FreeSpeakerMarket
                 FreeSpeakerMarket().install()
+            elif component=="sound_labels":
+                from .audio_classifiers import AudioLabels
+                AudioLabels().install("sound")
+            elif component=="qwen_aligner":
+                from .qwen_forced_aligner import QwenForcedAlignerMarket
+                QwenForcedAlignerMarket().install()
             elif component=="nllb":
                 from .translation_market import TranslationModelMarket
                 TranslationModelMarket().install()
