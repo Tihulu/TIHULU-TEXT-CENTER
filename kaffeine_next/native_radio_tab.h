@@ -507,9 +507,9 @@ public:
                                      10).toInt(),30));
         karaokeSyncHistorySeconds_->setToolTip(tr(
             "Default 10s of recent real Whisper lyric matches/word timestamps. "
-            "This is an in-memory SYNC EVIDENCE window, NOT a second PCM/audio "
-            "buffer or added playback delay. Lip-sync Refresh reuses these "
-            "observations immediately; it never empties or refills libVLC cache."));
+            "The Karaoke matcher also retains at most 3–30 seconds of "
+            "decoded PCM in RAM solely for its own alignment refresh. "
+            "This is NOT a playback buffer, extra receiver or added audio delay."));
         connect(karaokeSyncHistorySeconds_,
             QOverload<int>::of(&QSpinBox::valueChanged),this,
             [this](int seconds){
@@ -517,6 +517,7 @@ public:
                                 QLatin1String("KaffeineRadio"));
                 prefs.setValue(QLatin1String("karaokeSyncHistorySeconds"),seconds);
                 pruneRecentKaraokeEvidence(QDateTime::currentMSecsSinceEpoch());
+                writeRadioLanguageControls(); // next radio audio hop, no retune
             });
         captionComfortRow->addSpacing(12);
         captionComfortRow->addWidget(new QLabel(tr("Reading:"),page));
@@ -2845,6 +2846,8 @@ private:
              lyricMatchThreshold_?lyricMatchThreshold_->value()/100.:0.74},
             {QStringLiteral("karaoke_sync_refresh_token"),
              karaokeSyncRefreshToken_},
+            {QStringLiteral("karaoke_sync_history_seconds"),
+             karaokeSyncHistorySeconds_?karaokeSyncHistorySeconds_->value():10},
             {QStringLiteral("sound_labels"),
              soundLabels_ && soundLabels_->isChecked()}});
         QSaveFile file(captionControlsPath_);
