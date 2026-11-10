@@ -32,6 +32,7 @@ class LocalFullFileAndFullscreenTests(unittest.TestCase):
         self.assertIn('transcribeBeforeOpen"),false',PANEL)
         self.assertIn('if(!url.isLocalFile() || !preprocessOnOpen_->isChecked())',PANEL)
         self.assertIn('return generate(true);',PANEL)
+        self.assertIn('if(!isLocalMedia_) return false;',PANEL)
         self.assertIn('playerTab->prepareLocalFileOpen(copy)',PATCH)
         self.assertIn('if (copy.isLocalFile()',PATCH)
         self.assertIn('return;',PATCH.split('playerTab->prepareLocalFileOpen(copy)',1)[1])
