@@ -83,6 +83,40 @@ class DlsAndRefreshTests(unittest.TestCase):
             self.assertIn(key,TV)
         self.assertIn("manual offset",TV.lower())
         
+    def test_lyric_threshold_is_live_and_bounded(self):
+        from tv_center.lyrics_sync import LiveLyricMatcher
+        lyrics=["The sun is shining now inside my home",
+                "The sun is shining now inside my home",
+                "Summer dreams are everywhere around the world"]
+        with self.assertRaises(ValueError):
+            LiveLyricMatcher(lyrics, threshold=0.55)
+        matcher=LiveLyricMatcher(lyrics,threshold=0.74)
+        first=matcher.observe("The sun is shining now inside my home")
+        self.assertIsNotNone(first)
+        self.assertEqual(first["metric"],
+                         "lexical_overlap_not_audio_sync_probability")
+        # Overlapping ASR repeats must not create a second Karaoke cue.
+        self.assertIsNone(matcher.observe(
+            "The sun is shining now inside my home"))
+        matcher.set_threshold(0.87)
+        self.assertAlmostEqual(matcher.threshold,0.87)
+
+    def test_radio_main_sliders_and_live_translation_engine_reports(self):
+        for marker in (
+            "mainBufferSlider_=new QSlider(Qt::Horizontal,page)",
+            "mainCaptionOffsetSlider_=new QSlider(Qt::Horizontal,page)",
+            "mainLyricOffsetSlider_=new QSlider(Qt::Horizontal,page)",
+            "lyricMatchThreshold_=new QSpinBox(page)",
+            "lyricMatchThreshold_->setRange(65,96)",
+            "lyricMatchThresholdPercent",
+            'QLatin1String("--lyric-match-threshold")',
+            "setBufferDisplayMs(value*500)",
+            "applyRadioBuffer();",
+            "lyricsOffset_->setValue(n*250)",
+            "realEngines.value(code).toString()"
+        ):
+            self.assertIn(marker,RADIO)
+
     def test_direct_translation_prefers_installed_direct_models(self):
         self.assertEqual(direct_de_tr_order(
             nllb_installed=True,madlad_installed=True),
