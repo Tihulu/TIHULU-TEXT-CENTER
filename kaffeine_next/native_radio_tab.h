@@ -384,6 +384,31 @@ public:
             "libVLC output clock not measured"),page);
         radioAudioHealth_->setWordWrap(true);
         dabLayout->addWidget(radioAudioHealth_);
+        // Sound leaves through shared libVLC; the independent Whisper/FFmpeg
+        // capture can transcribe perfectly while the actual speaker is muted.
+        auto *audioOutputRow=new QHBoxLayout();
+        radioAudioOutputStatus_=new QLabel(
+            tr("Output unverified · check Volume, mute and system sink"),page);
+        radioAudioOutputStatus_->setWordWrap(true);
+        audioOutputRow->addWidget(radioAudioOutputStatus_,2);
+        audioOutputRow->addWidget(new QLabel(tr("Volume"),page));
+        radioOutputVolume_=new QSlider(Qt::Horizontal,page);
+        radioOutputVolume_->setRange(0,100);
+        radioOutputVolume_->setValue(player_->getVolume());
+        radioOutputVolume_->setMinimumWidth(80);
+        radioOutputVolume_->setMaximumWidth(160);
+        radioOutputVolume_->setToolTip(tr("Shared Kaffeine/libVLC output volume, not microphone or ASR input."));
+        audioOutputRow->addWidget(radioOutputVolume_,1);
+        radioMuteButton_=new QPushButton(tr("Toggle mute"),page);
+        radioMuteButton_->setToolTip(tr("Toggle the native Kaffeine speaker mute action."));
+        radioReconnectAudio_=new QPushButton(tr("Retry DAB sound"),page);
+        radioReconnectAudio_->setToolTip(tr("Reopen local DAB MP3 in libVLC only; do not retune SDR or stop Whisper."));
+        radioAudioDiagnostics_=new QPushButton(tr("Audio outputs..."),page);
+        radioAudioDiagnostics_->setToolTip(tr("Read-only PipeWire/PulseAudio output routing diagnostics."));
+        audioOutputRow->addWidget(radioMuteButton_);
+        audioOutputRow->addWidget(radioReconnectAudio_);
+        audioOutputRow->addWidget(radioAudioDiagnostics_);
+        dabLayout->addLayout(audioOutputRow);
         // DAB playback is RF/audio first. Heavy AI and EXTRA network cache
         // are opt-in; they must never be required just to tune or scan.
         radioQuickRow_=new QHBoxLayout();
@@ -1974,6 +1999,10 @@ public:
 
 		connect(start_, &QPushButton::clicked, this, [this](){ startReceiver(); });
         connect(stop_, &QPushButton::clicked, this, [this](){ stopRadioListening(); });
+        connect(radioOutputVolume_,&QSlider::valueChanged,player_,&MediaWidget::setVolume);
+        connect(radioMuteButton_,&QPushButton::clicked,player_,&MediaWidget::toggleMuted);
+        connect(radioReconnectAudio_,&QPushButton::clicked,this,[this](){retryDabAudioPlayback();});
+        connect(radioAudioDiagnostics_,&QPushButton::clicked,this,[this](){showRadioAudioDiagnostics();});
         connect(forceRelease_,&QPushButton::clicked,this,[this](){
             stopReceiver();
             state_->setText(active()?
@@ -3118,6 +3147,17 @@ private:
     void monitorRadioPlaybackStop() {
         if(shuttingDown_) return;
         const qint64 now=QDateTime::currentMSecsSinceEpoch();
+        // Mirror the native volume control without asserting sound was heard.
+        if(radioOutputVolume_ && player_) {
+            const int volume=player_->getVolume();
+            if(radioOutputVolume_->value()!=volume) {
+                const QSignalBlocker block(radioOutputVolume_);
+                radioOutputVolume_->setValue(volume);
+            }
+            if(volume==0 && active() && !playingKey_.isEmpty())
+                radioAudioOutputStatus_->setText(
+                    tr("Volume is 0% · raise volume; ASR captions do not prove audio output."));
+        }
         const auto playback=player_->getPlaybackStatus();
         if(playback==MediaWidget::Playing) {
             if(active() && !playingKey_.isEmpty())
@@ -4251,6 +4291,93 @@ private:
 			coarseCorrector_->isChecked()?"1":"0");
 		state_->setText(tr("Requested local welle.io FFT/coarse correction options."));
 	}
+    void retryDabAudioPlayback() {
+        if(!active() || playingKey_.isEmpty() || scanning_) {
+            radioAudioOutputStatus_->setText(
+                tr("Select an active DAB station before retrying sound."));
+            return;
+        }
+        const QString sid=playingKey_.section(QLatin1Char(':'),1);
+        if(!QRegularExpression(QLatin1String("^(?:0x)?[A-Fa-f0-9]{1,8}$"))
+            .match(sid).hasMatch()) {
+            radioAudioOutputStatus_->setText(tr("Invalid DAB service ID; retry cancelled."));
+            return;
+        }
+        const QUrl audio(base()+QLatin1String("/mp3/")+sid);
+        if(!audio.isValid() || audio.host()!=QLatin1String("127.0.0.1")) {
+            radioAudioOutputStatus_->setText(tr("Invalid local MP3 endpoint; retry cancelled."));
+            return;
+        }
+        // Explicit opt-in; do not touch welle-cli, SDR, Whisper or recording.
+        if(player_->getVolume()==0) player_->setVolume(70);
+        player_->stop();
+        dabPlaybackObserved_=false;
+        dabIdleSinceMs_=0;
+        player_->play(audio);
+        audioStartedMs_=QDateTime::currentMSecsSinceEpoch();
+        lastAudioRetuneMs_=audioStartedMs_;
+        playStatus_->setText(tr(
+            "Manual DAB audio reopen · receiver / ASR unchanged. "
+            "Check the main mute control and system output sink."));
+        radioAudioOutputStatus_->setText(tr(
+            "Retrying libVLC sound only. PLAYING does not prove audible speaker output."));
+    }
+    void showRadioAudioDiagnostics() {
+        auto *dlg=new QDialog(this);
+        dlg->setAttribute(Qt::WA_DeleteOnClose);
+        dlg->setWindowTitle(tr("DAB audio · output routing diagnostics"));
+        dlg->resize(760,470);
+        auto *layout=new QVBoxLayout(dlg);
+        auto *report=new QPlainTextEdit(dlg);
+        report->setReadOnly(true);
+        report->setPlainText(tr(
+            "ASR subtitles use a separate audio input; output can be silent.\n"
+            "libVLC: %1 | Volume: %2%\n"
+            "SDR: %3 | DAC audio and mute state: not measured.\n\n"
+            "Use the main Kaffeine mute control and check system Sound settings.\n")
+            .arg(player_->getPlaybackStatus()==MediaWidget::Playing?
+                tr("PLAYING (not audible proof)"):tr("not PLAYING"))
+            .arg(player_->getVolume())
+            .arg(active()?tr("welle-cli active"):tr("not running")));
+        layout->addWidget(report,1);
+        auto *close=new QPushButton(tr("Close"),dlg);
+        layout->addWidget(close);
+        connect(close,&QPushButton::clicked,dlg,&QDialog::close);
+        const QString wpctl=QStandardPaths::findExecutable(QLatin1String("wpctl"));
+        const QString pactl=QStandardPaths::findExecutable(QLatin1String("pactl"));
+        const QString command=wpctl.isEmpty()?pactl:wpctl;
+        if(command.isEmpty()) {
+            report->appendPlainText(tr("No wpctl/pactl binary; inspect system Sound settings."));
+        } else {
+            const QStringList arguments=wpctl.isEmpty()?
+                QStringList{QLatin1String("info")}:
+                QStringList{QLatin1String("status")};
+            report->appendPlainText(tr("Read-only: %1 %2\n")
+                .arg(command,arguments.join(QLatin1Char(' '))));
+            auto *probe=new QProcess(dlg);
+            connect(probe,&QProcess::readyReadStandardOutput,dlg,[probe,report](){
+                report->insertPlainText(
+                    QString::fromLocal8Bit(probe->readAllStandardOutput()).left(18000));
+            });
+            connect(probe,&QProcess::readyReadStandardError,dlg,[probe,report](){
+                report->insertPlainText(
+                    QString::fromLocal8Bit(probe->readAllStandardError()).left(4000));
+            });
+            connect(probe,QOverload<int,QProcess::ExitStatus>::of(&QProcess::finished),
+                    dlg,[report](int code,QProcess::ExitStatus){
+                report->appendPlainText(
+                    QObject::tr("\nAudio routing query ended (%1).").arg(code));
+            });
+            connect(dlg,&QDialog::finished,probe,[probe](int){
+                if(probe->state()!=QProcess::NotRunning) {
+                    probe->kill();
+                    probe->waitForFinished(150);
+                }
+            });
+            probe->start(command,arguments);
+        }
+        dlg->show();
+    }
 	void showReceiverDetails() {
 		if (lastMux_.isEmpty()) {
 			QMessageBox::information(this,tr("Receiver diagnostics"),
@@ -5798,6 +5925,10 @@ private:
     QLabel *radioTranslationBanner_=nullptr;
     QLabel *radioCanvasCaption_=nullptr,*radioLyricMatchStatus_=nullptr;
     QLabel *radioAudioHealth_=nullptr;
+    QLabel *radioAudioOutputStatus_=nullptr;
+    QSlider *radioOutputVolume_=nullptr;
+    QPushButton *radioMuteButton_=nullptr,*radioReconnectAudio_=nullptr,
+                *radioAudioDiagnostics_=nullptr;
     QLabel *receiverOwnership_=nullptr;
     QCheckBox *advancedLanguages_=nullptr;
 	QComboBox *channel_=nullptr, *driver_=nullptr, *speechLanguage_=nullptr,
