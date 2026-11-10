@@ -63,6 +63,7 @@
 #include <QSettings>
 #include <QSaveFile>
 #include <QScrollArea>
+#include <QScrollBar>
 #include <QUrlQuery>
 #include <QSlider>
 #include <QSpinBox>
@@ -1757,6 +1758,13 @@ public:
         karaokePolicy_->setCurrentIndex(policyIndex<0?0:policyIndex);
         mainMatchRow->addWidget(new QLabel(tr("Karaoke trigger:"),page));
         mainMatchRow->addWidget(karaokePolicy_);
+        fullLyricsButton_=new QPushButton(tr("Full Lyrics"),page);
+        fullLyricsButton_->setToolTip(tr(
+            "Show all currently loaded lyrics in a separate resizable window, "
+            "with real source and available translations. No online search."));
+        mainMatchRow->addWidget(fullLyricsButton_);
+        connect(fullLyricsButton_,&QPushButton::clicked,this,
+                [this](){showFullLyricsWindow();});
         previewPrevious_=new QPushButton(tr("◀ Lyric"),page);
         previewNext_=new QPushButton(tr("Lyric ▶"),page);
         previewPrevious_->setToolTip(tr(
@@ -1854,6 +1862,11 @@ public:
             "<b>3 · Lyrics</b> · optional; no search until you choose Find lyrics"),lab));
         auto *quickLyrics=new QPushButton(tr("Find lyrics for current song"),lab);
         v->addWidget(quickLyrics);
+        auto *fullLyricsInOptions=new QPushButton(
+            tr("Full Lyrics · separate window"),lab);
+        v->addWidget(fullLyricsInOptions);
+        connect(fullLyricsInOptions,&QPushButton::clicked,this,
+                [this](){showFullLyricsWindow();});
         // Regional catalogs without a licensed retrieval API are discovery
         // links only: no scraping, automated extraction or caching of lyrics.
         // A click sends ONLY the user-visible artist/title query to browser.
@@ -4624,6 +4637,129 @@ private:
         lastHighlightedKaraokeWord_=-2;
         previewLastHighlightedWord_=-2;
     }
+    void renderFullLyricsWindow(QLabel *info,QPlainTextEdit *view) {
+        if(!info || !view) return;
+        const TihuluDlsSong song=tihuluDlsSong(
+            lastSongDls_.isEmpty()?lastDls_:lastSongDls_);
+        const QString songName=song.valid()?
+            song.artist+QLatin1String(" — ")+song.title:
+            tr("Current radio station · song unknown");
+        const bool timed=!plainLyricMode_ && !lyricCues_.isEmpty();
+        const int count=timed?lyricCues_.size():lyricRawLines_.size();
+        const qint64 now=QDateTime::currentMSecsSinceEpoch();
+        const bool audioVerified=lastVerifiedLyricMs_>0 &&
+            now-lastVerifiedLyricMs_<12000;
+        const QString proof=audioVerified?
+            tr("recent audio-matched Whisper lyrics"):
+            tr("retrieved text · NOT audio-verified");
+        info->setText(tr("%1\nSOURCE: %2 · %3\n%4 · %5 lyric lines · "
+                         "Karaoke/Reading remain independent")
+            .arg(songName.left(200),
+                 lastLyricsProvider_.isEmpty()?tr("unknown / local file"):
+                    lastLyricsProvider_.left(80),
+                 proof,timed?tr("Timed LRC"):tr("Plain TXT"))
+            .arg(count));
+        int currentLine=-1;
+        if(audioVerified && !lastVerifiedLyricText_.isEmpty()) {
+            for(int i=0;i<count && i<350;++i) {
+                const QString line=timed?lyricCues_.at(i).toObject()
+                    .value(QLatin1String("text")).toString():
+                    lyricRawLines_.at(i);
+                if(line.trimmed().compare(
+                    lastVerifiedLyricText_.trimmed(),Qt::CaseInsensitive)==0) {
+                    currentLine=i;
+                    break;
+                }
+            }
+        } else if(karaokePolicy_ &&
+                 (karaokePolicy_->currentData().toString()==QLatin1String("found") ||
+                  karaokePolicy_->currentData().toString()==QLatin1String("found-sync")))
+            currentLine=previewLastIndex_; // ESTIMATED, never proof of singing
+        QString all;
+        if(count<=0) {
+            all=tr("No lyrics loaded. Find lyrics with your consent, or "
+                   "import a legally obtained TXT/LRC file.\n"
+                   "Opening this window never starts network or SDR operations.");
+        } else {
+            for(int i=0;i<count && i<350 && all.size()<70000;++i) {
+                const QJsonObject cue=timed?
+                    lyricCues_.at(i).toObject():QJsonObject();
+                const QString words=timed?
+                    cue.value(QLatin1String("text")).toString().left(500):
+                    lyricRawLines_.at(i).left(500);
+                if(words.trimmed().isEmpty()) continue;
+                QString timestamp;
+                if(timed) {
+                    const double seconds=cue.value(
+                        QLatin1String("start")).toDouble(-1.);
+                    if(seconds>=0. && seconds<86400.) {
+                        const int whole=int(seconds);
+                        timestamp=QString::number(whole/60)
+                            .rightJustified(2,QLatin1Char('0'))+
+                            QLatin1Char(':')+
+                            QString::number(whole%60)
+                            .rightJustified(2,QLatin1Char('0'))+
+                            QLatin1String("  ");
+                    }
+                }
+                all+=(i==currentLine?QLatin1String("▶ "):
+                      QLatin1String("  "))+timestamp+words.trimmed()+
+                      QLatin1Char('\n');
+                const QJsonObject translations=cue.value(
+                    QLatin1String("translations")).toObject();
+                for(const QString &lang:selectedRadioTargets()) {
+                    const QString translated=translations.value(lang)
+                        .toString().trimmed();
+                    if(!translated.isEmpty())
+                        all+=QLatin1String("   [")+lang.toUpper()+
+                            QLatin1String("] ")+translated.left(500)+
+                            QLatin1Char('\n');
+                }
+                all+=QLatin1Char('\n');
+            }
+            if(count>350) all+=tr("… Remaining lyric lines omitted");
+        }
+        if(view->toPlainText()!=all) {
+            const int scroll=view->verticalScrollBar()->value();
+            view->setPlainText(all);
+            view->verticalScrollBar()->setValue(scroll);
+        }
+    }
+    void showFullLyricsWindow() {
+        if(fullLyricsDialog_) {
+            fullLyricsDialog_->show();
+            fullLyricsDialog_->raise();
+            fullLyricsDialog_->activateWindow();
+            return;
+        }
+        auto *dialog=new QDialog(this,Qt::Window);
+        dialog->setAttribute(Qt::WA_DeleteOnClose);
+        dialog->setWindowTitle(tr("TIHULU · Full Lyrics"));
+        dialog->resize(760,660);
+        auto *layout=new QVBoxLayout(dialog);
+        auto *header=new QLabel(dialog);
+        header->setWordWrap(true);
+        header->setTextFormat(Qt::PlainText);
+        layout->addWidget(header);
+        auto *view=new QPlainTextEdit(dialog);
+        view->setReadOnly(true);
+        view->setLineWrapMode(QPlainTextEdit::WidgetWidth);
+        layout->addWidget(view,1);
+        auto *close=new QPushButton(tr("Close Full Lyrics"),dialog);
+        layout->addWidget(close);
+        connect(close,&QPushButton::clicked,dialog,&QDialog::close);
+        fullLyricsDialog_=dialog;
+        connect(dialog,&QObject::destroyed,this,
+                [this](){fullLyricsDialog_=nullptr;});
+        renderFullLyricsWindow(header,view);
+        auto *timer=new QTimer(dialog);
+        timer->setInterval(950);
+        connect(timer,&QTimer::timeout,dialog,[this,header,view](){
+            renderFullLyricsWindow(header,view);
+        });
+        timer->start();
+        dialog->show();
+    }
     void refreshRadioLipSync() {
         const qint64 now=QDateTime::currentMSecsSinceEpoch();
         // Refresh the lower Whisper timing estimator; never start/stop
@@ -6128,7 +6264,9 @@ private:
         *karaokeTranslationsEnabled_=nullptr,
         *soundLabels_=nullptr;
     QComboBox *karaokePolicy_=nullptr;
-    QPushButton *previewPrevious_=nullptr,*previewNext_=nullptr;
+    QPushButton *previewPrevious_=nullptr,*previewNext_=nullptr,
+                *fullLyricsButton_=nullptr;
+    QPointer<QDialog> fullLyricsDialog_;
     qint64 previewStartedMs_=0,previewSpeedCompensationMs_=0;
     int previewPreviousSpeedPercent_=100;
     int previewIndexShift_=0,previewLastIndex_=-1,
