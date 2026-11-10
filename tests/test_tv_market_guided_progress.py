@@ -52,7 +52,7 @@ class ProfileDownloadTests(unittest.TestCase):
             with patch("tv_center.ai_profiles.local_status",side_effect=status):
                 result=install_components("normal",library=library,
                     events=events.append,installer=installer)
-            self.assertEqual(calls,["small","argos"])
+            self.assertEqual(calls,["small","argos","resemblyzer","sound_labels"])
             self.assertEqual(result[0],("whisper_cpu","already installed"))
             self.assertEqual([(e["component"],e["state"]) for e in events],[
                 ("whisper_cpu","checking"),
@@ -61,6 +61,10 @@ class ProfileDownloadTests(unittest.TestCase):
                 ("small","verifying"),("small","installed"),
                 ("argos","checking"),("argos","installing"),
                 ("argos","verifying"),("argos","installed"),
+                ("resemblyzer","checking"),("resemblyzer","installing"),
+                ("resemblyzer","verifying"),("resemblyzer","installed"),
+                ("sound_labels","checking"),("sound_labels","installing"),
+                ("sound_labels","verifying"),("sound_labels","installed"),
             ])
             self.assertNotIn("active_profile",events[-1])
 
