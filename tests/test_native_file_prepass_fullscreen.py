@@ -52,6 +52,8 @@ class LocalFullFileAndFullscreenTests(unittest.TestCase):
         self.assertIn('radioMusicTranscription',PANEL)
         self.assertIn('radioMusicTranscription',RADIO)
         self.assertIn('loadSharedCaptionProfile();',PANEL)
+        self.assertIn('zho_Hant',PANEL)
+        self.assertIn('QStringList extra;',PANEL)
         self.assertNotIn('radioOffsetMs_->value()',PANEL)
         self.assertNotIn('playback_delay_ms',PANEL)
 
