@@ -87,6 +87,8 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
                       controls: str | None=None,
                       radio_translations: bool=False,
                       lyric_match_threshold: float=0.74,
+                      lyric_match_mode: str="lexical",
+                      karaoke_aligner: str="auto",
                       sound_labels: bool=False,
                       karaoke_enabled: bool=False):
     if type(port) is not int or not 1024 <= port <= 65535:
@@ -114,8 +116,12 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
         raise ValueError("Karaoke vocal matching opt-in must be boolean")
     if (not isinstance(lyric_match_threshold,(int,float)) or
             isinstance(lyric_match_threshold,bool) or
-            not 0.65<=lyric_match_threshold<=0.96):
-        raise ValueError("Lyrics similarity threshold must be 65–96%")
+            not 0.0<=lyric_match_threshold<=1.0):
+        raise ValueError("Lyrics similarity threshold must be 0–100%")
+    if lyric_match_mode not in ("lexical","fuzzy"):
+        raise ValueError("Unknown Lyrics Match method")
+    if karaoke_aligner not in ("auto","whisper","qwen"):
+        raise ValueError("Unknown Karaoke AI engine")
     location=checked_runtime_output(output,prefix="tihulu-radio-captions-")
     controls_path=(checked_runtime_output(
         controls,prefix="tihulu-radio-controls-") if controls else None)
@@ -254,10 +260,18 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
                         requested_threshold=payload.get("lyric_match_threshold")
                         if (isinstance(requested_threshold,(float,int)) and
                                 not isinstance(requested_threshold,bool) and
-                                0.65<=requested_threshold<=0.96):
+                                0.0<=requested_threshold<=1.0):
                             lyric_match_threshold=float(requested_threshold)
                             if plain_matcher is not None:
                                 plain_matcher.set_threshold(lyric_match_threshold)
+                        requested_mode=payload.get("lyric_match_mode")
+                        if requested_mode in ("lexical","fuzzy"):
+                            lyric_match_mode=requested_mode
+                            if plain_matcher is not None:
+                                plain_matcher.set_mode(lyric_match_mode)
+                        requested_aligner=payload.get("karaoke_aligner")
+                        if requested_aligner in ("auto","whisper","qwen"):
+                            karaoke_aligner=requested_aligner
                         controls_note="live_preferences_applied"
                 except (OSError,ValueError,TypeError,KeyError,
                         json.JSONDecodeError) as exc:
@@ -278,7 +292,8 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
                     payload=json.loads(lyric_path.read_text(encoding="utf-8"))
                     lines=payload.get("plain_lines",[])
                     plain_matcher=(LiveLyricMatcher(
-                        lines,threshold=lyric_match_threshold)
+                        lines,threshold=lyric_match_threshold,
+                        mode=lyric_match_mode)
                                    if payload.get("alignment_mode") in
                                    ("asr_lexical","timed_lrc")
                                    and isinstance(lines,list) and lines else None)
@@ -481,7 +496,8 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
                 used_language if not language_pending else None)
             alignment_option=karaoke_alignment_choice(
                 alignment_language,
-                qwen_installed=qwen_installed)
+                qwen_installed=qwen_installed,
+                requested=karaoke_aligner)
             # Qwen cannot claim the song matches; Whisper's lexical match
             # must already have accepted it. Non-blocking future: presenter
             # speech, translations and the next radio PCM hop never wait for
@@ -550,6 +566,8 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
                     "karaoke_alignment_engine":("qwen" if qwen_refinement else "whisper"),
                     "karaoke_alignment_candidate":alignment_option["engine"],
                     "karaoke_alignment_reason":alignment_option["reason"],
+                    "karaoke_alignment_requested":karaoke_aligner,
+                    "lyric_match_mode":lyric_match_mode,
                     "karaoke_qwen_refinement":qwen_refinement,
                     "radio_content_route":radio_content_route,
                     "original":original[:1800],
@@ -702,6 +720,8 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
                 "karaoke_alignment_engine":("qwen" if qwen_refinement else "whisper"),
                 "karaoke_alignment_candidate":alignment_option["engine"],
                 "karaoke_alignment_reason":alignment_option["reason"],
+                    "karaoke_alignment_requested":karaoke_aligner,
+                    "lyric_match_mode":lyric_match_mode,
                 "karaoke_qwen_refinement":qwen_refinement,
                 "radio_content_route":radio_content_route,
                 "lyric_match_threshold":round(lyric_match_threshold,3),
@@ -910,7 +930,11 @@ def main(args=None):
     live.add_argument("--output",required=True)
     live.add_argument("--music",action="store_true")
     live.add_argument("--lyric-match-threshold",type=float,default=0.74,
-                      help="65–96%% lyric/ASR lexical overlap minimum; not sync confidence")
+                      help="0–100%% lyric/ASR overlap minimum; not audio timing confidence")
+    live.add_argument("--lyric-match-mode",choices=("lexical","fuzzy"),
+                      default="lexical",help="Whisper Lyrics Match strategy")
+    live.add_argument("--karaoke-aligner",choices=("auto","whisper","qwen"),
+                      default="auto",help="Word timing engine, not song recognition")
     live.add_argument("--sound-labels",action="store_true",
                       help="Local AST AudioSet sound labels; optional, never replaces speech")
     live.add_argument("--radio-translations",action="store_true",
@@ -963,6 +987,8 @@ def main(args=None):
             host_caption_offset_ms=opts.host_caption_offset_ms,
             radio_translations=opts.radio_translations,
             lyric_match_threshold=opts.lyric_match_threshold,
+            lyric_match_mode=opts.lyric_match_mode,
+            karaoke_aligner=opts.karaoke_aligner,
             sound_labels=opts.sound_labels)
         return 0
     except (OSError,ValueError,RuntimeError,subprocess.TimeoutExpired) as exc:
