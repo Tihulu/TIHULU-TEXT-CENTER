@@ -515,6 +515,7 @@ class CaptionTap:
             shadow=result.pop("teletext_shadow",None)
             if (probe and selected=="auto" and
                     str(result.get("source","")).startswith("broadcaster_teletext")):
+                previous_teletext_state=self.teletext_audit.status
                 verdict=self.teletext_audit.observe(
                     result.get("original"),probe.get("text"),
                     options.get("teletext_language") or result.get("source_language"),
@@ -522,7 +523,14 @@ class CaptionTap:
                 result["teletext_audit"]=(
                     f"{self.teletext_audit.attempts} speech checks · "
                     f"{verdict} · {self.teletext_audit.last_reason}")
+                if verdict=="delayed" and previous_teletext_state!=(
+                        "TELETEXT · DELAY CHECK"):
+                    # Re-sample *actual available* transport/audio clocks.
+                    # We do not have trusted decoded Teletext PTS or sound
+                    # card presentation PTS, so NEVER manufacture a 6s jump.
+                    result["teletext_sync_recheck"]=True
                 if verdict=="switched":
+                    result["teletext_source_transition"]="whisper"
                     # The real concurrent ASR audio is already available.
                     # Discard OLD Teletext translations; translate the heard
                     # speech after natural sentence assembly below.
@@ -544,6 +552,8 @@ class CaptionTap:
                 result["teletext_audit"]=(
                     "Whisper safe fallback · sampled actual broadcaster text: "+
                     verdict+" · "+self.teletext_audit.last_reason)
+                if verdict=="recovered":
+                    result["teletext_return_pending"]=True
                 # If recovered, keep THIS segment's genuine ASR; begin
                 # broadcasting Teletext from the NEXT capture only.
             elif (selected=="auto" and options["mode"]=="auto"
@@ -3001,6 +3011,29 @@ def main(argv=None):
                 if (data.get("revision") != applied.revision or
                         data.get("program_epoch") != tap.program_epoch):
                     continue
+                if data.get("teletext_source_transition")=="whisper":
+                    # Drop OLD Teletext cues in this same channel once
+                    # audio has disproved them; don't show them while new
+                    # Whisper and translations are being assembled.
+                    cues.clear()
+                    deferred_captions.clear()
+                    recent_voice_lines.clear()
+                    current_cue=None
+                    current_text=""
+                    current_until=0.0
+                    ipc.publish("",applied)
+                    original.setText(
+                        "WHISPER · AUTO FALLBACK · real spoken audio replacing "
+                        "mismatched Teletext…")
+                    translated.clear()
+                if data.get("teletext_sync_recheck"):
+                    estimator.clear()
+                    auto_controller.reset()
+                    sync_estimate.setText(
+                        "Teletext appears shifted relative to adjacent "
+                        "verified speech. Re-sampling native TS buffer and "
+                        "ASR timing before changing source. No trusted "
+                        "libVLC/DAC PTS; no forced subtitle time jump.")
                 if data.get("teletext_status"):
                     teletext_speech_status.setText(
                         str(data["teletext_status"])+
