@@ -4489,6 +4489,7 @@ private:
         karaokeLine_.clear();
         karaokeWordAnchors_=QJsonArray();
         lastHighlightedKaraokeWord_=-2;
+        previewLastHighlightedWord_=-2;
     }
     void refreshKaraokeWordHighlight(qint64 now) {
         if(!karaokeCurrent_ || karaokeLine_.isEmpty() ||
@@ -4599,7 +4600,7 @@ private:
         const bool alreadyShown=(previewLastIndex_==index &&
             karaokePanel_->isVisible() &&
             karaokeSource_->text().contains(QLatin1String("UNVERIFIED")) &&
-            karaokeCurrent_->text()==line);
+            karaokeLine_==line);
         // Keep the preview alive, but do not reflow text every 300 ms.
         lastKaraokeUntilMs_=now+1500;
         if(alreadyShown && !previewLipSync) return;
@@ -4607,8 +4608,10 @@ private:
         karaokeLine_=line;
         karaokeWordAnchors_=QJsonArray(); // no fabricated word timestamps
         lastHighlightedKaraokeWord_=-2;
-        karaokeCurrent_->setTextFormat(Qt::PlainText);
-        karaokeCurrent_->setText(line);
+        if(!alreadyShown) {
+            karaokeCurrent_->setTextFormat(Qt::PlainText);
+            karaokeCurrent_->setText(line);
+        }
         if(previewLipSync) {
             // LRC line time is not actual heard word timing. The six-second
             // plain-text sweep is also intentionally unverified.
@@ -4631,7 +4634,12 @@ private:
                 words.append(qMakePair(match.capturedStart(),
                                        match.capturedEnd()));
             }
-            const int swept=qBound(0,int(fraction*words.size()),words.size());
+            // Highlight the CURRENT sung word, dim past words. Don't
+            // rebuild the rich label while the same estimated word is active.
+            const int swept=words.isEmpty()?-1:qBound(0,
+                int(fraction*words.size()),words.size()-1);
+            if(alreadyShown && swept==previewLastHighlightedWord_) return;
+            previewLastHighlightedWord_=swept;
             QString html=QLatin1String("<span style=\"color:#e8edf2\">");
             int cursor=0;
             for(int i=0;i<words.size();++i) {
@@ -4639,10 +4647,11 @@ private:
                 const int last=words.at(i).second;
                 html+=line.mid(cursor,first-cursor).toHtmlEscaped();
                 html+=QLatin1String("<span style=\"color:")+
-                      (i<swept?QLatin1String("#ffe17c"):
-                               QLatin1String("#e8edf2"))+
+                      (i<swept?QLatin1String("#96aab8"):
+                       i==swept?QLatin1String("#ffe17c"):
+                                QLatin1String("#e8edf2"))+
                       QLatin1String(";font-weight:")+
-                      (i<swept?QLatin1String("800"):QLatin1String("600"))+
+                      (i==swept?QLatin1String("800"):QLatin1String("600"))+
                       QLatin1String("\">")+
                       line.mid(first,last-first).toHtmlEscaped()+
                       QLatin1String("</span>");
@@ -5765,7 +5774,8 @@ private:
     QComboBox *karaokePolicy_=nullptr;
     QPushButton *previewPrevious_=nullptr,*previewNext_=nullptr;
     qint64 previewStartedMs_=0;
-    int previewIndexShift_=0,previewLastIndex_=-1;
+    int previewIndexShift_=0,previewLastIndex_=-1,
+        previewLastHighlightedWord_=-2;
 	QCheckBox *autoLyrics_=nullptr,*autoLyricSync_=nullptr,
 		*preferLyrics_=nullptr,*listenFallbackOnMiss_=nullptr;
     bool lyricsAudioFallbackActive_=false,lyricsFallbackStartedAi_=false,
