@@ -1702,7 +1702,13 @@ public:
                 writeRadioLanguageControls();
             });
 		autoLyrics_=new QCheckBox(tr("Auto search lyrics on new DLS song"),lab);
-		autoLyrics_->setChecked(false);
+        // Restore previously granted *metadata-only* online consent.
+        // No network work starts on this UI creation. Station DLS debounce
+        // triggers a lookup only for owners who enabled this previously.
+        QSettings lyricConsentPrefs(QLatin1String("TIHULU"),
+                                   QLatin1String("KaffeineRadio"));
+        autoLyrics_->setChecked(lyricConsentPrefs.value(
+            QLatin1String("lyricsOnlineOptIn"),false).toBool());
 		autoLyrics_->setToolTip(tr("OFF by default. When enabled, the current radio DLS "
 			"artist/title is sent to LRCLIB on each new song. No audio or private RF data are uploaded."));
 		connect(autoLyrics_,&QCheckBox::toggled,this,[this](bool enabled){
