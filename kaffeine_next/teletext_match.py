@@ -87,7 +87,11 @@ class TeletextAudit:
         self.clips+=1
 
     def needs_probe(self):
-        return self.clips<=self.maximum or self.clips%self.probe_interval==0
+        # After any discrepancy, sample adjacent captures until stable;
+        # otherwise use low-cost periodic probes throughout the programme.
+        return (self.clips<=self.maximum or
+                self.last_verdict in ("conflicting","delayed","missing") or
+                self.clips%self.probe_interval==0)
 
     def missing(self):
         self.prefer_asr=True
@@ -102,7 +106,12 @@ class TeletextAudit:
         if verdict=="conflicting":
             # Speech and Teletext may be one capture apart. Check bounded
             # neighbouring verified snippets before calling a mismatch.
-            for prior_teletext,prior_spoken,prior_source,prior_speech in self._previous:
+            for prior_teletext,prior_spoken,prior_source,prior_speech,prior_clip in self._previous:
+                # A six-second adjacent clip might be a subtitle delay;
+                # a remembered line from 18–36 seconds ago is STALE, not
+                # evidence to keep retaining unrelated programme captions.
+                if self.clips-prior_clip!=1:
+                    continue
                 if (compare_text(teletext,prior_spoken,source_lang,
                                  prior_speech)=="matching" or
                     compare_text(prior_teletext,spoken,prior_source,
@@ -111,7 +120,7 @@ class TeletextAudit:
                     break
         if spoken and teletext:
             self._previous.append((str(teletext)[:2500],str(spoken)[:2500],
-                                   source_lang,speech_lang))
+                                   source_lang,speech_lang,self.clips))
         self.attempts+=1
         self.last_verdict=verdict
         if self.prefer_asr:
