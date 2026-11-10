@@ -170,12 +170,12 @@ def _chunk_cues(pcm: bytes, *, position: float, lang: str, profile:dict,
 
 def transcribe_local_media(filename: str, *, source: str="auto",
                            targets=(), music:bool=False,
-                           max_seconds:int=7200):
+                           max_seconds:int=21600):
     media=validate_local_media(filename)
     source=("auto" if source=="auto" else language_code(source))
     targets=tuple(dict.fromkeys(language_code(t,nllb=True) for t in targets))
-    if len(targets)>3:
-        raise ValueError("Choose at most three translation targets")
+    if len(targets)>6:
+        raise ValueError("Choose at most six translation targets")
     ai=AISettings()
     ai.configure_environment()
     if not ai.values["asr_enabled"]:
@@ -198,8 +198,12 @@ def transcribe_local_media(filename: str, *, source: str="auto",
             cues.extend(_chunk_cues(pcm,position=pcm_seconds,lang=source,
                                     profile=profile,backend=backend,music=music))
             pcm_seconds+=len(pcm)/(2*CHUNK_SAMPLES)
-            if len(cues)>6000:
+            if len(cues)>12000:
                 raise RuntimeError("Subtitle cue limit reached")
+        # Never silently label the first six hours as a COMPLETE file
+        # transcript. Fail clearly if the media exceeds the safety cap.
+        if pcm_seconds>=max_seconds and proc.stdout.read(1):
+            raise RuntimeError("File exceeds the six-hour offline transcription limit")
     finally:
         if proc.poll() is None:
             proc.terminate()
@@ -314,13 +318,13 @@ def _translate_cues(cues:list[LyricCue],targets,source):
 
 def create_subtitles(filename, *, source="auto", targets=(),music=False,
                      lyrics=False,fetch_lyrics=False,artist="",track="",
-                     output=None,overwrite=False):
+                     output=None,overwrite=False,translations_only=False):
     media=validate_local_media(filename)
     source=("auto" if source=="auto" else language_code(source))
     target_codes=tuple(dict.fromkeys(language_code(t,nllb=True)
                                      for t in targets))
-    if len(target_codes)>3:
-        raise ValueError("At most three translation languages supported")
+    if len(target_codes)>6:
+        raise ValueError("At most six translation languages supported")
     if lyrics:
         meta=media_metadata(media)
         cues,origin=_lyrics_for_file(media,meta,fetch_lyrics=fetch_lyrics,
@@ -336,7 +340,8 @@ def create_subtitles(filename, *, source="auto", targets=(),music=False,
         origin={"source":"local Whisper", "backend":backend}
     translations,warnings=_translate_cues(cues,target_codes,source)
     output_path=Path(output).expanduser() if output else media.with_suffix(".srt")
-    write_srt(cues,output_path,overwrite=overwrite,translations=translations)
+    write_srt(cues,output_path,overwrite=overwrite,translations=translations,
+              include_original=not translations_only)
     return {
         "status":"completed","input":str(media),"output":str(output_path),
         "source_language":source,"targets":list(target_codes),
@@ -366,6 +371,8 @@ def main(args=None):
     parser.add_argument("--artist",default="")
     parser.add_argument("--output")
     parser.add_argument("--overwrite",action="store_true")
+    parser.add_argument("--translations-only",action="store_true",
+                        help="Use translated output if available; retain original on failure")
     options=parser.parse_args(args)
     try:
         result=create_subtitles(
@@ -374,7 +381,8 @@ def main(args=None):
             music=options.music,lyrics=options.lyrics,
             fetch_lyrics=options.fetch_lyrics,artist=options.artist,
             track=options.track,output=options.output,
-            overwrite=options.overwrite)
+            overwrite=options.overwrite,
+            translations_only=options.translations_only)
     except (ValueError,OSError,RuntimeError,FileExistsError,
             subprocess.TimeoutExpired) as exc:
         print(json.dumps({"status":"error","reason":str(exc)[:300]},
