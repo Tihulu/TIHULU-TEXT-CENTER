@@ -67,7 +67,7 @@ class RadioLowLatencyAndSpeechTests(unittest.TestCase):
                   patch("tv_center.radio_ai._chunk_cues",side_effect=recognize)):
                 state=decode_radio_live(
                     port=8765,sid="0123",source="de",targets=(),
-                    output=str(output),music=False,
+                    output=str(output),music=False,karaoke_enabled=True,
                     prefer_verified_lyrics=True,max_chunks=1)
             result=json.loads(output.read_text())
             self.assertEqual(state["chunks"],1)
