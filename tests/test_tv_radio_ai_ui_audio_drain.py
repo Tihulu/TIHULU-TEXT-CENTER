@@ -73,7 +73,12 @@ class RadioAIUXRegressionTests(unittest.TestCase):
 
     def test_radio_backend_preserves_music_as_nontext_status(self):
         code=(ROOT/"tv_center/radio_ai.py").read_text()
-        self.assertIn('original=lyric_match["text"]',code)
+        # Lower AI captions are the raw Whisper ASR stream, never a
+        # potentially fuzzy/low-threshold lyric substitution.
+        self.assertNotIn('original=lyric_match["text"]',code)
+        self.assertIn('preferred_lyric_text=(lyric_match.get("text","")',code)
+        self.assertIn('source_word_timed=bool(detection.get("asr_words"))',code)
+        self.assertIn('prefer_readable=True',code)
         self.assertIn('and lyric_match:',code)
         self.assertNotIn('original="[music]"',code)
         self.assertIn('"music_detected":False',code)
