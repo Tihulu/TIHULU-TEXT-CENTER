@@ -2547,6 +2547,27 @@ public:
                     karaokeEnabled_->setChecked(true);
                 if(prefs.value(QLatin1String("radioAiAutoKaraokeTranslations"),true).toBool())
                     karaokeTranslationsEnabled_->setChecked(true);
+                // AI captions mean real audio transcription. An earlier
+                // metadata-only DLS selection must NOT make AI ON look
+                // enabled while no Whisper worker exists until Karaoke
+                // later changes the source back to ASR.
+                if(captionSource_ &&
+                   captionSource_->currentData().toString()==
+                       QLatin1String("dls")) {
+                    const int asr=captionSource_->findData(QLatin1String("asr"));
+                    if(asr>=0) {
+                        const QSignalBlocker block(captionSource_);
+                        captionSource_->setCurrentIndex(asr);
+                    }
+                }
+                // Just as with TV, establish the independent Whisper
+                // audio worker BEFORE any optional Lyrics consent prompt.
+                // Slow lookups, karaoke matches and metadata are not
+                // prerequisites for the first spoken subtitle.
+                if(active() && !playingKey_.isEmpty()) startCaptioning();
+                else radioCaptionBanner_->setText(tr(
+                    "AI armed for the next station. No speech processing "
+                    "until a DAB station is playing."));
                 // Online metadata is shared with external providers only
                 // after one informed user click/consent.
                 bool onlineConsent=prefs.value(
@@ -2574,10 +2595,6 @@ public:
                                 fetchLyrics(true);
                         });
                 }
-                if(active() && !playingKey_.isEmpty()) startCaptioning();
-                else radioCaptionBanner_->setText(tr(
-                    "AI armed for the next station. No speech processing "
-                    "until a DAB station is playing."));
                 setRadioLyricMatchStatus(tr(
                     "KARAOKE · AI ON · waiting for verified lyrics / Whisper"));
             } else {
