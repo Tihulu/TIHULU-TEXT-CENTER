@@ -335,14 +335,14 @@ QAbstractButton *StartTab::addShortcut''')
 			progress->show();
 			progress->setValue(10);
 			progress->setFormat(
-				i18n("10%% · TV selected; inspecting owned radio receiver"));
+				i18n("%p% · TV selected; inspecting owned radio receiver"));
 			progress->repaint();
 		}
 		if (radioOwned) {
 			if (progress) {
 				progress->setValue(35);
 				progress->setFormat(
-					i18n("35%% · invalidating radio and releasing SDR"));
+					i18n("%p% · invalidating radio and releasing SDR"));
 				progress->repaint();
 			}
 			if (!static_cast<TihuluRadioTab *>(
@@ -350,7 +350,7 @@ QAbstractButton *StartTab::addShortcut''')
 				if (progress) {
 					progress->setValue(0);
 					progress->setFormat(
-						i18n("0%% · SDR release failed; TV switch cancelled"));
+						i18n("%p% · SDR release failed; TV switch cancelled"));
 				}
 				QSignalBlocker keepCurrent(tabBar);
 				tabBar->setCurrentIndex(currentTabIndex);
@@ -361,7 +361,7 @@ QAbstractButton *StartTab::addShortcut''')
 		if (progress) {
 			progress->setValue(85);
 			progress->setFormat(i18n(
-				"85%% · radio released/idle; activating native DVB page"));
+				"%p% · radio released/idle; activating native DVB page"));
 			progress->repaint();
 		}
 	}
@@ -369,7 +369,7 @@ QAbstractButton *StartTab::addShortcut''')
 		progress->show();
 		progress->setValue(70);
 		progress->setFormat(i18n(
-			"70%% · opening Radio without claiming SDR yet"));
+			"%p% · opening Radio without claiming SDR yet"));
 		progress->repaint();
 	}
 	currentTabIndex = tabIndex;
@@ -387,8 +387,8 @@ QAbstractButton *StartTab::addShortcut''')
 	if (progress && (toTelevision || toRadio)) {
 		progress->setValue(100);
 		progress->setFormat(toTelevision ?
-			i18n("100%% · TV tab ready; RF lock not yet measured") :
-			i18n("100%% · Radio tab ready; SDR on-demand"));
+			i18n("%p% · TV tab ready; RF lock not yet measured") :
+			i18n("%p% · Radio tab ready; SDR on-demand"));
 	}
 	setProperty("tihuluTabSwitchBusy",false);
 	emit displayModeChanged();
