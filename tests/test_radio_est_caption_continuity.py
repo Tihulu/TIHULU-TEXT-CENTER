@@ -44,7 +44,7 @@ class EstCaptionContinuityTests(unittest.TestCase):
         self.assertIn("const int adjustment=newOffset-lastCaptionOffsetMs_;",UI)
         self.assertIn("lastCaptionOffsetMs_=newOffset;",UI)
         self.assertIn("for(auto &cue:cueQueue_) cue.dueMs+=adjustment;",UI)
-        self.assertIn('prefs.setValue(QLatin1String("captionOffsetMs")',UI)
+        self.assertIn('saved.setValue(QLatin1String("captionOffsetMs")',UI)
         self.assertIn("karaokeDue=qMax(now,due-",UI)
         self.assertIn("radioOffsetMs_->value()+lyricsOffset_->value()",UI)
 
