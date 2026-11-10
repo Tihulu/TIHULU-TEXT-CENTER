@@ -27,6 +27,7 @@ from .sentence_joiner import LiveSentenceJoiner
 from .radio_language import RadioLanguageLock
 from .media_ai import _chunk_cues, _choose_model, _near_silent_pcm, CHUNK_SAMPLES
 from .radio_capture import BoundedRadioCapture
+from .radio_karaoke_router import MusicSpeechRouter, karaoke_alignment_choice
 
 _SID = re.compile(r"(?:0x)?[A-Fa-f0-9]{1,8}\Z")
 
@@ -157,6 +158,7 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
     lyric_source_language="auto"
     lyric_target_codes=()
     lyric_translation_cache={}
+    song_router=MusicSpeechRouter()
     # Raw *heard Whisper* text/word epochs only, never catalog lyrics or PCM.
     # The last ten seconds can be searched again without audio or ASR restart.
     recent_lyric_asr=deque(maxlen=4)
@@ -264,6 +266,7 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
                     lyric_source_language=payload.get("source_language","auto")
                     lyric_target_codes=tuple(payload.get("translation_targets",[]))[:6]
                     lyric_translation_cache.clear()
+                    song_router.change_song(plain_matcher is not None)
                     # Prevent preceding song ASR from matching the new song.
                     recent_lyric_asr.clear()
             except (OSError,ValueError,TypeError,json.JSONDecodeError):
@@ -273,14 +276,16 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
                     lyric_source_language="auto"
                     lyric_target_codes=()
                     lyric_translation_cache.clear()
+                    song_router.change_song(False)
                     recent_lyric_asr.clear()
             # Lyrics lookup itself does not recognize singing. As soon as a
             # real, authorized TXT/LRC song catalog has arrived, let Whisper
             # observe vocals for matching WITHOUT restarting the radio or
             # sidecar. On a new song / file removal restore normal speech
             # VAD automatically. Metadata alone NEVER enables vocal mode.
-            music_for_matching=bool(music or
-                (plain_matcher is not None and karaoke_enabled))
+            music_for_matching=song_router.use_music_vocals(
+                enabled=bool(plain_matcher is not None and karaoke_enabled),
+                manual_music=music)
             translator_enabled=effective_radio_translation_enabled(
                 ai.values["translation_enabled"],radio_translations,
                 ai.values.get("translation_model","argos"))
@@ -336,6 +341,13 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
             heard_asr=original  # preserve actual Whisper words before any substitution
             lyric_match=(plain_matcher.observe(heard_asr)
                          if plain_matcher is not None and heard_asr else None)
+            # DLS is a song *hint*. Presenter speech is never held hostage
+            # to the karaoke catalog: after two unmatched voiced chunks,
+            # revert to speech-oriented Whisper and probe lyrics periodically.
+            radio_content_route=song_router.observe(
+                matched=bool(lyric_match),
+                recognized_speech=bool(heard_asr),
+                chunk=capture_index)
             sentence_state={"text":original,"complete":True,"pending":False,"chunks":0}
             if plain_matcher is None and not music_for_matching:
                 sentence_state=sentence_joiner.push(
@@ -432,6 +444,11 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
                 capture_end_epoch_ms=lyric_word_epoch,
                 window_seconds=lyric_word_window)
                 if lyric_match else [])
+            alignment_option=karaoke_alignment_choice(
+                used_language if not language_pending else None,
+                qwen_installed=False)  # no Qwen inference in this worker yet
+            # All languages retain genuine Whisper ASR+GPU word timing,
+            # including unsupported-for-Qwen Turkish and undetermined audio.
 
             # Publish the ORIGINAL promptly after ASR. A slow sequential
             # NLLB/MADLAD/Argos/DeepL translation must not block hearing
@@ -451,6 +468,9 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
                     "lyric_translations":{},
                     "karaoke_sync_refresh_status":sync_refresh_status,
                     "karaoke_sync_refresh_applied":sync_refresh_applied,
+                    "karaoke_alignment_engine":alignment_option["engine"],
+                    "karaoke_alignment_reason":alignment_option["reason"],
+                    "radio_content_route":radio_content_route,
                     "original":original[:1800],
                     "source_language":used_language or "und",
                     "language_source":language_reason,
@@ -598,6 +618,9 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
                 "lyric_match":lyric_match,
                 "karaoke_sync_refresh_status":sync_refresh_status,
                 "karaoke_sync_refresh_applied":sync_refresh_applied,
+                "karaoke_alignment_engine":alignment_option["engine"],
+                "karaoke_alignment_reason":alignment_option["reason"],
+                "radio_content_route":radio_content_route,
                 "lyric_match_threshold":round(lyric_match_threshold,3),
                 "lyric_match_metric":"lexical_overlap_not_sync_accuracy",
                 "lyric_word_anchors":lyric_word_anchors,
@@ -620,7 +643,7 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
                 "backend":backend,
                 "music_mode":music_for_matching,
                 "vocal_match_mode":("lyrics_catalog_vad_relaxed"
-                    if plain_matcher is not None and karaoke_enabled and not music else
+                    if music_for_matching and not music else
                     "user_music_transcribe" if music else "speech_default"),
                 "content_type":("music_lyrics_metadata" if plain_matcher is not None
                                  else "speech_or_unclassified"),
