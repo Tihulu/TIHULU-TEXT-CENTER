@@ -1669,9 +1669,14 @@ public:
         mainLyricOffsetRow->addWidget(new QLabel(tr(
             "Karaoke sync history:"),page));
         mainLyricOffsetRow->addWidget(karaokeSyncHistorySeconds_);
-        mainLyricOffsetRow->addWidget(new QLabel(tr(
-            "Verified Whisper words · no audio rebuffer · Reading independent"),
-            page));
+        karaokeEngineStatus_=new QLabel(tr(
+            "Karaoke model: checking · Qwen if available, Whisper fallback"),
+            page);
+        karaokeEngineStatus_->setToolTip(tr(
+            "Qwen ForcedAligner improves word timing for supported "
+            "languages and CONFIRMED lyric lines; cannot recognize song "
+            "lines alone. Whisper speech captions are always independent."));
+        mainLyricOffsetRow->addWidget(karaokeEngineStatus_);
         connect(mainLyricOffsetSlider_,&QSlider::valueChanged,
             this,[this](int n){ lyricsOffset_->setValue(n*250); });
         connect(lyricsOffset_,&QSlider::valueChanged,this,[this](int ms){
@@ -5663,6 +5668,29 @@ private:
                     .arg(lost));
             lastRadioChunk_=chunk;
             lastRadioRevision_=revision;
+            // Report candidate and applied karaoke engine, independently
+            // from the continuous Whisper speaker/transcript stream.
+            const QString karaokeCandidate=obj.value(
+                QLatin1String("karaoke_alignment_candidate")).toString();
+            const QString karaokeApplied=obj.value(
+                QLatin1String("karaoke_alignment_engine")).toString();
+            const QString karaokeReason=obj.value(
+                QLatin1String("karaoke_alignment_reason")).toString();
+            if(karaokeEngineStatus_) {
+                if(karaokeApplied==QLatin1String("qwen"))
+                    karaokeEngineStatus_->setText(tr(
+                        "Karaoke: Qwen3 aligned · Whisper captions separate"));
+                else if(karaokeCandidate==QLatin1String("qwen"))
+                    karaokeEngineStatus_->setText(tr(
+                        "Karaoke: Qwen3 eligible · Whisper timing fallback"));
+                else if(karaokeReason==
+                        QLatin1String("unsupported_or_undetected_language"))
+                    karaokeEngineStatus_->setText(tr(
+                        "Karaoke: Whisper · unsupported/unknown Qwen language"));
+                else
+                    karaokeEngineStatus_->setText(tr(
+                        "Karaoke: Whisper fallback · Qwen unavailable/manual"));
+            }
 			const double captured=obj.value(QLatin1String("captured_monotonic")).toDouble();
 			const double decoded=obj.value(QLatin1String("decoded_monotonic")).toDouble();
 			const int inference=(decoded>=captured && decoded-captured<=90.)
@@ -6958,7 +6986,7 @@ private:
 		*coarseCorrector_=nullptr;
 	QSlider *lyricsOffset_=nullptr;
 	QLabel *lyricsOffsetValue_=nullptr,*lyricsSyncState_=nullptr,
-        *lyricProvider_=nullptr;
+        *lyricProvider_=nullptr,*karaokeEngineStatus_=nullptr;
 	QProgressBar *captionProgress_=nullptr,*audioCacheProgress_=nullptr,
                  *quickBufferProgress_=nullptr;
 	QLabel *bufferRecommendation_=nullptr;
