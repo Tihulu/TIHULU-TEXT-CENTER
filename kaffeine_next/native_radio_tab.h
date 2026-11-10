@@ -3351,60 +3351,28 @@ private:
 							tr("[DLS broadcaster metadata] %1").arg(dls).left(700)});
 						while(cueQueue_.size()>12) cueQueue_.removeFirst();
 					}
-                    // Many stations rotate DLS song title, announcements
-                    // and station slogans while playing the SAME song.
-                    // An arbitrary DLS change MUST NOT erase the current
-                    // lyric match and start another lookup repeatedly.
+                    // Distinct normalized DLS metadata alone is not proof
+                    // the current song ended. Wait for a stable candidate.
                     const TihuluDlsSong newSong=tihuluDlsSong(dls);
-                    const bool songMetadata=newSong.valid();
-                    const bool newSongMetadata=songMetadata &&
-                        newSong.normalizedKey()!=lastSongMetadataKey_;
-                    if(newSongMetadata) {
-                        lastSongMetadataKey_=newSong.normalizedKey();
-                        lastSongDls_=dls;
-					// DLS is live; the audible audio may be delayed by radio caching.
-					// This is approximate metadata sync, NOT audio fingerprinting.
-					songStartMs_=QDateTime::currentMSecsSinceEpoch()+
-						activePlaybackCacheMs_;
-					lyricCues_=QJsonArray();
-					lastLyricSyncUpdateMs_=0;
-                    lastLyricDirection_=0;
-                    lyricOffsetConsistency_=0;
-                    lastVerifiedLyricMs_=0;
-                    lastVerifiedLyricText_.clear();
-                    lastVerifiedLyricTranslations_=QJsonObject();
-					lyricsSyncState_->setText(tr("New DLS song · awaiting audible lyric verification"));
-					plainLyricMode_=false;
-					plainLyricQueue_.clear();
-                    verifiedLyricQueue_.clear();
-                    lastMatchedLyricUntilMs_=0;
-                    lyricRawLines_.clear();
-                    lastLyricsProvider_.clear();
-                    clearKaraokeLine();
-                    previewStartedMs_=0;
-                    previewIndexShift_=0;
-                    previewLastIndex_=-1;
-                    setRadioLyricMatchStatus(QString());
-                    // A DLS metadata change is NOT proof of new audible
-                    // song, and must not disable Stop for an offline
-                    // listening worker the user explicitly started.
-                    const bool listening=lyricsAudioFallbackActive_;
-					lyricLoaded_=listening;
-					lyricsEnabled_=listening;
-					if (lyricsProcess_.state()!=QProcess::NotRunning)
-						lyricsProcess_.kill();
-					stopLyrics_->setEnabled(listening);
-					lyrics_->setEnabled(true);
-					if (!lyricPath_.isEmpty()) QFile::remove(lyricPath_);
-					lyricPath_.clear();
-					lyricText_->setText(listening?
-                        tr("DLS metadata updated. Continuing offline vocal "
-                           "listening; no proven song boundary.") :
-                        tr("New DLS metadata. Automatic lookup requires opt-in; "
-                           "timing is only an estimate."));
-                    if(autoLyrics_->isChecked())
-                        QTimer::singleShot(100,this,[this](){fetchLyrics(true);});
-                    } // New song metadata; ordinary rotating DLS does not reset lyrics.
+                    if(newSong.valid()) {
+                        const QString candidate=newSong.normalizedKey();
+                        if(candidate==lastSongMetadataKey_) {
+                            pendingSongKey_.clear();
+                            pendingSongDls_.clear();
+                        } else if(candidate!=pendingSongKey_) {
+                            pendingSongKey_=candidate;
+                            pendingSongDls_=dls;
+                            pendingSongSinceMs_=QDateTime::currentMSecsSinceEpoch();
+                            const QString station=playingKey_;
+                            const quint64 ticket=stationRequestId_;
+                            QTimer::singleShot(5000,this,
+                                [this,candidate,station,ticket](){
+                                    commitPendingDlsSong(candidate,station,ticket);
+                                });
+                            if(lyricsSyncState_) lyricsSyncState_->setText(tr(
+                                "New DLS candidate · waiting 5s; Karaoke preserved"));
+                        }
+                    } // Ignore station slogans and non-song DLS.
 				}
                 const QJsonObject errs=service.value(
                     QLatin1String("errorcounters")).toObject();
@@ -3911,6 +3879,9 @@ private:
                     tr("Block %1 · %2 · service %3 · stream opening")
                         .arg(block,dabCenterFrequencyMHz(block),sid));
 				lastDls_.clear();
+                pendingSongKey_.clear();
+                pendingSongDls_.clear();
+                pendingSongSinceMs_=0;
                 lastSongDls_.clear();
         lastSongMetadataKey_.clear();
                 lyricRawLines_.clear();
@@ -5403,6 +5374,67 @@ private:
         lyricText_->setText(tr("Listening to DAB vocals offline… Approximate "
             "words appear in live captions, NOT verified song lyrics."));
     }
+    void commitPendingDlsSong(const QString &candidate,
+                              const QString &station, quint64 ticket) {
+        if(candidate.isEmpty() || candidate!=pendingSongKey_ ||
+           station!=playingKey_ || ticket!=stationRequestId_ ||
+           !active() || scanning_) return;
+        const qint64 now=QDateTime::currentMSecsSinceEpoch();
+        if(now-pendingSongSinceMs_<5000) return;
+        // Recent matching Whisper lyrics are evidence that the old song
+        // is still audible. A DLS title alone cannot override that.
+        if(lastVerifiedLyricMs_>0 && now-lastVerifiedLyricMs_<7000) {
+            QTimer::singleShot(3500,this,[this,candidate,station,ticket](){
+                commitPendingDlsSong(candidate,station,ticket);
+            });
+            return;
+        }
+        if(candidate==lastSongMetadataKey_) {
+            pendingSongKey_.clear();
+            return;
+        }
+        const QString acceptedDls=pendingSongDls_;
+        pendingSongKey_.clear();
+        pendingSongDls_.clear();
+        lastSongMetadataKey_=candidate;
+        lastSongDls_=acceptedDls;
+        // DLS is metadata; this time is not measured audio/DAC PTS.
+        songStartMs_=now+activePlaybackCacheMs_;
+        lyricCues_=QJsonArray();
+        lastLyricSyncUpdateMs_=0;
+        lastLyricDirection_=0;
+        lyricOffsetConsistency_=0;
+        lastVerifiedLyricMs_=0;
+        lastVerifiedLyricText_.clear();
+        lastVerifiedLyricTranslations_=QJsonObject();
+        plainLyricMode_=false;
+        plainLyricQueue_.clear();
+        verifiedLyricQueue_.clear();
+        lastMatchedLyricUntilMs_=0;
+        lyricRawLines_.clear();
+        lastLyricsProvider_.clear();
+        clearKaraokeLine();
+        previewStartedMs_=0;
+        previewIndexShift_=0;
+        previewLastIndex_=-1;
+        setRadioLyricMatchStatus(QString());
+        const bool listening=lyricsAudioFallbackActive_;
+        lyricLoaded_=listening;
+        lyricsEnabled_=listening;
+        if(lyricsProcess_.state()!=QProcess::NotRunning) {
+            lyricsProcess_.kill();
+            lyricsProcess_.waitForFinished(900);
+        }
+        stopLyrics_->setEnabled(listening);
+        lyrics_->setEnabled(true);
+        if(!lyricPath_.isEmpty()) QFile::remove(lyricPath_);
+        lyricPath_.clear();
+        lyricText_->setText(listening?
+            tr("New stable DLS song · offline vocal listening continues.") :
+            tr("Stable new DLS song · changing Karaoke after debounce."));
+        if(autoLyrics_ && autoLyrics_->isChecked())
+            fetchLyrics(true);
+    }
 	void stopLyrics() {
         const bool hadListening=lyricsAudioFallbackActive_;
         const bool startedByLyrics=lyricsFallbackStartedAi_;
@@ -5453,7 +5485,8 @@ private:
 		if (!active() || playingKey_.isEmpty()) {
 			lyricText_->setText(tr("Play a station first.")); return;
 		}
-        const TihuluDlsSong song=tihuluDlsSong(lastDls_);
+        const TihuluDlsSong song=tihuluDlsSong(
+            automatic && !lastSongDls_.isEmpty()?lastSongDls_:lastDls_);
 		const bool overridden=!automatic && !lyricsArtist_->text().trimmed().isEmpty()
 			&& !lyricsTitle_->text().trimmed().isEmpty();
 		if(!song.valid() && !overridden) {
@@ -5763,6 +5796,8 @@ private:
         lastUnmatchedVoiceUntilMs_=0,lastMatchedLyricUntilMs_=0,
         captionReadingHoldUntilMs_=0,captionDisplayedStartedMs_=0;
     bool lastLyricsAutoLookup_=false;
+    QString pendingSongKey_,pendingSongDls_;
+    qint64 pendingSongSinceMs_=0;
 	bool metadataCaptions_=false;
 	int dlsCaptionIndex_=0;
 	int lastLyricOffsetMs_=0;
