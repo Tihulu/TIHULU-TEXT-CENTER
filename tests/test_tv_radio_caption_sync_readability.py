@@ -18,7 +18,7 @@ def section(start: str,end: str) -> str:
 
 class RadioCaptionComfortContracts(unittest.TestCase):
     def test_audio_sync_controls_are_on_main_radio_page(self):
-        self.assertIn('"Audio ↔ captions (estimated):"',UI)
+        self.assertIn('"AI captions ↔ audio (estimated):"',UI)
         self.assertIn('captionEarlier_=new QPushButton(tr("−250 ms"),page)',UI)
         self.assertIn('captionLater_=new QPushButton(tr("+250 ms"),page)',UI)
         self.assertIn('captionOffsetReadout_=new QLabel(tr("Offset +0 ms"),page)',UI)
