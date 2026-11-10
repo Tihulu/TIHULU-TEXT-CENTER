@@ -454,7 +454,10 @@ class LiveLyricMatcher:
     insufficient evidence for a match. This is approximate chunk timing,
     NOT sample-accurate forced alignment.
     """
-    def __init__(self, lines: list[str]):
+    def __init__(self, lines: list[str], *, threshold: float=0.74):
+        if not isinstance(threshold,(int,float)) or isinstance(threshold,bool) or not 0.65 <= threshold <= 0.96:
+            raise ValueError("Lyrics lexical match threshold must be 65–96%")
+        self.threshold=float(threshold)
         if not isinstance(lines,list) or len(lines)>150:
             raise ValueError("Invalid plain lyric line catalog")
         self.lines=[line for line in lines if isinstance(line,str) and
@@ -463,6 +466,14 @@ class LiveLyricMatcher:
         self.seen_chunks=0
         self.previous_text=""
         self.unmatched_chunks=0
+        self.last_match_index=-1
+        self.last_match_text=""
+        self.last_match_at_chunk=-999
+
+    def set_threshold(self, threshold: float):
+        if not isinstance(threshold,(int,float)) or isinstance(threshold,bool) or not 0.65 <= threshold <= 0.96:
+            raise ValueError("Lyrics lexical match threshold must be 65–96%")
+        self.threshold=float(threshold)
 
     def observe(self, recognized: str) -> dict | None:
         if not isinstance(recognized,str) or not recognized.strip():
@@ -501,13 +512,19 @@ class LiveLyricMatcher:
             coverage=evidence/max(1,len(distinctive))
             precision=evidence/max(1,len(hearing))
             confidence=0.82*coverage+0.18*min(1.,precision*2.)
-            threshold=0.90 if short_refrain else 0.74
+            threshold=max(0.90,self.threshold) if short_refrain else self.threshold
             if acquiring and index>=8:
                 # A broad search needs a distinctive multiword phrase;
                 # generic 2-word refrains may only match near the start.
                 if len(distinctive)<3 or evidence<3:
                     continue
                 threshold=max(threshold,0.89)
+            # Avoid replaying the same recognized line in consecutive
+            # overlapping 5 s chunks. A later real refrain stays possible.
+            if (index==self.last_match_index or
+                _metadata_key(original)==_metadata_key(self.last_match_text)) and (
+                    self.seen_chunks-self.last_match_at_chunk<=2):
+                continue
             if confidence>=threshold and (best is None or confidence>best[0]):
                 best=(confidence,index,original)
         if best is None:
@@ -516,7 +533,12 @@ class LiveLyricMatcher:
         score,index,line=best
         self.unmatched_chunks=0
         self.position=index+1
+        self.last_match_index=index
+        self.last_match_text=line
+        self.last_match_at_chunk=self.seen_chunks
         return {"index":index,"text":line,"confidence":round(score,3),
+                "threshold":round(self.threshold,3),
+                "metric":"lexical_overlap_not_audio_sync_probability",
                 "kind":"observed_ASR_chunk_match","approximate":True}
 
 def srt_timestamp(seconds: float) -> str:
