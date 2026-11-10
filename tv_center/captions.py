@@ -74,6 +74,9 @@ def ass_text(raw: str) -> str:
         txt = (txt.replace(r"\N", " ").replace(r"\n", " ")
                .replace(r"\h", " ").replace("\u00a0", " "))
         txt = re.sub(r"[ \t]+", " ", txt).strip()
+        # Drop broadcaster test-page titles, never real spoken subtitles.
+        from .asr_quality import strip_test_page_artifact
+        txt, _ = strip_test_page_artifact(txt,broadcaster=True)
         if txt and (not lines or txt != lines[-1]):
             lines.append(txt)
     return "\n".join(lines[-6:])[:1600]
@@ -693,9 +696,14 @@ def decode_segment(ts: bytes, *, mode="auto", page=150, source="de",
                     collapse_asr_repetition_loops)
                 cleaned = (original if music_transcription else
                            collapse_asr_repetition_loops(original))
+                from .asr_quality import strip_test_page_artifact
+                cleaned, page_marker_removed = strip_test_page_artifact(cleaned)
                 if cleaned != original:
                     original = cleaned
-                    speech_diagnostics["asr_repetitions_removed"] = True
+                    if page_marker_removed:
+                        speech_diagnostics["asr_test_page_artifact_removed"] = True
+                    else:
+                        speech_diagnostics["asr_repetitions_removed"] = True
                     # Removed words break original ASR timestamp indexing.
                     # Prefer an accurate whole-phrase cue to forged timing.
                     speech_diagnostics["words"] = []
@@ -834,6 +842,8 @@ def decode_segment(ts: bytes, *, mode="auto", page=150, source="de",
                 "speaker_note":speech_diagnostics.get("speaker_note"),
                 "recognition_rejected":speech_diagnostics.get("recognition_rejected"),
                 "asr_repetitions_removed":speech_diagnostics.get("asr_repetitions_removed",False),
+                "asr_test_page_artifact_removed":speech_diagnostics.get(
+                    "asr_test_page_artifact_removed",False),
                 "speech_priority":speech_diagnostics.get("speech_priority", False),
                 "speech_priority_note":speech_diagnostics.get("speech_priority_note"),
                 "processing_ms": {
