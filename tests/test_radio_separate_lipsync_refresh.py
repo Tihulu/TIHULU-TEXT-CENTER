@@ -67,7 +67,7 @@ class SeparateLipSyncRefreshTests(unittest.TestCase):
 
     def test_karaoke_language_is_independent_of_presenter(self):
         self.assertIn("alignment_language=(", WORKER)
-        self.assertIn("lyric_source_language in QWEN_ALIGN_LANGUAGES", WORKER)
+        self.assertIn('lyric_source_language!="auto"', WORKER)
         self.assertIn("alignment_option=karaoke_alignment_choice(", WORKER)
         self.assertIn("qwen_installed=qwen_installed", WORKER)
         self.assertIn("align_observed_phrase,qwen_audio_pcm", WORKER)
