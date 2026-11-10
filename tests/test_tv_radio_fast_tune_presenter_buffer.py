@@ -85,7 +85,7 @@ class RadioLowLatencyAndSpeechTests(unittest.TestCase):
     def test_auto_lyrics_require_actual_vocal_evidence(self):
         source=(ROOT/"kaffeine_next/native_radio_tab.h").read_text()
         self.assertIn("lastLyricsAutoLookup_=automatic",source)
-        self.assertIn("lastVerifiedLyricMs_<=0",source)
+        self.assertIn("now-lastVerifiedLyricMs_<7000",source)
         self.assertIn("lastUnmatchedVoiceUntilMs_>currentEpoch",source)
         self.assertIn("lastVerifiedLyricMs_=now",source)
         self.assertIn("if(!alreadyRunning) {",source)
