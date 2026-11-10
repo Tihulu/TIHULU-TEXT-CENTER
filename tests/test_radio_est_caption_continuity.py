@@ -84,6 +84,40 @@ class EstCaptionContinuityTests(unittest.TestCase):
         self.assertIn("scheduleCaptionRecovery();",finished)
         self.assertNotIn("quickAi_->setChecked(false)",finished)
 
+    def test_radio_auto_buffer_never_mutates_sound_or_worker(self):
+        # TV transcription is stable precisely because Whisper workload
+        # does not select/reopen audio playback buffer on its own.
+        auto=section(UI,
+                     'connect(autoSync_,&QCheckBox::toggled',
+                     'auto *captionActions=new QHBoxLayout()')
+        self.assertIn('radioAutoBufferEnabled',auto)
+        self.assertNotIn('quickBuffer_->setChecked(true)',auto)
+        self.assertNotIn('setBufferDisplayMs(',auto)
+        self.assertNotIn('applyRadioBuffer(',auto)
+        toggle=section(UI,
+                       'connect(quickAi_,&QCheckBox::toggled',
+                       'connect(caption_, &QPushButton::clicked')
+        self.assertNotIn('autoSync_->setChecked(true)',toggle)
+        self.assertIn('startCaptioning();',toggle)
+        self.assertLess(toggle.index('startCaptioning();'),
+                        toggle.index('lyricsOnlineConsentAsked'))
+        self.assertIn('captionSource_->setCurrentIndex(asr);',toggle)
+        estimate=section(UI,
+                         'if(autoSync_->isChecked() && lagSamples_.size()>=4',
+                         '// Use the first real GPU word')
+        self.assertIn('Suggested audio cache',estimate)
+        self.assertNotIn('setBufferDisplayMs(recommended)',estimate)
+        self.assertNotIn('applyRadioBuffer();',estimate)
+        self.assertNotIn('radioBufferDesiredMs',estimate)
+
+    def test_worker_start_is_not_false_successful_asr_chunk(self):
+        start=section(UI,'void startCaptioning() {','void clearKaraokeLine() {')
+        self.assertNotIn('lastCaptionUpdateMs_=QDateTime::currentMSecsSinceEpoch()',start)
+        recovery=section(UI,'void scheduleCaptionRecovery() {','void startCaptioning() {')
+        self.assertIn('captionRecoveryLastAttemptMs_',recovery)
+        self.assertIn('lastCaptionUpdateMs_>captionRecoveryLastAttemptMs_',recovery)
+        self.assertIn('captionRecoveryFailures_',recovery)
+
     def test_dls_debounce_does_not_throw_away_first_good_track(self):
         pending=section(UI,"void commitPendingDlsSong(","void stopLyrics() {")
         self.assertIn("QTimer::singleShot(remaining,this",pending)
