@@ -4980,6 +4980,22 @@ private:
                     "LYRICS FOUND · NOT MATCHED to this audio · "
                     "Whisper speech/advert fallback"));
             }
+            if(soundLabels_ && soundLabels_->isChecked() &&
+               radioCaptionBanner_) {
+                const QString note=obj.value(
+                    QLatin1String("sound_event_note")).toString();
+                const QJsonArray events=obj.value(
+                    QLatin1String("sound_events")).toArray();
+                QString label;
+                if(!note.isEmpty())
+                    label=tr("Sound labels unavailable: %1 · Whisper speech kept")
+                        .arg(note.left(140));
+                else if(!events.isEmpty())
+                    label=tr("Sound labels: detector-backed acoustic tags "
+                             "added beside recognized speech");
+                if(!label.isEmpty() && label!=radioCaptionBanner_->text())
+                    radioCaptionBanner_->setText(label);
+            }
             const QJsonObject translationWarnings=obj.value(
                 QLatin1String("translation_warnings")).toObject();
             const QJsonObject outputLanguages=obj.value(
