@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 from collections import deque
+from concurrent.futures import ThreadPoolExecutor
 import json
 import os
 from pathlib import Path
@@ -158,6 +159,14 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
     lyric_source_language="auto"
     lyric_target_codes=()
     lyric_translation_cache={}
+    # A known local Qwen 0.6B model may refine WORD timestamps, but never
+    # owns live captions or lyric detection. Start a second isolated process
+    # only after an actual Whisper lyric match, not DLS metadata.
+    from .qwen_forced_aligner import QwenForcedAlignerMarket
+    qwen_installed=QwenForcedAlignerMarket().installed()
+    qwen_pool=None
+    qwen_future=None
+    qwen_meta=None
     song_router=MusicSpeechRouter()
     # Raw *heard Whisper* text/word epochs only, never catalog lyrics or PCM.
     # The last ten seconds can be searched again without audio or ASR restart.
@@ -446,9 +455,51 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
                 if lyric_match else [])
             alignment_option=karaoke_alignment_choice(
                 used_language if not language_pending else None,
-                qwen_installed=False)  # no Qwen inference in this worker yet
-            # All languages retain genuine Whisper ASR+GPU word timing,
-            # including unsupported-for-Qwen Turkish and undetermined audio.
+                qwen_installed=qwen_installed)
+            # Qwen cannot claim the song matches; Whisper's lexical match
+            # must already have accepted it. Non-blocking future: presenter
+            # speech, translations and the next radio PCM hop never wait for
+            # model initialization or alignment.
+            qwen_refinement=None
+            if qwen_future is not None and qwen_future.done():
+                try:
+                    observed_qwen_words=qwen_future.result()
+                    if (isinstance(observed_qwen_words,list) and qwen_meta
+                            and qwen_meta["catalog"]==lyric_marker
+                            and (not heard_asr or lyric_match is not None)):
+                        anchors=aligned_karaoke_word_anchors(
+                            qwen_meta["line"],observed_qwen_words,
+                            capture_end_epoch_ms=qwen_meta["epoch_ms"],
+                            window_seconds=qwen_meta["window_seconds"])
+                        if anchors:
+                            qwen_refinement={
+                                "text":qwen_meta["line"],
+                                "word_anchors":anchors,
+                                "source":"Qwen3-ForcedAligner-0.6B",
+                                "speech_trained_singing_unverified":True,
+                            }
+                except (OSError,ValueError,RuntimeError,TimeoutError):
+                    pass  # Whisper continues without model failures leaking
+                qwen_future=None
+                qwen_meta=None
+            if (lyric_match and heard_asr and
+                    alignment_option["engine"]=="qwen" and
+                    qwen_future is None):
+                from .qwen_forced_aligner import align_observed_phrase
+                if qwen_pool is None:
+                    qwen_pool=ThreadPoolExecutor(
+                        max_workers=1,thread_name_prefix="tihulu-qwen-karaoke")
+                qwen_meta={
+                    "line":lyric_match["text"],
+                    "epoch_ms":capture_epoch_ms,
+                    "window_seconds":window_seconds,
+                    "catalog":lyric_marker,
+                }
+                qwen_future=qwen_pool.submit(
+                    align_observed_phrase,pcm,heard_asr,
+                    alignment_option["language"],12)
+            # All languages retain genuine Whisper ASR word timing, even
+            # when Qwen is installed, pending, failed or unsupported.
 
             # Publish the ORIGINAL promptly after ASR. A slow sequential
             # NLLB/MADLAD/Argos/DeepL translation must not block hearing
@@ -468,8 +519,10 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
                     "lyric_translations":{},
                     "karaoke_sync_refresh_status":sync_refresh_status,
                     "karaoke_sync_refresh_applied":sync_refresh_applied,
-                    "karaoke_alignment_engine":alignment_option["engine"],
+                    "karaoke_alignment_engine":"whisper",
+                    "karaoke_alignment_candidate":alignment_option["engine"],
                     "karaoke_alignment_reason":alignment_option["reason"],
+                    "karaoke_qwen_refinement":qwen_refinement,
                     "radio_content_route":radio_content_route,
                     "original":original[:1800],
                     "source_language":used_language or "und",
@@ -618,8 +671,10 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
                 "lyric_match":lyric_match,
                 "karaoke_sync_refresh_status":sync_refresh_status,
                 "karaoke_sync_refresh_applied":sync_refresh_applied,
-                "karaoke_alignment_engine":alignment_option["engine"],
+                "karaoke_alignment_engine":"whisper",
+                "karaoke_alignment_candidate":alignment_option["engine"],
                 "karaoke_alignment_reason":alignment_option["reason"],
+                "karaoke_qwen_refinement":qwen_refinement,
                 "radio_content_route":radio_content_route,
                 "lyric_match_threshold":round(lyric_match_threshold,3),
                 "lyric_match_metric":"lexical_overlap_not_sync_accuracy",
@@ -680,6 +735,13 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
             if max_chunks>0 and chunks>=max_chunks:
                 break
     finally:
+        # No karaoke GPU task may retain the SDR device or delay the
+        # explicit stop command. A running auxiliary alignment subprocess
+        # is terminated; Whisper and tuner own separate lifecycles.
+        if qwen_pool is not None:
+            qwen_pool.shutdown(wait=False,cancel_futures=True)
+            from .qwen_forced_aligner import stop_alignment
+            stop_alignment()
         was_cancelled=done
         stop()
         capture.stop()
