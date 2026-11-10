@@ -4986,6 +4986,12 @@ private:
         options<<QLatin1String("--lyric-match-threshold")
                <<QString::number(lyricMatchThreshold_?
                                   lyricMatchThreshold_->value()/100.:0.74,'f',2);
+        options<<QLatin1String("--lyric-match-mode")
+               <<(lyricMatchMode_?lyricMatchMode_->currentData().toString():
+                                   QLatin1String("lexical"));
+        options<<QLatin1String("--karaoke-aligner")
+               <<(karaokeAligner_?karaokeAligner_->currentData().toString():
+                                   QLatin1String("auto"));
         // Transfer the CURRENT desktop radio timing settings to the
         // separately paired phone. This is a requested native audio cache,
         // not a measured DAC clock. The mobile browser must NOT blindly
@@ -5902,17 +5908,22 @@ private:
                 QLatin1String("karaoke_alignment_engine")).toString();
             const QString karaokeReason=obj.value(
                 QLatin1String("karaoke_alignment_reason")).toString();
+            const QString karaokeRequested=obj.value(
+                QLatin1String("karaoke_alignment_requested")).toString();
             if(karaokeEngineStatus_) {
                 if(karaokeApplied==QLatin1String("qwen"))
                     karaokeEngineStatus_->setText(tr(
                         "Karaoke: Qwen3 aligned · Whisper captions separate"));
                 else if(karaokeCandidate==QLatin1String("qwen"))
                     karaokeEngineStatus_->setText(tr(
-                        "Karaoke: Qwen3 eligible · Whisper timing fallback"));
+                        "Karaoke: Qwen3 selected/eligible · Whisper timing fallback"));
                 else if(karaokeReason==
                         QLatin1String("unsupported_or_undetected_language"))
                     karaokeEngineStatus_->setText(tr(
                         "Karaoke: Whisper · unsupported/unknown Qwen language"));
+                else if(karaokeRequested==QLatin1String("whisper"))
+                    karaokeEngineStatus_->setText(tr(
+                        "Karaoke: Whisper timing explicitly selected"));
                 else
                     karaokeEngineStatus_->setText(tr(
                         "Karaoke: Whisper fallback · Qwen unavailable/manual"));
