@@ -96,6 +96,56 @@ class TeletextSpeechRecoveryTests(unittest.TestCase):
         self.assertEqual(opts["teletext_language"],"de")
         self.assertEqual(opts["targets"],("en","tr"))
 
+    def test_real_caption_tap_worker_switches_and_recovers_with_output_languages(self):
+        """Exercise actual Auto dispatch with synthetic same-service clips."""
+        import queue
+        import tempfile
+        from unittest.mock import patch, Mock
+        from kaffeine_next.captions_overlay import CaptionTap
+        from tv_center.ai_settings import AISettings
+        with tempfile.TemporaryDirectory() as temp:
+            opts={"mode":"auto","source":"de","teletext_language":"de",
+                  "target":"en","targets":("en","tr"),
+                  "translation_requested":True,"page":150,
+                  "teletext_pid":None,"service_id":123,
+                  "revision":0,"program_epoch":0}
+            # Private CaptionTap only; no Unix socket bound, no DVB owner.
+            path=Path(temp)/"tihulu-dvb-123.sock"
+            with patch("kaffeine_next.captions_overlay.validate_socket",
+                       return_value=path):
+                tap=CaptionTap(str(path),lambda:opts,queue.Queue(maxsize=32))
+            ai=Mock()
+            ai.values={"asr_enabled":True,"translation_enabled":True,
+                       "translation_model":"argos","model_path":"/fake"}
+            heard = D
+            def decode(_clip,*,mode,**kwargs):
+                if mode=="auto":
+                    return {"source":"broadcaster_teletext_subtitles",
+                            "original":A,"source_language":"de",
+                            "translations":{"en":"OLD","tr":"OLD"},
+                            "teletext_probe":{"text":heard,"source_language":"de"},
+                            "error":None}
+                if mode=="asr":
+                    return {"source":"local_asr","original":B+".",
+                            "raw_asr_original":B+".","source_language":"de",
+                            "translations":{},
+                            "teletext_shadow":{"text":B+".","source_language":"de"},
+                            "error":None}
+                raise AssertionError("Unexpected caption mode")
+            with (patch("tv_center.ai_settings.AISettings",return_value=ai),
+                  patch("tv_center.captions.decode_segment",side_effect=decode),
+                  patch("tv_center.captions.translate",return_value=("Translated",None))):
+                for i in range(3):
+                    tap._decode(b"\x47"+bytes(187),opts,float(i*6),float((i+1)*6))
+                self.assertTrue(tap.teletext_audit.prefer_asr)
+                self.assertEqual(tap.teletext_audit.status,"WHISPER · AUTO FALLBACK")
+                self.assertTrue(tap.events.qsize()>=2)
+                for i in range(3,5):
+                    tap._decode(b"\x47"+bytes(187),opts,float(i*6),float((i+1)*6))
+                self.assertFalse(tap.teletext_audit.prefer_asr)
+                self.assertTrue(tap._teletext_return_pending)
+            tap.close()
+
     def test_live_decoder_shadow_uses_same_selected_ts_and_no_second_asr(self):
         for statement in (
             "auto_teletext_recovery: bool = False",
