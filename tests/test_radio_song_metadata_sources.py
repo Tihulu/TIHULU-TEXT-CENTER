@@ -67,6 +67,19 @@ class RadioSongMetadataSourceTests(unittest.TestCase):
         self.assertEqual((tagged.artist,tagged.title),
                          ("Another Artist","Another Song"))
 
+    def test_nested_dls_plus_tags(self):
+        service={
+            "label":"Radio Köln",
+            "dls":{"label":"Radio Köln - Der beste Mix",
+                   "dlplus":{"tags":[
+                       {"type":"ITEM.ARTIST","text":"Example Band"},
+                       {"type":"ITEM.TITLE","text":"Example Track"},
+                   ]}},
+        }
+        song=parse_service_song(service)
+        self.assertEqual((song.artist,song.title),
+                         ("Example Band","Example Track"))
+
     def test_radio_text_and_rds_plus_sources(self):
         self.assertEqual(
             parse_service_song({
