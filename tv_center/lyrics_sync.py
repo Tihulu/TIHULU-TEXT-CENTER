@@ -490,6 +490,19 @@ class LiveLyricMatcher:
         match=candidate.observe(recognized)
         if match is None:
             return None
+        # Identical refrains can appear several times in one song. Text
+        # similarity alone cannot identify which chorus is playing, so
+        # reject a long-range ambiguous seek instead of jumping to verse 1.
+        same=[index for index,line in enumerate(self.lines)
+              if _metadata_key(line)==_metadata_key(match["text"])]
+        if len(same)>1:
+            nearby=[index for index in same
+                    if abs(index-max(0,self.position-1))<=8]
+            if len(nearby)!=1:
+                return None
+            match["index"]=nearby[0]
+            candidate.position=nearby[0]+1
+            candidate.last_match_index=nearby[0]
         self.position=candidate.position
         self.previous_text=recognized[-480:]
         self.unmatched_chunks=0
