@@ -4991,6 +4991,10 @@ private:
         const bool noFreshVocalMatch=lastVerifiedLyricMs_<=0 ||
             now-lastVerifiedLyricMs_>=10000;
         const bool holdPreview=!playerRunning ||
+            // Opt-in estimated karaoke is allowed to SHOW lyrics without
+            // a match, but never sweep words without acoustic proof. This
+            // remains true when Whisper exited after an audio failure.
+            (previewLipSync && noFreshVocalMatch) ||
             (asrListening && noFreshVocalMatch) ||
             lastUnmatchedVoiceUntilMs_>now;
         const int speed=karaokePreviewSpeed_?
