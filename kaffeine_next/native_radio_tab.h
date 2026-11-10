@@ -6539,10 +6539,10 @@ private:
         // providers. The dialog is parented to the radio window.
         if(QMessageBox::question(this,tr("Lyrics Refresh · online search"),
            tr("Search LRCLIB, lyrics.ovh and optional licensed Musixmatch "
-              "again for %1 — %2?\n\nOnly artist/title and selected "
-              "language codes are sent; NO radio audio is uploaded. "
+              "again for %1 — %2?\nSong metadata: %3 (station excluded)\n\n"
+              "Only artist/title and selected languages are sent; NO radio audio is uploaded. "
               "Current Karaoke remains while searching and on failure.")
-              .arg(artist,title),
+              .arg(artist,title,manual?tr("manual correction"):song.format),
            QMessageBox::Yes|QMessageBox::No,QMessageBox::No)!=QMessageBox::Yes)
             return;
         const QString runtime=QStandardPaths::writableLocation(
@@ -6730,10 +6730,10 @@ private:
             lastSongMetadataKey_.isEmpty() || !pendingSongKey_.isEmpty()))
             return;
 		if(!automatic && QMessageBox::question(this,tr("Optional online lyrics lookup"),
-			tr("Search LRCLIB, lyrics.ovh and optional licensed Musixmatch?\nArtist: %1\nTitle: %2\n\n"
+			tr("Search LRCLIB, lyrics.ovh and optional licensed Musixmatch?\nArtist: %1\nTitle: %2\nSong metadata: %3 (station excluded)\n\n"
 			   "Only these metadata are sent; no radio audio is uploaded. "
 			   "Start time estimated from DLS, so adjust the timing slider manually.")
-			   .arg(artist,title))!=QMessageBox::Yes) return;
+			   .arg(artist,title,overridden?tr("manual correction"):song.format))!=QMessageBox::Yes) return;
         // Key cached lyrics by song identity plus requested translation
         // languages, never by fragile changing broadcaster DLS text.
         const QString sourceCode=lyricsSourceLanguage_->currentData().toString();
@@ -6797,7 +6797,10 @@ private:
         }
 		lyrics_->setEnabled(false);
         lyricProvider_->setText(tr("Searching LRCLIB, optional licensed "
-            "Musixmatch and lyrics.ovh (metadata only)."));
+            "Musixmatch and lyrics.ovh (metadata only).\n"
+            "Song: %1 — %2 · source: %3 · station name excluded.")
+            .arg(artist.left(130),title.left(130),
+                 overridden?tr("manual correction"):song.format));
         // Song-specific manual choice never changes automatic spoken ASR.
         // Do not reuse previous spoken presenter language for the NEXT song:
 		// an English or Turkish singer may follow a German-language host.
