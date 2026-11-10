@@ -390,14 +390,15 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
             if (original and used_language and not language_pending
                     and not unverified_vocals_hidden
                     and translator_enabled):
-                from .captions import translate_with_engine
+                from .captions import translate, translation_engine_for
                 for lang in destinations:
                     if lang == used_language:
                         # Source language selected as output, not a
                         # pointless second translation of the same text.
                         continue
-                    value,issue,actual=translate_with_engine(
+                    value,issue=translate(
                         original,used_language,lang)
+                    actual=translation_engine_for(original,used_language,lang)
                     if value:
                         translated[lang]=value
                         if actual:
