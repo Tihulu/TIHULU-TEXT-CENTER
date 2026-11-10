@@ -84,7 +84,7 @@ class AutoLyricsLiveMatchTests(unittest.TestCase):
         self.assertIn("const TihuluDlsSong newSong=tihuluDlsSongFromService(service)",UI)
         self.assertIn("const QString candidate=newSong.normalizedKey();",UI)
         self.assertIn("candidate==lastSongMetadataKey_",UI)
-        self.assertIn("QTimer::singleShot(5000,this,",UI)
+        self.assertIn("QTimer::singleShot(5100,this,",UI)
         self.assertIn("commitPendingDlsSong(candidate,station,ticket)",UI)
         self.assertIn("lastSongDls_=acceptedDls;",UI)
         self.assertIn("lastSongDls_.clear();",UI)
