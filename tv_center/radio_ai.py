@@ -84,7 +84,8 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
                       controls: str | None=None,
                       radio_translations: bool=False,
                       lyric_match_threshold: float=0.74,
-                      sound_labels: bool=False):
+                      sound_labels: bool=False,
+                      karaoke_enabled: bool=False):
     if type(port) is not int or not 1024 <= port <= 65535:
         raise ValueError("Invalid loopback radio port")
     if not isinstance(sid,str) or not _SID.fullmatch(sid):
@@ -106,6 +107,8 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
         raise ValueError("Radio translator opt-in must be boolean")
     if type(sound_labels) is not bool:
         raise ValueError("Radio sound label opt-in must be boolean")
+    if type(karaoke_enabled) is not bool:
+        raise ValueError("Karaoke vocal matching opt-in must be boolean")
     if (not isinstance(lyric_match_threshold,(int,float)) or
             isinstance(lyric_match_threshold,bool) or
             not 0.65<=lyric_match_threshold<=0.96):
@@ -204,6 +207,9 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
                         requested_translation=payload.get("radio_translations")
                         if type(requested_translation) is bool:
                             radio_translations=requested_translation
+                        requested_karaoke=payload.get("karaoke_enabled")
+                        if type(requested_karaoke) is bool:
+                            karaoke_enabled=requested_karaoke
                         requested_labels=payload.get("sound_labels")
                         if type(requested_labels) is bool:
                             sound_labels=requested_labels
@@ -253,7 +259,8 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
             # observe vocals for matching WITHOUT restarting the radio or
             # sidecar. On a new song / file removal restore normal speech
             # VAD automatically. Metadata alone NEVER enables vocal mode.
-            music_for_matching=bool(music or plain_matcher is not None)
+            music_for_matching=bool(music or
+                (plain_matcher is not None and karaoke_enabled))
             translator_enabled=effective_radio_translation_enabled(
                 ai.values["translation_enabled"],radio_translations,
                 ai.values.get("translation_model","argos"))
@@ -536,7 +543,7 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
                 "backend":backend,
                 "music_mode":music_for_matching,
                 "vocal_match_mode":("lyrics_catalog_vad_relaxed"
-                    if plain_matcher is not None and not music else
+                    if plain_matcher is not None and karaoke_enabled and not music else
                     "user_music_transcribe" if music else "speech_default"),
                 "content_type":("music_lyrics_metadata" if plain_matcher is not None
                                  else "speech_or_unclassified"),
