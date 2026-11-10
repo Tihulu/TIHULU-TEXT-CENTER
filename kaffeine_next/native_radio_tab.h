@@ -1717,8 +1717,13 @@ public:
                pendingSongKey_.isEmpty() &&
                lyricsProcess_.state()==QProcess::NotRunning)
                 QTimer::singleShot(100,this,[this](){
-                    if(autoLyrics_->isChecked() && !lyricLoaded_)
+                    if(autoLyrics_->isChecked() && !lyricLoaded_) {
+                        // This toggle is an explicit request to retry the
+                        // current song; it may override the 90s automatic
+                        // provider cooldown once, not loop in background.
+                        lyricsLookupCooldownUntilMs_=0;
                         fetchLyrics(true);
+                    }
                 });
             else if(!enabled && !lastSongMetadataKey_.isEmpty() && !lyricLoaded_)
                 setRadioLyricMatchStatus(tr(
@@ -6699,7 +6704,10 @@ private:
 				"from DLS time; adjust offset as necessary.")
 				.arg(lyricCues_.size()));
 		} else if (value.value(QLatin1String("status")).toString()==QLatin1String("error")) {
-			lyricLoaded_=true;
+            // A failed provider request is NOT a successfully loaded lyric
+            // catalog. Mark it absent so a later explicit owner retry can
+            // fetch actual words without needing a station retune.
+            lyricLoaded_=false;
             lyricsEnabled_=false;
             lyrics_->setEnabled(true);
             stopLyrics_->setEnabled(false);
