@@ -228,17 +228,13 @@ export TIHULU_VLC_PROFILE
 if [ "$#" -eq 0 ] && [ "${TIHULU_AUTOPLAY_LAST_CHANNEL:-0}" = 1 ]; then
   set -- --lastchannel
 fi
-# Do not launch two TIHULU instances that fight for the same frontend.
-# The exclusive lock is inherited by the player process and released on exit;
-# it never locks /dev/dvb or interferes with system Kaffeine.
-if command -v flock >/dev/null 2>&1; then
-  mkdir -p "$HOME/.cache"
-  exec 9>"$HOME/.cache/tihulu-media-center.lock"
-  if ! flock -n 9; then
-    echo "TIHULU Media Center is already running. Focus or close that window first." >&2
-    exit 2
-  fi
-fi
+# KDE Kaffeine already uses KDBusService::Unique and activates the
+# existing window on a second launch. Do NOT add an inherited shell flock:
+# helper processes may keep its FD alive after the player exits, causing a
+# false "already running" error and preventing KDBusService from focusing
+# the actual window. Device ownership is handled separately by the receiver.
+# Never probe, claim, or require DVB/RTL-SDR hardware at application launch.
+# Offline media, web TV, settings and diagnostics must open without antennas.
 # Avoid mixing native system libVLC/Qt5 with the user's Conda installation.
 exec env -u LD_LIBRARY_PATH -u LD_PRELOAD -u QT_PLUGIN_PATH \
   -u QT_QPA_PLATFORM_PLUGIN_PATH -u QML2_IMPORT_PATH -u QML_IMPORT_PATH \
