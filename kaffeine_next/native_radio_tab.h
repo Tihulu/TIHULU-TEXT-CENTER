@@ -551,9 +551,9 @@ public:
         quickBufferProgress_->setFormat(tr(
             "Extra buffer OFF · enable it to view startup progress"));
         quickBufferProgress_->setToolTip(tr(
-            "Progress shows estimated startup time against the requested "
-            "extra libVLC cache, NOT measured buffer occupancy, audio "
-            "latency or physical speaker output."));
+            "This is a bounded PLAYER STARTUP timer, NOT actual libVLC "
+            "buffer occupancy. It stops with a clear error if playback "
+            "never reaches PLAYING. No automatic SDR/audio restart."));
         quickBufferProgress_->setVisible(false);
         dabLayout->addWidget(quickBufferProgress_);
 
@@ -4488,32 +4488,60 @@ private:
         const int staged=requestedPlaybackBufferMs();
         const qint64 elapsed=audioStartedMs_>0?
             qMax(qint64(0),QDateTime::currentMSecsSinceEpoch()-audioStartedMs_):0;
-        const bool stationOpened=active() && !playingKey_.isEmpty() &&
-                                 audioStartedMs_>0;
-        const bool playing=stationOpened &&
-                           player_->getPlaybackStatus()==MediaWidget::Playing;
+        const bool receiving=active();
+        const bool stationSelected=!playingKey_.isEmpty() && audioStartedMs_>0;
+        const bool playing=stationSelected && receiving &&
+            player_->getPlaybackStatus()==MediaWidget::Playing;
+        // This timeout is NOT a measured buffer duration. Once the
+        // requested time + an 8s decoder grace period has elapsed, stop
+        // pretending the still-silent player is continuously filling.
+        // A 12s minimum allows short/zero-cache startup some tolerance.
+        const qint64 startupTimeoutMs=qMax(qint64(12000),
+                                            qint64(requested)+8000);
         int percent=0;
         QString message;
-        if(!stationOpened) {
+        if(!receiving && stationSelected) {
+            message=tr("DAB receiver stopped / crashed · no audio buffer "
+                       "measurement. Check welle-cli status and restart "
+                       "receiver manually.");
+        } else if(!stationSelected) {
             message=tr("Extra buffer ON · %1 ms requested for next DAB "
                        "playback; no stream currently opening").arg(staged);
         } else if(playing) {
-            percent=100; // The player STARTED, not measured 100% buffer fill.
-            message=tr("Player reports PLAYING · %1 ms extra cache requested "
-                       "· actual buffer fill unmeasured").arg(requested);
+            // 100% means only that libVLC has STARTED playback, never that
+            // the requested cache size was measured or fully populated.
+            percent=100;
+            message=tr("Audio player STARTED · requested cache %1 ms · "
+                       "actual fill and audible output NOT measured").arg(requested);
+        } else if(elapsed>=startupTimeoutMs) {
+            // Distinct terminal state: never remain at 90/95% for minutes.
+            // Keep SDR, ASR and recordings untouched until explicit Retry.
+            percent=0;
+            message=tr("DAB AUDIO STARTUP FAILED / TIMEOUT · player did not "
+                       "report PLAYING within %1 ms (requested %2 ms cache). "
+                       "NOT buffering. Check welle / MP3 endpoint / audio "
+                       "output; choose Retry DAB sound. No auto restart.")
+                       .arg(startupTimeoutMs).arg(requested);
         } else if(requested>0) {
-            percent=qMin(95,int(qMin(elapsed,qint64(requested))*95/requested));
-            message=tr("Opening DAB audio · estimated startup %1 / %2 ms "
-                       "(%3% of requested time; actual fill unmeasured)")
-                       .arg(elapsed).arg(requested).arg(percent);
+            // Bounded display: even when the player is stuck, never show
+            // elapsed > requested as if a real libVLC queue kept growing.
+            const qint64 bounded=qMin(elapsed,qint64(requested));
+            percent=qMin(90,int(bounded*90/requested));
+            if(elapsed<=requested)
+                message=tr("Waiting for DAB player · %1 / %2 ms estimated "
+                           "startup window (%3%); buffer fill unmeasured")
+                           .arg(bounded).arg(requested).arg(percent);
+            else
+                message=tr("Requested %1 ms cache startup window elapsed · "
+                           "decoder still not PLAYING (grace until %2 ms). "
+                           "No actual buffer measurement.")
+                           .arg(requested).arg(startupTimeoutMs);
         } else {
-            message=tr("Extra buffer enabled, 0 ms requested · %1")
-                .arg(autoSync_ && autoSync_->isChecked()?
-                    tr("awaiting Whisper latency estimate"):
-                    tr("open stream; no extra buffering"));
+            message=tr("Opening DAB player · no extra cache requested. "
+                       "Audio startup still unverified.");
         }
-        if(staged!=requested && stationOpened)
-            message+=tr(" · next station: %1 ms").arg(staged);
+        if(staged!=requested && stationSelected)
+            message+=tr(" · next station request: %1 ms").arg(staged);
         for(QProgressBar *bar:{quickBufferProgress_,audioCacheProgress_}) {
             bar->setRange(0,100);
             bar->setValue(percent);
