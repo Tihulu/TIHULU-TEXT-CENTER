@@ -77,13 +77,14 @@ class AutoLyricsLiveMatchTests(unittest.TestCase):
         # Announcer or broadcaster metadata may rotate while the same
         # song is playing. Only a *different song-looking* label should
         # trigger a new lookup, never just any changed DLS string.
-        self.assertIn("const bool songMetadata=songParts.size()>=2",UI)
+        self.assertIn("inline TihuluDlsSong tihuluDlsSong",UI)
+        self.assertIn("const TihuluDlsSong newSong=tihuluDlsSong(dls)",UI)
         self.assertIn("const bool newSongMetadata=songMetadata &&",UI)
-        self.assertIn("dls!=lastSongDls_",UI)
+        self.assertIn("newSong.normalizedKey()!=lastSongMetadataKey_",UI)
         self.assertIn("if(newSongMetadata) {",UI)
         self.assertIn("lastSongDls_=dls;",UI)
         self.assertIn("lastSongDls_.clear();",UI)
-        self.assertIn("lastDls_:lastSongDls_;",UI)
+        self.assertIn("lastSongMetadataKey_.clear();",UI)
 
     def test_spoken_auto_detect_and_other_supported_languages_are_listed(self):
         self.assertIn('Auto detect · Whisper (selected local model)',UI)
