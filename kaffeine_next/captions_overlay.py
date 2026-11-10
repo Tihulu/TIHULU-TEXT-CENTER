@@ -1220,7 +1220,6 @@ def main(argv=None):
         "content sync; separate languages are not treated as mismatches. "
         "Three conflicts trigger Whisper and two later matches allow "
         "return to Teletext.")
-    settings_layout.addRow("Teletext ↔ speech",teletext_speech_status)
     audio_row = QHBoxLayout()
     audio_row.addWidget(QLabel("Whisper source audio channel"))
     audio_track = QComboBox()
@@ -1687,6 +1686,9 @@ def main(argv=None):
         "Real queued six-second clips, caption delivery losses, and time "
         "since a subtitle was shown. Not a speech/silence detector.")
     root.addWidget(caption_pipeline_health)
+    # Always visible on every tab, including Caption preview and diagnostics.
+    # Never merely equate Teletext existence or PTS with spoken correctness.
+    root.addWidget(teletext_speech_status)
     root.addWidget(buffer_progress)
     buttons = QHBoxLayout()
     apply = QPushButton("Apply")
