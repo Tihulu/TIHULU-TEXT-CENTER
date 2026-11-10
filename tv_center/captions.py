@@ -10,6 +10,7 @@ import re
 import subprocess
 import tempfile
 import time
+import threading
 from pathlib import Path
 
 from textcenter.compute import LANGUAGES as SUPPORTED
@@ -441,10 +442,29 @@ def _translate_argos_local(text: str, source: str, target: str) -> str:
     return translate_offline(text, source, target, backend="cpu")
 
 
+_live_translator_info = threading.local()
+
+
 def translate(text: str, source: str, target: str) -> tuple[str | None, str | None]:
-    """Backwards-compatible (text, warning/error) API for live captions."""
-    translated, issue, _actual_engine = translate_with_engine(text, source, target)
+    """Public backwards-compatible (text, warning/error) API.
+
+    Keep this call seam for DVB, radio and the existing translators/tests.
+    Real-engine diagnostics are stored per worker thread separately.
+    """
+    translated, issue, actual_engine = translate_with_engine(
+        text, source, target)
+    _live_translator_info.last = (
+        (text, source, target), actual_engine if translated else None)
     return translated, issue
+
+
+def translation_engine_for(text: str, source: str, target: str):
+    """Engine of the actual immediately preceding translation on this thread.
+
+    Never infer engine from selected settings when inference was unavailable.
+    """
+    key, engine = getattr(_live_translator_info, "last", (None, None))
+    return engine if key == (text, source, target) else None
 
 
 def translate_with_engine(text: str, source: str, target: str):
@@ -718,7 +738,9 @@ def decode_segment(ts: bytes, *, mode="auto", page=150, source="de",
                     # or selected audio language; original IS the answer.
                     translations[language] = original
                     continue
-                phrase, failed, real_engine = translate_with_engine(
+                phrase, failed = translate(
+                    original, used_language, language)
+                real_engine = translation_engine_for(
                     original, used_language, language)
                 if phrase:
                     translations[language] = phrase
