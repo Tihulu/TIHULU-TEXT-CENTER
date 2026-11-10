@@ -51,7 +51,7 @@ class AutoLyricsLiveMatchTests(unittest.TestCase):
         self.assertIsNone(matcher.observe(
             "Now another quick message from our sponsors"))
 
-    def test_verified_match_is_shown_in_radio_subtitle_bar(self):
+    def test_verified_match_is_shown_in_karaoke_without_hiding_speech(self):
         for required in (
             "radioLyricMatchStatus_=new QLabel(radioCanvas_)",
             "captionSurface->addWidget(radioLyricMatchStatus_)",
@@ -63,13 +63,16 @@ class AutoLyricsLiveMatchTests(unittest.TestCase):
             "LYRICS NOT FOUND",
             "verifiedLyricQueue_.append",
             "verifiedLyricQueue_.first().dueMs<=now",
-            "showRadioCanvasCaption(cue.text,true)",
+            "showKaraokeLine(cue)",
             "lastMatchedLyricUntilMs_",
             "real audio",
             "Whisper speech/advert fallback",
         ):
             self.assertIn(required,UI)
         self.assertIn("if(lastLyricsAutoLookup_) return;",UI)
+        self.assertIn("if(lyric) return;",UI)
+        self.assertIn("showRadioCanvasCaption(cue.text);",UI)
+        self.assertNotIn("showRadioCanvasCaption(cue.text,true)",UI)
         self.assertIn("lastUnmatchedVoiceUntilMs_",UI)
         self.assertIn("verifiedLyricQueue_.clear();",UI)
 
