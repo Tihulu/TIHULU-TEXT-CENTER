@@ -1559,8 +1559,9 @@ public:
 		radioOffsetMs_->setSuffix(tr(" ms"));
 		radioOffsetMs_->setValue(qBound(-12000,
 			radioSettings.value(QLatin1String("captionOffsetMs"),0).toInt(),12000));
-        radioOffsetMs_->setToolTip(tr("Positive: subtitles later; negative: earlier. "
-            "Changes also shift pending cues without re-running Whisper."));
+        radioOffsetMs_->setToolTip(tr("AI captions ONLY: positive moves speech "
+            "subtitles later; negative earlier. Pending spoken captions move "
+            "without re-running Whisper; Karaoke stays independent."));
         mainCaptionOffsetSlider_=new QSlider(Qt::Horizontal,page);
         mainCaptionOffsetSlider_->setRange(-48,48);
         mainCaptionOffsetSlider_->setValue(radioOffsetMs_->value()/250);
@@ -1756,9 +1757,9 @@ public:
         mainLyricOffsetSlider_->setValue(lyricsOffset_->value()/250);
         mainLyricOffsetSlider_->setMinimumWidth(150);
         mainLyricOffsetSlider_->setToolTip(tr(
-            "Adjust ONLY the currently playing lyric/Karaoke timing in "
-            "250 ms steps, ±90 s; does not alter ASR subtitles, radio "
-            "buffer or restart the SDR. Positive is later, negative earlier."));
+            "Karaoke ONLY: 250 ms steps, ±90 s. Positive lyrics later, "
+            "negative earlier. Independent of the AI caption offset. "
+            "No ASR subtitle shift, no buffer change or SDR restart."));
         mainLyricOffsetReadout_=new QLabel(tr("0.00 s"),page);
         karaokePreviewSpeed_=new QSpinBox(page);
         karaokePreviewSpeed_->setRange(50,200);
@@ -5275,9 +5276,8 @@ private:
             requestedRematch=writeRadioLanguageControls();
         }
 
-        // Pending VERIFIED Karaoke words have actual ASR capture epochs.
-        // Recalculate their due times from the current cache and both
-        // independent user offsets instead of flushing words or captions.
+        // Karaoke has its own offset: the AI caption offset cannot move
+        // the lyric line/word clock or affect Karaoke Lip-sync Refresh.
         int reanchored=0;
         const auto updatePending=[this,now,&reanchored](
                 QList<TimedPlainLyric> &queue) {
@@ -5288,7 +5288,7 @@ private:
                 if(captured<=now-120000 || captured>=now+20000)
                     continue;
                 entry.dueMs=qMax(now,captured+activePlaybackCacheMs_+
-                    radioOffsetMs_->value()+lyricsOffset_->value());
+                    lyricsOffset_->value());
                 ++reanchored;
             }
         };
@@ -5364,7 +5364,7 @@ private:
             // PCM capture clock + requested libVLC cache + user offset:
             // no assertion about actual ALSA/DAC speaker presentation PTS.
             const qint64 expected=captured+activePlaybackCacheMs_+
-                radioOffsetMs_->value()+lyricsOffset_->value();
+                lyricsOffset_->value();
             if(now>=expected) active=i;
         }
         if(active==lastHighlightedKaraokeWord_) return;
@@ -5551,7 +5551,7 @@ private:
             if(lastWord>now-120000 && lastWord<now+20000)
                 lastKaraokeUntilMs_=qMax(lastKaraokeUntilMs_,
                     lastWord+activePlaybackCacheMs_+
-                    radioOffsetMs_->value()+lyricsOffset_->value()+2000);
+                    lyricsOffset_->value()+2000);
         }
         karaokePanel_->setVisible(karaokeEnabled_ &&
             karaokeEnabled_->isChecked());
@@ -6162,7 +6162,10 @@ private:
                         .arg(matched.value(QLatin1String("index")).toInt()+1));
 					// Start at the first actually heard GPU word (never metadata).
                     // The old phrase-end cue remains the CPU fallback.
-                    qint64 karaokeDue=due+lyricsOffset_->value();
+                    // 'due' includes the AI-caption offset; cancel that
+                    // offset when scheduling the separate Karaoke stream.
+                    qint64 karaokeDue=qMax(now,due-
+                        radioOffsetMs_->value()+lyricsOffset_->value());
                     if(!lyricWordAnchors.isEmpty()) {
                         const qint64 firstWord=qRound64(
                             lyricWordAnchors.first().toObject().value(
@@ -6170,7 +6173,6 @@ private:
                         if(firstWord>now-120000 && firstWord<now+20000)
                             karaokeDue=qMax(now,firstWord+
                                 activePlaybackCacheMs_+
-                                radioOffsetMs_->value()+
                                 lyricsOffset_->value());
                     }
                     const TimedPlainLyric matchedCue(
@@ -6200,7 +6202,7 @@ private:
 							const double lrcSeconds=lyricCues_.at(idx).toObject()
 								.value(QLatin1String("start")).toDouble(-1.);
 							if(lrcSeconds>=0.) {
-								const qint64 inferredStart=due-
+								const qint64 inferredStart=due-radioOffsetMs_->value()-
 									qRound64(lrcSeconds*1000.);
 								const qint64 delta=inferredStart-songStartMs_;
 								// Require a close observed vocal line, then correct gently.
