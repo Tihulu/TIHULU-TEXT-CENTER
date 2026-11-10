@@ -5251,14 +5251,12 @@ private:
             if(!lyric && !lyricsEnabled_) radioCanvasCaption_->setVisible(false);
             return;
         }
-        // Actual LRC / audio-matched lyric lines win over uncertain ASR;
-        // never replace the radioCanvas_'s station text or slideshow.
-        // DLS metadata may still show a song while the announcer talks.
-        // Never let estimated timed lyrics erase actual Whisper speech.
+        // The LOWER caption strip always belongs to the actual Whisper
+        // original + translations. Lyrics (even audio matched) belong in
+        // the separate blue Karaoke panel. Never suppress live speech
+        // merely because the lyric match holds for several seconds.
+        if(lyric) return; // Legacy callers must not overwrite ASR captions.
         const qint64 currentMs=QDateTime::currentMSecsSinceEpoch();
-        if(lyric && lastUnmatchedVoiceUntilMs_>currentMs) return;
-        if(!lyric && lyricsEnabled_ && currentMs<lastMatchedLyricUntilMs_ &&
-           currentMs>=lastUnmatchedVoiceUntilMs_) return;
         if(radioCanvasCaption_->text()!=text) {
             radioCanvasCaption_->setText(text);
             // Keep full multi-language phrases readable; never change
@@ -5366,10 +5364,35 @@ private:
 		   detected!=QLatin1String("und"))
 			lastDetectedLanguage_=detected;
         const int chunk=obj.value(QLatin1String("chunk_index")).toInt(-1);
-        if(chunk<0 && obj.value(QLatin1String("status")).toString()
-                ==QLatin1String("waiting_audio")) {
-            translationStatus_->setText(tr("AI input: waiting for decoded DAB "
-                "audio. Main radio playback is independent."));
+        const QString aiStatus=obj.value(QLatin1String("status")).toString();
+        if(chunk<0 && aiStatus==QLatin1String("waiting_audio")) {
+            const QString waiting=tr(
+                "AI ON · waiting for decodable DAB audio from local MP3 "
+                "endpoint. Lyrics metadata is not a speech transcript.");
+            translationStatus_->setText(waiting);
+            if(radioCaptionBanner_) {
+                radioCaptionBanner_->setText(waiting);
+                radioCaptionBanner_->setVisible(true);
+            }
+        } else if(chunk<0 && aiStatus==QLatin1String("audio_unavailable")) {
+            const QString reason=obj.value(QLatin1String("reason"))
+                .toString().left(220);
+            const QString error=tr(
+                "Whisper has NO DAB PCM audio · %1 · no subtitles can be "
+                "generated until the stream works. Check welle-cli / MP3 "
+                "endpoint / ffmpeg; do not assume audio silence.")
+                .arg(reason.isEmpty()?tr("decoder ended without PCM"):reason);
+            translationStatus_->setText(error);
+            if(radioCaptionBanner_) {
+                radioCaptionBanner_->setText(error);
+                radioCaptionBanner_->setVisible(true);
+            }
+            if(captionProgress_) {
+                captionProgress_->setRange(0,100);
+                captionProgress_->setValue(0);
+                captionProgress_->setFormat(tr(
+                    "Whisper input failed · no decoded audio; inspect DAB stream"));
+            }
         }
         const int revision=obj.value(QLatin1String("caption_revision")).toInt(1);
         const bool newChunk=(chunk!=lastRadioChunk_);
@@ -6254,7 +6277,8 @@ private:
         while(!verifiedLyricQueue_.isEmpty() &&
               verifiedLyricQueue_.first().dueMs<=now) {
             const auto cue=verifiedLyricQueue_.takeFirst();
-            showRadioCanvasCaption(cue.text,true);
+            // Do NOT replace the independent lower Whisper subtitle strip
+            // with catalog lyrics. The blue panel handles Karaoke.
             showKaraokeLine(cue);
             setRadioLyricMatchStatus(tr(
                 "LYRICS MATCHED %1% · showing heard song words")
@@ -6267,7 +6291,7 @@ private:
 				const auto cue=plainLyricQueue_.takeFirst();
 				lyricText_->setText(tr("Audio-matched lyric (~%1% confidence) · %2")
 					.arg(qRound(cue.confidence*100)).arg(cue.text));
-                showRadioCanvasCaption(cue.text,true);
+                // Keep the ordinary Whisper caption strip intact.
                 showKaraokeLine(cue);
                 setRadioLyricMatchStatus(tr(
                     "LYRICS MATCHED %1% · showing heard song words")
@@ -6316,7 +6340,8 @@ private:
 				if (!current.isEmpty()) {
                     const QString text=tr("Estimated lyric timing · %1").arg(current);
                     if(lyricText_->text()!=text)lyricText_->setText(text);
-                    showRadioCanvasCaption(current,true);
+                    // Estimation only belongs to Lyrics / blue Karaoke,
+                    // NEVER the lower Whisper conversation subtitle strip.
                 } else if(lastCanvasLyricMs_>0 &&
                     QDateTime::currentMSecsSinceEpoch()-lastCanvasLyricMs_>8000 &&
                     radioCanvasCaption_) {
