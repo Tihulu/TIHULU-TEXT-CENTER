@@ -485,10 +485,36 @@ public:
             "Refresh BOTH the lower Whisper subtitle timing and blue-screen "
             "Karaoke word/preview timing. Retains current lyrics, verified "
             "audio word anchors, manual offsets and independent Reading modes. "
-            "Never restarts SDR, MP3 playback, AI or online lyric search; "
-            "speaker DAC time remains unmeasured."));
+            "Uses the adjustable last 10s (3–30s) of actual matched Whisper "
+            "word evidence already in memory. Refresh NEVER refills/restarts "
+            "the existing libVLC audio buffer, SDR, MP3, AI or lyric search. "
+            "Without audio-matched words, no artificial Karaoke movement. "
+            "Speaker DAC time remains unmeasured."));
         captionComfortRow->addWidget(captionRefresh_);
         captionComfortRow->addWidget(radioSyncRefresh_);
+        captionComfortRow->addWidget(new QLabel(tr("Karaoke sync history:"),page));
+        karaokeSyncHistorySeconds_=new QSpinBox(page);
+        karaokeSyncHistorySeconds_->setRange(3,30);
+        karaokeSyncHistorySeconds_->setSuffix(tr(" s"));
+        QSettings karaokeHistoryPrefs(QLatin1String("TIHULU"),
+                                      QLatin1String("KaffeineRadio"));
+        karaokeSyncHistorySeconds_->setValue(qBound(3,
+            karaokeHistoryPrefs.value(QLatin1String("karaokeSyncHistorySeconds"),
+                                     10).toInt(),30));
+        karaokeSyncHistorySeconds_->setToolTip(tr(
+            "Default 10s of recent real Whisper lyric matches/word timestamps. "
+            "This is an in-memory SYNC EVIDENCE window, NOT a second PCM/audio "
+            "buffer or added playback delay. Lip-sync Refresh reuses these "
+            "observations immediately; it never empties or refills libVLC cache."));
+        captionComfortRow->addWidget(karaokeSyncHistorySeconds_);
+        connect(karaokeSyncHistorySeconds_,
+            QOverload<int>::of(&QSpinBox::valueChanged),this,
+            [this](int seconds){
+                QSettings prefs(QLatin1String("TIHULU"),
+                                QLatin1String("KaffeineRadio"));
+                prefs.setValue(QLatin1String("karaokeSyncHistorySeconds"),seconds);
+                pruneRecentKaraokeEvidence(QDateTime::currentMSecsSinceEpoch());
+            });
         captionComfortRow->addSpacing(12);
         captionComfortRow->addWidget(new QLabel(tr("Reading:"),page));
         radioReadingPreset_=new QComboBox(page);
@@ -1601,10 +1627,10 @@ public:
                 QLatin1String("karaokePreviewSpeedPercent"),100).toInt(),200));
         previewPreviousSpeedPercent_=karaokePreviewSpeed_->value();
         karaokePreviewSpeed_->setToolTip(tr(
-            "Independent Karaoke speed (0.50x–2.00x) only for UNVERIFIED "
-            "Lyrics Found previews. Actual matched Whisper words and "
-            "timed audio are never sped up or slowed down. "
-            "TV-style/Comfort Reading only controls lower transcribed captions."));
+            "Legacy estimated speed is disabled: no autoplay word sweep "
+            "without real Whisper audio evidence. The separate Karaoke "
+            "sync history (default 10 seconds) is adjustable instead."));
+        karaokePreviewSpeed_->setEnabled(false);
         connect(karaokePreviewSpeed_,QOverload<int>::of(&QSpinBox::valueChanged),
             this,[this](int percent){
                 // A speed change must not multiply elapsed time since the
@@ -1635,7 +1661,7 @@ public:
         mainLyricOffsetRow->addWidget(mainLyricOffsetSlider_,1);
         mainLyricOffsetRow->addWidget(mainLyricOffsetReadout_);
         mainLyricOffsetRow->addWidget(new QLabel(tr(
-            "Unverified Karaoke speed:"),page));
+            "Legacy preview speed (disabled):"),page));
         mainLyricOffsetRow->addWidget(karaokePreviewSpeed_);
         mainLyricOffsetRow->addWidget(new QLabel(tr(
             "Reading affects lower Whisper captions only"),page));
@@ -2625,6 +2651,17 @@ private:
             : dueMs(due),text(rendered),confidence(certainty),
               lineIndex(index),original(source),translations(translated),
               wordAnchors(alignedWords) {}
+    };
+    struct RecentKaraokeEvidence {
+        qint64 receivedMs;
+        QString stationKey;
+        QString songKey;
+        TimedPlainLyric cue;
+        RecentKaraokeEvidence(qint64 seen,const QString &station,
+                              const QString &song,
+                              const TimedPlainLyric &matched)
+            : receivedMs(seen),stationKey(station),songKey(song),
+              cue(matched) {}
     };
 	static QString label(const QJsonValue &value) {
 		if (value.isString()) return value.toString();
@@ -4842,6 +4879,23 @@ private:
         timer->start();
         dialog->show();
     }
+    void pruneRecentKaraokeEvidence(qint64 now) {
+        const qint64 windowMs=qint64(karaokeSyncHistorySeconds_?
+            karaokeSyncHistorySeconds_->value():10)*1000;
+        while(!recentKaraokeEvidence_.isEmpty() &&
+              (recentKaraokeEvidence_.first().receivedMs<now-windowMs ||
+               recentKaraokeEvidence_.first().stationKey!=playingKey_ ||
+               recentKaraokeEvidence_.first().songKey!=lastSongMetadataKey_))
+            recentKaraokeEvidence_.removeFirst();
+        while(recentKaraokeEvidence_.size()>48)
+            recentKaraokeEvidence_.removeFirst();
+    }
+    void rememberKaraokeEvidence(const TimedPlainLyric &cue,qint64 now) {
+        if(cue.lineIndex<0 || cue.original.isEmpty()) return;
+        recentKaraokeEvidence_.append(RecentKaraokeEvidence(
+            now,playingKey_,lastSongMetadataKey_,cue));
+        pruneRecentKaraokeEvidence(now);
+    }
     void refreshRadioLipSync() {
         const qint64 now=QDateTime::currentMSecsSinceEpoch();
         // Refresh the lower Whisper timing estimator; never start/stop
@@ -4876,29 +4930,50 @@ private:
         // For a verified line redraw its *unchanged* Whisper word anchors.
         // For opted-in Lyrics Found preview, recompute line/word position
         // on its existing timeline; never reset previewStartedMs_.
-        lastHighlightedKaraokeWord_=-2;
-        previewLastHighlightedWord_=-2;
-        previewLastIndex_=-1;
-        if(karaokePanel_ && karaokePanel_->isVisible()) {
-            refreshKaraokeWordHighlight(now);
-            showFoundKaraokePreview(now);
+        // Reuse evidence already captured by this running session. No
+        // new 10s waiting period, audio-buffer flush or ASR re-inference.
+        pruneRecentKaraokeEvidence(now);
+        int reused=0;
+        if(player_ && player_->getPlaybackStatus()==MediaWidget::Playing &&
+           karaokeEnabled_ && karaokeEnabled_->isChecked()) {
+            for(int i=recentKaraokeEvidence_.size()-1;i>=0;--i) {
+                const RecentKaraokeEvidence &e=recentKaraokeEvidence_.at(i);
+                if(e.stationKey!=playingKey_ ||
+                   e.songKey!=lastSongMetadataKey_ ||
+                   e.cue.wordAnchors.isEmpty() ||
+                   e.cue.lineIndex!=lastVerifiedLyricIndex_) continue;
+                // Re-show the last truly heard line and recompute its
+                // EXISTING word timestamps at the current user offsets.
+                // Never synthesize unheard lyrics from DLS/LRC times.
+                showKaraokeLine(e.cue);
+                reused=e.cue.wordAnchors.size();
+                break;
+            }
         }
+        lastHighlightedKaraokeWord_=-2;
+        refreshKaraokeWordHighlight(now);
+        // Preview has no independent moving playhead anymore.
         const QString policy=karaokePolicy_?
             karaokePolicy_->currentData().toString():QString();
         const bool preview=policy==QLatin1String("found") ||
                            policy==QLatin1String("found-sync");
         if(lyricsSyncState_) lyricsSyncState_->setText(tr(
-            "Karaoke lip-sync refreshed · %1 pending verified line(s) "
-            "reanchored · %2 · next ASR match recalibrates LRC. "
-            "Manual lyric offset %3 ms retained; DAC not measured.")
-            .arg(reanchored)
-            .arg(preview?tr("estimated preview timeline kept"):
-                        tr("Whisper word timestamps kept"))
+            "Karaoke sync refresh · %1s recent observed-match history reused "
+            "(%2 existing word anchors, %3 pending cues recalculated). "
+            "%4 · manual lyric offset %5 ms retained. "
+            "No audio buffer refill or 10s playback delay; DAC not measured.")
+            .arg(karaokeSyncHistorySeconds_?
+                karaokeSyncHistorySeconds_->value():10)
+            .arg(reused).arg(reanchored)
+            .arg(preview?tr("unverified preview HELD until audio match"):
+                         tr("audio-verified words only"))
             .arg(lyricsOffset_?lyricsOffset_->value():0));
         syncStatus_->setText(tr(
-            "Lip-sync refreshed: Whisper caption estimator + Karaoke. "
-            "Reading=%1 (independent); caption offset %2 ms and "
-            "Karaoke offset %3 ms preserved; audio untouched.")
+            "Lip-sync refreshed from existing word observations, without "
+            "restarting the %1ms requested audio buffer or SDR/ASR. "
+            "Reading=%2 (independent); caption offset %3 ms and "
+            "Karaoke offset %4 ms preserved.")
+            .arg(activePlaybackCacheMs_)
             .arg(radioReadingPreset_?
                  radioReadingPreset_->currentText():tr("default"))
             .arg(radioOffsetMs_?radioOffsetMs_->value():0)
@@ -5534,19 +5609,23 @@ private:
                                 radioOffsetMs_->value()+
                                 lyricsOffset_->value());
                     }
+                    const TimedPlainLyric matchedCue(
+                        karaokeDue,rendered,confidence,
+                        matched.value(QLatin1String("index")).toInt(-1),
+                        line,lyricTranslations,lyricWordAnchors);
+                    // Bounded evidence memory, independent of libVLC audio
+                    // cache. An ordinary Lip-sync Refresh reuses this.
+                    rememberKaraokeEvidence(matchedCue,now);
                     if(plainLyricMode_) {
-						plainLyricQueue_.append({karaokeDue,rendered,confidence,
-                            matched.value(QLatin1String("index")).toInt(-1),
-                            line,lyricTranslations,lyricWordAnchors});
-						while(plainLyricQueue_.size()>10) plainLyricQueue_.removeFirst();
-						lyricsSyncState_->setText(tr("Verified text match %1% · "
-							"audio-derived line ordering, approximate 5s time resolution")
-							.arg(qRound(confidence*100)));
+                        plainLyricQueue_.append(matchedCue);
+                        while(plainLyricQueue_.size()>10)
+                            plainLyricQueue_.removeFirst();
+                        lyricsSyncState_->setText(tr(
+                            "Verified text match %1% · audio-derived line ordering; "
+                            "word timing only when Whisper has actual anchors")
+                            .arg(qRound(confidence*100)));
                     } else {
-                        verifiedLyricQueue_.append({
-                            karaokeDue,rendered,confidence,
-                            matched.value(QLatin1String("index")).toInt(-1),
-                            line,lyricTranslations,lyricWordAnchors});
+                        verifiedLyricQueue_.append(matchedCue);
                         while(verifiedLyricQueue_.size()>10)
                             verifiedLyricQueue_.removeFirst();
                     }
@@ -5806,6 +5885,7 @@ private:
         pendingSongKey_.clear();
         pendingSongDls_.clear();
         cancelLyricsRefresh();
+        recentKaraokeEvidence_.clear();
         lastSongMetadataKey_=candidate;
         lastSongDls_=acceptedDls;
         // DLS is metadata; this time is not measured audio/DAC PTS.
@@ -5852,6 +5932,7 @@ private:
     }
 	void stopLyrics() {
         cancelLyricsRefresh();
+        recentKaraokeEvidence_.clear();
         const bool hadListening=lyricsAudioFallbackActive_;
         const bool startedByLyrics=lyricsFallbackStartedAi_;
         lyricsAudioFallbackActive_=false;
@@ -6056,6 +6137,7 @@ private:
             // Do not make a second DLS/song start by resetting songStartMs_.
             verifiedLyricQueue_.clear();
             plainLyricQueue_.clear();
+            recentKaraokeEvidence_.clear();
             clearKaraokeLine();
             lastVerifiedLyricMs_=0;
             lastVerifiedLyricText_.clear();
@@ -6139,6 +6221,7 @@ private:
         lyricCues_=QJsonArray();
         plainLyricQueue_.clear();
         verifiedLyricQueue_.clear();
+        recentKaraokeEvidence_.clear();
         lyricRawLines_.clear();
         lastLyricsProvider_.clear();
         clearKaraokeLine();
@@ -6515,6 +6598,8 @@ private:
     QHBoxLayout *radioQuickRow_=nullptr,*radioPlaybackRow_=nullptr;
     QCheckBox *quickAi_=nullptr,*quickTranslate_=nullptr,
         *quickBuffer_=nullptr,*releaseOnStop_=nullptr;
+    QSpinBox *karaokeSyncHistorySeconds_=nullptr;
+    QList<RecentKaraokeEvidence> recentKaraokeEvidence_;
     QPushButton *captionEarlier_=nullptr,*captionLater_=nullptr,
         *captionRefresh_=nullptr,*radioSyncRefresh_=nullptr,
         *lyricsRefresh_=nullptr;
