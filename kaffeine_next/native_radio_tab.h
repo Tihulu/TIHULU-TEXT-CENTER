@@ -4953,36 +4953,68 @@ private:
         const bool timed=!plainLyricMode_ && !lyricCues_.isEmpty();
         const int count=timed?lyricCues_.size():lyricRawLines_.size();
         if(count<1) return;
+        const bool playerRunning=player_ &&
+            player_->getPlaybackStatus()==MediaWidget::Playing;
+        const bool asrListening=captionProcess_.state()!=QProcess::NotRunning;
+        // Absent ASR words alone cannot prove an instrumental passage.
+        // Without a recent VERIFIED vocal match, do not let the opt-in
+        // estimated Karaoke clock invent progress through unheard words.
+        const bool noFreshVocalMatch=lastVerifiedLyricMs_<=0 ||
+            now-lastVerifiedLyricMs_>=10000;
+        const bool holdPreview=!playerRunning ||
+            (asrListening && noFreshVocalMatch) ||
+            lastUnmatchedVoiceUntilMs_>now;
+        const int speed=karaokePreviewSpeed_?
+            karaokePreviewSpeed_->value():100;
         if(previewStartedMs_<=0) previewStartedMs_=now;
-        int estimate=0;
+        if(holdPreview) {
+            if(previewPauseStartedMs_<=0) {
+                previewPauseStartedMs_=now;
+                if(lastVerifiedLyricIndex_<0 && previewLastIndex_<0) {
+                    previewStartedMs_=now;
+                    previewSpeedCompensationMs_=0;
+                }
+            }
+        } else if(previewPauseStartedMs_>0) {
+            // Resume from the same visual position, not elapsed silent time.
+            previewSpeedCompensationMs_-=qRound64(
+                (now-previewPauseStartedMs_)*speed/100.);
+            previewPauseStartedMs_=0;
+        }
+        const qint64 previewClockNow=previewPauseStartedMs_>0?
+            previewPauseStartedMs_:now;
+        int estimate=lastVerifiedLyricIndex_>=0?
+            lastVerifiedLyricIndex_:0;
         double previewSeconds=0.;
         if(timed) {
-            const qint64 anchor=autoLyricSync_->isChecked() && songStartMs_>0?
+            // DLS metadata time is never the measured audio playhead.
+            const qint64 anchor=asrListening?previewStartedMs_:
+                autoLyricSync_->isChecked() && songStartMs_>0?
                 songStartMs_:manualSongStartMs_>0?
                 manualSongStartMs_:previewStartedMs_;
-            const int speed=karaokePreviewSpeed_?
-                karaokePreviewSpeed_->value():100;
             // Separate Karaoke timeline. Positive lyric offset means
             // lyrics LATER; caption Reading mode and manual caption offset
             // must never change this clock.
-            const double elapsed=((now-anchor)*speed/100.+
+            const double elapsed=((previewClockNow-anchor)*speed/100.+
                 previewSpeedCompensationMs_-lyricsOffset_->value())/1000.;
             previewSeconds=elapsed;
             // LRC times describe track-relative positions, while the DLS
             // clock is an APPROXIMATION. Never infer sample-accurate audio.
-            for(int i=0;i<count && i<300;++i) {
-                const double start=lyricCues_.at(i).toObject().value(
-                    QLatin1String("start")).toDouble(-1);
-                if(start>=0 && start<=elapsed) estimate=i;
+            if(!holdPreview) {
+                estimate=0;
+                for(int i=0;i<count && i<300;++i) {
+                    const double start=lyricCues_.at(i).toObject().value(
+                        QLatin1String("start")).toDouble(-1);
+                    if(start>=0 && start<=elapsed) estimate=i;
+                }
             }
         } else {
             // Plain text has no timing. A user-requested exploratory
             // six-second-per-line display is explicitly labeled unverified.
-            const int speed=karaokePreviewSpeed_?
-                karaokePreviewSpeed_->value():100;
-            previewSeconds=((now-previewStartedMs_)*speed/100.+
+            previewSeconds=((previewClockNow-previewStartedMs_)*speed/100.+
                 previewSpeedCompensationMs_-lyricsOffset_->value())/1000.;
-            estimate=qMax(0,int(previewSeconds*1000./6000.));
+            if(!holdPreview)
+                estimate=qMax(0,int(previewSeconds*1000./6000.));
         }
         const int index=qBound(0,estimate+previewIndexShift_,count-1);
         const auto lineAt=[this,timed](int i)->QString {
@@ -5012,7 +5044,7 @@ private:
             karaokeCurrent_->setTextFormat(Qt::PlainText);
             karaokeCurrent_->setText(line);
         }
-        if(previewLipSync) {
+        if(previewLipSync && !holdPreview) {
             // LRC line time is not actual heard word timing. The six-second
             // plain-text sweep is also intentionally unverified.
             const double begin=timed?lyricCues_.at(index).toObject().value(
@@ -5099,7 +5131,10 @@ private:
                                  karaokePreviewSpeed_->value():100)));
         if(previewLipSync) karaokeSource_->setText(
             karaokeSource_->text()+
-            tr("\nESTIMATED WORD SWEEP · unverified lip-sync"));
+            (holdPreview?
+                tr("\nKARAOKE HOLD · awaiting heard vocals or audio playback; "
+                   "not claiming instrumental detection"):
+                tr("\nESTIMATED WORD SWEEP · unverified lip-sync")));
         karaokePanel_->setVisible(true);
     }
     void showKaraokeLine(const TimedPlainLyric &cue) {
@@ -5576,6 +5611,8 @@ private:
                     // A genuine audio match is evidence even without a translation.
                     lastVerifiedLyricText_=line;
                     lastVerifiedLyricTranslations_=lyricTranslations;
+                    lastVerifiedLyricIndex_=matched.value(
+                        QLatin1String("index")).toInt(-1);
                     lastVerifiedLyricMs_=now;
                     lastUnmatchedVoiceUntilMs_=qMin(
                         lastUnmatchedVoiceUntilMs_,now);
@@ -6545,7 +6582,9 @@ private:
     QPushButton *previewPrevious_=nullptr,*previewNext_=nullptr,
                 *fullLyricsButton_=nullptr;
     QPointer<QDialog> fullLyricsDialog_;
-    qint64 previewStartedMs_=0,previewSpeedCompensationMs_=0;
+    qint64 previewStartedMs_=0,previewSpeedCompensationMs_=0,
+           previewPauseStartedMs_=0;
+    int lastVerifiedLyricIndex_=-1;
     int previewPreviousSpeedPercent_=100;
     int previewIndexShift_=0,previewLastIndex_=-1,
         previewLastHighlightedWord_=-2;
