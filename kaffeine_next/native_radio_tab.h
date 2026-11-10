@@ -84,6 +84,50 @@
 #include <limits>
 
 // Retuned analog radio: functional wheel/mouse QDial with a retro brass face.
+// Broadcaster DLS is a search hint only, never proof of heard song lyrics.
+// Support common DE/TR station formats without blindly splitting slogans.
+struct TihuluDlsSong {
+    QString artist,title,format;
+    bool valid() const {return !artist.isEmpty() && !title.isEmpty();}
+    QString normalizedKey() const {
+        return artist.simplified().toCaseFolded()+QLatin1Char('|')+
+               title.simplified().toCaseFolded();
+    }
+};
+inline TihuluDlsSong tihuluDlsSong(const QString &dls) {
+    TihuluDlsSong result;
+    if(dls.size()<5 || dls.size()>330) return result;
+    const QString text=dls.simplified();
+    if(text.contains(QLatin1String("::"))) {
+        const QStringList fields=text.split(QLatin1String("::"));
+        if(fields.size()>=3) {
+            const QString prefix=fields.at(0).trimmed().toCaseFolded();
+            if(prefix==QLatin1String("jetzt on air") ||
+               prefix==QLatin1String("now on air") ||
+               prefix==QLatin1String("now playing") ||
+               prefix==QLatin1String("şimdi çalıyor") ||
+               prefix==QLatin1String("simdi caliyor")) {
+                result.title=fields.at(1).trimmed();
+                result.artist=fields.at(2).trimmed();
+                result.format=QLatin1String("track_first_station");
+            }
+        }
+    } else {
+        const QRegularExpression separator(
+            QLatin1String("\\s+[-–—]\\s+"));
+        const QRegularExpressionMatch hit=separator.match(text);
+        if(hit.hasMatch()) {
+            result.artist=text.left(hit.capturedStart()).trimmed();
+            result.title=text.mid(hit.capturedEnd()).trimmed();
+            result.format=QLatin1String("artist_first");
+        }
+    }
+    if(result.artist.size()>130 || result.title.size()>130 ||
+       result.artist.compare(result.title,Qt::CaseInsensitive)==0)
+        return TihuluDlsSong();
+    return result;
+}
+
 class TihuluBrassDial final : public QDial {
 public:
     explicit TihuluBrassDial(QWidget *parent=nullptr):QDial(parent) {
@@ -2942,14 +2986,12 @@ private:
                     // and station slogans while playing the SAME song.
                     // An arbitrary DLS change MUST NOT erase the current
                     // lyric match and start another lookup repeatedly.
-                    const QStringList songParts=dls.split(QLatin1String(" - "));
-                    const bool songMetadata=songParts.size()>=2 &&
-                        !songParts.first().trimmed().isEmpty() &&
-                        !songParts.mid(1).join(QLatin1String(" - "))
-                            .trimmed().isEmpty();
+                    const TihuluDlsSong newSong=tihuluDlsSong(dls);
+                    const bool songMetadata=newSong.valid();
                     const bool newSongMetadata=songMetadata &&
-                        dls!=lastSongDls_;
+                        newSong.normalizedKey()!=lastSongMetadataKey_;
                     if(newSongMetadata) {
+                        lastSongMetadataKey_=newSong.normalizedKey();
                         lastSongDls_=dls;
 					// DLS is live; the audible audio may be delayed by radio caching.
 					// This is approximate metadata sync, NOT audio fingerprinting.
@@ -3498,6 +3540,7 @@ private:
                         .arg(block,dabCenterFrequencyMHz(block),sid));
 				lastDls_.clear();
                 lastSongDls_.clear();
+        lastSongMetadataKey_.clear();
                 lyricRawLines_.clear();
                 lastLyricsProvider_.clear();
                 clearKaraokeLine();
@@ -4804,20 +4847,17 @@ private:
 		if (!active() || playingKey_.isEmpty()) {
 			lyricText_->setText(tr("Play a station first.")); return;
 		}
-        const QString lyricDls=lastDls_.contains(QLatin1String(" - "))?
-            lastDls_:lastSongDls_;
-		const QStringList fields=lyricDls.split(QLatin1String(" - "));
+        const TihuluDlsSong song=tihuluDlsSong(lastDls_);
 		const bool overridden=!automatic && !lyricsArtist_->text().trimmed().isEmpty()
 			&& !lyricsTitle_->text().trimmed().isEmpty();
-		if(fields.size()<2 && !overridden) {
+		if(!song.valid() && !overridden) {
 			lyricText_->setText(tr("No reliable Artist - Title DLS metadata. "
                 "You can type artist/title, import LRC, or listen to vocals offline."));
             if(!automatic && listenFallbackOnMiss_->isChecked()) beginLyricListening();
 			return;
 		}
-		const QString artist=overridden?lyricsArtist_->text().trimmed():fields.at(0).trimmed();
-		const QString title=overridden?lyricsTitle_->text().trimmed():
-            fields.mid(1).join(QLatin1String(" - ")).trimmed();
+		const QString artist=overridden?lyricsArtist_->text().trimmed():song.artist;
+		const QString title=overridden?lyricsTitle_->text().trimmed():song.title;
 		if (artist.isEmpty() || title.isEmpty() || artist.size()>130 || title.size()>130)
 			return;
 		if (automatic && !autoLyrics_->isChecked()) return;
@@ -5172,7 +5212,7 @@ private:
     QWidget *karaokePanel_=nullptr;
     qint64 lastVerifiedLyricMs_=0;
     int lastLyricDirection_=0,lyricOffsetConsistency_=0;
-	QString activeChannel_,playingKey_,lastDls_,lastSongDls_,captionPath_,captionControlsPath_,lyricPath_,
+	QString activeChannel_,playingKey_,lastDls_,lastSongDls_,lastSongMetadataKey_,captionPath_,captionControlsPath_,lyricPath_,
 		wellePortFile_,
 		lastDetectedLanguage_;
 	QMap<QString,QJsonObject> stationData_;
