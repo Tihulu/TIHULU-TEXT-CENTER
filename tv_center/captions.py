@@ -442,57 +442,75 @@ def _translate_argos_local(text: str, source: str, target: str) -> str:
 
 
 def translate(text: str, source: str, target: str) -> tuple[str | None, str | None]:
-    """Return (verified translated text, error/warning), never made-up output.
+    """Backwards-compatible (text, warning/error) API for live captions."""
+    translated, issue, _actual_engine = translate_with_engine(text, source, target)
+    return translated, issue
 
-    If NLLB cannot materialize its weights or exceeds the live time budget,
-    the user still gets the requested translation when a suitable Argos pack
-    exists. A circuit breaker prevents a bad 2.5-GB NLLB cold start from
-    blocking every following live audio segment. Any fallback is reported
-    explicitly in diagnostics, not embedded in the on-video subtitle text.
+
+def translate_with_engine(text: str, source: str, target: str):
+    """Return (text, warning/error, ACTUAL engine) for honest UI diagnostics.
+
+    Whisper remains ASR, not an invisible English-pivot translator. The
+    owner's explicit 'Direct DE→TR' choice uses installed NLLB/MADLAD first,
+    only then reports Argos's possible English pivot. Other settings behave
+    as before. No language model is downloaded during inference.
     """
     try:
         source = language_code(source, nllb=True)
         target = language_code(target, nllb=True)
     except ValueError as exc:
-        return None, str(exc)
+        return None, str(exc), None
     if source == target:
-        return None, None
+        return None, None, "original"
+
+    selected = os.environ.get("TIHULU_TRANSLATOR_MODEL", "argos")
+    if selected == "de_tr_direct":
+        if source in ("de", "deu_Latn") and target in ("tr", "tur_Latn"):
+            from .direct_de_tr import translate_de_tr_direct
+            result = translate_de_tr_direct(text)
+            return result.text, result.error or result.warning, result.engine
+        # The preference is pair-specific. Keep other requested languages
+        # available using local Argos, and label the actual route honestly.
+        try:
+            return _translate_argos_local(text, source, target), None, "argos"
+        except (ImportError, RuntimeError, ValueError, OSError, KeyError):
+            return None, "No local Argos route for non-DE→TR language pair", None
 
     from .translation_failover import live_failover
     from .translation_service import translate_nllb
-    selected = os.environ.get("TIHULU_TRANSLATOR_MODEL", "argos")
-    if selected=="deepl":
-        # Explicit online-provider opt-in. Only the decoded text is sent;
-        # live RF, TV transport and original audio never leave this device.
+    if selected == "deepl":
+        # Only an EXPLICIT previously authorized DeepL selection sends text.
         try:
             from .deepl_api import translate_deepl
-            translated=translate_deepl(text,source,target)
-            return translated,None
-        except (ValueError,RuntimeError,OSError,TimeoutError) as exc:
+            translated = translate_deepl(text, source, target)
+            return translated, None, "deepl"
+        except (ValueError, RuntimeError, OSError, TimeoutError) as exc:
             try:
-                replacement=_translate_argos_local(text,source,target)
-                return replacement,"DeepL unavailable; offline Argos fallback: "+str(exc)[:100]
-            except (ImportError,RuntimeError,ValueError,OSError,KeyError):
-                return None,"DeepL unavailable; no compatible offline Argos pair"
-    if selected=="madlad":
+                replacement = _translate_argos_local(text, source, target)
+                return (replacement, "DeepL unavailable; offline Argos fallback: "+
+                        str(exc)[:100], "argos-fallback")
+            except (ImportError, RuntimeError, ValueError, OSError, KeyError):
+                return None, "DeepL unavailable; no compatible offline Argos pair", None
+    if selected == "madlad":
         from .translation_service import translate_madlad
         import time
-        now=time.monotonic()
-        blocked=getattr(translate,"_madlad_blocked_until",0.)
-        if now>=blocked:
+        now = time.monotonic()
+        blocked = getattr(translate, "_madlad_blocked_until", 0.)
+        if now >= blocked:
             try:
-                return translate_madlad(text,source,target),None
-            except (RuntimeError,OSError,ValueError,TimeoutError,ImportError):
-                translate._madlad_blocked_until=now+180.
+                return translate_madlad(text, source, target), None, "madlad"
+            except (RuntimeError, OSError, ValueError, TimeoutError, ImportError):
+                translate._madlad_blocked_until = now + 180.
         try:
-            return _translate_argos_local(text,source,target),(
-                "MADLAD unavailable or too slow; switched to installed offline Argos")
-        except (RuntimeError,OSError,ValueError,ImportError,KeyError):
-            return None,"MADLAD unavailable; offline Argos pair not installed"
+            return (_translate_argos_local(text, source, target),
+                    "MADLAD unavailable or too slow; switched to installed offline Argos",
+                    "argos-fallback")
+        except (RuntimeError, OSError, ValueError, ImportError, KeyError):
+            return None, "MADLAD unavailable; offline Argos pair not installed", None
     outcome = live_failover().translate(
         text, source, target, preferred=selected,
         nllb=translate_nllb, argos=_translate_argos_local)
-    return outcome.text, outcome.error or outcome.warning
+    return outcome.text, outcome.error or outcome.warning, outcome.engine
 
 
 def decode_segment(ts: bytes, *, mode="auto", page=150, source="de",
