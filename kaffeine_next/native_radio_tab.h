@@ -5394,6 +5394,15 @@ private:
            !active() || scanning_) return;
         const qint64 now=QDateTime::currentMSecsSinceEpoch();
         if(now-pendingSongSinceMs_<5000) return;
+        // The proposed metadata must STILL be on air after the debounce.
+        // Station promos/slogans interrupt candidacy rather than certifying
+        // a different song on the basis of a single transient DLS message.
+        const TihuluDlsSong currentHint=tihuluDlsSong(lastDls_);
+        if(!currentHint.valid() || currentHint.normalizedKey()!=candidate) {
+            pendingSongKey_.clear();
+            pendingSongDls_.clear();
+            return;
+        }
         // Recent matching Whisper lyrics are evidence that the old song
         // is still audible. A DLS title alone cannot override that.
         if(lastVerifiedLyricMs_>0 && now-lastVerifiedLyricMs_<7000) {
@@ -5543,6 +5552,11 @@ private:
         lyricsRequestKey_=requestKey;
         lyricsLookupCooldownUntilMs_=lookupNow+90000;
 		const QString runtime=QStandardPaths::writableLocation(QStandardPaths::RuntimeLocation);
+        if(runtime.isEmpty()) {
+            lyricsRequestKey_.clear();
+            lyricText_->setText(tr("Private runtime directory unavailable; lyrics search cancelled."));
+            return;
+        }
 		lyricPath_=runtime+QLatin1String("/tihulu-radio-lyrics-")+
             QString::number(QCoreApplication::applicationPid())+
             QLatin1Char('-')+QString::number(++lyricsLookupGeneration_)+
