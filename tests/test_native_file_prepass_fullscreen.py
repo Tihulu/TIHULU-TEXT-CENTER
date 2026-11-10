@@ -25,6 +25,7 @@ class LocalFullFileAndFullscreenTests(unittest.TestCase):
         self.assertIn('displayMode == MediaWidget::FullScreenMode',PATCH)
         self.assertIn('displayMode == MediaWidget::FullScreenReturnToMinimalMode',PATCH)
         self.assertIn('statusBar()->setVisible(!tihuluFullVideo)',PATCH)
+        self.assertIn('aiPanel->setVisible(mode==MediaWidget::NormalMode)',PATCH)
         self.assertIn('if (handoff) handoff->hide();',PATCH)
 
     def test_local_prepass_is_user_opt_in_and_does_not_block_live_sources(self):
