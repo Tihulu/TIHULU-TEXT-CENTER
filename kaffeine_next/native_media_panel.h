@@ -133,7 +133,7 @@ public:
 			mediaSettings.value(QLatin1String("fileCacheMs"),1500).toInt(),20000));
 		caching_->setToolTip(tr("libVLC file read-ahead; this is not the "
 			"same as the Whisper subtitle creation budget."));
-		wait_=new QCheckBox(tr("Finish before playback"),this);
+		wait_=new QCheckBox(tr("Preprocess before playback · finish first"),this);
 		wait_->setChecked(true);
 		wait_->setToolTip(tr("Stops the selected media during offline transcription, "
 			"then restarts it at the beginning with synchronized SRT. "
