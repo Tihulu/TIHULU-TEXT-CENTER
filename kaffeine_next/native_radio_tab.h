@@ -1546,9 +1546,37 @@ public:
             "250 ms steps, ±90 s; does not alter ASR subtitles, radio "
             "buffer or restart the SDR. Positive is later, negative earlier."));
         mainLyricOffsetReadout_=new QLabel(tr("0.00 s"),page);
+        karaokePreviewSpeed_=new QSpinBox(page);
+        karaokePreviewSpeed_->setRange(50,200);
+        karaokePreviewSpeed_->setSingleStep(5);
+        karaokePreviewSpeed_->setSuffix(tr("%"));
+        QSettings karaokeSpeedPreferences(QLatin1String("TIHULU"),
+                                          QLatin1String("KaffeineRadio"));
+        karaokePreviewSpeed_->setValue(qBound(50,
+            karaokeSpeedPreferences.value(
+                QLatin1String("karaokePreviewSpeedPercent"),100).toInt(),200));
+        karaokePreviewSpeed_->setToolTip(tr(
+            "Independent Karaoke speed (0.50x–2.00x) only for UNVERIFIED "
+            "Lyrics Found previews. Actual matched Whisper words and "
+            "timed audio are never sped up or slowed down. "
+            "TV-style/Comfort Reading only controls lower transcribed captions."));
+        connect(karaokePreviewSpeed_,QOverload<int>::of(&QSpinBox::valueChanged),
+            this,[this](int percent){
+                QSettings prefs(QLatin1String("TIHULU"),
+                                QLatin1String("KaffeineRadio"));
+                prefs.setValue(QLatin1String("karaokePreviewSpeedPercent"),
+                               percent);
+                previewLastIndex_=-1;
+                updateLyrics(); // refresh Karaoke independently of Reading
+            });
         mainLyricOffsetRow->addWidget(new QLabel(tr("Karaoke offset:"),page));
         mainLyricOffsetRow->addWidget(mainLyricOffsetSlider_,1);
         mainLyricOffsetRow->addWidget(mainLyricOffsetReadout_);
+        mainLyricOffsetRow->addWidget(new QLabel(tr(
+            "Unverified Karaoke speed:"),page));
+        mainLyricOffsetRow->addWidget(karaokePreviewSpeed_);
+        mainLyricOffsetRow->addWidget(new QLabel(tr(
+            "Reading affects lower Whisper captions only"),page));
         connect(mainLyricOffsetSlider_,&QSlider::valueChanged,
             this,[this](int n){ lyricsOffset_->setValue(n*250); });
         connect(lyricsOffset_,&QSlider::valueChanged,this,[this](int ms){
@@ -4523,7 +4551,13 @@ private:
             const qint64 anchor=autoLyricSync_->isChecked() && songStartMs_>0?
                 songStartMs_:manualSongStartMs_>0?
                 manualSongStartMs_:previewStartedMs_;
-            const double elapsed=(now-anchor+lyricsOffset_->value())/1000.;
+            const int speed=karaokePreviewSpeed_?
+                karaokePreviewSpeed_->value():100;
+            // Separate Karaoke timeline. Positive lyric offset means
+            // lyrics LATER; caption Reading mode and manual caption offset
+            // must never change this clock.
+            const double elapsed=((now-anchor)*speed/100.-
+                lyricsOffset_->value())/1000.;
             // LRC times describe track-relative positions, while the DLS
             // clock is an APPROXIMATION. Never infer sample-accurate audio.
             for(int i=0;i<count && i<300;++i) {
@@ -4534,8 +4568,10 @@ private:
         } else {
             // Plain text has no timing. A user-requested exploratory
             // six-second-per-line display is explicitly labeled unverified.
-            estimate=qMax(0,int((now-previewStartedMs_+
-                lyricsOffset_->value())/6000));
+            const int speed=karaokePreviewSpeed_?
+                karaokePreviewSpeed_->value():100;
+            estimate=qMax(0,int(((now-previewStartedMs_)*speed/100.-
+                lyricsOffset_->value())/6000.));
         }
         const int index=qBound(0,estimate+previewIndexShift_,count-1);
         const auto lineAt=[this,timed](int i)->QString {
@@ -4591,8 +4627,13 @@ private:
             "LINE %3/%4 · %5 · use Lyric ◀/▶ and Karaoke offset")
             .arg(songText.left(100),provider.left(50))
             .arg(index+1).arg(count)
-            .arg(timed?tr("estimated broadcaster-DLS/LRC clock"):
-                       tr("plain lyrics · approximate 6s/line")));
+            .arg(timed?tr("estimated DLS/LRC clock · %1% preview speed")
+                            .arg(karaokePreviewSpeed_?
+                                 karaokePreviewSpeed_->value():100):
+                       tr("plain lyrics · approximate 6s/line at 100% · "
+                          "%1% preview speed")
+                            .arg(karaokePreviewSpeed_?
+                                 karaokePreviewSpeed_->value():100)));
         karaokePanel_->setVisible(true);
     }
     void showKaraokeLine(const TimedPlainLyric &cue) {
@@ -5672,7 +5713,7 @@ private:
     bool lyricsAudioFallbackActive_=false,lyricsFallbackStartedAi_=false,
         plainLyricsStartedAi_=false,captionsStopping_=false;
 	QSpinBox *bufferMs_=nullptr,*radioOffsetMs_=nullptr,
-        *lyricMatchThreshold_=nullptr;
+        *lyricMatchThreshold_=nullptr,*karaokePreviewSpeed_=nullptr;
     QComboBox *bufferUnit_=nullptr;
     bool bufferUnitsSeconds_=false;
     QHBoxLayout *radioQuickRow_=nullptr,*radioPlaybackRow_=nullptr;
