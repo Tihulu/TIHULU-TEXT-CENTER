@@ -4335,7 +4335,8 @@ private:
             "ASR subtitles use a separate audio input; output can be silent.\n"
             "libVLC: %1 | Volume: %2%\n"
             "SDR: %3 | DAC audio and mute state: not measured.\n\n"
-            "Use the main Kaffeine mute control and check system Sound settings.\n")
+            "Check Playback > Audio > Audio Device (native Kaffeine menu),\n"
+            "the main mute button and your system Sound output settings.\n")
             .arg(player_->getPlaybackStatus()==MediaWidget::Playing?
                 tr("PLAYING (not audible proof)"):tr("not PLAYING"))
             .arg(player_->getVolume())
