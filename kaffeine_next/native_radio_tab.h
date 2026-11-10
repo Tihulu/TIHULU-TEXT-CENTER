@@ -412,6 +412,11 @@ public:
         radioPlaybackRow_->addWidget(quickBuffer_);
         radioPlaybackRow_->addStretch(1);
         dabLayout->addLayout(radioPlaybackRow_);
+        // Moving a buffer slider is only a PENDING preference. No retune.
+        auto *mainBufferRow=new QHBoxLayout();
+        dabLayout->addLayout(mainBufferRow);
+        auto *mainOffsetRow=new QHBoxLayout();
+        dabLayout->addLayout(mainOffsetRow);
         // Common controls must be reachable while listening, without
         // opening the advanced Whisper/AI menu. Radio has no video lips:
         // this is audio-to-subtitle timing, not a measured DAC clock.
@@ -1280,6 +1285,44 @@ public:
         // numeric preference for the next explicit user enable.
         activePlaybackCacheMs_=quickBuffer_->isChecked()?bufferMs_->value():0;
         radioSettings.setValue(QLatin1String("playbackBufferMs"),activePlaybackCacheMs_);
+        mainBufferSlider_=new QSlider(Qt::Horizontal,page);
+        mainBufferSlider_->setRange(0,120);
+        mainBufferSlider_->setValue(qBound(0,(bufferMs_->value()+250)/500,120));
+        mainBufferSlider_->setMinimumWidth(150);
+        mainBufferSlider_->setToolTip(tr(
+            "Requested extra audio cache 0–60 s, 0.5 s steps. "
+            "Remains pending until Apply buffer, which may briefly restart audio. "
+            "Not a measurement of actual speaker/DAC delay."));
+        mainBufferReadout_=new QLabel(page);
+        auto *applyMainBuffer=new QPushButton(tr("Apply buffer"),page);
+        mainBufferRow->addWidget(new QLabel(tr("Extra buffer:"),page));
+        mainBufferRow->addWidget(mainBufferSlider_,1);
+        mainBufferRow->addWidget(mainBufferReadout_);
+        mainBufferRow->addWidget(applyMainBuffer);
+        const auto updateMainBuffer=[this](){
+            mainBufferReadout_->setText(tr("%1 s · %2")
+                .arg(QString::number(selectedBufferMs()/1000.,'f',1))
+                .arg(selectedBufferMs()==activePlaybackCacheMs_?
+                     tr("applied"):tr("pending Apply")));
+        };
+        updateMainBuffer();
+        connect(mainBufferSlider_,&QSlider::valueChanged,this,
+            [this,updateMainBuffer](int value){
+                setBufferDisplayMs(value*500);
+                updateMainBuffer();
+            });
+        connect(bufferMs_,QOverload<int>::of(&QSpinBox::valueChanged),
+            this,[this,updateMainBuffer](int){
+                const QSignalBlocker hold(mainBufferSlider_);
+                mainBufferSlider_->setValue(qBound(0,
+                    (selectedBufferMs()+250)/500,120));
+                updateMainBuffer();
+            });
+        connect(applyMainBuffer,&QPushButton::clicked,this,
+            [this,updateMainBuffer](){
+                applyRadioBuffer();
+                updateMainBuffer();
+            });
 		bufferMs_->setToolTip(tr("Radio libVLC network cache requested at stream OPEN. "
             "Range 0–60000 ms (safety limit, 60 s). If changed during playback "
             "it remains PENDING until Apply or the next station; not verified "
@@ -1298,8 +1341,24 @@ public:
 		radioOffsetMs_->setSuffix(tr(" ms"));
 		radioOffsetMs_->setValue(qBound(-12000,
 			radioSettings.value(QLatin1String("captionOffsetMs"),0).toInt(),12000));
-		radioOffsetMs_->setToolTip(tr("Positive: subtitles later; negative: earlier. "
-			"Changes also shift pending cues without re-running Whisper."));
+        radioOffsetMs_->setToolTip(tr("Positive: subtitles later; negative: earlier. "
+            "Changes also shift pending cues without re-running Whisper."));
+        mainCaptionOffsetSlider_=new QSlider(Qt::Horizontal,page);
+        mainCaptionOffsetSlider_->setRange(-48,48);
+        mainCaptionOffsetSlider_->setValue(radioOffsetMs_->value()/250);
+        mainCaptionOffsetSlider_->setMinimumWidth(150);
+        mainCaptionOffsetSlider_->setToolTip(tr(
+            "Caption timing ±12 seconds in 250 ms steps. "
+            "The radio audio never restarts."));
+        mainOffsetRow->addWidget(new QLabel(tr("Caption offset:"),page));
+        mainOffsetRow->addWidget(mainCaptionOffsetSlider_,1);
+        connect(mainCaptionOffsetSlider_,&QSlider::valueChanged,
+            this,[this](int n){ radioOffsetMs_->setValue(n*250); });
+        connect(radioOffsetMs_,QOverload<int>::of(&QSpinBox::valueChanged),
+            this,[this](int n){
+                const QSignalBlocker hold(mainCaptionOffsetSlider_);
+                mainCaptionOffsetSlider_->setValue(n/250);
+            });
 		autoRestartAudio_=new QCheckBox(tr("Allow automatic radio audio restart"),lab);
 		autoRestartAudio_->setChecked(false);
 		autoRestartAudio_->setToolTip(tr("OFF (recommended) never disrupts ongoing audio. "
@@ -5282,7 +5341,9 @@ private:
 	QComboBox *analogBand_=nullptr;
 	QDoubleSpinBox *analogFrequency_=nullptr;
 	QDial *analogDial_=nullptr;
-	QSlider *analogVolume_=nullptr;
+	QSlider *analogVolume_=nullptr,*mainBufferSlider_=nullptr,
+        *mainCaptionOffsetSlider_=nullptr;
+    QLabel *mainBufferReadout_=nullptr;
 	QPushButton *analogMute_=nullptr;
 	QLabel *analogDigital_=nullptr;
 	QProgressBar *analogAudioVu_=nullptr;
