@@ -40,7 +40,7 @@ def effective_radio_translation_enabled(market_enabled: bool,
     """
     return bool(market_enabled or
                 (radio_requested and model_name in ("argos", "nllb", "madlad",
-                                                    "de_tr_direct")))
+                                                    "de_tr_direct","auto_offline")))
 
 
 def checked_runtime_output(value: str, *, prefix: str) -> Path:
