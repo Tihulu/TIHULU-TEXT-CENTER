@@ -119,7 +119,8 @@ class DlsAndRefreshTests(unittest.TestCase):
 
     def test_verified_lyric_catalog_enables_vocal_evidence_without_audio_restart(self):
         worker=(ROOT/"tv_center/radio_ai.py").read_text(encoding="utf-8")
-        self.assertIn("music_for_matching=bool(music or plain_matcher is not None)",worker)
+        self.assertIn("music_for_matching=bool(music or",worker)
+        self.assertIn("(plain_matcher is not None and karaoke_enabled)",worker)
         self.assertIn("music=music_for_matching,",worker)
         self.assertIn('"vocal_match_mode":',worker)
         # Online station metadata alone must never activate music ASR.
