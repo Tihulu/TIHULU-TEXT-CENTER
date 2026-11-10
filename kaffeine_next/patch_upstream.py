@@ -123,6 +123,16 @@ private:
 	// Keep local video/audio player *inside* this Playback tab.
 	// Its optional AI captions are generated in the bottom panel.
 	playerTab->setLocalFile(copy);
+    // Optional, user-controlled full-file prepass. Prevent the playlist
+    // from starting audible/video playback before the complete SRT exists.
+    // On completion the same MediaWidget opens the file with its SRT.
+    // Normal live-TV/radio, HTTP streams, Playlist and default file-open
+    // behavior remain unchanged.
+    if (copy.isLocalFile() && playerTab->prepareLocalFileOpen(copy)) {
+        actionOpenRecent->addUrl(copy);
+        if (currentTabIndex != PlayerTabId) activateTab(PlayerTabId);
+        return;
+    }
 	actionOpenRecent->addUrl(copy);''')
     hdrmain = "src/mainwindow.h"
     change(hdrmain, '\t\tDvbTabId = 3\n',
