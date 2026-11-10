@@ -265,7 +265,8 @@ public:
     }
     bool prepareLocalFileOpen(const QUrl &url) {
         // No live TV, DAB, HTTP or Web TV source may enter this gate.
-        if(!url.isLocalFile() || !preprocessOnOpen_->isChecked()) return false;
+        if(!url.isLocalFile() || !preprocessOnOpen_->isChecked() ||
+           !QFileInfo(url.toLocalFile()).isFile()) return false;
         setLocalFile(url);
         if(!isLocalMedia_) return false;
         // Consume the requested Open action even if the AI worker fails
