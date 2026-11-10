@@ -239,7 +239,7 @@ class CaptionConfig:
                 if chunks:
                     lines.append((label+" " if label else "")+" | ".join(chunks))
             if lines:
-                if self.show_sound_events:
+                if self.show_sound_events and not result.get("sound_labels_source"):
                     event_language=(self.target_languages[0]
                                     if self.show_translation and self.target_languages
                                     else original_language)
@@ -272,7 +272,7 @@ class CaptionConfig:
                 legacy = (result.get("translated") or "").strip()
                 if legacy and legacy != original:
                     lines.append(legacy)
-        if self.show_sound_events:
+        if self.show_sound_events and not result.get("sound_labels_source"):
             event_language=(self.target_languages[0]
                             if self.show_translation and self.target_languages
                             else original_language)
