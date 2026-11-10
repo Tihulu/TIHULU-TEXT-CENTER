@@ -5256,6 +5256,75 @@ private:
                 tr("Manual lyrics viewer; no automatic progression")));
         karaokePanel_->setVisible(true);
     }
+    void showKaraokeLine(const TimedPlainLyric &cue) {
+        if(!karaokePanel_ || !karaokeCurrent_ ||
+           !karaokeSource_ || !karaokePrevious_ || !karaokeNext_ ||
+           !karaokeTranslation_) return;
+        if(lastUnmatchedVoiceUntilMs_>QDateTime::currentMSecsSinceEpoch())
+            return; // New presenter/advert speech overrides old lyrics
+        const QString line=cue.original.trimmed().isEmpty()?
+            cue.text.section(QLatin1Char('\n'),0,0).trimmed():
+            cue.original.trimmed();
+        if(line.isEmpty()) return;
+        const int index=cue.lineIndex;
+        const QString previous=index>0 && index<=lyricRawLines_.size()?
+            lyricRawLines_.at(index-1):QString();
+        const QString next=index>=0 && index+1<lyricRawLines_.size()?
+            lyricRawLines_.at(index+1):QString();
+        karaokePrevious_->setText(previous.left(230));
+        karaokePrevious_->setVisible(!previous.isEmpty());
+        karaokeLine_=line.left(300);
+        karaokeWordAnchors_=cue.wordAnchors;
+        lastHighlightedKaraokeWord_=-2;
+        karaokeCurrent_->setTextFormat(Qt::PlainText);
+        karaokeCurrent_->setText(karaokeLine_);
+        refreshKaraokeWordHighlight(QDateTime::currentMSecsSinceEpoch());
+        karaokeNext_->setText(next.left(230));
+        karaokeNext_->setVisible(!next.isEmpty());
+        QStringList translations;
+        // Follow OUT language selection and never invent a missing
+        // translation. Normal captions continue in their own band.
+        for(const QString &lang:selectedRadioTargets()) {
+            const QString value=cue.translations.value(lang).toString().trimmed();
+            if(!value.isEmpty())
+                translations<<QLatin1String("[")+lang.toUpper()+
+                    QLatin1String("] ")+value.left(360);
+        }
+        karaokeTranslation_->setText(translations.join(QLatin1Char('\n')));
+        karaokeTranslation_->setVisible(karaokeTranslationsEnabled_ &&
+            karaokeTranslationsEnabled_->isChecked() &&
+            !translations.isEmpty());
+        const QString provider=lastLyricsProvider_.isEmpty()?
+            tr("user-provided / source unavailable"):lastLyricsProvider_;
+        const QString song=(lyricsArtist_ && lyricsTitle_ &&
+            !lyricsArtist_->text().trimmed().isEmpty() &&
+            !lyricsTitle_->text().trimmed().isEmpty())?
+            lyricsArtist_->text().trimmed()+QLatin1String(" · ")+
+                lyricsTitle_->text().trimmed():tr("live radio");
+        karaokeSource_->setText(tr(
+            "♪ %1 · SOURCE: %2 · AUDIO MATCH: %3% · LINE %4\n"
+            "%5")
+            .arg(song.left(100),provider.left(55))
+            .arg(qRound(cue.confidence*100))
+            .arg(index>=0?QString::number(index+1):QStringLiteral("?"))
+            .arg(cue.wordAnchors.isEmpty()?
+                tr("Line sync only · no verified word timestamps"):
+                tr("GPU Whisper words · estimated PCM/cache; DAC unverified")));
+        const qint64 now=QDateTime::currentMSecsSinceEpoch();
+        // Blue-screen Karaoke hold is independent from the lower subtitle
+        // Reading preset; song / Whisper word clock is authoritative here.
+        lastKaraokeUntilMs_=now+5500;
+        if(!cue.wordAnchors.isEmpty()) {
+            const qint64 lastWord=qRound64(cue.wordAnchors.last()
+                .toObject().value(QLatin1String("epoch_ms")).toDouble(0.));
+            if(lastWord>now-120000 && lastWord<now+20000)
+                lastKaraokeUntilMs_=qMax(lastKaraokeUntilMs_,
+                    lastWord+activePlaybackCacheMs_+
+                    radioOffsetMs_->value()+lyricsOffset_->value()+2000);
+        }
+        karaokePanel_->setVisible(karaokeEnabled_ &&
+            karaokeEnabled_->isChecked());
+    }
     void showEstimatedLrcFlow(qint64 now) {
         // Explicit, separately labeled fallback for owners with an actual
         // timestamped LRC but insufficient acoustic verification. It is
@@ -5339,75 +5408,6 @@ private:
             .arg(index+1).arg(lyricCues_.size()));
         lastKaraokeUntilMs_=now+1500; // redraw only, NOT a line timer
         karaokePanel_->setVisible(true);
-    }
-    void showKaraokeLine(const TimedPlainLyric &cue) {
-        if(!karaokePanel_ || !karaokeCurrent_ ||
-           !karaokeSource_ || !karaokePrevious_ || !karaokeNext_ ||
-           !karaokeTranslation_) return;
-        if(lastUnmatchedVoiceUntilMs_>QDateTime::currentMSecsSinceEpoch())
-            return; // New presenter/advert speech overrides old lyrics
-        const QString line=cue.original.trimmed().isEmpty()?
-            cue.text.section(QLatin1Char('\n'),0,0).trimmed():
-            cue.original.trimmed();
-        if(line.isEmpty()) return;
-        const int index=cue.lineIndex;
-        const QString previous=index>0 && index<=lyricRawLines_.size()?
-            lyricRawLines_.at(index-1):QString();
-        const QString next=index>=0 && index+1<lyricRawLines_.size()?
-            lyricRawLines_.at(index+1):QString();
-        karaokePrevious_->setText(previous.left(230));
-        karaokePrevious_->setVisible(!previous.isEmpty());
-        karaokeLine_=line.left(300);
-        karaokeWordAnchors_=cue.wordAnchors;
-        lastHighlightedKaraokeWord_=-2;
-        karaokeCurrent_->setTextFormat(Qt::PlainText);
-        karaokeCurrent_->setText(karaokeLine_);
-        refreshKaraokeWordHighlight(QDateTime::currentMSecsSinceEpoch());
-        karaokeNext_->setText(next.left(230));
-        karaokeNext_->setVisible(!next.isEmpty());
-        QStringList translations;
-        // Follow OUT language selection and never invent a missing
-        // translation. Normal captions continue in their own band.
-        for(const QString &lang:selectedRadioTargets()) {
-            const QString value=cue.translations.value(lang).toString().trimmed();
-            if(!value.isEmpty())
-                translations<<QLatin1String("[")+lang.toUpper()+
-                    QLatin1String("] ")+value.left(360);
-        }
-        karaokeTranslation_->setText(translations.join(QLatin1Char('\n')));
-        karaokeTranslation_->setVisible(karaokeTranslationsEnabled_ &&
-            karaokeTranslationsEnabled_->isChecked() &&
-            !translations.isEmpty());
-        const QString provider=lastLyricsProvider_.isEmpty()?
-            tr("user-provided / source unavailable"):lastLyricsProvider_;
-        const QString song=(lyricsArtist_ && lyricsTitle_ &&
-            !lyricsArtist_->text().trimmed().isEmpty() &&
-            !lyricsTitle_->text().trimmed().isEmpty())?
-            lyricsArtist_->text().trimmed()+QLatin1String(" · ")+
-                lyricsTitle_->text().trimmed():tr("live radio");
-        karaokeSource_->setText(tr(
-            "♪ %1 · SOURCE: %2 · AUDIO MATCH: %3% · LINE %4\n"
-            "%5")
-            .arg(song.left(100),provider.left(55))
-            .arg(qRound(cue.confidence*100))
-            .arg(index>=0?QString::number(index+1):QStringLiteral("?"))
-            .arg(cue.wordAnchors.isEmpty()?
-                tr("Line sync only · no verified word timestamps"):
-                tr("GPU Whisper words · estimated PCM/cache; DAC unverified")));
-        const qint64 now=QDateTime::currentMSecsSinceEpoch();
-        // Blue-screen Karaoke hold is independent from the lower subtitle
-        // Reading preset; song / Whisper word clock is authoritative here.
-        lastKaraokeUntilMs_=now+5500;
-        if(!cue.wordAnchors.isEmpty()) {
-            const qint64 lastWord=qRound64(cue.wordAnchors.last()
-                .toObject().value(QLatin1String("epoch_ms")).toDouble(0.));
-            if(lastWord>now-120000 && lastWord<now+20000)
-                lastKaraokeUntilMs_=qMax(lastKaraokeUntilMs_,
-                    lastWord+activePlaybackCacheMs_+
-                    radioOffsetMs_->value()+lyricsOffset_->value()+2000);
-        }
-        karaokePanel_->setVisible(karaokeEnabled_ &&
-            karaokeEnabled_->isChecked());
     }
     void updateRadioCaptionTypography() {
         if(!radioCanvasCaption_) return;
