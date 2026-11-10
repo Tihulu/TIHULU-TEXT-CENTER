@@ -1671,6 +1671,7 @@ public:
             QSettings prefs(QLatin1String("TIHULU"),
                             QLatin1String("KaffeineRadio"));
             prefs.setValue(QLatin1String("karaokeDisplayEnabled"),enabled);
+            writeRadioLanguageControls(); // live vocal mode only when user opted in
             if(karaokePanel_) karaokePanel_->setVisible(enabled &&
                 lastKaraokeUntilMs_>QDateTime::currentMSecsSinceEpoch() &&
                 karaokeCurrent_ && !karaokeCurrent_->text().isEmpty());
@@ -2542,6 +2543,8 @@ private:
             {QStringLiteral("targets"),targets},
             {QStringLiteral("radio_translations"),
              quickTranslate_ && quickTranslate_->isChecked()},
+            {QStringLiteral("karaoke_enabled"),
+             karaokeEnabled_ && karaokeEnabled_->isChecked()},
             {QStringLiteral("lyric_match_threshold"),
              lyricMatchThreshold_?lyricMatchThreshold_->value()/100.:0.74},
             {QStringLiteral("sound_labels"),
