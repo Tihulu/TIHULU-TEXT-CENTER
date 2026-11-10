@@ -53,7 +53,8 @@ class SplitSyncAndKaraokeEngineTests(unittest.TestCase):
         self.assertIn("QSaveFile output(path)",publisher)
         self.assertIn("publishLiveRadioLyricsCatalog(",UI)
         self.assertIn("clearLiveRadioLyricsCatalog()",UI)
-        self.assertIn('location.name.replace(\n        "tihulu-radio-captions-","tihulu-radio-lyrics-",1)',AI)
+        self.assertIn('location.name.replace(',AI)
+        self.assertIn('"tihulu-radio-captions-","tihulu-radio-lyrics-",1)',AI)
         self.assertIn('marker=(lyric_path.stat().st_mtime_ns',AI)
         updated=section("void pollLyricsRefreshResult()",
                         "void fetchLyrics(bool automatic=false)")
@@ -80,7 +81,7 @@ class SplitSyncAndKaraokeEngineTests(unittest.TestCase):
     def test_opt_in_lrc_flow_is_never_called_acoustic_verification(self):
         self.assertIn('"estimated"',UI)
         estimated=section("void showEstimatedLrcFlow(qint64 now)",
-                          "void showKaraokeLine(")
+                          "void updateRadioCaptionTypography()")
         self.assertIn('QLatin1String("estimated")',estimated)
         self.assertIn("lyricCues_.isEmpty()",estimated)
         self.assertIn("lastUnmatchedVoiceUntilMs_>now",estimated)
