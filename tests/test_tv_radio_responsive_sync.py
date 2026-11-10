@@ -63,7 +63,10 @@ class RadioModesAndSyncTests(unittest.TestCase):
     def test_cache_guard_matches_actual_vlc_media_option(self):
         self.assertIn('bufferMs_->setRange(0,60000)',self.radio)
         self.assertIn('activePlaybackCacheMs_',self.radio)
-        self.assertIn('lastAudioRetuneMs_>=180000',self.radio)
+        # Auto-size is only advisory: no periodic audio retune / ASR restart.
+        estimate=self.radio.split('if(autoSync_->isChecked() && lagSamples_.size()>=4')[1].split('// Use the first real GPU word')[0]
+        self.assertNotIn('applyRadioBuffer();',estimate)
+        self.assertIn('Suggested audio cache',estimate)
         self.assertIn('QCheckBox(tr("Allow automatic radio audio restart")',self.radio)
         self.assertIn('qMax(0,remaining)+radioOffsetMs_->value()',self.radio)
         self.assertIn('radioSettings.value(QLatin1String("playbackBufferMs"),0).toInt()',self.patch)
@@ -93,7 +96,8 @@ class RadioModesAndSyncTests(unittest.TestCase):
         self.assertIn("quickBufferProgress_->setVisible(enabled)",self.radio)
         self.assertNotIn("audioCacheProgress_->setRange(0,audioStartedMs_>0?0:100)",self.radio)
         self.assertNotIn("Applied at open %1 ms · elapsed %2 ms",self.radio)
-        self.assertIn("EST. caption in ~%1 ms",self.radio)
+        self.assertNotIn("EST. caption in ~%1 ms",self.radio)
+        self.assertIn('Whisper ready · fixed audio cache',self.radio)
 
     def test_missing_lyrics_fall_back_to_real_local_whisper_audio(self):
         for field in ("listenLyrics_","listenFallbackOnMiss_",
