@@ -39,7 +39,8 @@ def effective_radio_translation_enabled(market_enabled: bool,
     alone cannot opt users into a remote translation service.
     """
     return bool(market_enabled or
-                (radio_requested and model_name in ("argos", "nllb", "madlad")))
+                (radio_requested and model_name in ("argos", "nllb", "madlad",
+                                                    "de_tr_direct")))
 
 
 def checked_runtime_output(value: str, *, prefix: str) -> Path:
