@@ -1630,10 +1630,16 @@ def main(argv=None):
         "translations continue in this process.")
     start_subtitles = QPushButton("Start subtitles")
     stop_subtitles = QPushButton("Stop subtitles")
+    caption_refresh = QPushButton("AI Caption Refresh")
+    sync_refresh = QPushButton("Lip-sync Refresh")
+    caption_refresh.setToolTip("Re-read AI settings and replace only subtitle session; Kaffeine TV remains playing")
+    sync_refresh.setToolTip("Reset estimated subtitle timing samples without touching media audio or your manual offset")
     exit_subtitles = QPushButton("Exit caption service")
     start_subtitles.setEnabled(False)
     behavior.addWidget(start_subtitles)
     behavior.addWidget(stop_subtitles)
+    behavior.addWidget(caption_refresh)
+    behavior.addWidget(sync_refresh)
     behavior.addWidget(back_to_tv)
     behavior.addWidget(hide_panel)
     behavior.addWidget(exit_subtitles)
@@ -2427,6 +2433,57 @@ def main(argv=None):
         translated.setText("")
         status.setText("Caption worker active." if should_run else
                        "Subtitle recognition paused. No new Whisper clips queued.")
+
+    def refresh_tv_captions():
+        """Reset stale *AI* state and re-read configured local models.
+
+        Keep the DVB tap, channel, native audio/video FIFO, offset, and
+        existing SRT file untouched. Revision gates discard late ASR jobs.
+        """
+        nonlocal applied, current_cue, current_text, current_until
+        if not service_running:
+            status.setText("Enable subtitles first; TV remains playing.")
+            return
+        try:
+            from tv_center.ai_settings import AISettings
+            AISettings().configure_environment()
+        except (ValueError, RuntimeError, OSError) as exc:
+            status.setText("AI settings refresh failed: "+str(exc)[:170])
+            return
+        with lock:
+            applied = __import__("dataclasses").replace(
+                applied, revision=applied.revision + 1)
+        cues.clear()
+        deferred_captions.clear()
+        recent_voice_lines.clear()
+        tap.work_queue.clear() # no old audio windows after model change
+        current_cue = None
+        current_text = ""
+        current_until = 0.0
+        mobile.set_caption({"original":"","source":"caption_refresh"})
+        ipc.publish("", applied)
+        original.setText("AI Caption Refresh · waiting for NEW TV audio…")
+        translated.setText("")
+        translation_health.setText(
+            "Model settings reloaded; next confirmed ASR/translation shown.")
+        status.setText("TV AI refreshed without stopping the receiver or video. "
+                       "Pending older ASR results rejected by revision.")
+
+    def refresh_tv_sync():
+        """Resample timebase; do not pretend we measured output PTS."""
+        nonlocal last_sync_audit_at
+        estimator.clear()
+        auto_controller.reset()
+        last_sync_audit_at = 0.0
+        sync_estimate.setText(
+            "Lip-sync Refresh · awaiting fresh TV TS/ASR samples. "
+            f"Manual subtitle offset {applied.offset_ms:+d} ms preserved. "
+            "Video/audio/DAC presentation PTS remains unmeasured.")
+        status.setText("TV sync estimates reset. No tuner retune, no buffer "
+                       "reopen and no AI transcript dropped.")
+
+    caption_refresh.clicked.connect(refresh_tv_captions)
+    sync_refresh.clicked.connect(refresh_tv_sync)
 
     def begin_srt_recording():
         if not service_running:
