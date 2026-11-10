@@ -83,7 +83,8 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
                       host_caption_offset_ms: int=0,
                       controls: str | None=None,
                       radio_translations: bool=False,
-                      lyric_match_threshold: float=0.74):
+                      lyric_match_threshold: float=0.74,
+                      sound_labels: bool=False):
     if type(port) is not int or not 1024 <= port <= 65535:
         raise ValueError("Invalid loopback radio port")
     if not isinstance(sid,str) or not _SID.fullmatch(sid):
@@ -103,6 +104,8 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
         raise ValueError("Radio caption offset must be ±12000 ms")
     if type(radio_translations) is not bool:
         raise ValueError("Radio translator opt-in must be boolean")
+    if type(sound_labels) is not bool:
+        raise ValueError("Radio sound label opt-in must be boolean")
     if (not isinstance(lyric_match_threshold,(int,float)) or
             isinstance(lyric_match_threshold,bool) or
             not 0.65<=lyric_match_threshold<=0.96):
@@ -201,6 +204,9 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
                         requested_translation=payload.get("radio_translations")
                         if type(requested_translation) is bool:
                             radio_translations=requested_translation
+                        requested_labels=payload.get("sound_labels")
+                        if type(requested_labels) is bool:
+                            sound_labels=requested_labels
                         requested_threshold=payload.get("lyric_match_threshold")
                         if (isinstance(requested_threshold,(float,int)) and
                                 not isinstance(requested_threshold,bool) and
@@ -440,6 +446,29 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
                             lyric_translations[lang]=translated_line
                         if issue:
                             problems[lang]=str(issue)[:180]
+            # Acoustic labels are independently opt-in. Whisper ORIGINAL
+            # has already been published above; even a slow/failed detector
+            # cannot suppress spoken captions or change lyric matching.
+            sound_events=[]
+            sound_note=None
+            if sound_labels:
+                try:
+                    from .audio_classifiers import AudioLabels,detect_sound_events
+                    if not AudioLabels().installed("sound"):
+                        sound_note="Optional offline AST AudioSet sound model not installed"
+                    elif capture.dropped_windows:
+                        sound_note="Sound labels skipped under ASR backlog"
+                    else:
+                        sound_events=detect_sound_events(pcm)
+                except (RuntimeError,OSError,ValueError,ImportError,TimeoutError) as exc:
+                    sound_note="Sound classifier unavailable: "+str(exc)[:130]
+            from .sound_event_captions import decorate_caption
+            rendered_original=(decorate_caption(
+                original,sound_events,used_language or "en")
+                if original else original)
+            rendered_translations={
+                lang:decorate_caption(value,sound_events,lang)
+                for lang,value in translated.items()}
             # Do not report an unverified translation as success. Provide
             # exact reasons for the visible untranslated original, including
             # model disabled, unknown source, or missing language packs.
@@ -468,7 +497,11 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
                 "translation_pending_targets":translation_info["pending_targets"],
                 "requested_targets":list(destinations),
                 "control_status":controls_note,
-                "original":original[:1800],
+                "original":rendered_original[:1800],
+                "sound_events":sound_events,
+                "sound_labels_source":("AST AudioSet · approximate 5s window"
+                                       if sound_events else None),
+                "sound_event_note":sound_note,
                 "sentence_pending":bool(sentence_state.get("pending")),
                 "sentence_complete":bool(sentence_state.get("complete")),
                 "sentence_carry_chunks":int(sentence_state.get("chunks",0)),
@@ -492,7 +525,7 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
                     original and plain_matcher is not None and not lyric_match),
                 "lyric_alignment":("observed_ASR_approximate" if plain_matcher
                                    else "none"),
-                "translations":translated,
+                "translations":rendered_translations,
                 "translation_warnings":problems,
                 "backend":backend,
                 "music_mode":bool(music),
@@ -650,6 +683,8 @@ def main(args=None):
     live.add_argument("--music",action="store_true")
     live.add_argument("--lyric-match-threshold",type=float,default=0.74,
                       help="65–96%% lyric/ASR lexical overlap minimum; not sync confidence")
+    live.add_argument("--sound-labels",action="store_true",
+                      help="Local AST AudioSet sound labels; optional, never replaces speech")
     live.add_argument("--radio-translations",action="store_true",
                       help="Use an installed offline translator for this radio session; "
                            "never opt into DeepL or download models")
@@ -699,7 +734,8 @@ def main(args=None):
             host_audio_cache_ms=opts.host_audio_cache_ms,
             host_caption_offset_ms=opts.host_caption_offset_ms,
             radio_translations=opts.radio_translations,
-            lyric_match_threshold=opts.lyric_match_threshold)
+            lyric_match_threshold=opts.lyric_match_threshold,
+            sound_labels=opts.sound_labels)
         return 0
     except (OSError,ValueError,RuntimeError,subprocess.TimeoutExpired) as exc:
         print("Offline radio AI unavailable: "+str(exc)[:250],file=sys.stderr)
