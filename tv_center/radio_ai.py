@@ -580,6 +580,7 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
             if max_chunks>0 and chunks>=max_chunks:
                 break
     finally:
+        was_cancelled=done
         stop()
         capture.stop()
         try:
@@ -589,7 +590,7 @@ def decode_radio_live(*, port: int, sid: str, source: str, targets: tuple[str,..
             ffmpeg.wait(timeout=2)
         if ffmpeg.stdout:
             ffmpeg.stdout.close()
-    if chunks == 0 and max_chunks != 0:
+    if chunks == 0 and not was_cancelled:
         # An FFmpeg EOF, invalid local MP3 endpoint or failed DAB decoder
         # cannot produce actual Whisper subtitles. Report the diagnostic
         # through the same atomic status file; do NOT invent words or
