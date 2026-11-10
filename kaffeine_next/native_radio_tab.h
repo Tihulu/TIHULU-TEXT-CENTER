@@ -5841,14 +5841,27 @@ private:
                 captionProgress_->setRange(0,100);
 				const auto &next=cueQueue_.first();
 				const qint64 total=qMax(qint64(1),next.dueMs-next.queuedMs);
-				captionProgress_->setValue(qBound(0,int((now-next.queuedMs)*100/total),100));
-				captionProgress_->setFormat(tr("EST. caption in ~%1 ms · requested cache %2 ms · output unverified")
-					.arg(qMax(qint64(0),next.dueMs-now)).arg(activePlaybackCacheMs_));
+                const int percent=qBound(0,int((now-next.queuedMs)*100/total),100);
+                if(qAbs(percent-captionProgress_->value())>=5)
+                    captionProgress_->setValue(percent);
+                // Progress is an estimated playback due time, not ASR refresh.
+                // Update this readout only at whole-second granularity.
+                const qint64 seconds=(qMax(qint64(0),next.dueMs-now)+999)/1000;
+                const QString message=tr(
+                    "Estimated audio delay ~%1 s · Whisper queued · cache %2 ms")
+                    .arg(seconds).arg(activePlaybackCacheMs_);
+                if(captionProgress_->format()!=message)
+                    captionProgress_->setFormat(message);
 			}
 		}
         while(!cueQueue_.isEmpty() && cueQueue_.first().dueMs<=now) {
             if(captionReadingHoldUntilMs_>now &&
-               radioCanvasCaption_ && radioCanvasCaption_->isVisible()) {
+               radioCanvasCaption_ && radioCanvasCaption_->isVisible() &&
+               // TV-style long reading holds must NOT block the next
+               // genuinely due speech phrase for 9–12 seconds. If the next
+               // phrase is >1.2s late or a backlog exists, show it now.
+               cueQueue_.size()==1 &&
+               now-cueQueue_.first().dueMs<1200) {
                 // Keep queued phrases rather than flashing a new one
                 // before viewers can read the previous phrase.
                 if(captionProgress_) captionProgress_->setFormat(
@@ -6127,10 +6140,17 @@ private:
                         }
                     }
                     if(!queued && displayedRadioChunk_==chunk &&
-                       radioCanvasCaption_ &&
-                       (!lyricsEnabled_ || lastVerifiedLyricMs_<=0 ||
-                        now-lastVerifiedLyricMs_>12000))
-                        showRadioCanvasCaption(caption.left(1300));
+                       radioCanvasCaption_ && !caption.trimmed().isEmpty()) {
+                        // Late translations update this SAME already visible
+                        // Whisper cue. Never restart the reading hold and
+                        // never block on the separate Karaoke/Lyrics panel.
+                        const QString updated=caption.left(1300);
+                        if(radioCanvasCaption_->text()!=updated)
+                            radioCanvasCaption_->setText(updated);
+                        radioCanvasCaption_->setVisible(true);
+                        radioCaption_->setText(updated);
+                        lastCaptionVisibleMs_=now;
+                    }
                 }
             }
             const QJsonObject matched=obj.value(QLatin1String("lyric_match")).toObject();
@@ -7060,12 +7080,9 @@ private:
                     "LYRICS MATCHED %1% · showing heard song words")
                     .arg(qRound(cue.confidence*100)));
             }
-            if(lastCanvasLyricMs_>0 && now-lastCanvasLyricMs_>8000 &&
-               now>=lastMatchedLyricUntilMs_ && radioCanvasCaption_) {
-                radioCanvasCaption_->setVisible(false);
-                lastCanvasLyricMs_=0;
-            }
-			return;
+            // Lyrics/Karaoke are independent and MUST NEVER hide
+            // the active Whisper speech/translation caption area.
+            return;
 		}
 		if (lyricPath_.isEmpty() || lyricLoaded_) {
             const qint64 currentEpoch=QDateTime::currentMSecsSinceEpoch();
@@ -7105,11 +7122,6 @@ private:
                     if(lyricText_->text()!=text)lyricText_->setText(text);
                     // Estimation only belongs to Lyrics / blue Karaoke,
                     // NEVER the lower Whisper conversation subtitle strip.
-                } else if(lastCanvasLyricMs_>0 &&
-                    QDateTime::currentMSecsSinceEpoch()-lastCanvasLyricMs_>8000 &&
-                    radioCanvasCaption_) {
-                    radioCanvasCaption_->setVisible(false);
-                    lastCanvasLyricMs_=0;
                 }
 			}
 			return;
