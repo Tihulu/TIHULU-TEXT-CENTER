@@ -42,7 +42,7 @@ class DlsAndRefreshTests(unittest.TestCase):
                        "candidate==lastSongMetadataKey_",
                        "pendingSongKey_=candidate",
                        "commitPendingDlsSong(candidate,station,ticket)",
-                       "const TihuluDlsSong song=tihuluDlsSong(lastDls_)",
+                       "const TihuluDlsSong song=lastAcceptedSongHint_",
                        "const QString title=overridden?lyricsTitle_->text().trimmed():song.title",
                        "fetchLyrics(true);"):
             self.assertIn(anchor,RADIO)
