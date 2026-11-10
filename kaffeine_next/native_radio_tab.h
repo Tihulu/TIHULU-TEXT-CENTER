@@ -5063,9 +5063,18 @@ private:
            karaokePanel_->isVisible() &&
            karaokeSource_->text().contains(QLatin1String("AUDIO MATCH")))
             return;
-        const bool timed=!plainLyricMode_ && !lyricCues_.isEmpty();
+        // Online LRC normally provides both timed cues and original lines;
+        // some local/imported catalogs contain only one of those arrays.
+        // A genuine loaded cue is still displayable in unverified preview.
+        const bool timed=!lyricCues_.isEmpty() &&
+            (!plainLyricMode_ || lyricRawLines_.isEmpty());
         const int count=timed?lyricCues_.size():lyricRawLines_.size();
-        if(count<=0) return;
+        if(count<=0) {
+            if(karaokeSource_)
+                karaokeSource_->setText(tr(
+                    "LYRICS UNAVAILABLE · lookup status has no displayable lines"));
+            return;
+        }
         const int anchored=lastVerifiedLyricIndex_>=0?
             lastVerifiedLyricIndex_:0;
         const int index=qBound(0,anchored+previewIndexShift_,count-1);
@@ -5247,8 +5256,24 @@ private:
         if(label!=radioLyricMatchStatus_->text())
             radioLyricMatchStatus_->setText(label);
         radioLyricMatchStatus_->setVisible(!label.isEmpty());
-        // Keep a readable state INSIDE the karaoke blue canvas even while
-        // lyrics are absent or not yet audio verified. Never invent lyrics.
+        // A status update is NOT a karaoke lyric. In Lyrics Found modes,
+        // render the actual fetched text, even if the most recent Whisper
+        // chunk was spoken advertising rather than singing. The source/
+        // verification banner is displayed separately from the words.
+        // This is especially important because unmatched speech triggers
+        // this status method every few seconds.
+        const QString policy=karaokePolicy_?
+            karaokePolicy_->currentData().toString():QString();
+        const bool previewMode=policy==QLatin1String("found") ||
+            policy==QLatin1String("found-sync");
+        if(previewMode && karaokeEnabled_ && karaokeEnabled_->isChecked() &&
+           lyricsEnabled_ && lyricLoaded_ &&
+           (!lyricRawLines_.isEmpty() || !lyricCues_.isEmpty())) {
+            showFoundKaraokePreview(QDateTime::currentMSecsSinceEpoch());
+            return;
+        }
+        // While lyrics are actually absent, a placeholder is appropriate.
+        // It must never replace fetched lyrics with "listening" text.
         if(karaokePanel_ && karaokeEnabled_ && karaokeEnabled_->isChecked()
            && quickAi_ && quickAi_->isChecked() &&
            lastKaraokeUntilMs_<=QDateTime::currentMSecsSinceEpoch()) {
@@ -5731,12 +5756,17 @@ private:
                 lastMatchedLyricUntilMs_=0;
                 verifiedLyricQueue_.clear();
                 plainLyricQueue_.clear();
+                // Unmatched speech invalidates any moving verified karaoke,
+                // but MUST NOT hide the static Lyrics Found preview.
+                // Clear stale audio anchors first, then redraw fetched words
+                // explicitly in the preview modes.
                 clearKaraokeLine();
                 lastUnmatchedVoiceUntilMs_=qMax(lastUnmatchedVoiceUntilMs_,
                                                 due+5000);
                 setRadioLyricMatchStatus(tr(
                     "LYRICS FOUND · NOT MATCHED to this audio · "
                     "Whisper speech/advert fallback"));
+                showFoundKaraokePreview(now);
             }
             if(soundLabels_ && soundLabels_->isChecked() &&
                radioCaptionBanner_) {
@@ -6198,6 +6228,7 @@ private:
             .arg(changed?tr("new text applied"):tr("same text retained")));
         if(changed) setRadioLyricMatchStatus(tr(
             "LYRICS REFRESHED · new words await Whisper audio match"));
+        showFoundKaraokePreview(now);
         cancelLyricsRefresh();
     }
 	void fetchLyrics(bool automatic=false) {
@@ -6474,6 +6505,10 @@ private:
                 "LYRICS FOUND · %1 · %2 · matching live audio…")
                 .arg(provider.isEmpty()?tr("local file"):provider,
                      plainLyricMode_?tr("plain text"):tr("timed LRC")));
+            // Show the first real lyric line immediately on successful
+            // lookup in static-preview modes, without waiting for the next
+            // ASR chunk, song-start estimate or a second station tune.
+            showFoundKaraokePreview(now);
 			if(plainLyricMode_) {
 				lyricText_->setText(tr("Plain lyrics found. Awaiting REAL Whisper vocal matches; "
 					"no fabricated timestamps."));
