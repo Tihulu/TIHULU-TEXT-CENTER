@@ -268,7 +268,11 @@ public:
         if(!url.isLocalFile() || !preprocessOnOpen_->isChecked()) return false;
         setLocalFile(url);
         if(!isLocalMedia_) return false;
-        return generate(true);
+        // Consume the requested Open action even if the AI worker fails
+        // to LAUNCH. Falling through to Kaffeine's playlist would play an
+        // untranscribed file despite the user's explicit finish-first choice.
+        generate(true);
+        return true;
     }
 private:
     void loadSharedCaptionProfile() {
