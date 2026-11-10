@@ -61,6 +61,23 @@ class AdditiveSoundLabels(unittest.TestCase):
         self.assertEqual(decorate_result({"original":utterance},False)["original"],
                          utterance)
 
+    def test_radio_sound_labels_are_opt_in_and_dont_replace_asr(self):
+        from pathlib import Path
+        root=Path(__file__).resolve().parents[1]
+        radio=(root/"tv_center/radio_ai.py").read_text("utf-8")
+        ui=(root/"kaffeine_next/native_radio_tab.h").read_text("utf-8")
+        for token in ('--sound-labels','sound_labels: bool=False',
+                      "Optional offline AST AudioSet sound model not installed",
+                      "rendered_original[:1800]",
+                      "rendered_translations",
+                      "if original else original",
+                      "sound_labels=requested_labels"):
+            with self.subTest(token=token):
+                self.assertIn(token,radio)
+        self.assertIn('QLatin1String("radioSoundLabelsEnabled"),false',ui)
+        self.assertIn('QStringLiteral("sound_labels")',ui)
+        self.assertIn('options<<QLatin1String("--sound-labels")',ui)
+
     def test_two_real_events_keep_transcript(self):
         words="Real dialogue"
         joined=decorate_caption(words,MUSIC+APPLAUSE,"en")
