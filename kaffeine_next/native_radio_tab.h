@@ -6585,18 +6585,14 @@ private:
         const bool startedByLyrics=lyricsFallbackStartedAi_;
         lyricsAudioFallbackActive_=false;
         lyricsFallbackStartedAi_=false;
-        if(hadListening && startedByLyrics &&
-           captionProcess_.state()!=QProcess::NotRunning) {
+        // Lyrics never owns the main AI ON/OFF switch. Stop Lyrics can
+        // clear lyrics and song-specific matching, not live speech captions.
+        // Only explicit AI OFF, Stop Captions, radio Stop or TV handoff
+        // are allowed to disarm live ASR.
+        if((hadListening && startedByLyrics || plainLyricsStartedAi_) &&
+           (!quickAi_ || !quickAi_->isChecked()) &&
+           captionProcess_.state()!=QProcess::NotRunning)
             stopCaptioning();
-            const QSignalBlocker block(quickAi_);
-            quickAi_->setChecked(false);
-            quickAi_->setText(tr("AI captions · OFF"));
-        } else if(plainLyricsStartedAi_ &&
-                  captionProcess_.state()!=QProcess::NotRunning) {
-            // An ASR worker started ONLY for plain-lyrics matching is
-            // owned by lyrics, not by independent live transcription.
-            stopCaptioning();
-        }
         plainLyricsStartedAi_=false;
 		lyricsEnabled_=false;
 		lyrics_->setEnabled(true);
