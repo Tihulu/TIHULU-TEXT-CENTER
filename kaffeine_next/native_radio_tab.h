@@ -480,17 +480,20 @@ public:
         captionRefresh_->setToolTip(tr(
             "Restart this radio's ASR and clear stale results without "
             "retuning the receiver or restarting radio audio."));
-        radioSyncRefresh_=new QPushButton(tr("Lip-sync Refresh"),page);
+        aiSyncRefresh_=new QPushButton(tr("AI Lip-sync Refresh"),page);
+        aiSyncRefresh_->setToolTip(tr(
+            "Re-time ONLY pending normal Whisper speech/translated subtitles "
+            "with the current requested audio cache and caption offset. "
+            "Does not change karaoke words, lyric position or model. "
+            "No ASR restart, old speech replay, audio rebuffer or SDR retune."));
+        radioSyncRefresh_=new QPushButton(tr("Karaoke Lip-sync Refresh"),page);
         radioSyncRefresh_->setToolTip(tr(
-            "Refresh BOTH the lower Whisper subtitle timing and blue-screen "
-            "Karaoke word/preview timing. Retains current lyrics, verified "
-            "audio word anchors, manual offsets and independent Reading modes. "
-            "Uses the adjustable last 10s (3–30s) of actual matched Whisper "
-            "word evidence already in memory. Refresh NEVER refills/restarts "
-            "the existing libVLC audio buffer, SDR, MP3, AI or lyric search. "
-            "Without audio-matched words, no artificial Karaoke movement. "
-            "Speaker DAC time remains unmeasured."));
+            "Recheck the current song using installed Qwen3 ForcedAligner "
+            "when language and evidence permit, otherwise Whisper word timing. "
+            "Does not modify normal speech subtitle timing. "
+            "No audio/SDR/Whisper restart or buffer refill."));
         captionComfortRow->addWidget(captionRefresh_);
+        captionComfortRow->addWidget(aiSyncRefresh_);
         captionComfortRow->addWidget(radioSyncRefresh_);
         // The Karaoke history control belongs by Karaoke offset below,
         // not in the already crowded AI/Reading quick-control row.
@@ -2310,6 +2313,8 @@ public:
                 "Radio ASR refreshed · waiting for new captured audio; "
                 "DAB playback, Lyrics consent and manual offsets retained."));
         });
+        connect(aiSyncRefresh_,&QPushButton::clicked,
+                this,[this](){refreshRadioCaptionLipSync();});
         connect(radioSyncRefresh_,&QPushButton::clicked,
                 this,[this](){refreshRadioLipSync();});
 		connect(quickAi_,&QCheckBox::toggled,this,[this](bool enabled){
@@ -4984,12 +4989,35 @@ private:
             now,playingKey_,lastSongMetadataKey_,cue));
         pruneRecentKaraokeEvidence(now);
     }
-    void refreshRadioLipSync() {
+    void refreshRadioCaptionLipSync() {
         const qint64 now=QDateTime::currentMSecsSinceEpoch();
-        // Refresh the lower Whisper timing estimator; never start/stop
-        // the capture worker or libVLC. Existing manual offsets are kept.
+        // Whisper speech subtitle timing ONLY; no karaoke queue changes.
+        // No audio, capture worker, speaker or SDR restart.
         lagSamples_.clear();
         lastAdjustmentMs_=now;
+        int adjusted=0;
+        for(auto &cue:cueQueue_) {
+            if(cue.unoffsetDueMs<=0 ||
+               cue.chunkIndex<=displayedRadioChunk_)
+                continue;
+            const int cacheDelta=cue.requestedCacheAtQueueMs>=0?
+                activePlaybackCacheMs_-cue.requestedCacheAtQueueMs:0;
+            cue.dueMs=qMax(now,cue.unoffsetDueMs+
+                radioOffsetMs_->value()+cacheDelta);
+            ++adjusted;
+        }
+        displayDueRadioCues(now);
+        if(syncStatus_) syncStatus_->setText(tr(
+            "AI Lip-sync Refresh · %1 queued Whisper subtitle(s) retimed · "
+            "caption offset %2 ms · requested cache %3 ms. "
+            "Old speech NOT replayed; Karaoke model/words untouched; "
+            "DAC latency not measured.")
+            .arg(adjusted).arg(radioOffsetMs_?radioOffsetMs_->value():0)
+            .arg(activePlaybackCacheMs_));
+    }
+    void refreshRadioLipSync() {
+        const qint64 now=QDateTime::currentMSecsSinceEpoch();
+        // Karaoke-only sync. Normal speech queue/lag estimator is separate.
         lyricOffsetConsistency_=0;
         lastLyricDirection_=0;
         lastLyricSyncUpdateMs_=0;
@@ -4997,8 +5025,8 @@ private:
         // worker: compare recent real ASR text against the full song catalog.
         // No second SDR, playback buffer reset, or ASR restart.
         const bool canRematch=captionProcess_.state()!=QProcess::NotRunning &&
-            !captionControlsPath_.isEmpty() && lyricsEnabled_ &&
-            lyricLoaded_ && !lyricRawLines_.isEmpty();
+            !captionControlsPath_.isEmpty() && lyricsEnabled_ && lyricLoaded_ &&
+            (!lyricRawLines_.isEmpty() || !lyricCues_.isEmpty());
         bool requestedRematch=false;
         if(canRematch) {
             if(karaokeSyncRefreshToken_>=2147483647)
@@ -5026,21 +5054,6 @@ private:
         };
         updatePending(verifiedLyricQueue_);
         updatePending(plainLyricQueue_);
-        // Resynchronize normal Whisper captions using their ORIGINAL,
-        // offset-free timebase. Already displayed spoken lines are never
-        // replayed or reclassified as lyrics by a Lip-sync Refresh.
-        int retimedWhisperCues=0;
-        for(auto &cue:cueQueue_) {
-            if(cue.unoffsetDueMs<=0 || cue.chunkIndex<=displayedRadioChunk_)
-                continue;
-            const int cacheDelta=cue.requestedCacheAtQueueMs>=0?
-                activePlaybackCacheMs_-cue.requestedCacheAtQueueMs:0;
-            cue.dueMs=qMax(now,cue.unoffsetDueMs+
-                radioOffsetMs_->value()+cacheDelta);
-            ++retimedWhisperCues;
-        }
-        displayDueRadioCues(now);
-
         // A user refresh must not restart a song or re-download lyrics.
         // For a verified line redraw unchanged Whisper word anchors.
         // Unverified Lyrics Found stays STATIC, without estimated time
@@ -5086,17 +5099,16 @@ private:
         syncStatus_->setText(tr(
             "Karaoke Refresh: %5. Requested playback cache %1ms unchanged; "
             "SDR/Whisper not restarted. Reading=%2 (independent); "
-            "caption offset %3 ms, Karaoke offset %4 ms preserved. "
-            "%6 pending Whisper phrases resynced; shown text not replayed.")
+            "caption offset %3 ms, Karaoke offset %4 ms unchanged. "
+            "Normal Whisper subtitle timing remains independent.")
             .arg(activePlaybackCacheMs_)
             .arg(radioReadingPreset_?
                  radioReadingPreset_->currentText():tr("default"))
             .arg(radioOffsetMs_?radioOffsetMs_->value():0)
             .arg(lyricsOffset_?lyricsOffset_->value():0)
             .arg(requestedRematch?
-                 tr("checking current song with next Whisper result"):
-                 tr("Whisper or verified lyrics unavailable"))
-            .arg(retimedWhisperCues));
+                 tr("checking current song with installed karaoke aligner"):
+                 tr("Whisper or lyric catalog unavailable")));
     }
     void refreshKaraokeWordHighlight(qint64 now) {
         if(!karaokeCurrent_ || karaokeLine_.isEmpty() ||
@@ -6908,8 +6920,8 @@ private:
     int karaokeSyncRefreshToken_=0,lastHandledKaraokeSyncToken_=0;
     qint64 lastHandledQwenCaptureEpochMs_=0;
     QPushButton *captionEarlier_=nullptr,*captionLater_=nullptr,
-        *captionRefresh_=nullptr,*radioSyncRefresh_=nullptr,
-        *lyricsRefresh_=nullptr;
+        *captionRefresh_=nullptr,*aiSyncRefresh_=nullptr,
+        *radioSyncRefresh_=nullptr,*lyricsRefresh_=nullptr;
     QLabel *captionOffsetReadout_=nullptr;
     QComboBox *radioReadingPreset_=nullptr;
     QSpinBox *radioCaptionFontSize_=nullptr;
