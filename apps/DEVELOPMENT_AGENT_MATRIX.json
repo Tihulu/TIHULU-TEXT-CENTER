@@ -1,0 +1,108 @@
+{
+  "schema_version": 1,
+  "type": "coding_agent_context_not_runtime_ai",
+  "purpose": "For code-writing assistants to understand, develop, redesign and port TIHULU apps without new model installation",
+  "model_install_required": false,
+  "cloud_api_required_for_matrix": false,
+  "gpu_npu_required_for_matrix": false,
+  "entrypoints": {
+    "claude_code": {
+      "file": "CLAUDE.md",
+      "read_mode": "native_project_instructions"
+    },
+    "deepseek": {
+      "file": "DEEPSEEK_START.md",
+      "read_mode": "manual_prompt_or_client_specific_repo_reader",
+      "auto_read_guarantee": false
+    },
+    "other_agents": {
+      "file": "AGENTS.md",
+      "read_mode": "client_dependent"
+    }
+  },
+  "global_read_first": [
+    "AGENTS.md",
+    "DEVELOPMENT_AGENT_GUIDE.md",
+    "apps/registry.json",
+    "apps/PARITY_RELEASE_GATES.md"
+  ],
+  "non_regression": [
+    "Preserve all existing features and defaults",
+    "Keep recordings/settings accessible",
+    "No hidden RF/SDR ownership or background activity",
+    "No invented subtitle timing or model readiness",
+    "No migration/merge/installer repoint without approval"
+  ],
+  "apps": [
+    {
+      "id": "media-center",
+      "canonical_repo": "Tihulu/TIHULU-TEXT-CENTER",
+      "status": "embedded",
+      "source_roots": [
+        "kaffeine_next/",
+        "tv_center/"
+      ],
+      "feature_matrix": "apps/media-center/FEATURE_MATRIX.json",
+      "component_matrix": "apps/media-center/COMPONENT_MATRIX.json",
+      "runtime_ai_matrix": "apps/media-center/MODEL_MATRIX.json",
+      "instructions": "apps/media-center/AGENTS.md",
+      "porting_guide": "apps/media-center/PORTING_GUIDE.md",
+      "migration_state": "not_started"
+    },
+    {
+      "id": "satellite-center",
+      "canonical_repo": "Tihulu/TIHULU-TEXT-CENTER",
+      "status": "embedded",
+      "source_roots": [
+        "satellite_center/"
+      ],
+      "feature_matrix": "apps/satellite-center/FEATURE_MATRIX.json",
+      "component_matrix": "apps/satellite-center/COMPONENT_MATRIX.json",
+      "runtime_ai_matrix": "apps/satellite-center/MODEL_MATRIX.json",
+      "instructions": "apps/satellite-center/AGENTS.md",
+      "porting_guide": "apps/satellite-center/PORTING_GUIDE.md",
+      "migration_state": "not_started"
+    },
+    {
+      "id": "geolocation-center",
+      "canonical_repo": "Tihulu/TIHULU-TEXT-CENTER",
+      "status": "embedded",
+      "source_roots": [
+        "rf_geolocation_center/"
+      ],
+      "feature_matrix": "apps/geolocation-center/FEATURE_MATRIX.json",
+      "component_matrix": "apps/geolocation-center/COMPONENT_MATRIX.json",
+      "runtime_ai_matrix": "apps/geolocation-center/MODEL_MATRIX.json",
+      "instructions": "apps/geolocation-center/AGENTS.md",
+      "porting_guide": "apps/geolocation-center/PORTING_GUIDE.md",
+      "migration_state": "not_started"
+    },
+    {
+      "id": "text-center",
+      "canonical_repo": "Tihulu/TIHULU-TEXT-CENTER",
+      "status": "embedded",
+      "source_roots": [
+        "textcenter/",
+        "web/"
+      ],
+      "feature_matrix": "apps/text-center/FEATURE_MATRIX.json",
+      "component_matrix": "apps/text-center/COMPONENT_MATRIX.json",
+      "runtime_ai_matrix": "apps/text-center/MODEL_MATRIX.json",
+      "instructions": "apps/text-center/AGENTS.md",
+      "porting_guide": "apps/text-center/PORTING_GUIDE.md",
+      "migration_state": "not_started"
+    },
+    {
+      "id": "flight-radar",
+      "canonical_repo": "Tihulu/tihulu-flight-radar",
+      "status": "external_canonical",
+      "source_roots": [],
+      "feature_matrix": "apps/flight-radar/FEATURE_MATRIX.json",
+      "component_matrix": "apps/flight-radar/COMPONENT_MATRIX.json",
+      "runtime_ai_matrix": "apps/flight-radar/MODEL_MATRIX.json",
+      "instructions": "apps/flight-radar/AGENTS.md",
+      "porting_guide": "apps/flight-radar/PORTING_GUIDE.md",
+      "migration_state": "not_started"
+    }
+  ]
+}
