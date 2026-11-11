@@ -1,0 +1,73 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { createOrbitClock,shouldRefreshLive,trackCacheSlot,LIVE_REFRESH_MS,TRACK_REFRESH_MS } from "../satellite_center/browser/orbit_clock.mjs";
+const base=Date.UTC(2026,10,6,8,30,0);
+test("live clock reads current time each frame; pause freezes exact timestamp",()=>{
+ let now=base;
+ const c=createOrbitClock(()=>now);
+ assert.equal(c.isLive,true);
+ assert.equal(c.time(),base);
+ now+=1000;
+ assert.equal(c.time(),base+1000);
+ assert.equal(c.pause(),base+1000);
+ now+=300000;
+ assert.equal(c.time(),base+1000);
+ assert.equal(c.isLive,false);
+ assert.equal(c.resume(),now);
+ assert.equal(c.time(),now);
+});
+test("moving slider enters fixed future/past simulation; Now live resets to wall-clock",()=>{
+ let now=base;
+ const c=createOrbitClock(()=>now);
+ assert.equal(c.seek(90),base+90*60000);
+ assert.equal(c.isLive,false);
+ now+=45000;
+ assert.equal(c.time(),base+90*60000);
+ assert.equal(c.seek(-45),now-45*60000);
+ now+=15000;
+ assert.equal(c.time(),base+45000-45*60000);
+ assert.equal(c.resume(),now);
+ assert.equal(c.time(),base+60000);
+ assert.throws(()=>c.seek(Infinity),/Invalid relative/);
+});
+test("one-second live refresh disabled for paused, hidden or not-started maps",()=>{
+ assert.equal(LIVE_REFRESH_MS,1000);
+ assert.equal(shouldRefreshLive({live:true,visible:true,started:true,elapsedMs:1000}),true);
+ assert.equal(shouldRefreshLive({live:true,visible:true,started:true,elapsedMs:500}),false);
+ assert.equal(shouldRefreshLive({live:false,visible:true,started:true,elapsedMs:1000}),false);
+ assert.equal(shouldRefreshLive({live:true,visible:false,started:true,elapsedMs:1000}),false);
+ assert.equal(shouldRefreshLive({live:true,visible:true,started:false,elapsedMs:1000}),false);
+});
+test("15-second track cache invalidates with elapsed wall-clock or observer change",()=>{
+ assert.equal(TRACK_REFRESH_MS,15000);
+ const k1=trackCacheSlot(base,50.938,6.960);
+ assert.equal(k1,trackCacheSlot(base+14000,50.938,6.960));
+ assert.notEqual(k1,trackCacheSlot(base+15000,50.938,6.960));
+ assert.notEqual(k1,trackCacheSlot(base,38.423,27.143));
+ assert.notEqual(k1,trackCacheSlot(base,50.938,6.960,"new TLE"));
+});
+test("map wires live controls, incremental Leaflet updates, and tab-hidden pause",()=>{
+ const root=new URL("../satellite_center/browser/",import.meta.url);
+ const map=readFileSync(new URL("satellite_maps.mjs",root),"utf8");
+ const html=readFileSync(new URL("index.html",root),"utf8");
+ const css=readFileSync(new URL("browser.css",root),"utf8");
+ for(const id of ["map-now","map-pause","map-live-state","map-time","map-follow-selected"])
+   assert.ok(html.includes('id="'+id+'"'),id+" missing");
+ assert.match(map,/setInterval\(\(\)=>\{/);
+ assert.match(map,/},LIVE_REFRESH_MS\)/);
+ assert.match(map,/clock\.seek\(Number\(time\.value\)\)/);
+ assert.match(map,/clock\.pause\(\)/);
+ assert.match(map,/clock\.resume\(\)/);
+ assert.match(map,/document\.hidden/);
+ assert.match(map,/document\.removeEventListener\("visibilitychange",onVisibility\)/);
+ assert.match(map,/satrecMap\.set\(id,\{l1:item\.l1,l2:item\.l2,rec\}\)/);
+ assert.match(map,/trackCacheSlot\(when,station\.latitude\/RAD,station\.longitude\/RAD\)/);
+ assert.match(map,/pin\.setLatLng\(\[sat\.lat,sat\.lon\]\)/);
+ assert.match(map,/layer\.setLatLngs\(data\[i\]\)/);
+ assert.doesNotMatch(map,/markers\.clearLayers\(\);tracks\.clearLayers\(\);/);
+ assert.equal((map.match(/\$\("map-fit-all"\)\.addEventListener/g)||[]).length,1);
+ assert.equal((map.match(/\$\("map-focus-selected"\)\.addEventListener/g)||[]).length,1);
+ assert.match(css,/\.map-live-indicator/);
+ assert.match(map,/clock\.isLive&&\$\("map-follow-selected"\)\.checked/);
+});

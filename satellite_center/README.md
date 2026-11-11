@@ -1,0 +1,319 @@
+# TIHULU Satellite Center — standalone companion v0.2.3
+
+## One-click Satellite Auto-Capture & Decode (2026-11-06 draft)
+
+On **Satellite Images & Data** (`browser/reception.html`) the user has three primary actions:
+
+1. **Auto Schedule & Capture:** select images / public ISS APRS messages /
+   both, choose GPS or manual ground station, and look ahead 12/24/48 h.
+   On the local native companion this single explicit click calls
+   `POST /api/auto-schedule`: it obtains missing TLEs on demand,
+   predicts passes, validates installed RTL-SDR/decoder tools, arms at most
+   six non-overlapping pass captures, and records actual RF on the established
+   scheduler. Schedules are persisted. The optional service must stay running,
+   and other programs such as readsb may prevent the device lease.
+   On Pages/PWA the button opens the common WebUSB scheduler with the selected
+   station transferred via **same-tab session storage, not the URL**; a
+   pre-authorized receiver can be silently reopened at an eligible pass.
+   New USB permissions must still be granted manually in a supported Chromium
+   browser. Browser-only automation lasts while its tab remains open,
+   foreground and awake. Each capture is max 60 s / 128 MiB; entire Meteor
+   image downlinks frequently need the longer native workflow.
+
+2. **Analyze Recordings:** native mode scans recent actual on-disk archive files
+   and attempts compatible SatDump Meteor LRPT output, CRC-unverified raw
+   public packet text viewing and browser local CU8 full-FFT/audio/Robot36
+   candidate discovery; only files fetched from its own localhost service.
+   On Pages/PWA select a real downloaded local recording via the file chooser
+   because the website cannot silently read Downloads. The receiver page
+   also offers Analyze Recordings for its last captured in-memory IQ file.
+
+3. **Extract Results:** display actual candidate images only from line-sync-
+   validated Robot36 or native SatDump output, allow user-controlled PNG/audio
+   and evidence JSON export, and show real APRS/text archive contents with
+   honest source labels. Unsupported modulation and packet decoders never
+   manufacture text, imagery or protocol matches.
+
+**Cancel Auto Missions:** clears only this application's auto-armed pending
+jobs and requests Stop for its own current automatic capture; external SDR
+programs, manual jobs and existing files are preserved. A separate Stop
+Analysis cancels local analysis, not arbitrary SatDump OS processes.
+
+**Current target set:** Meteor-M2-3 / M2-4 LRPT at a candidate 137.900 MHz,
+ISS SSTV 437.550 MHz Robot36 (event-only), ISS packet APRS UHF 437.825 MHz
+(current mode subject to ARISS) and optional ISS public FM audio. ISS video
+HamTV at 2395 MHz, retired NOAA-15/18/19 APT, NASA Internet imagery, and
+unverified CubeSat protocols are **not auto-armed** with the present NESDR.
+Auto-planning never claims the transmitter is active or that reception succeeded.
+
+This is an implemented but still **draft** cross-platform workflow: CI is
+synthetic (not hardware proof). Remaining gates include real ISS/Meteor
+receiving tests on Linux, Pi, Windows and macOS; browser-supported unattended
+full-pass Meteor decoding, broader open-format decoders, proper per-image
+quality/CRC validation and multi-day background service UX. See
+[Issue #21](https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/21)
+and [platform parity contract](FEATURE_PARITY.md).
+
+
+## Satellite Images & Data — common cross-platform tab (2026-11-06)
+
+The separate **[Satellite Images & Data tab](browser/reception.html)** is now part
+of the canonical browser/PWA bundle. The same exact HTML/JS/CSS is served by
+GitHub Pages at `/satellite_center/browser/reception.html` and by the optional
+native companion at `http://127.0.0.1:8791/browser/reception.html` on Linux,
+Raspberry Pi OS, Windows, and macOS. The native dashboard also links to the tab.
+
+- The mission picker distinguishes **ISS Robot36 SSTV pictures** (currently
+  event-dependent, check [ARISS](https://www.ariss.org/upcoming-sstv-events.html)),
+  **Meteor-M2-3/M2-4 LRPT Earth-weather imagery** (requires native SatDump for
+  decoding), **ISS voice/APRS public messages**, **SatNOGS public transmitter
+  references**, **NASA's online EPIC and ISS archives**, and **retired NOAA APT
+  recording archives**. Frequencies are candidate receive-only targets, not
+  proof of an active transmitter.
+- Inside the tab, the same existing experimental `satellite_images_ui.mjs`
+  decoder can open real user WAV/CU8 samples and **attempt** actual Robot36
+  sync-validated reconstruction. Users can save only images produced from real
+  decoded audio. The NASA gallery fetches images explicitly on click and
+  credits the source; these are **online**, not SDR-received images.
+- A local-only file viewer supports image, audio, video, text/JSON/TLE and CU8
+  evidence files. Optional frequency and sample-rate inputs remain manual;
+  export is metadata only, with **user-imported/unverified** provenance. CU8
+  requires separate analysis and is not a JPEG/WAV.
+- **Hauppauge WinTV-soloHD 01589:** DVB-T/T2/C TV tuner, **not** a raw satellite
+  SDR or a Meteo/ISS digital decoder. Keep it in the TV module. The separate
+  portable TV antenna may not be adequate at 137 MHz; a properly designed
+  V-dipole/QFH/weather satellite antenna is preferred. The Nooelec NESDR
+  SMArt v5 is the intended VHF/UHF SDR.
+- **NOAA-15, NOAA-18, NOAA-19** were decommissioned in 2025; archived
+  recordings only. No scheduled capture from those inactive transmitters.
+- **No background scan, RF transmit, auto USB claim, fabricated decoded image,
+  RF upload, guaranteed reception or unsupported cross-browser WebUSB claim.**
+  Direct USB requires a compatible Chromium browser; native local tools must
+  be installed for SatDump/APRS and unattended receiver jobs.
+
+Pending: full single-screen native receiver controls within this separate
+tab; optional SatDump LRPT output attachment to the browser gallery; live
+SatNOGS transmitter catalog filtering, per-satellite capabilities and
+hardware acceptance on real Windows/macOS/ARM devices. Follow
+[the delivery issue](https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/21)
+before claiming these capabilities as complete.
+
+
+> **v0.2 cross-platform / GitHub Pages bridge:** This module now also has a
+> static Pages client with local pairing, portable Windows/macOS/Raspberry Pi
+> runtime, and one-line installers. Read [WEB_AND_INSTALL.md](WEB_AND_INSTALL.md).
+> The static UI is staged on the same repository's dedicated **gh-pages** branch;
+> a live website still depends on GitHub Pages deployment settings. Windows,
+> macOS and Raspberry Pi hardware reception remains unverified.
+
+
+This is the **new `satellite_center/` directory** intended to be placed at the root of `Tihulu/TIHULU-TEXT-CENTER`. It does **not** alter Text Center routes, UI, recordings or the Survival Kit. Integration can be decided later.
+
+## v0.15 — Satellite Images and source-attributed recordings (2026-11-06)
+
+**Satellite Images** in the browser-only/Pages app offers two distinct,
+non-interchangeable acquisition paths:
+
+1. **Received with user's RTL-SDR:** actual ISS **Robot36 SSTV** events
+   (frequency and image mode are event-dependent; consult the
+   [ARISS schedule](https://www.ariss.org/upcoming-sstv-events.html)).
+   Select a locally captured demodulated FM WAV, or experiment with
+   recorded unsigned CU8 → narrowband FM → 1200 Hz sync detection →
+   320×240 Robot36 conversion. A decoded image is only shown if there
+   are repeated, aligned audio syncs. All such decodes are experimental
+   candidates, never assured ISS origin. Raw frequency power/geometry
+   does not count as a received image.
+2. **Meteor-M2-3/M2-4 LRPT:** locally captured CU8 can be decoded with
+   the optional native SatDump CLI. The installed companion supports
+   72k/80k pipeline choices and displays only real SatDump PNG/JPEG
+   outputs. No unsupported promise to decode Meteor LRPT in the
+   browser-only page; the in-browser RF/FM/Robot36 path is SSTV only.
+3. **Online original imagery:** NASA DSCOVR EPIC Earth photographs and
+   historic ISS Earth photographs from the NASA Images archive are
+   requested *on demand* via official NASA APIs. The online gallery
+   labels actual source and acquisition timestamps and never presents
+   external NASA downloads as if they were received via the local USB
+   antenna. NASA API rate limits/CORS may require opening the official
+   gallery. Official EUMETSAT and NOAA weather image viewers are also
+   linked for international use.
+
+**Filename convention:** `TIHULU_<SATELLITE-CANDIDATE>_<YYYYMMDDTHHMMSSZ>_<FREQUENCY>Hz[_<SAMPLE-RATE>SPS]_<IQ|SSTV|LRPT|...>.<ext>`.
+UTC avoids Windows/macOS/Linux/Raspberry Pi timezone ambiguity. Unknown
+attribution is explicitly `RF-UNATTRIBUTED`; observing a TLE pass is
+not proof of the transmitted signal's identity. Existing legacy raw
+recordings remain openable. The most recent browser I/Q recording
+is available for local FFT analysis and optional experimental SSTV
+decode, without uploading samples.
+
+**Shared cross-platform UI:** The installed Python local companion
+on Debian/Ubuntu/Pop!_OS, Raspberry Pi OS, Windows x64 and macOS Apple
+Silicon now exposes **Open live map and Satellite Images**, loading the
+exact same browser sources as GitHub Pages from its local
+`/browser/index.html` route. The 1-second LIVE TLE view, Pause, Sky,
+Earth map, and image gallery thus share one implementation.
+The embedded web interface is only loaded when requested and releases
+its own USB session on close. Two SDR frontends cannot own the same
+physical dongle simultaneously. Page-only WebUSB requires a compatible
+desktop Chromium-family browser; the desktop companion uses its native
+RTL-SDR tools for its own capture workflows.
+
+**Verification limits:** Core browser JS parses, UI controls are wired,
+image-naming metadata round-trips, and synthetic 240-scan-line Robot36
+audio yielded a 320×240 candidate. Cross-platform CI is defined for
+Ubuntu x64/ARM, Windows, and macOS, but physical SSTV/LRPT, receiving
+antennas, browser CORS and native hardware remain unverified until
+tested on compatible real RF data. No fabricated space imagery.
+
+## Primary: browser-only direct WebUSB (no local installer)
+
+[Open the public Satellite Center](https://tihulu.github.io/TIHULU-TEXT-CENTER/satellite_center/)
+or go directly to
+[Browser-only WebUSB](https://tihulu.github.io/TIHULU-TEXT-CENTER/satellite_center/browser/).
+
+On desktop Chrome/Edge/other suitable Chromium browsers, press **Choose
+RTL-SDR (WebUSB)**, select the locally plugged-in Nooelec NESDR SMArt v5
+RTL2832U receiver and grant the browser USB permission. There is no Python
+process, `127.0.0.1` connection, pairing key or OS-level local software
+installation required for the **web application itself**.
+
+The browser source is under `satellite_center/browser/`. It dynamically
+loads the version-pinned `@jtarrio/webrtlsdr@3.0.7` WebUSB library,
+samples real USB I/Q data, plots relative digital signal level and optionally
+downloads original CU8 records of up to 128 MiB. It uses `satellite.js@6.0.1`
+for browser-side geometry, on-demand CelesTrak TLE downloads (with a
+two-hour per-tab refresh limit) or manual local TLE upload, and a limited
+in-memory browser-open pass scheduler. No third-party SDR process is stopped.
+
+**Limits and non-promises:** Firefox and Safari lack WebUSB; Windows may
+require WinUSB installation, Linux may require DVB kernel module release
+or udev permissions, and those cannot be fixed solely via browser consent.
+The hosted app cannot work with USB hardware plugged into a *different*
+computer. The tab must be open and foreground to schedule reliably, and
+WebUSB is released on stop, visibility hide or page exit. Browser-only Meteor LRPT imaging and ISS APRS packet decoding are **not
+implemented**. Experimental Robot36 SSTV reconstruction from actual local
+WAV/CU8 with line-sync checks is available inside Satellite Images & Data;
+the captured file and correct antenna, active event and metadata are required.
+
+**The old local-companion application remains optional** for modes using
+installed SatDump/multimon-ng and for scheduling while the browser tab is
+closed but the companion runs. It is not the required path for the
+browser-only capture mode. A physical Nooelec test is still pending.
+
+## Earth & Sky Maps (v0.4, browser-only)
+
+The direct GitHub Pages application includes an **interactive OpenStreetMap
+Earth tracker** and an original **Heavens-Above-style azimuth/elevation sky
+plot**. Both use the same local/browser-refreshed TLEs as the pass planner:
+
+- Predicted ground subpoints, real-time sky angles and range for ISS, Meteor-M,
+  amateur CubeSat candidates and Iridium NEXT; filter by type, local horizon
+  and selected *candidate* SDR band.
+- Select a satellite on the map, in the list or on the sky plot to inspect
+  azimuth/elevation, pass details, TLE age and candidate receiver frequency.
+  Selecting MHz **never** starts a capture.
+- Chosen orbit segment (±45 minutes), estimated contact footprint, and a
+  ±45/+90 minute simulation slider that never labels past/future positions
+  as live radio detections.
+- **OSM tiles load only after clicking Load OpenStreetMap**, follow the
+  OSMF attribution, Referer, and no-prefetch/no-offline policies. Sky-chart
+  drawing needs no map tile service.
+- Official Heavens-Above comparisons and SatNOGS transmitter database
+  links are optional external references, not embedded feeds or evidence of
+  an active transmitter.
+- Firefox can display the Earth/sky maps even though its WebUSB reception
+  mode is unavailable. Chromium browsers can show maps and direct USB capture.
+
+See [MAPS.md](MAPS.md) for functionality, map/privacy policies,
+geometry-only indicators, and hardware limitations. These maps do not
+decode spacecraft traffic, and current reception is **not proven** merely
+because a satellite is above the horizon.
+
+## What works (subject to installed tools and actual RF)
+
+- Local, mobile-responsive browser UI at **`http://127.0.0.1:8791/`** (independent from Text Center's `8787`).
+- Explicit-only HTTPS downloads of current CelesTrak TLE sets for ISS (NORAD 25544), Meteor M2-3 (57166), Meteor M2-4 (59051), a bounded amateur/CubeSat selection and **Iridium NEXT**. TLE data is cached for offline use. The app never silently fetches data in the background.
+- Skyfield-propagated predicted rise/peak/set (AOS/LOS), live-on-request geometric overhead positions (azimuth/elevation), maximum elevation and opt-in recording **scheduler**. Region independent; presets for Köln, other German locations, İzmir, İstanbul, Ankara, Brussels, Paris, Rome and Stockholm, plus manual latitude/longitude anywhere in Germany, Türkiye, the EU or elsewhere. The schedule persists in the local data directory; it executes **only while this independent server remains running**. A pass is not a radio transmission guarantee.
+- Safe fixed-band `rtl_power` RF surveys, `rtl_sdr` IQ recordings (`.cu8`), optional `rtl_fm`/`multimon-ng` ISS APRS text, and ISS SSTV WAV that can be decoded by an external tool such as QSSTV. Meteor-M IQ can be processed by installed SatDump with the selected LRPT pipeline; it reports the **actual** output files only. Iridium mode is **spectrum-only** and does **not** decode private satellite communications.
+- No RF transmission, no fabricated satellite detections or images, no all-band hidden background scans, no auto-deletion of raw recordings. Limits: 1 GiB per IQ file; max scheduled capture 480 sec; max manual capture 240 sec; 24 pending passes.
+- Uses Text Center's **cooperative RTL-SDR lock** at `~/.local/share/tihulu-text-center/.receiver-locks/rtl_fm_rds.lock`, plus existing `/proc` receiver-conflict checks. Third-party apps which ignore locks can still interfere; never run welle.io/readsb concurrently with the single RTL-SDR. A dedicated second receiver is preferable for simultaneous operation.
+
+## One-line GitHub install or update
+
+**Linux / Pop!_OS / Ubuntu / Debian / Raspberry Pi OS / macOS Apple Silicon**
+(Requires Git, Python 3.11+ and venv; additional SDR binaries as needed):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Tihulu/TIHULU-TEXT-CENTER/feature/satellite-center-standalone-2026-11-06/satellite_center/install/install.sh | bash
+```
+
+**Windows x64 PowerShell** (Python 3.11+; RTL-SDR drivers/tools separately):
+
+```powershell
+irm https://raw.githubusercontent.com/Tihulu/TIHULU-TEXT-CENTER/feature/satellite-center-standalone-2026-11-06/satellite_center/install/install.ps1 | iex
+```
+
+The local dashboard is `http://127.0.0.1:8791/`. The hosted view is
+`https://tihulu.github.io/TIHULU-TEXT-CENTER/satellite_center/`.
+Copy the **local** 64-character pairing token into the hosted view;
+never use your RTL-SDR USB serial or GitHub credentials. A physical USB dongle,
+its antenna and installed RTL-SDR command-line tools are still needed for
+real reception. See the
+[main repository's setup guide](../docs/SATELLITE_CENTER_COMPANION.md) or
+the feature-specific [WEB_AND_INSTALL.md](WEB_AND_INSTALL.md).
+
+## Install / run (Pop!_OS / Ubuntu / Debian)
+
+From the repository root, with Python 3.11+:
+
+```bash
+python3 -m venv .venv-satellite
+. .venv-satellite/bin/activate
+python -m pip install 'skyfield>=1.49,<2'
+# rtl_power, rtl_sdr, rtl_fm typically come from the rtl-sdr distro package.
+# Optional: multimon-ng, SatDump and QSSTV, installed separately for relevant modes.
+python3 -m satellite_center doctor
+python3 -m satellite_center serve --port 8791
+```
+
+Without `skyfield`, radio surveys and the UI can still start; **the pass calculation clearly returns an unavailable error**. Without the RTL-SDR tools or antenna, or if another receiver owns it, acquisition fails explicitly. With no TLE cache, use the **Download fresh orbit data** button when Internet is available. Offline cached TLE may be used for 7 days, with a caution after 2 days; orbital accuracy degrades as data ages.
+
+The application listens **only on loopback**. Do not expose port 8791 to LAN, Internet or `tihulu.lan` until a separate authenticated, CSRF-protected and TLS-enabled reverse-proxy integration is completed. Browser location permissions are not used; selectable ground-station presets are only approximate. The user's reception location does not leave the device in the TLE HTTP requests.
+
+## Required antennas / honest limits
+
+| Source | Typical receive mode | Antenna note |
+| --- | --- | --- |
+| ISS 145.800 MHz (voice or scheduled SSTV) | FM / WAV / external SSTV decoder | VHF antenna; SSTV is *not always transmitting* |
+| ISS 145.825 MHz (APRS) | FM 1200-baud AX.25 via `multimon-ng` | VHF antenna; frequency and operational mode subject to current ARISS status |
+| ISS 437.800 MHz repeater | UHF energy survey | UHF antenna; intermittent; 437.825 MHz APRS tests may also occur |
+| Meteor-M2-3/M2-4 | 137.900 MHz primary or 137.100 MHz alternate selectable for IQ; LRPT / SatDump | 137 MHz V-dipole / QFH, clear sky; downlink availability changes |
+| Amateur/CubeSat candidates | published satellite-specific VHF/UHF channels | Frequency catalog is **not** automatically resolved; generic scans do not identify satellites |
+| Iridium NEXT | 1616–1626.5 MHz relative RF spectrum **only** | L-band patch/helix and suitable LNA/filter; the bundled VHF whip is usually unsuitable |
+
+At 1.6 GHz the R820T-based receiver is near the upper end of its useful band, and an RTL-SDR's narrow instantaneous bandwidth cannot monitor the entire Iridium allocation at once. `rtl_power` sweeps are brief samples; **missing a burst does not imply no satellite**. CelesTrak's Iridium ephemeris can show candidate overhead satellites; a spectrum peak alone cannot attribute a burst to a specific satellite.
+
+Recorded ISS WAV is an RF audio capture, **not an image** until independently decoded. SatDump output is not guaranteed even if an IQ file exists. Never label these measurements as official weather alerts or distress messages. Receive only signals you may lawfully monitor in your jurisdiction; do not capture, distribute or decode non-public Iridium user communications. Germany, Türkiye and EU countries have differing interception/privacy rules.
+
+## Test / integration boundaries
+
+```bash
+python3 -m unittest discover -s tests -p 'test_satellite*.py' -v
+python3 -m compileall -q satellite_center
+```
+
+The project code is testable without a connected RTL-SDR; neither radio reception nor live satellite decoding has been hardware-validated by this build environment. **One original file/recording must survive a failed decode.** Device locking is cooperative, not a complete interprocess SDR lease broker. Future survival-kit integration should use its central receiver broker, authenticated portal, storage quota controls and external SSD locations.
+
+Up-to-date radio operation should be checked against [ARISS status](https://www.ariss.org/current-status-of-iss-stations.html), [CelesTrak GP documentation](https://celestrak.org/NORAD/documentation/gp-data-formats.php) and [SatDump documentation](https://docs.satdump.org/).
+
+## Applications / Dock icon and Firefox on Linux
+
+Satellite Center includes a custom **radio V-dipole / RTL-SDR / satellite** icon in SVG plus 192×192 and 512×512 PNG sizes. The browser-only page now links a web manifest with `display: standalone`; on Chromium-based desktop browsers choose **Install this site as an app** from the address bar/browser menu, then pin the installed application in the COSMIC dock. This is the no-Python-helper path, but direct USB still requires a browser with WebUSB and appropriate OS USB permissions. PWA install availability/appearance depends on the browser and OS.
+
+On **Firefox for Linux**, orbital predictions and manual TLE import work in the hosted page but **direct USB access does not**: Firefox does not expose `navigator.usb`. There is no `about:config` switch that makes native WebUSB work. To receive RF in Firefox, use the **optional** local companion at `http://127.0.0.1:8791/`, which requires the Python helper and `rtl-sdr` utilities. Third-party experimental extensions relying on locally installed Native Messaging hosts do not satisfy zero-install requirements.
+
+The Linux one-line installer installs/updates two separate Applications entries with the custom icon:
+
+- **TIHULU Satellite Center:** standalone Chromium WebUSB browser window (opens only the web frontend, no Python receiver).
+- **TIHULU Satellite Center (Local Companion):** optional local decoding/scheduled recording server; opens localhost in the default browser, including Firefox.
+
+On Pop!_OS/COSMIC, open Applications, right-click the Satellite Center entry and **Pin to Dock**. If an old generic gear icon remains pinned, unpin it and pin the new browser entry. A COSMIC/Chromium window-class issue can affect live dock grouping; the static Applications icon is explicitly installed to `~/.local/share/icons/hicolor/` and can be refreshed by running the installer again. Firefox's normal windows may still appear under the Firefox dock icon.

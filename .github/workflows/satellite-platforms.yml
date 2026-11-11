@@ -1,0 +1,98 @@
+name: Satellite Center portable tests
+
+on:
+  pull_request:
+    paths:
+      - 'satellite_center/**'
+      - 'docs/satellite/**'
+      - 'tests/test_satellite_*.py'
+      - 'tests/test_satellite_*.mjs'
+      - '.github/workflows/satellite-platforms.yml'
+  push:
+    paths:
+      - 'satellite_center/**'
+      - 'docs/satellite/**'
+      - 'tests/test_satellite_*.py'
+      - '.github/workflows/satellite-platforms.yml'
+
+jobs:
+  portable-runtime:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, ubuntu-24.04-arm, windows-2022, macos-15]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Satellite Center portable tests (synthetic, no hardware)
+        run: python -m unittest discover -s tests -p "test_satellite_*.py" -v
+      - name: Linux/macOS icon launcher shell syntax
+        if: runner.os != 'Windows'
+        run: bash -n satellite_center/install/install.sh
+      - name: PWA icon and manifest assets
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          root=Path('satellite_center/browser')
+          m=json.loads((root/'manifest.webmanifest').read_text())
+          files={x['src']:x['sizes'] for x in m['icons']}
+          assert files['icon-192.png']=='192x192'
+          assert files['icon-512.png']=='512x512'
+          for p in ['icon-192.png','icon-512.png','icon.svg']:
+              assert (root/p).is_file()
+          import struct
+          for filename,size in [('icon-192.png',192),('icon-512.png',512)]:
+              raw=(root/filename).read_bytes()
+              assert raw[:8] == bytes((137, 80, 78, 71, 13, 10, 26, 10))
+              assert struct.unpack('>II',raw[16:24])==(size,size)
+          PY
+      - name: Python import and bytecode sanity
+        run: python -m compileall -q satellite_center
+      - name: Local receiver doctor (no radio opened)
+        run: python -m satellite_center doctor
+      - name: Static browser-only JS syntax (no hardware)
+        shell: bash
+        run: node --input-type=module --check < satellite_center/browser/browser.js
+      - name: Earth and sky tracker tests (no hardware)
+        shell: bash
+        run: |
+          node --check satellite_center/browser/satellite_maps.mjs
+          node --test tests/test_satellite_maps.mjs
+          node --check satellite_center/browser/location_search.mjs
+          node --test tests/test_satellite_location.mjs
+          node --check satellite_center/browser/pass_sort.mjs
+          node --check satellite_center/browser/schedule_controller.mjs
+          node --test tests/test_satellite_pass_schedule.mjs
+          node --check satellite_center/browser/usb_live_probe.mjs
+          node --test tests/test_satellite_real_usb.mjs
+          node --test tests/test_satellite_leaflet_css.mjs
+          node --test tests/test_satellite_earth_overlays.mjs
+          node --check satellite_center/browser/iq_analysis.mjs
+          node --check satellite_center/browser/iq_analysis_ui.mjs
+          node --test tests/test_satellite_iq_analysis.mjs
+          node --check satellite_center/browser/orbit_clock.mjs
+          node --test tests/test_satellite_live_clock.mjs
+          node --check satellite_center/browser/reception_catalog.mjs
+          node --check satellite_center/browser/reception.mjs
+          node --check satellite_center/browser/auto_mission.mjs
+          node --check satellite_center/browser/auto_reception_ui.mjs
+          node --check satellite_center/browser/pass_protocol_catalog.mjs
+          node --check satellite_center/browser/satellite_calendar.mjs
+          node --test tests/test_satellite_calendar.mjs
+          node --check satellite_center/browser/saved_satellite_protocols.mjs
+          node --check satellite_center/browser/user_protocol_ui.mjs
+          node --test tests/test_satellite_user_protocols.mjs
+          node --test tests/test_satellite_auto_mission.mjs
+          node --test tests/test_satellite_reception.mjs
+          node --check satellite_center/browser/satellite_imagery.mjs
+          node --check satellite_center/browser/satellite_images_ui.mjs
+          node --check satellite_center/browser/sstv_robot36.mjs
+          node --check satellite_center/browser/fm_iq_demod.mjs
+          node --test tests/test_satellite_images.mjs
+          python -c "import json; from pathlib import Path; p=Path('satellite_center/browser/natural-earth-land-110m.geojson'); d=json.loads(p.read_text()); assert d['type']=='FeatureCollection' and len(d['features'])>100"
+

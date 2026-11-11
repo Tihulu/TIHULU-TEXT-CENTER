@@ -1,0 +1,50 @@
+.reception-nav{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px}
+.reception-nav a,.reception-actions a,.reception-actions button{display:inline-flex;align-items:center;justify-content:center;text-decoration:none;border:1px solid #3d6287;color:#d9ebfc;background:#193351;border-radius:9px;padding:9px 13px;min-height:40px;font-weight:600;font-size:.9rem}
+.reception-nav a[aria-current=page]{background:#2566ae;color:#fff;border-color:#74a6dc}
+.reception-main{display:grid;gap:16px;padding-top:20px;padding-bottom:40px;max-width:1240px}
+.reception-main>section,.reception-grid>section{min-width:0;border:1px solid #2c4460;border-radius:14px;background:#102137;padding:18px}
+.reception-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.reception-main h2{font-size:1.12rem;margin:0 0 12px}
+.reception-main p{line-height:1.55}
+.reception-controls{display:flex;flex-wrap:wrap;align-items:end;gap:12px}
+.reception-controls label{flex:1 1 230px;min-width:0}
+.reception-controls select,.reception-controls input{width:100%;margin-top:6px;min-height:42px}
+.mission-detail{margin:15px 0;padding:15px;border:1px solid #325579;background:#0b1d32;border-radius:10px}
+.mission-detail h3{margin:0 0 7px;font-size:1.07rem}
+.mission-detail .mission-meta{color:#b2cce5;font-size:.91rem;margin:8px 0}
+.mission-detail .mission-state{color:#ffcf87;font-size:.9rem;font-weight:600}
+.reception-actions{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:12px 0}
+.reception-actions a:hover,.reception-nav a:hover{background:#23517b}
+.reception-steps p{margin:8px 0}
+.file-preview{border:1px dashed #527297;border-radius:12px;background:#0c1b30;min-height:96px;padding:15px;margin:14px 0;overflow:auto}
+.file-preview img,.file-preview video{display:block;max-height:430px;max-width:100%;height:auto;object-fit:contain;border-radius:8px}
+.file-preview audio{max-width:100%;width:470px}
+.file-preview pre{white-space:pre-wrap;overflow-wrap:anywhere;max-height:360px;overflow-y:auto}
+.file-preview .file-warning{color:#ffca91}
+.reception-main footer{font-size:.85rem;color:#b5c9df;padding:10px 0}
+@media(max-width:760px){.reception-grid{grid-template-columns:1fr}.reception-actions>*{flex:1 1 auto}.reception-main>section,.reception-grid>section{padding:13px}}
+
+.mission-job-list{display:grid;gap:6px;margin:6px 0}
+.mission-job{background:#102d41;border:1px solid #40618b;border-radius:9px;padding:8px 12px;font-size:.9rem}
+.mission-extraction{display:grid;gap:12px}
+.mission-result{border:1px solid #345376;border-radius:12px;padding:12px;background:#0c1e34;min-width:0}
+.mission-result img,.mission-result canvas{display:block;width:auto;max-width:100%;max-height:440px;object-fit:contain;border-radius:8px;margin:10px 0;background:transparent}
+.mission-result audio{display:block;max-width:100%;margin:8px 0}
+.mission-result pre{white-space:pre-wrap;overflow-wrap:anywhere;max-height:320px;overflow:auto}
+.mission-result button{margin:6px 6px 6px 0;min-height:38px}
+#auto-mission-center .reception-controls input{max-width:230px}
+#auto-mission-center button:disabled{opacity:.5}
+
+.receiver-readiness{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:0 0 12px}
+.receiver-readiness span{padding:6px 9px;border-radius:7px;border:1px solid #41678d;background:#172f4a;color:#c9ddec;font-size:.78rem;line-height:1.3}
+.user-protocol-manager{border:1px solid #355575;border-radius:10px;background:#0c2138;padding:12px;margin-top:13px}
+.user-protocol-manager>summary{font-weight:600;cursor:pointer;padding:5px 0}
+.user-protocol-manager .mission-detail{margin:9px 0}
+.user-protocol-manager input,.user-protocol-manager select{min-width:0;max-width:100%}
+.reception-advanced{border:1px solid #304b6b;border-radius:12px;padding:12px;background:#11263f}
+.reception-advanced>summary{cursor:pointer;font-weight:700;color:#d6e7ff;padding:4px 0}
+.reception-advanced>.reception-grid{margin-top:12px}
+.reception-station{margin-top:14px}
+.reception-station h3{margin:0 0 10px;font-size:1rem}
+.reception-station .location-results{z-index:10}
+.reception-station .location-picker{width:100%}
