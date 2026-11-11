@@ -1,0 +1,497 @@
+{
+  "schema_version": 1,
+  "kind": "WS04_SOURCE_ONLY_AUDIT_NOT_IMPLEMENTATION_CERTIFICATION",
+  "as_of": "2026-11-12",
+  "repository": "Tihulu/TIHULU-TEXT-CENTER",
+  "workstream": 4,
+  "assigned_issue": 79,
+  "central_issue": 75,
+  "draft_pr": 86,
+  "branch": "audit/ws04-rf-geolocation-2026-11-11",
+  "inspected_head_before_report_commits": "08be02ac30cd65f8ccba43a799c979654d8fefd1",
+  "original_draft": {
+    "pr": 16,
+    "head": "6664a04a6247826d71f6adeb795b137fd26de213",
+    "status": "draft",
+    "key_blob_shas_compared_identical_count": 10,
+    "full_tree_parity_verified": false
+  },
+  "issue_urls": [
+    "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/79",
+    "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/75"
+  ],
+  "guardrails": {
+    "allowed_paths": [
+      "apps/_coordination/workstreams/04/REPORT.md",
+      "apps/_coordination/workstreams/04/EVIDENCE.json"
+    ],
+    "runtime_changes": 0,
+    "merges": 0,
+    "migrations": 0,
+    "engineering_language": "en",
+    "required_ui_locales": [
+      "en",
+      "tr",
+      "de"
+    ]
+  },
+  "counts": {
+    "requirements_reviewed": 8,
+    "acceptance_fully_verified": 0,
+    "status_placements": {
+      "draft-coded": 4,
+      "requested": 4,
+      "unit-verified": 0,
+      "hardware-verified": 0,
+      "released": 0,
+      "unknown": 0
+    },
+    "test_files_source_inspected": 13,
+    "tests_executed_by_auditor": 0,
+    "hardware_tests_executed_by_auditor": 0
+  },
+  "requirements": [
+    {
+      "id": "GEO-001",
+      "requested_acceptance_not_certified": true,
+      "classification": "draft-coded",
+      "source_finding": "Standalone web/core and Python loopback launcher are in Draft source; independent distribution/native install/target repository acceptance not proved.",
+      "source_evidence": [
+        {
+          "path": "rf_geolocation_center/core/positioning.mjs",
+          "lines": "L5-L25",
+          "blob_sha": "c886c7d951af430efb49bf5f64f9eb82dbd3ba42",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/08be02ac30cd65f8ccba43a799c979654d8fefd1/rf_geolocation_center/core/positioning.mjs#L5-L25"
+        },
+        {
+          "path": "rf_geolocation_center/native.py",
+          "lines": "L1-L55",
+          "blob_sha": "dd36360f966b651400153acd8413f4089115a6f6",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/08be02ac30cd65f8ccba43a799c979654d8fefd1/rf_geolocation_center/native.py#L1-L55"
+        },
+        {
+          "path": "rf_geolocation_center/docs/PLATFORM_TEST_MATRIX.md",
+          "lines": "L1-L18",
+          "blob_sha": "6fa9240f98f7c16c8aedc4cc369a5757fc4cfab3",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/08be02ac30cd65f8ccba43a799c979654d8fefd1/rf_geolocation_center/docs/PLATFORM_TEST_MATRIX.md#L1-L18"
+        }
+      ],
+      "candidate_test_evidence": [
+        {
+          "path": "rf_geolocation_center/tests/core.test.mjs",
+          "blob_sha": "c7e3d0d17305716b3907bea744302c2576581a83",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/08be02ac30cd65f8ccba43a799c979654d8fefd1/rf_geolocation_center/tests/core.test.mjs",
+          "reviewed_source": true,
+          "executed": false
+        },
+        {
+          "path": "rf_geolocation_center/tests/test_native.py",
+          "blob_sha": "1c3a5a1402c8e8523625248731fe4a387e24333d",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/08be02ac30cd65f8ccba43a799c979654d8fefd1/rf_geolocation_center/tests/test_native.py",
+          "reviewed_source": true,
+          "executed": false
+        }
+      ],
+      "missing_evidence": "Independent release, native packages, true repository handoff/rollback.",
+      "unit_verified": false,
+      "hardware_verified": false,
+      "released": false
+    },
+    {
+      "id": "GEO-002",
+      "requested_acceptance_not_certified": true,
+      "classification": "draft-coded",
+      "source_finding": "Checksum-validated GNSS NMEA, satellite orbital references and experimental 2D ranges/TDOA constraints exist. TDOA explicitly returns positionFix:false, not an MLAT fix.",
+      "source_evidence": [
+        {
+          "path": "rf_geolocation_center/core/positioning.mjs",
+          "lines": "L21-L56",
+          "blob_sha": "c886c7d951af430efb49bf5f64f9eb82dbd3ba42",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/08be02ac30cd65f8ccba43a799c979654d8fefd1/rf_geolocation_center/core/positioning.mjs#L21-L56"
+        },
+        {
+          "path": "rf_geolocation_center/core/positioning.mjs",
+          "lines": "L72-L125",
+          "blob_sha": "c886c7d951af430efb49bf5f64f9eb82dbd3ba42",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/08be02ac30cd65f8ccba43a799c979654d8fefd1/rf_geolocation_center/core/positioning.mjs#L72-L125"
+        },
+        {
+          "path": "rf_geolocation_center/core/source_catalog.mjs",
+          "lines": "L65-L84",
+          "blob_sha": "2a6c69a0097d785b72106d9d8fa4a46f89a9bd74",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/08be02ac30cd65f8ccba43a799c979654d8fefd1/rf_geolocation_center/core/source_catalog.mjs#L65-L84"
+        },
+        {
+          "path": "rf_geolocation_center/web/receivers.mjs",
+          "lines": "L6-L73",
+          "blob_sha": "8c39217d6ef47fcc331add5bca4e9f026b58fa48",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/08be02ac30cd65f8ccba43a799c979654d8fefd1/rf_geolocation_center/web/receivers.mjs#L6-L73"
+        }
+      ],
+      "candidate_test_evidence": [
+        {
+          "path": "rf_geolocation_center/tests/core.test.mjs",
+          "blob_sha": "c7e3d0d17305716b3907bea744302c2576581a83",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/08be02ac30cd65f8ccba43a799c979654d8fefd1/rf_geolocation_center/tests/core.test.mjs",
+          "reviewed_source": true,
+          "executed": false
+        },
+        {
+          "path": "rf_geolocation_center/tests/source_catalog.test.mjs",
+          "blob_sha": "9f948429d856fcb2ff24f43a070ed0b4b0364e98",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/08be02ac30cd65f8ccba43a799c979654d8fefd1/rf_geolocation_center/tests/source_catalog.test.mjs",
+          "reviewed_source": true,
+          "executed": false
+        }
+      ],
+      "missing_evidence": "GNSS-SDR correlation/PVT, calibrated synchronized receiver timing, genuine aircraft multilateration.",
+      "unit_verified": false,
+      "hardware_verified": false,
+      "released": false
+    },
+    {
+      "id": "GEO-003",
+      "requested_acceptance_not_certified": true,
+      "classification": "requested",
+      "source_finding": "Unvalidated RMS residual and factor-three heuristic RF ranges exist; bounds explicitly are NOT statistical confidence. No PSF/Gaussian or covariance solver evidenced in inspected positioning modules.",
+      "source_evidence": [
+        {
+          "path": "rf_geolocation_center/core/rf_ranging.mjs",
+          "lines": "L19-L44",
+          "blob_sha": "3186d79020edff60cd1b022e984d47c9e247fa0c",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/08be02ac30cd65f8ccba43a799c979654d8fefd1/rf_geolocation_center/core/rf_ranging.mjs#L19-L44"
+        },
+        {
+          "path": "rf_geolocation_center/core/rf_ranging.mjs",
+          "lines": "L45-L84",
+          "blob_sha": "3186d79020edff60cd1b022e984d47c9e247fa0c",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/08be02ac30cd65f8ccba43a799c979654d8fefd1/rf_geolocation_center/core/rf_ranging.mjs#L45-L84"
+        }
+      ],
+      "candidate_test_evidence": [
+        {
+          "path": "rf_geolocation_center/tests/rf_ranging.test.mjs",
+          "blob_sha": "7c67cc3f286fe81f720813a776665b4f8cf0c92b",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/08be02ac30cd65f8ccba43a799c979654d8fefd1/rf_geolocation_center/tests/rf_ranging.test.mjs",
+          "reviewed_source": true,
+          "executed": false
+        }
+      ],
+      "missing_evidence": "PSF/Gaussian estimator with synthetic error tests, uncertainty calibration and observed validation.",
+      "unit_verified": false,
+      "hardware_verified": false,
+      "released": false
+    },
+    {
+      "id": "GEO-004",
+      "requested_acceptance_not_certified": true,
+      "classification": "requested",
+      "source_finding": "Rings use 96 sampled segments (API 24..720); receiver in-memory history caps at 500 and survey source entries at 60. No audited spatial index, incremental fitter or large-ring benchmark.",
+      "source_evidence": [
+        {
+          "path": "rf_geolocation_center/core/evidence.mjs",
+          "lines": "L14-L16",
+          "blob_sha": "57dfe4335eac2e2e89dab9e7e584b1fe556ad412",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/08be02ac30cd65f8ccba43a799c979654d8fefd1/rf_geolocation_center/core/evidence.mjs#L14-L16"
+        },
+        {
+          "path": "rf_geolocation_center/web/app.mjs",
+          "lines": "L156-L159",
+          "blob_sha": "3e7f5eaf4b5ee124c26cb7bdf72dca72329ff026",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/08be02ac30cd65f8ccba43a799c979654d8fefd1/rf_geolocation_center/web/app.mjs#L156-L159"
+        },
+        {
+          "path": "rf_geolocation_center/web/app.mjs",
+          "lines": "L530-L565",
+          "blob_sha": "3e7f5eaf4b5ee124c26cb7bdf72dca72329ff026",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/08be02ac30cd65f8ccba43a799c979654d8fefd1/rf_geolocation_center/web/app.mjs#L530-L565"
+        },
+        {
+          "path": "rf_geolocation_center/web/rf_survey.mjs",
+          "lines": "L103-L112",
+          "blob_sha": "2fd6bef3fdc01f9bcffedd8e555f71a60264eabd",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/08be02ac30cd65f8ccba43a799c979654d8fefd1/rf_geolocation_center/web/rf_survey.mjs#L103-L112"
+        }
+      ],
+      "candidate_test_evidence": [
+        {
+          "path": "rf_geolocation_center/tests/evidence.test.mjs",
+          "blob_sha": "caf675d71acfeb110b765b20a95dc42319455306",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/08be02ac30cd65f8ccba43a799c979654d8fefd1/rf_geolocation_center/tests/evidence.test.mjs",
+          "reviewed_source": true,
+          "executed": false
+        },
+        {
+          "path": "rf_geolocation_center/tests/map_interactivity.test.mjs",
+          "blob_sha": "9c7f73de5609d2c87323193543d80b640e1198a8",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/08be02ac30cd65f8ccba43a799c979654d8fefd1/rf_geolocation_center/tests/map_interactivity.test.mjs",
+          "reviewed_source": true,
+          "executed": false
+        }
+      ],
+      "missing_evidence": "Large dataset/time-budget performance tests, spatial index and incremental fit tests.",
+      "unit_verified": false,
+      "hardware_verified": false,
+      "released": false
+    },
+    {
+      "id": "GEO-005",
+      "requested_acceptance_not_certified": true,
+      "classification": "requested",
+      "source_finding": "Imported measured, demo, RF model and browser-accuracy circles are visually distinguished; aircraft references are separate. No independent aircraft COVERAGE rings vs Location/LIVE Fit/BEST Fit ring families evidenced.",
+      "source_evidence": [
+        {
+          "path": "rf_geolocation_center/web/app.mjs",
+          "lines": "L524-L568",
+          "blob_sha": "3e7f5eaf4b5ee124c26cb7bdf72dca72329ff026",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/08be02ac30cd65f8ccba43a799c979654d8fefd1/rf_geolocation_center/web/app.mjs#L524-L568"
+        },
+        {
+          "path": "rf_geolocation_center/web/app.mjs",
+          "lines": "L605-L651",
+          "blob_sha": "3e7f5eaf4b5ee124c26cb7bdf72dca72329ff026",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/08be02ac30cd65f8ccba43a799c979654d8fefd1/rf_geolocation_center/web/app.mjs#L605-L651"
+        },
+        {
+          "path": "rf_geolocation_center/index.html",
+          "lines": "L189-L204",
+          "blob_sha": "2694215928b40fa6de83931f1ed976848a439b2f",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/08be02ac30cd65f8ccba43a799c979654d8fefd1/rf_geolocation_center/index.html#L189-L204"
+        }
+      ],
+      "candidate_test_evidence": [
+        {
+          "path": "rf_geolocation_center/tests/evidence.test.mjs",
+          "blob_sha": "caf675d71acfeb110b765b20a95dc42319455306",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/08be02ac30cd65f8ccba43a799c979654d8fefd1/rf_geolocation_center/tests/evidence.test.mjs",
+          "reviewed_source": true,
+          "executed": false
+        },
+        {
+          "path": "rf_geolocation_center/tests/ui_contract.test.mjs",
+          "blob_sha": "2ada480025e883b9095a2ddb4098d243cf77d363",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/08be02ac30cd65f8ccba43a799c979654d8fefd1/rf_geolocation_center/tests/ui_contract.test.mjs",
+          "reviewed_source": true,
+          "executed": false
+        }
+      ],
+      "missing_evidence": "Distinct source/LIVE/BEST/Location ring controls and visual regression suite.",
+      "unit_verified": false,
+      "hardware_verified": false,
+      "released": false
+    },
+    {
+      "id": "GEO-006",
+      "requested_acceptance_not_certified": true,
+      "classification": "draft-coded",
+      "source_finding": "RF-only mode excludes OS/GNSS/cached sources and capture is opt-in; Hard Stop is connected to app-owned release. However setRfOnly(false) calls compute() and does not call USB release, so RF Off lifecycle guarantee is unverified.",
+      "source_evidence": [
+        {
+          "path": "rf_geolocation_center/web/rf_survey.mjs",
+          "lines": "L41-L67",
+          "blob_sha": "2fd6bef3fdc01f9bcffedd8e555f71a60264eabd",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/08be02ac30cd65f8ccba43a799c979654d8fefd1/rf_geolocation_center/web/rf_survey.mjs#L41-L67"
+        },
+        {
+          "path": "rf_geolocation_center/web/rf_survey.mjs",
+          "lines": "L95-L101",
+          "blob_sha": "2fd6bef3fdc01f9bcffedd8e555f71a60264eabd",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/08be02ac30cd65f8ccba43a799c979654d8fefd1/rf_geolocation_center/web/rf_survey.mjs#L95-L101"
+        },
+        {
+          "path": "rf_geolocation_center/web/usb_sdr.mjs",
+          "lines": "L359-L375",
+          "blob_sha": "b8426fddae87d9eeff202a9db5bafec97afa3d4b",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/08be02ac30cd65f8ccba43a799c979654d8fefd1/rf_geolocation_center/web/usb_sdr.mjs#L359-L375"
+        },
+        {
+          "path": "rf_geolocation_center/web/app.mjs",
+          "lines": "L950-L960",
+          "blob_sha": "3e7f5eaf4b5ee124c26cb7bdf72dca72329ff026",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/08be02ac30cd65f8ccba43a799c979654d8fefd1/rf_geolocation_center/web/app.mjs#L950-L960"
+        }
+      ],
+      "candidate_test_evidence": [
+        {
+          "path": "rf_geolocation_center/tests/rf_ui_contract.test.mjs",
+          "blob_sha": "4f119804e58e35f84bd3cba69dc79de65794b9f6",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/08be02ac30cd65f8ccba43a799c979654d8fefd1/rf_geolocation_center/tests/rf_ui_contract.test.mjs",
+          "reviewed_source": true,
+          "executed": false
+        },
+        {
+          "path": "rf_geolocation_center/tests/receiver_ux.test.mjs",
+          "blob_sha": "5b4fd4d1f349b6dfe8ee2129ae1d0345d5388bf6",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/08be02ac30cd65f8ccba43a799c979654d8fefd1/rf_geolocation_center/tests/receiver_ux.test.mjs",
+          "reviewed_source": true,
+          "executed": false
+        },
+        {
+          "path": "rf_geolocation_center/tests/usb_resampler_regression.test.mjs",
+          "blob_sha": "2aff0e22e44d445f004d31b884f6df30cc9d0412",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/08be02ac30cd65f8ccba43a799c979654d8fefd1/rf_geolocation_center/tests/usb_resampler_regression.test.mjs",
+          "reviewed_source": true,
+          "executed": false
+        }
+      ],
+      "missing_evidence": "RF OFF disabled computation/lease release + background/stale capture integration test.",
+      "unit_verified": false,
+      "hardware_verified": false,
+      "released": false
+    },
+    {
+      "id": "GEO-007",
+      "requested_acceptance_not_certified": true,
+      "classification": "draft-coded",
+      "source_finding": "Nine named method layers, local preferences, browser drag/markers, PWA offline grid and saved references are coded. OSM tiles remain online-dependent; complete offline basemap and EN/TR/DE localization acceptance not evidenced.",
+      "source_evidence": [
+        {
+          "path": "rf_geolocation_center/core/location_layers.mjs",
+          "lines": "L5-L43",
+          "blob_sha": "43eff60a70200533aa29ce9713f5b34b2d8a4e4d",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/08be02ac30cd65f8ccba43a799c979654d8fefd1/rf_geolocation_center/core/location_layers.mjs#L5-L43"
+        },
+        {
+          "path": "rf_geolocation_center/web/app.mjs",
+          "lines": "L360-L381",
+          "blob_sha": "3e7f5eaf4b5ee124c26cb7bdf72dca72329ff026",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/08be02ac30cd65f8ccba43a799c979654d8fefd1/rf_geolocation_center/web/app.mjs#L360-L381"
+        },
+        {
+          "path": "rf_geolocation_center/web/app.mjs",
+          "lines": "L686-L711",
+          "blob_sha": "3e7f5eaf4b5ee124c26cb7bdf72dca72329ff026",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/08be02ac30cd65f8ccba43a799c979654d8fefd1/rf_geolocation_center/web/app.mjs#L686-L711"
+        },
+        {
+          "path": "rf_geolocation_center/sw.js",
+          "lines": "L1-L39",
+          "blob_sha": "8f75f976124a40e7ef6705847d4ed7a1fcc8188c",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/08be02ac30cd65f8ccba43a799c979654d8fefd1/rf_geolocation_center/sw.js#L1-L39"
+        },
+        {
+          "path": "rf_geolocation_center/index.html",
+          "lines": "L2-L5",
+          "blob_sha": "2694215928b40fa6de83931f1ed976848a439b2f",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/08be02ac30cd65f8ccba43a799c979654d8fefd1/rf_geolocation_center/index.html#L2-L5"
+        }
+      ],
+      "candidate_test_evidence": [
+        {
+          "path": "rf_geolocation_center/tests/location_layers.test.mjs",
+          "blob_sha": "2425c0f651b6d21b20e744f4b9ac6f8bdea4c165",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/08be02ac30cd65f8ccba43a799c979654d8fefd1/rf_geolocation_center/tests/location_layers.test.mjs",
+          "reviewed_source": true,
+          "executed": false
+        },
+        {
+          "path": "rf_geolocation_center/tests/map_interactivity.test.mjs",
+          "blob_sha": "9c7f73de5609d2c87323193543d80b640e1198a8",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/08be02ac30cd65f8ccba43a799c979654d8fefd1/rf_geolocation_center/tests/map_interactivity.test.mjs",
+          "reviewed_source": true,
+          "executed": false
+        },
+        {
+          "path": "rf_geolocation_center/tests/ui_contract.test.mjs",
+          "blob_sha": "2ada480025e883b9095a2ddb4098d243cf77d363",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/08be02ac30cd65f8ccba43a799c979654d8fefd1/rf_geolocation_center/tests/ui_contract.test.mjs",
+          "reviewed_source": true,
+          "executed": false
+        }
+      ],
+      "missing_evidence": "Native/offline mobile basemap and gestures, persisted coordinate selector, GUI translations.",
+      "unit_verified": false,
+      "hardware_verified": false,
+      "released": false
+    },
+    {
+      "id": "GEO-008",
+      "requested_acceptance_not_certified": true,
+      "classification": "requested",
+      "source_finding": "3+ externally calibrated fixed GROUND stations permit an unverified RF-only RSSI hypothesis without OS lat/lon; 3+ aircraft are categorically excluded from the ground-station solver, and decoded ADS-B positions are reference-only.",
+      "source_evidence": [
+        {
+          "path": "rf_geolocation_center/core/rf_ranging.mjs",
+          "lines": "L45-L59",
+          "blob_sha": "3186d79020edff60cd1b022e984d47c9e247fa0c",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/08be02ac30cd65f8ccba43a799c979654d8fefd1/rf_geolocation_center/core/rf_ranging.mjs#L45-L59"
+        },
+        {
+          "path": "rf_geolocation_center/core/source_catalog.mjs",
+          "lines": "L65-L81",
+          "blob_sha": "2a6c69a0097d785b72106d9d8fa4a46f89a9bd74",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/08be02ac30cd65f8ccba43a799c979654d8fefd1/rf_geolocation_center/core/source_catalog.mjs#L65-L81"
+        },
+        {
+          "path": "rf_geolocation_center/web/catalog_discovery.mjs",
+          "lines": "L177-L202",
+          "blob_sha": "cb1915cdd3a4b42bd4b8c393c32d44372929659d",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/08be02ac30cd65f8ccba43a799c979654d8fefd1/rf_geolocation_center/web/catalog_discovery.mjs#L177-L202"
+        },
+        {
+          "path": "rf_geolocation_center/web/app.mjs",
+          "lines": "L320-L328",
+          "blob_sha": "3e7f5eaf4b5ee124c26cb7bdf72dca72329ff026",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/08be02ac30cd65f8ccba43a799c979654d8fefd1/rf_geolocation_center/web/app.mjs#L320-L328"
+        }
+      ],
+      "candidate_test_evidence": [
+        {
+          "path": "rf_geolocation_center/tests/rf_ranging.test.mjs",
+          "blob_sha": "7c67cc3f286fe81f720813a776665b4f8cf0c92b",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/08be02ac30cd65f8ccba43a799c979654d8fefd1/rf_geolocation_center/tests/rf_ranging.test.mjs",
+          "reviewed_source": true,
+          "executed": false
+        },
+        {
+          "path": "rf_geolocation_center/tests/location_layers.test.mjs",
+          "blob_sha": "2425c0f651b6d21b20e744f4b9ac6f8bdea4c165",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/08be02ac30cd65f8ccba43a799c979654d8fefd1/rf_geolocation_center/tests/location_layers.test.mjs",
+          "reviewed_source": true,
+          "executed": false
+        },
+        {
+          "path": "rf_geolocation_center/tests/source_catalog.test.mjs",
+          "blob_sha": "9f948429d856fcb2ff24f43a070ed0b4b0364e98",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/08be02ac30cd65f8ccba43a799c979654d8fefd1/rf_geolocation_center/tests/source_catalog.test.mjs",
+          "reviewed_source": true,
+          "executed": false
+        }
+      ],
+      "missing_evidence": "Actual independent aircraft-derived measurements with valid timing/geometry, 3+ aircraft regional estimate and anti-false-fix gates.",
+      "unit_verified": false,
+      "hardware_verified": false,
+      "released": false
+    }
+  ],
+  "other_test_files_inspected": [
+    {
+      "path": "rf_geolocation_center/tests/simple_ui.test.mjs",
+      "blob_sha": "920ce6da699831856dd88284e7ee4a2c27d33175",
+      "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/08be02ac30cd65f8ccba43a799c979654d8fefd1/rf_geolocation_center/tests/simple_ui.test.mjs",
+      "executed": false
+    },
+    {
+      "path": "rf_geolocation_center/tests/provenance.test.mjs",
+      "blob_sha": "17dcf5abea40df6527f621b6a07a82c2c52ee37b",
+      "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/08be02ac30cd65f8ccba43a799c979654d8fefd1/rf_geolocation_center/tests/provenance.test.mjs",
+      "executed": false
+    }
+  ],
+  "blockers": [
+    "P0: GNSS-SDR PVT and independently timestamped/synchronized aircraft multilateration missing.",
+    "P0: RF-only OFF not demonstrated to stop compute() or release USB receiver, despite Hard Stop path.",
+    "P1: PSF/Gaussian calibrated uncertainty and separate Location/LIVE/BEST fit ring families not evidenced.",
+    "P1: High-density spatial indexing/incremental fit and real performance budgets not evidenced.",
+    "P1: EN/TR/DE UI locale parity, offline maps, native cross-platform acceptance and rollback not verified.",
+    "Cross-team: Flight Radar actual antenna ADS-B/provenance integration is a dependency; see Issue #77."
+  ],
+  "methodology": "Read-only GitHub connector file inspection and PR comparison; fixture/pure-code/static-regex tests inspected, not run; no physical receiver or installed software touched.",
+  "evidence_limitations": [
+    "No hardware tests, no local test runner, no CI job started or green check asserted.",
+    "Core evidence is pinned to audit source SHA and file blob SHA.",
+    "Requested feature acceptance is not implied by source path/test presence.",
+    "Original Draft PR #16 and audit branch are divergent; ten sampled file blob identities match but complete branch parity has not been certified."
+  ],
+  "eta_hours_minutes": null
+}
