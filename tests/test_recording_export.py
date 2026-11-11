@@ -1,5 +1,7 @@
 """Opt-in Recording & Export regression: no RF devices, no Whisper or FFmpeg."""
 import json
+import shutil
+import subprocess
 from pathlib import Path
 import tempfile
 import unittest
@@ -125,6 +127,36 @@ class CommonRecordingExportTests(unittest.TestCase):
             self.assertEqual(set(captured["tracks"]), {"original", "translation-tr"})
             self.assertEqual(captured["tracks"]["translation-tr"][0].text, "Günaydın")
             self.assertEqual(media.read_bytes(), b"immutable input")
+
+    @unittest.skipUnless(shutil.which("ffmpeg") and shutil.which("ffprobe"),
+                         "FFmpeg tools are unavailable")
+    def test_real_ffmpeg_mkv_keeps_original_audio_and_timed_srt(self):
+        with tempfile.TemporaryDirectory() as root:
+            folder = Path(root)
+            media = folder / "untouched.wav"
+            ffmpeg = subprocess.run([
+                "ffmpeg", "-nostdin", "-hide_banner", "-loglevel", "error",
+                "-f", "lavfi", "-i",
+                "anullsrc=channel_layout=mono:sample_rate=16000",
+                "-t", "1.5", "-c:a", "pcm_s16le", str(media),
+            ], capture_output=True, text=True, check=False)
+            if ffmpeg.returncode:
+                self.skipTest("FFmpeg test audio generator unavailable")
+            before = media.read_bytes()
+            srt = folder / "words.srt"
+            srt.write_text("1\\n00:00:00,100 --> 00:00:01,200\\n"
+                           "Test speech only\\n\\n", encoding="utf-8")
+            destination = folder / "recording-subtitled.mkv"
+            mux_tracks(media, {"original": srt}, destination)
+            self.assertTrue(destination.is_file())
+            self.assertEqual(before, media.read_bytes())
+            streams = subprocess.run([
+                "ffprobe", "-v", "error", "-show_entries",
+                "stream=codec_type", "-of", "json", str(destination),
+            ], capture_output=True, text=True, check=True)
+            types = {row["codec_type"] for row in
+                     json.loads(streams.stdout)["streams"]}
+            self.assertEqual(types, {"audio", "subtitle"})
 
     def test_bad_srt_is_not_given_invented_timing(self):
         with tempfile.TemporaryDirectory() as root:
