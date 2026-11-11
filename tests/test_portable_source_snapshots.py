@@ -34,6 +34,13 @@ def file_index(folder: Path):
         if not (path.is_file() or path.is_symlink()):
             continue
         relative = path.relative_to(folder).as_posix()
+        # CI imports active packages and creates untracked __pycache__/*.pyc
+        # on the original side only. Compare checked-in source, not runtime
+        # bytecode artifacts created after checkout by the test runner.
+        if "__pycache__" in path.parts or path.suffix in (".pyc", ".pyo"):
+            continue
+        if ".pytest_cache" in path.parts or ".mypy_cache" in path.parts:
+            continue
         if path.is_symlink():
             contents = os.readlink(path).encode("utf-8")
             kind = "symlink"
