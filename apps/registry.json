@@ -36,7 +36,45 @@
         "tv_center/translation_failover.py",
         "tv_center/qwen_forced_aligner.py",
         "kaffeine_next/AI_LIVE_PERFORMANCE_AND_LANGUAGES.md"
-      ]
+      ],
+      "portable_source_snapshot": {
+        "status": "read_only_exact_tree_copies_not_runtime",
+        "root": "apps/media-center/source/",
+        "source_commit": "9b4ffce98a723c0e60ec5a11978895e56f97a161",
+        "trees": [
+          {
+            "active_root": "kaffeine_next/",
+            "snapshot_path": "apps/media-center/source/kaffeine_next/",
+            "git_tree_sha": "4be76ef898a4adcc779c96052341fffdef0658a3",
+            "role": "application_source"
+          },
+          {
+            "active_root": "tv_center/",
+            "snapshot_path": "apps/media-center/source/tv_center/",
+            "git_tree_sha": "73aa1e74465f48d33103424b4a1072d93c57d1cc",
+            "role": "application_source_and_shared_workers"
+          },
+          {
+            "active_root": "textcenter/",
+            "snapshot_path": "apps/media-center/source/textcenter/",
+            "git_tree_sha": "dfc5fefbedba31f133f5a9ee34667961f3c3ef14",
+            "role": "copied_shared_code_dependency"
+          }
+        ],
+        "available_for_future_export": true,
+        "full_standalone_build_verified": false,
+        "upstream_dependencies_resolved": false,
+        "external_upstream_note": "Original KDE Kaffeine v2.0.19 pinned upstream is NOT included as vendored source, only TIHULU patch/extension copy"
+      },
+      "development_history_links": "apps/media-center/HISTORY_LINKS.json",
+      "localizations_required": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "localizations_verified": false,
+      "future_repo_rename_contract": "apps/REPOSITORY_RENAME_LINK_POLICY.md",
+      "canonical_code_ownership": "current_runtime_roots_unchanged_until_cutover"
     },
     {
       "id": "satellite-center",
@@ -63,7 +101,33 @@
       "model_evidence": [
         "satellite_center/compute_backends.py",
         "satellite_center/FEATURE_PARITY.md"
-      ]
+      ],
+      "portable_source_snapshot": {
+        "status": "read_only_exact_tree_copies_not_runtime",
+        "root": "apps/satellite-center/source/",
+        "source_commit": "9b4ffce98a723c0e60ec5a11978895e56f97a161",
+        "trees": [
+          {
+            "active_root": "satellite_center/",
+            "snapshot_path": "apps/satellite-center/source/satellite_center/",
+            "git_tree_sha": "41d5a38c6c5382d205ea98fd98648b8c7c9c2275",
+            "role": "application_source"
+          }
+        ],
+        "available_for_future_export": true,
+        "full_standalone_build_verified": false,
+        "upstream_dependencies_resolved": false,
+        "external_upstream_note": "See per-app dependency audit; source copy is not a complete packaged release"
+      },
+      "development_history_links": "apps/satellite-center/HISTORY_LINKS.json",
+      "localizations_required": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "localizations_verified": false,
+      "future_repo_rename_contract": "apps/REPOSITORY_RENAME_LINK_POLICY.md",
+      "canonical_code_ownership": "current_runtime_roots_unchanged_until_cutover"
     },
     {
       "id": "geolocation-center",
@@ -89,7 +153,33 @@
       "model_evidence": [
         "rf_geolocation_center/docs/PLATFORM_TEST_MATRIX.md",
         "rf_geolocation_center/docs/ARCHITECTURE_AND_RELEASE_GATES.md"
-      ]
+      ],
+      "portable_source_snapshot": {
+        "status": "read_only_exact_tree_copies_not_runtime",
+        "root": "apps/geolocation-center/source/",
+        "source_commit": "9b4ffce98a723c0e60ec5a11978895e56f97a161",
+        "trees": [
+          {
+            "active_root": "rf_geolocation_center/",
+            "snapshot_path": "apps/geolocation-center/source/rf_geolocation_center/",
+            "git_tree_sha": "7be22e93b0138de1efbe6a27b43c8143ead76c49",
+            "role": "application_source"
+          }
+        ],
+        "available_for_future_export": true,
+        "full_standalone_build_verified": false,
+        "upstream_dependencies_resolved": false,
+        "external_upstream_note": "See per-app dependency audit; source copy is not a complete packaged release"
+      },
+      "development_history_links": "apps/geolocation-center/HISTORY_LINKS.json",
+      "localizations_required": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "localizations_verified": false,
+      "future_repo_rename_contract": "apps/REPOSITORY_RENAME_LINK_POLICY.md",
+      "canonical_code_ownership": "current_runtime_roots_unchanged_until_cutover"
     },
     {
       "id": "text-center",
@@ -117,7 +207,39 @@
       "model_evidence": [
         "textcenter/compute.py",
         "tv_center/installed_languages.py"
-      ]
+      ],
+      "portable_source_snapshot": {
+        "status": "read_only_exact_tree_copies_not_runtime",
+        "root": "apps/text-center/source/",
+        "source_commit": "9b4ffce98a723c0e60ec5a11978895e56f97a161",
+        "trees": [
+          {
+            "active_root": "textcenter/",
+            "snapshot_path": "apps/text-center/source/textcenter/",
+            "git_tree_sha": "dfc5fefbedba31f133f5a9ee34667961f3c3ef14",
+            "role": "application_source"
+          },
+          {
+            "active_root": "web/",
+            "snapshot_path": "apps/text-center/source/web/",
+            "git_tree_sha": "2f1e1d4b240076ff0a4490e7e259ddb1b3d165bc",
+            "role": "application_web_source"
+          }
+        ],
+        "available_for_future_export": true,
+        "full_standalone_build_verified": false,
+        "upstream_dependencies_resolved": false,
+        "external_upstream_note": "See per-app dependency audit; source copy is not a complete packaged release"
+      },
+      "development_history_links": "apps/text-center/HISTORY_LINKS.json",
+      "localizations_required": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "localizations_verified": false,
+      "future_repo_rename_contract": "apps/REPOSITORY_RENAME_LINK_POLICY.md",
+      "canonical_code_ownership": "current_runtime_roots_unchanged_until_cutover"
     },
     {
       "id": "flight-radar",
@@ -136,7 +258,64 @@
       },
       "readme": "apps/flight-radar/AGENTS.md",
       "history_archive": "apps/_archives/",
-      "model_evidence": []
+      "model_evidence": [],
+      "portable_source_snapshot": {
+        "status": "external_canonical_source_no_local_copy",
+        "root": null,
+        "source_commit": "9b4ffce98a723c0e60ec5a11978895e56f97a161",
+        "trees": [],
+        "available_for_future_export": true,
+        "full_standalone_build_verified": false,
+        "upstream_dependencies_resolved": false,
+        "external_upstream_note": "See per-app dependency audit; source copy is not a complete packaged release"
+      },
+      "development_history_links": "apps/flight-radar/HISTORY_LINKS.json",
+      "localizations_required": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "localizations_verified": false,
+      "future_repo_rename_contract": "apps/REPOSITORY_RENAME_LINK_POLICY.md",
+      "canonical_code_ownership": "already_in_separate_repo"
     }
-  ]
+  ],
+  "repository_identity": {
+    "schema_version": 1,
+    "origin_repository_id": 1447637221,
+    "origin_repository_node_id": "R_kgDOVkkw5Q",
+    "original_repository_full_name": "Tihulu/TIHULU-TEXT-CENTER",
+    "original_repository_html_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER",
+    "current_repository_full_name": "Tihulu/TIHULU-TEXT-CENTER",
+    "known_repository_name_aliases": [
+      "Tihulu/TIHULU-TEXT-CENTER"
+    ],
+    "repository_rename_pending": true,
+    "resolved_current_name_source": "GitHub repository metadata by id at migration/rename time",
+    "source_aliases_are_historical_evidence": true,
+    "destination_repositories_created_by_this_branch": false,
+    "registry_relative_paths_required": true,
+    "original_pr_urls_must_never_be_rewritten": true,
+    "canonical_url_resolution": "Prefer immutable GitHub repository id/node id to find current full_name; preserve original HTML URLs in historical archives and test redirects instead of assuming all URLs survive a rename.",
+    "relocation_cutover_state": "not_started"
+  },
+  "language_policy": {
+    "internal_engineering_language": "en",
+    "user_interface_languages_required": [
+      "en",
+      "tr",
+      "de"
+    ],
+    "default_ui_language": "en",
+    "current_full_localization_verified": false
+  },
+  "snapshot_policy": {
+    "type": "read_only_exact_git_tree_references",
+    "reference_commit": "9b4ffce98a723c0e60ec5a11978895e56f97a161",
+    "original_runtime_paths_untouched": true,
+    "not_used_by_builds_or_launchers": true,
+    "source_copies_not_independent_releases": true,
+    "all_dependency_closures_verified": false,
+    "external_upstream_sources_not_vendored": true
+  }
 }

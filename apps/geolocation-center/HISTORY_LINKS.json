@@ -1,0 +1,69 @@
+{
+  "schema_version": 1,
+  "app_id": "geolocation-center",
+  "history_status": "linked_original_records_not_native_migrated",
+  "source_registry": "apps/REPOSITORY_IDENTITY.json",
+  "source_pr_archive_index": "apps/_archives/pr-index.json",
+  "source_pr_bodies": "apps/_archives/pr-body-*.json",
+  "original_pr_url_note": "Original HTML URLs and numeric PR refs remain immutable historical evidence, even if the source repository is renamed later.",
+  "source_pr_candidates": [
+    {
+      "original_pr_number": 66,
+      "original_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/66",
+      "archived_description": "apps/_archives/pr-body-01.json",
+      "classification_status": "heuristic_review_required",
+      "future_target_repo": null,
+      "future_target_pr_url": null
+    },
+    {
+      "original_pr_number": 16,
+      "original_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/16",
+      "archived_description": "apps/_archives/pr-body-05.json",
+      "classification_status": "heuristic_review_required",
+      "future_target_repo": null,
+      "future_target_pr_url": null
+    }
+  ],
+  "source_issue_candidates": [],
+  "other_issues_require_classification": true,
+  "pr_comments_review_timeline_complete": false,
+  "chat_requests_export_complete": false,
+  "cross_references_to_future_new_repo": null,
+  "future_link_map": "apps/_archives/PORTABLE_HISTORY_LINK_MAP.json",
+  "future_repo_rename_supported_by": "repository id / node id plus never-rewritten original URLs and checked name aliases",
+  "original_branch_refs_to_audit": [
+    "feature/rf-geolocation-center-2026-11"
+  ],
+  "review_and_request_integrity": "No invented comments/reviews/approval or synthesized prompts",
+  "global_portability_pr_links": [
+    {
+      "original_pr_number": 68,
+      "original_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/68",
+      "archive": "apps/_archives/portability-prs-68-71.json",
+      "classification_status": "shared_portability_planning",
+      "destination_pr_url": null
+    },
+    {
+      "original_pr_number": 69,
+      "original_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/69",
+      "archive": "apps/_archives/portability-prs-68-71.json",
+      "classification_status": "shared_portability_planning",
+      "destination_pr_url": null
+    },
+    {
+      "original_pr_number": 70,
+      "original_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/70",
+      "archive": "apps/_archives/portability-prs-68-71.json",
+      "classification_status": "shared_portability_planning",
+      "destination_pr_url": null
+    },
+    {
+      "original_pr_number": 71,
+      "original_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/71",
+      "archive": "apps/_archives/portability-prs-68-71.json",
+      "classification_status": "shared_portability_planning",
+      "destination_pr_url": null
+    }
+  ],
+  "new_pr_snapshots_are_not_native_transfers": true
+}

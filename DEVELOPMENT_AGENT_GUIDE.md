@@ -34,3 +34,7 @@ Other agents: point them to AGENTS.md and this file; repository browsing and wri
 Six parallel coding chats: apps/PARALLEL_CHAT_WORKSTREAMS.md and apps/_prompts/. Separate branches, disjoint file ownership and reviewed Draft PRs. No shared chat context is assumed. GitHub PR descriptions do not equal a complete export of all chats.
 
 Progress: use checklist stages. Do not invent remaining hours/minutes; unknown is the correct ETA when no reliable measurement exists.
+
+## Self-contained future application repositories
+
+Every application must have its own exact code snapshot and eventually complete dependency closure, offline-capable tests, build/installer, `AGENTS.md`, `CLAUDE.md`, `DEEPSEEK_START.md`, application/LLM matrices, PR/issue history ledger, and EN/TR/DE UI. Media Center has its own pinned Kaffeine Next source copy under `apps/media-center/source/kaffeine_next/` and shared code snapshots; use original root-level source as the active implementation until approved cutover. Read `apps/SELF_CONTAINED_APP_PORTABILITY.md`, `apps/REPOSITORY_RENAME_LINK_POLICY.md`, `apps/TRILINGUAL_UI_POLICY.md` and each app's portable package, history links and locale contract. Original historical URLs remain preserved if the monorepo is renamed. Do not claim a frozen copy is a standalone working release.

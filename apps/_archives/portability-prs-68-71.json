@@ -1,0 +1,85 @@
+{
+  "schema_version": 1,
+  "source_repo": "Tihulu/TIHULU-TEXT-CENTER",
+  "observed_date_utc": "2026-11-11",
+  "record_type": "supplemental_pr_description_snapshots",
+  "not_complete_comment_reviews": true,
+  "prs": [
+    {
+      "number": 68,
+      "id": 5262421529,
+      "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/68",
+      "title": "Draft: portable application archives and LLM-aware future repo handoff",
+      "body": "## Summary\nAdd a *metadata-only* portable workspace for each TIHULU application, in preparation for a future **explicitly owner-approved** move to separately editable canonical GitHub repositories. **No source files, installers or live application behavior are changed**.\n\n- `apps/registry.json`: application status, current canonical repository and source directory ownership; cutover fields are all `not_started`.\n- `apps/{media-center,satellite-center,geolocation-center,text-center,flight-radar}/`: `AGENTS.md`, `MODEL_MATRIX.md`, `MIGRATION.md`, `manifest.json` per app; model facts remain unverified source pointers, never invented model capabilities.\n- `apps/_archives/`: visible 63 historical PR descriptions in 6 structured body parts with original authors/dates/URLs/source SHA references, 4 standalone issues and PR index with heuristic, review-required classification. Original PR objects remain in GitHub.\n- `apps/MIGRATION_PROTOCOL.md` and handoff templates: future target repo's root `AGENTS.md` states **the new repo is now canonical and development continues here**, while old-repo agent instruction redirects and archives original PRs; old repo cannot remain a competing active development source after approved cutover.\n- Root `AGENTS.md` now routes agent readers through `apps/registry.json` first.\n- Opt-in `scripts/archive_github_history.py` backs up actual GitHub issue comments, inline review comments, reviews, event timeline, commits and changed file metadata to exclusive, provenance-preserving JSON. It has **not** been invoked; comments/reviews and earlier ChatGPT conversations must not be falsely marked complete.\n- Static regression `tests/test_portable_app_handoff.py` checks source directories, metadata, PR snapshot, and no-cutover state.\n\n### No move performed\nThis PR makes no new repo, does not copy/move any app source to `apps/`, does not modify existing program code or installers, does not merge previous PRs, and does not touch `main`. The Flight Radar canonical repo remains separately owned and is only mirrored here.\n\n### Release/migration gates\nFetch remaining review and request context (including voluntary conversation exports), resolve shared module ownership & model matrices, verify Git source history and all existing behavior, then obtain explicit user approval before any later new-repo/cutover action. Historical reviews cannot become fresh GitHub approvals.\n",
+      "original_author": "Tihulu",
+      "created_at": "2026-11-11T15:46:33Z",
+      "updated_at": "2026-11-11T15:46:33Z",
+      "head": {
+        "ref": "chore/multi-app-portable-archives-2026-11-11",
+        "sha": "7e57b65945da934aba4d0b05b7f02f228c8361e8"
+      },
+      "base": {
+        "ref": "integration/preserve-all-apps-2026-11-11",
+        "sha": "20379152be2751e5d89a8bdbac85fb15fc6b3c4e"
+      },
+      "head_sha_is_observed_not_fixed": true
+    },
+    {
+      "number": 69,
+      "id": 5262518229,
+      "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/69",
+      "title": "Draft: source-backed LLM matrices, framework-agnostic feature parity and six-chat workstreams",
+      "body": "## User-requested plan revision — no application feature changes\n\nThis Draft PR builds on the portable archive scaffold (#68) without touching *any* existing app code, installer, UI behavior, branch, PR or `main`. Only metadata under `apps/` and a new read-only test are changed.\n\n### Included\n- 5 per-app `FEATURE_MATRIX.json` and `MODEL_MATRIX.json` files, Markdown summaries and framework-port guides: Media Center, Satellite, Geolocation, Text Center and external canonical Flight Radar.\n- Evidence-based model/LLM backend roles and limitations: Whisper CPU/GPU, Hailo conditional, Argos/NLLB/MADLAD, Qwen karaoke alignment, deterministic satellite DSP and geolocation.\n- Explicit **unknown** actual model installation/hardware validation; distinguish shipped vs Draft PR67 vs inferred plans.\n- Behavioral no-regression rules covering live TV/DAB ownership, SRT timestamps, original speech, lyrics/sound labels, recording independence and on-demand background policy.\n- Design openness: Rust/Qt/GTK/Tauri/Flutter or other framework ports and complete restyles are welcome **only** with feature-by-feature parity, storage migration, user controls and hardware validation. New features additive/opt-in.\n- `apps/_prompts/00-common.md` + six independent, non-overlapping ChatGPT audit assignments; all are manual prompts, **no other chat has been started**. Each worker must use a unique branch and Draft PR.\n- Read-only matrix contract tests for source-path presence, explicit no-migration state, non-fabricated local model readiness.\n\n### Release/quality gates\n- No code was moved to new repositories. Ownership registry unchanged.\n- No real RTL-SDR/DVB/device or local model installation tests are claimed.\n- Prior chat messages and review history are not fully archived; do not claim completeness or fabricate conversation content.\n- Reviewed and merged only after CI and owner approval. Later actual framework ports happen on independent preview branches, never as a hidden rewrite of the deployed application.\n\n### Source review\nCompare with #68: only `apps/**` and `tests/test_llm_portability_matrix.py` changed. Source directories `kaffeine_next/`, `tv_center/`, `satellite_center/`, `rf_geolocation_center/`, `textcenter/`, `web/` remain byte-for-byte untouched.",
+      "original_author": "Tihulu",
+      "created_at": "2026-11-11T15:53:15Z",
+      "updated_at": "2026-11-11T15:54:38Z",
+      "head": {
+        "ref": "chore/llm-framework-portability-matrices-2026-11-11",
+        "sha": "207afc5a3c8aeb4c7458ffca935b8d2a9c720365"
+      },
+      "base": {
+        "ref": "chore/multi-app-portable-archives-2026-11-11",
+        "sha": "7e57b65945da934aba4d0b05b7f02f228c8361e8"
+      },
+      "head_sha_is_observed_not_fixed": true
+    },
+    {
+      "number": 70,
+      "id": 5262823804,
+      "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/70",
+      "title": "Draft: Claude Code + DeepSeek coding-agent navigation (no extra LLM required)",
+      "body": "## Clarification implemented — development-agent map ≠ application AI runtime\n\n**No model download/installation. No source code or active feature change. No new repository.** This Draft PR contains only Markdown/JSON agent onboarding and a read-only unit test.\n\n### What changed\n- Root `CLAUDE.md`: compact Claude Code project guidance, routes to existing AGENTS.md and app-specific feature/component/model matrices.\n- Root `DEEPSEEK_START.md`: provider-neutral copy/paste starter for DeepSeek or an editor that can read the repository; **does not claim DeepSeek universally auto-loads any filename**.\n- Root `DEVELOPMENT_AGENT_GUIDE.md`, `apps/DEVELOPMENT_AGENT_MATRIX.json` and human summary: machine-readable **coding LLM context** with canonical repo, paths, safe edit protocol, testing and extension rules.\n- Existing `apps/<app>/MODEL_MATRIX.json` remains the **in-application AI inference backend map**, not an LLM to install to read a matrix.\n- Six existing independent chat prompts extended with the two-matrix distinction and common onboarding. Each chat owns disjoint files and Draft PRs.\n- Added read-only tests that prove entrypoints resolve and `model_install_required=false`.\n\n### Guardrails\nCode-writing agents are free to add features, completely redesign UI and propose Rust/Qt/GTK/Tauri/etc ports in isolated branches while preserving every existing feature, config, recording, subtitle timebase, translation fallback and SDR/DVB resource policy. Source and tests remain the authority; current source evidence is not real-device validation.\n\nNo existing code under `kaffeine_next/`, `tv_center/`, `satellite_center/`, `rf_geolocation_center/`, `textcenter/` or `web/` changed. No `main` edits, previous PR rewrites or installer changes.\n\nThis PR is stacked on Draft portability PR #69, itself stacked on preservation/archives PRs. Do not auto-merge.\n",
+      "original_author": "Tihulu",
+      "created_at": "2026-11-11T16:13:47Z",
+      "updated_at": "2026-11-11T16:13:47Z",
+      "head": {
+        "ref": "chore/coding-agent-claude-deepseek-guide-2026-11-11",
+        "sha": "9b4ffce98a723c0e60ec5a11978895e56f97a161"
+      },
+      "base": {
+        "ref": "chore/llm-framework-portability-matrices-2026-11-11",
+        "sha": "207afc5a3c8aeb4c7458ffca935b8d2a9c720365"
+      },
+      "head_sha_is_observed_not_fixed": true
+    },
+    {
+      "number": 71,
+      "id": 5263072174,
+      "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/71",
+      "title": "Draft: preserve self-contained sources and linked histories for every app, future rename and EN/TR/DE UI",
+      "body": "## Scope: every TIHULU application — preparation only, no existing program changed\n\nStacked above #70, #69, #68 and the earlier integration Draft PR. **No repository rename, no new repositories, no app source changes, no installer changes and no merges.** Existing `main` is untouched.\n\n### Exact frozen local source copies\nGit tree object identity is preserved without changing or executing any application source:\n- Media Center `apps/media-center/source/`: exact `kaffeine_next`, `tv_center`, and shared `textcenter` copies.\n- Satellite Center: exact `satellite_center` copy.\n- RF Geolocation: exact `rf_geolocation_center` copy.\n- Text Center: exact `textcenter` and `web` copies.\n- Flight Radar: already canonically independent in `Tihulu/tihulu-flight-radar`; no second editable radar source is created.\n\nThe copies are read-only preservation snapshots, NOT active import/build/launcher paths. Pinned external KDE Kaffeine 2.0.19 and other OS/model dependencies are **not** falsely claimed as vendored. Per-app `PORTABLE_PACKAGE.json` lists dependency/CI/tests/installer/branch reconciliation gaps before a release can stand alone.\n\n### Historical cross-repository PR/issue links\n- Portable original-to-future link ledger `apps/_archives/PORTABLE_HISTORY_LINK_MAP.json` includes **63 PR + 4 issue records** preserved in the earlier baseline snapshot; keep original URLs, source commits, authors and archiving metadata. New target URL/number remain null until an actual PR exists.\n- All five `HISTORY_LINKS.json` link to original PR bodies and future bidirectional maps. Candidate routing is heuristic; no claim that comments/reviews, complete ChatGPT conversations or native approvals have been transferred.\n- GitHub repository numeric ID `1447637221` and node ID `R_kgDOVkkw5Q` recorded separately from `Tihulu/TIHULU-TEXT-CENTER` aliases. This prepares for a **future, explicitly approved rename** without rewriting historical PR source URLs. Redirects/Pages/raw installer links require separate verification.\n\n### Matrices and language standards\n- Every application's FEATURE, COMPONENT and MODEL matrix now refers to original/future repo link ledger, portable source snapshot, rename identity and localization contract.\n- Each future independent repo must be self-contained with its own editable code/dependencies, CI, tests, installer and user data migration plus root Claude Code/DeepSeek/AGENTS guidance. Internal architecture, code and development communication: **English**.\n- User-facing locale requirements: **English, Turkish and German**. They are release requirements, not completed translations; current UI behavior/defaults remain unchanged.\n- New read-only automated test verifies exact copies, provenance links, no cutover and three language requirements.\n\n### Safety / acceptance\nThe active Git root trees for `kaffeine_next`, `tv_center`, `textcenter`, `web`, `satellite_center`, `rf_geolocation_center`, `scripts` and `.github` are **SHA-identical** to branch #70's head. Physical device tests, standalone repo builds, transitive dependency closure, PR review thread exports, full UI localization and actual repo migration still need completion and explicit owner approval.\n\n**No feature loss / no installed version changes.**\n",
+      "original_author": "Tihulu",
+      "created_at": "2026-11-11T16:31:00Z",
+      "updated_at": "2026-11-11T16:31:41Z",
+      "head": {
+        "ref": "chore/portable-self-contained-apps-rename-links-i18n-2026-11-11",
+        "sha": "c12f5dbabf03b0a7eb44ffee03e0a1f1b0f78196"
+      },
+      "base": {
+        "ref": "chore/coding-agent-claude-deepseek-guide-2026-11-11",
+        "sha": "9b4ffce98a723c0e60ec5a11978895e56f97a161"
+      },
+      "head_sha_is_observed_not_fixed": true
+    }
+  ]
+}

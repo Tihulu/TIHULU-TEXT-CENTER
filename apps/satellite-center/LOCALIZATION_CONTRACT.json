@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "app_id": "satellite-center",
+  "engineering_language": "en",
+  "source_comments_and_docs_language": "en",
+  "stable_api_and_schema_keys_language": "en",
+  "user_facing_language_policy": {
+    "required": [
+      "en",
+      "tr",
+      "de"
+    ],
+    "default": "en",
+    "locale_code_format": "BCP-47",
+    "persist_preference": "future_backwards_compatible_setting_without_changing_current_defaults",
+    "fallback_locale": "en",
+    "offline_bundles_required": true,
+    "change_existing_ui_language_in_this_pr": false
+  },
+  "internationalization_requirements": [
+    "All UI strings translatable by stable keys; no assumptions about source language",
+    "Keep dynamic placeholders/plural forms, date/time/number/units locale aware; preserve machine data UTC/timebase",
+    "Keyboard/screen reader announcements and notifications translated where applicable",
+    "Do not translate file names, protocol keys, source labels, RF frequency units or internal APIs as if UI text",
+    "Separate UI localization from optional speech ASR and translation language models",
+    "English is the canonical engineering and documentation language",
+    "Verify desktop, tablet, mobile layouts for DE/TR text expansion and accessibility",
+    "Add locale selection only in explicit reviewed UI work after baseline parity"
+  ],
+  "current_coverage": "not_audited_no_runtime_translation_claim",
+  "translation_files_created_in_this_pr": false,
+  "test_contract": {
+    "required_locales": [
+      "en",
+      "tr",
+      "de"
+    ],
+    "all_keys_present": "future_release_gate",
+    "language_switch_and_persistence": "future_release_gate",
+    "fallback_to_en": "future_release_gate",
+    "no_existing_default_changes": "mandatory"
+  }
+}

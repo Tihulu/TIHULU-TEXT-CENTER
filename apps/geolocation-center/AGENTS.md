@@ -18,3 +18,8 @@ Special note: Exact RF Geolocation application tree preserved; related root chan
 
 ## Continuing past work
 The original PR descriptions have been snapshotted into portable archives. Review comments, approvals, issue timelines and conversational instructions are not automatically copied merely by this template. Verify archive completeness before moving. Commit history is preserved in original Git, not embedded in the JSON archive.
+
+## Read-only source copies, old PR links, repo rename and languages
+
+Read `apps/geolocation-center/SOURCE_SNAPSHOT.md`, `PORTABLE_PACKAGE.json`, `HISTORY_LINKS.json` and `LOCALIZATION_CONTRACT.json`. For embedded apps, `apps/geolocation-center/source/` is a SHA-identical frozen source archive, NOT the active build, package, import or development path. Do not edit it separately. Flight Radar is already canonical in its separately owned repository; TEXT CENTER only mirrors it.
+Original PR URLs and historical review author/timestamps remain in the source history and link ledger, not regenerated as native GitHub approvals. A later rename of TEXT CENTER must preserve repository numeric ID, original source URLs and tested aliases. All eventual standalone repos must offer en/tr/de **user interfaces**, with English-only engineering, schema keys and internal operations. Do not pretend translation coverage, standalone builds or full dependency closure have already been verified.

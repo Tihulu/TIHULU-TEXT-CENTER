@@ -1,0 +1,396 @@
+{
+  "schema_version": 1,
+  "app_id": "text-center",
+  "history_status": "linked_original_records_not_native_migrated",
+  "source_registry": "apps/REPOSITORY_IDENTITY.json",
+  "source_pr_archive_index": "apps/_archives/pr-index.json",
+  "source_pr_bodies": "apps/_archives/pr-body-*.json",
+  "original_pr_url_note": "Original HTML URLs and numeric PR refs remain immutable historical evidence, even if the source repository is renamed later.",
+  "source_pr_candidates": [
+    {
+      "original_pr_number": 65,
+      "original_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/65",
+      "archived_description": "apps/_archives/pr-body-01.json",
+      "classification_status": "heuristic_review_required",
+      "future_target_repo": null,
+      "future_target_pr_url": null
+    },
+    {
+      "original_pr_number": 64,
+      "original_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/64",
+      "archived_description": "apps/_archives/pr-body-01.json",
+      "classification_status": "heuristic_review_required",
+      "future_target_repo": null,
+      "future_target_pr_url": null
+    },
+    {
+      "original_pr_number": 63,
+      "original_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/63",
+      "archived_description": "apps/_archives/pr-body-01.json",
+      "classification_status": "heuristic_review_required",
+      "future_target_repo": null,
+      "future_target_pr_url": null
+    },
+    {
+      "original_pr_number": 62,
+      "original_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/62",
+      "archived_description": "apps/_archives/pr-body-01.json",
+      "classification_status": "heuristic_review_required",
+      "future_target_repo": null,
+      "future_target_pr_url": null
+    },
+    {
+      "original_pr_number": 61,
+      "original_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/61",
+      "archived_description": "apps/_archives/pr-body-01.json",
+      "classification_status": "heuristic_review_required",
+      "future_target_repo": null,
+      "future_target_pr_url": null
+    },
+    {
+      "original_pr_number": 60,
+      "original_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/60",
+      "archived_description": "apps/_archives/pr-body-01.json",
+      "classification_status": "heuristic_review_required",
+      "future_target_repo": null,
+      "future_target_pr_url": null
+    },
+    {
+      "original_pr_number": 59,
+      "original_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/59",
+      "archived_description": "apps/_archives/pr-body-01.json",
+      "classification_status": "heuristic_review_required",
+      "future_target_repo": null,
+      "future_target_pr_url": null
+    },
+    {
+      "original_pr_number": 58,
+      "original_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/58",
+      "archived_description": "apps/_archives/pr-body-01.json",
+      "classification_status": "heuristic_review_required",
+      "future_target_repo": null,
+      "future_target_pr_url": null
+    },
+    {
+      "original_pr_number": 57,
+      "original_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/57",
+      "archived_description": "apps/_archives/pr-body-01.json",
+      "classification_status": "heuristic_review_required",
+      "future_target_repo": null,
+      "future_target_pr_url": null
+    },
+    {
+      "original_pr_number": 56,
+      "original_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/56",
+      "archived_description": "apps/_archives/pr-body-01.json",
+      "classification_status": "heuristic_review_required",
+      "future_target_repo": null,
+      "future_target_pr_url": null
+    },
+    {
+      "original_pr_number": 55,
+      "original_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/55",
+      "archived_description": "apps/_archives/pr-body-02.json",
+      "classification_status": "heuristic_review_required",
+      "future_target_repo": null,
+      "future_target_pr_url": null
+    },
+    {
+      "original_pr_number": 53,
+      "original_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/53",
+      "archived_description": "apps/_archives/pr-body-02.json",
+      "classification_status": "heuristic_review_required",
+      "future_target_repo": null,
+      "future_target_pr_url": null
+    },
+    {
+      "original_pr_number": 52,
+      "original_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/52",
+      "archived_description": "apps/_archives/pr-body-02.json",
+      "classification_status": "heuristic_review_required",
+      "future_target_repo": null,
+      "future_target_pr_url": null
+    },
+    {
+      "original_pr_number": 51,
+      "original_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/51",
+      "archived_description": "apps/_archives/pr-body-02.json",
+      "classification_status": "heuristic_review_required",
+      "future_target_repo": null,
+      "future_target_pr_url": null
+    },
+    {
+      "original_pr_number": 46,
+      "original_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/46",
+      "archived_description": "apps/_archives/pr-body-02.json",
+      "classification_status": "heuristic_review_required",
+      "future_target_repo": null,
+      "future_target_pr_url": null
+    },
+    {
+      "original_pr_number": 45,
+      "original_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/45",
+      "archived_description": "apps/_archives/pr-body-02.json",
+      "classification_status": "heuristic_review_required",
+      "future_target_repo": null,
+      "future_target_pr_url": null
+    },
+    {
+      "original_pr_number": 44,
+      "original_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/44",
+      "archived_description": "apps/_archives/pr-body-02.json",
+      "classification_status": "heuristic_review_required",
+      "future_target_repo": null,
+      "future_target_pr_url": null
+    },
+    {
+      "original_pr_number": 43,
+      "original_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/43",
+      "archived_description": "apps/_archives/pr-body-03.json",
+      "classification_status": "heuristic_review_required",
+      "future_target_repo": null,
+      "future_target_pr_url": null
+    },
+    {
+      "original_pr_number": 42,
+      "original_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/42",
+      "archived_description": "apps/_archives/pr-body-03.json",
+      "classification_status": "heuristic_review_required",
+      "future_target_repo": null,
+      "future_target_pr_url": null
+    },
+    {
+      "original_pr_number": 41,
+      "original_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/41",
+      "archived_description": "apps/_archives/pr-body-03.json",
+      "classification_status": "heuristic_review_required",
+      "future_target_repo": null,
+      "future_target_pr_url": null
+    },
+    {
+      "original_pr_number": 40,
+      "original_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/40",
+      "archived_description": "apps/_archives/pr-body-03.json",
+      "classification_status": "heuristic_review_required",
+      "future_target_repo": null,
+      "future_target_pr_url": null
+    },
+    {
+      "original_pr_number": 39,
+      "original_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/39",
+      "archived_description": "apps/_archives/pr-body-03.json",
+      "classification_status": "heuristic_review_required",
+      "future_target_repo": null,
+      "future_target_pr_url": null
+    },
+    {
+      "original_pr_number": 38,
+      "original_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/38",
+      "archived_description": "apps/_archives/pr-body-03.json",
+      "classification_status": "heuristic_review_required",
+      "future_target_repo": null,
+      "future_target_pr_url": null
+    },
+    {
+      "original_pr_number": 35,
+      "original_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/35",
+      "archived_description": "apps/_archives/pr-body-03.json",
+      "classification_status": "heuristic_review_required",
+      "future_target_repo": null,
+      "future_target_pr_url": null
+    },
+    {
+      "original_pr_number": 33,
+      "original_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/33",
+      "archived_description": "apps/_archives/pr-body-03.json",
+      "classification_status": "heuristic_review_required",
+      "future_target_repo": null,
+      "future_target_pr_url": null
+    },
+    {
+      "original_pr_number": 29,
+      "original_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/29",
+      "archived_description": "apps/_archives/pr-body-04.json",
+      "classification_status": "heuristic_review_required",
+      "future_target_repo": null,
+      "future_target_pr_url": null
+    },
+    {
+      "original_pr_number": 25,
+      "original_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/25",
+      "archived_description": "apps/_archives/pr-body-04.json",
+      "classification_status": "heuristic_review_required",
+      "future_target_repo": null,
+      "future_target_pr_url": null
+    },
+    {
+      "original_pr_number": 24,
+      "original_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/24",
+      "archived_description": "apps/_archives/pr-body-04.json",
+      "classification_status": "heuristic_review_required",
+      "future_target_repo": null,
+      "future_target_pr_url": null
+    },
+    {
+      "original_pr_number": 23,
+      "original_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/23",
+      "archived_description": "apps/_archives/pr-body-04.json",
+      "classification_status": "heuristic_review_required",
+      "future_target_repo": null,
+      "future_target_pr_url": null
+    },
+    {
+      "original_pr_number": 22,
+      "original_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/22",
+      "archived_description": "apps/_archives/pr-body-04.json",
+      "classification_status": "heuristic_review_required",
+      "future_target_repo": null,
+      "future_target_pr_url": null
+    },
+    {
+      "original_pr_number": 15,
+      "original_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/15",
+      "archived_description": "apps/_archives/pr-body-05.json",
+      "classification_status": "heuristic_review_required",
+      "future_target_repo": null,
+      "future_target_pr_url": null
+    },
+    {
+      "original_pr_number": 14,
+      "original_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/14",
+      "archived_description": "apps/_archives/pr-body-05.json",
+      "classification_status": "heuristic_review_required",
+      "future_target_repo": null,
+      "future_target_pr_url": null
+    },
+    {
+      "original_pr_number": 13,
+      "original_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/13",
+      "archived_description": "apps/_archives/pr-body-05.json",
+      "classification_status": "heuristic_review_required",
+      "future_target_repo": null,
+      "future_target_pr_url": null
+    },
+    {
+      "original_pr_number": 12,
+      "original_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/12",
+      "archived_description": "apps/_archives/pr-body-05.json",
+      "classification_status": "heuristic_review_required",
+      "future_target_repo": null,
+      "future_target_pr_url": null
+    },
+    {
+      "original_pr_number": 11,
+      "original_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/11",
+      "archived_description": "apps/_archives/pr-body-05.json",
+      "classification_status": "heuristic_review_required",
+      "future_target_repo": null,
+      "future_target_pr_url": null
+    },
+    {
+      "original_pr_number": 10,
+      "original_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/10",
+      "archived_description": "apps/_archives/pr-body-05.json",
+      "classification_status": "heuristic_review_required",
+      "future_target_repo": null,
+      "future_target_pr_url": null
+    },
+    {
+      "original_pr_number": 8,
+      "original_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/8",
+      "archived_description": "apps/_archives/pr-body-05.json",
+      "classification_status": "heuristic_review_required",
+      "future_target_repo": null,
+      "future_target_pr_url": null
+    },
+    {
+      "original_pr_number": 7,
+      "original_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/7",
+      "archived_description": "apps/_archives/pr-body-05.json",
+      "classification_status": "heuristic_review_required",
+      "future_target_repo": null,
+      "future_target_pr_url": null
+    },
+    {
+      "original_pr_number": 6,
+      "original_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/6",
+      "archived_description": "apps/_archives/pr-body-05.json",
+      "classification_status": "heuristic_review_required",
+      "future_target_repo": null,
+      "future_target_pr_url": null
+    },
+    {
+      "original_pr_number": 5,
+      "original_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/5",
+      "archived_description": "apps/_archives/pr-body-05.json",
+      "classification_status": "heuristic_review_required",
+      "future_target_repo": null,
+      "future_target_pr_url": null
+    },
+    {
+      "original_pr_number": 4,
+      "original_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/4",
+      "archived_description": "apps/_archives/pr-body-06.json",
+      "classification_status": "heuristic_review_required",
+      "future_target_repo": null,
+      "future_target_pr_url": null
+    },
+    {
+      "original_pr_number": 1,
+      "original_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/1",
+      "archived_description": "apps/_archives/pr-body-06.json",
+      "classification_status": "heuristic_review_required",
+      "future_target_repo": null,
+      "future_target_pr_url": null
+    }
+  ],
+  "source_issue_candidates": [
+    {
+      "original_issue_number": 2,
+      "original_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/2",
+      "future_target_issue_url": null
+    }
+  ],
+  "other_issues_require_classification": true,
+  "pr_comments_review_timeline_complete": false,
+  "chat_requests_export_complete": false,
+  "cross_references_to_future_new_repo": null,
+  "future_link_map": "apps/_archives/PORTABLE_HISTORY_LINK_MAP.json",
+  "future_repo_rename_supported_by": "repository id / node id plus never-rewritten original URLs and checked name aliases",
+  "original_branch_refs_to_audit": [
+    "main",
+    "integration/consolidated-pages-webusb-2026-11-06"
+  ],
+  "review_and_request_integrity": "No invented comments/reviews/approval or synthesized prompts",
+  "global_portability_pr_links": [
+    {
+      "original_pr_number": 68,
+      "original_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/68",
+      "archive": "apps/_archives/portability-prs-68-71.json",
+      "classification_status": "shared_portability_planning",
+      "destination_pr_url": null
+    },
+    {
+      "original_pr_number": 69,
+      "original_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/69",
+      "archive": "apps/_archives/portability-prs-68-71.json",
+      "classification_status": "shared_portability_planning",
+      "destination_pr_url": null
+    },
+    {
+      "original_pr_number": 70,
+      "original_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/70",
+      "archive": "apps/_archives/portability-prs-68-71.json",
+      "classification_status": "shared_portability_planning",
+      "destination_pr_url": null
+    },
+    {
+      "original_pr_number": 71,
+      "original_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/71",
+      "archive": "apps/_archives/portability-prs-68-71.json",
+      "classification_status": "shared_portability_planning",
+      "destination_pr_url": null
+    }
+  ],
+  "new_pr_snapshots_are_not_native_transfers": true
+}

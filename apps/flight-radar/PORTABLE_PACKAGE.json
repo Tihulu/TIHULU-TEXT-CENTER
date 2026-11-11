@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "app_id": "flight-radar",
+  "origin_repository_id": 1447637221,
+  "origin_repository_original_name": "Tihulu/TIHULU-TEXT-CENTER",
+  "current_canonical_repository": "Tihulu/tihulu-flight-radar",
+  "future_destination_proposal": "Tihulu/tihulu-flight-radar",
+  "snapshot_state": "source_already_external_canonical",
+  "snapshot_based_on_commit": "9b4ffce98a723c0e60ec5a11978895e56f97a161",
+  "copied_source_roots": [],
+  "not_currently_executed": true,
+  "does_not_mutate_runtime_paths": true,
+  "dependency_closure_status": "unverified",
+  "missing_audit_items": [
+    "Canonical GitHub Tihulu/tihulu-flight-radar source and installer/Pages CI require separate exact-SHA audit",
+    "No duplicate editable source inside TEXT CENTER"
+  ],
+  "copy_role": "frozen_evidence_snapshot_now; editable canonical code in target repo only after approved migration",
+  "history_links": "apps/flight-radar/HISTORY_LINKS.json",
+  "feature_contract": "apps/flight-radar/FEATURE_MATRIX.json",
+  "component_contract": "apps/flight-radar/COMPONENT_MATRIX.json",
+  "application_model_contract": "apps/flight-radar/MODEL_MATRIX.json",
+  "coding_llm_contract": "apps/DEVELOPMENT_AGENT_MATRIX.json",
+  "localization_contract": "apps/flight-radar/LOCALIZATION_CONTRACT.json",
+  "source_repository_rename_contract": "apps/REPOSITORY_RENAME_LINK_POLICY.md",
+  "standalone_release_test_status": "not_started",
+  "new_repository_created": false,
+  "main_branch_changed": false
+}

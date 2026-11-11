@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "origin_repository_id": 1447637221,
+  "origin_repository_node_id": "R_kgDOVkkw5Q",
+  "original_repository_full_name": "Tihulu/TIHULU-TEXT-CENTER",
+  "original_repository_html_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER",
+  "current_repository_full_name": "Tihulu/TIHULU-TEXT-CENTER",
+  "known_repository_name_aliases": [
+    "Tihulu/TIHULU-TEXT-CENTER"
+  ],
+  "repository_rename_pending": true,
+  "resolved_current_name_source": "GitHub repository metadata by id at migration/rename time",
+  "source_aliases_are_historical_evidence": true,
+  "destination_repositories_created_by_this_branch": false,
+  "registry_relative_paths_required": true,
+  "original_pr_urls_must_never_be_rewritten": true,
+  "canonical_url_resolution": "Prefer immutable GitHub repository id/node id to find current full_name; preserve original HTML URLs in historical archives and test redirects instead of assuming all URLs survive a rename.",
+  "relocation_cutover_state": "not_started"
+}

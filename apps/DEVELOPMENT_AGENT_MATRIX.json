@@ -47,7 +47,12 @@
       "runtime_ai_matrix": "apps/media-center/MODEL_MATRIX.json",
       "instructions": "apps/media-center/AGENTS.md",
       "porting_guide": "apps/media-center/PORTING_GUIDE.md",
-      "migration_state": "not_started"
+      "migration_state": "not_started",
+      "source_snapshot_bundle": "apps/media-center/PORTABLE_PACKAGE.json",
+      "history_links": "apps/media-center/HISTORY_LINKS.json",
+      "localization_contract": "apps/media-center/LOCALIZATION_CONTRACT.json",
+      "source_snapshot_root": "apps/media-center/source/",
+      "future_new_repo_migration_status": "not_started"
     },
     {
       "id": "satellite-center",
@@ -61,7 +66,12 @@
       "runtime_ai_matrix": "apps/satellite-center/MODEL_MATRIX.json",
       "instructions": "apps/satellite-center/AGENTS.md",
       "porting_guide": "apps/satellite-center/PORTING_GUIDE.md",
-      "migration_state": "not_started"
+      "migration_state": "not_started",
+      "source_snapshot_bundle": "apps/satellite-center/PORTABLE_PACKAGE.json",
+      "history_links": "apps/satellite-center/HISTORY_LINKS.json",
+      "localization_contract": "apps/satellite-center/LOCALIZATION_CONTRACT.json",
+      "source_snapshot_root": "apps/satellite-center/source/",
+      "future_new_repo_migration_status": "not_started"
     },
     {
       "id": "geolocation-center",
@@ -75,7 +85,12 @@
       "runtime_ai_matrix": "apps/geolocation-center/MODEL_MATRIX.json",
       "instructions": "apps/geolocation-center/AGENTS.md",
       "porting_guide": "apps/geolocation-center/PORTING_GUIDE.md",
-      "migration_state": "not_started"
+      "migration_state": "not_started",
+      "source_snapshot_bundle": "apps/geolocation-center/PORTABLE_PACKAGE.json",
+      "history_links": "apps/geolocation-center/HISTORY_LINKS.json",
+      "localization_contract": "apps/geolocation-center/LOCALIZATION_CONTRACT.json",
+      "source_snapshot_root": "apps/geolocation-center/source/",
+      "future_new_repo_migration_status": "not_started"
     },
     {
       "id": "text-center",
@@ -90,7 +105,12 @@
       "runtime_ai_matrix": "apps/text-center/MODEL_MATRIX.json",
       "instructions": "apps/text-center/AGENTS.md",
       "porting_guide": "apps/text-center/PORTING_GUIDE.md",
-      "migration_state": "not_started"
+      "migration_state": "not_started",
+      "source_snapshot_bundle": "apps/text-center/PORTABLE_PACKAGE.json",
+      "history_links": "apps/text-center/HISTORY_LINKS.json",
+      "localization_contract": "apps/text-center/LOCALIZATION_CONTRACT.json",
+      "source_snapshot_root": "apps/text-center/source/",
+      "future_new_repo_migration_status": "not_started"
     },
     {
       "id": "flight-radar",
@@ -102,7 +122,23 @@
       "runtime_ai_matrix": "apps/flight-radar/MODEL_MATRIX.json",
       "instructions": "apps/flight-radar/AGENTS.md",
       "porting_guide": "apps/flight-radar/PORTING_GUIDE.md",
-      "migration_state": "not_started"
+      "migration_state": "not_started",
+      "source_snapshot_bundle": "apps/flight-radar/PORTABLE_PACKAGE.json",
+      "history_links": "apps/flight-radar/HISTORY_LINKS.json",
+      "localization_contract": "apps/flight-radar/LOCALIZATION_CONTRACT.json",
+      "source_snapshot_root": null,
+      "future_new_repo_migration_status": "not_started"
     }
-  ]
+  ],
+  "all_apps_self_contained_target": true,
+  "future_source_repository_rename_supported": true,
+  "source_repository_identity_file": "apps/REPOSITORY_IDENTITY.json",
+  "global_history_map": "apps/_archives/PORTABLE_HISTORY_LINK_MAP.json",
+  "user_interface_required_languages": [
+    "en",
+    "tr",
+    "de"
+  ],
+  "internal_development_language": "en",
+  "source_snapshots_are_active_app_code": false
 }
