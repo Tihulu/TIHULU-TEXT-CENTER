@@ -86,7 +86,11 @@
       13
     ],
     "media_export_branch_exact_assets_verified": true,
-    "media_export_branch_only_code_not_in_docs_branch": true
+    "media_export_branch_only_code_not_in_docs_branch": true,
+    "explicit_discussion_endpoints_checked": 13,
+    "public_original_comment_permalinks_indexed": 8,
+    "sampled_discussion_link_index_created": true,
+    "complete_history_export_claim": false
   },
   "approved_designs": {
     "logos_user_approved": 5,

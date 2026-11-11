@@ -1,0 +1,245 @@
+{
+  "schema_version": 1,
+  "audited_on": "2026-11-11",
+  "scope": "sample of 13 PR discussion endpoints; does NOT certify all historic comments, reviews or conversational decisions",
+  "original_textcenter_repo_id": 1447637221,
+  "canonical_flight_repo_id": 1447534043,
+  "checked_prs": [
+    {
+      "repository": "Tihulu/TIHULU-TEXT-CENTER",
+      "original_repo_id": 1447637221,
+      "pr_number": 12,
+      "original_pr_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/12",
+      "fetched_discussion_comments": 0,
+      "normalized_endpoint_checked": true,
+      "review_submission_audited": false
+    },
+    {
+      "repository": "Tihulu/TIHULU-TEXT-CENTER",
+      "original_repo_id": 1447637221,
+      "pr_number": 65,
+      "original_pr_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/65",
+      "fetched_discussion_comments": 0,
+      "normalized_endpoint_checked": true,
+      "review_submission_audited": false
+    },
+    {
+      "repository": "Tihulu/TIHULU-TEXT-CENTER",
+      "original_repo_id": 1447637221,
+      "pr_number": 66,
+      "original_pr_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/66",
+      "fetched_discussion_comments": 0,
+      "normalized_endpoint_checked": true,
+      "review_submission_audited": false
+    },
+    {
+      "repository": "Tihulu/TIHULU-TEXT-CENTER",
+      "original_repo_id": 1447637221,
+      "pr_number": 67,
+      "original_pr_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/67",
+      "fetched_discussion_comments": 0,
+      "normalized_endpoint_checked": true,
+      "review_submission_audited": false
+    },
+    {
+      "repository": "Tihulu/TIHULU-TEXT-CENTER",
+      "original_repo_id": 1447637221,
+      "pr_number": 68,
+      "original_pr_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/68",
+      "fetched_discussion_comments": 0,
+      "normalized_endpoint_checked": true,
+      "review_submission_audited": false
+    },
+    {
+      "repository": "Tihulu/TIHULU-TEXT-CENTER",
+      "original_repo_id": 1447637221,
+      "pr_number": 69,
+      "original_pr_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/69",
+      "fetched_discussion_comments": 0,
+      "normalized_endpoint_checked": true,
+      "review_submission_audited": false
+    },
+    {
+      "repository": "Tihulu/TIHULU-TEXT-CENTER",
+      "original_repo_id": 1447637221,
+      "pr_number": 70,
+      "original_pr_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/70",
+      "fetched_discussion_comments": 0,
+      "normalized_endpoint_checked": true,
+      "review_submission_audited": false
+    },
+    {
+      "repository": "Tihulu/TIHULU-TEXT-CENTER",
+      "original_repo_id": 1447637221,
+      "pr_number": 71,
+      "original_pr_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/71",
+      "fetched_discussion_comments": 0,
+      "normalized_endpoint_checked": true,
+      "review_submission_audited": false
+    },
+    {
+      "repository": "Tihulu/TIHULU-TEXT-CENTER",
+      "original_repo_id": 1447637221,
+      "pr_number": 72,
+      "original_pr_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/72",
+      "fetched_discussion_comments": 0,
+      "normalized_endpoint_checked": true,
+      "review_submission_audited": false
+    },
+    {
+      "repository": "Tihulu/TIHULU-TEXT-CENTER",
+      "original_repo_id": 1447637221,
+      "pr_number": 73,
+      "original_pr_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/73",
+      "fetched_discussion_comments": 0,
+      "normalized_endpoint_checked": true,
+      "review_submission_audited": false
+    },
+    {
+      "repository": "Tihulu/TIHULU-TEXT-CENTER",
+      "original_repo_id": 1447637221,
+      "pr_number": 74,
+      "original_pr_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/74",
+      "fetched_discussion_comments": 0,
+      "normalized_endpoint_checked": true,
+      "review_submission_audited": false
+    },
+    {
+      "repository": "Tihulu/tihulu-flight-radar",
+      "original_repo_id": 1447534043,
+      "pr_number": 7,
+      "original_pr_url": "https://github.com/Tihulu/tihulu-flight-radar/pull/7",
+      "fetched_discussion_comments": 0,
+      "normalized_endpoint_checked": true,
+      "review_submission_audited": true
+    },
+    {
+      "repository": "Tihulu/tihulu-flight-radar",
+      "original_repo_id": 1447534043,
+      "pr_number": 13,
+      "original_pr_url": "https://github.com/Tihulu/tihulu-flight-radar/pull/13",
+      "fetched_discussion_comments": 8,
+      "normalized_endpoint_checked": true,
+      "review_submission_audited": true
+    }
+  ],
+  "checked_pr_count": 13,
+  "confirmed_linked_comment_count": 8,
+  "original_comment_refs": [
+    {
+      "original_repository_id": 1447534043,
+      "original_pr_number": 13,
+      "comment_id": 6749307903,
+      "original_url": "https://github.com/Tihulu/tihulu-flight-radar/pull/13#issuecomment-6749307903",
+      "author_login": "Tihulu",
+      "created_at": "2026-11-09T19:26:36Z",
+      "updated_at": "2026-11-09T19:26:36Z",
+      "original_body_exported": false,
+      "original_body_linked": true,
+      "original_approval_recreated": false,
+      "raw_private_context_exported": false
+    },
+    {
+      "original_repository_id": 1447534043,
+      "original_pr_number": 13,
+      "comment_id": 6749887901,
+      "original_url": "https://github.com/Tihulu/tihulu-flight-radar/pull/13#issuecomment-6749887901",
+      "author_login": "Tihulu",
+      "created_at": "2026-11-09T19:53:34Z",
+      "updated_at": "2026-11-09T19:53:34Z",
+      "original_body_exported": false,
+      "original_body_linked": true,
+      "original_approval_recreated": false,
+      "raw_private_context_exported": false
+    },
+    {
+      "original_repository_id": 1447534043,
+      "original_pr_number": 13,
+      "comment_id": 6751149528,
+      "original_url": "https://github.com/Tihulu/tihulu-flight-radar/pull/13#issuecomment-6751149528",
+      "author_login": "Tihulu",
+      "created_at": "2026-11-09T20:51:34Z",
+      "updated_at": "2026-11-09T20:51:34Z",
+      "original_body_exported": false,
+      "original_body_linked": true,
+      "original_approval_recreated": false,
+      "raw_private_context_exported": false
+    },
+    {
+      "original_repository_id": 1447534043,
+      "original_pr_number": 13,
+      "comment_id": 6751162119,
+      "original_url": "https://github.com/Tihulu/tihulu-flight-radar/pull/13#issuecomment-6751162119",
+      "author_login": "Tihulu",
+      "created_at": "2026-11-09T20:52:11Z",
+      "updated_at": "2026-11-09T20:52:11Z",
+      "original_body_exported": false,
+      "original_body_linked": true,
+      "original_approval_recreated": false,
+      "raw_private_context_exported": false
+    },
+    {
+      "original_repository_id": 1447534043,
+      "original_pr_number": 13,
+      "comment_id": 6754467663,
+      "original_url": "https://github.com/Tihulu/tihulu-flight-radar/pull/13#issuecomment-6754467663",
+      "author_login": "Tihulu",
+      "created_at": "2026-11-09T23:39:27Z",
+      "updated_at": "2026-11-09T23:39:27Z",
+      "original_body_exported": false,
+      "original_body_linked": true,
+      "original_approval_recreated": false,
+      "raw_private_context_exported": false
+    },
+    {
+      "original_repository_id": 1447534043,
+      "original_pr_number": 13,
+      "comment_id": 6754887278,
+      "original_url": "https://github.com/Tihulu/tihulu-flight-radar/pull/13#issuecomment-6754887278",
+      "author_login": "Tihulu",
+      "created_at": "2026-11-10T00:04:26Z",
+      "updated_at": "2026-11-10T00:04:26Z",
+      "original_body_exported": false,
+      "original_body_linked": true,
+      "original_approval_recreated": false,
+      "raw_private_context_exported": false
+    },
+    {
+      "original_repository_id": 1447534043,
+      "original_pr_number": 13,
+      "comment_id": 6755221713,
+      "original_url": "https://github.com/Tihulu/tihulu-flight-radar/pull/13#issuecomment-6755221713",
+      "author_login": "Tihulu",
+      "created_at": "2026-11-10T00:23:17Z",
+      "updated_at": "2026-11-10T00:23:17Z",
+      "original_body_exported": false,
+      "original_body_linked": true,
+      "original_approval_recreated": false,
+      "raw_private_context_exported": false
+    },
+    {
+      "original_repository_id": 1447534043,
+      "original_pr_number": 13,
+      "comment_id": 6756436995,
+      "original_url": "https://github.com/Tihulu/tihulu-flight-radar/pull/13#issuecomment-6756436995",
+      "author_login": "Tihulu",
+      "created_at": "2026-11-10T01:38:15Z",
+      "updated_at": "2026-11-10T01:38:15Z",
+      "original_body_exported": false,
+      "original_body_linked": true,
+      "original_approval_recreated": false,
+      "raw_private_context_exported": false
+    }
+  ],
+  "privacy_mode": "public Github comment metadata+permalink only, no body text or secrets copied",
+  "all_history_export_complete": false,
+  "review_threads_full_export_complete": false,
+  "all_prs_checked": false,
+  "old_repo_rename_contract": "Keep original URL and numeric GitHub IDs; repo URL redirects must be tested after any rename; this original public Flight Radar comment is attached to Flight Radar's independent repo, not recreated as new Text Center PR.",
+  "next_steps": [
+    "Verify all remaining original PRs/issues, public top-level comments, review submissions, inline threads and timelines independently",
+    "Do not mark absent comments as lost if source endpoint reports none",
+    "Preserve original author and original creation timestamps and links, not manufactured approvals",
+    "Privacy-review ChatGPT conversations before any public archive export"
+  ]
+}
