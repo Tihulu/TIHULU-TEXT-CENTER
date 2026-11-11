@@ -14,3 +14,7 @@ The user may run six separate ChatGPT conversations in parallel. This is a **man
 | 6 | `apps/_archives/**, apps/MIGRATION_PROTOCOL.md, tests/test_portability_contracts.py` | Historical requests, review evidence and no-regression gates |
 
 Task prompts are under `apps/_prompts/`; paste `00-common.md` plus one mission prompt into a separate chat. Only the central coordinator reviews cross-application dependencies, source tree hash preservation, CI and final PR stacking. New framework ports are **later separate feature branches**, not part of these audits. No current repo migration is authorized.
+
+## Updated entrypoint for each coding agent
+
+Read root DEVELOPMENT_AGENT_GUIDE.md, apps/DEVELOPMENT_AGENT_MATRIX.json, and this workstream's app FEATURE_MATRIX.json, COMPONENT_MATRIX.json and MODEL_MATRIX.json. Coding LLM onboarding is **documentation only**. Runtime AI engines in MODEL_MATRIX are a separate inventory. Claude Code can start via CLAUDE.md. DeepSeek may start with DEEPSEEK_START.md pasted into a supported editor/chat; never assume automatic discovery. Each of the six independent chats uses its own file ownership and Draft PR. No new model installation or repository move is part of this work.
