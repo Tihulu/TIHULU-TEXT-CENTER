@@ -1,0 +1,74 @@
+{
+  "schema_version": 1,
+  "original_source": "Tihulu/TIHULU-TEXT-CENTER",
+  "snapshot_date_utc": "2026-11-11",
+  "pr_records": [
+    {
+      "number": 4,
+      "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/4",
+      "title": "Make DAB RF scan results clickable and group peaks by nominal blocks",
+      "body": "## Reported problem\nThe user observed a completed DAB spectrum scan with 6 measured RF peaks (178.383, 197.117, 197.805, 207.602, 222.039, 222.555 MHz) and could not click or open any result. The old `displaySurvey` rendered inert `div.scan-row` elements except the FM-only TRY RDS button.\n\n## Changes\n- Group energy peaks against the published European Band III nominal DAB raster and 1.536-MHz DAB block width (e.g. 222.039 + 222.555 MHz both map to the potential **11D** block centre at 222.064 MHz). Distinguish 6 peaks from 4 *possible* blocks; do not claim any ensemble, station, FIC decode, DLS or signal lock.\n- Render keyboard/touch-accessible expandable `details` for each possible DAB block with centre frequency, recorded peaks, observed power and explicit unverified status.\n- On the user's **CHECK DECODER & SAVED TEXT** click only, inspect installed `welle-cli` and existing locally imported `dab_dls` / `journaline` archives. No tuning or network fetch is triggered. DAB decoder not connected remains conspicuously indicated.\n- Preserve unmatched raw peaks and manual FM RDS actions, add inspect controls for other non-FM energy bands.\n- Add synthetic regression tests and scanning docs. No modifications to hardware owner, RDS, Flight Radar or unrelated service APIs.\n\n## Validation required\n- `python3 -m unittest discover -s tests -v`\n- `python3 -m compileall -q textcenter tests`\n- `node --check web/app.js`\n- Real mobile/desktop accessibility check and hardware receiver acceptance still pending. CI uses mocks; no actual DAB lock is claimed.\n- Upstream reference: https://www.ukwtv.de/cms/dab-kanaele.html\n\n## Remaining\n**Real DAB station browsing requires a connected welle-compatible DAB decoder**. It is separate from this frequency-raster UI repair and should be developed behind the shared SDR broker, without exposing an untrusted welle-cli HTTP listener or interfering with existing ADS-B/recording services. Continue [issue #2](https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/2). Keep draft/unmerged until CI and review.",
+      "author": "Tihulu",
+      "created_at": "2026-11-06T02:03:20Z",
+      "updated_at": "2026-11-06T02:03:20Z",
+      "base": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "main",
+        "sha": "238799a633227bd3b785a2a2aefb9bfb649bb9a8"
+      },
+      "head": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "feature/dab-block-scan-results-2026-11-06",
+        "sha": "e2e48c2c8e5cd5ce025870e7df1123dfea0a1d19"
+      },
+      "app_candidates": [
+        "text-center"
+      ]
+    },
+    {
+      "number": 3,
+      "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/3",
+      "title": "Display live backend version instead of stale footer label",
+      "body": "## Issue\nThe browser footer hardcoded `0.3` even while `textcenter.__version__` on `main` is already `0.4.0` or newer. An earlier screenshot showed `0.2`, which therefore cannot reliably establish whether the running backend exposes current scan features.\n\n## Fix\n- Populate the footer version from `/api/bootstrap` (already fetched for counts and CSRF).\n- Retain a neutral placeholder before API connectivity is established.\n- Add an HTTP regression check for the footer element and backend version contract.\n\n## Verification\nUse existing GitHub Actions test suite; live browser and hardware testing is not claimed. No RF device is opened, no background requests added, and the standalone application structure is preserved.\n\n## Operational note\nAfter pulling, restart the Python server and hard-refresh the browser; source updates cannot update a previously running Python process automatically.\n\n## CI status at review time\nThe PR workflow currently fails in the unrelated **pre-existing main-branch RDS2 image test**: `test_RDS2_logo_option_default_off_and_verified_file_persisted` (`saved_images` expected 1, got 0). The identical failure was reproduced in main run https://github.com/Tihulu/TIHULU-TEXT-CENTER/actions/runs/42146580671. The UI version-label HTTP test passed. Keep this draft PR unmerged until main's RDS2 regression is corrected and CI is green.",
+      "author": "Tihulu",
+      "created_at": "2026-11-06T01:51:52Z",
+      "updated_at": "2026-11-06T01:53:35Z",
+      "base": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "main",
+        "sha": "2e11739547d86c4678096fe184a75098b3561c76"
+      },
+      "head": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "fix/show-server-version-in-footer-2026-11-06",
+        "sha": "9301d9d1b083ab9bb8450e7eed599b48e3ce1079"
+      },
+      "app_candidates": [
+        "unclassified"
+      ]
+    },
+    {
+      "number": 1,
+      "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/1",
+      "title": "Fail closed on unverified LF/HF scans for NESDR SMArt v5 Q-branch",
+      "body": "## Verified issue\nNooelec documents NESDR SMArt v5 HF reception via **Q-branch** direct sampling. The stock osmocom `rtl_power -D` implementation selects **I-branch** (`verbose_direct_sampling(dev, 1)`), so the previous implementation exposed LF/HF scans that may silently produce misleading empty results on this hardware.\n\n## Change\n- Keep all seven catalogued RF profiles visible; disable only DRM, RTTY, NAVTEX and WeatherFAX LF/HF survey initiation until a tested Q-branch-capable backend is provided.\n- Block incompatible low-level command construction as well as UI/API preflight.\n- Add synthetic regression tests for all four blocked profiles and preserve FM/DAB/APRS VHF survey availability.\n- Update README and scanning documentation; no effect on FM RDS live decode, archives, DVB, Internet feeds or Flight Radar.\n\n## Evidence\n- Nooelec: https://support.nooelec.com/hc/en-us/articles/10470422657047-NESDR-SMArt-v5-FAQ\n- osmocom `rtl_power`: https://github.com/osmocom/rtl-sdr/blob/master/src/rtl_power.c\n\n## Validation\n**Pending GitHub Actions**: `python3 -m unittest discover -s tests -v`, `python3 -m compileall -q textcenter tests`, `node --check web/app.js`. This PR does not claim real receiver/hardware acceptance. Do not merge until CI and physical scanner selection are reviewed.\n\n## Follow-up\nImplement explicit I/Q selection and actual Nooelec Q-branch HF capture through an appropriate backend behind the shared Survival Kit device lease; add true protocol decoders independently. This change is a safety/correctness guard, **not** a completed HF feature.",
+      "author": "Tihulu",
+      "created_at": "2026-11-06T01:48:27Z",
+      "updated_at": "2026-11-06T01:48:27Z",
+      "base": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "main",
+        "sha": "f9e2fde4e38db10baac85a35055a5c75ca688973"
+      },
+      "head": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "fix/hf-q-branch-survey-readiness-2026-11-06",
+        "sha": "ab23a645600bb697a317e1aca1d80a8019577432"
+      },
+      "app_candidates": [
+        "media-center",
+        "text-center"
+      ]
+    }
+  ]
+}

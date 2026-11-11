@@ -1,0 +1,2010 @@
+{
+  "schema_version": 1,
+  "snapshot_date_utc": "2026-11-11",
+  "source_repository": "Tihulu/TIHULU-TEXT-CENTER",
+  "number_of_prs": 63,
+  "prs": [
+    {
+      "id": 5262161631,
+      "number": 67,
+      "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/67",
+      "title": "Draft: unified live/complete Media Center timed transcript and recording export",
+      "state": "open",
+      "draft": true,
+      "author": "Tihulu",
+      "created_at": "2026-11-11T15:29:07Z",
+      "updated_at": "2026-11-11T15:37:20Z",
+      "closed_at": null,
+      "merged_at": null,
+      "base": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "integration/preserve-all-apps-2026-11-11",
+        "sha": "20379152be2751e5d89a8bdbac85fb15fc6b3c4e"
+      },
+      "head": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "feat/media-unified-recording-export-2026-11-11",
+        "sha": "4e62e21cd5252df8a04f9ceadc429f4b116412ce"
+      },
+      "labels": [],
+      "observed_counts": {},
+      "app_candidates": [
+        "media-center"
+      ],
+      "classification": "title_branch_heuristic_review_required",
+      "source_api": "https://api.github.com/repos/Tihulu/TIHULU-TEXT-CENTER/pulls/67",
+      "body_archive_part": "pr-body-01.json"
+    },
+    {
+      "id": 5261957028,
+      "number": 66,
+      "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/66",
+      "title": "Draft integration: preserve Media, Satellite and RF Geolocation application trees unchanged",
+      "state": "open",
+      "draft": true,
+      "author": "Tihulu",
+      "created_at": "2026-11-11T15:15:24Z",
+      "updated_at": "2026-11-11T15:15:24Z",
+      "closed_at": null,
+      "merged_at": null,
+      "base": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "main",
+        "sha": "1fffb711bfbb7c4abaf55299fa9240e5db3e1cde"
+      },
+      "head": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "integration/preserve-all-apps-2026-11-11",
+        "sha": "20379152be2751e5d89a8bdbac85fb15fc6b3c4e"
+      },
+      "labels": [],
+      "observed_counts": {},
+      "app_candidates": [
+        "satellite-center",
+        "geolocation-center",
+        "media-center"
+      ],
+      "classification": "title_branch_heuristic_review_required",
+      "source_api": "https://api.github.com/repos/Tihulu/TIHULU-TEXT-CENTER/pulls/66",
+      "body_archive_part": "pr-body-01.json"
+    },
+    {
+      "id": 5234424069,
+      "number": 65,
+      "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/65",
+      "title": "Unified AI captions: regional lyrics, karaoke threshold, direct DE→TR, refresh, sound tags & Teletext audit",
+      "state": "open",
+      "draft": true,
+      "author": "Tihulu",
+      "created_at": "2026-11-10T01:57:38Z",
+      "updated_at": "2026-11-10T17:15:03Z",
+      "closed_at": null,
+      "merged_at": null,
+      "base": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "fix/media-radio-library-translation-reading-2026-11-10",
+        "sha": "597be4d1be64e50a137122c7bfd8b33315f07356"
+      },
+      "head": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "feat/unified-lyrics-caption-refresh-2026-11-10",
+        "sha": "20b0417aa7edba2f86b297e7cabdd062e9b24291"
+      },
+      "labels": [],
+      "observed_counts": {},
+      "app_candidates": [
+        "media-center",
+        "text-center"
+      ],
+      "classification": "title_branch_heuristic_review_required",
+      "source_api": "https://api.github.com/repos/Tihulu/TIHULU-TEXT-CENTER/pulls/65",
+      "body_archive_part": "pr-body-01.json"
+    },
+    {
+      "id": 5234198807,
+      "number": 64,
+      "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/64",
+      "title": "Radio + TV: lyric discovery, match threshold, shared offline translation and caption/sync refresh",
+      "state": "open",
+      "draft": true,
+      "author": "Tihulu",
+      "created_at": "2026-11-10T01:36:11Z",
+      "updated_at": "2026-11-10T17:15:03Z",
+      "closed_at": null,
+      "merged_at": null,
+      "base": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "feat/direct-german-turkish-translation-2026-11-10",
+        "sha": "17b90438f923d2b2ebbd48d2ead11e399ca83d88"
+      },
+      "head": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "feat/unified-lyrics-caption-refresh-2026-11-10",
+        "sha": "20b0417aa7edba2f86b297e7cabdd062e9b24291"
+      },
+      "labels": [],
+      "observed_counts": {},
+      "app_candidates": [
+        "media-center",
+        "text-center"
+      ],
+      "classification": "title_branch_heuristic_review_required",
+      "source_api": "https://api.github.com/repos/Tihulu/TIHULU-TEXT-CENTER/pulls/64",
+      "body_archive_part": "pr-body-01.json"
+    },
+    {
+      "id": 5233219365,
+      "number": 63,
+      "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/63",
+      "title": "Media Center: fix radio overlay, editable channel lists, local translation and adaptive captions",
+      "state": "open",
+      "draft": true,
+      "author": "Tihulu",
+      "created_at": "2026-11-09T23:57:27Z",
+      "updated_at": "2026-11-09T23:58:43Z",
+      "closed_at": null,
+      "merged_at": null,
+      "base": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "feat/radio-verified-word-karaoke-2026-11-10",
+        "sha": "389548bb60a9a90b5bacb12855729888fe26f2f6"
+      },
+      "head": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "fix/media-radio-library-translation-reading-2026-11-10",
+        "sha": "597be4d1be64e50a137122c7bfd8b33315f07356"
+      },
+      "labels": [],
+      "observed_counts": {},
+      "app_candidates": [
+        "media-center",
+        "text-center"
+      ],
+      "classification": "title_branch_heuristic_review_required",
+      "source_api": "https://api.github.com/repos/Tihulu/TIHULU-TEXT-CENTER/pulls/63",
+      "body_archive_part": "pr-body-01.json"
+    },
+    {
+      "id": 5232843163,
+      "number": 62,
+      "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/62",
+      "title": "Radio: evidence-based GPU word karaoke in blue screen (no fabricated sync)",
+      "state": "open",
+      "draft": true,
+      "author": "Tihulu",
+      "created_at": "2026-11-09T23:21:05Z",
+      "updated_at": "2026-11-09T23:21:05Z",
+      "closed_at": null,
+      "merged_at": null,
+      "base": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "fix/radio-caption-sync-reading-comfort-2026-11-09",
+        "sha": "aac64a1b505b78b135ab21bfa9ec54ca5093f71d"
+      },
+      "head": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "feat/radio-verified-word-karaoke-2026-11-10",
+        "sha": "389548bb60a9a90b5bacb12855729888fe26f2f6"
+      },
+      "labels": [],
+      "observed_counts": {},
+      "app_candidates": [
+        "media-center",
+        "text-center"
+      ],
+      "classification": "title_branch_heuristic_review_required",
+      "source_api": "https://api.github.com/repos/Tihulu/TIHULU-TEXT-CENTER/pulls/62",
+      "body_archive_part": "pr-body-01.json"
+    },
+    {
+      "id": 5231763214,
+      "number": 61,
+      "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/61",
+      "title": "Radio: TV-style adaptive subtitles and sourced karaoke lyrics in blue player",
+      "state": "open",
+      "draft": true,
+      "author": "Tihulu",
+      "created_at": "2026-11-09T21:49:44Z",
+      "updated_at": "2026-11-09T22:06:01Z",
+      "closed_at": null,
+      "merged_at": null,
+      "base": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "fix/radio-auto-language-lyric-match-bar-2026-11-09",
+        "sha": "80ff0c8f8a2faf7b0d37c5ad5533ebf325d0b490"
+      },
+      "head": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "fix/radio-caption-sync-reading-comfort-2026-11-09",
+        "sha": "aac64a1b505b78b135ab21bfa9ec54ca5093f71d"
+      },
+      "labels": [],
+      "observed_counts": {},
+      "app_candidates": [
+        "media-center",
+        "text-center"
+      ],
+      "classification": "title_branch_heuristic_review_required",
+      "source_api": "https://api.github.com/repos/Tihulu/TIHULU-TEXT-CENTER/pulls/61",
+      "body_archive_part": "pr-body-01.json"
+    },
+    {
+      "id": 5231612099,
+      "number": 60,
+      "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/60",
+      "title": "Radio: show auto-detected IN languages and live lyrics FOUND/MATCHED/NOT MATCHED in caption bar",
+      "state": "open",
+      "draft": true,
+      "author": "Tihulu",
+      "created_at": "2026-11-09T21:38:03Z",
+      "updated_at": "2026-11-09T21:40:01Z",
+      "closed_at": null,
+      "merged_at": null,
+      "base": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "fix/radio-caption-pts-output-ux-2026-11-09",
+        "sha": "4fb40700fc9eddaa5277cd76fbcccd10a48f7056"
+      },
+      "head": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "fix/radio-auto-language-lyric-match-bar-2026-11-09",
+        "sha": "80ff0c8f8a2faf7b0d37c5ad5533ebf325d0b490"
+      },
+      "labels": [],
+      "observed_counts": {},
+      "app_candidates": [
+        "media-center",
+        "text-center"
+      ],
+      "classification": "title_branch_heuristic_review_required",
+      "source_api": "https://api.github.com/repos/Tihulu/TIHULU-TEXT-CENTER/pulls/60",
+      "body_archive_part": "pr-body-01.json"
+    },
+    {
+      "id": 5231348995,
+      "number": 59,
+      "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/59",
+      "title": "Radio AI: capture-timed readable captions, live EN/DE/TR outputs and simpler controls",
+      "state": "open",
+      "draft": true,
+      "author": "Tihulu",
+      "created_at": "2026-11-09T21:17:59Z",
+      "updated_at": "2026-11-09T21:20:54Z",
+      "closed_at": null,
+      "merged_at": null,
+      "base": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "fix/radio-dab-frequency-buffer-progress-2026-11-09",
+        "sha": "6ffc2ae6bb072489bc35afd65ffb29251d916c03"
+      },
+      "head": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "fix/radio-caption-pts-output-ux-2026-11-09",
+        "sha": "4fb40700fc9eddaa5277cd76fbcccd10a48f7056"
+      },
+      "labels": [],
+      "observed_counts": {},
+      "app_candidates": [
+        "media-center",
+        "text-center"
+      ],
+      "classification": "title_branch_heuristic_review_required",
+      "source_api": "https://api.github.com/repos/Tihulu/TIHULU-TEXT-CENTER/pulls/59",
+      "body_archive_part": "pr-body-01.json"
+    },
+    {
+      "id": 5231035801,
+      "number": 58,
+      "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/58",
+      "title": "Radio UI: DAB centre frequency in station/vintage views and visible extra-buffer progress",
+      "state": "open",
+      "draft": true,
+      "author": "Tihulu",
+      "created_at": "2026-11-09T20:55:38Z",
+      "updated_at": "2026-11-09T20:57:53Z",
+      "closed_at": null,
+      "merged_at": null,
+      "base": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "fix/radio-release-sdr-on-stop-2026-11-09",
+        "sha": "7f92b090cd5bfbab70db53291d8850d8ecd074d0"
+      },
+      "head": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "fix/radio-dab-frequency-buffer-progress-2026-11-09",
+        "sha": "6ffc2ae6bb072489bc35afd65ffb29251d916c03"
+      },
+      "labels": [],
+      "observed_counts": {},
+      "app_candidates": [
+        "media-center",
+        "text-center"
+      ],
+      "classification": "title_branch_heuristic_review_required",
+      "source_api": "https://api.github.com/repos/Tihulu/TIHULU-TEXT-CENTER/pulls/58",
+      "body_archive_part": "pr-body-01.json"
+    },
+    {
+      "id": 5230424611,
+      "number": 57,
+      "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/57",
+      "title": "Radio: release RTL-SDR when playback stops by default, optional keep-ready",
+      "state": "open",
+      "draft": true,
+      "author": "Tihulu",
+      "created_at": "2026-11-09T20:10:13Z",
+      "updated_at": "2026-11-09T20:11:47Z",
+      "closed_at": null,
+      "merged_at": null,
+      "base": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "fix/radio-fast-tune-optin-buffer-auto-2026-11-09",
+        "sha": "ba0b9dbedc4a56f8b8cae1608b7e5f69e9ba2963"
+      },
+      "head": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "fix/radio-release-sdr-on-stop-2026-11-09",
+        "sha": "7f92b090cd5bfbab70db53291d8850d8ecd074d0"
+      },
+      "labels": [],
+      "observed_counts": {},
+      "app_candidates": [
+        "media-center",
+        "text-center"
+      ],
+      "classification": "title_branch_heuristic_review_required",
+      "source_api": "https://api.github.com/repos/Tihulu/TIHULU-TEXT-CENTER/pulls/57",
+      "body_archive_part": "pr-body-01.json"
+    },
+    {
+      "id": 5230180482,
+      "number": 56,
+      "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/56",
+      "title": "Radio: fast DAB station changes, AI/cache OFF by default, auto buffering and speech-safe lyrics",
+      "state": "open",
+      "draft": true,
+      "author": "Tihulu",
+      "created_at": "2026-11-09T19:52:15Z",
+      "updated_at": "2026-11-09T19:59:37Z",
+      "closed_at": null,
+      "merged_at": null,
+      "base": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "fix/radio-ai-language-lyrics-overlay-2026-11-09",
+        "sha": "4477937cbbb2dc5fefab2a849fd08f4cd0fa4e4d"
+      },
+      "head": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "fix/radio-fast-tune-optin-buffer-auto-2026-11-09",
+        "sha": "ba0b9dbedc4a56f8b8cae1608b7e5f69e9ba2963"
+      },
+      "labels": [],
+      "observed_counts": {},
+      "app_candidates": [
+        "media-center",
+        "text-center"
+      ],
+      "classification": "title_branch_heuristic_review_required",
+      "source_api": "https://api.github.com/repos/Tihulu/TIHULU-TEXT-CENTER/pulls/56",
+      "body_archive_part": "pr-body-01.json"
+    },
+    {
+      "id": 5229344600,
+      "number": 55,
+      "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/55",
+      "title": "Radio AI: shared IN/OUT language models, in-player lyrics and nonblocking audio capture",
+      "state": "open",
+      "draft": true,
+      "author": "Tihulu",
+      "created_at": "2026-11-09T18:52:07Z",
+      "updated_at": "2026-11-09T19:00:06Z",
+      "closed_at": null,
+      "merged_at": null,
+      "base": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "fix/market-dynamic-sepformer-sync-labels-2026-11-09",
+        "sha": "ab2ea4753e857219206b6f7ad5b4b3aca4cf6c6f"
+      },
+      "head": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "fix/radio-ai-language-lyrics-overlay-2026-11-09",
+        "sha": "4477937cbbb2dc5fefab2a849fd08f4cd0fa4e4d"
+      },
+      "labels": [],
+      "observed_counts": {},
+      "app_candidates": [
+        "media-center",
+        "text-center"
+      ],
+      "classification": "title_branch_heuristic_review_required",
+      "source_api": "https://api.github.com/repos/Tihulu/TIHULU-TEXT-CENTER/pulls/55",
+      "body_archive_part": "pr-body-02.json"
+    },
+    {
+      "id": 5228507803,
+      "number": 54,
+      "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/54",
+      "title": "Fix dynamic AI presets, SepFormer install, localized sound tags and cautious voice labels",
+      "state": "open",
+      "draft": true,
+      "author": "Tihulu",
+      "created_at": "2026-11-09T17:50:20Z",
+      "updated_at": "2026-11-09T18:06:34Z",
+      "closed_at": null,
+      "merged_at": null,
+      "base": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "fix/tihulu-media-radio-dvb-2026-11-08",
+        "sha": "cefbcf850bee632231e8dd641340506b013e7db1"
+      },
+      "head": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "fix/market-dynamic-sepformer-sync-labels-2026-11-09",
+        "sha": "ab2ea4753e857219206b6f7ad5b4b3aca4cf6c6f"
+      },
+      "labels": [],
+      "observed_counts": {},
+      "app_candidates": [
+        "media-center"
+      ],
+      "classification": "title_branch_heuristic_review_required",
+      "source_api": "https://api.github.com/repos/Tihulu/TIHULU-TEXT-CENTER/pulls/54",
+      "body_archive_part": "pr-body-02.json"
+    },
+    {
+      "id": 5218590555,
+      "number": 53,
+      "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/53",
+      "title": "Fix erratic live-caption timing, readable translations and misleading Listening status",
+      "state": "closed",
+      "draft": false,
+      "author": "Tihulu",
+      "created_at": "2026-11-09T04:12:15Z",
+      "updated_at": "2026-11-09T04:13:47Z",
+      "closed_at": "2026-11-09T04:13:47Z",
+      "merged_at": "2026-11-09T04:13:47Z",
+      "base": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "fix/tihulu-media-radio-dvb-2026-11-08",
+        "sha": "7064e58ac46aeaeee3d1ee1910b94adb75538306"
+      },
+      "head": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "fix/caption-pacing-readable-from-current-media-base-2026-11-09",
+        "sha": "ff37c67601ac57e4d8c0df5be65ac6cf249873c4"
+      },
+      "labels": [],
+      "observed_counts": {},
+      "app_candidates": [
+        "media-center",
+        "text-center"
+      ],
+      "classification": "title_branch_heuristic_review_required",
+      "source_api": "https://api.github.com/repos/Tihulu/TIHULU-TEXT-CENTER/pulls/53",
+      "body_archive_part": "pr-body-02.json"
+    },
+    {
+      "id": 5218537076,
+      "number": 52,
+      "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/52",
+      "title": "Stabilize human-readable live captions and distinguish stalled ASR from silence",
+      "state": "closed",
+      "draft": false,
+      "author": "Tihulu",
+      "created_at": "2026-11-09T04:05:57Z",
+      "updated_at": "2026-11-09T04:13:02Z",
+      "closed_at": "2026-11-09T04:13:02Z",
+      "merged_at": null,
+      "base": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "fix/tihulu-media-radio-dvb-2026-11-08",
+        "sha": "7064e58ac46aeaeee3d1ee1910b94adb75538306"
+      },
+      "head": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "fix/stable-live-caption-pacing-buffer-clock-2026-11-09",
+        "sha": "33f23e33068bb009d4f75f9dc8bf466bad3c76e7"
+      },
+      "labels": [],
+      "observed_counts": {},
+      "app_candidates": [
+        "media-center",
+        "text-center"
+      ],
+      "classification": "title_branch_heuristic_review_required",
+      "source_api": "https://api.github.com/repos/Tihulu/TIHULU-TEXT-CENTER/pulls/52",
+      "body_archive_part": "pr-body-02.json"
+    },
+    {
+      "id": 5218382935,
+      "number": 51,
+      "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/51",
+      "title": "Stabilize live TV caption timing, reading duration, and preserve text through buffer changes",
+      "state": "closed",
+      "draft": false,
+      "author": "Tihulu",
+      "created_at": "2026-11-09T03:46:48Z",
+      "updated_at": "2026-11-09T04:02:55Z",
+      "closed_at": "2026-11-09T04:02:54Z",
+      "merged_at": "2026-11-09T04:02:54Z",
+      "base": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "fix/tihulu-media-radio-dvb-2026-11-08",
+        "sha": "affa32d49b26865eea7abaa37cdf022d1184425d"
+      },
+      "head": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "fix/stable-live-caption-pacing-buffer-clock-2026-11-09",
+        "sha": "95c05f39a96922191841e4b64c03e1d895352c22"
+      },
+      "labels": [],
+      "observed_counts": {},
+      "app_candidates": [
+        "media-center",
+        "text-center"
+      ],
+      "classification": "title_branch_heuristic_review_required",
+      "source_api": "https://api.github.com/repos/Tihulu/TIHULU-TEXT-CENTER/pulls/51",
+      "body_archive_part": "pr-body-02.json"
+    },
+    {
+      "id": 5218087615,
+      "number": 50,
+      "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/50",
+      "title": "Experimental real dual-speaker SepFormer ASR plus independent voice/sound caption labels",
+      "state": "closed",
+      "draft": false,
+      "author": "Tihulu",
+      "created_at": "2026-11-09T03:10:52Z",
+      "updated_at": "2026-11-09T03:32:50Z",
+      "closed_at": "2026-11-09T03:32:50Z",
+      "merged_at": "2026-11-09T03:32:50Z",
+      "base": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "fix/tihulu-media-radio-dvb-2026-11-08",
+        "sha": "14d801420e846cc222ba06892e3e41f565701334"
+      },
+      "head": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "feature/experimental-dual-voice-sepformer-2026-11-09",
+        "sha": "33852ee0d472890112e5be501be1eee2a7f4e080"
+      },
+      "labels": [],
+      "observed_counts": {},
+      "app_candidates": [
+        "media-center"
+      ],
+      "classification": "title_branch_heuristic_review_required",
+      "source_api": "https://api.github.com/repos/Tihulu/TIHULU-TEXT-CENTER/pulls/50",
+      "body_archive_part": "pr-body-02.json"
+    },
+    {
+      "id": 5217434630,
+      "number": 49,
+      "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/49",
+      "title": "Speed up Model Market, show auto installed status and per-model progress, support Custom presets",
+      "state": "closed",
+      "draft": false,
+      "author": "Tihulu",
+      "created_at": "2026-11-09T01:50:31Z",
+      "updated_at": "2026-11-09T02:42:58Z",
+      "closed_at": "2026-11-09T02:42:58Z",
+      "merged_at": "2026-11-09T02:42:58Z",
+      "base": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "fix/tihulu-media-radio-dvb-2026-11-08",
+        "sha": "68c3d0422daccc10eb2cf5c30a50b39955a11e36"
+      },
+      "head": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "fix/model-market-auto-status-progress-fast-open-2026-11-09",
+        "sha": "8fca6249116af791f6482eab2f7f9789324e058e"
+      },
+      "labels": [],
+      "observed_counts": {},
+      "app_candidates": [
+        "media-center"
+      ],
+      "classification": "title_branch_heuristic_review_required",
+      "source_api": "https://api.github.com/repos/Tihulu/TIHULU-TEXT-CENTER/pulls/49",
+      "body_archive_part": "pr-body-02.json"
+    },
+    {
+      "id": 5217276891,
+      "number": 48,
+      "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/48",
+      "title": "Optimize Pi 5 CPU and enable checked Hailo-10H Whisper Base for AI HAT+ 2",
+      "state": "closed",
+      "draft": false,
+      "author": "Tihulu",
+      "created_at": "2026-11-09T01:29:30Z",
+      "updated_at": "2026-11-09T01:31:37Z",
+      "closed_at": "2026-11-09T01:31:37Z",
+      "merged_at": "2026-11-09T01:31:37Z",
+      "base": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "fix/tihulu-media-radio-dvb-2026-11-08",
+        "sha": "e5fa6f320bf920e1dfd36cfe80f7242fe968d815"
+      },
+      "head": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "feature/pi5-cpu-hailo10h-profiles-2026-11-09",
+        "sha": "7311031698213462ea6083a8429f6978ed945fa1"
+      },
+      "labels": [],
+      "observed_counts": {},
+      "app_candidates": [
+        "media-center"
+      ],
+      "classification": "title_branch_heuristic_review_required",
+      "source_api": "https://api.github.com/repos/Tihulu/TIHULU-TEXT-CENTER/pulls/48",
+      "body_archive_part": "pr-body-02.json"
+    },
+    {
+      "id": 5216736491,
+      "number": 47,
+      "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/47",
+      "title": "Add five guided AI modes, opt-in remote CUDA speech and nonblocking startup",
+      "state": "closed",
+      "draft": false,
+      "author": "Tihulu",
+      "created_at": "2026-11-09T00:23:58Z",
+      "updated_at": "2026-11-09T00:30:44Z",
+      "closed_at": "2026-11-09T00:30:44Z",
+      "merged_at": "2026-11-09T00:30:44Z",
+      "base": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "fix/tihulu-media-radio-dvb-2026-11-08",
+        "sha": "cb35d841139a2d3a839b7171434916ff73a3cab8"
+      },
+      "head": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "feature/ai-profile-bundles-remote-gpu-startup-2026-11-09",
+        "sha": "ae4682d9f58b81d4cb843060c9374019d5ff2d7b"
+      },
+      "labels": [],
+      "observed_counts": {},
+      "app_candidates": [
+        "unclassified"
+      ],
+      "classification": "title_branch_heuristic_review_required",
+      "source_api": "https://api.github.com/repos/Tihulu/TIHULU-TEXT-CENTER/pulls/47",
+      "body_archive_part": "pr-body-02.json"
+    },
+    {
+      "id": 5216498570,
+      "number": 46,
+      "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/46",
+      "title": "Preserve source-word timing for live subtitles and split estimated speaker turns",
+      "state": "closed",
+      "draft": false,
+      "author": "Tihulu",
+      "created_at": "2026-11-08T23:59:17Z",
+      "updated_at": "2026-11-09T00:01:57Z",
+      "closed_at": "2026-11-09T00:01:57Z",
+      "merged_at": "2026-11-09T00:01:57Z",
+      "base": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "fix/tihulu-media-radio-dvb-2026-11-08",
+        "sha": "28603315aa7826a7e66b767af1c755269e74c18b"
+      },
+      "head": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "fix/live-caption-word-speaker-sync-2026-11-09",
+        "sha": "2c2c92a7827848aea6f5ba748c8c39287155040e"
+      },
+      "labels": [],
+      "observed_counts": {},
+      "app_candidates": [
+        "media-center",
+        "text-center"
+      ],
+      "classification": "title_branch_heuristic_review_required",
+      "source_api": "https://api.github.com/repos/Tihulu/TIHULU-TEXT-CENTER/pulls/46",
+      "body_archive_part": "pr-body-02.json"
+    },
+    {
+      "id": 5216370126,
+      "number": 45,
+      "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/45",
+      "title": "Separate Spoken Auto detect from English output; show installed NLLB/MADLAD and online DeepL languages promptly",
+      "state": "closed",
+      "draft": false,
+      "author": "Tihulu",
+      "created_at": "2026-11-08T23:44:10Z",
+      "updated_at": "2026-11-08T23:46:27Z",
+      "closed_at": "2026-11-08T23:46:26Z",
+      "merged_at": "2026-11-08T23:46:26Z",
+      "base": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "fix/tihulu-media-radio-dvb-2026-11-08",
+        "sha": "e1f74aab38b6e50a0572a8dbd6414a620830b3f4"
+      },
+      "head": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "fix/spoken-autodetect-output-english-multimodel-languages-2026-11-09",
+        "sha": "3e17bd802a85e2827a806db7aeea33e6115cead4"
+      },
+      "labels": [],
+      "observed_counts": {},
+      "app_candidates": [
+        "media-center",
+        "text-center"
+      ],
+      "classification": "title_branch_heuristic_review_required",
+      "source_api": "https://api.github.com/repos/Tihulu/TIHULU-TEXT-CENTER/pulls/45",
+      "body_archive_part": "pr-body-02.json"
+    },
+    {
+      "id": 5216297268,
+      "number": 44,
+      "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/44",
+      "title": "Fix Output languages dropdown stuck on checking installed models (Argos/MADLAD)",
+      "state": "closed",
+      "draft": false,
+      "author": "Tihulu",
+      "created_at": "2026-11-08T23:35:19Z",
+      "updated_at": "2026-11-08T23:36:55Z",
+      "closed_at": "2026-11-08T23:36:55Z",
+      "merged_at": "2026-11-08T23:36:55Z",
+      "base": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "fix/tihulu-media-radio-dvb-2026-11-08",
+        "sha": "1630f804b6c3fbd0c55475e665219b5c67a27be5"
+      },
+      "head": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "fix/output-language-picker-fast-fallback-2026-11-09",
+        "sha": "d162460e3e59e600e2254246b625b7c478cc908f"
+      },
+      "labels": [],
+      "observed_counts": {},
+      "app_candidates": [
+        "media-center",
+        "text-center"
+      ],
+      "classification": "title_branch_heuristic_review_required",
+      "source_api": "https://api.github.com/repos/Tihulu/TIHULU-TEXT-CENTER/pulls/44",
+      "body_archive_part": "pr-body-02.json"
+    },
+    {
+      "id": 5216074223,
+      "number": 43,
+      "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/43",
+      "title": "Reduce live TV subtitle dropouts and add consent-based offline AI model benchmarks + language dropdown",
+      "state": "closed",
+      "draft": false,
+      "author": "Tihulu",
+      "created_at": "2026-11-08T23:08:04Z",
+      "updated_at": "2026-11-08T23:16:18Z",
+      "closed_at": "2026-11-08T23:16:18Z",
+      "merged_at": "2026-11-08T23:16:18Z",
+      "base": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "fix/tihulu-media-radio-dvb-2026-11-08",
+        "sha": "29c14cfe11d4f10e8c217582b8fd3e50d957c3ef"
+      },
+      "head": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "feature/ai-live-benchmark-language-picker-2026-11-08",
+        "sha": "ff1def26a3f44f88684f3b806110606db3e59743"
+      },
+      "labels": [],
+      "observed_counts": {},
+      "app_candidates": [
+        "media-center",
+        "text-center"
+      ],
+      "classification": "title_branch_heuristic_review_required",
+      "source_api": "https://api.github.com/repos/Tihulu/TIHULU-TEXT-CENTER/pulls/43",
+      "body_archive_part": "pr-body-03.json"
+    },
+    {
+      "id": 5215710548,
+      "number": 42,
+      "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/42",
+      "title": "Fix DVB channel switching while caption settings remain open and rebind subtitles to new tune",
+      "state": "closed",
+      "draft": false,
+      "author": "Tihulu",
+      "created_at": "2026-11-08T22:24:05Z",
+      "updated_at": "2026-11-08T22:28:14Z",
+      "closed_at": "2026-11-08T22:28:14Z",
+      "merged_at": "2026-11-08T22:28:14Z",
+      "base": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "fix/tihulu-media-radio-dvb-2026-11-08",
+        "sha": "35f4820304512dd13a1e956b8a189fab9ba605da"
+      },
+      "head": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "fix/tv-channel-switch-captions-session-2026-11-08",
+        "sha": "6e4f5e66a2673d34e912fe08c4041915591fb139"
+      },
+      "labels": [],
+      "observed_counts": {},
+      "app_candidates": [
+        "media-center",
+        "text-center"
+      ],
+      "classification": "title_branch_heuristic_review_required",
+      "source_api": "https://api.github.com/repos/Tihulu/TIHULU-TEXT-CENTER/pulls/42",
+      "body_archive_part": "pr-body-03.json"
+    },
+    {
+      "id": 5209910827,
+      "number": 41,
+      "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/41",
+      "title": "Radio captions and lyrics reliability: stop replacing station video, opt-in source fallback, honest buffer",
+      "state": "closed",
+      "draft": false,
+      "author": "Tihulu",
+      "created_at": "2026-11-08T08:35:52Z",
+      "updated_at": "2026-11-08T08:51:35Z",
+      "closed_at": "2026-11-08T08:51:35Z",
+      "merged_at": "2026-11-08T08:51:35Z",
+      "base": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "fix/tihulu-media-radio-dvb-2026-11-08",
+        "sha": "5b09a47f9f251b9c36695cedd9aaeaaa1f795d6b"
+      },
+      "head": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "fix/radio-lyrics-asr-fallback-honest-timing-2026-11-08",
+        "sha": "d457130e067c439c675219964823f18329b4d8e3"
+      },
+      "labels": [],
+      "observed_counts": {},
+      "app_candidates": [
+        "media-center",
+        "text-center"
+      ],
+      "classification": "title_branch_heuristic_review_required",
+      "source_api": "https://api.github.com/repos/Tihulu/TIHULU-TEXT-CENTER/pulls/41",
+      "body_archive_part": "pr-body-03.json"
+    },
+    {
+      "id": 5209784532,
+      "number": 40,
+      "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/40",
+      "title": "Recover short DVB retune failures and explain invalid channel-source settings",
+      "state": "closed",
+      "draft": false,
+      "author": "Tihulu",
+      "created_at": "2026-11-08T08:12:47Z",
+      "updated_at": "2026-11-08T08:18:54Z",
+      "closed_at": "2026-11-08T08:18:54Z",
+      "merged_at": "2026-11-08T08:18:54Z",
+      "base": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "fix/tihulu-media-radio-dvb-2026-11-08",
+        "sha": "ff9acf14f9fd9f6d16f22f76712a6b99144ca8cd"
+      },
+      "head": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "fix/kaffeine-dvb-channel-retune-recovery-2026-11-08",
+        "sha": "875d1f89fc85972202e9264d134e7d7b6dd1203e"
+      },
+      "labels": [],
+      "observed_counts": {},
+      "app_candidates": [
+        "media-center",
+        "text-center"
+      ],
+      "classification": "title_branch_heuristic_review_required",
+      "source_api": "https://api.github.com/repos/Tihulu/TIHULU-TEXT-CENTER/pulls/40",
+      "body_archive_part": "pr-body-03.json"
+    },
+    {
+      "id": 5209746922,
+      "number": 39,
+      "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/39",
+      "title": "Fix live TV subtitle placement, native VOUT reinitialization and increase-only buffer sync",
+      "state": "closed",
+      "draft": false,
+      "author": "Tihulu",
+      "created_at": "2026-11-08T08:05:52Z",
+      "updated_at": "2026-11-08T08:07:32Z",
+      "closed_at": "2026-11-08T08:07:31Z",
+      "merged_at": "2026-11-08T08:07:31Z",
+      "base": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "fix/tihulu-media-radio-dvb-2026-11-08",
+        "sha": "2746c522bf1250b6200624c74a511b94a84e8fe0"
+      },
+      "head": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "fix/kaffeine-caption-placement-monotonic-buffer-2026-11-08",
+        "sha": "f907d6110825210333574fce68411c1f5b2d2392"
+      },
+      "labels": [],
+      "observed_counts": {},
+      "app_candidates": [
+        "media-center",
+        "text-center"
+      ],
+      "classification": "title_branch_heuristic_review_required",
+      "source_api": "https://api.github.com/repos/Tihulu/TIHULU-TEXT-CENTER/pulls/39",
+      "body_archive_part": "pr-body-03.json"
+    },
+    {
+      "id": 5208335509,
+      "number": 38,
+      "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/38",
+      "title": "TIHULU Media Center: DVB stability, DAB playback, subtitles and paired remote hub (draft)",
+      "state": "open",
+      "draft": true,
+      "author": "Tihulu",
+      "created_at": "2026-11-08T03:34:46Z",
+      "updated_at": "2026-11-09T18:06:30Z",
+      "closed_at": null,
+      "merged_at": null,
+      "base": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "architecture/kaffeine-core-tv-2026-11-07",
+        "sha": "08a7579dad22cb9b752b8ad4637bf2d061f4e312"
+      },
+      "head": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "fix/tihulu-media-radio-dvb-2026-11-08",
+        "sha": "73698d2d9f99b5145a1ac429cb2ee16a77b5e1d6"
+      },
+      "labels": [],
+      "observed_counts": {},
+      "app_candidates": [
+        "media-center",
+        "text-center"
+      ],
+      "classification": "title_branch_heuristic_review_required",
+      "source_api": "https://api.github.com/repos/Tihulu/TIHULU-TEXT-CENTER/pulls/38",
+      "body_archive_part": "pr-body-03.json"
+    },
+    {
+      "id": 5207726658,
+      "number": 37,
+      "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/37",
+      "title": "Fix native Debian pass scheduling for Meteor LRPT (IQ-only, continuous capture)",
+      "state": "open",
+      "draft": true,
+      "author": "Tihulu",
+      "created_at": "2026-11-08T01:55:02Z",
+      "updated_at": "2026-11-09T03:56:36Z",
+      "closed_at": null,
+      "merged_at": null,
+      "base": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "feature/satellite-auto-discovery-integrated-2026-11-06",
+        "sha": "362f2f86a70a420d2ddc0eae1619abc75060f2e8"
+      },
+      "head": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "fix/satellite-native-scheduler-modes-2026-11-08",
+        "sha": "670e0ddcf029c8fcc9b0cef403bf76cf37613fcb"
+      },
+      "labels": [],
+      "observed_counts": {},
+      "app_candidates": [
+        "satellite-center"
+      ],
+      "classification": "title_branch_heuristic_review_required",
+      "source_api": "https://api.github.com/repos/Tihulu/TIHULU-TEXT-CENTER/pulls/37",
+      "body_archive_part": "pr-body-03.json"
+    },
+    {
+      "id": 5205998693,
+      "number": 36,
+      "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/36",
+      "title": "Draft: Rebase TIHULU TV on real Kaffeine DVB core, integrate Whisper/Translator and mobile HLS",
+      "state": "open",
+      "draft": true,
+      "author": "Tihulu",
+      "created_at": "2026-11-07T21:28:48Z",
+      "updated_at": "2026-11-08T03:17:52Z",
+      "closed_at": null,
+      "merged_at": null,
+      "base": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "feature/tv-center-native-teletext-asr-2026-11-07",
+        "sha": "ee574825a21145aea6996c639f5f142c46613011"
+      },
+      "head": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "architecture/kaffeine-core-tv-2026-11-07",
+        "sha": "08a7579dad22cb9b752b8ad4637bf2d061f4e312"
+      },
+      "labels": [],
+      "observed_counts": {},
+      "app_candidates": [
+        "media-center"
+      ],
+      "classification": "title_branch_heuristic_review_required",
+      "source_api": "https://api.github.com/repos/Tihulu/TIHULU-TEXT-CENTER/pulls/36",
+      "body_archive_part": "pr-body-03.json"
+    },
+    {
+      "id": 5204210819,
+      "number": 35,
+      "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/35",
+      "title": "TV Center: standalone WebUSB/WASM browser driver research, TS/SDT parser + optional native TV",
+      "state": "open",
+      "draft": true,
+      "author": "Tihulu",
+      "created_at": "2026-11-07T17:33:26Z",
+      "updated_at": "2026-11-08T01:59:48Z",
+      "closed_at": null,
+      "merged_at": null,
+      "base": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "main",
+        "sha": "6be907a779e70f39dcb72a35767aaa632652e38d"
+      },
+      "head": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "feature/tv-center-native-teletext-asr-2026-11-07",
+        "sha": "4e2eb8db10881708f37f6e11491fb2fe5a88254e"
+      },
+      "labels": [],
+      "observed_counts": {},
+      "app_candidates": [
+        "media-center",
+        "text-center"
+      ],
+      "classification": "title_branch_heuristic_review_required",
+      "source_api": "https://api.github.com/repos/Tihulu/TIHULU-TEXT-CENTER/pulls/35",
+      "body_archive_part": "pr-body-03.json"
+    },
+    {
+      "id": 5197481611,
+      "number": 33,
+      "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/33",
+      "title": "Satellite Center: chain long WebUSB/native RF recordings into independently scheduled calendar files",
+      "state": "closed",
+      "draft": false,
+      "author": "Tihulu",
+      "created_at": "2026-11-07T02:11:36Z",
+      "updated_at": "2026-11-07T02:22:58Z",
+      "closed_at": "2026-11-07T02:22:58Z",
+      "merged_at": "2026-11-07T02:22:58Z",
+      "base": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "feature/satellite-auto-discovery-integrated-2026-11-06",
+        "sha": "85dee0719744f60469e97fba3d1cae2aa8cb91a7"
+      },
+      "head": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "feature/satellite-chained-capture-calendar-2026-11-07",
+        "sha": "116aca61dfaa87bd236ef7a5e720f5ccec253c96"
+      },
+      "labels": [],
+      "observed_counts": {},
+      "app_candidates": [
+        "satellite-center",
+        "media-center",
+        "text-center"
+      ],
+      "classification": "title_branch_heuristic_review_required",
+      "source_api": "https://api.github.com/repos/Tihulu/TIHULU-TEXT-CENTER/pulls/33",
+      "body_archive_part": "pr-body-03.json"
+    },
+    {
+      "id": 5197256479,
+      "number": 32,
+      "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/32",
+      "title": "Satellite Center: consecutive 60s browser / 180s native capture segments, minutes and full countdown",
+      "state": "open",
+      "draft": true,
+      "author": "Tihulu",
+      "created_at": "2026-11-07T01:38:39Z",
+      "updated_at": "2026-11-07T01:54:43Z",
+      "closed_at": null,
+      "merged_at": null,
+      "base": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "feature/satellite-auto-discovery-integrated-2026-11-06",
+        "sha": "9ba634311e2db69e4a8e2063b7cc35f84b91c2f7"
+      },
+      "head": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "feature/satellite-segmented-captures-2026-11-07",
+        "sha": "ca652a730b4fa59a88f08982f931010f8ea77463"
+      },
+      "labels": [],
+      "observed_counts": {},
+      "app_candidates": [
+        "satellite-center"
+      ],
+      "classification": "title_branch_heuristic_review_required",
+      "source_api": "https://api.github.com/repos/Tihulu/TIHULU-TEXT-CENTER/pulls/32",
+      "body_archive_part": "pr-body-03.json"
+    },
+    {
+      "id": 5196951518,
+      "number": 31,
+      "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/31",
+      "title": "Robot36: diagnose wrong ISS receive frequency, pre-event recordings and missing sync",
+      "state": "closed",
+      "draft": false,
+      "author": "Tihulu",
+      "created_at": "2026-11-07T00:56:00Z",
+      "updated_at": "2026-11-07T00:57:28Z",
+      "closed_at": "2026-11-07T00:57:28Z",
+      "merged_at": "2026-11-07T00:57:28Z",
+      "base": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "feature/satellite-auto-discovery-integrated-2026-11-06",
+        "sha": "d554d6790d08de1c3d7b399d6edbaa50f2226165"
+      },
+      "head": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "feature/iss-sstv-wrong-band-diagnostic-2026-11-07",
+        "sha": "7e16d127fae2522c9dbd5d34ae15e548d3251268"
+      },
+      "labels": [],
+      "observed_counts": {},
+      "app_candidates": [
+        "satellite-center",
+        "media-center"
+      ],
+      "classification": "title_branch_heuristic_review_required",
+      "source_api": "https://api.github.com/repos/Tihulu/TIHULU-TEXT-CENTER/pulls/31",
+      "body_archive_part": "pr-body-03.json"
+    },
+    {
+      "id": 5196152765,
+      "number": 30,
+      "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/30",
+      "title": "Show and verify optional simultaneous CU8 + WAV recording in Satellite Center",
+      "state": "closed",
+      "draft": false,
+      "author": "Tihulu",
+      "created_at": "2026-11-06T23:23:24Z",
+      "updated_at": "2026-11-06T23:24:46Z",
+      "closed_at": "2026-11-06T23:24:46Z",
+      "merged_at": "2026-11-06T23:24:46Z",
+      "base": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "feature/satellite-auto-discovery-integrated-2026-11-06",
+        "sha": "34df97dcc392321fa89c7713823fa47307a851d2"
+      },
+      "head": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "feature/satellite-explicit-cu8-wav-multiselect-2026-11-07",
+        "sha": "39ed2b932dc9e4f5ccf8364ab6c51b9475d98d1a"
+      },
+      "labels": [],
+      "observed_counts": {},
+      "app_candidates": [
+        "satellite-center",
+        "media-center"
+      ],
+      "classification": "title_branch_heuristic_review_required",
+      "source_api": "https://api.github.com/repos/Tihulu/TIHULU-TEXT-CENTER/pulls/30",
+      "body_archive_part": "pr-body-04.json"
+    },
+    {
+      "id": 5195979358,
+      "number": 29,
+      "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/29",
+      "title": "Satellite WebUSB: record actual FM-demodulated WAV and optional CU8 simultaneously",
+      "state": "closed",
+      "draft": false,
+      "author": "Tihulu",
+      "created_at": "2026-11-06T23:06:08Z",
+      "updated_at": "2026-11-06T23:11:02Z",
+      "closed_at": "2026-11-06T23:11:02Z",
+      "merged_at": "2026-11-06T23:11:02Z",
+      "base": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "feature/satellite-auto-discovery-integrated-2026-11-06",
+        "sha": "5358202d891eb13432b475b3811692c1722775fc"
+      },
+      "head": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "feature/browser-direct-iss-fm-wav-2026-11-06",
+        "sha": "c3e7c643c7382f985c17301afeca423d13da36b2"
+      },
+      "labels": [],
+      "observed_counts": {},
+      "app_candidates": [
+        "satellite-center",
+        "media-center",
+        "text-center"
+      ],
+      "classification": "title_branch_heuristic_review_required",
+      "source_api": "https://api.github.com/repos/Tihulu/TIHULU-TEXT-CENTER/pulls/29",
+      "body_archive_part": "pr-body-04.json"
+    },
+    {
+      "id": 5195636489,
+      "number": 28,
+      "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/28",
+      "title": "Integrate ISS SSTV reception and real optional Intel NPU, publish matching Pages assets",
+      "state": "closed",
+      "draft": false,
+      "author": "Tihulu",
+      "created_at": "2026-11-06T22:33:21Z",
+      "updated_at": "2026-11-06T22:34:24Z",
+      "closed_at": "2026-11-06T22:34:24Z",
+      "merged_at": "2026-11-06T22:34:24Z",
+      "base": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "feature/satellite-auto-discovery-integrated-2026-11-06",
+        "sha": "509d19d0249aa2eb1392d0b929be4fd49b1fbfae"
+      },
+      "head": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "release/iss-sstv-npu-pages-2026-11-06",
+        "sha": "a147b6773f1c5f7b823782200b3a2d724a166432"
+      },
+      "labels": [],
+      "observed_counts": {},
+      "app_candidates": [
+        "satellite-center",
+        "media-center"
+      ],
+      "classification": "title_branch_heuristic_review_required",
+      "source_api": "https://api.github.com/repos/Tihulu/TIHULU-TEXT-CENTER/pulls/28",
+      "body_archive_part": "pr-body-04.json"
+    },
+    {
+      "id": 5195239980,
+      "number": 27,
+      "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/27",
+      "title": "Satellite processing: adaptive CPU/GPU/NPU selector with real WebGPU/CUDA Robot36 acceleration",
+      "state": "closed",
+      "draft": true,
+      "author": "Tihulu",
+      "created_at": "2026-11-06T21:58:43Z",
+      "updated_at": "2026-11-06T22:35:31Z",
+      "closed_at": "2026-11-06T22:35:30Z",
+      "merged_at": null,
+      "base": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "feature/iss-series35-automated-sstv-2026-11-06",
+        "sha": "d3ab11f637f0503fc1a6559aec755174592b221a"
+      },
+      "head": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "feature/satellite-compute-backends-2026-11-06",
+        "sha": "eb34979fbd59bb437f3d20b327f65d1610efb7d1"
+      },
+      "labels": [],
+      "observed_counts": {},
+      "app_candidates": [
+        "satellite-center"
+      ],
+      "classification": "title_branch_heuristic_review_required",
+      "source_api": "https://api.github.com/repos/Tihulu/TIHULU-TEXT-CENTER/pulls/27",
+      "body_archive_part": "pr-body-04.json"
+    },
+    {
+      "id": 5194995080,
+      "number": 26,
+      "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/26",
+      "title": "ISS SSTV Series 35: full-pass automatic Robot36 PNG extraction, preview and ZIP evidence",
+      "state": "closed",
+      "draft": true,
+      "author": "Tihulu",
+      "created_at": "2026-11-06T21:36:48Z",
+      "updated_at": "2026-11-06T22:35:28Z",
+      "closed_at": "2026-11-06T22:35:27Z",
+      "merged_at": null,
+      "base": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "feature/satellite-auto-discovery-integrated-2026-11-06",
+        "sha": "92bb6a562e244a2521bad729c0f8ef87fcaae8ac"
+      },
+      "head": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "feature/iss-series35-automated-sstv-2026-11-06",
+        "sha": "d3ab11f637f0503fc1a6559aec755174592b221a"
+      },
+      "labels": [],
+      "observed_counts": {},
+      "app_candidates": [
+        "satellite-center",
+        "media-center"
+      ],
+      "classification": "title_branch_heuristic_review_required",
+      "source_api": "https://api.github.com/repos/Tihulu/TIHULU-TEXT-CENTER/pulls/26",
+      "body_archive_part": "pr-body-04.json"
+    },
+    {
+      "id": 5194134263,
+      "number": 25,
+      "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/25",
+      "title": "Teletext-first live TV subtitles with genuine fallback ASR, toggles and TV/Text & Alerts page reader",
+      "state": "open",
+      "draft": true,
+      "author": "Tihulu",
+      "created_at": "2026-11-06T20:25:26Z",
+      "updated_at": "2026-11-06T20:28:21Z",
+      "closed_at": null,
+      "merged_at": null,
+      "base": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "feature/live-captions-translation-radio-tv-dab-2026-11-06",
+        "sha": "359a3234755d2b2e8a49c41284f80a4481c78e11"
+      },
+      "head": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "feature/teletext-first-tv-subtitles-fallback-ui-2026-11-06",
+        "sha": "0c3549485b2802f718876957092100aef57e6bf8"
+      },
+      "labels": [],
+      "observed_counts": {},
+      "app_candidates": [
+        "media-center",
+        "text-center"
+      ],
+      "classification": "title_branch_heuristic_review_required",
+      "source_api": "https://api.github.com/repos/Tihulu/TIHULU-TEXT-CENTER/pulls/25",
+      "body_archive_part": "pr-body-04.json"
+    },
+    {
+      "id": 5194098672,
+      "number": 24,
+      "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/24",
+      "title": "TV Teletext subtitles first, ASR translation fallback, live caption toggles and TV/Text Teletext reader",
+      "state": "open",
+      "draft": true,
+      "author": "Tihulu",
+      "created_at": "2026-11-06T20:22:52Z",
+      "updated_at": "2026-11-06T20:27:16Z",
+      "closed_at": null,
+      "merged_at": null,
+      "base": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "feature/live-captions-translation-radio-tv-dab-2026-11-06",
+        "sha": "359a3234755d2b2e8a49c41284f80a4481c78e11"
+      },
+      "head": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "feature/tv-teletext-subtitles-priority-fallback-2026-11-06",
+        "sha": "a5ec65415209c044883892a947d86977eaca6a38"
+      },
+      "labels": [],
+      "observed_counts": {},
+      "app_candidates": [
+        "media-center",
+        "text-center"
+      ],
+      "classification": "title_branch_heuristic_review_required",
+      "source_api": "https://api.github.com/repos/Tihulu/TIHULU-TEXT-CENTER/pulls/24",
+      "body_archive_part": "pr-body-04.json"
+    },
+    {
+      "id": 5193377971,
+      "number": 23,
+      "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/23",
+      "title": "Live FM, DAB+ and TV captions with opt-in translation in unified channel player",
+      "state": "open",
+      "draft": true,
+      "author": "Tihulu",
+      "created_at": "2026-11-06T19:22:50Z",
+      "updated_at": "2026-11-06T19:27:36Z",
+      "closed_at": null,
+      "merged_at": null,
+      "base": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "ui/text-alerts-broadcast-reading-center-2026-11-06",
+        "sha": "23d1fc78b2c3ff982d961b21bd3ec98c647cb78c"
+      },
+      "head": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "feature/live-captions-translation-radio-tv-dab-2026-11-06",
+        "sha": "359a3234755d2b2e8a49c41284f80a4481c78e11"
+      },
+      "labels": [],
+      "observed_counts": {},
+      "app_candidates": [
+        "media-center",
+        "text-center"
+      ],
+      "classification": "title_branch_heuristic_review_required",
+      "source_api": "https://api.github.com/repos/Tihulu/TIHULU-TEXT-CENTER/pulls/23",
+      "body_archive_part": "pr-body-04.json"
+    },
+    {
+      "id": 5192680264,
+      "number": 22,
+      "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/22",
+      "title": "UI/UX: consolidate emergency information, radio text, Teletext, Journaline and web feeds in Text & Alerts",
+      "state": "open",
+      "draft": true,
+      "author": "Tihulu",
+      "created_at": "2026-11-06T18:28:03Z",
+      "updated_at": "2026-11-06T18:29:50Z",
+      "closed_at": null,
+      "merged_at": null,
+      "base": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "feature/unified-channel-center-full-scan-ui-2026-11-06",
+        "sha": "0f396579f048292677b632eaff70f63f37192d44"
+      },
+      "head": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "ui/text-alerts-broadcast-reading-center-2026-11-06",
+        "sha": "23d1fc78b2c3ff982d961b21bd3ec98c647cb78c"
+      },
+      "labels": [],
+      "observed_counts": {},
+      "app_candidates": [
+        "media-center",
+        "text-center"
+      ],
+      "classification": "title_branch_heuristic_review_required",
+      "source_api": "https://api.github.com/repos/Tihulu/TIHULU-TEXT-CENTER/pulls/22",
+      "body_archive_part": "pr-body-04.json"
+    },
+    {
+      "id": 5185740208,
+      "number": 19,
+      "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/19",
+      "title": "Publish Satellite Center automatic CU8 discovery to GitHub Pages",
+      "state": "closed",
+      "draft": false,
+      "author": "Tihulu",
+      "created_at": "2026-11-06T09:26:52Z",
+      "updated_at": "2026-11-06T09:27:12Z",
+      "closed_at": "2026-11-06T09:27:12Z",
+      "merged_at": "2026-11-06T09:27:12Z",
+      "base": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "gh-pages",
+        "sha": "86ea9464d21246e5d4ce4e76df1e5ac2856807c7"
+      },
+      "head": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "feature/satellite-discovery-pages-2026-11-06",
+        "sha": "5e879ac5406287034f362f8bebe05310152c0c51"
+      },
+      "labels": [],
+      "observed_counts": {},
+      "app_candidates": [
+        "satellite-center"
+      ],
+      "classification": "title_branch_heuristic_review_required",
+      "source_api": "https://api.github.com/repos/Tihulu/TIHULU-TEXT-CENTER/pulls/19",
+      "body_archive_part": "pr-body-04.json"
+    },
+    {
+      "id": 5185693703,
+      "number": 18,
+      "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/18",
+      "title": "Satellite Center: automatic CU8 signal discovery (RF → analog audio → verified SSTV candidates)",
+      "state": "open",
+      "draft": true,
+      "author": "Tihulu",
+      "created_at": "2026-11-06T09:22:51Z",
+      "updated_at": "2026-11-07T19:55:38Z",
+      "closed_at": null,
+      "merged_at": null,
+      "base": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "feature/satellite-center-standalone-2026-11-06",
+        "sha": "61713a9d5c939936cc01de886beb3a02288c9aa5"
+      },
+      "head": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "feature/satellite-auto-discovery-integrated-2026-11-06",
+        "sha": "362f2f86a70a420d2ddc0eae1619abc75060f2e8"
+      },
+      "labels": [],
+      "observed_counts": {},
+      "app_candidates": [
+        "satellite-center",
+        "media-center"
+      ],
+      "classification": "title_branch_heuristic_review_required",
+      "source_api": "https://api.github.com/repos/Tihulu/TIHULU-TEXT-CENTER/pulls/18",
+      "body_archive_part": "pr-body-04.json"
+    },
+    {
+      "id": 5185079242,
+      "number": 17,
+      "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/17",
+      "title": "Satellite Center: cross-platform full IQ signal analysis and optional analog audio preview",
+      "state": "open",
+      "draft": true,
+      "author": "Tihulu",
+      "created_at": "2026-11-06T08:27:44Z",
+      "updated_at": "2026-11-06T09:29:35Z",
+      "closed_at": null,
+      "merged_at": null,
+      "base": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "feature/satellite-center-standalone-2026-11-06",
+        "sha": "48d557ad342b6779539c7bafe1303f775a1a7622"
+      },
+      "head": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "feature/satellite-signal-intelligence-2026-11-06",
+        "sha": "e34d4a180759ddc752695a154a2f36c934fae345"
+      },
+      "labels": [],
+      "observed_counts": {},
+      "app_candidates": [
+        "satellite-center"
+      ],
+      "classification": "title_branch_heuristic_review_required",
+      "source_api": "https://api.github.com/repos/Tihulu/TIHULU-TEXT-CENTER/pulls/17",
+      "body_archive_part": "pr-body-04.json"
+    },
+    {
+      "id": 5183601599,
+      "number": 16,
+      "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/16",
+      "title": "WIP: RF Geolocation — no-token native TV pairing, USB hardware discovery and natural map navigation",
+      "state": "open",
+      "draft": true,
+      "author": "Tihulu",
+      "created_at": "2026-11-06T05:53:52Z",
+      "updated_at": "2026-11-06T19:35:12Z",
+      "closed_at": null,
+      "merged_at": null,
+      "base": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "main",
+        "sha": "4f1879d72dcd1936ec9111dd22b1478dbc6af70c"
+      },
+      "head": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "feature/rf-geolocation-center-2026-11",
+        "sha": "6664a04a6247826d71f6adeb795b137fd26de213"
+      },
+      "labels": [],
+      "observed_counts": {},
+      "app_candidates": [
+        "geolocation-center",
+        "media-center"
+      ],
+      "classification": "title_branch_heuristic_review_required",
+      "source_api": "https://api.github.com/repos/Tihulu/TIHULU-TEXT-CENTER/pulls/16",
+      "body_archive_part": "pr-body-05.json"
+    },
+    {
+      "id": 5183558863,
+      "number": 15,
+      "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/15",
+      "title": "Unified Radio/TV Channel Center: real full scans, selectable DAB audio, editable channel lists and simpler UI",
+      "state": "open",
+      "draft": true,
+      "author": "Tihulu",
+      "created_at": "2026-11-06T05:48:47Z",
+      "updated_at": "2026-11-06T06:04:53Z",
+      "closed_at": null,
+      "merged_at": null,
+      "base": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "feature/english-defaults-detect-global-hard-stop-2026-11-06",
+        "sha": "1ca742cce337691a966f20ec8dbbfb844361b636"
+      },
+      "head": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "feature/unified-channel-center-full-scan-ui-2026-11-06",
+        "sha": "0f396579f048292677b632eaff70f63f37192d44"
+      },
+      "labels": [],
+      "observed_counts": {},
+      "app_candidates": [
+        "media-center",
+        "text-center"
+      ],
+      "classification": "title_branch_heuristic_review_required",
+      "source_api": "https://api.github.com/repos/Tihulu/TIHULU-TEXT-CENTER/pulls/15",
+      "body_archive_part": "pr-body-05.json"
+    },
+    {
+      "id": 5183343650,
+      "number": 14,
+      "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/14",
+      "title": "English defaults, verified Detect Language and global owned-only HARD STOP",
+      "state": "open",
+      "draft": true,
+      "author": "Tihulu",
+      "created_at": "2026-11-06T05:22:03Z",
+      "updated_at": "2026-11-06T05:25:36Z",
+      "closed_at": null,
+      "merged_at": null,
+      "base": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "integration/consolidated-pages-webusb-2026-11-06",
+        "sha": "b055780fdf6750029cac2a4d1385338a874f146b"
+      },
+      "head": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "feature/english-defaults-detect-global-hard-stop-2026-11-06",
+        "sha": "1ca742cce337691a966f20ec8dbbfb844361b636"
+      },
+      "labels": [],
+      "observed_counts": {},
+      "app_candidates": [
+        "media-center",
+        "text-center"
+      ],
+      "classification": "title_branch_heuristic_review_required",
+      "source_api": "https://api.github.com/repos/Tihulu/TIHULU-TEXT-CENTER/pulls/14",
+      "body_archive_part": "pr-body-05.json"
+    },
+    {
+      "id": 5183148076,
+      "number": 13,
+      "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/13",
+      "title": "Consolidate FM/DAB receiver lifecycle and add zero-install GitHub Pages WebUSB radio",
+      "state": "open",
+      "draft": true,
+      "author": "Tihulu",
+      "created_at": "2026-11-06T04:58:53Z",
+      "updated_at": "2026-11-06T04:58:53Z",
+      "closed_at": null,
+      "merged_at": null,
+      "base": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "main",
+        "sha": "45abc5c796b00eafef0462ea875ce204d35231fd"
+      },
+      "head": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "integration/consolidated-pages-webusb-2026-11-06",
+        "sha": "b055780fdf6750029cac2a4d1385338a874f146b"
+      },
+      "labels": [],
+      "observed_counts": {},
+      "app_candidates": [
+        "media-center",
+        "text-center"
+      ],
+      "classification": "title_branch_heuristic_review_required",
+      "source_api": "https://api.github.com/repos/Tihulu/TIHULU-TEXT-CENTER/pulls/13",
+      "body_archive_part": "pr-body-05.json"
+    },
+    {
+      "id": 5182838760,
+      "number": 12,
+      "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/12",
+      "title": "Integrate FM/DAB auto scan, live audio/MOT, desktop/PWA, extra languages and Flight Radar",
+      "state": "open",
+      "draft": true,
+      "author": "Tihulu",
+      "created_at": "2026-11-06T04:20:25Z",
+      "updated_at": "2026-11-06T04:22:21Z",
+      "closed_at": null,
+      "merged_at": null,
+      "base": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "main",
+        "sha": "7cf810ed5730d7e774ec94b4f3dba00bb16c6baf"
+      },
+      "head": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "integration/unified-text-center-pages-desktop-radar-2026-11-06",
+        "sha": "63bd6b6dbc4a7d61dba8a6d255bf91c0b0463b03"
+      },
+      "labels": [],
+      "observed_counts": {},
+      "app_candidates": [
+        "media-center",
+        "text-center",
+        "flight-radar"
+      ],
+      "classification": "title_branch_heuristic_review_required",
+      "source_api": "https://api.github.com/repos/Tihulu/TIHULU-TEXT-CENTER/pulls/12",
+      "body_archive_part": "pr-body-05.json"
+    },
+    {
+      "id": 5182834677,
+      "number": 11,
+      "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/11",
+      "title": "Add managed DAB Start/Stop and Stop All Own RF with close/heartbeat cleanup",
+      "state": "open",
+      "draft": true,
+      "author": "Tihulu",
+      "created_at": "2026-11-06T04:19:54Z",
+      "updated_at": "2026-11-06T04:23:31Z",
+      "closed_at": null,
+      "merged_at": null,
+      "base": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "main",
+        "sha": "7cf810ed5730d7e774ec94b4f3dba00bb16c6baf"
+      },
+      "head": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "feature/managed-sdr-lifecycle-and-dab-controls-2026-11-06",
+        "sha": "e94f133a4c8d6ae44c9bddce79d72369b7bca96b"
+      },
+      "labels": [],
+      "observed_counts": {},
+      "app_candidates": [
+        "media-center",
+        "text-center"
+      ],
+      "classification": "title_branch_heuristic_review_required",
+      "source_api": "https://api.github.com/repos/Tihulu/TIHULU-TEXT-CENTER/pulls/11",
+      "body_archive_part": "pr-body-05.json"
+    },
+    {
+      "id": 5182500002,
+      "number": 10,
+      "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/10",
+      "title": "Keep FM audio alive without ASR, add actual DAB MOT slideshow and safe one-line installer",
+      "state": "open",
+      "draft": true,
+      "author": "Tihulu",
+      "created_at": "2026-11-06T03:38:31Z",
+      "updated_at": "2026-11-06T03:39:18Z",
+      "closed_at": null,
+      "merged_at": null,
+      "base": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "main",
+        "sha": "7cf810ed5730d7e774ec94b4f3dba00bb16c6baf"
+      },
+      "head": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "fix/live-fm-audio-dab-mot-one-line-install-2026-11-06",
+        "sha": "15333aa440a57095ec860f99bcf1dbc4eb520f4f"
+      },
+      "labels": [],
+      "observed_counts": {},
+      "app_candidates": [
+        "text-center"
+      ],
+      "classification": "title_branch_heuristic_review_required",
+      "source_api": "https://api.github.com/repos/Tihulu/TIHULU-TEXT-CENTER/pulls/10",
+      "body_archive_part": "pr-body-05.json"
+    },
+    {
+      "id": 5182384289,
+      "number": 9,
+      "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/9",
+      "title": "Satellite Center: GitHub Pages + cross-platform localhost SDR companion and one-line installs",
+      "state": "open",
+      "draft": true,
+      "author": "Tihulu",
+      "created_at": "2026-11-06T03:24:22Z",
+      "updated_at": "2026-11-06T20:15:37Z",
+      "closed_at": null,
+      "merged_at": null,
+      "base": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "main",
+        "sha": "7cf810ed5730d7e774ec94b4f3dba00bb16c6baf"
+      },
+      "head": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "feature/satellite-center-standalone-2026-11-06",
+        "sha": "61713a9d5c939936cc01de886beb3a02288c9aa5"
+      },
+      "labels": [],
+      "observed_counts": {},
+      "app_candidates": [
+        "satellite-center",
+        "media-center"
+      ],
+      "classification": "title_branch_heuristic_review_required",
+      "source_api": "https://api.github.com/repos/Tihulu/TIHULU-TEXT-CENTER/pulls/9",
+      "body_archive_part": "pr-body-05.json"
+    },
+    {
+      "id": 5182266629,
+      "number": 8,
+      "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/8",
+      "title": "Implement opt-in FM RDS and DAB Band III automatic station discovery",
+      "state": "open",
+      "draft": true,
+      "author": "Tihulu",
+      "created_at": "2026-11-06T03:10:31Z",
+      "updated_at": "2026-11-06T03:26:20Z",
+      "closed_at": null,
+      "merged_at": null,
+      "base": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "main",
+        "sha": "89608300021fe8bd5f880f49c5df0e58a8043a79"
+      },
+      "head": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "feature/fm-dab-auto-channel-scans-2026-11-06",
+        "sha": "c85b34293fa3f5bd67d435938c8b2d3602a88c73"
+      },
+      "labels": [],
+      "observed_counts": {},
+      "app_candidates": [
+        "text-center"
+      ],
+      "classification": "title_branch_heuristic_review_required",
+      "source_api": "https://api.github.com/repos/Tihulu/TIHULU-TEXT-CENTER/pulls/8",
+      "body_archive_part": "pr-body-05.json"
+    },
+    {
+      "id": 5182088939,
+      "number": 7,
+      "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/7",
+      "title": "Fix FM WAV player blocked by CSP and add explicit download",
+      "state": "open",
+      "draft": true,
+      "author": "Tihulu",
+      "created_at": "2026-11-06T02:49:42Z",
+      "updated_at": "2026-11-06T02:49:42Z",
+      "closed_at": null,
+      "merged_at": null,
+      "base": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "main",
+        "sha": "d47337fe58d773af8733e1303500d35bed703d40"
+      },
+      "head": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "fix/fm-wav-playback-download-csp-2026-11-06",
+        "sha": "3a9a9ad911caa2a1e005483693974d695ac5d1fa"
+      },
+      "labels": [],
+      "observed_counts": {},
+      "app_candidates": [
+        "text-center"
+      ],
+      "classification": "title_branch_heuristic_review_required",
+      "source_api": "https://api.github.com/repos/Tihulu/TIHULU-TEXT-CENTER/pulls/7",
+      "body_archive_part": "pr-body-05.json"
+    },
+    {
+      "id": 5182062909,
+      "number": 6,
+      "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/6",
+      "title": "Live Studio v0.5: continuous FM/DVB-TV streams, opt-in recordings, multilingual local subtitles and CPU/GPU selection",
+      "state": "open",
+      "draft": true,
+      "author": "Tihulu",
+      "created_at": "2026-11-06T02:46:35Z",
+      "updated_at": "2026-11-06T02:48:21Z",
+      "closed_at": null,
+      "merged_at": null,
+      "base": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "main",
+        "sha": "d47337fe58d773af8733e1303500d35bed703d40"
+      },
+      "head": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "feature/continuous-av-translator-2026-11-06",
+        "sha": "a7a4795922e0eb0539ff90b764886470a02138c8"
+      },
+      "labels": [],
+      "observed_counts": {},
+      "app_candidates": [
+        "media-center",
+        "text-center"
+      ],
+      "classification": "title_branch_heuristic_review_required",
+      "source_api": "https://api.github.com/repos/Tihulu/TIHULU-TEXT-CENTER/pulls/6",
+      "body_archive_part": "pr-body-05.json"
+    },
+    {
+      "id": 5181802762,
+      "number": 5,
+      "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/5",
+      "title": "Fix DAB MOT image save feedback, live gallery refresh and channel attribution",
+      "state": "open",
+      "draft": true,
+      "author": "Tihulu",
+      "created_at": "2026-11-06T02:15:30Z",
+      "updated_at": "2026-11-06T02:19:07Z",
+      "closed_at": null,
+      "merged_at": null,
+      "base": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "main",
+        "sha": "d47337fe58d773af8733e1303500d35bed703d40"
+      },
+      "head": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "fix/dab-image-save-diagnostics-2026-11-06",
+        "sha": "237c73479ab75c68e80548118da64f00e7d42516"
+      },
+      "labels": [],
+      "observed_counts": {},
+      "app_candidates": [
+        "text-center"
+      ],
+      "classification": "title_branch_heuristic_review_required",
+      "source_api": "https://api.github.com/repos/Tihulu/TIHULU-TEXT-CENTER/pulls/5",
+      "body_archive_part": "pr-body-05.json"
+    },
+    {
+      "id": 5181692032,
+      "number": 4,
+      "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/4",
+      "title": "Make DAB RF scan results clickable and group peaks by nominal blocks",
+      "state": "open",
+      "draft": true,
+      "author": "Tihulu",
+      "created_at": "2026-11-06T02:03:20Z",
+      "updated_at": "2026-11-06T02:03:20Z",
+      "closed_at": null,
+      "merged_at": null,
+      "base": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "main",
+        "sha": "238799a633227bd3b785a2a2aefb9bfb649bb9a8"
+      },
+      "head": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "feature/dab-block-scan-results-2026-11-06",
+        "sha": "e2e48c2c8e5cd5ce025870e7df1123dfea0a1d19"
+      },
+      "labels": [],
+      "observed_counts": {},
+      "app_candidates": [
+        "text-center"
+      ],
+      "classification": "title_branch_heuristic_review_required",
+      "source_api": "https://api.github.com/repos/Tihulu/TIHULU-TEXT-CENTER/pulls/4",
+      "body_archive_part": "pr-body-06.json"
+    },
+    {
+      "id": 5181593309,
+      "number": 3,
+      "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/3",
+      "title": "Display live backend version instead of stale footer label",
+      "state": "open",
+      "draft": true,
+      "author": "Tihulu",
+      "created_at": "2026-11-06T01:51:52Z",
+      "updated_at": "2026-11-06T01:53:35Z",
+      "closed_at": null,
+      "merged_at": null,
+      "base": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "main",
+        "sha": "2e11739547d86c4678096fe184a75098b3561c76"
+      },
+      "head": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "fix/show-server-version-in-footer-2026-11-06",
+        "sha": "9301d9d1b083ab9bb8450e7eed599b48e3ce1079"
+      },
+      "labels": [],
+      "observed_counts": {},
+      "app_candidates": [
+        "unclassified"
+      ],
+      "classification": "title_branch_heuristic_review_required",
+      "source_api": "https://api.github.com/repos/Tihulu/TIHULU-TEXT-CENTER/pulls/3",
+      "body_archive_part": "pr-body-06.json"
+    },
+    {
+      "id": 5181564495,
+      "number": 1,
+      "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/1",
+      "title": "Fail closed on unverified LF/HF scans for NESDR SMArt v5 Q-branch",
+      "state": "open",
+      "draft": true,
+      "author": "Tihulu",
+      "created_at": "2026-11-06T01:48:27Z",
+      "updated_at": "2026-11-06T01:48:27Z",
+      "closed_at": null,
+      "merged_at": null,
+      "base": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "main",
+        "sha": "f9e2fde4e38db10baac85a35055a5c75ca688973"
+      },
+      "head": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "fix/hf-q-branch-survey-readiness-2026-11-06",
+        "sha": "ab23a645600bb697a317e1aca1d80a8019577432"
+      },
+      "labels": [],
+      "observed_counts": {},
+      "app_candidates": [
+        "media-center",
+        "text-center"
+      ],
+      "classification": "title_branch_heuristic_review_required",
+      "source_api": "https://api.github.com/repos/Tihulu/TIHULU-TEXT-CENTER/pulls/1",
+      "body_archive_part": "pr-body-06.json"
+    }
+  ]
+}

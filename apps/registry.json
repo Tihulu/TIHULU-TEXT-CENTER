@@ -1,0 +1,142 @@
+{
+  "schema_version": 1,
+  "snapshot_date_utc": "2026-11-11",
+  "source_repository": "Tihulu/TIHULU-TEXT-CENTER",
+  "source_baseline_commit": "20379152be2751e5d89a8bdbac85fb15fc6b3c4e",
+  "status": "embedded_in_monorepo_no_migration",
+  "never_delete_origins": true,
+  "canonical_authority": "apps/registry.json",
+  "apps": [
+    {
+      "id": "media-center",
+      "name": "TIHULU Media Center",
+      "current_status": "embedded",
+      "canonical_repository": "Tihulu/TIHULU-TEXT-CENTER",
+      "proposed_destination_repository": "Tihulu/tihulu-media-center",
+      "source_roots": [
+        "kaffeine_next/",
+        "tv_center/"
+      ],
+      "branches_to_review": [
+        "feat/unified-lyrics-caption-refresh-2026-11-10",
+        "feat/media-unified-recording-export-2026-11-11"
+      ],
+      "notes": "Native TV, DAB/radio, audio/video, caption/export. tv_center is shared; do not assume sole ownership of all code.",
+      "migration_state": {
+        "state": "not_started",
+        "target_repository": null,
+        "transfer_commit": null,
+        "cutover_date": null
+      },
+      "readme": "apps/media-center/AGENTS.md",
+      "history_archive": "apps/_archives/",
+      "model_evidence": [
+        "tv_center/ai_profiles.py",
+        "tv_center/model_market.py",
+        "tv_center/translation_failover.py",
+        "tv_center/qwen_forced_aligner.py",
+        "kaffeine_next/AI_LIVE_PERFORMANCE_AND_LANGUAGES.md"
+      ]
+    },
+    {
+      "id": "satellite-center",
+      "name": "TIHULU Satellite Center",
+      "current_status": "embedded",
+      "canonical_repository": "Tihulu/TIHULU-TEXT-CENTER",
+      "proposed_destination_repository": "Tihulu/tihulu-satellite-center",
+      "source_roots": [
+        "satellite_center/"
+      ],
+      "branches_to_review": [
+        "fix/satellite-native-scheduler-modes-2026-11-08",
+        "feature/satellite-segmented-captures-2026-11-07"
+      ],
+      "notes": "Copied exact application tree; source branches have unmerged overlap outside satellite_center/.",
+      "migration_state": {
+        "state": "not_started",
+        "target_repository": null,
+        "transfer_commit": null,
+        "cutover_date": null
+      },
+      "readme": "apps/satellite-center/AGENTS.md",
+      "history_archive": "apps/_archives/",
+      "model_evidence": [
+        "satellite_center/compute_backends.py",
+        "satellite_center/FEATURE_PARITY.md"
+      ]
+    },
+    {
+      "id": "geolocation-center",
+      "name": "TIHULU RF Geolocation Center",
+      "current_status": "embedded",
+      "canonical_repository": "Tihulu/TIHULU-TEXT-CENTER",
+      "proposed_destination_repository": "Tihulu/tihulu-geolocation",
+      "source_roots": [
+        "rf_geolocation_center/"
+      ],
+      "branches_to_review": [
+        "feature/rf-geolocation-center-2026-11"
+      ],
+      "notes": "Exact RF Geolocation application tree preserved; related root changes not included.",
+      "migration_state": {
+        "state": "not_started",
+        "target_repository": null,
+        "transfer_commit": null,
+        "cutover_date": null
+      },
+      "readme": "apps/geolocation-center/AGENTS.md",
+      "history_archive": "apps/_archives/",
+      "model_evidence": [
+        "rf_geolocation_center/docs/PLATFORM_TEST_MATRIX.md",
+        "rf_geolocation_center/docs/ARCHITECTURE_AND_RELEASE_GATES.md"
+      ]
+    },
+    {
+      "id": "text-center",
+      "name": "TIHULU Text Center",
+      "current_status": "embedded",
+      "canonical_repository": "Tihulu/TIHULU-TEXT-CENTER",
+      "proposed_destination_repository": "Tihulu/TIHULU-TEXT-CENTER",
+      "source_roots": [
+        "textcenter/",
+        "web/"
+      ],
+      "branches_to_review": [
+        "main",
+        "integration/consolidated-pages-webusb-2026-11-06"
+      ],
+      "notes": "Current repository owner, shared backend and web frontend; needs explicit split for Media/Satellite/RF dependencies.",
+      "migration_state": {
+        "state": "not_started",
+        "target_repository": null,
+        "transfer_commit": null,
+        "cutover_date": null
+      },
+      "readme": "apps/text-center/AGENTS.md",
+      "history_archive": "apps/_archives/",
+      "model_evidence": [
+        "textcenter/compute.py",
+        "tv_center/installed_languages.py"
+      ]
+    },
+    {
+      "id": "flight-radar",
+      "name": "TIHULU Flight Radar",
+      "current_status": "external_canonical",
+      "canonical_repository": "Tihulu/tihulu-flight-radar",
+      "proposed_destination_repository": "Tihulu/tihulu-flight-radar",
+      "source_roots": [],
+      "branches_to_review": [],
+      "notes": "Already owned by separate canonical repository; TEXT CENTER only mirrors built browser app via .github/workflows/sync-flight-radar-pages.yml. Never claim its source lives here.",
+      "migration_state": {
+        "state": "not_started",
+        "target_repository": null,
+        "transfer_commit": null,
+        "cutover_date": null
+      },
+      "readme": "apps/flight-radar/AGENTS.md",
+      "history_archive": "apps/_archives/",
+      "model_evidence": []
+    }
+  ]
+}

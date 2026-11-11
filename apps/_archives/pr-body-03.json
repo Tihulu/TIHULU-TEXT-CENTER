@@ -1,0 +1,281 @@
+{
+  "schema_version": 1,
+  "original_source": "Tihulu/TIHULU-TEXT-CENTER",
+  "snapshot_date_utc": "2026-11-11",
+  "pr_records": [
+    {
+      "number": 43,
+      "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/43",
+      "title": "Reduce live TV subtitle dropouts and add consent-based offline AI model benchmarks + language dropdown",
+      "body": "User report: occasional original/EN/TR subtitles disappear while live TV speaks; 'Waiting for next live phrase' masks causes, some results are dropped when native buffer confirmation is missing. Also redesign crowded Output languages as installed-language multiselect with default Auto source / English UI preference and benchmark installed Tihulu ASR/translator models locally with explicit user approval before editing settings.\n\n- Suppress **double EN/TR translation** for Auto-mode Whisper: translate only after the natural sentence is joined; keep broadcaster Teletext translation.\n- Shorten natural-phrase withholding from max three to two 6s clips, and expose a `sentence_pending` diagnostic instead of implying silence.\n- Store up to 48 decoded subtitle events during temporary native buffer ACK lapses, replay chronological results after confirmation; never claim recovered missed RF audio.\n- Measure real live capture-to-worker queue wait and ASR/translation compute; passive four-clip diagnostic distinguishes overload, queue loss, and DVB TS continuity gaps without starting another decoder or changing settings.\n- Offline local sample benchmark: user explicitly selects a file, bounded subprocesses test installed GGML CPU and verified managed GPU Whisper, Argos and optional NLLB (DE→EN and DE→TR), with timeouts and no downloads or cloud. Show per-engine actual durations and an editable backend/model/translator/buffer proposal. **No settings are changed unless user explicitly clicks Apply.** Existing buffer never reduced automatically.\n- Replace inline DE/EN/TR/FR output checkboxes with async-loaded installed-language multi-check dropdown; show model-present vs runtime-verified distinction. Source defaults to Auto detect, English is only a **UI preference**, not a fabricated identification of broadcast speech. EN and TR checked when available.\n- Tests include pure recommendation math, installed-language filtering, privacy/consent and user UI contracts.\n\nHardware performance results cannot be obtained through CI. The user must run the opt-in test on Pop!_OS/RTX 5080 and verify actual continuous DVB audio sync.",
+      "author": "Tihulu",
+      "created_at": "2026-11-08T23:08:04Z",
+      "updated_at": "2026-11-08T23:16:18Z",
+      "base": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "fix/tihulu-media-radio-dvb-2026-11-08",
+        "sha": "29c14cfe11d4f10e8c217582b8fd3e50d957c3ef"
+      },
+      "head": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "feature/ai-live-benchmark-language-picker-2026-11-08",
+        "sha": "ff1def26a3f44f88684f3b806110606db3e59743"
+      },
+      "app_candidates": [
+        "media-center",
+        "text-center"
+      ]
+    },
+    {
+      "number": 42,
+      "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/42",
+      "title": "Fix DVB channel switching while caption settings remain open and rebind subtitles to new tune",
+      "body": "User-reported regression: with the TIHULU live subtitle settings open, changing DVB channels becomes impractical and the subtitle service can remain on the previous channel/source.\n\n- Native Kaffeine emits an atomic, per-process one-way tune epoch, service ID and transport stream ID to its private XDG runtime directory at every channel switch or explicit Idle. No extra tuner ownership, backend retunes, WebUSB, or cloud.\n- CaptionTap monitors the owner marker even when no TS packets arrive; drops stale old-multiplex packets, discards old ASR queue and in-flight results using the program epoch, and resets subtitle discovery on every native tune (including recycled SID across TSIDs).\n- Caption settings are non-modal; Back to TV minimizes just the controller while audio/video and caption sidecar continue.\n- GUI clears old Teletext/audio PIDs, cached captions, sentence/timing estimate, and stale subtitle tracks immediately; retains appearance, manual target languages, selected playback buffer, independently chosen speech mode; tracks and captions reject old generation.\n- Auto source is not overwritten by a broadcaster's prior language hint. Actual descriptors for the new TV service determine the new source.\n- Phone HLS and caption history from the old service are invalidated in the reader thread; live SRT recording ends at the channel boundary to prevent cross-program text.\n- Tests cover native markers, PAT SID+TSID identities, reader packet gating and nonmodal UI contracts.\n\nCI verifies source builds and unit behavior; real Pop!_OS/Hauppauge physical channel-switch and libVLC PTS tests are still required.",
+      "author": "Tihulu",
+      "created_at": "2026-11-08T22:24:05Z",
+      "updated_at": "2026-11-08T22:28:14Z",
+      "base": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "fix/tihulu-media-radio-dvb-2026-11-08",
+        "sha": "35f4820304512dd13a1e956b8a189fab9ba605da"
+      },
+      "head": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "fix/tv-channel-switch-captions-session-2026-11-08",
+        "sha": "6e4f5e66a2673d34e912fe08c4041915591fb139"
+      },
+      "app_candidates": [
+        "media-center",
+        "text-center"
+      ]
+    },
+    {
+      "number": 41,
+      "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/41",
+      "title": "Radio captions and lyrics reliability: stop replacing station video, opt-in source fallback, honest buffer",
+      "body": "Investigate user screenshot regressions: a large centered radio caption replaced the station artwork, 60s requested libVLC cache showed a falsely reassuring 100% progress bar even when DAC timing was UNVERIFIED, lyrics search got stuck on metadata mismatch and without fallbacks, and changing live ASR options failed to restart the worker.\n\n- Render live radio transcription in a compact always-visible strip; **never call `radioCanvas_->setText` from the live subtitle queue**.\n- Don't use radio stream uptime as measured audio queue fill. Keep clearly labeled estimated caption deadlines, requested cache, physical output unverified.\n- LRCLIB: canonical Unicode artist/title comparison and safe catalog retry when `/api/get` returns the wrong song. Keep keyless lyrics.ovh plain fallback; optional **official Musixmatch API with a separately provisioned licensed API key** only, no scraping/unofficial client, reject preview/copyright boilerplate. Require independent ASR matching for untimed text.\n- When lyric lookup fails or DLS artist/title is missing, enable user-requested local Whisper singing mode from existing loopback DAB audio (no uploaded audio); independently accessible 'Listen & transcribe vocals offline' action. Properly re-enable Find lyrics after errors; Stop lyrics releases lyric-started AI but preserves preexisting manual AI when possible.\n- Add explicit 'Apply caption settings' which restarts local ASR only, not radio playback/tuner/cache. Report unexpected AI worker exits rather than assuming process startup implies valid decoded speech.\n- Preserve source model/translation, DAB channel scans, RF charts, slideshow, favourites, recordings and original broadcaster DLS metadata mode.\n- Extend regression tests and review. Real hardware validation (DAB sound-card presentation clock, lyrics verification) still necessary; no claim of precise sync.",
+      "author": "Tihulu",
+      "created_at": "2026-11-08T08:35:52Z",
+      "updated_at": "2026-11-08T08:51:35Z",
+      "base": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "fix/tihulu-media-radio-dvb-2026-11-08",
+        "sha": "5b09a47f9f251b9c36695cedd9aaeaaa1f795d6b"
+      },
+      "head": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "fix/radio-lyrics-asr-fallback-honest-timing-2026-11-08",
+        "sha": "d457130e067c439c675219964823f18329b4d8e3"
+      },
+      "app_candidates": [
+        "media-center",
+        "text-center"
+      ]
+    },
+    {
+      "number": 40,
+      "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/40",
+      "title": "Recover short DVB retune failures and explain invalid channel-source settings",
+      "body": "Fix the Kaffeine-native Television channel-switch error **\"Didn't find a device with valid settings or access permissions are wrong\"** seen on Pop!_OS. Kaffeine releases/reacquires the DVB frontend immediately when switching transponders; add **at most two short, epoch-guarded, read-only-compatible reacquire attempts** on the existing device only if a connected device's configured source exactly matches the selected channel, and no recorder owns the tuner. Clicking another channel invalidates pending retry callbacks. The app never rebinds a source, opens a second receiver, resets USB or stops readsb/tar1090. Replace the misleading generic dialog with specific messages for (1) disconnected DVB tuner, (2) saved channel source mismatched to connected device config and (3) matching but busy/unavailable hardware. Preserve the existing recording warning and provide CLI diagnostics. Extend no-hardware regression tests and documentation. Does not claim to solve permissions or external-process ownership if user diagnostics reveal them.",
+      "author": "Tihulu",
+      "created_at": "2026-11-08T08:12:47Z",
+      "updated_at": "2026-11-08T08:18:54Z",
+      "base": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "fix/tihulu-media-radio-dvb-2026-11-08",
+        "sha": "ff9acf14f9fd9f6d16f22f76712a6b99144ca8cd"
+      },
+      "head": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "fix/kaffeine-dvb-channel-retune-recovery-2026-11-08",
+        "sha": "875d1f89fc85972202e9264d134e7d7b6dd1203e"
+      },
+      "app_candidates": [
+        "media-center",
+        "text-center"
+      ]
+    },
+    {
+      "number": 39,
+      "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/39",
+      "title": "Fix live TV subtitle placement, native VOUT reinitialization and increase-only buffer sync",
+      "body": "Hardware-observed Pop!_OS DVB issue: native captions never appear after TV channel starts, legacy Qt subtitles float outside video and leave stale regions, auto sync can decrease a healthy 14.5s TV buffer, and complete Whisper transcriptions can appear several seconds before the corresponding audio.\n\nChanges:\n- Retry libVLC marquee after DVB VOUT exists and refresh periodically; configure text before enabling filter. No second player or DVB decoder.\n- Bound legacy caption strip to Kaffeine backend VIDEO geometry instead of entire MediaWidget; preserve transparency, font/opacity settings and broadcaster DVB/Teletext subtitles.\n- Make auto sync strictly **increase-only**; only manual user action can decrease existing TV playback buffer, even if the ASR estimator's current cap decreases.\n- Anchor completed multi-second ASR speech to clip end rather than clip start while keeping actual word-group clocks and Teletext behavior intact. Coarse observed TS/Whisper sync, not calibrated lip-sync.\n- Update UI tooltips/status with buffer hold and rendering details; add deterministic tests for 14.5s-vs-9s case, source cue timing, and compositor checks.\n\nRequires end-user Pop!_OS/COSMIC + Nooelec hardware validation; CI cannot verify actual libVLC video output composition.",
+      "author": "Tihulu",
+      "created_at": "2026-11-08T08:05:52Z",
+      "updated_at": "2026-11-08T08:07:32Z",
+      "base": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "fix/tihulu-media-radio-dvb-2026-11-08",
+        "sha": "2746c522bf1250b6200624c74a511b94a84e8fe0"
+      },
+      "head": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "fix/kaffeine-caption-placement-monotonic-buffer-2026-11-08",
+        "sha": "f907d6110825210333574fce68411c1f5b2d2392"
+      },
+      "app_candidates": [
+        "media-center",
+        "text-center"
+      ]
+    },
+    {
+      "number": 38,
+      "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/38",
+      "title": "TIHULU Media Center: DVB stability, DAB playback, subtitles and paired remote hub (draft)",
+      "body": "# TIHULU Media Center · 8 November 2026 follow-up\n\n**DRAFT**. Development head `fix/tihulu-media-radio-dvb-2026-11-08`. This PR does **not** claim reproducible hardware stability or universal remote TV mirroring. Do not merge into main until receiver-specific end-to-end verification.\n\n## Native crash / radio reliability\n- Patched pinned upstream `DvbScanDialog` lifecycle to stop/delete scanner before exclusive frontend release, stop quality timer, guard null device/tardy scan-complete, and settle scan before importing the channel list. This is a defensive stability fix; the supplied `Segmentation fault (core dumped)` has NOT been root-caused with a native backtrace.\n- Cached DAB station IDs are not played blindly. Real `/mux.json` current-block service is verified with bounded retry before opening the correct `url_mp3`; unavailable saved stations display OFFLINE status and no fake play. Native libVLC playback state is shown but **not falsely equated to audible sound**.\n- Existing duplicate-cache and active RF scan measurement improvements retained.\n\n## Subtitle / LyricSync UI\n- Explicit radio choice Whisper ASR or broadcaster DLS metadata, prominently marked *not broadcast subtitles*. Adjustable spoken caption/language selections continue to work.\n- Lyric offset value shows signed `seconds`; requested radio cache has a visibly **unverified** progress estimate and 30s ASR-latency-based buffer recommendation. Increasing buffer expands bounded Whisper sentence assembly to 2–5 five-second hops (up to 20s).\n- Periodic high-confidence real Whisper audio-vocal checks gently retime timed LRC against DLS with max 650ms steps; outliers >15s are rejected rather than fabricated as precise lip-sync.\n- Online LRCLIB timed/plain lookup plus optional second `lyrics.ovh` plain provider (explicit lookup only, no guaranteed source verification); manual artist/title corrections; import user-owned TXT or LRC without Internet. Untimed lyrics are shown only on actual ASR lexical match; a dedicated phoneme forced-alignment engine is **not** yet delivered.\n\n## Translation and Model Market\n- DeepL is accurately presented as a **proprietary, ONLINE text API**, not an open/offline model. Only explicitly selected and consented recognized text is sent via verified official HTTPS; private mode-0600 user API key; no audio/video/RF uploads; Argos fallback when available. Never enable by default.\n- Add genuine **Apache-2.0 MADLAD-400 3B** optional CUDA model install/remove/actual DE→EN offline selftest path; explicit ~12GB storage + GPU RAM disclosure. GPU/NPU compatibility/actual user-inference success is **not** presumed.\n- Argos and optional NLLB real-weights behavior remains; models are not downloaded silently.\n\n## Paired remote media hub (initial functional slice)\n- Native `TIHULU AI → Start paired remote media hub...` asks which media directory may be shared, launches private loopback Python HTTP server and shows an 8-digit PIN only in native window; Stop menu shuts it down. Console fallback: `tihulu-tv-center remote-hub --media-root ~/Videos`.\n- PIN rate limit, HttpOnly SameSite=Strict session cookie + CSRF for mutations, symlink-escape protection, host-side FFmpeg HLS for chosen local files or verified *already running* welle DAB; **single shared HLS programme**, multiple paired client sessions. Optional same source playback on host (one media stream on client and/or host). Browser displays remote radio captions with approximate timestamp text, not a sample-accurate track.\n- CORRECT upstream Kaffeine v2.0.19 **MPRIS1** DBus interface `/Player`, `/TrackList`, `/Television`: host playback, stop, volume, native TV channel name/number choice, without a second tuner. Native audio/video remains on host unless HLS source specifically selected.\n- Loopback by default; recommended private device access via `tailscale serve --bg 8788` HTTPS with existing tailnet ACLs. **Never use Funnel or expose unencrypted port 8788 publicly**.\n- Documentation: `kaffeine_next/REMOTE_MEDIA_HUB.md`.\n- NOT complete: full native live DVB-TV HLS transport mirror, synced WebVTT for TV, DVD, entire app UI/browser feature parity, independent multi-channel clients or automatic Internet publication. Safari native HLS is easier; some desktop browsers lack a bundled HLS client.\n\n## Icon\n- The previously installed 64×64 legacy PNG could override the bundled play-button SVG. Installed desktop/player SVG is the default; old portrait PNG is preserved unmodified, can be chosen explicitly. A redesigned conversion of the owner's portrait PNG has **not** been generated.\n\n## Validation gates\n- GitHub Actions check Python/Qt source/package and pinned welle build; passing CI does NOT establish RF lock, analog audio output clock, real timecoded lyrical lip sync, cross-browser streaming, user CUDA translation or native crash root cause.\n- Required real host tests: reboot/open UI; native DVB-T2 full scan → channel import → channel change → prolonged playback; DAB actual mux, RF/SNR, no 404; localhost PIN pairing, text+video in Safari and at least one target browser; real model GPU/CPU inference.\n\nKeep PR #38 DRAFT.\n### 2026-11-09 — DAB antenna present but welle.io localhost API unavailable\nNative radio now distinguishes USB antenna presence, an app-owned welle-cli process, and actual local /channel API readiness. The UI shows dynamic localhost port, PID, process/stderr error and hints for busy RTL-SDR owned by readsb/rtl_tcp/WebUSB/kernel DVB drivers. Explicit Start restarts only its own failed backend, never external SDR services. Readiness retries are bounded; generation/port checks reject stale network replies. Old mux/SNR is invalidated on crash or release; cached station entries never imply current lock. Retuning waits for APIReady, even if the last selected channel matches. Tests: test_tv_kaffeine_dab_api_recovery.py. Documentation: kaffeine_next/README.md.\nHardware acceptance on the user's Pop!_OS 24.04 and NooElec USB receiver remains pending. Pinned loopback-only welle-cli build is preserved; no automatic stop/unbind.\n",
+      "author": "Tihulu",
+      "created_at": "2026-11-08T03:34:46Z",
+      "updated_at": "2026-11-09T18:06:30Z",
+      "base": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "architecture/kaffeine-core-tv-2026-11-07",
+        "sha": "08a7579dad22cb9b752b8ad4637bf2d061f4e312"
+      },
+      "head": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "fix/tihulu-media-radio-dvb-2026-11-08",
+        "sha": "73698d2d9f99b5145a1ac429cb2ee16a77b5e1d6"
+      },
+      "app_candidates": [
+        "media-center",
+        "text-center"
+      ]
+    },
+    {
+      "number": 37,
+      "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/37",
+      "title": "Fix native Debian pass scheduling for Meteor LRPT (IQ-only, continuous capture)",
+      "body": "## Issue\nIn the Debian/Qt Satellite Center, scheduling Meteor LRPT produced `Native schedule rejected: Unsupported pass/profile/mode combination`, while the shared pass-card UI misleadingly described 300s as **five WebUSB chunks of <=60s**.\n\n## Changes\n- Browser/pass-card native mode detects the local receiver and renders native **direct-to-disk 8–900 s** IQ capture budget rather than WebUSB segmentation; beyond 900 s uses explicit native segmented scheduler if the full sequence fits LOS.\n- Meteor profiles are **IQ-only**; incompatible Robot36/FM WAV is visibly disabled in native pass cards. Native and server errors describe why.\n- Native scheduler accepts the selected 1.024 or 2.048 MS/s rate, with original disk limits/LOS check.\n- Qt WebChannel form enhancement applies to dynamically added pass cards and never uses WebUSB for USB hardware.\n- Added hardware-free regression tests for a synthetic 300s Meteor pass, refused Meteor WAV/dual mode and UI contracts.\n\n## Limitations\nNo physical USB test or actual RF capture has been done here. Browser WebUSB workflow stays unchanged; no change to `main` or `gh-pages`.\n\n## Verification\nCI requested; keep draft pending Debian/Pop!_OS physical acceptance.\n\n## Flight Radar receiver lifecycle review — 8 Nov 2026\nCompared against `Tihulu/tihulu-flight-radar` `main`, especially:\n- `tihulu_flight_radar/control.py` — native `readsb` process lifecycle; explicit start/stop/restart; bounded termination and diagnostic log.\n- `tihulu_flight_radar/core.py` — passive SDR competitor process detection.\n- `tihulu_flight_radar/native.py` — no startup/shutdown race with a receiver still opening.\n- `docs/RTL_SDR_WEBUSB_LINUX_OWNERSHIP.md` — Linux USB interface driver ownership vs process ownership.\n\n**Targeted Satellite Center adaptations**:\n- When `readsb`/Flight Radar or another SDR application appears active, show exact competing process and ask operator to stop it; never stop external processes automatically.\n- Capture and report bounded actual `rtl_sdr` stderr instead of discarding USB/permissions/claim errors.\n- Qt native status distinguishes previously persisted `receiver_enabled` from actual IQ bytes verified **this session**; differentiates \"Satellite Center released\" from \"USB available globally\".\n- Hardware-free regression tests exercise readsb conflict and failed rtl_sdr stderr; Meteor and WebUSB handling stays separate.\n- `readsb` itself is **not** adopted for 137.9 MHz Meteor LRPT: its decoder is 1090 MHz ADS-B specific. We retain native `rtl_sdr` for actual raw IQ.\n\n**Gates:** Hardware-free tests and CI do not prove actual Nooelec capture or downstream Meteor sync. PR remains draft and source-only; `main` and published Pages are unchanged.\n\n## 8 Nov — Native orbit map / calendar and SatDump-style pass previews\n- **Bug fixed:** remove function-local `from datetime import datetime, timezone` within `NativeReceiver.execute` that shadows the module's `datetime` in `orbit_snapshot`. This is the cause of `cannot access local variable 'datetime'` and the blank native orbital map.\n- **Genuine native pass samples:** Skyfield-backed `pass_preview` returns time-indexed local azimuth/elevation/range and Earth subpoints (bounded <25-minute pass, <=~110 samples). Same native TLE cache, no USB/receiver required.\n- **Polar sky chart:** visible predicted AOS, PEAK, LOS, full over-horizon trajectory, animated preview cursor and local compass entry/exit bearings. Native live tracking now has separate ~30-minute Skyfield topocentric path samples, and cannot call browser-only `satellite.js` on a native row.\n- **World/Leaflet maps:** selected predicted pass is overlaid as a dateline-safe ground track with animated projected location. Bundled Natural Earth map remains usable without OSM/CDN.\n- **Two distinct calendars:** predicted TLE-only passes (preview controls) vs actual native persisted scheduled RF jobs (statuses, local time, cancel pending). Refreshes native scheduler status from Qt bridge without WebUSB, keeps web-only scheduler semantics isolated.\n- **One-click calculate:** explicit Calculate passes action fetches native TLEs when none cached, rather than failing without explanation.\n- **Hardware independent** previews never claim optical visibility or received RF; tests include the original datetime scoping regression, synthetic Skyfield trajectory samples, and static UI/native bridge checks.\n\n**Still draft:** real installed Qt GUI / navigation, real TLE pass times, and Nooelec RF recording require physical acceptance. Source/PWA parity will fail while this draft branch is intentionally not published to `gh-pages`.\n\n\n## Follow-up 8 Nov — GPU detection, window-aware opportunity scores, richer pass coverage\n- Native passive OS GPU inventory uses bounded `nvidia-smi` query, then Linux `lspci` fallback. Reports NVIDIA model/driver separately from whether the actual CuPy CUDA Robot36 kernel passed an execution probe. The embedded Qt UI visibly distinguishes physical native GPU from browser WebGPU/CPU processing (no false acceleration claims).\n- Optional receiver window profile moved into the pass planner: azimuth 0–359°, half-width 1–90°, minimum and maximum elevation. Every predicted pass can carry *measured-in-model* overlap seconds, peak elevation, and window-segment intervals sampled at 10 s. Filters show all, some window overlap, or ≥60 s. Sky preview continues to render assumed mask.\n- Lower minimum elevation option down to 0° (default 5°) and broader 72-hour lookahead. Stop discarding genuine amateur TLEs merely because their names lack 'CUBESAT'; raise native and browser catalog coverage (up to 80 candidate amateurs) and allow 900 predicted events. Never imply an active downlink from a TLE.\n- Import standard TLE/3LE exported from SatDump by user file selection; this is user-controlled, not a read of SatDump's private database or arbitrary source. Sky-dip means atmospheric opacity scan; not an orbital element feed.\n- Native scheduled recordings now preserve the identical user-selected elevation cutoff and lookahead to avoid pass mismatches.\n- New Python and Node geometry tests, plus mocked NVIDIA device inventory test. No actual RTX 5080, physical RTL-SDR, or RF packet locks tested in CI. PR remains draft with Pages parity intentionally failing prior to publication.\n\n\n\n## 2026-11-09 — native coverage/OSM/antenna-free planning and CPU/GPU/NPU diagnostics\n\n**Reproduced from installed Qt exact-web screenshots:** RADIO ROSTO had slant range ~4,500 km but orbital altitude 0 km, and geometric coverage outlines were absent. Native `OrbitEngine.snapshot` incorrectly used `wgs84.subpoint_of`, the Earth-ellipsoid **zero-height** projection. It now uses `wgs84.geographic_position_of` to supply real satellite geodetic height; coverage footprints and their min-elevation model can render in the bundled world and optional Leaflet maps. This is TLE-only coverage, **not verified downlink**.\n\n**Leaflet/OSM:** v1.9.4 Leaflet JS/CSS bundled locally with official BSD-2-Clause license, replacing blocked jsDelivr/CDN dependency in restricted `tihulu://desktop`. Native Debian packaging already includes all `browser/` files. The map engine runs without external Internet; optional OSM street raster tiles still need approved network access. Bundled Natural Earth outlines remain the offline fallback. Long passes exceeding native Skyfield's 25-minute `pass_preview` bound now return a **clearly labeled partial** 25-minute preview, never claim a complete long pass.\n\n**No antenna required for planning:** predicted orbital pass calendar and each pass scheduling form offer **Add planning candidate (no antenna)**. This creates `planning-only`, `radioArmed:false`, `actualRecording:false` records separate from the RF capture schedule; visible missing-antenna/no-recording warning. The ephemeral Qt WebEngine profile is handled by dedicated bounded `Station.directory/planning_candidates.json`, with allowlisted native WebChannel list/add/remove operations that **never** call RF/USB commands, auto-start SDR or request capture authorization. Browser version uses localStorage with an in-memory fallback. Existing native actual-capture schedule/recording remains independently verified and permission-gated.\n\n**Compute:** reviewed related `textcenter/compute.py` hardware discovery. Satellite now reports CPU identity/logical threads, detected NVIDIA/other GPU/driver, and `/dev/hailo*` NPU nodes separately from **verified runnable** CUDA/CuPy Robot36 and Intel OpenVINO SSTV kernels. Physical presence is not a usable backend; Hailo is not Intel OpenVINO and cannot run arbitrary decoding models. Current browser CU8 FFT is still CPU and browser WebGPU affects Robot36 audio tracing only when it actually works; native hardware inventory is shown in a clearer UI. New responsive map toolbar and explicit planning calendar cards.\n\n**Tests:** new Python hardware-free Skyfield altitude regression, native persisted candidate store and mocked CPU/GPU/NPU detection tests; JS planning/partial-preview checks. Portable Ubuntu x64+ARM64, Windows, macOS, browser WebUSB and native Debian package CI run on the PR. `pages-source-parity` remains expected RED while the draft PR differs from deployed `gh-pages`; do not publish or merge until actual installed Qt/RTL-SDR acceptance testing. `main`, deployed Pages and legacy receiver workflows unchanged.\n",
+      "author": "Tihulu",
+      "created_at": "2026-11-08T01:55:02Z",
+      "updated_at": "2026-11-09T03:56:36Z",
+      "base": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "feature/satellite-auto-discovery-integrated-2026-11-06",
+        "sha": "362f2f86a70a420d2ddc0eae1619abc75060f2e8"
+      },
+      "head": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "fix/satellite-native-scheduler-modes-2026-11-08",
+        "sha": "670e0ddcf029c8fcc9b0cef403bf76cf37613fcb"
+      },
+      "app_candidates": [
+        "satellite-center"
+      ]
+    },
+    {
+      "number": 36,
+      "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/36",
+      "title": "Draft: Rebase TIHULU TV on real Kaffeine DVB core, integrate Whisper/Translator and mobile HLS",
+      "body": "## Kaffeine-native TIHULU TV: replaces the experimental independent DVB playback path\n\n**Upstream base:** KDE/kaffeine `v2.0.19` at immutable commit `e7ea15b86dafed3b20b151cbcb080578ab8e2d5c`. Kaffeine continues to own the **Si2168 DVB-T2 frontend, scanning, channels, EPG, timeshift, Teletext and libVLC playback**. The source is patched by a reproducible GPL-compatible Python patcher instead of embedding another tuner engine.\n\n### Implemented on this branch\n- Native **TIHULU AI** menu inside source-built Kaffeine with Whisper/Translator Model Market and a live captions action.\n- **Nonblocking single-tuner MPEG-TS UNIX datagram tap** in Kaffeine's existing DvbLiveView stream. Dropped sidecar packets never block television.\n- Real Teletext subtitle-only auto selection (`ffmpeg -txt_page subtitle`) rather than page-150 news used as fake spoken captions; explicit 100–899 page viewer. Whisper ASR + Argos translated captions DE/EN/TR in a separate always-on-top panel.\n- Existing user-owned Whisper/Argos Model Market, model installer and external SSD options.\n- Optional six-digit-PIN paired local phone interface, owner-activated H.264/AAC HLS from the **current Kaffeine program** detected in real PAT. HLS stops when program ID changes or RF ends. No network server on default startup.\n- One-line APT source installer under `kaffeine_next/install.sh` builds a separate user-owned executable. Existing system Kaffeine and channels are preserved.\n- CI checks clone and compile the **real patched KDE Kaffeine source**, check Python tests / Debian package, test program-switch protections.\n\n### Known blockers (keep DRAFT)\n1. No physical WinTV-soloHD/Pop!_OS playback and Teletext acceptance yet. The user's earlier elevated UCB and VLC LATM/HEVC failures remain possible. Kaffeine itself uses libVLC.\n2. Caption window is separate (not OSD integrated); 10-second segments plus model inference mean delayed subtitles; Teletext pages depend on live broadcaster.\n3. Pi 5 ARM64 performance, HLS thermal and real iPhone/Android playback **not verified**.\n4. Linux-only native Kaffeine DVB engine; Windows/macOS DVB hardware backends do not exist, though mobile web clients are cross-platform.\n5. PIN-paired HTTP only on trusted Wi-Fi; do not port-forward. HTTPS/Tailscale is needed for remote/untrusted access.\n\n### Documentation\n[Install and architecture](https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/architecture/kaffeine-core-tv-2026-11-07/kaffeine_next/README.md)\n\nThis draft targets the previous experimental TV feature branch to preserve work while hardware acceptance is in progress. Do not merge to main without device tests.",
+      "author": "Tihulu",
+      "created_at": "2026-11-07T21:28:48Z",
+      "updated_at": "2026-11-08T03:17:52Z",
+      "base": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "feature/tv-center-native-teletext-asr-2026-11-07",
+        "sha": "ee574825a21145aea6996c639f5f142c46613011"
+      },
+      "head": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "architecture/kaffeine-core-tv-2026-11-07",
+        "sha": "08a7579dad22cb9b752b8ad4637bf2d061f4e312"
+      },
+      "app_candidates": [
+        "media-center"
+      ]
+    },
+    {
+      "number": 35,
+      "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/35",
+      "title": "TV Center: standalone WebUSB/WASM browser driver research, TS/SDT parser + optional native TV",
+      "body": "## Standalone browser TV — native server is no longer a dependency\n\n**Web URL:** https://tihulu.github.io/TIHULU-TEXT-CENTER/tv_center/  \n**Published gh-pages:** `7cb8c15f8ca5eb7a88f5c996b1955f55d783d047`  \n**Feature HEAD:** `4e2eb8db10881708f37f6e11491fb2fe5a88254e`.\n\n### Delivered — browser-only without localhost, installed software, token or PIN\n- Removed automatic GitHub Pages → `127.0.0.1` redirection. Native desktop TV remains an optional separate route only.\n- Native-independent WebUSB frontend diagnostics for Hauppauge `2040:8268` / EM28178: permission, USB descriptors, read-only chip-ID, explicit experimental bulk-IN probe **and user-triggered bounded 4 MiB capture, Stop, real TS/PSI progress and .ts/.bin download**, no automatic USB reset or kernel-driver detach.\n- New `em28xx-driver-plan.js` implements Linux-kernel-derived EM28178 vendor USB register/I²C packet serialization, secondary I²C bus selection, **board-specific GPIO initialization plan**, Si2168-D60 user-owned firmware **8/17-byte record parser**, Si2157 RF-tuning and Si2168 T/T2/C demodulation command generation. Tests validate packets, bounds, firmware records and 538MHz sample plans. USB control writes are **not connected to Pages UI** until real device validation.\n- Browser MPEG-TS analyzer computes sync, continuity, CRC32/MPEG-2, PAT service IDs, PMT elementary stream types/codecs and **DVB-SDT service names/provider/TV-radio type**. Local `.ts` import shows real service names, max 2MiB read; no server upload.\n- Experimental optional `ffmpeg.wasm` WebAssembly decoder for user-selected MPEG-TS recording, bounded 64MiB file and five-second preview, no native server and no auto download until requested. Codec/HEVC/browser/CDN acceptance is not verified.\n- Existing optional browser WebGPU/WASM Whisper and translation preserved.\n- Optional native loopback app still works and whitelist includes new standalone modules, but is not needed to open WebUSB/WASM tools.\n\n### Validation\nGitHub Actions **PASS** on capture code `9af6cbda`: [Native TV + Debian package](https://github.com/Tihulu/TIHULU-TEXT-CENTER/actions/runs/42430988868), [TEXT CENTER](https://github.com/Tihulu/TIHULU-TEXT-CENTER/actions/runs/42430988692). New `gh-pages` asset tree and source revision verified; Pages deploy tracked separately.\n\n### Critical scope — NOT a working live DVB-T2 tuner yet\nThe browser does not yet perform EM28178 GPIO/I²C writes, load firmware, tune Si2157, lock Si2168, continuously receive full live MPEG-TS or render real live HEVC/AAC. WebAssembly alone does NOT bypass USB kernel-driver ownership. A safe Linux one-time permission/unbind procedure, model/revision-specific firmware, USB hardware testing and real RF lock/stream acquisition are still necessary. User-owned firmware is never uploaded or flashed by the prototype.\n\nResearch basis: Linux [em28xx](https://github.com/torvalds/linux/tree/master/drivers/media/usb/em28xx), [Si2168](https://github.com/torvalds/linux/blob/master/drivers/media/dvb-frontends/si2168.c), [Si2157](https://github.com/torvalds/linux/blob/master/drivers/media/tuners/si2157.c), and [px4-web](https://github.com/e04/px4-web) demonstrating a different tuner working via WebUSB/WASM. See `tv_center/README.md`.\n\n**PR remains DRAFT**; no main merge or claim of physical tuner success without device validation.\n\n### 2026-11-08 follow-up\n- Added read-only `browser-ts-capture.js` with bounded capture and local export. Test coverage: real PAT CRC recognition, no invented streams, budget and Stop, UI controls.\n- Published GitHub Pages commit: [`20e21d1`](https://github.com/Tihulu/TIHULU-TEXT-CENTER/commit/20e21d13c477d379b8a790f2e5a06871f0767955). [Deployment workflow](https://github.com/Tihulu/TIHULU-TEXT-CENTER/actions/runs/42431074551).\n- **Still not a complete live tuner:** cold-start firmware / Si2168 / Si2157 / RF lock / scanning remains unimplemented. Capture only works if the device is already streaming. WebUSB needs Chromium and OS interface ownership. PR remains draft.\n\n\n### 2026-11-08 · USBDevice.open Access denied recovery\n- Browser distinguishes **Linux OS USB open denial** from **later USB interface claim conflict**. Displays actionable scoped udev/uaccess, Chromium Snap raw-usb, Flatpak caveats and sanitized diagnostic export.\n- Added `tv_center/web/webusb-access-guide.js` and five regression tests in `tv_center/web/tests/webusb-access-guide.test.mjs`; both main suites PASS at feature HEAD `4e2eb8db`.\n- Added optional **read-only Linux doctor** `tv_center/tools/diagnose-webusb-linux.sh` (USB node R/W/ACL and kernel driver binding checks, no mutation), exercised in CI.\n- Published gh-pages source commit [`7cb8c15`](https://github.com/Tihulu/TIHULU-TEXT-CENTER/commit/7cb8c15f8ca5eb7a88f5c996b1955f55d783d047). [Pages deployment](https://github.com/Tihulu/TIHULU-TEXT-CENTER/actions/runs/42436585107).\n- OS permission still requires user-initiated system configuration; firmware/tuner live RF lock and scanning are **not implemented**. PR remains draft until physical device acceptance.\n",
+      "author": "Tihulu",
+      "created_at": "2026-11-07T17:33:26Z",
+      "updated_at": "2026-11-08T01:59:48Z",
+      "base": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "main",
+        "sha": "6be907a779e70f39dcb72a35767aaa632652e38d"
+      },
+      "head": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "feature/tv-center-native-teletext-asr-2026-11-07",
+        "sha": "4e2eb8db10881708f37f6e11491fb2fe5a88254e"
+      },
+      "app_candidates": [
+        "media-center",
+        "text-center"
+      ]
+    },
+    {
+      "number": 33,
+      "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/33",
+      "title": "Satellite Center: chain long WebUSB/native RF recordings into independently scheduled calendar files",
+      "body": "Implements user-requested long RF capture **in seconds or minutes**, browser **<=60 s and <=128 MiB CU8 per file**, and **native <=180 s per scheduled file**, with independent calendar events and truthful restarts.\n\n- 300 s Meteor 1.024 MS/s WebUSB => five **60 s CU8 files**, 6 s reserved gaps, approx 614 MB total. 2.048 MS/s limits segments to 32 s to fit RAM. Each file gets genuine USB data, its own capture metadata, state and browser download (multi-download permission may be needed).\n- Browser manual Start, pass scheduler, auto-pass scheduler, and pending calendar editor share deterministic segmented planning. Calendar edit and cancel can act on the pending group; Stop cancels pending manual segments. Full chain must fit predicted LOS; no overlapping single RTL-SDR jobs.\n- Browser and Satellite Images & Data support recording-duration **seconds/minutes** inputs; UI shows chunk count, data budget and restart-gap warnings. Browser job countdown becomes **days/hours/minutes/seconds**.\n- Native Station.schedule_chain creates and persists **<=180 s** file jobs with 21 s reserved restart gap, validated real predicted pass, conflict checks and rollback on later failure. Native localhost `/api/schedule-chain` and desktop Qt pass planner use it. Native automatic long-pass plans reserve gaps and mark resulting coverage partial where necessary, rather than wrongly claiming full acquisition.\n- Native Qt pass and auto plan, manual receiver have seconds/minutes controls; Qt calendar countdown updates each second.\n- Tests prove 300s/60s/128MiB behavior, time unit conversion, LOS fit, per-part native schedule/rollback, event file grouping, no fabricated RF. Expanded cross-platform CI.\n- This is **not gap-free baseband recording**. Each part may have additional USB re-tune/file download delays; native continuous disk streaming remains better for uninterrupted Meteor LRPT where available.\n- Preserve unrelated code and do not touch main. Pages source published separately after verification. No real hardware reception asserted.",
+      "author": "Tihulu",
+      "created_at": "2026-11-07T02:11:36Z",
+      "updated_at": "2026-11-07T02:22:58Z",
+      "base": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "feature/satellite-auto-discovery-integrated-2026-11-06",
+        "sha": "85dee0719744f60469e97fba3d1cae2aa8cb91a7"
+      },
+      "head": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "feature/satellite-chained-capture-calendar-2026-11-07",
+        "sha": "116aca61dfaa87bd236ef7a5e720f5ccec253c96"
+      },
+      "app_candidates": [
+        "satellite-center",
+        "media-center",
+        "text-center"
+      ]
+    },
+    {
+      "number": 32,
+      "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/32",
+      "title": "Satellite Center: consecutive 60s browser / 180s native capture segments, minutes and full countdown",
+      "body": "Implement real consecutive **independent** reception tasks across Satellite Center browser/PWA, Pages, native Qt desktop, localhost companion, and both 24-hour calendars. The original 128MiB / native 180s survey limits are NOT bypassed by holding more bytes in RAM.\n\n- Foreground WebUSB: user requests total 1–900 RF seconds or equivalent minutes. Split into ≤60s at 1.024MS/s, ≤32s at 2.048MS/s CU8, save each as its own CU8 and/or demodulated WAV file; 2s receiver-restart gaps between tasks are explicit and **not sampled**. For 300s/1.024MS/s, schedule 5×60s + 8s gaps, not one 614MB RAM buffer. Validate predicted LOS, single-dongle conflicts and split the schedule transactionally before committing to the calendar.\n- Browser manual pass planning, automatic Meteor/ISS pass planning, linked Images & Data auto planning and calendar series editor all offer seconds/minutes and per-part metadata. Edit a pending series atomically; each task has its own state and local start/end time. D/H/M/S countdown replaces seconds-only countdown.\n- Native Station.schedule_series is atomic with rollback; split 300s survey into 2×150s with 2s gap, persisting independent jobs in schedule.json. API /api/schedule-series and native auto missions use same safety. Existing native single continuous IQ recording remains available. Native manual survey >180s supports actual back-to-back captures. No implied seamless Meteor LRPT stream.\n- Native Qt desktop passes/manual/auto length selectors support seconds and minutes; new local task list/calendar display part numbers, precise time windows and live D/H/M/S countdown.\n- Native automatic edit re-plans the full pending series with rollback; complementary browser/native calendar edits understand group membership.\n- Tests cover 300s→5×60s browser, 2.048MS/s memory cap, 300s→2×150s native, minute conversion, countdown and rollback. CI and Pages parity include new module.\n- Browser segmented downloads may require Chromium's multiple-file permission. Running browser work still needs tab visible/awake. RF gaps can prevent continuous LRPT image decoding. No hardware signal or decoded image is fabricated.\n- Scope limited to Satellite Center; do not merge into main. CI and Pages deployment to be verified before merge.",
+      "author": "Tihulu",
+      "created_at": "2026-11-07T01:38:39Z",
+      "updated_at": "2026-11-07T01:54:43Z",
+      "base": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "feature/satellite-auto-discovery-integrated-2026-11-06",
+        "sha": "9ba634311e2db69e4a8e2063b7cc35f84b91c2f7"
+      },
+      "head": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "feature/satellite-segmented-captures-2026-11-07",
+        "sha": "ca652a730b4fa59a88f08982f931010f8ea77463"
+      },
+      "app_candidates": [
+        "satellite-center"
+      ]
+    },
+    {
+      "number": 31,
+      "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/31",
+      "title": "Robot36: diagnose wrong ISS receive frequency, pre-event recordings and missing sync",
+      "body": "Analysis of **actual user-provided .cu8 and .wav** captured 2026-11-07T00:46:01Z reveals 145.800 MHz center instead of the upcoming 437.550 MHz ARISS Series 35 SSTV campaign (9–16 Nov). Original files show 64.768 sec at 1.024 MSPS, a valid 48 kHz PCM WAV, no 1200 Hz sync train, and broad noise with strongly clipped audio. Decoder correctly refused to invent an image.\n\nThis PR improves diagnostics without relaxing any Robot36 verification criteria:\n- Human-readable reason appended to WAV and CU8 Robot36 decode failures based on *filename candidate metadata only*, not claiming verified physical RF source.\n- Specifically distinguishes 145.800 MHz voice/contact from 437.550 MHz Series35 SSTV, warns if recorded outside its announced date window, and notes a 1.024 MSPS CU8 cannot be retuned hundreds of MHz.\n- The 145.800 MHz receiver profile is explicitly labelled **NOT Series35 SSTV**.\n- Preserve legacy decoder, unrelated files, live receiver/UI behavior.\n- Unit tests validate the exact two file-name patterns, true 437.550 in-window/no-sync case, generic renamed WAV fallback, and UI text. CI enforces tests and Pages/source parity.\n- Pages asset deployment to follow only after tests; no physical hardware success claims.\n\nThe actual user files are NOT committed to GitHub.",
+      "author": "Tihulu",
+      "created_at": "2026-11-07T00:56:00Z",
+      "updated_at": "2026-11-07T00:57:28Z",
+      "base": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "feature/satellite-auto-discovery-integrated-2026-11-06",
+        "sha": "d554d6790d08de1c3d7b399d6edbaa50f2226165"
+      },
+      "head": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "feature/iss-sstv-wrong-band-diagnostic-2026-11-07",
+        "sha": "7e16d127fae2522c9dbd5d34ae15e548d3251268"
+      },
+      "app_candidates": [
+        "satellite-center",
+        "media-center"
+      ]
+    }
+  ]
+}

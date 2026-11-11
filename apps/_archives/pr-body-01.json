@@ -1,0 +1,283 @@
+{
+  "schema_version": 1,
+  "original_source": "Tihulu/TIHULU-TEXT-CENTER",
+  "snapshot_date_utc": "2026-11-11",
+  "pr_records": [
+    {
+      "number": 67,
+      "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/67",
+      "title": "Draft: unified live/complete Media Center timed transcript and recording export",
+      "body": "## Scope — only opt-in Media Center recording and export\n\n**Base:** Draft preservation integration PR #66. No existing application branches or `main` were edited.\n\n- New shared offline `tv_center/recording_export.py`: format conversions using actual SRT cue ranges (TXT/SRT/VTT/ASS/JSON; LRC only with user-confirmed timed lyric source), non-destructive multi-language selectable MKV and optional video-burn MP4 via FFmpeg.\n- Optional split of explicit [EN]/[DE]/[TR]/other recognized translation lines into original and translation tracks; speaker/sound labels preserved in original.\n- Local audio/video native Qt panel: independent text/combined-media export dialog, keeps existing Complete-first and manual playback paths.\n- Unified Recordings library: export from finished recorded media and existing live/offline SRT, including imported native DVB recordings, with no tuner ownership changes.\n- Existing live TV SRT recorder: optional TXT/VTT/ASS/JSON sidecars on user Stop, source tracks separate.\n- Radio native UI: explicit independent live Whisper SRT capture with estimated **caption display** clock, not false DAC/word PTS; existing MP3 and offline SRT+MKV recording unchanged.\n- No background export by default, original media untouched and no overwrite.\n\n## Boundaries still to verify\n- Existing live audio/video recorded stream & AI timing require hands-on synchronization testing.\n- Radio live-SRT cue intervals are estimated from displayed caption times; they must not be claimed to be measured DAC media-clock synchronization.\n- LRC exported only when the user identifies true timed lyrics.\n- Source-based media recording cannot capture overlays by itself; video burn-in separately requires FFmpeg re-encode.\n- GitHub contract/synthetic tests and native compilation do not prove on-air DAB/DVB, PipeWire audio, precise sync, local file seeking or cross-platform packages.\n- Source trees for Satellite and Geolocation are protected by baseline hash guards. Do not merge to main until real devices, complete dependency graph and installation profiles are validated.\n\n## Safety\nNo merge/rebase/force-push of previous PR branches, no installer repoint, no new SDR claims. Keep Draft until CI and physical/regression tests pass.",
+      "author": "Tihulu",
+      "created_at": "2026-11-11T15:29:07Z",
+      "updated_at": "2026-11-11T15:37:20Z",
+      "base": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "integration/preserve-all-apps-2026-11-11",
+        "sha": "20379152be2751e5d89a8bdbac85fb15fc6b3c4e"
+      },
+      "head": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "feat/media-unified-recording-export-2026-11-11",
+        "sha": "4e62e21cd5252df8a04f9ceadc429f4b116412ce"
+      },
+      "app_candidates": [
+        "media-center"
+      ]
+    },
+    {
+      "number": 66,
+      "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/66",
+      "title": "Draft integration: preserve Media, Satellite and RF Geolocation application trees unchanged",
+      "body": "## Purpose\nNon-destructive multi-application preservation staging branch for TIHULU-TEXT-CENTER. **Do not merge until full release gates pass**.\n\n- Derived from existing Media Center/Text Center feature head (PR #65 source) with no rewrite.\n- Added `satellite_center/` verbatim from Satellite Center source branch; tree SHA `41d5a38c6c5382d205ea98fd98648b8c7c9c2275`.\n- Added `rf_geolocation_center/` verbatim from Geolocation branch; tree SHA `7be22e93b0138de1efbe6a27b43c8143ead76c49`.\n- Kept original program code, installer pins, settings and all other trees byte-for-byte unchanged in the import commit.\n- Added audit `docs/INTEGRATION_BASELINE_2026-11-11.md` and source-tree regression check.\n- No runtime/launcher rewrite, no changes to existing PRs or canonical Flight Radar repo.\n\n## Do not treat as fully integrated\nThe satellite/RF branches' overlapping existing `textcenter/`, `web/`, `docs/`, `.github/` and installer changes have **not** been merged. Other development branches remain pending. GitHub CI does not prove physical tuner, DAC, Wayland, cross-platform GUI, or capture success.\n\n## Release/merge blockers\nReview dependencies and conflicts against the current `main` branch (which is independently diverged), run all application smoke tests and hardware tests on Pop!_OS / Raspberry Pi / macOS / Windows as applicable, then explicitly approve the rollout. Do not auto-merge.\n\nFurther recording/export development will occur in a **separate** PR from this stable preservation baseline.",
+      "author": "Tihulu",
+      "created_at": "2026-11-11T15:15:24Z",
+      "updated_at": "2026-11-11T15:15:24Z",
+      "base": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "main",
+        "sha": "1fffb711bfbb7c4abaf55299fa9240e5db3e1cde"
+      },
+      "head": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "integration/preserve-all-apps-2026-11-11",
+        "sha": "20379152be2751e5d89a8bdbac85fb15fc6b3c4e"
+      },
+      "app_candidates": [
+        "satellite-center",
+        "geolocation-center",
+        "media-center"
+      ]
+    },
+    {
+      "number": 65,
+      "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/65",
+      "title": "Unified AI captions: regional lyrics, karaoke threshold, direct DE→TR, refresh, sound tags & Teletext audit",
+      "body": "## Scope since PR #63 install\n- Preserve current native DAB/audio/TV/Whisper and caption queues while improving radio Karaoke, translation and refresh.\n- DLS song-hint parsing for artist-title and German/TR track-first broadcaster formats; don't claim metadata is proof of audio-matched lyrics.\n- Safe lyric sources: LRCLIB, lyrics.ovh and licensed Musixmatch in app; German/Turkish/global lyric catalog searches as user-clicked links, never unauthorized scraped full text.\n- Blue Karaoke no-results/Whisper fallback diagnostic; audio-verified word/line displays only.\n- Live adjustable ASR/Lyrics lexical similarity threshold 65–96%, anchored conservative special-case safeguards; dedup repeated matched lines.\n- Main-player extra cache slider 0–60s with explicit Apply, and ±12s subtitle offset slider; don't reset audio on drag. Existing lyrics offset remains separate.\n- AI Caption Refresh and Lip-sync Refresh for TV and radio; per-station / per-program revision controls and no false DAC PTS claims.\n- Shared AI profile UI distinguish GPU Large-v3 Turbo from Small CPU fallback.\n- Explicit offline Direct DE→TR preference: installed NLLB first, MADLAD second, Argos possible English-pivot fallback, no implicit cloud.\n- Radio AI captions master controls local options while retaining explicit online lyrics consent.\n- **New reported issue:** Additive detector-backed [Music]/[Humming]/[Applause] alongside intact original/translated TV speech and no duplicate tags, with model-unavailable diagnostics.\n- **Teletext audio mismatch:** Existing TeletextAudit checks real same-language speech, multiple conflicts trigger Whisper, confirms recovery before returning; improve DVB ISO3 vs Whisper ISO2 language recognition and preserve program/channel revision guards.\n- Synthetic Python regression tests for acoustic labels + verified fallback, metadata, direct translation, refresh.\n\n## Important limits\nLive ROCK FM/WDR/RTL RADIO and actual audio output/DAC sync cannot be checked by GitHub CI; this is Draft until tested on NooElec SDR and user workstation. Licensed lyrics fetch still requires provider authorization. No fake confidence as calibrated percentage or fabricated audio PTS. No background SDR ownership.\n\n## Radio Karaoke timing follow-up · 2026-11-10\n- **Default remains** `Karaoke · Audio matched`: only Whisper/PCM-evidenced lines and real word anchors where available.\n- **Opt-in** `Karaoke · Lyrics found (preview)`: existing unverified line preview; 100% by default, independently adjustable speed and ±90s lyric offset.\n- **New opt-in** `Karaoke · Lyrics found + lip-sync (estimated)`: highlights the currently estimated word in the blue panel. Timed LRC interpolates within line bounds; plain lyrics interpolate within an explicitly guessed 6-second line. Both remain marked `LYRICS FOUND · UNVERIFIED` / `ESTIMATED WORD SWEEP` — never ASR-matched or measured DAC lip-sync.\n- Verified Karaoke blue-screen hold no longer depends on lower transcribed subtitles' Live/Comfort/Relaxed/TV-style Adaptive Reading mode. Subtitle and translation band remains independent.\n- Added focused native Qt source-contract regression tests; Python 3.11/3.12/3.13 succeeded. Real device and Kaffeine Qt5 compilation still required before Draft can be promoted.\n\n\n## Radio continuity + antenna-free startup · 2026-11-10\n- Native DLS changes now enter a 5-second pending-song state instead of immediately clearing current karaoke. The candidate must still match current DLS at commit time and recent audio-verified old-song lines defer the switch; station/request tickets invalidate delayed callbacks.\n- Avoid duplicate same-song lyric lookups from concurrent automatic triggers; use bounded, session-only 12-song / 2-hour cache keyed by normalized artist/title plus source/target language selection, and unique per-request result files.\n- Ignore punctuation/diacritic/case variations in repeated song hints; preserve independent normal Whisper subtitles.\n- **Pop!_OS startup / no antenna:** removed the inherited shell `flock` single-instance gate. Pinned KDE Kaffeine already uses `KDBusService::Unique` to activate an existing window, whereas child processes could keep the shell lock held after the visible window exited. No DVB/RTL-SDR is needed on initial launch, unless the user explicitly enables last-channel autoplay. Device acquisition remains on-demand.\n- Native test contracts cover pending-song cancellation, duplicate/cache guard, and no-tuner startup. Hardware-on-air / XWayland confirmation is still outstanding. Keep Draft until physical verification.\n\n\n## Silent DAB audio while captions still work · 2026-11-10\n- User screenshot: ROCK FM on live DAB 9D; welle reports valid SNR and Kaffeine reports `PLAYING`, but physical speaker output is silent. Independent Whisper capture and live captions do not measure DAC output. Do not mark `Playing` as audible proof.\n- Native Radio gets shared libVLC **Volume**, **Toggle mute**, **Retry DAB sound** (manual local MP3 reopen only; no SDR retune, recording teardown or Whisper process restart) and read-only **Audio outputs...** (wpctl or pactl query).\n- Default Pop!_OS/COSMIC `TIHULU_VLC_PROFILE=software` drops stale saved `--no-audio` from libVLC arguments. Explicit `software-no-audio` diagnostic mode still works.\n- Diagnostics reference the existing Kaffeine **Playback > Audio > Audio Device** selector and system sound routing; a reporting-player state never guarantees audible sound. Regression tests added to `tests/test_radio_silent_audio_recovery.py`.\n- **Limit:** real PipeWire sink selection, physical PreSonus USB DAC and on-air audible recovery remain to be tested on the workstation; do not promote Draft just from CI.\n\n\n## Lip-sync Refresh includes Karaoke + Live-fast stability · 2026-11-10\n- Existing `Lip-sync Refresh` now invokes `refreshRadioLipSync()`: clears lower-captions lag estimates, resets verified lyric calibration hysteresis, reanchors *pending verified* Karaoke cues from real Whisper word-epoch data, forces the visible verified word highlight or opted-in estimated Lyrics Found preview to rerender on the **same** track position. Retains lyrics, original/translated subtitles, word anchors, both manual caption/Karaoke offsets, and playback buffer. Does not restart tuner, libVLC, ASR or online lyric search.\n- `Reading: Live · fast` uses 150-ms instead of 300-ms caption polling and brief 250/900-ms anti-flicker holds in place of the previous zero hold, without delaying radio audio or making the Karaoke depend on Reading. Where ASR is already late, UI explicitly reports inference latency and actionable model/output-buffer tradeoffs; does not invent DAC timing.\n- Estimated Karaoke 50–200% preview speed changes preserve the current song playhead (clock compensation); a mid-song speed change no longer jumps entire verses. New tracks reset compensation. Existing real audio-verified lyrics are never sped up artificially.\n- Regression contracts: `tests/test_radio_sync_refresh_karaoke_fast.py` plus updated legacy reading/buffer tests. Qt5 compilation and actual DAC/AV synchronization are separate checks.\n\n\n## Lyrics Refresh, Full Lyrics window, and instrumental-break follow-up · 2026-11-10\n\n- **Added Full Lyrics:** separate resizable, read-only native Qt window from the Radio Karaoke controls and AI Lyrics tab; displays available lyric lines, time marks, real source, actual translated text and clear audio-verification state. The window updates live without starting a web request or restarting RF/Whisper. Missing lyrics/translations are not fabricated.\n- **Added Lyrics Refresh:** explicit online lookup with user confirmation for stable current DLS artist/title (or manual override); separate worker and results path, bypasses in-session cache on this manual action and rejects concurrent or stale song searches. Visible lyrics/Karaoke continue while search runs. Empty/failed results leave the previous text intact; complete usable results replace only the lyric data and refresh the bounded cache. No radio or Whisper restart.\n- **NEXT — Instrumental passage pause (user-reported):** The opt-in estimated Karaoke mode currently advances lyrics using wall-clock time even when there is an instrumental break. Add a vocal-evidence-aware hold/resume: keep the last heard sung word/line during instrumental portions, then resume alignment when new sung words are detected. Avoid invented word timings or false assertions that no ASR text alone proves an instrumental. Prefer genuine acoustic/vocal evidence (optional installed detector, confidence + hysteresis) and distinguish verified Whisper Karaoke from unverified Lyrics Found preview. Show a clear uncertain/estimated status if detection is unavailable. Preserve the bottom caption band, manual offsets, and radio playback. Add tests for instrumentals, silence, lyricless speech, late ASR and resume without time jumps.\n- Real RF/DAC and GUI validation remain outstanding; keep PR Draft.\n\n\n## Home Radio tile, crash-safe Radio ↔ TV transitions & percentage bar · 2026-11-10\n\n- Fix native **Start → 6 DAB+ Radio** button: Qt5 emits `clicked(bool)`, but the old connect used `SIGNAL(clicked())`. Normalize the Start shortcut connections to the valid signal; open the actual native Radio tab through `MainWindow::playRadio()`, not another app, web page or tuner auto-start.\n- Protect **Radio → Television → Radio** from re-entrant tabBar signals with a per-window in-progress property and `QSignalBlocker`. Before TV activation, invalidate pending DAB tune/scan requests, stop only TIHULU-owned welle-cli / rtl_fm, AI captions, recordings and shared libVLC radio playback, and confirm the app-owned SDR has been released. Deny TV handoff when release fails; never kill third-party SDR owners or bind/release physical DVB drivers directly.\n- On the Hardware tab, **Open TV / tune last channel** also enforces radio release before claiming native DVB playback.\n- Add permanent **SDR / TV handoff percentage** in bottom status bar. Stage markers: 10% request selected, 35% stopping app-owned radio, 85% released/idle, 100% target tab activated; returning to Radio shows 70%/100% while RF hardware remains on-demand. These percentages are operation-state markers, **not** RF lock, USB transfer, signal strength or elapsed-time estimates.\n- Tests added: `tests/test_radio_tv_handoff_progress.py`. Build and physical reproduction on the user's Pop!_OS desktop remain outstanding. Keep PR Draft.\n\n\n## DAB extra buffer infinite 95% / premature audio failure · 2026-11-10\n- Screenshot showed ROCK FM on DAB 9D, requested extra cache **9,500 ms**, but display continued counting **100,779 / 9,500 ms** at **95%** indefinitely while player reported **NO AUDIO PLAYBACK**. This is an elapsed-startup **estimate**, not actual libVLC queue occupancy, DAC/audio output, RF data or effective cache.\n- Bound the startup indicator's elapsed time to the **requested** cache amount; at most 90% during a decoder grace period. When no `PLAYING` is reported after `max(12s, requested cache + 8s)`, show clear **DAB AUDIO STARTUP FAILED / TIMEOUT** and reset progress to 0%, without automatically restarting SDR, ASR, lyrics or audio.\n- Also correct prior **3.5s premature NO AUDIO PLAYBACK verdict**, which occurred before a requested 9.5s cache could plausibly open. The corresponding initial sound check now uses the same bounded startup deadline.\n- Only report 100% after libVLC has started playback; even then the **actual buffer fill and physical speaker output remain unmeasured**. Preserve independent stream/radio diagnostics.\n- Updated source regression in `tests/test_tv_radio_frequency_buffer_progress.py`. Device sound and welle-cli termination require further workstation testing. Keep PR Draft.\n\n\n## Independent AI subtitles and Karaoke audio-position hold · 2026-11-10\n\n- User report: live **AI radio subtitles do not appear** and Karaoke lip-sync does not match the song's audible position, in context of a DAB receiver/player that previously reported **NO AUDIO PLAYBACK** and excessive requested buffer. Original captions cannot exist without a decodable local /mp3 input, independently of lyrics lookup.\n- **Whisper diagnostic:** When the FFmpeg DAB capture yields zero PCM windows before EOF, the Python worker publishes `status=audio_unavailable`, a clear receiver/FFmpeg/MP3-path explanation, captured-window count and decoder process exit code. A user-requested Stop does not report an input failure. Native Radio now shows `waiting_audio` vs `audio_unavailable` clearly and marks **AI captions OFF** when the worker terminates unexpectedly. No fabricated speech or translations.\n- **Subtitle independence:** the lower Radio canvas caption strip is owned by Whisper originals and real translations, never overwritten or temporarily suppressed by a matched/estimated lyric line. Audio-matched lyrics render in the separate blue Karaoke panel; source lyric metadata is not spoken ASR. Legacy regression contracts updated.\n- **Karaoke synchronization:** verified Whisper word anchors remain the only genuine word timing evidence; on player Stop/failure and absent recent vocal matches, the optional estimated lyric preview pauses instead of advancing through unknown/instrumental intervals. It preserves the most recent heard lyric index/word, manual Karaoke offset, and normal subtitles; on resume it compensates for paused wall-clock time. If ASR has stopped, estimated **word sweep** must not proceed without acoustic confirmation. Never claim missing Whisper output proves instrumental audio. DLS timestamp is not measured audio playback position. Song change/stop resets relevant pending state.\n- Added `tests/test_radio_ai_caption_karaoke_playback.py` and adjusted legacy tests for proper independent Karaoke/Whisper layouts.\n- **Remaining:** real speaker DAC/latency, DAB AAC->MP3 and FFmpeg audio-input hardware test on user's Pop!_OS workstation. Keep PR Draft.\n\n\n## Eliminate arbitrary Karaoke movement and reuse adjustable 10s sync evidence · 2026-11-10\n\n- Follow-up user report: even after the earlier fix, opt-in `Lyrics Found + lip-sync` still walked forward through verses/words on its own. Root cause: `showFoundKaraokePreview()` continued consulting DLS/LRC wall clock, fabricated 6s/line durations, and interpolated each line's text into an arbitrary word sweep whenever a recent match loosened a hold.\n- **Now disabled:** all autonomous LRC wall-clock seeks, plain-text 6s auto-advance and interpolated pseudo-word highlighting in BOTH Lyrics Found preview modes. `found-sync` keeps its persisted key but is relabeled **Lyrics found + lip-sync (audio gated)**; retrieved lyrics remain STATIC until actual Whisper match or a manual Lyric ◀/▶ choice. When an audio-verified line is already displayed, the preview cannot overwrite it. No invented instrumental/VAD proof or Whisper timestamps.\n- Added adjustable **Karaoke sync history**, 3–30 seconds, default **10s** (UI by Karaoke offset). Store up to 48 recent ASR-verified lyric cues / actual observed word-epoch anchors in RAM; entries are scoped to current station and track, expire by the selected history window and are cleared on song/lyrics changes. This is an **evidence cache**, explicitly NOT 10 seconds of raw PCM and NOT an extra libVLC audio delay.\n- `Lip-sync Refresh` reuses the last valid audio-matched word anchors and existing pending ASR cues, applying current user offsets immediately. Never stops/replays/refills the libVLC audio buffer or restarts SDR, welle-cli, Whisper or downloads lyrics. If no recent verified word exists, shows a waiting/held state instead of guessing or scanning the whole song.\n- The obsolete unverified Karaoke speed control is disabled and removed from visible layout; it can no longer cause faux lyric advancement.\n- Updated source regression tests (`test_radio_lyrics_found_preview.py`, `test_radio_karaoke_independent_lipsync.py`, `test_radio_sync_refresh_karaoke_fast.py`, `test_radio_ai_caption_karaoke_playback.py`). Hardware DAC PTS and genuine raw PCM replay/retroactive inference remain unimplemented; physical alignment test still required. Keep PR Draft.\n",
+      "author": "Tihulu",
+      "created_at": "2026-11-10T01:57:38Z",
+      "updated_at": "2026-11-10T17:15:03Z",
+      "base": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "fix/media-radio-library-translation-reading-2026-11-10",
+        "sha": "597be4d1be64e50a137122c7bfd8b33315f07356"
+      },
+      "head": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "feat/unified-lyrics-caption-refresh-2026-11-10",
+        "sha": "20b0417aa7edba2f86b297e7cabdd062e9b24291"
+      },
+      "app_candidates": [
+        "media-center",
+        "text-center"
+      ]
+    },
+    {
+      "number": 64,
+      "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/64",
+      "title": "Radio + TV: lyric discovery, match threshold, shared offline translation and caption/sync refresh",
+      "body": "## User issues / screenshots (since last PR #63 install)\n- DAB station ROCK FM shows metadata but no Karaoke; RTL RADIO uses unusual `JETZT ON AIR :: Title :: Artist` format.\n- Song lyrics may be missing even when DLS artist/title exists; fallback must show actually decoded Whisper captions, not fabricated words.\n- Request more licensed global/German/Turkish lyric sources.\n- Karaoke lexical MATCH % unclear and too strict; allow live conservative threshold and suppress repeated lines.\n- Expose main radio buffer slider, caption offset slider, and safe TV+radio Caption Refresh / Lip-sync Refresh.\n- Make AI Captions ON activate local translation, karaoke and adaptation without hidden global second enable; preserve explicit cloud lyrics consent and manual OFF choices.\n- Performance UI must distinguish NVIDIA Faster-Whisper Turbo GPU from Small CPU fallback.\n\n## Changes (stacked on #63, direct DE→TR feature branch)\n- Named regional lyric catalog browser *search links* for Genius/SoundChapter/Liedertexte/Muziksozleri/Söz Müzik; not unlicensed lyrics scraping. Existing LRCLIB, lyrics.ovh, **licensed** Musixmatch API continue in allowed in-app pipeline.\n- Recognize artist/title hints with common German/Turkish DLS separators; normalized song key prevents every rotating DLS update from resetting a song.\n- Karaoke blue-screen empty/missing fallback explained and bottom original+translations preserved.\n- Live 65–96% lyric-ASR lexical threshold (default 74%); disallow short refrain false positives; suppress same line within 7s and repeated ASR chunk matches.\n- Main radio user-controlled extra buffer and subtitle offset sliders; new audio cache requires explicit Apply; subtitle offset does not retune.\n- Caption Refresh and Lip-sync Refresh controls for BOTH Kaffeine TV sidecar and radio; reject stale station / TV revision events. These measure ASR/PCM timing only, not ALSA/DAC PTS.\n- Radio AI master ON enables installed offline features but never sends metadata online until explicit informed consent.\n- TV local translation on explicit OUT language selection without requiring separate global Market translation ON; no automatic DeepL/cloud opt in.\n- Performance profile UI shows primary CUDA Turbo vs CPU fallback and saved-vs-running state.\n\n## Validation\nIncludes new DLS/parser/refresh/direct-translation tests. Run Python, Native TV, Native DVB/Radio, Kaffeine Qt5/C++, welle.io and repair any failures. Keep Draft pending real NooElec ROCK FM/TV video output and model latency/ASR tests. Do not claim perfect lip sync or unconditional song lyric coverage.\n\n## Branch order\nPR #63 -> direct DE→TR branch -> this PR. Never merge out of order.\n## Added: continuous spoken-audio Teletext audit (TV)\nUser requirement: \"TV'de de Teletext altyazısı konuşmayla uyuşmuyorsa otomatik olarak Whisper'a geçmesini istiyoruz ... Teletext tekrar düzelirse: Eşleşme doğrulandıktan sonra Teletext'e geri dönülebilir.\"\n- In Auto mode the same selected TV SID/TSID capture is checked against genuine same-language Whisper ASR, not only PTS, source presence or timestamps.\n- Native broadcaster Teletext with corroborated spoken words stays preferred; suspected one-window lag triggers cautious TS/native buffer re-sampling (actual DAC output PTS still unavailable).\n- After 3 substantial conflicts OR 3 persistent adjacent-window lag findings, queue is invalidated and real Whisper takes over without showing old Teletext.\n- On fallback, old Teletext is sampled periodically alongside REAL ASR (no second duplicate ASR model execution). Two matching audio checks permit recovery; return to Teletext only on the NEXT actual current-service cue.\n- Original + per-target offline translation is re-run for the live source; EN + TR selections survive transitions. Previous programme SID/TSID and revisions are gated.\n- Status visible on every TV caption settings tab: `TELETEXT · SYNCED`, `TELETEXT · MISMATCH`, `TELETEXT · DELAY CHECK`, `WHISPER · AUTO FALLBACK`.\n- Verified language aliases (DE/deu/ger etc.) and bounded retry/lag regression tests.\n- **Limitations:** audio output/DAC PTS is NOT measured; avoid claiming exact lip-sync or that subtitles in a different language necessarily conflict with speech.\n\n## Added: owner-controlled Karaoke vocal evidence\n- A verified lyrics TXT/LRC catalog alone does NOT silently disable speech VAD for all users. When Karaoke is ON (explicit control), the worker may relax vocal VAD for source-word matching; Karaoke OFF retains speech-first decoding.\n- Whisper presenter speech remains visible when song words do not match; no invented lyrics or external scraping.\n- Main radio controls: extra audio buffer with explicit Apply, separate caption and Karaoke offsets, and adjustable 65–96% audio/lyrics lexical match threshold (not a calibrated confidence percentage).\n\n## Pending real-receiver validation\n- Kaffeine TV actual video/Teletext/ASR coincidence and restart/recovery; DE/TR and EN/TR audio tracks.\n- DAB ROCK FM and RTL RADIO true karaoke lyric matches, CPU/GPU latency and actual native audio presentation clock.\n- Licensed Musixmatch access key and local German/Turkish search-link sites are not equivalent to an approved automatic full-text API.\n",
+      "author": "Tihulu",
+      "created_at": "2026-11-10T01:36:11Z",
+      "updated_at": "2026-11-10T17:15:03Z",
+      "base": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "feat/direct-german-turkish-translation-2026-11-10",
+        "sha": "17b90438f923d2b2ebbd48d2ead11e399ca83d88"
+      },
+      "head": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "feat/unified-lyrics-caption-refresh-2026-11-10",
+        "sha": "20b0417aa7edba2f86b297e7cabdd062e9b24291"
+      },
+      "app_candidates": [
+        "media-center",
+        "text-center"
+      ]
+    },
+    {
+      "number": 63,
+      "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/63",
+      "title": "Media Center: fix radio overlay, editable channel lists, local translation and adaptive captions",
+      "body": "## User-reported issues\n1. Home screen shortcuts pushed down under large unused space.\n2. DAB radio station info renders *behind* the lyric match indicator and Whisper captions (ROCK FM screenshot).\n3. User needs channel list creation, not only scanned stations/★ favourites.\n4. AI captions ON showed only ORIGINAL DE, because AI Market translation is OFF.\n5. Changing Reading should take effect immediately; live captions should adapt to measured Whisper model performance and PCM word timing.\n\n## Changes\n- Home shortcuts follow title rather than grid layout consuming all vertical space; keyboard shortcuts preserved.\n- Separate station-status label from blue player caption layout (radioCanvas parent blank, status child on its own row). Increased minimum caption area.\n- Local named DAB playlists: create/delete, add/remove selected scanned station, show-only filter, persist up to 20 bounded lists in QSettings. No hidden SDR scans or tuning.\n- **Radio translate ON/OFF** opt-in next to AI captions (fresh install OFF), saved preference, live control JSON updates. When opted in, installed offline Argos/NLLB/MADLAD can work even if global AI Market translation is OFF. DeepL is NOT silently enabled; if Market has explicitly enabled it, its normal setting remains. No model downloads or global preference mutation.\n- Reading presets immediately recalculate active subtitle hold; TV-style Adaptive also considers measured Whisper inference p80 and queue length. No SDR/player retune from Reading change.\n- Genuine GPU Whisper *first-word* timestamp can anchor radio caption scheduling instead of waiting until phrase end; CPU/no-word/continued-sentence uses existing observed phrase-end fallback.\n- Explicit reminder: requested libVLC cache is *not a measured output/DAC PTS*; true hardware lip-sync verification outstanding.\n- Added offline regression tests for menus, playlists, opt-in safety and caption timing.\n\n## Validation\nRun Python + Kaffeine C++ + Native Radio + welle.io CI. Keep Draft until ROCK FM / NooElec desktop visual, translation model and audible timing tests.\n\nStacked PR: this branch builds on #62 which builds on #61 and #60; do not merge out of order.",
+      "author": "Tihulu",
+      "created_at": "2026-11-09T23:57:27Z",
+      "updated_at": "2026-11-09T23:58:43Z",
+      "base": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "feat/radio-verified-word-karaoke-2026-11-10",
+        "sha": "389548bb60a9a90b5bacb12855729888fe26f2f6"
+      },
+      "head": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "fix/media-radio-library-translation-reading-2026-11-10",
+        "sha": "597be4d1be64e50a137122c7bfd8b33315f07356"
+      },
+      "app_candidates": [
+        "media-center",
+        "text-center"
+      ]
+    },
+    {
+      "number": 62,
+      "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/62",
+      "title": "Radio: evidence-based GPU word karaoke in blue screen (no fabricated sync)",
+      "body": "## Purpose\nContinue PR #61 with Musixmatch-style **word-level visual highlighting** in the native blue DAB radio player, while retaining lyric source, yellow optional lyric translations, original + translated Whisper captions below, and the TV-style Adaptive reading mode.\n\n## Implementation\n- Preserve genuine per-word timestamps already produced by installed local Faster-Whisper CUDA, rather than losing them when ASR words are grouped into short cues.\n- Match those exact observed ASR words in order to **independently audio-verified** lyric lines from the authorized lyric source. No metadata-only animation, invented words, or interpolated clock.\n- Publish bounded UTF-16 character spans and PCM capture epochs only when confidence-gated actual audio lyric matching occurred.\n- Start Karaoke display from first audio-matched word when available; advance the yellow active word on the existing 300ms radio UI timer.\n- Keep past words dim, the current word yellow/bold, upcoming text legible. All lyric text is escaped before Qt rich-text display.\n- Display explicit provenance: GPU Whisper word timing is *estimated against requested libVLC cache*, not measured ALSA/DAC speaker presentation; without real word evidence, retain the existing line-level display.\n- Shift both plain and timed lyric queues when the user adjusts the manual lyrics offset; respect existing ±250ms radio caption offset.\n- Preserve automatic presenter/advert mismatch fallback and separate yellow translations, main Whisper captions, radio controls.\n\n## Validation\nNew `tests/test_radio_verified_word_karaoke.py` covers synthetic mid-song partial line, Unicode UTF-16 spans, no fabricated CPU/non-match timing, timestamp bounds, and native wiring. Existing native Kaffeine/DAB and Python CI should run.\n**Real ROCK FM / NooElec hardware & loudspeaker alignment is NOT verified here**; leave Draft pending a test on the user's actual Pop!_OS workstation. No false perfect lip-sync promise.\n\n## Dependency\nBased on PR #61 draft branch; don't merge this independently until PR #61 ancestry is resolved.",
+      "author": "Tihulu",
+      "created_at": "2026-11-09T23:21:05Z",
+      "updated_at": "2026-11-09T23:21:05Z",
+      "base": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "fix/radio-caption-sync-reading-comfort-2026-11-09",
+        "sha": "aac64a1b505b78b135ab21bfa9ec54ca5093f71d"
+      },
+      "head": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "feat/radio-verified-word-karaoke-2026-11-10",
+        "sha": "389548bb60a9a90b5bacb12855729888fe26f2f6"
+      },
+      "app_candidates": [
+        "media-center",
+        "text-center"
+      ]
+    },
+    {
+      "number": 61,
+      "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/61",
+      "title": "Radio: TV-style adaptive subtitles and sourced karaoke lyrics in blue player",
+      "body": "## User goal\nImprove TIHULU native DAB+ radio **audio-to-subtitle timing** and readability during spoken radio, song lyrics, and multi-output EN/DE/TR translations, without altering the actual SDR stream.\n\n## What was already present\n- Captured PCM phrase-end epoch + requested extra libVLC cache is the estimated caption timeline.\n- Manual -12s/+12s caption offset exists but was buried in Advanced Sync.\n- Original/translation revisions update in place, lyrics match status from PR #60.\n- **Not accurate libVLC/ALSA/DAC presentation clock**: this must remain honestly labeled; there is no video to lip-sync in pure DAB radio.\n\n## Changes\n- Add main-radio **Audio ↔ captions (estimated)** ±250ms buttons, live offset readout, and reuse/persist the existing manual caption offset. Pending cues shift without restarting the decoder, DAB receiver, Whisper or radio playback.\n- Add three reading modes **Live / Comfort (default) / Relaxed**, save preference, and **14–28pt** readable subtitle font control. All on main station view; leave fine settings under Advanced AI.\n- The verified lyrics and real Whisper captions share a high-contrast multiline station overlay.\n- Apply a text-length-sensitive display hold: Comfort approx 3.3–8.5s; Relaxed 5.5–12s; Live no hold. Current source+translations are read together rather than flashing several languages separately.\n- Under backlog, compress hold to 2.5–4s instead of getting more and more out of sync. Queue remains intact unless preexisting hard safety bounds are hit; no libVLC/audio rate changes.\n- Show pending-phrase count and reading hold on the caption progress bar; reset holds when tuning another station or stopping AI; preserve verified-lyric priority and presenter/advert override.\n- Add regression contracts for the controls, persistence, readability limits, and no audio retune.\n\n## Validation\nDraft pending 5 checks and real NooElec + Pop!_OS headphone/loudspeaker test. No claims of perfect A/V lipsync: real soundcard output clock still unmeasured; readability trades off latency if multiple heavy translation models are selected.\n\n## Karaoke / TV-style readability extension\n- New **large dark-blue karaoke view inside the DAB station player**, visually similar to the user's reference: previous line dim, current audio-verified line prominently yellow, next line dim. Each active line identifies the **actual lyrics source/provider, song metadata, line index, and match confidence**; no fake word-by-word sync.\n- Optional independently persisted **Karaoke** and **Yellow karaoke translations** toggles. The normal original + EN/DE/TR subtitle bar remains separate and continues with its own translation outputs, even if karaoke translations are OFF.\n- Match queue now preserves the real audio-matched line index, source text, and only generated lyric translations. The blue display takes its previous/next context from the actual downloaded plain/timed source. No speculative lyrics or metadata-only highlighting.\n- Karaoke clears on old-song DLS replacement, presenter/ad mismatch, Lyrics Stop, retune and timed expiry. Existing speech/Whisper fallback remains.\n- Added explicit **TV-style Adaptive** reading mode as default for fresh settings: full sentence/multilingual character-per-second budget with bounded duration and automatic shrink under cue backlog. Existing Live, Comfort, Relaxed modes remain available, plus ±250ms estimated offset controls.\n- New offline karaoke/UI/readability regression contracts. Real SDR/Qt visual check outstanding; still Draft.\n",
+      "author": "Tihulu",
+      "created_at": "2026-11-09T21:49:44Z",
+      "updated_at": "2026-11-09T22:06:01Z",
+      "base": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "fix/radio-auto-language-lyric-match-bar-2026-11-09",
+        "sha": "80ff0c8f8a2faf7b0d37c5ad5533ebf325d0b490"
+      },
+      "head": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "fix/radio-caption-sync-reading-comfort-2026-11-09",
+        "sha": "aac64a1b505b78b135ab21bfa9ec54ca5093f71d"
+      },
+      "app_candidates": [
+        "media-center",
+        "text-center"
+      ]
+    },
+    {
+      "number": 60,
+      "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/60",
+      "title": "Radio: show auto-detected IN languages and live lyrics FOUND/MATCHED/NOT MATCHED in caption bar",
+      "body": "## User report (ROCK FM): Auto-find downloaded lyrics yet live bar still showed Whisper text\n\n### Root cause\n- First lyrics-to-audio match searched only the **first eight lines** of the discovered song. Starting lookup halfway through a song meant real lyrics almost never acquired.\n- A verified timed LRC match was used for internal synchronisation but **not displayed in the main radio subtitle bar**, while every subsequent Whisper chunk was allowed to overwrite it.\n- The user could not distinguish \"lyrics metadata found\" from \"audio matched\" or \"currently showing transcription\".\n\n### Fix\n- Initial lyric alignment searches all up to 150 lines **only with strong multiword audio evidence** for distant lines. Once the match is acquired, remains forward-only with the existing confidence thresholds. Generic presenter/advertising speech never becomes lyrics because a title appears in DLS.\n- Add an explicit *same radio caption dock* match-status label with Searching, Found / matching live audio, Matched score, Not matched / Whisper presenter/ad fallback, and Not found. The text displayed as a lyric is actual retrieved user-approved or locally imported wording, not an ASR hallucination.\n- Queue verified **both timed LRC and plain lyric** text using the *actual observed ASR audio due time* and display matched lyrics over raw Whisper for a readable hold. New unmatched presenter/reklam audio immediately cancels the lyric hold and restores Whisper. Automatic LRC is never scrolled just on DLS metadata timestamps.\n- Reset stale song matches and queued lyrics on a new DLS title, lyrics Stop or search failure; preserve the user's ASR source and output languages.\n- **IN language options:** Auto detect remains first. Dynamically inspect actual installed local Whisper models plus Faster-Whisper Turbo and show all speech codes supported by the selected multilingual model; English-only CPU weights list only English. Explain supported spoken languages are not per-language installed translation packages. OUT translation languages continue to follow independently installed Argos / NLLB / MADLAD / optional DeepL catalog.\n- Regression tests for joining a live song at line 13, rejecting unrelated ads, audio-match status and Auto detect.\n\n## Limits\nMatches still depend on intelligible audio/Whisper transcriptions (not perfect audio fingerprint recognition). Strong multiword match protects against false lyrics; no fabricated subtitles. No SDR hardware claim; real DAB/Qt playback verification pending. Keep Draft until CI and device test.",
+      "author": "Tihulu",
+      "created_at": "2026-11-09T21:38:03Z",
+      "updated_at": "2026-11-09T21:40:01Z",
+      "base": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "fix/radio-caption-pts-output-ux-2026-11-09",
+        "sha": "4fb40700fc9eddaa5277cd76fbcccd10a48f7056"
+      },
+      "head": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "fix/radio-auto-language-lyric-match-bar-2026-11-09",
+        "sha": "80ff0c8f8a2faf7b0d37c5ad5533ebf325d0b490"
+      },
+      "app_candidates": [
+        "media-center",
+        "text-center"
+      ]
+    },
+    {
+      "number": 59,
+      "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/59",
+      "title": "Radio AI: capture-timed readable captions, live EN/DE/TR outputs and simpler controls",
+      "body": "## Radio subtitle sync / missing translations / UI (9 Nov screenshot)\n\n### Why subtitles drifted\n- The worker published the original caption **only after** all requested sequential translators finished, causing long stalls when an installed offline NLLB/MADLAD/Argos model was slow.\n- Native player also scheduled each cue against the **time the worker finished**, not against the actual PCM that Whisper heard.\n\n### Changes\n- Publish `caption_revision=0` as soon as original recognized words finish; publish revision 1 **on the same chunk** after optional translations. Native Qt updates pending or currently displayed cue instead of duplicating/interrupting phrases.\n- Attach an estimated phrase-end epoch derived from actual 6s receiver PCM capture timestamp and the last Whisper cue end. Native scheduler uses this sample clock + user-requested libVLC extra buffer + explicit caption offset, not completion wall-clock. Explicitly label this as an estimate, **not real libVLC/DAC PTS**.\n- Live multi-output changes (including spoken IN language) via authenticated private runtime JSON; the long-running Whisper worker reads changes at the next captured 5s hop without restarting SDR or speech engine. Bad/symlink files cannot silently override the active targets. Remove control file on stop.\n- Preserve EN/DE/TR/other selected target checkboxes even if the local model catalog has no translator candidate, and show `selected · model not found` rather than clearing user choices.\n- Label original spoken language and actual checked target translations in stable order. Main Radio page shows source language and per-target ready/missing/pending status with clear guidance if auto-detect has not locked or translator is disabled. No fabricated output.\n- Add visible compact `IN: ... · OUT: ... · Edit` navigation; keep full controls on AI tab. Move Whisper progress below the actual radio caption player, not buried beneath Model Market controls.\n\n### Tests / limitations\n- New offline mock tests verify original-before-translation order, two revisions for the same chunk, accurate relative cue time, live target settings, and invalid controls preserving the prior selection.\n- Playback true A/V lip sync cannot be guaranteed until libVLC audio presentation time is sampled; DLS song metadata alone is never treated as transcript.\n- No model download, background SDR ownership or online audio upload added. Draft pending CI and real Pop!_OS/NooElec verification.",
+      "author": "Tihulu",
+      "created_at": "2026-11-09T21:17:59Z",
+      "updated_at": "2026-11-09T21:20:54Z",
+      "base": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "fix/radio-dab-frequency-buffer-progress-2026-11-09",
+        "sha": "6ffc2ae6bb072489bc35afd65ffb29251d916c03"
+      },
+      "head": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "fix/radio-caption-pts-output-ux-2026-11-09",
+        "sha": "4fb40700fc9eddaa5277cd76fbcccd10a48f7056"
+      },
+      "app_candidates": [
+        "media-center",
+        "text-center"
+      ]
+    },
+    {
+      "number": 58,
+      "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/58",
+      "title": "Radio UI: DAB centre frequency in station/vintage views and visible extra-buffer progress",
+      "body": "## User request (screenshots, 9 November)\n- Show **DAB+ Band III center frequency in MHz** next to Now playing / DLS / SNR and in a dedicated clear digital readout in the vintage radio tab, without retuning the independent analogue FM/MW/LW dial.\n- Map all 38 supported DAB blocks (5A–13F) from an explicit frequency table. Example 9D = **208.064 MHz**, 11D = 222.064 MHz, 5C = 178.352 MHz. Avoid presenting the block number itself as a frequency.\n- Show a **buffer progress bar right on the main DAB+ station page** whenever Extra audio buffer is ON, not buried in the advanced AI/sync panel. Mirror into the existing advanced buffer progress.\n- Time-estimate progress toward the **requested** extra libVLC cache only while a stream is starting; cap estimated stage at 95% until libVLC reports Playing. Playing can mark a *startup-stage* 100%, **never claim actual cache fill percentage, DAC output latency, or perfect lip-sync**. If no stream is open, show armed request. If Auto buffer is awaiting Whisper timing, say so.\n- Update indicators every existing 300ms caption timer; OFF hides progress and leaves RF/audio path alone. Respect queued next-station cache setting.\n\n## Verification\n- Added offline contract tests for all 38 frequency mappings, both UI locations, and buffer-progress semantics.\n- CI and real live DAB/RTL-SDR playback pending; leave as Draft until verified.\n- No background RF processing, model downloads or hardware access added.\n",
+      "author": "Tihulu",
+      "created_at": "2026-11-09T20:55:38Z",
+      "updated_at": "2026-11-09T20:57:53Z",
+      "base": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "fix/radio-release-sdr-on-stop-2026-11-09",
+        "sha": "7f92b090cd5bfbab70db53291d8850d8ecd074d0"
+      },
+      "head": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "fix/radio-dab-frequency-buffer-progress-2026-11-09",
+        "sha": "6ffc2ae6bb072489bc35afd65ffb29251d916c03"
+      },
+      "app_candidates": [
+        "media-center",
+        "text-center"
+      ]
+    },
+    {
+      "number": 57,
+      "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/57",
+      "title": "Radio: release RTL-SDR when playback stops by default, optional keep-ready",
+      "body": "## Problem\nKaffeine's main player Stop previously stopped only the MP3/audio playback, leaving the TIHULU-owned `welle-cli` DAB receiver running and holding the RTL-SDR. Another application (GQRX, welle.io, rtl_test) could no longer claim the device even while Radio appeared stopped.\n\n## Changes\n- Radio **Stop radio**: by default stops playback + captions + lyrics + recording and actually terminates the TIHULU-owned DAB `welle-cli` process; cleans runtime port file and stops polling.\n- **Release SDR when radio stops** checkbox is **ON by default**, persisted in Radio settings. Turning it OFF is explicit keep-ready mode (radio audio & AI stop but owned welle receiver remains active, clearly marked).\n- **Release SDR now** always terminates this app's DAB backend regardless of preference.\n- Observe main Kaffeine player's `Playing → Idle` (2.3s stable after known Playing) to release USB on the generic player Stop as well. Paused/buffering and internal station-retune transitions do not count as Stop.\n- Detect analogue `rtl_fm` playback stop and release it by default too.\n- Show an ownership status line: IN USE by TIHULU (with PID) or RELEASED by TIHULU; does not claim that other applications cannot own the device.\n- A fresh station selection starts the app-owned welle receiver on demand, as before. App exit/destructor always forces release, even when keep-ready is selected.\n- Hard stop disarms AI/Whisper, closes owned recorder/lyrics workers, and never touches other applications' processes or kernel drivers.\n- Offline regression tests for both Stop routes and explicit opt-in.\n\n## Verification\nDraft pending five CI jobs and user hardware check on NooElec + Pop!_OS. Actual USB release must be checked via `rtl_test` or another SDR application. No global pkill/blacklist/USB unbind is performed.",
+      "author": "Tihulu",
+      "created_at": "2026-11-09T20:10:13Z",
+      "updated_at": "2026-11-09T20:11:47Z",
+      "base": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "fix/radio-fast-tune-optin-buffer-auto-2026-11-09",
+        "sha": "ba0b9dbedc4a56f8b8cae1608b7e5f69e9ba2963"
+      },
+      "head": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "fix/radio-release-sdr-on-stop-2026-11-09",
+        "sha": "7f92b090cd5bfbab70db53291d8850d8ecd074d0"
+      },
+      "app_candidates": [
+        "media-center",
+        "text-center"
+      ]
+    },
+    {
+      "number": 56,
+      "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/56",
+      "title": "Radio: fast DAB station changes, AI/cache OFF by default, auto buffering and speech-safe lyrics",
+      "body": "## What changed\n- **Fast DAB channel switching**: existing fixed 3200ms retune wait changed to 650ms for station changes, with up to two short live /channel readback retries and a request generation guard. Preserve 3200ms on *full RF scans* for FIC service discovery and never open an unverified MP3 path.\n- **Opt-in AI**: Quick radio AI toggle OFF on each startup, explicit Start/Stop caption controls, no AI during scanning, retain explicitly enabled captions when changing station. Live progress bar is visible next to Start rather than hidden under Advanced.\n- **Opt-in extra buffer**: Radio playback cache OFF on new runs, even if a legacy installation had a 12-second cached value. Preserve its numeric preference, default libVLC extra caching to 0ms. Extra buffer quick toggle / optional automatic sizing, display in **milliseconds or seconds**. Changing live cache intentionally reopens only the radio stream; do not restart if unchanged.\n- **Auto estimate**: Given confirmed Whisper clips, p80 ASR processing time + 6s capture + sentence carry + 3s safety, capped at 60s. Default auto audio restart OFF. An estimate is NOT a sampled ALSA/DAC output delay, and cannot repair RF corruption.\n- **Speech between songs**: Previously a loaded lyrics matcher could clear *all unmatched speech* when Prefer verified lyrics was enabled, hiding presenter and adverts while old DLS remained visible. Retain actual recognized speech; loaded lyric metadata does not force music-mode ASR. Automatically fetched timed lyrics require an actual vocal match and yield to unmatched spoken phrases; preserve ASR worker during lyrics fallback.\n- **Audio health**: Show increases in actual per-station DAB frame/RS/AAC error counters separately from unverifiable sound-card output; avoid false RF-vs-buffer diagnoses.\n- Added tests including real-length mock PCM for presenter speech under stale lyrics.\n\n## Verification\nDraft pending current CI + real NooElec DAB receiver/libVLC/RTX test. Does not claim verified gapless audio or output-perfect lyric sync. No online lyrics lookup without opt-in; no auto model download or background RF processing.",
+      "author": "Tihulu",
+      "created_at": "2026-11-09T19:52:15Z",
+      "updated_at": "2026-11-09T19:59:37Z",
+      "base": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "fix/radio-ai-language-lyrics-overlay-2026-11-09",
+        "sha": "4477937cbbb2dc5fefab2a849fd08f4cd0fa4e4d"
+      },
+      "head": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "fix/radio-fast-tune-optin-buffer-auto-2026-11-09",
+        "sha": "ba0b9dbedc4a56f8b8cae1608b7e5f69e9ba2963"
+      },
+      "app_candidates": [
+        "media-center",
+        "text-center"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,278 @@
+{
+  "schema_version": 1,
+  "original_source": "Tihulu/TIHULU-TEXT-CENTER",
+  "snapshot_date_utc": "2026-11-11",
+  "pr_records": [
+    {
+      "number": 55,
+      "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/55",
+      "title": "Radio AI: shared IN/OUT language models, in-player lyrics and nonblocking audio capture",
+      "body": "## Radio screen / AI bugs from 9 November screenshots\n\n- **Input language**: retain Spoken Auto or explicit language, populate full supported Whisper languages from the same read-only TV/Model Market catalog.\n- **Outputs**: one checkable, persisted multi-select (up to six); discover installed Argos pairs, NLLB/MADLAD weights, and consented online DeepL source metadata. Always keep original. One selection controls live ASR, timed/plain lyrics and offline SRT. No phantom \"verified\" translation when only weights are present.\n- **Simpler UI**: distinct input, output and lyrics headings; collapsed advanced playback cache and lyric sync controls, optional quick Find Lyrics button. No implicit search or downloads.\n- **Radio subtitle placement**: in-player bottom child overlay in the radio canvas, not an overwrite of station art or the unrelated Kaffeine MediaWidget. Live verified words; audio-matched plain lyrics and time-coded LRC take precedence. Suppress repeated unverified `[music]` filler.\n- **Playback isolation**: new dedicated bounded read-ahead thread for the **AI-only** loopback MP3 client. Slow Whisper/translation no longer blocks draining its own welle HTTP stream. Drop old AI windows only when overloaded; expose losses and don't merge text across skipped hops. Main libVLC audio remains independent; no automatic retune on ordinary AI settings.\n- **Stall diagnostics**: separate missing DAB audio input/ffmpeg from queued ASR, repeated music and translator failures; request/read-cache status is NOT DAC clock or verified lip sync.\n- Added offline regression tests.\n\n## Limits / verification\nDraft pending CI, actual welle.io + Pop!_OS SDR/RTX playback, libVLC DAC latency and multilingual live-TV-quality checks. Dropped AI windows may still occur when inference is slower than real time; they are surfaced rather than silently hidden. No promise of hardware-perfect lip sync or uninterrupted receiver playback. No real model inference/lyrics lookup was performed by this change.",
+      "author": "Tihulu",
+      "created_at": "2026-11-09T18:52:07Z",
+      "updated_at": "2026-11-09T19:00:06Z",
+      "base": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "fix/market-dynamic-sepformer-sync-labels-2026-11-09",
+        "sha": "ab2ea4753e857219206b6f7ad5b4b3aca4cf6c6f"
+      },
+      "head": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "fix/radio-ai-language-lyrics-overlay-2026-11-09",
+        "sha": "4477937cbbb2dc5fefab2a849fd08f4cd0fa4e4d"
+      },
+      "app_candidates": [
+        "media-center",
+        "text-center"
+      ]
+    },
+    {
+      "number": 54,
+      "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/54",
+      "title": "Fix dynamic AI presets, SepFormer install, localized sound tags and cautious voice labels",
+      "body": "## User-reported defects (9 Nov screenshots)\n- Ready Modes selection did not reflect the chosen preset in the speech/compute and translation tabs. Preview these staged controls immediately without silently installing/activating; existing Select mode still verifies assets and hardware before persistence.\n- SepFormer download failed without a useful HTTP explanation. Pin Hugging Face Hub 0.x for SpeechBrain 1.0.3 compatibility, disable optional Xet downloader for the explicit download, and retain meaningful HTTPS/error diagnostics.\n- Subtitle UI showed Turkish-only sound/voice labels. Keep language-neutral detector codes and localize sound tags and optional perceived voice categories using the active subtitle language (DE/EN/TR/FR; English fallback).\n- Short clips mislabeled a female voice as a child. Use a stricter child confidence threshold and reject child predictions contradicting the independent approximate age estimate; ambiguous voices remain unlabeled. This cannot establish a real age or gender.\n- Group timing vs readable captions vs optional voice extras, and make clear that automatic buffering is increase-only **not frame-PTS lip sync**.\n\n## Validation\n- Updated local-only regression tests; CI pending.\n- Not tested with physical WinTV / libVLC PTS / actual SepFormer network download or CUDA inference.\n- No model downloads or background speech processing added to startup.\n- **Keep as DRAFT** pending end-to-end hardware/audio verification.\n### 2026-11-09 — DAB antenna present but welle.io localhost API unavailable\nNative radio now distinguishes USB antenna presence, an app-owned welle-cli process, and actual local /channel API readiness. The UI shows dynamic localhost port, PID, process/stderr error and hints for busy RTL-SDR owned by readsb/rtl_tcp/WebUSB/kernel DVB drivers. Explicit Start restarts only its own failed backend, never external SDR services. Readiness retries are bounded; generation/port checks reject stale network replies. Old mux/SNR is invalidated on crash or release; cached station entries never imply current lock. Retuning waits for APIReady, even if the last selected channel matches. Tests: test_tv_kaffeine_dab_api_recovery.py. Documentation: kaffeine_next/README.md.\nHardware acceptance on the user's Pop!_OS 24.04 and NooElec USB receiver remains pending. Pinned loopback-only welle-cli build is preserved; no automatic stop/unbind.\n",
+      "author": "Tihulu",
+      "created_at": "2026-11-09T17:50:20Z",
+      "updated_at": "2026-11-09T18:06:34Z",
+      "base": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "fix/tihulu-media-radio-dvb-2026-11-08",
+        "sha": "cefbcf850bee632231e8dd641340506b013e7db1"
+      },
+      "head": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "fix/market-dynamic-sepformer-sync-labels-2026-11-09",
+        "sha": "ab2ea4753e857219206b6f7ad5b4b3aca4cf6c6f"
+      },
+      "app_candidates": [
+        "media-center"
+      ]
+    },
+    {
+      "number": 53,
+      "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/53",
+      "title": "Fix erratic live-caption timing, readable translations and misleading Listening status",
+      "body": "Clean branch based on the latest target SHA (replaces conflicting PR #52). Prevent unreadable short bilingual caption flashes: prefer one complete phrase for multiple short word groups, clamp source-timed complete-sentence early lead to 2.5 s before its last verified word, retain opt-in fast word display. Worker now tracks live TS packet arrival, completion of captured audio clips and currently active ASR/translation processing; a cleared cue does not claim the TV is silent or that speech is being transcribed. A prolonged subtitle gap displays measured diagnostics in the caption pane. Retains all earlier dual-speaker, background sound label, stabilized native FIFO delay and non-dropping queue changes from base. Runs CI regressions on 3 Python versions; no release.",
+      "author": "Tihulu",
+      "created_at": "2026-11-09T04:12:15Z",
+      "updated_at": "2026-11-09T04:13:47Z",
+      "base": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "fix/tihulu-media-radio-dvb-2026-11-08",
+        "sha": "7064e58ac46aeaeee3d1ee1910b94adb75538306"
+      },
+      "head": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "fix/caption-pacing-readable-from-current-media-base-2026-11-09",
+        "sha": "ff37c67601ac57e4d8c0df5be65ac6cf249873c4"
+      },
+      "app_candidates": [
+        "media-center",
+        "text-center"
+      ]
+    },
+    {
+      "number": 52,
+      "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/52",
+      "title": "Stabilize human-readable live captions and distinguish stalled ASR from silence",
+      "body": "Superseded by clean PR #53 (https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/53), rebased on current media branch. Original branch had merge conflicts; do not merge #52.",
+      "author": "Tihulu",
+      "created_at": "2026-11-09T04:05:57Z",
+      "updated_at": "2026-11-09T04:13:02Z",
+      "base": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "fix/tihulu-media-radio-dvb-2026-11-08",
+        "sha": "7064e58ac46aeaeee3d1ee1910b94adb75538306"
+      },
+      "head": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "fix/stable-live-caption-pacing-buffer-clock-2026-11-09",
+        "sha": "33f23e33068bb009d4f75f9dc8bf466bad3c76e7"
+      },
+      "app_candidates": [
+        "media-center",
+        "text-center"
+      ]
+    },
+    {
+      "number": 51,
+      "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/51",
+      "title": "Stabilize live TV caption timing, reading duration, and preserve text through buffer changes",
+      "body": "Address early/flashing/vanishing live captions and intermittent long stalls.\n\n- Default-on **Comfort reading** control; readable 1.35–8s word/phrase display durations based on actual selected original and translations; timed-word transitions respect an 800ms readability threshold instead of 200ms flicker, without stacking a fixed 1.75s delay into the source clock.\n- Group source-word units into longer clauses; when decoding finished after early word deadlines, schedule the REAL complete recognized sentence instead of flashing a stale burst of words.\n- A queued, never-displayed caption is not silently deleted merely because its source media slot elapsed during an expensive translation or GUI stall. Actual presentation receives a fresh reading deadline.\n- A new native TS FIFO release-clock **median + bounded slew** filter smooths intermittent measured queue ages, **not** a claim of calibrated libVLC video frame PTS.\n- Separate **source revision** from buffer changes: altering buffer must not discard six-second DVB audio capture, word queue, subtitle queue or live deferred text. Existing decoded cues are retimed after native ACK, and no premature polling is allowed before it.\n- Long punctuationless 10+ word Whisper results show a provisional genuine clause on the first chunk when comfort mode is enabled, rather than holding up to 12s for subsequent punctuation.\n- Qt event queue uses bounded 1.25s backpressure for irreplaceable captions and records real overflow incidents rather than simply dropping on first Full.\n- No release. Real native PTS/frame-alignment and full RF capture still require physical receiver validation; sustained inference slower than real time cannot be solved with subtitle scheduling alone.",
+      "author": "Tihulu",
+      "created_at": "2026-11-09T03:46:48Z",
+      "updated_at": "2026-11-09T04:02:55Z",
+      "base": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "fix/tihulu-media-radio-dvb-2026-11-08",
+        "sha": "affa32d49b26865eea7abaa37cdf022d1184425d"
+      },
+      "head": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "fix/stable-live-caption-pacing-buffer-clock-2026-11-09",
+        "sha": "95c05f39a96922191841e4b64c03e1d895352c22"
+      },
+      "app_candidates": [
+        "media-center",
+        "text-center"
+      ]
+    },
+    {
+      "number": 50,
+      "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/50",
+      "title": "Experimental real dual-speaker SepFormer ASR plus independent voice/sound caption labels",
+      "body": "## Experimental actual simultaneous-speaker transcripts (opt-in only)\n- **SpeechBrain SepFormer-wsj02mix** (Apache-2.0, ~113 MB model weights plus possibly several GB of Torch dependencies) separates one mixed 32kHz mono TV clip into two source tracks, resampled 8kHz→32kHz.\n- Each source independently goes through a managed CUDA Faster-Whisper transcription with real word timestamps. Only **two genuinely distinct, concurrent timed transcripts** may become separate on-video lines. Never invent a second speaker from Resemblyzer diarization alone; if the model is missing, times out, outputs noise or duplicates one voice, use ordinary mixed-source Whisper captions.\n- **Speaker-number labels independent** of speaker change detection. Number OFF, \"New line when different speaker\" ON supported. Manual names remain an optional advanced override, not the primary behavior. Voice IDs from the model are provisional and can swap.\n- **Independent audio-event labels:** optional MIT/AST AudioSet classifier (BSD-3-Clause, ~346MB weights). Only confidence-backed music, hum, applause, laughter or noise labels; no output without a real detector.\n- **Separate perceived voice-type estimates:** optional audEERING acoustic classifier (~363MB weights), **CC-BY-NC-SA-4.0 NONCOMMERCIAL ONLY**, strong confidence threshold. Indicate uncertainty; a model score is NOT real age/gender/identity. Never derive this from Resemblyzer or a mixed multi-speaker clip.\n- Three optional owners-only install flows, each explicitly confirmed before downloading into user-owned Python environments. No background downloads, model imports, WebUSB, DVR control or RF changes at startup.\n- Tests: source separation acceptance/fail-closed behavior, voice turn rendering, independent category vs sound toggles, consent and no automatic installation, Native TV Python3.11/3.12/3.13, Text Center and Kaffeine/DVB builds.\n- **Caveats:** WSJ0-2Mix English-trained clean speech; French/Turkish/German TV, music, overlapped dubbing, real-time RTX inference, PTS/lip-sync all unverified on hardware. This is a guarded experimental path, not a release.\nDocumentation: tv_center/docs/OVERLAPPING_SPEAKERS_SOUND_LABELS.md",
+      "author": "Tihulu",
+      "created_at": "2026-11-09T03:10:52Z",
+      "updated_at": "2026-11-09T03:32:50Z",
+      "base": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "fix/tihulu-media-radio-dvb-2026-11-08",
+        "sha": "14d801420e846cc222ba06892e3e41f565701334"
+      },
+      "head": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "feature/experimental-dual-voice-sepformer-2026-11-09",
+        "sha": "33852ee0d472890112e5be501be1eee2a7f4e080"
+      },
+      "app_candidates": [
+        "media-center"
+      ]
+    },
+    {
+      "number": 49,
+      "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/49",
+      "title": "Speed up Model Market, show auto installed status and per-model progress, support Custom presets",
+      "body": "Fixes the owner screenshot UX without creating a release.\n\n- Every selected Ready Mode automatically checks installed components in a worker after first paint, with separate status, size estimate and per-model progress bar.\n- Owner-approved **Install all** presents all component disk/download estimates beforehand; GGML HTTP downloads show actual received MiB and true server Content-Length percentage, never confuse max-byte safety caps with total size; pip/CUDA/Argos/HF nested installers show honest indeterminate progress + installation stage.\n- Avoid synchronous NLLB/PyTorch, MADLAD, Argos, speaker and all-model status probes on dialog open, language dropdown changes or each completed install. Load corresponding diagnostics on the opened tab.\n- **Select mode** synchronizes the actual AI settings and all related settings controls without accidentally triggering Custom. Manual speech model, backend, translation, enable flags, Pi CPU, Hailo paths or remote GPU changes immediately move the Ready Modes selector to **Custom**, preserving the user's edits. Save persists Custom; selecting and applying a preset restores that profile. \n- Rename Performance from user-specific RTX 5080 to **NVIDIA CUDA minimum 12 GB VRAM / 16 GB RAM** and Experimental to min 24 GB VRAM / 32 GB RAM; remove hardware-specific UI copy to make the interface usable by other GPU owners.\n- No downloads on launch; do not publish a release. CI tests cover honest progress, resilient install, fast first paint and custom UI wiring.\n\nReal-world cold-start time and CUDA/Argos download progress (third-party subprocesses) should be validated on native Linux. No fake percentage is shown for installers that don't expose total bytes.",
+      "author": "Tihulu",
+      "created_at": "2026-11-09T01:50:31Z",
+      "updated_at": "2026-11-09T02:42:58Z",
+      "base": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "fix/tihulu-media-radio-dvb-2026-11-08",
+        "sha": "68c3d0422daccc10eb2cf5c30a50b39955a11e36"
+      },
+      "head": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "fix/model-market-auto-status-progress-fast-open-2026-11-09",
+        "sha": "8fca6249116af791f6482eab2f7f9789324e058e"
+      },
+      "app_candidates": [
+        "media-center"
+      ]
+    },
+    {
+      "number": 48,
+      "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/48",
+      "title": "Optimize Pi 5 CPU and enable checked Hailo-10H Whisper Base for AI HAT+ 2",
+      "body": "## Two distinct Raspberry Pi 5 8GB setups\n- Vanilla / Pi5 CPU: bound Whisper.cpp CLI threads to 3 by default, reserving a core for DVB UI, decoding and Argos translation. Applies even on first-run Pi with no selected preset. No effect on x86/desktop profiles.\n- AI HAT+ 2: use the existing low-level **Hailo Apps WhisperPipeline** (official Hailo-10H Whisper Base encoder/decoder HEF+NPY assets) only after detecting a **Pi 5 / HAILO10H** firmware identity, matching installed Python packages and real local assets. This is true Hailo NPU speech inference, not ported GGML/Argos.\n- Model Market: explicit owner-provided HEF and NPY paths, CPU thread limit, HailoRT/firmware/asset inspection, explicit user-triggered on-device silent inference selftest; install all keeps Whisper Tiny/Argos CPU fallback.\n- If Hailo fails, optionally fallback to CPU Tiny, display failure cause in live-caption diagnostics. Spoken=Auto uses CPU until Hailo auto language recognition is validated.\n- Avoid all Hailo model downloads, device access, inference or microphone capture during boot/TV startup. Hailo Apps resource acquisition is an owner task described in docs; no code invokes its auto-downloader.\n- Tests cover Hailo-8 vs Hailo-10H separation, model file readiness, vanilla CPU budget, profile promotion, and NPU error fallback.\n\n## Hardware limits\nNo Pi 5 or AI HAT+ 2 attached to GitHub CI; **real device** HEF/API compatibility and latency remain unverified. NPU output has no trustworthy word timestamps; do not assert exact lip-sync or diarization. HAT+ 2 8 GB memory is dedicated to NPU and does not increase host RAM.\n",
+      "author": "Tihulu",
+      "created_at": "2026-11-09T01:29:30Z",
+      "updated_at": "2026-11-09T01:31:37Z",
+      "base": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "fix/tihulu-media-radio-dvb-2026-11-08",
+        "sha": "e5fa6f320bf920e1dfd36cfe80f7242fe968d815"
+      },
+      "head": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "feature/pi5-cpu-hailo10h-profiles-2026-11-09",
+        "sha": "7311031698213462ea6083a8429f6978ed945fa1"
+      },
+      "app_candidates": [
+        "media-center"
+      ]
+    },
+    {
+      "number": 47,
+      "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/47",
+      "title": "Add five guided AI modes, opt-in remote CUDA speech and nonblocking startup",
+      "body": "Adds separate **Install all** and **Select mode** to native AI Model Market for Pi 5 8GB, Pi 5 + Hailo-10H AI HAT+ 2, Normal, Performance (RTX 5080), Experimental (>=24GB VRAM). Profiles only include existing verified installers and their actual model/ram/license requirements; no fake Hailo inference or invented compatibility. Batch install requires owner confirmation, is resumable and never silently activates a mode. Select mode checks local model markers and hardware and writes an explicit active profile.\n\nProvides TLS bearer-token remote CUDA speech opt-in. User installs and starts its separate HTTPS GPU server explicitly, configures endpoint/private 0600 token, selects remote backend and saves. Text/video/RF do not leave the desktop; ONLY captured speech audio is uploaded when explicitly selected. Strict bounded HTTPS, no proxies/redirects and no startup network traffic. Owner-chosen fallback to local ASR on network failure.\n\nMove expensive NVIDIA/hardware scan, Argos installed-pack subprocess and starter readiness to workers after first paint in both AI Model Market and native TV Center. Kaffeine standalone launcher no longer automatically tunes last channel unless TIHULU_AUTOPLAY_LAST_CHANNEL=1 is set.\n\nTests cover profile hardware gates, activation requirements, private token and TLS URL handling, no-startup-blocking wiring. True remote CUDA live inference, Linux Qt/COSMIC UI and Hailo devices require hardware acceptance; AI HAT+ 2 NPU inference is deliberately NOT claimed.",
+      "author": "Tihulu",
+      "created_at": "2026-11-09T00:23:58Z",
+      "updated_at": "2026-11-09T00:30:44Z",
+      "base": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "fix/tihulu-media-radio-dvb-2026-11-08",
+        "sha": "cb35d841139a2d3a839b7171434916ff73a3cab8"
+      },
+      "head": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "feature/ai-profile-bundles-remote-gpu-startup-2026-11-09",
+        "sha": "ae4682d9f58b81d4cb843060c9374019d5ff2d7b"
+      },
+      "app_candidates": [
+        "unclassified"
+      ]
+    },
+    {
+      "number": 46,
+      "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/46",
+      "title": "Preserve source-word timing for live subtitles and split estimated speaker turns",
+      "body": "## Reproduction / root causes\n- Native TV 20s TS buffering was treated as if it alone calibrated end-to-end lip-sync. It does not measure libVLC presentation PTS.\n- The normal ASR sentence-joiner unconditionally cleared Faster-Whisper CUDA word timestamps. This prevented the existing speaker-turn/word grouping path from ever activating in normal spoken caption mode.\n- The cue queue enforced a 1.75s gap for *every* word group; rapid exchanges accumulated several seconds of lag.\n- Speaker assignment selected the first overlapping provisional Resemblyzer turn even when the word was better matched to another speaker. Model-ready UI did not indicate when word alignment was unavailable.\n\n## Fix\n- Preserve valid real source-relative CUDA word times through live ASR, and translate once after deduplication. Fall back to sentence joining on missing/damaged word times.\n- Dispatch word-timed cues on their observed source clock (small 150ms display bias), not a stacked 1.75s slot. Keep the existing natural-slot behavior for untimed text.\n- Associate words with speaker windows using overlapping duration, keep ambiguous words unlabeled, split groups at unknown-to-known speaker boundaries.\n- Make auto-sync's current buffer-only scope explicit in UI, distinguish installed speaker model from real speaker/text alignment.\n- Extend offline regression tests for two alternating speakers, ambiguous overlaps, and live worker timestamp preservation.\n\n## Boundaries and hardware validation\nNo claim of perfect phoneme-to-lip sync: native Kaffeine TS queue status does not expose video/audio presentation PTS; end-to-end lip-sync on the user's Hauppauge receiver / Pop!_OS and speaker identity accuracy need device testing. UI settings related to music separation are still conditioning, not source isolation. No tuner changes, downloads, cloud calls, or auto-start.\n\n## Test plan\n- Run GitHub Actions Python unit tests and Kaffeine compile checks.\n- Hardware acceptance: a 2-speaker TV dialogue, native confirmed 20s delay, faster-whisper CUDA with word timestamps, then compare on-screen speaker transitions and caption timing. Compare with CPU fallback to verify honest unaligned state.\n",
+      "author": "Tihulu",
+      "created_at": "2026-11-08T23:59:17Z",
+      "updated_at": "2026-11-09T00:01:57Z",
+      "base": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "fix/tihulu-media-radio-dvb-2026-11-08",
+        "sha": "28603315aa7826a7e66b767af1c755269e74c18b"
+      },
+      "head": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "fix/live-caption-word-speaker-sync-2026-11-09",
+        "sha": "2c2c92a7827848aea6f5ba748c8c39287155040e"
+      },
+      "app_candidates": [
+        "media-center",
+        "text-center"
+      ]
+    },
+    {
+      "number": 45,
+      "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/45",
+      "title": "Separate Spoken Auto detect from English output; show installed NLLB/MADLAD and online DeepL languages promptly",
+      "body": "User screenshots: Spoken selector misleadingly displays 'Auto detect → English (UI default)' instead of Auto detect; Output languages should initially have English alone checked (Turkish and other targets opt-in). After earlier PR #44, Argos cold import can still postpone NLLB/MADLAD language discovery; selected MADLAD also appeared next to an NLLB-specific license/disk-size status.\n\n- Spoken input language now simply reads **Auto detect**; true broadcaster audio hints/Whisper detection remain authoritative. Output languages default to **EN only**, with TR/DE/FR available but not prechecked; reset returns to EN.\n- Two-stage async catalog: first fast, read-only NLLB/MADLAD on-disk checks and optional locally saved DeepL API-key presence, then slow Argos pair scan with separate timeout; merge models and preserve user multi-checkbox choices. Language selector stays immediately responsive.\n- Recognize configured DeepL API as **ONLINE only**, not as an installed offline translation pack. Its known common targets are candidates, and a real runtime/API request still validates support; no key, audio or text is transmitted by catalog. MADLAD/NLLB checkpoint presence also explicitly marked unverified until inference.\n- AI Model Market no longer shows a selected MADLAD label alongside NLLB-only license/RAM information.\n- Add/adjust unit tests for source/default behavior, fast no-Argos inventory, offline-vs-online provider labels and timeout-safe menu.\n\nDoes not download language packs, open the DVB tuner, change current user-selected translator, infer the detected broadcast language as English, or execute cloud DeepL calls. Hardware validation on Pop!_OS remains necessary.",
+      "author": "Tihulu",
+      "created_at": "2026-11-08T23:44:10Z",
+      "updated_at": "2026-11-08T23:46:27Z",
+      "base": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "fix/tihulu-media-radio-dvb-2026-11-08",
+        "sha": "e1f74aab38b6e50a0572a8dbd6414a620830b3f4"
+      },
+      "head": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "fix/spoken-autodetect-output-english-multimodel-languages-2026-11-09",
+        "sha": "3e17bd802a85e2827a806db7aeea33e6115cead4"
+      },
+      "app_candidates": [
+        "media-center",
+        "text-center"
+      ]
+    },
+    {
+      "number": 44,
+      "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/44",
+      "title": "Fix Output languages dropdown stuck on checking installed models (Argos/MADLAD)",
+      "body": "User's Pop!_OS native caption UI stays on 'Checking locally installed output languages…' and never lists choices. Root cause: the control had no checkboxes until a separate Argos model-discovery Python process exited. Argos package imports can take up to 60 seconds; a subprocess error or missing models left the menu empty. The current installed-language catalog also ignored the separately supported MADLAD model.\n\nChanges:\n- Draw EN/TR/DE/FR selectable checkboxes immediately and enable the dropdown on the first UI frame; preserve user-checked codes during retries and later discovery. Distinguish 'model not confirmed' from 'installed weights, inference unverified' rather than invent installed packs.\n- Run optional local Argos installed-package discovery with an eight-second hard timeout; cap Qt worker to 11 seconds. Handle QProcess failure/timeout with explicit errors but **never disable the language menu**. Allow Refresh on demand without blocking Kaffeine, DVB tuning, Whisper or buffered captions.\n- Include MADLAD checkpoint-presence in output-language catalog along with Argos/NLLB; no claim of verified target pair until inference is tested.\n- Regression tests for bounded worker, startup instant list, preservation of selections, timeout fallback and MADLAD flags.\n\nDoes not download translation models, open any Internet source or change AI, DVB, or caption settings. Real device UI/installed-pack count must be validated on user's machine.",
+      "author": "Tihulu",
+      "created_at": "2026-11-08T23:35:19Z",
+      "updated_at": "2026-11-08T23:36:55Z",
+      "base": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "fix/tihulu-media-radio-dvb-2026-11-08",
+        "sha": "1630f804b6c3fbd0c55475e665219b5c67a27be5"
+      },
+      "head": {
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "branch": "fix/output-language-picker-fast-fallback-2026-11-09",
+        "sha": "d162460e3e59e600e2254246b625b7c478cc908f"
+      },
+      "app_candidates": [
+        "media-center",
+        "text-center"
+      ]
+    }
+  ]
+}
