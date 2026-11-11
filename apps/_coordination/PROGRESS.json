@@ -1,0 +1,72 @@
+{
+  "schema_version": 1,
+  "as_of_utc": "2026-11-11",
+  "stage": "initial_requirements_registered_audit_not_completed",
+  "requirements": {
+    "registered": 97,
+    "code_source_audited": 0,
+    "feature_equivalence_certified": 0,
+    "physical_device_verified": 0,
+    "initial_requirements_inventory_complete": false,
+    "review_pending": true
+  },
+  "repositories": {
+    "total_canonical_apps": 5,
+    "destinations_user_created_empty": 3,
+    "standalone_migrations_completed": 0,
+    "independently_canonical_existing": 1,
+    "text_center_retained_original": 1,
+    "source_repo_rename_performed": false
+  },
+  "pr_history": {
+    "known_origin_draft_prs_65_to_74": 10,
+    "confirmed_open_draft_prs": 10,
+    "flight_radar_known_open_drafts": [
+      7,
+      13
+    ],
+    "old_original_history_review_export_complete": false,
+    "all_prior_feature_prs_reconciled": false
+  },
+  "approved_designs": {
+    "logos_user_approved": 5,
+    "logo_binary_assets_committed_to_app_repos": 0,
+    "active_application_icons_replaced": 0,
+    "true_editable_svg_verified": 0
+  },
+  "workstreams": {
+    "defined": 6,
+    "issue_numbers": [],
+    "started_by_other_chats": 0,
+    "completed_audits": 0,
+    "app_runtime_source_files_changed_in_this_phase": 0
+  },
+  "time_remaining": {
+    "hours": null,
+    "minutes": null,
+    "confidence": "insufficient_evidence",
+    "reason": "No defensible task duration until all six workstreams count source files, PR conflict resolutions, dependency closures, hardware test sessions, unresolved history and release gates.",
+    "format_on_update": "HH hours MM minutes once computed; otherwise say unknown rather than make up a countdown",
+    "estimation_criteria": [
+      "audited outstanding task list",
+      "measured comparable effort or recorded assumptions",
+      "documented blocking dependencies",
+      "test hardware access and coverage",
+      "time to verify rollback and accepted feature parity"
+    ]
+  },
+  "release_gates": {
+    "zero_runtime_changes": true,
+    "no_merges": true,
+    "no_canonical_cutover": true,
+    "no_repo_rename": true,
+    "ui_languages_target": [
+      "en",
+      "tr",
+      "de"
+    ],
+    "engineering_language": "en",
+    "all_5_ui_locale_coverage_verified": false
+  },
+  "followup_rule": "After each real GitHub CI or issue milestone, update counts and explain what was measured; no unscheduled background work is implied."
+}
