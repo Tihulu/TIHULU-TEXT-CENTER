@@ -7,6 +7,7 @@ from unittest.mock import patch
 
 from tv_center.recording_export import (
     Cue, parse_srt, render, export_tracks, run_export, mux_tracks,
+    split_caption_translations,
 )
 
 
@@ -89,6 +90,41 @@ class CommonRecordingExportTests(unittest.TestCase):
             self.assertEqual(media.read_bytes(), b"unchanged")
             with self.assertRaises(FileExistsError):
                 mux_tracks(media, {"original": srt}, dest)
+
+    def test_original_and_translation_tracks_do_not_swallow_sound_labels(self):
+        cues = [Cue(1, 3, "[Music] spoken words\\n[TR] Merhaba\\n[DE] Hallo"),
+                Cue(4, 7, "[Speaker 1] Welcome\\n[TR] Hoş geldiniz")]
+        tracks = split_caption_translations(cues)
+        self.assertEqual(set(tracks), {"original", "translation-tr", "translation-de"})
+        self.assertIn("[Music]", tracks["original"][0].text)
+        self.assertIn("[Speaker 1]", tracks["original"][1].text)
+        self.assertEqual(tracks["translation-tr"][0].text, "Merhaba")
+        self.assertEqual(tracks["translation-tr"][1].start, 4)
+        self.assertEqual(tracks["translation-de"][0].text, "Hallo")
+
+    def test_media_only_mux_can_use_separate_timed_language_tracks(self):
+        with tempfile.TemporaryDirectory() as root:
+            file = Path(root) / "record.srt"
+            file.write_text("1\\n00:00:01,000 --> 00:00:03,000\\n"
+                            "Good morning\\n[TR] Günaydın\\n\\n")
+            media = Path(root) / "record.mkv"
+            media.write_bytes(b"immutable input")
+            captured = {}
+            def mock_mux(src, tracks, destination):
+                captured["tracks"] = {
+                    label: parse_srt(path) for label, path in tracks.items()
+                }
+                Path(destination).write_bytes(b"mock joined file")
+                return Path(destination)
+            with patch("tv_center.recording_export.mux_tracks", side_effect=mock_mux):
+                created = run_export(
+                    sources={"combined": str(file)}, destination=root,
+                    name="result", formats=(), media=media,
+                    mode="live", mux=True, split_translations=True)
+            self.assertEqual(len(created), 1)
+            self.assertEqual(set(captured["tracks"]), {"original", "translation-tr"})
+            self.assertEqual(captured["tracks"]["translation-tr"][0].text, "Günaydın")
+            self.assertEqual(media.read_bytes(), b"immutable input")
 
     def test_bad_srt_is_not_given_invented_timing(self):
         with tempfile.TemporaryDirectory() as root:
