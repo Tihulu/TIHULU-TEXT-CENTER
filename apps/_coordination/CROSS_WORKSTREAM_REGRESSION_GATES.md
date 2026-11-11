@@ -28,9 +28,12 @@ This document **does not implement features, certify release, schedule autonomou
 | **REG-10** | P0 | WS05, WS01 | Text Center native DVB/FM/DAB claims versus passive relays and missing Journaline | Documentation/verification design; no changes to apps |
 | **REG-11** | P0 | WS06, WS01, WS02, WS03, WS05 | Immutable GitHub history and provenance gaps | Documentation/verification design; no changes to apps |
 | **REG-12** | P0 | WS05, WS02, WS03, WS06 | Dual GitHub Pages, PWA, raw installers and rename-safe links | Documentation/verification design; no changes to apps |
-| **REG-13** | P1 | WS06, WS01, WS02, WS03, WS04, WS05 | EN(default)/TR/DE runtime UI and five approved logo binary evidence | Documentation/verification design; no changes to apps |
+| **REG-13** | P0 | WS06, WS01, WS02, WS03, WS04, WS05 | EN(default)/TR/DE runtime UI and five approved logo binary evidence | Documentation/verification design; no changes to apps |
 | **REG-14** | P0 | WS01, WS02, WS03, WS04, WS05, WS06 | Native installs, portable packages and versioned rollback across five apps | Documentation/verification design; no changes to apps |
 | **REG-15** | P0 | WS06 | Evidence quality and truthful completion/ETA accounting | Documentation/verification design; no changes to apps |
+
+| **REG-16** | P0 | WS01, WS05, WS06 | Media Teletext/Whisper/lyrics and GPU caption-timing no-regression | Documentation/verification design; no changes to apps |
+| **REG-17** | P0 | WS02, WS06, WS01, WS03, WS04, WS05 | Canonical developer-agent and feature/component/model matrix parity | Documentation/verification design; no changes to apps |
 
 ## Gate-by-gate evidence and acceptance contract
 
@@ -96,7 +99,7 @@ This document **does not implement features, certify release, schedule autonomou
 
 ### REG-07 — Make long Satellite chained-capture gaps explicit
 
-- **Priority / owners / requirement IDs:** P0; WS03; `SAT-002`, `SAT-003`, `SAT-008`.
+- **Priority / owners / requirement IDs:** P0; WS03; `SAT-002`, `SAT-003`, `SAT-004`, `SAT-008`.
 - **Observed evidence (not acceptance):** Browser segmented capture defaults to a 6-second interpart budget and native chains reserve 21–60-second restart windows. A separate bounded native single-file capture path exists; there is no proof all chained captures are gapless.
 - **Read-only next action:** Specify manifest-level segment start/end UTC, missing-sample/coverage flag, rate, loss boundaries and no-overwrite ownership; compare browser and native semantics.
 - **Later acceptance evidence required:** After approval, safe fixture file-segment checks and physical recording verify uninterrupted intervals only where actually supported; UI must disclose gaps, never claim lossless chained reception by default.
@@ -116,7 +119,7 @@ This document **does not implement features, certify release, schedule autonomou
 
 ### REG-09 — Satellite independent branch test provenance and 11-item candidate gap correction
 
-- **Priority / owners / requirement IDs:** P1; WS03, WS06, WS02; `SAT-005`, `SAT-006`, `SAT-008`, `FLIGHT-016`, `FLIGHT-017`, `CROSS-009`.
+- **Priority / owners / requirement IDs:** P1; WS03, WS06, WS02; `SAT-005`, `SAT-006`, `SAT-008`, `FLIGHT-016`, `FLIGHT-017`, `CROSS-007`, `CROSS-009`, `CROSS-015`.
 - **Observed evidence (not acceptance):** Initial coordinator index identifies 11 without local test-file candidates. Satellite PR #37 contains 22 relevant test sources absent from the WS03 starting branch; presence there does not mean tested or transferred. Flight 016/017 lack direct candidates.
 - **Read-only next action:** Publish a branch-aware source/test provenance index distinguishing baseline candidates, PR #37 additional tests, executed CI, hardware tests, policy gates and actual absence. Avoid overwriting initial candidate map without a documented reconciliation.
 - **Later acceptance evidence required:** Each gap labeled either source/test linked with SHA plus genuine execution, future test required, or policy/manual gate; never infer 97 tested from 97 mapped.
@@ -136,7 +139,7 @@ This document **does not implement features, certify release, schedule autonomou
 
 ### REG-11 — Immutable GitHub history and provenance gaps
 
-- **Priority / owners / requirement IDs:** P0; WS06, WS01, WS02, WS03, WS05; `CROSS-010`, `FLIGHT-017`, `TEXT-007`.
+- **Priority / owners / requirement IDs:** P0; WS06, WS01, WS02, WS03, WS05; `CROSS-005`, `CROSS-010`, `FLIGHT-017`, `TEXT-007`.
 - **Observed evidence (not acceptance):** Two 67-entry origin history ledgers omit original PRs #72–#74; eight Flight #13 PR comment permalinks and eleven satellite Issue #20/#21 comments are linked, but full review/timeline reconciliation and verified author/time details remain incomplete.
 - **Read-only next action:** Prepare a per-original-record manifest by immutable repo ID and source PR/Issue/review/comment permalink; add missing #72–#74 history, preserve null timestamps, and explicitly list non-exportable or inaccessible evidence.
 - **Later acceptance evidence required:** A reviewer can follow all historical links and verify original source ancestry, authors/comments/review context without false recreated approvals, without private chat dumps and with explicit transfer gaps.
@@ -146,7 +149,7 @@ This document **does not implement features, certify release, schedule autonomou
 
 ### REG-12 — Dual GitHub Pages, PWA, raw installers and rename-safe links
 
-- **Priority / owners / requirement IDs:** P0; WS05, WS02, WS03, WS06; `TEXT-008`, `FLIGHT-017`, `CROSS-006`.
+- **Priority / owners / requirement IDs:** P0; WS05, WS02, WS03, WS06; `TEXT-008`, `FLIGHT-017`, `CROSS-005`, `CROSS-006`.
 - **Observed evidence (not acceptance):** Flight standalone and Text mirror gh-pages revision blobs and seven sampled assets matched at a pinned Flight main SHA, but live HTTP/CDN/PWA parity is unverified. Origin workflow contains hardcoded previous repo URLs and satellite Pages asset drift is documented.
 - **Read-only next action:** Produce a URL and immutable-source SHA checklist: current Flight independent and Text mirror Pages, every service-worker scope, old raw install URL, asset digest, OAuth/WebUSB origin boundary, archive and redirect, with before/after expected outcomes.
 - **Later acceptance evidence required:** Only after separate rename/cutover approval, verify live status and redirects, 404/cache offline fallback, two-source revision equivalence, old one-line installer/0.3.1 rollback and PWA behavior under both origins.
@@ -156,7 +159,7 @@ This document **does not implement features, certify release, schedule autonomou
 
 ### REG-13 — EN(default)/TR/DE runtime UI and five approved logo binary evidence
 
-- **Priority / owners / requirement IDs:** P1; WS06, WS01, WS02, WS03, WS04, WS05; `CROSS-003`, `CROSS-008`, `CROSS-009`.
+- **Priority / owners / requirement IDs:** P0; WS06, WS01, WS02, WS03, WS04, WS05; `CROSS-002`, `CROSS-003`, `CROSS-009`.
 - **Observed evidence (not acceptance):** All five user-facing interfaces require English default with Turkish/German options, but full installed UI path/localization tests are not complete. Approval manifest lists five PNG SHA256 values; worker did not independently rehash binary assets. No replacement logos are authorized.
 - **Read-only next action:** Inventory current UI strings, unsupported locale/default/fallback coverage, existing assets and source asset hashes without adding icons, online images or translations to application trees.
 - **Later acceptance evidence required:** Under separate UI/branding approval, per-platform visual+accessibility locale switching, persistence, fallback, full RTL/non-RTL behavior and exact binary SHA256 proofs for approved assets; old UI and rollback still match.
@@ -176,7 +179,7 @@ This document **does not implement features, certify release, schedule autonomou
 
 ### REG-15 — Evidence quality and truthful completion/ETA accounting
 
-- **Priority / owners / requirement IDs:** P0; WS06; `CROSS-009`, `CROSS-012`.
+- **Priority / owners / requirement IDs:** P0; WS06; `CROSS-009`, `CROSS-012`, `CROSS-015`.
 - **Observed evidence (not acceptance):** 97/97 requirements had initial source-based audits; no worker directly executed tests or physical RF/DVB sessions. Six worker PR heads had successful Text Center tests GitHub Actions, distinct from failed original satellite PR #37 Pages parity. None is a five-app installed acceptance certificate.
 - **Read-only next action:** Separate source-reviewed, partial draft-coded, unit/CI executed, hardware-verified, released and original requirement-completeness claims in progress. Require reproducible run IDs, exact SHA and logs before promoting any gate.
 - **Later acceptance evidence required:** Every critical gate gets evidence URL, exact SHA, reproducible result/runner/device or explicit unknown. ETA hours/minutes remain null until scoped tasks, environments, blocked dependencies and measured effort are present.
@@ -184,6 +187,26 @@ This document **does not implement features, certify release, schedule autonomou
 - **Dependency gate(s):** `REG-03`, `REG-06`, `REG-08`, `REG-14`.
 - **Evidence:** [1](https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/e69c2b6eac7deeca313925bf99af31f8c9434f34/apps/_coordination/workstreams/06/REPORT.md), [2](https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/chore/master-requirements-zero-regression-coordination-2026-11-11/apps/_coordination/PROGRESS.json).
 
+
+### REG-16 — Media Teletext/Whisper/lyrics and GPU caption-timing no-regression
+
+- **Priority / owners / requirement IDs:** P0; WS01, WS05, WS06; `MEDIA-007`, `MEDIA-015`, `MEDIA-018`, `MEDIA-019`, `MEDIA-021`, `MEDIA-024`, `MEDIA-027`, `MEDIA-028`, `MEDIA-031`, `CROSS-013`.
+- **Observed evidence (not acceptance):** Media source paths include Teletext matching, subtitle offset scheduler, Qwen fallback, lyrics and native hardware UI. Most existing test-source contracts are static or mock/fixture; no worker ran real TV/radio, fullscreen, karaoke alignment, 10-second buffer or RTX/CPU/NPU model parity trials.
+- **Read-only next action:** Construct a source-origin, timing and failure-state test contract: priority among DVB Teletext/DAB DLS/Whisper/lyrics; mismatch fallback; a single offset application; silence/music handling; local full-file prepass and video/audio player persistence; optional GPU/remote fallback never masks spoken text.
+- **Later acceptance evidence required:** Later explicit approval to run isolated timed speech/lyrics fixtures, then native TV/radio and user-provided sample media playback with traceable word/cue clocks, synchronized offset, independent karaoke/manual controls and no repeated buffering, cross-language subtitle fallback and safe model selection. Separate real hardware evidence required.
+- **Separate owner approval required before:** Editing timing, alignment, model/backend selection, translation, receiver selection, installed local AI dependencies or user playback settings.
+- **Dependency gate(s):** `REG-01`, `REG-03`.
+- **Evidence:** [1](https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/10fd5ef9c51df2c330c8c5823ce789e31db519b2/apps/_coordination/workstreams/01/REPORT.md), [2](https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/chore/master-requirements-zero-regression-coordination-2026-11-11/apps/_coordination/TEST_EVIDENCE_QUALITY.md).
+
+### REG-17 — Canonical developer-agent and feature/component/model matrix parity
+
+- **Priority / owners / requirement IDs:** P0; WS02, WS06, WS01, WS03, WS04, WS05; `FLIGHT-016`, `CROSS-002`, `CROSS-007`, `CROSS-010`.
+- **Observed evidence (not acceptance):** Flight main has substantive AGENTS.md but not independently canonical root CLAUDE.md, DEEPSEEK_START.md or FEATURE/COMPONENT/MODEL/DEVELOPMENT_AGENT JSON matrices and original source-gap documents. Origin-side matrix snapshots must not be mistaken for Flight-owned files.
+- **Read-only next action:** Inventory expected and actually present agent entrypoints and matrices in each of five canonical code bases, with owning repository ID and branch SHA; document schema validity, cross-agent instructions, English engineering policy and explicit origin history-fallback gaps.
+- **Later acceptance evidence required:** After separate authorization, each canonical app repo includes accurate machine-checkable matrices and Claude/DeepSeek routing docs with links to actual app source/test SHA; JSON schema/path validations pass without touching working runtime defaults.
+- **Separate owner approval required before:** Committing new developer files to active Flight repo or three empty destinations; changing repository ownership, source exports or release docs.
+- **Dependency gate(s):** `REG-11`.
+- **Evidence:** [1](https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/1253f55604b1401927f3a1b7a661c7f9b1fa8386/apps/_coordination/workstreams/02/REPORT.md), [2](https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/e69c2b6eac7deeca313925bf99af31f8c9434f34/apps/_coordination/workstreams/06/REPORT.md).
 
 ## Explicit stop conditions
 
