@@ -28,3 +28,11 @@ The matrices mark **source_defined_not_hardware_verified**, **partial_in_draft_p
 - Distinguish **speech ASR, translation, diarization, acoustic labels, karaoke word alignment, generic LLM inference, deterministic RF/location DSP**. These are **not interchangeable**.
 - Preserve evidence and explicit unknowns. Never ship model weights, cloud credentials, private captures or chat exports accidentally.
 - `MODEL_MATRIX.json` is an evidence-backed draft inventory; before a real migration a worker must inspect runtime code and tests for the exact source branch and update confidence with citations.
+
+## Mechanical source-to-target mapping
+
+For each app also read `apps/<app>/COMPONENT_MATRIX.json`. It maps actual
+source paths to stable framework-neutral interface IDs and **illustrative** Rust
+module paths. Porters are free to choose another language, architecture or
+visual theme, but must keep each mapped behavioral contract testable. Target
+modules are suggestions, not implemented packages and not model weights.

@@ -1,0 +1,142 @@
+{
+  "schema_version": 1,
+  "app_id": "media-center",
+  "source_repository": "Tihulu/TIHULU-TEXT-CENTER",
+  "current_code_location": "existing source roots in TIHULU-TEXT-CENTER",
+  "state": "proposed_mapping_not_impl",
+  "source_baseline_commit": "20379152be2751e5d89a8bdbac85fb15fc6b3c4e",
+  "framework_example": "Rust modules are EXAMPLES not prescriptive and do not exist yet",
+  "components": [
+    {
+      "source_paths": [
+        "kaffeine_next/native_media_panel.h",
+        "tv_center/media_ai.py"
+      ],
+      "role": "Local playback panel, file ASR and caption prepass",
+      "target_contract_id": "player.local_file_caption",
+      "possible_rust_crate_or_module": "ui::local_player + services::media_asr",
+      "other_framework_route": "GTK/Qt/Tauri frontend with worker IPC",
+      "porting_status": "proposal_only_no_implementation_created",
+      "behavior_to_preserve": [
+        "Audio uses radio profile; video uses TV file profile",
+        "Keep optional prepass and generated SRT",
+        "Never overwrite original media"
+      ],
+      "tests_to_port": [
+        "tests/test_native_file_prepass_fullscreen.py"
+      ],
+      "data_contract": "inspect source and golden fixtures before declaring complete",
+      "source_evidence_level": "file_present_not_runtime_proven"
+    },
+    {
+      "source_paths": [
+        "kaffeine_next/native_radio_tab.h",
+        "tv_center/radio_ai.py"
+      ],
+      "role": "DAB/radio controller and real speech caption pipeline",
+      "target_contract_id": "radio.session_and_caption",
+      "possible_rust_crate_or_module": "adapters::dab + services::radio_caption",
+      "other_framework_route": "Platform native receiver plugin + UI state events",
+      "porting_status": "proposal_only_no_implementation_created",
+      "behavior_to_preserve": [
+        "One active SDR owner",
+        "Radio Stop/Release and TV handoff",
+        "DLS metadata not speech transcript",
+        "Karaoke never blocks speech"
+      ],
+      "tests_to_port": [
+        "tests/test_radio_tv_handoff_progress.py",
+        "tests/test_radio_karaoke_independent_lipsync.py"
+      ],
+      "data_contract": "inspect source and golden fixtures before declaring complete",
+      "source_evidence_level": "file_present_not_runtime_proven"
+    },
+    {
+      "source_paths": [
+        "kaffeine_next/captions_overlay.py",
+        "kaffeine_next/caption_timing.py"
+      ],
+      "role": "TV caption overlay and timing controls",
+      "target_contract_id": "subtitles.presentation_clock",
+      "possible_rust_crate_or_module": "domain::subtitle_clock + ui::subtitle_layer",
+      "other_framework_route": "View-agnostic cue state machine and renderer",
+      "porting_status": "proposal_only_no_implementation_created",
+      "behavior_to_preserve": [
+        "Offset once on timeline",
+        "Teletext/ASR original source priority",
+        "No fabricated measured DAC PTS"
+      ],
+      "tests_to_port": [
+        "tests/test_tv_caption_readability_clock.py",
+        "tests/test_tv_kaffeine_timing.py"
+      ],
+      "data_contract": "inspect source and golden fixtures before declaring complete",
+      "source_evidence_level": "file_present_not_runtime_proven"
+    },
+    {
+      "source_paths": [
+        "kaffeine_next/native_unified_recorder.h",
+        "kaffeine_next/live_srt.py"
+      ],
+      "role": "Media recording, optional audio/video/SRT mux",
+      "target_contract_id": "recording.export",
+      "possible_rust_crate_or_module": "services::recording + adapters::ffmpeg",
+      "other_framework_route": "Any media mux backend, wrapped as separate opt-in service",
+      "porting_status": "proposal_only_no_implementation_created",
+      "behavior_to_preserve": [
+        "Never clobber original recordings",
+        "DVB native lease preservation",
+        "Live/complete constraints"
+      ],
+      "tests_to_port": [
+        "tests/test_kaffeine_native_srt_controls.py"
+      ],
+      "data_contract": "inspect source and golden fixtures before declaring complete",
+      "source_evidence_level": "file_present_not_runtime_proven"
+    },
+    {
+      "source_paths": [
+        "tv_center/ai_profiles.py",
+        "tv_center/ai_settings.py",
+        "tv_center/translation_failover.py"
+      ],
+      "role": "Model settings, profile readiness and translator fallback",
+      "target_contract_id": "ai.runtime_registry",
+      "possible_rust_crate_or_module": "ai::model_registry + ai::translation_provider",
+      "other_framework_route": "Language-model plugin interface independent of GUI",
+      "porting_status": "proposal_only_no_implementation_created",
+      "behavior_to_preserve": [
+        "Explicit installation vs configured vs running",
+        "Argos fallback on real NLLB failure",
+        "No cloud invocation by default"
+      ],
+      "tests_to_port": [
+        "tests/test_tv_ai_profiles_remote_startup.py",
+        "tests/test_tv_nllb_failover.py"
+      ],
+      "data_contract": "inspect source and golden fixtures before declaring complete",
+      "source_evidence_level": "file_present_not_runtime_proven"
+    },
+    {
+      "source_paths": [
+        "tv_center/qwen_forced_aligner.py",
+        "tv_center/radio_karaoke_router.py"
+      ],
+      "role": "Karaoke forced alignment separate from spoken ASR",
+      "target_contract_id": "karaoke.aligner",
+      "possible_rust_crate_or_module": "ai::karaoke_aligner",
+      "other_framework_route": "Pluggable aligner with verified word anchors",
+      "porting_status": "proposal_only_no_implementation_created",
+      "behavior_to_preserve": [
+        "Lyrics found != audio matched",
+        "Fallback Whisper",
+        "No clock auto-advance without anchors"
+      ],
+      "tests_to_port": [
+        "tests/test_radio_karaoke_independent_lipsync.py"
+      ],
+      "data_contract": "inspect source and golden fixtures before declaring complete",
+      "source_evidence_level": "file_present_not_runtime_proven"
+    }
+  ]
+}

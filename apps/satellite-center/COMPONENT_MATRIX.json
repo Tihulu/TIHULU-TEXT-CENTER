@@ -1,0 +1,86 @@
+{
+  "schema_version": 1,
+  "app_id": "satellite-center",
+  "source_repository": "Tihulu/TIHULU-TEXT-CENTER",
+  "current_code_location": "existing source roots in TIHULU-TEXT-CENTER",
+  "state": "proposed_mapping_not_impl",
+  "source_baseline_commit": "20379152be2751e5d89a8bdbac85fb15fc6b3c4e",
+  "framework_example": "Rust modules are EXAMPLES not prescriptive and do not exist yet",
+  "components": [
+    {
+      "source_paths": [
+        "satellite_center/browser/pass_window.mjs",
+        "satellite_center/browser/orbit_clock.mjs"
+      ],
+      "role": "Orbital prediction and pass clock",
+      "target_contract_id": "satellite.pass_planner",
+      "possible_rust_crate_or_module": "domain::orbits + domain::clock",
+      "other_framework_route": "Map/UI-agnostic orbit engine with UTC event data",
+      "porting_status": "proposal_only_no_implementation_created",
+      "behavior_to_preserve": [
+        "Date/timezone consistency",
+        "No claimed RF without reception evidence"
+      ],
+      "tests_to_port": [],
+      "data_contract": "inspect source and golden fixtures before declaring complete",
+      "source_evidence_level": "file_present_not_runtime_proven"
+    },
+    {
+      "source_paths": [
+        "satellite_center/bridge.py",
+        "satellite_center/browser/capture_duration.mjs"
+      ],
+      "role": "Receive-only SDR capture bridge and segment limits",
+      "target_contract_id": "satellite.rf_capture",
+      "possible_rust_crate_or_module": "adapters::sdr_capture",
+      "other_framework_route": "Native SDR adapter or browser-specific WebUSB plugin",
+      "porting_status": "proposal_only_no_implementation_created",
+      "behavior_to_preserve": [
+        "Explicit capture consent",
+        "Prevent ownership conflicts",
+        "No silent background RF"
+      ],
+      "tests_to_port": [
+        "satellite_center/browser/usb_diagnostics.test.mjs"
+      ],
+      "data_contract": "inspect source and golden fixtures before declaring complete",
+      "source_evidence_level": "file_present_not_runtime_proven"
+    },
+    {
+      "source_paths": [
+        "satellite_center/compute_backends.py",
+        "satellite_center/browser/compute_backends.mjs"
+      ],
+      "role": "Image DSP compute readiness and backend selection",
+      "target_contract_id": "satellite.compute_backend",
+      "possible_rust_crate_or_module": "domain::sstv_dsp + adapters::cuda",
+      "other_framework_route": "CPU signal core + optional GPU kernel plugin",
+      "porting_status": "proposal_only_no_implementation_created",
+      "behavior_to_preserve": [
+        "Device detection does not prove working DSP",
+        "NPU not advertised without kernel"
+      ],
+      "tests_to_port": [],
+      "data_contract": "inspect source and golden fixtures before declaring complete",
+      "source_evidence_level": "file_present_not_runtime_proven"
+    },
+    {
+      "source_paths": [
+        "satellite_center/browser/index.html",
+        "satellite_center/browser/browser.js"
+      ],
+      "role": "Earth/sky map, satellite lists and controls",
+      "target_contract_id": "satellite.ui_shell",
+      "possible_rust_crate_or_module": "ui::satellite_dashboard",
+      "other_framework_route": "Replaceable web/native maps",
+      "porting_status": "proposal_only_no_implementation_created",
+      "behavior_to_preserve": [
+        "Keep user station selection and pass results",
+        "Preserve genuine-vs-internet imagery labels"
+      ],
+      "tests_to_port": [],
+      "data_contract": "inspect source and golden fixtures before declaring complete",
+      "source_evidence_level": "file_present_not_runtime_proven"
+    }
+  ]
+}

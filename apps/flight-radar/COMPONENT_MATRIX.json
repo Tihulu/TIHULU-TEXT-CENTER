@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "app_id": "flight-radar",
+  "source_repository": "Tihulu/tihulu-flight-radar",
+  "current_code_location": "external canonical repo; TEXT CENTER mirror only",
+  "state": "proposed_mapping_not_impl",
+  "source_baseline_commit": "20379152be2751e5d89a8bdbac85fb15fc6b3c4e",
+  "framework_example": "Rust modules are EXAMPLES not prescriptive and do not exist yet",
+  "components": [
+    {
+      "source_paths": [
+        "AGENTS.md",
+        ".github/workflows/sync-flight-radar-pages.yml"
+      ],
+      "role": "External canonical radar and built mirror publication",
+      "target_contract_id": "radar.publication_sync",
+      "possible_rust_crate_or_module": "integration::read_only_mirror",
+      "other_framework_route": "Actual source mappings must be fetched from canonical radar repo",
+      "porting_status": "proposal_only_no_implementation_created",
+      "behavior_to_preserve": [
+        "Do NOT implement editable radar source inside TEXT CENTER",
+        "Preserve mirrored source revision and canonical origin"
+      ],
+      "tests_to_port": [],
+      "data_contract": "inspect source and golden fixtures before declaring complete",
+      "source_evidence_level": "file_present_not_runtime_proven"
+    }
+  ]
+}

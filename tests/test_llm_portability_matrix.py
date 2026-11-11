@@ -55,6 +55,27 @@ class PortableMatrices(unittest.TestCase):
                         self.assertTrue((ROOT / test).is_file(),
                                         "Unverified model test: " + test)
 
+    def test_source_to_target_component_mapping_is_evidence_based(self):
+        for slug in IDS:
+            with self.subTest(app=slug):
+                matrix = json.loads(
+                    (APPS / slug / "COMPONENT_MATRIX.json").read_text())
+                self.assertEqual(matrix["app_id"], slug)
+                self.assertEqual(matrix["state"], "proposed_mapping_not_impl")
+                self.assertTrue((APPS / slug / "COMPONENT_MATRIX.md").is_file())
+                known = set()
+                for entry in matrix["components"]:
+                    self.assertNotIn(entry["target_contract_id"], known)
+                    known.add(entry["target_contract_id"])
+                    self.assertEqual(entry["porting_status"],
+                                     "proposal_only_no_implementation_created")
+                    for source in entry["source_paths"]:
+                        self.assertTrue((ROOT / source).is_file(),
+                                        "Nonexistent source component " + source)
+                    for test in entry["tests_to_port"]:
+                        self.assertTrue((ROOT / test).is_file(),
+                                        "Nonexistent port test " + test)
+
     def test_registry_has_no_unapproved_cutover(self):
         registry = json.loads((APPS / "registry.json").read_text(encoding="utf-8"))
         self.assertEqual(registry["status"], "embedded_in_monorepo_no_migration")
