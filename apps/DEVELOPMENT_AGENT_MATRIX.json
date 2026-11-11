@@ -54,7 +54,10 @@
       "source_snapshot_root": "apps/media-center/source/",
       "future_new_repo_migration_status": "not_started",
       "incomplete_origin_links": "apps/media-center/ORIGIN_FALLBACKS.json",
-      "approved_logo_record": "apps/media-center/APPROVED_BRANDING.json"
+      "approved_logo_record": "apps/media-center/APPROVED_BRANDING.json",
+      "verified_destination_repository": "Tihulu/tihulu-media-center",
+      "destination_ready_for_app_development": false,
+      "new_repo_code_copied": false
     },
     {
       "id": "satellite-center",
@@ -75,7 +78,10 @@
       "source_snapshot_root": "apps/satellite-center/source/",
       "future_new_repo_migration_status": "not_started",
       "incomplete_origin_links": "apps/satellite-center/ORIGIN_FALLBACKS.json",
-      "approved_logo_record": "apps/satellite-center/APPROVED_BRANDING.json"
+      "approved_logo_record": "apps/satellite-center/APPROVED_BRANDING.json",
+      "verified_destination_repository": "Tihulu/tihulu-satellite-center",
+      "destination_ready_for_app_development": false,
+      "new_repo_code_copied": false
     },
     {
       "id": "geolocation-center",
@@ -96,7 +102,10 @@
       "source_snapshot_root": "apps/geolocation-center/source/",
       "future_new_repo_migration_status": "not_started",
       "incomplete_origin_links": "apps/geolocation-center/ORIGIN_FALLBACKS.json",
-      "approved_logo_record": "apps/geolocation-center/APPROVED_BRANDING.json"
+      "approved_logo_record": "apps/geolocation-center/APPROVED_BRANDING.json",
+      "verified_destination_repository": "Tihulu/tihulu-rf-geolocation-center",
+      "destination_ready_for_app_development": false,
+      "new_repo_code_copied": false
     },
     {
       "id": "text-center",
@@ -118,7 +127,10 @@
       "source_snapshot_root": "apps/text-center/source/",
       "future_new_repo_migration_status": "not_started",
       "incomplete_origin_links": "apps/text-center/ORIGIN_FALLBACKS.json",
-      "approved_logo_record": "apps/text-center/APPROVED_BRANDING.json"
+      "approved_logo_record": "apps/text-center/APPROVED_BRANDING.json",
+      "verified_destination_repository": null,
+      "destination_ready_for_app_development": false,
+      "new_repo_code_copied": false
     },
     {
       "id": "flight-radar",
@@ -137,7 +149,10 @@
       "source_snapshot_root": null,
       "future_new_repo_migration_status": "not_started",
       "incomplete_origin_links": "apps/flight-radar/ORIGIN_FALLBACKS.json",
-      "approved_logo_record": "apps/flight-radar/APPROVED_BRANDING.json"
+      "approved_logo_record": "apps/flight-radar/APPROVED_BRANDING.json",
+      "verified_destination_repository": null,
+      "destination_ready_for_app_development": true,
+      "new_repo_code_copied": false
     }
   ],
   "all_apps_self_contained_target": true,
@@ -154,5 +169,7 @@
   "master_origin_fallback_policy": "apps/HISTORY_ORIGIN_FALLBACK_POLICY.md",
   "origin_gap_audit": "apps/_archives/HISTORY_COVERAGE_AUDIT.json",
   "logo_approval_manifest": "apps/BRANDING_APPROVED_MANIFEST.json",
-  "binary_logos_committed_in_current_repo": false
+  "binary_logos_committed_in_current_repo": false,
+  "verified_new_destination_repositories": "apps/VERIFIED_DESTINATION_REPOSITORIES.json",
+  "do_not_confuse_created_empty_repository_with_app_migration": true
 }

@@ -80,7 +80,22 @@
       "branding_release_status": "approved_design_not_installed",
       "history_completeness_status": "partial_export_with_original_links",
       "current_active_app_icons_unchanged": true,
-      "model_install_for_coding_agent_matrix_required": false
+      "model_install_for_coding_agent_matrix_required": false,
+      "destination_repository_verified": {
+        "full_name": "Tihulu/tihulu-media-center",
+        "url": "https://github.com/Tihulu/tihulu-media-center",
+        "repository_id": 1454318539,
+        "node_id": "R_kgDOVq8jyw",
+        "exists": true,
+        "empty_when_checked": true,
+        "source_imported": false,
+        "branding_imported": false,
+        "cutover_authorized": false
+      },
+      "repository_preparation_status": "created_empty_not_migrated",
+      "approved_brand_design_record": "apps/media-center/APPROVED_BRANDING.json",
+      "branding_identity_policy": "five_exact_user_approved_red_black_white_TIHULU_mascot_logos_only",
+      "active_icon_changes_authorized_by_this_plan": false
     },
     {
       "id": "satellite-center",
@@ -139,14 +154,29 @@
       "branding_release_status": "approved_design_not_installed",
       "history_completeness_status": "partial_export_with_original_links",
       "current_active_app_icons_unchanged": true,
-      "model_install_for_coding_agent_matrix_required": false
+      "model_install_for_coding_agent_matrix_required": false,
+      "destination_repository_verified": {
+        "full_name": "Tihulu/tihulu-satellite-center",
+        "url": "https://github.com/Tihulu/tihulu-satellite-center",
+        "repository_id": 1454319572,
+        "node_id": "R_kgDOVq8n1A",
+        "exists": true,
+        "empty_when_checked": true,
+        "source_imported": false,
+        "branding_imported": false,
+        "cutover_authorized": false
+      },
+      "repository_preparation_status": "created_empty_not_migrated",
+      "approved_brand_design_record": "apps/satellite-center/APPROVED_BRANDING.json",
+      "branding_identity_policy": "five_exact_user_approved_red_black_white_TIHULU_mascot_logos_only",
+      "active_icon_changes_authorized_by_this_plan": false
     },
     {
       "id": "geolocation-center",
       "name": "TIHULU RF Geolocation Center",
       "current_status": "embedded",
       "canonical_repository": "Tihulu/TIHULU-TEXT-CENTER",
-      "proposed_destination_repository": "Tihulu/tihulu-geolocation",
+      "proposed_destination_repository": "Tihulu/tihulu-rf-geolocation-center",
       "source_roots": [
         "rf_geolocation_center/"
       ],
@@ -197,14 +227,29 @@
       "branding_release_status": "approved_design_not_installed",
       "history_completeness_status": "partial_export_with_original_links",
       "current_active_app_icons_unchanged": true,
-      "model_install_for_coding_agent_matrix_required": false
+      "model_install_for_coding_agent_matrix_required": false,
+      "destination_repository_verified": {
+        "full_name": "Tihulu/tihulu-rf-geolocation-center",
+        "url": "https://github.com/Tihulu/tihulu-rf-geolocation-center",
+        "repository_id": 1454320329,
+        "node_id": "R_kgDOVq8qyQ",
+        "exists": true,
+        "empty_when_checked": true,
+        "source_imported": false,
+        "branding_imported": false,
+        "cutover_authorized": false
+      },
+      "repository_preparation_status": "created_empty_not_migrated",
+      "approved_brand_design_record": "apps/geolocation-center/APPROVED_BRANDING.json",
+      "branding_identity_policy": "five_exact_user_approved_red_black_white_TIHULU_mascot_logos_only",
+      "active_icon_changes_authorized_by_this_plan": false
     },
     {
       "id": "text-center",
       "name": "TIHULU Text Center",
       "current_status": "embedded",
       "canonical_repository": "Tihulu/TIHULU-TEXT-CENTER",
-      "proposed_destination_repository": "Tihulu/TIHULU-TEXT-CENTER",
+      "proposed_destination_repository": null,
       "source_roots": [
         "textcenter/",
         "web/"
@@ -263,7 +308,12 @@
       "branding_release_status": "approved_design_not_installed",
       "history_completeness_status": "partial_export_with_original_links",
       "current_active_app_icons_unchanged": true,
-      "model_install_for_coding_agent_matrix_required": false
+      "model_install_for_coding_agent_matrix_required": false,
+      "destination_repository_verified": null,
+      "repository_preparation_status": "future_separate_repo_not_yet_named_or_created",
+      "approved_brand_design_record": "apps/text-center/APPROVED_BRANDING.json",
+      "branding_identity_policy": "five_exact_user_approved_red_black_white_TIHULU_mascot_logos_only",
+      "active_icon_changes_authorized_by_this_plan": false
     },
     {
       "id": "flight-radar",
@@ -307,7 +357,17 @@
       "branding_release_status": "approved_design_not_installed",
       "history_completeness_status": "partial_export_with_original_links",
       "current_active_app_icons_unchanged": true,
-      "model_install_for_coding_agent_matrix_required": false
+      "model_install_for_coding_agent_matrix_required": false,
+      "destination_repository_verified": {
+        "full_name": "Tihulu/tihulu-flight-radar",
+        "repository_id": 1447534043,
+        "node_id": "R_kgDOVked2w",
+        "already_canonical": true
+      },
+      "repository_preparation_status": "already_external_canonical",
+      "approved_brand_design_record": "apps/flight-radar/APPROVED_BRANDING.json",
+      "branding_identity_policy": "five_exact_user_approved_red_black_white_TIHULU_mascot_logos_only",
+      "active_icon_changes_authorized_by_this_plan": false
     }
   ],
   "repository_identity": {
@@ -352,5 +412,9 @@
   "all_apps_branding_manifest": "apps/BRANDING_APPROVED_MANIFEST.json",
   "original_repo_rename_fallback_policy": "apps/HISTORY_ORIGIN_FALLBACK_POLICY.md",
   "user_approved_logo_designs_count": 5,
-  "all_five_logos_installed_in_running_apps": false
+  "all_five_logos_installed_in_running_apps": false,
+  "verified_destination_repositories": "apps/VERIFIED_DESTINATION_REPOSITORIES.json",
+  "three_new_repo_shells_created": true,
+  "new_repo_source_import_performed": false,
+  "branding_binary_import_performed": false
 }
