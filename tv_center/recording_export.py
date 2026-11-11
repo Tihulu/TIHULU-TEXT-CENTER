@@ -109,7 +109,8 @@ def render(cues: list[Cue], kind: str, *, timestamps=False, lyrics=False,
         return json.dumps({
             "format": "tihulu-timed-caption-v1",
             "track": track,
-            "timebase": "media_seconds",
+            "timebase": "srt_cue_seconds",
+            "clock_source": "SRT cue times; physical DAC/signal sync unverified",
             "word_aligned": False,
             "cues": [{"start": c.start, "end": c.end, "text": c.text}
                      for c in cues],
