@@ -51,7 +51,7 @@ public:
                                    QWidget *parent=nullptr)
         : QWidget(parent),player_(player),dvb_(dvb),
           openPlayback_(openPlayback),
-          capture_(this),ai_(this),mux_(this) {
+          capture_(this),ai_(this),mux_(this),formatExportProcess_(this) {
         auto *line=new QHBoxLayout(this);
         line->setContentsMargins(1,0,1,0);
         line->setSpacing(4);
@@ -167,6 +167,20 @@ public:
                         .arg(QString::fromUtf8(mux_.readAllStandardError()).right(210)));
                 }
             });
+        // Export is an independent opt-in job: never touches the tuner,
+        // ongoing media recorder or source media.
+        connect(&formatExportProcess_,
+            QOverload<int,QProcess::ExitStatus>::of(&QProcess::finished),
+            this,[this](int code,QProcess::ExitStatus status){
+                if(code==0 && status==QProcess::NormalExit)
+                    report(tr("Timed transcript/media export complete: %1")
+                        .arg(QString::fromUtf8(
+                            formatExportProcess_.readAllStandardOutput()).left(500)));
+                else
+                    report(tr("Original recording preserved; export failed: %1")
+                        .arg(QString::fromUtf8(
+                            formatExportProcess_.readAllStandardError()).right(300)));
+            });
     }
     ~TihuluUnifiedRecorder() override {
         // Never abandon an ffmpeg writer with a still-open media container.
@@ -179,6 +193,8 @@ public:
         }
         if(ai_.state()!=QProcess::NotRunning)ai_.kill();
         if(mux_.state()!=QProcess::NotRunning)mux_.kill();
+        if(formatExportProcess_.state()!=QProcess::NotRunning)
+            formatExportProcess_.kill();
     }
 
 private:
@@ -398,6 +414,81 @@ private:
         else
             report(tr("Recording saved. Offline AI is creating real-timestamp SRT…"));
     }
+    void exportExistingRecording(const QString &mediaPath) {
+        if(formatExportProcess_.state()!=QProcess::NotRunning) {
+            report(tr("Previous export is still active."));return;
+        }
+        const QFileInfo input(mediaPath);
+        if(!input.isFile())return;
+        QString srt=input.absolutePath()+QLatin1Char('/')+
+                    input.completeBaseName()+QLatin1String(".srt");
+        if(!QFileInfo(srt).isFile()) {
+            srt=QFileDialog::getOpenFileName(this,
+                tr("Choose existing SRT from this recording or live TV/Radio"),
+                input.absolutePath(),tr("SRT subtitles (*.srt)"));
+            if(srt.isEmpty())return;
+        }
+        const QString destination=QFileDialog::getExistingDirectory(this,
+            tr("Choose export folder"),input.absolutePath());
+        if(destination.isEmpty())return;
+        QDialog dialog(this);
+        dialog.setWindowTitle(tr("Recording · timed transcript / combined export"));
+        auto *layout=new QVBoxLayout(&dialog);
+        auto *info=new QLabel(tr(
+            "Use a finished recording and real caption SRT. Choose separate "
+            "text/subtitle formats or combine the original media with selectable "
+            "subtitles. Nothing will overwrite your recordings."),&dialog);
+        info->setWordWrap(true);
+        layout->addWidget(info);
+        auto *txt=new QCheckBox(tr("TXT"),&dialog);txt->setChecked(true);
+        auto *srtOut=new QCheckBox(tr("SRT"),&dialog);srtOut->setChecked(true);
+        auto *vtt=new QCheckBox(tr("VTT"),&dialog);
+        auto *ass=new QCheckBox(tr("ASS"),&dialog);
+        auto *json=new QCheckBox(tr("JSON"),&dialog);
+        auto *time=new QCheckBox(tr("Include timestamps in TXT"),&dialog);
+        auto *mux=new QCheckBox(tr("Media + selectable SRT tracks · MKV"),&dialog);
+        auto *burn=new QCheckBox(tr("Burn subtitles into video · MP4"),&dialog);
+        const QString extension=input.suffix().toLower();
+        burn->setEnabled(QStringList{
+            QLatin1String("mkv"),QLatin1String("mp4"),QLatin1String("ts"),
+            QLatin1String("avi"),QLatin1String("mov"),QLatin1String("m2ts"),
+            QLatin1String("webm")}.contains(extension));
+        for(QCheckBox *item:{txt,srtOut,vtt,ass,json,time,mux,burn})
+            layout->addWidget(item);
+        auto *row=new QHBoxLayout();
+        auto *cancel=new QPushButton(tr("Cancel"),&dialog);
+        auto *accept=new QPushButton(tr("Export"),&dialog);
+        row->addWidget(cancel);row->addWidget(accept);
+        layout->addLayout(row);
+        connect(cancel,&QPushButton::clicked,&dialog,&QDialog::reject);
+        connect(accept,&QPushButton::clicked,&dialog,&QDialog::accept);
+        if(dialog.exec()!=QDialog::Accepted)return;
+        QStringList formats;
+        if(txt->isChecked())formats<<QLatin1String("txt");
+        if(srtOut->isChecked())formats<<QLatin1String("srt");
+        if(vtt->isChecked())formats<<QLatin1String("vtt");
+        if(ass->isChecked())formats<<QLatin1String("ass");
+        if(json->isChecked())formats<<QLatin1String("json");
+        if(formats.isEmpty() && !mux->isChecked() && !burn->isChecked()){
+            report(tr("No export format selected."));return;
+        }
+        QStringList arguments{
+            QLatin1String("recording-export"),
+            QLatin1String("--srt"),srt,
+            QLatin1String("--media"),mediaPath,
+            QLatin1String("--destination"),destination,
+            QLatin1String("--name"),input.completeBaseName(),
+            QLatin1String("--mode"),QLatin1String("live"),
+            QLatin1String("--formats"),formats.join(QLatin1Char(','))};
+        if(time->isChecked())arguments<<QLatin1String("--timestamps");
+        if(mux->isChecked())arguments<<QLatin1String("--mux");
+        if(burn->isChecked())arguments<<QLatin1String("--burn-video");
+        formatExportProcess_.start(QLatin1String("tihulu-tv-center"),arguments);
+        if(!formatExportProcess_.waitForStarted(800))
+            report(tr("Cannot launch the offline export tool."));
+        else report(tr("Exporting selected formats. Source recording untouched."));
+    }
+
     void openLibrary() {
         QDialog dialog(this);
         dialog.setWindowTitle(tr("TIHULU Recordings · open / import / subtitle"));
@@ -429,8 +520,11 @@ private:
         auto *import=new QPushButton(tr("Import saved media / TV recording"),&dialog);
         auto *caption=new QPushButton(tr("Generate AI subtitles"),&dialog);
         auto *folder=new QPushButton(tr("Open recording folder"),&dialog);
+        auto *exportFormats=new QPushButton(
+            tr("Export TXT / SRT / VTT / ASS / JSON / MKV…"),&dialog);
         row->addWidget(open);row->addWidget(import);
-        row->addWidget(caption);row->addWidget(folder);
+        row->addWidget(caption);row->addWidget(exportFormats);
+        row->addWidget(folder);
         root->addLayout(row);
         auto selected=[&]()->QString{
             return list->currentItem()?list->currentItem()->data(Qt::UserRole).toString():QString();
@@ -462,6 +556,11 @@ private:
             generateCaptions(path,QLatin1String("en,de,tr"),false);
             dialog.accept();
         });
+        connect(exportFormats,&QPushButton::clicked,&dialog,[&,this](){
+            const QString path=selected();
+            if(path.isEmpty() || !QFileInfo(path).isFile())return;
+            exportExistingRecording(path);
+        });
         connect(folder,&QPushButton::clicked,&dialog,[](){
             QDesktopServices::openUrl(QUrl::fromLocalFile(recordingsFolder()));
         });
@@ -472,7 +571,7 @@ private:
     DvbTab *dvb_=nullptr;
     std::function<void()> openPlayback_;
     QToolButton *record_=nullptr,*library_=nullptr;
-    QProcess capture_,ai_,mux_;
+    QProcess capture_,ai_,mux_,formatExportProcess_;
     QTimer elapsed_;
     QUrl recordingUrl_;
     qint64 startedMs_=0;
