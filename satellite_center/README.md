@@ -1,0 +1,793 @@
+# TIHULU Satellite Center 0.3.0~preview10 — exact web UI + native SDR desktop
+
+## Preview10 · Exact website presentation with direct OS-native SDR
+
+The installed desktop now opens the **actual same bundled** `browser/index.html`,
+CSS, images and browser JavaScript used by the public website. There is no
+separately drawn Qt imitation. This requires **Qt WebEngine (an embedded
+Chromium renderer)** to match the original web design; the visual UI *is*
+HTML/CSS, but SDR acquisition is **not WebUSB**. A tightly allowlisted
+**in-process Qt WebChannel** sends user-triggered receiver actions straight
+to the existing `Station` backend and Linux `rtl_sdr`/`rtl_fm` tools.
+No localhost HTTP server, externally opened browser or USB permission chooser
+is launched by the installed desktop. All bundled UI assets are local.
+
+Commands:
+
+- `tihulu-satellite-center` or `tihulu-satellite-center desktop`:
+  exact web presentation, native radio backend (default).
+- `tihulu-satellite-center desktop-widgets`:
+  old **fully Qt-painted, browser-engine-free** fallback.
+- `tihulu-satellite-center doctor`:
+  passive USB/process and dependency diagnostics; no RF opened.
+
+**Explicit trade-off:** if *zero Chromium/WebEngine components* are mandatory,
+use `desktop-widgets`; pixel-for-pixel reuse of the website layout is
+otherwise impossible using only independent Qt Widgets. The WebEngine
+is a renderer, **not a WebUSB acquisition path**. Browser-specific memory
+limits and permissions are bypassed by direct native disk streaming.
+
+The bundled browser UI keeps the current pass planning, maps, images, data
+inspection and protocol editor. Its native bridge intercepts explicit
+**Connect, physical IQ Test, Disconnect, manual CU8/WAV/BOTH capture, auto
+mission schedule and selected-pass schedule** controls before the browser's
+WebUSB event listeners. Each native action validates receiver profiles,
+disk quotas and actual TLE geometry; received imagery/speech is never made up.
+Hardware can only be claimed if the OS device and real sample tests pass.
+
+The older independent Qt Widgets UI is retained and now has inline offline/
+online city results with optional debounced Open-Meteo lookup: mistyping
+`syney` queries the provider for **Sydney**, not imaginary coordinates.
+The same alias applies in the bundled web picker. Online lookup remains
+an explicit opt-in; no location is uploaded merely by opening the app.
+
+**Limits:** Exact HTML/CSS reuse does not prove all webpage features have
+been hardware-tested. Qt WebEngine Chromium version, installed fonts, OS
+scale factors and platform integration can cause small rendering differences.
+The native dual-format path derives 32 kHz FM WAV from CU8 after capture
+whereas the browser WebUSB writer can produce 48 kHz concurrently. OS-driver
+access and true Meteor/ISS reception require real Pop!_OS/Nooelec acceptance.
+
+## Preview10 · Installed desktop orbit maps and TLE networking
+
+The installed `tihulu://desktop/` Qt WebEngine page has a different origin
+from the HTTPS web/PWA edition. Browser `fetch()` requests to CelesTrak and
+dynamic JavaScript orbital CDNs may fail there, even when the OS can reach
+the public service. Desktop actions therefore use the existing private,
+allowlisted **Qt WebChannel → Python** path:
+
+- **Refresh orbit data**: native HTTPS CelesTrak requests with source
+  verification, a 350 kB per-source limit, locally cached TLEs, and explicit
+  provider errors. A cache older than seven days is not presented as fresh.
+- **Calculate passes**: native Skyfield predictions using the selected ground
+  station coordinates; no simulated RF data, no browser orbital CDN.
+- **Earth / Sky**: Skyfield orbital positions and bounded local orbit tracks
+  updated while the map is visible. Public-domain Natural Earth geography
+  is loaded from the bundled file, including if custom-scheme `fetch` fails.
+- **Import local TLE**: the user-selected file is validated and synchronized
+  into a private `manual.tle` cache for offline desktop map and pass use.
+  This is *explicit user input*, not a background web lookup. Duplicate NORAD
+  IDs are resolved in favor of the imported file.
+- **Saved custom NORAD**: explicitly requested CelesTrak lookup likewise
+  saves a bounded local TLE record.
+
+The website/PWA still uses its previous browser-only fetch and satellite.js
+path. The built-in **world-outline canvas** does not depend on OpenStreetMap
+tile servers. The optional *detailed Leaflet/OSM street map* **still requires**
+the external Leaflet resource and network map tiles; failure there does not
+invalidate the offline geography and Skyfield satellite positions.
+
+To verify in the installed desktop: click **Refresh orbit data**, then
+**Calculate passes**, open **Earth / Sky**, and select **Earth**. The native
+Skyfield and world-outline status will identify which layer loaded, rather
+than implying that a predicted TLE location was received over RF.
+
+## Preview9 · full home satellite pass planning (2026-11-07)
+
+Following desktop feedback, the **Home → 3 · Satellite pass planner** is
+no longer only a Cologne quick-preset. Home now directly contains:
+country selection **Germany / Türkiye**, state/province (Bundesland/il)
+filter, offline city/town/**named district when present** search from the
+same 8,084-place catalog, clickable search results, global opt-in
+Open-Meteo online city lookup, optional user-permitted QtPositioning,
+free manual latitude/longitude, lookahead hours and minimum elevation.
+
+Home and **Pass planner** operate on **the same coordinates, hours,
+elevation, TLE predictions and cached satellite passes**. Changes to
+numeric station coordinates and lookahead reflect in both views. The
+Home satellite list now supports NORAD/name search, satellite families,
+IMAGE/AUDIO/TEXT/RF format labels, seven actual sorting modes,
+selection and direct navigation to the editable pass recording panel.
+Selecting **Calculate passes** with no fresh local TLE source performs
+an **on-demand HTTPS refresh** before the native Skyfield calculation;
+it does not silently return an empty list. Any missing/expired source,
+network failure, zero predicted passes, decoder limitation or
+unavailable physical RF is reported explicitly. Refresh or imported
+offline TLE remains manually available.
+
+The offline dataset provides German **state + town** and Turkish
+**province + locality** names, including Hürth in Nordrhein-Westfalen
+and Karaburun/Bornova in İzmir. It is **not a complete additional
+county/subdistrict administrative registry**, and should not be
+described as such. User-selected coordinates remain on the computer
+unless explicit online geocoding is requested.
+
+The independent Qt Debian artifact is version **0.3.0~preview9**.
+Re-running the one-line installation replaces the previous native
+package; it never installs a WebView or WebUSB frontend. PR remains Draft,
+and actual RF/Pop!_OS verification still requires real local hardware.
+
+## Preview8 · Web-style UI and physical USB parity (2026-11-07)
+
+The native Qt application now follows the **same seven-sections-in-order**
+layout as the browser: automatic reception workflow, receiver hardware,
+physical sample recording, satellite pass planner, calendar, Earth/Sky maps,
+Signal Intelligence and Satellite Images & Data. The UI shares the web's
+dark backgrounds, blue action buttons, rounded controls and provenance
+descriptions. This is a **native PyQt5 Widgets implementation**; no browser,
+WebUSB, Electron, localhost service or WebView participates in desktop
+acquisition. Exact pixel-for-pixel browser CSS rendering is **not** claimed.
+
+The **Hardware / USB** page passively lists USB IDs and device models
+(including DVB TV as separate from SDR), identifies interfering SDR processes,
+shows actual lock/process state and has **Refresh, USB open test,
+Real CU8/IQ sample test, Connect & enable, Stop & disconnect** actions.
+Connect requires successful short `rtl_test` opening and a separate **real,
+1 MiB** `rtl_sdr` I/Q acquisition before enabling future captures. It never
+interprets raw power as a satellite identity. Disconnect stops only this
+program's receiver children, verifies its own receiver lock and child exit,
+and **persists RF disabled across application restarts**. Pending scheduled
+captures are paused, not deleted, until a new verified Connect. Disconnect
+does **not** electrically turn off or unplug the USB device or kill readsb.
+
+The manual, auto-ISS and pass schedule workflows offer genuine CU8, WAV or
+both where receiver/decoder mode permits. CU8+WAV records real IQ once
+and creates a **32 kHz WAV** from the same I/Q afterward; the web's
+simultaneous 48 kHz WAV path is a *different implementation*.
+IQ rates 1.024 / 2.048 MS/s are selectable and a strict 2 GB cap shortens
+maximum recording length at higher rates. During an actual CU8 capture, the
+Qt UI reads a small tail of the *real saved file* every second for a
+relative digital dBFS graph without opening another USB session.
+
+Native pass planning now has sorting, family/media filtering and explicit
+local TLE import. Location offers 8,084 offline DE/TR places, manual
+coordinates, **optional user-clicked worldwide online geocoding** and
+optional OS-permitted QtPositioning. Satellite Images & Data has real
+recording previews, Robot36/Meteor decoder actions and separate on-demand
+NASA EPIC/ISS photo galleries. NASA photos are labeled online sources,
+**never** claimed as radio-received images. A physical RTL-SDR,
+Pop!_OS/COSMIC mouse/driver test and real ISS/Meteor downlink remain
+unverified; CI uses synthetic orbital examples but no fabricated RF.
+
+## One-line GitHub native install — Debian / Ubuntu / Pop!_OS
+
+Runs on a Linux machine with `curl`, `tar`, `dpkg-deb` and `apt`.
+The installer fetches the public preview branch from GitHub, builds the
+genuine native Qt `.deb` from source, verifies package name/version,
+and installs it through `apt`. No `gh` account, Releases download,
+browser, npm, or Electron is needed. It uses `sudo` only for `apt`.
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Tihulu/TIHULU-TEXT-CENTER/feature/satellite-auto-discovery-integrated-2026-11-06/satellite_center/install/install-deb.sh | bash
+```
+
+Then launch `tihulu-satellite-center` or open the Applications menu.
+Check hardware dependencies with `tihulu-satellite-center doctor`
+without starting an RF capture. `main` is not changed while preview8
+remains in draft review. For a review-before-execute workflow, open
+[`install-deb.sh`](install/install-deb.sh) in the repo before running.
+The older `install/install.sh` creates a separate user-local Python
+environment and is **not** the recommended Debian system package installer.
+
+**Native Qt UI refresh · preview7:** The desktop is no longer eight exposed
+technical tabs. Five main sections follow the browser's user tasks: **Home**,
+**Find satellites**, **Maps & live**, **Auto receive**, and **Recordings & results**.
+**More tools** keeps the reception calendar, manual RF and custom protocol editor
+available without overwhelming a new user. The home screen gives explicit steps
+to select satellite/passes, schedule actual receive-only RF, open a recording,
+and inspect actual decoded outputs. The results workspace now has three steps
+(choose local file, analyze CU8/RF, decode & save). The Earth map opens first,
+with visible opt-in OpenStreetMap and collapsed advanced orbit overlays.
+Automatic reception and pass recording show their results in the same page,
+rather than quietly writing into an unrelated analysis pane. No features
+are removed, and no WebView or browser is introduced.
+
+**Visual QA evidence:** The GitHub Actions `Satellite Center native Debian package`
+run uploads a separate `tihulu-satellite-center-native-ui-preview7` artifact
+with five *real offscreen Qt screenshots* of Home, Passes, Earth Map, Auto
+reception, and Recordings. Any orbit example in those CI images is synthetic,
+not a radio observation. This verifies Qt rendering paths, **not** Pop!_OS
+COSMIC mouse usability or actual SDR hardware.
+
+**Qt desktop/browser parity audit:** [NATIVE_WEB_PARITY.md](NATIVE_WEB_PARITY.md)
+tracks shipped features, their receive-only evidence limitations and
+unverified hardware/release gates. Maps & Live includes native OpenStreetMap,
+sky/earth pins, 1-second orbital tracking, ±45-minute orbit traces,
+selected/all track scopes, radio-data format filters, image candidate details
+and PNG/GeoJSON map export. Overview has the same three-step
+Auto Schedule/Analyze/Extract workflow; Recordings & results provides native
+CU8 FFT, FM WAV, Robot36, SatDump and ZIP outputs. Saved protocols
+supports direct JSON interchange with the separate web project.
+
+
+**Primary Debian / Ubuntu / Pop!_OS program: Qt Widgets — NOT a website.**
+Launching from the Applications menu or running `tihulu-satellite-center`
+opens a genuine Qt5 desktop window with native select boxes, controls,
+calendar, capture and analysis panes. **No embedded WebView, WebEngine,
+Electron, localhost server or browser** is used by the desktop UI.
+The previous browser/WebUSB workflow is preserved only as an optional,
+**separate web application**. Historic browser/localhost sections below
+describe that separate legacy workflow, not the installed desktop app.
+
+Install the Debian package downloaded from GitHub Actions, then run:
+
+```bash
+sudo apt install ./tihulu-satellite-center_0.3.0~preview10_all.deb
+tihulu-satellite-center
+```
+
+**New native satellite browser:** Passes & Data lists potential IMAGE, AUDIO, TEXT and
+raw RF data types with NORAD IDs, orbital start/end, peak elevation,
+media filters and a decoder-requirements panel. **IMAGE** means the local
+protocol catalogue knows a potential reception/decoding route; it does
+**not** mean a picture is already available on the satellite or that a
+valid image will be received during this pass. Meteor LRPT needs actual
+on-disk samples and SatDump; ISS SSTV needs an active ARISS event.
+Iridium and unknown CubeSats are labelled RF-only / no catalogued image
+decoder. Qt ground-station selection reuses the **8,084 offline DE/TR
+cities** from the separate web app; no browser or location request is needed.
+
+The app provides: native receiver diagnostics, explicit CelesTrak TLE
+refresh and station pass prediction, manual 8–900s planned/direct IQ
+captures, optional auto-missions, an editable automatic-job schedule and
+24-hour recording calendar, local file imports, actual PNG/WAV/text
+preview, CPU NumPy CU8 FFT/waterfall (fast sampled or full-file streaming),
+optional SatDump image decoding of Meteor captures, and ZIP export of
+**only genuine analysis outputs**, with source-provenance warnings.
+All receiver/time/decoder behavior still depends on physical SDR and
+installed native utilities. Installation never silently acquires USB,
+downloads TLEs or starts a scheduled radio recording.
+
+Native dependencies: Debian `python3-pyqt5`, `python3-numpy`,
+`python3-skyfield`, `rtl-sdr` and `xdg-utils`. `qtwayland5`
+is recommended so Pop!_OS/COSMIC can use native Wayland Qt5 windows,
+with XWayland as a fallback if unavailable. Legacy `serve`
+is strictly opt-in: `tihulu-satellite-center serve --port 8791`.
+A native Qt window can open without any browser installed.
+
+**Validation:** Debian 12 package install and headless Qt Widgets opening
+are software checks, not evidence of real Nooelec RF/SSTV/Meteor reception.
+
+---
+
+
+### Debian / Pop!_OS — native, Firefox-compatible SDR application
+
+On the local server's `/browser/index.html`, Calculate Passes → Schedule
+offers native backend scheduling without Chromium WebUSB or the 128 MiB
+memory cap. Native server independently rechecks local TLE/pass geometry,
+allowlisted frequency and protocol, UTC start, disk budget and receiver
+conflicts. The Iridium 1620 MHz preset is RF energy recording only;
+no private messages or satellite identity are decoded.
+
+
+**Historical v0.2.4 localhost compatibility mode only:** To run the old
+browser-accessible local server explicitly, use `tihulu-satellite-center serve
+--port 8791`. This is **not** the current default Linux application. The
+normal `tihulu-satellite-center` launcher opens genuine native Qt Widgets
+and does not start an HTTP server. Both modes use OS RTL-SDR utilities for
+physical RF; the optional browser-only Pages edition remains separate.
+
+A native Debian `.deb` (source + shared UI + icons, using Debian's own
+`python3-skyfield` and `rtl-sdr` packages) is built and smoke-tested
+in GitHub Actions: `.github/workflows/satellite-debian-package.yml`.
+Install the downloaded artifact with `sudo apt install ./tihulu-satellite-center_*.deb`.
+Open **TIHULU Satellite Center** from Applications or run
+`tihulu-satellite-center`. Use **Satellite Images & Data → Auto Schedule
+& Capture** for native long Meteor image candidates, or the supported
+native pass scheduler for other allowlisted receive-only modes.
+Use `tihulu-satellite-center doctor` to inspect installed tools
+without accessing RF. Actual USB opening needs udev/device permissions;
+`rtl_test -t` should succeed. User-specific recordings stay under
+`~/.local/share/tihulu-satellite-center/`. No background daemon or
+hardware operation is enabled by installation.
+
+For a non-root user-local install, `install/install.sh` now defaults
+to this branch's native desktop launcher; the separate web-only icon
+remains available for Chromium users. Debian package is marked preview
+until a physical RTL-SDR pass capture and end-to-end image decode pass.
+
+
+---
+
+### Desktop launcher cleanup — duplicate Local/PWA entries
+
+Only the **TIHULU Satellite Center (System)** entry (the installed
+Debian `.deb` Qt Widgets application) is needed. Older **Local** or
+Chromium/PWA entries are obsolete for the desktop workflow. The user-local
+installer no longer creates a browser desktop shortcut unless
+`TIHULU_INSTALL_WEB_SHORTCUT=1` is explicitly set, and avoids creating
+another Local launcher when the system `.deb` is installed.
+
+After updating the `.deb`, preview the menu cleanup without altering any file:
+
+```bash
+tihulu-satellite-center cleanup-shortcuts
+```
+
+If the list contains only the unwanted TIHULU Satellite Center entries:
+
+```bash
+tihulu-satellite-center cleanup-shortcuts --apply
+```
+
+The cleanup archives matching user-level `.desktop` files into
+`~/.local/share/tihulu-satellite-center/shortcut-backups/`; it does not
+uninstall apps or delete browser profiles, recordings, saved RF jobs,
+other TIHULU apps or the system Qt launcher. Existing COSMIC menu caches
+may require a logout/login before duplicate icons disappear.
+
+## Browser-only direct FM SSTV WAV recording (2026-11-06)
+
+The [public Satellite Center browser receiver](browser/index.html) now records **real FM-demodulated SSTV audio in WAV during actual RTL2832U WebUSB sampling**; no native companion is necessary on supported secure-origin Chromium/Brave/Chrome/Edge. Select the `ISS SSTV 437.550 MHz` receiver preset: the UI defaults to `Record FM-demodulated SSTV audio (.wav)` while keeping a separate `Record raw RF (.cu8)` option. Check both to retain the original RF for later reprocessing; uncheck both for level measurements only.
+
+The WebUSB pipeline accepts genuine unsigned interleaved CU8 I/Q from `readSamples`, decimates with continuous stream state, FM-discriminates complex samples, removes carrier DC, emits real **48 kHz mono, signed 16-bit PCM** and writes an exact RIFF/WAV header with the final number of captured samples. It is **not** a raw-CU8 file renamed .wav. Short WAV clips are downloaded from bounded memory. WAV recordings exceeding the 16 MiB memory budget are streamed to a file selected through Chromium File System Access. When both CU8 and WAV require disk streaming, one explicit directory picker selects a folder for two separately written files. Up to 900 s can be requested within RF/disk browser limits. Closing or hiding the browser tab stops browser-only capture: this is not a background service or an unattended full-pass guarantee.
+
+Both manual receiver start and selected pass schedule entries support WAV, CU8 or both; calendar editing preserves output options. Browser-only automated ISS SSTV pass scheduling now prefers WAV. The in-page **Decode last captured FM WAV** button hands the short WAV to the existing experimental Robot36 image decoder; a longer WAV saved on disk can be explicitly re-opened via `Satellite Images & Data → Real demodulated SSTV audio (WAV)`. The raw CU8 path remains available for full spectrum analysis. The web app never claims an ISS signal or a verified picture merely because it successfully saved a WAV; real Robot36 1200 Hz synchronization is still required.
+
+**Reception limits:** 9–16 November 2026 ARISS Series 35 was announced at 437.550 MHz FM / Robot36. The web demodulator does not currently perform automatic Doppler tracking; at UHF the Doppler shift may affect decoding, especially near pass edges. Antenna suitability, device permissions, driver ownership and a genuine transmitting ISS pass remain mandatory. Firefox does not support direct WebUSB; use the native local companion for that browser.
+
+
+
+
+---
+
+### Native Maps, RF intelligence and Robot36 outputs — 0.3.0 preview7
+
+- **Maps & Live:** actual native Qt Earth and polar-sky widgets with
+  built-in Natural Earth land geometry, optional opt-in viewport-only
+  OpenStreetMap street tiles, TLE-based positions/pointing updates once
+  per second, local station, selected ground tracks and simulated timeline.
+  Orbits are geometric predictions, **not RF detections**.
+- **Pass reception:** named voice FM WAV, ISS SSTV WAV (event-only),
+  APRS/AX.25, raw CU8 IQ and bounded spectrum survey are selectable
+  from supported pass-specific profiles. Actual disk-streamed IQ supports
+  up to 900 s; the survey is intentionally limited to 180 s.
+- **Analysis:** native CU8 spectrum/waterfall, candidate RF power-region
+  discovery, actual FM-to-PCM WAV extraction, Robot36 synchronization
+  decoding of real WAV into **PNG images**, and SatDump Meteor decoding
+  when installed. A frequency hint or recorded WAV never guarantees
+  satellite identity or real imagery.
+- **Save results:** Robot36 is an **SSTV mode**, not a separate file
+  extension. On valid frame sync, the decoder creates a genuine PNG in
+  the local archive, retains the WAV and writes a JSON provenance report.
+  The Qt results list previews saved files; **Save decoded PNG / WAV**
+  copies the actual output to a user-selected path. **Save real results
+  ZIP** packages PNG/WAV/JSON together. Without valid sync, no image
+  is generated, but the WAV and failed-sync report remain available.
+  GPU and NPU decoding are attempted only with implemented/verified
+  compute backends; unavailable accelerators must report errors.
+- **Native archive data-type clarity (preview6):** The Recordings and
+  generated-results tables now label raw CU8, PNG/JPEG, WAV, TXT, JSON,
+  CSV and map/archive formats separately, with per-file explanations.
+  PNG/JPEG/WAV use a short actual file-header check. A matching header
+  does not establish a complete valid decode or confirm spacecraft origin.
+- **Remaining acceptance gates:** Browser/PWA and native Qt use different
+  receiver transports by design. Physical RTL-SDR, 900-second IQ throughput,
+  actual ISS SSTV/Meteor reception, Pop!_OS COSMIC visual acceptance and
+  native Windows/macOS installers remain unverified or unshipped.
+  Do not infer successful reception from a TLE pass or a file extension.
+
+
+## Historical web/localhost companion documentation (legacy v0.2.3)
+
+## One-click Satellite Auto-Capture & Decode (2026-11-06 draft)
+
+### Adjustable recording durations, timeline, result archive
+
+- **Actual RF sample length (Calculate Passes):** Manual per-pass scheduling now uses an editable 1–900-second number field instead of a fixed 60-second dropdown. Secure-origin Chromium browsers with File System Access can save long I/Q directly to a user-selected CU8 file, streaming individual received blocks with a 2 GB byte ceiling. A 2.048 MS/s recording has a shorter cap than 1.024 MS/s. Permission to save is obtained while explicitly scheduling the pass; the browser must remain open and visible. Firefox/Safari and unsupported browsers need a native companion for long data. Neither a geometrical pass nor a saved file proves full image reception.
+
+- User can choose a native 8–900 second clip (or leave blank for automatic pass-fitting). Browser WebUSB remains 8–60 seconds / 128 MiB because of foreground/memory limits. Large Meteor LRPT imaging requires the local disk-streamed SDR workflow; the actual downlink, sufficient antenna reception and SatDump decoding must still succeed.
+- The shared calendar hides cancelled jobs while preserving them in native audit records. Every visible job is labeled with local start–end time, actual planned clip duration, media type and estimated disk size; long jobs continue across hourly rows. Pending native tasks can edit time, protocol and recording duration.
+- Step 2 analyzes existing real files, Step 3 previews decoded image candidates, audio and text/data. **Save analyzed results as ZIP** packages actual output PNG/WAV/text/evidence JSON, manifest and warnings without uploading files. A safe ZIP limit of 256 MiB applies; raw IQ files are preserved separately for download and re-analysis, not embedded in ZIP. No decoding or source authenticity is fabricated.
+
+
+
+On **Satellite Images & Data** (`browser/reception.html`) the user has three primary actions:
+
+1. **Auto Schedule & Capture:** select images / public ISS APRS messages /
+   both, choose GPS or manual ground station, and look ahead 12/24/48 h.
+   On the local native companion this single explicit click calls
+   `POST /api/auto-schedule`: it obtains missing TLEs on demand,
+   predicts passes, validates installed RTL-SDR/decoder tools, arms at most
+   six non-overlapping pass captures, and records actual RF on the established
+   scheduler. Schedules are persisted. The optional service must stay running,
+   and other programs such as readsb may prevent the device lease.
+   On Pages/PWA the button opens the common WebUSB scheduler with the selected
+   station transferred via **same-tab session storage, not the URL**; a
+   pre-authorized receiver can be silently reopened at an eligible pass.
+   New USB permissions must still be granted manually in a supported Chromium
+   browser. Browser-only automation lasts while its tab remains open,
+   foreground and awake. Each capture is max 60 s / 128 MiB; entire Meteor
+   image downlinks frequently need the longer native workflow.
+   **Coverage goals:** choose full-pass (default) or an explicit quick RF sample.
+   Native auto-planning can now record up to 900 s / 2 GB of streamed CU8
+   per geometric pass when disk space permits (1.024 MS/s ≈ 2.048 MB/s).
+   Meteor LRPT uses IQ for later SatDump analysis; native ISS SSTV/voice
+   selects compact real FM WAV (~96 KB/s), and APRS uses decoder text.
+   Every armed job reports planned seconds, estimated bytes, data category
+   and whether the predicted visible pass is fully covered or only sampled.
+   If full image reception cannot fit the receiver/disk/window, All mode
+   prefers another feasible operator-selected text/audio downlink on that
+   same spacecraft. A full visible-window capture does not mean all data
+   aboard a spacecraft has been obtained.
+
+2. **Analyze Recordings:** native mode scans recent actual on-disk archive files
+   and attempts compatible SatDump Meteor LRPT output, CRC-unverified raw
+   public packet text viewing and browser local CU8 full-FFT/audio/Robot36
+   candidate discovery; only files fetched from its own localhost service.
+   On Pages/PWA select a real downloaded local recording via the file chooser
+   because the website cannot silently read Downloads. The receiver page
+   also offers Analyze Recordings for its last captured in-memory IQ file.
+
+3. **Extract Results:** display actual candidate images only from line-sync-
+   validated Robot36 or native SatDump output, allow user-controlled PNG/audio
+   and evidence JSON export, and show real APRS/text archive contents with
+   honest source labels. Unsupported modulation and packet decoders never
+   manufacture text, imagery or protocol matches.
+
+**Cancel Auto Missions:** clears only this application's auto-armed pending
+jobs and requests Stop for its own current automatic capture; external SDR
+programs, manual jobs and existing files are preserved. A separate Stop
+Analysis cancels local analysis, not arbitrary SatDump OS processes.
+
+**Current target set:** Meteor-M2-3 / M2-4 LRPT at a candidate 137.900 MHz,
+ISS SSTV 437.550 MHz Robot36 (event-only), ISS packet APRS UHF 437.825 MHz
+(current mode subject to ARISS) and optional ISS public FM audio. ISS video
+HamTV at 2395 MHz, retired NOAA-15/18/19 APT, NASA Internet imagery, and
+unverified CubeSat protocols are **not auto-armed** with the present NESDR.
+Auto-planning never claims the transmitter is active or that reception succeeded.
+
+This is an implemented but still **draft** cross-platform workflow: CI is
+synthetic (not hardware proof). Remaining gates include real ISS/Meteor
+receiving tests on Linux, Pi, Windows and macOS; browser-supported unattended
+full-pass Meteor decoding, broader open-format decoders, proper per-image
+quality/CRC validation and multi-day background service UX. See
+[Issue #21](https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/21)
+and [platform parity contract](FEATURE_PARITY.md).
+
+
+## Satellite Images & Data — common cross-platform tab (2026-11-06)
+
+The separate **[Satellite Images & Data tab](browser/reception.html)** is now part
+of the canonical browser/PWA bundle. The same exact HTML/JS/CSS is served by
+GitHub Pages at `/satellite_center/browser/reception.html` and by the optional
+native companion at `http://127.0.0.1:8791/browser/reception.html` on Linux,
+Raspberry Pi OS, Windows, and macOS. The native dashboard also links to the tab.
+
+- The mission picker distinguishes **ISS Robot36 SSTV pictures** (currently
+  event-dependent, check [ARISS](https://www.ariss.org/upcoming-sstv-events.html)),
+  **Meteor-M2-3/M2-4 LRPT Earth-weather imagery** (requires native SatDump for
+  decoding), **ISS voice/APRS public messages**, **SatNOGS public transmitter
+  references**, **NASA's online EPIC and ISS archives**, and **retired NOAA APT
+  recording archives**. Frequencies are candidate receive-only targets, not
+  proof of an active transmitter.
+- Inside the tab, the same existing experimental `satellite_images_ui.mjs`
+  decoder can open real user WAV/CU8 samples and **attempt** actual Robot36
+  sync-validated reconstruction. Users can save only images produced from real
+  decoded audio. The NASA gallery fetches images explicitly on click and
+  credits the source; these are **online**, not SDR-received images.
+- A local-only file viewer supports image, audio, video, text/JSON/TLE and CU8
+  evidence files. Optional frequency and sample-rate inputs remain manual;
+  export is metadata only, with **user-imported/unverified** provenance. CU8
+  requires separate analysis and is not a JPEG/WAV.
+- **Hauppauge WinTV-soloHD 01589:** DVB-T/T2/C TV tuner, **not** a raw satellite
+  SDR or a Meteo/ISS digital decoder. Keep it in the TV module. The separate
+  portable TV antenna may not be adequate at 137 MHz; a properly designed
+  V-dipole/QFH/weather satellite antenna is preferred. The Nooelec NESDR
+  SMArt v5 is the intended VHF/UHF SDR.
+- **NOAA-15, NOAA-18, NOAA-19** were decommissioned in 2025; archived
+  recordings only. No scheduled capture from those inactive transmitters.
+- **No background scan, RF transmit, auto USB claim, fabricated decoded image,
+  RF upload, guaranteed reception or unsupported cross-browser WebUSB claim.**
+  Direct USB requires a compatible Chromium browser; native local tools must
+  be installed for SatDump/APRS and unattended receiver jobs.
+
+Pending: full single-screen native receiver controls within this separate
+tab; optional SatDump LRPT output attachment to the browser gallery; live
+SatNOGS transmitter catalog filtering, per-satellite capabilities and
+hardware acceptance on real Windows/macOS/ARM devices. Follow
+[the delivery issue](https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/21)
+before claiming these capabilities as complete.
+
+
+> **v0.2 cross-platform / GitHub Pages bridge:** This module now also has a
+> static Pages client with local pairing, portable Windows/macOS/Raspberry Pi
+> runtime, and one-line installers. Read [WEB_AND_INSTALL.md](WEB_AND_INSTALL.md).
+> The static UI is staged on the same repository's dedicated **gh-pages** branch;
+> a live website still depends on GitHub Pages deployment settings. Windows,
+> macOS and Raspberry Pi hardware reception remains unverified.
+
+
+This is the **new `satellite_center/` directory** intended to be placed at the root of `Tihulu/TIHULU-TEXT-CENTER`. It does **not** alter Text Center routes, UI, recordings or the Survival Kit. Integration can be decided later.
+
+## v0.15 — Satellite Images and source-attributed recordings (2026-11-06)
+
+**Satellite Images** in the browser-only/Pages app offers two distinct,
+non-interchangeable acquisition paths:
+
+1. **Received with user's RTL-SDR:** actual ISS **Robot36 SSTV** events
+   (frequency and image mode are event-dependent; consult the
+   [ARISS schedule](https://www.ariss.org/upcoming-sstv-events.html)).
+   Select a locally captured demodulated FM WAV, or experiment with
+   recorded unsigned CU8 → narrowband FM → 1200 Hz sync detection →
+   320×240 Robot36 conversion. A decoded image is only shown if there
+   are repeated, aligned audio syncs. All such decodes are experimental
+   candidates, never assured ISS origin. Raw frequency power/geometry
+   does not count as a received image.
+2. **Meteor-M2-3/M2-4 LRPT:** locally captured CU8 can be decoded with
+   the optional native SatDump CLI. The installed companion supports
+   72k/80k pipeline choices and displays only real SatDump PNG/JPEG
+   outputs. No unsupported promise to decode Meteor LRPT in the
+   browser-only page; the in-browser RF/FM/Robot36 path is SSTV only.
+3. **Online original imagery:** NASA DSCOVR EPIC Earth photographs and
+   historic ISS Earth photographs from the NASA Images archive are
+   requested *on demand* via official NASA APIs. The online gallery
+   labels actual source and acquisition timestamps and never presents
+   external NASA downloads as if they were received via the local USB
+   antenna. NASA API rate limits/CORS may require opening the official
+   gallery. Official EUMETSAT and NOAA weather image viewers are also
+   linked for international use.
+
+**Filename convention:** `TIHULU_<SATELLITE-CANDIDATE>_<YYYYMMDDTHHMMSSZ>_<FREQUENCY>Hz[_<SAMPLE-RATE>SPS]_<IQ|SSTV|LRPT|...>.<ext>`.
+UTC avoids Windows/macOS/Linux/Raspberry Pi timezone ambiguity. Unknown
+attribution is explicitly `RF-UNATTRIBUTED`; observing a TLE pass is
+not proof of the transmitted signal's identity. Existing legacy raw
+recordings remain openable. The most recent browser I/Q recording
+is available for local FFT analysis and optional experimental SSTV
+decode, without uploading samples.
+
+**Shared cross-platform UI:** The installed Python local companion
+on Debian/Ubuntu/Pop!_OS, Raspberry Pi OS, Windows x64 and macOS Apple
+Silicon now exposes **Open live map and Satellite Images**, loading the
+exact same browser sources as GitHub Pages from its local
+`/browser/index.html` route. The 1-second LIVE TLE view, Pause, Sky,
+Earth map, and image gallery thus share one implementation.
+The embedded web interface is only loaded when requested and releases
+its own USB session on close. Two SDR frontends cannot own the same
+physical dongle simultaneously. Page-only WebUSB requires a compatible
+desktop Chromium-family browser; the desktop companion uses its native
+RTL-SDR tools for its own capture workflows.
+
+**Verification limits:** Core browser JS parses, UI controls are wired,
+image-naming metadata round-trips, and synthetic 240-scan-line Robot36
+audio yielded a 320×240 candidate. Cross-platform CI is defined for
+Ubuntu x64/ARM, Windows, and macOS, but physical SSTV/LRPT, receiving
+antennas, browser CORS and native hardware remain unverified until
+tested on compatible real RF data. No fabricated space imagery.
+
+## Historical separate web-only mode: direct WebUSB (no local installer)
+
+[Open the public Satellite Center](https://tihulu.github.io/TIHULU-TEXT-CENTER/satellite_center/)
+or go directly to
+[Browser-only WebUSB](https://tihulu.github.io/TIHULU-TEXT-CENTER/satellite_center/browser/).
+
+On desktop Chrome/Edge/other suitable Chromium browsers, press **Choose
+RTL-SDR (WebUSB)**, select the locally plugged-in Nooelec NESDR SMArt v5
+RTL2832U receiver and grant the browser USB permission. There is no Python
+process, `127.0.0.1` connection, pairing key or OS-level local software
+installation required for the **web application itself**.
+
+The browser source is under `satellite_center/browser/`. It dynamically
+loads the version-pinned `@jtarrio/webrtlsdr@3.0.7` WebUSB library,
+samples real USB I/Q data, plots relative digital signal level and optionally
+downloads original CU8 records of up to 128 MiB. It uses `satellite.js@6.0.1`
+for browser-side geometry, on-demand CelesTrak TLE downloads (with a
+two-hour per-tab refresh limit) or manual local TLE upload, and a limited
+in-memory browser-open pass scheduler. No third-party SDR process is stopped.
+
+**Limits and non-promises:** Firefox and Safari lack WebUSB; Windows may
+require WinUSB installation, Linux may require DVB kernel module release
+or udev permissions, and those cannot be fixed solely via browser consent.
+The hosted app cannot work with USB hardware plugged into a *different*
+computer. The tab must be open and foreground to schedule reliably, and
+WebUSB is released on stop, visibility hide or page exit. Browser-only Meteor LRPT imaging and ISS APRS packet decoding are **not
+implemented**. Experimental Robot36 SSTV reconstruction from actual local
+WAV/CU8 with line-sync checks is available inside Satellite Images & Data;
+the captured file and correct antenna, active event and metadata are required.
+
+**The old local-companion application remains optional** for modes using
+installed SatDump/multimon-ng and for scheduling while the browser tab is
+closed but the companion runs. It is not the required path for the
+browser-only capture mode. A physical Nooelec test is still pending.
+
+## Progressive local CU8 signal discovery (draft)
+
+The separate Signal Intelligence panel now includes full-file spectrum analysis, energy candidate selection, AM/NFM audio previews, and explicit, attempted Robot36 image synchronization from sufficiently long recordings. All actual CU8 IQ remains in the user's browser. Packet protocols including APRS and Meteor LRPT require their own verified decoders; no false image/data extraction is claimed. See [SIGNAL_INTELLIGENCE.md](SIGNAL_INTELLIGENCE.md) for evidence requirements and platform limits. The current shared browser frontend has been mirrored to the gh-pages branch; public deployment and real RF hardware validation are separate acceptance steps.
+
+## Earth & Sky Maps (v0.4, browser-only)
+
+The direct GitHub Pages application includes an **interactive OpenStreetMap
+Earth tracker** and an original **Heavens-Above-style azimuth/elevation sky
+plot**. Both use the same local/browser-refreshed TLEs as the pass planner:
+
+- Predicted ground subpoints, real-time sky angles and range for ISS, Meteor-M,
+  amateur CubeSat candidates and Iridium NEXT; filter by type, local horizon
+  and selected *candidate* SDR band.
+- Select a satellite on the map, in the list or on the sky plot to inspect
+  azimuth/elevation, pass details, TLE age and candidate receiver frequency.
+  Selecting MHz **never** starts a capture.
+- Chosen orbit segment (±45 minutes), estimated contact footprint, and a
+  ±45/+90 minute simulation slider that never labels past/future positions
+  as live radio detections.
+- **OSM tiles load only after clicking Load OpenStreetMap**, follow the
+  OSMF attribution, Referer, and no-prefetch/no-offline policies. Sky-chart
+  drawing needs no map tile service.
+- Official Heavens-Above comparisons and SatNOGS transmitter database
+  links are optional external references, not embedded feeds or evidence of
+  an active transmitter.
+- Firefox can display the Earth/sky maps even though its WebUSB reception
+  mode is unavailable. Chromium browsers can show maps and direct USB capture.
+
+See [MAPS.md](MAPS.md) for functionality, map/privacy policies,
+geometry-only indicators, and hardware limitations. These maps do not
+decode spacecraft traffic, and current reception is **not proven** merely
+because a satellite is above the horizon.
+
+## What works (subject to installed tools and actual RF)
+
+- Local, mobile-responsive browser UI at **`http://127.0.0.1:8791/`** (independent from Text Center's `8787`).
+- Explicit-only HTTPS downloads of current CelesTrak TLE sets for ISS (NORAD 25544), Meteor M2-3 (57166), Meteor M2-4 (59051), a bounded amateur/CubeSat selection and **Iridium NEXT**. TLE data is cached for offline use. The app never silently fetches data in the background.
+- Skyfield-propagated predicted rise/peak/set (AOS/LOS), live-on-request geometric overhead positions (azimuth/elevation), maximum elevation and opt-in recording **scheduler**. Region independent; presets for Köln, other German locations, İzmir, İstanbul, Ankara, Brussels, Paris, Rome and Stockholm, plus manual latitude/longitude anywhere in Germany, Türkiye, the EU or elsewhere. The schedule persists in the local data directory; it executes **only while this independent server remains running**. A pass is not a radio transmission guarantee.
+- Safe fixed-band `rtl_power` RF surveys, `rtl_sdr` IQ recordings (`.cu8`), optional `rtl_fm`/`multimon-ng` ISS APRS text, and ISS SSTV WAV that can be decoded by an external tool such as QSSTV. Meteor-M IQ can be processed by installed SatDump with the selected LRPT pipeline; it reports the **actual** output files only. Iridium mode is **spectrum-only** and does **not** decode private satellite communications.
+- No RF transmission, no fabricated satellite detections or images, no all-band hidden background scans, no auto-deletion of raw recordings. Limits: 2 GB per IQ file streamed to local disk; max scheduled capture 900 sec (15 min); max manual capture 240 sec; 24 pending passes. The local planner estimates free storage and whether a full predicted visibility window fits; it never claims to download all satellite data.
+- Uses Text Center's **cooperative RTL-SDR lock** at `~/.local/share/tihulu-text-center/.receiver-locks/rtl_fm_rds.lock`, plus existing `/proc` receiver-conflict checks. Third-party apps which ignore locks can still interfere; never run welle.io/readsb concurrently with the single RTL-SDR. A dedicated second receiver is preferable for simultaneous operation.
+
+## One-line GitHub install or update
+
+**Linux / Pop!_OS / Ubuntu / Debian / Raspberry Pi OS / macOS Apple Silicon**
+(Requires Git, Python 3.11+ and venv; additional SDR binaries as needed):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Tihulu/TIHULU-TEXT-CENTER/feature/satellite-center-standalone-2026-11-06/satellite_center/install/install.sh | bash
+```
+
+**Windows x64 PowerShell** (Python 3.11+; RTL-SDR drivers/tools separately):
+
+```powershell
+irm https://raw.githubusercontent.com/Tihulu/TIHULU-TEXT-CENTER/feature/satellite-center-standalone-2026-11-06/satellite_center/install/install.ps1 | iex
+```
+
+The local dashboard is `http://127.0.0.1:8791/`. The hosted view is
+`https://tihulu.github.io/TIHULU-TEXT-CENTER/satellite_center/`.
+Copy the **local** 64-character pairing token into the hosted view;
+never use your RTL-SDR USB serial or GitHub credentials. A physical USB dongle,
+its antenna and installed RTL-SDR command-line tools are still needed for
+real reception. See the
+[main repository's setup guide](../docs/SATELLITE_CENTER_COMPANION.md) or
+the feature-specific [WEB_AND_INSTALL.md](WEB_AND_INSTALL.md).
+
+## Install / run (Pop!_OS / Ubuntu / Debian)
+
+From the repository root, with Python 3.11+:
+
+```bash
+python3 -m venv .venv-satellite
+. .venv-satellite/bin/activate
+python -m pip install 'skyfield>=1.49,<2'
+# rtl_power, rtl_sdr, rtl_fm typically come from the rtl-sdr distro package.
+# Optional: multimon-ng, SatDump and QSSTV, installed separately for relevant modes.
+python3 -m satellite_center doctor
+python3 -m satellite_center serve --port 8791
+```
+
+Without `skyfield`, radio surveys and the UI can still start; **the pass calculation clearly returns an unavailable error**. Without the RTL-SDR tools or antenna, or if another receiver owns it, acquisition fails explicitly. With no TLE cache, use the **Download fresh orbit data** button when Internet is available. Offline cached TLE may be used for 7 days, with a caution after 2 days; orbital accuracy degrades as data ages.
+
+The application listens **only on loopback**. Do not expose port 8791 to LAN, Internet or `tihulu.lan` until a separate authenticated, CSRF-protected and TLS-enabled reverse-proxy integration is completed. Browser location permissions are not used; selectable ground-station presets are only approximate. The user's reception location does not leave the device in the TLE HTTP requests.
+
+## Required antennas / honest limits
+
+| Source | Typical receive mode | Antenna note |
+| --- | --- | --- |
+| ISS 145.800 MHz (voice or scheduled SSTV) | FM / WAV / external SSTV decoder | VHF antenna; SSTV is *not always transmitting* |
+| ISS 145.825 MHz (APRS) | FM 1200-baud AX.25 via `multimon-ng` | VHF antenna; frequency and operational mode subject to current ARISS status |
+| ISS 437.800 MHz repeater | UHF energy survey | UHF antenna; intermittent; 437.825 MHz APRS tests may also occur |
+| Meteor-M2-3/M2-4 | 137.900 MHz primary or 137.100 MHz alternate selectable for IQ; LRPT / SatDump | 137 MHz V-dipole / QFH, clear sky; downlink availability changes |
+| Amateur/CubeSat candidates | published satellite-specific VHF/UHF channels | Frequency catalog is **not** automatically resolved; generic scans do not identify satellites |
+| Iridium NEXT | 1616–1626.5 MHz relative RF spectrum **only** | L-band patch/helix and suitable LNA/filter; the bundled VHF whip is usually unsuitable |
+
+At 1.6 GHz the R820T-based receiver is near the upper end of its useful band, and an RTL-SDR's narrow instantaneous bandwidth cannot monitor the entire Iridium allocation at once. `rtl_power` sweeps are brief samples; **missing a burst does not imply no satellite**. CelesTrak's Iridium ephemeris can show candidate overhead satellites; a spectrum peak alone cannot attribute a burst to a specific satellite.
+
+Recorded ISS WAV is an RF audio capture, **not an image** until independently decoded. SatDump output is not guaranteed even if an IQ file exists. Never label these measurements as official weather alerts or distress messages. Receive only signals you may lawfully monitor in your jurisdiction; do not capture, distribute or decode non-public Iridium user communications. Germany, Türkiye and EU countries have differing interception/privacy rules.
+
+## Test / integration boundaries
+
+```bash
+python3 -m unittest discover -s tests -p 'test_satellite*.py' -v
+python3 -m compileall -q satellite_center
+```
+
+The project code is testable without a connected RTL-SDR; neither radio reception nor live satellite decoding has been hardware-validated by this build environment. **One original file/recording must survive a failed decode.** Device locking is cooperative, not a complete interprocess SDR lease broker. Future survival-kit integration should use its central receiver broker, authenticated portal, storage quota controls and external SSD locations.
+
+Up-to-date radio operation should be checked against [ARISS status](https://www.ariss.org/current-status-of-iss-stations.html), [CelesTrak GP documentation](https://celestrak.org/NORAD/documentation/gp-data-formats.php) and [SatDump documentation](https://docs.satdump.org/).
+
+## Applications / Dock icon and Firefox on Linux
+
+Satellite Center includes a custom **radio V-dipole / RTL-SDR / satellite** icon in SVG plus 192×192 and 512×512 PNG sizes. The browser-only page now links a web manifest with `display: standalone`; on Chromium-based desktop browsers choose **Install this site as an app** from the address bar/browser menu, then pin the installed application in the COSMIC dock. This is the no-Python-helper path, but direct USB still requires a browser with WebUSB and appropriate OS USB permissions. PWA install availability/appearance depends on the browser and OS.
+
+On **Firefox for Linux**, orbital predictions and manual TLE import work in the hosted page but **direct USB access does not**: Firefox does not expose `navigator.usb`. There is no `about:config` switch that makes native WebUSB work. To receive RF in Firefox, use the **optional** local companion at `http://127.0.0.1:8791/`, which requires the Python helper and `rtl-sdr` utilities. Third-party experimental extensions relying on locally installed Native Messaging hosts do not satisfy zero-install requirements.
+
+The Linux one-line installer installs/updates two separate Applications entries with the custom icon:
+
+- **TIHULU Satellite Center:** standalone Chromium WebUSB browser window (opens only the web frontend, no Python receiver).
+- **TIHULU Satellite Center (Local Companion):** optional local decoding/scheduled recording server; opens localhost in the default browser, including Firefox.
+
+On Pop!_OS/COSMIC, open Applications, right-click the Satellite Center entry and **Pin to Dock**. If an old generic gear icon remains pinned, unpin it and pin the new browser entry. A COSMIC/Chromium window-class issue can affect live dock grouping; the static Applications icon is explicitly installed to `~/.local/share/icons/hicolor/` and can be refreshed by running the installer again. Firefox's normal windows may still appear under the Firefox dock icon.
+
+### Chained capture durations · web/PWA and native Qt (7 November 2026)
+
+- Browser manual receiver, automatic pass planner, pass scheduling and calendar editing accept **seconds or minutes**. For 300 seconds of Meteor I/Q at 1.024 MS/s, the website schedules five real 60-second CU8 jobs, one downloadable RF file per job, with 6-second reserved restart slots. At 2.048 MS/s the per-file 128 MiB CU8 memory ceiling reduces clips to at most 32 seconds. User-selected WAV and CU8 may be recorded together, with separate outputs. All chunks appear independently with countdowns, part indices and measured-signal status.
+- Browser clips are **not continuous**: WebUSB re-open, transfer, file-download permissions and hidden tabs can cause additional data gaps. Keep Chromium visible and awake. Never merge disjoint IQ parts without representing missing samples; native continuous disk acquisition is recommended where an uninterrupted Meteor LRPT stream is required.
+- Native Qt manual pass scheduling and the local companion `/api/schedule-chain` split recordings longer than 180 s into separately persisted jobs (up to 180 s per file, 21-second reserved gaps) while checking the complete satellite visibility window and single-receiver conflicts. Native auto pass planning reserves time for the gaps and marks truncated recordings **partial**. Qt pass/auto/manual recording forms provide seconds/minutes controls and the reception calendar shows a live `days hours minutes seconds` countdown. The local app remains the native Qt process, not a WebView.
+
+
+## 9 November 2026 — native satellite map / coverage / planning fixes (draft PR #37)
+
+The original installed Qt5 WebEngine "exact web UI" reported **orbital
+altitude 0 km** for real orbit candidates, despite nonzero slant range.
+The native Skyfield snapshot was calling `wgs84.subpoint_of()`, which
+projects onto the Earth ellipsoid and necessarily returns height ~0.
+It now calls `wgs84.geographic_position_of(sat.at(t))` and publishes
+the actual sub-satellite latitude/longitude **and geodetic satellite
+height**, allowing the positive-altitude geometric coverage footprint
+for the selected/eligible satellite to render in both maps. It is
+**not radio reception**, coverage is only a TLE line-of-sight estimate
+based on the chosen minimum elevation, and it cannot verify CubeSat
+transmission frequencies.
+
+The optional Qt Leaflet/OSM map formerly imported the Leaflet engine from
+a browser CDN, which can be blocked from the restricted `tihulu://`
+origin. Leaflet **v1.9.4** JavaScript and CSS now ship inside the
+`browser/` asset directory together with its BSD-2-Clause license.
+The map opens with the bundled engine **without an Internet connection**.
+Actual OSM raster tiles (`tile.openstreetmap.org`) still require
+permitted Internet access. When those fail, the existing bundled
+Natural Earth coastline/country outline remains a working fallback.
+Long orbital passes exceeding the native 25-minute preview limit offer
+a **clearly marked partial 25-minute trajectory preview**, not a
+false full-duration simulation or an exception.
+
+**Plan before connecting the dongle:** pass cards and the orbital
+calendar now have **Add planning candidate (no antenna)** actions.
+These save TLE-only AOS/LOS/name/NORAD and optional manually selected
+station to the separate planning calendar. Without a verified SDR,
+the warning explicitly says the pass is **NOT armed and will NOT record**.
+Planning neither claims the USB nor starts background services nor
+adds entries to the actual RF capture job scheduler. In the installed
+native app, the notes are persisted in a bounded, atomic local JSON
+file at `Station.directory/planning_candidates.json` to survive the
+ephemeral Qt WebEngine profile. The separate browser/PWA version uses
+local browser storage where available (and a session-only fallback).
+
+**Compute hardware vs actual acceleration:** the native OS inventory
+lists CPU/core count, NVIDIA/other GPU hardware when `nvidia-smi` or
+`lspci` sees it, and Hailo device nodes (`/dev/hailo*`) when present.
+Physical hardware presence **does not mean** a specific Robot36/CU8
+kernel is usable. Verified native CUDA/CuPy Robot36 tone traces and
+Intel OpenVINO-NPU tone scans are shown separately from those device
+names. Hailo hardware is NOT automatically supported by OpenVINO
+and is never marked a working SSTV acceleration backend based solely
+on the device node. The current browser CU8 spectrum FFT runs on CPU;
+Browser WebGPU can accelerate compatible Robot36 trace operations only
+if its actual compute adapter is available. The Auto selector chooses
+runnable kernels for the actual current processing path; native OS
+discovery alone does not silently hand a browser task to the native GPU.
+
+**Release/testing:** CI on Linux x64, Linux ARM64, Windows, macOS,
+browser WebUSB and Debian package building covers changes plus new
+hardware-free regression fixtures. **Real Qt GUI, offline map tiles,
+CUDA/NPU kernels and Nooelec SDR hardware still require acceptance
+tests on the target desktop.** Changes are restricted to draft PR #37;
+`main` and public `gh-pages` stay unchanged until verified. The
+dedicated Pages/source-parity gate consequently remains red while
+the draft branch intentionally differs from the published site.

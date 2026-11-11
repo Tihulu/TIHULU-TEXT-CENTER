@@ -1,0 +1,250 @@
+# TIHULU RF Geolocation Center (experimental independent application)
+
+**Source:** `Tihulu/TIHULU-TEXT-CENTER/rf_geolocation_center/`. Do not merge other Tihulu applications or overwrite Satellite Center PR #9. Desktop and mobile friendly web app for modern browsers.
+
+## Run
+
+From the repository root:
+
+```sh
+python3 -m http.server 8760 --bind 127.0.0.1
+```
+
+Open http://127.0.0.1:8760/rf_geolocation_center/ (for local tests). HTTPS GitHub Pages target, only after deployment and URL verification: https://tihulu.github.io/TIHULU-TEXT-CENTER/rf_geolocation_center/
+
+The web application supports standalone static hosting without a native backend. Mobile browsers can use maps, import local data, access device location with permission and install as a PWA where supported. Desktop Chromium browsers may support Web Serial NMEA GNSS receivers and WebUSB **real device connection and bounded uncalibrated IQ sampling** when hardware/browser permissions permit; no GNSS RF decoder or SDR position fix is currently implemented. Firefox and Safari cannot directly use the RTL-SDR through WebUSB.
+
+## Implemented in experimental branch
+
+- Entire GNSS catalog: GPS, Galileo, GLONASS, BeiDou, QZSS, NavIC and SBAS. *Catalog visibility does not imply actual RF acquisition.*
+- Opt-in browser/device geolocation. Without genuinely authenticated receiver observations, map defaults to Cologne, Germany as a **reference**, not your position. Imported aircraft JSON remains an unverified map reference even if it claims an ADS-B observation; future trusted Flight Radar adapters may implement the aircraft-centered fallback after verifying the observation and position.
+- Precise-orbit SP3 file import, geometry-only Earth and polar sky plotting, explicit epochs and elevation mask. No extrapolated live position claims, and no satellite visibility implies RF reception.
+- Online OpenStreetMap tiles when requested by the map-first page; no bulk offline tile caching. Offline locally rendered WGS84 coordinate grid and range evidence remain usable without tiles.
+- Dedicated GNSS NMEA GGA/RMC logs with checksum validation and explicitly labeled historical import.
+- Optional Web Serial GNSS live NMEA read on supported desktop browsers. Fresh receiver fixes expire after 90 seconds.
+- User-imported station/aircraft references, local experimental 2D range trilateration, **visible measured-distance circles and intersection marker** on Earth Map, separate synthetic **DEMO ONLY** explanation, and synchronized TDOA hyperbola constraints (not a TDOA position fix).
+- Real device/receiver in-memory position history and JSON, GeoJSON, CSV, GPX, KML exports.
+- Hard Stop releases only this application's serial receiver; it does not terminate readsb, Gqrx or other Tihulu receiver jobs.
+- Offline PWA shell; locally stored last known position, imported reference stations and measured-range inputs (labeled saved/unverified), and a best-effort cached pinned SGP4 dependency. No automatic RF/background fetching or telemetry.
+
+## Not yet implemented / acceptance pending
+
+Native .deb/.exe/.app installers, Raspberry Pi native receiver backend, actual SDR GNSS L1/Galileo/GLONASS/BeiDou acquisition and tracking, pseudorange PVT, multi-constellation clock bias correction, antenna/bias-tee management, actual MLAT fix, live ADS-B integration, real GNSS-SDR backend, empirical antenna acceptance tests and cross-platform native package checks.
+
+The Nooelec NESDR SMArt v5 may tune to many GNSS L-band frequencies but frequency coverage **is not decoder capability** and requires suitable antenna, filtering/LNA and powered active antenna arrangement (SMArt v5 has no built-in bias tee). S-band NavIC reception is outside its 1750 MHz upper limit.
+
+## Tests
+
+```sh
+node --test rf_geolocation_center/tests/*.test.mjs
+node --check rf_geolocation_center/web/app.mjs
+node --check rf_geolocation_center/sw.js
+```
+
+Use real, source-attributed measurements for positioning; test fixture synthetic values must not be presented as received data. Actual browser or SDR hardware acceptance must be documented separately.
+
+## Future Survival Kit integration
+
+Use an authenticated `/geolocation/` route inside the Kit's TLS local portal and existing hardware lease broker. Allow mobile clients to view authorized Raspberry Pi receiver data over the local network. Do not expose unrestricted network-facing receiver controls. Keep this module independent until reviewed.
+
+## Python localhost source launcher (no native SDR decoder)
+
+Run from the repository root with Python 3.11+:
+
+```sh
+python3 -m rf_geolocation_center doctor
+python3 -m rf_geolocation_center serve --port 8794
+```
+
+Open http://127.0.0.1:8794/ (on the same computer). The server binds to loopback only, serves an explicit app-asset allowlist and does not open any RTL-SDR, decode GNSS RF, expose a LAN receiver API or package a native desktop binary. Python source compatibility on CI is not physical Raspberry Pi or Apple Silicon verification. See [architecture and scientific gates](docs/ARCHITECTURE_AND_RELEASE_GATES.md) and [platform matrix](docs/PLATFORM_TEST_MATRIX.md).
+
+Current SP3 parser checks the declared GPS/UTC time system and converts supported GPS epochs to UTC using leap seconds through 2026. Other time systems are blocked pending verified handling, rather than silently mislabeling their timestamps. Browser NMEA file import is historical; it is not a current live fix.
+
+
+## Map-first automatic GNSS discovery (2026-11-06)
+
+The first dashboard now includes an immediately visible **OpenStreetMap Earth Map** and **SGP4 navigation-satellite sky plot**. It makes one bounded CelesTrak \`GROUP=gnss\` TLE request on launch (at most once per 24h per client when cache is fresh) and refreshes sky geometry every minute while the page is visible. The public CelesTrak endpoint, version-pinned \`satellite.js\` browser module, and OSM map require internet on first load. Network/CORS errors must be shown as failures; they never generate synthetic satellites. A 7-day fallback cache is available, with stale orbit warnings. Automatic orbital discovery **does not scan or acquire RF satellites**.
+
+**Find My Location** uses a current validated serial GNSS fix when available, otherwise prompts for browser/device geolocation. Published aircraft and station positions are only reference locations and cannot establish an observer fix without independent measured ranges/timing. If no real location source exists, the map is explicitly labeled *Cologne reference, not your position*.
+
+**Connect USB SDR** on compatible HTTPS desktop Chromium browsers now requests the RTL2832U USB device with a user gesture, loads the version-pinned browser driver, claims the tuner at 1575.420 MHz where OS permissions and other applications permit, and offers a bounded two-second **Scan GNSS L1** of relative raw digital sample level. It **does not decode** GPS/Galileo/BeiDou navigation signals, estimate C/N0, or produce a GNSS PVT fix. **Release USB** and **Hard Stop** only close this page's own WebUSB and NMEA serial handles; they do not stop \`readsb\`, Gqrx or any unrelated process. No automatic RF scanning on app launch.
+
+The embedded OSM map makes normal viewport requests immediately when the page loads; users should expect their browser's network address and viewed region to reach the map provider. No device geolocation is requested until the user clicks the location button.
+
+
+## Offline position and visually explained range rings
+
+The app must be installed/loaded over HTTPS while online at least once so that its PWA shell and required JavaScript are cached. When offline, the main map falls back to a local coordinate grid instead of a blank OpenStreetMap frame. User-approved browser location can still work if the underlying operating system/device has **offline GNSS or another offline location provider**; this is not guaranteed for every desktop/browser. An attached dedicated serial GNSS receiver may provide a live NMEA fix without internet. The current RTL-SDR sample survey cannot decode GNSS and **cannot locate the user independently**.
+
+Each valid device/serial fix is cached in the user's own browser storage with its UTC timestamp. If live positioning fails, the app can display an **experimental range estimate** from already imported measured distances, or the **last-known cached point**, both clearly distinguished from a fresh fix. All saved coordinates remain local to that browser origin and can be cleared from the Settings panel. Imported reference points and range observations also persist locally, up to the import limits.
+
+On the dedicated **Earth Map** page, use the checked layers:
+- **Measured radio distance rings:** solid aqua circles appear only after importing at least 3 values with \`measured:true\`, latitude/longitude, \`rangeMeters\` and ideally source/name/type metadata. Every station used appears as \`R\` (or \`A\` for a genuinely measured aircraft range); the best-fit intersection is marked \`X\`. The range residual is *not* a location accuracy estimate.
+- **Show ring explanation (SIMULATED):** checked initially when there are no measured ranges. This shows three **fictional** stations, dashed amber circles and a simulated intersection marked \`D\`. These are not antenna measurements and never count as a live positioning fix.
+- **Ground stations and aircraft:** imported verified/published reference coordinates are visibly distinct from measured positioning sources. A reference coordinate by itself does not yield a distance.
+- **Predicted satellite ground points:** off by default to avoid hundreds of dots obscuring Earth Map. This toggles predicted satellite subpoints, not GNSS pseudorange measurements or satellites used in a decoded solution. Real GNSS pseudoranges are 3D, not two-dimensional transmitter circles.
+
+The **Fit rings / evidence to map** control chooses a zoom around the current evidence geometry. **Clear measured ranges** removes persisted range observations and returns to the labeled simulated demonstration.
+
+Import accepted shape (illustrative JSON schema; do not treat this as a measurement unless the distances were actually measured):
+\`\`\`json
+{"stations":[
+  {"name":"Receiver A","type":"station","lat":51.26,"lon":7.15,"rangeMeters":4200,"measured":true,"source":"Actual calibrated range method","measuredAt":"2026-11-06T07:00:00Z"},
+  {"name":"Receiver B","type":"station","lat":51.29,"lon":7.22,"rangeMeters":3800,"measured":true,"source":"Actual calibrated range method","measuredAt":"2026-11-06T07:00:00Z"},
+  {"name":"Receiver C","type":"station","lat":51.22,"lon":7.19,"rangeMeters":5300,"measured":true,"source":"Actual calibrated range method","measuredAt":"2026-11-06T07:00:00Z"}
+]}
+\`\`\`
+Those numerical values are **schema placeholders, NOT actual measured distances**. Do not import them as a real capture.
+
+### Remaining scientific blockers
+
+No live aircraft-based self-positioning, no calibrated terrestrial ranging from uncalibrated SDR RSSI, no synchronized multi-receiver MLAT position fix, and no RTL-SDR GPS/Galileo tracking/pseudorange solver. Supporting published transmitter or aircraft coordinates on the map does not claim the antenna currently uses them. TLE/SGP4 positions can predict sky geometry offline only when compatible orbital data and the propagation library are cached; a predicted satellite is never a received navigation fix.
+
+
+## One-click real location test (2026-11-06)
+
+Open the Dashboard or the dedicated Earth Map and click **Find My Location**. The app checks a **current** supported NMEA serial GNSS receiver fix first and otherwise requests browser/device geolocation permission. The Earth Map now lists the actual source, coordinates, receiver-reported satellite count/HDOP when available, or the browser-reported accuracy radius. A **violet dotted circle** shows browser-reported location uncertainty where available; this is **not** radio-distance trilateration. **Solid aqua circles** represent user-imported station ranges (not verified by the app), while **dashed amber circles** are explicitly synthetic explanation. Browsers can use GPS, Wi-Fi, cellular or IP-based providers and do **not** disclose which method produced the position. Treat the browser's reported accuracy estimate as a claim from the OS/provider, not as proof of satellite reception.
+
+**Practical offline test:** Install/open the PWA over HTTPS while online at least once and grant location permission. Find your location and verify that a timestamped last-known position is saved. Switch off Internet connectivity and reopen the installed app: the local coordinate-grid map, station reference markers and measured-range overlays remain visible. Press Find My Location again. On a phone/receiver with independently working offline GNSS the device's geolocation API may still return a fresh fix; on desktops without location hardware, this may fail and the cached position remains labeled **LAST KNOWN / NOT LIVE**. PWA source code caching alone never creates offline GPS hardware.
+
+Browser coordinates are no longer considered fresh after **five minutes** without a new geolocation observation. A new measurement requires a user action. The demo does not infer range to any nearby aircraft or radio station. RTL-SDR WebUSB currently provides short uncalibrated RF sample captures, not GPS pseudorange decoding. To attempt real SDR standalone GNSS PVT, the separate GNSS-SDR backend plus suitable GNSS antenna/front-end must first be implemented and validated.
+
+
+## Independent positioning method layers (2026-11-06)
+
+Open the **Location Layers & Rings** button on the main Dashboard, or **Earth Map → Location methods & map layers**. Each layer has its own checkbox, availability indicator, marker color and provenance. On/off preferences are saved in the same browser origin for offline PWA reuse. Quick controls: *Position points*, *Show references* and *Reset layers*. Nothing in this interface requires pasting JavaScript into a developer console.
+
+| Layer | Display | Can it independently establish this receiver's position now? |
+|---|---|---|
+| GPS / GNSS receiver | Fresh actual NMEA fix | Yes, from compatible GNSS hardware (not RTL-SDR decoding) |
+| Device location | Browser-provided geolocation, with its accuracy estimate where available | Yes, but the browser does **not** disclose whether the device used GPS, Wi-Fi, cellular or IP |
+| GPS-free / Wi-Fi / cellular / IP | Only a position with explicitly verified non-GNSS provenance | **Not currently available**: browser geolocation alone cannot prove GPS was absent |
+| Radio positioning | User-imported station/aircraft measured range rings and experimental solver estimate | Only with 3+ real measurements, provided externally and **not independently verified** |
+| Aircraft | Imported aircraft locations, distinct from the receiver's own location | No: ADS-B aircraft coordinates alone do not supply observer range or synchronized TDOA |
+| Ground stations | Imported ground transmitter/receiver references | No: station coordinates alone are not ranging measurements |
+| Satellite orbit positions | Predicted navigation-satellite subpoints (off by default) | No: TLE/SGP4 geometry is not an acquired satellite signal or pseudorange position |
+| Last-known / cached | Previous coordinates and timestamp | No new measurement; explicitly labeled **CACHED / NOT LIVE** |
+| Simulated example | Three fictional sources and dashed rings | Never a real position measurement |
+
+The same map can show GNSS, device, experimental radio and saved position markers simultaneously without blending them into a false "hybrid fix". The auto-selected position source remains a separate label. Circles show calibrated/imported terrestrial ranges, while the browser-reported accuracy radius uses a separate violet dotted overlay. Satellite navigation itself is a three-dimensional timing/pseudorange problem, not 2D circles drawn around satellite ground projections.
+
+### No-DevTools USB self-test
+
+The Receiver page now offers **Test USB access (no Console)** and the Dashboard offers **USB Self-Test**. On supported desktop Chromium browsers over HTTPS, this checks a previously permitted 0bda:2838 USB device by opening it, claiming interface 0 and releasing/closing it. It does **not** start RF capture, decode GNSS or run privileged Linux commands. If the claim fails, the result is shown directly in the app. Closing other SDR tabs, stopping \`readsb\` on explicit user request and unbinding the verified \`dvb_usb_rtl28xxu\` kernel interface remain separate OS actions.
+
+
+## Verified information origin: antenna versus device services
+
+The Dashboard shows **four independent acquisition records**, not one blended "location source":
+
+- **Your Location** — \`Dedicated USB/serial GNSS receiver\` for a fresh NMEA fix, \`Device / OS location service\` when the browser geolocation API provided coordinates, \`User-imported radio ranging file\` for an experimental estimate, \`Saved earlier position\` for cached coordinates, or the explicitly non-fix default Cologne center. A dedicated GNSS receiver may itself use a satellite antenna; it is **not** the Nooelec RTL-SDR used by this application's WebUSB RF sampling.
+- **RTL-SDR Antenna** — real WebUSB tuner ownership and bounded I/Q samples, if actually acquired. Its status is separate from location fixing and always indicates that an RF sample is **not** a GNSS fix.
+- **Satellite Positions** — CelesTrak internet TLE / cached orbit predictions or imported SP3 ephemerides. Their ground points and sky positions are **not** evidence that the local antenna received the satellites.
+- **Aircraft Positions** — imported JSON reference coordinates only (until a later authorized and verified ADS-B adapter exists), **not** current Nooelec antenna detections and **not** receiver-location measurements.
+
+The same acquisition summary is repeated under **Earth Map → Live location and evidence**. Map markers label their own provenance. Browser-provided location does **not** say whether GPS, Wi-Fi, cellular or IP contributed, so the app must never assert one of those without a separate verified source. The device accuracy radius and actual imported station range circles are different evidence and remain separately styled.
+
+The acquisition records and source logic work offline after PWA installation; dynamic antenna status is volatile and is never reinterpreted from an old cached position. Real GPS/Galileo signal decoding with the Nooelec RTL-SDR remains **NOT IMPLEMENTED**.
+
+
+## RF-only source localization and hardware separation (November 2026)
+
+The **Dashboard → Antenna-only RF positioning** action opens a distinct RF-only workflow under **Radio positioning**. Switching the RF-only checkbox ON explicitly blocks browser Geolocation, GPS/NMEA, OS Wi-Fi/cellular/IP and cached position from this session's self-location calculation. The dedicated Earth Map can still display orbit/aircraft/ground reference layers and compare separate location methods when RF-only mode is OFF.
+
+**Actual receiver evidence:** \`RTL2832U (0bda:2838) → WebUSB → RTL-SDR fixed gain 20 dB → 1.024 MS/s I/Q samples\`. Press **Measure RF with antenna** on a selected frequency to collect real receiver bytes. The WebUSB driver returns \`SampleBlock {frequency,data}\`; the app now correctly extracts \`.data\`, computes an uncalibrated relative dBFS-like level and records the selected source ID, frequency, hardware origin and timestamp. This is **total sampled tuner energy**: no station ID, aircraft identity, digital message or GNSS lock is decoded by this measurement.
+
+**External reference metadata:** the user supplies a source name, type (fixed ground station, aircraft, satellite), coordinates and tuning frequency. The app must never label this metadata as received coordinates or as proof that the captured RF energy came from that particular emitter. The RF-only experiment accepts a source record even when not yet received, but does not invent signal strength.
+
+**Experimental radio distance:**
+1. At a location where the true distance to a specific fixed transmitter is independently known, take an actual RF capture (not an OS location requirement).
+2. Enter that independently known distance and a chosen path-loss exponent; save the actual captured level as that transmitter's calibration reference.
+3. Move the antenna to an unknown site; on the same hardware and antenna arrangement, take another real RF capture at the identical frequency, sample rate and fixed gain.
+4. If the model is numerically valid, derive an **RSSI propagation-model distance hypothesis**. Plot the hypothesis as an orange dashed circle with very broad heuristic bounds. The bounds are illustrative sensitivity, **not confidence intervals or measured range**.
+5. Repeat with at least three geographically separated fixed transmitters within ten minutes at one unknown site. The separately labeled **RF-ONLY / UNVALIDATED MODEL** solver can calculate an experimental intersection using no OS/device location coordinates.
+
+Single-receiver amplitude cannot provide a reliable physical distance simply because a station's coordinates, published coverage or transmission frequency are known. Different emitters, co-channel transmissions, directional patterns, transmit power, terrain, propagation, tuner gain/ADC scale and multipath invalidate naive RSSI ranging. The modeled result is **not a safety-grade self-location fix** and can be widely wrong even with small residuals. Source identity must be independently validated before trusting an experiment. Genuine time-of-flight ranging would require appropriate signal/timing synchronization or another supported radio-positioning method.
+
+**Aircraft and satellites:** user-entered RF-source reference markers are separately layerable, and optional actual frequency captures can be attributed to the chosen reference record only as an *unverified hypothesis*. Moving aircraft or satellites are NOT used as stationary ground transmitters in the two-dimensional RSSI solver. The predicted satellite sky does not mean the receiver acquired GNSS pseudoranges.
+
+**Offline:** once the PWA shell, app modules and WebUSB driver assets are cached while online, this workflow can run without Internet on a compatible browser with accessible hardware. The fixed transmitter coordinates and calibration references are stored locally. Raw IQ samples are not persistently stored and no RF sample is fabricated on page reopen. Hardware access on an offline tab remains subject to browser WebUSB and OS USB ownership rules. No privileged commands or DevTools paste is required.
+
+**Open release gates:** authentic station identity decoding and RF identification, comparison against surveyed truth positions, transmitter calibration in different terrain/antenna orientations, synchronized TDOA/AOA methods, real SDR-assisted GNSS PVT and physical receiver acceptance. No release should claim accurate antenna-only location until these gates pass.
+
+
+## Automatic RF transmitter and aircraft source catalogs (Nov 2026)
+
+The default workflow is **automatic discovery first, manual entry optional**. In **Radio positioning**, the app automatically performs one bounded OpenStreetMap/Overpass broadcast-site lookup upon first entering the view online. It starts from the explicitly visible search-region center (default Cologne *reference*, not GPS/OS location); change the reference center or use **Use Earth Map center (not GPS)** and choose a 20/50/100 km radius. The app never sends device location to Overpass as a side effect of RF-only mode. The user can refresh with **Discover broadcast transmitters**. Results are OSM tower/site *candidates*, usually without a reliable FM frequency. Only explicit OSM frequency tags permit one-click **Auto-add frequency-tagged transmitters** or per-station add to RF survey. **No lookup result is ever an actual RF measurement or proof of emitter identification.**
+
+**FM band sweep**: when explicitly requested and the app owns its permitted WebUSB RTL-SDR receiver, it takes real bounded I/Q samples at 87.5–108 MHz with ~0.2 MHz frequency steps. It reports uncalibrated band-power/level observations, keeps sample origins and timestamps, and can list *frequency-overlap candidates* against OSM tagged station frequency metadata. There is **no RDS PI/PS ID decoder, no DAB ensemble identification, no station-signal authentication and no automatic distance**. A loud RF level can be interference, adjacent-channel energy, antenna-dependent signal or a different transmitter. Hard Stop aborts the sweep, and a stop button cancels only the sweep. Manual transmitter coordinates/frequencies remain supported for sites absent from public catalogs.
+
+**Aircraft from the antenna**: the existing standalone [TIHULU Flight Radar](https://tihulu.github.io/tihulu-flight-radar/) has a separate actual 1090 MHz Mode S/ADS-B WebUSB decoder with CRC-validated DF17/DF18 messages and only recent, real CPR even/odd positional pairs. Its Pages app now emits sanitized real decoded aircraft snapshots on the same-origin browser BroadcastChannel named *tihulu.rfgeo.adsb.v1* while it owns the antenna; Geolocation Center automatically subscribes and marks them **REAL ANTENNA ADS-B** (not internet). The integrated Flight Radar page at /TIHULU-TEXT-CENTER/flight_radar/ receives the same broadcast update. Both Pages apps must be open as top-level tabs under https://tihulu.github.io for this same-origin bridge. **Only one app can own a physical RTL-SDR at a time.** To receive aircraft in Flight Radar, release the SDR from Geolocation first and connect it in Flight Radar. This bridge does not start another USB receiver and does not perform aircraft range/TDOA ground self-localization.
+
+**Aircraft from the internet**: separate, one-click, user-initiated [OpenSky REST API](https://openskynetwork.github.io/opensky-api/rest.html) lookup for the chosen approximate search region (may fail due to CORS/auth/rate limits). It populates **INTERNET aircraft** reference markers, not local SDR observations. Cache snapshots are clearly labeled stale when offline. Current public OpenSky API constraints apply.
+
+Catalog site coordinates and manually chosen sources persist in the PWA local cache for offline map/reference use (not proof of real received RF). No background location, implicit GPS lookup, autonomous radio scan, second USB claim or invented source entries occur. The app can plot catalog *candidates* and actual Flight Radar decoded aircraft in parallel, but neither provides receiver location without additional physical timing/ranging/position constraints.
+
+
+## Simplified map-first locator and Hauppauge TV receiver (Nov 2026)
+
+Geolocation Center opens **Find My Location** by default. The large Earth Map has two multiselect groups:
+- **Position methods**: GPS / Device (browser geolocation or NMEA GNSS); Nooelec RTL-SDR; Hauppauge WinTV-soloHD 01589 (Amazon B0152XLPFS) TV tuner.
+- **RF map layers**: ground transmitters, aircraft and satellites (independent checkboxes). Different source provenance is preserved: mapped OSM tower sites, decoded antenna ADS-B aircraft, online aircraft, predicted satellite orbits, real GNSS fixes, experimental RF ranges.
+
+There are three primary actions: **Find My Location**, **Scan selected receivers** and **Show measured rings**. These controls change real map/source selections. An unselected data source never becomes a synthetic location fix. RF-only excludes device/GPS fallback; mixed mode can show independent layers. Last-known positions remain labeled NOT LIVE. Fictional demonstration rings are not shown by default. The sidebar only shows Find My Location, Radio / TV Scan and Advanced Tools; all old features remain accessible under advanced sections.
+
+**Radio / TV Scan** is a short separate screen with an authorized RTL-SDR WebUSB Connect button, on-demand OSM tower catalog lookup, physical FM 87.5–108 MHz RF power sweep, Hard Stop, strongest observed tuner frequencies and candidate stations. Sites with explicitly tagged FM frequencies are automatically added as unverified source candidates, avoiding manual transcription. Source identification, RDS decoding and actual range measurement are NOT implied by signal strength or a frequency overlap. Manual RF source entry, calibration and deeper evidence remain in Advanced.
+
+### Hauppauge WinTV-soloHD model 01589 and TV metadata
+Hauppauge's WinTV-soloHD is a DVB-T/DVB-T2/DVB-C receiver, **not** DVB-S satellite, GPS or ADS-B. Linux may expose its tuner through /dev/dvb/adapterN/frontend0, subject to actual kernel/firmware support. The static GitHub Pages website cannot directly operate that native Linux DVB frontend.
+
+To scan physical TV channels on supported Pop!_OS/Debian/Ubuntu Linux, use the optional helper at scripts/dvb_scan_linux.sh. Requires a real regional initial-tuning frequency file and the dvbv5-scan utility from the distribution's dvb-tools package. First run it without arguments to see available regional candidate tuning files, then run with your chosen real file and DVB adapter index:
+
+    bash dvb_scan_linux.sh
+    bash dvb_scan_linux.sh /path/to/real/regional/initial-tuning-file 0
+
+The script makes a timestamped local DVBv5 .conf channel file by scanning your physical Hauppauge tuner. Import that file in the Radio / TV Scan screen. The app displays service name, frequency, delivery system, service ID, network ID and metadata provenance. It labels imported files, not live browser scans. DVB services usually do NOT encode receiver coordinates or identify a single physical broadcasting station (DVB-T2 single-frequency networks may contain many sites). Correct source identification requires additional independent site/measurement data.
+
+### Known technical limits
+GPS-free autonomous radio positioning is not guaranteed by station frequencies, received signal levels or DVB service IDs alone. A reliable new RF receiver position requires defensible physical constraints such as independently calibrated ranges, synchronized time difference or directional measurements, or actual GNSS navigation decoding with compatible hardware. Native tuner scan-from-browser needs an explicitly authorized local backend; static GitHub Pages cannot launch Linux commands.
+
+
+## USB hardware manager and round map markers (Nov 2026)
+The compact Earth Map now includes a visible **Hardware · Add and connect your receivers** panel:
+- **+ Add USB device** invokes the browser's real WebUSB permission picker on a direct user click. No device is opened or claimed by registration. Generic devices may be restricted by browser protected-interface rules.
+- **Detect permitted devices** lists only previously authorized devices returned by the browser's getDevices method (never covertly enumerates USB hardware). Vendor/product IDs and browser-supplied manufacturer/product names are shown.
+- A known Nooelec/RTL2832U radio dongle (0bda:2838) can be connected from its own **Connect this RTL-SDR** row without repeating the permission picker, provided permission is still active; only this supported VID:PID is accepted by the RTL2832U receiver.
+- **Connect RTL-SDR via WebUSB**, **Test USB access**, **Release RTL-SDR** and an optional dedicated **GNSS Web Serial** receiver control are displayed on the map page instead of hidden in advanced screens. Radio / TV Scan keeps a direct Connect action linked to the same receiver handler; it does not claim a second dongle.
+- Hauppauge vendor devices, when browser permission is available, are labeled as permission-only. A generic WebUSB grant **does not enable DVB-T/T2/C tuning**; use Linux DVB frontend and the native scan helper/real channel metadata import. Do not detach the TV device's DVB driver just to register it in the web UI.
+- Browser USB permission is not evidence of an open interface, successful tuner, captured RF signal, a station ID or a position fix. USB may be busy in readsb/Gqrx/other tabs. The application never stops unrelated processes.
+
+Map markers and all geometry/range circles are now drawn in an SVG whose coordinate space dynamically matches the actual rendered map width/height in CSS pixels. The old fixed 900x520 SVG had been stretched independently in x/y, causing circular station pins to appear elliptical and range radii to distort on wide screens. A ResizeObserver redraws the geometry when the map dimensions change; dense overlapping catalog tower pins are also suppressed without deleting the underlying catalog entries. OpenStreetMap tiles remain a separable background. The offline coordinate grid and real range constraints share the same coordinate transform.
+
+
+## Interactive site markers and RF calibration reference channels (Nov 2026)
+
+**T** denotes an external OpenStreetMap site candidate, not necessarily a signal received by the antenna. Map pins now support hover, click, keyboard activation and an evidence popup with the position's actual origin, received-source state, published FM/TV frequencies, original OSM record link, and measured vs modeled range. SVG pointer events and map drag capture are separated; Mercator viewport computations are cached per render to improve responsiveness.
+
+**RF-only unknown-area location:** one RTL-SDR measuring broadcast energy alone cannot yield a reliable receiver coordinate without externally grounded physical constraints. Three or more known-location fixed transmitters with independently calibrated and validated ranges can provide experimental 2D RSSI multilateration, affected by terrain, antenna gain and multipath. Direction-finding with a suitable antenna, time-synchronized multi-site TDOA or genuinely decoded GNSS timing are alternative techniques requiring additional instrumentation and signal processing. Aircraft ADS-B positions and satellite orbit predictions are reference points, not receiver ranges. The map explicitly reports NO FIX unless valid data support an experimental hypothesis.
+
+**FM reference probes:** The Radio / TV Scan panel offers published NRW FM frequencies (WDR 2 Köln 98.6 MHz, 1LIVE Köln 87.6 MHz, WDR 2 Langenberg 99.2 MHz, WDR 2 Bonn 100.4 MHz, WDR 3 Langenberg 95.1 MHz). These published tuning references are sourced from https://www1.wdr.de/radio/wdr2/ueber-uns/frequenzen-100.html and https://rundfunkreferat.ekir.de/inhalt/wo-und-was-wir-senden . Measuring this selected channel uses actual RTL-SDR I/Q RF power at that frequency, but a frequency peak does not decode the broadcaster's RDS/PI, prove the tower identity, establish physical distance, or calibrate range on its own. The full 87.5–108 MHz band sweep now covers all 206 100 kHz centers rather than 200 kHz steps, and matching broadcast frequencies require exact centers within 15 kHz. Sources with no independently established geographic coordinates are not plotted as fixed towers.
+
+**Hauppauge TV:** Real DVB scanning requires an explicitly running, user-approved, internally authenticated local Linux DVB bridge with working firmware/driver and dvbv5-scan; no browser-only GitHub Pages app can scan this tuner directly. Native TV frequencies and network/service IDs are genuine received-channel metadata, but in a single-frequency network they do not identify one specific tower or the listener's position.
+
+The original advanced independent-reference RF calibration workflow remains intact. Choosing a frequency-tagged catalog tower from a map popup opens its survey, where real RF capture and separately known reference distance must be supplied before a modeled range ring can be drawn.
+
+
+## One-click TV pairing, fluid map and RTL-SDR recovery — Nov 6, 2026
+
+**TV receiver / Pages:** Hauppauge WinTV-soloHD 01589 uses the native Linux DVB frontend, not the browser RTL-SDR WebUSB tuner. The main **Find My Location / Hardware** panel now exposes **Connect TV tuner** and **Scan TV**, with the same real native DVB scan available on Radio / TV Scan.
+
+To connect from HTTPS GitHub Pages without copying any session token, start the user-owned local companion on the Pop!_OS/Linux PC from the matching feature-branch repository root:
+
+    python3 -m rf_geolocation_center.native serve --enable-pages-bridge
+
+It binds only to 127.0.0.1:8794, performs no automatic scans, and requires the user's explicit on-computer **Approve this tab** click in its localhost pairing popup. The web app generates a random pairing challenge and receives a short-lived-in-browser session credential through an exact-origin checked postMessage; it never puts the token in the URL, saves it to storage or transmits it to public servers. The local daemon has an origin allowlist and rejects unrelated websites. Legacy manual token entry remains hidden under Advanced for browsers that block the approval popup. Chrome may also ask local network access permission.
+
+The native companion discovers actual Linux /dev/dvb/adapterN/frontend0 nodes, read-only sysfs USB vendor/product/manufacturer strings when available, and only on **Scan TV** runs real dvbv5-scan if dvb-tools and driver/firmware are installed. A tuner physically connected by USB is not a browser WebUSB DVB decoder: the Linux kernel frontend is the receiving interface. TV channel frequencies, service IDs and network IDs come from actual native scans; public mapped TV sites remain frequency-overlap candidates, not directly measured distances or receiver locations.
+
+**Map:** Dragging previews map tiles/overlays continuously during pointer movement and commits exact geographic center on release, avoiding the old map that jumped only when the user let go. Wheel and double-click zoom preserve the cursor location. Source markers remain interactive and labeled by actual evidence. No synthetic location/range rings.
+
+**Nooelec RTL-SDR register-transfer error:** A setRegBuffer failure (e.g. block=0x1 reg=120) denotes a WebUSB control transfer/register transaction failure, not a signal distance. The new **Recover SDR** button explicitly releases this page's owned USB interface and attempts a single reconnect to the one already-permitted RTL2832U device. It does not run systemctl, unload drivers, reset third-party software, claim the Hauppauge TV tuner or fake data. If a second attempt fails, inspect USB cable/power, readsb/Gqrx ownership and whether the Linux rtl28xxu kernel DVB driver has reattached to the RTL-SDR specifically. The user remains in control of OS-level changes.

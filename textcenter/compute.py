@@ -12,8 +12,39 @@ from pathlib import Path
 import platform
 import shutil
 import subprocess
+import time
 
-LANGUAGES = ("en", "de", "tr")
+# Cache the *GPU readiness probe* briefly across 6-second live TV clips.
+# Spawning another Python/CTranslate2 process for every clip causes jitter.
+# A changed model marker invalidates the cache after explicit installation.
+_managed_cuda_probe_cache = {}
+
+
+def _managed_cuda_probe(worker):
+    marker = worker.model_dir / ".tihulu-verified-faster-whisper-turbo"
+    try:
+        marker_mtime = marker.stat().st_mtime_ns
+    except OSError:
+        # The installed() predicate remains the ownership guard. A live
+        # upgrade can temporarily remove the marker between checks.
+        marker_mtime = None
+    signature = (str(worker.python), str(worker.model_dir), marker_mtime)
+    now = time.monotonic()
+    previous = _managed_cuda_probe_cache.get(signature)
+    if previous and now - previous[0] < 25:
+        return previous[1]
+    state = worker.probe()
+    _managed_cuda_probe_cache.clear()
+    _managed_cuda_probe_cache[signature] = (now,state)
+    return state
+
+
+# Source-language codes from OpenAI Whisper's published multilingual
+# tokenizer vocabulary. Speech support and translator model availability
+# are different; a language may transcribe without an installed translator.
+LANGUAGES = tuple("""
+en zh de es ru ko fr ja pt tr pl ca nl ar sv it id hi fi vi he uk el ms cs ro da hu ta no th ur hr bg lt la mi ml cy sk te fa lv bn sr az sl kn et mk br eu is hy ne mn bs kk sq sw gl mr pa si km sn yo so af oc ka be tg sd gu am yi lo uz fo ht ps tk nn mt sa lb my bo tl mg as tt haw ln ha ba jw su yue
+""".split())
 BACKENDS = ("auto", "cpu", "gpu", "npu")
 
 
@@ -39,7 +70,18 @@ def detect_devices(*, executable_lookup=None, device_root=None,
     devices=[{"id":"cpu","name":platform.processor() or platform.machine() or "System CPU",
               "detected":True,"runtime_ready":True,
               "detail":"Always available for ordinary computation; speech model may be missing"}]
-    nvidia = run(["nvidia-smi","--query-gpu=name","--format=csv,noheader,nounits"]) if lookup("nvidia-smi") else ""
+    smi = lookup("nvidia-smi") or next(
+        (p for p in ("/usr/bin/nvidia-smi","/bin/nvidia-smi")
+         if Path(p).is_file()), None)
+    nvidia = run([smi,"--query-gpu=name","--format=csv,noheader,nounits"]) if smi else ""
+    if not nvidia and device_root is None and command_runner is None:
+        try:
+            from tv_center.hardware_market import detect_hardware
+            hardware = detect_hardware()
+            if hardware["gpu"]["detected"]:
+                nvidia = hardware["gpu"]["name"]
+        except (ImportError,OSError,ValueError):
+            pass
     if nvidia.strip():
         devices.append({"id":"gpu","name":nvidia.strip().splitlines()[0][:100],
                         "detected":True,"runtime_ready":False,
@@ -82,23 +124,38 @@ def detect_devices(*, executable_lookup=None, device_root=None,
     henc=Path(hailo_encoder).expanduser() if hailo_encoder else None
     hdec=Path(hailo_decoder).expanduser() if hailo_decoder else None
     hnpy=Path(hailo_npy).expanduser() if hailo_npy else None
-    hailo_ready=bool(
-        npus and
-        importlib.util.find_spec("hailo_apps") is not None and
-        importlib.util.find_spec("hailo_platform") is not None and
-        henc and henc.is_file() and
-        hdec and hdec.is_file() and
-        hnpy and hnpy.is_dir() and any(hnpy.glob("*.npy"))
-    )
+    # Hailo-8/8L nodes or an unverified architecture must not make the
+    # Pi HAT+ 2 profile claim a working Hailo-10H Whisper runtime.
+    from tv_center.pi_hailo import readiness, hardware_architecture
+    pi5 = False
+    try:
+        pi5 = "Raspberry Pi 5" in Path("/proc/device-tree/model").read_text(
+            encoding="utf-8", errors="replace")
+    except OSError:
+        pass
+    hailo_state = readiness({
+        "hailo_encoder_hef": hailo_encoder,
+        "hailo_decoder_hef": hailo_decoder,
+        "hailo_npy_dir": hailo_npy,
+    }, hardware={
+        "raspberry_pi_5": pi5,
+        "npu": {"devices": npus,
+                "hailo_arch": hardware_architecture() if npus else ""},
+    })
+    hailo_ready = bool(hailo_state["ready"])
     detected_npu=bool(npus or intel_npu)
     npu_label=("Intel OpenVINO "+intel_npu if intel_npu else
                "Hailo NPU ("+", ".join(npus)+")" if npus else "No NPU detected")
     devices.append({"id":"npu","name":npu_label,
                     "detected":detected_npu,"runtime_ready":ov_ready or hailo_ready,
-                    "detail":("Hailo local HEF/NPY Whisper model configured" if hailo_ready else
+                    "detail":("Hailo-10H local Whisper Base HEF/NPY configured "
+                              "(inference not yet benchmarked)" if hailo_ready else
                               "OpenVINO NPU Whisper model locally configured" if ov_ready
                               else "NPU device alone is insufficient; compatible model/runtime missing.")})
-    executable=lookup("whisper-cli") or lookup("main")
+    explicit_cli = os.environ.get("TIHULU_WHISPER_CLI", "")
+    executable=(explicit_cli if explicit_cli and
+                Path(explicit_cli).is_file() and os.access(explicit_cli, os.X_OK)
+                else lookup("whisper-cli") or lookup("main"))
     gpu_model_dir=os.environ.get("TIHULU_FASTER_WHISPER_MODEL","")
     gpu_model=Path(gpu_model_dir).expanduser() if gpu_model_dir else None
     cuda_count=0
@@ -110,6 +167,34 @@ def detect_devices(*, executable_lookup=None, device_root=None,
             cuda_count=0
     gpu_ready=bool(cuda_count and gpu_model and gpu_model.is_dir() and
                    (gpu_model/"model.bin").is_file() and (gpu_model/"config.json").is_file())
+    gpu_engine = "faster_whisper" if gpu_ready else None
+    gpu_executable = None
+    # The native Kaffeine market can compile whisper.cpp with GGML_CUDA=ON
+    # into a user-owned executable. Those models are GGML .bin, not CT2 dirs.
+    try:
+        from tv_center.whisper_engine import WhisperRuntime
+        managed = WhisperRuntime()
+        if nvidia.strip() and managed.ready_gpu() and model and model.is_file() and model.stat().st_size>1024:
+            gpu_ready = True
+            gpu_engine = "whisper_cpp_cuda"
+            gpu_executable = str(managed.cuda_binary)
+            gpu_model = model
+    except (ImportError,OSError,ValueError):
+        pass
+    # Unlike whisper.cpp's CUDA *build*, the Faster-Whisper CTranslate2
+    # worker uses NVIDIA's prebuilt cuBLAS/cuDNN pip wheels. It does not
+    # require nvcc or import GPU Python modules into Kaffeine's Qt process.
+    if nvidia.strip() and device_root is None:
+        try:
+            from tv_center.cuda_faster_whisper import FasterWhisperCUDA
+            managed_cuda = FasterWhisperCUDA()
+            if managed_cuda.installed() and _managed_cuda_probe(managed_cuda)["ready"]:
+                gpu_ready = True
+                gpu_engine = "faster_whisper_managed"
+                gpu_model = managed_cuda.model_dir
+                gpu_executable = None
+        except (ImportError, OSError, RuntimeError, ValueError):
+            pass
     speech_ready=bool(executable and model and model.is_file() and model.stat().st_size>1024)
     argos=importlib.util.find_spec("argostranslate") is not None
     return {
@@ -126,6 +211,8 @@ def detect_devices(*, executable_lookup=None, device_root=None,
             "hailo_npy_dir":str(hnpy) if hnpy else None,
             "npu_model_path":str(ov_model) if ov_model else None,
             "gpu_model_path":str(gpu_model) if gpu_model else None,
+            "gpu_engine":gpu_engine,
+            "gpu_executable":gpu_executable,
             "note":"whisper.cpp model must already be installed; configured with TIHULU_WHISPER_MODEL. No inference can be claimed without real capture and model."
         },
         "translation":{
@@ -157,5 +244,5 @@ def choose_backend(profile:dict, selection:str="auto") -> dict:
 
 def validate_language(value):
     if value not in LANGUAGES:
-        raise ValueError("Language must be en, de or tr")
+        raise ValueError("Not a language supported by the installed Whisper tokenizer")
     return value

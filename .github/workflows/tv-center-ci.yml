@@ -1,0 +1,51 @@
+name: Native TV Center checks and Debian preview package
+
+on:
+  push:
+    paths:
+      - 'tv_center/**'
+      - 'tests/test_tv*.py'
+      - '.github/workflows/tv-center-ci.yml'
+  pull_request:
+    paths:
+      - 'tv_center/**'
+      - 'tests/test_tv*.py'
+      - '.github/workflows/tv-center-ci.yml'
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ['3.11', '3.12', '3.13']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Check imports and native no-hardware tests
+        run: |
+          python -m compileall -q tv_center tests
+          python -m unittest discover -s tests -p 'test_tv*.py' -v
+      - name: Validate installer and all TV browser modules
+        run: |
+          bash -n tv_center/install.sh
+          for f in tv_center/web/*.js; do
+            node --input-type=module --check < "$f"
+          done
+
+  preview-deb:
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and inspect architecture-neutral Debian package
+        run: |
+          bash tv_center/packaging/build-deb.sh
+          dpkg-deb --info dist/tihulu-tv-center_0.1.0~dev1_all.deb
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tihulu-tv-center-debian-preview
+          path: dist/*.deb
+          if-no-files-found: error

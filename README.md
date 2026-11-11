@@ -1,5 +1,16 @@
 # TIHULU TEXT CENTER
 
+## Native TV Center — one-line installer
+
+Experimental DVB-T2/C receiver client with real Teletext, offline subtitle and translation integrations, and country-aware channel scans. [Draft PR #35](https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/35).
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Tihulu/TIHULU-TEXT-CENTER/feature/tv-center-native-teletext-asr-2026-11-07/tv_center/install.sh | bash
+```
+
+Full instructions: [TV Center README](https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/feature/tv-center-native-teletext-asr-2026-11-07/tv_center/README.md). Raspberry Pi 5 and physical-TV compatibility remain experimental.
+
+
 A lightweight, offline-first, English-language information and text-network center for desktop browsers and Raspberry Pi. Designed as a **standalone application** with a future integration path into [Tihulu Survival Kit](https://github.com/Tihulu/tihulu-survival-kit).
 
 ## Satellite Center — standalone companion 🛰️

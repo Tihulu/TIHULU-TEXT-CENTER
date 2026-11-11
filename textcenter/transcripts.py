@@ -16,6 +16,7 @@ import sqlite3
 import uuid
 
 from .compute import LANGUAGES,validate_language
+from tv_center.language_codes import language_code, translation_language
 from .core import Store,clean_text,utc_now
 
 
@@ -31,9 +32,9 @@ def installed_translation_pairs() -> list[dict]:
         languages=translate.get_installed_languages()
         pairs=[]
         for source in languages:
-            if source.code not in LANGUAGES:continue
+            if not translation_language(source.code):continue
             for target in languages:
-                if target.code not in LANGUAGES or target.code==source.code:
+                if not translation_language(target.code) or target.code==source.code:
                     continue
                 try:
                     source.get_translation(target)
@@ -81,19 +82,23 @@ json.dump({'translated':result},sys.stdout)
 
 
 def translate_offline(text:str,source:str,target:str,backend:str="auto")->str:
-    source,target=validate_language(source),validate_language(target)
+    source,target=language_code(source),language_code(target)
     if backend not in ("auto","cpu","gpu","npu"):
         raise ValueError("Translator backend must be auto, cpu, gpu or npu")
     if not isinstance(text,str) or not text.strip() or len(text)>12000:
         raise ValueError("Translation text must be 1–12000 characters")
     if source==target:
         return text
-    devices=translation_devices()
+    # An Argos CPU request must never enumerate every translation graph
+    # or initialise CTranslate2 CUDA merely to translate ONE phrase.
+    # Cold GPU discovery on each six-second live clip can exceed the
+    # caption budget and produce false "language pack unavailable" errors.
     if backend=="npu":
         raise TranslatorUnavailable("No tested NPU translation engine/model installed")
     if backend=="auto":
-        backend="gpu" if devices["gpu_available"] else "cpu"
+        backend="cpu"  # explicit GPU is separately selectable and verified
     if backend=="gpu":
+        devices=translation_devices()
         if not devices["gpu_available"]:
             raise TranslatorUnavailable("CUDA CTranslate2 GPU translation unavailable or models missing")
         env=os.environ.copy()
@@ -118,13 +123,43 @@ def translate_offline(text:str,source:str,target:str,backend:str="auto")->str:
     try:
         import argostranslate.translate as translate
         languages={x.code:x for x in translate.get_installed_languages()}
-        source_lang=languages[source]
-        target_lang=languages[target]
-        model=source_lang.get_translation(target_lang)
-        output=model.translate(text)
+        if source not in languages or target not in languages:
+            raise TranslatorUnavailable(
+                "Argos language packages unavailable for "+
+                source.upper()+" → "+target.upper()+
+                "; install both directions or matching English pivot packs")
+        src_lang, dst_lang=languages[source],languages[target]
+        try:
+            model=src_lang.get_translation(dst_lang)
+        except (KeyError,AttributeError,ValueError,LookupError):
+            model=None
+        if model is not None:
+            # Argos may itself return a composite source→English→target
+            # model when both directed packs are installed.
+            output=model.translate(text)
+        elif source!="en" and target!="en" and "en" in languages:
+            english=languages["en"]
+            try:
+                to_english=src_lang.get_translation(english)
+                from_english=english.get_translation(dst_lang)
+            except (KeyError,AttributeError,ValueError,LookupError) as exc:
+                raise TranslatorUnavailable(
+                    "Argos route missing: "+source.upper()+
+                    " → EN → "+target.upper()+
+                    ". Install both required directed language packs.") from exc
+            intermediate=to_english.translate(text)
+            if not isinstance(intermediate,str) or not intermediate.strip():
+                raise TranslatorUnavailable(
+                    "Argos English-pivot first stage produced no text")
+            output=from_english.translate(intermediate)
+        else:
+            raise TranslatorUnavailable(
+                "Argos direct translation package missing: "+
+                source.upper()+" → "+target.upper())
     except (ImportError,KeyError,AttributeError,ValueError,LookupError) as exc:
-        raise TranslatorUnavailable("Argos Translate model for "+
-            source+" → "+target+" is not installed") from exc
+        raise TranslatorUnavailable(
+            "Argos Translate model missing for "+source.upper()+
+            " → "+target.upper()) from exc
     if not isinstance(output,str) or not output.strip():
         raise TranslatorUnavailable("Translation engine did not return text")
     return output[:12000]

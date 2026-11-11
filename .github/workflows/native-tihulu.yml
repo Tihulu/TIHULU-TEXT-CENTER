@@ -1,0 +1,39 @@
+name: Native TIHULU DVB / Radio build
+on:
+  pull_request:
+    paths:
+      - "kaffeine_next/**"
+      - ".github/workflows/native-tihulu.yml"
+  workflow_dispatch:
+jobs:
+  compile-native-player:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 22
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate installer, diagnostic script and Python patch syntax
+        run: |
+          bash -n kaffeine_next/install.sh
+          bash -n kaffeine_next/dvb_diagnostics.sh
+          python3 -m py_compile kaffeine_next/patch_upstream.py
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            git cmake g++ make pkg-config extra-cmake-modules \
+            qtbase5-dev libqt5x11extras5-dev libkf5coreaddons-dev \
+            libkf5dbusaddons-dev libkf5i18n-dev libkf5kio-dev \
+            libkf5solid-dev libkf5widgetsaddons-dev libkf5windowsystem-dev \
+            libkf5xmlgui-dev libvlc-dev libx11-dev libxss-dev \
+            libdvbv5-dev libudev-dev libqt5sql5-sqlite
+      - name: Patch verified KDE Kaffeine source
+        run: |
+          git clone --depth 1 --branch v2.0.19 https://github.com/KDE/kaffeine.git /tmp/tihulu-kaffeine-source
+          test "$(git -C /tmp/tihulu-kaffeine-source rev-parse HEAD)" = "e7ea15b86dafed3b20b151cbcb080578ab8e2d5c"
+          python3 kaffeine_next/patch_upstream.py /tmp/tihulu-kaffeine-source
+          git -C /tmp/tihulu-kaffeine-source diff --check
+      - name: Compile native DVB / radio / internet TV integration
+        run: |
+          cmake -S /tmp/tihulu-kaffeine-source -B /tmp/tihulu-kaffeine-build \
+            -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF
+          cmake --build /tmp/tihulu-kaffeine-build --parallel 2
