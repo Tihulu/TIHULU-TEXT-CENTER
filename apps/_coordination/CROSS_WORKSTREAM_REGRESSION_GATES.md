@@ -31,7 +31,6 @@ This document **does not implement features, certify release, schedule autonomou
 | **REG-13** | P0 | WS06, WS01, WS02, WS03, WS04, WS05 | EN(default)/TR/DE runtime UI and five approved logo binary evidence | Documentation/verification design; no changes to apps |
 | **REG-14** | P0 | WS01, WS02, WS03, WS04, WS05, WS06 | Native installs, portable packages and versioned rollback across five apps | Documentation/verification design; no changes to apps |
 | **REG-15** | P0 | WS06 | Evidence quality and truthful completion/ETA accounting | Documentation/verification design; no changes to apps |
-
 | **REG-16** | P0 | WS01, WS05, WS06 | Media Teletext/Whisper/lyrics and GPU caption-timing no-regression | Documentation/verification design; no changes to apps |
 | **REG-17** | P0 | WS02, WS06, WS01, WS03, WS04, WS05 | Canonical developer-agent and feature/component/model matrix parity | Documentation/verification design; no changes to apps |
 
