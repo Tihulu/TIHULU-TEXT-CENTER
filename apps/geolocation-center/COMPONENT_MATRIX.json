@@ -1,0 +1,90 @@
+{
+  "schema_version": 1,
+  "app_id": "geolocation-center",
+  "source_repository": "Tihulu/TIHULU-TEXT-CENTER",
+  "current_code_location": "existing source roots in TIHULU-TEXT-CENTER",
+  "state": "proposed_mapping_not_impl",
+  "source_baseline_commit": "20379152be2751e5d89a8bdbac85fb15fc6b3c4e",
+  "framework_example": "Rust modules are EXAMPLES not prescriptive and do not exist yet",
+  "components": [
+    {
+      "source_paths": [
+        "rf_geolocation_center/core/positioning.mjs",
+        "rf_geolocation_center/core/evidence.mjs"
+      ],
+      "role": "Observation-based location estimation and source evidence",
+      "target_contract_id": "geo.position_solver",
+      "possible_rust_crate_or_module": "domain::location_estimator + domain::evidence",
+      "other_framework_route": "Deterministic pure science/math core",
+      "porting_status": "proposal_only_no_implementation_created",
+      "behavior_to_preserve": [
+        "Uncertainty and source provenance",
+        "No fake measured accuracy"
+      ],
+      "tests_to_port": [
+        "rf_geolocation_center/tests/evidence.test.mjs"
+      ],
+      "data_contract": "inspect source and golden fixtures before declaring complete",
+      "source_evidence_level": "file_present_not_runtime_proven"
+    },
+    {
+      "source_paths": [
+        "rf_geolocation_center/web/maps.mjs",
+        "rf_geolocation_center/web/simple_ui.mjs"
+      ],
+      "role": "Geolocation map, layer and circles UI",
+      "target_contract_id": "geo.map_view",
+      "possible_rust_crate_or_module": "ui::maps_and_layers",
+      "other_framework_route": "Any responsive map toolkit",
+      "porting_status": "proposal_only_no_implementation_created",
+      "behavior_to_preserve": [
+        "Circle controls and source layers discoverable",
+        "Best/live fit source distinctions"
+      ],
+      "tests_to_port": [
+        "rf_geolocation_center/tests/map_interactivity.test.mjs"
+      ],
+      "data_contract": "inspect source and golden fixtures before declaring complete",
+      "source_evidence_level": "file_present_not_runtime_proven"
+    },
+    {
+      "source_paths": [
+        "rf_geolocation_center/native.py",
+        "rf_geolocation_center/radio_metadata.py"
+      ],
+      "role": "Native bridge and passive radio metadata provenance",
+      "target_contract_id": "geo.source_adapter",
+      "possible_rust_crate_or_module": "adapters::nmea_gnss + adapters::radio_evidence",
+      "other_framework_route": "User-authorized provider/driver layer",
+      "porting_status": "proposal_only_no_implementation_created",
+      "behavior_to_preserve": [
+        "No silent RF acquisition",
+        "No raw transmitter or cross-app takeover"
+      ],
+      "tests_to_port": [
+        "rf_geolocation_center/tests/test_native.py"
+      ],
+      "data_contract": "inspect source and golden fixtures before declaring complete",
+      "source_evidence_level": "file_present_not_runtime_proven"
+    },
+    {
+      "source_paths": [
+        "rf_geolocation_center/core/location_layers.mjs"
+      ],
+      "role": "Geolocation layer selection",
+      "target_contract_id": "geo.layers",
+      "possible_rust_crate_or_module": "domain::layer_graph",
+      "other_framework_route": "UI-independent layer registry",
+      "porting_status": "proposal_only_no_implementation_created",
+      "behavior_to_preserve": [
+        "Preserve independent toggles",
+        "Keep data source confidence"
+      ],
+      "tests_to_port": [
+        "rf_geolocation_center/tests/location_layers.test.mjs"
+      ],
+      "data_contract": "inspect source and golden fixtures before declaring complete",
+      "source_evidence_level": "file_present_not_runtime_proven"
+    }
+  ]
+}

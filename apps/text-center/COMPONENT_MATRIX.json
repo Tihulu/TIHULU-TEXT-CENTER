@@ -1,0 +1,96 @@
+{
+  "schema_version": 1,
+  "app_id": "text-center",
+  "source_repository": "Tihulu/TIHULU-TEXT-CENTER",
+  "current_code_location": "existing source roots in TIHULU-TEXT-CENTER",
+  "state": "proposed_mapping_not_impl",
+  "source_baseline_commit": "20379152be2751e5d89a8bdbac85fb15fc6b3c4e",
+  "framework_example": "Rust modules are EXAMPLES not prescriptive and do not exist yet",
+  "components": [
+    {
+      "source_paths": [
+        "textcenter/http_app.py",
+        "textcenter/__main__.py"
+      ],
+      "role": "Local loopback API and CLI startup",
+      "target_contract_id": "text.runtime_api",
+      "possible_rust_crate_or_module": "api::loopback_server + app::cli",
+      "other_framework_route": "HTTP/IPC server implementation in any framework",
+      "porting_status": "proposal_only_no_implementation_created",
+      "behavior_to_preserve": [
+        "Loopback by default",
+        "Authentication controls for LAN",
+        "No background scan by default"
+      ],
+      "tests_to_port": [
+        "tests/test_http_app.py"
+      ],
+      "data_contract": "inspect source and golden fixtures before declaring complete",
+      "source_evidence_level": "file_present_not_runtime_proven"
+    },
+    {
+      "source_paths": [
+        "textcenter/dab_bridge.py",
+        "textcenter/fm_rds.py"
+      ],
+      "role": "Radio metadata decoding and RF ownership boundary",
+      "target_contract_id": "text.broadcast_ingest",
+      "possible_rust_crate_or_module": "adapters::dab + adapters::fm_rds",
+      "other_framework_route": "Device adapter + typed metadata events",
+      "porting_status": "proposal_only_no_implementation_created",
+      "behavior_to_preserve": [
+        "DLS/RDS are broadcaster text, not ASR",
+        "Never retune shared receiver"
+      ],
+      "tests_to_port": [
+        "tests/test_dab_bridge.py",
+        "tests/test_fm_rds.py"
+      ],
+      "data_contract": "inspect source and golden fixtures before declaring complete",
+      "source_evidence_level": "file_present_not_runtime_proven"
+    },
+    {
+      "source_paths": [
+        "textcenter/transcripts.py",
+        "textcenter/compute.py"
+      ],
+      "role": "Translation pairs and CPU/GPU/NPU runtime detection",
+      "target_contract_id": "text.translation_catalog",
+      "possible_rust_crate_or_module": "ai::translator_registry + adapters::compute_probe",
+      "other_framework_route": "Model/provider independent translation interface",
+      "porting_status": "proposal_only_no_implementation_created",
+      "behavior_to_preserve": [
+        "Model installation and compute readiness distinct",
+        "No translation inventions"
+      ],
+      "tests_to_port": [
+        "tests/test_compute.py",
+        "tests/test_transcripts.py"
+      ],
+      "data_contract": "inspect source and golden fixtures before declaring complete",
+      "source_evidence_level": "file_present_not_runtime_proven"
+    },
+    {
+      "source_paths": [
+        "web/app.js",
+        "web/styles.css",
+        "web/index.html"
+      ],
+      "role": "Responsive browser UI",
+      "target_contract_id": "text.ui_shell",
+      "possible_rust_crate_or_module": "ui::text_dashboard",
+      "other_framework_route": "GTK/Qt/Tauri web or native responsive view",
+      "porting_status": "proposal_only_no_implementation_created",
+      "behavior_to_preserve": [
+        "Keyboard accessibility",
+        "Source labels and safe HTML rendering",
+        "No hidden polling"
+      ],
+      "tests_to_port": [
+        "tests/test_http_app.py"
+      ],
+      "data_contract": "inspect source and golden fixtures before declaring complete",
+      "source_evidence_level": "file_present_not_runtime_proven"
+    }
+  ]
+}

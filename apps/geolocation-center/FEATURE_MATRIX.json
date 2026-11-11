@@ -1,0 +1,98 @@
+{
+  "schema_version": 1,
+  "app_id": "geolocation-center",
+  "repository": "Tihulu/TIHULU-TEXT-CENTER",
+  "source_ref": "chore/multi-app-portable-archives-2026-11-11",
+  "branch_status": "metadata_stage_only",
+  "source_baseline_sha": "20379152be2751e5d89a8bdbac85fb15fc6b3c4e",
+  "verification": "source_evidence_only_not_hardware_verified",
+  "features": [
+    {
+      "id": "geo.positioning",
+      "name": "GNSS / RF evidence positioning",
+      "status": "source_defined_not_hardware_verified",
+      "source_paths": [
+        "rf_geolocation_center/core/positioning.mjs",
+        "rf_geolocation_center/core/evidence.mjs"
+      ],
+      "test_paths": [
+        "rf_geolocation_center/tests/evidence.test.mjs",
+        "rf_geolocation_center/tests/core.test.mjs"
+      ],
+      "invariants": [
+        "Preserve source confidence and uncertainties",
+        "Never represent simulated evidence as real GNSS or measured RF",
+        "No automatic RF device capture"
+      ],
+      "portability": "Scientific positioning engine and map UI can be separately replaced",
+      "extension_points": [
+        "map_layers",
+        "estimator_plugin"
+      ],
+      "verification": {
+        "static_tests": "required",
+        "build": "required",
+        "real_hardware": "required_if_uses_device",
+        "cross_platform": "not_verified",
+        "user_acceptance": "required_for_cutover"
+      }
+    },
+    {
+      "id": "geo.hardware",
+      "name": "Read-only receiver discovery and integration boundaries",
+      "status": "source_defined_not_hardware_verified",
+      "source_paths": [
+        "rf_geolocation_center/docs/ARCHITECTURE_AND_RELEASE_GATES.md",
+        "rf_geolocation_center/native.py"
+      ],
+      "test_paths": [
+        "rf_geolocation_center/tests/test_native.py"
+      ],
+      "invariants": [
+        "No tokenless third-party SDR takeover",
+        "No RF transmission",
+        "Keep evidence/provenance timestamps and permissions"
+      ],
+      "portability": "Driver can be replaced behind explicit user-authorized evidence provider",
+      "extension_points": [
+        "receiver_adapter"
+      ],
+      "verification": {
+        "static_tests": "required",
+        "build": "required",
+        "real_hardware": "required_if_uses_device",
+        "cross_platform": "not_verified",
+        "user_acceptance": "required_for_cutover"
+      }
+    },
+    {
+      "id": "geo.ui",
+      "name": "Circle/map and responsive design",
+      "status": "source_defined_not_hardware_verified",
+      "source_paths": [
+        "rf_geolocation_center/web/maps.mjs",
+        "rf_geolocation_center/web/simple_ui.mjs"
+      ],
+      "test_paths": [
+        "rf_geolocation_center/tests/map_interactivity.test.mjs"
+      ],
+      "invariants": [
+        "Map redesign must retain layer toggles and input-source distinctions",
+        "Do not reclassify unmeasured positions as confirmed accuracy"
+      ],
+      "portability": "Any UI toolkit permissible with behavior parity",
+      "extension_points": [
+        "theme",
+        "map_renderer",
+        "circle_style"
+      ],
+      "verification": {
+        "static_tests": "required",
+        "build": "required",
+        "real_hardware": "required_if_uses_device",
+        "cross_platform": "not_verified",
+        "user_acceptance": "required_for_cutover"
+      }
+    }
+  ]
+}

@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "app_id": "geolocation-center",
+  "source_baseline_sha": "20379152be2751e5d89a8bdbac85fb15fc6b3c4e",
+  "disclaimer": "Source-backed mapping; no claims about locally installed model files, licenses, readiness, timing or complete runtime support.",
+  "model_backends": [
+    {
+      "capability": "position_estimation",
+      "engine": "Evidence-based GNSS and RF science",
+      "implementation": "Deterministic mathematical algorithms, not an LLM",
+      "status": "non_llm_algorithm",
+      "evidence": [
+        {
+          "path": "rf_geolocation_center/core/positioning.mjs",
+          "detail": "Current source code defines or references this behavior; inspect exact branch before porting",
+          "status": "source_code_evidence"
+        },
+        {
+          "path": "rf_geolocation_center/core/evidence.mjs",
+          "detail": "Current source code defines or references this behavior; inspect exact branch before porting",
+          "status": "source_code_evidence"
+        }
+      ],
+      "test_paths": [
+        "rf_geolocation_center/tests/evidence.test.mjs"
+      ],
+      "resource": "CPU",
+      "enable_conditions": [
+        "Actual sourced observations"
+      ],
+      "fallback": "Show unknown position or uncertainty",
+      "known_limits": [
+        "Do not advertise generative AI positioning without implementation"
+      ],
+      "installed_on_user_device": "unknown_not_probed",
+      "verified_real_hardware": false
+    }
+  ]
+}

@@ -21,3 +21,26 @@
 
 ## Accurate history limitations
 Git history can be filtered/copied but rewritten root path can change commit hashes; keep a provenance map. GitHub PR/issue IDs, review approvals, original timestamps and immutable review state cannot be transplanted as native new-repo objects. Preserve accurate originals in exported JSON, include original URLs, use clear migration-bot attribution if re-posted. The ChatGPT conversation history is NOT fully available in this GitHub repository: store explicit user-approved conversation exports/documents with sources; don't claim unseen chats were archived. Never include passwords, tokens, precise personal data, or private model weights.
+
+## Framework-independent migration with verifiable feature parity
+
+Before copying a code tree into a new repo or translating it to Rust, Qt, GTK,
+Flutter, Tauri or another framework, preserve the complete metadata bundle:
+`apps/<app>/FEATURE_MATRIX.json`, `MODEL_MATRIX.json`, `PORTING_GUIDE.md`,
+app `AGENTS.md`, historic PR/issue archive pointers, and the original source SHA.
+The new repo should use `features/FEATURE_MATRIX.json`, `models/MODEL_MATRIX.json`,
+`history/`, `migration/`, and framework-independent contract/golden fixtures.
+No UI design, model backend or language/framework is permanently mandated.
+
+A framework rewrite is NOT the same as a source repo move. A rewrite remains an
+isolated preview until parity checks for every known feature ID, persisted setting,
+caption clock, original/translation track, error/fallback, SDR ownership and
+on-demand background policy are accepted. Unknown hardware results must remain
+unknown. New features must be additive and opt-in; a UI redesign must keep controls
+accessible. Run `apps/PARITY_RELEASE_GATES.md` and review
+`apps/DESIGN_EXTENSIBILITY_POLICY.md` before cutover.
+
+The six-chat plan is in `apps/PARALLEL_CHAT_WORKSTREAMS.md`, with distinct file
+ownership, source evidence and Draft PR handoffs. Conversations are separate; do
+not assume GitHub branches or chat history sync automatically. **No app is moved
+merely by publishing these manifests.**

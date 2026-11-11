@@ -1,0 +1,198 @@
+{
+  "schema_version": 1,
+  "app_id": "media-center",
+  "repository": "Tihulu/TIHULU-TEXT-CENTER",
+  "source_ref": "chore/multi-app-portable-archives-2026-11-11",
+  "branch_status": "metadata_stage_only",
+  "source_baseline_sha": "20379152be2751e5d89a8bdbac85fb15fc6b3c4e",
+  "verification": "source_evidence_only_not_hardware_verified",
+  "features": [
+    {
+      "id": "media.file.audio",
+      "name": "Local audio playback and caption profile",
+      "status": "draft_branch_code",
+      "source_paths": [
+        "kaffeine_next/native_media_panel.h",
+        "tv_center/media_ai.py"
+      ],
+      "test_paths": [
+        "tests/test_native_file_prepass_fullscreen.py"
+      ],
+      "invariants": [
+        "Audio player uses Radio profile; keep original media untouched",
+        "File processing may be opt-in and may play while generating captions",
+        "Never conflate live TV/radio clock with local file timing"
+      ],
+      "portability": "Reimplement player/view separately from audio decoder; preserve settings and SRT timebase",
+      "extension_points": [
+        "theme",
+        "layout",
+        "player_skin"
+      ],
+      "verification": {
+        "static_tests": "required",
+        "build": "required",
+        "real_hardware": "required_if_uses_device",
+        "cross_platform": "not_verified",
+        "user_acceptance": "required_for_cutover"
+      }
+    },
+    {
+      "id": "media.file.video",
+      "name": "Local video playback and caption profile",
+      "status": "draft_branch_code",
+      "source_paths": [
+        "kaffeine_next/native_media_panel.h",
+        "tv_center/media_ai.py"
+      ],
+      "test_paths": [
+        "tests/test_native_file_prepass_fullscreen.py"
+      ],
+      "invariants": [
+        "Video player uses TV file subtitle settings, not DVB timeshift/Teletext clock",
+        "Complete transcribe-first is optional; do not auto-stop playback when disabled",
+        "Fullscreen must not leave unwanted bars"
+      ],
+      "portability": "Port playback through platform adapter; independent subtitle layer",
+      "extension_points": [
+        "video_overlay",
+        "subtitle_style"
+      ],
+      "verification": {
+        "static_tests": "required",
+        "build": "required",
+        "real_hardware": "required_if_uses_device",
+        "cross_platform": "not_verified",
+        "user_acceptance": "required_for_cutover"
+      }
+    },
+    {
+      "id": "media.live.tv",
+      "name": "Live DVB-T2 TV",
+      "status": "draft_branch_code",
+      "source_paths": [
+        "kaffeine_next/native_unified_recorder.h",
+        "kaffeine_next/captions_overlay.py",
+        "kaffeine_next/subtitle_tracks.py"
+      ],
+      "test_paths": [
+        "tests/test_tv_kaffeine_subtitle_tracks.py",
+        "tests/test_radio_tv_handoff_progress.py"
+      ],
+      "invariants": [
+        "Never acquire a second DVB tuner behind user's back",
+        "Preserve DVB source/Teletext priority/fallback rules",
+        "No complete-before-play mode for live TV",
+        "Keep playback distinct from transcription and translation failures"
+      ],
+      "portability": "Tuner adapter is replaceable behind an explicit ownership lease; backend and UI can change",
+      "extension_points": [
+        "channel_ui",
+        "epg_layout"
+      ],
+      "verification": {
+        "static_tests": "required",
+        "build": "required",
+        "real_hardware": "required_if_uses_device",
+        "cross_platform": "not_verified",
+        "user_acceptance": "required_for_cutover"
+      }
+    },
+    {
+      "id": "media.live.radio",
+      "name": "Live DAB/radio and Whisper",
+      "status": "draft_branch_code",
+      "source_paths": [
+        "kaffeine_next/native_radio_tab.h",
+        "tv_center/radio_ai.py",
+        "kaffeine_next/caption_timing.py"
+      ],
+      "test_paths": [
+        "tests/test_radio_karaoke_independent_lipsync.py",
+        "tests/test_radio_tv_handoff_progress.py"
+      ],
+      "invariants": [
+        "On-demand SDR, ownership and Stop/Release must remain explicit",
+        "Lyrics/DLS are not spoken transcription",
+        "Karaoke sync must not block independent spoken subtitles",
+        "Do not reuse TV buffering semantics blindly"
+      ],
+      "portability": "Preserve device lease, streaming, cue and karaoke boundaries while replacing UI/engine",
+      "extension_points": [
+        "station_skin",
+        "lyrics_window"
+      ],
+      "verification": {
+        "static_tests": "required",
+        "build": "required",
+        "real_hardware": "required_if_uses_device",
+        "cross_platform": "not_verified",
+        "user_acceptance": "required_for_cutover"
+      }
+    },
+    {
+      "id": "media.record.export",
+      "name": "Recording and timed export",
+      "status": "partial_in_draft_pr_67",
+      "source_paths": [
+        "kaffeine_next/UNIFIED_RECORDING.md",
+        "kaffeine_next/native_unified_recorder.h",
+        "kaffeine_next/live_srt.py"
+      ],
+      "test_paths": [
+        "tests/test_native_file_prepass_fullscreen.py"
+      ],
+      "invariants": [
+        "Media-only, text-only, and media+subtitle choices remain independent",
+        "Never overwrite user recordings",
+        "SRT timings must be based on actual evidence, not invented word anchors",
+        "Audio-only cannot have burned-in video captions",
+        "Live broadcast has no Complete mode"
+      ],
+      "portability": "Portable export adapter using independently licensed media encoders (e.g. FFmpeg); maintain file types and provenance",
+      "extension_points": [
+        "format_plugins",
+        "output_dialog"
+      ],
+      "verification": {
+        "static_tests": "required",
+        "build": "required",
+        "real_hardware": "required_if_uses_device",
+        "cross_platform": "not_verified",
+        "user_acceptance": "required_for_cutover"
+      }
+    },
+    {
+      "id": "media.translation",
+      "name": "Speech recognition, translation, sound labels and speaker labels",
+      "status": "draft_branch_code",
+      "source_paths": [
+        "tv_center/ai_settings.py",
+        "tv_center/translation_failover.py",
+        "kaffeine_next/captions_overlay.py"
+      ],
+      "test_paths": [
+        "tests/test_tv_nllb_failover.py",
+        "tests/test_tv_acoustic_sound_voice_models.py"
+      ],
+      "invariants": [
+        "Original speech survives unavailable translation models",
+        "Sound tags do not suppress dialogue",
+        "Manual offsets apply to timeline, never repeatedly after every phrase",
+        "No AI model is fetched or inferred without explicit consent"
+      ],
+      "portability": "Separate model backend port from subtitle presentation and preserve failover/errors",
+      "extension_points": [
+        "caption_style",
+        "model_adapter"
+      ],
+      "verification": {
+        "static_tests": "required",
+        "build": "required",
+        "real_hardware": "required_if_uses_device",
+        "cross_platform": "not_verified",
+        "user_acceptance": "required_for_cutover"
+      }
+    }
+  ]
+}

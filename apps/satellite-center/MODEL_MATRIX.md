@@ -1,10 +1,11 @@
-# TIHULU Satellite Center — LLM / model / hardware evidence matrix
+# satellite-center — source-backed LLM/AI/model mapping
 
-**Status: source-pointer inventory only, NOT a claim of installed models or completed mappings.**
+**Not an installed-model inventory.** These mappings identify source-level capability, runtime conditions and failure pathways; hardware/runtime verification is still required. The machine-readable source is [MODEL_MATRIX.json](MODEL_MATRIX.json).
 
-- `satellite_center/compute_backends.py` — inspect before changing model/translator/device handling; record validated choices and test results here
-- `satellite_center/FEATURE_PARITY.md` — inspect before changing model/translator/device handling; record validated choices and test results here
+| Capability | Current engine / method | Fallback | Evidence |
+| --- | --- | --- | --- |
+| robot36_signal_processing | CPU NumPy (supported_code_path) | Report unavailable without fake decode | `satellite_center/compute_backends.py` |
+| robot36_tone_trace | CUDA CuPy (optional_runtime) | CPU waveform pipeline | `satellite_center/compute_backends.py` |
+| robot36_npu | Intel OpenVINO / Hailo detection (not_supported_without_kernel) | CPU | `satellite_center/compute_backends.py` |
 
-Model/run matrix to fill from actual existing code/tests and verified hardware: `capability | installed model/backend | source language | output language | device CPU/GPU/NPU | licensing | timestamp fidelity | fallback | evidence path/commit | validation date`.
-
-Preserve explicit `unknown` for unverified combinations. Do not treat model presence as working voice separation, lip-sync or translation. Before a future repo transfer copy **evidence and original decision history**, not merely the current model list.
+All details: models, resource types, sources, tests, user consent, limitations and unknown installation state are in the JSON. Any LLM performing an architectural rewrite must compare the concrete branch source and test evidence before porting. Do not confuse code-based model support, installed weights and physically tested inference.

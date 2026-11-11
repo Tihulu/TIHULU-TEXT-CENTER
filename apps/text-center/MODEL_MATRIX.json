@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "app_id": "text-center",
+  "source_baseline_sha": "20379152be2751e5d89a8bdbac85fb15fc6b3c4e",
+  "disclaimer": "Source-backed mapping; no claims about locally installed model files, licenses, readiness, timing or complete runtime support.",
+  "model_backends": [
+    {
+      "capability": "compute_selection",
+      "engine": "Text Center CPU/GPU/NPU selection",
+      "implementation": "Device inventory is distinct from working ASR/translator",
+      "status": "source_defined",
+      "evidence": [
+        {
+          "path": "textcenter/compute.py",
+          "detail": "Current source code defines or references this behavior; inspect exact branch before porting",
+          "status": "source_code_evidence"
+        }
+      ],
+      "test_paths": [
+        "tests/test_compute.py"
+      ],
+      "resource": "CPU/GPU/NPU",
+      "enable_conditions": [
+        "Verified runtime and actual local models"
+      ],
+      "fallback": "CPU compute only, not necessarily ASR",
+      "known_limits": [
+        "Hardware presence cannot imply ASR installed"
+      ],
+      "installed_on_user_device": "unknown_not_probed",
+      "verified_real_hardware": false
+    },
+    {
+      "capability": "text_translation",
+      "engine": "Installed Argos direction inventory",
+      "implementation": "textcenter transcripts and local packs",
+      "status": "optional_runtime",
+      "evidence": [
+        {
+          "path": "textcenter/transcripts.py",
+          "detail": "Current source code defines or references this behavior; inspect exact branch before porting",
+          "status": "source_code_evidence"
+        }
+      ],
+      "test_paths": [
+        "tests/test_transcripts.py"
+      ],
+      "resource": "CPU",
+      "enable_conditions": [
+        "Actual installed packages and language pairs"
+      ],
+      "fallback": "Original text, no fabricated translation",
+      "known_limits": [
+        "Installed pair inventory must be real"
+      ],
+      "installed_on_user_device": "unknown_not_probed",
+      "verified_real_hardware": false
+    }
+  ]
+}
