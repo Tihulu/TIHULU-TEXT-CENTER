@@ -4,6 +4,68 @@ The six GitHub branches and six **Draft PRs #83–#88 are already created**, wit
 
 **Important:** Creating a GitHub Issue/branch/PR is NOT equivalent to creating a ChatGPT conversation or running an autonomous agent. The owner must open each new chat manually and send the corresponding prompt below. No background job or time-based promise is implied.
 
+## IMPORTANT: recovery for a literal `#[NUMBER]` launch blocker (2026-11-11)
+
+On 2026-11-11, **five separate ChatGPT audit chats posted intake blockers** on central Issue #75 because the generic starter message still contained the unfilled literal `#[NUMBER]`. All six Draft PRs were still unchanged from the coordinator-created single-`TASK.md` workspaces. **No workstream audit had a verified REPORT.md or EVIDENCE.json commit at the time of this check.** A GitHub Issue comment does not awaken a paused ChatGPT chat: the owner must send a new message to each relevant existing chat.
+
+Copy **only one** of these complete assignment messages into each distinct matching chat; never send a generic placeholder, the same PR to multiple chats, or a new PR number to a chat that has already started committing a different workstream.
+
+### Worker 01 — Media Center
+
+```text
+Your assigned Draft PR is #83 (workstream 01: Media Center). Your linked Issue is #76.
+Read https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/83 and the TASK.md at https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/audit/ws01-media-zero-regression-2026-11-11/apps/_coordination/workstreams/01/TASK.md .
+Continue the source-based audit now on the existing branch audit/ws01-media-zero-regression-2026-11-11 only. Commit only English REPORT.md / EVIDENCE.json under apps/_coordination/workstreams/01/ and post verified progress to Issue #76, linked to central Issue #75.
+Keep this PR Draft. Do not change application source, settings, installers, logos, main, old PRs, releases or other workstreams. No merges, migrations or hardware-test claims without evidence; preserve EN(default)/TR/DE UI requirements. Do not wait for additional confirmation to perform documentation-only work.
+```
+
+### Worker 02 — Flight Radar
+
+```text
+Your assigned Draft PR is #84 (workstream 02: Flight Radar). Your linked Issue is #77.
+Read https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/84 and the TASK.md at https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/audit/ws02-flight-standalone-2026-11-11/apps/_coordination/workstreams/02/TASK.md .
+Continue the source-based audit now on the existing branch audit/ws02-flight-standalone-2026-11-11 only. Commit only English REPORT.md / EVIDENCE.json under apps/_coordination/workstreams/02/ and post verified progress to Issue #77, linked to central Issue #75.
+Keep this PR Draft. Do not change application source, settings, installers, logos, main, old PRs, releases or other workstreams. No merges, migrations or hardware-test claims without evidence; preserve EN(default)/TR/DE UI requirements. Do not wait for additional confirmation to perform documentation-only work.
+```
+
+### Worker 03 — Satellite Center
+
+```text
+Your assigned Draft PR is #85 (workstream 03: Satellite Center). Your linked Issue is #78.
+Read https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/85 and the TASK.md at https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/audit/ws03-satellite-parity-2026-11-11/apps/_coordination/workstreams/03/TASK.md .
+Continue the source-based audit now on the existing branch audit/ws03-satellite-parity-2026-11-11 only. Commit only English REPORT.md / EVIDENCE.json under apps/_coordination/workstreams/03/ and post verified progress to Issue #78, linked to central Issue #75.
+Keep this PR Draft. Do not change application source, settings, installers, logos, main, old PRs, releases or other workstreams. No merges, migrations or hardware-test claims without evidence; preserve EN(default)/TR/DE UI requirements. Do not wait for additional confirmation to perform documentation-only work.
+```
+
+### Worker 04 — RF Geolocation
+
+```text
+Your assigned Draft PR is #86 (workstream 04: RF Geolocation). Your linked Issue is #79.
+Read https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/86 and the TASK.md at https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/audit/ws04-rf-geolocation-2026-11-11/apps/_coordination/workstreams/04/TASK.md .
+Continue the source-based audit now on the existing branch audit/ws04-rf-geolocation-2026-11-11 only. Commit only English REPORT.md / EVIDENCE.json under apps/_coordination/workstreams/04/ and post verified progress to Issue #79, linked to central Issue #75.
+Keep this PR Draft. Do not change application source, settings, installers, logos, main, old PRs, releases or other workstreams. No merges, migrations or hardware-test claims without evidence; preserve EN(default)/TR/DE UI requirements. Do not wait for additional confirmation to perform documentation-only work.
+```
+
+### Worker 05 — Text Center
+
+```text
+Your assigned Draft PR is #87 (workstream 05: Text Center). Your linked Issue is #80.
+Read https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/87 and the TASK.md at https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/audit/ws05-text-retained-2026-11-11/apps/_coordination/workstreams/05/TASK.md .
+Continue the source-based audit now on the existing branch audit/ws05-text-retained-2026-11-11 only. Commit only English REPORT.md / EVIDENCE.json under apps/_coordination/workstreams/05/ and post verified progress to Issue #80, linked to central Issue #75.
+Keep this PR Draft. Do not change application source, settings, installers, logos, main, old PRs, releases or other workstreams. No merges, migrations or hardware-test claims without evidence; preserve EN(default)/TR/DE UI requirements. Do not wait for additional confirmation to perform documentation-only work.
+```
+
+### Worker 06 — Cross-app QA/History
+
+```text
+Your assigned Draft PR is #88 (workstream 06: Cross-app QA/History). Your linked Issue is #81.
+Read https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/88 and the TASK.md at https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/audit/ws06-provenance-qa-2026-11-11/apps/_coordination/workstreams/06/TASK.md .
+Continue the source-based audit now on the existing branch audit/ws06-provenance-qa-2026-11-11 only. Commit only English REPORT.md / EVIDENCE.json under apps/_coordination/workstreams/06/ and post verified progress to Issue #81, linked to central Issue #75.
+Keep this PR Draft. Do not change application source, settings, installers, logos, main, old PRs, releases or other workstreams. No merges, migrations or hardware-test claims without evidence; preserve EN(default)/TR/DE UI requirements. Do not wait for additional confirmation to perform documentation-only work.
+```
+
+**After resending:** Count a worker as active only after its assigned child Issue shows a scoped evidence update or its own branch contains a source-backed report. Five generic blocker comments are **not** five audits completed. Remaining hours/minutes: **UNKNOWN** until measured worker results arrive.
+
 ## One-copy starter instruction (choose the appropriate numbers below)
 
 Use this short English instruction in a new chat, replacing the links using the corresponding row. The long task file contains every requirement ID and candidate source/test path.
