@@ -10,6 +10,7 @@
 #include <QComboBox>
 #include <QFile>
 #include <QDir>
+#include <QDialog>
 #include <QDateTime>
 #include <QMimeDatabase>
 #include <QProgressBar>
@@ -126,6 +127,12 @@ public:
 		export_->setToolTip(tr("Mux the original media and existing time-coded SRT "
 			"as an editable/selectable subtitle track; original files remain unchanged."));
 		export_->setEnabled(false);
+        formatExport_=new QPushButton(tr("Save timed transcript / subtitle formats…"),this);
+        formatExport_->setEnabled(false);
+        formatExport_->setToolTip(tr(
+            "Export actual timed SRT to TXT, SRT, VTT, ASS or JSON. "
+            "Optionally create selectable MKV or burned video MP4. "
+            "Never overwrites existing files."));
 		caching_=new QSpinBox(this);
 		caching_->setRange(0,20000);
 		caching_->setSingleStep(500);
@@ -146,6 +153,7 @@ public:
         actions->addWidget(run_,2,0,1,2);
         actions->addWidget(cancel_,2,2);
         actions->addWidget(export_,3,0,1,3);
+        actions->addWidget(formatExport_,4,0,1,3);
         actions->setColumnStretch(1,1);
 		detailsLayout->addLayout(actions);
 		message_=new QLabel(tr("Caption file will attach to the same playing video/audio."),this);
@@ -157,6 +165,19 @@ public:
         v->addWidget(workProgress_);
 		connect(run_,&QPushButton::clicked,this,[this](){generate(false);});
 		connect(export_,&QPushButton::clicked,this,[this](){exportWithCaptions();});
+        connect(formatExport_,&QPushButton::clicked,this,[this](){exportTimedTranscript();});
+        connect(&formatExportProcess_,QOverload<int,QProcess::ExitStatus>::of(&QProcess::finished),
+            this,[this](int code,QProcess::ExitStatus status){
+                formatExport_->setEnabled(true);
+                if(code==0 && status==QProcess::NormalExit)
+                    message_->setText(tr("Selected text/subtitle exports completed. %1")
+                                      .arg(QString::fromUtf8(
+                                          formatExportProcess_.readAllStandardOutput()).left(700)));
+                else
+                    message_->setText(tr("Export failed; original file and SRT untouched: %1")
+                                      .arg(QString::fromUtf8(
+                                          formatExportProcess_.readAllStandardError()).right(400)));
+            });
 		connect(&exportProcess_,QOverload<int,QProcess::ExitStatus>::of(&QProcess::finished),
 			this,[this](int exitCode,QProcess::ExitStatus exitStatus){
 				export_->setEnabled(true);
@@ -215,6 +236,7 @@ public:
                             player_->setSubtitle(QUrl::fromLocalFile(subtitle));
                     });
 					export_->setEnabled(true);
+                    formatExport_->setEnabled(true);
 					message_->setText(tr("Attached generated subtitles to current "
 						"file playback · %1").arg(srtPath_));
 				} else {
@@ -260,6 +282,7 @@ public:
         srtPath_=info.absolutePath()+QLatin1Char('/')+
             info.completeBaseName()+QLatin1String(".srt");
         export_->setEnabled(QFileInfo(srtPath_).isFile());
+        formatExport_->setEnabled(QFileInfo(srtPath_).isFile());
         file_->setText(info.fileName());
         file_->setToolTip(candidate);
     }
@@ -320,6 +343,72 @@ private:
                "shared installed Whisper/translation models. "
                "DVB live buffer/Teletext clock are NOT applied to a file."));
     }
+    void exportTimedTranscript() {
+        // Source media and current generated SRT remain read-only.
+        if(formatExportProcess_.state()!=QProcess::NotRunning ||
+           srtPath_.isEmpty() || !QFileInfo(srtPath_).isFile()) {
+            message_->setText(tr("Generate or load a real timed SRT first."));
+            return;
+        }
+        const QString dir=QFileDialog::getExistingDirectory(
+            this,tr("Choose subtitle/text export folder"),
+            QFileInfo(path_).absolutePath());
+        if(dir.isEmpty())return;
+        QDialog options(this);
+        options.setWindowTitle(tr("Timed transcript and combined media export"));
+        auto *layout=new QVBoxLayout(&options);
+        auto *intro=new QLabel(tr(
+            "Export only real SRT cue timings; no artificial word timestamps. "
+            "For local audio and video, complete-mode text can be exported "
+            "after processing. The original media stays unchanged."),&options);
+        intro->setWordWrap(true);
+        layout->addWidget(intro);
+        auto *txt=new QCheckBox(tr("TXT · transcript"),&options); txt->setChecked(true);
+        auto *srt=new QCheckBox(tr("SRT · timed subtitles"),&options); srt->setChecked(true);
+        auto *vtt=new QCheckBox(tr("VTT · WebVTT subtitles"),&options);
+        auto *ass=new QCheckBox(tr("ASS · styled subtitles"),&options);
+        auto *json=new QCheckBox(tr("JSON · timed metadata"),&options);
+        auto *stamps=new QCheckBox(tr("Include time ranges in TXT"),&options);
+        auto *mux=new QCheckBox(tr("MKV · original media + selectable subtitles"),&options);
+        auto *burn=new QCheckBox(tr("MP4 · burned-in video subtitles (re-encode)"),&options);
+        burn->setEnabled(!isAudio_);
+        for(QCheckBox *option:{txt,srt,vtt,ass,json,stamps,mux,burn})
+            layout->addWidget(option);
+        auto *row=new QHBoxLayout();
+        auto *cancel=new QPushButton(tr("Cancel"),&options);
+        auto *save=new QPushButton(tr("Export selected formats"),&options);
+        row->addWidget(cancel);row->addWidget(save);layout->addLayout(row);
+        connect(cancel,&QPushButton::clicked,&options,&QDialog::reject);
+        connect(save,&QPushButton::clicked,&options,&QDialog::accept);
+        if(options.exec()!=QDialog::Accepted)return;
+        QStringList formats;
+        if(txt->isChecked())formats<<QLatin1String("txt");
+        if(srt->isChecked())formats<<QLatin1String("srt");
+        if(vtt->isChecked())formats<<QLatin1String("vtt");
+        if(ass->isChecked())formats<<QLatin1String("ass");
+        if(json->isChecked())formats<<QLatin1String("json");
+        if(formats.isEmpty() && !mux->isChecked() && !burn->isChecked()){
+            message_->setText(tr("No export format selected."));return;
+        }
+        // Media mux/burn can run even with no separate text output.
+        QStringList arguments{
+            QLatin1String("recording-export"),
+            QLatin1String("--srt"),srtPath_,
+            QLatin1String("--destination"),dir,
+            QLatin1String("--name"),QFileInfo(path_).completeBaseName(),
+            QLatin1String("--formats"),formats.join(QLatin1Char(',')),
+            QLatin1String("--media"),path_};
+        if(mux->isChecked())arguments<<QLatin1String("--mux");
+        if(burn->isChecked())arguments<<QLatin1String("--burn-video");
+        if(stamps->isChecked())arguments<<QLatin1String("--timestamps");
+        formatExportProcess_.start(QLatin1String("tihulu-tv-center"),arguments);
+        if(!formatExportProcess_.waitForStarted(800)) {
+            message_->setText(tr("Cannot start offline export tool."));return;
+        }
+        formatExport_->setEnabled(false);
+        message_->setText(tr("Export running; source media and SRT are untouched."));
+    }
+
 	void exportWithCaptions() {
 		if(exportProcess_.state()!=QProcess::NotRunning || path_.isEmpty() ||
 		   !QFileInfo(path_).isFile() || !QFileInfo(srtPath_).isFile()) {
@@ -436,12 +525,12 @@ private:
         return true;
     }
 	MediaWidget *player_;
-	QProcess process_,exportProcess_;
+	QProcess process_,exportProcess_,formatExportProcess_;
 	QLabel *file_=nullptr,*message_=nullptr;
 	QComboBox *language_=nullptr;
 	QCheckBox *de_=nullptr,*en_=nullptr,*tr_=nullptr,*music_=nullptr,*lyrics_=nullptr,
 		*lyricsOnline_=nullptr,*original_=nullptr,*preprocessOnOpen_=nullptr;
-	QPushButton *run_=nullptr,*cancel_=nullptr,*export_=nullptr;
+	QPushButton *run_=nullptr,*cancel_=nullptr,*export_=nullptr,*formatExport_=nullptr;
 	QSpinBox *caching_=nullptr;
     QLineEdit *extraTargets_=nullptr;
     QProgressBar *workProgress_=nullptr;
