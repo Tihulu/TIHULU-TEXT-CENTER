@@ -1,0 +1,470 @@
+# Satellite Center — Earth & Sky tracking maps
+
+The browser-only frontend now contains two connected views using the **same
+operator-refreshed or manually imported CelesTrak TLEs** as the pass calendar.
+These views are independent from WebUSB, so Firefox can display the maps even
+though Firefox cannot directly open RTL-SDR USB devices.
+
+## Ground-station location selector (v0.5)
+
+The same observer position now controls the pass calendar, polar sky plot
+and OSM map. The default station coordinates are intentionally approximate
+Cologne coordinates, **not inferred user GPS**.
+
+1. **Offline town autocomplete** — 8,084 embedded named places: 7,104
+   Germany and 980 Türkiye entries, including places such as Hürth,
+   Köln and Karaburun (İzmir). The local city-name search starts after
+   two characters and matches Turkish/German accent folding and common
+   aliases. Choose among the named state/country suggestions to avoid
+   mixing up towns with the same name. Entries are populated points,
+   not street addresses or device positions.
+2. **Explicit browser geolocation** — the operator presses
+   **Use device location (GPS / Wi-Fi)**; only then does the browser
+   call `navigator.geolocation.getCurrentPosition` and prompt for
+   permission. The displayed accuracy is the browser's estimate.
+   Geolocation may derive from IP/Wi-Fi rather than real GPS; it can be
+   denied or time out. Denial does not silently fall back to IP location.
+3. **Fully custom manual coordinates worldwide** — both latitude
+   (−90..+90) and longitude (−180..+180) remain editable, and the
+   user can switch to Custom mode without an account or online lookup.
+   Blank/out-of-range coordinates prevent pass calculation.
+4. **Optional worldwide city lookup** — a user click on
+   **Search worldwide online** queries
+   `https://geocoding-api.open-meteo.com/v1/search`, or users may
+   opt in to online suggestions as they type (unchecked by default).
+   Open-Meteo is an external service based on GeoNames, currently
+   free for non-commercial use with fair-use limits. Typing city
+   names offline does not contact that service. Network failures
+   leave the offline library and manual coordinate method usable.
+5. When a station changes, previously calculated passes are
+   invalidated and must be recalculated. Earth/Sky views immediately
+   use the new coordinates as their geometric reference; no USB scan
+   begins automatically.
+
+**Data attribution:** bundled `browser/cities-de-tr.json` is an ODbL
+1.0 derivative of `srestre/world-countries-cities-db` and its dr5hn
+upstream source. See [CITY_DATA_LICENSE.md](browser/CITY_DATA_LICENSE.md).
+Online search credit: [Open-Meteo Geocoding](https://open-meteo.com/en/docs/geocoding-api)
+and underlying GeoNames data. The user's browser may send a typed
+online query only after explicit online search/opt-in; no device GPS
+coordinate is sent to city search. No location state is persisted by
+the map app or transmitted in TLE requests.
+
+## Earth / OpenStreetMap (OSM)
+
+- User-initiated **Load OpenStreetMap** control. Until clicked, no Leaflet
+  library or OSM raster tiles are loaded; the sky plot works independently.
+- Interactive map with approximate satellite ground subpoints, manual station
+  marker, filter by ISS/Meteor-M/CubeSat/Iridium, current SDR band, above
+  horizon, selected orbit segment (±45 minutes) and optional geometric
+  line-of-sight footprint respecting the minimum elevation selector.
+- Only the human-visible viewport is requested from OSM. No tile caching
+  bypass, geographic prefetch, or offline tile downloads. OSM attribution is
+  always present on the Leaflet map.
+- The browser uses a normal origin-only HTTP Referer because OSM's tile usage
+  policy prohibits `no-referrer` for hosted tiles. Thus the map provider
+  receives the public website origin, browser/IP and the viewed tile extent;
+  no precise browser geolocation permission is requested by this app.
+- Leaflet is pinned to `1.9.4` with official published SRI hashes; OSM tiles
+  use exactly `https://tile.openstreetmap.org/{z}/{x}/{y}.png`.
+
+Official policy: https://operations.osmfoundation.org/policies/tiles/
+Library: https://leafletjs.com/download.html
+
+## Heavens-Above-style Sky view
+
+- Original browser-rendered **polar azimuth/elevation chart**; it is NOT a
+  copied Heavens-Above graphic or an embedded third-party map.
+- North is up, east right, outer ring is 0° elevation (horizon), center is
+  90° elevation (zenith); circles for 30° and 60°. Satellites below the
+  horizon are omitted from the sky even when shown in the Earth view/list.
+- The selected satellite's ±15 min approximate sky path is drawn using
+  orbital propagation, not an optical visibility calculation.
+- Heavens-Above is linked externally for independent pass comparison:
+  https://www.heavens-above.com/
+
+## Signals / data integrity
+
+- Every object is labelled **TLE-derived / geometry only**. A colored pin,
+  pass prediction, above-horizon indicator or spectral peak does NOT
+  identify an active satellite transmitter.
+- Existing WebUSB raw-IQ sampling is unchanged. The map's **Select MHz**
+  control changes the receiver's preset but does not start a USB capture.
+- ISS: use published live ARISS/ISS activation status, 145 MHz VHF and
+  associated UHF modes when available.
+- Meteor-M: candidate 137.900/137.100 MHz downlinks; LRPT images require
+  a decoder, appropriate antenna and a successful recording.
+- CubeSat: an amateur TLE is not a downlink frequency database. Check
+  individual verified published downlinks, e.g.
+  https://db.satnogs.org/transmitters/.
+- Iridium: orbit positions and 1.6 GHz relative RF spectrum scanning only;
+  no non-public communications decoding. L-band antenna/filter/LNA may
+  be required. The current receiver's R820T band edge further limits
+  reception.
+- **Match current SDR band** is only a candidate category match. It cannot
+  prove a satellite is actually transmitting on the tuned frequency.
+- TLE epoch ages above seven days raise a warning; refresh before planning.
+- A timestamp slider (−45 to +90 minutes) is simulated geometry, not a
+  recording from another time. Live rendering refreshes about every 18 sec.
+- Data and manual station coordinates remain in the tab for propagation;
+  the Earth tile provider receives requests for the viewed map extent.
+- The OSM map does not transmit to satellites or provide emergency alerts.
+
+## Offline and browser support
+
+Sky/ground geometry can be recalculated offline *after* the satellite.js
+library and TLE data have been loaded and remain available in that tab.
+The OSM tile server must not be used for bulk/offline download; an existing
+browser tile cache may be honored normally. Third-party CDN failures are
+reported, rather than drawing fictitious ground positions.
+
+Firefox can use satellite maps and the pass planner; RTL2832U WebUSB
+reception is unavailable in Firefox. Chrome/Brave/Edge can use both map and
+WebUSB if the operating system allows the receiver to be claimed.
+
+## Verification
+
+- Native static browser JavaScript and map module syntax checks.
+- Node unit tests for sky projection cardinal alignment, visibility footprint
+  shrinkage with higher minimum elevation, longitude/date-line splitting,
+  and valid observer coordinate bounds.
+- No end-to-end on-device satellite reception, map tile rendering in
+  Chromium/Firefox, or active downlink detection was verified by CI.
+
+
+## Earth basemap failure recovery (Nov 2026)
+
+On some browser/network/privacy-filter configurations the Leaflet satellite
+markers render but the OSM raster imagery remains blank. This should **not**
+be interpreted as successful map loading. The Earth view now:
+
+1. Sets explicit `strict-origin-when-cross-origin` tile referrer policy,
+   as required by OSMF's tile use policy.
+2. Tracks actual `tileload` and `tileerror` events, rather than reporting
+   "ready" merely because Leaflet initialized.
+3. On three tile errors without any loaded tile, or nine seconds with no
+   successful tile load, selects a **bundled, public-domain Natural Earth
+   1:110m land outline fallback**, so Earth geography remains visible with
+   the station and satellite overlays.
+4. Displays the active layer and its success/failure state, provides a
+   `Load / retry OpenStreetMap` button and an explicit **Base map** selector.
+   A blocked tile service is never claimed to be a successful OSM layer.
+
+If a provider returns a 200-status "blocked" image instead of the requested
+map (some OSM restrictions do), Leaflet might report `tileload` even though
+the content is not geographic. Switch manually to **World outlines**.
+Do not disable privacy protections automatically; the user can test their
+network/Brave Shields settings separately. This fallback is a coarse world
+map, not street-level OSM.
+
+Data: Natural Earth public-domain 1:110m land, mirrored and reduced from
+`martynafford/natural-earth-geojson/110m/physical/ne_110m_land.json`.
+Source: https://www.naturalearthdata.com/
+OSM tile rules: https://operations.osmfoundation.org/policies/tiles/
+
+## Pass and satellite sorting
+
+- Pass-calendar selector: **soonest date/time, latest/farthest date/time,
+  highest/lowest maximum elevation, longest/shortest pass and A–Z**.
+- The old UI silently displayed only the first 80 entries from a truncated
+  100-pass cache. The full computed pass list is now retained; the panel
+  paginates 40 entries at a time with **Show more passes**. Consequently
+  "latest date first" sorts over all calculated candidates.
+- Right-side satellite list sorts by elevation, **next calculated pass
+  soonest/latest**, slant-range near/far and name.
+- A next-pass ranking requires Calculate passes first; no timestamp
+  is invented for a satellite lacking a computed pass.
+- Neither sorting nor filtering adjusts a pass time or a scheduled RF job.
+
+## Browser-only scheduled receiver analysis
+
+1. **Calculate passes**, then expand **Schedule / configure timed RF
+   analysis** for a satellite.
+2. Confirm exact **date + hour + minute** in the **computer/browser local
+   timezone** (which may differ from the ground station timezone),
+   candidate frequency, sampling rate, 5/15/30/60-second duration and
+   whether to save raw interleaved `.cu8` USB IQ.
+3. **Confirm scheduled RF scan**. It creates a memory-only job and
+   releases any idle SDR immediately, so waiting hours does not keep
+   the receiver claimed.
+4. Click **Choose RTL-SDR** once to grant WebUSB if it was not already
+   permitted. **Check scheduled-scan readiness** inspects prior USB
+   grants read-only, without taking RF samples. An optional Screen Wake
+   Lock button can reduce screen sleep risk where available.
+5. At the due minute (if the page is visible and running), it tries to
+   reopen **only a previously permitted RTL2832U via
+   `navigator.usb.getDevices`**, then tunes to the chosen profile and
+   reads actual I/Q USB bytes for the configured duration or remaining
+   pass length. Jobs are sequential; competing receiver jobs wait.
+6. It computes actual raw sample-level minimum/average/maximum,
+   block count, size, elapsed time and variation, **not calibrated
+   RF dBm or proof of a named satellite**. If raw recording was requested
+   the browser download is triggered; an explicit **Download raw IQ
+   again** action retains the latest recording if automatic downloads
+   are blocked.
+7. The job card shows **armed / due / starting / running / finished /
+   blocked / missed / stopped** with date, countdown, error reason and
+   measured RF report. A blocked pass can be retried *while still active*
+   without changing any unrelated USB process.
+
+**Critical limitation:** A static browser cannot guarantee background work
+after tab closure, browser suspension or laptop sleep. This schedule is
+**foreground-only**; the user is told to keep the tab open/visible, and
+missed passes are explicitly labelled. Previous WebUSB permissions do not
+prove the device is free. The app never kills `readsb`, Gqrx or welle.io.
+The idle USB device is not kept claimed while waiting.
+
+**Still not implemented in browser:** Meteor LRPT image reconstruction,
+APRS packets, SSTV images or satellite-specific RF identification. The
+result is honest uncalibrated sample-level analysis and optional raw IQ;
+the optional local companion with SatDump/multimon-ng is needed for
+external decoders and for jobs while the browser tab is closed but the
+companion service runs.
+
+No physical Nooelec scheduled-capture acceptance test has been performed
+by this code-only change. Synthetic tests cover sorting, schedule minute
+bounds, due/hidden/busy transitions, digital level statistics, tile
+fallback thresholds and UI control presence.
+
+
+## Follow-up: Earth map works independently of Leaflet (November 6, 2026)
+
+When OSM street tiles and the earlier Leaflet fallback both appear blank,
+the **Earth tab now automatically draws a world Canvas background** from the
+bundled `natural-earth-land-110m.geojson` file. It does not need OpenStreetMap
+servers or the Leaflet CDN for the basic world basemap.
+
+- Built-in Canvas shows real coastlines/land, the current selected station,
+  and ground subpoints of TLE-propagated satellites.
+- Satellite dots are clickable to synchronize with the prediction list and
+  receiver candidate profile. They do **not** claim RF reception.
+- **Interactive street map (OpenStreetMap / Leaflet, optional)** is a separate
+  expandable section. Missing OSM tiles can no longer prevent the Canvas
+  world map from being visible.
+- **Test map background** diagnoses the bundled map data, feature count,
+  Canvas render status and, if loaded, the separate Leaflet SVG paths.
+- Leaflet's own optional Natural Earth layer uses an explicitly assigned SVG
+  renderer and a pane above raster tiles, rather than an unreliable default
+  Canvas renderer below the basemap.
+- The app entry point and revised map modules have cache-busting version
+  identifiers to avoid using stale Pages/PWA cached JavaScript.
+
+The Canvas map is a **global geographic overview**, not street-level tiles.
+If its own Natural Earth JSON request fails, the app explicitly reports that
+rather than fabricating countries or pretending OSM loaded.
+
+## Follow-up: real WebUSB hardware test and sample shape correction
+
+The receiver panel now has **Test real USB + RF samples (3 sec)**, which
+tries to reopen a *previously permitted* RTL2832U from WebUSB, tunes to the
+selected Step 2 frequency, reads true complex I/Q samples and reports
+actual byte counts, unsigned sample spread and relative digital level.
+It always closes its own USB session afterward and never stops
+`readsb`, Gqrx or another process.
+
+The prior browser capture code incorrectly expected `readSamples()` to
+return an ArrayBuffer. In `@jtarrio/webrtlsdr` v3 it returns a
+`SampleBlock` object with `frequency`, `directSampling`, and
+`data: ArrayBuffer`. All three paths—manual record, timed record and
+hardware test—now extract `.data` correctly. This is a functional
+fix, not merely UI: the previous format mismatch could discard every
+valid received sample. Verified against the upstream TypeScript interface:
+https://github.com/jtarrio/webrtlsdr/blob/main/src/rtlsdr/rtldevice.ts
+
+A passing browser test proves a USB device opened and returned samples.
+It does **not** prove that the antenna is matched, calibrated signal
+power was measured, or any specific satellite transmitted. Test uses
+the chosen frequency, so a quiet band can still pass valid USB sampling.
+No physical-device run has been performed by CI.
+
+
+## Earth overlay visibility / focusing (v0.12)
+
+The OpenStreetMap base layer previously centred on the *ground station*
+(e.g. Germany) while the selected satellite's **ground subpoint** could be
+thousands of kilometres away (e.g. RADIO ROSTO near 59.6° N, 42.9° E).
+Consequently satellite markers, orbit tracks and coverage could all be
+correctly calculated but outside the viewport. The optional Leaflet panel
+now provides real operational map controls:
+
+- **Show all satellites:** fits the actual, currently filtered TLE-derived
+  satellite ground positions into the viewport, rather than retaining an
+  unrelated ground-station-only view. When TLEs load later, one initial
+  global fit is performed automatically.
+- **Focus selected satellite:** centres on the selected satellite's
+  ground subpoint and zooms in. Selecting an entry in the right-side
+  satellite list or clicking a marker does the same while Earth view is open.
+- **Center on ground station:** restores an observer-focused view;
+  predicted satellite locations outside its bounds will be labelled as
+  such and can still be accessed via the first two controls.
+- **Orbit tracks:** selectable *all tracked satellites* (default),
+  *selected only* or *off*, showing predicted ±45-minute ground tracks.
+- **Coverage circles:** *selected satellite* (default), *all tracked
+  satellites* or *off*. Coverage is a geometric min-elevation footprint
+  calculated from orbital altitude, not an RF measurement or signal
+  quality estimate.
+- **Overlay counter:** displays plotted marker counts, orbit/footprint
+  segment counts, and how many satellite subpoints fall in the current
+  map viewport. These are **not** detected spacecraft.
+- Explicit Leaflet layer panes keep footprints above base-map coastlines,
+  tracks above footprints, clickable satellite markers above tracks,
+  and the observer marker on top.
+
+The world-map overview Canvas remains fully independent of the optional
+Leaflet/OSM view. The radio receiver is never opened by selecting a map
+control. No claim is made that TLE geometry proves a transmission.
+
+Code/regression: `browser/satellite_maps.mjs`,
+`tests/test_satellite_earth_overlays.mjs`, cross-platform Node CI.
+
+
+## v0.12 — Visible satellite overlays on OSM and in-browser CU8 analysis
+
+### Earth layers and camera
+
+- The street map opens on a world-scale view / fits the loaded orbital
+  catalog, **not** merely the station-centred Cologne viewport where all
+  satellite ground subpoints may be off-screen. The user can focus the
+  selected satellite, fit all tracked satellites, or return to the station.
+- Separate `sat-coverage`, `sat-tracks`, `sat-markers` and
+  `sat-station` Leaflet panes are stacked explicitly above OSM raster
+  tiles and the Natural Earth coastline layer.
+- **Orbit tracks** switch between All / Selected / Off (±45-minute
+  SGP4 propagation, 3-minute intervals) with date-line-safe segments.
+- **Geometric coverage** switches between Selected / All / Off. The
+  boundary is an approximate minimum-elevation footprint, not a
+  ground receiver's verified sensitivity or a signal-strength map.
+- The bundled global Canvas view now also draws selected/all
+  ground tracks and coverage outlines; no OSM service is required.
+- The status reports visible global satellite markers and drawn
+  track/coverage segment counts. Changing camera does not change
+  actual orbital positions. A below-horizon satellite can have a
+  subpoint on the world map but cannot be received overhead.
+
+### Analysis of a local .cu8 recording *inside the web app*
+
+After a successful raw-IQ recording, the browser continues to offer the
+original `.cu8` download and immediately analyzes the same in-memory
+Blob locally. Users can also select an earlier `.cu8` file in
+**6 · CU8 I/Q analysis** and choose **Analyze selected file** without
+any Python/local service or upload. Results include:
+
+- Complex **2048-point FFT** spectrum, window-averaged across
+  geographically irrelevant but temporally stratified samples
+- A time-frequency **waterfall** of sampled windows and a temporal
+  relative digital-level chart
+- Highest non-DC spectral-bin frequency/offset, peak-to-median
+  difference, sample power range, average I/Q DC offset, sample clip
+  fraction and sampled duration estimate
+- Local JSON analysis export with chart arrays and measurement metadata
+
+The analyzer reads up to **32 separated 4096-byte windows** from
+the Blob, not the entire potentially 128 MiB recording. The application
+keeps at most the latest raw IQ recording for automatic analysis; past
+recordings can be chosen again from disk. No CU8 data are sent to a
+server. Filename parsing can recover center frequency and sample rate
+from the app's own `TIHULU[-scheduled]-<Hz>-<rate>-*.cu8` format,
+but CU8 itself **has no embedded frequency, sample rate, date or
+timestamp metadata**. An unknown source defaults to relative baseband
+frequency until the user supplies correct metadata.
+
+**Interpretation:** All digital levels are uncalibrated relative
+statistics, not RF dBm, confirmed SNR or proof of a satellite.
+The frequency spectrum can show local interference, clock/DC artifacts
+and spurious peaks. The chart does not demodulate SSTV, APRS,
+Meteor LRPT, Iridium traffic or private conversations; external
+protocol decoders are still separate.
+
+The FFT and sampling API have synthetic unit tests for positive and
+negative known tones, correct CU8 filename metadata and bounded file
+access. Live capture / file-selection experience remains subject to
+actual on-device browser verification.
+
+
+## v0.15 — Satellite Images and source-attributed recordings (2026-11-06)
+
+**Satellite Images** in the browser-only/Pages app offers two distinct,
+non-interchangeable acquisition paths:
+
+1. **Received with user's RTL-SDR:** actual ISS **Robot36 SSTV** events
+   (frequency and image mode are event-dependent; consult the
+   [ARISS schedule](https://www.ariss.org/upcoming-sstv-events.html)).
+   Select a locally captured demodulated FM WAV, or experiment with
+   recorded unsigned CU8 → narrowband FM → 1200 Hz sync detection →
+   320×240 Robot36 conversion. A decoded image is only shown if there
+   are repeated, aligned audio syncs. All such decodes are experimental
+   candidates, never assured ISS origin. Raw frequency power/geometry
+   does not count as a received image.
+2. **Meteor-M2-3/M2-4 LRPT:** locally captured CU8 can be decoded with
+   the optional native SatDump CLI. The installed companion supports
+   72k/80k pipeline choices and displays only real SatDump PNG/JPEG
+   outputs. No unsupported promise to decode Meteor LRPT in the
+   browser-only page; the in-browser RF/FM/Robot36 path is SSTV only.
+3. **Online original imagery:** NASA DSCOVR EPIC Earth photographs and
+   historic ISS Earth photographs from the NASA Images archive are
+   requested *on demand* via official NASA APIs. The online gallery
+   labels actual source and acquisition timestamps and never presents
+   external NASA downloads as if they were received via the local USB
+   antenna. NASA API rate limits/CORS may require opening the official
+   gallery. Official EUMETSAT and NOAA weather image viewers are also
+   linked for international use.
+
+**Filename convention:** `TIHULU_<SATELLITE-CANDIDATE>_<YYYYMMDDTHHMMSSZ>_<FREQUENCY>Hz[_<SAMPLE-RATE>SPS]_<IQ|SSTV|LRPT|...>.<ext>`.
+UTC avoids Windows/macOS/Linux/Raspberry Pi timezone ambiguity. Unknown
+attribution is explicitly `RF-UNATTRIBUTED`; observing a TLE pass is
+not proof of the transmitted signal's identity. Existing legacy raw
+recordings remain openable. The most recent browser I/Q recording
+is available for local FFT analysis and optional experimental SSTV
+decode, without uploading samples.
+
+**Shared cross-platform UI:** The installed Python local companion
+on Debian/Ubuntu/Pop!_OS, Raspberry Pi OS, Windows x64 and macOS Apple
+Silicon now exposes **Open live map and Satellite Images**, loading the
+exact same browser sources as GitHub Pages from its local
+`/browser/index.html` route. The 1-second LIVE TLE view, Pause, Sky,
+Earth map, and image gallery thus share one implementation.
+The embedded web interface is only loaded when requested and releases
+its own USB session on close. Two SDR frontends cannot own the same
+physical dongle simultaneously. Page-only WebUSB requires a compatible
+desktop Chromium-family browser; the desktop companion uses its native
+RTL-SDR tools for its own capture workflows.
+
+**Verification limits:** Core browser JS parses, UI controls are wired,
+image-naming metadata round-trips, and synthetic 240-scan-line Robot36
+audio yielded a 320×240 candidate. Cross-platform CI is defined for
+Ubuntu x64/ARM, Windows, and macOS, but physical SSTV/LRPT, receiving
+antennas, browser CORS and native hardware remain unverified until
+tested on compatible real RF data. No fabricated space imagery.
+
+## v0.14 — continuous live orbital motion
+
+**Now / live** immediately resumes real wall-clock SGP4 propagation and
+updates the current satellite ground coordinates, azimuth/elevation, map
+markers and selected satellite information **once every second** while
+the browser tab is visible. Leaflet marker positions and vector overlays
+are updated in place instead of destroying/recreating all map objects
+every frame, reducing visible flicker. The `±45 min` prediction traces
+use a 15-second cache (they are not recomputed 25×31 times per second);
+coverage geometry and satellite positions update per live tick. Both
+OpenStreetMap and the bundled Earth overview, as well as the polar sky
+map, use the same wall-clock time.
+
+- **Pause** stops the moving orbital simulation and freezes its timestamp.
+- Moving the **Time relative to now** slider enters a stationary simulation
+  snapshot at the chosen offset; its clock no longer drifts while paused.
+- **Now / live** clears the slider offset and re-enables the running clock.
+- **Follow selected satellite while LIVE** is optional and disabled by
+  default, so the Earth map will not pan itself without consent.
+- Live rendering pauses while a tab is hidden and jumps to the correct
+  wall clock on return. Page closure clears its update interval.
+- The TLE catalog and parsed satellite records are reused and not fetched
+  from the Internet on each tick. TLE freshness remains a separate concern
+  and can be updated using the existing refresh action.
+- This animation is geometric propagation, never a radio scan, WebUSB
+  capture or verified active satellite transmission. No SDR resource is
+  acquired by the live map.
+
+Clock and UI regression tests are in
+`tests/test_satellite_live_clock.mjs`, including 1 s live updates,
+paused timeline, future/past seek, hidden-tab behaviour and 15-second
+track cache slots.
