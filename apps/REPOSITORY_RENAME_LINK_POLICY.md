@@ -20,3 +20,7 @@ The original repository numeric ID is a continuity anchor within GitHub. A repos
 ## Existing destination identity anchors
 
 Confirmed future independent repos: Media Center ID `1454318539`, Satellite Center ID `1454319572`, RF Geolocation Center ID `1454320329`. These IDs must accompany original GitHub URLs, destination aliases and eventual canonical PR links. Repos are currently empty; their **existence does not change the source repo** or permit renaming the original. Do not rely on GitHub redirects alone; keep exported evidence and test paths after any future rename.
+
+## Text Center retained on same GitHub numeric repository ID
+
+Any approved future rename of repository ID `1447637221` changes only its name/URLs, not the Text Center app's repository identity. Keep the active `textcenter/` and `web/` code, its Pages and installers, historical PRs and central origin-gap ledgers in that **same** repo. Verify installation links, raw assets, PWA scope and old URL redirects before renaming. The three new app repos use their own linked original PR/Issue evidence; they must not depend on a fixed old repo display name.

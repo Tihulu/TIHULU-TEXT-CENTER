@@ -112,7 +112,12 @@
     "approved_application_logo": "apps/text-center/APPROVED_BRANDING.json",
     "approved_logo_sha_manifest": "apps/BRANDING_APPROVED_MANIFEST.json",
     "origin_lookup_after_rename": "Resolve GitHub repository ID 1447637221; preserve original URL and verify current alias",
-    "no_orphaned_requirement": "Every known old feature/request/PR is either verifiably copied or origin-linked with explicit remaining transfer gap"
+    "no_orphaned_requirement": "Every known old feature/request/PR is either verifiably copied or origin-linked with explicit remaining transfer gap",
+    "actual_canonical_repo": "Tihulu/TIHULU-TEXT-CENTER",
+    "canonical_repository_id": 1447637221,
+    "any_new_repo_for_text_center": "not_required",
+    "history_archive_remains_here": true,
+    "old_repo_rename_is_optional": true
   },
   "target_engineering_language": "en",
   "required_ui_languages": [
@@ -122,5 +127,8 @@
   ],
   "snapshot_is_active_runtime": false,
   "approved_logo_not_yet_installed": true,
-  "old_pr_review_comment_export_not_complete": true
+  "old_pr_review_comment_export_not_complete": true,
+  "canonical_repository_policy": "retain_text_center_in_original_github_repository_id_1447637221",
+  "separate_app_repo_required": false,
+  "history_origin_fallbacks_live_in_same_repo": true
 }

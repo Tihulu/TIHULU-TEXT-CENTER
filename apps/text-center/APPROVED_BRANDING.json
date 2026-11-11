@@ -24,5 +24,8 @@
   ],
   "product_name_label_language": "en",
   "source_and_license_status": "requires_validation_before_public_asset_release",
-  "integration_rule": "Staging only until binary assets are imported, checksum-verified and icons tested; do not modify current app source or installer in this planning PR"
+  "integration_rule": "Staging only until binary assets are imported, checksum-verified and icons tested; do not modify current app source or installer in this planning PR",
+  "canonical_app_repo": "Tihulu/TIHULU-TEXT-CENTER",
+  "icon_applies_to_existing_text_center_repo_after_separate_review": true,
+  "new_repo_for_icon": false
 }

@@ -1,0 +1,90 @@
+{
+  "schema_version": 1,
+  "decision_date_utc": "2026-11-11",
+  "user_decision": "Text Center stays in the existing TIHULU-TEXT-CENTER GitHub repository. No second Text Center repository is required.",
+  "no_repositories_renamed": true,
+  "no_existing_app_code_moved": true,
+  "origin_repository": {
+    "full_name": "Tihulu/TIHULU-TEXT-CENTER",
+    "repository_id": 1447637221,
+    "node_id": "R_kgDOVkkw5Q",
+    "role": [
+      "active_Text_Center_canonical_source",
+      "original_historical_source_for_three_migrating_apps",
+      "original_PR_Issue_discussion_archive"
+    ],
+    "text_center_code_roots": [
+      "textcenter/",
+      "web/"
+    ],
+    "rebrand_rename_allowed_later_with_explicit_approval": true,
+    "repo_id_continuity_required": true
+  },
+  "app_canonicals": [
+    {
+      "app_id": "media-center",
+      "current_source_repo": "Tihulu/TIHULU-TEXT-CENTER",
+      "source_repo_id": 1447637221,
+      "target_repo": "Tihulu/tihulu-media-center",
+      "target_repo_id": 1454318539,
+      "target_created_empty": true,
+      "move_required": true,
+      "cutover_complete": false
+    },
+    {
+      "app_id": "satellite-center",
+      "current_source_repo": "Tihulu/TIHULU-TEXT-CENTER",
+      "source_repo_id": 1447637221,
+      "target_repo": "Tihulu/tihulu-satellite-center",
+      "target_repo_id": 1454319572,
+      "target_created_empty": true,
+      "move_required": true,
+      "cutover_complete": false
+    },
+    {
+      "app_id": "geolocation-center",
+      "current_source_repo": "Tihulu/TIHULU-TEXT-CENTER",
+      "source_repo_id": 1447637221,
+      "target_repo": "Tihulu/tihulu-rf-geolocation-center",
+      "target_repo_id": 1454320329,
+      "target_created_empty": true,
+      "move_required": true,
+      "cutover_complete": false
+    },
+    {
+      "app_id": "text-center",
+      "current_source_repo": "Tihulu/TIHULU-TEXT-CENTER",
+      "source_repo_id": 1447637221,
+      "target_repo": "Tihulu/TIHULU-TEXT-CENTER",
+      "target_repo_id": 1447637221,
+      "already_canonical_here": true,
+      "move_required": false,
+      "cutover_complete": false,
+      "continuing_active_development_here": true
+    },
+    {
+      "app_id": "flight-radar",
+      "current_source_repo": "Tihulu/tihulu-flight-radar",
+      "source_repo_id": 1447534043,
+      "target_repo": "Tihulu/tihulu-flight-radar",
+      "target_repo_id": 1447534043,
+      "already_independent": true,
+      "move_required": false
+    }
+  ],
+  "source_change_policy": "Do not freeze, delete, rewrite or disable textcenter/ and web/ when the other applications cut over. Remove/redirect only those app source paths whose new canonical repo has independently passed all gates and owner approval. Shared packages are copied and versioned with provenance, no runtime coupling.",
+  "history_policy": "Source repo retains old PRs/issues and independent JSON backups plus renamed-repo ID/alias resolution. Migrated app repos link back to old source and unresolved history; Text Center links locally. No native GitHub approval is forged.",
+  "brand_policy": "Use only the five existing approved red/black/white TIHULU mascot designs. Text Center badge is staged into this same repository after separate image/icon tests; others into their own repo.",
+  "language_policy": {
+    "developer": "en",
+    "user_interface": [
+      "en",
+      "tr",
+      "de"
+    ],
+    "default_ui": "en",
+    "coverage_verified": false
+  },
+  "feature_parity_policy": "no existing behavior changes without separate approval and tests",
+  "cutover_requires_user_approval": true
+}

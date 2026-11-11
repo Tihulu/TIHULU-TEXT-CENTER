@@ -258,7 +258,7 @@
         "main",
         "integration/consolidated-pages-webusb-2026-11-06"
       ],
-      "notes": "Current repository owner, shared backend and web frontend; needs explicit split for Media/Satellite/RF dependencies.",
+      "notes": "Text Center remains canonical in source GitHub repo ID 1447637221, with original code paths textcenter/ and web/. Original repo also preserves historical source/provenance for migrated apps. Never freeze Text Center when the other three apps cut over.",
       "migration_state": {
         "state": "not_started",
         "target_repository": null,
@@ -301,19 +301,30 @@
         "de"
       ],
       "localizations_verified": false,
-      "future_repo_rename_contract": "apps/REPOSITORY_RENAME_LINK_POLICY.md",
-      "canonical_code_ownership": "current_runtime_roots_unchanged_until_cutover",
+      "future_repo_rename_contract": "old parent repository may be renamed after explicit owner approval and verified redirects; Text Center remains in same repo ID",
+      "canonical_code_ownership": "textcenter/ and web/ remain actively editable in the original repository; frozen apps/text-center/source copies remain read_only",
       "history_gap_index": "apps/text-center/ORIGIN_FALLBACKS.json",
       "approved_branding_manifest": "apps/text-center/APPROVED_BRANDING.json",
       "branding_release_status": "approved_design_not_installed",
       "history_completeness_status": "partial_export_with_original_links",
       "current_active_app_icons_unchanged": true,
       "model_install_for_coding_agent_matrix_required": false,
-      "destination_repository_verified": null,
-      "repository_preparation_status": "future_separate_repo_not_yet_named_or_created",
+      "destination_repository_verified": {
+        "full_name": "Tihulu/TIHULU-TEXT-CENTER",
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER",
+        "repository_id": 1447637221,
+        "node_id": "R_kgDOVkkw5Q",
+        "exists": true,
+        "retained_canonical": true,
+        "separate_repository_required": false
+      },
+      "repository_preparation_status": "retained_in_origin_repository_no_split_requested",
       "approved_brand_design_record": "apps/text-center/APPROVED_BRANDING.json",
       "branding_identity_policy": "five_exact_user_approved_red_black_white_TIHULU_mascot_logos_only",
-      "active_icon_changes_authorized_by_this_plan": false
+      "active_icon_changes_authorized_by_this_plan": false,
+      "repository_migration_policy": "stay_in_origin_repository",
+      "new_repository_creation_requested": false,
+      "can_continue_development_in_current_repository": true
     },
     {
       "id": "flight-radar",
@@ -416,5 +427,14 @@
   "verified_destination_repositories": "apps/VERIFIED_DESTINATION_REPOSITORIES.json",
   "three_new_repo_shells_created": true,
   "new_repo_source_import_performed": false,
-  "branding_binary_import_performed": false
+  "branding_binary_import_performed": false,
+  "repository_topology_decision": "apps/CANONICAL_REPOSITORY_TOPOLOGY.json",
+  "text_center_retained_in_origin_repository": true,
+  "text_center_dedicated_repository_creation_required": false,
+  "three_new_app_migrations_only": [
+    "media-center",
+    "satellite-center",
+    "geolocation-center"
+  ],
+  "flight_radar_already_canonical": true
 }

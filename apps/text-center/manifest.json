@@ -8,9 +8,9 @@
   ],
   "current_canonical_repository": "Tihulu/TIHULU-TEXT-CENTER",
   "status": "embedded",
-  "migration_allowed_on_explicit_request_only": true,
+  "migration_allowed_on_explicit_request_only": false,
   "migration_state": "not_started",
-  "proposed_future_destination": "Tihulu/TIHULU-TEXT-CENTER",
+  "proposed_future_destination": null,
   "branch_candidates": [
     "main",
     "integration/consolidated-pages-webusb-2026-11-06"
@@ -24,5 +24,13 @@
     "textcenter/compute.py",
     "tv_center/installed_languages.py"
   ],
-  "dependency_notes": "Current repository owner, shared backend and web frontend; needs explicit split for Media/Satellite/RF dependencies."
+  "dependency_notes": "Current repository owner, shared backend and web frontend; needs explicit split for Media/Satellite/RF dependencies.",
+  "separate_repository_required": false,
+  "repository_policy": "retained_canonical_in_original_repo",
+  "original_repo_id": 1447637221,
+  "renaming_is_optional_not_a_migration": true,
+  "runtime_source_roots_remain": [
+    "textcenter/",
+    "web/"
+  ]
 }

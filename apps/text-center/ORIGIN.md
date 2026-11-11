@@ -17,3 +17,7 @@ See `apps/text-center/ORIGIN_FALLBACKS.json`, `apps/text-center/HISTORY_LINKS.js
 A future rename of the old monorepo must NOT erase old URLs. Resolve the current repository name from GitHub numeric repo ID `1447637221`, verify aliases and update `apps/REPOSITORY_IDENTITY.json`. Treat broken or inaccessible links as explicit outstanding gaps, not silently lost information.
 
 The approved branding record is `apps/text-center/APPROVED_BRANDING.json`. Approved PNG assets are not yet installed in active apps. The source code trees here remain read-only evidence until approved migration and standalone tests.
+
+## Canonical retention
+
+Text Center remains in its existing original GitHub repository, numeric ID `1447637221`. There is no Text Center destination PR map or new repository to create. Original PR/Issue records and source text stay here; copied apps link back here. If the repository is renamed later, that is a rename of the *same* Text Center repository, not a new GitHub ID or Text Center migration.

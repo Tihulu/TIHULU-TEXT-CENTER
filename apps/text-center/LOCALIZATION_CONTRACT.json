@@ -39,5 +39,7 @@
     "language_switch_and_persistence": "future_release_gate",
     "fallback_to_en": "future_release_gate",
     "no_existing_default_changes": "mandatory"
-  }
+  },
+  "canonical_repository": "Tihulu/TIHULU-TEXT-CENTER",
+  "separate_repo_required": false
 }

@@ -74,8 +74,12 @@
   "other_apps": [
     {
       "id": "text-center",
-      "repository": null,
-      "status": "destination_not_selected; do not invent repo or rename old repo"
+      "repository": "Tihulu/TIHULU-TEXT-CENTER",
+      "status": "retained_canonical_in_origin_repository; no separate repo will be created under approved plan",
+      "github_repository_id": 1447637221,
+      "github_node_id": "R_kgDOVkkw5Q",
+      "separate_destination_required": false,
+      "can_rename_same_repository_later": true
     },
     {
       "id": "flight-radar",
@@ -85,5 +89,7 @@
       "status": "already_independent_canonical"
     }
   ],
-  "important": "The three verified newly created repositories are empty; the source code remains in TIHULU-TEXT-CENTER. Do not claim existing main commits, code, logos, PRs or installs. GitHub repo IDs are durable identity anchors, but original URLs and backup archives must also be retained."
+  "important": "The three verified newly created repositories are empty; the source code remains in TIHULU-TEXT-CENTER. Do not claim existing main commits, code, logos, PRs or installs. GitHub repo IDs are durable identity anchors, but original URLs and backup archives must also be retained.",
+  "text_center_stays_in_origin_repository": true,
+  "target_topology": "three_future_app_migrations_plus_text_center_retained_plus_flight_radar_already_independent"
 }
