@@ -1,0 +1,283 @@
+{
+  "schema_version": 1,
+  "audit": "WS05_TEXT_CENTER_SOURCE_ONLY",
+  "date_utc": "2026-11-12",
+  "workstream_issue": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/80",
+  "central_issue": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/75",
+  "draft_pr": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/87",
+  "assigned_branch": "audit/ws05-text-retained-2026-11-11",
+  "repository_numeric_id": 1447637221,
+  "inspection_refs": {
+    "main_commit": "1fffb711bfbb7c4abaf55299fa9240e5db3e1cde",
+    "workstream_before_audit_commit": "470eefa12dc4b2d41ecaef7cd422fb9d52abd546",
+    "workstream_base_commit": "a00b8d97ce04e6279c6edc1035656a86924cc101",
+    "gh_pages_tree": "854b1109c04c5f8e9a22d1ee3bb999a16d9d4b7d"
+  },
+  "scope": {
+    "requirements_audited": 8,
+    "requirements_total": 8,
+    "source_content_inspected": true,
+    "test_source_files_read": 12,
+    "tests_read": [
+      "tests/test_cli.py",
+      "tests/test_fm_rds.py",
+      "tests/test_dab_bridge.py",
+      "tests/test_dvb_hardware.py",
+      "tests/test_live_tv.py",
+      "tests/test_conflicts.py",
+      "tests/test_receivers.py",
+      "tests/test_scan_catalog.py",
+      "tests/test_http_app.py",
+      "tests/test_text_center_retained_canonical.py",
+      "tests/test_tv_web.py",
+      "tests/test_origin_fallback_approved_branding.py"
+    ],
+    "tests_executed": 0,
+    "test_passes_claimed": 0,
+    "physical_sdr_dvb_tests": 0,
+    "ui_locales_required": [
+      "en",
+      "tr",
+      "de"
+    ],
+    "default_ui": "en",
+    "ui_locale_coverage_verified": false,
+    "verification_type": "read_only_repository_and_source_inspection"
+  },
+  "baseline_parity": {
+    "original_main_tracked_files": 62,
+    "main_textcenter_files": 20,
+    "main_web_files": 4,
+    "present_on_workstream_branch": 24,
+    "identical_source_blobs_main_to_workstream": 21,
+    "differing_active_source_paths": [
+      {
+        "path": "textcenter/compute.py",
+        "main_blob": "4fdcb578df622f7776ddf3a2fb80401375a697b2",
+        "workstream_blob": "d1db4fc8d9e81627e3eef660d29d3dc02ea2edc1"
+      },
+      {
+        "path": "textcenter/speech.py",
+        "main_blob": "bd9d63996e82d19b0b2896c1cb745add9acf2041",
+        "workstream_blob": "672ac7a9dff1bcff0a975a1120bc357a3a88f94e"
+      },
+      {
+        "path": "textcenter/transcripts.py",
+        "main_blob": "9280cfdd30dc5e059ffc94fec70e865bb9ca7193",
+        "workstream_blob": "d41c635c90ec38c3eb42d77e29d98a3b078a91d6"
+      }
+    ],
+    "copied_snapshot_matches_workstream_all_24": true,
+    "copied_snapshot_matches_current_main_21_of_24": true,
+    "existing_flight_pages_workflow_diff": {
+      "path": ".github/workflows/sync-flight-radar-pages.yml",
+      "main_blob": "5e21714af46c2bf0e9e8b1a8011bf09ce31c6bd9",
+      "workstream_blob": "1c5c2c63200bf41db6859b25a1ac3aa69b448b43"
+    }
+  },
+  "test_quality": "Tests inspected as source only; fixture, synthetic and static assertions do not certify physical receivers. No test runner invoked.",
+  "requirements": [
+    {
+      "id": "TEXT-001",
+      "classification": "source_topology_verified_not_runtime_certified",
+      "code_state": "roots_present",
+      "summary": "Original repository id 1447637221; original main has 20 textcenter/ and 4 web/ blobs, all 24 paths are present on audit branch. Branch is not identical to main: three backend blobs differ.",
+      "source": [
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/1fffb711bfbb7c4abaf55299fa9240e5db3e1cde/textcenter/__main__.py#L21-L53",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/1fffb711bfbb7c4abaf55299fa9240e5db3e1cde/web/index.html#L1-L15",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/470eefa12dc4b2d41ecaef7cd422fb9d52abd546/apps/CANONICAL_REPOSITORY_TOPOLOGY.json#L1-L23"
+      ],
+      "tests": [
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/1fffb711bfbb7c4abaf55299fa9240e5db3e1cde/tests/test_cli.py#L9-L56",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/470eefa12dc4b2d41ecaef7cd422fb9d52abd546/tests/test_text_center_retained_canonical.py#L22-L84"
+      ],
+      "missing": [
+        "No installed-baseline/runtime parity or owner-device proof",
+        "No execution of topology or CLI tests in this audit"
+      ]
+    },
+    {
+      "id": "TEXT-002",
+      "classification": "partial_source_implementation",
+      "code_state": "FM RDS/RT+ manual capture; DAB DLS and MOT manual read-only bridge; Journaline unimplemented; energy-only band scan not service discovery",
+      "summary": "FM rtl_fm to redsea on-demand; DAB from already-running welle-cli 127.0.0.1:7979, frequency provenance allowed only 5C/11D; full DAB service scan not implemented by Text Center.",
+      "source": [
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/1fffb711bfbb7c4abaf55299fa9240e5db3e1cde/textcenter/fm_rds.py#L1-L57",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/1fffb711bfbb7c4abaf55299fa9240e5db3e1cde/textcenter/fm_rds.py#L60-L113",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/1fffb711bfbb7c4abaf55299fa9240e5db3e1cde/textcenter/dab_bridge.py#L1-L22",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/1fffb711bfbb7c4abaf55299fa9240e5db3e1cde/textcenter/dab_bridge.py#L119-L161",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/1fffb711bfbb7c4abaf55299fa9240e5db3e1cde/textcenter/capabilities.py#L9-L29",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/1fffb711bfbb7c4abaf55299fa9240e5db3e1cde/textcenter/scan_catalog.py#L1-L66"
+      ],
+      "tests": [
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/1fffb711bfbb7c4abaf55299fa9240e5db3e1cde/tests/test_fm_rds.py#L1-L16",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/1fffb711bfbb7c4abaf55299fa9240e5db3e1cde/tests/test_dab_bridge.py#L14-L57",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/1fffb711bfbb7c4abaf55299fa9240e5db3e1cde/tests/test_scan_catalog.py#L1-L41"
+      ],
+      "missing": [
+        "No live FM RadioText+ or DAB DLS/MOT real receiver measurement",
+        "DLS+ metadata and Journaline end-to-end decode not evidenced",
+        "Full station/channel decoding scan unverified; rtl_power measures energy only"
+      ]
+    },
+    {
+      "id": "TEXT-003",
+      "classification": "partial_source_implementation",
+      "code_state": "passive DVB hardware diagnostics; live TV from explicitly authorized loopback MPEG-TS relay; no direct DVB tune/service scan/Teletext decoder",
+      "summary": "DVB diagnostics has service_scan_enabled and teletext_decoder_connected false; LiveTV code explicitly disclaims tuner control, uses preconfigured local relay and ffmpeg, supports optional recording and speech tap.",
+      "source": [
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/1fffb711bfbb7c4abaf55299fa9240e5db3e1cde/textcenter/dvb_hardware.py#L1-L76",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/1fffb711bfbb7c4abaf55299fa9240e5db3e1cde/textcenter/live_tv.py#L1-L12",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/1fffb711bfbb7c4abaf55299fa9240e5db3e1cde/textcenter/live_tv.py#L127-L151",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/1fffb711bfbb7c4abaf55299fa9240e5db3e1cde/textcenter/live_tv.py#L174-L190",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/1fffb711bfbb7c4abaf55299fa9240e5db3e1cde/textcenter/http_app.py#L217-L228"
+      ],
+      "tests": [
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/1fffb711bfbb7c4abaf55299fa9240e5db3e1cde/tests/test_dvb_hardware.py#L7-L43",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/1fffb711bfbb7c4abaf55299fa9240e5db3e1cde/tests/test_live_tv.py#L10-L51",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/1fffb711bfbb7c4abaf55299fa9240e5db3e1cde/tests/test_http_app.py#L12-L42"
+      ],
+      "missing": [
+        "No independent real DVB-T2 service acquisition, PAT/PMT, Teletext PID decode or channel switch result in retained Text Center",
+        "No native capture / hardware lock / subtitle timing / recording acceptance tests"
+      ]
+    },
+    {
+      "id": "TEXT-004",
+      "classification": "unverified_requested_modules",
+      "code_state": "no explicit NOAA APT/AIS/ACARS/RTL-433 decode modules found in retained capability catalog; rtl_433 executable is inventoried only",
+      "summary": "Capabilities list tracks multiple different radio protocols but not NOAA APT, AIS, ACARS or RTL-433 decoding; receiver inventory merely checks whether rtl_433 executable exists. Do not claim those features work or have been removed from any other project.",
+      "source": [
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/1fffb711bfbb7c4abaf55299fa9240e5db3e1cde/textcenter/capabilities.py#L8-L105",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/1fffb711bfbb7c4abaf55299fa9240e5db3e1cde/textcenter/receivers.py#L15-L19",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/1fffb711bfbb7c4abaf55299fa9240e5db3e1cde/textcenter/scan_catalog.py#L13-L26"
+      ],
+      "tests": [
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/1fffb711bfbb7c4abaf55299fa9240e5db3e1cde/tests/test_scan_catalog.py#L10-L41",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/1fffb711bfbb7c4abaf55299fa9240e5db3e1cde/tests/test_receivers.py#L7-L46"
+      ],
+      "missing": [
+        "Decoder integration, source-labeled artifacts, sample RF captures and individual automated tests for NOAA APT, AIS, ACARS, RTL-433",
+        "Cross-repository source provenance for any optional modules outside retained Text Center"
+      ]
+    },
+    {
+      "id": "TEXT-005",
+      "classification": "partial_source_implementation",
+      "code_state": "manual per-module stop; cooperative Linux RTL lock and process conflict detection; no verified cross-application lease broker or single global Hard Stop",
+      "summary": "Independent Linux process checks and file lock protect cooperative FM RDS, FM spectrum and live FM; separate endpoints stop each module. UI pagehide sends stop requests. Third-party SDR apps may not honor lock; receiver inventory is passive.",
+      "source": [
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/1fffb711bfbb7c4abaf55299fa9240e5db3e1cde/textcenter/receivers.py#L1-L4",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/1fffb711bfbb7c4abaf55299fa9240e5db3e1cde/textcenter/conflicts.py#L1-L6",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/1fffb711bfbb7c4abaf55299fa9240e5db3e1cde/textcenter/fm_rds.py#L1-L6",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/1fffb711bfbb7c4abaf55299fa9240e5db3e1cde/textcenter/fm_rds.py#L150-L207",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/1fffb711bfbb7c4abaf55299fa9240e5db3e1cde/textcenter/http_app.py#L400-L464",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/1fffb711bfbb7c4abaf55299fa9240e5db3e1cde/web/app.js#L1825-L1862"
+      ],
+      "tests": [
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/1fffb711bfbb7c4abaf55299fa9240e5db3e1cde/tests/test_conflicts.py#L30-L66",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/1fffb711bfbb7c4abaf55299fa9240e5db3e1cde/tests/test_receivers.py#L7-L52",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/1fffb711bfbb7c4abaf55299fa9240e5db3e1cde/tests/test_fm_rds.py#L99-L125"
+      ],
+      "missing": [
+        "Cross-app SDR/DVB ownership arbitration and global hard-stop acceptance",
+        "Actual USB lease race/release, disconnect/kill recovery and native desktop end-to-end tests"
+      ]
+    },
+    {
+      "id": "TEXT-006",
+      "classification": "partial_source_implementation",
+      "code_state": "responsive local browser UI and SQLite bookmarks/source selection; only English current Text Center UI; phone LAN/TLS proxy not delivered here",
+      "summary": "Responsive CSS has 1220/900/660px media queries; source selection and bookmarks are server-backed. Browser served from 127.0.0.1:8787 only; UI HTML lang=en and static English strings. EN/TR/DE are future localization contract, distinct from optional speech translation.",
+      "source": [
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/1fffb711bfbb7c4abaf55299fa9240e5db3e1cde/web/index.html#L1-L8",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/1fffb711bfbb7c4abaf55299fa9240e5db3e1cde/web/index.html#L65-L78",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/1fffb711bfbb7c4abaf55299fa9240e5db3e1cde/web/styles.css#L1-L8",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/1fffb711bfbb7c4abaf55299fa9240e5db3e1cde/web/app.js#L164-L200",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/1fffb711bfbb7c4abaf55299fa9240e5db3e1cde/web/app.js#L1822-L1878",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/1fffb711bfbb7c4abaf55299fa9240e5db3e1cde/textcenter/__main__.py#L21-L53",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/470eefa12dc4b2d41ecaef7cd422fb9d52abd546/apps/text-center/LOCALIZATION_CONTRACT.json#L1-L46"
+      ],
+      "tests": [
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/1fffb711bfbb7c4abaf55299fa9240e5db3e1cde/tests/test_http_app.py#L12-L48",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/470eefa12dc4b2d41ecaef7cd422fb9d52abd546/tests/test_text_center_retained_canonical.py#L85-L95"
+      ],
+      "missing": [
+        "EN/TR/DE UI string catalog, live switching, persistence, expanded-string accessibility",
+        "Desktop/tablet/mobile end-to-end same-URL/LAN TLS proxy and browser UX tests",
+        "No retained Text Center PWA manifest/service worker in inspected main tree; do not equate other apps' PWAs with this UI"
+      ]
+    },
+    {
+      "id": "TEXT-007",
+      "classification": "documented_policy_implementation_not_verified",
+      "code_state": "original-history and retained-canonical documentation; future cutover not executed",
+      "summary": "Retained canonical code roots; historical PR/Issue IDs and original URLs remain source references. Archives flag reviews/comments/timelines as unverified or not exported. Copy under apps/text-center/source is read-only evidence and matches audit branch 24/24, but not main 3/24 backend blobs.",
+      "source": [
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/470eefa12dc4b2d41ecaef7cd422fb9d52abd546/apps/text-center/MIGRATION.md#L1-L10",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/470eefa12dc4b2d41ecaef7cd422fb9d52abd546/apps/text-center/ORIGIN.md#L1-L24",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/470eefa12dc4b2d41ecaef7cd422fb9d52abd546/apps/text-center/SOURCE_SNAPSHOT.md#L1-L25",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/470eefa12dc4b2d41ecaef7cd422fb9d52abd546/apps/text-center/ORIGIN_FALLBACKS.json#L1-L36"
+      ],
+      "tests": [
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/470eefa12dc4b2d41ecaef7cd422fb9d52abd546/tests/test_text_center_retained_canonical.py#L22-L84",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/470eefa12dc4b2d41ecaef7cd422fb9d52abd546/tests/test_origin_fallback_approved_branding.py#L17-L50"
+      ],
+      "missing": [
+        "Full original PR review/comment/timeline archival and permalink validation",
+        "Non-destructive code-level main/PR ancestry reconciliation of three divergent backend files",
+        "User approval and cross-app migration release gates; no migration allowed in this audit"
+      ]
+    },
+    {
+      "id": "TEXT-008",
+      "classification": "documented_policy_rename_and_url_validation_pending",
+      "code_state": "rename not performed; source-pinned link risks identified, live redirects not tested",
+      "summary": "Main workflow publishes Flight Radar under gh-pages/flight_radar/ from canonical Flight main; cron/push/manual triggers and fixed historical Pages base. Current gh-pages root is multi-app portal with no textcenter/ root folder. README has raw.githubusercontent.com one-line installer URLs. No Pages settings or live URL parity verified.",
+      "source": [
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/1fffb711bfbb7c4abaf55299fa9240e5db3e1cde/.github/workflows/sync-flight-radar-pages.yml#L1-L17",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/1fffb711bfbb7c4abaf55299fa9240e5db3e1cde/.github/workflows/sync-flight-radar-pages.yml#L64-L119",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/1fffb711bfbb7c4abaf55299fa9240e5db3e1cde/docs/FLIGHT_RADAR_DUAL_PAGES.md#L1-L46",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/470eefa12dc4b2d41ecaef7cd422fb9d52abd546/README.md#L1-L24",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/470eefa12dc4b2d41ecaef7cd422fb9d52abd546/apps/REPOSITORY_RENAME_LINK_POLICY.md#L1-L27"
+      ],
+      "tests": [
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/470eefa12dc4b2d41ecaef7cd422fb9d52abd546/tests/test_origin_fallback_approved_branding.py#L17-L33"
+      ],
+      "missing": [
+        "GitHub Pages settings, HTTP redirect/asset/CORS/PWA scope, dual Pages live source-revision.json parity",
+        "Raw installer, gh-pages base path, old badges/bookmarks/Desktop launcher redirect and rollback validation after future approved rename",
+        "Cross-worker Flight Radar coordination Issue #77"
+      ]
+    }
+  ],
+  "deployment_observations": {
+    "gh_pages_branch_root_entries": [
+      "index.html",
+      "404.html",
+      ".nojekyll",
+      "flight_radar/",
+      "rf_geolocation_center/",
+      "satellite/",
+      "satellite_center/",
+      "tv_center/"
+    ],
+    "text_center_local_web": "http://127.0.0.1:8787/",
+    "pages_site_live_checked": false,
+    "pages_settings_readable": false,
+    "public_redirects_checked": false,
+    "source_revision_live_parity_verified": false
+  },
+  "safety": {
+    "this_audit_application_source_edits": 0,
+    "installers_icons_runtime_changes": 0,
+    "main_branch_changes": 0,
+    "repo_renames": 0,
+    "old_pr_merges": 0,
+    "migrations": 0,
+    "hardware_tunes": 0
+  },
+  "eta_hours": null,
+  "eta_minutes": null,
+  "eta_basis": "unknown: physical test setup, CI baseline, complete history/redirect inventory and cross-app owner approvals not measured"
+}
