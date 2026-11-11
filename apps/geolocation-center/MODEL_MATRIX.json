@@ -35,5 +35,23 @@
       "installed_on_user_device": "unknown_not_probed",
       "verified_real_hardware": false
     }
-  ]
+  ],
+  "portable_repository_links": {
+    "repository_identity": "apps/REPOSITORY_IDENTITY.json",
+    "historical_pr_and_issue_links": "apps/geolocation-center/HISTORY_LINKS.json",
+    "global_original_to_future_pr_map": "apps/_archives/PORTABLE_HISTORY_LINK_MAP.json",
+    "future_repo_locator": "apps/geolocation-center/PORTABLE_PACKAGE.json",
+    "source_snapshot": "apps/geolocation-center/SOURCE_SNAPSHOT.md",
+    "ui_localization": "apps/geolocation-center/LOCALIZATION_CONTRACT.json",
+    "link_note": "App-level PR classification is heuristic, not proof of an individual feature; verify exact diff/commit before attribution.",
+    "future_target_prs_status": "not_migrated_or_linked",
+    "old_repo_rename_status": "not_requested"
+  },
+  "target_engineering_language": "en",
+  "required_ui_languages": [
+    "en",
+    "tr",
+    "de"
+  ],
+  "snapshot_is_active_runtime": false
 }
