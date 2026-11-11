@@ -392,5 +392,8 @@
       "destination_pr_url": null
     }
   ],
-  "new_pr_snapshots_are_not_native_transfers": true
+  "new_pr_snapshots_are_not_native_transfers": true,
+  "canonical_repository": "Tihulu/TIHULU-TEXT-CENTER",
+  "remains_active_archive_host": true,
+  "separate_repo_migration_not_applicable": true
 }

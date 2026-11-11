@@ -4,7 +4,7 @@
   "origin_repository_id": 1447637221,
   "origin_repository_original_name": "Tihulu/TIHULU-TEXT-CENTER",
   "current_canonical_repository": "Tihulu/TIHULU-TEXT-CENTER",
-  "future_destination_proposal": "Tihulu/TIHULU-TEXT-CENTER",
+  "future_destination_proposal": null,
   "snapshot_state": "read_only_exact_tree_copy",
   "snapshot_based_on_commit": "9b4ffce98a723c0e60ec5a11978895e56f97a161",
   "copied_source_roots": [
@@ -41,5 +41,12 @@
   "source_repository_rename_contract": "apps/REPOSITORY_RENAME_LINK_POLICY.md",
   "standalone_release_test_status": "not_started",
   "new_repository_created": false,
-  "main_branch_changed": false
+  "main_branch_changed": false,
+  "repository_migration_required": false,
+  "final_canonical_repository": "Tihulu/TIHULU-TEXT-CENTER",
+  "canonical_repository_id": 1447637221,
+  "deployment_policy": "continue_building_installing_and_developing_Text_Center_in_original_repository",
+  "source_snapshots_remain_read_only": true,
+  "renaming_existing_repository_is_separate_decision": true,
+  "original_source_repo_remains_active_for_textcenter": true
 }

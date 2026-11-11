@@ -125,12 +125,19 @@
       "history_links": "apps/text-center/HISTORY_LINKS.json",
       "localization_contract": "apps/text-center/LOCALIZATION_CONTRACT.json",
       "source_snapshot_root": "apps/text-center/source/",
-      "future_new_repo_migration_status": "not_started",
+      "future_new_repo_migration_status": "not_applicable_retained_in_origin",
       "incomplete_origin_links": "apps/text-center/ORIGIN_FALLBACKS.json",
       "approved_logo_record": "apps/text-center/APPROVED_BRANDING.json",
-      "verified_destination_repository": null,
-      "destination_ready_for_app_development": false,
-      "new_repo_code_copied": false
+      "verified_destination_repository": "Tihulu/TIHULU-TEXT-CENTER",
+      "destination_ready_for_app_development": true,
+      "new_repo_code_copied": false,
+      "repository_status": "retained_in_original_canonical_repo",
+      "separate_destination_required": false,
+      "continue_development_in_current_repo": true,
+      "code_roots_to_keep": [
+        "textcenter/",
+        "web/"
+      ]
     },
     {
       "id": "flight-radar",
@@ -171,5 +178,7 @@
   "logo_approval_manifest": "apps/BRANDING_APPROVED_MANIFEST.json",
   "binary_logos_committed_in_current_repo": false,
   "verified_new_destination_repositories": "apps/VERIFIED_DESTINATION_REPOSITORIES.json",
-  "do_not_confuse_created_empty_repository_with_app_migration": true
+  "do_not_confuse_created_empty_repository_with_app_migration": true,
+  "text_center_retained_in_original_repo": true,
+  "registry_topology_map": "apps/CANONICAL_REPOSITORY_TOPOLOGY.json"
 }
