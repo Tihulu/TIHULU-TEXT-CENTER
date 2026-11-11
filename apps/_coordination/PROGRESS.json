@@ -23,7 +23,18 @@
       "flight_main": 92,
       "project_audit_branch_at_inspection": 881
     },
-    "flight_developer_standard_gap_audited": true
+    "flight_developer_standard_gap_audited": true,
+    "selected_source_root_files_indexed": 285,
+    "selected_source_roots_count": 6,
+    "audited_app_root_counts": {
+      "kaffeine_next": 34,
+      "tv_center": 79,
+      "satellite_center": 92,
+      "rf_geolocation_center": 56,
+      "textcenter": 20,
+      "web": 4
+    },
+    "source_tree_audit_report_created": true
   },
   "pr_history": {
     "known_origin_draft_prs_65_to_74": 10,
@@ -128,6 +139,7 @@
     "source_sha_audit_completed": false,
     "early_conflict_audit_created": true,
     "flight_static_baseline_report_created": true,
-    "media_ancestry_report_created": true
+    "media_ancestry_report_created": true,
+    "application_capability_discrepancies_logged": true
   }
 }
