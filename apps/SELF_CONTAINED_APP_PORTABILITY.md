@@ -29,3 +29,11 @@ Rust, Python, Qt, GTK, Flutter, Tauri and other stacks are allowed. Any layout, 
 
 ### Status
 **Frozen source copies created; standalone dependency closure, localization, independent builds, complete historical comments and actual repo migration are not completed.** All this work is on a separate Draft branch. Main remains unchanged.
+
+## Verified owner-created destinations (2026-11-11)
+
+`Tihulu/tihulu-media-center`, `Tihulu/tihulu-satellite-center` and `Tihulu/tihulu-rf-geolocation-center` now exist but contain no application sources, startup instructions or releases (all observed GitHub `size=0`). They are **not yet active/canonical**. Use `apps/VERIFIED_DESTINATION_REPOSITORIES.json` and exact immutable GitHub repository IDs. For `apps/geolocation-center`, the prior speculative `Tihulu/tihulu-geolocation` name is superseded; do not create or target that alternate repository.
+
+Logos must be the five **previously approved red/white/black TIHULU mascot designs** only, matched by `apps/BRANDING_APPROVED_MANIFEST.json` hash. Binary image assets remain in the verified conversation ZIP until a separate approved GitHub asset staging action; no existing app icon has been changed.
+
+The three new repositories must be bootstrapped with a first commit only after the owner has authorized that next scope. Then application source import, independent build/CI, history preservation and native release validation occur on review branches. Text Center's separate future repo is not yet chosen; Flight Radar already has its own canonical repository. This branch performs no code import, repo rename or cutover.

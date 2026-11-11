@@ -52,3 +52,9 @@ Do not treat a source tree snapshot as a completed standalone app. Include depen
 ## Complete provenance for copied and incomplete information
 
 At task start read `apps/HISTORY_ORIGIN_FALLBACK_POLICY.md`, `apps/_archives/HISTORY_COVERAGE_AUDIT.json`, `apps/<app>/ORIGIN_FALLBACKS.json`, and `apps/<app>/APPROVED_BRANDING.json`. PR/Issue descriptions have origin links but comments, review submissions, review threads, CI events, missing branches and external ChatGPT requests are NOT yet completely exported. If an item cannot be transferred, preserve its old URL and GitHub repository ID 1447637221, plus an explicit remaining gap and reason. A future repo rename must update resolved aliases without erasing original URLs. Approved logos are separate PNG assets staged in the conversation package, not yet committed or installed in running apps. All engineering content remains English and every eventual app UI supports en/tr/de. Do not change any app code or installer during the documentation audit.
+
+## Empty destination repositories already created by owner
+
+The source migration checklist begins with real existing shells `Tihulu/tihulu-media-center` (GitHub ID 1454318539), `Tihulu/tihulu-satellite-center` (1454319572) and `Tihulu/tihulu-rf-geolocation-center` (1454320329). They were verified **empty** on 2026-11-11; no initial branch commit or source content has been verified. Before opening a new repo PR, first obtain explicit owner approval and create a safe initial commit (English readme/agent/origin pointer only) in that target. Use only the exact verified repository, not a proposed alias.
+
+Do not confuse repository creation with a code cutover. Keep `apps/registry.json` canonical source on the old repo until full source/history/feature, independence, icon and locale checks pass. Original PRs, comment links and source GitHub numeric ID must remain immutable historical citations. Old source repository renaming is a separate post-cutover process.

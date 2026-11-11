@@ -46,6 +46,20 @@
   "localization_contract": "apps/media-center/LOCALIZATION_CONTRACT.json",
   "source_repository_rename_contract": "apps/REPOSITORY_RENAME_LINK_POLICY.md",
   "standalone_release_test_status": "not_started",
-  "new_repository_created": false,
-  "main_branch_changed": false
+  "new_repository_created": true,
+  "main_branch_changed": false,
+  "verified_destination_repository": {
+    "full_name": "Tihulu/tihulu-media-center",
+    "url": "https://github.com/Tihulu/tihulu-media-center",
+    "id": 1454318539,
+    "node_id": "R_kgDOVq8jyw",
+    "exists": true,
+    "observed_empty": true,
+    "cutover_complete": false,
+    "source_imported": false,
+    "logo_imported": false
+  },
+  "repository_created_by_owner_not_by_current_migration_pr": true,
+  "new_repository_empty": true,
+  "application_import_completed": false
 }

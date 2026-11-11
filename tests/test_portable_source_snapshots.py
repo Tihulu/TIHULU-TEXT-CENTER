@@ -64,7 +64,16 @@ class PortableSourceTests(unittest.TestCase):
                 package = json.loads(
                     (APPS / app["id"] / "PORTABLE_PACKAGE.json").read_text())
                 self.assertEqual(package["dependency_closure_status"], "unverified")
-                self.assertFalse(package["new_repository_created"])
+                # The owner created three EMPTY destination repositories later.
+                # Their existence does not mean source migration or cutover.
+                expected_created = app["id"] in {
+                    "media-center", "satellite-center", "geolocation-center"
+                }
+                self.assertEqual(package["new_repository_created"], expected_created)
+                if expected_created:
+                    self.assertTrue(package["new_repository_empty"])
+                    self.assertFalse(package["application_import_completed"])
+                    self.assertFalse(package["verified_destination_repository"]["cutover_complete"])
                 self.assertFalse(package["main_branch_changed"])
                 self.assertTrue(package["not_currently_executed"])
                 self.assertEqual(app["migration_state"]["state"], "not_started")

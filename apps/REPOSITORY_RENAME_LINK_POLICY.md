@@ -16,3 +16,7 @@
 
 ## Reference safety
 The original repository numeric ID is a continuity anchor within GitHub. A repository move/rename may still require privilege changes and link repair; the numeric ID is not a magic replacement for web URLs, independent archives or correct Git remote settings.
+
+## Existing destination identity anchors
+
+Confirmed future independent repos: Media Center ID `1454318539`, Satellite Center ID `1454319572`, RF Geolocation Center ID `1454320329`. These IDs must accompany original GitHub URLs, destination aliases and eventual canonical PR links. Repos are currently empty; their **existence does not change the source repo** or permit renaming the original. Do not rely on GitHub redirects alone; keep exported evidence and test paths after any future rename.

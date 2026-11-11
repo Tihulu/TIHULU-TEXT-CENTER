@@ -1,0 +1,89 @@
+{
+  "schema_version": 1,
+  "verified_at_date": "2026-11-11",
+  "origin_repository_id": 1447637221,
+  "origin_repository_full_name": "Tihulu/TIHULU-TEXT-CENTER",
+  "verified_destinations": [
+    {
+      "app_id": "media-center",
+      "full_name": "Tihulu/tihulu-media-center",
+      "url": "https://github.com/Tihulu/tihulu-media-center",
+      "github_repository_id": 1454318539,
+      "github_node_id": "R_kgDOVq8jyw",
+      "created_at": "2026-11-11T17:57:59Z",
+      "visibility": "public",
+      "observed_size_kb": 0,
+      "observed_empty": true,
+      "observed_default_branch_label": "main",
+      "first_commit_exists": "not_verified_empty_repo",
+      "has_app_source": false,
+      "has_history_archive": false,
+      "has_logo_binaries": false,
+      "has_standalone_ci": false,
+      "has_installer": false,
+      "already_canonical": false,
+      "bootstrap_status": "not_started_requires_separate_review",
+      "cutover_status": "not_started",
+      "origin_repo_id": 1447637221
+    },
+    {
+      "app_id": "satellite-center",
+      "full_name": "Tihulu/tihulu-satellite-center",
+      "url": "https://github.com/Tihulu/tihulu-satellite-center",
+      "github_repository_id": 1454319572,
+      "github_node_id": "R_kgDOVq8n1A",
+      "created_at": "2026-11-11T17:58:57Z",
+      "visibility": "public",
+      "observed_size_kb": 0,
+      "observed_empty": true,
+      "observed_default_branch_label": "main",
+      "first_commit_exists": "not_verified_empty_repo",
+      "has_app_source": false,
+      "has_history_archive": false,
+      "has_logo_binaries": false,
+      "has_standalone_ci": false,
+      "has_installer": false,
+      "already_canonical": false,
+      "bootstrap_status": "not_started_requires_separate_review",
+      "cutover_status": "not_started",
+      "origin_repo_id": 1447637221
+    },
+    {
+      "app_id": "geolocation-center",
+      "full_name": "Tihulu/tihulu-rf-geolocation-center",
+      "url": "https://github.com/Tihulu/tihulu-rf-geolocation-center",
+      "github_repository_id": 1454320329,
+      "github_node_id": "R_kgDOVq8qyQ",
+      "created_at": "2026-11-11T17:59:44Z",
+      "visibility": "public",
+      "observed_size_kb": 0,
+      "observed_empty": true,
+      "observed_default_branch_label": "main",
+      "first_commit_exists": "not_verified_empty_repo",
+      "has_app_source": false,
+      "has_history_archive": false,
+      "has_logo_binaries": false,
+      "has_standalone_ci": false,
+      "has_installer": false,
+      "already_canonical": false,
+      "bootstrap_status": "not_started_requires_separate_review",
+      "cutover_status": "not_started",
+      "origin_repo_id": 1447637221
+    }
+  ],
+  "other_apps": [
+    {
+      "id": "text-center",
+      "repository": null,
+      "status": "destination_not_selected; do not invent repo or rename old repo"
+    },
+    {
+      "id": "flight-radar",
+      "repository": "Tihulu/tihulu-flight-radar",
+      "github_repository_id": 1447534043,
+      "github_node_id": "R_kgDOVked2w",
+      "status": "already_independent_canonical"
+    }
+  ],
+  "important": "The three verified newly created repositories are empty; the source code remains in TIHULU-TEXT-CENTER. Do not claim existing main commits, code, logos, PRs or installs. GitHub repo IDs are durable identity anchors, but original URLs and backup archives must also be retained."
+}

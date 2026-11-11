@@ -41,7 +41,10 @@
       "svg_status": "future_true_vector_redraw_or_trace_with_comparison_to_approved_png",
       "brand_motif": "playback screen, audio waveform",
       "product_name_language": "en (brand name, not automatically translated)",
-      "source_rights_and_external_asset_licenses": "Review origin and generated art attribution before public release"
+      "source_rights_and_external_asset_licenses": "Review origin and generated art attribution before public release",
+      "target_repository_verified": "Tihulu/tihulu-media-center",
+      "asset_import_status": "pending_separate_asset_commit_not_runtime_icon_change",
+      "approved_art_source": "exact_existing_user_approved_red_TIHULU_logo_pack"
     },
     {
       "id": "satellite-center",
@@ -66,7 +69,10 @@
       "svg_status": "future_true_vector_redraw_or_trace_with_comparison_to_approved_png",
       "brand_motif": "satellite, orbital arc, ground station",
       "product_name_language": "en (brand name, not automatically translated)",
-      "source_rights_and_external_asset_licenses": "Review origin and generated art attribution before public release"
+      "source_rights_and_external_asset_licenses": "Review origin and generated art attribution before public release",
+      "target_repository_verified": "Tihulu/tihulu-satellite-center",
+      "asset_import_status": "pending_separate_asset_commit_not_runtime_icon_change",
+      "approved_art_source": "exact_existing_user_approved_red_TIHULU_logo_pack"
     },
     {
       "id": "geolocation-center",
@@ -91,7 +97,10 @@
       "svg_status": "future_true_vector_redraw_or_trace_with_comparison_to_approved_png",
       "brand_motif": "map pin, positioning grid",
       "product_name_language": "en (brand name, not automatically translated)",
-      "source_rights_and_external_asset_licenses": "Review origin and generated art attribution before public release"
+      "source_rights_and_external_asset_licenses": "Review origin and generated art attribution before public release",
+      "target_repository_verified": "Tihulu/tihulu-rf-geolocation-center",
+      "asset_import_status": "pending_separate_asset_commit_not_runtime_icon_change",
+      "approved_art_source": "exact_existing_user_approved_red_TIHULU_logo_pack"
     },
     {
       "id": "text-center",
@@ -116,7 +125,10 @@
       "svg_status": "future_true_vector_redraw_or_trace_with_comparison_to_approved_png",
       "brand_motif": "captions and radio text panels",
       "product_name_language": "en (brand name, not automatically translated)",
-      "source_rights_and_external_asset_licenses": "Review origin and generated art attribution before public release"
+      "source_rights_and_external_asset_licenses": "Review origin and generated art attribution before public release",
+      "target_repository_verified": null,
+      "asset_import_status": "pending_separate_asset_commit_not_runtime_icon_change",
+      "approved_art_source": "exact_existing_user_approved_red_TIHULU_logo_pack"
     },
     {
       "id": "flight-radar",
@@ -141,7 +153,17 @@
       "svg_status": "future_true_vector_redraw_or_trace_with_comparison_to_approved_png",
       "brand_motif": "aircraft and radar rings",
       "product_name_language": "en (brand name, not automatically translated)",
-      "source_rights_and_external_asset_licenses": "Review origin and generated art attribution before public release"
+      "source_rights_and_external_asset_licenses": "Review origin and generated art attribution before public release",
+      "target_repository_verified": "Tihulu/tihulu-flight-radar",
+      "asset_import_status": "pending_separate_asset_commit_not_runtime_icon_change",
+      "approved_art_source": "exact_existing_user_approved_red_TIHULU_logo_pack"
     }
-  ]
+  ],
+  "approved_art_selection_policy": "Use only the same five user-approved red/black/white TIHULU mascot emblem designs from the previously generated logo pack. No stock images, fresh search imagery or unapproved replacements.",
+  "approved_pack_sha256": "49eeccd46ab8b6e630b5567b4e08c0580f22430696de8e215b80d21a52043f84",
+  "all_master_png_sha256_match_verified_chat_side_pack": true,
+  "verified_date_utc": "2026-11-11",
+  "per_app_source_staging_only": true,
+  "binary_assets_committed_to_new_repos": false,
+  "approved_artwork_is_genuine_svg": false
 }
