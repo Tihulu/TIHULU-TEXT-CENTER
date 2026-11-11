@@ -1,0 +1,1106 @@
+{
+  "schema_version": "tihulu-ws03-evidence-v1",
+  "audit_date": "2026-11-12",
+  "scope": {
+    "workstream": "03",
+    "issue_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/78",
+    "coordination_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/75",
+    "draft_pr_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/85",
+    "owned_dir": "apps/_coordination/workstreams/03/",
+    "repository_full_name": "Tihulu/TIHULU-TEXT-CENTER",
+    "repository_numeric_id": 1447637221,
+    "branch": "audit/ws03-satellite-parity-2026-11-11",
+    "worker_initial_head": "ca9ff96c83ff4b6b56579d48bcdfa02582c9b704",
+    "coordinator_pr85_base_at_inspection": "a00b8d97ce04e6279c6edc1035656a86924cc101",
+    "source_review_ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+    "related_draft_satellite_pr_ref": "670e0ddcf029c8fcc9b0cef403bf76cf37613fcb",
+    "source_blobs_compared_equal": [
+      "satellite_center/__main__.py",
+      "satellite_center/browser/browser.js",
+      "satellite_center/native_desktop_bridge.js",
+      "satellite_center/native_orbit.py"
+    ]
+  },
+  "summary": {
+    "requirements_audited": 8,
+    "fully_implementation_verified": 0,
+    "draft_coded_partial": 8,
+    "hardware_verified": 0,
+    "release_verified": 0,
+    "test_source_files_inspected": 25,
+    "dedicated_satellite_tests_inspected_on_pr37": 22,
+    "pr37_test_files_confirmed_absent_on_ws03": 22,
+    "ws03_candidate_test_sources_inspected": 3,
+    "worker_executed_tests": 0,
+    "worker_hardware_tests": 0,
+    "worker_runtimes_modified": 0,
+    "eta_hours_minutes": null,
+    "eta_reason": "Physical receiver, CI parity, provenance and cross-platform workload unmeasured"
+  },
+  "requirement_evidence": [
+    {
+      "id": "SAT-001",
+      "priority": "P0",
+      "summary": "TLE passes, station, Earth/Sky and azimuth horizon geometry",
+      "sources": [
+        {
+          "path": "satellite_center/native_orbit.py",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "blob_sha": "c75b04059efd89248e1f752aab0ddb90c3a96a09",
+          "lines": [
+            70,
+            100
+          ],
+          "note": "cached Skyfield TLE and stale policy",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/803529ba90f43a6cb1fb977869c650ddf5db448a/satellite_center/native_orbit.py#L70-L100"
+        },
+        {
+          "path": "satellite_center/native_orbit.py",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "blob_sha": "c75b04059efd89248e1f752aab0ddb90c3a96a09",
+          "lines": [
+            191,
+            244
+          ],
+          "note": "native pass topocentric sample geometry only",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/803529ba90f43a6cb1fb977869c650ddf5db448a/satellite_center/native_orbit.py#L191-L244"
+        },
+        {
+          "path": "satellite_center/browser/pass_window.mjs",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "blob_sha": "63804809f31cf55d065200b926d2eb5eb2853b60",
+          "lines": [
+            3,
+            37
+          ],
+          "note": "arbitrary azimuth sector, 280 degrees possible; not obstruction measurement",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/803529ba90f43a6cb1fb977869c650ddf5db448a/satellite_center/browser/pass_window.mjs#L3-L37"
+        }
+      ],
+      "gaps": [
+        "physical real-pass AOS/LOS/max-elevation validation",
+        "offline map UI and selected ground station check",
+        "280-degree local obstruction, geometry only"
+      ],
+      "implementation_state": "draft_coded_partial",
+      "unit_verified_at_ws03_head": false,
+      "hardware_verified": false,
+      "released_verified": false,
+      "worker_executed_tests": 0,
+      "test_provenance": [
+        {
+          "path": "tests/test_satellite_native_orbit.py",
+          "source_ref": "670e0ddcf029c8fcc9b0cef403bf76cf37613fcb",
+          "present_at_ws03_initial_head": false
+        },
+        {
+          "path": "tests/test_satellite_native_pass_preview.py",
+          "source_ref": "670e0ddcf029c8fcc9b0cef403bf76cf37613fcb",
+          "present_at_ws03_initial_head": false
+        },
+        {
+          "path": "tests/test_satellite_pass_window.mjs",
+          "source_ref": "670e0ddcf029c8fcc9b0cef403bf76cf37613fcb",
+          "present_at_ws03_initial_head": false
+        }
+      ]
+    },
+    {
+      "id": "SAT-002",
+      "priority": "P1",
+      "summary": "Best-pass sorting, minute-local scheduling and optional alerts",
+      "sources": [
+        {
+          "path": "satellite_center/browser/schedule_controller.mjs",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "blob_sha": "9586b720619ffee6366faf1cbdec536d9a50687d",
+          "lines": [
+            13,
+            65
+          ],
+          "note": "browser schedule bounds, foreground/busy/error states",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/803529ba90f43a6cb1fb977869c650ddf5db448a/satellite_center/browser/schedule_controller.mjs#L13-L65"
+        },
+        {
+          "path": "satellite_center/browser/satellite_calendar.mjs",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "blob_sha": "041d6ec1641ed4bfac8295eef813311fef7f72ef",
+          "lines": [
+            85,
+            149
+          ],
+          "note": "actual scheduled job calendar and truthful status",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/803529ba90f43a6cb1fb977869c650ddf5db448a/satellite_center/browser/satellite_calendar.mjs#L85-L149"
+        },
+        {
+          "path": "satellite_center/__main__.py",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "blob_sha": "1a86f105221763ba53187bd75ade490772147ca7",
+          "lines": [
+            881,
+            978
+          ],
+          "note": "native scheduled job requires physically enabled receiver",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/803529ba90f43a6cb1fb977869c650ddf5db448a/satellite_center/__main__.py#L881-L978"
+        },
+        {
+          "path": "satellite_center/__main__.py",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "blob_sha": "1a86f105221763ba53187bd75ade490772147ca7",
+          "lines": [
+            1359,
+            1437
+          ],
+          "note": "native scheduler bounded to running application",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/803529ba90f43a6cb1fb977869c650ddf5db448a/satellite_center/__main__.py#L1359-L1437"
+        }
+      ],
+      "gaps": [
+        "full timezone/DST/late-wakeup evidence",
+        "near-zenith actual sorting consistency",
+        "alert notifications not verified",
+        "static Pages closed-tab background recording unsupported"
+      ],
+      "implementation_state": "draft_coded_partial",
+      "unit_verified_at_ws03_head": false,
+      "hardware_verified": false,
+      "released_verified": false,
+      "worker_executed_tests": 0,
+      "test_provenance": [
+        {
+          "path": "tests/test_satellite_pass_schedule.mjs",
+          "source_ref": "670e0ddcf029c8fcc9b0cef403bf76cf37613fcb",
+          "present_at_ws03_initial_head": false
+        },
+        {
+          "path": "tests/test_satellite_calendar.mjs",
+          "source_ref": "670e0ddcf029c8fcc9b0cef403bf76cf37613fcb",
+          "present_at_ws03_initial_head": false
+        },
+        {
+          "path": "tests/test_satellite_native_schedule_formats.py",
+          "source_ref": "670e0ddcf029c8fcc9b0cef403bf76cf37613fcb",
+          "present_at_ws03_initial_head": false
+        },
+        {
+          "path": "tests/test_satellite_auto_mission.py",
+          "source_ref": "670e0ddcf029c8fcc9b0cef403bf76cf37613fcb",
+          "present_at_ws03_initial_head": false
+        }
+      ]
+    },
+    {
+      "id": "SAT-003",
+      "priority": "P0",
+      "summary": "ISS Robot36 and CU8/WAV, optional native Meteor LRPT, NOAA APT",
+      "sources": [
+        {
+          "path": "satellite_center/browser/sstv_robot36.mjs",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "blob_sha": "52f5acfd19a17f0a6b3f3ffce3cc3a99dc2238d3",
+          "lines": [
+            49,
+            123
+          ],
+          "note": "requires repeated 1200 Hz valid sync, only candidate image",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/803529ba90f43a6cb1fb977869c650ddf5db448a/satellite_center/browser/sstv_robot36.mjs#L49-L123"
+        },
+        {
+          "path": "satellite_center/sstv_series35.py",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "blob_sha": "a6a660db144437705a8d65ddf09bfa158281afef",
+          "lines": [
+            1,
+            39
+          ],
+          "note": "native bounded Robot36 demodulation; event is a candidate",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/803529ba90f43a6cb1fb977869c650ddf5db448a/satellite_center/sstv_series35.py#L1-L39"
+        },
+        {
+          "path": "satellite_center/__main__.py",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "blob_sha": "1a86f105221763ba53187bd75ade490772147ca7",
+          "lines": [
+            1773,
+            1827
+          ],
+          "note": "external optional SatDump Meteor LRPT decoder",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/803529ba90f43a6cb1fb977869c650ddf5db448a/satellite_center/__main__.py#L1773-L1827"
+        },
+        {
+          "path": "satellite_center/browser/pass_protocol_catalog.mjs",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "blob_sha": "bbd4e0075601f9f2c75c6f984307a80714b9594f",
+          "lines": [
+            7,
+            35
+          ],
+          "note": "activity only catalog, browser limitations and external decoders",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/803529ba90f43a6cb1fb977869c650ddf5db448a/satellite_center/browser/pass_protocol_catalog.mjs#L7-L35"
+        }
+      ],
+      "gaps": [
+        "no actual ISS Robot36 radio capture checked",
+        "no verified NOAA APT end-to-end implementation found",
+        "no real Meteor good-CADU and image proof",
+        "browser/native WAV implementation differs (48 kHz live vs native derived 32 kHz)"
+      ],
+      "implementation_state": "draft_coded_partial",
+      "unit_verified_at_ws03_head": false,
+      "hardware_verified": false,
+      "released_verified": false,
+      "worker_executed_tests": 0,
+      "test_provenance": [
+        {
+          "path": "tests/test_satellite_sstv_series35.py",
+          "source_ref": "670e0ddcf029c8fcc9b0cef403bf76cf37613fcb",
+          "present_at_ws03_initial_head": false
+        },
+        {
+          "path": "tests/test_satellite_native_robot36_exports.py",
+          "source_ref": "670e0ddcf029c8fcc9b0cef403bf76cf37613fcb",
+          "present_at_ws03_initial_head": false
+        },
+        {
+          "path": "tests/test_satellite_recording_formats.mjs",
+          "source_ref": "670e0ddcf029c8fcc9b0cef403bf76cf37613fcb",
+          "present_at_ws03_initial_head": false
+        },
+        {
+          "path": "tests/test_satellite_native_schedule_formats.py",
+          "source_ref": "670e0ddcf029c8fcc9b0cef403bf76cf37613fcb",
+          "present_at_ws03_initial_head": false
+        }
+      ]
+    },
+    {
+      "id": "SAT-004",
+      "priority": "P0",
+      "summary": "Long capture bounded budget and non-silent segment gaps",
+      "sources": [
+        {
+          "path": "satellite_center/browser/chained_capture.mjs",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "blob_sha": "d7dcd7ff1bb4fb7ae5f0be52428c5dbcc033875c",
+          "lines": [
+            1,
+            53
+          ],
+          "note": "browser max segment 60 s default 6 s gap, not continuous",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/803529ba90f43a6cb1fb977869c650ddf5db448a/satellite_center/browser/chained_capture.mjs#L1-L53"
+        },
+        {
+          "path": "satellite_center/browser/capture_duration.mjs",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "blob_sha": "7484a4a8fea5ac38c75c56916dae59fe81821b87",
+          "lines": [
+            6,
+            25
+          ],
+          "note": "128 MiB memory and 2 GB streaming budgets",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/803529ba90f43a6cb1fb977869c650ddf5db448a/satellite_center/browser/capture_duration.mjs#L6-L25"
+        },
+        {
+          "path": "satellite_center/__main__.py",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "blob_sha": "1a86f105221763ba53187bd75ade490772147ca7",
+          "lines": [
+            881,
+            978
+          ],
+          "note": "single-file native 8-900 s capture and size checks",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/803529ba90f43a6cb1fb977869c650ddf5db448a/satellite_center/__main__.py#L881-L978"
+        },
+        {
+          "path": "satellite_center/__main__.py",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "blob_sha": "1a86f105221763ba53187bd75ade490772147ca7",
+          "lines": [
+            979,
+            1054
+          ],
+          "note": "native chained jobs with 21-60 s planned gaps",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/803529ba90f43a6cb1fb977869c650ddf5db448a/satellite_center/__main__.py#L979-L1054"
+        }
+      ],
+      "gaps": [
+        "no physical long IQ byte/time integrity evidence",
+        "segmented recordings explicitly have gaps",
+        "multi-GB storage and recovery stress tests missing"
+      ],
+      "implementation_state": "draft_coded_partial",
+      "unit_verified_at_ws03_head": false,
+      "hardware_verified": false,
+      "released_verified": false,
+      "worker_executed_tests": 0,
+      "test_provenance": [
+        {
+          "path": "tests/test_satellite_chained_capture.mjs",
+          "source_ref": "670e0ddcf029c8fcc9b0cef403bf76cf37613fcb",
+          "present_at_ws03_initial_head": false
+        },
+        {
+          "path": "tests/test_satellite_chained_capture.py",
+          "source_ref": "670e0ddcf029c8fcc9b0cef403bf76cf37613fcb",
+          "present_at_ws03_initial_head": false
+        },
+        {
+          "path": "tests/test_satellite_native_schedule_formats.py",
+          "source_ref": "670e0ddcf029c8fcc9b0cef403bf76cf37613fcb",
+          "present_at_ws03_initial_head": false
+        }
+      ]
+    },
+    {
+      "id": "SAT-005",
+      "priority": "P0",
+      "summary": "Empty CADU, missing analog telemetry, PLL unlock, unsupported decoder and zero-image diagnostics",
+      "sources": [
+        {
+          "path": "satellite_center/native_robot36_results.py",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "blob_sha": "8393a4cf823e4678764a29738c7856a3621ec472",
+          "lines": [
+            16,
+            44
+          ],
+          "note": "PNG only for real validated outputs",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/803529ba90f43a6cb1fb977869c650ddf5db448a/satellite_center/native_robot36_results.py#L16-L44"
+        },
+        {
+          "path": "satellite_center/browser/sstv_capture_diagnostics.mjs",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "blob_sha": "19af650daf3639d202c50689abce21d65ec8872a",
+          "lines": [
+            11,
+            32
+          ],
+          "note": "wrong-band / event / missing sync guidance",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/803529ba90f43a6cb1fb977869c650ddf5db448a/satellite_center/browser/sstv_capture_diagnostics.mjs#L11-L32"
+        },
+        {
+          "path": "satellite_center/__main__.py",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "blob_sha": "1a86f105221763ba53187bd75ade490772147ca7",
+          "lines": [
+            1773,
+            1827
+          ],
+          "note": "no_images_decoded and bounded SatDump stderr tail; fixed input 1024000",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/803529ba90f43a6cb1fb977869c650ddf5db448a/satellite_center/__main__.py#L1773-L1827"
+        },
+        {
+          "path": "satellite_center/native_data_labels.py",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "blob_sha": "07fa7f8f4b7872a03f631728d7f9129557b71e9b",
+          "lines": [
+            12,
+            50
+          ],
+          "note": "file header not proof of image/satellite signal",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/803529ba90f43a6cb1fb977869c650ddf5db448a/satellite_center/native_data_labels.py#L12-L50"
+        }
+      ],
+      "gaps": [
+        "explicit zero CADU / analog telemetry missing / PLL unlock parsing not found",
+        "input 2.048-MS/s schedule vs hardcoded SatDump 1.024-MS/s risk",
+        "no true Meteor failure/no-image field test"
+      ],
+      "high_risk": true,
+      "implementation_state": "draft_coded_partial",
+      "unit_verified_at_ws03_head": false,
+      "hardware_verified": false,
+      "released_verified": false,
+      "worker_executed_tests": 0,
+      "test_provenance": [
+        {
+          "path": "tests/test_satellite_sstv_capture_diagnostics.mjs",
+          "source_ref": "670e0ddcf029c8fcc9b0cef403bf76cf37613fcb",
+          "present_at_ws03_initial_head": false
+        },
+        {
+          "path": "tests/test_satellite_native_robot36_exports.py",
+          "source_ref": "670e0ddcf029c8fcc9b0cef403bf76cf37613fcb",
+          "present_at_ws03_initial_head": false
+        },
+        {
+          "path": "tests/test_satellite_sstv_series35.py",
+          "source_ref": "670e0ddcf029c8fcc9b0cef403bf76cf37613fcb",
+          "present_at_ws03_initial_head": false
+        }
+      ]
+    },
+    {
+      "id": "SAT-006",
+      "priority": "P1",
+      "summary": "CubeSat/Iridium/ISS/Meteor frequencies and honest decode capability",
+      "sources": [
+        {
+          "path": "satellite_center/__main__.py",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "blob_sha": "1a86f105221763ba53187bd75ade490772147ca7",
+          "lines": [
+            39,
+            88
+          ],
+          "note": "amateur/Iridium TLE sources and receive-only profiles",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/803529ba90f43a6cb1fb977869c650ddf5db448a/satellite_center/__main__.py#L39-L88"
+        },
+        {
+          "path": "satellite_center/browser/pass_protocol_catalog.mjs",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "blob_sha": "bbd4e0075601f9f2c75c6f984307a80714b9594f",
+          "lines": [
+            6,
+            35
+          ],
+          "note": "NORAD catalog flags event-only, native SatDump, unsupported hardware",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/803529ba90f43a6cb1fb977869c650ddf5db448a/satellite_center/browser/pass_protocol_catalog.mjs#L6-L35"
+        },
+        {
+          "path": "satellite_center/native_protocols.py",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "blob_sha": "540eed82da7081d10df8c444ab2be031db97de47",
+          "lines": [
+            19,
+            52
+          ],
+          "note": "profile frequency bounds, unverified manual references",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/803529ba90f43a6cb1fb977869c650ddf5db448a/satellite_center/native_protocols.py#L19-L52"
+        }
+      ],
+      "gaps": [
+        "current public frequencies and spacecraft activity not independently checked",
+        "wideband hardware/transmission mode coverage unverified",
+        "no private Iridium packet decoding or S-band hardware claimed"
+      ],
+      "implementation_state": "draft_coded_partial",
+      "unit_verified_at_ws03_head": false,
+      "hardware_verified": false,
+      "released_verified": false,
+      "worker_executed_tests": 0,
+      "test_provenance": [
+        {
+          "path": "tests/test_satellite_native_protocols.py",
+          "source_ref": "670e0ddcf029c8fcc9b0cef403bf76cf37613fcb",
+          "present_at_ws03_initial_head": false
+        },
+        {
+          "path": "tests/test_satellite_calendar.mjs",
+          "source_ref": "670e0ddcf029c8fcc9b0cef403bf76cf37613fcb",
+          "present_at_ws03_initial_head": false
+        },
+        {
+          "path": "tests/test_satellite_auto_mission.mjs",
+          "source_ref": "670e0ddcf029c8fcc9b0cef403bf76cf37613fcb",
+          "present_at_ws03_initial_head": false
+        }
+      ]
+    },
+    {
+      "id": "SAT-007",
+      "priority": "P0",
+      "summary": "Native SDR lifecycle/lease, RF stop and real-output export",
+      "sources": [
+        {
+          "path": "satellite_center/bridge.py",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "blob_sha": "2f4439666462b13dc89331f23bff47b4e96468a6",
+          "lines": [
+            62,
+            110
+          ],
+          "note": "cross-OS lock and owned-process stop wrapper",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/803529ba90f43a6cb1fb977869c650ddf5db448a/satellite_center/bridge.py#L62-L110"
+        },
+        {
+          "path": "satellite_center/__main__.py",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "blob_sha": "1a86f105221763ba53187bd75ade490772147ca7",
+          "lines": [
+            881,
+            978
+          ],
+          "note": "receiver-enabled, single lease, disk reserve, no overlap",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/803529ba90f43a6cb1fb977869c650ddf5db448a/satellite_center/__main__.py#L881-L978"
+        },
+        {
+          "path": "satellite_center/native_analysis.py",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "blob_sha": "f55e887588cd19450557ca4032bccc9ac900fca5",
+          "lines": [
+            148,
+            186
+          ],
+          "note": "bounded ZIP actual output manifest",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/803529ba90f43a6cb1fb977869c650ddf5db448a/satellite_center/native_analysis.py#L148-L186"
+        },
+        {
+          "path": "satellite_center/browser/results_zip.mjs",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "blob_sha": "f86b7e457ad88c696f3b4e255a3f22b24abde03c",
+          "lines": [
+            34,
+            88
+          ],
+          "note": "browser ZIP of actual files with safety/abort guards",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/803529ba90f43a6cb1fb977869c650ddf5db448a/satellite_center/browser/results_zip.mjs#L34-L88"
+        }
+      ],
+      "gaps": [
+        "no real Pop!_OS RTL USB ownership or readsb conflict test",
+        "native Windows/macOS/Linux ARM real device parity not checked",
+        "safe Stop/Disconnect/Exit and completed ZIP integrity on receiver missing"
+      ],
+      "implementation_state": "draft_coded_partial",
+      "unit_verified_at_ws03_head": false,
+      "hardware_verified": false,
+      "released_verified": false,
+      "worker_executed_tests": 0,
+      "test_provenance": [
+        {
+          "path": "tests/test_satellite_hardware_native.py",
+          "source_ref": "670e0ddcf029c8fcc9b0cef403bf76cf37613fcb",
+          "present_at_ws03_initial_head": false
+        },
+        {
+          "path": "tests/test_satellite_usb.py",
+          "source_ref": "670e0ddcf029c8fcc9b0cef403bf76cf37613fcb",
+          "present_at_ws03_initial_head": false
+        },
+        {
+          "path": "tests/test_satellite_results_zip.mjs",
+          "source_ref": "670e0ddcf029c8fcc9b0cef403bf76cf37613fcb",
+          "present_at_ws03_initial_head": false
+        },
+        {
+          "path": "tests/test_satellite_native_analysis.py",
+          "source_ref": "670e0ddcf029c8fcc9b0cef403bf76cf37613fcb",
+          "present_at_ws03_initial_head": false
+        }
+      ]
+    },
+    {
+      "id": "SAT-008",
+      "priority": "P1",
+      "summary": "IQ metadata, UTC, offline TLE/maps and provenance",
+      "sources": [
+        {
+          "path": "satellite_center/capture_naming.py",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "blob_sha": "f5b18b313ddec8cddbb54afcffcaa8321cc06e4f",
+          "lines": [
+            22,
+            36
+          ],
+          "note": "UTC timestamp and frequency/sample-rate in filename",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/803529ba90f43a6cb1fb977869c650ddf5db448a/satellite_center/capture_naming.py#L22-L36"
+        },
+        {
+          "path": "satellite_center/browser/iq_analysis.mjs",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "blob_sha": "8a0704d3550ebc65d6ca43494db617c67da02819",
+          "lines": [
+            121,
+            160
+          ],
+          "note": "file analysis warns raw CU8 has no embedded sample metadata",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/803529ba90f43a6cb1fb977869c650ddf5db448a/satellite_center/browser/iq_analysis.mjs#L121-L160"
+        },
+        {
+          "path": "satellite_center/native_orbit.py",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "blob_sha": "c75b04059efd89248e1f752aab0ddb90c3a96a09",
+          "lines": [
+            70,
+            100
+          ],
+          "note": "cached TLE validation, stale handling",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/803529ba90f43a6cb1fb977869c650ddf5db448a/satellite_center/native_orbit.py#L70-L100"
+        },
+        {
+          "path": "satellite_center/planning_store.py",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "blob_sha": "c2c737350f138a52d328a362a97882409e3a896c",
+          "lines": [
+            36,
+            65
+          ],
+          "note": "offline planning only, never RF armed",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/803529ba90f43a6cb1fb977869c650ddf5db448a/satellite_center/planning_store.py#L36-L65"
+        }
+      ],
+      "gaps": [
+        "external/raw CU8 source metadata may be unknown; sidecar/SigMF not verified",
+        "roundtrip UTC per segment and byte-perfect timestamps unverified",
+        "offline map full user environment not tested"
+      ],
+      "implementation_state": "draft_coded_partial",
+      "unit_verified_at_ws03_head": false,
+      "hardware_verified": false,
+      "released_verified": false,
+      "worker_executed_tests": 0,
+      "test_provenance": [
+        {
+          "path": "tests/test_satellite_iq_intelligence.mjs",
+          "source_ref": "670e0ddcf029c8fcc9b0cef403bf76cf37613fcb",
+          "present_at_ws03_initial_head": false
+        },
+        {
+          "path": "tests/test_satellite_recording_formats.mjs",
+          "source_ref": "670e0ddcf029c8fcc9b0cef403bf76cf37613fcb",
+          "present_at_ws03_initial_head": false
+        },
+        {
+          "path": "tests/test_satellite_planning_offline.py",
+          "source_ref": "670e0ddcf029c8fcc9b0cef403bf76cf37613fcb",
+          "present_at_ws03_initial_head": false
+        },
+        {
+          "path": "tests/test_satellite_pass_candidates.mjs",
+          "source_ref": "670e0ddcf029c8fcc9b0cef403bf76cf37613fcb",
+          "present_at_ws03_initial_head": false
+        }
+      ]
+    }
+  ],
+  "inspected_satellite_tests_pr37": [
+    {
+      "path": "tests/test_satellite_native_orbit.py",
+      "ref": "670e0ddcf029c8fcc9b0cef403bf76cf37613fcb",
+      "blob_sha": "848e7c7069e32e6319a31ded77b0386f34489866",
+      "inspection": "read_source_only",
+      "evidence_type": "geometry fixture",
+      "exists_at_ws03_initial_head": false,
+      "worker_executed": false,
+      "hardware_verified": false,
+      "link": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/670e0ddcf029c8fcc9b0cef403bf76cf37613fcb/tests/test_satellite_native_orbit.py"
+    },
+    {
+      "path": "tests/test_satellite_native_pass_preview.py",
+      "ref": "670e0ddcf029c8fcc9b0cef403bf76cf37613fcb",
+      "blob_sha": "422998cdaa80809ee0fdc704063a0a7143053fbc",
+      "inspection": "read_source_only",
+      "evidence_type": "mock Skyfield plus source-contract assertions",
+      "exists_at_ws03_initial_head": false,
+      "worker_executed": false,
+      "hardware_verified": false,
+      "link": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/670e0ddcf029c8fcc9b0cef403bf76cf37613fcb/tests/test_satellite_native_pass_preview.py"
+    },
+    {
+      "path": "tests/test_satellite_pass_window.mjs",
+      "ref": "670e0ddcf029c8fcc9b0cef403bf76cf37613fcb",
+      "blob_sha": "93bc50b3c546d67b808782ef4532f6253da78010",
+      "inspection": "read_source_only",
+      "evidence_type": "synthetic geometry",
+      "exists_at_ws03_initial_head": false,
+      "worker_executed": false,
+      "hardware_verified": false,
+      "link": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/670e0ddcf029c8fcc9b0cef403bf76cf37613fcb/tests/test_satellite_pass_window.mjs"
+    },
+    {
+      "path": "tests/test_satellite_pass_candidates.mjs",
+      "ref": "670e0ddcf029c8fcc9b0cef403bf76cf37613fcb",
+      "blob_sha": "0f46563b99c7d502a19eed22fc5e8321c074f4b0",
+      "inspection": "read_source_only",
+      "evidence_type": "synthetic planning plus static UI",
+      "exists_at_ws03_initial_head": false,
+      "worker_executed": false,
+      "hardware_verified": false,
+      "link": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/670e0ddcf029c8fcc9b0cef403bf76cf37613fcb/tests/test_satellite_pass_candidates.mjs"
+    },
+    {
+      "path": "tests/test_satellite_planning_offline.py",
+      "ref": "670e0ddcf029c8fcc9b0cef403bf76cf37613fcb",
+      "blob_sha": "4d2c9ed4a00c57b95417d7581a94a265e7195025",
+      "inspection": "read_source_only",
+      "evidence_type": "mock orbit plus source-contract",
+      "exists_at_ws03_initial_head": false,
+      "worker_executed": false,
+      "hardware_verified": false,
+      "link": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/670e0ddcf029c8fcc9b0cef403bf76cf37613fcb/tests/test_satellite_planning_offline.py"
+    },
+    {
+      "path": "tests/test_satellite_pass_schedule.mjs",
+      "ref": "670e0ddcf029c8fcc9b0cef403bf76cf37613fcb",
+      "blob_sha": "1dcd94394a276928fd79db9bc0fe93e5d128068d",
+      "inspection": "read_source_only",
+      "evidence_type": "synthetic schedule and static UI",
+      "exists_at_ws03_initial_head": false,
+      "worker_executed": false,
+      "hardware_verified": false,
+      "link": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/670e0ddcf029c8fcc9b0cef403bf76cf37613fcb/tests/test_satellite_pass_schedule.mjs"
+    },
+    {
+      "path": "tests/test_satellite_calendar.mjs",
+      "ref": "670e0ddcf029c8fcc9b0cef403bf76cf37613fcb",
+      "blob_sha": "2b0ef1e6df06da40f0d684eed43b839c3af84a1f",
+      "inspection": "read_source_only",
+      "evidence_type": "synthetic local time/calendar and source-contract",
+      "exists_at_ws03_initial_head": false,
+      "worker_executed": false,
+      "hardware_verified": false,
+      "link": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/670e0ddcf029c8fcc9b0cef403bf76cf37613fcb/tests/test_satellite_calendar.mjs"
+    },
+    {
+      "path": "tests/test_satellite_native_schedule_formats.py",
+      "ref": "670e0ddcf029c8fcc9b0cef403bf76cf37613fcb",
+      "blob_sha": "475999ae6455b267783d63690bd52f7ddbad2c79",
+      "inspection": "read_source_only",
+      "evidence_type": "mock native receiver/disk/scheduler",
+      "exists_at_ws03_initial_head": false,
+      "worker_executed": false,
+      "hardware_verified": false,
+      "link": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/670e0ddcf029c8fcc9b0cef403bf76cf37613fcb/tests/test_satellite_native_schedule_formats.py"
+    },
+    {
+      "path": "tests/test_satellite_auto_mission.py",
+      "ref": "670e0ddcf029c8fcc9b0cef403bf76cf37613fcb",
+      "blob_sha": "46c2b0d0bf5dc3a8d81c367a647021f7c130f7de",
+      "inspection": "read_source_only",
+      "evidence_type": "synthetic native pass and mocked receiver",
+      "exists_at_ws03_initial_head": false,
+      "worker_executed": false,
+      "hardware_verified": false,
+      "link": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/670e0ddcf029c8fcc9b0cef403bf76cf37613fcb/tests/test_satellite_auto_mission.py"
+    },
+    {
+      "path": "tests/test_satellite_auto_mission.mjs",
+      "ref": "670e0ddcf029c8fcc9b0cef403bf76cf37613fcb",
+      "blob_sha": "e3e42be41469386ecfb1aee9e5adab61863e7e53",
+      "inspection": "read_source_only",
+      "evidence_type": "synthetic browser mission",
+      "exists_at_ws03_initial_head": false,
+      "worker_executed": false,
+      "hardware_verified": false,
+      "link": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/670e0ddcf029c8fcc9b0cef403bf76cf37613fcb/tests/test_satellite_auto_mission.mjs"
+    },
+    {
+      "path": "tests/test_satellite_sstv_capture_diagnostics.mjs",
+      "ref": "670e0ddcf029c8fcc9b0cef403bf76cf37613fcb",
+      "blob_sha": "d0d45845d394e37abec2adb71bee2a4c19e25730",
+      "inspection": "read_source_only",
+      "evidence_type": "synthetic filename/wrong-band plus static UI",
+      "exists_at_ws03_initial_head": false,
+      "worker_executed": false,
+      "hardware_verified": false,
+      "link": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/670e0ddcf029c8fcc9b0cef403bf76cf37613fcb/tests/test_satellite_sstv_capture_diagnostics.mjs"
+    },
+    {
+      "path": "tests/test_satellite_native_robot36_exports.py",
+      "ref": "670e0ddcf029c8fcc9b0cef403bf76cf37613fcb",
+      "blob_sha": "416dc179d592e67e998dd1ce8799816b6ced37c5",
+      "inspection": "read_source_only",
+      "evidence_type": "mock decoder, fake WAV, negative PNG",
+      "exists_at_ws03_initial_head": false,
+      "worker_executed": false,
+      "hardware_verified": false,
+      "link": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/670e0ddcf029c8fcc9b0cef403bf76cf37613fcb/tests/test_satellite_native_robot36_exports.py"
+    },
+    {
+      "path": "tests/test_satellite_sstv_series35.py",
+      "ref": "670e0ddcf029c8fcc9b0cef403bf76cf37613fcb",
+      "blob_sha": "837cb10cb5cf51e2981b24ef611ee31cf89443f0",
+      "inspection": "read_source_only",
+      "evidence_type": "synthetic Robot36 tones, no RF hardware",
+      "exists_at_ws03_initial_head": false,
+      "worker_executed": false,
+      "hardware_verified": false,
+      "link": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/670e0ddcf029c8fcc9b0cef403bf76cf37613fcb/tests/test_satellite_sstv_series35.py"
+    },
+    {
+      "path": "tests/test_satellite_native_protocols.py",
+      "ref": "670e0ddcf029c8fcc9b0cef403bf76cf37613fcb",
+      "blob_sha": "b015e1089cd41ebaec9f89ef158cc1ed86602988",
+      "inspection": "read_source_only",
+      "evidence_type": "local input validation, synthetic catalog",
+      "exists_at_ws03_initial_head": false,
+      "worker_executed": false,
+      "hardware_verified": false,
+      "link": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/670e0ddcf029c8fcc9b0cef403bf76cf37613fcb/tests/test_satellite_native_protocols.py"
+    },
+    {
+      "path": "tests/test_satellite_iq_intelligence.mjs",
+      "ref": "670e0ddcf029c8fcc9b0cef403bf76cf37613fcb",
+      "blob_sha": "ebe2be0c0cccd6d45d0fbe39b27193ab8c973b93",
+      "inspection": "read_source_only",
+      "evidence_type": "synthetic IQ FFT and bounded memory",
+      "exists_at_ws03_initial_head": false,
+      "worker_executed": false,
+      "hardware_verified": false,
+      "link": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/670e0ddcf029c8fcc9b0cef403bf76cf37613fcb/tests/test_satellite_iq_intelligence.mjs"
+    },
+    {
+      "path": "tests/test_satellite_recording_formats.mjs",
+      "ref": "670e0ddcf029c8fcc9b0cef403bf76cf37613fcb",
+      "blob_sha": "8502d940e3bc66321f67bb84e4732daa4dd78203",
+      "inspection": "read_source_only",
+      "evidence_type": "static dual writer and synthetic budget",
+      "exists_at_ws03_initial_head": false,
+      "worker_executed": false,
+      "hardware_verified": false,
+      "link": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/670e0ddcf029c8fcc9b0cef403bf76cf37613fcb/tests/test_satellite_recording_formats.mjs"
+    },
+    {
+      "path": "tests/test_satellite_native_analysis.py",
+      "ref": "670e0ddcf029c8fcc9b0cef403bf76cf37613fcb",
+      "blob_sha": "9851b6fdcfb553302e44c6cc9448986450d62ce7",
+      "inspection": "read_source_only",
+      "evidence_type": "synthetic IQ plus local archive",
+      "exists_at_ws03_initial_head": false,
+      "worker_executed": false,
+      "hardware_verified": false,
+      "link": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/670e0ddcf029c8fcc9b0cef403bf76cf37613fcb/tests/test_satellite_native_analysis.py"
+    },
+    {
+      "path": "tests/test_satellite_chained_capture.mjs",
+      "ref": "670e0ddcf029c8fcc9b0cef403bf76cf37613fcb",
+      "blob_sha": "fbde6a2fe9e1ef93cfbb390e164fbc691b6284e4",
+      "inspection": "read_source_only",
+      "evidence_type": "synthetic segmented browser capture",
+      "exists_at_ws03_initial_head": false,
+      "worker_executed": false,
+      "hardware_verified": false,
+      "link": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/670e0ddcf029c8fcc9b0cef403bf76cf37613fcb/tests/test_satellite_chained_capture.mjs"
+    },
+    {
+      "path": "tests/test_satellite_chained_capture.py",
+      "ref": "670e0ddcf029c8fcc9b0cef403bf76cf37613fcb",
+      "blob_sha": "f252609547ef35b7cbbe9bc688a10a293480ce94",
+      "inspection": "read_source_only",
+      "evidence_type": "mock native segments and rollback",
+      "exists_at_ws03_initial_head": false,
+      "worker_executed": false,
+      "hardware_verified": false,
+      "link": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/670e0ddcf029c8fcc9b0cef403bf76cf37613fcb/tests/test_satellite_chained_capture.py"
+    },
+    {
+      "path": "tests/test_satellite_hardware_native.py",
+      "ref": "670e0ddcf029c8fcc9b0cef403bf76cf37613fcb",
+      "blob_sha": "e595f4e95ff223ab01cb0f4310810677bf6499e7",
+      "inspection": "read_source_only",
+      "evidence_type": "mock receiver process and lease",
+      "exists_at_ws03_initial_head": false,
+      "worker_executed": false,
+      "hardware_verified": false,
+      "link": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/670e0ddcf029c8fcc9b0cef403bf76cf37613fcb/tests/test_satellite_hardware_native.py"
+    },
+    {
+      "path": "tests/test_satellite_usb.py",
+      "ref": "670e0ddcf029c8fcc9b0cef403bf76cf37613fcb",
+      "blob_sha": "17f3bbf4dbdc902ba2ff2496f33b96313d0fab97",
+      "inspection": "read_source_only",
+      "evidence_type": "synthetic/no physical USB",
+      "exists_at_ws03_initial_head": false,
+      "worker_executed": false,
+      "hardware_verified": false,
+      "link": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/670e0ddcf029c8fcc9b0cef403bf76cf37613fcb/tests/test_satellite_usb.py"
+    },
+    {
+      "path": "tests/test_satellite_results_zip.mjs",
+      "ref": "670e0ddcf029c8fcc9b0cef403bf76cf37613fcb",
+      "blob_sha": "0c4716c5b2035ffe3f59b7c1f5dc5587f35e8ecc",
+      "inspection": "read_source_only",
+      "evidence_type": "synthetic archive structure and safety",
+      "exists_at_ws03_initial_head": false,
+      "worker_executed": false,
+      "hardware_verified": false,
+      "link": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/670e0ddcf029c8fcc9b0cef403bf76cf37613fcb/tests/test_satellite_results_zip.mjs"
+    }
+  ],
+  "inspected_ws03_candidate_tests": [
+    {
+      "path": "tests/test_tv_satellite_ai.py",
+      "blob_sha": "e16ec9376a2a1a2d59f6294abdad2df4bf2ec9b8",
+      "relevance": "DVB-TV satellite channel and AI settings; not TLE/LRPT satellite receiver evidence",
+      "ref": "ca9ff96c83ff4b6b56579d48bcdfa02582c9b704",
+      "exists_at_ws03_initial_head": true,
+      "inspection": "read_source_only",
+      "worker_executed": false,
+      "link": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/ca9ff96c83ff4b6b56579d48bcdfa02582c9b704/tests/test_tv_satellite_ai.py"
+    },
+    {
+      "path": "tests/test_postprocess.py",
+      "blob_sha": "ef0137039847613cf0e035653dc8e4da3a5d689b",
+      "relevance": "Text Center postprocess fixtures; not Robot36/Meteor proof",
+      "ref": "ca9ff96c83ff4b6b56579d48bcdfa02582c9b704",
+      "exists_at_ws03_initial_head": true,
+      "inspection": "read_source_only",
+      "worker_executed": false,
+      "link": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/ca9ff96c83ff4b6b56579d48bcdfa02582c9b704/tests/test_postprocess.py"
+    },
+    {
+      "path": "satellite_center/browser/usb_diagnostics.test.mjs",
+      "blob_sha": "f7f8cb4fc6a43acce3d6ff29b57c80041e15726a",
+      "relevance": "Browser WebUSB diagnostics only; no hardware",
+      "ref": "ca9ff96c83ff4b6b56579d48bcdfa02582c9b704",
+      "exists_at_ws03_initial_head": true,
+      "inspection": "read_source_only",
+      "worker_executed": false,
+      "link": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/ca9ff96c83ff4b6b56579d48bcdfa02582c9b704/satellite_center/browser/usb_diagnostics.test.mjs"
+    }
+  ],
+  "ci_history": {
+    "branch_ref": "670e0ddcf029c8fcc9b0cef403bf76cf37613fcb",
+    "runs": [
+      {
+        "workflow": "Satellite Center portable tests",
+        "run_id": 42559046861,
+        "conclusion": "failure",
+        "failure_scope": "pages-source-parity",
+        "failed_job_id": 128971169076,
+        "failed_step": "Verify reviewed browser/PWA assets match published Pages",
+        "platform_runtime_jobs": [
+          {
+            "platform": "windows-2022",
+            "status": "success"
+          },
+          {
+            "platform": "ubuntu-24.04",
+            "status": "success"
+          },
+          {
+            "platform": "ubuntu-24.04-arm",
+            "status": "success"
+          },
+          {
+            "platform": "macos-15",
+            "status": "success"
+          }
+        ],
+        "platform_tests_are": "synthetic_no_physical_hardware",
+        "pages_asset_mismatch": [
+          "satellite_center/browser/index.html",
+          "satellite_center/browser/auto_mission.mjs",
+          "satellite_center/browser/auto_reception_ui.mjs",
+          "satellite_center/browser/browser.js",
+          "satellite_center/browser/browser.css",
+          "satellite_center/browser/location_search.mjs",
+          "satellite_center/browser/satellite_maps.mjs",
+          "satellite_center/browser/compute_selector.mjs"
+        ]
+      },
+      {
+        "workflow": "Satellite Center browser-only WebUSB checks",
+        "run_id": 42559046921,
+        "conclusion": "success",
+        "validation_limit": "browser_code_not_real_USB_hardware"
+      },
+      {
+        "workflow": "Text Center tests",
+        "run_id": 42559046963,
+        "conclusion": "success",
+        "validation_limit": "not_satellite_hardware_parity"
+      },
+      {
+        "workflow": "Satellite Center native Debian package",
+        "run_id": 42559046849,
+        "conclusion": "success",
+        "validation_limit": "package_build_not_live_receiver"
+      }
+    ],
+    "ws03_head_runs": [
+      {
+        "workflow": "Text Center tests",
+        "run_id": 43113338673,
+        "conclusion": "success",
+        "validation_limit": "not_satellite_source_or_device_parity"
+      }
+    ],
+    "logs_inspected": [
+      "PR37 run 42559046861 job 128971169076: eight published gh-pages asset mismatches"
+    ],
+    "new_runs_triggered_by_worker": 0
+  },
+  "risks": [
+    {
+      "id": "WS03-R1",
+      "severity": "P0",
+      "kind": "decode_sample_rate_mismatch",
+      "source": "satellite_center/__main__.py:881-890,1784-1792",
+      "finding": "Native schedule accepts 1.024 or 2.048 MS/s but decode_meteor hardcodes SatDump --samplerate 1024000; output correctness unverified"
+    },
+    {
+      "id": "WS03-R2",
+      "severity": "P0",
+      "kind": "segment_discontinuity",
+      "source": "satellite_center/browser/chained_capture.mjs:1-53; satellite_center/__main__.py:979-1054",
+      "finding": "Browser chained captures reserve 6s and native chains >=21s gaps, therefore no lossless continuous-chain claim"
+    },
+    {
+      "id": "WS03-R3",
+      "severity": "P0",
+      "kind": "negative_decoder_diagnostics",
+      "source": "satellite_center/__main__.py:1773-1827",
+      "finding": "No separate empty-CADU, missing analog telemetry or PLL-unlock classification validated"
+    },
+    {
+      "id": "WS03-R4",
+      "severity": "P0",
+      "kind": "test_preservation",
+      "source": "PR37 22 test source paths vs WS03 initial head",
+      "finding": "22 inspected satellite-specific tests on separate PR37 confirmed absent at worker head; do not auto-merge or claim test parity"
+    },
+    {
+      "id": "WS03-R5",
+      "severity": "P0",
+      "kind": "pages_source_drift",
+      "source": "GitHub workflow run 42559046861 job 128971169076",
+      "finding": "Eight published Pages assets mismatch source; dedicated parity gate failed"
+    },
+    {
+      "id": "WS03-R6",
+      "severity": "P0",
+      "kind": "physical_hardware_unverified",
+      "source": "PR37 CI synthetic jobs",
+      "finding": "No documented worker physical SDR/NooElec/SatDump acceptance, no genuine decoded image claim"
+    }
+  ],
+  "release_gates": {
+    "source_history_preservation": "pending",
+    "standalone_dependency_closure": "unverified",
+    "standalone_ci": "not_started",
+    "native_usb_and_device_lease": "unverified",
+    "physical_iss_meteor_decode": "unverified",
+    "browser_and_pages_parity": "failed_on_pr37",
+    "en_tr_de_ui_coverage": "not_audited_future_release_gate",
+    "rollback_installers_and_redirects": "pending_future_owner_approval"
+  },
+  "platform_boundaries": {
+    "static_pages": "browser foreground scheduler only; no unattended closed-tab execution and no native SatDump",
+    "native": "OS RTL tools and local native app/service required, hardware acceptance pending",
+    "webusb": "supported browsers/OS and explicit USB permission required"
+  },
+  "destination_repo": {
+    "name": "Tihulu/tihulu-satellite-center",
+    "numeric_id": 1454319572,
+    "verified_size": 0,
+    "observed_empty": true,
+    "source_imported": false,
+    "first_commit_authorized": false
+  },
+  "language": {
+    "engineering": "en",
+    "user_interface_required": [
+      "en",
+      "tr",
+      "de"
+    ],
+    "default_ui": "en",
+    "current_ui_translation_verification": "not_audited"
+  },
+  "cross_worker_links": [
+    "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/80",
+    "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/81",
+    "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/75"
+  ],
+  "safety": {
+    "application_code_changed": false,
+    "installers_changed": false,
+    "logos_changed": false,
+    "source_main_changed": false,
+    "merges": false,
+    "migrations": false,
+    "empty_repo_initialized": false
+  }
+}
