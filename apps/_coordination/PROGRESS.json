@@ -16,7 +16,14 @@
     "standalone_migrations_completed": 0,
     "independently_canonical_existing": 1,
     "text_center_retained_original": 1,
-    "source_repo_rename_performed": false
+    "source_repo_rename_performed": false,
+    "observed_source_trees_inspected": 3,
+    "file_counts_by_tree": {
+      "text_main": 62,
+      "flight_main": 92,
+      "project_audit_branch_at_inspection": 881
+    },
+    "flight_developer_standard_gap_audited": true
   },
   "pr_history": {
     "known_origin_draft_prs_65_to_74": 10,
@@ -50,7 +57,13 @@
       "verified_code_branch_risk": "migration_from_docs_branch_without_media_67_would_lose_recording_export_branch_changes",
       "branch_graph_comparisons": 7,
       "proven_feature_code_implemented_in_latest_candidate": "not_tested"
-    }
+    },
+    "flight_own_pr_count_observed": 11,
+    "flight_non_pr_issue_count_observed": 2,
+    "flight_own_open_draft_prs": [
+      7,
+      13
+    ]
   },
   "approved_designs": {
     "logos_user_approved": 5,
@@ -113,6 +126,8 @@
     "read_only_test_added": true,
     "live_runtime_code_changed": false,
     "source_sha_audit_completed": false,
-    "early_conflict_audit_created": true
+    "early_conflict_audit_created": true,
+    "flight_static_baseline_report_created": true,
+    "media_ancestry_report_created": true
   }
 }
