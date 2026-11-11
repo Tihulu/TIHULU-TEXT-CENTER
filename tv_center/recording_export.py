@@ -14,6 +14,7 @@ from pathlib import Path
 import re
 import subprocess
 import sys
+import tempfile
 from dataclasses import dataclass
 
 FORMATS = frozenset({"txt", "srt", "vtt", "ass", "json", "lrc"})
@@ -137,6 +138,55 @@ def render(cues: list[Cue], kind: str, *, timestamps=False, lyrics=False,
         f"Default,,0,0,0,,{escape_ass(c.text)}\n" for c in cues)
 
 
+_TRANSLATION = re.compile(r"^\\[([A-Za-z]{2,3}(?:_[A-Za-z]{4})?)\\]\\s*(.+)$")
+_KNOWN_THREE = frozenset({
+    "eng", "deu", "ger", "tur", "fra", "fre", "spa", "ita", "nld",
+    "dut", "pol", "por", "rus", "ara", "zho", "chi", "jpn",
+    "kor", "hin", "ukr", "swe", "nor", "dan", "fin",
+})
+
+
+def split_caption_translations(cues: list[Cue]) -> dict[str, list[Cue]]:
+    """Split explicit [TR]/[DE]/[EN] translator lines without touching speech.
+
+    A sound label like [Music], a speaker label or a broadcast metadata tag
+    is not a language and remains part of the original. This is opt-in.
+    """
+    from .language_codes import ISO_639_1, language_code
+    result: dict[str, list[Cue]] = {"original": []}
+    separated = False
+    for cue in cues:
+        original = []
+        translated: dict[str, list[str]] = {}
+        for line in cue.text.splitlines():
+            match = _TRANSLATION.fullmatch(line.strip())
+            code = None
+            if match:
+                raw = match.group(1)
+                simple = raw.lower()
+                if (simple in ISO_639_1 or simple in _KNOWN_THREE
+                    or re.fullmatch(r"[a-z]{3}_[A-Za-z]{4}", raw)):
+                    try:
+                        code = language_code(raw, nllb=True)
+                    except ValueError:
+                        pass
+            if code and match.group(2).strip():
+                separated = True
+                translated.setdefault(code.lower(), []).append(match.group(2).strip())
+            else:
+                original.append(line)
+        speech = "\\n".join(original).strip()
+        if speech:
+            result["original"].append(Cue(cue.start, cue.end, speech))
+        for language, lines in translated.items():
+            name = "translation-" + re.sub(r"[^a-z0-9_-]", "-", language)
+            result.setdefault(name, []).append(
+                Cue(cue.start, cue.end, "\\n".join(lines)))
+    if not separated:
+        return {"combined": cues}
+    return {track: lines for track, lines in result.items() if lines}
+
+
 def _write_new(path: Path, content: str) -> None:
     """Exclusive creation, never overwrite the user's original or exports."""
     fd = os.open(str(path), os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
@@ -253,7 +303,7 @@ def burn_video(media: str | Path, subtitles: str | Path, destination: str | Path
 def run_export(*, sources: dict[str, str], destination: str, name: str,
                formats: tuple[str, ...], media=None, mux=False, burn=False,
                burn_track="original", timestamps=False, verified_lyrics=False,
-               mode="live") -> list[Path]:
+               mode="live", split_translations=False) -> list[Path]:
     if mode not in ("live", "complete"):
         raise ValueError("Processing mode must be live or complete")
     if mode == "complete" and not media:
@@ -263,24 +313,37 @@ def run_export(*, sources: dict[str, str], destination: str, name: str,
     if not sources:
         raise ValueError("Supply at least one real SRT subtitle track")
     tracks = {key: parse_srt(path) for key, path in sources.items()}
+    if split_translations and set(tracks) == {"combined"}:
+        tracks = split_caption_translations(tracks["combined"])
+    folder = Path(destination).expanduser().resolve(strict=True)
+    if not formats and not (mux or burn):
+        raise ValueError("No export format selected")
     outputs = export_tracks(
-        tracks, destination, name, formats, timestamps=timestamps,
-        verified_lyrics=verified_lyrics)
-    folder = Path(destination).expanduser().resolve()
+        tracks, folder, name, formats, timestamps=timestamps,
+        verified_lyrics=verified_lyrics) if formats else []
     stem = _safe_name(name)
-    if mux:
-        outputs.append(mux_tracks(media, {k: Path(p) for k, p in sources.items()},
-                                  folder / (stem + "-subtitled.mkv")))
-    if burn:
-        if burn_track not in sources:
-            # A single existing SRT is often labeled combined in the file
-            # player; explicit multi-track selections must still be honored.
-            if len(sources) == 1 and "combined" in sources:
-                burn_track = "combined"
-            else:
-                raise ValueError("Burn-in track is not present")
-        outputs.append(burn_video(media, sources[burn_track],
-                                  folder / (stem + "-burned.mp4")))
+    if not (mux or burn):
+        return outputs
+    # Muxing uses temporary SRT tracks so users may request only an MKV
+    # without extra sidecar output, and actual language tracks stay separate.
+    with tempfile.TemporaryDirectory(prefix=".tihulu-tracks-", dir=folder) as temp:
+        media_tracks = {}
+        for name, cues in tracks.items():
+            path = Path(temp) / (name + ".srt")
+            _write_new(path, render(cues, "srt"))
+            media_tracks[name] = path
+        if mux:
+            outputs.append(mux_tracks(
+                media, media_tracks, folder / (stem + "-subtitled.mkv")))
+        if burn:
+            selected = burn_track
+            if selected not in media_tracks:
+                if len(media_tracks) == 1 and "combined" in media_tracks:
+                    selected = "combined"
+                else:
+                    raise ValueError("Burn-in track is not present")
+            outputs.append(burn_video(
+                media, media_tracks[selected], folder / (stem + "-burned.mp4")))
     return outputs
 
 
@@ -298,6 +361,8 @@ def main(argv=None):
     parser.add_argument("--burn-track", default="original")
     parser.add_argument("--timestamps", action="store_true")
     parser.add_argument("--verified-lyrics", action="store_true")
+    parser.add_argument("--split-translations", action="store_true",
+                        help="Separate [EN]/[DE]/[TR] translation lines into tracks")
     parser.add_argument("--mode", choices=("live", "complete"), default="live")
     args = parser.parse_args(argv)
     sources = {}
@@ -314,7 +379,8 @@ def main(argv=None):
             formats=tuple(x.strip().lower() for x in args.formats.split(",") if x.strip()),
             media=args.media, mux=args.mux, burn=args.burn_video,
             burn_track=args.burn_track, timestamps=args.timestamps,
-            verified_lyrics=args.verified_lyrics, mode=args.mode)
+            verified_lyrics=args.verified_lyrics, mode=args.mode,
+            split_translations=args.split_translations)
     except (OSError, ValueError, RuntimeError, subprocess.TimeoutExpired) as exc:
         print(json.dumps({"status": "error", "reason": str(exc)[:500]}),
               file=sys.stderr)
