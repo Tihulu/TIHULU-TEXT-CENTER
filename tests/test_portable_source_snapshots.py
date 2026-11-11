@@ -87,15 +87,18 @@ class PortableSourceTests(unittest.TestCase):
         self.assertTrue(identity["repository_rename_pending"])
         ledger = json.loads(
             (APPS / "_archives" / "PORTABLE_HISTORY_LINK_MAP.json").read_text())
-        self.assertEqual(len(ledger["pr_links"]), 63)
+        self.assertEqual(ledger["original_baseline_pr_count"], 63)
+        self.assertEqual(ledger["new_portability_pr_increment_count"], 4)
+        self.assertEqual(len(ledger["pr_links"]), 67)
         self.assertEqual(len(ledger["issue_links"]), 4)
-        self.assertEqual(len({q["origin_pr_number"] for q in ledger["pr_links"]}), 63)
+        self.assertEqual(len({q["origin_pr_number"] for q in ledger["pr_links"]}), 67)
         for item in ledger["pr_links"]:
             self.assertTrue(item["origin_pr_url"].startswith(
                 "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/"))
             self.assertIsNone(item["destination_pr_url"])
             self.assertFalse(item["copied_native_approvals"])
             self.assertTrue((ROOT / item["source_body_part"]).is_file())
+        self.assertTrue((APPS / "_archives" / "portability-prs-68-71.json").is_file())
         for app_id in IDS:
             links = json.loads((APPS / app_id / "HISTORY_LINKS.json").read_text())
             self.assertFalse(links["pr_comments_review_timeline_complete"])
