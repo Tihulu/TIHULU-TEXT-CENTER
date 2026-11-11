@@ -1,10 +1,10 @@
 {
   "schema_version": 1,
-  "as_of_utc": "2026-11-11",
-  "stage": "initial_requirements_registered_audit_not_completed",
+  "as_of_utc": "2026-11-12",
+  "stage": "six_initial_source_based_worker_reports_committed_implementation_and_hardware_gates_open",
   "requirements": {
     "registered": 97,
-    "code_source_audited": 0,
+    "code_source_audited": 97,
     "feature_equivalence_certified": 0,
     "physical_device_verified": 0,
     "initial_requirements_inventory_complete": false,
@@ -18,7 +18,8 @@
     "has_candidate_traceability_map": true,
     "individual_test_source_files_read": 16,
     "candidate_source_files_linked": 198,
-    "candidate_test_files_linked": 127
+    "candidate_test_files_linked": 127,
+    "initial_source_based_workstream_review_count": 97
   },
   "repositories": {
     "total_canonical_apps": 5,
@@ -108,8 +109,8 @@
       80,
       81
     ],
-    "started_by_other_chats": 0,
-    "completed_audits": 0,
+    "started_by_other_chats": 6,
+    "completed_audits": 6,
     "app_runtime_source_files_changed_in_this_phase": 0,
     "master_issue": 75,
     "branches_created": 6,
@@ -130,13 +131,76 @@
       "audit/ws05-text-retained-2026-11-11",
       "audit/ws06-provenance-qa-2026-11-11"
     ],
-    "user_must_launch_separate_chats": true
+    "user_must_launch_separate_chats": true,
+    "audit_completion_definition": "Six initial source-based report/evidence documentation passes; NOT feature equivalence, platform/hardware acceptance, migration or release",
+    "report_files_committed": 6,
+    "evidence_json_committed": 6,
+    "worker_executed_tests": 0,
+    "worker_executed_physical_rf_tests": 0,
+    "worker_pr_changed_paths_validated_as_workspace_only": 6,
+    "worker_prs_draft_and_open_verified": 6,
+    "worker_audit_source_scope": {
+      "01": {
+        "pr": 83,
+        "issue": 76,
+        "requirement_ids_reviewed": 41,
+        "head": "10fd5ef9c51df2c330c8c5823ce789e31db519b2",
+        "source_files_read": 43,
+        "test_source_files_read": 49,
+        "notes": "39 partial draft coded; 2 requested/gap; no acceptance test"
+      },
+      "02": {
+        "pr": 84,
+        "issue": 77,
+        "requirement_ids_reviewed": 17,
+        "head": "1253f55604b1401927f3a1b7a661c7f9b1fa8386",
+        "test_candidates_mapped": 15,
+        "test_candidate_gaps": 2,
+        "notes": "Readsb ownership and 3-vs-4 RF-aircraft branch discrepancy"
+      },
+      "03": {
+        "pr": 85,
+        "issue": 78,
+        "requirement_ids_reviewed": 8,
+        "head": "284944e1dc167f6b60bf762889a3c75bf28f47e2",
+        "test_source_files_read": 25,
+        "notes": "PR #37 contains 22 absent-on-worker-branch satellite tests; prior Pages parity CI failed"
+      },
+      "04": {
+        "pr": 86,
+        "issue": 79,
+        "requirement_ids_reviewed": 8,
+        "head": "b62ba58287ef9e76d42ca807829b26da68177e18",
+        "test_source_files_read": 13,
+        "notes": "4 partially draft-coded, 4 requested/partial; 0 accepted"
+      },
+      "05": {
+        "pr": 87,
+        "issue": 80,
+        "requirement_ids_reviewed": 8,
+        "head": "5a772fd399c2d743207adb69dc33bd9922fee068",
+        "test_source_files_read": 12,
+        "notes": "3 active backend blobs differ between retained main and archived branch snapshot"
+      },
+      "06": {
+        "pr": 88,
+        "issue": 81,
+        "requirement_ids_reviewed": 15,
+        "head": "e69c2b6eac7deeca313925bf99af31f8c9434f34",
+        "test_source_files_read": 6,
+        "notes": "Archive omission #72-#74; branding binary digests not independently verified; locales untested"
+      }
+    },
+    "report_status_source": "Direct fetched REPORT.md and EVIDENCE.json on all six separate workstream heads and diff comparison against frozen coordinator base, 2026-11-12",
+    "initial_requirement_review_coverage": 97,
+    "initial_requirement_review_denominator": 97,
+    "worker_branch_divergence": "All six worker branches diverged from coordinator by two docs-only coordinator commits; do not merge/rebase automatically"
   },
   "time_remaining": {
     "hours": null,
     "minutes": null,
     "confidence": "insufficient_evidence",
-    "reason": "No defensible task duration until all six workstreams count source files, PR conflict resolutions, dependency closures, hardware test sessions, unresolved history and release gates.",
+    "reason": "Six initial source-based reports exist, but duration of P3 integration conflict resolution, native platform/hardware test sessions, archival gaps, owner-gated repo migrations and release/rollback checks remains unmeasured.",
     "format_on_update": "HH hours MM minutes once computed; otherwise say unknown rather than make up a countdown",
     "estimation_criteria": [
       "audited outstanding task list",
@@ -145,7 +209,7 @@
       "test hardware access and coverage",
       "time to verify rollback and accepted feature parity"
     ],
-    "hours_minutes_status": "cannot_estimate_yet_without_six_evidence_backed_workload_audits"
+    "hours_minutes_status": "unknown_after_source_audits_unmeasured_acceptance_workload"
   },
   "release_gates": {
     "zero_runtime_changes": true,
@@ -159,7 +223,7 @@
     ],
     "engineering_language": "en",
     "all_5_ui_locale_coverage_verified": false,
-    "new_ci_checks_current_head_status": "queued_not_yet_result_verified",
+    "new_ci_checks_current_head_status": "All six worker PR head Text Center tests workflow runs completed successfully, checked 2026-11-12; separate original satellite PR #37 Pages parity failed",
     "last_verified_ci_for_prior_head": {
       "sha": "b35f3f2f1cc5f35cb46bad90840ac814ab226b69",
       "actions_runs": [
@@ -172,7 +236,42 @@
       ],
       "meaning": "GitHub Actions (software CI) only, NOT installed hardware test"
     },
-    "no_runtime_changes_in_all_six_worker_prs_verified": true
+    "no_runtime_changes_in_all_six_worker_prs_verified": true,
+    "worker_latest_head_ci": {
+      "01": {
+        "run_id": 43118254892,
+        "result": "success",
+        "scope": "Text Center tests"
+      },
+      "02": {
+        "run_id": 43117866845,
+        "result": "success",
+        "scope": "Text Center tests"
+      },
+      "03": {
+        "run_id": 43118074584,
+        "result": "success",
+        "scope": "Text Center tests"
+      },
+      "04": {
+        "run_id": 43117512069,
+        "result": "success",
+        "scope": "Text Center tests"
+      },
+      "05": {
+        "run_id": 43117508013,
+        "result": "success",
+        "scope": "Text Center tests"
+      },
+      "06": {
+        "run_id": 43117892135,
+        "result": "success",
+        "scope": "Text Center tests"
+      }
+    },
+    "existing_satellite_feature_pr37_ci_observation": "Run 42559046861 had four portable synthetic OS successes but source-to-Pages parity failure on eight assets; this is distinct from worker-PR CI.",
+    "feature_acceptance_verified": false,
+    "hardware_device_acceptance_verified": false
   },
   "followup_rule": "After each real GitHub CI or issue milestone, update counts and explain what was measured; no unscheduled background work is implied.",
   "documentation": {
