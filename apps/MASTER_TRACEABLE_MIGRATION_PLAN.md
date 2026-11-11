@@ -3,7 +3,7 @@
 **Scope:** all five TIHULU applications. **Current phase: metadata, original-source links, approved-design asset staging.** Three owner-created destination repository shells now exist (all verified empty). Do not populate or cut over to them, rename any repo, merge Draft PRs or change installed app behavior during this documentation phase.
 
 ## Objectives
-- Each app gets a complete independent source/dependency/build/test/localization/brand package, with no external monorepo runtime dependency. Flight Radar is already separately canonical and is handled there.
+- Each app gets a self-contained source/dependency/build/test/localization/brand package. Text Center remains in this original repository; the three newly created app repos become independent after reviewed migration. Flight Radar is already separately canonical and is handled there.
 - Every copied item retains its original source pointer. Every missing, blocked, partial or GitHub-native nonportable record has a gap entry and an old-repo link. Names/URLs after old repo rename are resolved using GitHub repo ID plus tested aliases.
 - Original PR/issue/comment/review evidence, original IDs, authors, dates, review decisions and source SHA provenance are not discarded, even when native GitHub objects cannot be duplicated in new repos.
 - Claude Code, DeepSeek, ChatGPT and other coding LLMs read the same documented code→feature→component→tests and history-gap maps; no extra coding LLM is required to read static JSON/Markdown.
@@ -33,7 +33,7 @@ Three user-created, public GitHub repository shells were verified, all empty (`s
 | Media Center | `Tihulu/tihulu-media-center` | 1454318539 | No | No |
 | Satellite Center | `Tihulu/tihulu-satellite-center` | 1454319572 | No | No |
 | RF Geolocation Center | `Tihulu/tihulu-rf-geolocation-center` | 1454320329 | No | No |
-Text Center has **no separately selected destination**. Flight Radar is already canonical at `Tihulu/tihulu-flight-radar` (ID 1447534043). The old source repo `Tihulu/TIHULU-TEXT-CENTER` remains canonical for the three embedded apps (original repository ID 1447637221). The verified destination registry is `apps/VERIFIED_DESTINATION_REPOSITORIES.json`.
+Text Center **remains in the original repository; no separate destination is needed**. Flight Radar is already canonical at `Tihulu/tihulu-flight-radar` (ID 1447534043). The old source repo `Tihulu/TIHULU-TEXT-CENTER` remains canonical for the three embedded apps (original repository ID 1447637221). The verified destination registry is `apps/VERIFIED_DESTINATION_REPOSITORIES.json`.
 
 ### Updated migration sequence (do not auto-execute)
 1. **Freeze and reconcile source:** per-app exact tree snapshots, latest stacked PR heads and branch differences, unmerged root-level tests, upstream third-party dependencies and licenses. No unreviewed change to current source.
@@ -46,3 +46,9 @@ Text Center has **no separately selected destination**. Flight Radar is already 
 8. **Future monorepo rename (separate later approval):** original GitHub numeric ID and URLs preserved, alias resolution and live redirect tests for PR, Pages, raw files, installers and workflows; no destructive rename during migration.
 
 **Hard rule:** existing application source, UI behavior, settings, shipped logos, release installers and `main` remain unchanged by this plan. Three repositories' existence is not migration completion.
+
+## Final five-repository topology (owner decision, 2026-11-11)
+
+Text Center **stays** in `Tihulu/TIHULU-TEXT-CENTER` (GitHub repository ID `1447637221`), which remains an active Text Center source/installation repository and the origin archive for previously embedded apps. Exactly three pending app moves: Media Center → `Tihulu/tihulu-media-center`, Satellite Center → `Tihulu/tihulu-satellite-center`, RF Geolocation Center → `Tihulu/tihulu-rf-geolocation-center` (all three destination repositories already created but observed empty). Flight Radar remains independent in `Tihulu/tihulu-flight-radar`. Five apps, five repos; **no additional Text Center repo**.
+
+Keep `textcenter/` and `web/` active and editable after the other three approved cutovers; don't freeze or delete Text Center sources or repoint its installers. Copy/version shared TIHULU modules into migrating applications so each runs independently. PR/Issue review history and incomplete-transfer gaps remain linked to this original repository by GitHub numeric ID plus historical URL, even if this **same** Text Center repo is renamed in the future. Preserve five approved red/white/black TIHULU mascot logos, English engineering, EN/TR/DE UI and all existing functionality. A later rename requires separate approval and URL/install/Pages checks; it is NOT Text Center migration.

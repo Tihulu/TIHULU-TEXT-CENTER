@@ -1,6 +1,6 @@
 # TIHULU — portable self-contained application roadmap
 
-**Owner requirement:** all applications (Media Center, Satellite Center, RF Geolocation, Text Center, Flight Radar) must eventually live, build and evolve independently in their own GitHub repositories, with editable source, tests, installers, user-visible English/Turkish/German and all development knowledge accessible by coding LLMs. Engineering language, internal design, code comments and PR documentation: English.
+**Owner requirement:** all applications must ultimately build and evolve independently: Text Center stays in its original repository, three other embedded apps move to the owner-created repositories, and Flight Radar remains separately canonical, with editable source, tests, installers, user-visible English/Turkish/German and all development knowledge accessible by coding LLMs. Engineering language, internal design, code comments and PR documentation: English.
 
 ## What is prepared today
 - Frozen, **exact Git tree copies** under `apps/<app>/source/` for all four apps presently embedded in TEXT CENTER. Media Center explicitly includes its own `kaffeine_next/`, `tv_center/` and copied `textcenter/` because it reuses shared code. Text Center separately owns its `textcenter/` and `web/` snapshot. Satellite and RF Geolocation each have their own source tree snapshots.
@@ -20,7 +20,7 @@
 3. Reconcile every feature and unmerged PR using `FEATURE_MATRIX.json`, `COMPONENT_MATRIX.json`, `MODEL_MATRIX.json`, plus `HISTORY_LINKS.json` and the root historical PR ledger. Compare source SHA per application and per draft branch. No lossy squash that deletes needed provenance.
 4. Prove standalone offline-first build in a fresh checkout *without depending on the old monorepo*. Hardware Start/Stop, exclusive SDR/DVB ownership, live subtitles/timing, recordings and translations must remain feature-parity tested. Actual device acceptance is distinct from CI.
 5. Use `apps/REPOSITORY_RENAME_LINK_POLICY.md` for the old repo's potential rename. Repository IDs and historical aliases keep old origin references; current URLs are resolved and verified at cutover. A redirect is not an archival export.
-6. All user-facing UIs require `en`, `tr` and `de` bundles and tests before declaring the *new independent release* complete. Internals remain English; no unreviewed locale changes in the current app.
+6. All user-facing UIs require `en`, `tr` and `de` bundles and tests before declaring any new or updated release complete. Internals remain English; no unreviewed locale changes in the current app.
 7. Prepare **both** ends: old repo read-only pointer to new canonical source, and new repo root AGENTS.md/CLAUDE.md/DEEPSEEK_START.md/DEVELOPMENT_AGENT_GUIDE.md, model/component/feature matrices, original PR/issue/history link map, provenance and unapproved historical reviews. Write reciprocal old/new PR URL links when verified.
 8. Obtain explicit owner approval to activate cutover, freeze old app source edits and change canonical registry. Continue **only** in its independent repo after cutover. Keep original branches, archives and recorded source copy available.
 
@@ -37,3 +37,7 @@ Rust, Python, Qt, GTK, Flutter, Tauri and other stacks are allowed. Any layout, 
 Logos must be the five **previously approved red/white/black TIHULU mascot designs** only, matched by `apps/BRANDING_APPROVED_MANIFEST.json` hash. Binary image assets remain in the verified conversation ZIP until a separate approved GitHub asset staging action; no existing app icon has been changed.
 
 The three new repositories must be bootstrapped with a first commit only after the owner has authorized that next scope. Then application source import, independent build/CI, history preservation and native release validation occur on review branches. Text Center's separate future repo is not yet chosen; Flight Radar already has its own canonical repository. This branch performs no code import, repo rename or cutover.
+
+## Explicit Text Center exception
+
+`Tihulu/TIHULU-TEXT-CENTER` remains the canonical **active Text Center app** and the original archival hub. There is no second Text Center repo. Its `textcenter/`, `web/`, tests, CI, Pages and installers remain functioning in this repository. On the other three apps' cutovers, only their previous app-specific code roots become historical pointers; do not freeze shared Text Center code. The three apps must carry their own copies/versioned independent dependencies, without requiring the old repo at runtime. Flight Radar already has its independent repository. Renaming the original Text Center repo later does not create a new repository or transfer Text Center development.
