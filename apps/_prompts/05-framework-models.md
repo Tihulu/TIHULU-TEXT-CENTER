@@ -13,3 +13,7 @@ At start read `AGENTS.md`, `apps/registry.json`, `apps/LLM_FRAMEWORK_PORTABILITY
 Validate JSON schema, design freedom, Rust/Qt/GTK/Tauri porting adapters, model-to-feature dependency rules, source/translation/word timings and resource lock contracts. Keep existing app sources unchanged; add forward-compatible schema versions and genuine test fixtures.
 
 Required deliverables: updated evidence-backed app matrix (or shared schema), exact compatibility checklist, unknown/missing evidence list, read-only tests if within owned paths, and Draft PR. Current source code, installers, settings and active application runtime remain unchanged. Do not move any repository or invent GitHub history.
+
+## Coding-agent development context (updated)
+
+Read repo-root DEVELOPMENT_AGENT_GUIDE.md and apps/DEVELOPMENT_AGENT_MATRIX.json before work. These files guide Claude Code, DeepSeek and other coding LLMs; do **not** install or run extra models just to read them. The app MODEL_MATRIX covers optional **in-application** speech/translation/alignment engines, while FEATURE_MATRIX and COMPONENT_MATRIX cover safe extension, redesign and Rust/other-framework porting. Continue to use only your assigned file scope and Draft PR.
