@@ -27,7 +27,24 @@
     ],
     "old_original_history_review_export_complete": false,
     "all_prior_feature_prs_reconciled": false,
-    "audit_start_utc_date": "2026-11-11"
+    "audit_start_utc_date": "2026-11-11",
+    "initial_changed_filename_audits": {
+      "total_checked": 4,
+      "source_repos": [
+        "Tihulu/TIHULU-TEXT-CENTER",
+        "Tihulu/tihulu-flight-radar"
+      ],
+      "pull_requests": [
+        "main_repo#65",
+        "main_repo#67",
+        "flight_radar#7",
+        "flight_radar#13"
+      ],
+      "media_overlap_paths": 3,
+      "flight_open_pr_overlap_paths": 0,
+      "semantic_merge_conflicts_cleared": false,
+      "history_comments_and_review_audit_completed": false
+    }
   },
   "approved_designs": {
     "logos_user_approved": 5,
@@ -76,7 +93,8 @@
       "de"
     ],
     "engineering_language": "en",
-    "all_5_ui_locale_coverage_verified": false
+    "all_5_ui_locale_coverage_verified": false,
+    "new_ci_checks_current_head_status": "queued_not_yet_result_verified"
   },
   "followup_rule": "After each real GitHub CI or issue milestone, update counts and explain what was measured; no unscheduled background work is implied.",
   "documentation": {
@@ -88,6 +106,7 @@
     "coordination_issues_created": 7,
     "read_only_test_added": true,
     "live_runtime_code_changed": false,
-    "source_sha_audit_completed": false
+    "source_sha_audit_completed": false,
+    "early_conflict_audit_created": true
   }
 }
