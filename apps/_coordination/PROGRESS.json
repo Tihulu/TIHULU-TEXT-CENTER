@@ -26,7 +26,8 @@
       13
     ],
     "old_original_history_review_export_complete": false,
-    "all_prior_feature_prs_reconciled": false
+    "all_prior_feature_prs_reconciled": false,
+    "audit_start_utc_date": "2026-11-11"
   },
   "approved_designs": {
     "logos_user_approved": 5,
@@ -36,10 +37,18 @@
   },
   "workstreams": {
     "defined": 6,
-    "issue_numbers": [],
+    "issue_numbers": [
+      76,
+      77,
+      78,
+      79,
+      80,
+      81
+    ],
     "started_by_other_chats": 0,
     "completed_audits": 0,
-    "app_runtime_source_files_changed_in_this_phase": 0
+    "app_runtime_source_files_changed_in_this_phase": 0,
+    "master_issue": 75
   },
   "time_remaining": {
     "hours": null,
@@ -53,7 +62,8 @@
       "documented blocking dependencies",
       "test hardware access and coverage",
       "time to verify rollback and accepted feature parity"
-    ]
+    ],
+    "hours_minutes_status": "cannot_estimate_yet_without_six_evidence_backed_workload_audits"
   },
   "release_gates": {
     "zero_runtime_changes": true,
@@ -68,5 +78,16 @@
     "engineering_language": "en",
     "all_5_ui_locale_coverage_verified": false
   },
-  "followup_rule": "After each real GitHub CI or issue milestone, update counts and explain what was measured; no unscheduled background work is implied."
+  "followup_rule": "After each real GitHub CI or issue milestone, update counts and explain what was measured; no unscheduled background work is implied.",
+  "documentation": {
+    "master_requirements_file_created": true,
+    "initial_requirements_recorded": 97,
+    "master_plan_created": true,
+    "coordination_protocol_created": true,
+    "prompt_files_created": 6,
+    "coordination_issues_created": 7,
+    "read_only_test_added": true,
+    "live_runtime_code_changed": false,
+    "source_sha_audit_completed": false
+  }
 }
