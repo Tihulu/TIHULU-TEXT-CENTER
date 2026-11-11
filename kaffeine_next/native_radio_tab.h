@@ -475,6 +475,39 @@ public:
             "and release the RTL-SDR, regardless of the keep-ready preference. "
             "Does not stop other applications' SDR processes."));
         receiverActions->addWidget(forceRelease_,2,2);
+        liveCaptionRecord_=new QPushButton(tr("Save live AI subtitles"),page);
+        liveCaptionRecord_->setToolTip(tr(
+            "Save displayed real Whisper captions as a timed SRT without "
+            "recording radio audio. Cue timing is estimated from the displayed "
+            "caption clock, NOT measured DAC or per-word audio time."));
+        receiverActions->addWidget(liveCaptionRecord_,2,0);
+        auto *liveCaptionFormats=new QWidget(page);
+        auto *liveCaptionFormatsLayout=new QHBoxLayout(liveCaptionFormats);
+        liveCaptionFormatsLayout->setContentsMargins(0,0,0,0);
+        liveCaptionTxt_=new QCheckBox(tr("TXT"),page);
+        liveCaptionVtt_=new QCheckBox(tr("VTT"),page);
+        liveCaptionAss_=new QCheckBox(tr("ASS"),page);
+        liveCaptionJson_=new QCheckBox(tr("JSON"),page);
+        liveCaptionTxt_->setChecked(true);
+        for(QCheckBox *box:{liveCaptionTxt_,liveCaptionVtt_,
+                            liveCaptionAss_,liveCaptionJson_})
+            liveCaptionFormatsLayout->addWidget(box);
+        receiverActions->addWidget(liveCaptionFormats,3,0,1,2);
+        connect(liveCaptionRecord_,&QPushButton::clicked,this,
+                [this](){toggleLiveCaptionRecording();});
+        connect(&liveCaptionFormatsProcess_,
+            QOverload<int,QProcess::ExitStatus>::of(&QProcess::finished),
+            this,[this](int result,QProcess::ExitStatus status){
+                if(result==0 && status==QProcess::NormalExit) {
+                    if(state_)state_->setText(tr(
+                        "Radio SRT and selected extra timed subtitle/text "
+                        "formats saved without changing playback."));
+                } else if(state_) {
+                    state_->setText(tr("Radio SRT preserved. Additional export "
+                        "failed: %1").arg(QString::fromUtf8(
+                            liveCaptionFormatsProcess_.readAllStandardError()).right(200)));
+                }
+            });
         subtitledRecord_=new QCheckBox(tr("Make subtitled recording"),this);
 		subtitledRecord_->setToolTip(tr("On Stop, create offline time-coded SRT from the "
 			"saved audio and mux a selectable-subtitle MKV. Never fake live synchronization."));
@@ -3520,6 +3553,7 @@ private:
         }
     }
     void stopRadioListening() {
+        stopLiveCaptionRecording();
         // Scanning uses the receiver itself and always needs a hard stop.
         if(scanning_ || !releaseOnStop_ || releaseOnStop_->isChecked()) {
             stopReceiver();
@@ -3617,6 +3651,7 @@ private:
         } else analogIdleSinceMs_=0;
     }
 	void stopReceiver() {
+        stopLiveCaptionRecording();
         dabPlaybackObserved_=false;
         analogPlaybackObserved_=false;
         dabIdleSinceMs_=0;
@@ -5839,6 +5874,116 @@ private:
                                           currentMs+7500);
         }
     }
+    static QString radioSrtStamp(qint64 milliseconds) {
+        const qint64 ms=qMax(qint64(0),milliseconds);
+        const qint64 hours=ms/3600000;
+        const qint64 minutes=(ms/60000)%60;
+        const qint64 seconds=(ms/1000)%60;
+        const qint64 remainder=ms%1000;
+        return QStringLiteral("%1:%2:%3,%4")
+            .arg(hours,2,10,QLatin1Char('0'))
+            .arg(minutes,2,10,QLatin1Char('0'))
+            .arg(seconds,2,10,QLatin1Char('0'))
+            .arg(remainder,3,10,QLatin1Char('0'));
+    }
+    void stopLiveCaptionRecording() {
+        if(!liveCaptionSrt_.isOpen())return;
+        liveCaptionSrt_.flush();
+        liveCaptionSrt_.close();
+        QStringList formats;
+        if(liveCaptionTxt_ && liveCaptionTxt_->isChecked())
+            formats<<QLatin1String("txt");
+        if(liveCaptionVtt_ && liveCaptionVtt_->isChecked())
+            formats<<QLatin1String("vtt");
+        if(liveCaptionAss_ && liveCaptionAss_->isChecked())
+            formats<<QLatin1String("ass");
+        if(liveCaptionJson_ && liveCaptionJson_->isChecked())
+            formats<<QLatin1String("json");
+        if(!formats.isEmpty() && liveCaptionCount_>0 &&
+           liveCaptionFormatsProcess_.state()==QProcess::NotRunning) {
+            const QFileInfo recorded(liveCaptionSrt_.fileName());
+            QStringList args{
+                QLatin1String("recording-export"),
+                QLatin1String("--srt"),recorded.absoluteFilePath(),
+                QLatin1String("--mode"),QLatin1String("live"),
+                QLatin1String("--split-translations"),
+                QLatin1String("--destination"),recorded.absolutePath(),
+                QLatin1String("--name"),recorded.completeBaseName()+
+                    QLatin1String("-export"),
+                QLatin1String("--formats"),formats.join(QLatin1Char(',')),
+                QLatin1String("--timestamps")};
+            liveCaptionFormatsProcess_.start(QLatin1String("tihulu-tv-center"),args);
+        }
+        if(liveCaptionRecord_)
+            liveCaptionRecord_->setText(tr("Save live AI subtitles"));
+        if(state_)state_->setText(tr(
+            "Live radio SRT saved (%1 cues). This uses estimated caption "
+            "display timing; for corrected audio timing, transcribe a finished "
+            "recorded MP3 separately. TXT/VTT/ASS/JSON export is in Recordings.")
+            .arg(liveCaptionCount_));
+        liveCaptionStationKey_.clear();
+    }
+    void toggleLiveCaptionRecording() {
+        if(liveCaptionSrt_.isOpen()) {
+            stopLiveCaptionRecording();return;
+        }
+        if(!active() || playingKey_.isEmpty() || !quickAi_ ||
+           !quickAi_->isChecked()) {
+            if(state_)state_->setText(tr(
+                "Start a real DAB station and Whisper captions before "
+                "saving live speech SRT; no DLS metadata substitution."));
+            return;
+        }
+        const QString suggestion=QDir::homePath()+QLatin1String("/radio-live-")+
+            QDateTime::currentDateTime().toString(QLatin1String("yyyyMMdd-hhmmss"))+
+            QLatin1String(".srt");
+        const QString file=QFileDialog::getSaveFileName(
+            this,tr("Save live radio AI captions"),suggestion,
+            tr("SubRip subtitles (*.srt)"));
+        if(file.isEmpty())return;
+        liveCaptionSrt_.setFileName(file);
+        if(!liveCaptionSrt_.open(QIODevice::WriteOnly|QIODevice::NewOnly|
+                                QIODevice::Text)) {
+            if(state_)state_->setText(tr(
+                "Cannot create live subtitle SRT. Existing files are protected."));
+            return;
+        }
+        liveCaptionStartedMs_=QDateTime::currentMSecsSinceEpoch();
+        liveCaptionStationKey_=playingKey_;
+        liveCaptionCount_=0;
+        liveCaptionEndMs_=0;
+        liveCaptionRecord_->setText(tr("Stop live AI subtitles"));
+        if(state_)state_->setText(tr(
+            "Saving actual Whisper speech as SRT · estimated display-clock "
+            "timing; no radio audio recording or extra SDR ownership."));
+    }
+    void appendLiveRadioCaption(const TimedRadioCue &cue) {
+        if(!liveCaptionSrt_.isOpen() || metadataCaptions_ ||
+           cue.chunkIndex<0)return;
+        if(playingKey_!=liveCaptionStationKey_) {
+            stopLiveCaptionRecording();
+            return;
+        }
+        QString spoken=cue.text.trimmed().left(1300);
+        if(spoken.isEmpty() || spoken==QLatin1String("[music]") ||
+           spoken.startsWith(QLatin1String("[DLS broadcaster metadata]")))
+            return;
+        spoken.replace(QLatin1Char('\r'),QLatin1Char(' '));
+        const qint64 start=qMax(
+            liveCaptionEndMs_,qMax(qint64(0),
+                cue.dueMs-liveCaptionStartedMs_));
+        const qint64 duration=qBound(qint64(900),
+            qint64(spoken.size())*50,qint64(6500));
+        const qint64 end=start+duration;
+        const QString line=QString::number(++liveCaptionCount_)+
+            QLatin1Char('\n')+radioSrtStamp(start)+
+            QLatin1String(" --> ")+radioSrtStamp(end)+
+            QLatin1Char('\n')+spoken+QLatin1String("\n\n");
+        liveCaptionSrt_.write(line.toUtf8());
+        liveCaptionSrt_.flush();
+        liveCaptionEndMs_=end;
+    }
+
 	void displayDueRadioCues(qint64 now) {
 		// Queue rather than overwrite: a new AI chunk must not erase the
 		// previous chunk before its estimated playback presentation time.
@@ -5898,6 +6043,7 @@ private:
                     "Live radio subtitles · displayed inside station view"));
                 showRadioCanvasCaption(cue.text);
             }
+            if(!metadataCaptions_)appendLiveRadioCaption(cue);
             lastCaptionVisibleMs_=now;
             if(lyricsAudioFallbackActive_) {
                 const QString heard=tr("Whisper heard (unverified lyrics) · %1")
@@ -7402,6 +7548,14 @@ private:
     qint64 dabIdleSinceMs_=0,analogIdleSinceMs_=0;
     qint64 lastAudioRetuneMs_=0;
 	QList<TimedRadioCue> cueQueue_;
+    QFile liveCaptionSrt_;
+    QProcess liveCaptionFormatsProcess_{this};
+    QPushButton *liveCaptionRecord_=nullptr;
+    QCheckBox *liveCaptionTxt_=nullptr,*liveCaptionVtt_=nullptr,
+              *liveCaptionAss_=nullptr,*liveCaptionJson_=nullptr;
+    QString liveCaptionStationKey_;
+    qint64 liveCaptionStartedMs_=0,liveCaptionEndMs_=0;
+    int liveCaptionCount_=0;
 	QLineEdit *extraTargets_=nullptr,*lyricsArtist_=nullptr,*lyricsTitle_=nullptr;
 	QLabel *syncStatus_=nullptr;
 	QProcess backend_,captionProcess_,recorder_,lyricsProcess_,

@@ -79,6 +79,9 @@ def main():
     if len(sys.argv) >= 2 and sys.argv[1] == "media-captions":
         from .media_ai import main as local_media
         return local_media(sys.argv[2:])
+    if len(sys.argv) >= 2 and sys.argv[1] == "recording-export":
+        from .recording_export import main as recording_export
+        return recording_export(sys.argv[2:])
     if len(sys.argv) >= 2 and sys.argv[1] == "media-captions-ui":
         from .media_ui import main as local_media_gui
         return local_media_gui(sys.argv[2:])
@@ -136,7 +139,7 @@ def main():
         os.execv(str(launcher), [str(launcher), "--lastchannel", *arguments])
     print("Unknown command. Use: tv, ai-market, ai, doctor, "
           "kaffeine-captions, kaffeine-doctor, ai-check, media-captions, "
-          "media-captions-ui, radio-captions, lyrics-lookup, lyrics-import, remote-hub, legacy-player", file=sys.stderr)
+          "media-captions-ui, recording-export, radio-captions, lyrics-lookup, lyrics-import, remote-hub, legacy-player", file=sys.stderr)
     return 2
 
 if __name__ == "__main__":

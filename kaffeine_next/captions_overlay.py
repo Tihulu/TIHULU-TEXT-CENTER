@@ -1772,6 +1772,18 @@ def main(argv=None):
     srt_controls.addWidget(srt_start)
     srt_controls.addWidget(srt_stop)
     root.addLayout(srt_controls)
+    # Optional additional text/subtitle sidecars; existing live SRT remains
+    # the primary independent original/translation capture.
+    srt_extra = QHBoxLayout()
+    live_txt = QCheckBox("TXT"); live_txt.setChecked(True)
+    live_vtt = QCheckBox("VTT")
+    live_ass = QCheckBox("ASS")
+    live_json = QCheckBox("JSON")
+    for choice in (live_txt, live_vtt, live_ass, live_json):
+        choice.setToolTip("Export the real timed live SRT on Stop; no new "
+                          "DVB/SDR capture or Whisper inference.")
+        srt_extra.addWidget(choice)
+    root.addLayout(srt_extra)
     srt_status = QLabel("SRT: off · originals and translations saved as separate tracks.")
     srt_status.setWordWrap(True)
     root.addWidget(srt_status)
@@ -2618,8 +2630,27 @@ def main(argv=None):
 
     def end_srt_recording():
         paths = srt_recorder.stop()
-        srt_status.setText("SRT complete · load through Playback → Open Subtitle: " +
-                           (", ".join(str(p) for p in paths) if paths
+        exported = []
+        chosen = tuple(fmt for enabled, fmt in (
+            (live_txt.isChecked(), "txt"),
+            (live_vtt.isChecked(), "vtt"),
+            (live_ass.isChecked(), "ass"),
+            (live_json.isChecked(), "json")) if enabled)
+        if paths and chosen:
+            try:
+                from tv_center.recording_export import parse_srt, export_tracks
+                tracks = {path.stem: parse_srt(path) for path in paths}
+                exported = export_tracks(
+                    tracks, paths[0].parent, "live-TV",
+                    chosen, timestamps=True)
+            except (OSError, ValueError, RuntimeError) as exc:
+                srt_status.setText(
+                    "SRT saved unchanged; additional export failed: " + str(exc))
+                srt_start.setEnabled(True)
+                srt_stop.setEnabled(False)
+                return
+        srt_status.setText("SRT recording saved · " +
+                           (", ".join(str(p) for p in (*paths, *exported)) if paths
                             else "No spoken captions received"))
         srt_start.setEnabled(True)
         srt_stop.setEnabled(False)
