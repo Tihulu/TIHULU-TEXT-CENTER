@@ -226,6 +226,7 @@
       "ids": [
         "SAT-002",
         "SAT-003",
+        "SAT-004",
         "SAT-008"
       ],
       "depends_on": [
@@ -288,7 +289,9 @@
         "SAT-008",
         "FLIGHT-016",
         "FLIGHT-017",
-        "CROSS-009"
+        "CROSS-007",
+        "CROSS-009",
+        "CROSS-015"
       ],
       "depends_on": [],
       "observed": "Initial coordinator index identifies 11 without local test-file candidates. Satellite PR #37 contains 22 relevant test sources absent from the WS03 starting branch; presence there does not mean tested or transferred. Flight 016/017 lack direct candidates.",
@@ -350,6 +353,7 @@
         5
       ],
       "ids": [
+        "CROSS-005",
         "CROSS-010",
         "FLIGHT-017",
         "TEXT-007"
@@ -385,6 +389,7 @@
       "ids": [
         "TEXT-008",
         "FLIGHT-017",
+        "CROSS-005",
         "CROSS-006"
       ],
       "depends_on": [
@@ -407,7 +412,7 @@
     },
     {
       "id": "REG-13",
-      "priority": "P1",
+      "priority": "P0",
       "title": "EN(default)/TR/DE runtime UI and five approved logo binary evidence",
       "owners": [
         6,
@@ -418,8 +423,8 @@
         5
       ],
       "ids": [
+        "CROSS-002",
         "CROSS-003",
-        "CROSS-008",
         "CROSS-009"
       ],
       "depends_on": [
@@ -491,7 +496,8 @@
       ],
       "ids": [
         "CROSS-009",
-        "CROSS-012"
+        "CROSS-012",
+        "CROSS-015"
       ],
       "depends_on": [
         "REG-03",
@@ -507,6 +513,78 @@
       "document_only_next": "Separate source-reviewed, partial draft-coded, unit/CI executed, hardware-verified, released and original requirement-completeness claims in progress. Require reproducible run IDs, exact SHA and logs before promoting any gate.",
       "acceptance_proof": "Every critical gate gets evidence URL, exact SHA, reproducible result/runner/device or explicit unknown. ETA hours/minutes remain null until scoped tasks, environments, blocked dependencies and measured effort are present.",
       "approval_required_for": "Claiming release or changing scope, running user-host hardware tests or applying code.",
+      "status": "OPEN",
+      "tests_executed_for_this_gate": 0,
+      "hardware_acceptance_verified": false,
+      "runtime_change_authorized": false
+    },
+    {
+      "id": "REG-16",
+      "priority": "P0",
+      "title": "Media Teletext/Whisper/lyrics and GPU caption-timing no-regression",
+      "owners": [
+        1,
+        5,
+        6
+      ],
+      "ids": [
+        "MEDIA-007",
+        "MEDIA-015",
+        "MEDIA-018",
+        "MEDIA-019",
+        "MEDIA-021",
+        "MEDIA-024",
+        "MEDIA-027",
+        "MEDIA-028",
+        "MEDIA-031",
+        "CROSS-013"
+      ],
+      "depends_on": [
+        "REG-01",
+        "REG-03"
+      ],
+      "observed": "Media source paths include Teletext matching, subtitle offset scheduler, Qwen fallback, lyrics and native hardware UI. Most existing test-source contracts are static or mock/fixture; no worker ran real TV/radio, fullscreen, karaoke alignment, 10-second buffer or RTX/CPU/NPU model parity trials.",
+      "evidence": [
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/10fd5ef9c51df2c330c8c5823ce789e31db519b2/apps/_coordination/workstreams/01/REPORT.md",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/chore/master-requirements-zero-regression-coordination-2026-11-11/apps/_coordination/TEST_EVIDENCE_QUALITY.md"
+      ],
+      "document_only_next": "Construct a source-origin, timing and failure-state test contract: priority among DVB Teletext/DAB DLS/Whisper/lyrics; mismatch fallback; a single offset application; silence/music handling; local full-file prepass and video/audio player persistence; optional GPU/remote fallback never masks spoken text.",
+      "acceptance_proof": "Later explicit approval to run isolated timed speech/lyrics fixtures, then native TV/radio and user-provided sample media playback with traceable word/cue clocks, synchronized offset, independent karaoke/manual controls and no repeated buffering, cross-language subtitle fallback and safe model selection. Separate real hardware evidence required.",
+      "approval_required_for": "Editing timing, alignment, model/backend selection, translation, receiver selection, installed local AI dependencies or user playback settings.",
+      "status": "OPEN",
+      "tests_executed_for_this_gate": 0,
+      "hardware_acceptance_verified": false,
+      "runtime_change_authorized": false
+    },
+    {
+      "id": "REG-17",
+      "priority": "P0",
+      "title": "Canonical developer-agent and feature/component/model matrix parity",
+      "owners": [
+        2,
+        6,
+        1,
+        3,
+        4,
+        5
+      ],
+      "ids": [
+        "FLIGHT-016",
+        "CROSS-002",
+        "CROSS-007",
+        "CROSS-010"
+      ],
+      "depends_on": [
+        "REG-11"
+      ],
+      "observed": "Flight main has substantive AGENTS.md but not independently canonical root CLAUDE.md, DEEPSEEK_START.md or FEATURE/COMPONENT/MODEL/DEVELOPMENT_AGENT JSON matrices and original source-gap documents. Origin-side matrix snapshots must not be mistaken for Flight-owned files.",
+      "evidence": [
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/1253f55604b1401927f3a1b7a661c7f9b1fa8386/apps/_coordination/workstreams/02/REPORT.md",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/e69c2b6eac7deeca313925bf99af31f8c9434f34/apps/_coordination/workstreams/06/REPORT.md"
+      ],
+      "document_only_next": "Inventory expected and actually present agent entrypoints and matrices in each of five canonical code bases, with owning repository ID and branch SHA; document schema validity, cross-agent instructions, English engineering policy and explicit origin history-fallback gaps.",
+      "acceptance_proof": "After separate authorization, each canonical app repo includes accurate machine-checkable matrices and Claude/DeepSeek routing docs with links to actual app source/test SHA; JSON schema/path validations pass without touching working runtime defaults.",
+      "approval_required_for": "Committing new developer files to active Flight repo or three empty destinations; changing repository ownership, source exports or release docs.",
       "status": "OPEN",
       "tests_executed_for_this_gate": 0,
       "hardware_acceptance_verified": false,
