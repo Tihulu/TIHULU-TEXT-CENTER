@@ -21,3 +21,7 @@ Read repo-root DEVELOPMENT_AGENT_GUIDE.md and apps/DEVELOPMENT_AGENT_MATRIX.json
 ## Cross-repo independence, rename, history and UI languages
 
 Read `SELF_CONTAINED_APP_PORTABILITY.md`, `REPOSITORY_RENAME_LINK_POLICY.md`, `TRILINGUAL_UI_POLICY.md`, `REPOSITORY_IDENTITY.json`, each app's `PORTABLE_PACKAGE.json`, `SOURCE_SNAPSHOT.md`, `HISTORY_LINKS.json`, `LOCALIZATION_CONTRACT.json`, and `_archives/PORTABLE_HISTORY_LINK_MAP.json`. Engineering is English, UI target is English/Turkish/German. No repository rename, code move or UI translation has happened yet.
+
+## Owner-approved canonical topology
+
+Text Center continues in the current `Tihulu/TIHULU-TEXT-CENTER` repository as an active application and as the historical source hub. Do not create another Text Center repo. Media, Satellite and Geolocation will move only after review to their three existing empty repos, while Flight Radar remains separately canonical. Active `textcenter/` and `web/` are never frozen when the other apps cut over. For coding agents consult `apps/CANONICAL_REPOSITORY_TOPOLOGY.json`. Original repo rename is an optional later operation on the *same* repository ID, with tested old PR/Pages/installer URLs.

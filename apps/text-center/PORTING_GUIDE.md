@@ -16,3 +16,7 @@ See `apps/LLM_FRAMEWORK_PORTABILITY.md`, `apps/DESIGN_EXTENSIBILITY_POLICY.md` a
 
 Use `PORTABLE_PACKAGE.json` and `SOURCE_SNAPSHOT.md` to include all required local sources and any shared TIHULU code, then audit external packages, licensing, CI, tests, installers and deployment assets. A frozen snapshot is NOT an independently running release. When porting to Rust, Qt, GTK, Tauri or another framework, keep all features, defaults, recording/timestamp semantics, data migration, security and hardware ownership intact. New designs may look entirely different when all controls stay discoverable.
 Read `HISTORY_LINKS.json`, `apps/_archives/PORTABLE_HISTORY_LINK_MAP.json`, `apps/REPOSITORY_RENAME_LINK_POLICY.md` and `LOCALIZATION_CONTRACT.json`. Preserve old GitHub PR IDs/URLs and link new PRs bidirectionally after the actual move; keep code, docs and workflows in English and eventual user-facing UI in English, Turkish and German.
+
+## Porting does not require Text Center repo relocation
+
+The owner wants Text Center to stay in the original GitHub repo. Rust/Qt/Tauri/GTK or UI redesign experiments may be reviewed in branches of **this same** repo, with source-backed feature parity and data/hardware tests; do not create a new Text Center repository. Keep active `textcenter/` and `web/` code and installers intact. Only Media Center, Satellite Center and RF Geolocation are pending migrations.

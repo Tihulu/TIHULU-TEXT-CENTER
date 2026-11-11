@@ -5,7 +5,7 @@ Current status: **EMBEDDED IN TIHULU-TEXT-CENTER; NOT MOVED**.
 Canonical repo: `Tihulu/TIHULU-TEXT-CENTER`
 Actual source roots: `textcenter/`, `web/`
 Source branches to inspect: `main`, `integration/consolidated-pages-webusb-2026-11-06`
-Proposed future destination: `Tihulu/TIHULU-TEXT-CENTER` (not created by this scaffold).
+Permanent canonical location: `Tihulu/TIHULU-TEXT-CENTER` (same repo; no separate destination).
 Special note: Current repository owner, shared backend and web frontend; needs explicit split for Media/Satellite/RF dependencies.
 
 ## Before coding
@@ -23,3 +23,7 @@ The original PR descriptions have been snapshotted into portable archives. Revie
 
 Read `apps/text-center/SOURCE_SNAPSHOT.md`, `PORTABLE_PACKAGE.json`, `HISTORY_LINKS.json` and `LOCALIZATION_CONTRACT.json`. For embedded apps, `apps/text-center/source/` is a SHA-identical frozen source archive, NOT the active build, package, import or development path. Do not edit it separately. Flight Radar is already canonical in its separately owned repository; TEXT CENTER only mirrors it.
 Original PR URLs and historical review author/timestamps remain in the source history and link ledger, not regenerated as native GitHub approvals. A later rename of TEXT CENTER must preserve repository numeric ID, original source URLs and tested aliases. All eventual standalone repos must offer en/tr/de **user interfaces**, with English-only engineering, schema keys and internal operations. Do not pretend translation coverage, standalone builds or full dependency closure have already been verified.
+
+## Permanent owner routing
+
+**Do not create or migrate to a new Text Center repository.** Continue Text Center development in the original repo, active code roots `textcenter/` and `web/`; `apps/text-center/source/` remains a frozen archive only. When Media, Satellite and RF Geolocation are moved after owner approval, this repository **continues as an active Text Center**, preserving its own CI, application features and installers while retaining original PR/Issue archives for the migrated apps. Consult `apps/CANONICAL_REPOSITORY_TOPOLOGY.json` before editing. A future rename changes only the repo display name, after verification; the numeric repo ID stays `1447637221`. English engineering, EN/TR/DE UI, exact approved red TIHULU mascot logo. No changes to active code in this planning PR.
