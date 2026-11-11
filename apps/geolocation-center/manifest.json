@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "app_id": "geolocation-center",
+  "name": "TIHULU RF Geolocation Center",
+  "code_roots": [
+    "rf_geolocation_center/"
+  ],
+  "current_canonical_repository": "Tihulu/TIHULU-TEXT-CENTER",
+  "status": "embedded",
+  "migration_allowed_on_explicit_request_only": true,
+  "migration_state": "not_started",
+  "proposed_future_destination": "Tihulu/tihulu-geolocation",
+  "branch_candidates": [
+    "feature/rf-geolocation-center-2026-11"
+  ],
+  "history": {
+    "global_pr_index": "apps/_archives/pr-index.json",
+    "body_parts": "apps/_archives/pr-body-*.json",
+    "comments_review_snapshot_complete": false
+  },
+  "model_evidence": [
+    "rf_geolocation_center/docs/PLATFORM_TEST_MATRIX.md",
+    "rf_geolocation_center/docs/ARCHITECTURE_AND_RELEASE_GATES.md"
+  ],
+  "dependency_notes": "Exact RF Geolocation application tree preserved; related root changes not included."
+}
