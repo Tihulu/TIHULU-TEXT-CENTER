@@ -1,0 +1,516 @@
+{
+  "schema_version": 1,
+  "as_of_date": "2026-11-12",
+  "scope": "Coordinator-only source-based cross-worker dependency and zero-regression gate planning",
+  "status": "OPEN_DOCUMENTATION_GATES_NOT_FEATURE_ACCEPTANCE",
+  "source_repository": "Tihulu/TIHULU-TEXT-CENTER",
+  "source_repository_id": 1447637221,
+  "coordinator_branch": "chore/master-requirements-zero-regression-coordination-2026-11-11",
+  "central_issue": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/75",
+  "master_pr": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/82",
+  "requirements_initial": 97,
+  "source_audited_requirements": 97,
+  "verified_full_feature_equivalence": 0,
+  "independent_worker_tests_executed": 0,
+  "independent_worker_hardware_tests": 0,
+  "worker_prs": {
+    "WS01": 83,
+    "WS02": 84,
+    "WS03": 85,
+    "WS04": 86,
+    "WS05": 87,
+    "WS06": 88
+  },
+  "ci_scope_note": "Each worker PR head has Text Center tests GitHub workflow success. Original Satellite PR #37 portable run 42559046861 failed pages-source-parity; neither is physical hardware acceptance.",
+  "permission_boundary": "This phase may inspect and commit only coordinator documentation. Changing source, installers, repos, logos, workflows, release, deployment, user SDR services or main requires separate owner approval.",
+  "no_automatic_worker_wakeup": true,
+  "remaining_hours": null,
+  "remaining_minutes": null,
+  "gate_status_vocabulary": {
+    "OPEN": "Evidence and acceptance gates remain open; no code change authorized",
+    "DOC_EVIDENCE_READY": "Source and proposed test description recorded, not tested",
+    "CI_VERIFIED": "Specific workflow + SHA and log passed only in its declared scope",
+    "HARDWARE_VERIFIED": "Physical device run evidence, as supported",
+    "RELEASE_VERIFIED": "Approved installed and regression-gated release"
+  },
+  "gates": [
+    {
+      "id": "REG-01",
+      "priority": "P0",
+      "title": "Preserve Media stacked #65→#66→#67 source history",
+      "owners": [
+        1,
+        6
+      ],
+      "ids": [
+        "MEDIA-036",
+        "MEDIA-038",
+        "MEDIA-039",
+        "CROSS-010"
+      ],
+      "depends_on": [],
+      "observed": "The documentation branch descends from #66 but the unmerged #67 recording/export head contains 20 additional commits and source/test files. The overlap of three source paths is not proof of a textual conflict.",
+      "evidence": [
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/10fd5ef9c51df2c330c8c5823ce789e31db519b2/apps/_coordination/workstreams/01/REPORT.md",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/e69c2b6eac7deeca313925bf99af31f8c9434f34/apps/_coordination/workstreams/06/REPORT.md",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/67"
+      ],
+      "document_only_next": "Create an immutable eight-path PR #67 delta inventory with blob SHA, test and original discussion links. Cross-reference Media #65/#66 ancestry and expected export modes without copying app code.",
+      "acceptance_proof": "Later separately approved integration must show selected code+tests retain #67 recording/export capability and old Media features, compare rollback and FFmpeg output on isolated sample recordings, and prevent accidental overwrite of user files.",
+      "approval_required_for": "Selecting a migration source tree, resolving or applying code changes, merging or writing to new Media repository.",
+      "status": "OPEN",
+      "tests_executed_for_this_gate": 0,
+      "hardware_acceptance_verified": false,
+      "runtime_change_authorized": false
+    },
+    {
+      "id": "REG-02",
+      "priority": "P0",
+      "title": "Protect current Text Center main against three stale archive blobs",
+      "owners": [
+        5,
+        6
+      ],
+      "ids": [
+        "TEXT-001",
+        "TEXT-007",
+        "CROSS-001"
+      ],
+      "depends_on": [],
+      "observed": "Retained main source differs from the old audit snapshot for textcenter/compute.py, textcenter/speech.py and textcenter/transcripts.py. A snapshot is not an authoritative current Text Center baseline.",
+      "evidence": [
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/5a772fd399c2d743207adb69dc33bd9922fee068/apps/_coordination/workstreams/05/REPORT.md",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/commit/1fffb711bfbb7c4abaf55299fa9240e5db3e1cde"
+      ],
+      "document_only_next": "Pin current main and worker SHA/blob pairs, map behavioral/contract differences and distinguish historical snapshots from active source. No restore, rebase or cherry-pick.",
+      "acceptance_proof": "Later isolated comparison of current active UI/API/transcript output, files, settings and URLs; preserve unchanged main unless a distinct authorized feature PR passes parity.",
+      "approval_required_for": "Any change to current main, Text Center runtime or archive replacement.",
+      "status": "OPEN",
+      "tests_executed_for_this_gate": 0,
+      "hardware_acceptance_verified": false,
+      "runtime_change_authorized": false
+    },
+    {
+      "id": "REG-03",
+      "priority": "P0",
+      "title": "Exclusive receiver and external readsb ownership",
+      "owners": [
+        1,
+        2,
+        5,
+        4
+      ],
+      "ids": [
+        "MEDIA-004",
+        "MEDIA-016",
+        "FLIGHT-014",
+        "TEXT-005",
+        "GEO-006"
+      ],
+      "depends_on": [
+        "REG-02"
+      ],
+      "observed": "Flight main close(release_local_service=True) may stop pre-existing shared readsb; Draft Flight PR #7 instead tracks app ownership. RF-only OFF behavior in Geolocation does not prove device lease release. A global Hard Stop contract is not verified.",
+      "evidence": [
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/1253f55604b1401927f3a1b7a661c7f9b1fa8386/apps/_coordination/workstreams/02/REPORT.md",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/b62ba58287ef9e76d42ca807829b26da68177e18/apps/_coordination/workstreams/04/REPORT.md",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/10fd5ef9c51df2c330c8c5823ce789e31db519b2/apps/_coordination/workstreams/01/REPORT.md",
+        "https://github.com/Tihulu/tihulu-flight-radar/blob/059b391280635d9aa4d2ac73c7318af9e135ebf5/tihulu_flight_radar/control.py#L233-L262",
+        "https://github.com/Tihulu/tihulu-flight-radar/blob/4ef8245b87fc78cec6cc4f5f9043d68e08cf45d3/tihulu_flight_radar/control.py#L239-L260"
+      ],
+      "document_only_next": "Write a cross-app device-owner state table for external/app-started/direct receivers, RF On/Off, explicit Stop, application close, failure, service restart and sudo-denied outcomes.",
+      "acceptance_proof": "On an owner-approved isolated Pop!_OS SDR session, record pre/post active readsb/tar1090/gqrx/welle processes, RTL-SDR lease and safe failure outcomes. Non-owned services must remain running; on-demand default preserved.",
+      "approval_required_for": "Hardware session that changes live services, runtime receiver lifecycle code, privileged setup or shared installations.",
+      "status": "OPEN",
+      "tests_executed_for_this_gate": 0,
+      "hardware_acceptance_verified": false,
+      "runtime_change_authorized": false
+    },
+    {
+      "id": "REG-04",
+      "priority": "P0",
+      "title": "Resolve Flight three-versus-four RF aircraft draft semantics",
+      "owners": [
+        2,
+        4
+      ],
+      "ids": [
+        "FLIGHT-010",
+        "FLIGHT-011",
+        "GEO-005",
+        "GEO-008"
+      ],
+      "depends_on": [
+        "REG-03"
+      ],
+      "observed": "Flight canonical main models an upper-bound feasible area with >=3 RF ICAOs; Draft PR #13 requires >=4 independent ICAOs and five distinct history models. Neither is a precise receiver GPS fix.",
+      "evidence": [
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/1253f55604b1401927f3a1b7a661c7f9b1fa8386/apps/_coordination/workstreams/02/REPORT.md",
+        "https://github.com/Tihulu/tihulu-flight-radar/blob/059b391280635d9aa4d2ac73c7318af9e135ebf5/tihulu_flight_radar/web/receiver_coverage.js#L89-L106",
+        "https://github.com/Tihulu/tihulu-flight-radar/blob/950f8278a625ce13a9a3c7e21bf9bf76d4b5888e/tihulu_flight_radar/web/rf_history_models.js#L1-L43"
+      ],
+      "document_only_next": "Record user-facing observed main vs draft contract in a decision table: 3 vs 4, independent ICAO validity, LIVE10/LIVE-X/BEST/HISTORY/HISTORY BEST, uncertainty and RF provenance; propose tests per mode.",
+      "acceptance_proof": "Only after a separately approved specification and review, compare real RF records with replayed/synthetic geometry, including Internet spoof exclusion, permutation invariance, no center-as-GPS, expected persistence and fallback.",
+      "approval_required_for": "Changing algorithm thresholds, model UI, histories or promoting Draft #13 to released behavior.",
+      "status": "OPEN",
+      "tests_executed_for_this_gate": 0,
+      "hardware_acceptance_verified": false,
+      "runtime_change_authorized": false
+    },
+    {
+      "id": "REG-05",
+      "priority": "P0",
+      "title": "Scientific gate for independent geolocation, timestamps and confidence",
+      "owners": [
+        4,
+        2
+      ],
+      "ids": [
+        "GEO-002",
+        "GEO-003",
+        "GEO-005",
+        "GEO-008",
+        "FLIGHT-011"
+      ],
+      "depends_on": [
+        "REG-04"
+      ],
+      "observed": "ADS-B aircraft coordinates and RSSI radius hypotheses do not provide independent receiver self-location, calibrated TDOA, GNSS-SDR pseudorange PVT or statistically validated PSF/Gaussian covariance.",
+      "evidence": [
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/b62ba58287ef9e76d42ca807829b26da68177e18/apps/_coordination/workstreams/04/REPORT.md",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/1253f55604b1401927f3a1b7a661c7f9b1fa8386/apps/_coordination/workstreams/02/REPORT.md"
+      ],
+      "document_only_next": "Inventory required independent receiver stations, hardware timebase/synchronization, timestamps, measured ranges, calibration datasets, uncertainty model and confidence provenance. Mark unavailable conditions explicitly.",
+      "acceptance_proof": "Independent calibrated measurement corpus with ground-truth receiver location, timing provenance, uncertainty calibration and no false location claims; native GNSS acquisition/PVT separately verified if available.",
+      "approval_required_for": "New positioning implementation, hardware capture, location-accuracy claims or installation of native GNSS backend.",
+      "status": "OPEN",
+      "tests_executed_for_this_gate": 0,
+      "hardware_acceptance_verified": false,
+      "runtime_change_authorized": false
+    },
+    {
+      "id": "REG-06",
+      "priority": "P0",
+      "title": "Resolve Satellite recording-rate versus Meteor decoder rate",
+      "owners": [
+        3,
+        6
+      ],
+      "ids": [
+        "SAT-003",
+        "SAT-005",
+        "SAT-008"
+      ],
+      "depends_on": [],
+      "observed": "Native scheduling permits sample_rate 1024000 or 2048000, but decode_meteor() forwards fixed SatDump --samplerate 1024000 for the recording. No lossless 2.048 MS/s decode acceptance is proved.",
+      "evidence": [
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/284944e1dc167f6b60bf762889a3c75bf28f47e2/apps/_coordination/workstreams/03/REPORT.md",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/803529ba90f43a6cb1fb977869c650ddf5db448a/satellite_center/__main__.py#L881-L894",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/803529ba90f43a6cb1fb977869c650ddf5db448a/satellite_center/__main__.py#L1778-L1797"
+      ],
+      "document_only_next": "Record capture metadata contract (Hz, CU8, duration, UTC, original path) and SatDump argv across each supported rate; propose fixture tests for correct-rate forwarding, unsupported-rate rejection and preservation of input data.",
+      "acceptance_proof": "Reproducible known-rate IQ fixture and owner-approved real Meteor dataset demonstrate decoder receives correct sample rate, no fabricated images, original IQ preserved and correct empty-CADU/error classification.",
+      "approval_required_for": "Decoder argument changes, real receiver collection, sample conversion or decoder installation.",
+      "status": "OPEN",
+      "tests_executed_for_this_gate": 0,
+      "hardware_acceptance_verified": false,
+      "runtime_change_authorized": false
+    },
+    {
+      "id": "REG-07",
+      "priority": "P0",
+      "title": "Make long Satellite chained-capture gaps explicit",
+      "owners": [
+        3
+      ],
+      "ids": [
+        "SAT-002",
+        "SAT-003",
+        "SAT-008"
+      ],
+      "depends_on": [
+        "REG-06"
+      ],
+      "observed": "Browser segmented capture defaults to a 6-second interpart budget and native chains reserve 21–60-second restart windows. A separate bounded native single-file capture path exists; there is no proof all chained captures are gapless.",
+      "evidence": [
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/284944e1dc167f6b60bf762889a3c75bf28f47e2/apps/_coordination/workstreams/03/REPORT.md",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/803529ba90f43a6cb1fb977869c650ddf5db448a/satellite_center/browser/chained_capture.mjs#L1-L53"
+      ],
+      "document_only_next": "Specify manifest-level segment start/end UTC, missing-sample/coverage flag, rate, loss boundaries and no-overwrite ownership; compare browser and native semantics.",
+      "acceptance_proof": "After approval, safe fixture file-segment checks and physical recording verify uninterrupted intervals only where actually supported; UI must disclose gaps, never claim lossless chained reception by default.",
+      "approval_required_for": "Changing capture scheduler, hardware device acquisition, browser/WebUSB behavior or existing recording files.",
+      "status": "OPEN",
+      "tests_executed_for_this_gate": 0,
+      "hardware_acceptance_verified": false,
+      "runtime_change_authorized": false
+    },
+    {
+      "id": "REG-08",
+      "priority": "P0",
+      "title": "Satellite Pages/source deployment parity failure",
+      "owners": [
+        3,
+        5,
+        6
+      ],
+      "ids": [
+        "SAT-001",
+        "SAT-008",
+        "TEXT-008",
+        "CROSS-006"
+      ],
+      "depends_on": [],
+      "observed": "The original satellite PR #37 CI run 42559046861 failed a Pages/source parity check for eight browser assets, despite separate portable synthetic jobs succeeding.",
+      "evidence": [
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/284944e1dc167f6b60bf762889a3c75bf28f47e2/apps/_coordination/workstreams/03/REPORT.md",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/actions/runs/42559046861"
+      ],
+      "document_only_next": "Preserve eight failing asset names and source/current Pages blob SHA manifest, differentiate review branch vs public URLs and capture intended deployment/rollback steps as a future checklist.",
+      "acceptance_proof": "Post-approval review of all expected hashes, public Pages HTTP paths, PWA/service worker cache, URLs, offline operation and source revision markers at both retained and new publication sites.",
+      "approval_required_for": "Any Pages publish, workflow/source write, CDN/PWA change, repo rename or installer URL repoint.",
+      "status": "OPEN",
+      "tests_executed_for_this_gate": 0,
+      "hardware_acceptance_verified": false,
+      "runtime_change_authorized": false
+    },
+    {
+      "id": "REG-09",
+      "priority": "P1",
+      "title": "Satellite independent branch test provenance and 11-item candidate gap correction",
+      "owners": [
+        3,
+        6,
+        2
+      ],
+      "ids": [
+        "SAT-005",
+        "SAT-006",
+        "SAT-008",
+        "FLIGHT-016",
+        "FLIGHT-017",
+        "CROSS-009"
+      ],
+      "depends_on": [],
+      "observed": "Initial coordinator index identifies 11 without local test-file candidates. Satellite PR #37 contains 22 relevant test sources absent from the WS03 starting branch; presence there does not mean tested or transferred. Flight 016/017 lack direct candidates.",
+      "evidence": [
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/284944e1dc167f6b60bf762889a3c75bf28f47e2/apps/_coordination/workstreams/03/REPORT.md",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/e69c2b6eac7deeca313925bf99af31f8c9434f34/apps/_coordination/workstreams/06/REPORT.md",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/chore/master-requirements-zero-regression-coordination-2026-11-11/apps/_coordination/TEST_CANDIDATE_GAP_TRIAGE.md"
+      ],
+      "document_only_next": "Publish a branch-aware source/test provenance index distinguishing baseline candidates, PR #37 additional tests, executed CI, hardware tests, policy gates and actual absence. Avoid overwriting initial candidate map without a documented reconciliation.",
+      "acceptance_proof": "Each gap labeled either source/test linked with SHA plus genuine execution, future test required, or policy/manual gate; never infer 97 tested from 97 mapped.",
+      "approval_required_for": "Copying test source into active branches, workflow changes, implementing tests that write to application trees or source migrations.",
+      "status": "OPEN",
+      "tests_executed_for_this_gate": 0,
+      "hardware_acceptance_verified": false,
+      "runtime_change_authorized": false
+    },
+    {
+      "id": "REG-10",
+      "priority": "P0",
+      "title": "Text Center native DVB/FM/DAB claims versus passive relays and missing Journaline",
+      "owners": [
+        5,
+        1
+      ],
+      "ids": [
+        "TEXT-002",
+        "TEXT-003",
+        "TEXT-004",
+        "MEDIA-007",
+        "MEDIA-011"
+      ],
+      "depends_on": [
+        "REG-02",
+        "REG-03"
+      ],
+      "observed": "Retained Text Center has partial FM RDS and read-only welle-cli DAB metadata bridge, but Journaline is unimplemented; passive DVB diagnostic/upstream MPEG-TS relay does not demonstrate native off-air tuner/Teletext scan. Media native source is distinct.",
+      "evidence": [
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/5a772fd399c2d743207adb69dc33bd9922fee068/apps/_coordination/workstreams/05/REPORT.md",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/10fd5ef9c51df2c330c8c5823ce789e31db519b2/apps/_coordination/workstreams/01/REPORT.md",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/3884cc3b0b603f7a555d1801ed12283d9df4b63f/textcenter/dab_bridge.py#L1-L12"
+      ],
+      "document_only_next": "Build a source-of-truth capability matrix per native Media, retained Text, external decoder, browser, actual hardware, UI claim and fallback. Preserve existing behavior without copying Media semantics into Text.",
+      "acceptance_proof": "Later owner-authorized real Hauppauge scan/lock/Teletext and NooElec RDS/DAB DLS/MOT sessions with labels and failure outputs; include mixed TV/radio device ownership, timestamps, actual hardware path and original user settings.",
+      "approval_required_for": "Changing source/native bridge, controlling tuner, installing dependencies, claiming Journaline or native Text TV feature completeness.",
+      "status": "OPEN",
+      "tests_executed_for_this_gate": 0,
+      "hardware_acceptance_verified": false,
+      "runtime_change_authorized": false
+    },
+    {
+      "id": "REG-11",
+      "priority": "P0",
+      "title": "Immutable GitHub history and provenance gaps",
+      "owners": [
+        6,
+        1,
+        2,
+        3,
+        5
+      ],
+      "ids": [
+        "CROSS-010",
+        "FLIGHT-017",
+        "TEXT-007"
+      ],
+      "depends_on": [
+        "REG-01",
+        "REG-02"
+      ],
+      "observed": "Two 67-entry origin history ledgers omit original PRs #72–#74; eight Flight #13 PR comment permalinks and eleven satellite Issue #20/#21 comments are linked, but full review/timeline reconciliation and verified author/time details remain incomplete.",
+      "evidence": [
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/e69c2b6eac7deeca313925bf99af31f8c9434f34/apps/_coordination/workstreams/06/REPORT.md",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/1253f55604b1401927f3a1b7a661c7f9b1fa8386/apps/_coordination/workstreams/02/REPORT.md",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/5a772fd399c2d743207adb69dc33bd9922fee068/apps/_coordination/workstreams/05/REPORT.md"
+      ],
+      "document_only_next": "Prepare a per-original-record manifest by immutable repo ID and source PR/Issue/review/comment permalink; add missing #72–#74 history, preserve null timestamps, and explicitly list non-exportable or inaccessible evidence.",
+      "acceptance_proof": "A reviewer can follow all historical links and verify original source ancestry, authors/comments/review context without false recreated approvals, without private chat dumps and with explicit transfer gaps.",
+      "approval_required_for": "Rewriting archives in active repos, copying private content, restructuring original PRs, migrating Git history or renaming repos.",
+      "status": "OPEN",
+      "tests_executed_for_this_gate": 0,
+      "hardware_acceptance_verified": false,
+      "runtime_change_authorized": false
+    },
+    {
+      "id": "REG-12",
+      "priority": "P0",
+      "title": "Dual GitHub Pages, PWA, raw installers and rename-safe links",
+      "owners": [
+        5,
+        2,
+        3,
+        6
+      ],
+      "ids": [
+        "TEXT-008",
+        "FLIGHT-017",
+        "CROSS-006"
+      ],
+      "depends_on": [
+        "REG-08",
+        "REG-11"
+      ],
+      "observed": "Flight standalone and Text mirror gh-pages revision blobs and seven sampled assets matched at a pinned Flight main SHA, but live HTTP/CDN/PWA parity is unverified. Origin workflow contains hardcoded previous repo URLs and satellite Pages asset drift is documented.",
+      "evidence": [
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/1253f55604b1401927f3a1b7a661c7f9b1fa8386/apps/_coordination/workstreams/02/REPORT.md",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/5a772fd399c2d743207adb69dc33bd9922fee068/apps/_coordination/workstreams/05/REPORT.md",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/284944e1dc167f6b60bf762889a3c75bf28f47e2/apps/_coordination/workstreams/03/REPORT.md"
+      ],
+      "document_only_next": "Produce a URL and immutable-source SHA checklist: current Flight independent and Text mirror Pages, every service-worker scope, old raw install URL, asset digest, OAuth/WebUSB origin boundary, archive and redirect, with before/after expected outcomes.",
+      "acceptance_proof": "Only after separate rename/cutover approval, verify live status and redirects, 404/cache offline fallback, two-source revision equivalence, old one-line installer/0.3.1 rollback and PWA behavior under both origins.",
+      "approval_required_for": "Rename, move, delete, republish Pages, rewrite workflows/service worker, change installer or default site.",
+      "status": "OPEN",
+      "tests_executed_for_this_gate": 0,
+      "hardware_acceptance_verified": false,
+      "runtime_change_authorized": false
+    },
+    {
+      "id": "REG-13",
+      "priority": "P1",
+      "title": "EN(default)/TR/DE runtime UI and five approved logo binary evidence",
+      "owners": [
+        6,
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "ids": [
+        "CROSS-003",
+        "CROSS-008",
+        "CROSS-009"
+      ],
+      "depends_on": [
+        "REG-11"
+      ],
+      "observed": "All five user-facing interfaces require English default with Turkish/German options, but full installed UI path/localization tests are not complete. Approval manifest lists five PNG SHA256 values; worker did not independently rehash binary assets. No replacement logos are authorized.",
+      "evidence": [
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/e69c2b6eac7deeca313925bf99af31f8c9434f34/apps/_coordination/workstreams/06/REPORT.md",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/5a772fd399c2d743207adb69dc33bd9922fee068/apps/_coordination/workstreams/05/REPORT.md"
+      ],
+      "document_only_next": "Inventory current UI strings, unsupported locale/default/fallback coverage, existing assets and source asset hashes without adding icons, online images or translations to application trees.",
+      "acceptance_proof": "Under separate UI/branding approval, per-platform visual+accessibility locale switching, persistence, fallback, full RTL/non-RTL behavior and exact binary SHA256 proofs for approved assets; old UI and rollback still match.",
+      "approval_required_for": "Adding/changing UI translations, activating/changing icons, new SVG variants, installer branding or releases.",
+      "status": "OPEN",
+      "tests_executed_for_this_gate": 0,
+      "hardware_acceptance_verified": false,
+      "runtime_change_authorized": false
+    },
+    {
+      "id": "REG-14",
+      "priority": "P0",
+      "title": "Native installs, portable packages and versioned rollback across five apps",
+      "owners": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "ids": [
+        "CROSS-001",
+        "CROSS-004",
+        "CROSS-011",
+        "MEDIA-001",
+        "FLIGHT-014"
+      ],
+      "depends_on": [
+        "REG-01",
+        "REG-02",
+        "REG-03",
+        "REG-08",
+        "REG-11",
+        "REG-12"
+      ],
+      "observed": "Audited portable/synthetic CI is not a measured Windows/macOS/Linux/Raspberry Pi installed application parity result; Flight legacy 0.3.1, native installers, user settings/data and source histories must remain preserved. Three destination repos are not yet cut over.",
+      "evidence": [
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/10fd5ef9c51df2c330c8c5823ce789e31db519b2/apps/_coordination/workstreams/01/REPORT.md",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/1253f55604b1401927f3a1b7a661c7f9b1fa8386/apps/_coordination/workstreams/02/REPORT.md",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/284944e1dc167f6b60bf762889a3c75bf28f47e2/apps/_coordination/workstreams/03/REPORT.md",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/b62ba58287ef9e76d42ca807829b26da68177e18/apps/_coordination/workstreams/04/REPORT.md",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/5a772fd399c2d743207adb69dc33bd9922fee068/apps/_coordination/workstreams/05/REPORT.md",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/e69c2b6eac7deeca313925bf99af31f8c9434f34/apps/_coordination/workstreams/06/REPORT.md"
+      ],
+      "document_only_next": "Write a platform-by-platform proposed build/smoke/rollback/backup matrix and request explicit approval boundary for repo first commits, source staging, platform installer updates, merges and releases.",
+      "acceptance_proof": "After separate authorization, signed version pin, build hashes, native smoke/hardware parity, settings+user-recording backup restore, rollback checks on each supported platform; no release without critical gate closure.",
+      "approval_required_for": "First commit to empty target, original repo rename, migration, installer/release changes, merges or service permission modifications.",
+      "status": "OPEN",
+      "tests_executed_for_this_gate": 0,
+      "hardware_acceptance_verified": false,
+      "runtime_change_authorized": false
+    },
+    {
+      "id": "REG-15",
+      "priority": "P0",
+      "title": "Evidence quality and truthful completion/ETA accounting",
+      "owners": [
+        6
+      ],
+      "ids": [
+        "CROSS-009",
+        "CROSS-012"
+      ],
+      "depends_on": [
+        "REG-03",
+        "REG-06",
+        "REG-08",
+        "REG-14"
+      ],
+      "observed": "97/97 requirements had initial source-based audits; no worker directly executed tests or physical RF/DVB sessions. Six worker PR heads had successful Text Center tests GitHub Actions, distinct from failed original satellite PR #37 Pages parity. None is a five-app installed acceptance certificate.",
+      "evidence": [
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/e69c2b6eac7deeca313925bf99af31f8c9434f34/apps/_coordination/workstreams/06/REPORT.md",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/chore/master-requirements-zero-regression-coordination-2026-11-11/apps/_coordination/PROGRESS.json"
+      ],
+      "document_only_next": "Separate source-reviewed, partial draft-coded, unit/CI executed, hardware-verified, released and original requirement-completeness claims in progress. Require reproducible run IDs, exact SHA and logs before promoting any gate.",
+      "acceptance_proof": "Every critical gate gets evidence URL, exact SHA, reproducible result/runner/device or explicit unknown. ETA hours/minutes remain null until scoped tasks, environments, blocked dependencies and measured effort are present.",
+      "approval_required_for": "Claiming release or changing scope, running user-host hardware tests or applying code.",
+      "status": "OPEN",
+      "tests_executed_for_this_gate": 0,
+      "hardware_acceptance_verified": false,
+      "runtime_change_authorized": false
+    }
+  ]
+}
