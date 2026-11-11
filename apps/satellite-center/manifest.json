@@ -23,5 +23,17 @@
     "satellite_center/compute_backends.py",
     "satellite_center/FEATURE_PARITY.md"
   ],
-  "dependency_notes": "Copied exact application tree; source branches have unmerged overlap outside satellite_center/."
+  "dependency_notes": "Copied exact application tree; source branches have unmerged overlap outside satellite_center/.",
+  "verified_destination_repository": {
+    "full_name": "Tihulu/tihulu-satellite-center",
+    "url": "https://github.com/Tihulu/tihulu-satellite-center",
+    "id": 1454319572,
+    "node_id": "R_kgDOVq8n1A",
+    "exists": true,
+    "observed_empty": true,
+    "cutover_complete": false,
+    "source_imported": false,
+    "logo_imported": false
+  },
+  "destination_created_by_user": true
 }

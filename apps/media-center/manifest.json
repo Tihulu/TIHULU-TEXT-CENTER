@@ -27,5 +27,17 @@
     "tv_center/qwen_forced_aligner.py",
     "kaffeine_next/AI_LIVE_PERFORMANCE_AND_LANGUAGES.md"
   ],
-  "dependency_notes": "Native TV, DAB/radio, audio/video, caption/export. tv_center is shared; do not assume sole ownership of all code."
+  "dependency_notes": "Native TV, DAB/radio, audio/video, caption/export. tv_center is shared; do not assume sole ownership of all code.",
+  "verified_destination_repository": {
+    "full_name": "Tihulu/tihulu-media-center",
+    "url": "https://github.com/Tihulu/tihulu-media-center",
+    "id": 1454318539,
+    "node_id": "R_kgDOVq8jyw",
+    "exists": true,
+    "observed_empty": true,
+    "cutover_complete": false,
+    "source_imported": false,
+    "logo_imported": false
+  },
+  "destination_created_by_user": true
 }

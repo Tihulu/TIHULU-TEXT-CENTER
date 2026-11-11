@@ -9,7 +9,7 @@
   "status": "embedded",
   "migration_allowed_on_explicit_request_only": true,
   "migration_state": "not_started",
-  "proposed_future_destination": "Tihulu/tihulu-geolocation",
+  "proposed_future_destination": "Tihulu/tihulu-rf-geolocation-center",
   "branch_candidates": [
     "feature/rf-geolocation-center-2026-11"
   ],
@@ -22,5 +22,17 @@
     "rf_geolocation_center/docs/PLATFORM_TEST_MATRIX.md",
     "rf_geolocation_center/docs/ARCHITECTURE_AND_RELEASE_GATES.md"
   ],
-  "dependency_notes": "Exact RF Geolocation application tree preserved; related root changes not included."
+  "dependency_notes": "Exact RF Geolocation application tree preserved; related root changes not included.",
+  "verified_destination_repository": {
+    "full_name": "Tihulu/tihulu-rf-geolocation-center",
+    "url": "https://github.com/Tihulu/tihulu-rf-geolocation-center",
+    "id": 1454320329,
+    "node_id": "R_kgDOVq8qyQ",
+    "exists": true,
+    "observed_empty": true,
+    "cutover_complete": false,
+    "source_imported": false,
+    "logo_imported": false
+  },
+  "destination_created_by_user": true
 }
