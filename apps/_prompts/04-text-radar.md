@@ -17,3 +17,11 @@ Required deliverables: updated evidence-backed app matrix (or shared schema), ex
 ## Coding-agent development context (updated)
 
 Read repo-root DEVELOPMENT_AGENT_GUIDE.md and apps/DEVELOPMENT_AGENT_MATRIX.json before work. These files guide Claude Code, DeepSeek and other coding LLMs; do **not** install or run extra models just to read them. The app MODEL_MATRIX covers optional **in-application** speech/translation/alignment engines, while FEATURE_MATRIX and COMPONENT_MATRIX cover safe extension, redesign and Rust/other-framework porting. Continue to use only your assigned file scope and Draft PR.
+
+## Your canonical-app-specific audit task
+
+Text Center is permanently retained in `Tihulu/TIHULU-TEXT-CENTER`; inspect in-place architecture and confirm other three app cutovers won't break `textcenter/`, `web/`, existing Text Center radio/TV reception, local API, Pages and installers. There is NO Text Center new-repo bootstrap, relocation or cutover. Audit Flight Radar only in its existing separate canonical repo. Keep all user features and historical source links unchanged.
+
+## Final canonical repository exception (owner decision: 2026-11-11)
+
+**Text Center remains in `Tihulu/TIHULU-TEXT-CENTER` (GitHub repository ID `1447637221`) and no separate Text Center repository is to be created.** This is the active Text Center codebase: keep `textcenter/` and `web/`, all its original features, source-level AI settings, tests, workflows, website and installers functional. Do NOT freeze the entire source repository when Media Center, Satellite Center and RF Geolocation Center later move. Only those three use their existing empty target GitHub repos; Flight Radar already lives separately. The original Text Center repository also hosts historic PR/Issue records, review gaps and source provenance for those migrated apps. Coding agents must read `apps/CANONICAL_REPOSITORY_TOPOLOGY.json` and the per-app `AGENTS.md` before deciding a change target. A future optional repo rename is a rename of the same repo ID with tested redirects, NOT a migration. Use exactly the five approved red/black/white TIHULU mascot logos, English engineering and EN/TR/DE UI policy. Static matrix-reading requires no additional local LLM. No code or installer changes are permitted in this planning PR.
