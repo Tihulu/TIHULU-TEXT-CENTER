@@ -427,5 +427,36 @@
     "feat/unified-lyrics-caption-refresh-2026-11-10",
     "feat/media-unified-recording-export-2026-11-11"
   ],
-  "review_and_request_integrity": "No invented comments/reviews/approval or synthesized prompts"
+  "review_and_request_integrity": "No invented comments/reviews/approval or synthesized prompts",
+  "global_portability_pr_links": [
+    {
+      "original_pr_number": 68,
+      "original_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/68",
+      "archive": "apps/_archives/portability-prs-68-71.json",
+      "classification_status": "shared_portability_planning",
+      "destination_pr_url": null
+    },
+    {
+      "original_pr_number": 69,
+      "original_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/69",
+      "archive": "apps/_archives/portability-prs-68-71.json",
+      "classification_status": "shared_portability_planning",
+      "destination_pr_url": null
+    },
+    {
+      "original_pr_number": 70,
+      "original_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/70",
+      "archive": "apps/_archives/portability-prs-68-71.json",
+      "classification_status": "shared_portability_planning",
+      "destination_pr_url": null
+    },
+    {
+      "original_pr_number": 71,
+      "original_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/71",
+      "archive": "apps/_archives/portability-prs-68-71.json",
+      "classification_status": "shared_portability_planning",
+      "destination_pr_url": null
+    }
+  ],
+  "new_pr_snapshots_are_not_native_transfers": true
 }

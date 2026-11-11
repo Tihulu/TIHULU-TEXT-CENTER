@@ -1574,6 +1574,122 @@
       "copied_native_approvals": false,
       "link_status": "original_only_not_migrated",
       "migration_branch": null
+    },
+    {
+      "origin_repository_id": 1447637221,
+      "origin_pr_number": 68,
+      "origin_pr_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/68",
+      "origin_pr_id": 5262421529,
+      "original_created_at": "2026-11-11T15:46:33Z",
+      "original_author": "Tihulu",
+      "original_head_sha": "7e57b65945da934aba4d0b05b7f02f228c8361e8",
+      "original_base_sha": "20379152be2751e5d89a8bdbac85fb15fc6b3c4e",
+      "source_body_part": "apps/_archives/portability-prs-68-71.json",
+      "app_candidates": [
+        "media-center",
+        "satellite-center",
+        "geolocation-center",
+        "text-center",
+        "flight-radar"
+      ],
+      "classification_status": "cross_app_portability_scope_confirmed_from_pr",
+      "destination_repo_id": null,
+      "destination_repo_url": null,
+      "destination_pr_number": null,
+      "destination_pr_url": null,
+      "copied_comments": false,
+      "copied_reviews": false,
+      "copied_native_approvals": false,
+      "link_status": "original_only_not_migrated",
+      "migration_branch": null,
+      "pr_head_sha_is_observed_not_immutable": true
+    },
+    {
+      "origin_repository_id": 1447637221,
+      "origin_pr_number": 69,
+      "origin_pr_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/69",
+      "origin_pr_id": 5262518229,
+      "original_created_at": "2026-11-11T15:53:15Z",
+      "original_author": "Tihulu",
+      "original_head_sha": "207afc5a3c8aeb4c7458ffca935b8d2a9c720365",
+      "original_base_sha": "7e57b65945da934aba4d0b05b7f02f228c8361e8",
+      "source_body_part": "apps/_archives/portability-prs-68-71.json",
+      "app_candidates": [
+        "media-center",
+        "satellite-center",
+        "geolocation-center",
+        "text-center",
+        "flight-radar"
+      ],
+      "classification_status": "cross_app_portability_scope_confirmed_from_pr",
+      "destination_repo_id": null,
+      "destination_repo_url": null,
+      "destination_pr_number": null,
+      "destination_pr_url": null,
+      "copied_comments": false,
+      "copied_reviews": false,
+      "copied_native_approvals": false,
+      "link_status": "original_only_not_migrated",
+      "migration_branch": null,
+      "pr_head_sha_is_observed_not_immutable": true
+    },
+    {
+      "origin_repository_id": 1447637221,
+      "origin_pr_number": 70,
+      "origin_pr_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/70",
+      "origin_pr_id": 5262823804,
+      "original_created_at": "2026-11-11T16:13:47Z",
+      "original_author": "Tihulu",
+      "original_head_sha": "9b4ffce98a723c0e60ec5a11978895e56f97a161",
+      "original_base_sha": "207afc5a3c8aeb4c7458ffca935b8d2a9c720365",
+      "source_body_part": "apps/_archives/portability-prs-68-71.json",
+      "app_candidates": [
+        "media-center",
+        "satellite-center",
+        "geolocation-center",
+        "text-center",
+        "flight-radar"
+      ],
+      "classification_status": "cross_app_portability_scope_confirmed_from_pr",
+      "destination_repo_id": null,
+      "destination_repo_url": null,
+      "destination_pr_number": null,
+      "destination_pr_url": null,
+      "copied_comments": false,
+      "copied_reviews": false,
+      "copied_native_approvals": false,
+      "link_status": "original_only_not_migrated",
+      "migration_branch": null,
+      "pr_head_sha_is_observed_not_immutable": true
+    },
+    {
+      "origin_repository_id": 1447637221,
+      "origin_pr_number": 71,
+      "origin_pr_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/71",
+      "origin_pr_id": 5263072174,
+      "original_created_at": "2026-11-11T16:31:00Z",
+      "original_author": "Tihulu",
+      "original_head_sha": "c12f5dbabf03b0a7eb44ffee03e0a1f1b0f78196",
+      "original_base_sha": "9b4ffce98a723c0e60ec5a11978895e56f97a161",
+      "source_body_part": "apps/_archives/portability-prs-68-71.json",
+      "app_candidates": [
+        "media-center",
+        "satellite-center",
+        "geolocation-center",
+        "text-center",
+        "flight-radar"
+      ],
+      "classification_status": "cross_app_portability_scope_confirmed_from_pr",
+      "destination_repo_id": null,
+      "destination_repo_url": null,
+      "destination_pr_number": null,
+      "destination_pr_url": null,
+      "copied_comments": false,
+      "copied_reviews": false,
+      "copied_native_approvals": false,
+      "link_status": "original_only_not_migrated",
+      "migration_branch": null,
+      "pr_head_sha_is_observed_not_immutable": true
     }
   ],
   "issue_links": [
@@ -1625,5 +1741,9 @@
       "destination_issue_url": null,
       "link_status": "original_only_not_migrated"
     }
-  ]
+  ],
+  "original_baseline_pr_count": 63,
+  "new_portability_pr_increment_count": 4,
+  "current_link_count": 67,
+  "pr_history_notes": "63 source PR descriptions were captured in initial pr-body files; later #68-#71 descriptions are separately recorded in portability-prs-68-71.json. Complete native reviews and external chat history remain unexported. PR head SHA is a dated observation and can change."
 }
