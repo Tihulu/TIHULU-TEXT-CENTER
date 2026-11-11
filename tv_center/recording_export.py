@@ -138,7 +138,7 @@ def render(cues: list[Cue], kind: str, *, timestamps=False, lyrics=False,
         f"Default,,0,0,0,,{escape_ass(c.text)}\n" for c in cues)
 
 
-_TRANSLATION = re.compile(r"^\\[([A-Za-z]{2,3}(?:_[A-Za-z]{4})?)\\]\\s*(.+)$")
+_TRANSLATION = re.compile(r"^\[([A-Za-z]{2,3}(?:_[A-Za-z]{4})?)\]\s*(.+)$")
 _KNOWN_THREE = frozenset({
     "eng", "deu", "ger", "tur", "fra", "fre", "spa", "ita", "nld",
     "dut", "pol", "por", "rus", "ara", "zho", "chi", "jpn",
@@ -175,13 +175,13 @@ def split_caption_translations(cues: list[Cue]) -> dict[str, list[Cue]]:
                 translated.setdefault(code.lower(), []).append(match.group(2).strip())
             else:
                 original.append(line)
-        speech = "\\n".join(original).strip()
+        speech = "\n".join(original).strip()
         if speech:
             result["original"].append(Cue(cue.start, cue.end, speech))
         for language, lines in translated.items():
             name = "translation-" + re.sub(r"[^a-z0-9_-]", "-", language)
             result.setdefault(name, []).append(
-                Cue(cue.start, cue.end, "\\n".join(lines)))
+                Cue(cue.start, cue.end, "\n".join(lines)))
     if not separated:
         return {"combined": cues}
     return {track: lines for track, lines in result.items() if lines}
