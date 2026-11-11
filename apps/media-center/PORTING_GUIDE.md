@@ -11,3 +11,8 @@ This application is **not moved**; source ownership is defined in `apps/registry
 7. Keep original repository authoritative until verified migration and explicit `apps/registry.json` cutover. Then new repo root AGENTS.md explicitly routes all further work to the new repo.
 
 See `apps/LLM_FRAMEWORK_PORTABILITY.md`, `apps/DESIGN_EXTENSIBILITY_POLICY.md` and `apps/PARITY_RELEASE_GATES.md` for shared rules.
+
+## Self-contained framework-agnostic relocation requirements
+
+Use `PORTABLE_PACKAGE.json` and `SOURCE_SNAPSHOT.md` to include all required local sources and any shared TIHULU code, then audit external packages, licensing, CI, tests, installers and deployment assets. A frozen snapshot is NOT an independently running release. When porting to Rust, Qt, GTK, Tauri or another framework, keep all features, defaults, recording/timestamp semantics, data migration, security and hardware ownership intact. New designs may look entirely different when all controls stay discoverable.
+Read `HISTORY_LINKS.json`, `apps/_archives/PORTABLE_HISTORY_LINK_MAP.json`, `apps/REPOSITORY_RENAME_LINK_POLICY.md` and `LOCALIZATION_CONTRACT.json`. Preserve old GitHub PR IDs/URLs and link new PRs bidirectionally after the actual move; keep code, docs and workflows in English and eventual user-facing UI in English, Turkish and German.
