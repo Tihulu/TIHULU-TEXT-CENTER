@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "required": [
+    "source_repository_id",
+    "original_url",
+    "coverage_status",
+    "archive_path",
+    "reason_missing",
+    "last_verified_at",
+    "destination_url"
+  ],
+  "status_enum": [
+    "verified_copied",
+    "linked_only",
+    "partially_copied",
+    "not_exported_or_unverified",
+    "permission_denied",
+    "deleted_or_unavailable",
+    "native_object_not_portable",
+    "fully_verified_and_crosslinked"
+  ],
+  "rule": "Unknown source facts must remain null, old URL must be preserved, current alias is resolved by GitHub numeric repo ID with verification."
+}
