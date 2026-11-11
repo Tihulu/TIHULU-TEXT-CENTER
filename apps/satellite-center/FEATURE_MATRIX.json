@@ -16,9 +16,7 @@
         "satellite_center/browser/pass_window.mjs",
         "satellite_center/browser/orbit_clock.mjs"
       ],
-      "test_paths": [
-        "satellite_center/tests/test_native.py"
-      ],
+      "test_paths": [],
       "invariants": [
         "Keep user-selected station and UTC/locale calculations consistent",
         "Do not fabricate observed pass or received RF",
@@ -34,7 +32,8 @@
         "build": "required",
         "real_hardware": "required_if_uses_device",
         "cross_platform": "not_verified",
-        "user_acceptance": "required_for_cutover"
+        "user_acceptance": "required_for_cutover",
+        "test_gap": "Dedicated end-to-end source-to-output and on-device acceptance tests are not present in this pinned application-tree snapshot"
       }
     },
     {
@@ -47,7 +46,7 @@
         "satellite_center/browser/capture_duration.mjs"
       ],
       "test_paths": [
-        "satellite_center/tests/test_native.py"
+        "satellite_center/browser/usb_diagnostics.test.mjs"
       ],
       "invariants": [
         "Never silently claim RTL-SDR owned by another module",
@@ -63,7 +62,8 @@
         "build": "required",
         "real_hardware": "required_if_uses_device",
         "cross_platform": "not_verified",
-        "user_acceptance": "required_for_cutover"
+        "user_acceptance": "required_for_cutover",
+        "test_gap": "Dedicated end-to-end source-to-output and on-device acceptance tests are not present in this pinned application-tree snapshot"
       }
     },
     {
@@ -74,9 +74,7 @@
         "satellite_center/compute_backends.py",
         "satellite_center/README.md"
       ],
-      "test_paths": [
-        "satellite_center/tests/test_native.py"
-      ],
+      "test_paths": [],
       "invariants": [
         "Generated files carry source, capture clock and decoder provenance",
         "DSP kernel availability must not be confused with NPU device presence"
@@ -91,7 +89,8 @@
         "build": "required",
         "real_hardware": "required_if_uses_device",
         "cross_platform": "not_verified",
-        "user_acceptance": "required_for_cutover"
+        "user_acceptance": "required_for_cutover",
+        "test_gap": "Dedicated end-to-end source-to-output and on-device acceptance tests are not present in this pinned application-tree snapshot"
       }
     }
   ]
