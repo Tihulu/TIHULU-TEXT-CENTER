@@ -111,7 +111,26 @@
     "started_by_other_chats": 0,
     "completed_audits": 0,
     "app_runtime_source_files_changed_in_this_phase": 0,
-    "master_issue": 75
+    "master_issue": 75,
+    "branches_created": 6,
+    "workstream_prs_created": 6,
+    "worker_pr_numbers": [
+      83,
+      84,
+      85,
+      86,
+      87,
+      88
+    ],
+    "worker_branch_names": [
+      "audit/ws01-media-zero-regression-2026-11-11",
+      "audit/ws02-flight-standalone-2026-11-11",
+      "audit/ws03-satellite-parity-2026-11-11",
+      "audit/ws04-rf-geolocation-2026-11-11",
+      "audit/ws05-text-retained-2026-11-11",
+      "audit/ws06-provenance-qa-2026-11-11"
+    ],
+    "user_must_launch_separate_chats": true
   },
   "time_remaining": {
     "hours": null,
@@ -152,7 +171,8 @@
         "success"
       ],
       "meaning": "GitHub Actions (software CI) only, NOT installed hardware test"
-    }
+    },
+    "no_runtime_changes_in_all_six_worker_prs_verified": true
   },
   "followup_rule": "After each real GitHub CI or issue milestone, update counts and explain what was measured; no unscheduled background work is implied.",
   "documentation": {
@@ -170,6 +190,8 @@
     "media_ancestry_report_created": true,
     "application_capability_discrepancies_logged": true,
     "unmerged_export_provenance_verified": true,
-    "test_evidence_quality_report_created": true
+    "test_evidence_quality_report_created": true,
+    "launch_guide_created": true,
+    "parallel_branch_scope_verified": true
   }
 }
