@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "as_of_utc": "2026-11-12",
-  "stage": "six_initial_source_audits_received_cross_worker_regression_gates_documented_no_acceptance_completed",
+  "stage": "six_initial_worker_source_audits_documented_17_gates_open_coordinator_ci_contract_drift_open",
   "requirements": {
     "registered": 97,
     "code_source_audited": 97,
@@ -200,7 +200,7 @@
     "hours": null,
     "minutes": null,
     "confidence": "insufficient_evidence",
-    "reason": "Seventeen source-informed regression gates have been documented and remain open; task durations, hardware/environment access, original history completeness and separate owner approvals have not been measured.",
+    "reason": "Seventeen source-based regression gates remain open; current coordination CI fails two stale zero-worker assertions on three Python jobs. Required test-contract reconciliation, physical test, history and release workload are not measured.",
     "format_on_update": "HH hours MM minutes once computed; otherwise say unknown rather than make up a countdown",
     "estimation_criteria": [
       "audited outstanding task list",
@@ -223,7 +223,7 @@
     ],
     "engineering_language": "en",
     "all_5_ui_locale_coverage_verified": false,
-    "new_ci_checks_current_head_status": "All six worker PR head Text Center tests workflow runs completed successfully, checked 2026-11-12; separate original satellite PR #37 Pages parity failed",
+    "new_ci_checks_current_head_status": "FAILURE: coordinator PR #82 head d3f9dffd85b5e9e89f043a5c9b5ea26888783134, Text Center tests run 43119633429; 3 Python matrix jobs failed stale zero-worker assertions (two failures in 696 tests per inspected Python 3.12 log). Worker-head CI successes are separate.",
     "last_verified_ci_for_prior_head": {
       "sha": "b35f3f2f1cc5f35cb46bad90840ac814ab226b69",
       "actions_runs": [
@@ -274,7 +274,30 @@
     "hardware_device_acceptance_verified": false,
     "regression_gate_plan_documented": true,
     "regression_gates_open": 17,
-    "regression_gates_approved_for_code_changes": 0
+    "regression_gates_approved_for_code_changes": 0,
+    "latest_coordinator_ci": {
+      "source_head": "d3f9dffd85b5e9e89f043a5c9b5ea26888783134",
+      "run_id": 43119633429,
+      "workflow": "Text Center tests",
+      "conclusion": "failure",
+      "matrix_job_results": {
+        "python_3_11": "failure",
+        "python_3_12": "failure",
+        "python_3_13": "failure"
+      },
+      "inspected_job_3_12_tests_run": 696,
+      "inspected_job_3_12_test_failures": 2,
+      "failures": [
+        "tests/test_master_zero_regression_coordination.py::test_progress_has_evidence_based_issues_and_unknown_eta expects completed_audits=0 but observed 6",
+        "tests/test_six_parallel_workstream_gates.py::test_no_runtime_release_or_rename_permission expects started_by_other_chats=0 but observed 6"
+      ],
+      "scope": "stale audit-planning test assertions vs verified worker milestone data, NOT physical receiver or installed app regression evidence",
+      "remediation_status": "OPEN; no test-source changes authorized in documentation-only phase",
+      "diagnosis_doc": "apps/_coordination/COORDINATION_CI_CONTRACT_DRIFT.md",
+      "tested_as_of_date": "2026-11-12"
+    },
+    "all_current_head_ci_success": false,
+    "original_worker_ci_successes_distinct_from_coordinator_failure": true
   },
   "followup_rule": "After each real GitHub CI or issue milestone, update counts and explain what was measured; no unscheduled background work is implied.",
   "documentation": {
@@ -314,6 +337,7 @@
     "physical_hardware_acceptance_verified": 0,
     "feature_equivalence_certified": 0,
     "remaining_hours": null,
-    "remaining_minutes": null
+    "remaining_minutes": null,
+    "coordinator_ci_gate_current": "FAILURE planning-test expected zero workers; 6 verified reports, tracked in COORDINATION_CI_CONTRACT_DRIFT.md"
   }
 }
