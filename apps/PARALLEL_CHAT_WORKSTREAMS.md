@@ -2,7 +2,7 @@
 
 The user may run six separate ChatGPT conversations in parallel. This is a **manual coordination plan**, not an autonomous multi-agent scheduler. No other chat is launched by this document.
 
-**Shared base branch:** `chore/portable-self-contained-apps-rename-links-i18n-2026-11-11`. Give every chat a different `audit/<scope>-2026-11-11` branch and a separate Draft PR against the shared base. Do not have two chats edit one manifest or one test file. If this plan is merged, the coordinator adjusts base references in explicit review only.
+**Shared base branch:** `chore/origin-fallbacks-approved-brand-kit-2026-11-11`. Give every chat a different `audit/<scope>-2026-11-11` branch and a separate Draft PR against the shared base. Do not have two chats edit one manifest or one test file. If this plan is merged, the coordinator adjusts base references in explicit review only.
 
 | Chat | Owner file scope | Mission |
 | --- | --- | --- |
@@ -25,4 +25,12 @@ All six assignments now inspect read-only per-app source snapshots, local depend
 
 ## Critical six-chat handoff — current pinned source bundle
 
-All six agents must start from the updated source-copy and provenance branch `chore/portable-self-contained-apps-rename-links-i18n-2026-11-11`, not from #69 alone. Verify latest commit SHA against the GitHub branch reference before branching. Worker 1 audits Media Center's own `kaffeine_next` + `tv_center` + `textcenter` copies; Worker 2 Satellite; Worker 3 Geolocation; Worker 4 Text and separately canonical Flight Radar; Worker 5 global independent-repo contracts and EN/TR/DE UI; Worker 6 global original/new PR links and old-repo rename. Edit only assigned **metadata**, not frozen `source/` copies or active app code. If multiple workers need a shared path, central coordination owns it. Draft PRs only. No repo cutover or rename authorized by these prompts.
+All six agents must start from the updated source-copy and provenance branch `chore/origin-fallbacks-approved-brand-kit-2026-11-11`, not from #69 alone. Verify latest commit SHA against the GitHub branch reference before branching. Worker 1 audits Media Center's own `kaffeine_next` + `tv_center` + `textcenter` copies; Worker 2 Satellite; Worker 3 Geolocation; Worker 4 Text and separately canonical Flight Radar; Worker 5 global independent-repo contracts and EN/TR/DE UI; Worker 6 global original/new PR links and old-repo rename. Edit only assigned **metadata**, not frozen `source/` copies or active app code. If multiple workers need a shared path, central coordination owns it. Draft PRs only. No repo cutover or rename authorized by these prompts.
+
+## Division of history and brand review
+
+All six chats start from the updated `chore/origin-fallbacks-approved-brand-kit-2026-11-11` branch. Each application chat audits its own `ORIGIN_FALLBACKS.json`, existing source/feature mappings, and approved logo installation risks. Worker 5 analyzes genuine SVG generation and platform icon integration plus EN/TR/DE tests; Worker 6 handles source PR/comment coverage, repo rename aliases and original/new bidirectional link audit. Global ledgers and brand manifest are coordinator-owned; none of the workers alter frozen app source copies, current icons or installers. Every worker opens its own Draft PR, not a merge.
+
+## Complete provenance for copied and incomplete information
+
+At task start read `apps/HISTORY_ORIGIN_FALLBACK_POLICY.md`, `apps/_archives/HISTORY_COVERAGE_AUDIT.json`, `apps/<app>/ORIGIN_FALLBACKS.json`, and `apps/<app>/APPROVED_BRANDING.json`. PR/Issue descriptions have origin links but comments, review submissions, review threads, CI events, missing branches and external ChatGPT requests are NOT yet completely exported. If an item cannot be transferred, preserve its old URL and GitHub repository ID 1447637221, plus an explicit remaining gap and reason. A future repo rename must update resolved aliases without erasing original URLs. Approved logos are separate PNG assets staged in the conversation package, not yet committed or installed in running apps. All engineering content remains English and every eventual app UI supports en/tr/de. Do not change any app code or installer during the documentation audit.
