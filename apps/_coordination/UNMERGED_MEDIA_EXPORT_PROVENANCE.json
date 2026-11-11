@@ -1,0 +1,85 @@
+{
+  "schema_version": 1,
+  "checked_on": "2026-11-11",
+  "type": "verified_exact_branch_asset_identity_for_unmerged_media_export",
+  "repo": "Tihulu/TIHULU-TEXT-CENTER",
+  "origin_repo_id": 1447637221,
+  "original_prs": [
+    "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/65",
+    "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/66",
+    "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/67"
+  ],
+  "source_branch": "feat/media-unified-recording-export-2026-11-11",
+  "source_commit_sha": "4e62e21cd5252df8a04f9ceadc429f4b116412ce",
+  "branch_is_not_audit_doc_branch": true,
+  "not_merged_to_main": true,
+  "verified_files": [
+    {
+      "path": "tv_center/recording_export.py",
+      "blob_sha": "084ac92aa787b1e81f2a2dab861eb0af6041eade",
+      "observed_functions": [
+        "parse_srt",
+        "render",
+        "split_caption_translations",
+        "export_tracks",
+        "mux_tracks",
+        "burn_video",
+        "run_export"
+      ],
+      "direct_read_verified": true,
+      "executed_test": false
+    },
+    {
+      "path": "tests/test_recording_export.py",
+      "blob_sha": "1b8039aa5f78449ebd7c5ef19eb0f9470bfb0cf8",
+      "observed_tests": [
+        "test_preserves_real_time_ranges_and_tags",
+        "test_lrc_refuses_unverified_speech_timing",
+        "test_separate_tracks_and_never_overwrites_user_files",
+        "test_complete_requires_local_file_and_media_mux_needs_media",
+        "test_real_ffmpeg_mkv_keeps_original_audio_and_timed_srt"
+      ],
+      "direct_read_verified": true,
+      "executed_test": false
+    },
+    {
+      "path": "kaffeine_next/native_unified_recorder.h",
+      "blob_sha": "65ceedc5e99534a2f348b83f5c31467b55cd237f",
+      "direct_read_verified": true,
+      "executed_test": false
+    },
+    {
+      "path": "kaffeine_next/captions_overlay.py",
+      "blob_sha": "3081be75998464e758427ea12c66071924b6e69d",
+      "direct_read_verified": true,
+      "executed_test": false
+    },
+    {
+      "path": "kaffeine_next/native_media_panel.h",
+      "blob_sha": "7b8f2f756025a8aec5169e86b52ec589dc769aca",
+      "direct_read_verified": true,
+      "executed_test": false
+    },
+    {
+      "path": "kaffeine_next/native_radio_tab.h",
+      "blob_sha": "1aaac1b9b2c08f2ae4981d17dbd1f6029a2ad831",
+      "direct_read_verified": true,
+      "executed_test": false
+    }
+  ],
+  "relevance": [
+    "MEDIA-038",
+    "MEDIA-039",
+    "MEDIA-036",
+    "MEDIA-037",
+    "MEDIA-040"
+  ],
+  "preservation_risk": "The coordination/docs-only branch descends from #66, NOT from later source-feature branch #67. Do not transfer Media Center using audit branch alone or assume its recording_export.py and test_recording_export.py are present there.",
+  "required_future_actions": [
+    "Review diff ancestry #65→#66→#67 without rewriting existing commits",
+    "Copy validated source and tests to new repo only after separately approved integration branch",
+    "Run export, mux, no-overwrite and real FFmpeg where available; compare existing user settings and TV/radio runtime",
+    "Record source SHA and original user-visible behavior in new repo provenance"
+  ],
+  "current_release_claim": "No complete shipped/released feature proof; code and test source read only. No runtime code modified by this audit."
+}

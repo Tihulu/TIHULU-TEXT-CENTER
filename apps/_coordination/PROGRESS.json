@@ -8,7 +8,14 @@
     "feature_equivalence_certified": 0,
     "physical_device_verified": 0,
     "initial_requirements_inventory_complete": false,
-    "review_pending": true
+    "review_pending": true,
+    "source_path_candidates_mapped": 97,
+    "existing_test_path_candidates_mapped": 86,
+    "requirements_without_test_path_candidate": 11,
+    "source_code_semantically_verified": 0,
+    "per_requirement_test_executions": 0,
+    "real_hardware_verifications": 0,
+    "has_candidate_traceability_map": true
   },
   "repositories": {
     "total_canonical_apps": 5,
@@ -74,7 +81,9 @@
     "flight_own_open_draft_prs": [
       7,
       13
-    ]
+    ],
+    "media_export_branch_exact_assets_verified": true,
+    "media_export_branch_only_code_not_in_docs_branch": true
   },
   "approved_designs": {
     "logos_user_approved": 5,
@@ -140,6 +149,7 @@
     "early_conflict_audit_created": true,
     "flight_static_baseline_report_created": true,
     "media_ancestry_report_created": true,
-    "application_capability_discrepancies_logged": true
+    "application_capability_discrepancies_logged": true,
+    "unmerged_export_provenance_verified": true
   }
 }

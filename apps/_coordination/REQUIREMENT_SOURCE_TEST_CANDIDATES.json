@@ -4,7 +4,7 @@
   "status": "CANDIDATE_TRACEABILITY_MAP_NOT_IMPLEMENTATION_CERTIFICATION",
   "origin_sha": "803529ba90f43a6cb1fb977869c650ddf5db448a",
   "flight_sha": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
-  "method": "Manually classified current requirements to exact GitHub file paths and potential test files. Confirmed paths against repo trees. Actual source semantics and tests NOT validated by this map. App worker must inspect exact code and run tests.",
+  "method": "Manually classified current requirements to exact GitHub file paths and potential test files. Confirmed paths against repo trees. Actual source semantics and tests NOT validated by this map. App worker must inspect exact code and run tests. After manual file-list review, two obsolete test filename guesses were corrected. This is a candidate map; no feature proof.",
   "summary": {
     "total": 97,
     "at_least_one_existing_source": 97,
@@ -22,17 +22,24 @@
       "CROSS-012",
       "CROSS-014"
     ],
-    "unresolved_paths": [
-      {
-        "id": "MEDIA-038",
-        "type": "test",
-        "path": "tests/test_tv_kaffeine_native_srt_controls.py"
-      },
-      {
-        "id": "MEDIA-041",
-        "type": "test",
-        "path": "tests/test_tv_media.py"
-      }
+    "unresolved_paths": [],
+    "total_canonical_sources_candidates": 198,
+    "total_canonical_test_file_candidates": 127,
+    "source_files_content_verified_by_this_mapping": 0,
+    "test_suite_executions_per_requirement": 0,
+    "physical_hardware_tests": 0,
+    "candidate_tests_without_any_test": [
+      "FLIGHT-016",
+      "FLIGHT-017",
+      "SAT-005",
+      "SAT-006",
+      "SAT-008",
+      "CROSS-006",
+      "CROSS-009",
+      "CROSS-010",
+      "CROSS-011",
+      "CROSS-012",
+      "CROSS-014"
     ]
   },
   "entries": [
@@ -1615,8 +1622,8 @@
         {
           "repository": "Tihulu/TIHULU-TEXT-CENTER",
           "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
-          "path": "tests/test_tv_kaffeine_native_srt_controls.py",
-          "exists_at_ref": false,
+          "path": "tests/test_kaffeine_native_srt_controls.py",
+          "exists_at_ref": true,
           "test_execution_status": "not_executed_for_this_requirement"
         },
         {
@@ -1750,8 +1757,8 @@
         {
           "repository": "Tihulu/TIHULU-TEXT-CENTER",
           "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
-          "path": "tests/test_tv_media.py",
-          "exists_at_ref": false,
+          "path": "tests/test_media.py",
+          "exists_at_ref": true,
           "test_execution_status": "not_executed_for_this_requirement"
         }
       ],
@@ -3849,5 +3856,6 @@
       "original_pr_links": [],
       "review_needed": true
     }
-  ]
+  ],
+  "unmerged_media_export_evidence_ref": "apps/_coordination/UNMERGED_MEDIA_EXPORT_PROVENANCE.json"
 }
