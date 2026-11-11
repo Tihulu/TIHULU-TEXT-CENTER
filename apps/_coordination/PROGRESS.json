@@ -297,7 +297,10 @@
       "tested_as_of_date": "2026-11-12"
     },
     "all_current_head_ci_success": false,
-    "original_worker_ci_successes_distinct_from_coordinator_failure": true
+    "original_worker_ci_successes_distinct_from_coordinator_failure": true,
+    "ci_test_contract_fix_proposed_not_implemented": true,
+    "text_archive_import_boundary_requires_resolution": true,
+    "history_pr72_74_link_provenance_verified_but_ledgers_incomplete": true
   },
   "followup_rule": "After each real GitHub CI or issue milestone, update counts and explain what was measured; no unscheduled background work is implied.",
   "documentation": {
@@ -339,5 +342,18 @@
     "remaining_hours": null,
     "remaining_minutes": null,
     "coordinator_ci_gate_current": "FAILURE planning-test expected zero workers; 6 verified reports, tracked in COORDINATION_CI_CONTRACT_DRIFT.md"
+  },
+  "coordinator_followup": {
+    "as_of_date": "2026-11-12",
+    "ci_test_repair_proposal": "apps/_coordination/COORDINATION_TEST_REPAIR_PROPOSAL.md",
+    "coordination_python_tests_changed": false,
+    "text_active_snapshot_semantic_delta": "apps/_coordination/TEXT_MAIN_SNAPSHOT_SEMANTIC_DELTA.md",
+    "text_archived_tv_center_import_dependency_found": true,
+    "origin_pr72_to_74_verified_ancestry": "apps/_coordination/ORIGIN_PR72_74_ANCESTRY_ADDENDUM.json",
+    "old_history_ledgers_modified": false,
+    "new_regression_gates_added": 0,
+    "open_regression_gates": 17,
+    "source_migration_or_release_performed": false,
+    "all_pending_acceptance_remains_unverified": true
   }
 }
