@@ -1,0 +1,101 @@
+{
+  "schema_version": 1,
+  "as_of_date": "2026-11-12",
+  "kind": "READ_ONLY_HISTORY_PROVENANCE_ADDENDUM",
+  "status": "PR_METADATA_AND_LINEAGE_VERIFIED_ARCHIVE_LEDGERS_NOT_REWRITTEN",
+  "source_repository": "Tihulu/TIHULU-TEXT-CENTER",
+  "source_repo_numeric_id": 1447637221,
+  "origin_ledger_paths": [
+    "apps/_archives/HISTORY_COVERAGE_AUDIT.json",
+    "apps/_archives/PORTABLE_HISTORY_LINK_MAP.json"
+  ],
+  "ledger_gap": "WS06 reports both original 67-entry PR link tables omit PRs 72,73,74; this addendum does not mutate either historical table and is not proof complete PR/comment/review timeline coverage.",
+  "entries": [
+    {
+      "number": 72,
+      "title": "Draft: link incomplete history to rename-proof origins and stage 5 approved TIHULU app logos",
+      "head": "5e036603a8cbe1f22ed0d0d13306c9ddd3007d42",
+      "branch": "chore/origin-fallbacks-approved-brand-kit-2026-11-11",
+      "base": "chore/portable-self-contained-apps-rename-links-i18n-2026-11-11",
+      "changed_files": 50,
+      "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/72",
+      "state": "open",
+      "draft": true,
+      "merged": false,
+      "source_repo_numeric_id": 1447637221
+    },
+    {
+      "number": 73,
+      "title": "Draft: register 3 owner-created empty app repos and pin the 5 approved red TIHULU logos",
+      "head": "424656fc36e16a4d5b87d13b5824fd36243d66e4",
+      "branch": "chore/register-user-created-app-repos-and-approved-red-logos-2026-11-11",
+      "base": "chore/origin-fallbacks-approved-brand-kit-2026-11-11",
+      "changed_files": 22,
+      "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/73",
+      "state": "open",
+      "draft": true,
+      "merged": false,
+      "source_repo_numeric_id": 1447637221
+    },
+    {
+      "number": 74,
+      "title": "Draft: retain Text Center in original repository; migrate only three other embedded apps",
+      "head": "a27e84a283b37c9014dfe21efbc496f5da5a7c65",
+      "branch": "chore/retain-text-center-in-origin-repo-2026-11-11",
+      "base": "chore/register-user-created-app-repos-and-approved-red-logos-2026-11-11",
+      "changed_files": 31,
+      "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/74",
+      "state": "open",
+      "draft": true,
+      "merged": false,
+      "source_repo_numeric_id": 1447637221
+    }
+  ],
+  "verified_git_compare": [
+    {
+      "base": "5e036603a8cbe1f22ed0d0d13306c9ddd3007d42",
+      "head": "424656fc36e16a4d5b87d13b5824fd36243d66e4",
+      "label": "#72→#73",
+      "status": "ahead",
+      "ahead_by": 4,
+      "behind_by": 0,
+      "merge_base": "5e036603a8cbe1f22ed0d0d13306c9ddd3007d42"
+    },
+    {
+      "base": "424656fc36e16a4d5b87d13b5824fd36243d66e4",
+      "head": "a27e84a283b37c9014dfe21efbc496f5da5a7c65",
+      "label": "#73→#74",
+      "status": "ahead",
+      "ahead_by": 6,
+      "behind_by": 0,
+      "merge_base": "424656fc36e16a4d5b87d13b5824fd36243d66e4"
+    },
+    {
+      "base": "a27e84a283b37c9014dfe21efbc496f5da5a7c65",
+      "head": "f19fe6b2d3238f0c8e67634619c40abfe1da2b6d",
+      "label": "#74→coordinator PR #82 as inspected",
+      "status": "ahead",
+      "ahead_by": 27,
+      "behind_by": 0,
+      "merge_base": "a27e84a283b37c9014dfe21efbc496f5da5a7c65"
+    }
+  ],
+  "gates": [
+    "REG-11",
+    "REG-12",
+    "CROSS-005",
+    "CROSS-010"
+  ],
+  "next_read_only_work": [
+    "Link original PR review/comment/issue-timeline permalinks to immutable records; missing timestamps remain null",
+    "Compare historical ledger coverage with all original source PRs without inventing past approvals",
+    "Preserve PR #65→#66→#67 Media branch lineage separately; PR #74 ancestry does not incorporate Media #67 source path",
+    "Do not move or rewrite original PRs, releases, badges or three empty destination repos"
+  ],
+  "not_verified": [
+    "Original PR #72-74 discussion bodies, review submissions and inline threads not rechecked in this addendum",
+    "No installed app tests, no source migration or release, no physical hardware access"
+  ],
+  "privacy": "Do not copy private chat content or fabricated original approval messages to public repository.",
+  "changes_made": "This addendum JSON only; no source, main, installer, icon, branch merging, repo rename or existing ledger modification."
+}
