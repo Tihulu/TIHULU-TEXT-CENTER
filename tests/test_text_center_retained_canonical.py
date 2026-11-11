@@ -89,7 +89,7 @@ class CanonicalTopologyTests(unittest.TestCase):
         self.assertFalse(topology["language_policy"]["coverage_verified"])
         logo = json.loads((APPS / "text-center" / "APPROVED_BRANDING.json").read_text())
         self.assertFalse(logo["asset_binary_in_git"])
-        self.assertFalse(logo["production_icon_replaced"])
+        self.assertFalse(logo["runtime_icon_changed"])
         self.assertEqual(logo["canonical_app_repo"], SOURCE)
 
 
