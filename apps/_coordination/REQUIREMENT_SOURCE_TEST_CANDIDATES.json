@@ -1,0 +1,3853 @@
+{
+  "schema_version": 1,
+  "created_utc_date": "2026-11-11",
+  "status": "CANDIDATE_TRACEABILITY_MAP_NOT_IMPLEMENTATION_CERTIFICATION",
+  "origin_sha": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+  "flight_sha": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+  "method": "Manually classified current requirements to exact GitHub file paths and potential test files. Confirmed paths against repo trees. Actual source semantics and tests NOT validated by this map. App worker must inspect exact code and run tests.",
+  "summary": {
+    "total": 97,
+    "at_least_one_existing_source": 97,
+    "at_least_one_existing_test": 86,
+    "without_existing_test": [
+      "FLIGHT-016",
+      "FLIGHT-017",
+      "SAT-005",
+      "SAT-006",
+      "SAT-008",
+      "CROSS-006",
+      "CROSS-009",
+      "CROSS-010",
+      "CROSS-011",
+      "CROSS-012",
+      "CROSS-014"
+    ],
+    "unresolved_paths": [
+      {
+        "id": "MEDIA-038",
+        "type": "test",
+        "path": "tests/test_tv_kaffeine_native_srt_controls.py"
+      },
+      {
+        "id": "MEDIA-041",
+        "type": "test",
+        "path": "tests/test_tv_media.py"
+      }
+    ]
+  },
+  "entries": [
+    {
+      "id": "MEDIA-001",
+      "app": "media-center",
+      "priority": "P0",
+      "implementation_status": "not_verified",
+      "runtime_behavior_status": "unchanged_by_audit",
+      "candidate_sources": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "kaffeine_next/patch_upstream.py",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        },
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "tv_center/channels_ui.py",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        }
+      ],
+      "candidate_tests": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "tests/test_tv_kaffeine.py",
+          "exists_at_ref": true,
+          "test_execution_status": "not_executed_for_this_requirement"
+        },
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "tests/test_tv_channel_epoch.py",
+          "exists_at_ref": true,
+          "test_execution_status": "not_executed_for_this_requirement"
+        }
+      ],
+      "issue_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/76",
+      "original_pr_links": [
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/65",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/67"
+      ],
+      "review_needed": true
+    },
+    {
+      "id": "MEDIA-002",
+      "app": "media-center",
+      "priority": "P0",
+      "implementation_status": "not_verified",
+      "runtime_behavior_status": "unchanged_by_audit",
+      "candidate_sources": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "kaffeine_next/tv_tune_state.py",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        },
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "tv_center/scanner.py",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        }
+      ],
+      "candidate_tests": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "tests/test_kaffeine_dvb_scan_import_crash.py",
+          "exists_at_ref": true,
+          "test_execution_status": "not_executed_for_this_requirement"
+        },
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "tests/test_tv_kaffeine_transport_health.py",
+          "exists_at_ref": true,
+          "test_execution_status": "not_executed_for_this_requirement"
+        }
+      ],
+      "issue_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/76",
+      "original_pr_links": [
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/65",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/67"
+      ],
+      "review_needed": true
+    },
+    {
+      "id": "MEDIA-003",
+      "app": "media-center",
+      "priority": "P0",
+      "implementation_status": "not_verified",
+      "runtime_behavior_status": "unchanged_by_audit",
+      "candidate_sources": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "kaffeine_next/dvb_diagnostics.sh",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        },
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "tv_center/hardware_status.py",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        }
+      ],
+      "candidate_tests": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "tests/test_tv_hardware_status.py",
+          "exists_at_ref": true,
+          "test_execution_status": "not_executed_for_this_requirement"
+        }
+      ],
+      "issue_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/76",
+      "original_pr_links": [
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/65",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/67"
+      ],
+      "review_needed": true
+    },
+    {
+      "id": "MEDIA-004",
+      "app": "media-center",
+      "priority": "P0",
+      "implementation_status": "not_verified",
+      "runtime_behavior_status": "unchanged_by_audit",
+      "candidate_sources": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "kaffeine_next/native_radio_tab.h",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        },
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "tv_center/runtime.py",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        }
+      ],
+      "candidate_tests": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "tests/test_radio_tv_handoff_progress.py",
+          "exists_at_ref": true,
+          "test_execution_status": "not_executed_for_this_requirement"
+        },
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "tests/test_tv_radio_receiver_release_lifecycle.py",
+          "exists_at_ref": true,
+          "test_execution_status": "not_executed_for_this_requirement"
+        }
+      ],
+      "issue_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/76",
+      "original_pr_links": [
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/65",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/67"
+      ],
+      "review_needed": true
+    },
+    {
+      "id": "MEDIA-005",
+      "app": "media-center",
+      "priority": "P1",
+      "implementation_status": "not_verified",
+      "runtime_behavior_status": "unchanged_by_audit",
+      "candidate_sources": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "kaffeine_next/native_media_panel.h",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        },
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "kaffeine_next/patch_upstream.py",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        }
+      ],
+      "candidate_tests": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "tests/test_native_file_prepass_fullscreen.py",
+          "exists_at_ref": true,
+          "test_execution_status": "not_executed_for_this_requirement"
+        }
+      ],
+      "issue_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/76",
+      "original_pr_links": [
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/65",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/67"
+      ],
+      "review_needed": true
+    },
+    {
+      "id": "MEDIA-006",
+      "app": "media-center",
+      "priority": "P0",
+      "implementation_status": "not_verified",
+      "runtime_behavior_status": "unchanged_by_audit",
+      "candidate_sources": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "kaffeine_next/patch_upstream.py",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        },
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "tv_center/desktop.py",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        }
+      ],
+      "candidate_tests": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "tests/test_tv_no_tuner_playback.py",
+          "exists_at_ref": true,
+          "test_execution_status": "not_executed_for_this_requirement"
+        }
+      ],
+      "issue_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/76",
+      "original_pr_links": [
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/65",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/67"
+      ],
+      "review_needed": true
+    },
+    {
+      "id": "MEDIA-007",
+      "app": "media-center",
+      "priority": "P0",
+      "implementation_status": "not_verified",
+      "runtime_behavior_status": "unchanged_by_audit",
+      "candidate_sources": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "kaffeine_next/teletext_match.py",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        },
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "kaffeine_next/captions_overlay.py",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        }
+      ],
+      "candidate_tests": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "tests/test_tv_teletext_speech_recovery.py",
+          "exists_at_ref": true,
+          "test_execution_status": "not_executed_for_this_requirement"
+        }
+      ],
+      "issue_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/76",
+      "original_pr_links": [
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/65",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/67"
+      ],
+      "review_needed": true
+    },
+    {
+      "id": "MEDIA-008",
+      "app": "media-center",
+      "priority": "P0",
+      "implementation_status": "not_verified",
+      "runtime_behavior_status": "unchanged_by_audit",
+      "candidate_sources": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "kaffeine_next/captions_overlay.py",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        },
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "kaffeine_next/tv_tune_state.py",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        }
+      ],
+      "candidate_tests": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "tests/test_tv_channel_epoch.py",
+          "exists_at_ref": true,
+          "test_execution_status": "not_executed_for_this_requirement"
+        },
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "tests/test_tv_kaffeine_subtitle_tracks.py",
+          "exists_at_ref": true,
+          "test_execution_status": "not_executed_for_this_requirement"
+        }
+      ],
+      "issue_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/76",
+      "original_pr_links": [
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/65",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/67"
+      ],
+      "review_needed": true
+    },
+    {
+      "id": "MEDIA-009",
+      "app": "media-center",
+      "priority": "P0",
+      "implementation_status": "not_verified",
+      "runtime_behavior_status": "unchanged_by_audit",
+      "candidate_sources": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "kaffeine_next/caption_timing.py",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        },
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "tv_center/sentence_joiner.py",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        }
+      ],
+      "candidate_tests": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "tests/test_tv_caption_readability_clock.py",
+          "exists_at_ref": true,
+          "test_execution_status": "not_executed_for_this_requirement"
+        },
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "tests/test_tv_natural_caption_sync.py",
+          "exists_at_ref": true,
+          "test_execution_status": "not_executed_for_this_requirement"
+        }
+      ],
+      "issue_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/76",
+      "original_pr_links": [
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/65",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/67"
+      ],
+      "review_needed": true
+    },
+    {
+      "id": "MEDIA-010",
+      "app": "media-center",
+      "priority": "P1",
+      "implementation_status": "not_verified",
+      "runtime_behavior_status": "unchanged_by_audit",
+      "candidate_sources": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "kaffeine_next/native_radio_tab.h",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        },
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "tv_center/scan_ui.py",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        }
+      ],
+      "candidate_tests": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "tests/test_tv_radio_channel_lists_translation_reading.py",
+          "exists_at_ref": true,
+          "test_execution_status": "not_executed_for_this_requirement"
+        }
+      ],
+      "issue_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/76",
+      "original_pr_links": [
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/65",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/67"
+      ],
+      "review_needed": true
+    },
+    {
+      "id": "MEDIA-011",
+      "app": "media-center",
+      "priority": "P1",
+      "implementation_status": "not_verified",
+      "runtime_behavior_status": "unchanged_by_audit",
+      "candidate_sources": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "textcenter/dab_bridge.py",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        },
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "tv_center/radio_dls_metadata.py",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        }
+      ],
+      "candidate_tests": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "tests/test_dab_bridge.py",
+          "exists_at_ref": true,
+          "test_execution_status": "not_executed_for_this_requirement"
+        },
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "tests/test_radio_dls_lyrics_refresh.py",
+          "exists_at_ref": true,
+          "test_execution_status": "not_executed_for_this_requirement"
+        }
+      ],
+      "issue_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/76",
+      "original_pr_links": [
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/65",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/67"
+      ],
+      "review_needed": true
+    },
+    {
+      "id": "MEDIA-012",
+      "app": "media-center",
+      "priority": "P0",
+      "implementation_status": "not_verified",
+      "runtime_behavior_status": "unchanged_by_audit",
+      "candidate_sources": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "kaffeine_next/native_radio_tab.h",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        },
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "tv_center/radio_capture.py",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        }
+      ],
+      "candidate_tests": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "tests/test_tv_kaffeine_dab_api_recovery.py",
+          "exists_at_ref": true,
+          "test_execution_status": "not_executed_for_this_requirement"
+        }
+      ],
+      "issue_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/76",
+      "original_pr_links": [
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/65",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/67"
+      ],
+      "review_needed": true
+    },
+    {
+      "id": "MEDIA-013",
+      "app": "media-center",
+      "priority": "P1",
+      "implementation_status": "not_verified",
+      "runtime_behavior_status": "unchanged_by_audit",
+      "candidate_sources": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "textcenter/fm_rds.py",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        },
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "textcenter/fm_survey.py",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        }
+      ],
+      "candidate_tests": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "tests/test_fm_rds.py",
+          "exists_at_ref": true,
+          "test_execution_status": "not_executed_for_this_requirement"
+        },
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "tests/test_fm_survey.py",
+          "exists_at_ref": true,
+          "test_execution_status": "not_executed_for_this_requirement"
+        }
+      ],
+      "issue_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/76",
+      "original_pr_links": [
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/65",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/67"
+      ],
+      "review_needed": true
+    },
+    {
+      "id": "MEDIA-014",
+      "app": "media-center",
+      "priority": "P1",
+      "implementation_status": "not_verified",
+      "runtime_behavior_status": "unchanged_by_audit",
+      "candidate_sources": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "kaffeine_next/native_radio_tab.h",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        },
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "textcenter/receivers.py",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        }
+      ],
+      "candidate_tests": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "tests/test_receivers.py",
+          "exists_at_ref": true,
+          "test_execution_status": "not_executed_for_this_requirement"
+        }
+      ],
+      "issue_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/76",
+      "original_pr_links": [
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/65",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/67"
+      ],
+      "review_needed": true
+    },
+    {
+      "id": "MEDIA-015",
+      "app": "media-center",
+      "priority": "P0",
+      "implementation_status": "not_verified",
+      "runtime_behavior_status": "unchanged_by_audit",
+      "candidate_sources": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "tv_center/radio_ai.py",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        },
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "kaffeine_next/caption_timing.py",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        }
+      ],
+      "candidate_tests": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "tests/test_radio_ai_caption_karaoke_playback.py",
+          "exists_at_ref": true,
+          "test_execution_status": "not_executed_for_this_requirement"
+        },
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "tests/test_radio_est_caption_continuity.py",
+          "exists_at_ref": true,
+          "test_execution_status": "not_executed_for_this_requirement"
+        }
+      ],
+      "issue_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/76",
+      "original_pr_links": [
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/65",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/67"
+      ],
+      "review_needed": true
+    },
+    {
+      "id": "MEDIA-016",
+      "app": "media-center",
+      "priority": "P0",
+      "implementation_status": "not_verified",
+      "runtime_behavior_status": "unchanged_by_audit",
+      "candidate_sources": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "kaffeine_next/native_radio_tab.h",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        },
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "textcenter/conflicts.py",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        }
+      ],
+      "candidate_tests": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "tests/test_tv_radio_receiver_release_lifecycle.py",
+          "exists_at_ref": true,
+          "test_execution_status": "not_executed_for_this_requirement"
+        }
+      ],
+      "issue_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/76",
+      "original_pr_links": [
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/65",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/67"
+      ],
+      "review_needed": true
+    },
+    {
+      "id": "MEDIA-017",
+      "app": "media-center",
+      "priority": "P1",
+      "implementation_status": "not_verified",
+      "runtime_behavior_status": "unchanged_by_audit",
+      "candidate_sources": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "kaffeine_next/native_hardware_tab.h",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        },
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "kaffeine_next/native_radio_tab.h",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        }
+      ],
+      "candidate_tests": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "tests/test_radio_tv_handoff_progress.py",
+          "exists_at_ref": true,
+          "test_execution_status": "not_executed_for_this_requirement"
+        },
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "tests/test_tv_radio_frequency_buffer_progress.py",
+          "exists_at_ref": true,
+          "test_execution_status": "not_executed_for_this_requirement"
+        }
+      ],
+      "issue_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/76",
+      "original_pr_links": [
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/65",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/67"
+      ],
+      "review_needed": true
+    },
+    {
+      "id": "MEDIA-018",
+      "app": "media-center",
+      "priority": "P0",
+      "implementation_status": "not_verified",
+      "runtime_behavior_status": "unchanged_by_audit",
+      "candidate_sources": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "kaffeine_next/caption_timing.py",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        },
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "kaffeine_next/captions_overlay.py",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        }
+      ],
+      "candidate_tests": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "tests/test_tv_caption_live_offset.py",
+          "exists_at_ref": true,
+          "test_execution_status": "not_executed_for_this_requirement"
+        }
+      ],
+      "issue_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/76",
+      "original_pr_links": [
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/65",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/67"
+      ],
+      "review_needed": true
+    },
+    {
+      "id": "MEDIA-019",
+      "app": "media-center",
+      "priority": "P0",
+      "implementation_status": "not_verified",
+      "runtime_behavior_status": "unchanged_by_audit",
+      "candidate_sources": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "tv_center/sound_event_captions.py",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        },
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "kaffeine_next/captions_overlay.py",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        }
+      ],
+      "candidate_tests": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "tests/test_tv_sound_labels_teletext_auto.py",
+          "exists_at_ref": true,
+          "test_execution_status": "not_executed_for_this_requirement"
+        }
+      ],
+      "issue_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/76",
+      "original_pr_links": [
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/65",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/67"
+      ],
+      "review_needed": true
+    },
+    {
+      "id": "MEDIA-020",
+      "app": "media-center",
+      "priority": "P0",
+      "implementation_status": "not_verified",
+      "runtime_behavior_status": "unchanged_by_audit",
+      "candidate_sources": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "tv_center/translation_failover.py",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        },
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "tv_center/captions.py",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        }
+      ],
+      "candidate_tests": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "tests/test_tv_multilingual_caption_fallback.py",
+          "exists_at_ref": true,
+          "test_execution_status": "not_executed_for_this_requirement"
+        }
+      ],
+      "issue_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/76",
+      "original_pr_links": [
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/65",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/67"
+      ],
+      "review_needed": true
+    },
+    {
+      "id": "MEDIA-021",
+      "app": "media-center",
+      "priority": "P0",
+      "implementation_status": "not_verified",
+      "runtime_behavior_status": "unchanged_by_audit",
+      "candidate_sources": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "kaffeine_next/teletext_match.py",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        },
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "tv_center/radio_dls_metadata.py",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        }
+      ],
+      "candidate_tests": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "tests/test_tv_sound_labels_teletext_auto.py",
+          "exists_at_ref": true,
+          "test_execution_status": "not_executed_for_this_requirement"
+        },
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "tests/test_tv_teletext_speech_recovery.py",
+          "exists_at_ref": true,
+          "test_execution_status": "not_executed_for_this_requirement"
+        }
+      ],
+      "issue_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/76",
+      "original_pr_links": [
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/65",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/67"
+      ],
+      "review_needed": true
+    },
+    {
+      "id": "MEDIA-022",
+      "app": "media-center",
+      "priority": "P1",
+      "implementation_status": "not_verified",
+      "runtime_behavior_status": "unchanged_by_audit",
+      "candidate_sources": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "tv_center/sentence_joiner.py",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        },
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "kaffeine_next/captions_overlay.py",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        }
+      ],
+      "candidate_tests": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "tests/test_tv_sentence_joiner.py",
+          "exists_at_ref": true,
+          "test_execution_status": "not_executed_for_this_requirement"
+        },
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "tests/test_tv_caption_readability_clock.py",
+          "exists_at_ref": true,
+          "test_execution_status": "not_executed_for_this_requirement"
+        }
+      ],
+      "issue_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/76",
+      "original_pr_links": [
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/65",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/67"
+      ],
+      "review_needed": true
+    },
+    {
+      "id": "MEDIA-023",
+      "app": "media-center",
+      "priority": "P1",
+      "implementation_status": "not_verified",
+      "runtime_behavior_status": "unchanged_by_audit",
+      "candidate_sources": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "tv_center/translation_failover.py",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        },
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "tv_center/language_codes.py",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        }
+      ],
+      "candidate_tests": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "tests/test_tv_auto_track_languages.py",
+          "exists_at_ref": true,
+          "test_execution_status": "not_executed_for_this_requirement"
+        },
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "tests/test_tv_multilingual_caption_fallback.py",
+          "exists_at_ref": true,
+          "test_execution_status": "not_executed_for_this_requirement"
+        }
+      ],
+      "issue_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/76",
+      "original_pr_links": [
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/65",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/67"
+      ],
+      "review_needed": true
+    },
+    {
+      "id": "MEDIA-024",
+      "app": "media-center",
+      "priority": "P1",
+      "implementation_status": "not_verified",
+      "runtime_behavior_status": "unchanged_by_audit",
+      "candidate_sources": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "tv_center/direct_de_tr.py",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        },
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "tv_center/translation_market.py",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        }
+      ],
+      "candidate_tests": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "tests/test_tv_quality_translation.py",
+          "exists_at_ref": true,
+          "test_execution_status": "not_executed_for_this_requirement"
+        },
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "tests/test_tv_translation_managed_packs.py",
+          "exists_at_ref": true,
+          "test_execution_status": "not_executed_for_this_requirement"
+        }
+      ],
+      "issue_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/76",
+      "original_pr_links": [
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/65",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/67"
+      ],
+      "review_needed": true
+    },
+    {
+      "id": "MEDIA-025",
+      "app": "media-center",
+      "priority": "P1",
+      "implementation_status": "not_verified",
+      "runtime_behavior_status": "unchanged_by_audit",
+      "candidate_sources": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "tv_center/overlap_separation.py",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        },
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "tv_center/free_speakers.py",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        }
+      ],
+      "candidate_tests": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "tests/test_tv_dual_voice_separation.py",
+          "exists_at_ref": true,
+          "test_execution_status": "not_executed_for_this_requirement"
+        },
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "tests/test_tv_free_speakers_ui.py",
+          "exists_at_ref": true,
+          "test_execution_status": "not_executed_for_this_requirement"
+        }
+      ],
+      "issue_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/76",
+      "original_pr_links": [
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/65",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/67"
+      ],
+      "review_needed": true
+    },
+    {
+      "id": "MEDIA-026",
+      "app": "media-center",
+      "priority": "P0",
+      "implementation_status": "not_verified",
+      "runtime_behavior_status": "unchanged_by_audit",
+      "candidate_sources": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "kaffeine_next/caption_timing.py",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        },
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "tv_center/radio_ai.py",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        }
+      ],
+      "candidate_tests": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "tests/test_tv_natural_caption_sync.py",
+          "exists_at_ref": true,
+          "test_execution_status": "not_executed_for_this_requirement"
+        },
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "tests/test_radio_separate_lipsync_refresh.py",
+          "exists_at_ref": true,
+          "test_execution_status": "not_executed_for_this_requirement"
+        }
+      ],
+      "issue_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/76",
+      "original_pr_links": [
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/65",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/67"
+      ],
+      "review_needed": true
+    },
+    {
+      "id": "MEDIA-027",
+      "app": "media-center",
+      "priority": "P1",
+      "implementation_status": "not_verified",
+      "runtime_behavior_status": "unchanged_by_audit",
+      "candidate_sources": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "tv_center/hardware_status.py",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        },
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "tv_center/remote_gpu.py",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        },
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "tv_center/cuda_faster_whisper.py",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        }
+      ],
+      "candidate_tests": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "tests/test_tv_ai_hardware_market.py",
+          "exists_at_ref": true,
+          "test_execution_status": "not_executed_for_this_requirement"
+        },
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "tests/test_tv_ai_profiles_remote_startup.py",
+          "exists_at_ref": true,
+          "test_execution_status": "not_executed_for_this_requirement"
+        }
+      ],
+      "issue_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/76",
+      "original_pr_links": [
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/65",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/67"
+      ],
+      "review_needed": true
+    },
+    {
+      "id": "MEDIA-028",
+      "app": "media-center",
+      "priority": "P0",
+      "implementation_status": "not_verified",
+      "runtime_behavior_status": "unchanged_by_audit",
+      "candidate_sources": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "tv_center/radio_karaoke_router.py",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        },
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "kaffeine_next/native_radio_tab.h",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        }
+      ],
+      "candidate_tests": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "tests/test_radio_karaoke_independent_lipsync.py",
+          "exists_at_ref": true,
+          "test_execution_status": "not_executed_for_this_requirement"
+        }
+      ],
+      "issue_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/76",
+      "original_pr_links": [
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/65",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/67"
+      ],
+      "review_needed": true
+    },
+    {
+      "id": "MEDIA-029",
+      "app": "media-center",
+      "priority": "P0",
+      "implementation_status": "not_verified",
+      "runtime_behavior_status": "unchanged_by_audit",
+      "candidate_sources": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "tv_center/lyrics_sync.py",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        },
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "kaffeine_next/native_radio_tab.h",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        }
+      ],
+      "candidate_tests": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "tests/test_radio_lyrics_found_preview.py",
+          "exists_at_ref": true,
+          "test_execution_status": "not_executed_for_this_requirement"
+        },
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "tests/test_tv_radio_lyrics_match_status_auto_input.py",
+          "exists_at_ref": true,
+          "test_execution_status": "not_executed_for_this_requirement"
+        }
+      ],
+      "issue_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/76",
+      "original_pr_links": [
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/65",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/67"
+      ],
+      "review_needed": true
+    },
+    {
+      "id": "MEDIA-030",
+      "app": "media-center",
+      "priority": "P1",
+      "implementation_status": "not_verified",
+      "runtime_behavior_status": "unchanged_by_audit",
+      "candidate_sources": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "kaffeine_next/native_radio_tab.h",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        },
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "tv_center/radio_karaoke_router.py",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        }
+      ],
+      "candidate_tests": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "tests/test_radio_lyrics_found_preview.py",
+          "exists_at_ref": true,
+          "test_execution_status": "not_executed_for_this_requirement"
+        }
+      ],
+      "issue_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/76",
+      "original_pr_links": [
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/65",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/67"
+      ],
+      "review_needed": true
+    },
+    {
+      "id": "MEDIA-031",
+      "app": "media-center",
+      "priority": "P0",
+      "implementation_status": "not_verified",
+      "runtime_behavior_status": "unchanged_by_audit",
+      "candidate_sources": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "tv_center/qwen_forced_aligner.py",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        },
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "tv_center/radio_karaoke_router.py",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        }
+      ],
+      "candidate_tests": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "tests/test_radio_whisper_karaoke_refresh.py",
+          "exists_at_ref": true,
+          "test_execution_status": "not_executed_for_this_requirement"
+        }
+      ],
+      "issue_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/76",
+      "original_pr_links": [
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/65",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/67"
+      ],
+      "review_needed": true
+    },
+    {
+      "id": "MEDIA-032",
+      "app": "media-center",
+      "priority": "P0",
+      "implementation_status": "not_verified",
+      "runtime_behavior_status": "unchanged_by_audit",
+      "candidate_sources": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "tv_center/radio_karaoke_router.py",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        },
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "kaffeine_next/native_radio_tab.h",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        }
+      ],
+      "candidate_tests": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "tests/test_radio_karaoke_independent_lipsync.py",
+          "exists_at_ref": true,
+          "test_execution_status": "not_executed_for_this_requirement"
+        }
+      ],
+      "issue_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/76",
+      "original_pr_links": [
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/65",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/67"
+      ],
+      "review_needed": true
+    },
+    {
+      "id": "MEDIA-033",
+      "app": "media-center",
+      "priority": "P0",
+      "implementation_status": "not_verified",
+      "runtime_behavior_status": "unchanged_by_audit",
+      "candidate_sources": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "tv_center/lyrics_sync.py",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        },
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "kaffeine_next/native_radio_tab.h",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        }
+      ],
+      "candidate_tests": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "tests/test_radio_lyrics_refresh_full_window.py",
+          "exists_at_ref": true,
+          "test_execution_status": "not_executed_for_this_requirement"
+        },
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "tests/test_tv_radio_karaoke_tv_readability.py",
+          "exists_at_ref": true,
+          "test_execution_status": "not_executed_for_this_requirement"
+        }
+      ],
+      "issue_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/76",
+      "original_pr_links": [
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/65",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/67"
+      ],
+      "review_needed": true
+    },
+    {
+      "id": "MEDIA-034",
+      "app": "media-center",
+      "priority": "P0",
+      "implementation_status": "not_verified",
+      "runtime_behavior_status": "unchanged_by_audit",
+      "candidate_sources": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "tv_center/radio_karaoke_router.py",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        },
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "kaffeine_next/native_radio_tab.h",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        }
+      ],
+      "candidate_tests": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "tests/test_radio_separate_lipsync_refresh.py",
+          "exists_at_ref": true,
+          "test_execution_status": "not_executed_for_this_requirement"
+        },
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "tests/test_radio_sync_refresh_karaoke_fast.py",
+          "exists_at_ref": true,
+          "test_execution_status": "not_executed_for_this_requirement"
+        }
+      ],
+      "issue_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/76",
+      "original_pr_links": [
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/65",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/67"
+      ],
+      "review_needed": true
+    },
+    {
+      "id": "MEDIA-035",
+      "app": "media-center",
+      "priority": "P1",
+      "implementation_status": "not_verified",
+      "runtime_behavior_status": "unchanged_by_audit",
+      "candidate_sources": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "tv_center/radio_dls_metadata.py",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        },
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "tv_center/lyrics_sync.py",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        }
+      ],
+      "candidate_tests": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "tests/test_radio_song_metadata_sources.py",
+          "exists_at_ref": true,
+          "test_execution_status": "not_executed_for_this_requirement"
+        },
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "tests/test_radio_song_continuity_cache.py",
+          "exists_at_ref": true,
+          "test_execution_status": "not_executed_for_this_requirement"
+        }
+      ],
+      "issue_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/76",
+      "original_pr_links": [
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/65",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/67"
+      ],
+      "review_needed": true
+    },
+    {
+      "id": "MEDIA-036",
+      "app": "media-center",
+      "priority": "P0",
+      "implementation_status": "not_verified",
+      "runtime_behavior_status": "unchanged_by_audit",
+      "candidate_sources": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "kaffeine_next/native_media_panel.h",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        },
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "tv_center/media_ai.py",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        }
+      ],
+      "candidate_tests": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "tests/test_native_file_prepass_fullscreen.py",
+          "exists_at_ref": true,
+          "test_execution_status": "not_executed_for_this_requirement"
+        }
+      ],
+      "issue_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/76",
+      "original_pr_links": [
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/65",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/67"
+      ],
+      "review_needed": true
+    },
+    {
+      "id": "MEDIA-037",
+      "app": "media-center",
+      "priority": "P1",
+      "implementation_status": "not_verified",
+      "runtime_behavior_status": "unchanged_by_audit",
+      "candidate_sources": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "kaffeine_next/native_media_panel.h",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        },
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "tv_center/media_ai.py",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        }
+      ],
+      "candidate_tests": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "tests/test_native_file_prepass_fullscreen.py",
+          "exists_at_ref": true,
+          "test_execution_status": "not_executed_for_this_requirement"
+        }
+      ],
+      "issue_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/76",
+      "original_pr_links": [
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/65",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/67"
+      ],
+      "review_needed": true
+    },
+    {
+      "id": "MEDIA-038",
+      "app": "media-center",
+      "priority": "P0",
+      "implementation_status": "not_verified",
+      "runtime_behavior_status": "unchanged_by_audit",
+      "candidate_sources": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "kaffeine_next/live_srt.py",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        },
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "tv_center/media_ai.py",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        }
+      ],
+      "candidate_tests": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "tests/test_tv_kaffeine_native_srt_controls.py",
+          "exists_at_ref": false,
+          "test_execution_status": "not_executed_for_this_requirement"
+        },
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "tests/test_transcripts.py",
+          "exists_at_ref": true,
+          "test_execution_status": "not_executed_for_this_requirement"
+        }
+      ],
+      "issue_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/76",
+      "original_pr_links": [
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/65",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/67"
+      ],
+      "review_needed": true
+    },
+    {
+      "id": "MEDIA-039",
+      "app": "media-center",
+      "priority": "P0",
+      "implementation_status": "not_verified",
+      "runtime_behavior_status": "unchanged_by_audit",
+      "candidate_sources": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "kaffeine_next/native_unified_recorder.h",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        },
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "kaffeine_next/subtitle_tracks.py",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        }
+      ],
+      "candidate_tests": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "tests/test_tv_unified_recorder.py",
+          "exists_at_ref": true,
+          "test_execution_status": "not_executed_for_this_requirement"
+        },
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "tests/test_tv_kaffeine_subtitle_tracks.py",
+          "exists_at_ref": true,
+          "test_execution_status": "not_executed_for_this_requirement"
+        }
+      ],
+      "issue_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/76",
+      "original_pr_links": [
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/65",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/67"
+      ],
+      "review_needed": true
+    },
+    {
+      "id": "MEDIA-040",
+      "app": "media-center",
+      "priority": "P0",
+      "implementation_status": "not_verified",
+      "runtime_behavior_status": "unchanged_by_audit",
+      "candidate_sources": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "kaffeine_next/native_radio_tab.h",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        },
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "textcenter/receivers.py",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        }
+      ],
+      "candidate_tests": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "tests/test_tv_radio_receiver_release_lifecycle.py",
+          "exists_at_ref": true,
+          "test_execution_status": "not_executed_for_this_requirement"
+        }
+      ],
+      "issue_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/76",
+      "original_pr_links": [
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/65",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/67"
+      ],
+      "review_needed": true
+    },
+    {
+      "id": "MEDIA-041",
+      "app": "media-center",
+      "priority": "P0",
+      "implementation_status": "not_verified",
+      "runtime_behavior_status": "unchanged_by_audit",
+      "candidate_sources": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "kaffeine_next/install.sh",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        },
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "tv_center/install.sh",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        }
+      ],
+      "candidate_tests": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "tests/test_tv_standalone_radio_media.py",
+          "exists_at_ref": true,
+          "test_execution_status": "not_executed_for_this_requirement"
+        },
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "tests/test_tv_media.py",
+          "exists_at_ref": false,
+          "test_execution_status": "not_executed_for_this_requirement"
+        }
+      ],
+      "issue_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/76",
+      "original_pr_links": [
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/65",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/67"
+      ],
+      "review_needed": true
+    },
+    {
+      "id": "FLIGHT-001",
+      "app": "flight-radar",
+      "priority": "P0",
+      "implementation_status": "not_verified",
+      "runtime_behavior_status": "unchanged_by_audit",
+      "candidate_sources": [
+        {
+          "repository": "Tihulu/tihulu-flight-radar",
+          "ref": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+          "path": "tihulu_flight_radar/core.py",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        },
+        {
+          "repository": "Tihulu/tihulu-flight-radar",
+          "ref": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+          "path": "tihulu_flight_radar/web/adsb_worker.mjs",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        }
+      ],
+      "candidate_tests": [
+        {
+          "repository": "Tihulu/tihulu-flight-radar",
+          "ref": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+          "path": "tests/browser_adsb.test.cjs",
+          "exists_at_ref": true,
+          "test_execution_status": "not_executed_for_this_requirement"
+        },
+        {
+          "repository": "Tihulu/tihulu-flight-radar",
+          "ref": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+          "path": "tests/test_core.py",
+          "exists_at_ref": true,
+          "test_execution_status": "not_executed_for_this_requirement"
+        }
+      ],
+      "issue_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/77",
+      "original_pr_links": [
+        "https://github.com/Tihulu/tihulu-flight-radar/pull/7",
+        "https://github.com/Tihulu/tihulu-flight-radar/pull/13",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/12"
+      ],
+      "review_needed": true
+    },
+    {
+      "id": "FLIGHT-002",
+      "app": "flight-radar",
+      "priority": "P0",
+      "implementation_status": "not_verified",
+      "runtime_behavior_status": "unchanged_by_audit",
+      "candidate_sources": [
+        {
+          "repository": "Tihulu/tihulu-flight-radar",
+          "ref": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+          "path": "tihulu_flight_radar/network_sources.py",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        },
+        {
+          "repository": "Tihulu/tihulu-flight-radar",
+          "ref": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+          "path": "tihulu_flight_radar/web/multi_sources.js",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        }
+      ],
+      "candidate_tests": [
+        {
+          "repository": "Tihulu/tihulu-flight-radar",
+          "ref": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+          "path": "tests/test_multi_sources.py",
+          "exists_at_ref": true,
+          "test_execution_status": "not_executed_for_this_requirement"
+        },
+        {
+          "repository": "Tihulu/tihulu-flight-radar",
+          "ref": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+          "path": "tests/multi_sources.test.cjs",
+          "exists_at_ref": true,
+          "test_execution_status": "not_executed_for_this_requirement"
+        }
+      ],
+      "issue_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/77",
+      "original_pr_links": [
+        "https://github.com/Tihulu/tihulu-flight-radar/pull/7",
+        "https://github.com/Tihulu/tihulu-flight-radar/pull/13",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/12"
+      ],
+      "review_needed": true
+    },
+    {
+      "id": "FLIGHT-003",
+      "app": "flight-radar",
+      "priority": "P0",
+      "implementation_status": "not_verified",
+      "runtime_behavior_status": "unchanged_by_audit",
+      "candidate_sources": [
+        {
+          "repository": "Tihulu/tihulu-flight-radar",
+          "ref": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+          "path": "scripts/build-web-tar1090.sh",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        },
+        {
+          "repository": "Tihulu/tihulu-flight-radar",
+          "ref": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+          "path": "tihulu_flight_radar/web/tar1090-adapter.js",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        }
+      ],
+      "candidate_tests": [
+        {
+          "repository": "Tihulu/tihulu-flight-radar",
+          "ref": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+          "path": "tests/tar_full_browser.test.cjs",
+          "exists_at_ref": true,
+          "test_execution_status": "not_executed_for_this_requirement"
+        },
+        {
+          "repository": "Tihulu/tihulu-flight-radar",
+          "ref": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+          "path": "tests/pages_tar.test.cjs",
+          "exists_at_ref": true,
+          "test_execution_status": "not_executed_for_this_requirement"
+        }
+      ],
+      "issue_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/77",
+      "original_pr_links": [
+        "https://github.com/Tihulu/tihulu-flight-radar/pull/7",
+        "https://github.com/Tihulu/tihulu-flight-radar/pull/13",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/12"
+      ],
+      "review_needed": true
+    },
+    {
+      "id": "FLIGHT-004",
+      "app": "flight-radar",
+      "priority": "P1",
+      "implementation_status": "not_verified",
+      "runtime_behavior_status": "unchanged_by_audit",
+      "candidate_sources": [
+        {
+          "repository": "Tihulu/tihulu-flight-radar",
+          "ref": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+          "path": "tihulu_flight_radar/web/app.js",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        },
+        {
+          "repository": "Tihulu/tihulu-flight-radar",
+          "ref": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+          "path": "tihulu_flight_radar/map_focus.js",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        }
+      ],
+      "candidate_tests": [
+        {
+          "repository": "Tihulu/tihulu-flight-radar",
+          "ref": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+          "path": "tests/map_focus.test.cjs",
+          "exists_at_ref": true,
+          "test_execution_status": "not_executed_for_this_requirement"
+        },
+        {
+          "repository": "Tihulu/tihulu-flight-radar",
+          "ref": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+          "path": "tests/test_tar_focus_sdr_exit.py",
+          "exists_at_ref": true,
+          "test_execution_status": "not_executed_for_this_requirement"
+        }
+      ],
+      "issue_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/77",
+      "original_pr_links": [
+        "https://github.com/Tihulu/tihulu-flight-radar/pull/7",
+        "https://github.com/Tihulu/tihulu-flight-radar/pull/13",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/12"
+      ],
+      "review_needed": true
+    },
+    {
+      "id": "FLIGHT-005",
+      "app": "flight-radar",
+      "priority": "P1",
+      "implementation_status": "not_verified",
+      "runtime_behavior_status": "unchanged_by_audit",
+      "candidate_sources": [
+        {
+          "repository": "Tihulu/tihulu-flight-radar",
+          "ref": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+          "path": "tihulu_flight_radar/web/app.js",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        },
+        {
+          "repository": "Tihulu/tihulu-flight-radar",
+          "ref": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+          "path": "tihulu_flight_radar/web/multi_sources.js",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        }
+      ],
+      "candidate_tests": [
+        {
+          "repository": "Tihulu/tihulu-flight-radar",
+          "ref": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+          "path": "tests/aircraft_popup_rf_coverage.test.cjs",
+          "exists_at_ref": true,
+          "test_execution_status": "not_executed_for_this_requirement"
+        }
+      ],
+      "issue_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/77",
+      "original_pr_links": [
+        "https://github.com/Tihulu/tihulu-flight-radar/pull/7",
+        "https://github.com/Tihulu/tihulu-flight-radar/pull/13",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/12"
+      ],
+      "review_needed": true
+    },
+    {
+      "id": "FLIGHT-006",
+      "app": "flight-radar",
+      "priority": "P1",
+      "implementation_status": "not_verified",
+      "runtime_behavior_status": "unchanged_by_audit",
+      "candidate_sources": [
+        {
+          "repository": "Tihulu/tihulu-flight-radar",
+          "ref": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+          "path": "tihulu_flight_radar/control.py",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        },
+        {
+          "repository": "Tihulu/tihulu-flight-radar",
+          "ref": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+          "path": "tihulu_flight_radar/native.py",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        }
+      ],
+      "candidate_tests": [
+        {
+          "repository": "Tihulu/tihulu-flight-radar",
+          "ref": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+          "path": "tests/test_control.py",
+          "exists_at_ref": true,
+          "test_execution_status": "not_executed_for_this_requirement"
+        },
+        {
+          "repository": "Tihulu/tihulu-flight-radar",
+          "ref": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+          "path": "tests/test_tar_focus_sdr_exit.py",
+          "exists_at_ref": true,
+          "test_execution_status": "not_executed_for_this_requirement"
+        }
+      ],
+      "issue_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/77",
+      "original_pr_links": [
+        "https://github.com/Tihulu/tihulu-flight-radar/pull/7",
+        "https://github.com/Tihulu/tihulu-flight-radar/pull/13",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/12"
+      ],
+      "review_needed": true
+    },
+    {
+      "id": "FLIGHT-007",
+      "app": "flight-radar",
+      "priority": "P1",
+      "implementation_status": "not_verified",
+      "runtime_behavior_status": "unchanged_by_audit",
+      "candidate_sources": [
+        {
+          "repository": "Tihulu/tihulu-flight-radar",
+          "ref": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+          "path": "tihulu_flight_radar/web/location_search.mjs",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        },
+        {
+          "repository": "Tihulu/tihulu-flight-radar",
+          "ref": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+          "path": "tihulu_flight_radar/web/flight_location_ui.mjs",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        }
+      ],
+      "candidate_tests": [
+        {
+          "repository": "Tihulu/tihulu-flight-radar",
+          "ref": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+          "path": "tests/location_selector.test.cjs",
+          "exists_at_ref": true,
+          "test_execution_status": "not_executed_for_this_requirement"
+        },
+        {
+          "repository": "Tihulu/tihulu-flight-radar",
+          "ref": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+          "path": "tests/test_search_location.py",
+          "exists_at_ref": true,
+          "test_execution_status": "not_executed_for_this_requirement"
+        }
+      ],
+      "issue_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/77",
+      "original_pr_links": [
+        "https://github.com/Tihulu/tihulu-flight-radar/pull/7",
+        "https://github.com/Tihulu/tihulu-flight-radar/pull/13",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/12"
+      ],
+      "review_needed": true
+    },
+    {
+      "id": "FLIGHT-008",
+      "app": "flight-radar",
+      "priority": "P1",
+      "implementation_status": "not_verified",
+      "runtime_behavior_status": "unchanged_by_audit",
+      "candidate_sources": [
+        {
+          "repository": "Tihulu/tihulu-flight-radar",
+          "ref": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+          "path": "tihulu_flight_radar/web/app.js",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        },
+        {
+          "repository": "Tihulu/tihulu-flight-radar",
+          "ref": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+          "path": "tihulu_flight_radar/web/style.css",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        }
+      ],
+      "candidate_tests": [
+        {
+          "repository": "Tihulu/tihulu-flight-radar",
+          "ref": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+          "path": "tests/aircraft_visuals.test.cjs",
+          "exists_at_ref": true,
+          "test_execution_status": "not_executed_for_this_requirement"
+        },
+        {
+          "repository": "Tihulu/tihulu-flight-radar",
+          "ref": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+          "path": "tests/tar_layers_regression.test.cjs",
+          "exists_at_ref": true,
+          "test_execution_status": "not_executed_for_this_requirement"
+        }
+      ],
+      "issue_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/77",
+      "original_pr_links": [
+        "https://github.com/Tihulu/tihulu-flight-radar/pull/7",
+        "https://github.com/Tihulu/tihulu-flight-radar/pull/13",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/12"
+      ],
+      "review_needed": true
+    },
+    {
+      "id": "FLIGHT-009",
+      "app": "flight-radar",
+      "priority": "P0",
+      "implementation_status": "not_verified",
+      "runtime_behavior_status": "unchanged_by_audit",
+      "candidate_sources": [
+        {
+          "repository": "Tihulu/tihulu-flight-radar",
+          "ref": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+          "path": "tihulu_flight_radar/web/receiver_coverage.js",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        },
+        {
+          "repository": "Tihulu/tihulu-flight-radar",
+          "ref": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+          "path": "tihulu_flight_radar/web/rf_timing_lab.js",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        }
+      ],
+      "candidate_tests": [
+        {
+          "repository": "Tihulu/tihulu-flight-radar",
+          "ref": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+          "path": "tests/aircraft_popup_rf_coverage.test.cjs",
+          "exists_at_ref": true,
+          "test_execution_status": "not_executed_for_this_requirement"
+        },
+        {
+          "repository": "Tihulu/tihulu-flight-radar",
+          "ref": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+          "path": "tests/rf_timing_lab.test.cjs",
+          "exists_at_ref": true,
+          "test_execution_status": "not_executed_for_this_requirement"
+        }
+      ],
+      "issue_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/77",
+      "original_pr_links": [
+        "https://github.com/Tihulu/tihulu-flight-radar/pull/7",
+        "https://github.com/Tihulu/tihulu-flight-radar/pull/13",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/12"
+      ],
+      "review_needed": true
+    },
+    {
+      "id": "FLIGHT-010",
+      "app": "flight-radar",
+      "priority": "P0",
+      "implementation_status": "not_verified",
+      "runtime_behavior_status": "unchanged_by_audit",
+      "candidate_sources": [
+        {
+          "repository": "Tihulu/tihulu-flight-radar",
+          "ref": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+          "path": "tihulu_flight_radar/web/receiver_coverage.js",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        },
+        {
+          "repository": "Tihulu/tihulu-flight-radar",
+          "ref": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+          "path": "tihulu_flight_radar/web/app.js",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        }
+      ],
+      "candidate_tests": [
+        {
+          "repository": "Tihulu/tihulu-flight-radar",
+          "ref": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+          "path": "tests/aircraft_popup_rf_coverage.test.cjs",
+          "exists_at_ref": true,
+          "test_execution_status": "not_executed_for_this_requirement"
+        }
+      ],
+      "issue_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/77",
+      "original_pr_links": [
+        "https://github.com/Tihulu/tihulu-flight-radar/pull/7",
+        "https://github.com/Tihulu/tihulu-flight-radar/pull/13",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/12"
+      ],
+      "review_needed": true
+    },
+    {
+      "id": "FLIGHT-011",
+      "app": "flight-radar",
+      "priority": "P0",
+      "implementation_status": "not_verified",
+      "runtime_behavior_status": "unchanged_by_audit",
+      "candidate_sources": [
+        {
+          "repository": "Tihulu/tihulu-flight-radar",
+          "ref": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+          "path": "tihulu_flight_radar/web/rf_timing_lab.js",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        },
+        {
+          "repository": "Tihulu/tihulu-flight-radar",
+          "ref": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+          "path": "tihulu_flight_radar/web/receiver_coverage.js",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        }
+      ],
+      "candidate_tests": [
+        {
+          "repository": "Tihulu/tihulu-flight-radar",
+          "ref": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+          "path": "tests/rf_timing_lab.test.cjs",
+          "exists_at_ref": true,
+          "test_execution_status": "not_executed_for_this_requirement"
+        }
+      ],
+      "issue_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/77",
+      "original_pr_links": [
+        "https://github.com/Tihulu/tihulu-flight-radar/pull/7",
+        "https://github.com/Tihulu/tihulu-flight-radar/pull/13",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/12"
+      ],
+      "review_needed": true
+    },
+    {
+      "id": "FLIGHT-012",
+      "app": "flight-radar",
+      "priority": "P1",
+      "implementation_status": "not_verified",
+      "runtime_behavior_status": "unchanged_by_audit",
+      "candidate_sources": [
+        {
+          "repository": "Tihulu/tihulu-flight-radar",
+          "ref": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+          "path": "tihulu_flight_radar/web/rf_timing_lab.js",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        },
+        {
+          "repository": "Tihulu/tihulu-flight-radar",
+          "ref": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+          "path": "tihulu_flight_radar/web/app.js",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        }
+      ],
+      "candidate_tests": [
+        {
+          "repository": "Tihulu/tihulu-flight-radar",
+          "ref": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+          "path": "tests/rf_timing_lab.test.cjs",
+          "exists_at_ref": true,
+          "test_execution_status": "not_executed_for_this_requirement"
+        }
+      ],
+      "issue_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/77",
+      "original_pr_links": [
+        "https://github.com/Tihulu/tihulu-flight-radar/pull/7",
+        "https://github.com/Tihulu/tihulu-flight-radar/pull/13",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/12"
+      ],
+      "review_needed": true
+    },
+    {
+      "id": "FLIGHT-013",
+      "app": "flight-radar",
+      "priority": "P0",
+      "implementation_status": "not_verified",
+      "runtime_behavior_status": "unchanged_by_audit",
+      "candidate_sources": [
+        {
+          "repository": "Tihulu/tihulu-flight-radar",
+          "ref": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+          "path": "scripts/popos-version-switch.sh",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        },
+        {
+          "repository": "Tihulu/tihulu-flight-radar",
+          "ref": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+          "path": "scripts/install-linux.sh",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        }
+      ],
+      "candidate_tests": [
+        {
+          "repository": "Tihulu/tihulu-flight-radar",
+          "ref": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+          "path": "tests/test_version_switch.py",
+          "exists_at_ref": true,
+          "test_execution_status": "not_executed_for_this_requirement"
+        },
+        {
+          "repository": "Tihulu/tihulu-flight-radar",
+          "ref": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+          "path": "tests/test_linux_installer.py",
+          "exists_at_ref": true,
+          "test_execution_status": "not_executed_for_this_requirement"
+        }
+      ],
+      "issue_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/77",
+      "original_pr_links": [
+        "https://github.com/Tihulu/tihulu-flight-radar/pull/7",
+        "https://github.com/Tihulu/tihulu-flight-radar/pull/13",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/12"
+      ],
+      "review_needed": true
+    },
+    {
+      "id": "FLIGHT-014",
+      "app": "flight-radar",
+      "priority": "P0",
+      "implementation_status": "not_verified",
+      "runtime_behavior_status": "unchanged_by_audit",
+      "candidate_sources": [
+        {
+          "repository": "Tihulu/tihulu-flight-radar",
+          "ref": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+          "path": "tihulu_flight_radar/control.py",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        },
+        {
+          "repository": "Tihulu/tihulu-flight-radar",
+          "ref": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+          "path": "tihulu_flight_radar/web/browser_usb.mjs",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        }
+      ],
+      "candidate_tests": [
+        {
+          "repository": "Tihulu/tihulu-flight-radar",
+          "ref": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+          "path": "tests/test_control.py",
+          "exists_at_ref": true,
+          "test_execution_status": "not_executed_for_this_requirement"
+        },
+        {
+          "repository": "Tihulu/tihulu-flight-radar",
+          "ref": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+          "path": "tests/webusb_sampleblock.test.cjs",
+          "exists_at_ref": true,
+          "test_execution_status": "not_executed_for_this_requirement"
+        }
+      ],
+      "issue_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/77",
+      "original_pr_links": [
+        "https://github.com/Tihulu/tihulu-flight-radar/pull/7",
+        "https://github.com/Tihulu/tihulu-flight-radar/pull/13",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/12"
+      ],
+      "review_needed": true
+    },
+    {
+      "id": "FLIGHT-015",
+      "app": "flight-radar",
+      "priority": "P0",
+      "implementation_status": "not_verified",
+      "runtime_behavior_status": "unchanged_by_audit",
+      "candidate_sources": [
+        {
+          "repository": "Tihulu/tihulu-flight-radar",
+          "ref": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+          "path": "docs/DUAL_GITHUB_PAGES.md",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        },
+        {
+          "repository": "Tihulu/tihulu-flight-radar",
+          "ref": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+          "path": ".github/workflows/pages.yml",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        }
+      ],
+      "candidate_tests": [
+        {
+          "repository": "Tihulu/tihulu-flight-radar",
+          "ref": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+          "path": "tests/release_main.test.cjs",
+          "exists_at_ref": true,
+          "test_execution_status": "not_executed_for_this_requirement"
+        },
+        {
+          "repository": "Tihulu/tihulu-flight-radar",
+          "ref": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+          "path": "tests/pages_tar.test.cjs",
+          "exists_at_ref": true,
+          "test_execution_status": "not_executed_for_this_requirement"
+        }
+      ],
+      "issue_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/77",
+      "original_pr_links": [
+        "https://github.com/Tihulu/tihulu-flight-radar/pull/7",
+        "https://github.com/Tihulu/tihulu-flight-radar/pull/13",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/12"
+      ],
+      "review_needed": true
+    },
+    {
+      "id": "FLIGHT-016",
+      "app": "flight-radar",
+      "priority": "P0",
+      "implementation_status": "not_verified",
+      "runtime_behavior_status": "unchanged_by_audit",
+      "candidate_sources": [
+        {
+          "repository": "Tihulu/tihulu-flight-radar",
+          "ref": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+          "path": "AGENTS.md",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        },
+        {
+          "repository": "Tihulu/tihulu-flight-radar",
+          "ref": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+          "path": "docs/FEATURE_PARITY_AND_SURVIVAL_KIT_GATE.md",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        }
+      ],
+      "candidate_tests": [],
+      "issue_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/77",
+      "original_pr_links": [
+        "https://github.com/Tihulu/tihulu-flight-radar/pull/7",
+        "https://github.com/Tihulu/tihulu-flight-radar/pull/13",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/12"
+      ],
+      "review_needed": true
+    },
+    {
+      "id": "FLIGHT-017",
+      "app": "flight-radar",
+      "priority": "P0",
+      "implementation_status": "not_verified",
+      "runtime_behavior_status": "unchanged_by_audit",
+      "candidate_sources": [
+        {
+          "repository": "Tihulu/tihulu-flight-radar",
+          "ref": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+          "path": "AGENTS.md",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        },
+        {
+          "repository": "Tihulu/tihulu-flight-radar",
+          "ref": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+          "path": "docs/SURVIVAL_KIT_FLIGHT_RADAR_HANDOFF_2026-11-05.md",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        }
+      ],
+      "candidate_tests": [],
+      "issue_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/77",
+      "original_pr_links": [
+        "https://github.com/Tihulu/tihulu-flight-radar/pull/7",
+        "https://github.com/Tihulu/tihulu-flight-radar/pull/13",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/12"
+      ],
+      "review_needed": true
+    },
+    {
+      "id": "SAT-001",
+      "app": "satellite-center",
+      "priority": "P0",
+      "implementation_status": "not_verified",
+      "runtime_behavior_status": "unchanged_by_audit",
+      "candidate_sources": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "satellite_center/browser/pass_candidates.mjs",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        },
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "satellite_center/native_orbit.py",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        },
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "satellite_center/browser/satellite_maps.mjs",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        }
+      ],
+      "candidate_tests": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "tests/test_tv_satellite_ai.py",
+          "exists_at_ref": true,
+          "test_execution_status": "not_executed_for_this_requirement"
+        }
+      ],
+      "issue_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/78",
+      "original_pr_links": [],
+      "review_needed": true
+    },
+    {
+      "id": "SAT-002",
+      "app": "satellite-center",
+      "priority": "P1",
+      "implementation_status": "not_verified",
+      "runtime_behavior_status": "unchanged_by_audit",
+      "candidate_sources": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "satellite_center/browser/satellite_calendar.mjs",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        },
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "satellite_center/browser/schedule_controller.mjs",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        }
+      ],
+      "candidate_tests": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "tests/test_tv_satellite_ai.py",
+          "exists_at_ref": true,
+          "test_execution_status": "not_executed_for_this_requirement"
+        }
+      ],
+      "issue_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/78",
+      "original_pr_links": [],
+      "review_needed": true
+    },
+    {
+      "id": "SAT-003",
+      "app": "satellite-center",
+      "priority": "P0",
+      "implementation_status": "not_verified",
+      "runtime_behavior_status": "unchanged_by_audit",
+      "candidate_sources": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "satellite_center/browser/sstv_robot36.mjs",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        },
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "satellite_center/native_analysis.py",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        },
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "satellite_center/browser/iq_analysis.mjs",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        }
+      ],
+      "candidate_tests": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "tests/test_postprocess.py",
+          "exists_at_ref": true,
+          "test_execution_status": "not_executed_for_this_requirement"
+        }
+      ],
+      "issue_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/78",
+      "original_pr_links": [],
+      "review_needed": true
+    },
+    {
+      "id": "SAT-004",
+      "app": "satellite-center",
+      "priority": "P0",
+      "implementation_status": "not_verified",
+      "runtime_behavior_status": "unchanged_by_audit",
+      "candidate_sources": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "satellite_center/browser/chained_capture.mjs",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        },
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "satellite_center/capture_budget.py",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        },
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "satellite_center/browser/capture_duration.mjs",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        }
+      ],
+      "candidate_tests": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "satellite_center/browser/usb_diagnostics.test.mjs",
+          "exists_at_ref": true,
+          "test_execution_status": "not_executed_for_this_requirement"
+        }
+      ],
+      "issue_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/78",
+      "original_pr_links": [],
+      "review_needed": true
+    },
+    {
+      "id": "SAT-005",
+      "app": "satellite-center",
+      "priority": "P0",
+      "implementation_status": "not_verified",
+      "runtime_behavior_status": "unchanged_by_audit",
+      "candidate_sources": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "satellite_center/browser/sstv_capture_diagnostics.mjs",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        },
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "satellite_center/native_robot36_results.py",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        }
+      ],
+      "candidate_tests": [],
+      "issue_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/78",
+      "original_pr_links": [],
+      "review_needed": true
+    },
+    {
+      "id": "SAT-006",
+      "app": "satellite-center",
+      "priority": "P1",
+      "implementation_status": "not_verified",
+      "runtime_behavior_status": "unchanged_by_audit",
+      "candidate_sources": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "satellite_center/browser/pass_protocol_catalog.mjs",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        },
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "satellite_center/native_protocols.py",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        }
+      ],
+      "candidate_tests": [],
+      "issue_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/78",
+      "original_pr_links": [],
+      "review_needed": true
+    },
+    {
+      "id": "SAT-007",
+      "app": "satellite-center",
+      "priority": "P0",
+      "implementation_status": "not_verified",
+      "runtime_behavior_status": "unchanged_by_audit",
+      "candidate_sources": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "satellite_center/native_signal_tools.py",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        },
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "satellite_center/bridge.py",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        },
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "satellite_center/browser/results_zip.mjs",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        }
+      ],
+      "candidate_tests": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "satellite_center/browser/usb_diagnostics.test.mjs",
+          "exists_at_ref": true,
+          "test_execution_status": "not_executed_for_this_requirement"
+        }
+      ],
+      "issue_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/78",
+      "original_pr_links": [],
+      "review_needed": true
+    },
+    {
+      "id": "SAT-008",
+      "app": "satellite-center",
+      "priority": "P1",
+      "implementation_status": "not_verified",
+      "runtime_behavior_status": "unchanged_by_audit",
+      "candidate_sources": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "satellite_center/capture_naming.py",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        },
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "satellite_center/browser/iq_analysis.mjs",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        },
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "satellite_center/planning_store.py",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        }
+      ],
+      "candidate_tests": [],
+      "issue_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/78",
+      "original_pr_links": [],
+      "review_needed": true
+    },
+    {
+      "id": "GEO-001",
+      "app": "geolocation-center",
+      "priority": "P0",
+      "implementation_status": "not_verified",
+      "runtime_behavior_status": "unchanged_by_audit",
+      "candidate_sources": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "rf_geolocation_center/core/positioning.mjs",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        },
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "rf_geolocation_center/native.py",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        }
+      ],
+      "candidate_tests": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "rf_geolocation_center/tests/core.test.mjs",
+          "exists_at_ref": true,
+          "test_execution_status": "not_executed_for_this_requirement"
+        },
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "rf_geolocation_center/tests/test_native.py",
+          "exists_at_ref": true,
+          "test_execution_status": "not_executed_for_this_requirement"
+        }
+      ],
+      "issue_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/79",
+      "original_pr_links": [],
+      "review_needed": true
+    },
+    {
+      "id": "GEO-002",
+      "app": "geolocation-center",
+      "priority": "P0",
+      "implementation_status": "not_verified",
+      "runtime_behavior_status": "unchanged_by_audit",
+      "candidate_sources": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "rf_geolocation_center/core/gnss.mjs",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        },
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "rf_geolocation_center/core/evidence.mjs",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        }
+      ],
+      "candidate_tests": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "rf_geolocation_center/tests/evidence.test.mjs",
+          "exists_at_ref": true,
+          "test_execution_status": "not_executed_for_this_requirement"
+        }
+      ],
+      "issue_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/79",
+      "original_pr_links": [],
+      "review_needed": true
+    },
+    {
+      "id": "GEO-003",
+      "app": "geolocation-center",
+      "priority": "P0",
+      "implementation_status": "not_verified",
+      "runtime_behavior_status": "unchanged_by_audit",
+      "candidate_sources": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "rf_geolocation_center/core/positioning.mjs",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        },
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "rf_geolocation_center/core/rf_ranging.mjs",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        }
+      ],
+      "candidate_tests": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "rf_geolocation_center/tests/rf_ranging.test.mjs",
+          "exists_at_ref": true,
+          "test_execution_status": "not_executed_for_this_requirement"
+        }
+      ],
+      "issue_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/79",
+      "original_pr_links": [],
+      "review_needed": true
+    },
+    {
+      "id": "GEO-004",
+      "app": "geolocation-center",
+      "priority": "P1",
+      "implementation_status": "not_verified",
+      "runtime_behavior_status": "unchanged_by_audit",
+      "candidate_sources": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "rf_geolocation_center/core/positioning.mjs",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        },
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "rf_geolocation_center/core/location_layers.mjs",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        }
+      ],
+      "candidate_tests": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "rf_geolocation_center/tests/location_layers.test.mjs",
+          "exists_at_ref": true,
+          "test_execution_status": "not_executed_for_this_requirement"
+        }
+      ],
+      "issue_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/79",
+      "original_pr_links": [],
+      "review_needed": true
+    },
+    {
+      "id": "GEO-005",
+      "app": "geolocation-center",
+      "priority": "P0",
+      "implementation_status": "not_verified",
+      "runtime_behavior_status": "unchanged_by_audit",
+      "candidate_sources": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "rf_geolocation_center/core/location_layers.mjs",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        },
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "rf_geolocation_center/web/maps.mjs",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        }
+      ],
+      "candidate_tests": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "rf_geolocation_center/tests/location_layers.test.mjs",
+          "exists_at_ref": true,
+          "test_execution_status": "not_executed_for_this_requirement"
+        }
+      ],
+      "issue_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/79",
+      "original_pr_links": [],
+      "review_needed": true
+    },
+    {
+      "id": "GEO-006",
+      "app": "geolocation-center",
+      "priority": "P0",
+      "implementation_status": "not_verified",
+      "runtime_behavior_status": "unchanged_by_audit",
+      "candidate_sources": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "rf_geolocation_center/web/receivers.mjs",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        },
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "rf_geolocation_center/web/hardware_manager.mjs",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        }
+      ],
+      "candidate_tests": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "rf_geolocation_center/tests/receiver_ux.test.mjs",
+          "exists_at_ref": true,
+          "test_execution_status": "not_executed_for_this_requirement"
+        }
+      ],
+      "issue_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/79",
+      "original_pr_links": [],
+      "review_needed": true
+    },
+    {
+      "id": "GEO-007",
+      "app": "geolocation-center",
+      "priority": "P1",
+      "implementation_status": "not_verified",
+      "runtime_behavior_status": "unchanged_by_audit",
+      "candidate_sources": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "rf_geolocation_center/web/maps.mjs",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        },
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "rf_geolocation_center/core/source_catalog.mjs",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        }
+      ],
+      "candidate_tests": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "rf_geolocation_center/tests/map_interactivity.test.mjs",
+          "exists_at_ref": true,
+          "test_execution_status": "not_executed_for_this_requirement"
+        },
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "rf_geolocation_center/tests/source_catalog.test.mjs",
+          "exists_at_ref": true,
+          "test_execution_status": "not_executed_for_this_requirement"
+        }
+      ],
+      "issue_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/79",
+      "original_pr_links": [],
+      "review_needed": true
+    },
+    {
+      "id": "GEO-008",
+      "app": "geolocation-center",
+      "priority": "P0",
+      "implementation_status": "not_verified",
+      "runtime_behavior_status": "unchanged_by_audit",
+      "candidate_sources": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "rf_geolocation_center/core/positioning.mjs",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        },
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "rf_geolocation_center/core/rf_ranging.mjs",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        }
+      ],
+      "candidate_tests": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "rf_geolocation_center/tests/rf_ranging.test.mjs",
+          "exists_at_ref": true,
+          "test_execution_status": "not_executed_for_this_requirement"
+        }
+      ],
+      "issue_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/79",
+      "original_pr_links": [],
+      "review_needed": true
+    },
+    {
+      "id": "TEXT-001",
+      "app": "text-center",
+      "priority": "P0",
+      "implementation_status": "not_verified",
+      "runtime_behavior_status": "unchanged_by_audit",
+      "candidate_sources": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "textcenter/__main__.py",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        },
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "web/index.html",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        }
+      ],
+      "candidate_tests": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "tests/test_cli.py",
+          "exists_at_ref": true,
+          "test_execution_status": "not_executed_for_this_requirement"
+        },
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "tests/test_text_center_retained_canonical.py",
+          "exists_at_ref": true,
+          "test_execution_status": "not_executed_for_this_requirement"
+        }
+      ],
+      "issue_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/80",
+      "original_pr_links": [],
+      "review_needed": true
+    },
+    {
+      "id": "TEXT-002",
+      "app": "text-center",
+      "priority": "P0",
+      "implementation_status": "not_verified",
+      "runtime_behavior_status": "unchanged_by_audit",
+      "candidate_sources": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "textcenter/fm_rds.py",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        },
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "textcenter/dab_bridge.py",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        }
+      ],
+      "candidate_tests": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "tests/test_fm_rds.py",
+          "exists_at_ref": true,
+          "test_execution_status": "not_executed_for_this_requirement"
+        },
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "tests/test_dab_bridge.py",
+          "exists_at_ref": true,
+          "test_execution_status": "not_executed_for_this_requirement"
+        }
+      ],
+      "issue_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/80",
+      "original_pr_links": [],
+      "review_needed": true
+    },
+    {
+      "id": "TEXT-003",
+      "app": "text-center",
+      "priority": "P0",
+      "implementation_status": "not_verified",
+      "runtime_behavior_status": "unchanged_by_audit",
+      "candidate_sources": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "textcenter/dvb_hardware.py",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        },
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "textcenter/live_tv.py",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        }
+      ],
+      "candidate_tests": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "tests/test_dvb_hardware.py",
+          "exists_at_ref": true,
+          "test_execution_status": "not_executed_for_this_requirement"
+        },
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "tests/test_live_tv.py",
+          "exists_at_ref": true,
+          "test_execution_status": "not_executed_for_this_requirement"
+        }
+      ],
+      "issue_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/80",
+      "original_pr_links": [],
+      "review_needed": true
+    },
+    {
+      "id": "TEXT-004",
+      "app": "text-center",
+      "priority": "P1",
+      "implementation_status": "not_verified",
+      "runtime_behavior_status": "unchanged_by_audit",
+      "candidate_sources": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "textcenter/capabilities.py",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        },
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "textcenter/receivers.py",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        }
+      ],
+      "candidate_tests": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "tests/test_capabilities.py",
+          "exists_at_ref": true,
+          "test_execution_status": "not_executed_for_this_requirement"
+        }
+      ],
+      "issue_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/80",
+      "original_pr_links": [],
+      "review_needed": true
+    },
+    {
+      "id": "TEXT-005",
+      "app": "text-center",
+      "priority": "P0",
+      "implementation_status": "not_verified",
+      "runtime_behavior_status": "unchanged_by_audit",
+      "candidate_sources": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "textcenter/receivers.py",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        },
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "textcenter/conflicts.py",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        }
+      ],
+      "candidate_tests": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "tests/test_conflicts.py",
+          "exists_at_ref": true,
+          "test_execution_status": "not_executed_for_this_requirement"
+        },
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "tests/test_receivers.py",
+          "exists_at_ref": true,
+          "test_execution_status": "not_executed_for_this_requirement"
+        }
+      ],
+      "issue_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/80",
+      "original_pr_links": [],
+      "review_needed": true
+    },
+    {
+      "id": "TEXT-006",
+      "app": "text-center",
+      "priority": "P1",
+      "implementation_status": "not_verified",
+      "runtime_behavior_status": "unchanged_by_audit",
+      "candidate_sources": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "textcenter/http_app.py",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        },
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "web/app.js",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        }
+      ],
+      "candidate_tests": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "tests/test_http_app.py",
+          "exists_at_ref": true,
+          "test_execution_status": "not_executed_for_this_requirement"
+        },
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "tests/test_tv_web.py",
+          "exists_at_ref": true,
+          "test_execution_status": "not_executed_for_this_requirement"
+        }
+      ],
+      "issue_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/80",
+      "original_pr_links": [],
+      "review_needed": true
+    },
+    {
+      "id": "TEXT-007",
+      "app": "text-center",
+      "priority": "P0",
+      "implementation_status": "not_verified",
+      "runtime_behavior_status": "unchanged_by_audit",
+      "candidate_sources": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "apps/text-center/ORIGIN.md",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        },
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "apps/CANONICAL_REPOSITORY_TOPOLOGY.json",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        }
+      ],
+      "candidate_tests": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "tests/test_text_center_retained_canonical.py",
+          "exists_at_ref": true,
+          "test_execution_status": "not_executed_for_this_requirement"
+        }
+      ],
+      "issue_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/80",
+      "original_pr_links": [],
+      "review_needed": true
+    },
+    {
+      "id": "TEXT-008",
+      "app": "text-center",
+      "priority": "P0",
+      "implementation_status": "not_verified",
+      "runtime_behavior_status": "unchanged_by_audit",
+      "candidate_sources": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "apps/REPOSITORY_RENAME_LINK_POLICY.md",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        },
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": ".github/workflows/sync-flight-radar-pages.yml",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        }
+      ],
+      "candidate_tests": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "tests/test_origin_fallback_approved_branding.py",
+          "exists_at_ref": true,
+          "test_execution_status": "not_executed_for_this_requirement"
+        }
+      ],
+      "issue_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/80",
+      "original_pr_links": [],
+      "review_needed": true
+    },
+    {
+      "id": "CROSS-001",
+      "app": "cross-app",
+      "priority": "P0",
+      "implementation_status": "not_verified",
+      "runtime_behavior_status": "unchanged_by_audit",
+      "candidate_sources": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "apps/_coordination/COORDINATION_PROTOCOL.md",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        },
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "apps/_coordination/MASTER_PLAN.md",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        }
+      ],
+      "candidate_tests": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "tests/test_master_zero_regression_coordination.py",
+          "exists_at_ref": true,
+          "test_execution_status": "not_executed_for_this_requirement"
+        }
+      ],
+      "issue_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/81",
+      "original_pr_links": [],
+      "review_needed": true
+    },
+    {
+      "id": "CROSS-002",
+      "app": "cross-app",
+      "priority": "P0",
+      "implementation_status": "not_verified",
+      "runtime_behavior_status": "unchanged_by_audit",
+      "candidate_sources": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "apps/_coordination/MASTER_PLAN.md",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        },
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "apps/registry.json",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        }
+      ],
+      "candidate_tests": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "tests/test_verified_destination_repos_and_red_logos.py",
+          "exists_at_ref": true,
+          "test_execution_status": "not_executed_for_this_requirement"
+        }
+      ],
+      "issue_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/81",
+      "original_pr_links": [],
+      "review_needed": true
+    },
+    {
+      "id": "CROSS-003",
+      "app": "cross-app",
+      "priority": "P0",
+      "implementation_status": "not_verified",
+      "runtime_behavior_status": "unchanged_by_audit",
+      "candidate_sources": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "apps/BRANDING_APPROVED_MANIFEST.json",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        },
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "apps/BRANDING_APPROVED_ROLLOUT.md",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        }
+      ],
+      "candidate_tests": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "tests/test_origin_fallback_approved_branding.py",
+          "exists_at_ref": true,
+          "test_execution_status": "not_executed_for_this_requirement"
+        }
+      ],
+      "issue_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/81",
+      "original_pr_links": [],
+      "review_needed": true
+    },
+    {
+      "id": "CROSS-004",
+      "app": "cross-app",
+      "priority": "P0",
+      "implementation_status": "not_verified",
+      "runtime_behavior_status": "unchanged_by_audit",
+      "candidate_sources": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "apps/CANONICAL_REPOSITORY_TOPOLOGY.json",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        },
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "apps/VERIFIED_DESTINATION_REPOSITORIES.json",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        }
+      ],
+      "candidate_tests": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "tests/test_text_center_retained_canonical.py",
+          "exists_at_ref": true,
+          "test_execution_status": "not_executed_for_this_requirement"
+        }
+      ],
+      "issue_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/81",
+      "original_pr_links": [],
+      "review_needed": true
+    },
+    {
+      "id": "CROSS-005",
+      "app": "cross-app",
+      "priority": "P0",
+      "implementation_status": "not_verified",
+      "runtime_behavior_status": "unchanged_by_audit",
+      "candidate_sources": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "apps/_archives/HISTORY_COVERAGE_AUDIT.json",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        },
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "apps/HISTORY_ORIGIN_FALLBACK_POLICY.md",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        }
+      ],
+      "candidate_tests": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "tests/test_origin_fallback_approved_branding.py",
+          "exists_at_ref": true,
+          "test_execution_status": "not_executed_for_this_requirement"
+        }
+      ],
+      "issue_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/81",
+      "original_pr_links": [],
+      "review_needed": true
+    },
+    {
+      "id": "CROSS-006",
+      "app": "cross-app",
+      "priority": "P0",
+      "implementation_status": "not_verified",
+      "runtime_behavior_status": "unchanged_by_audit",
+      "candidate_sources": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "apps/REPOSITORY_RENAME_LINK_POLICY.md",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        },
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "apps/REPOSITORY_IDENTITY.json",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        }
+      ],
+      "candidate_tests": [],
+      "issue_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/81",
+      "original_pr_links": [],
+      "review_needed": true
+    },
+    {
+      "id": "CROSS-007",
+      "app": "cross-app",
+      "priority": "P0",
+      "implementation_status": "not_verified",
+      "runtime_behavior_status": "unchanged_by_audit",
+      "candidate_sources": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "apps/DEVELOPMENT_AGENT_MATRIX.json",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        },
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "DEVELOPMENT_AGENT_GUIDE.md",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        }
+      ],
+      "candidate_tests": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "tests/test_development_agent_entrypoints.py",
+          "exists_at_ref": true,
+          "test_execution_status": "not_executed_for_this_requirement"
+        }
+      ],
+      "issue_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/81",
+      "original_pr_links": [],
+      "review_needed": true
+    },
+    {
+      "id": "CROSS-008",
+      "app": "cross-app",
+      "priority": "P0",
+      "implementation_status": "not_verified",
+      "runtime_behavior_status": "unchanged_by_audit",
+      "candidate_sources": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "apps/_coordination/ISSUES.json",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        },
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "apps/_coordination/prompts/README.md",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        }
+      ],
+      "candidate_tests": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "tests/test_master_zero_regression_coordination.py",
+          "exists_at_ref": true,
+          "test_execution_status": "not_executed_for_this_requirement"
+        }
+      ],
+      "issue_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/81",
+      "original_pr_links": [],
+      "review_needed": true
+    },
+    {
+      "id": "CROSS-009",
+      "app": "cross-app",
+      "priority": "P0",
+      "implementation_status": "not_verified",
+      "runtime_behavior_status": "unchanged_by_audit",
+      "candidate_sources": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "apps/_coordination/PROGRESS.json",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        },
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "apps/_coordination/COORDINATION_PROTOCOL.md",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        }
+      ],
+      "candidate_tests": [],
+      "issue_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/81",
+      "original_pr_links": [],
+      "review_needed": true
+    },
+    {
+      "id": "CROSS-010",
+      "app": "cross-app",
+      "priority": "P0",
+      "implementation_status": "not_verified",
+      "runtime_behavior_status": "unchanged_by_audit",
+      "candidate_sources": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "apps/_coordination/PR_ANCESTRY_AUDIT.json",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        },
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "apps/_archives/HISTORY_COVERAGE_AUDIT.json",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        }
+      ],
+      "candidate_tests": [],
+      "issue_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/81",
+      "original_pr_links": [],
+      "review_needed": true
+    },
+    {
+      "id": "CROSS-011",
+      "app": "cross-app",
+      "priority": "P0",
+      "implementation_status": "not_verified",
+      "runtime_behavior_status": "unchanged_by_audit",
+      "candidate_sources": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "apps/MIGRATION_PROTOCOL.md",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        },
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "apps/_coordination/MASTER_PLAN.md",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        }
+      ],
+      "candidate_tests": [],
+      "issue_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/81",
+      "original_pr_links": [],
+      "review_needed": true
+    },
+    {
+      "id": "CROSS-012",
+      "app": "cross-app",
+      "priority": "P0",
+      "implementation_status": "not_verified",
+      "runtime_behavior_status": "unchanged_by_audit",
+      "candidate_sources": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "apps/_coordination/PROGRESS.json",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        }
+      ],
+      "candidate_tests": [],
+      "issue_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/81",
+      "original_pr_links": [],
+      "review_needed": true
+    },
+    {
+      "id": "CROSS-013",
+      "app": "cross-app",
+      "priority": "P1",
+      "implementation_status": "not_verified",
+      "runtime_behavior_status": "unchanged_by_audit",
+      "candidate_sources": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "tv_center/remote_gpu.py",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        },
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "tv_center/hardware_status.py",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        }
+      ],
+      "candidate_tests": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "tests/test_tv_ai_profiles_remote_startup.py",
+          "exists_at_ref": true,
+          "test_execution_status": "not_executed_for_this_requirement"
+        }
+      ],
+      "issue_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/81",
+      "original_pr_links": [],
+      "review_needed": true
+    },
+    {
+      "id": "CROSS-014",
+      "app": "cross-app",
+      "priority": "P2",
+      "implementation_status": "not_verified",
+      "runtime_behavior_status": "unchanged_by_audit",
+      "candidate_sources": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "apps/_coordination/MASTER_PLAN.md",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        }
+      ],
+      "candidate_tests": [],
+      "issue_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/81",
+      "original_pr_links": [],
+      "review_needed": true
+    },
+    {
+      "id": "CROSS-015",
+      "app": "cross-app",
+      "priority": "P0",
+      "implementation_status": "not_verified",
+      "runtime_behavior_status": "unchanged_by_audit",
+      "candidate_sources": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "apps/_coordination/MASTER_REQUIREMENTS.json",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        },
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "apps/_coordination/PROGRESS.json",
+          "exists_at_ref": true,
+          "evidence_kind": "file_path_present_only_not_code_behavior_verification"
+        }
+      ],
+      "candidate_tests": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "tests/test_master_zero_regression_coordination.py",
+          "exists_at_ref": true,
+          "test_execution_status": "not_executed_for_this_requirement"
+        }
+      ],
+      "issue_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/81",
+      "original_pr_links": [],
+      "review_needed": true
+    }
+  ]
+}
