@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "app_id": "flight-radar",
+  "source_baseline_sha": "20379152be2751e5d89a8bdbac85fb15fc6b3c4e",
+  "disclaimer": "Source-backed mapping; no claims about locally installed model files, licenses, readiness, timing or complete runtime support.",
+  "model_backends": [
+    {
+      "capability": "flight_data",
+      "engine": "ADS-B / Internet aircraft data",
+      "implementation": "External canonical source; no LLM assumptions",
+      "status": "external_canonical_unknown",
+      "evidence": [
+        {
+          "path": "AGENTS.md",
+          "detail": "Current source code defines or references this behavior; inspect exact branch before porting",
+          "status": "source_code_evidence"
+        },
+        {
+          "path": ".github/workflows/sync-flight-radar-pages.yml",
+          "detail": "Current source code defines or references this behavior; inspect exact branch before porting",
+          "status": "source_code_evidence"
+        }
+      ],
+      "test_paths": [],
+      "resource": "RTL-SDR/Internet conditional",
+      "enable_conditions": [
+        "Inspect canonical repo separately"
+      ],
+      "fallback": "Do not fabricate aircraft or model behavior",
+      "known_limits": [
+        "No evidence of LLM models within TEXT CENTER mirror"
+      ],
+      "installed_on_user_device": "unknown_not_probed",
+      "verified_real_hardware": false
+    }
+  ]
+}

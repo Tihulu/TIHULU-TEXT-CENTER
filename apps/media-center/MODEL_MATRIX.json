@@ -1,0 +1,242 @@
+{
+  "schema_version": 1,
+  "app_id": "media-center",
+  "source_baseline_sha": "20379152be2751e5d89a8bdbac85fb15fc6b3c4e",
+  "disclaimer": "Source-backed mapping; no claims about locally installed model files, licenses, readiness, timing or complete runtime support.",
+  "model_backends": [
+    {
+      "capability": "speech_to_text",
+      "engine": "Whisper Tiny / Small",
+      "implementation": "whisper.cpp GGML CPU",
+      "status": "catalogued_not_installed_claim",
+      "evidence": [
+        {
+          "path": "tv_center/ai_profiles.py",
+          "detail": "Current source code defines or references this behavior; inspect exact branch before porting",
+          "status": "source_code_evidence"
+        },
+        {
+          "path": "tv_center/model_market.py",
+          "detail": "Current source code defines or references this behavior; inspect exact branch before porting",
+          "status": "source_code_evidence"
+        }
+      ],
+      "test_paths": [
+        "tests/test_tv_ai_profiles_remote_startup.py"
+      ],
+      "resource": "CPU",
+      "enable_conditions": [
+        "Model file must actually be installed",
+        "ASR opt-in"
+      ],
+      "fallback": "No ASR if model unavailable",
+      "known_limits": [
+        "Model availability is not proof of working audio capture",
+        "CPU word timing may be approximate"
+      ],
+      "installed_on_user_device": "unknown_not_probed",
+      "verified_real_hardware": false
+    },
+    {
+      "capability": "speech_to_text",
+      "engine": "Faster-Whisper Large-v3 Turbo",
+      "implementation": "CTranslate2 CUDA GPU",
+      "status": "optional_runtime",
+      "evidence": [
+        {
+          "path": "tv_center/ai_profiles.py",
+          "detail": "Current source code defines or references this behavior; inspect exact branch before porting",
+          "status": "source_code_evidence"
+        },
+        {
+          "path": "tv_center/installed_languages.py",
+          "detail": "Current source code defines or references this behavior; inspect exact branch before porting",
+          "status": "source_code_evidence"
+        }
+      ],
+      "test_paths": [
+        "tests/test_tv_cuda_faster_whisper.py"
+      ],
+      "resource": "NVIDIA GPU",
+      "enable_conditions": [
+        "Compatible CUDA driver/runtime/model weights",
+        "Explicit opt-in"
+      ],
+      "fallback": "Installed CPU Whisper when configured",
+      "known_limits": [
+        "GPU presence != CUDA readiness"
+      ],
+      "installed_on_user_device": "unknown_not_probed",
+      "verified_real_hardware": false
+    },
+    {
+      "capability": "speech_to_text",
+      "engine": "Whisper on Hailo AI HAT+ 2",
+      "implementation": "HailoRT exported HEF assets",
+      "status": "conditional_experimental",
+      "evidence": [
+        {
+          "path": "tv_center/ai_profiles.py",
+          "detail": "Current source code defines or references this behavior; inspect exact branch before porting",
+          "status": "source_code_evidence"
+        },
+        {
+          "path": "tv_center/ai_settings.py",
+          "detail": "Current source code defines or references this behavior; inspect exact branch before porting",
+          "status": "source_code_evidence"
+        }
+      ],
+      "test_paths": [
+        "tests/test_tv_ai_hardware_market.py"
+      ],
+      "resource": "Hailo NPU",
+      "enable_conditions": [
+        "Approved HEFs/NPYs and HailoRT configured"
+      ],
+      "fallback": "CPU Tiny opt-in fallback",
+      "known_limits": [
+        "Do not claim working NPU without actual assets and test"
+      ],
+      "installed_on_user_device": "unknown_not_probed",
+      "verified_real_hardware": false
+    },
+    {
+      "capability": "translation",
+      "engine": "Argos Translate",
+      "implementation": "Local direction-specific language packs",
+      "status": "configured_option",
+      "evidence": [
+        {
+          "path": "tv_center/ai_settings.py",
+          "detail": "Current source code defines or references this behavior; inspect exact branch before porting",
+          "status": "source_code_evidence"
+        },
+        {
+          "path": "tv_center/translation_failover.py",
+          "detail": "Current source code defines or references this behavior; inspect exact branch before porting",
+          "status": "source_code_evidence"
+        },
+        {
+          "path": "tv_center/installed_languages.py",
+          "detail": "Current source code defines or references this behavior; inspect exact branch before porting",
+          "status": "source_code_evidence"
+        }
+      ],
+      "test_paths": [
+        "tests/test_tv_nllb_failover.py"
+      ],
+      "resource": "CPU",
+      "enable_conditions": [
+        "Installed source→target pair verified"
+      ],
+      "fallback": "Preserve original on failure",
+      "known_limits": [
+        "Catalogued language != verified installed pair"
+      ],
+      "installed_on_user_device": "unknown_not_probed",
+      "verified_real_hardware": false
+    },
+    {
+      "capability": "translation",
+      "engine": "NLLB",
+      "implementation": "Local optional NLLB model with Argos fallback",
+      "status": "optional_runtime",
+      "evidence": [
+        {
+          "path": "tv_center/translation_failover.py",
+          "detail": "Current source code defines or references this behavior; inspect exact branch before porting",
+          "status": "source_code_evidence"
+        },
+        {
+          "path": "tv_center/installed_languages.py",
+          "detail": "Current source code defines or references this behavior; inspect exact branch before porting",
+          "status": "source_code_evidence"
+        }
+      ],
+      "test_paths": [
+        "tests/test_tv_nllb_failover.py"
+      ],
+      "resource": "CPU/GPU conditional",
+      "enable_conditions": [
+        "Weights and inference runtime must work"
+      ],
+      "fallback": "Argos if pack installed, else original",
+      "known_limits": [
+        "Has cooldown after real failure",
+        "Never invent translations"
+      ],
+      "installed_on_user_device": "unknown_not_probed",
+      "verified_real_hardware": false
+    },
+    {
+      "capability": "translation",
+      "engine": "MADLAD-400 3B and DeepL",
+      "implementation": "MADLAD local / DeepL configured",
+      "status": "optional_not_default",
+      "evidence": [
+        {
+          "path": "tv_center/ai_settings.py",
+          "detail": "Current source code defines or references this behavior; inspect exact branch before porting",
+          "status": "source_code_evidence"
+        },
+        {
+          "path": "tv_center/installed_languages.py",
+          "detail": "Current source code defines or references this behavior; inspect exact branch before porting",
+          "status": "source_code_evidence"
+        },
+        {
+          "path": "tv_center/ai_profiles.py",
+          "detail": "Current source code defines or references this behavior; inspect exact branch before porting",
+          "status": "source_code_evidence"
+        }
+      ],
+      "test_paths": [
+        "tests/test_tv_ai_hardware_market.py"
+      ],
+      "resource": "GPU / online optional",
+      "enable_conditions": [
+        "Explicit user selection and actual dependencies"
+      ],
+      "fallback": "Use verified configured offline alternative or original",
+      "known_limits": [
+        "MADLAD large VRAM requirements",
+        "DeepL network consent/key settings must remain separate"
+      ],
+      "installed_on_user_device": "unknown_not_probed",
+      "verified_real_hardware": false
+    },
+    {
+      "capability": "karaoke_word_alignment",
+      "engine": "Qwen3 ForcedAligner 0.6B",
+      "implementation": "Qwen/Qwen3-ForcedAligner-0.6B",
+      "status": "optional_runtime",
+      "evidence": [
+        {
+          "path": "tv_center/qwen_forced_aligner.py",
+          "detail": "Current source code defines or references this behavior; inspect exact branch before porting",
+          "status": "source_code_evidence"
+        },
+        {
+          "path": "tv_center/radio_karaoke_router.py",
+          "detail": "Current source code defines or references this behavior; inspect exact branch before porting",
+          "status": "source_code_evidence"
+        }
+      ],
+      "test_paths": [
+        "tests/test_radio_karaoke_independent_lipsync.py",
+        "tests/test_radio_verified_word_karaoke.py"
+      ],
+      "resource": "CPU/GPU",
+      "enable_conditions": [
+        "Explicit installed weights",
+        "Actual audio/lyric alignment evidence"
+      ],
+      "fallback": "Whisper audio-based matching fallback",
+      "known_limits": [
+        "Do not assume lyrics timing or matching from text-only provider result"
+      ],
+      "installed_on_user_device": "unknown_not_probed",
+      "verified_real_hardware": false
+    }
+  ]
+}

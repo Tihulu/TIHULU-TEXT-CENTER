@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "app_id": "flight-radar",
+  "repository": "Tihulu/tihulu-flight-radar",
+  "source_ref": "chore/multi-app-portable-archives-2026-11-11",
+  "branch_status": "metadata_stage_only",
+  "source_baseline_sha": "20379152be2751e5d89a8bdbac85fb15fc6b3c4e",
+  "verification": "source_evidence_only_not_hardware_verified",
+  "features": [
+    {
+      "id": "radar.canonical",
+      "name": "Flight Radar canonical source control",
+      "status": "external_canonical_no_source_audit_here",
+      "source_paths": [
+        "AGENTS.md",
+        ".github/workflows/sync-flight-radar-pages.yml"
+      ],
+      "test_paths": [],
+      "invariants": [
+        "Canonical editable code lives in Tihulu/tihulu-flight-radar",
+        "TEXT CENTER mirror is built read-only output",
+        "Do not fork parallel editable source when redesigning radar"
+      ],
+      "portability": "Any port must occur in canonical repo; sync mirror via tested publication contract",
+      "extension_points": [
+        "map_style",
+        "aircraft_card_layout"
+      ],
+      "verification": {
+        "static_tests": "required",
+        "build": "required",
+        "real_hardware": "required_if_uses_device",
+        "cross_platform": "not_verified",
+        "user_acceptance": "required_for_cutover"
+      }
+    }
+  ]
+}

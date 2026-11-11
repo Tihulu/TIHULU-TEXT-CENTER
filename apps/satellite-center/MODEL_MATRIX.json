@@ -1,0 +1,80 @@
+{
+  "schema_version": 1,
+  "app_id": "satellite-center",
+  "source_baseline_sha": "20379152be2751e5d89a8bdbac85fb15fc6b3c4e",
+  "disclaimer": "Source-backed mapping; no claims about locally installed model files, licenses, readiness, timing or complete runtime support.",
+  "model_backends": [
+    {
+      "capability": "robot36_signal_processing",
+      "engine": "CPU NumPy",
+      "implementation": "NumPy vectorization / native Python",
+      "status": "supported_code_path",
+      "evidence": [
+        {
+          "path": "satellite_center/compute_backends.py",
+          "detail": "Current source code defines or references this behavior; inspect exact branch before porting",
+          "status": "source_code_evidence"
+        }
+      ],
+      "test_paths": [],
+      "resource": "CPU",
+      "enable_conditions": [
+        "Valid WAV input and signal"
+      ],
+      "fallback": "Report unavailable without fake decode",
+      "known_limits": [
+        "Sync validation and PNG remain on CPU"
+      ],
+      "installed_on_user_device": "unknown_not_probed",
+      "verified_real_hardware": false
+    },
+    {
+      "capability": "robot36_tone_trace",
+      "engine": "CUDA CuPy",
+      "implementation": "GPU-enabled specific tone trace only",
+      "status": "optional_runtime",
+      "evidence": [
+        {
+          "path": "satellite_center/compute_backends.py",
+          "detail": "Current source code defines or references this behavior; inspect exact branch before porting",
+          "status": "source_code_evidence"
+        }
+      ],
+      "test_paths": [],
+      "resource": "GPU",
+      "enable_conditions": [
+        "Working CUDA CuPy runtime verified"
+      ],
+      "fallback": "CPU waveform pipeline",
+      "known_limits": [
+        "GPU hardware detection != executable kernel"
+      ],
+      "installed_on_user_device": "unknown_not_probed",
+      "verified_real_hardware": false
+    },
+    {
+      "capability": "robot36_npu",
+      "engine": "Intel OpenVINO / Hailo detection",
+      "implementation": "NPU inventory only",
+      "status": "not_supported_without_kernel",
+      "evidence": [
+        {
+          "path": "satellite_center/compute_backends.py",
+          "detail": "Current source code defines or references this behavior; inspect exact branch before porting",
+          "status": "source_code_evidence"
+        }
+      ],
+      "test_paths": [],
+      "resource": "NPU",
+      "enable_conditions": [
+        "No claimed executable NPU Robot36 kernel"
+      ],
+      "fallback": "CPU",
+      "known_limits": [
+        "Never claim Hailo or Intel NPU acceleration from hardware presence"
+      ],
+      "installed_on_user_device": "unknown_not_probed",
+      "verified_real_hardware": false
+    }
+  ]
+}

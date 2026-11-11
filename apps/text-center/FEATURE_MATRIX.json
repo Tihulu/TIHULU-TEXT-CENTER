@@ -1,0 +1,100 @@
+{
+  "schema_version": 1,
+  "app_id": "text-center",
+  "repository": "Tihulu/TIHULU-TEXT-CENTER",
+  "source_ref": "chore/multi-app-portable-archives-2026-11-11",
+  "branch_status": "metadata_stage_only",
+  "source_baseline_sha": "20379152be2751e5d89a8bdbac85fb15fc6b3c4e",
+  "verification": "source_evidence_only_not_hardware_verified",
+  "features": [
+    {
+      "id": "text.radio",
+      "name": "FM/DAB broadcast text and offline-first receivers",
+      "status": "source_defined_not_hardware_verified",
+      "source_paths": [
+        "textcenter/fm_rds.py",
+        "textcenter/dab_bridge.py",
+        "textcenter/http_app.py"
+      ],
+      "test_paths": [
+        "tests/test_dab_bridge.py",
+        "tests/test_fm_rds.py"
+      ],
+      "invariants": [
+        "Raw radio metadata is not speech transcription",
+        "No network polling or SDR acquisition without request",
+        "Signal and timing provenance must remain visible"
+      ],
+      "portability": "Receiver adapters separate from text application and web UI",
+      "extension_points": [
+        "radio_ui",
+        "metadata_view"
+      ],
+      "verification": {
+        "static_tests": "required",
+        "build": "required",
+        "real_hardware": "required_if_uses_device",
+        "cross_platform": "not_verified",
+        "user_acceptance": "required_for_cutover"
+      }
+    },
+    {
+      "id": "text.teletext",
+      "name": "DVB/Teletext source data and independent source labels",
+      "status": "source_defined_not_hardware_verified",
+      "source_paths": [
+        "textcenter/live_tv.py",
+        "textcenter/http_app.py"
+      ],
+      "test_paths": [
+        "tests/test_live_tv.py"
+      ],
+      "invariants": [
+        "Keep broadcaster data vs AI-transcribed data distinctions",
+        "Do not invent unavailable broadcast subtitles"
+      ],
+      "portability": "Display framework replaceable, source labels remain",
+      "extension_points": [
+        "teletext_view"
+      ],
+      "verification": {
+        "static_tests": "required",
+        "build": "required",
+        "real_hardware": "required_if_uses_device",
+        "cross_platform": "not_verified",
+        "user_acceptance": "required_for_cutover"
+      }
+    },
+    {
+      "id": "text.web",
+      "name": "Responsive offline-first UI",
+      "status": "source_defined_not_hardware_verified",
+      "source_paths": [
+        "web/app.js",
+        "web/index.html",
+        "web/styles.css"
+      ],
+      "test_paths": [
+        "tests/test_http_app.py"
+      ],
+      "invariants": [
+        "Desktop/tablet/mobile remain supported",
+        "No untrusted HTML insertion",
+        "No automatic background scans by default"
+      ],
+      "portability": "UI freely restyleable and portable under accessibility checks",
+      "extension_points": [
+        "theme",
+        "layout",
+        "responsive_shell"
+      ],
+      "verification": {
+        "static_tests": "required",
+        "build": "required",
+        "real_hardware": "required_if_uses_device",
+        "cross_platform": "not_verified",
+        "user_acceptance": "required_for_cutover"
+      }
+    }
+  ]
+}

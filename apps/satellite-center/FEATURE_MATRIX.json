@@ -1,0 +1,98 @@
+{
+  "schema_version": 1,
+  "app_id": "satellite-center",
+  "repository": "Tihulu/TIHULU-TEXT-CENTER",
+  "source_ref": "chore/multi-app-portable-archives-2026-11-11",
+  "branch_status": "metadata_stage_only",
+  "source_baseline_sha": "20379152be2751e5d89a8bdbac85fb15fc6b3c4e",
+  "verification": "source_evidence_only_not_hardware_verified",
+  "features": [
+    {
+      "id": "satellite.planning",
+      "name": "Satellite orbital pass planning",
+      "status": "source_defined_not_hardware_verified",
+      "source_paths": [
+        "satellite_center/README.md",
+        "satellite_center/browser/pass_window.mjs",
+        "satellite_center/browser/orbit_clock.mjs"
+      ],
+      "test_paths": [
+        "satellite_center/tests/test_native.py"
+      ],
+      "invariants": [
+        "Keep user-selected station and UTC/locale calculations consistent",
+        "Do not fabricate observed pass or received RF",
+        "Offline pass view must be distinguishable from RF reception"
+      ],
+      "portability": "Orbit engine / UI / location provider can be replaced independently",
+      "extension_points": [
+        "sky_map",
+        "pass_calendar"
+      ],
+      "verification": {
+        "static_tests": "required",
+        "build": "required",
+        "real_hardware": "required_if_uses_device",
+        "cross_platform": "not_verified",
+        "user_acceptance": "required_for_cutover"
+      }
+    },
+    {
+      "id": "satellite.rf_capture",
+      "name": "Bounded on-demand IQ capture and ownership",
+      "status": "source_defined_not_hardware_verified",
+      "source_paths": [
+        "satellite_center/README.md",
+        "satellite_center/bridge.py",
+        "satellite_center/browser/capture_duration.mjs"
+      ],
+      "test_paths": [
+        "satellite_center/tests/test_native.py"
+      ],
+      "invariants": [
+        "Never silently claim RTL-SDR owned by another module",
+        "Never synthesize decoded image when no valid signal",
+        "User-controlled start/stop with bounded recorder"
+      ],
+      "portability": "Hardware capture adapter can be replaced while preserving sample format and provenance",
+      "extension_points": [
+        "capture_driver"
+      ],
+      "verification": {
+        "static_tests": "required",
+        "build": "required",
+        "real_hardware": "required_if_uses_device",
+        "cross_platform": "not_verified",
+        "user_acceptance": "required_for_cutover"
+      }
+    },
+    {
+      "id": "satellite.image_decode",
+      "name": "Robot36 and Meteor/ISS image flow",
+      "status": "source_defined_not_hardware_verified",
+      "source_paths": [
+        "satellite_center/compute_backends.py",
+        "satellite_center/README.md"
+      ],
+      "test_paths": [
+        "satellite_center/tests/test_native.py"
+      ],
+      "invariants": [
+        "Generated files carry source, capture clock and decoder provenance",
+        "DSP kernel availability must not be confused with NPU device presence"
+      ],
+      "portability": "DSP kernels swap behind waveform/sample-rate contract",
+      "extension_points": [
+        "decoder_plugin",
+        "image_viewer"
+      ],
+      "verification": {
+        "static_tests": "required",
+        "build": "required",
+        "real_hardware": "required_if_uses_device",
+        "cross_platform": "not_verified",
+        "user_acceptance": "required_for_cutover"
+      }
+    }
+  ]
+}

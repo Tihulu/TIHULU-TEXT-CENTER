@@ -1,0 +1,57 @@
+{
+  "schema_version": 1,
+  "purpose": "Machine-readable behavior + AI backend evidence portable between languages and UI frameworks",
+  "policy": {
+    "canonical_registry": "apps/registry.json",
+    "default_compatibility": "strict_behavior_preservation",
+    "source_changes_allowed_in_this_pr": false,
+    "ui_restyle": "allowed_in_future_opt_in_ports_after parity checks",
+    "new_feature": "opt_in_or_new_surface_no_existing_default_change",
+    "requires_source_provenance": true,
+    "hardware_runtime_not_inferred_from_source": true,
+    "unknown_is_valid": true
+  },
+  "feature_entry": {
+    "required": [
+      "id",
+      "name",
+      "status",
+      "source_paths",
+      "test_paths",
+      "invariants",
+      "portability",
+      "verification"
+    ],
+    "optional": [
+      "extension_points"
+    ]
+  },
+  "model_entry": {
+    "required": [
+      "capability",
+      "engine",
+      "implementation",
+      "status",
+      "evidence",
+      "resource",
+      "enable_conditions",
+      "fallback",
+      "known_limits",
+      "installed_on_user_device",
+      "verified_real_hardware"
+    ],
+    "optional": [
+      "test_paths"
+    ]
+  },
+  "verification_levels": [
+    "archived_requirement",
+    "source_defined_not_hardware_verified",
+    "static_test_passed",
+    "build_passed",
+    "device_test_passed",
+    "released_in_canonical_repo"
+  ],
+  "timebase_policy": "Never manufacture word, DVB TS, receiver audio or playback DAC timestamp precision; expose measured vs estimated.",
+  "portability_rule": "Source language/framework may change; observable feature coverage, defaults, error behavior, data provenance and ownership rules may not silently change."
+}
