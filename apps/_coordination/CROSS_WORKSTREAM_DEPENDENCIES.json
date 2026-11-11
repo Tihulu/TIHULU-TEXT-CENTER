@@ -21,7 +21,7 @@
     "WS05": 87,
     "WS06": 88
   },
-  "ci_scope_note": "Each worker PR head has Text Center tests GitHub workflow success. Original Satellite PR #37 portable run 42559046861 failed pages-source-parity; neither is physical hardware acceptance.",
+  "ci_scope_note": "Worker-specific Text Center tests succeeded at their earlier worker heads. Current coordinator PR #82 workflow run 43119633429 FAILED at head d3f9dffd... from stale zero-worker assertions; this is separate from original satellite PR #37 source-vs-Pages parity failure and from any physical hardware acceptance.",
   "permission_boundary": "This phase may inspect and commit only coordinator documentation. Changing source, installers, repos, logos, workflows, release, deployment, user SDR services or main requires separate owner approval.",
   "no_automatic_worker_wakeup": true,
   "remaining_hours": null,
@@ -505,18 +505,31 @@
         "REG-08",
         "REG-14"
       ],
-      "observed": "97/97 requirements had initial source-based audits; no worker directly executed tests or physical RF/DVB sessions. Six worker PR heads had successful Text Center tests GitHub Actions, distinct from failed original satellite PR #37 Pages parity. None is a five-app installed acceptance certificate.",
+      "observed": "97/97 requirements had initial source-based audits; no worker directly executed tests or physical RF/DVB sessions. Six worker PR heads had successful Text Center tests GitHub Actions, distinct from failed original satellite PR #37 Pages parity. None is a five-app installed acceptance certificate. Coordinator PR #82 head d3f9dffd CI run 43119633429 is red because two planning tests still assert zero workers after six independent report/evidence commits; do not reset true progress to zero.",
       "evidence": [
         "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/e69c2b6eac7deeca313925bf99af31f8c9434f34/apps/_coordination/workstreams/06/REPORT.md",
         "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/chore/master-requirements-zero-regression-coordination-2026-11-11/apps/_coordination/PROGRESS.json"
       ],
-      "document_only_next": "Separate source-reviewed, partial draft-coded, unit/CI executed, hardware-verified, released and original requirement-completeness claims in progress. Require reproducible run IDs, exact SHA and logs before promoting any gate.",
+      "document_only_next": "Separate source-reviewed, partial draft-coded, unit/CI executed, hardware-verified, released and original requirement-completeness claims in progress. Require reproducible run IDs, exact SHA and logs before promoting any gate. Document the failing assertions and propose staged milestone checks for a later separately approved coordination-test change, preserving zero-runtime safety guards.",
       "acceptance_proof": "Every critical gate gets evidence URL, exact SHA, reproducible result/runner/device or explicit unknown. ETA hours/minutes remain null until scoped tasks, environments, blocked dependencies and measured effort are present.",
       "approval_required_for": "Claiming release or changing scope, running user-host hardware tests or applying code.",
       "status": "OPEN",
       "tests_executed_for_this_gate": 0,
       "hardware_acceptance_verified": false,
-      "runtime_change_authorized": false
+      "runtime_change_authorized": false,
+      "open_ci_contract_drift": {
+        "head_sha": "d3f9dffd85b5e9e89f043a5c9b5ea26888783134",
+        "workflow_run_id": 43119633429,
+        "result": "failure",
+        "python_versions": [
+          "3.11",
+          "3.12",
+          "3.13"
+        ],
+        "cause": "Two fixed zero-worker assertions in coordination-only metadata tests are obsolete now that six source-audit reports are verified; no actual hardware or runtime regression established",
+        "document": "apps/_coordination/COORDINATION_CI_CONTRACT_DRIFT.md",
+        "status": "OPEN_NO_TEST_SOURCE_CHANGE_IN_DOC_ONLY_PHASE"
+      }
     },
     {
       "id": "REG-16",
@@ -590,5 +603,18 @@
       "hardware_acceptance_verified": false,
       "runtime_change_authorized": false
     }
-  ]
+  ],
+  "coordinator_ci_at_checkpoint": {
+    "head_sha": "d3f9dffd85b5e9e89f043a5c9b5ea26888783134",
+    "workflow_run_id": 43119633429,
+    "result": "failure",
+    "python_versions": [
+      "3.11",
+      "3.12",
+      "3.13"
+    ],
+    "cause": "Two fixed zero-worker assertions in coordination-only metadata tests are obsolete now that six source-audit reports are verified; no actual hardware or runtime regression established",
+    "document": "apps/_coordination/COORDINATION_CI_CONTRACT_DRIFT.md",
+    "status": "OPEN_NO_TEST_SOURCE_CHANGE_IN_DOC_ONLY_PHASE"
+  }
 }
