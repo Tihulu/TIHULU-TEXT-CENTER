@@ -77,10 +77,11 @@
         "CROSS-001"
       ],
       "depends_on": [],
-      "observed": "Retained main source differs from the old audit snapshot for textcenter/compute.py, textcenter/speech.py and textcenter/transcripts.py. A snapshot is not an authoritative current Text Center baseline.",
+      "observed": "Retained main source differs from the old audit snapshot for textcenter/compute.py, textcenter/speech.py and textcenter/transcripts.py. A snapshot is not an authoritative current Text Center baseline. Verified three active-vs-archived Text source blob divergences; archived compute/speech/transcripts introduce GPU readiness, language, audio and translator changes plus sibling tv_center imports. Pinned original main blobs remain unchanged.",
       "evidence": [
         "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/5a772fd399c2d743207adb69dc33bd9922fee068/apps/_coordination/workstreams/05/REPORT.md",
-        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/commit/1fffb711bfbb7c4abaf55299fa9240e5db3e1cde"
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/commit/1fffb711bfbb7c4abaf55299fa9240e5db3e1cde",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/chore/master-requirements-zero-regression-coordination-2026-11-11/apps/_coordination/TEXT_MAIN_SNAPSHOT_SEMANTIC_DELTA.md"
       ],
       "document_only_next": "Pin current main and worker SHA/blob pairs, map behavioral/contract differences and distinguish historical snapshots from active source. No restore, rebase or cherry-pick.",
       "acceptance_proof": "Later isolated comparison of current active UI/API/transcript output, files, settings and URLs; preserve unchanged main unless a distinct authorized feature PR passes parity.",
@@ -327,11 +328,12 @@
         "REG-02",
         "REG-03"
       ],
-      "observed": "Retained Text Center has partial FM RDS and read-only welle-cli DAB metadata bridge, but Journaline is unimplemented; passive DVB diagnostic/upstream MPEG-TS relay does not demonstrate native off-air tuner/Teletext scan. Media native source is distinct.",
+      "observed": "Retained Text Center has partial FM RDS and read-only welle-cli DAB metadata bridge, but Journaline is unimplemented; passive DVB diagnostic/upstream MPEG-TS relay does not demonstrate native off-air tuner/Teletext scan. Media native source is distinct. Text archive transcripts.py has a module-level tv_center.language_codes import; archived compute.py and speech.py also reference tv_center modules. A separate Media repo cutover could break retained Text snapshot if imported dependencies disappear; classify mandatory/optional import graph before any cutover.",
       "evidence": [
         "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/5a772fd399c2d743207adb69dc33bd9922fee068/apps/_coordination/workstreams/05/REPORT.md",
         "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/10fd5ef9c51df2c330c8c5823ce789e31db519b2/apps/_coordination/workstreams/01/REPORT.md",
-        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/3884cc3b0b603f7a555d1801ed12283d9df4b63f/textcenter/dab_bridge.py#L1-L12"
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/3884cc3b0b603f7a555d1801ed12283d9df4b63f/textcenter/dab_bridge.py#L1-L12",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/chore/master-requirements-zero-regression-coordination-2026-11-11/apps/_coordination/TEXT_MAIN_SNAPSHOT_SEMANTIC_DELTA.md"
       ],
       "document_only_next": "Build a source-of-truth capability matrix per native Media, retained Text, external decoder, browser, actual hardware, UI claim and fallback. Preserve existing behavior without copying Media semantics into Text.",
       "acceptance_proof": "Later owner-authorized real Hauppauge scan/lock/Teletext and NooElec RDS/DAB DLS/MOT sessions with labels and failure outputs; include mixed TV/radio device ownership, timestamps, actual hardware path and original user settings.",
@@ -362,11 +364,12 @@
         "REG-01",
         "REG-02"
       ],
-      "observed": "Two 67-entry origin history ledgers omit original PRs #72–#74; eight Flight #13 PR comment permalinks and eleven satellite Issue #20/#21 comments are linked, but full review/timeline reconciliation and verified author/time details remain incomplete.",
+      "observed": "Two 67-entry origin history ledgers omit original PRs #72–#74; eight Flight #13 PR comment permalinks and eleven satellite Issue #20/#21 comments are linked, but full review/timeline reconciliation and verified author/time details remain incomplete. Historical PRs #72→#73→#74 form a verified ancestor chain (4 then 6 commits, both ahead/0 behind). Both 67-entry archive ledgers omit these links; source originals remain open Draft and are not lost.",
       "evidence": [
         "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/e69c2b6eac7deeca313925bf99af31f8c9434f34/apps/_coordination/workstreams/06/REPORT.md",
         "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/1253f55604b1401927f3a1b7a661c7f9b1fa8386/apps/_coordination/workstreams/02/REPORT.md",
-        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/5a772fd399c2d743207adb69dc33bd9922fee068/apps/_coordination/workstreams/05/REPORT.md"
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/5a772fd399c2d743207adb69dc33bd9922fee068/apps/_coordination/workstreams/05/REPORT.md",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/chore/master-requirements-zero-regression-coordination-2026-11-11/apps/_coordination/ORIGIN_PR72_74_ANCESTRY_ADDENDUM.json"
       ],
       "document_only_next": "Prepare a per-original-record manifest by immutable repo ID and source PR/Issue/review/comment permalink; add missing #72–#74 history, preserve null timestamps, and explicitly list non-exportable or inaccessible evidence.",
       "acceptance_proof": "A reviewer can follow all historical links and verify original source ancestry, authors/comments/review context without false recreated approvals, without private chat dumps and with explicit transfer gaps.",
@@ -505,10 +508,11 @@
         "REG-08",
         "REG-14"
       ],
-      "observed": "97/97 requirements had initial source-based audits; no worker directly executed tests or physical RF/DVB sessions. Six worker PR heads had successful Text Center tests GitHub Actions, distinct from failed original satellite PR #37 Pages parity. None is a five-app installed acceptance certificate. Coordinator PR #82 head d3f9dffd CI run 43119633429 is red because two planning tests still assert zero workers after six independent report/evidence commits; do not reset true progress to zero.",
+      "observed": "97/97 requirements had initial source-based audits; no worker directly executed tests or physical RF/DVB sessions. Six worker PR heads had successful Text Center tests GitHub Actions, distinct from failed original satellite PR #37 Pages parity. None is a five-app installed acceptance certificate. Coordinator PR #82 head d3f9dffd CI run 43119633429 is red because two planning tests still assert zero workers after six independent report/evidence commits; do not reset true progress to zero. A narrowly scoped stage-aware coordination-test maintenance proposal has been written without changing the currently red Python tests; verify worker evidence and never reset six true audits to zero.",
       "evidence": [
         "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/e69c2b6eac7deeca313925bf99af31f8c9434f34/apps/_coordination/workstreams/06/REPORT.md",
-        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/chore/master-requirements-zero-regression-coordination-2026-11-11/apps/_coordination/PROGRESS.json"
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/chore/master-requirements-zero-regression-coordination-2026-11-11/apps/_coordination/PROGRESS.json",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/chore/master-requirements-zero-regression-coordination-2026-11-11/apps/_coordination/COORDINATION_TEST_REPAIR_PROPOSAL.md"
       ],
       "document_only_next": "Separate source-reviewed, partial draft-coded, unit/CI executed, hardware-verified, released and original requirement-completeness claims in progress. Require reproducible run IDs, exact SHA and logs before promoting any gate. Document the failing assertions and propose staged milestone checks for a later separately approved coordination-test change, preserving zero-runtime safety guards.",
       "acceptance_proof": "Every critical gate gets evidence URL, exact SHA, reproducible result/runner/device or explicit unknown. ETA hours/minutes remain null until scoped tasks, environments, blocked dependencies and measured effort are present.",
@@ -616,5 +620,19 @@
     "cause": "Two fixed zero-worker assertions in coordination-only metadata tests are obsolete now that six source-audit reports are verified; no actual hardware or runtime regression established",
     "document": "apps/_coordination/COORDINATION_CI_CONTRACT_DRIFT.md",
     "status": "OPEN_NO_TEST_SOURCE_CHANGE_IN_DOC_ONLY_PHASE"
+  },
+  "coordinator_followup": {
+    "as_of_date": "2026-11-12",
+    "new_document_paths": [
+      "apps/_coordination/COORDINATION_TEST_REPAIR_PROPOSAL.md",
+      "apps/_coordination/TEXT_MAIN_SNAPSHOT_SEMANTIC_DELTA.md",
+      "apps/_coordination/ORIGIN_PR72_74_ANCESTRY_ADDENDUM.json"
+    ],
+    "verified_text_main_blobs_unchanged": true,
+    "verified_text_snapshot_tv_center_imports": true,
+    "verified_pr72_73_74_ancestor_chain": true,
+    "coordinator_python_tests_edited": false,
+    "source_or_release_changes_authorized": false,
+    "next_gate": "Request separate test-only change permission before applying proposed two-test CI maintenance; source migration remains separately owner-gated."
   }
 }
