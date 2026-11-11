@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "as_of_utc": "2026-11-12",
-  "stage": "six_initial_source_based_worker_reports_committed_implementation_and_hardware_gates_open",
+  "stage": "six_initial_source_audits_received_cross_worker_regression_gates_documented_no_acceptance_completed",
   "requirements": {
     "registered": 97,
     "code_source_audited": 97,
@@ -200,7 +200,7 @@
     "hours": null,
     "minutes": null,
     "confidence": "insufficient_evidence",
-    "reason": "Six initial source-based reports exist, but duration of P3 integration conflict resolution, native platform/hardware test sessions, archival gaps, owner-gated repo migrations and release/rollback checks remains unmeasured.",
+    "reason": "Seventeen source-informed regression gates have been documented and remain open; task durations, hardware/environment access, original history completeness and separate owner approvals have not been measured.",
     "format_on_update": "HH hours MM minutes once computed; otherwise say unknown rather than make up a countdown",
     "estimation_criteria": [
       "audited outstanding task list",
@@ -271,7 +271,10 @@
     },
     "existing_satellite_feature_pr37_ci_observation": "Run 42559046861 had four portable synthetic OS successes but source-to-Pages parity failure on eight assets; this is distinct from worker-PR CI.",
     "feature_acceptance_verified": false,
-    "hardware_device_acceptance_verified": false
+    "hardware_device_acceptance_verified": false,
+    "regression_gate_plan_documented": true,
+    "regression_gates_open": 17,
+    "regression_gates_approved_for_code_changes": 0
   },
   "followup_rule": "After each real GitHub CI or issue milestone, update counts and explain what was measured; no unscheduled background work is implied.",
   "documentation": {
@@ -292,5 +295,25 @@
     "test_evidence_quality_report_created": true,
     "launch_guide_created": true,
     "parallel_branch_scope_verified": true
+  },
+  "cross_workstream_regression_gates": {
+    "record_type": "documentation_only_regression_gate_plan",
+    "status": "OPEN_PROPOSED_GATES_NOT_ACCEPTANCE",
+    "as_of_date": "2026-11-12",
+    "total": 17,
+    "open": 17,
+    "priorities": {
+      "P0": 16,
+      "P1": 1,
+      "P2": 0
+    },
+    "sources": "six immutable worker reports plus selected direct Flight and Satellite source inspection",
+    "document_path": "apps/_coordination/CROSS_WORKSTREAM_REGRESSION_GATES.md",
+    "machine_path": "apps/_coordination/CROSS_WORKSTREAM_DEPENDENCIES.json",
+    "owner_approval_required_before_implementation": true,
+    "physical_hardware_acceptance_verified": 0,
+    "feature_equivalence_certified": 0,
+    "remaining_hours": null,
+    "remaining_minutes": null
   }
 }
