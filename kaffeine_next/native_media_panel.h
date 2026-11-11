@@ -397,6 +397,7 @@ private:
             QLatin1String("--destination"),dir,
             QLatin1String("--name"),QFileInfo(path_).completeBaseName(),
             QLatin1String("--formats"),formats.join(QLatin1Char(',')),
+            QLatin1String("--split-translations"),
             QLatin1String("--media"),path_};
         if(mux->isChecked())arguments<<QLatin1String("--mux");
         if(burn->isChecked())arguments<<QLatin1String("--burn-video");
