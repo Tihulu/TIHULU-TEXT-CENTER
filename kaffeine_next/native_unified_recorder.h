@@ -479,7 +479,8 @@ private:
             QLatin1String("--destination"),destination,
             QLatin1String("--name"),input.completeBaseName(),
             QLatin1String("--mode"),QLatin1String("live"),
-            QLatin1String("--formats"),formats.join(QLatin1Char(','))};
+            QLatin1String("--formats"),formats.join(QLatin1Char(',')),
+            QLatin1String("--split-translations")};
         if(time->isChecked())arguments<<QLatin1String("--timestamps");
         if(mux->isChecked())arguments<<QLatin1String("--mux");
         if(burn->isChecked())arguments<<QLatin1String("--burn-video");
