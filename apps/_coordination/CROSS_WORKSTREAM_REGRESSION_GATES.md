@@ -207,6 +207,10 @@ This document **does not implement features, certify release, schedule autonomou
 - **Dependency gate(s):** `REG-11`.
 - **Evidence:** [1](https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/1253f55604b1401927f3a1b7a661c7f9b1fa8386/apps/_coordination/workstreams/02/REPORT.md), [2](https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/e69c2b6eac7deeca313925bf99af31f8c9434f34/apps/_coordination/workstreams/06/REPORT.md).
 
+## Current coordinator CI — OPEN failure, not an application regression certificate
+
+[Run 43119633429](https://github.com/Tihulu/TIHULU-TEXT-CENTER/actions/runs/43119633429) failed on the coordinator head `d3f9dffd85b5e9e89f043a5c9b5ea26888783134`. Python 3.11/3.12/3.13 jobs failed the offline unit-test step. Python 3.12 log recorded **696 tests, 2 failures**: `test_master_zero_regression_coordination.py` expects `completed_audits == 0`, and `test_six_parallel_workstream_gates.py` expects `started_by_other_chats == 0`; both are now **6**, supported by the six committed reports and JSON evidence files. These fixed initial-state test assertions are stale; **do not falsify the progress counts** or call the coordinator PR green. This documentation phase does not modify Python test sources. Proposed narrowly scoped test maintenance and proof requirements: [COORDINATION_CI_CONTRACT_DRIFT.md](./COORDINATION_CI_CONTRACT_DRIFT.md). Other worker-head CI successes and Satellite PR #37 Pages parity failure remain separate.
+
 ## Explicit stop conditions
 
 1. **No feature/source drift:** Do not merge Media #67 or Flight #7/#13 or any other old PR, cherry-pick feature commits, rebase another worker's branch, change Text current main, or silently replace existing user installs.
