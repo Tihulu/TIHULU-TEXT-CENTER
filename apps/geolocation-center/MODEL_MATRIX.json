@@ -45,7 +45,13 @@
     "ui_localization": "apps/geolocation-center/LOCALIZATION_CONTRACT.json",
     "link_note": "App-level PR classification is heuristic, not proof of an individual feature; verify exact diff/commit before attribution.",
     "future_target_prs_status": "not_migrated_or_linked",
-    "old_repo_rename_status": "not_requested"
+    "old_repo_rename_status": "not_requested",
+    "incompletely_transferred_topics_and_origin_urls": "apps/geolocation-center/ORIGIN_FALLBACKS.json",
+    "itemized_original_comment_review_and_timeline_coverage": "apps/_archives/HISTORY_COVERAGE_AUDIT.json",
+    "approved_application_logo": "apps/geolocation-center/APPROVED_BRANDING.json",
+    "approved_logo_sha_manifest": "apps/BRANDING_APPROVED_MANIFEST.json",
+    "origin_lookup_after_rename": "Resolve GitHub repository ID 1447637221; preserve original URL and verify current alias",
+    "no_orphaned_requirement": "Every known old feature/request/PR is either verifiably copied or origin-linked with explicit remaining transfer gap"
   },
   "target_engineering_language": "en",
   "required_ui_languages": [
@@ -53,5 +59,7 @@
     "tr",
     "de"
   ],
-  "snapshot_is_active_runtime": false
+  "snapshot_is_active_runtime": false,
+  "approved_logo_not_yet_installed": true,
+  "old_pr_review_comment_export_not_complete": true
 }

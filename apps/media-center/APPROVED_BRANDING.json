@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "app_id": "media-center",
+  "approval_status": "approved_in_user_conversation_2026-11-11",
+  "source_manifest": "apps/BRANDING_APPROVED_MANIFEST.json",
+  "approved_png_master_sha256": "6364d5047f201eb0b09e1c64d71ee192c68a8866b57b42b5e61de8a0f05e40e9",
+  "approved_source_reference_sha256": "966f96974e257507b1421c213665a4c7716da16b86a1bda1117d50332e1d80ce",
+  "approved_pack_master_path": "media-center/media-center-approved-master-1254.png",
+  "approved_pack_icon_paths": [
+    "media-center/media-center-icon-512.png",
+    "media-center/media-center-icon-256.png",
+    "media-center/media-center-icon-128.png",
+    "media-center/media-center-icon-64.png"
+  ],
+  "asset_binary_in_git": false,
+  "runtime_icon_changed": false,
+  "future_per_repo_path": "assets/branding/tihulu/",
+  "actual_vector_svg_available": false,
+  "readability_and_cross_platform_tests_complete": false,
+  "UI_languages": [
+    "en",
+    "tr",
+    "de"
+  ],
+  "product_name_label_language": "en",
+  "source_and_license_status": "requires_validation_before_public_asset_release",
+  "integration_rule": "Staging only until binary assets are imported, checksum-verified and icons tested; do not modify current app source or installer in this planning PR"
+}

@@ -74,7 +74,13 @@
       ],
       "localizations_verified": false,
       "future_repo_rename_contract": "apps/REPOSITORY_RENAME_LINK_POLICY.md",
-      "canonical_code_ownership": "current_runtime_roots_unchanged_until_cutover"
+      "canonical_code_ownership": "current_runtime_roots_unchanged_until_cutover",
+      "history_gap_index": "apps/media-center/ORIGIN_FALLBACKS.json",
+      "approved_branding_manifest": "apps/media-center/APPROVED_BRANDING.json",
+      "branding_release_status": "approved_design_not_installed",
+      "history_completeness_status": "partial_export_with_original_links",
+      "current_active_app_icons_unchanged": true,
+      "model_install_for_coding_agent_matrix_required": false
     },
     {
       "id": "satellite-center",
@@ -127,7 +133,13 @@
       ],
       "localizations_verified": false,
       "future_repo_rename_contract": "apps/REPOSITORY_RENAME_LINK_POLICY.md",
-      "canonical_code_ownership": "current_runtime_roots_unchanged_until_cutover"
+      "canonical_code_ownership": "current_runtime_roots_unchanged_until_cutover",
+      "history_gap_index": "apps/satellite-center/ORIGIN_FALLBACKS.json",
+      "approved_branding_manifest": "apps/satellite-center/APPROVED_BRANDING.json",
+      "branding_release_status": "approved_design_not_installed",
+      "history_completeness_status": "partial_export_with_original_links",
+      "current_active_app_icons_unchanged": true,
+      "model_install_for_coding_agent_matrix_required": false
     },
     {
       "id": "geolocation-center",
@@ -179,7 +191,13 @@
       ],
       "localizations_verified": false,
       "future_repo_rename_contract": "apps/REPOSITORY_RENAME_LINK_POLICY.md",
-      "canonical_code_ownership": "current_runtime_roots_unchanged_until_cutover"
+      "canonical_code_ownership": "current_runtime_roots_unchanged_until_cutover",
+      "history_gap_index": "apps/geolocation-center/ORIGIN_FALLBACKS.json",
+      "approved_branding_manifest": "apps/geolocation-center/APPROVED_BRANDING.json",
+      "branding_release_status": "approved_design_not_installed",
+      "history_completeness_status": "partial_export_with_original_links",
+      "current_active_app_icons_unchanged": true,
+      "model_install_for_coding_agent_matrix_required": false
     },
     {
       "id": "text-center",
@@ -239,7 +257,13 @@
       ],
       "localizations_verified": false,
       "future_repo_rename_contract": "apps/REPOSITORY_RENAME_LINK_POLICY.md",
-      "canonical_code_ownership": "current_runtime_roots_unchanged_until_cutover"
+      "canonical_code_ownership": "current_runtime_roots_unchanged_until_cutover",
+      "history_gap_index": "apps/text-center/ORIGIN_FALLBACKS.json",
+      "approved_branding_manifest": "apps/text-center/APPROVED_BRANDING.json",
+      "branding_release_status": "approved_design_not_installed",
+      "history_completeness_status": "partial_export_with_original_links",
+      "current_active_app_icons_unchanged": true,
+      "model_install_for_coding_agent_matrix_required": false
     },
     {
       "id": "flight-radar",
@@ -277,7 +301,13 @@
       ],
       "localizations_verified": false,
       "future_repo_rename_contract": "apps/REPOSITORY_RENAME_LINK_POLICY.md",
-      "canonical_code_ownership": "already_in_separate_repo"
+      "canonical_code_ownership": "already_in_separate_repo",
+      "history_gap_index": "apps/flight-radar/ORIGIN_FALLBACKS.json",
+      "approved_branding_manifest": "apps/flight-radar/APPROVED_BRANDING.json",
+      "branding_release_status": "approved_design_not_installed",
+      "history_completeness_status": "partial_export_with_original_links",
+      "current_active_app_icons_unchanged": true,
+      "model_install_for_coding_agent_matrix_required": false
     }
   ],
   "repository_identity": {
@@ -317,5 +347,10 @@
     "source_copies_not_independent_releases": true,
     "all_dependency_closures_verified": false,
     "external_upstream_sources_not_vendored": true
-  }
+  },
+  "history_coverage_index": "apps/_archives/HISTORY_COVERAGE_AUDIT.json",
+  "all_apps_branding_manifest": "apps/BRANDING_APPROVED_MANIFEST.json",
+  "original_repo_rename_fallback_policy": "apps/HISTORY_ORIGIN_FALLBACK_POLICY.md",
+  "user_approved_logo_designs_count": 5,
+  "all_five_logos_installed_in_running_apps": false
 }

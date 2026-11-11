@@ -1,0 +1,147 @@
+{
+  "schema_version": 1,
+  "approved_by_user_in_conversation": true,
+  "approved_date": "2026-11-11",
+  "origin_logo": {
+    "original_input_format": "PNG",
+    "original_file_sha256": "966f96974e257507b1421c213665a4c7716da16b86a1bda1117d50332e1d80ce",
+    "source_kind": "user_supplied_visual_reference",
+    "genuine_editable_svg_received": false
+  },
+  "artwork_kind": "AI-generated PNG badge illustrations based on original supplied mascot; visually vector-style but not actual editable vector paths",
+  "distribution_status": "approved_staging_bundle_in_chat_not_committed_to_github_as_binary_assets",
+  "new_binary_assets_committed_in_this_pr": false,
+  "existing_app_icons_changed": false,
+  "palette": [
+    "#000000",
+    "#ffffff",
+    "#ed0024"
+  ],
+  "apps": [
+    {
+      "id": "media-center",
+      "name": "TIHULU Media Center",
+      "master_sha256": "6364d5047f201eb0b09e1c64d71ee192c68a8866b57b42b5e61de8a0f05e40e9",
+      "master_size_px": [
+        1254,
+        1254
+      ],
+      "master_format": "image/png",
+      "approved_logo_pack_relative_master": "media-center/media-center-approved-master-1254.png",
+      "approved_logo_pack_relative_icons": [
+        "media-center/media-center-icon-512.png",
+        "media-center/media-center-icon-256.png",
+        "media-center/media-center-icon-128.png",
+        "media-center/media-center-icon-64.png"
+      ],
+      "planned_new_repository_asset_dir": "assets/branding/tihulu/",
+      "planned_mono_staging_dir": "apps/media-center/branding/",
+      "runtime_icon_replaced": false,
+      "production_icon_rollout_status": "not_started_requires_platform_specific_regression_tests",
+      "svg_status": "future_true_vector_redraw_or_trace_with_comparison_to_approved_png",
+      "brand_motif": "playback screen, audio waveform",
+      "product_name_language": "en (brand name, not automatically translated)",
+      "source_rights_and_external_asset_licenses": "Review origin and generated art attribution before public release"
+    },
+    {
+      "id": "satellite-center",
+      "name": "TIHULU Satellite Center",
+      "master_sha256": "031d253759f4a4dc2dc847b7e6d59b362b8f53e9bac13a1bc61eaf22d7fef494",
+      "master_size_px": [
+        1254,
+        1254
+      ],
+      "master_format": "image/png",
+      "approved_logo_pack_relative_master": "satellite-center/satellite-center-approved-master-1254.png",
+      "approved_logo_pack_relative_icons": [
+        "satellite-center/satellite-center-icon-512.png",
+        "satellite-center/satellite-center-icon-256.png",
+        "satellite-center/satellite-center-icon-128.png",
+        "satellite-center/satellite-center-icon-64.png"
+      ],
+      "planned_new_repository_asset_dir": "assets/branding/tihulu/",
+      "planned_mono_staging_dir": "apps/satellite-center/branding/",
+      "runtime_icon_replaced": false,
+      "production_icon_rollout_status": "not_started_requires_platform_specific_regression_tests",
+      "svg_status": "future_true_vector_redraw_or_trace_with_comparison_to_approved_png",
+      "brand_motif": "satellite, orbital arc, ground station",
+      "product_name_language": "en (brand name, not automatically translated)",
+      "source_rights_and_external_asset_licenses": "Review origin and generated art attribution before public release"
+    },
+    {
+      "id": "geolocation-center",
+      "name": "TIHULU RF Geolocation Center",
+      "master_sha256": "d14557582c469fa83390d194071c35f22220e6ae7a478f4ff04b3b26577c0d20",
+      "master_size_px": [
+        1254,
+        1254
+      ],
+      "master_format": "image/png",
+      "approved_logo_pack_relative_master": "geolocation-center/geolocation-center-approved-master-1254.png",
+      "approved_logo_pack_relative_icons": [
+        "geolocation-center/geolocation-center-icon-512.png",
+        "geolocation-center/geolocation-center-icon-256.png",
+        "geolocation-center/geolocation-center-icon-128.png",
+        "geolocation-center/geolocation-center-icon-64.png"
+      ],
+      "planned_new_repository_asset_dir": "assets/branding/tihulu/",
+      "planned_mono_staging_dir": "apps/geolocation-center/branding/",
+      "runtime_icon_replaced": false,
+      "production_icon_rollout_status": "not_started_requires_platform_specific_regression_tests",
+      "svg_status": "future_true_vector_redraw_or_trace_with_comparison_to_approved_png",
+      "brand_motif": "map pin, positioning grid",
+      "product_name_language": "en (brand name, not automatically translated)",
+      "source_rights_and_external_asset_licenses": "Review origin and generated art attribution before public release"
+    },
+    {
+      "id": "text-center",
+      "name": "TIHULU Text Center",
+      "master_sha256": "52024e3305b76aca1e0bf8df3da5966e3fe9e004f7df7296054abaf001a64c25",
+      "master_size_px": [
+        1254,
+        1254
+      ],
+      "master_format": "image/png",
+      "approved_logo_pack_relative_master": "text-center/text-center-approved-master-1254.png",
+      "approved_logo_pack_relative_icons": [
+        "text-center/text-center-icon-512.png",
+        "text-center/text-center-icon-256.png",
+        "text-center/text-center-icon-128.png",
+        "text-center/text-center-icon-64.png"
+      ],
+      "planned_new_repository_asset_dir": "assets/branding/tihulu/",
+      "planned_mono_staging_dir": "apps/text-center/branding/",
+      "runtime_icon_replaced": false,
+      "production_icon_rollout_status": "not_started_requires_platform_specific_regression_tests",
+      "svg_status": "future_true_vector_redraw_or_trace_with_comparison_to_approved_png",
+      "brand_motif": "captions and radio text panels",
+      "product_name_language": "en (brand name, not automatically translated)",
+      "source_rights_and_external_asset_licenses": "Review origin and generated art attribution before public release"
+    },
+    {
+      "id": "flight-radar",
+      "name": "TIHULU Flight Radar",
+      "master_sha256": "d73e62cbd2ba9c965bd7f4c13e44d7805efd428ef27a6ad710b277455bd9a33f",
+      "master_size_px": [
+        1254,
+        1254
+      ],
+      "master_format": "image/png",
+      "approved_logo_pack_relative_master": "flight-radar/flight-radar-approved-master-1254.png",
+      "approved_logo_pack_relative_icons": [
+        "flight-radar/flight-radar-icon-512.png",
+        "flight-radar/flight-radar-icon-256.png",
+        "flight-radar/flight-radar-icon-128.png",
+        "flight-radar/flight-radar-icon-64.png"
+      ],
+      "planned_new_repository_asset_dir": "assets/branding/tihulu/",
+      "planned_mono_staging_dir": "apps/flight-radar/branding/",
+      "runtime_icon_replaced": false,
+      "production_icon_rollout_status": "not_started_requires_platform_specific_regression_tests",
+      "svg_status": "future_true_vector_redraw_or_trace_with_comparison_to_approved_png",
+      "brand_motif": "aircraft and radar rings",
+      "product_name_language": "en (brand name, not automatically translated)",
+      "source_rights_and_external_asset_licenses": "Review origin and generated art attribution before public release"
+    }
+  ]
+}
