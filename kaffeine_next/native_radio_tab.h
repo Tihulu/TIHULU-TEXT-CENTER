@@ -5910,7 +5910,7 @@ private:
     }
     void appendLiveRadioCaption(const TimedRadioCue &cue) {
         if(!liveCaptionSrt_.isOpen() || metadataCaptions_ ||
-           cue.chunkIndex<0 || cue.chunkIndex<=0)return;
+           cue.chunkIndex<0)return;
         if(playingKey_!=liveCaptionStationKey_) {
             stopLiveCaptionRecording();
             return;
