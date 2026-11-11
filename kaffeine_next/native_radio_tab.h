@@ -481,8 +481,33 @@ public:
             "recording radio audio. Cue timing is estimated from the displayed "
             "caption clock, NOT measured DAC or per-word audio time."));
         receiverActions->addWidget(liveCaptionRecord_,2,0);
+        auto *liveCaptionFormats=new QWidget(page);
+        auto *liveCaptionFormatsLayout=new QHBoxLayout(liveCaptionFormats);
+        liveCaptionFormatsLayout->setContentsMargins(0,0,0,0);
+        liveCaptionTxt_=new QCheckBox(tr("TXT"),page);
+        liveCaptionVtt_=new QCheckBox(tr("VTT"),page);
+        liveCaptionAss_=new QCheckBox(tr("ASS"),page);
+        liveCaptionJson_=new QCheckBox(tr("JSON"),page);
+        liveCaptionTxt_->setChecked(true);
+        for(QCheckBox *box:{liveCaptionTxt_,liveCaptionVtt_,
+                            liveCaptionAss_,liveCaptionJson_})
+            liveCaptionFormatsLayout->addWidget(box);
+        receiverActions->addWidget(liveCaptionFormats,3,0,1,2);
         connect(liveCaptionRecord_,&QPushButton::clicked,this,
                 [this](){toggleLiveCaptionRecording();});
+        connect(&liveCaptionFormatsProcess_,
+            QOverload<int,QProcess::ExitStatus>::of(&QProcess::finished),
+            this,[this](int result,QProcess::ExitStatus status){
+                if(result==0 && status==QProcess::NormalExit) {
+                    if(state_)state_->setText(tr(
+                        "Radio SRT and selected extra timed subtitle/text "
+                        "formats saved without changing playback."));
+                } else if(state_) {
+                    state_->setText(tr("Radio SRT preserved. Additional export "
+                        "failed: %1").arg(QString::fromUtf8(
+                            liveCaptionFormatsProcess_.readAllStandardError()).right(200)));
+                }
+            });
         subtitledRecord_=new QCheckBox(tr("Make subtitled recording"),this);
 		subtitledRecord_->setToolTip(tr("On Stop, create offline time-coded SRT from the "
 			"saved audio and mux a selectable-subtitle MKV. Never fake live synchronization."));
@@ -5865,6 +5890,30 @@ private:
         if(!liveCaptionSrt_.isOpen())return;
         liveCaptionSrt_.flush();
         liveCaptionSrt_.close();
+        QStringList formats;
+        if(liveCaptionTxt_ && liveCaptionTxt_->isChecked())
+            formats<<QLatin1String("txt");
+        if(liveCaptionVtt_ && liveCaptionVtt_->isChecked())
+            formats<<QLatin1String("vtt");
+        if(liveCaptionAss_ && liveCaptionAss_->isChecked())
+            formats<<QLatin1String("ass");
+        if(liveCaptionJson_ && liveCaptionJson_->isChecked())
+            formats<<QLatin1String("json");
+        if(!formats.isEmpty() && liveCaptionCount_>0 &&
+           liveCaptionFormatsProcess_.state()==QProcess::NotRunning) {
+            const QFileInfo recorded(liveCaptionSrt_.fileName());
+            QStringList args{
+                QLatin1String("recording-export"),
+                QLatin1String("--srt"),recorded.absoluteFilePath(),
+                QLatin1String("--mode"),QLatin1String("live"),
+                QLatin1String("--split-translations"),
+                QLatin1String("--destination"),recorded.absolutePath(),
+                QLatin1String("--name"),recorded.completeBaseName()+
+                    QLatin1String("-export"),
+                QLatin1String("--formats"),formats.join(QLatin1Char(',')),
+                QLatin1String("--timestamps")};
+            liveCaptionFormatsProcess_.start(QLatin1String("tihulu-tv-center"),args);
+        }
         if(liveCaptionRecord_)
             liveCaptionRecord_->setText(tr("Save live AI subtitles"));
         if(state_)state_->setText(tr(
@@ -7500,7 +7549,10 @@ private:
     qint64 lastAudioRetuneMs_=0;
 	QList<TimedRadioCue> cueQueue_;
     QFile liveCaptionSrt_;
+    QProcess liveCaptionFormatsProcess_{this};
     QPushButton *liveCaptionRecord_=nullptr;
+    QCheckBox *liveCaptionTxt_=nullptr,*liveCaptionVtt_=nullptr,
+              *liveCaptionAss_=nullptr,*liveCaptionJson_=nullptr;
     QString liveCaptionStationKey_;
     qint64 liveCaptionStartedMs_=0,liveCaptionEndMs_=0;
     int liveCaptionCount_=0;
