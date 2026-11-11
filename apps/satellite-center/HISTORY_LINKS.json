@@ -1,0 +1,151 @@
+{
+  "schema_version": 1,
+  "app_id": "satellite-center",
+  "history_status": "linked_original_records_not_native_migrated",
+  "source_registry": "apps/REPOSITORY_IDENTITY.json",
+  "source_pr_archive_index": "apps/_archives/pr-index.json",
+  "source_pr_bodies": "apps/_archives/pr-body-*.json",
+  "original_pr_url_note": "Original HTML URLs and numeric PR refs remain immutable historical evidence, even if the source repository is renamed later.",
+  "source_pr_candidates": [
+    {
+      "original_pr_number": 66,
+      "original_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/66",
+      "archived_description": "apps/_archives/pr-body-01.json",
+      "classification_status": "heuristic_review_required",
+      "future_target_repo": null,
+      "future_target_pr_url": null
+    },
+    {
+      "original_pr_number": 37,
+      "original_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/37",
+      "archived_description": "apps/_archives/pr-body-03.json",
+      "classification_status": "heuristic_review_required",
+      "future_target_repo": null,
+      "future_target_pr_url": null
+    },
+    {
+      "original_pr_number": 33,
+      "original_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/33",
+      "archived_description": "apps/_archives/pr-body-03.json",
+      "classification_status": "heuristic_review_required",
+      "future_target_repo": null,
+      "future_target_pr_url": null
+    },
+    {
+      "original_pr_number": 32,
+      "original_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/32",
+      "archived_description": "apps/_archives/pr-body-03.json",
+      "classification_status": "heuristic_review_required",
+      "future_target_repo": null,
+      "future_target_pr_url": null
+    },
+    {
+      "original_pr_number": 31,
+      "original_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/31",
+      "archived_description": "apps/_archives/pr-body-03.json",
+      "classification_status": "heuristic_review_required",
+      "future_target_repo": null,
+      "future_target_pr_url": null
+    },
+    {
+      "original_pr_number": 30,
+      "original_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/30",
+      "archived_description": "apps/_archives/pr-body-04.json",
+      "classification_status": "heuristic_review_required",
+      "future_target_repo": null,
+      "future_target_pr_url": null
+    },
+    {
+      "original_pr_number": 29,
+      "original_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/29",
+      "archived_description": "apps/_archives/pr-body-04.json",
+      "classification_status": "heuristic_review_required",
+      "future_target_repo": null,
+      "future_target_pr_url": null
+    },
+    {
+      "original_pr_number": 28,
+      "original_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/28",
+      "archived_description": "apps/_archives/pr-body-04.json",
+      "classification_status": "heuristic_review_required",
+      "future_target_repo": null,
+      "future_target_pr_url": null
+    },
+    {
+      "original_pr_number": 27,
+      "original_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/27",
+      "archived_description": "apps/_archives/pr-body-04.json",
+      "classification_status": "heuristic_review_required",
+      "future_target_repo": null,
+      "future_target_pr_url": null
+    },
+    {
+      "original_pr_number": 26,
+      "original_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/26",
+      "archived_description": "apps/_archives/pr-body-04.json",
+      "classification_status": "heuristic_review_required",
+      "future_target_repo": null,
+      "future_target_pr_url": null
+    },
+    {
+      "original_pr_number": 19,
+      "original_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/19",
+      "archived_description": "apps/_archives/pr-body-04.json",
+      "classification_status": "heuristic_review_required",
+      "future_target_repo": null,
+      "future_target_pr_url": null
+    },
+    {
+      "original_pr_number": 18,
+      "original_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/18",
+      "archived_description": "apps/_archives/pr-body-04.json",
+      "classification_status": "heuristic_review_required",
+      "future_target_repo": null,
+      "future_target_pr_url": null
+    },
+    {
+      "original_pr_number": 17,
+      "original_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/17",
+      "archived_description": "apps/_archives/pr-body-04.json",
+      "classification_status": "heuristic_review_required",
+      "future_target_repo": null,
+      "future_target_pr_url": null
+    },
+    {
+      "original_pr_number": 9,
+      "original_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/9",
+      "archived_description": "apps/_archives/pr-body-05.json",
+      "classification_status": "heuristic_review_required",
+      "future_target_repo": null,
+      "future_target_pr_url": null
+    }
+  ],
+  "source_issue_candidates": [
+    {
+      "original_issue_number": 34,
+      "original_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/34",
+      "future_target_issue_url": null
+    },
+    {
+      "original_issue_number": 21,
+      "original_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/21",
+      "future_target_issue_url": null
+    },
+    {
+      "original_issue_number": 20,
+      "original_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/20",
+      "future_target_issue_url": null
+    }
+  ],
+  "other_issues_require_classification": true,
+  "pr_comments_review_timeline_complete": false,
+  "chat_requests_export_complete": false,
+  "cross_references_to_future_new_repo": null,
+  "future_link_map": "apps/_archives/PORTABLE_HISTORY_LINK_MAP.json",
+  "future_repo_rename_supported_by": "repository id / node id plus never-rewritten original URLs and checked name aliases",
+  "original_branch_refs_to_audit": [
+    "fix/satellite-native-scheduler-modes-2026-11-08",
+    "feature/satellite-segmented-captures-2026-11-07"
+  ],
+  "review_and_request_integrity": "No invented comments/reviews/approval or synthesized prompts"
+}

@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "app_id": "media-center",
+  "origin_repository_id": 1447637221,
+  "origin_repository_original_name": "Tihulu/TIHULU-TEXT-CENTER",
+  "current_canonical_repository": "Tihulu/TIHULU-TEXT-CENTER",
+  "future_destination_proposal": "Tihulu/tihulu-media-center",
+  "snapshot_state": "read_only_exact_tree_copy",
+  "snapshot_based_on_commit": "9b4ffce98a723c0e60ec5a11978895e56f97a161",
+  "copied_source_roots": [
+    {
+      "active_root": "kaffeine_next/",
+      "snapshot_path": "apps/media-center/source/kaffeine_next/",
+      "git_tree_sha": "4be76ef898a4adcc779c96052341fffdef0658a3",
+      "role": "application_source"
+    },
+    {
+      "active_root": "tv_center/",
+      "snapshot_path": "apps/media-center/source/tv_center/",
+      "git_tree_sha": "73aa1e74465f48d33103424b4a1072d93c57d1cc",
+      "role": "application_source_and_shared_workers"
+    },
+    {
+      "active_root": "textcenter/",
+      "snapshot_path": "apps/media-center/source/textcenter/",
+      "git_tree_sha": "dfc5fefbedba31f133f5a9ee34667961f3c3ef14",
+      "role": "copied_shared_code_dependency"
+    }
+  ],
+  "not_currently_executed": true,
+  "does_not_mutate_runtime_paths": true,
+  "dependency_closure_status": "unverified",
+  "missing_audit_items": [
+    "Pinned upstream KDE Kaffeine 2.0.19 full source is external; GPL notices/upstream SHA and patch generation must be preserved",
+    "Native Qt/KF5/libVLC/welle.io/rtl_sdr and translation model packages are external OS/installer dependencies",
+    "Shared textcenter module imports and CLI launchers must resolve inside isolated repo",
+    "Root .github/workflows, tests, scripts and install URLs must be adapted without changing old install behavior",
+    "PR #67 features and other unmerged branches must be reconciled before source cutover"
+  ],
+  "copy_role": "frozen_evidence_snapshot_now; editable canonical code in target repo only after approved migration",
+  "history_links": "apps/media-center/HISTORY_LINKS.json",
+  "feature_contract": "apps/media-center/FEATURE_MATRIX.json",
+  "component_contract": "apps/media-center/COMPONENT_MATRIX.json",
+  "application_model_contract": "apps/media-center/MODEL_MATRIX.json",
+  "coding_llm_contract": "apps/DEVELOPMENT_AGENT_MATRIX.json",
+  "localization_contract": "apps/media-center/LOCALIZATION_CONTRACT.json",
+  "source_repository_rename_contract": "apps/REPOSITORY_RENAME_LINK_POLICY.md",
+  "standalone_release_test_status": "not_started",
+  "new_repository_created": false,
+  "main_branch_changed": false
+}

@@ -44,3 +44,7 @@ The six-chat plan is in `apps/PARALLEL_CHAT_WORKSTREAMS.md`, with distinct file
 ownership, source evidence and Draft PR handoffs. Conversations are separate; do
 not assume GitHub branches or chat history sync automatically. **No app is moved
 merely by publishing these manifests.**
+
+## Mandatory additions for all application migrations
+
+Do not treat a source tree snapshot as a completed standalone app. Include dependency closure and external upstream license/commit details, root CI/tests and release/installer adapters, translated user interface resources for en/tr/de, and original app media/settings. Every new repository carries its own editable copy of required shared TIHULU code or a verified version-pinned independently available dependency (offline requirement must be tested). Source repo's old name is an alias, never the sole identity: pin original numeric repo ID and node ID, old source PR URL and original commit SHA; add verified current-alias/new-destination/reciprocal PR URLs in link maps. See `apps/SELF_CONTAINED_APP_PORTABILITY.md`, `apps/REPOSITORY_RENAME_LINK_POLICY.md`, `apps/TRILINGUAL_UI_POLICY.md` and `apps/_archives/PORTABLE_HISTORY_LINK_MAP.json`. Migration only after owner approval and parity gates; no forced feature changes.

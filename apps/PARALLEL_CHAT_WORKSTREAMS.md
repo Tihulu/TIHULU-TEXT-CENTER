@@ -18,3 +18,7 @@ Task prompts are under `apps/_prompts/`; paste `00-common.md` plus one mission p
 ## Updated entrypoint for each coding agent
 
 Read root DEVELOPMENT_AGENT_GUIDE.md, apps/DEVELOPMENT_AGENT_MATRIX.json, and this workstream's app FEATURE_MATRIX.json, COMPONENT_MATRIX.json and MODEL_MATRIX.json. Coding LLM onboarding is **documentation only**. Runtime AI engines in MODEL_MATRIX are a separate inventory. Claude Code can start via CLAUDE.md. DeepSeek may start with DEEPSEEK_START.md pasted into a supported editor/chat; never assume automatic discovery. Each of the six independent chats uses its own file ownership and Draft PR. No new model installation or repository move is part of this work.
+
+## Extended scope for every audit worker
+
+All six assignments now inspect read-only per-app source snapshots, local dependency closure, the future monorepo rename alias/identity ledger and each app's old-to-new history links. Every future independent repo must include the same feature/component/LLM model/coding-agent matrices, own source and dependencies, plus EN/TR/DE **UI** localization contracts; engineering remains English. The snapshot paths under `apps/<app>/source/` are evidence only. Workers must **not edit copies or actual app source** in these documentation audits. If an app code root or external dependency is missing, report it rather than changing live code. Coordination owns shared global documents and PR link maps; never have two chats edit them concurrently.
