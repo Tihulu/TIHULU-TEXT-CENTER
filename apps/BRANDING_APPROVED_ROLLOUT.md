@@ -21,3 +21,7 @@ Common identity: central original TIHULU mascot, red/black/white theme, circular
 
 ## Non-negotiable
 No current application icon, executable, installer, generated recording, default or application runtime is changed in this plan. Flight Radar's icon integration takes place in its **already-canonical separate repo**, never through a parallel editable mirror.
+
+## User reconfirmation: only these five red TIHULU mascot designs
+
+The user explicitly confirmed that the previously generated **red/white/black TIHULU emblem family** is the approved set. Do NOT use search-result graphics or substitute a newly created alternate logo. Verified approved ZIP SHA256: `49eeccd46ab8b6e630b5567b4e08c0580f22430696de8e215b80d21a52043f84`. All five 1254px PNG master hashes match `apps/BRANDING_APPROVED_MANIFEST.json`. Destination repo shell mapping: `tihulu-media-center`, `tihulu-satellite-center`, `tihulu-rf-geolocation-center` (empty), plus currently embedded Text Center and already independent Flight Radar. Logo binary imports and live app icon replacements are **not part of this documentation change**.
