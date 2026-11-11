@@ -159,8 +159,8 @@ def export_tracks(tracks: dict[str, list[Cue]], directory: str | Path,
     if not folder.is_dir():
         raise ValueError("Select an existing export directory")
     kinds = tuple(dict.fromkeys(formats))
-    if not kinds or any(k not in FORMATS for k in kinds):
-        raise ValueError("Select one or more supported export formats")
+    if any(k not in FORMATS for k in kinds):
+        raise ValueError("Unsupported export format")
     clean = _safe_name(name)
     jobs = []
     for track, cues in tracks.items():
@@ -216,12 +216,10 @@ def mux_tracks(media: str | Path, tracks: dict[str, Path], destination: str | Pa
     for i, track in enumerate(tracks):
         language = track.split("-", 1)[-1] if track.startswith("translation-") else "und"
         args += [f"-metadata:s:s:{i}", f"language={language}"]
-    try:
-        _run_ffmpeg([*args, str(output)])
-    except BaseException:
-        # A failed FFmpeg run can leave a newly created incomplete output.
-        output.unlink(missing_ok=True)
-        raise
+    # FFmpeg's -n prevents overwriting even if another process races us.
+    # Never delete output on failure: a different user/process might have
+    # created the path after the preflight existence check.
+    _run_ffmpeg([*args, str(output)])
     return output
 
 
@@ -245,14 +243,10 @@ def burn_video(media: str | Path, subtitles: str | Path, destination: str | Path
     # POSIX paths. Literal filter-special characters must be escaped.
     escaped = str(srt).replace("\\", "\\\\").replace(":", "\\:").replace(
         "'", "\\'").replace(",", "\\,").replace("[", "\\[").replace("]", "\\]")
-    try:
-        _run_ffmpeg(["-i", str(source), "-vf", "subtitles='" + escaped + "'",
-                     "-map", "0:v:0", "-map", "0:a?", "-c:v", "libx264",
-                     "-crf", "20", "-preset", "medium", "-c:a", "aac",
-                     "-movflags", "+faststart", str(output)])
-    except BaseException:
-        output.unlink(missing_ok=True)
-        raise
+    _run_ffmpeg(["-i", str(source), "-vf", "subtitles='" + escaped + "'",
+                 "-map", "0:v:0", "-map", "0:a?", "-c:v", "libx264",
+                 "-crf", "20", "-preset", "medium", "-c:a", "aac",
+                 "-movflags", "+faststart", str(output)])
     return output
 
 
@@ -279,7 +273,12 @@ def run_export(*, sources: dict[str, str], destination: str, name: str,
                                   folder / (stem + "-subtitled.mkv")))
     if burn:
         if burn_track not in sources:
-            raise ValueError("Burn-in track is not present")
+            # A single existing SRT is often labeled combined in the file
+            # player; explicit multi-track selections must still be honored.
+            if len(sources) == 1 and "combined" in sources:
+                burn_track = "combined"
+            else:
+                raise ValueError("Burn-in track is not present")
         outputs.append(burn_video(media, sources[burn_track],
                                   folder / (stem + "-burned.mp4")))
     return outputs
