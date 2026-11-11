@@ -15,7 +15,10 @@
     "source_code_semantically_verified": 0,
     "per_requirement_test_executions": 0,
     "real_hardware_verifications": 0,
-    "has_candidate_traceability_map": true
+    "has_candidate_traceability_map": true,
+    "individual_test_source_files_read": 16,
+    "candidate_source_files_linked": 198,
+    "candidate_test_files_linked": 127
   },
   "repositories": {
     "total_canonical_apps": 5,
@@ -133,7 +136,19 @@
     ],
     "engineering_language": "en",
     "all_5_ui_locale_coverage_verified": false,
-    "new_ci_checks_current_head_status": "queued_not_yet_result_verified"
+    "new_ci_checks_current_head_status": "queued_not_yet_result_verified",
+    "last_verified_ci_for_prior_head": {
+      "sha": "b35f3f2f1cc5f35cb46bad90840ac814ab226b69",
+      "actions_runs": [
+        43109757155,
+        43109747155
+      ],
+      "results": [
+        "success",
+        "success"
+      ],
+      "meaning": "GitHub Actions (software CI) only, NOT installed hardware test"
+    }
   },
   "followup_rule": "After each real GitHub CI or issue milestone, update counts and explain what was measured; no unscheduled background work is implied.",
   "documentation": {
@@ -150,6 +165,7 @@
     "flight_static_baseline_report_created": true,
     "media_ancestry_report_created": true,
     "application_capability_discrepancies_logged": true,
-    "unmerged_export_provenance_verified": true
+    "unmerged_export_provenance_verified": true,
+    "test_evidence_quality_report_created": true
   }
 }

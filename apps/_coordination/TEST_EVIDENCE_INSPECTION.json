@@ -1,0 +1,240 @@
+{
+  "schema_version": 1,
+  "observation_date": "2026-11-11",
+  "inspected_files": 16,
+  "inspected_test_source_only": true,
+  "executed_in_this_inspection": 0,
+  "real_rf_device_tested": 0,
+  "counts_by_type": {
+    "static_source_contract": 6,
+    "behavioral_unit_with_mock_text": 1,
+    "behavioral_unit_with_fixtures": 4,
+    "behavioral_unit_with_mock_browser": 1,
+    "behavioral_unit_synthetic_measurements": 2,
+    "behavioral_unit_mocked_network": 1,
+    "static_and_noninstall_shell_smoke": 1
+  },
+  "records": [
+    {
+      "repository": "Tihulu/TIHULU-TEXT-CENTER",
+      "path": "tests/test_radio_karaoke_independent_lipsync.py",
+      "inspection": "source_text_read_for_test_cases",
+      "kind": "static_source_contract",
+      "related_requirement_ids": [
+        "MEDIA-028",
+        "MEDIA-029",
+        "MEDIA-032"
+      ],
+      "evidence_limit": "Karaoke policy strings, found-sync and cue reset checked in source; not actual live karaoke sync.",
+      "executed_during_this_source_review": false,
+      "verified_on_physical_rf_hardware": false,
+      "reference_sha": "803529ba90f43a6cb1fb977869c650ddf5db448a"
+    },
+    {
+      "repository": "Tihulu/TIHULU-TEXT-CENTER",
+      "path": "tests/test_tv_teletext_speech_recovery.py",
+      "inspection": "source_text_read_for_test_cases",
+      "kind": "behavioral_unit_with_mock_text",
+      "related_requirement_ids": [
+        "MEDIA-007",
+        "MEDIA-021"
+      ],
+      "evidence_limit": "Teletext audit compares same-language text, unknown language and three conflicts; not live tuner.",
+      "executed_during_this_source_review": false,
+      "verified_on_physical_rf_hardware": false,
+      "reference_sha": "803529ba90f43a6cb1fb977869c650ddf5db448a"
+    },
+    {
+      "repository": "Tihulu/TIHULU-TEXT-CENTER",
+      "path": "tests/test_native_file_prepass_fullscreen.py",
+      "inspection": "source_text_read_for_test_cases",
+      "kind": "static_source_contract",
+      "related_requirement_ids": [
+        "MEDIA-005",
+        "MEDIA-037"
+      ],
+      "evidence_limit": "Source snippets assert fullscreen control visibility and opt-in local file prepass; no graphical display launched.",
+      "executed_during_this_source_review": false,
+      "verified_on_physical_rf_hardware": false,
+      "reference_sha": "803529ba90f43a6cb1fb977869c650ddf5db448a"
+    },
+    {
+      "repository": "Tihulu/TIHULU-TEXT-CENTER",
+      "path": "tests/test_tv_radio_receiver_release_lifecycle.py",
+      "inspection": "source_text_read_for_test_cases",
+      "kind": "static_source_contract",
+      "related_requirement_ids": [
+        "MEDIA-004",
+        "MEDIA-016",
+        "MEDIA-040"
+      ],
+      "evidence_limit": "Inspects C++ stop/lease flow strings and defaults, does not open/release a real dongle.",
+      "executed_during_this_source_review": false,
+      "verified_on_physical_rf_hardware": false,
+      "reference_sha": "803529ba90f43a6cb1fb977869c650ddf5db448a"
+    },
+    {
+      "repository": "Tihulu/TIHULU-TEXT-CENTER",
+      "path": "tests/test_tv_sound_labels_teletext_auto.py",
+      "inspection": "source_text_read_for_test_cases",
+      "kind": "behavioral_unit_with_fixtures",
+      "related_requirement_ids": [
+        "MEDIA-019",
+        "MEDIA-021"
+      ],
+      "evidence_limit": "Sound labels and translated speech retained with fixture data; no live radio ASR tested.",
+      "executed_during_this_source_review": false,
+      "verified_on_physical_rf_hardware": false,
+      "reference_sha": "803529ba90f43a6cb1fb977869c650ddf5db448a"
+    },
+    {
+      "repository": "Tihulu/TIHULU-TEXT-CENTER",
+      "path": "tests/test_tv_unified_recorder.py",
+      "inspection": "source_text_read_for_test_cases",
+      "kind": "static_source_contract",
+      "related_requirement_ids": [
+        "MEDIA-039"
+      ],
+      "evidence_limit": "Checks native record toolbar and existing rec path, not actual DVB recorded file playback.",
+      "executed_during_this_source_review": false,
+      "verified_on_physical_rf_hardware": false,
+      "reference_sha": "803529ba90f43a6cb1fb977869c650ddf5db448a"
+    },
+    {
+      "repository": "Tihulu/TIHULU-TEXT-CENTER",
+      "path": "tests/test_tv_radio_karaoke_tv_readability.py",
+      "inspection": "source_text_read_for_test_cases",
+      "kind": "static_source_contract",
+      "related_requirement_ids": [
+        "MEDIA-028",
+        "MEDIA-033"
+      ],
+      "evidence_limit": "Asserts karaoke UI strings/renderer structure; not visually examined native fullscreen.",
+      "executed_during_this_source_review": false,
+      "verified_on_physical_rf_hardware": false,
+      "reference_sha": "803529ba90f43a6cb1fb977869c650ddf5db448a"
+    },
+    {
+      "repository": "Tihulu/TIHULU-TEXT-CENTER",
+      "path": "satellite_center/browser/usb_diagnostics.test.mjs",
+      "inspection": "source_text_read_for_test_cases",
+      "kind": "behavioral_unit_with_mock_browser",
+      "related_requirement_ids": [
+        "SAT-007"
+      ],
+      "evidence_limit": "Browser/OS advice and grants measured with stubs, no physical RTL-SDR.",
+      "executed_during_this_source_review": false,
+      "verified_on_physical_rf_hardware": false,
+      "reference_sha": "803529ba90f43a6cb1fb977869c650ddf5db448a"
+    },
+    {
+      "repository": "Tihulu/TIHULU-TEXT-CENTER",
+      "path": "rf_geolocation_center/tests/rf_ranging.test.mjs",
+      "inspection": "source_text_read_for_test_cases",
+      "kind": "behavioral_unit_synthetic_measurements",
+      "related_requirement_ids": [
+        "GEO-003",
+        "GEO-008"
+      ],
+      "evidence_limit": "Calibrated-range formulas and three hypothetical distances checked; explicitly UNVALIDATED, no radio fix.",
+      "executed_during_this_source_review": false,
+      "verified_on_physical_rf_hardware": false,
+      "reference_sha": "803529ba90f43a6cb1fb977869c650ddf5db448a"
+    },
+    {
+      "repository": "Tihulu/TIHULU-TEXT-CENTER",
+      "path": "rf_geolocation_center/tests/provenance.test.mjs",
+      "inspection": "source_text_read_for_test_cases",
+      "kind": "static_source_contract",
+      "related_requirement_ids": [
+        "GEO-002"
+      ],
+      "evidence_limit": "Refuses untrusted imported aircraft to set real position via static code inspection.",
+      "executed_during_this_source_review": false,
+      "verified_on_physical_rf_hardware": false,
+      "reference_sha": "803529ba90f43a6cb1fb977869c650ddf5db448a"
+    },
+    {
+      "repository": "Tihulu/TIHULU-TEXT-CENTER",
+      "path": "tests/test_dab_bridge.py",
+      "inspection": "source_text_read_for_test_cases",
+      "kind": "behavioral_unit_with_fixtures",
+      "related_requirement_ids": [
+        "TEXT-002",
+        "MEDIA-011"
+      ],
+      "evidence_limit": "DLS and MOT metadata from a fake local welle bridge; not live DAB capture.",
+      "executed_during_this_source_review": false,
+      "verified_on_physical_rf_hardware": false,
+      "reference_sha": "803529ba90f43a6cb1fb977869c650ddf5db448a"
+    },
+    {
+      "repository": "Tihulu/TIHULU-TEXT-CENTER",
+      "path": "tests/test_fm_rds.py",
+      "inspection": "source_text_read_for_test_cases",
+      "kind": "behavioral_unit_with_fixtures",
+      "related_requirement_ids": [
+        "TEXT-002",
+        "MEDIA-013"
+      ],
+      "evidence_limit": "RDS/RadioText parser works on fixture JSON; not live FM signal.",
+      "executed_during_this_source_review": false,
+      "verified_on_physical_rf_hardware": false,
+      "reference_sha": "803529ba90f43a6cb1fb977869c650ddf5db448a"
+    },
+    {
+      "repository": "Tihulu/tihulu-flight-radar",
+      "path": "tests/rf_timing_lab.test.cjs",
+      "inspection": "source_text_read_for_test_cases",
+      "kind": "behavioral_unit_synthetic_measurements",
+      "related_requirement_ids": [
+        "FLIGHT-011"
+      ],
+      "evidence_limit": "Actual-format sample index assertions reject internet data but have no calibrated real timestamps.",
+      "executed_during_this_source_review": false,
+      "verified_on_physical_rf_hardware": false,
+      "reference_sha": "059b391280635d9aa4d2ac73c7318af9e135ebf5"
+    },
+    {
+      "repository": "Tihulu/tihulu-flight-radar",
+      "path": "tests/test_tar_focus_sdr_exit.py",
+      "inspection": "source_text_read_for_test_cases",
+      "kind": "behavioral_unit_with_fixtures",
+      "related_requirement_ids": [
+        "FLIGHT-004",
+        "FLIGHT-014"
+      ],
+      "evidence_limit": "Aircraft map focus/legacy selections using fake JSON positions, not native RF.",
+      "executed_during_this_source_review": false,
+      "verified_on_physical_rf_hardware": false,
+      "reference_sha": "059b391280635d9aa4d2ac73c7318af9e135ebf5"
+    },
+    {
+      "repository": "Tihulu/tihulu-flight-radar",
+      "path": "tests/test_multi_sources.py",
+      "inspection": "source_text_read_for_test_cases",
+      "kind": "behavioral_unit_mocked_network",
+      "related_requirement_ids": [
+        "FLIGHT-001",
+        "FLIGHT-002"
+      ],
+      "evidence_limit": "Internet provider units/dedup verified with fake network responses; no provider live availability claim.",
+      "executed_during_this_source_review": false,
+      "verified_on_physical_rf_hardware": false,
+      "reference_sha": "059b391280635d9aa4d2ac73c7318af9e135ebf5"
+    },
+    {
+      "repository": "Tihulu/tihulu-flight-radar",
+      "path": "tests/test_version_switch.py",
+      "inspection": "source_text_read_for_test_cases",
+      "kind": "static_and_noninstall_shell_smoke",
+      "related_requirement_ids": [
+        "FLIGHT-013"
+      ],
+      "evidence_limit": "Version switch scripts and bash --help/no installation; not full rollback or user-data proof.",
+      "executed_during_this_source_review": false,
+      "verified_on_physical_rf_hardware": false,
+      "reference_sha": "059b391280635d9aa4d2ac73c7318af9e135ebf5"
+    }
+  ]
+}
