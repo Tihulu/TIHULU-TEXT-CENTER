@@ -92,8 +92,8 @@ class CommonRecordingExportTests(unittest.TestCase):
                 mux_tracks(media, {"original": srt}, dest)
 
     def test_original_and_translation_tracks_do_not_swallow_sound_labels(self):
-        cues = [Cue(1, 3, "[Music] spoken words\\n[TR] Merhaba\\n[DE] Hallo"),
-                Cue(4, 7, "[Speaker 1] Welcome\\n[TR] Hoş geldiniz")]
+        cues = [Cue(1, 3, "[Music] spoken words\n[TR] Merhaba\n[DE] Hallo"),
+                Cue(4, 7, "[Speaker 1] Welcome\n[TR] Hoş geldiniz")]
         tracks = split_caption_translations(cues)
         self.assertEqual(set(tracks), {"original", "translation-tr", "translation-de"})
         self.assertIn("[Music]", tracks["original"][0].text)
@@ -105,8 +105,8 @@ class CommonRecordingExportTests(unittest.TestCase):
     def test_media_only_mux_can_use_separate_timed_language_tracks(self):
         with tempfile.TemporaryDirectory() as root:
             file = Path(root) / "record.srt"
-            file.write_text("1\\n00:00:01,000 --> 00:00:03,000\\n"
-                            "Good morning\\n[TR] Günaydın\\n\\n")
+            file.write_text("1\n00:00:01,000 --> 00:00:03,000\n"
+                            "Good morning\n[TR] Günaydın\n\n")
             media = Path(root) / "record.mkv"
             media.write_bytes(b"immutable input")
             captured = {}
