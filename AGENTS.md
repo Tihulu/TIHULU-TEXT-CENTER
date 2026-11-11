@@ -33,3 +33,12 @@ Every Flight Radar browser update must appear at **both**:
 Read `docs/FLIGHT_RADAR_DUAL_PAGES.md` and the canonical Flight Radar repository's `AGENTS.md` before working on Flight Radar or its application links. The managed sync workflow `.github/workflows/sync-flight-radar-pages.yml` follows canonical branch `feature/github-pages-local-bridge-2026-11-06` until PR #6 merges. It polls every 15 minutes and supports manual dispatch; no second source of browser JavaScript is permitted. The website's `source-revision.json` must match the standalone publication's `source_sha`.
 
 Future coding agents: never consider a Flight Radar change delivered if only the TEXT CENTER site or only the standalone site is updated. Preserve other TEXT CENTER Pages, especially Satellite, RF Geolocation and Radio Center, and do not merge unrelated project code. Note if the standalone repo has not yet enabled GitHub Pages under Settings → Pages → Source: GitHub Actions; a passing build does not guarantee a live site.
+
+
+## Portable multi-app development handoff (future repositories)
+
+Before changing Media Center, Satellite Center, RF Geolocation, Text Center, or the Flight Radar mirror, read `apps/registry.json` and the relevant `apps/<app-id>/AGENTS.md`. The `apps/` directories contain **metadata only**; do NOT infer that sources moved or change existing code/import/install paths.
+
+If the app status is `embedded`, canonical code remains in the explicitly listed source roots of this repository. If and ONLY if the app was explicitly migrated and the registry records `external_canonical` with an actual target URL and verified cutover, never develop that app here; open the target repo and follow its root AGENTS.md, archive map and decision history. Flight Radar is already externally canonical; TEXT CENTER is only its built mirror.
+
+Before any migration, archive and audit original issue/PR descriptions, comments, code review decisions, authors/timestamps, SHA ancestry, source-backed model matrices and owner requirements. A recreated PR does not inherit GitHub approvals or original numbers. See `apps/MIGRATION_PROTOCOL.md`. Do not manufacture historical comments, model capability or source verification. No application move or cross-repo retargeting is authorized by these files alone.
