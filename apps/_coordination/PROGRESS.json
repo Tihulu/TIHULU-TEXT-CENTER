@@ -43,7 +43,13 @@
       "media_overlap_paths": 3,
       "flight_open_pr_overlap_paths": 0,
       "semantic_merge_conflicts_cleared": false,
-      "history_comments_and_review_audit_completed": false
+      "history_comments_and_review_audit_completed": false,
+      "ancestry_checked": true,
+      "graph": "#65 -> #66 -> #67; #82 diverges from #67 at #66",
+      "media_file_path_overlap_not_a_proven_merge_conflict": true,
+      "verified_code_branch_risk": "migration_from_docs_branch_without_media_67_would_lose_recording_export_branch_changes",
+      "branch_graph_comparisons": 7,
+      "proven_feature_code_implemented_in_latest_candidate": "not_tested"
     }
   },
   "approved_designs": {

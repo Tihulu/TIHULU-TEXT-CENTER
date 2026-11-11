@@ -50,11 +50,11 @@
         "kaffeine_next/native_media_panel.h",
         "kaffeine_next/native_radio_tab.h"
       ],
-      "status": "requires_manual_reconciliation_before_any_merge_or_source_import",
+      "status": "three_common_modified_paths_but_verified_linear_history_65_to_66_to_67_not_two_unrelated_feature_deltas",
       "owners": [
         "Media Center worker"
       ],
-      "note": "Changed-file overlap alone does not establish textual merge conflict. Caption and player behavior must be regression-tested against original baseline."
+      "note": "GitHub compare proves PR #66 descends from #65 by 3 commits and #67 descends from #66 by 20 commits. The main missing-change hazard is future migration from docs branch (#82) without #67 source, not a proven current textual merge conflict."
     },
     {
       "a": "flight_pr#7",
@@ -74,5 +74,7 @@
     "Protect legacy 0.3.1 and current default release, recorded subtitles/lyrics timing and external readsb/tar1090 ownership",
     "Reconcile remaining application feature PRs/branches before any code transfer"
   ],
-  "method": "Compared changed file path lists from GitHub PR changed filenames; NOT checked git merge-tree, not run software, not checked hardware."
+  "method": "Compared changed file path lists from GitHub PR changed filenames; NOT checked git merge-tree, not run software, not checked hardware.",
+  "ancestry_recheck_status": "corrected_lineage_verified",
+  "followup_ancestry_report": "apps/_coordination/PR_ANCESTRY_AUDIT.json"
 }
