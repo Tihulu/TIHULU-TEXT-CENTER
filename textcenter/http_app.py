@@ -542,6 +542,16 @@ class Handler(BaseHTTPRequestHandler):
             payload = json.loads(self.rfile.read(length))
             if not isinstance(payload, dict):
                 raise ValueError("Expected JSON object")
+            # A long request may have passed admission while RUNNING but
+            # blocked reading its body until after Quit began. Do not start
+            # translation, DAB or feed I/O once STOPPING is observable.
+            if route in ("/api/translation/text", "/api/transcripts/translate",
+                         "/api/feeds/refresh", "/api/dab/refresh"):
+                with self.server._lifecycle_lock:
+                    if self.server.lifecycle != "RUNNING":
+                        return self._json(503, {
+                            "error": "Text Center is stopping; no new tasks accepted"
+                        })
             if route == "/api/quit":
                 return self._json(202, self.server.request_quit())
             if route == "/api/scans/start":
