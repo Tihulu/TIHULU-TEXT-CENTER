@@ -40,7 +40,7 @@ chmod 755 "$TMP/usr/bin/tihulu-media-cli"
 # With the Kaffeine core active, publish only its native TV launcher.
 # No second TV player appears in the desktop app list.
 if [[ "${TIHULU_KAFFEINE_PRIMARY:-0}" == "1" ]]; then
-  cat > "$TMP/usr/share/applications/tihulu-media-center.desktop" <<'DESKTOP'
+  cat > "$TMP/usr/share/applications/tihulu-media-center-ai.desktop" <<'DESKTOP'
 [Desktop Entry]
 Type=Application
 Name=TIHULU AI Companion (Kaffeine)
@@ -52,7 +52,7 @@ Terminal=false
 Categories=AudioVideo;Video;TV;
 DESKTOP
 else
-  cat > "$TMP/usr/share/applications/tihulu-media-center.desktop" <<'DESKTOP'
+  cat > "$TMP/usr/share/applications/tihulu-media-center-ai.desktop" <<'DESKTOP'
 [Desktop Entry]
 Type=Application
 Name=TIHULU TV Center (legacy preview)
