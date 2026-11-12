@@ -10,7 +10,7 @@ cp -a "$ROOT/tv_center" "$ROOT/kaffeine_next" "$TMP/usr/share/tihulu-media-cente
 find "$TMP/usr/share/tihulu-media-center" -type d -name __pycache__ -prune -exec rm -rf '{}' +
 cat > "$TMP/DEBIAN/control" <<'CONTROL'
 Package: tihulu-media-center-ai
-Version: 0.1.0~dev1
+Version: 0.1.0~dev2
 Section: video
 Priority: optional
 Architecture: all
