@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "as_of_utc": "2026-11-12",
-  "stage": "phase5_flight_fix_ci_green_text_media_test_prs_expanded_all_17_acceptance_gates_open",
+  "stage": "phase5_additional_owner_P0_full_exit_RAM_VRAM_model_release_recorded_original_17_gates_still_open",
   "requirements": {
     "registered": 97,
     "code_source_audited": 97,
@@ -277,7 +277,7 @@
     "hours": null,
     "minutes": null,
     "confidence": "insufficient_evidence",
-    "reason": "Phase4 6/6 source audits complete. Stage5 Flight Draft #15 84-test Ubuntu + cross-platform CI success without host acceptance. Text standalone PR89 5 additive cleanroom tests; Media PR90 9 additive guardrail tests including one expected failure; CI all Python matrix jobs passed. All 17 original release/feature/hardware/history gates OPEN, 0 migrations, no measured release effort or reliable ETA.",
+    "reason": "Additional cross-application owner P0 RQ-098 / EXIT-01 now logged, no source fixes or acceptance performed for it; original 97 source-audited and 17 existing gates untouched. Flight PR15 software CI green, Text/Media test-only expansions green, no hardware acceptance, installer certification, release or migration; remaining ETA unknown.",
     "format_on_update": "HH hours MM minutes once computed; otherwise say unknown rather than make up a countdown",
     "estimation_criteria": [
       "audited outstanding task list",
@@ -829,5 +829,58 @@
       "Satellite PR37 rate and gap synthetic acceptance on independent test branch; no Pages publish",
       "Flight PR15 real hardware/service ownership acceptance remains separate"
     ]
+  },
+  "owner_added_requirements": [
+    {
+      "id": "RQ-098",
+      "title": "Full app Quit must unload all app-owned AI models and release owned RAM/VRAM/NPU/device/process/background resources",
+      "priority": "P0",
+      "document": "apps/_coordination/OWNER_REQUIREMENT_FULL_SHUTDOWN_MEMORY_VRAM_RELEASE.md",
+      "proposed_acceptance_gate": "EXIT-01",
+      "state": "NEW_REQUIREMENT_DOCUMENTED_NOT_IMPLEMENTED_OR_VERIFIED",
+      "scope": [
+        "Survival Kit",
+        "Flight Radar",
+        "Media Center",
+        "Text Center",
+        "Satellite Center",
+        "RF Geolocation",
+        "AI Tools / Model Manager"
+      ],
+      "targets": [
+        "Linux x64/ARM64",
+        "Windows x64",
+        "macOS Apple Silicon",
+        "Raspberry Pi 5 + AI HAT+ 2",
+        "web/PWA best effort"
+      ],
+      "must_not_stop": [
+        "externally owned readsb/tar1090",
+        "unrelated apps or shared model workers",
+        "remote GPU host",
+        "shared system GPU driver",
+        "external model-manager app"
+      ],
+      "acceptance_cases_proposed": 15,
+      "synthetic_tests_executed": 0,
+      "real_memory_release_verified": 0,
+      "related_existing_gates": [
+        "REG-03",
+        "REG-14",
+        "REG-16",
+        "REG-17"
+      ]
+    }
+  ],
+  "owner_requested_requirement_extension": {
+    "original_source_audited_count": 97,
+    "original_registry_count": 97,
+    "new_owner_requirements_pending_mapping": 1,
+    "total_requirements_known_including_extension": 98,
+    "original_regression_gates_open": 17,
+    "additional_proposed_p0_gate": "EXIT-01",
+    "additional_proposed_gate_open": true,
+    "all_new_requirement_acceptance_verified": false,
+    "note": "Do not modify original 97/97 source-audited or original 17-gate counts before formal registry/CI contract reconciliation; new owner requirement independently P0 and unaccepted."
   }
 }
