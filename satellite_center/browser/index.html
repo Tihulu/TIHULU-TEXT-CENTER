@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="color-scheme" content="dark"><meta name="referrer" content="strict-origin-when-cross-origin">
-<title>TIHULU Satellite Center | Web, PWA &amp; Desktop</title>
+<title>TIHULU Satellite Center | WebUSB Edition</title>
 <link rel="icon" type="image/svg+xml" href="./icon.svg">
 <link rel="icon" type="image/png" sizes="192x192" href="./icon-192.png">
 <link rel="apple-touch-icon" href="./icon-192.png">
@@ -11,19 +11,26 @@
 <link rel="stylesheet" href="./reception.css?v=20261107-web-preflight-v2">
 </head><body>
 <header><div class="wrap"><p class="eyebrow">TIHULU SATELLITE CENTER · DIRECT USB EXPERIMENTAL</p>
-<h1><img src="./icon-192.png" width="54" height="54" alt="" style="vertical-align:middle;border-radius:14px;margin-right:8px">Satellite Center <span class="pill">Web / PWA · 0.3.0 preview6</span></h1>
+<h1><img src="./icon-192.png" width="54" height="54" alt="" style="vertical-align:middle;border-radius:14px;margin-right:8px">Satellite Center <span class="pill" data-shell-text="webEdition">Chromium WebUSB Edition</span></h1>
 <p>Browser/PWA Satellite Center: orbital maps, pass planning, WebUSB captures and local RF analysis. Direct USB needs a compatible Chromium browser and your permission. The installed Linux application is a separate native Qt desktop window, not this webpage or a WebView. The optional localhost receiver is available only when deliberately started.</p>
-<a href="http://127.0.0.1:8791/" target="_blank" rel="noopener noreferrer">Local receiver &amp; decoder (optional)</a> · <a href="../../">Application center</a></div></header>
-<nav class="reception-nav wrap" aria-label="Satellite Center sections"><a href="./index.html" aria-current="page">Receiver &amp; planner</a><a href="./reception.html">Satellite Images &amp; Data</a><a href="./index.html#satellite-tracking-maps">Earth / Sky</a><a href="./index.html#iq-analysis">Signal analysis</a></nav>
+<div class="shell-header-actions"><label class="shell-language" for="ui-language"><span data-shell-text="language">Interface language</span><select id="ui-language" aria-label="Interface language"><option value="en">English</option><option value="tr">Türkçe</option><option value="de">Deutsch</option></select></label><a href="http://127.0.0.1:8791/" target="_blank" rel="noopener noreferrer">Local receiver (optional)</a><a href="../../">Application center</a></div></div></header>
+<nav class="reception-nav wrap shell-main-nav" aria-label="Satellite Center sections"><a data-shell-section="receiver" data-shell-text="receiver" href="./index.html" aria-current="page">Receiver &amp; Planner</a><a data-shell-section="images" data-shell-text="images" href="./reception.html">Satellite Images &amp; Data</a><a data-shell-section="earth" data-shell-text="earth" href="./index.html#satellite-tracking-maps">Earth / Sky</a><a data-shell-section="analysis" data-shell-text="analysis" href="./index.html#iq-analysis">Signal Analysis</a></nav>
 <main class="wrap">
 <section class="web-runtime-strip" aria-label="Browser and receiver capabilities">
- <strong>Web / PWA preview6</strong>
+ <strong data-shell-text="webEdition">Chromium WebUSB Edition</strong>
  <span>Maps and local file inspection work without SDR hardware. Orbit positions are TLE predictions, not measured RF.</span>
  <span>Direct USB: compatible Chromium only · Firefox/Safari: use native receiver or offline file analysis.</span>
  <a href="./reception.html#file-title">Inspect saved data formats</a>
 </section>
+<section class="shell-overview" aria-label="Satellite Center modules"><h2>Satellite Center · four modules</h2>
+<div class="shell-module-grid">
+<a href="./index.html" class="shell-module-card"><strong data-shell-text="receiver">Receiver &amp; Planner</strong><span>WebUSB RTL-SDR · TLE passes · browser capture calendar</span></a>
+<a href="./reception.html" class="shell-module-card"><strong data-shell-text="images">Satellite Images &amp; Data</strong><span>Auto-Capture &amp; Decode · measured vs online images</span></a>
+<a href="./index.html#satellite-tracking-maps" class="shell-module-card"><strong data-shell-text="earth">Earth / Sky</strong><span>Earth map · sky view · pass previews</span></a>
+<a href="./index.html#iq-analysis" class="shell-module-card"><strong data-shell-text="analysis">Signal Analysis</strong><span>Spectrum · waterfall · measured IQ level</span></a>
+</div><p id="web-shell-status" class="hint" role="status" aria-live="polite">Preparing web application assets. No radio started.</p></section>
 <section id="auto-workflow" class="notice" aria-label="Satellite automatic reception workflow">
-<h2>Satellite Auto-Capture &amp; Decode — three steps</h2>
+<h2 data-shell-text="stepTitle">Auto-Capture &amp; Decode · three steps</h2>
 <p class="hint">One click predicts and arms real ISS/Meteor passes; later analyze actual recordings and open verified extraction results. Long WebUSB recordings are scheduled as consecutive <=60-second calendar segments (and <=128 MiB per CU8 file), each with its own actual data file and status. Reconnecting the SDR creates gaps: this is not continuous I/Q. Browser capture requires a visible, awake tab; the native companion can record while the browser is closed.</p>
 <div class="line">
 <label>Auto-target group<select id="auto-mode">
@@ -49,9 +56,9 @@
  <p class="hint">WebUSB only: ISS recording formats can be selected independently. Every WebUSB capture PART is limited to 60 seconds / 128 MiB; longer ISS plans schedule separate sequential WAV/CU8 jobs. The browser must remain open and visible. Native unattended ISS mode currently writes WAV files.</p>
 </fieldset>
 <div class="line">
-<button id="auto-plan" type="button">1 · Auto Schedule &amp; Capture</button>
-<button id="auto-analyze" type="button" class="secondary">2 · Analyze Recordings</button>
-<button id="auto-results" type="button" class="secondary">3 · Extract Results</button>
+<button id="auto-plan" type="button" data-shell-text="step1">1 · Auto Schedule &amp; Capture</button>
+<button id="auto-analyze" type="button" class="secondary" data-shell-text="step2">2 · Analyze Recordings</button>
+<button id="auto-results" type="button" class="secondary" data-shell-text="step3">3 · Extract Results</button>
 <button id="auto-stop" type="button" class="secondary">Cancel Auto Missions / Release Owned SDR</button>
 </div>
 <p id="auto-plan-status" class="status" role="status" aria-live="polite">No automatic passes armed. Nothing is scanning.</p>
@@ -65,7 +72,7 @@
 <section class="notice"><strong>Browser compatibility:</strong> Chromium (Chrome/Edge/Brave/Opera), HTTPS and a free RTL-SDR are required. Firefox and Safari do not support WebUSB. Windows can still require a WinUSB driver, and Linux may need USB access permissions / the DVB kernel driver released. No website can bypass OS permissions. <a href="https://github.com/jtarrio/webrtlsdr" rel="noopener noreferrer" target="_blank">Web RTL-SDR library</a></section>
 <div class="columns"><div>
 <section><h2>1 · Choose USB receiver</h2>
-<div class="line"><button id="connect">Choose RTL-SDR (WebUSB)</button><button id="usb-live-test" type="button">Test real USB + RF samples (3 sec)</button><button id="disconnect" class="secondary" disabled>Release USB</button></div>
+<div class="line"><button id="connect" data-shell-text="connect">Choose RTL-SDR (WebUSB)</button><button id="usb-live-test" type="button">Test real USB + RF samples (3 sec)</button><button id="disconnect" class="secondary" data-shell-text="disconnect" disabled>Release USB</button></div>
 <p class="hint">The **real USB test** requests a receiver (if needed), tunes to the frequency selected in Step 2, reads actual I/Q bytes, reports whether sampling worked, and releases USB automatically. Permission alone is NOT a passing test.</p>
 <p id="usb-live-test-report" class="status" role="status" aria-live="polite">Hardware has not been tested. Use Test real USB + RF samples to verify opening and sampling.</p>
 <p id="device-status" class="status" role="status">No USB device opened.</p>
@@ -107,10 +114,10 @@
 <p class="hint">On ISS SSTV 437.550 MHz, WAV is preselected; you can add CU8 or click Select CU8 + WAV. Both are generated from the SAME actual WebUSB RF samples and saved as two separate files. Long captures request a local file/folder before starting. A WAV does not prove ISS transmitted or Robot36 synchronization.</p>
 </fieldset>
 <p id="capture-budget" class="hint" role="status">Up to 60 seconds per WebUSB file, with a 128 MiB CU8 cap. Longer requests become multiple calendar jobs, each with separate downloads. Restart gaps are possible.</p>
-<div class="line"><button id="start" disabled>Start real USB capture</button><button id="stop" class="secondary" disabled>Stop &amp; release</button></div>
+<div class="line"><button id="start" data-shell-text="capture" disabled>Start real USB capture</button><button id="stop" class="secondary" data-shell-text="stop" disabled>Stop &amp; release</button></div>
 <p class="hint">Measures uncalibrated digital sample levels, not dBm or proof of a satellite. RF requests exceeding 60 seconds now automatically become separate <=60 s downloads and calendar jobs (with a 128 MiB CU8 cap per file). Manual uninterrupted disk-streaming is not guaranteed by this segmented mode. On Firefox/Safari or unsupported browsers, use the optional native companion. Larger raw IQ requires space; actual Earth-image decoding needs a genuine downlink and decoder.</p>
 <canvas id="level-chart" width="760" height="180" aria-label="Measured relative raw SDR sample level history"></canvas>
-<p id="sample-state" class="status" role="status">No RF samples measured.</p>
+<p id="sample-state" class="status" role="status">No RF samples measured.</p><div class="web-capture-progress" aria-label="Live browser capture progress"><label for="web-capture-progress">Capture time · estimate based on elapsed wall time</label><progress id="web-capture-progress" max="100" value="0"></progress><output id="web-capture-progress-label" for="web-capture-progress" aria-live="polite">Idle · 0 real USB bytes observed</output></div>
 <a class="iq-jump-link" href="#iq-analysis">Analyze .cu8 recording inside Satellite Center · spectrum / waterfall / level over time</a>
 </section>
 </div><div>
@@ -469,4 +476,4 @@ These provider viewers offer maps/imagery independently of your RTL-SDR.</p>
 <details><summary>What requires more than a browser?</summary><p>Windows may require WinUSB driver setup; Linux may require releasing the kernel DVB driver or adjusting permissions. To record a pass while the browser is closed, the optional local companion must remain running. The companion still supports offline SatDump and multimon-ng where installed.</p></details>
 <h3>Activity log</h3><pre id="log" aria-live="polite">Ready. USB idle. No fabricated RF data.</pre></section>
 <footer>Receive-only. The page never transmits RF, uploads I/Q files or silently scans. Page closing releases browser-owned USB access; an unexpected OS/browser crash cannot be guaranteed to cleanly close every device state. Browser client uses <a href="https://www.npmjs.com/package/@jtarrio/webrtlsdr" rel="noopener noreferrer" target="_blank">@jtarrio/webrtlsdr</a> from a version-pinned module CDN (requires Internet to load initially).</footer>
-</main><script type="module" src="./browser.js?v=20261107-chained-capture-v1"></script></body></html>
+</main><script type="module">import {applyShell} from "./web_shell.mjs";import {registerSatellitePwa} from "./web_pwa.mjs";applyShell(document,window);void registerSatellitePwa(navigator,location,message=>{document.getElementById("web-shell-status").textContent=message});</script><script type="module" src="./browser.js?v=20261112-webusb-ui-parity-v1"></script></body></html>
