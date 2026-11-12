@@ -188,6 +188,10 @@ class FMRSDSupervisor:
         with self._mutex:
             if self._closed:
                 raise CaptureError("FM RDS decoder has quit")
+            if self._thread is not None and self._thread.is_alive():
+                raise CaptureError("Previous RDS decoder worker still stopping")
+            if any(p is not None and p.poll() is None for p in (self._rtlfm,self._redsea)):
+                raise CaptureError("Previous RDS decoder child still running")
             if self._state["active"]:
                 raise CaptureError("An FM RDS capture is already running")
             ok = self.availability()
