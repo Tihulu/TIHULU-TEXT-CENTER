@@ -216,7 +216,7 @@ Approve only if you started this local service and wish to connect your own TV t
             raise PermissionError("Loopback Host required")
         origin = self._bridge_origin()
         token = self.headers.get("X-Tihulu-Bridge-Token", "")
-        if not hmac.compare_digest(token, DVB.token):
+        if not token or not DVB.token or not hmac.compare_digest(token, DVB.token):
             raise PermissionError("Invalid local DVB bridge session token")
         return origin
 
