@@ -67,12 +67,14 @@ export function initUsbSDR(report, {driverFactory} = {}){
    releasePromise=(async()=>{
      const inFlight=pendingSample;
      if(inFlight)await Promise.race([inFlight,new Promise(resolve=>setTimeout(resolve,2500))]);
+     const failures=[];
      const device=receiver;receiver=null;
      configuredRate=0;configuredFrequencyHz=0;configuredGain=null;
-     if(device){try{await device.close()}catch(e){notify("RELEASE WARNING",String(e?.message||e))}}
+     if(device){try{await device.close()}catch(e){failures.push("receiver: "+String(e?.message||e));notify("RELEASE WARNING",String(e?.message||e))}}
      const chosen=usbDevice;usbDevice=null;
-     if(chosen?.opened){try{await chosen.close()}catch(e){notify("RELEASE WARNING",String(e?.message||e))}}
+     if(chosen?.opened){try{await chosen.close()}catch(e){failures.push("USB handle: "+String(e?.message||e));notify("RELEASE WARNING",String(e?.message||e))}}
      busy=false;
+     if(failures.length)throw Error("Incomplete app-owned USB release: "+failures.join("; ").slice(0,240));
      notify("NOT CONNECTED","Own RTL-SDR session stopped/released; unrelated applications untouched.");
    })().finally(()=>{releasePromise=null});
    return releasePromise;
