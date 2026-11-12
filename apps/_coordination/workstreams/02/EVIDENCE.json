@@ -163,7 +163,12 @@
       "FLIGHT-017"
     ],
     "missing_full_trilingual_acceptance": 17,
-    "remaining_estimate_hours_minutes": null
+    "remaining_estimate_hours_minutes": null,
+    "followup_receiver_lifecycle_matrix_cases": 18,
+    "followup_rf_regression_matrix_cases": 11,
+    "followup_test_sources_inspected": 5,
+    "followup_worker_test_runs": 0,
+    "followup_full_lifecycle_verification": "not_run"
   },
   "requirements": [
     {
@@ -1299,5 +1304,807 @@
     "Do not infer MLAT/TOA or measured accuracy from one RTL-SDR",
     "Retain English technical internals and target en/tr/de UI",
     "Future first commits/merges/renames/releases require separate owner authorization"
-  ]
+  ],
+  "followup_2026_11_12_receiver_ownership_and_five_models": {
+    "revision": "2026-11-12-followup",
+    "purpose": "exact_receiver_ownership_and_3_vs_4_ICAO_five_model_contract",
+    "inspection_method": "source-and-test inspection only; no code/service/SDR/device actions",
+    "pinned_source_refs": {
+      "canonical_flight_main": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+      "pr7": "4ef8245b87fc78cec6cc4f5f9043d68e08cf45d3",
+      "pr13": "950f8278a625ce13a9a3c7e21bf9bf76d4b5888e",
+      "pr7_base": "cc42f9afdf56ee99ebefed8b89aff52160b225eb",
+      "ws02_audit_branch_initial": "1253f55604b1401927f3a1b7a661c7f9b1fa8386"
+    },
+    "sha_pinned_sources": [
+      {
+        "ref": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+        "path": "tihulu_flight_radar/control.py",
+        "blob_sha": "0f65907feb17c95ccff3dab9617d982ac6a0c164",
+        "lines": [
+          13,
+          17
+        ],
+        "url": "https://github.com/Tihulu/tihulu-flight-radar/blob/059b391280635d9aa4d2ac73c7318af9e135ebf5/tihulu_flight_radar/control.py#L13-L17",
+        "claim": "Both service units named; main uses paired systemctl verbs"
+      },
+      {
+        "ref": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+        "path": "tihulu_flight_radar/control.py",
+        "blob_sha": "0f65907feb17c95ccff3dab9617d982ac6a0c164",
+        "lines": [
+          88,
+          116
+        ],
+        "url": "https://github.com/Tihulu/tihulu-flight-radar/blob/059b391280635d9aa4d2ac73c7318af9e135ebf5/tihulu_flight_radar/control.py#L88-L116",
+        "claim": "Main service_action invokes paired systemctl for start stop enable disable"
+      },
+      {
+        "ref": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+        "path": "tihulu_flight_radar/control.py",
+        "blob_sha": "0f65907feb17c95ccff3dab9617d982ac6a0c164",
+        "lines": [
+          156,
+          170
+        ],
+        "url": "https://github.com/Tihulu/tihulu-flight-radar/blob/059b391280635d9aa4d2ac73c7318af9e135ebf5/tihulu_flight_radar/control.py#L156-L170",
+        "claim": "Main start observes prior readsb state but calls paired service action"
+      },
+      {
+        "ref": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+        "path": "tihulu_flight_radar/control.py",
+        "blob_sha": "0f65907feb17c95ccff3dab9617d982ac6a0c164",
+        "lines": [
+          198,
+          223
+        ],
+        "url": "https://github.com/Tihulu/tihulu-flight-radar/blob/059b391280635d9aa4d2ac73c7318af9e135ebf5/tihulu_flight_radar/control.py#L198-L223",
+        "claim": "Main Restart Stop and direct child teardown"
+      },
+      {
+        "ref": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+        "path": "tihulu_flight_radar/control.py",
+        "blob_sha": "0f65907feb17c95ccff3dab9617d982ac6a0c164",
+        "lines": [
+          234,
+          263
+        ],
+        "url": "https://github.com/Tihulu/tihulu-flight-radar/blob/059b391280635d9aa4d2ac73c7318af9e135ebf5/tihulu_flight_radar/control.py#L234-L263",
+        "claim": "Main exit-controlled paired stop ignores ownership flag and catches release error"
+      },
+      {
+        "ref": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+        "path": "tihulu_flight_radar/app.py",
+        "blob_sha": "7104cd095d8c66c584ac9d7f18bf296edeaf46c4",
+        "lines": [
+          141,
+          148
+        ],
+        "url": "https://github.com/Tihulu/tihulu-flight-radar/blob/059b391280635d9aa4d2ac73c7318af9e135ebf5/tihulu_flight_radar/app.py#L141-L148",
+        "claim": "Main RadarWindow supports injected controller and owns_receiver"
+      },
+      {
+        "ref": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+        "path": "tihulu_flight_radar/app.py",
+        "blob_sha": "7104cd095d8c66c584ac9d7f18bf296edeaf46c4",
+        "lines": [
+          313,
+          333
+        ],
+        "url": "https://github.com/Tihulu/tihulu-flight-radar/blob/059b391280635d9aa4d2ac73c7318af9e135ebf5/tihulu_flight_radar/app.py#L313-L333",
+        "claim": "Main persisted release-on-exit default true and ambiguous explanatory text"
+      },
+      {
+        "ref": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+        "path": "tihulu_flight_radar/app.py",
+        "blob_sha": "7104cd095d8c66c584ac9d7f18bf296edeaf46c4",
+        "lines": [
+          731,
+          753
+        ],
+        "url": "https://github.com/Tihulu/tihulu-flight-radar/blob/059b391280635d9aa4d2ac73c7318af9e135ebf5/tihulu_flight_radar/app.py#L731-L753",
+        "claim": "Main closes after warning, no in-flight receiver drain"
+      },
+      {
+        "ref": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+        "path": "scripts/install-linux.sh",
+        "blob_sha": "4f732845b86aa0f58a32cae3133972b99d60819c",
+        "lines": [
+          122,
+          129
+        ],
+        "url": "https://github.com/Tihulu/tihulu-flight-radar/blob/059b391280635d9aa4d2ac73c7318af9e135ebf5/scripts/install-linux.sh#L122-L129",
+        "claim": "Main account sudoers allows only paired systemd operations"
+      },
+      {
+        "ref": "4ef8245b87fc78cec6cc4f5f9043d68e08cf45d3",
+        "path": "tihulu_flight_radar/control.py",
+        "blob_sha": "fe4c2fa8b1336fe46028f1b641b68174fbe51a98",
+        "lines": [
+          70,
+          98
+        ],
+        "url": "https://github.com/Tihulu/tihulu-flight-radar/blob/4ef8245b87fc78cec6cc4f5f9043d68e08cf45d3/tihulu_flight_radar/control.py#L70-L98",
+        "claim": "PR7 explicit Stop still paired service action"
+      },
+      {
+        "ref": "4ef8245b87fc78cec6cc4f5f9043d68e08cf45d3",
+        "path": "tihulu_flight_radar/control.py",
+        "blob_sha": "fe4c2fa8b1336fe46028f1b641b68174fbe51a98",
+        "lines": [
+          101,
+          120
+        ],
+        "url": "https://github.com/Tihulu/tihulu-flight-radar/blob/4ef8245b87fc78cec6cc4f5f9043d68e08cf45d3/tihulu_flight_radar/control.py#L101-L120",
+        "claim": "PR7 owned readsb-only privileged stop, leave tar1090 unchanged"
+      },
+      {
+        "ref": "4ef8245b87fc78cec6cc4f5f9043d68e08cf45d3",
+        "path": "tihulu_flight_radar/control.py",
+        "blob_sha": "fe4c2fa8b1336fe46028f1b641b68174fbe51a98",
+        "lines": [
+          162,
+          170
+        ],
+        "url": "https://github.com/Tihulu/tihulu-flight-radar/blob/4ef8245b87fc78cec6cc4f5f9043d68e08cf45d3/tihulu_flight_radar/control.py#L162-L170",
+        "claim": "PR7 preexisting readsb start no-op and ownership marker"
+      },
+      {
+        "ref": "4ef8245b87fc78cec6cc4f5f9043d68e08cf45d3",
+        "path": "tihulu_flight_radar/control.py",
+        "blob_sha": "fe4c2fa8b1336fe46028f1b641b68174fbe51a98",
+        "lines": [
+          204,
+          229
+        ],
+        "url": "https://github.com/Tihulu/tihulu-flight-radar/blob/4ef8245b87fc78cec6cc4f5f9043d68e08cf45d3/tihulu_flight_radar/control.py#L204-L229",
+        "claim": "PR7 Restart Stop and direct child release"
+      },
+      {
+        "ref": "4ef8245b87fc78cec6cc4f5f9043d68e08cf45d3",
+        "path": "tihulu_flight_radar/control.py",
+        "blob_sha": "fe4c2fa8b1336fe46028f1b641b68174fbe51a98",
+        "lines": [
+          240,
+          259
+        ],
+        "url": "https://github.com/Tihulu/tihulu-flight-radar/blob/4ef8245b87fc78cec6cc4f5f9043d68e08cf45d3/tihulu_flight_radar/control.py#L240-L259",
+        "claim": "PR7 close only owned services, unowned preserved, fails without clearing marker"
+      },
+      {
+        "ref": "4ef8245b87fc78cec6cc4f5f9043d68e08cf45d3",
+        "path": "tihulu_flight_radar/app.py",
+        "blob_sha": "ab509e6002f7129869a4a50dbc73ad95020ef098",
+        "lines": [
+          139,
+          146
+        ],
+        "url": "https://github.com/Tihulu/tihulu-flight-radar/blob/4ef8245b87fc78cec6cc4f5f9043d68e08cf45d3/tihulu_flight_radar/app.py#L139-L146",
+        "claim": "Older Qt window signature differs from main"
+      },
+      {
+        "ref": "4ef8245b87fc78cec6cc4f5f9043d68e08cf45d3",
+        "path": "tihulu_flight_radar/app.py",
+        "blob_sha": "ab509e6002f7129869a4a50dbc73ad95020ef098",
+        "lines": [
+          701,
+          724
+        ],
+        "url": "https://github.com/Tihulu/tihulu-flight-radar/blob/4ef8245b87fc78cec6cc4f5f9043d68e08cf45d3/tihulu_flight_radar/app.py#L701-L724",
+        "claim": "PR7 waits up to 35s, on DataError refuses close and restarts timer"
+      },
+      {
+        "ref": "4ef8245b87fc78cec6cc4f5f9043d68e08cf45d3",
+        "path": "scripts/install-linux.sh",
+        "blob_sha": "9aff1d3871ab7decdd82e8f599881ad6c042a456",
+        "lines": [
+          55,
+          64
+        ],
+        "url": "https://github.com/Tihulu/tihulu-flight-radar/blob/4ef8245b87fc78cec6cc4f5f9043d68e08cf45d3/scripts/install-linux.sh#L55-L64",
+        "claim": "PR7 installer adds readsb-only sudoers command"
+      },
+      {
+        "ref": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+        "path": "tests/test_control.py",
+        "blob_sha": "6fbdafe35e79d910b110deaec63f4c5c51a271ff",
+        "lines": [
+          47,
+          95
+        ],
+        "url": "https://github.com/Tihulu/tihulu-flight-radar/blob/059b391280635d9aa4d2ac73c7318af9e135ebf5/tests/test_control.py#L47-L95",
+        "claim": "Main mock tests: systemd guard, release-on-exit toggles and Remote JSON"
+      },
+      {
+        "ref": "4ef8245b87fc78cec6cc4f5f9043d68e08cf45d3",
+        "path": "tests/test_control.py",
+        "blob_sha": "cdae5114f991f2ad246f1eb77984e23517f4aab3",
+        "lines": [
+          57,
+          121
+        ],
+        "url": "https://github.com/Tihulu/tihulu-flight-radar/blob/4ef8245b87fc78cec6cc4f5f9043d68e08cf45d3/tests/test_control.py#L57-L121",
+        "claim": "PR7 mock tests: preexisting service Start, owned Exit, explicit Stop, close failure"
+      },
+      {
+        "ref": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+        "path": "tihulu_flight_radar/web/receiver_coverage.js",
+        "blob_sha": "6a76588383b690d6b787a40121557da2b33a23a7",
+        "lines": [
+          26,
+          36
+        ],
+        "url": "https://github.com/Tihulu/tihulu-flight-radar/blob/059b391280635d9aa4d2ac73c7318af9e135ebf5/tihulu_flight_radar/web/receiver_coverage.js#L26-L36",
+        "claim": "Only positioned genuinely antenna-sourced ICAOs eligible"
+      },
+      {
+        "ref": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+        "path": "tihulu_flight_radar/web/receiver_coverage.js",
+        "blob_sha": "6a76588383b690d6b787a40121557da2b33a23a7",
+        "lines": [
+          62,
+          95
+        ],
+        "url": "https://github.com/Tihulu/tihulu-flight-radar/blob/059b391280635d9aa4d2ac73c7318af9e135ebf5/tihulu_flight_radar/web/receiver_coverage.js#L62-L95",
+        "claim": "Main dedup and minimum three RF records"
+      },
+      {
+        "ref": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+        "path": "tihulu_flight_radar/web/receiver_coverage.js",
+        "blob_sha": "6a76588383b690d6b787a40121557da2b33a23a7",
+        "lines": [
+          132,
+          140
+        ],
+        "url": "https://github.com/Tihulu/tihulu-flight-radar/blob/059b391280635d9aa4d2ac73c7318af9e135ebf5/tihulu_flight_radar/web/receiver_coverage.js#L132-L140",
+        "claim": "Main centroid not GPS fix or physical accuracy"
+      },
+      {
+        "ref": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+        "path": "tests/aircraft_popup_rf_coverage.test.cjs",
+        "blob_sha": "0240c6b772928b57e3b82b2bd5a3ef6be0295f01",
+        "lines": [
+          33,
+          55
+        ],
+        "url": "https://github.com/Tihulu/tihulu-flight-radar/blob/059b391280635d9aa4d2ac73c7318af9e135ebf5/tests/aircraft_popup_rf_coverage.test.cjs#L33-L55",
+        "claim": "Explicit positive unit fixture for THREE valid antenna aircraft and internet exclusion"
+      },
+      {
+        "ref": "950f8278a625ce13a9a3c7e21bf9bf76d4b5888e",
+        "path": "tihulu_flight_radar/web/receiver_coverage.js",
+        "blob_sha": "ddb4e2f4eea4dfdbc1c2398e3ddb79825b3b7436",
+        "lines": [
+          6,
+          36
+        ],
+        "url": "https://github.com/Tihulu/tihulu-flight-radar/blob/950f8278a625ce13a9a3c7e21bf9bf76d4b5888e/tihulu_flight_radar/web/receiver_coverage.js#L6-L36",
+        "claim": "Draft classic model MIN_INDEPENDENT=4"
+      },
+      {
+        "ref": "950f8278a625ce13a9a3c7e21bf9bf76d4b5888e",
+        "path": "tihulu_flight_radar/web/receiver_coverage.js",
+        "blob_sha": "ddb4e2f4eea4dfdbc1c2398e3ddb79825b3b7436",
+        "lines": [
+          108,
+          161
+        ],
+        "url": "https://github.com/Tihulu/tihulu-flight-radar/blob/950f8278a625ce13a9a3c7e21bf9bf76d4b5888e/tihulu_flight_radar/web/receiver_coverage.js#L108-L161",
+        "claim": "Draft tracks multiple RF points but counts each independent ICAO once"
+      },
+      {
+        "ref": "950f8278a625ce13a9a3c7e21bf9bf76d4b5888e",
+        "path": "tihulu_flight_radar/web/rf_history_models.js",
+        "blob_sha": "c48789064387cbd16a07589bc7442eafdc85182b",
+        "lines": [
+          7,
+          37
+        ],
+        "url": "https://github.com/Tihulu/tihulu-flight-radar/blob/950f8278a625ce13a9a3c7e21bf9bf76d4b5888e/tihulu_flight_radar/web/rf_history_models.js#L7-L37",
+        "claim": "Five model IDs, strict recorded_rf provenance, minimum four distinct aircraft"
+      },
+      {
+        "ref": "950f8278a625ce13a9a3c7e21bf9bf76d4b5888e",
+        "path": "tihulu_flight_radar/web/rf_history_models.js",
+        "blob_sha": "c48789064387cbd16a07589bc7442eafdc85182b",
+        "lines": [
+          100,
+          174
+        ],
+        "url": "https://github.com/Tihulu/tihulu-flight-radar/blob/950f8278a625ce13a9a3c7e21bf9bf76d4b5888e/tihulu_flight_radar/web/rf_history_models.js#L100-L174",
+        "claim": "HistoryBest is weighted violation heuristic point, not confidence/range"
+      },
+      {
+        "ref": "950f8278a625ce13a9a3c7e21bf9bf76d4b5888e",
+        "path": "tihulu_flight_radar/web/rf_history_ui.js",
+        "blob_sha": "04fedb2be7a097f04fedc05e38d6d73a5e6d1b57",
+        "lines": [
+          7,
+          26
+        ],
+        "url": "https://github.com/Tihulu/tihulu-flight-radar/blob/950f8278a625ce13a9a3c7e21bf9bf76d4b5888e/tihulu_flight_radar/web/rf_history_ui.js#L7-L26",
+        "claim": "Five layer checkboxes and IDs"
+      },
+      {
+        "ref": "950f8278a625ce13a9a3c7e21bf9bf76d4b5888e",
+        "path": "tihulu_flight_radar/web/rf_history_ui.js",
+        "blob_sha": "04fedb2be7a097f04fedc05e38d6d73a5e6d1b57",
+        "lines": [
+          86,
+          123
+        ],
+        "url": "https://github.com/Tihulu/tihulu-flight-radar/blob/950f8278a625ce13a9a3c7e21bf9bf76d4b5888e/tihulu_flight_radar/web/rf_history_ui.js#L86-L123",
+        "claim": "BEST is prior session model; HISTORY BEST weighted no circle radius"
+      },
+      {
+        "ref": "950f8278a625ce13a9a3c7e21bf9bf76d4b5888e",
+        "path": "tihulu_flight_radar/web/rf_history_client.js",
+        "blob_sha": "587c700baac09e2841128ba94f5fd9ebb2292fbe",
+        "lines": [
+          30,
+          77
+        ],
+        "url": "https://github.com/Tihulu/tihulu-flight-radar/blob/950f8278a625ce13a9a3c7e21bf9bf76d4b5888e/tihulu_flight_radar/web/rf_history_client.js#L30-L77",
+        "claim": "Verified RF only client and browser opt-in archival path"
+      },
+      {
+        "ref": "950f8278a625ce13a9a3c7e21bf9bf76d4b5888e",
+        "path": "tihulu_flight_radar/rf_history_store.py",
+        "blob_sha": "ce4b2b8ea965691a93b949a31f9a660ac00454e1",
+        "lines": [
+          71,
+          107
+        ],
+        "url": "https://github.com/Tihulu/tihulu-flight-radar/blob/950f8278a625ce13a9a3c7e21bf9bf76d4b5888e/tihulu_flight_radar/rf_history_store.py#L71-L107",
+        "claim": "SQLite opt-in RF history with indices, draft only"
+      },
+      {
+        "ref": "950f8278a625ce13a9a3c7e21bf9bf76d4b5888e",
+        "path": "tests/rf_history_five_modes.test.cjs",
+        "blob_sha": "5af68c5457959a1c3c37226b90899a2b3d237434",
+        "lines": [
+          17,
+          69
+        ],
+        "url": "https://github.com/Tihulu/tihulu-flight-radar/blob/950f8278a625ce13a9a3c7e21bf9bf76d4b5888e/tests/rf_history_five_modes.test.cjs#L17-L69",
+        "claim": "Draft fixture tests all five modes, 104 RF constraints, weighted no confidence"
+      },
+      {
+        "ref": "950f8278a625ce13a9a3c7e21bf9bf76d4b5888e",
+        "path": "tests/rf_five_layer_portal.test.cjs",
+        "blob_sha": "712dee527967536e7b64c171cc7b4bbcc7befffe",
+        "lines": [
+          17,
+          71
+        ],
+        "url": "https://github.com/Tihulu/tihulu-flight-radar/blob/950f8278a625ce13a9a3c7e21bf9bf76d4b5888e/tests/rf_five_layer_portal.test.cjs#L17-L71",
+        "claim": "Draft UI five independent toggles, two feasible rings plus weighted point"
+      }
+    ],
+    "receiver_ownership": {
+      "main": {
+        "service_mode": "Linux services",
+        "readsb_started_tracking_flag": "_service_started_by_app",
+        "flag_controls_exit": false,
+        "explicit_commands": "sudo -n /usr/bin/systemctl <action> readsb.service tar1090.service",
+        "close_method": "close(release_local_service=False)",
+        "default_qt_release_setting": true,
+        "close_true": "stop both when readsb active, including pre-existing services",
+        "close_false": "leave services even if app started readsb",
+        "stop": "stop both explicitly",
+        "direct_child_exit": "stop own direct readsb and temp directory",
+        "remote_json": "no control",
+        "close_error_ui": "warn and close",
+        "async_inflight": "not drained",
+        "tar1090_not_rf_ownership_proof": true
+      },
+      "draft7": {
+        "service_mode": "Linux services",
+        "readsb_started_tracking_flag": "_started_service_in_app",
+        "flag_controls_exit": true,
+        "preexisting_readsb_start": "no-op; not app-owned",
+        "explicit_commands": "sudo -n /usr/bin/systemctl <action> readsb.service tar1090.service",
+        "automatic_owned_exit_command": "sudo -n /usr/bin/systemctl stop readsb.service",
+        "close_method": "close()",
+        "exit_setting_removed": true,
+        "stop": "explicit stop still stops both",
+        "restart": "explicit stop paired then start paired; may take new ownership",
+        "direct_child_exit": "stop own direct readsb and temp directory",
+        "remote_json": "no control",
+        "close_error_ui": "warn, event.ignore, keep UI open",
+        "async_inflight": "result(timeout=35) before release; exceptions in wait ignored",
+        "tar1090_not_rf_ownership_proof": true
+      },
+      "integration_gaps": [
+        "PR7 old-base app and 71-line installer are not interchangeable with modern main app and 198-line installer",
+        "Main sudoers lacks PR7 required exact one-unit stop readsb.service permission",
+        "Main persisted exit-checkbox may be overridden by PR7 behavior; no owner-approved semantics reconciliation",
+        "R/T mixed provenance, delayed Start/Restart and out-of-band systemd restarts untested on device",
+        "No verified USB lock release or unattended physical FM/DAB handoff from static code"
+      ]
+    },
+    "lifecycle_regression_matrix": [
+      {
+        "id": "L01",
+        "initial_state": "Linux R off / T off",
+        "event": "Start",
+        "current_main_expected": "paired start; mark R started by app if success",
+        "draft7_expected": "paired start; mark app-owned R if success",
+        "verification_gate": "No fake aircraft; track both unit states",
+        "classification": "proposed_unexecuted_source_regression"
+      },
+      {
+        "id": "L02",
+        "initial_state": "R pre-existing on / T on",
+        "event": "Start",
+        "current_main_expected": "issue paired start, R not newly owned",
+        "draft7_expected": "return pre-existing, no systemctl, no ownership",
+        "verification_gate": "assert paired-call difference",
+        "classification": "proposed_unexecuted_source_regression"
+      },
+      {
+        "id": "L03",
+        "initial_state": "R pre-existing on / T off",
+        "event": "Start",
+        "current_main_expected": "paired start may also activate T",
+        "draft7_expected": "no-op; T remains off",
+        "verification_gate": "assert T independence",
+        "classification": "proposed_unexecuted_source_regression"
+      },
+      {
+        "id": "L04",
+        "initial_state": "R pre-existing on / T on",
+        "event": "Exit main checkbox ON",
+        "current_main_expected": "stop both, regardless R original owner",
+        "draft7_expected": "leave both intact",
+        "verification_gate": "P0 external service retention",
+        "classification": "proposed_unexecuted_source_regression"
+      },
+      {
+        "id": "L05",
+        "initial_state": "R pre-existing on / T on",
+        "event": "Exit main checkbox OFF",
+        "current_main_expected": "leave both intact",
+        "draft7_expected": "leave both intact, no checkbox",
+        "verification_gate": "pre-existing preservation",
+        "classification": "proposed_unexecuted_source_regression"
+      },
+      {
+        "id": "L06",
+        "initial_state": "R/T started by app",
+        "event": "Exit main checkbox ON",
+        "current_main_expected": "paired stop R+T",
+        "draft7_expected": "owned-only stop R; preserve T",
+        "verification_gate": "SDR lease release and tar survival",
+        "classification": "proposed_unexecuted_source_regression"
+      },
+      {
+        "id": "L07",
+        "initial_state": "R app-owned / T pre-existing",
+        "event": "Exit main checkbox ON",
+        "current_main_expected": "paired stop includes external T",
+        "draft7_expected": "R-only stop preserves external T",
+        "verification_gate": "T must not be silently stopped",
+        "classification": "proposed_unexecuted_source_regression"
+      },
+      {
+        "id": "L08",
+        "initial_state": "R/T app-started, main setting OFF",
+        "event": "Exit",
+        "current_main_expected": "leave both; R may own USB",
+        "draft7_expected": "PR7 stops owned R regardless removed user setting",
+        "verification_gate": "settings/ownership contract not equivalent",
+        "classification": "proposed_unexecuted_source_regression"
+      },
+      {
+        "id": "L09",
+        "initial_state": "R/T active, possibly external",
+        "event": "Explicit Stop",
+        "current_main_expected": "paired stop R+T, clear flag",
+        "draft7_expected": "paired stop R+T, clear flag",
+        "verification_gate": "user action not passive close",
+        "classification": "proposed_unexecuted_source_regression"
+      },
+      {
+        "id": "L10",
+        "initial_state": "R/T pre-existing active",
+        "event": "Explicit Restart",
+        "current_main_expected": "paired stop then start, new R app-owned",
+        "draft7_expected": "paired stop then start, new R app-owned",
+        "verification_gate": "intentional reownership",
+        "classification": "proposed_unexecuted_source_regression"
+      },
+      {
+        "id": "L11",
+        "initial_state": "R systemd active / Direct mode",
+        "event": "Direct Start",
+        "current_main_expected": "DataError rejects competitor",
+        "draft7_expected": "DataError rejects competitor",
+        "verification_gate": "exclusive receiver gate",
+        "classification": "proposed_unexecuted_source_regression"
+      },
+      {
+        "id": "L12",
+        "initial_state": "app direct child, R systemd off",
+        "event": "Direct Stop or Exit",
+        "current_main_expected": "terminate/wait/kill fallback, cleanup own temp",
+        "draft7_expected": "same direct child cleanup",
+        "verification_gate": "never kill external PID; later physical release check",
+        "classification": "proposed_unexecuted_source_regression"
+      },
+      {
+        "id": "L13",
+        "initial_state": "Remote JSON",
+        "event": "Start Stop Exit",
+        "current_main_expected": "no remote controls, no local service release",
+        "draft7_expected": "same",
+        "verification_gate": "remote not owned",
+        "classification": "proposed_unexecuted_source_regression"
+      },
+      {
+        "id": "L14",
+        "initial_state": "T-only systemd on / R off",
+        "event": "Exit without Start",
+        "current_main_expected": "no service stop (R-active guard fails)",
+        "draft7_expected": "no service stop (not owned)",
+        "verification_gate": "tar-only must not imply SDR lease",
+        "classification": "proposed_unexecuted_source_regression"
+      },
+      {
+        "id": "L15",
+        "initial_state": "R owned, sudo denied",
+        "event": "Exit",
+        "current_main_expected": "paired Stop failure warning, Qt window still closes",
+        "draft7_expected": "owned-only Stop failure causes Qt event.ignore, permit retry",
+        "verification_gate": "permission policy + accurate error",
+        "classification": "proposed_unexecuted_source_regression"
+      },
+      {
+        "id": "L16",
+        "initial_state": "asynchronous Start/Restart in flight",
+        "event": "Exit",
+        "current_main_expected": "no future drain, shutdown wait false",
+        "draft7_expected": "future.result(timeout=35), ignored timeout then cleanup",
+        "verification_gate": "start-after-exit race remains unproven",
+        "classification": "proposed_unexecuted_source_regression"
+      },
+      {
+        "id": "L17",
+        "initial_state": "boot policy toggle",
+        "event": "Enable/Disable",
+        "current_main_expected": "systemctl paired units, distinct from Start/Stop",
+        "draft7_expected": "same",
+        "verification_gate": "boot policy not decoder operation",
+        "classification": "proposed_unexecuted_source_regression"
+      },
+      {
+        "id": "L18",
+        "initial_state": "injected secondary controller / nonowner window",
+        "event": "Exit",
+        "current_main_expected": "RadarWindow owns_receiver false skips cleanup",
+        "draft7_expected": "older PR7 app missing injection flag",
+        "verification_gate": "map/secondary windows must not release primary-owned SDR",
+        "classification": "proposed_unexecuted_source_regression"
+      }
+    ],
+    "rf_contract": {
+      "canonical_main": {
+        "required_independent_icao": 3,
+        "history": "bounded last 64 unexpired samples / 2h",
+        "model": "geometric upper-bound region with possible-area-centroid",
+        "actual_receiver_location_verified": false
+      },
+      "draft13": {
+        "required_independent_icao": 4,
+        "history": "separate opt-in archived session; HISTORY solver processes more than old 64 inputs",
+        "model_ids": [
+          "live10",
+          "liveX",
+          "best",
+          "history",
+          "historyBest"
+        ],
+        "mode_details": {
+          "live10": "last 10m genuine RF observations",
+          "liveX": "user 1 to 48 hour genuine RF observations",
+          "best": "stored session-best legacy model",
+          "history": "selected recorded session hard horizon-intersection",
+          "historyBest": "weighted violation minimization center only, no spread circle"
+        },
+        "per_icao_counting": "distinct ICAO hex; multiple path samples same ICAO do not satisfy 4 count",
+        "physical_receiver_accuracy_or_time_of_arrival_verified": false,
+        "independent_toggle_controls": [
+          "rfLayerLive10",
+          "rfLayerLiveX",
+          "rfBestCircle",
+          "rfLayerHistory",
+          "rfLayerHistoryBest"
+        ],
+        "history_recorder_default": "OFF"
+      },
+      "compatibility": "main explicitly supports possible three-plane model; draft13 requires four and must not silently change main output"
+    },
+    "rf_regression_matrix": [
+      {
+        "id": "R01",
+        "scenario": "0–2 unique valid antenna ICAOs",
+        "current_main_expected": "insufficient",
+        "draft13_expected": "insufficient",
+        "verification_gate": "no result/position fix",
+        "classification": "proposed_unexecuted_source_regression"
+      },
+      {
+        "id": "R02",
+        "scenario": "3 valid unique antenna ICAOs",
+        "current_main_expected": "modeled region possible",
+        "draft13_expected": "insufficient; threshold 4",
+        "verification_gate": "explicit backward compatibility divergence",
+        "classification": "proposed_unexecuted_source_regression"
+      },
+      {
+        "id": "R03",
+        "scenario": "4 valid unique antenna ICAOs",
+        "current_main_expected": "modeled region possible",
+        "draft13_expected": "candidate hard intersection if geometry/time permits",
+        "verification_gate": "permutation and no latest-plane bias",
+        "classification": "proposed_unexecuted_source_regression"
+      },
+      {
+        "id": "R04",
+        "scenario": "4 observations same ICAO",
+        "current_main_expected": "not four independent",
+        "draft13_expected": "not four independent",
+        "verification_gate": "one moving plane counts one",
+        "classification": "proposed_unexecuted_source_regression"
+      },
+      {
+        "id": "R05",
+        "scenario": "3 antenna ICAOs + Internet-only or copied online point",
+        "current_main_expected": "count 3",
+        "draft13_expected": "count 3; insufficient",
+        "verification_gate": "source provenance mandatory",
+        "classification": "proposed_unexecuted_source_regression"
+      },
+      {
+        "id": "R06",
+        "scenario": "4 unique across valid session history",
+        "current_main_expected": "may count recent session history",
+        "draft13_expected": "can count selected historical session",
+        "verification_gate": "live/historical independently labeled",
+        "classification": "proposed_unexecuted_source_regression"
+      },
+      {
+        "id": "R07",
+        "scenario": ">64 RF path samples",
+        "current_main_expected": "recent max 64, slices history",
+        "draft13_expected": "archive history reads all eligible session records",
+        "verification_gate": "no truncation claims for HISTORY",
+        "classification": "proposed_unexecuted_source_regression"
+      },
+      {
+        "id": "R08",
+        "scenario": "old recorded RF point beyond live10",
+        "current_main_expected": "main 2-hour recent model only",
+        "draft13_expected": "live10 excludes; liveX within X includes; HISTORY session includes",
+        "verification_gate": "time window and session scope",
+        "classification": "proposed_unexecuted_source_regression"
+      },
+      {
+        "id": "R09",
+        "scenario": "five independently selected model layers",
+        "current_main_expected": "not available as five modes",
+        "draft13_expected": "LIVE10, LIVEX, BEST, HISTORY, HISTORYBEST; final point only",
+        "verification_gate": "no invented weighted circle",
+        "classification": "proposed_unexecuted_source_regression"
+      },
+      {
+        "id": "R10",
+        "scenario": "RF location mode OFF",
+        "current_main_expected": "older main UI logic",
+        "draft13_expected": "disable solver/history accumulation, not aircraft tracking",
+        "verification_gate": "readsb and Internet unaffected",
+        "classification": "proposed_unexecuted_source_regression"
+      },
+      {
+        "id": "R11",
+        "scenario": "disjoint bounds / reverse order / no synced RF timestamps",
+        "current_main_expected": "null physical accuracy",
+        "draft13_expected": "unresolved or explicitly heuristic; null physical accuracy",
+        "verification_gate": "no TOA MLAT GPS or confidence",
+        "classification": "proposed_unexecuted_source_regression"
+      }
+    ],
+    "source_tests_inspected": [
+      {
+        "path": "tests/test_control.py",
+        "ref": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+        "blob_sha": "6fbdafe35e79d910b110deaec63f4c5c51a271ff",
+        "lines": [
+          47,
+          95
+        ],
+        "kind": "pytest_mock_no_physical_hardware"
+      },
+      {
+        "path": "tests/test_control.py",
+        "ref": "4ef8245b87fc78cec6cc4f5f9043d68e08cf45d3",
+        "blob_sha": "cdae5114f991f2ad246f1eb77984e23517f4aab3",
+        "lines": [
+          57,
+          121
+        ],
+        "kind": "pytest_mock_no_physical_hardware"
+      },
+      {
+        "path": "tests/aircraft_popup_rf_coverage.test.cjs",
+        "ref": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+        "blob_sha": "0240c6b772928b57e3b82b2bd5a3ef6be0295f01",
+        "lines": [
+          20,
+          55
+        ],
+        "kind": "node_fixture_no_physical_hardware"
+      },
+      {
+        "path": "tests/rf_history_five_modes.test.cjs",
+        "ref": "950f8278a625ce13a9a3c7e21bf9bf76d4b5888e",
+        "blob_sha": "5af68c5457959a1c3c37226b90899a2b3d237434",
+        "lines": [
+          17,
+          69
+        ],
+        "kind": "node_fixture_and_static_ui_no_physical_hardware"
+      },
+      {
+        "path": "tests/rf_five_layer_portal.test.cjs",
+        "ref": "950f8278a625ce13a9a3c7e21bf9bf76d4b5888e",
+        "blob_sha": "712dee527967536e7b64c171cc7b4bbcc7befffe",
+        "lines": [
+          17,
+          71
+        ],
+        "kind": "node_vm_ui_fixture_no_physical_hardware"
+      }
+    ],
+    "counts": {
+      "receiver_lifecycle_matrix_cases": 18,
+      "rf_model_matrix_cases": 11,
+      "test_source_files_inspected_in_this_followup": 5,
+      "worker_new_tests_executed": 0,
+      "worker_hardware_or_service_actions": 0,
+      "full_behavior_acceptance_verified": 0,
+      "release_verified": false,
+      "estimated_remaining_work_hours_minutes": null
+    },
+    "related_requirements": [
+      "FLIGHT-001",
+      "FLIGHT-006",
+      "FLIGHT-009",
+      "FLIGHT-010",
+      "FLIGHT-011",
+      "FLIGHT-012",
+      "FLIGHT-013",
+      "FLIGHT-014"
+    ],
+    "cross_workstream": {
+      "central_issue": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/75",
+      "receiver_sharing": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/76",
+      "geolocation_mlat": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/79",
+      "history_qa": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/81"
+    },
+    "safety": {
+      "engineering_language": "en",
+      "required_ui_locales": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "runtime_code_edits": 0,
+      "service_actions": 0,
+      "hardware_tests": 0,
+      "merges": 0,
+      "migrations": 0,
+      "releases": 0
+    }
+  }
 }
