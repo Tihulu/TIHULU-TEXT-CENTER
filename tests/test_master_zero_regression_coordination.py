@@ -41,8 +41,38 @@ class ZeroRegressionCoordinationTests(unittest.TestCase):
         self.assertEqual(progress["workstreams"]["issue_numbers"],
                          [76,77,78,79,80,81])
         self.assertEqual(progress["workstreams"]["master_issue"], 75)
-        self.assertEqual(progress["workstreams"]["completed_audits"], 0)
-        self.assertEqual(progress["workstreams"]["started_by_other_chats"], 0)
+        # Bootstrap handoff records describe the initial 0/6 state, while
+        # PROGRESS.json records the current, evidence-backed source-audit stage.
+        # Neither completion count certifies functionality or hardware parity.
+        workers = progress["workstreams"]
+        started = workers["started_by_other_chats"]
+        completed = workers["completed_audits"]
+        self.assertTrue(0 <= completed <= started <= workers["defined"] == 6)
+        self.assertEqual(workers["worker_pr_numbers"], [83, 84, 85, 86, 87, 88])
+        expected = {
+            "01": (83, 76, 41), "02": (84, 77, 17),
+            "03": (85, 78, 8), "04": (86, 79, 8),
+            "05": (87, 80, 8), "06": (88, 81, 15),
+        }
+        scope = workers.get("worker_audit_source_scope", {})
+        self.assertEqual(len(scope), completed)
+        for key, row in scope.items():
+            self.assertIn(key, expected)
+            pr, issue, reviewed = expected[key]
+            self.assertEqual(row["pr"], pr)
+            self.assertEqual(row["issue"], issue)
+            self.assertEqual(row["requirement_ids_reviewed"], reviewed)
+            self.assertRegex(row["head"], r"^[0-9a-f]{40}$")
+        inspected = sum(row["requirement_ids_reviewed"]
+                        for row in scope.values())
+        self.assertEqual(inspected, progress["requirements"].get(
+            "initial_source_based_workstream_review_count", 0))
+        if completed == 6:
+            self.assertEqual(set(scope), set(expected))
+            self.assertEqual(inspected, 97)
+            self.assertEqual(progress["requirements"]["code_source_audited"], 97)
+        self.assertEqual(progress["requirements"]["feature_equivalence_certified"], 0)
+        self.assertEqual(progress["requirements"]["physical_device_verified"], 0)
         self.assertIsNone(progress["time_remaining"]["hours"])
         self.assertIsNone(progress["time_remaining"]["minutes"])
         self.assertFalse(progress["new_repo_source_import_performed"]
