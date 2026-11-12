@@ -25,7 +25,7 @@ def main():
         from .translation_market import run_nllb
         translated = run_nllb(text, source, target)
     elif engine == "argos":
-        from textcenter.transcripts import translate_offline
+        from tv_center.media_backend.translation import translate_offline
         translated = translate_offline(text, source, target, backend="cpu")
     else:
         raise ValueError("Unknown translation backend")
@@ -69,7 +69,7 @@ def serve_madlad():
 
 def serve_argos():
     """Reuse the same isolated Argos Python process for live TV captions."""
-    from textcenter.transcripts import translate_offline
+    from tv_center.media_backend.translation import translate_offline
     for line in sys.stdin:
         if not line.strip():
             continue
