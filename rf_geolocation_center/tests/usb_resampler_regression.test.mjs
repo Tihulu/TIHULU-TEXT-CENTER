@@ -29,7 +29,8 @@ test("samples never race with another USB operation and release waits for in-fli
  assert.match(capture,/if\(quitting\|\|releasePromise\)return/);
  assert.match(capture,/busy=true;sampling=true;stopping=false;beginSample\(\)/);
  assert.match(scan,/finally\{sampling=false;busy=false;endSample\(\)\}/);
- assert.match(capture,/finally\{sampling=false;busy=false;endSample\(\)\}/);
+ assert.match(capture,/finally\s*\{[\s\S]*?sampling=false;busy=false;endSample\(\);/);
+ assert.match(capture,/if\(transfer\)await release\(\)/);
  assert.match(release,/const inFlight=pendingSample/);
  assert.match(release,/const drained=await Promise\.race\(\[/);
  assert.match(release,/inFlight\.then\(\(\)=>true\)/);
