@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 from contextlib import contextmanager
 import hashlib
+import importlib.util
 import io
 import json
 import os
@@ -270,29 +271,71 @@ def support(platform_name=None, version=None, lookup=None):
         reasons.append("SOURCE-SMOKE ONLY: Linux x64 CI; Pi ARM64 and live tuners not verified")
     tools = {x: bool(lookup(x)) for x in
              ("rtl_fm", "redsea", "rtl_power", "ffmpeg", "whisper-cli", "welle-cli")}
+    packages = {}
+    for name in ("argostranslate", "faster_whisper", "ctranslate2",
+                 "openvino", "openvino_genai", "hailo_apps", "hailo_platform"):
+        try:
+            packages[name] = importlib.util.find_spec(name) is not None
+        except (ImportError, ValueError, AttributeError):
+            packages[name] = False
+    # Presence/configuration is NOT model loadability, a measured GPU/NPU
+    # allocation or a promise that directed translation pairs exist.
+    model_env = {name: bool(os.environ.get(name)) for name in (
+        "TIHULU_WHISPER_MODEL", "TIHULU_FASTER_WHISPER_MODEL",
+        "TIHULU_OPENVINO_WHISPER_MODEL", "TIHULU_HAILO_ENCODER_HEF",
+        "TIHULU_HAILO_DECODER_HEF", "TIHULU_HAILO_WHISPER_NPY_DIR")}
     return {"application_id": APP_ID, "platform": system, "python": ".".join(map(str, py)),
             "core_launch_candidate": system in ("Linux", "Darwin") and tuple(py) >= (3, 11),
             "installed_platform_verified": False,
             "native_dvb_tuning": False, "journaline_decoder": False,
             "optional_tools_present_not_live_verified": tools,
+            "optional_python_packages_present_not_runnable": packages,
+            "model_environment_paths_set_not_verified": model_env,
             "notes": reasons}
 
 
 LAUNCHER = '''#!/usr/bin/env python3
 """Text-owned foreground CLI launcher; no autostart, cross-app or hardware work."""
+import hashlib
+import io
 import json
 import os
 from pathlib import Path
 import runpy
 import sys
+import zipfile
 root = Path(__file__).resolve().parents[1]
 state = json.loads((root / "state" / "active.json").read_text(encoding="utf-8"))
 ident = state["bundle_sha256"]
 if state["application_id"] != "tihulu.text-center" or len(ident) != 64 or any(c not in "0123456789abcdef" for c in ident):
     raise SystemExit("Invalid Text-only installation state")
 release = root / "releases" / ident
-if not (release / "textcenter" / "__main__.py").is_file():
-    raise SystemExit("Text-only release missing")
+if sys.version_info < (3, 11):
+    raise SystemExit("Text Center requires Python 3.11+")
+try:
+    if release.is_symlink():
+        raise ValueError("Symlinked release")
+    raw = (release / "source.zip").read_bytes()
+    if len(raw) > 12000000 or hashlib.sha256(raw).hexdigest() != ident:
+        raise ValueError("Pinned package hash mismatch")
+    saved_manifest = (release / "manifest.json").read_bytes()
+    with zipfile.ZipFile(io.BytesIO(raw)) as archived:
+        if saved_manifest != archived.read("manifest.json"):
+            raise ValueError("Stored manifest diverged from original archive")
+    meta = json.loads(saved_manifest)
+    if meta["application_id"] != "tihulu.text-center" or len(meta["files"]) != 24:
+        raise ValueError("Unexpected Text release metadata")
+    for name, properties in meta["files"].items():
+        parts = Path(name).parts
+        if len(parts) != 2 or parts[0] not in ("textcenter", "web"):
+            raise ValueError("Non-Text file in release")
+        source_file = release / name
+        if source_file.is_symlink() or not source_file.is_file():
+            raise ValueError("Missing or symlinked Text file")
+        if hashlib.sha256(source_file.read_bytes()).hexdigest() != properties["sha256"]:
+            raise ValueError("Modified Text release file")
+except (OSError, ValueError, KeyError, zipfile.BadZipFile) as exc:
+    raise SystemExit("Text-only release integrity check failed: " + str(exc))
 os.environ.setdefault("TIHULU_TEXT_DB", state["database"])
 sys.path.insert(0, str(release))
 sys.argv = ["textcenter"] + sys.argv[1:]
