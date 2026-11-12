@@ -194,7 +194,7 @@
       "optional": false,
       "strict_31": true,
       "source_pr101_blob_sha1": "8d2cd29f7a30965df037a6be8404866c1561ce4e",
-      "source_pr95_blob_sha1": null,
+      "source_pr95_blob_sha1": "8d2cd29f7a30965df037a6be8404866c1561ce4e",
       "baseline_pages_blob_sha1": "c2fa4fe18ad24443efdbfe830eea6192bac957b7",
       "baseline_state": "DIFF"
     },
@@ -206,7 +206,7 @@
       "optional": false,
       "strict_31": true,
       "source_pr101_blob_sha1": "f12066f0a569a68df13816f1edfdae5744d91033",
-      "source_pr95_blob_sha1": null,
+      "source_pr95_blob_sha1": "f12066f0a569a68df13816f1edfdae5744d91033",
       "baseline_pages_blob_sha1": "290e5fc02c78173b6963e44a5ebd9a51c947b074",
       "baseline_state": "DIFF"
     },
@@ -254,7 +254,7 @@
       "optional": false,
       "strict_31": true,
       "source_pr101_blob_sha1": "3a047d7254473cee80f203976df44e32770b6765",
-      "source_pr95_blob_sha1": null,
+      "source_pr95_blob_sha1": "3a047d7254473cee80f203976df44e32770b6765",
       "baseline_pages_blob_sha1": "e1d9738ea367b57ab49c736427687334b4a263b7",
       "baseline_state": "DIFF"
     },
@@ -338,7 +338,7 @@
       "optional": false,
       "strict_31": true,
       "source_pr101_blob_sha1": "095d09c6035a4a12b989a425d8d6f50f8629a4d8",
-      "source_pr95_blob_sha1": null,
+      "source_pr95_blob_sha1": "095d09c6035a4a12b989a425d8d6f50f8629a4d8",
       "baseline_pages_blob_sha1": "285d8a3dc97d18069dcc0f019a70479ef15f4efd",
       "baseline_state": "DIFF"
     },
@@ -470,7 +470,7 @@
       "optional": false,
       "strict_31": true,
       "source_pr101_blob_sha1": "2953d2f65d73a7c90847134f21dd1e363829eb0f",
-      "source_pr95_blob_sha1": null,
+      "source_pr95_blob_sha1": "2953d2f65d73a7c90847134f21dd1e363829eb0f",
       "baseline_pages_blob_sha1": "8dca91e5a30c111465abcc2b8bd0a115971d9805",
       "baseline_state": "DIFF"
     },
@@ -614,7 +614,7 @@
       "optional": false,
       "strict_31": true,
       "source_pr101_blob_sha1": "643e3e3db249fa37873ff89f4751d4e94b2797f8",
-      "source_pr95_blob_sha1": null,
+      "source_pr95_blob_sha1": "643e3e3db249fa37873ff89f4751d4e94b2797f8",
       "baseline_pages_blob_sha1": "7442995c8cd5dcaff8ca640c10dbbda62370fa59",
       "baseline_state": "DIFF"
     },
@@ -626,7 +626,7 @@
       "optional": false,
       "strict_31": true,
       "source_pr101_blob_sha1": "8c6e51df6552f424b3ff269d226322ef1dec7795",
-      "source_pr95_blob_sha1": null,
+      "source_pr95_blob_sha1": "8c6e51df6552f424b3ff269d226322ef1dec7795",
       "baseline_pages_blob_sha1": "73dcd6f731539c97222ce0b53a9a0f1687c4b400",
       "baseline_state": "DIFF"
     },
@@ -662,7 +662,7 @@
       "optional": false,
       "strict_31": true,
       "source_pr101_blob_sha1": "659aa4ce28404e19ec89888cf28814dafec510ba",
-      "source_pr95_blob_sha1": null,
+      "source_pr95_blob_sha1": "202669682fed6787607f6a808b80008a91c0ed3b",
       "baseline_pages_blob_sha1": "4f832342ebcdcf49b57b0c7b85f9c21b0072a3ea",
       "baseline_state": "DIFF"
     },
@@ -686,7 +686,7 @@
       "optional": false,
       "strict_31": true,
       "source_pr101_blob_sha1": "ac1fb0335e84536fc6115e127af91fff339938eb",
-      "source_pr95_blob_sha1": null,
+      "source_pr95_blob_sha1": "44b4f2a62a3ac3a0ec47eba57becb93b274822ba",
       "baseline_pages_blob_sha1": "2ea220432afe208c741ce9187101b97831453abf",
       "baseline_state": "DIFF"
     },
@@ -698,7 +698,7 @@
       "optional": false,
       "strict_31": false,
       "source_pr101_blob_sha1": "ed5a0b78475beb2a4c723c657f5599fef7d54dd8",
-      "source_pr95_blob_sha1": null,
+      "source_pr95_blob_sha1": "bea82f417e0c05b525765e6ad6a776d270147ce2",
       "baseline_pages_blob_sha1": null,
       "baseline_state": "ABSENT"
     }
@@ -711,5 +711,22 @@
     "absent": 8,
     "unverified": 0,
     "strictDiff": 9
-  }
+  },
+  "pr95_to_pr101_changed_web_assets": [
+    {
+      "name": "index.html",
+      "pr95": "202669682fed6787607f6a808b80008a91c0ed3b",
+      "pr101": "659aa4ce28404e19ec89888cf28814dafec510ba"
+    },
+    {
+      "name": "reception.html",
+      "pr95": "44b4f2a62a3ac3a0ec47eba57becb93b274822ba",
+      "pr101": "ac1fb0335e84536fc6115e127af91fff339938eb"
+    },
+    {
+      "name": "satellite-sw.js",
+      "pr95": "bea82f417e0c05b525765e6ad6a776d270147ce2",
+      "pr101": "ed5a0b78475beb2a4c723c657f5599fef7d54dd8"
+    }
+  ]
 }
