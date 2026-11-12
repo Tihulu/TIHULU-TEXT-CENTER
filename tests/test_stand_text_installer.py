@@ -196,7 +196,7 @@ class StandTextInstallerTests(unittest.TestCase):
         self.assertEqual(proc.returncode, 0, proc.stderr[-1500:])
         self.assertIn("import-text", proc.stdout)
         self.assertIn("serve", proc.stdout)
-        self.assertIn("No", result.get("action", "") if False else "No")
+        self.assertEqual(result["action"], "install")
         self.assertFalse((self.root / "launcher" / "text-only-runtime" /
                           "releases" / result["bundle_sha256"] / "tv_center").exists())
 
