@@ -214,6 +214,10 @@ class FMSurveySupervisor:
         with self._mutex:
             if self._closed:
                 raise SurveyError("RF survey has quit")
+            if self._thread is not None and self._thread.is_alive():
+                raise SurveyError("Previous RF survey worker still stopping")
+            if self._process is not None and self._process.poll() is None:
+                raise SurveyError("Previous RF survey child still running")
             if self._state["active"]:
                 raise SurveyError("A spectrum survey is already running")
             avail=self.availability(band)
