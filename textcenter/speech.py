@@ -279,7 +279,10 @@ class SpeechPipeline:
                     self.queue.task_done()
         finally:
             with self._gate:
-                self.lifecycle="STOPPED"
+                child_alive=(self._active_child is not None and
+                             self._active_child.poll() is None)
+                self.lifecycle=("STOP_FAILED_PARTIAL" if child_alive and self.stopping.is_set()
+                                else "STOPPED")
 
     def status(self):
         with self._gate:
@@ -326,7 +329,7 @@ class SpeechPipeline:
                          self._active_child.poll() is None)
             self.lifecycle=("STOP_FAILED_PARTIAL" if wait and (alive or child_alive)
                             and current_thread()!=self.thread else
-                            "STOPPING" if alive else "STOPPED")
+                            "STOPPING" if alive or child_alive else "STOPPED")
             return {"lifecycle":self.lifecycle,"worker_alive":alive,
                     "child_alive":child_alive,
                     "queued_windows":self.queue.qsize(),"buffered_bytes":len(self.buffer)}
