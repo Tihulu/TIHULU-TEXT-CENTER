@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "as_of_utc": "2026-11-12",
-  "stage": "phase6_exit01_six_cross_app_implementation_handoffs_ready_waiting_user_to_start_workers",
+  "stage": "phase6_exit01_five_app_fix_handoffs_one_QA_owner_AITools_SurvivalKit_preserved",
   "requirements": {
     "registered": 97,
     "code_source_audited": 97,
@@ -277,7 +277,7 @@
     "hours": null,
     "minutes": null,
     "confidence": "insufficient_evidence",
-    "reason": "Six implementation agents have documented, non-overlapping RQ-098/EXIT-01 handoffs but no new implementation branches or CI verified; owner must start the six chats. Original 17 acceptance gates plus EXIT-01 open, no measured release ETA or live RAM/VRAM verification.",
+    "reason": "Five independent EXIT-01 app implementation handoffs + one QA-only agent; separate existing AI Tools/Survival Kit work remains owner-managed, no duplicate branch/PR permitted. Original 17 gates + EXIT-01 open, no actual new EXIT-01 agent implementation/CI confirmed, no physical memory validation. No reliable ETA.",
     "format_on_update": "HH hours MM minutes once computed; otherwise say unknown rather than make up a countdown",
     "estimation_criteria": [
       "audited outstanding task list",
@@ -885,7 +885,7 @@
   },
   "exit01_six_agent_execution": {
     "as_of": "2026-11-12",
-    "status": "IMPLEMENTATION_HANDOFFS_PREPARED_NOT_YET_AUTONOMOUSLY_STARTED",
+    "status": "FIVE_APP_IMPLEMENTATION_HANDOFFS_PLUS_ONE_QA_HANDOFF_PREPARED_USER_MANAGES_AI_TOOLS_SURVIVAL_KIT",
     "owner_requirement": "RQ-098",
     "new_proposed_p0_gate": "EXIT-01",
     "assignment_document": "apps/_coordination/EXIT01_SIX_PARALLEL_IMPLEMENTATION_ASSIGNMENTS.md",
@@ -948,15 +948,15 @@
       },
       {
         "id": "A6",
-        "area": "Survival Kit AI/model manager owned lifecycle",
-        "repo": "Tihulu/tihulu-survival-kit",
-        "original_pr": 1,
-        "source_sha": "9384788153a5c01dbb20692895057d091346996d",
-        "new_branch": "fix/exit01-survival-owned-model-supervisor-2026-11-12",
-        "handoff_repo": "Tihulu/tihulu-survival-kit",
-        "handoff_pr": 1,
-        "comment_id": 6813722178,
-        "status": "PROMPT_PENDING_USER_SEND"
+        "area": "Independent cross-application EXIT-01 QA / process-and-memory acceptance verification",
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "original_pr": null,
+        "source_sha": null,
+        "new_branch": null,
+        "comment_id": null,
+        "status": "QA_HANDOFF_REASSIGNED_NOT_AUTOMATICALLY_STARTED",
+        "handoff_issue": 81,
+        "scope": "Read-only coordination; compare A1-A5 Draft PRs, 15 EXIT-01 acceptance matrix, no source edits to owner-managed AI Tools or Survival Kit, no new implementation branch"
       }
     ],
     "new_draft_prs_created": 0,
@@ -966,6 +966,11 @@
     "additional_exit01_gate_open": true,
     "owner_must_start_worker_chats": true,
     "scope": "New independent app-specific feature Draft PR per worker; only app-owned resources, mock tests, no real GPU/NPU/SDR or external service stop/merge",
-    "qa_supervision": "Coordinator handles QA/History Issue #81 and confirms app-owned worker, GPU VRAM, NPU resources after separately approved physical acceptance"
+    "qa_supervision": "Coordinator handles QA/History Issue #81 and confirms app-owned worker, GPU VRAM, NPU resources after separately approved physical acceptance",
+    "coordination_correction": "A6 original Survival Kit/AI Model Manager implementation prompt is superseded. Tihulu/Tihulu-AI-Tools Rust AI Tools and Tihulu/tihulu-survival-kit already exist and are personally managed by owner. No duplicate A6 feature PR should be created in either repository. A6 is cross-app QA only.",
+    "implementation_agents": 5,
+    "qa_agents": 1,
+    "no_AI_Tools_or_Survival_Kit_duplicate_development": true,
+    "no_new_source_PR_on_AI_Tools_or_Survival_Kit": true
   }
 }
