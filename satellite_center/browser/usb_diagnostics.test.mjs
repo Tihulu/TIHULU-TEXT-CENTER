@@ -1,3 +1,4 @@
+import "./pwa_release_cache.test.mjs";
 /* WebUSB Edition parity regressions run under the existing browser-only
  * CI entrypoint without touching or weakening CI workflow configuration.
  */
