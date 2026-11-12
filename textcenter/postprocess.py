@@ -13,7 +13,7 @@ from pathlib import Path
 import shutil
 import signal
 import subprocess
-from threading import Event,Lock,Thread
+from threading import Event,Lock,Thread,current_thread
 import time
 import uuid
 
@@ -49,6 +49,7 @@ class RecordingTranscriber:
         self.max_seconds=min(MAX_OFFLINE_SECONDS,max_seconds)
         self._lock=Lock()
         self._stop=Event()
+        self._closed=False
         self._thread=None
         self._process=None
         self._state={"active":False,"status":"idle","session":None,
@@ -92,6 +93,8 @@ class RecordingTranscriber:
         if not selection["ready"]:
             raise PostProcessError(selection.get("reason") or "ASR model not ready")
         with self._lock:
+            if self._closed:
+                raise PostProcessError("Transcription worker is stopping or has quit")
             if self._state["active"]:
                 raise PostProcessError("A saved-recording transcription is already running")
             session=uuid.uuid4().hex
@@ -115,11 +118,15 @@ class RecordingTranscriber:
         error=None
         elapsed=0.0
         try:
+            if self._stop.is_set():
+                return
             process=subprocess.Popen(decode_audio_command(ffmpeg,file),
                 stdin=subprocess.DEVNULL,stdout=subprocess.PIPE,
                 stderr=subprocess.DEVNULL,start_new_session=True,close_fds=True)
             with self._lock:
                 self._process=process
+                if self._stop.is_set() and process.poll() is None:
+                    process.terminate()
             assert process.stdout
             while not self._stop.is_set() and elapsed<self.max_seconds:
                 pcm=process.stdout.read(WINDOW_BYTES)
@@ -131,6 +138,9 @@ class RecordingTranscriber:
                 if duration<0.4:
                     break
                 text=self.transcriber(pcm,language,backend,profile)
+                if self._stop.is_set():
+                    status="cancelled"
+                    break
                 if isinstance(text,str) and text.strip():
                     translated=None
                     if target:
@@ -171,10 +181,27 @@ class RecordingTranscriber:
                 if error:self._state["error"]=error
 
     def stop(self,wait=False):
+        """Cancel owned ffmpeg decoder, bounded-join worker, preserve saved recordings."""
         with self._lock:
             self._stop.set()
             thread=self._thread
-            result=self._snapshot()
-        if wait and thread and thread.is_alive():
+            proc=self._process
+            if self._state["active"]:
+                self._state["status"]="stopping"
+        if proc is not None and proc.poll() is None:
+            try:
+                proc.terminate()  # held child handle, never an external decoder/service
+            except (OSError,ProcessLookupError):
+                pass
+        if wait and thread and thread.is_alive() and current_thread()!=thread:
             thread.join(timeout=2)
-        return result
+        with self._lock:
+            if wait and thread and thread.is_alive() and current_thread()!=thread:
+                self._state.update(status="stop_failed_partial",
+                    error="ASR worker did not exit in the bounded timeout")
+            return self._snapshot()
+
+    def quit(self):
+        with self._lock:
+            self._closed=True
+        return self.stop(wait=True)
