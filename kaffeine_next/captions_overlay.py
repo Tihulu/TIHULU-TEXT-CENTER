@@ -27,6 +27,39 @@ OVERLAP_SECONDS = 1.0
 MAX_TS_BYTES = 24 * 1024 * 1024
 LANGS = ("de", "en", "tr", "fr")
 
+
+def shutdown_owned_caption_resources(tap, srt_recorder, mobile, ipc,
+                                     control, *, cuda_shutdown=None):
+    """Full Exit, not window hide or module pause.
+
+    Stop fresh capture first, flush user SRT data, then interrupt the local
+    app-owned CUDA child *before* joining the decoding thread. Never kill
+    unknown processes, another application's GPU jobs or remote model hosts.
+    A failed close must not prevent subsequent owned resources from closing.
+    """
+    if cuda_shutdown is None:
+        from tv_center.cuda_faster_whisper import shutdown_cuda_worker
+        cuda_shutdown = shutdown_cuda_worker
+
+    errors = []
+    operations = [
+        ("stop caption intake", tap.request_stop),
+        ("flush original SRT", lambda: (
+            srt_recorder.stop() if srt_recorder.active else None)),
+        ("release owned CUDA worker", cuda_shutdown),
+        ("join caption threads", tap.close),
+        ("close mobile bridge", mobile.close),
+        ("close caption IPC", ipc.close),
+        ("close caption control", control.close),
+    ]
+    for label, action in operations:
+        try:
+            action()
+        except Exception as exc:
+            errors.append(label + ": " + str(exc)[:180])
+    return errors
+
+
 def validate_socket(path: str) -> Path:
     location = Path(os.environ.get("XDG_RUNTIME_DIR", ""))
     p = Path(path)
@@ -130,6 +163,8 @@ class CaptionTap:
             clip = self.work_queue.get(timeout=0.3)
             if clip is None:
                 continue
+            if self.stop.is_set():
+                break  # Never start inference from an already queued clip.
             began = time.monotonic()
             with self._performance_lock:
                 self._active_clip_at=began
@@ -441,6 +476,8 @@ class CaptionTap:
                         "be retained. Select CUDA GPU/smaller model or fewer translations.")
 
     def _decode(self, capture, options, captured_start, captured_end):
+        if self.stop.is_set():
+            return
         decode_clock=time.perf_counter()
         try:
             from tv_center.ai_settings import AISettings
@@ -479,6 +516,8 @@ class CaptionTap:
             previous = (self.previous_original
                         if self.previous_revision == options.get("revision", 0)
                         else "")
+            if self.stop.is_set():
+                return  # Quit must reject new ASR/translation dispatch.
             result = decode_segment(capture, mode=selected, page=options["page"],
                 source=source, target=primary,
                 targets=(() if selected=="asr" and not options.get(
@@ -513,6 +552,8 @@ class CaptionTap:
                     probe_due),
                 auto_teletext_recovery=bool(
                     recovery_probe and ai.values["asr_enabled"]))
+            if self.stop.is_set():
+                return  # Do not publish a result completed during Quit.
             probe=result.pop("teletext_probe",None)
             shadow=result.pop("teletext_shadow",None)
             if (probe and selected=="auto" and
@@ -804,7 +845,7 @@ class CaptionTap:
                 result=decorate_result(result,enabled=True)
             # Recheck before publishing. Decoder/translator can take
             # seconds; no result from a previous tune may be displayed.
-            if options.get("program_epoch") != self.program_epoch:
+            if self.stop.is_set() or options.get("program_epoch") != self.program_epoch:
                 return
             try:
                 # Captions, unlike status notices, are irreplaceable ASR
@@ -822,11 +863,18 @@ class CaptionTap:
         except (OSError, RuntimeError, ImportError, ValueError) as error:
             self._note_warning(str(error)[:180])
 
-    def close(self):
+    def request_stop(self):
+        """Stop owned packet intake/queued clips without waiting on inference."""
         self.stop.set()
-        if self.sock:
-            self.sock.close()
         self.work_queue.close()
+        if self.sock:
+            try:
+                self.sock.close()
+            except OSError:
+                pass
+
+    def close(self):
+        self.request_stop()
         if self.thread and self.thread.is_alive():
             self.thread.join(timeout=2)
         if self.worker and self.worker.is_alive():
@@ -3586,14 +3634,18 @@ def main(argv=None):
     exit_subtitles.clicked.connect(stop_caption_service)
 
     def cleanup():
+        nonlocal service_running
+        # Qt's aboutToQuit signal fires before QWidget teardown, including
+        # tray Quit and the explicit Exit caption service button.
+        service_running = False
+        window.terminating = True
+        timer.stop()
         if tray:
             tray.hide()
-        if srt_recorder.active:
-            srt_recorder.stop()
-        mobile.close()
-        tap.close()
-        ipc.close()
-        control.close()
+        errors = shutdown_owned_caption_resources(
+            tap, srt_recorder, mobile, ipc, control)
+        for error in errors:
+            print("TIHULU caption Quit cleanup: " + error, file=sys.stderr)
     app.aboutToQuit.connect(cleanup)
     window.show()
     return app.exec_()
