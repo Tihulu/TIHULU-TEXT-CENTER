@@ -147,10 +147,19 @@ qt_link_diagnostics() {
 temp="$(mktemp -d)"
 BUILDSRC=""
 cleanup() {
+  local prior_status=$?
+  trap - EXIT
+  if (( TRANSACTION_STARTED == 1 && TRANSACTION_COMPLETE == 0 )); then
+    if ! media_rollback; then
+      echo "MEDIA_INSTALL_HOLD: automatic owned rollback incomplete; keep the transaction journal." >&2
+      prior_status=1
+    fi
+  fi
   if [[ -n "$BUILDSRC" && -e "$BUILDSRC/.git" && -d "$SOURCE/.git" ]]; then
     git -C "$SOURCE" worktree remove --force "$BUILDSRC" >/dev/null 2>&1 || true
   fi
   rm -rf "$temp"
+  return "$prior_status"
 }
 trap cleanup EXIT
 
