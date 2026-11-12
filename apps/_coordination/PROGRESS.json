@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "as_of_utc": "2026-11-12",
-  "stage": "phase6_exit01_four_of_five_PRs_native_CI_mostly_green_satellite_pages_parity_red_no_hardware_acceptance",
+  "stage": "phase6_exit01_5_of_5_open_Drafts_media_text_flight_green_satellite_pages_red_geo_new_ci_pending",
   "requirements": {
     "registered": 97,
     "code_source_audited": 97,
@@ -277,7 +277,7 @@
     "hours": null,
     "minutes": null,
     "confidence": "insufficient_evidence",
-    "reason": "Five source branches, four Draft PRs; media, flight, text software CI green, satellite Linux/Windows/macOS+Debian runtime green but Pages parity red. Geo new PR and its CI unverified. Fifteen QA cases all OPEN for physical and independent resource proof; original 17 gates plus EXIT01 P0 remain open, no merges or measured ETA.",
+    "reason": "All five app-specific EXIT01 draft PRs open; Media, Flight, Text synthetic CI success; Satellite tests portable/native green apart from 8-file Pages mismatch; RFGeo previous 8/76 JS failed, latest head rerun queued. 15/15 real resource-release cases unaccepted, original 17 broad gates + new EXIT01 P0 open, no installed OS/GPU/NPU/USB proof or merge. ETA not supportable.",
     "format_on_update": "HH hours MM minutes once computed; otherwise say unknown rather than make up a countdown",
     "estimation_criteria": [
       "audited outstanding task list",
@@ -885,7 +885,7 @@
   },
   "exit01_six_agent_execution": {
     "as_of": "2026-11-12",
-    "status": "EXIT01_FOUR_OF_FIVE_DRAFT_PRS_FIVE_BRANCHES_QA_MATRIX_15_CASES_CREATED",
+    "status": "FIVE_OF_FIVE_EXIT01_DRAFT_PRS_OPEN_INDEPENDENT_QA_15_CASES_NO_INSTALLED_ACCEPTANCE",
     "owner_requirement": "RQ-098",
     "new_proposed_p0_gate": "EXIT-01",
     "assignment_document": "apps/_coordination/EXIT01_SIX_PARALLEL_IMPLEMENTATION_ASSIGNMENTS.md",
@@ -949,15 +949,22 @@
         "new_branch": "fix/exit01-rfgeo-stop-workers-2026-11-12",
         "handoff_issue": 79,
         "comment_id": 6813720769,
-        "status": "GEO_SOURCE_BRANCH_20_AHEAD_TWO_MOCK_TEST_FILES_ADDED_NO_NEW_DRAFT_PR_YET",
-        "new_pr": null,
+        "status": "NEW_STACKED_DRAFT_PR_94_OPEN_PRIOR_WEB_CI_8_FAILURES_LATEST_RERUN_PENDING",
+        "new_pr": 94,
         "compared_ahead": 9,
         "changed_files": 13,
-        "ci": "Source test files now exist, no isolated PR-triggered CI verified because no separate PR yet",
+        "ci": "Previous head e9a01e... RFGeolocation run 43152590279 FAIL 8 JS out of 76 (68 PASS); 3 platform launchers and Text CI passed. New head adc307... RFGeo 43152922690 QUEUED; must not claim this latest CI passed.",
         "source_branch_ahead_at_checkpoint": 20,
         "specific_test_files": [
           "rf_geolocation_center/tests/exit_lifecycle.test.mjs",
           "rf_geolocation_center/tests/test_exit_lifecycle.py"
+        ],
+        "head_sha": "adc30779d7e916db69daa41340273b42b71237da",
+        "base_sha": "6664a04a6247826d71f6adeb795b137fd26de213",
+        "needs_review": [
+          "old JS assertions and actual USB/DVB/maps behavior",
+          "idempotent Stop/Hard Stop/Quit, scoped device release",
+          "run tests without skipping or disabling failing regressions"
         ]
       },
       {
@@ -994,7 +1001,7 @@
         "qa_cases_fully_accepted": 0
       }
     ],
-    "new_draft_prs_created": 4,
+    "new_draft_prs_created": 5,
     "new_ci_executed": "A1 four source workflows success; A2 4 OS+Pi success; A3 all portable runtime jobs+native Debian+Text success but 8-file Pages parity fail; A5 Python 3.11/3.12/3.13 success; A4 PR/CI not yet verified",
     "source_code_modified_by_coordinator": false,
     "preexisting_original_gates_open": 17,
@@ -1008,14 +1015,14 @@
     "no_AI_Tools_or_Survival_Kit_duplicate_development": true,
     "no_new_source_PR_on_AI_Tools_or_Survival_Kit": true,
     "implementation_branches_confirmed": 5,
-    "implementation_draft_prs_confirmed": 4,
+    "implementation_draft_prs_confirmed": 5,
     "verified_source_progress_as_of_date": "2026-11-12",
     "hardware_release_accepted": false,
     "remaining_critical_failures": [
-      "A3 Satellite eight published Pages/source differences (CI red, all other app-specific portable/native CI green)",
-      "A4 RFGeo dedicated Draft PR and actual CI not yet verified despite source tests present",
-      "All 15 independent real machine RAM/VRAM/NPU/SDR ownership-release acceptance cases OPEN",
-      "No application source PR merged, installed app tested, device/service touched, or approved release/rollback"
+      "RFGeo #94 previous JS 8/76 failed; newest rerun pending",
+      "Satellite #92 8-file source/Pages parity is red; all native portable runtime jobs passed",
+      "No actual device/RAM/VRAM/NPU installed acceptance in any app",
+      "No merges/releases/3-app migrations or source preservation acceptance"
     ],
     "qa_documented_cases": 15,
     "qa_fully_accepted_cases": 0
