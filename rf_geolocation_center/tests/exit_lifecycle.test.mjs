@@ -3,6 +3,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {createExitLifecycle} from "../web/exit_lifecycle.mjs";
 import {initUsbSDR} from "../web/usb_sdr.mjs";
+import {readFileSync} from "node:fs";
 
 function deferred(){
  let resolve,reject;
@@ -149,4 +150,13 @@ test("WebUSB refused owned close reports a persistent partial failure without ex
   assert.equal(closeAttempts,1);
   assert.equal(foreignKills,0);
  }finally{env.restore()}
+});
+
+test("serial Quit has bounded cancel, reader unlock and partial-failure reporting",()=>{
+ const source=readFileSync(new URL("../web/app.mjs",import.meta.url),"utf8");
+ assert.match(source,/reader\.releaseLock\(\)/);
+ assert.match(source,/Owned serial reader cancel/);
+ assert.match(source,/Owned serial port close/);
+ assert.match(source,/Owned serial resources not fully released/);
+ assert.match(source,/lifecycle\.register\("serial","device",disconnect\)/);
 });
