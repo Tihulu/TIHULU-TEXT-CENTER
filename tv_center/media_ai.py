@@ -6,8 +6,8 @@ requests keyless LRCLIB metadata search. Writes timestamped .srt/.lrc
 sidecars without overwriting existing work by default.
 
 Examples:
-  tihulu-tv-center media-captions --input ~/Videos/news.mp4 --source de --targets en,tr
-  tihulu-tv-center media-captions --input ~/Music/song.flac --lyrics --track Title --artist Artist --fetch-lyrics
+  tihulu-media-cli media-captions --input ~/Videos/news.mp4 --source de --targets en,tr
+  tihulu-media-cli media-captions --input ~/Music/song.flac --lyrics --track Title --artist Artist --fetch-lyrics
 """
 from __future__ import annotations
 import argparse
