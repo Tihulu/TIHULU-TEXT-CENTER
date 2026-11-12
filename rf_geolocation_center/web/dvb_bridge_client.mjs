@@ -5,7 +5,7 @@
 const $=id=>document.getElementById(id);
 const ENDPOINT="http://127.0.0.1:8794";
 let token="",connected=false,refreshHandle=null,scanning=false,lastJob=null,pairPopup=null,pairNonce="",pairAction="tv";
-let closed=false,ownerId="",ownedScan=false,scanRequest=null,stopRequest=null,messageListener=null;
+let closed=false,ownerId="",ownedScan=false,scanRequest=null,stopRequest=null,quitPromise=null,messageListener=null;
 const pendingRequests=new Set();
 const say=value=>{const el=$("tv-bridge-status"),home=$("home-tv-state");if(el)el.textContent=value;if(home)home.textContent=String(value).slice(0,260)};
 const toggle=()=>{
@@ -200,22 +200,24 @@ async function stop(){
  })().finally(()=>{stopRequest=null});
  return stopRequest;
 }
-async function quit(){
- if(closed)return stopRequest||Promise.resolve();
+function quit(){
+ if(quitPromise)return quitPromise;
  closed=true;
- if(refreshHandle){clearInterval(refreshHandle);refreshHandle=null;}
- // In-flight scan request may have reached the local server; wait its bounded HTTP
- // request before sending the owner-scoped stop to avoid Stop-before-Start races.
- if(scanRequest)try{await scanRequest}catch{}
- let failure=null;
- if(ownedScan&&ownerId)try{await stop()}catch(error){failure=error}
- for(const ctrl of pendingRequests)ctrl.abort();
- pendingRequests.clear();
- if(messageListener)window.removeEventListener("message",messageListener);
- messageListener=null;
- if(pairPopup&&!pairPopup.closed)pairPopup.close();
- pairPopup=null;pairNonce="";token="";connected=false;scanning=false;lastJob=null;
- if(failure)throw failure;
+ quitPromise=(async()=>{
+  if(refreshHandle){clearInterval(refreshHandle);refreshHandle=null;}
+  // An in-flight authenticated POST may be accepted remotely before the Stop.
+  if(scanRequest)try{await scanRequest}catch{}
+  let failure=null;
+  if(ownedScan&&ownerId)try{await stop()}catch(error){failure=error}
+  for(const ctrl of pendingRequests)ctrl.abort();
+  pendingRequests.clear();
+  if(messageListener)window.removeEventListener("message",messageListener);
+  messageListener=null;
+  if(pairPopup&&!pairPopup.closed)pairPopup.close();
+  pairPopup=null;pairNonce="";token="";connected=false;scanning=false;lastJob=null;
+  if(failure)throw failure;
+ })();
+ return quitPromise;
 }
 export function initDVBBridge(){
  if(!$("tv-bridge-connect"))return {quit:async()=>{}};
