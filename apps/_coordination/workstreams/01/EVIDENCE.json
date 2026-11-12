@@ -1,0 +1,4484 @@
+{
+  "schema_version": 2,
+  "audit_date": "2026-11-12",
+  "repo": "Tihulu/TIHULU-TEXT-CENTER",
+  "origin_repo_id": 1447637221,
+  "workstream": "WS01 Media Center",
+  "branch": "audit/ws01-media-zero-regression-2026-11-11",
+  "read_only_audit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+  "issue": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/76",
+  "coordinator": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/75",
+  "draft_pr": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/83",
+  "meaning": "draft-coded means partial source path examined, NOT a verified complete feature. Test files were inspected but never executed.",
+  "count": {
+    "requirements": 41,
+    "candidate_source_paths_inspected": 43,
+    "candidate_test_paths_inspected": 49,
+    "additional_pr67_export_files_read": 2,
+    "source_links": 83,
+    "test_links": 64,
+    "draft_coded_partial": 39,
+    "requested_or_gap": 2,
+    "unit_verified": 0,
+    "hardware_verified": 0,
+    "released_verified": 0,
+    "tests_executed": 0
+  },
+  "provenance": {
+    "pr65": {
+      "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/65",
+      "sha": "20b0417aa7edba2f86b297e7cabdd062e9b24291"
+    },
+    "pr66": {
+      "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/66",
+      "sha": "20379152be2751e5d89a8bdbac85fb15fc6b3c4e",
+      "descends_from_pr65": true
+    },
+    "pr67": {
+      "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/67",
+      "sha": "4e62e21cd5252df8a04f9ceadc429f4b116412ce",
+      "descends_from_pr66": true,
+      "ahead": 20,
+      "behind": 0,
+      "changed_paths": 8
+    },
+    "risk": "Audit branch omits PR #67 export updates; never use audit-only source as final Media snapshot. Shared file paths do not establish textual conflicts."
+  },
+  "pr67_export": {
+    "source_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/4e62e21cd5252df8a04f9ceadc429f4b116412ce/tv_center/recording_export.py#L20",
+    "source_blob_sha": "084ac92aa787b1e81f2a2dab861eb0af6041eade",
+    "test_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/4e62e21cd5252df8a04f9ceadc429f4b116412ce/tests/test_recording_export.py#L25",
+    "test_blob_sha": "1b8039aa5f78449ebd7c5ef19eb0f9470bfb0cf8",
+    "optional_ffmpeg_test_line": 132,
+    "test_executed": false,
+    "unmerged_from_audit_head": true
+  },
+  "blockers": [
+    "Journaline explicitly unimplemented at textcenter/dab_bridge.py:6.",
+    "Cross-platform one-line native install/rollback not verified; Debian-family source only.",
+    "EN/TR/DE native visual completeness unverified.",
+    "Physical DVB/Teletext/DAB/FM, karaoke sync and MKV/MP4 acceptance unverified.",
+    "PR #67 draft export code must be preserved separately."
+  ],
+  "hours_minutes_remaining": "UNKNOWN",
+  "rows": [
+    {
+      "id": "MEDIA-001",
+      "priority": "P0",
+      "acceptance": "Keep native Kaffeine Next TV channel list, scan, EPG, subtitles, Teletext and channel switching without feature loss.",
+      "classification": "draft-coded",
+      "source": {
+        "file": "kaffeine_next/patch_upstream.py",
+        "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+        "blob_sha": "e5de236e7c8fde637ea8d3264c6abd52a3d1d351",
+        "line": 5,
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/3884cc3b0b603f7a555d1801ed12283d9df4b63f/kaffeine_next/patch_upstream.py#L5",
+        "observed": "Kaffeine owns scan, EPG and Teletext."
+      },
+      "candidate_sources": [
+        {
+          "file": "kaffeine_next/patch_upstream.py",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "inspected": true
+        },
+        {
+          "file": "tv_center/channels_ui.py",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "inspected": true
+        }
+      ],
+      "candidate_tests": [
+        {
+          "file": "tests/test_tv_kaffeine.py",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "source_inspected": true,
+          "executed": false
+        },
+        {
+          "file": "tests/test_tv_channel_epoch.py",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "source_inspected": true,
+          "executed": false
+        }
+      ],
+      "primary_test": {
+        "file": "tests/test_tv_kaffeine.py",
+        "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+        "line": 14,
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/3884cc3b0b603f7a555d1801ed12283d9df4b63f/tests/test_tv_kaffeine.py#L14",
+        "executed": false,
+        "runner": null,
+        "result": "not_run"
+      },
+      "verification": {
+        "unit": false,
+        "hardware": false,
+        "released": false
+      },
+      "non_destructive_test_plan": "Under an explicitly approved isolated test install, check acceptance: Keep native Kaffeine Next TV channel list, scan, EPG, subtitles, Teletext and channel switching without feature loss. Preserve settings, original recordings and existing receiver ownership; capture exact build/device/runner logs.",
+      "ui_languages": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "full_acceptance": "not_verified"
+    },
+    {
+      "id": "MEDIA-002",
+      "priority": "P0",
+      "acceptance": "Fix channel scan crash, weak-signal handling, PAT/PMT/HEVC issues, old PID/audio/video state when switching.",
+      "classification": "draft-coded",
+      "source": {
+        "file": "tv_center/scanner.py",
+        "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+        "blob_sha": "6aca8cb4485ecdac386117a0afac6e9a7a6b7d2e",
+        "line": 214,
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/3884cc3b0b603f7a555d1801ed12283d9df4b63f/tv_center/scanner.py#L214",
+        "observed": "DVB scanning and cancellation are implemented; live PAT/PMT/HEVC issues unverified."
+      },
+      "candidate_sources": [
+        {
+          "file": "kaffeine_next/tv_tune_state.py",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "inspected": true
+        },
+        {
+          "file": "tv_center/scanner.py",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "inspected": true
+        }
+      ],
+      "candidate_tests": [
+        {
+          "file": "tests/test_kaffeine_dvb_scan_import_crash.py",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "source_inspected": true,
+          "executed": false
+        },
+        {
+          "file": "tests/test_tv_kaffeine_transport_health.py",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "source_inspected": true,
+          "executed": false
+        }
+      ],
+      "primary_test": {
+        "file": "tests/test_kaffeine_dvb_scan_import_crash.py",
+        "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+        "line": 26,
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/3884cc3b0b603f7a555d1801ed12283d9df4b63f/tests/test_kaffeine_dvb_scan_import_crash.py#L26",
+        "executed": false,
+        "runner": null,
+        "result": "not_run"
+      },
+      "verification": {
+        "unit": false,
+        "hardware": false,
+        "released": false
+      },
+      "non_destructive_test_plan": "Under an explicitly approved isolated test install, check acceptance: Fix channel scan crash, weak-signal handling, PAT/PMT/HEVC issues, old PID/audio/video state when switching. Preserve settings, original recordings and existing receiver ownership; capture exact build/device/runner logs.",
+      "ui_languages": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "full_acceptance": "not_verified"
+    },
+    {
+      "id": "MEDIA-003",
+      "priority": "P0",
+      "acceptance": "Maintain real RF SNR, quality, frequency, signal strength and scan progress (no invented telemetry).",
+      "classification": "draft-coded",
+      "source": {
+        "file": "tv_center/scan_ui.py",
+        "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+        "blob_sha": "3562923e485db694b10e859fcb6ffd12f5de3e3c",
+        "line": 72,
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/3884cc3b0b603f7a555d1801ed12283d9df4b63f/tv_center/scan_ui.py#L72",
+        "observed": "Scan UI shows reported RF frequency; real SNR requires live validation."
+      },
+      "candidate_sources": [
+        {
+          "file": "kaffeine_next/dvb_diagnostics.sh",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "inspected": true
+        },
+        {
+          "file": "tv_center/hardware_status.py",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "inspected": true
+        }
+      ],
+      "candidate_tests": [
+        {
+          "file": "tests/test_tv_hardware_status.py",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "source_inspected": true,
+          "executed": false
+        }
+      ],
+      "primary_test": {
+        "file": "tests/test_tv_hardware_status.py",
+        "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+        "line": 11,
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/3884cc3b0b603f7a555d1801ed12283d9df4b63f/tests/test_tv_hardware_status.py#L11",
+        "executed": false,
+        "runner": null,
+        "result": "not_run"
+      },
+      "verification": {
+        "unit": false,
+        "hardware": false,
+        "released": false
+      },
+      "non_destructive_test_plan": "Under an explicitly approved isolated test install, check acceptance: Maintain real RF SNR, quality, frequency, signal strength and scan progress (no invented telemetry). Preserve settings, original recordings and existing receiver ownership; capture exact build/device/runner logs.",
+      "ui_languages": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "full_acceptance": "not_verified"
+    },
+    {
+      "id": "MEDIA-004",
+      "priority": "P0",
+      "acceptance": "Fix TV/radio/TV transition crashes and exclusive SDR/DVB device handoff with hard stop.",
+      "classification": "draft-coded",
+      "source": {
+        "file": "kaffeine_next/native_hardware_tab.h",
+        "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+        "blob_sha": "07dfe167e19a8691d8fb7a2893b7efaa37bb78f6",
+        "line": 239,
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/3884cc3b0b603f7a555d1801ed12283d9df4b63f/kaffeine_next/native_hardware_tab.h#L239",
+        "observed": "Owned radio release exists; TV-radio-TV hardware test missing."
+      },
+      "candidate_sources": [
+        {
+          "file": "kaffeine_next/native_radio_tab.h",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "inspected": true
+        },
+        {
+          "file": "tv_center/runtime.py",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "inspected": true
+        }
+      ],
+      "candidate_tests": [
+        {
+          "file": "tests/test_radio_tv_handoff_progress.py",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "source_inspected": true,
+          "executed": false
+        },
+        {
+          "file": "tests/test_tv_radio_receiver_release_lifecycle.py",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "source_inspected": true,
+          "executed": false
+        }
+      ],
+      "primary_test": {
+        "file": "tests/test_radio_tv_handoff_progress.py",
+        "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+        "line": 15,
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/3884cc3b0b603f7a555d1801ed12283d9df4b63f/tests/test_radio_tv_handoff_progress.py#L15",
+        "executed": false,
+        "runner": null,
+        "result": "not_run"
+      },
+      "verification": {
+        "unit": false,
+        "hardware": false,
+        "released": false
+      },
+      "non_destructive_test_plan": "Under an explicitly approved isolated test install, check acceptance: Fix TV/radio/TV transition crashes and exclusive SDR/DVB device handoff with hard stop. Preserve settings, original recordings and existing receiver ownership; capture exact build/device/runner logs.",
+      "ui_languages": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "full_acceptance": "not_verified"
+    },
+    {
+      "id": "MEDIA-005",
+      "priority": "P1",
+      "acceptance": "Ensure fullscreen video hides unnecessary bottom bars and preserves playback controls.",
+      "classification": "draft-coded",
+      "source": {
+        "file": "kaffeine_next/patch_upstream.py",
+        "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+        "blob_sha": "e5de236e7c8fde637ea8d3264c6abd52a3d1d351",
+        "line": 414,
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/3884cc3b0b603f7a555d1801ed12283d9df4b63f/kaffeine_next/patch_upstream.py#L414",
+        "observed": "Fullscreen control-bar visibility patch exists; native UI outcome unverified."
+      },
+      "candidate_sources": [
+        {
+          "file": "kaffeine_next/native_media_panel.h",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "inspected": true
+        },
+        {
+          "file": "kaffeine_next/patch_upstream.py",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "inspected": true
+        }
+      ],
+      "candidate_tests": [
+        {
+          "file": "tests/test_native_file_prepass_fullscreen.py",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "source_inspected": true,
+          "executed": false
+        }
+      ],
+      "primary_test": {
+        "file": "tests/test_native_file_prepass_fullscreen.py",
+        "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+        "line": 23,
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/3884cc3b0b603f7a555d1801ed12283d9df4b63f/tests/test_native_file_prepass_fullscreen.py#L23",
+        "executed": false,
+        "runner": null,
+        "result": "not_run"
+      },
+      "verification": {
+        "unit": false,
+        "hardware": false,
+        "released": false
+      },
+      "non_destructive_test_plan": "Under an explicitly approved isolated test install, check acceptance: Ensure fullscreen video hides unnecessary bottom bars and preserves playback controls. Preserve settings, original recordings and existing receiver ownership; capture exact build/device/runner logs.",
+      "ui_languages": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "full_acceptance": "not_verified"
+    },
+    {
+      "id": "MEDIA-006",
+      "priority": "P0",
+      "acceptance": "Keep native TV functionality and native desktop RF input without requiring browser WebUSB.",
+      "classification": "draft-coded",
+      "source": {
+        "file": "kaffeine_next/patch_upstream.py",
+        "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+        "blob_sha": "e5de236e7c8fde637ea8d3264c6abd52a3d1d351",
+        "line": 5,
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/3884cc3b0b603f7a555d1801ed12283d9df4b63f/kaffeine_next/patch_upstream.py#L5",
+        "observed": "Native Kaffeine keeps DVB owner; WebUSB is not required by this path."
+      },
+      "candidate_sources": [
+        {
+          "file": "kaffeine_next/patch_upstream.py",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "inspected": true
+        },
+        {
+          "file": "tv_center/desktop.py",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "inspected": true
+        }
+      ],
+      "candidate_tests": [
+        {
+          "file": "tests/test_tv_no_tuner_playback.py",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "source_inspected": true,
+          "executed": false
+        }
+      ],
+      "primary_test": {
+        "file": "tests/test_tv_no_tuner_playback.py",
+        "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+        "line": 17,
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/3884cc3b0b603f7a555d1801ed12283d9df4b63f/tests/test_tv_no_tuner_playback.py#L17",
+        "executed": false,
+        "runner": null,
+        "result": "not_run"
+      },
+      "verification": {
+        "unit": false,
+        "hardware": false,
+        "released": false
+      },
+      "non_destructive_test_plan": "Under an explicitly approved isolated test install, check acceptance: Keep native TV functionality and native desktop RF input without requiring browser WebUSB. Preserve settings, original recordings and existing receiver ownership; capture exact build/device/runner logs.",
+      "ui_languages": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "full_acceptance": "not_verified"
+    },
+    {
+      "id": "MEDIA-007",
+      "priority": "P0",
+      "acceptance": "Keep teletext pages/subtitle source selection; compare with spoken dialogue and auto-fallback to Whisper on mismatch.",
+      "classification": "draft-coded",
+      "source": {
+        "file": "kaffeine_next/teletext_match.py",
+        "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+        "blob_sha": "f70b6a6fe511d75d73eed3190d900b3512f2bb72",
+        "line": 119,
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/3884cc3b0b603f7a555d1801ed12283d9df4b63f/kaffeine_next/teletext_match.py#L119",
+        "observed": "Same-language spoken-versus-Teletext comparator coded."
+      },
+      "candidate_sources": [
+        {
+          "file": "kaffeine_next/teletext_match.py",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "inspected": true
+        },
+        {
+          "file": "kaffeine_next/captions_overlay.py",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "inspected": true
+        }
+      ],
+      "candidate_tests": [
+        {
+          "file": "tests/test_tv_teletext_speech_recovery.py",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "source_inspected": true,
+          "executed": false
+        }
+      ],
+      "primary_test": {
+        "file": "tests/test_tv_teletext_speech_recovery.py",
+        "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+        "line": 19,
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/3884cc3b0b603f7a555d1801ed12283d9df4b63f/tests/test_tv_teletext_speech_recovery.py#L19",
+        "executed": false,
+        "runner": null,
+        "result": "not_run"
+      },
+      "verification": {
+        "unit": false,
+        "hardware": false,
+        "released": false
+      },
+      "non_destructive_test_plan": "Under an explicitly approved isolated test install, check acceptance: Keep teletext pages/subtitle source selection; compare with spoken dialogue and auto-fallback to Whisper on mismatch. Preserve settings, original recordings and existing receiver ownership; capture exact build/device/runner logs.",
+      "ui_languages": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "full_acceptance": "not_verified"
+    },
+    {
+      "id": "MEDIA-008",
+      "priority": "P0",
+      "acceptance": "Prevent caption settings/dialog or channel switching from hiding current subtitles, retaining old program PIDs or blocking live playback.",
+      "classification": "draft-coded",
+      "source": {
+        "file": "kaffeine_next/tv_tune_state.py",
+        "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+        "blob_sha": "8fd1280803d1c55ce554a15a8864ae7f7ffe7321",
+        "line": 17,
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/3884cc3b0b603f7a555d1801ed12283d9df4b63f/kaffeine_next/tv_tune_state.py#L17",
+        "observed": "Private tuner epoch/SID/TSID marker avoids stale program assumptions."
+      },
+      "candidate_sources": [
+        {
+          "file": "kaffeine_next/captions_overlay.py",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "inspected": true
+        },
+        {
+          "file": "kaffeine_next/tv_tune_state.py",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "inspected": true
+        }
+      ],
+      "candidate_tests": [
+        {
+          "file": "tests/test_tv_channel_epoch.py",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "source_inspected": true,
+          "executed": false
+        },
+        {
+          "file": "tests/test_tv_kaffeine_subtitle_tracks.py",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "source_inspected": true,
+          "executed": false
+        }
+      ],
+      "primary_test": {
+        "file": "tests/test_tv_channel_epoch.py",
+        "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+        "line": 36,
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/3884cc3b0b603f7a555d1801ed12283d9df4b63f/tests/test_tv_channel_epoch.py#L36",
+        "executed": false,
+        "runner": null,
+        "result": "not_run"
+      },
+      "verification": {
+        "unit": false,
+        "hardware": false,
+        "released": false
+      },
+      "non_destructive_test_plan": "Under an explicitly approved isolated test install, check acceptance: Prevent caption settings/dialog or channel switching from hiding current subtitles, retaining old program PIDs or blocking live playback. Preserve settings, original recordings and existing receiver ownership; capture exact build/device/runner logs.",
+      "ui_languages": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "full_acceptance": "not_verified"
+    },
+    {
+      "id": "MEDIA-009",
+      "priority": "P0",
+      "acceptance": "Keep TV buffered caption timing stable with enough read-ahead, visible offset and easy-read modes.",
+      "classification": "draft-coded",
+      "source": {
+        "file": "kaffeine_next/caption_timing.py",
+        "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+        "blob_sha": "d6c77a7cec408abeea9142dae25b4c43a1cb676d",
+        "line": 609,
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/3884cc3b0b603f7a555d1801ed12283d9df4b63f/kaffeine_next/caption_timing.py#L609",
+        "observed": "Subtitle retime API exists; live cue latency unknown."
+      },
+      "candidate_sources": [
+        {
+          "file": "kaffeine_next/caption_timing.py",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "inspected": true
+        },
+        {
+          "file": "tv_center/sentence_joiner.py",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "inspected": true
+        }
+      ],
+      "candidate_tests": [
+        {
+          "file": "tests/test_tv_caption_readability_clock.py",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "source_inspected": true,
+          "executed": false
+        },
+        {
+          "file": "tests/test_tv_natural_caption_sync.py",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "source_inspected": true,
+          "executed": false
+        }
+      ],
+      "primary_test": {
+        "file": "tests/test_tv_caption_readability_clock.py",
+        "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+        "line": 21,
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/3884cc3b0b603f7a555d1801ed12283d9df4b63f/tests/test_tv_caption_readability_clock.py#L21",
+        "executed": false,
+        "runner": null,
+        "result": "not_run"
+      },
+      "verification": {
+        "unit": false,
+        "hardware": false,
+        "released": false
+      },
+      "non_destructive_test_plan": "Under an explicitly approved isolated test install, check acceptance: Keep TV buffered caption timing stable with enough read-ahead, visible offset and easy-read modes. Preserve settings, original recordings and existing receiver ownership; capture exact build/device/runner logs.",
+      "ui_languages": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "full_acceptance": "not_verified"
+    },
+    {
+      "id": "MEDIA-010",
+      "priority": "P1",
+      "acceptance": "Show all DAB multiplex blocks by default; scan ensembles and stations, with searchable favorites/channel lists.",
+      "classification": "draft-coded",
+      "source": {
+        "file": "tv_center/scan_ui.py",
+        "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+        "blob_sha": "3562923e485db694b10e859fcb6ffd12f5de3e3c",
+        "line": 21,
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/3884cc3b0b603f7a555d1801ed12283d9df4b63f/tv_center/scan_ui.py#L21",
+        "observed": "Scan monitor exists; full DAB ensemble and station coverage untested."
+      },
+      "candidate_sources": [
+        {
+          "file": "kaffeine_next/native_radio_tab.h",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "inspected": true
+        },
+        {
+          "file": "tv_center/scan_ui.py",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "inspected": true
+        }
+      ],
+      "candidate_tests": [
+        {
+          "file": "tests/test_tv_radio_channel_lists_translation_reading.py",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "source_inspected": true,
+          "executed": false
+        }
+      ],
+      "primary_test": {
+        "file": "tests/test_tv_radio_channel_lists_translation_reading.py",
+        "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+        "line": 14,
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/3884cc3b0b603f7a555d1801ed12283d9df4b63f/tests/test_tv_radio_channel_lists_translation_reading.py#L14",
+        "executed": false,
+        "runner": null,
+        "result": "not_run"
+      },
+      "verification": {
+        "unit": false,
+        "hardware": false,
+        "released": false
+      },
+      "non_destructive_test_plan": "Under an explicitly approved isolated test install, check acceptance: Show all DAB multiplex blocks by default; scan ensembles and stations, with searchable favorites/channel lists. Preserve settings, original recordings and existing receiver ownership; capture exact build/device/runner logs.",
+      "ui_languages": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "full_acceptance": "not_verified"
+    },
+    {
+      "id": "MEDIA-011",
+      "priority": "P1",
+      "acceptance": "Support DLS/DLS+, Journaline, MOT slideshow navigation and genuine live spectrum/waterfall and quality widgets.",
+      "classification": "requested",
+      "source": {
+        "file": "textcenter/dab_bridge.py",
+        "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+        "blob_sha": "fa4aeb204333668f753f64608c1724b30a37258a",
+        "line": 6,
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/3884cc3b0b603f7a555d1801ed12283d9df4b63f/textcenter/dab_bridge.py#L6",
+        "observed": "Journaline explicitly documented NOT implemented; DLS/MOT bridge is partial."
+      },
+      "candidate_sources": [
+        {
+          "file": "textcenter/dab_bridge.py",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "inspected": true
+        },
+        {
+          "file": "tv_center/radio_dls_metadata.py",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "inspected": true
+        }
+      ],
+      "candidate_tests": [
+        {
+          "file": "tests/test_dab_bridge.py",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "source_inspected": true,
+          "executed": false
+        },
+        {
+          "file": "tests/test_radio_dls_lyrics_refresh.py",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "source_inspected": true,
+          "executed": false
+        }
+      ],
+      "primary_test": {
+        "file": "tests/test_dab_bridge.py",
+        "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+        "line": 31,
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/3884cc3b0b603f7a555d1801ed12283d9df4b63f/tests/test_dab_bridge.py#L31",
+        "executed": false,
+        "runner": null,
+        "result": "not_run"
+      },
+      "verification": {
+        "unit": false,
+        "hardware": false,
+        "released": false
+      },
+      "non_destructive_test_plan": "Under an explicitly approved isolated test install, check acceptance: Support DLS/DLS+, Journaline, MOT slideshow navigation and genuine live spectrum/waterfall and quality widgets. Preserve settings, original recordings and existing receiver ownership; capture exact build/device/runner logs.",
+      "ui_languages": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "full_acceptance": "not_verified"
+    },
+    {
+      "id": "MEDIA-012",
+      "priority": "P0",
+      "acceptance": "Wait for actual welle-cli API readiness/dynamically selected port; show process/USB/decoder errors and avoid infinite loading.",
+      "classification": "draft-coded",
+      "source": {
+        "file": "kaffeine_next/native_radio_tab.h",
+        "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+        "blob_sha": "f9c8f7053f3bbb231ab99492c205d3c6902b44a5",
+        "line": 3480,
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/3884cc3b0b603f7a555d1801ed12283d9df4b63f/kaffeine_next/native_radio_tab.h#L3480",
+        "observed": "welle-cli dynamic port file logic exists; process readiness untested."
+      },
+      "candidate_sources": [
+        {
+          "file": "kaffeine_next/native_radio_tab.h",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "inspected": true
+        },
+        {
+          "file": "tv_center/radio_capture.py",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "inspected": true
+        }
+      ],
+      "candidate_tests": [
+        {
+          "file": "tests/test_tv_kaffeine_dab_api_recovery.py",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "source_inspected": true,
+          "executed": false
+        }
+      ],
+      "primary_test": {
+        "file": "tests/test_tv_kaffeine_dab_api_recovery.py",
+        "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+        "line": 10,
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/3884cc3b0b603f7a555d1801ed12283d9df4b63f/tests/test_tv_kaffeine_dab_api_recovery.py#L10",
+        "executed": false,
+        "runner": null,
+        "result": "not_run"
+      },
+      "verification": {
+        "unit": false,
+        "hardware": false,
+        "released": false
+      },
+      "non_destructive_test_plan": "Under an explicitly approved isolated test install, check acceptance: Wait for actual welle-cli API readiness/dynamically selected port; show process/USB/decoder errors and avoid infinite loading. Preserve settings, original recordings and existing receiver ownership; capture exact build/device/runner logs.",
+      "ui_languages": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "full_acceptance": "not_verified"
+    },
+    {
+      "id": "MEDIA-013",
+      "priority": "P1",
+      "acceptance": "Support FM RDS/RadioText and searchable online/radio station sources, analog tuning where supported.",
+      "classification": "draft-coded",
+      "source": {
+        "file": "textcenter/fm_rds.py",
+        "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+        "blob_sha": "954515c32e4ea3c7ca8543516579cc189847653e",
+        "line": 1,
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/3884cc3b0b603f7a555d1801ed12283d9df4b63f/textcenter/fm_rds.py#L1",
+        "observed": "Opt-in rtl_fm/redsea RDS pipeline; no real reception test."
+      },
+      "candidate_sources": [
+        {
+          "file": "textcenter/fm_rds.py",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "inspected": true
+        },
+        {
+          "file": "textcenter/fm_survey.py",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "inspected": true
+        }
+      ],
+      "candidate_tests": [
+        {
+          "file": "tests/test_fm_rds.py",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "source_inspected": true,
+          "executed": false
+        },
+        {
+          "file": "tests/test_fm_survey.py",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "source_inspected": true,
+          "executed": false
+        }
+      ],
+      "primary_test": {
+        "file": "tests/test_fm_rds.py",
+        "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+        "line": 29,
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/3884cc3b0b603f7a555d1801ed12283d9df4b63f/tests/test_fm_rds.py#L29",
+        "executed": false,
+        "runner": null,
+        "result": "not_run"
+      },
+      "verification": {
+        "unit": false,
+        "hardware": false,
+        "released": false
+      },
+      "non_destructive_test_plan": "Under an explicitly approved isolated test install, check acceptance: Support FM RDS/RadioText and searchable online/radio station sources, analog tuning where supported. Preserve settings, original recordings and existing receiver ownership; capture exact build/device/runner logs.",
+      "ui_languages": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "full_acceptance": "not_verified"
+    },
+    {
+      "id": "MEDIA-014",
+      "priority": "P1",
+      "acceptance": "Maintain LW/MW/SW/AM/FM feature choices without inventing unsupported frequencies or demodulators.",
+      "classification": "draft-coded",
+      "source": {
+        "file": "textcenter/receivers.py",
+        "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+        "blob_sha": "11f246444b2ccefc6f33ff4d0ca3af7629703c9c",
+        "line": 4,
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/3884cc3b0b603f7a555d1801ed12283d9df4b63f/textcenter/receivers.py#L4",
+        "observed": "Passive USB inventory does not prove LW/MW/SW demodulation."
+      },
+      "candidate_sources": [
+        {
+          "file": "kaffeine_next/native_radio_tab.h",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "inspected": true
+        },
+        {
+          "file": "textcenter/receivers.py",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "inspected": true
+        }
+      ],
+      "candidate_tests": [
+        {
+          "file": "tests/test_receivers.py",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "source_inspected": true,
+          "executed": false
+        }
+      ],
+      "primary_test": {
+        "file": "tests/test_receivers.py",
+        "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+        "line": 9,
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/3884cc3b0b603f7a555d1801ed12283d9df4b63f/tests/test_receivers.py#L9",
+        "executed": false,
+        "runner": null,
+        "result": "not_run"
+      },
+      "verification": {
+        "unit": false,
+        "hardware": false,
+        "released": false
+      },
+      "non_destructive_test_plan": "Under an explicitly approved isolated test install, check acceptance: Maintain LW/MW/SW/AM/FM feature choices without inventing unsupported frequencies or demodulators. Preserve settings, original recordings and existing receiver ownership; capture exact build/device/runner logs.",
+      "ui_languages": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "full_acceptance": "not_verified"
+    },
+    {
+      "id": "MEDIA-015",
+      "priority": "P0",
+      "acceptance": "Prevent radio AI subtitles from stopping/restarting, long expanding buffers, repeating/transcription drift, duplicate provider lines.",
+      "classification": "draft-coded",
+      "source": {
+        "file": "tv_center/radio_ai.py",
+        "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+        "blob_sha": "3a66a85401f1c5db08cd9fc83387c9aaf1664085",
+        "line": 1,
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/3884cc3b0b603f7a555d1801ed12283d9df4b63f/tv_center/radio_ai.py#L1",
+        "observed": "Live radio AI worker coded; drift and recovery unmeasured."
+      },
+      "candidate_sources": [
+        {
+          "file": "tv_center/radio_ai.py",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "inspected": true
+        },
+        {
+          "file": "kaffeine_next/caption_timing.py",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "inspected": true
+        }
+      ],
+      "candidate_tests": [
+        {
+          "file": "tests/test_radio_ai_caption_karaoke_playback.py",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "source_inspected": true,
+          "executed": false
+        },
+        {
+          "file": "tests/test_radio_est_caption_continuity.py",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "source_inspected": true,
+          "executed": false
+        }
+      ],
+      "primary_test": {
+        "file": "tests/test_radio_ai_caption_karaoke_playback.py",
+        "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+        "line": 20,
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/3884cc3b0b603f7a555d1801ed12283d9df4b63f/tests/test_radio_ai_caption_karaoke_playback.py#L20",
+        "executed": false,
+        "runner": null,
+        "result": "not_run"
+      },
+      "verification": {
+        "unit": false,
+        "hardware": false,
+        "released": false
+      },
+      "non_destructive_test_plan": "Under an explicitly approved isolated test install, check acceptance: Prevent radio AI subtitles from stopping/restarting, long expanding buffers, repeating/transcription drift, duplicate provider lines. Preserve settings, original recordings and existing receiver ownership; capture exact build/device/runner logs.",
+      "ui_languages": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "full_acceptance": "not_verified"
+    },
+    {
+      "id": "MEDIA-016",
+      "priority": "P0",
+      "acceptance": "When radio fails, recover only resources owned by Media Center, never kill user's external readsb/tar1090 services.",
+      "classification": "draft-coded",
+      "source": {
+        "file": "textcenter/conflicts.py",
+        "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+        "blob_sha": "86140946be7862710fa772e6b68f0be699865234",
+        "line": 3,
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/3884cc3b0b603f7a555d1801ed12283d9df4b63f/textcenter/conflicts.py#L3",
+        "observed": "External receiver process conflicts only inspected, not killed."
+      },
+      "candidate_sources": [
+        {
+          "file": "kaffeine_next/native_radio_tab.h",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "inspected": true
+        },
+        {
+          "file": "textcenter/conflicts.py",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "inspected": true
+        }
+      ],
+      "candidate_tests": [
+        {
+          "file": "tests/test_tv_radio_receiver_release_lifecycle.py",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "source_inspected": true,
+          "executed": false
+        }
+      ],
+      "primary_test": {
+        "file": "tests/test_tv_radio_receiver_release_lifecycle.py",
+        "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+        "line": 21,
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/3884cc3b0b603f7a555d1801ed12283d9df4b63f/tests/test_tv_radio_receiver_release_lifecycle.py#L21",
+        "executed": false,
+        "runner": null,
+        "result": "not_run"
+      },
+      "verification": {
+        "unit": false,
+        "hardware": false,
+        "released": false
+      },
+      "non_destructive_test_plan": "Under an explicitly approved isolated test install, check acceptance: When radio fails, recover only resources owned by Media Center, never kill user's external readsb/tar1090 services. Preserve settings, original recordings and existing receiver ownership; capture exact build/device/runner logs.",
+      "ui_languages": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "full_acceptance": "not_verified"
+    },
+    {
+      "id": "MEDIA-017",
+      "priority": "P1",
+      "acceptance": "Expose separate Internet Load / Radio Load, device lease and source details; keep radio/TV fast transition progress.",
+      "classification": "draft-coded",
+      "source": {
+        "file": "kaffeine_next/native_hardware_tab.h",
+        "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+        "blob_sha": "07dfe167e19a8691d8fb7a2893b7efaa37bb78f6",
+        "line": 69,
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/3884cc3b0b603f7a555d1801ed12283d9df4b63f/kaffeine_next/native_hardware_tab.h#L69",
+        "observed": "Hardware ownership/status shown; load stage metrics not hardware tested."
+      },
+      "candidate_sources": [
+        {
+          "file": "kaffeine_next/native_hardware_tab.h",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "inspected": true
+        },
+        {
+          "file": "kaffeine_next/native_radio_tab.h",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "inspected": true
+        }
+      ],
+      "candidate_tests": [
+        {
+          "file": "tests/test_radio_tv_handoff_progress.py",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "source_inspected": true,
+          "executed": false
+        },
+        {
+          "file": "tests/test_tv_radio_frequency_buffer_progress.py",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "source_inspected": true,
+          "executed": false
+        }
+      ],
+      "primary_test": {
+        "file": "tests/test_radio_tv_handoff_progress.py",
+        "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+        "line": 15,
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/3884cc3b0b603f7a555d1801ed12283d9df4b63f/tests/test_radio_tv_handoff_progress.py#L15",
+        "executed": false,
+        "runner": null,
+        "result": "not_run"
+      },
+      "verification": {
+        "unit": false,
+        "hardware": false,
+        "released": false
+      },
+      "non_destructive_test_plan": "Under an explicitly approved isolated test install, check acceptance: Expose separate Internet Load / Radio Load, device lease and source details; keep radio/TV fast transition progress. Preserve settings, original recordings and existing receiver ownership; capture exact build/device/runner logs.",
+      "ui_languages": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "full_acceptance": "not_verified"
+    },
+    {
+      "id": "MEDIA-018",
+      "priority": "P0",
+      "acceptance": "Use one live caption timeline and apply user offset once per segment, never again as reading delay.",
+      "classification": "draft-coded",
+      "source": {
+        "file": "kaffeine_next/caption_timing.py",
+        "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+        "blob_sha": "d6c77a7cec408abeea9142dae25b4c43a1cb676d",
+        "line": 499,
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/3884cc3b0b603f7a555d1801ed12283d9df4b63f/kaffeine_next/caption_timing.py#L499",
+        "observed": "Playback delay and offset enter common cue clock; repeated wait untested."
+      },
+      "candidate_sources": [
+        {
+          "file": "kaffeine_next/caption_timing.py",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "inspected": true
+        },
+        {
+          "file": "kaffeine_next/captions_overlay.py",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "inspected": true
+        }
+      ],
+      "candidate_tests": [
+        {
+          "file": "tests/test_tv_caption_live_offset.py",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "source_inspected": true,
+          "executed": false
+        }
+      ],
+      "primary_test": {
+        "file": "tests/test_tv_caption_live_offset.py",
+        "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+        "line": 8,
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/3884cc3b0b603f7a555d1801ed12283d9df4b63f/tests/test_tv_caption_live_offset.py#L8",
+        "executed": false,
+        "runner": null,
+        "result": "not_run"
+      },
+      "verification": {
+        "unit": false,
+        "hardware": false,
+        "released": false
+      },
+      "non_destructive_test_plan": "Under an explicitly approved isolated test install, check acceptance: Use one live caption timeline and apply user offset once per segment, never again as reading delay. Preserve settings, original recordings and existing receiver ownership; capture exact build/device/runner logs.",
+      "ui_languages": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "full_acceptance": "not_verified"
+    },
+    {
+      "id": "MEDIA-019",
+      "priority": "P0",
+      "acceptance": "Keep spoken words visible even if sound labels [music]/[noise]/TESTSEITE or lyric matching is active; labels may use separate lines.",
+      "classification": "draft-coded",
+      "source": {
+        "file": "tv_center/sound_event_captions.py",
+        "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+        "blob_sha": "20bc3864a158b3cfa98af1d140fd7ef6e881e105",
+        "line": 55,
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/3884cc3b0b603f7a555d1801ed12283d9df4b63f/tv_center/sound_event_captions.py#L55",
+        "observed": "Sound tags retain recognized words."
+      },
+      "candidate_sources": [
+        {
+          "file": "tv_center/sound_event_captions.py",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "inspected": true
+        },
+        {
+          "file": "kaffeine_next/captions_overlay.py",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "inspected": true
+        }
+      ],
+      "candidate_tests": [
+        {
+          "file": "tests/test_tv_sound_labels_teletext_auto.py",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "source_inspected": true,
+          "executed": false
+        }
+      ],
+      "primary_test": {
+        "file": "tests/test_tv_sound_labels_teletext_auto.py",
+        "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+        "line": 16,
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/3884cc3b0b603f7a555d1801ed12283d9df4b63f/tests/test_tv_sound_labels_teletext_auto.py#L16",
+        "executed": false,
+        "runner": null,
+        "result": "not_run"
+      },
+      "verification": {
+        "unit": false,
+        "hardware": false,
+        "released": false
+      },
+      "non_destructive_test_plan": "Under an explicitly approved isolated test install, check acceptance: Keep spoken words visible even if sound labels [music]/[noise]/TESTSEITE or lyric matching is active; labels may use separate lines. Preserve settings, original recordings and existing receiver ownership; capture exact build/device/runner logs.",
+      "ui_languages": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "full_acceptance": "not_verified"
+    },
+    {
+      "id": "MEDIA-020",
+      "priority": "P0",
+      "acceptance": "Show original spoken text even when optional translation model, Whisper or source fails.",
+      "classification": "draft-coded",
+      "source": {
+        "file": "tv_center/translation_failover.py",
+        "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+        "blob_sha": "fc70e51037a05cb458172ed941520b569b49b14a",
+        "line": 86,
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/3884cc3b0b603f7a555d1801ed12283d9df4b63f/tv_center/translation_failover.py#L86",
+        "observed": "Translation failover code exists; live original speech still needs testing."
+      },
+      "candidate_sources": [
+        {
+          "file": "tv_center/translation_failover.py",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "inspected": true
+        },
+        {
+          "file": "tv_center/captions.py",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "inspected": true
+        }
+      ],
+      "candidate_tests": [
+        {
+          "file": "tests/test_tv_multilingual_caption_fallback.py",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "source_inspected": true,
+          "executed": false
+        }
+      ],
+      "primary_test": {
+        "file": "tests/test_tv_multilingual_caption_fallback.py",
+        "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+        "line": 17,
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/3884cc3b0b603f7a555d1801ed12283d9df4b63f/tests/test_tv_multilingual_caption_fallback.py#L17",
+        "executed": false,
+        "runner": null,
+        "result": "not_run"
+      },
+      "verification": {
+        "unit": false,
+        "hardware": false,
+        "released": false
+      },
+      "non_destructive_test_plan": "Under an explicitly approved isolated test install, check acceptance: Show original spoken text even when optional translation model, Whisper or source fails. Preserve settings, original recordings and existing receiver ownership; capture exact build/device/runner logs.",
+      "ui_languages": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "full_acceptance": "not_verified"
+    },
+    {
+      "id": "MEDIA-021",
+      "priority": "P0",
+      "acceptance": "Keep independent TV/radio captions, DVB Teletext, DAB DLS, Whisper and lyrics source attribution and no duplicated captions.",
+      "classification": "draft-coded",
+      "source": {
+        "file": "tv_center/radio_dls_metadata.py",
+        "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+        "blob_sha": "deba924cc3875c24ba8c54a00304984db3761dad",
+        "line": 121,
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/3884cc3b0b603f7a555d1801ed12283d9df4b63f/tv_center/radio_dls_metadata.py#L121",
+        "observed": "DLS song provenance distinct from station label."
+      },
+      "candidate_sources": [
+        {
+          "file": "kaffeine_next/teletext_match.py",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "inspected": true
+        },
+        {
+          "file": "tv_center/radio_dls_metadata.py",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "inspected": true
+        }
+      ],
+      "candidate_tests": [
+        {
+          "file": "tests/test_tv_sound_labels_teletext_auto.py",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "source_inspected": true,
+          "executed": false
+        },
+        {
+          "file": "tests/test_tv_teletext_speech_recovery.py",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "source_inspected": true,
+          "executed": false
+        }
+      ],
+      "primary_test": {
+        "file": "tests/test_tv_sound_labels_teletext_auto.py",
+        "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+        "line": 101,
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/3884cc3b0b603f7a555d1801ed12283d9df4b63f/tests/test_tv_sound_labels_teletext_auto.py#L101",
+        "executed": false,
+        "runner": null,
+        "result": "not_run"
+      },
+      "verification": {
+        "unit": false,
+        "hardware": false,
+        "released": false
+      },
+      "non_destructive_test_plan": "Under an explicitly approved isolated test install, check acceptance: Keep independent TV/radio captions, DVB Teletext, DAB DLS, Whisper and lyrics source attribution and no duplicated captions. Preserve settings, original recordings and existing receiver ownership; capture exact build/device/runner logs.",
+      "ui_languages": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "full_acceptance": "not_verified"
+    },
+    {
+      "id": "MEDIA-022",
+      "priority": "P1",
+      "acceptance": "Maintain optimized easy readability, punctuation and natural chunk boundaries with adjustable font/background/opacity/position.",
+      "classification": "draft-coded",
+      "source": {
+        "file": "tv_center/sentence_joiner.py",
+        "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+        "blob_sha": "ace3577c41175b46bae83e956b3b5b69526093f4",
+        "line": 13,
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/3884cc3b0b603f7a555d1801ed12283d9df4b63f/tv_center/sentence_joiner.py#L13",
+        "observed": "Bounded sentence joining coded; real readability untested."
+      },
+      "candidate_sources": [
+        {
+          "file": "tv_center/sentence_joiner.py",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "inspected": true
+        },
+        {
+          "file": "kaffeine_next/captions_overlay.py",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "inspected": true
+        }
+      ],
+      "candidate_tests": [
+        {
+          "file": "tests/test_tv_sentence_joiner.py",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "source_inspected": true,
+          "executed": false
+        },
+        {
+          "file": "tests/test_tv_caption_readability_clock.py",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "source_inspected": true,
+          "executed": false
+        }
+      ],
+      "primary_test": {
+        "file": "tests/test_tv_sentence_joiner.py",
+        "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+        "line": 7,
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/3884cc3b0b603f7a555d1801ed12283d9df4b63f/tests/test_tv_sentence_joiner.py#L7",
+        "executed": false,
+        "runner": null,
+        "result": "not_run"
+      },
+      "verification": {
+        "unit": false,
+        "hardware": false,
+        "released": false
+      },
+      "non_destructive_test_plan": "Under an explicitly approved isolated test install, check acceptance: Maintain optimized easy readability, punctuation and natural chunk boundaries with adjustable font/background/opacity/position. Preserve settings, original recordings and existing receiver ownership; capture exact build/device/runner logs.",
+      "ui_languages": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "full_acceptance": "not_verified"
+    },
+    {
+      "id": "MEDIA-023",
+      "priority": "P1",
+      "acceptance": "Support selectable source language Auto Detect; default English output; optional Whisper speech→English→configured translation model target pipeline.",
+      "classification": "draft-coded",
+      "source": {
+        "file": "tv_center/language_codes.py",
+        "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+        "blob_sha": "d58cea32272eda7a63d6b991aa63b437db5ea736",
+        "line": 41,
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/3884cc3b0b603f7a555d1801ed12283d9df4b63f/tv_center/language_codes.py#L41",
+        "observed": "Language validation coded; all native EN/TR/DE GUI strings unverified."
+      },
+      "candidate_sources": [
+        {
+          "file": "tv_center/translation_failover.py",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "inspected": true
+        },
+        {
+          "file": "tv_center/language_codes.py",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "inspected": true
+        }
+      ],
+      "candidate_tests": [
+        {
+          "file": "tests/test_tv_auto_track_languages.py",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "source_inspected": true,
+          "executed": false
+        },
+        {
+          "file": "tests/test_tv_multilingual_caption_fallback.py",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "source_inspected": true,
+          "executed": false
+        }
+      ],
+      "primary_test": {
+        "file": "tests/test_tv_auto_track_languages.py",
+        "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+        "line": 10,
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/3884cc3b0b603f7a555d1801ed12283d9df4b63f/tests/test_tv_auto_track_languages.py#L10",
+        "executed": false,
+        "runner": null,
+        "result": "not_run"
+      },
+      "verification": {
+        "unit": false,
+        "hardware": false,
+        "released": false
+      },
+      "non_destructive_test_plan": "Under an explicitly approved isolated test install, check acceptance: Support selectable source language Auto Detect; default English output; optional Whisper speech→English→configured translation model target pipeline. Preserve settings, original recordings and existing receiver ownership; capture exact build/device/runner logs.",
+      "ui_languages": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "full_acceptance": "not_verified"
+    },
+    {
+      "id": "MEDIA-024",
+      "priority": "P1",
+      "acceptance": "Keep direct translation options (such as DE→TR) and installed model inventory Argos/NLLB/MADLAD/other model readiness without imaginary capability.",
+      "classification": "draft-coded",
+      "source": {
+        "file": "tv_center/direct_de_tr.py",
+        "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+        "blob_sha": "6d4b3dd6d08976745db3b63b6d1e18517a6e9833",
+        "line": 16,
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/3884cc3b0b603f7a555d1801ed12283d9df4b63f/tv_center/direct_de_tr.py#L16",
+        "observed": "Installed-model direct DE-to-TR route coded."
+      },
+      "candidate_sources": [
+        {
+          "file": "tv_center/direct_de_tr.py",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "inspected": true
+        },
+        {
+          "file": "tv_center/translation_market.py",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "inspected": true
+        }
+      ],
+      "candidate_tests": [
+        {
+          "file": "tests/test_tv_quality_translation.py",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "source_inspected": true,
+          "executed": false
+        },
+        {
+          "file": "tests/test_tv_translation_managed_packs.py",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "source_inspected": true,
+          "executed": false
+        }
+      ],
+      "primary_test": {
+        "file": "tests/test_tv_quality_translation.py",
+        "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+        "line": 28,
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/3884cc3b0b603f7a555d1801ed12283d9df4b63f/tests/test_tv_quality_translation.py#L28",
+        "executed": false,
+        "runner": null,
+        "result": "not_run"
+      },
+      "verification": {
+        "unit": false,
+        "hardware": false,
+        "released": false
+      },
+      "non_destructive_test_plan": "Under an explicitly approved isolated test install, check acceptance: Keep direct translation options (such as DE→TR) and installed model inventory Argos/NLLB/MADLAD/other model readiness without imaginary capability. Preserve settings, original recordings and existing receiver ownership; capture exact build/device/runner logs.",
+      "ui_languages": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "full_acceptance": "not_verified"
+    },
+    {
+      "id": "MEDIA-025",
+      "priority": "P1",
+      "acceptance": "Preserve optional speaker labeling and experimental two-speaker overlap separation without allowing failed separation to block ordinary dialogue.",
+      "classification": "draft-coded",
+      "source": {
+        "file": "tv_center/overlap_separation.py",
+        "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+        "blob_sha": "2bf23f83bc28adedf7c94c464aa536bed38ccbdd",
+        "line": 1,
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/3884cc3b0b603f7a555d1801ed12283d9df4b63f/tv_center/overlap_separation.py#L1",
+        "observed": "Two-speaker experimental separation only; genuine voice identity unverified."
+      },
+      "candidate_sources": [
+        {
+          "file": "tv_center/overlap_separation.py",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "inspected": true
+        },
+        {
+          "file": "tv_center/free_speakers.py",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "inspected": true
+        }
+      ],
+      "candidate_tests": [
+        {
+          "file": "tests/test_tv_dual_voice_separation.py",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "source_inspected": true,
+          "executed": false
+        },
+        {
+          "file": "tests/test_tv_free_speakers_ui.py",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "source_inspected": true,
+          "executed": false
+        }
+      ],
+      "primary_test": {
+        "file": "tests/test_tv_dual_voice_separation.py",
+        "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+        "line": 23,
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/3884cc3b0b603f7a555d1801ed12283d9df4b63f/tests/test_tv_dual_voice_separation.py#L23",
+        "executed": false,
+        "runner": null,
+        "result": "not_run"
+      },
+      "verification": {
+        "unit": false,
+        "hardware": false,
+        "released": false
+      },
+      "non_destructive_test_plan": "Under an explicitly approved isolated test install, check acceptance: Preserve optional speaker labeling and experimental two-speaker overlap separation without allowing failed separation to block ordinary dialogue. Preserve settings, original recordings and existing receiver ownership; capture exact build/device/runner logs.",
+      "ui_languages": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "full_acceptance": "not_verified"
+    },
+    {
+      "id": "MEDIA-026",
+      "priority": "P0",
+      "acceptance": "Keep adjustable transcription/subtitle delay and buffer policy; audio/video should not drift because of additive repeated waits.",
+      "classification": "draft-coded",
+      "source": {
+        "file": "kaffeine_next/caption_timing.py",
+        "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+        "blob_sha": "d6c77a7cec408abeea9142dae25b4c43a1cb676d",
+        "line": 499,
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/3884cc3b0b603f7a555d1801ed12283d9df4b63f/kaffeine_next/caption_timing.py#L499",
+        "observed": "Single cue-time delay math exists; end-to-end duplicate waits unverified."
+      },
+      "candidate_sources": [
+        {
+          "file": "kaffeine_next/caption_timing.py",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "inspected": true
+        },
+        {
+          "file": "tv_center/radio_ai.py",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "inspected": true
+        }
+      ],
+      "candidate_tests": [
+        {
+          "file": "tests/test_tv_natural_caption_sync.py",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "source_inspected": true,
+          "executed": false
+        },
+        {
+          "file": "tests/test_radio_separate_lipsync_refresh.py",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "source_inspected": true,
+          "executed": false
+        }
+      ],
+      "primary_test": {
+        "file": "tests/test_tv_natural_caption_sync.py",
+        "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+        "line": 46,
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/3884cc3b0b603f7a555d1801ed12283d9df4b63f/tests/test_tv_natural_caption_sync.py#L46",
+        "executed": false,
+        "runner": null,
+        "result": "not_run"
+      },
+      "verification": {
+        "unit": false,
+        "hardware": false,
+        "released": false
+      },
+      "non_destructive_test_plan": "Under an explicitly approved isolated test install, check acceptance: Keep adjustable transcription/subtitle delay and buffer policy; audio/video should not drift because of additive repeated waits. Preserve settings, original recordings and existing receiver ownership; capture exact build/device/runner logs.",
+      "ui_languages": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "full_acceptance": "not_verified"
+    },
+    {
+      "id": "MEDIA-027",
+      "priority": "P1",
+      "acceptance": "Distinguish truly available CPU/GPU/NPU backends from simply detected RTX 5080; support fail-safe fallback and optional paired remote GPU.",
+      "classification": "draft-coded",
+      "source": {
+        "file": "tv_center/remote_gpu.py",
+        "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+        "blob_sha": "587d9fe72e702e38bf6756fe9ece5bf3b71945a9",
+        "line": 3,
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/3884cc3b0b603f7a555d1801ed12283d9df4b63f/tv_center/remote_gpu.py#L3",
+        "observed": "Remote GPU HTTPS opt-in; actual RTX/CUDA/NPU readiness unverified."
+      },
+      "candidate_sources": [
+        {
+          "file": "tv_center/hardware_status.py",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "inspected": true
+        },
+        {
+          "file": "tv_center/remote_gpu.py",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "inspected": true
+        },
+        {
+          "file": "tv_center/cuda_faster_whisper.py",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "inspected": true
+        }
+      ],
+      "candidate_tests": [
+        {
+          "file": "tests/test_tv_ai_hardware_market.py",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "source_inspected": true,
+          "executed": false
+        },
+        {
+          "file": "tests/test_tv_ai_profiles_remote_startup.py",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "source_inspected": true,
+          "executed": false
+        }
+      ],
+      "primary_test": {
+        "file": "tests/test_tv_ai_hardware_market.py",
+        "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+        "line": 17,
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/3884cc3b0b603f7a555d1801ed12283d9df4b63f/tests/test_tv_ai_hardware_market.py#L17",
+        "executed": false,
+        "runner": null,
+        "result": "not_run"
+      },
+      "verification": {
+        "unit": false,
+        "hardware": false,
+        "released": false
+      },
+      "non_destructive_test_plan": "Under an explicitly approved isolated test install, check acceptance: Distinguish truly available CPU/GPU/NPU backends from simply detected RTX 5080; support fail-safe fallback and optional paired remote GPU. Preserve settings, original recordings and existing receiver ownership; capture exact build/device/runner logs.",
+      "ui_languages": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "full_acceptance": "not_verified"
+    },
+    {
+      "id": "MEDIA-028",
+      "priority": "P0",
+      "acceptance": "Separate karaoke lipsync from Whisper speech lipsync and subtitle easy-read pacing.",
+      "classification": "draft-coded",
+      "source": {
+        "file": "tv_center/radio_karaoke_router.py",
+        "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+        "blob_sha": "69efdf8a11feeefb31f88ad67691c0fb0149e0a5",
+        "line": 56,
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/3884cc3b0b603f7a555d1801ed12283d9df4b63f/tv_center/radio_karaoke_router.py#L56",
+        "observed": "Whisper spoken-caption path independent of karaoke matching."
+      },
+      "candidate_sources": [
+        {
+          "file": "tv_center/radio_karaoke_router.py",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "inspected": true
+        },
+        {
+          "file": "kaffeine_next/native_radio_tab.h",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "inspected": true
+        }
+      ],
+      "candidate_tests": [
+        {
+          "file": "tests/test_radio_karaoke_independent_lipsync.py",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "source_inspected": true,
+          "executed": false
+        }
+      ],
+      "primary_test": {
+        "file": "tests/test_radio_karaoke_independent_lipsync.py",
+        "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+        "line": 10,
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/3884cc3b0b603f7a555d1801ed12283d9df4b63f/tests/test_radio_karaoke_independent_lipsync.py#L10",
+        "executed": false,
+        "runner": null,
+        "result": "not_run"
+      },
+      "verification": {
+        "unit": false,
+        "hardware": false,
+        "released": false
+      },
+      "non_destructive_test_plan": "Under an explicitly approved isolated test install, check acceptance: Separate karaoke lipsync from Whisper speech lipsync and subtitle easy-read pacing. Preserve settings, original recordings and existing receiver ownership; capture exact build/device/runner logs.",
+      "ui_languages": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "full_acceptance": "not_verified"
+    },
+    {
+      "id": "MEDIA-029",
+      "priority": "P0",
+      "acceptance": "Show LYRICS FOUND distinct from LYRICS MATCHED and allow user-configured confidence thresholds.",
+      "classification": "draft-coded",
+      "source": {
+        "file": "kaffeine_next/native_radio_tab.h",
+        "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+        "blob_sha": "f9c8f7053f3bbb231ab99492c205d3c6902b44a5",
+        "line": 1151,
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/3884cc3b0b603f7a555d1801ed12283d9df4b63f/kaffeine_next/native_radio_tab.h#L1151",
+        "observed": "Lyrics FOUND not equal to audio MATCHED in UI source."
+      },
+      "candidate_sources": [
+        {
+          "file": "tv_center/lyrics_sync.py",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "inspected": true
+        },
+        {
+          "file": "kaffeine_next/native_radio_tab.h",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "inspected": true
+        }
+      ],
+      "candidate_tests": [
+        {
+          "file": "tests/test_radio_lyrics_found_preview.py",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "source_inspected": true,
+          "executed": false
+        },
+        {
+          "file": "tests/test_tv_radio_lyrics_match_status_auto_input.py",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "source_inspected": true,
+          "executed": false
+        }
+      ],
+      "primary_test": {
+        "file": "tests/test_radio_lyrics_found_preview.py",
+        "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+        "line": 13,
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/3884cc3b0b603f7a555d1801ed12283d9df4b63f/tests/test_radio_lyrics_found_preview.py#L13",
+        "executed": false,
+        "runner": null,
+        "result": "not_run"
+      },
+      "verification": {
+        "unit": false,
+        "hardware": false,
+        "released": false
+      },
+      "non_destructive_test_plan": "Under an explicitly approved isolated test install, check acceptance: Show LYRICS FOUND distinct from LYRICS MATCHED and allow user-configured confidence thresholds. Preserve settings, original recordings and existing receiver ownership; capture exact build/device/runner logs.",
+      "ui_languages": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "full_acceptance": "not_verified"
+    },
+    {
+      "id": "MEDIA-030",
+      "priority": "P1",
+      "acceptance": "Provide opt-in lyrics-found preview playback highlighting at lower confidence, clearly marked as estimated.",
+      "classification": "draft-coded",
+      "source": {
+        "file": "kaffeine_next/native_radio_tab.h",
+        "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+        "blob_sha": "f9c8f7053f3bbb231ab99492c205d3c6902b44a5",
+        "line": 1965,
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/3884cc3b0b603f7a555d1801ed12283d9df4b63f/kaffeine_next/native_radio_tab.h#L1965",
+        "observed": "Opt-in unverified found-preview versus gated sync modes coded."
+      },
+      "candidate_sources": [
+        {
+          "file": "kaffeine_next/native_radio_tab.h",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "inspected": true
+        },
+        {
+          "file": "tv_center/radio_karaoke_router.py",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "inspected": true
+        }
+      ],
+      "candidate_tests": [
+        {
+          "file": "tests/test_radio_lyrics_found_preview.py",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "source_inspected": true,
+          "executed": false
+        }
+      ],
+      "primary_test": {
+        "file": "tests/test_radio_lyrics_found_preview.py",
+        "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+        "line": 13,
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/3884cc3b0b603f7a555d1801ed12283d9df4b63f/tests/test_radio_lyrics_found_preview.py#L13",
+        "executed": false,
+        "runner": null,
+        "result": "not_run"
+      },
+      "verification": {
+        "unit": false,
+        "hardware": false,
+        "released": false
+      },
+      "non_destructive_test_plan": "Under an explicitly approved isolated test install, check acceptance: Provide opt-in lyrics-found preview playback highlighting at lower confidence, clearly marked as estimated. Preserve settings, original recordings and existing receiver ownership; capture exact build/device/runner logs.",
+      "ui_languages": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "full_acceptance": "not_verified"
+    },
+    {
+      "id": "MEDIA-031",
+      "priority": "P0",
+      "acceptance": "Use installed Qwen forced-aligner where available; fallback to Whisper; never infer a match solely from web lyric lookup.",
+      "classification": "draft-coded",
+      "source": {
+        "file": "tv_center/qwen_forced_aligner.py",
+        "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+        "blob_sha": "b1e9c1a3236396a075bf60f00decb41a6d63a647",
+        "line": 107,
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/3884cc3b0b603f7a555d1801ed12283d9df4b63f/tv_center/qwen_forced_aligner.py#L107",
+        "observed": "Qwen worker and timeout exist; installed model/live sung-word quality unverified."
+      },
+      "candidate_sources": [
+        {
+          "file": "tv_center/qwen_forced_aligner.py",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "inspected": true
+        },
+        {
+          "file": "tv_center/radio_karaoke_router.py",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "inspected": true
+        }
+      ],
+      "candidate_tests": [
+        {
+          "file": "tests/test_radio_whisper_karaoke_refresh.py",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "source_inspected": true,
+          "executed": false
+        }
+      ],
+      "primary_test": {
+        "file": "tests/test_radio_whisper_karaoke_refresh.py",
+        "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+        "line": 24,
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/3884cc3b0b603f7a555d1801ed12283d9df4b63f/tests/test_radio_whisper_karaoke_refresh.py#L24",
+        "executed": false,
+        "runner": null,
+        "result": "not_run"
+      },
+      "verification": {
+        "unit": false,
+        "hardware": false,
+        "released": false
+      },
+      "non_destructive_test_plan": "Under an explicitly approved isolated test install, check acceptance: Use installed Qwen forced-aligner where available; fallback to Whisper; never infer a match solely from web lyric lookup. Preserve settings, original recordings and existing receiver ownership; capture exact build/device/runner logs.",
+      "ui_languages": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "full_acceptance": "not_verified"
+    },
+    {
+      "id": "MEDIA-032",
+      "priority": "P0",
+      "acceptance": "Stop karaoke progress during instrumental/no-vocals and resume at verified sung words rather than clock-based auto-scroll.",
+      "classification": "draft-coded",
+      "source": {
+        "file": "tv_center/radio_karaoke_router.py",
+        "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+        "blob_sha": "69efdf8a11feeefb31f88ad67691c0fb0149e0a5",
+        "line": 104,
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/3884cc3b0b603f7a555d1801ed12283d9df4b63f/tv_center/radio_karaoke_router.py#L104",
+        "observed": "Karaoke holds until verified vocal evidence; instrumental run untested."
+      },
+      "candidate_sources": [
+        {
+          "file": "tv_center/radio_karaoke_router.py",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "inspected": true
+        },
+        {
+          "file": "kaffeine_next/native_radio_tab.h",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "inspected": true
+        }
+      ],
+      "candidate_tests": [
+        {
+          "file": "tests/test_radio_karaoke_independent_lipsync.py",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "source_inspected": true,
+          "executed": false
+        }
+      ],
+      "primary_test": {
+        "file": "tests/test_radio_karaoke_independent_lipsync.py",
+        "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+        "line": 33,
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/3884cc3b0b603f7a555d1801ed12283d9df4b63f/tests/test_radio_karaoke_independent_lipsync.py#L33",
+        "executed": false,
+        "runner": null,
+        "result": "not_run"
+      },
+      "verification": {
+        "unit": false,
+        "hardware": false,
+        "released": false
+      },
+      "non_destructive_test_plan": "Under an explicitly approved isolated test install, check acceptance: Stop karaoke progress during instrumental/no-vocals and resume at verified sung words rather than clock-based auto-scroll. Preserve settings, original recordings and existing receiver ownership; capture exact build/device/runner logs.",
+      "ui_languages": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "full_acceptance": "not_verified"
+    },
+    {
+      "id": "MEDIA-033",
+      "priority": "P0",
+      "acceptance": "Fix Lyrics Refresh, Full Lyrics and separate floating blue lyrics window; matched word highlighted and optional yellow translation.",
+      "classification": "draft-coded",
+      "source": {
+        "file": "kaffeine_next/native_radio_tab.h",
+        "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+        "blob_sha": "f9c8f7053f3bbb231ab99492c205d3c6902b44a5",
+        "line": 2023,
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/3884cc3b0b603f7a555d1801ed12283d9df4b63f/kaffeine_next/native_radio_tab.h#L2023",
+        "observed": "Full Lyrics button and separate-window flow coded; no native GUI test."
+      },
+      "candidate_sources": [
+        {
+          "file": "tv_center/lyrics_sync.py",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "inspected": true
+        },
+        {
+          "file": "kaffeine_next/native_radio_tab.h",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "inspected": true
+        }
+      ],
+      "candidate_tests": [
+        {
+          "file": "tests/test_radio_lyrics_refresh_full_window.py",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "source_inspected": true,
+          "executed": false
+        },
+        {
+          "file": "tests/test_tv_radio_karaoke_tv_readability.py",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "source_inspected": true,
+          "executed": false
+        }
+      ],
+      "primary_test": {
+        "file": "tests/test_radio_lyrics_refresh_full_window.py",
+        "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+        "line": 19,
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/3884cc3b0b603f7a555d1801ed12283d9df4b63f/tests/test_radio_lyrics_refresh_full_window.py#L19",
+        "executed": false,
+        "runner": null,
+        "result": "not_run"
+      },
+      "verification": {
+        "unit": false,
+        "hardware": false,
+        "released": false
+      },
+      "non_destructive_test_plan": "Under an explicitly approved isolated test install, check acceptance: Fix Lyrics Refresh, Full Lyrics and separate floating blue lyrics window; matched word highlighted and optional yellow translation. Preserve settings, original recordings and existing receiver ownership; capture exact build/device/runner logs.",
+      "ui_languages": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "full_acceptance": "not_verified"
+    },
+    {
+      "id": "MEDIA-034",
+      "priority": "P0",
+      "acceptance": "Refresh sync from retained recent buffer, not entire growing buffer; allow separately adjustable ~10-second karaoke offset.",
+      "classification": "draft-coded",
+      "source": {
+        "file": "kaffeine_next/native_radio_tab.h",
+        "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+        "blob_sha": "f9c8f7053f3bbb231ab99492c205d3c6902b44a5",
+        "line": 629,
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/3884cc3b0b603f7a555d1801ed12283d9df4b63f/kaffeine_next/native_radio_tab.h#L629",
+        "observed": "Karaoke Lip-sync Refresh control coded; 10-second audio continuity untested."
+      },
+      "candidate_sources": [
+        {
+          "file": "tv_center/radio_karaoke_router.py",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "inspected": true
+        },
+        {
+          "file": "kaffeine_next/native_radio_tab.h",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "inspected": true
+        }
+      ],
+      "candidate_tests": [
+        {
+          "file": "tests/test_radio_separate_lipsync_refresh.py",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "source_inspected": true,
+          "executed": false
+        },
+        {
+          "file": "tests/test_radio_sync_refresh_karaoke_fast.py",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "source_inspected": true,
+          "executed": false
+        }
+      ],
+      "primary_test": {
+        "file": "tests/test_radio_separate_lipsync_refresh.py",
+        "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+        "line": 22,
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/3884cc3b0b603f7a555d1801ed12283d9df4b63f/tests/test_radio_separate_lipsync_refresh.py#L22",
+        "executed": false,
+        "runner": null,
+        "result": "not_run"
+      },
+      "verification": {
+        "unit": false,
+        "hardware": false,
+        "released": false
+      },
+      "non_destructive_test_plan": "Under an explicitly approved isolated test install, check acceptance: Refresh sync from retained recent buffer, not entire growing buffer; allow separately adjustable ~10-second karaoke offset. Preserve settings, original recordings and existing receiver ownership; capture exact build/device/runner logs.",
+      "ui_languages": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "full_acceptance": "not_verified"
+    },
+    {
+      "id": "MEDIA-035",
+      "priority": "P1",
+      "acceptance": "Preserve lyric sources, legal provider policy, song continuity/metadata cache and transcription when matched lyrics unavailable.",
+      "classification": "draft-coded",
+      "source": {
+        "file": "tv_center/radio_dls_metadata.py",
+        "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+        "blob_sha": "deba924cc3875c24ba8c54a00304984db3761dad",
+        "line": 121,
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/3884cc3b0b603f7a555d1801ed12283d9df4b63f/tv_center/radio_dls_metadata.py#L121",
+        "observed": "Typed DLS/RadioText song metadata parser coded."
+      },
+      "candidate_sources": [
+        {
+          "file": "tv_center/radio_dls_metadata.py",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "inspected": true
+        },
+        {
+          "file": "tv_center/lyrics_sync.py",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "inspected": true
+        }
+      ],
+      "candidate_tests": [
+        {
+          "file": "tests/test_radio_song_metadata_sources.py",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "source_inspected": true,
+          "executed": false
+        },
+        {
+          "file": "tests/test_radio_song_continuity_cache.py",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "source_inspected": true,
+          "executed": false
+        }
+      ],
+      "primary_test": {
+        "file": "tests/test_radio_song_metadata_sources.py",
+        "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+        "line": 16,
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/3884cc3b0b603f7a555d1801ed12283d9df4b63f/tests/test_radio_song_metadata_sources.py#L16",
+        "executed": false,
+        "runner": null,
+        "result": "not_run"
+      },
+      "verification": {
+        "unit": false,
+        "hardware": false,
+        "released": false
+      },
+      "non_destructive_test_plan": "Under an explicitly approved isolated test install, check acceptance: Preserve lyric sources, legal provider policy, song continuity/metadata cache and transcription when matched lyrics unavailable. Preserve settings, original recordings and existing receiver ownership; capture exact build/device/runner logs.",
+      "ui_languages": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "full_acceptance": "not_verified"
+    },
+    {
+      "id": "MEDIA-036",
+      "priority": "P0",
+      "acceptance": "Keep single embedded media player: video shares TV settings and audio shares radio settings; do not spawn extra playback windows.",
+      "classification": "draft-coded",
+      "source": {
+        "file": "kaffeine_next/native_media_panel.h",
+        "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+        "blob_sha": "49e15f95ce82096d4e6f7817bb1a70264a1da637",
+        "line": 317,
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/3884cc3b0b603f7a555d1801ed12283d9df4b63f/kaffeine_next/native_media_panel.h#L317",
+        "observed": "Audio uses Radio and video uses TV applied settings."
+      },
+      "candidate_sources": [
+        {
+          "file": "kaffeine_next/native_media_panel.h",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "inspected": true
+        },
+        {
+          "file": "tv_center/media_ai.py",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "inspected": true
+        }
+      ],
+      "candidate_tests": [
+        {
+          "file": "tests/test_native_file_prepass_fullscreen.py",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "source_inspected": true,
+          "executed": false
+        }
+      ],
+      "primary_test": {
+        "file": "tests/test_native_file_prepass_fullscreen.py",
+        "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+        "line": 51,
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/3884cc3b0b603f7a555d1801ed12283d9df4b63f/tests/test_native_file_prepass_fullscreen.py#L51",
+        "executed": false,
+        "runner": null,
+        "result": "not_run"
+      },
+      "verification": {
+        "unit": false,
+        "hardware": false,
+        "released": false
+      },
+      "non_destructive_test_plan": "Under an explicitly approved isolated test install, check acceptance: Keep single embedded media player: video shares TV settings and audio shares radio settings; do not spawn extra playback windows. Preserve settings, original recordings and existing receiver ownership; capture exact build/device/runner logs.",
+      "ui_languages": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "full_acceptance": "not_verified"
+    },
+    {
+      "id": "MEDIA-037",
+      "priority": "P1",
+      "acceptance": "Offer optional full-file transcription before playing local audio/video, then replay with completed captions.",
+      "classification": "draft-coded",
+      "source": {
+        "file": "kaffeine_next/native_media_panel.h",
+        "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+        "blob_sha": "49e15f95ce82096d4e6f7817bb1a70264a1da637",
+        "line": 138,
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/3884cc3b0b603f7a555d1801ed12283d9df4b63f/kaffeine_next/native_media_panel.h#L138",
+        "observed": "Full local-file prepass is an opt-in checkbox."
+      },
+      "candidate_sources": [
+        {
+          "file": "kaffeine_next/native_media_panel.h",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "inspected": true
+        },
+        {
+          "file": "tv_center/media_ai.py",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "inspected": true
+        }
+      ],
+      "candidate_tests": [
+        {
+          "file": "tests/test_native_file_prepass_fullscreen.py",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "source_inspected": true,
+          "executed": false
+        }
+      ],
+      "primary_test": {
+        "file": "tests/test_native_file_prepass_fullscreen.py",
+        "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+        "line": 31,
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/3884cc3b0b603f7a555d1801ed12283d9df4b63f/tests/test_native_file_prepass_fullscreen.py#L31",
+        "executed": false,
+        "runner": null,
+        "result": "not_run"
+      },
+      "verification": {
+        "unit": false,
+        "hardware": false,
+        "released": false
+      },
+      "non_destructive_test_plan": "Under an explicitly approved isolated test install, check acceptance: Offer optional full-file transcription before playing local audio/video, then replay with completed captions. Preserve settings, original recordings and existing receiver ownership; capture exact build/device/runner logs.",
+      "ui_languages": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "full_acceptance": "not_verified"
+    },
+    {
+      "id": "MEDIA-038",
+      "priority": "P0",
+      "acceptance": "Preserve live and offline timed transcripts with TXT/SRT/VTT/ASS/JSON and supported verified LRC exports; distinguish complete from live.",
+      "classification": "draft-coded",
+      "source": {
+        "file": "kaffeine_next/live_srt.py",
+        "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+        "blob_sha": "ea7fecebf2ca82f3cf61525027467c8ef77ad48b",
+        "line": 4,
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/3884cc3b0b603f7a555d1801ed12283d9df4b63f/kaffeine_next/live_srt.py#L4",
+        "observed": "Finished displayed cue SRT recording exists; multi-format export only on #67."
+      },
+      "candidate_sources": [
+        {
+          "file": "kaffeine_next/live_srt.py",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "inspected": true
+        },
+        {
+          "file": "tv_center/media_ai.py",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "inspected": true
+        }
+      ],
+      "candidate_tests": [
+        {
+          "file": "tests/test_kaffeine_native_srt_controls.py",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "source_inspected": true,
+          "executed": false
+        },
+        {
+          "file": "tests/test_transcripts.py",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "source_inspected": true,
+          "executed": false
+        }
+      ],
+      "primary_test": {
+        "file": "tests/test_kaffeine_native_srt_controls.py",
+        "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+        "line": 13,
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/3884cc3b0b603f7a555d1801ed12283d9df4b63f/tests/test_kaffeine_native_srt_controls.py#L13",
+        "executed": false,
+        "runner": null,
+        "result": "not_run"
+      },
+      "verification": {
+        "unit": false,
+        "hardware": false,
+        "released": false
+      },
+      "non_destructive_test_plan": "Under an explicitly approved isolated test install, check acceptance: Preserve live and offline timed transcripts with TXT/SRT/VTT/ASS/JSON and supported verified LRC exports; distinguish complete from live. Preserve settings, original recordings and existing receiver ownership; capture exact build/device/runner logs.",
+      "ui_languages": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "full_acceptance": "not_verified"
+    },
+    {
+      "id": "MEDIA-039",
+      "priority": "P0",
+      "acceptance": "Preserve TV/radio recording/export, selected subtitle/audio tracks, optional MKV or rendered MP4 subtitle behavior and never overwrite original recordings.",
+      "classification": "draft-coded",
+      "source": {
+        "file": "tv_center/recording_export.py",
+        "commit_sha": "4e62e21cd5252df8a04f9ceadc429f4b116412ce",
+        "blob_sha": "084ac92aa787b1e81f2a2dab861eb0af6041eade",
+        "line": 20,
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/4e62e21cd5252df8a04f9ceadc429f4b116412ce/tv_center/recording_export.py#L20",
+        "observed": "PR #67 export formats/FFmpeg functions are absent from audit branch."
+      },
+      "candidate_sources": [
+        {
+          "file": "kaffeine_next/native_unified_recorder.h",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "inspected": true
+        },
+        {
+          "file": "kaffeine_next/subtitle_tracks.py",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "inspected": true
+        }
+      ],
+      "candidate_tests": [
+        {
+          "file": "tests/test_tv_unified_recorder.py",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "source_inspected": true,
+          "executed": false
+        },
+        {
+          "file": "tests/test_tv_kaffeine_subtitle_tracks.py",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "source_inspected": true,
+          "executed": false
+        }
+      ],
+      "primary_test": {
+        "file": "tests/test_tv_unified_recorder.py",
+        "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+        "line": 20,
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/3884cc3b0b603f7a555d1801ed12283d9df4b63f/tests/test_tv_unified_recorder.py#L20",
+        "executed": false,
+        "runner": null,
+        "result": "not_run"
+      },
+      "verification": {
+        "unit": false,
+        "hardware": false,
+        "released": false
+      },
+      "non_destructive_test_plan": "Under an explicitly approved isolated test install, check acceptance: Preserve TV/radio recording/export, selected subtitle/audio tracks, optional MKV or rendered MP4 subtitle behavior and never overwrite original recordings. Preserve settings, original recordings and existing receiver ownership; capture exact build/device/runner logs.",
+      "ui_languages": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "full_acceptance": "not_verified"
+    },
+    {
+      "id": "MEDIA-040",
+      "priority": "P0",
+      "acceptance": "Keep separate Start/Stop and Exit; Stop releases own receiver while leaving window and user's external services intact.",
+      "classification": "draft-coded",
+      "source": {
+        "file": "kaffeine_next/native_radio_tab.h",
+        "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+        "blob_sha": "f9c8f7053f3bbb231ab99492c205d3c6902b44a5",
+        "line": 3639,
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/3884cc3b0b603f7a555d1801ed12283d9df4b63f/kaffeine_next/native_radio_tab.h#L3639",
+        "observed": "Owned radio Stop path coded; readsb/tar1090 coexistence untested."
+      },
+      "candidate_sources": [
+        {
+          "file": "kaffeine_next/native_radio_tab.h",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "inspected": true
+        },
+        {
+          "file": "textcenter/receivers.py",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "inspected": true
+        }
+      ],
+      "candidate_tests": [
+        {
+          "file": "tests/test_tv_radio_receiver_release_lifecycle.py",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "source_inspected": true,
+          "executed": false
+        }
+      ],
+      "primary_test": {
+        "file": "tests/test_tv_radio_receiver_release_lifecycle.py",
+        "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+        "line": 37,
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/3884cc3b0b603f7a555d1801ed12283d9df4b63f/tests/test_tv_radio_receiver_release_lifecycle.py#L37",
+        "executed": false,
+        "runner": null,
+        "result": "not_run"
+      },
+      "verification": {
+        "unit": false,
+        "hardware": false,
+        "released": false
+      },
+      "non_destructive_test_plan": "Under an explicitly approved isolated test install, check acceptance: Keep separate Start/Stop and Exit; Stop releases own receiver while leaving window and user's external services intact. Preserve settings, original recordings and existing receiver ownership; capture exact build/device/runner logs.",
+      "ui_languages": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "full_acceptance": "not_verified"
+    },
+    {
+      "id": "MEDIA-041",
+      "priority": "P0",
+      "acceptance": "Preserve legacy rollback, main/PR references, one-line cross-platform installer and user settings on updates.",
+      "classification": "requested",
+      "source": {
+        "file": "kaffeine_next/install.sh",
+        "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+        "blob_sha": "7eb12290feae60bc3f588cf831153f71c21e3771",
+        "line": 3,
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/3884cc3b0b603f7a555d1801ed12283d9df4b63f/kaffeine_next/install.sh#L3",
+        "observed": "Debian Kaffeine installer exists; rollback/cross-platform acceptance unverified."
+      },
+      "candidate_sources": [
+        {
+          "file": "kaffeine_next/install.sh",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "inspected": true
+        },
+        {
+          "file": "tv_center/install.sh",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "inspected": true
+        }
+      ],
+      "candidate_tests": [
+        {
+          "file": "tests/test_tv_standalone_radio_media.py",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "source_inspected": true,
+          "executed": false
+        },
+        {
+          "file": "tests/test_media.py",
+          "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+          "source_inspected": true,
+          "executed": false
+        }
+      ],
+      "primary_test": {
+        "file": "tests/test_tv_standalone_radio_media.py",
+        "commit_sha": "3884cc3b0b603f7a555d1801ed12283d9df4b63f",
+        "line": 15,
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/3884cc3b0b603f7a555d1801ed12283d9df4b63f/tests/test_tv_standalone_radio_media.py#L15",
+        "executed": false,
+        "runner": null,
+        "result": "not_run"
+      },
+      "verification": {
+        "unit": false,
+        "hardware": false,
+        "released": false
+      },
+      "non_destructive_test_plan": "Under an explicitly approved isolated test install, check acceptance: Preserve legacy rollback, main/PR references, one-line cross-platform installer and user settings on updates. Preserve settings, original recordings and existing receiver ownership; capture exact build/device/runner logs.",
+      "ui_languages": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "full_acceptance": "not_verified"
+    }
+  ],
+  "pr65_pr67_deep_audit": {
+    "audited_on": "2026-11-12",
+    "audit_kind": "read_only_GitHub_commit_and_source_review",
+    "tests_executed_by_worker": 0,
+    "physical_tests_executed": 0,
+    "chain": {
+      "pr65_head": "20b0417aa7edba2f86b297e7cabdd062e9b24291",
+      "pr66_head": "20379152be2751e5d89a8bdbac85fb15fc6b3c4e",
+      "pr67_head": "4e62e21cd5252df8a04f9ceadc429f4b116412ce",
+      "pr65_to_66": {
+        "ahead": 3,
+        "behind": 0,
+        "added_files": 150,
+        "paths": [
+          {
+            "path": "docs/INTEGRATION_BASELINE_2026-11-11.md",
+            "status": "added"
+          },
+          {
+            "path": "rf_geolocation_center/README.md",
+            "status": "added"
+          },
+          {
+            "path": "rf_geolocation_center/__init__.py",
+            "status": "added"
+          },
+          {
+            "path": "rf_geolocation_center/__main__.py",
+            "status": "added"
+          },
+          {
+            "path": "rf_geolocation_center/core/dvb_scan.mjs",
+            "status": "added"
+          },
+          {
+            "path": "rf_geolocation_center/core/evidence.mjs",
+            "status": "added"
+          },
+          {
+            "path": "rf_geolocation_center/core/gnss.mjs",
+            "status": "added"
+          },
+          {
+            "path": "rf_geolocation_center/core/location_layers.mjs",
+            "status": "added"
+          },
+          {
+            "path": "rf_geolocation_center/core/positioning.mjs",
+            "status": "added"
+          },
+          {
+            "path": "rf_geolocation_center/core/rf_ranging.mjs",
+            "status": "added"
+          },
+          {
+            "path": "rf_geolocation_center/core/scan_map.mjs",
+            "status": "added"
+          },
+          {
+            "path": "rf_geolocation_center/core/source_catalog.mjs",
+            "status": "added"
+          },
+          {
+            "path": "rf_geolocation_center/core/source_provenance.mjs",
+            "status": "added"
+          },
+          {
+            "path": "rf_geolocation_center/docs/ARCHITECTURE_AND_RELEASE_GATES.md",
+            "status": "added"
+          },
+          {
+            "path": "rf_geolocation_center/docs/CHECKPOINT_001_2026-11-06_INITIAL_SCIENCE_WEB_NATIVE_HANDOFF.md",
+            "status": "added"
+          },
+          {
+            "path": "rf_geolocation_center/docs/PLATFORM_TEST_MATRIX.md",
+            "status": "added"
+          },
+          {
+            "path": "rf_geolocation_center/dvb_bridge.py",
+            "status": "added"
+          },
+          {
+            "path": "rf_geolocation_center/index.html",
+            "status": "added"
+          },
+          {
+            "path": "rf_geolocation_center/manifest.webmanifest",
+            "status": "added"
+          },
+          {
+            "path": "rf_geolocation_center/native.py",
+            "status": "added"
+          },
+          {
+            "path": "rf_geolocation_center/radio_metadata.py",
+            "status": "added"
+          },
+          {
+            "path": "rf_geolocation_center/scripts/dvb_scan_linux.sh",
+            "status": "added"
+          },
+          {
+            "path": "rf_geolocation_center/scripts/usb_prepare_linux.sh",
+            "status": "added"
+          },
+          {
+            "path": "rf_geolocation_center/sw.js",
+            "status": "added"
+          },
+          {
+            "path": "rf_geolocation_center/tests/auto_explorer.test.mjs",
+            "status": "added"
+          },
+          {
+            "path": "rf_geolocation_center/tests/core.test.mjs",
+            "status": "added"
+          },
+          {
+            "path": "rf_geolocation_center/tests/evidence.test.mjs",
+            "status": "added"
+          },
+          {
+            "path": "rf_geolocation_center/tests/hardware_map.test.mjs",
+            "status": "added"
+          },
+          {
+            "path": "rf_geolocation_center/tests/location_layers.test.mjs",
+            "status": "added"
+          },
+          {
+            "path": "rf_geolocation_center/tests/map_interactivity.test.mjs",
+            "status": "added"
+          },
+          {
+            "path": "rf_geolocation_center/tests/map_provenance_interaction.test.mjs",
+            "status": "added"
+          },
+          {
+            "path": "rf_geolocation_center/tests/navic.test.mjs",
+            "status": "added"
+          },
+          {
+            "path": "rf_geolocation_center/tests/pairing_pan_recovery.test.mjs",
+            "status": "added"
+          },
+          {
+            "path": "rf_geolocation_center/tests/provenance.test.mjs",
+            "status": "added"
+          },
+          {
+            "path": "rf_geolocation_center/tests/receiver_ux.test.mjs",
+            "status": "added"
+          },
+          {
+            "path": "rf_geolocation_center/tests/rf_ranging.test.mjs",
+            "status": "added"
+          },
+          {
+            "path": "rf_geolocation_center/tests/rf_ui_contract.test.mjs",
+            "status": "added"
+          },
+          {
+            "path": "rf_geolocation_center/tests/scan_map.test.mjs",
+            "status": "added"
+          },
+          {
+            "path": "rf_geolocation_center/tests/simple_ui.test.mjs",
+            "status": "added"
+          },
+          {
+            "path": "rf_geolocation_center/tests/source_catalog.test.mjs",
+            "status": "added"
+          },
+          {
+            "path": "rf_geolocation_center/tests/source_provenance.test.mjs",
+            "status": "added"
+          },
+          {
+            "path": "rf_geolocation_center/tests/test_dvb_bridge.py",
+            "status": "added"
+          },
+          {
+            "path": "rf_geolocation_center/tests/test_native.py",
+            "status": "added"
+          },
+          {
+            "path": "rf_geolocation_center/tests/ui_contract.test.mjs",
+            "status": "added"
+          },
+          {
+            "path": "rf_geolocation_center/tests/usb_resampler_regression.test.mjs",
+            "status": "added"
+          },
+          {
+            "path": "rf_geolocation_center/web/app.mjs",
+            "status": "added"
+          },
+          {
+            "path": "rf_geolocation_center/web/auto_explorer.mjs",
+            "status": "added"
+          },
+          {
+            "path": "rf_geolocation_center/web/catalog_discovery.mjs",
+            "status": "added"
+          },
+          {
+            "path": "rf_geolocation_center/web/dvb_bridge_client.mjs",
+            "status": "added"
+          },
+          {
+            "path": "rf_geolocation_center/web/hardware_manager.mjs",
+            "status": "added"
+          },
+          {
+            "path": "rf_geolocation_center/web/icon.svg",
+            "status": "added"
+          },
+          {
+            "path": "rf_geolocation_center/web/maps.mjs",
+            "status": "added"
+          },
+          {
+            "path": "rf_geolocation_center/web/receivers.mjs",
+            "status": "added"
+          },
+          {
+            "path": "rf_geolocation_center/web/rf_survey.mjs",
+            "status": "added"
+          },
+          {
+            "path": "rf_geolocation_center/web/simple_ui.mjs",
+            "status": "added"
+          },
+          {
+            "path": "rf_geolocation_center/web/style.css",
+            "status": "added"
+          },
+          {
+            "path": "rf_geolocation_center/web/usb_sdr.mjs",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/FEATURE_PARITY.md",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/MAPS.md",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/NATIVE_WEB_PARITY.md",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/README.md",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/RECEPTION_UX_CONTRACT.md",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/SIGNAL_INTELLIGENCE.md",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/WEB_AND_INSTALL.md",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/__init__.py",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/__main__.py",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/assets/tihulu-satellite.png",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/assets/tihulu-satellite.svg",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/bridge.py",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/browser/CITY_DATA_LICENSE.md",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/browser/auto_mission.mjs",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/browser/auto_reception_ui.mjs",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/browser/browser.css",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/browser/browser.js",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/browser/capture_duration.mjs",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/browser/chained_capture.mjs",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/browser/cities-de-tr.json",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/browser/compute_backends.mjs",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/browser/compute_selector.mjs",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/browser/file_format_inspector.mjs",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/browser/fm_iq_demod.mjs",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/browser/fm_wav_record.mjs",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/browser/icon-192.png",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/browser/icon-512.png",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/browser/icon.svg",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/browser/index.html",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/browser/iq_analysis.mjs",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/browser/iq_analysis_ui.mjs",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/browser/iq_intelligence.mjs",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/browser/leaflet.LICENSE.txt",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/browser/leaflet.css",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/browser/leaflet.js",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/browser/location_search.mjs",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/browser/manifest.webmanifest",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/browser/natural-earth-land-110m.geojson",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/browser/orbit_clock.mjs",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/browser/pass_candidates.mjs",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/browser/pass_protocol_catalog.mjs",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/browser/pass_sort.mjs",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/browser/pass_window.mjs",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/browser/reception.css",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/browser/reception.html",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/browser/reception.mjs",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/browser/reception_catalog.mjs",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/browser/results_zip.mjs",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/browser/satellite_calendar.mjs",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/browser/satellite_imagery.mjs",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/browser/satellite_images_ui.mjs",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/browser/satellite_maps.mjs",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/browser/saved_satellite_protocols.mjs",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/browser/schedule_controller.mjs",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/browser/signal_discovery.mjs",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/browser/sstv_capture_diagnostics.mjs",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/browser/sstv_robot36.mjs",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/browser/usb_diagnostics.mjs",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/browser/usb_diagnostics.test.mjs",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/browser/usb_live_probe.mjs",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/browser/user_protocol_ui.mjs",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/capture_budget.py",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/capture_naming.py",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/compute_backends.py",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/desktop.py",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/desktop_shortcuts.py",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/index.html",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/install/install-deb.sh",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/install/install.ps1",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/install/install.sh",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/media_catalog.py",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/native_analysis.py",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/native_data_labels.py",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/native_desktop_bridge.js",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/native_geocoding.py",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/native_imagery.py",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/native_locations.py",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/native_map_parity.py",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/native_maps.py",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/native_orbit.py",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/native_osm_tiles.py",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/native_pass_filters.py",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/native_protocols.py",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/native_robot36_results.py",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/native_signal_tools.py",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/native_tracking.py",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/native_web_shell.py",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/npu_sstv.py",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/packaging/debian/build.sh",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/planning_store.py",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/sstv_series35.py",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/window_visibility.py",
+            "status": "added"
+          },
+          {
+            "path": "tests/test_integration_app_preservation.py",
+            "status": "added"
+          }
+        ],
+        "important": "56 RF + 92 Satellite + 1 integration doc + 1 integration tree-pin test; zero existing Media source file modifications"
+      },
+      "pr66_to_67": {
+        "ahead": 20,
+        "behind": 0,
+        "commits": 20,
+        "changed_paths": [
+          {
+            "filename": "kaffeine_next/RECORDING_EXPORT_V2_DRAFT.md",
+            "status": "added",
+            "additions": 84,
+            "deletions": 0,
+            "changes": 84,
+            "previous_filename": null,
+            "blob_sha_at_pr67": "3418010eb2448879d4b8cd582e2857e64fea285d"
+          },
+          {
+            "filename": "kaffeine_next/captions_overlay.py",
+            "status": "modified",
+            "additions": 33,
+            "deletions": 2,
+            "changes": 35,
+            "previous_filename": null,
+            "blob_sha_at_pr67": "3081be75998464e758427ea12c66071924b6e69d"
+          },
+          {
+            "filename": "kaffeine_next/native_media_panel.h",
+            "status": "modified",
+            "additions": 92,
+            "deletions": 2,
+            "changes": 94,
+            "previous_filename": null,
+            "blob_sha_at_pr67": "7b8f2f756025a8aec5169e86b52ec589dc769aca"
+          },
+          {
+            "filename": "kaffeine_next/native_radio_tab.h",
+            "status": "modified",
+            "additions": 154,
+            "deletions": 0,
+            "changes": 154,
+            "previous_filename": null,
+            "blob_sha_at_pr67": "1aaac1b9b2c08f2ae4981d17dbd1f6029a2ad831"
+          },
+          {
+            "filename": "kaffeine_next/native_unified_recorder.h",
+            "status": "modified",
+            "additions": 103,
+            "deletions": 3,
+            "changes": 106,
+            "previous_filename": null,
+            "blob_sha_at_pr67": "65ceedc5e99534a2f348b83f5c31467b55cd237f"
+          },
+          {
+            "filename": "tests/test_recording_export.py",
+            "status": "added",
+            "additions": 171,
+            "deletions": 0,
+            "changes": 171,
+            "previous_filename": null,
+            "blob_sha_at_pr67": "1b8039aa5f78449ebd7c5ef19eb0f9470bfb0cf8"
+          },
+          {
+            "filename": "tv_center/__main__.py",
+            "status": "modified",
+            "additions": 4,
+            "deletions": 1,
+            "changes": 5,
+            "previous_filename": null,
+            "blob_sha_at_pr67": "c5ea50700ef8d32eae4970ce9a962dc5795c4f00"
+          },
+          {
+            "filename": "tv_center/recording_export.py",
+            "status": "added",
+            "additions": 395,
+            "deletions": 0,
+            "changes": 395,
+            "previous_filename": null,
+            "blob_sha_at_pr67": "084ac92aa787b1e81f2a2dab861eb0af6041eade"
+          }
+        ]
+      }
+    },
+    "pr_diff_full_changed_paths": {
+      "pr65_vs_its_base": [
+        "kaffeine_next/caption_timing.py",
+        "kaffeine_next/captions_overlay.py",
+        "kaffeine_next/install.sh",
+        "kaffeine_next/native_hardware_tab.h",
+        "kaffeine_next/native_media_panel.h",
+        "kaffeine_next/native_radio_tab.h",
+        "kaffeine_next/patch_upstream.py",
+        "kaffeine_next/teletext_match.py",
+        "tests/test_media_center_launcher_without_tuner.py",
+        "tests/test_native_file_prepass_fullscreen.py",
+        "tests/test_radio_ai_caption_karaoke_playback.py",
+        "tests/test_radio_caption_recovery_lyrics_model_selection.py",
+        "tests/test_radio_dls_lyrics_refresh.py",
+        "tests/test_radio_est_caption_continuity.py",
+        "tests/test_radio_karaoke_baseline_policy.py",
+        "tests/test_radio_karaoke_independent_lipsync.py",
+        "tests/test_radio_lyrics_found_preview.py",
+        "tests/test_radio_lyrics_refresh_full_window.py",
+        "tests/test_radio_lyrics_refresh_output_contract.py",
+        "tests/test_radio_separate_lipsync_refresh.py",
+        "tests/test_radio_silent_audio_recovery.py",
+        "tests/test_radio_song_continuity_cache.py",
+        "tests/test_radio_song_metadata_sources.py",
+        "tests/test_radio_split_sync_and_model_pipeline.py",
+        "tests/test_radio_sync_refresh_karaoke_fast.py",
+        "tests/test_radio_tv_handoff_progress.py",
+        "tests/test_radio_whisper_karaoke_refresh.py",
+        "tests/test_tv_ai_profiles_remote_startup.py",
+        "tests/test_tv_lyrics_providers.py",
+        "tests/test_tv_market_guided_progress.py",
+        "tests/test_tv_radio_ai_ui_audio_drain.py",
+        "tests/test_tv_radio_caption_sync_readability.py",
+        "tests/test_tv_radio_fast_tune_presenter_buffer.py",
+        "tests/test_tv_radio_frequency_buffer_progress.py",
+        "tests/test_tv_radio_karaoke_tv_readability.py",
+        "tests/test_tv_radio_lyrics_match_status_auto_input.py",
+        "tests/test_tv_radio_responsive_sync.py",
+        "tests/test_tv_sound_labels_teletext_auto.py",
+        "tests/test_tv_standalone_radio_media.py",
+        "tests/test_tv_teletext_speech_recovery.py",
+        "tv_center/ai_profiles.py",
+        "tv_center/ai_provision.py",
+        "tv_center/ai_settings.py",
+        "tv_center/asr_quality.py",
+        "tv_center/captions.py",
+        "tv_center/direct_de_tr.py",
+        "tv_center/lyrics_sync.py",
+        "tv_center/media_ai.py",
+        "tv_center/qwen_forced_aligner.py",
+        "tv_center/radio_ai.py",
+        "tv_center/radio_dls_metadata.py",
+        "tv_center/radio_karaoke_router.py",
+        "tv_center/settings_ui.py",
+        "tv_center/sound_event_captions.py"
+      ],
+      "pr66_vs_main": [
+        ".github/workflows/kaffeine-tv-ci.yml",
+        ".github/workflows/kaffeine-welle-dab-build.yml",
+        ".github/workflows/native-tihulu.yml",
+        ".github/workflows/tv-center-ci.yml",
+        "README.md",
+        "docs/INTEGRATION_BASELINE_2026-11-11.md",
+        "docs/PAIRED_PHONE_GUIDE.md",
+        "kaffeine_next/AI_LIVE_PERFORMANCE_AND_LANGUAGES.md",
+        "kaffeine_next/HARDWARE_PANEL.md",
+        "kaffeine_next/RADIO_UX_SYNC_REVIEW.md",
+        "kaffeine_next/README.md",
+        "kaffeine_next/REMOTE_MEDIA_HUB.md",
+        "kaffeine_next/TROUBLESHOOTING_2026-11-08.md",
+        "kaffeine_next/TV_CAPTION_CHANNEL_TRANSITIONS.md",
+        "kaffeine_next/UNIFIED_RECORDING.md",
+        "kaffeine_next/__init__.py",
+        "kaffeine_next/assets/tihulu-media-center.svg",
+        "kaffeine_next/caption_control.py",
+        "kaffeine_next/caption_timing.py",
+        "kaffeine_next/captions_overlay.py",
+        "kaffeine_next/continuous_captions.py",
+        "kaffeine_next/diagnostics.py",
+        "kaffeine_next/dvb_diagnostics.sh",
+        "kaffeine_next/install.sh",
+        "kaffeine_next/install_welle.sh",
+        "kaffeine_next/live_srt.py",
+        "kaffeine_next/mobile.py",
+        "kaffeine_next/mpegts.py",
+        "kaffeine_next/native_hardware_tab.h",
+        "kaffeine_next/native_media_panel.h",
+        "kaffeine_next/native_radio_tab.h",
+        "kaffeine_next/native_unified_recorder.h",
+        "kaffeine_next/native_web_tv_dialog.h",
+        "kaffeine_next/patch_upstream.py",
+        "kaffeine_next/subtitle_tracks.py",
+        "kaffeine_next/teletext_match.py",
+        "kaffeine_next/track_preferences.py",
+        "kaffeine_next/transport_health.py",
+        "kaffeine_next/ts_capture_integrity.py",
+        "kaffeine_next/tv_tune_state.py",
+        "kaffeine_next/word_cues.py",
+        "rf_geolocation_center/README.md",
+        "rf_geolocation_center/__init__.py",
+        "rf_geolocation_center/__main__.py",
+        "rf_geolocation_center/core/dvb_scan.mjs",
+        "rf_geolocation_center/core/evidence.mjs",
+        "rf_geolocation_center/core/gnss.mjs",
+        "rf_geolocation_center/core/location_layers.mjs",
+        "rf_geolocation_center/core/positioning.mjs",
+        "rf_geolocation_center/core/rf_ranging.mjs",
+        "rf_geolocation_center/core/scan_map.mjs",
+        "rf_geolocation_center/core/source_catalog.mjs",
+        "rf_geolocation_center/core/source_provenance.mjs",
+        "rf_geolocation_center/docs/ARCHITECTURE_AND_RELEASE_GATES.md",
+        "rf_geolocation_center/docs/CHECKPOINT_001_2026-11-06_INITIAL_SCIENCE_WEB_NATIVE_HANDOFF.md",
+        "rf_geolocation_center/docs/PLATFORM_TEST_MATRIX.md",
+        "rf_geolocation_center/dvb_bridge.py",
+        "rf_geolocation_center/index.html",
+        "rf_geolocation_center/manifest.webmanifest",
+        "rf_geolocation_center/native.py",
+        "rf_geolocation_center/radio_metadata.py",
+        "rf_geolocation_center/scripts/dvb_scan_linux.sh",
+        "rf_geolocation_center/scripts/usb_prepare_linux.sh",
+        "rf_geolocation_center/sw.js",
+        "rf_geolocation_center/tests/auto_explorer.test.mjs",
+        "rf_geolocation_center/tests/core.test.mjs",
+        "rf_geolocation_center/tests/evidence.test.mjs",
+        "rf_geolocation_center/tests/hardware_map.test.mjs",
+        "rf_geolocation_center/tests/location_layers.test.mjs",
+        "rf_geolocation_center/tests/map_interactivity.test.mjs",
+        "rf_geolocation_center/tests/map_provenance_interaction.test.mjs",
+        "rf_geolocation_center/tests/navic.test.mjs",
+        "rf_geolocation_center/tests/pairing_pan_recovery.test.mjs",
+        "rf_geolocation_center/tests/provenance.test.mjs",
+        "rf_geolocation_center/tests/receiver_ux.test.mjs",
+        "rf_geolocation_center/tests/rf_ranging.test.mjs",
+        "rf_geolocation_center/tests/rf_ui_contract.test.mjs",
+        "rf_geolocation_center/tests/scan_map.test.mjs",
+        "rf_geolocation_center/tests/simple_ui.test.mjs",
+        "rf_geolocation_center/tests/source_catalog.test.mjs",
+        "rf_geolocation_center/tests/source_provenance.test.mjs",
+        "rf_geolocation_center/tests/test_dvb_bridge.py",
+        "rf_geolocation_center/tests/test_native.py",
+        "rf_geolocation_center/tests/ui_contract.test.mjs",
+        "rf_geolocation_center/tests/usb_resampler_regression.test.mjs",
+        "rf_geolocation_center/web/app.mjs",
+        "rf_geolocation_center/web/auto_explorer.mjs",
+        "rf_geolocation_center/web/catalog_discovery.mjs",
+        "rf_geolocation_center/web/dvb_bridge_client.mjs",
+        "rf_geolocation_center/web/hardware_manager.mjs",
+        "rf_geolocation_center/web/icon.svg",
+        "rf_geolocation_center/web/maps.mjs",
+        "rf_geolocation_center/web/receivers.mjs",
+        "rf_geolocation_center/web/rf_survey.mjs",
+        "rf_geolocation_center/web/simple_ui.mjs",
+        "rf_geolocation_center/web/style.css",
+        "rf_geolocation_center/web/usb_sdr.mjs",
+        "satellite_center/FEATURE_PARITY.md",
+        "satellite_center/MAPS.md",
+        "satellite_center/NATIVE_WEB_PARITY.md",
+        "satellite_center/README.md",
+        "satellite_center/RECEPTION_UX_CONTRACT.md",
+        "satellite_center/SIGNAL_INTELLIGENCE.md",
+        "satellite_center/WEB_AND_INSTALL.md",
+        "satellite_center/__init__.py",
+        "satellite_center/__main__.py",
+        "satellite_center/assets/tihulu-satellite.png",
+        "satellite_center/assets/tihulu-satellite.svg",
+        "satellite_center/bridge.py",
+        "satellite_center/browser/CITY_DATA_LICENSE.md",
+        "satellite_center/browser/auto_mission.mjs",
+        "satellite_center/browser/auto_reception_ui.mjs",
+        "satellite_center/browser/browser.css",
+        "satellite_center/browser/browser.js",
+        "satellite_center/browser/capture_duration.mjs",
+        "satellite_center/browser/chained_capture.mjs",
+        "satellite_center/browser/cities-de-tr.json",
+        "satellite_center/browser/compute_backends.mjs",
+        "satellite_center/browser/compute_selector.mjs",
+        "satellite_center/browser/file_format_inspector.mjs",
+        "satellite_center/browser/fm_iq_demod.mjs",
+        "satellite_center/browser/fm_wav_record.mjs",
+        "satellite_center/browser/icon-192.png",
+        "satellite_center/browser/icon-512.png",
+        "satellite_center/browser/icon.svg",
+        "satellite_center/browser/index.html",
+        "satellite_center/browser/iq_analysis.mjs",
+        "satellite_center/browser/iq_analysis_ui.mjs",
+        "satellite_center/browser/iq_intelligence.mjs",
+        "satellite_center/browser/leaflet.LICENSE.txt",
+        "satellite_center/browser/leaflet.css",
+        "satellite_center/browser/leaflet.js",
+        "satellite_center/browser/location_search.mjs",
+        "satellite_center/browser/manifest.webmanifest",
+        "satellite_center/browser/natural-earth-land-110m.geojson",
+        "satellite_center/browser/orbit_clock.mjs",
+        "satellite_center/browser/pass_candidates.mjs",
+        "satellite_center/browser/pass_protocol_catalog.mjs",
+        "satellite_center/browser/pass_sort.mjs",
+        "satellite_center/browser/pass_window.mjs",
+        "satellite_center/browser/reception.css",
+        "satellite_center/browser/reception.html",
+        "satellite_center/browser/reception.mjs",
+        "satellite_center/browser/reception_catalog.mjs",
+        "satellite_center/browser/results_zip.mjs",
+        "satellite_center/browser/satellite_calendar.mjs",
+        "satellite_center/browser/satellite_imagery.mjs",
+        "satellite_center/browser/satellite_images_ui.mjs",
+        "satellite_center/browser/satellite_maps.mjs",
+        "satellite_center/browser/saved_satellite_protocols.mjs",
+        "satellite_center/browser/schedule_controller.mjs",
+        "satellite_center/browser/signal_discovery.mjs",
+        "satellite_center/browser/sstv_capture_diagnostics.mjs",
+        "satellite_center/browser/sstv_robot36.mjs",
+        "satellite_center/browser/usb_diagnostics.mjs",
+        "satellite_center/browser/usb_diagnostics.test.mjs",
+        "satellite_center/browser/usb_live_probe.mjs",
+        "satellite_center/browser/user_protocol_ui.mjs",
+        "satellite_center/capture_budget.py",
+        "satellite_center/capture_naming.py",
+        "satellite_center/compute_backends.py",
+        "satellite_center/desktop.py",
+        "satellite_center/desktop_shortcuts.py",
+        "satellite_center/index.html",
+        "satellite_center/install/install-deb.sh",
+        "satellite_center/install/install.ps1",
+        "satellite_center/install/install.sh",
+        "satellite_center/media_catalog.py",
+        "satellite_center/native_analysis.py",
+        "satellite_center/native_data_labels.py",
+        "satellite_center/native_desktop_bridge.js",
+        "satellite_center/native_geocoding.py",
+        "satellite_center/native_imagery.py",
+        "satellite_center/native_locations.py",
+        "satellite_center/native_map_parity.py",
+        "satellite_center/native_maps.py",
+        "satellite_center/native_orbit.py",
+        "satellite_center/native_osm_tiles.py",
+        "satellite_center/native_pass_filters.py",
+        "satellite_center/native_protocols.py",
+        "satellite_center/native_robot36_results.py",
+        "satellite_center/native_signal_tools.py",
+        "satellite_center/native_tracking.py",
+        "satellite_center/native_web_shell.py",
+        "satellite_center/npu_sstv.py",
+        "satellite_center/packaging/debian/build.sh",
+        "satellite_center/planning_store.py",
+        "satellite_center/sstv_series35.py",
+        "satellite_center/window_visibility.py",
+        "tests/test_compute.py",
+        "tests/test_http_app.py",
+        "tests/test_integration_app_preservation.py",
+        "tests/test_kaffeine_buffer_language.py",
+        "tests/test_kaffeine_dvb_scan_import_crash.py",
+        "tests/test_kaffeine_native_srt_controls.py",
+        "tests/test_media_center_launcher_without_tuner.py",
+        "tests/test_native_file_prepass_fullscreen.py",
+        "tests/test_radio_ai_caption_karaoke_playback.py",
+        "tests/test_radio_caption_recovery_lyrics_model_selection.py",
+        "tests/test_radio_dls_lyrics_refresh.py",
+        "tests/test_radio_est_caption_continuity.py",
+        "tests/test_radio_karaoke_baseline_policy.py",
+        "tests/test_radio_karaoke_independent_lipsync.py",
+        "tests/test_radio_lyrics_found_preview.py",
+        "tests/test_radio_lyrics_refresh_full_window.py",
+        "tests/test_radio_lyrics_refresh_output_contract.py",
+        "tests/test_radio_separate_lipsync_refresh.py",
+        "tests/test_radio_silent_audio_recovery.py",
+        "tests/test_radio_song_continuity_cache.py",
+        "tests/test_radio_song_metadata_sources.py",
+        "tests/test_radio_split_sync_and_model_pipeline.py",
+        "tests/test_radio_sync_refresh_karaoke_fast.py",
+        "tests/test_radio_tv_handoff_progress.py",
+        "tests/test_radio_verified_word_karaoke.py",
+        "tests/test_radio_whisper_karaoke_refresh.py",
+        "tests/test_transcripts.py",
+        "tests/test_tv_acoustic_sound_voice_models.py",
+        "tests/test_tv_ai_bundle.py",
+        "tests/test_tv_ai_hardware_market.py",
+        "tests/test_tv_ai_performance_lab.py",
+        "tests/test_tv_ai_profiles_remote_startup.py",
+        "tests/test_tv_auto_track_languages.py",
+        "tests/test_tv_background_scan.py",
+        "tests/test_tv_caption_live_offset.py",
+        "tests/test_tv_caption_readability_clock.py",
+        "tests/test_tv_center.py",
+        "tests/test_tv_channel_epoch.py",
+        "tests/test_tv_cuda_faster_whisper.py",
+        "tests/test_tv_dual_voice_separation.py",
+        "tests/test_tv_fast_output_languages.py",
+        "tests/test_tv_free_speakers_ui.py",
+        "tests/test_tv_hardware_status.py",
+        "tests/test_tv_kaffeine.py",
+        "tests/test_tv_kaffeine_ai_diagnostics.py",
+        "tests/test_tv_kaffeine_asr_metrics.py",
+        "tests/test_tv_kaffeine_caption_modes.py",
+        "tests/test_tv_kaffeine_caption_service.py",
+        "tests/test_tv_kaffeine_continuous.py",
+        "tests/test_tv_kaffeine_dab_api_recovery.py",
+        "tests/test_tv_kaffeine_mobile.py",
+        "tests/test_tv_kaffeine_subtitle_tracks.py",
+        "tests/test_tv_kaffeine_timing.py",
+        "tests/test_tv_kaffeine_transport_health.py",
+        "tests/test_tv_live_asr_quality.py",
+        "tests/test_tv_live_word_pipeline.py",
+        "tests/test_tv_lyrics_providers.py",
+        "tests/test_tv_market_guided_progress.py",
+        "tests/test_tv_mobile_native_scan_bridge.py",
+        "tests/test_tv_multilingual_caption_fallback.py",
+        "tests/test_tv_native_mobile_player_controls.py",
+        "tests/test_tv_natural_caption_sync.py",
+        "tests/test_tv_nllb_failover.py",
+        "tests/test_tv_no_tuner_playback.py",
+        "tests/test_tv_pairing_mobile_sync.py",
+        "tests/test_tv_pi5_hailo_profiles.py",
+        "tests/test_tv_plain_lyrics.py",
+        "tests/test_tv_quality_translation.py",
+        "tests/test_tv_radio_ai_ui_audio_drain.py",
+        "tests/test_tv_radio_caption_sync_readability.py",
+        "tests/test_tv_radio_channel_lists_translation_reading.py",
+        "tests/test_tv_radio_fast_tune_presenter_buffer.py",
+        "tests/test_tv_radio_frequency_buffer_progress.py",
+        "tests/test_tv_radio_karaoke_tv_readability.py",
+        "tests/test_tv_radio_live_caption_timing_languages.py",
+        "tests/test_tv_radio_lyrics_match_status_auto_input.py",
+        "tests/test_tv_radio_media_lyrics.py",
+        "tests/test_tv_radio_receiver_release_lifecycle.py",
+        "tests/test_tv_radio_responsive_sync.py",
+        "tests/test_tv_radio_translation_continuity.py",
+        "tests/test_tv_remote_hub.py",
+        "tests/test_tv_satellite_ai.py",
+        "tests/test_tv_scan.py",
+        "tests/test_tv_sentence_joiner.py",
+        "tests/test_tv_sound_labels_teletext_auto.py",
+        "tests/test_tv_speech_focus.py",
+        "tests/test_tv_standalone_radio_media.py",
+        "tests/test_tv_subtitle_repetition.py",
+        "tests/test_tv_teletext_speech_recovery.py",
+        "tests/test_tv_translation_managed_packs.py",
+        "tests/test_tv_translation_persistent.py",
+        "tests/test_tv_unified_recorder.py",
+        "tests/test_tv_web.py",
+        "tests/test_tv_word_speaker_cues.py",
+        "textcenter/compute.py",
+        "textcenter/speech.py",
+        "textcenter/transcripts.py",
+        "tv_center/README.md",
+        "tv_center/__init__.py",
+        "tv_center/__main__.py",
+        "tv_center/ai_diagnostics.py",
+        "tv_center/ai_profiles.py",
+        "tv_center/ai_provision.py",
+        "tv_center/ai_settings.py",
+        "tv_center/argos_generation.py",
+        "tv_center/argos_market_bridge.py",
+        "tv_center/asr_quality.py",
+        "tv_center/audio_classifiers.py",
+        "tv_center/bridge.py",
+        "tv_center/captions.py",
+        "tv_center/channel_prefs.py",
+        "tv_center/channels_ui.py",
+        "tv_center/core.py",
+        "tv_center/cuda_faster_whisper.py",
+        "tv_center/deepl_api.py",
+        "tv_center/desktop.py",
+        "tv_center/direct_de_tr.py",
+        "tv_center/docs/AI_MODES_REMOTE_GPU.md",
+        "tv_center/docs/OVERLAPPING_SPEAKERS_SOUND_LABELS.md",
+        "tv_center/docs/SATELLITE_PI5_DISH.md",
+        "tv_center/free_speakers.py",
+        "tv_center/hardware_market.py",
+        "tv_center/hardware_status.py",
+        "tv_center/install.sh",
+        "tv_center/installed_languages.py",
+        "tv_center/lan.py",
+        "tv_center/language_codes.py",
+        "tv_center/lyrics_sync.py",
+        "tv_center/media_ai.py",
+        "tv_center/media_ui.py",
+        "tv_center/model_market.py",
+        "tv_center/online_models.py",
+        "tv_center/overlap_separation.py",
+        "tv_center/packaging/build-deb.sh",
+        "tv_center/performance_lab.py",
+        "tv_center/pi_hailo.py",
+        "tv_center/qwen_forced_aligner.py",
+        "tv_center/radio_ai.py",
+        "tv_center/radio_capture.py",
+        "tv_center/radio_dls_metadata.py",
+        "tv_center/radio_karaoke_router.py",
+        "tv_center/radio_language.py",
+        "tv_center/radio_translation_status.py",
+        "tv_center/remote_controls.py",
+        "tv_center/remote_gpu.py",
+        "tv_center/remote_gpu_server.py",
+        "tv_center/remote_hub.py",
+        "tv_center/runtime.py",
+        "tv_center/satellite.py",
+        "tv_center/scan_ui.py",
+        "tv_center/scanner.py",
+        "tv_center/sentence_joiner.py",
+        "tv_center/settings_ui.py",
+        "tv_center/sound_event_captions.py",
+        "tv_center/speaker_market.py",
+        "tv_center/speech_focus.py",
+        "tv_center/streaming.py",
+        "tv_center/translation_failover.py",
+        "tv_center/translation_madlad.py",
+        "tv_center/translation_market.py",
+        "tv_center/translation_service.py",
+        "tv_center/translation_worker.py",
+        "tv_center/ts.py",
+        "tv_center/web/app.js",
+        "tv_center/web/browser-ai-ui.js",
+        "tv_center/web/browser-ai-worker.js",
+        "tv_center/web/hub.html",
+        "tv_center/web/hub.js",
+        "tv_center/web/index.html",
+        "tv_center/web/mobile.html",
+        "tv_center/web/mobile.js",
+        "tv_center/web/style.css",
+        "tv_center/web/web-controls.js",
+        "tv_center/web_control.py",
+        "tv_center/web_desktop.py",
+        "tv_center/whisper_engine.py"
+      ],
+      "pr67_vs_pr66": [
+        "kaffeine_next/RECORDING_EXPORT_V2_DRAFT.md",
+        "kaffeine_next/captions_overlay.py",
+        "kaffeine_next/native_media_panel.h",
+        "kaffeine_next/native_radio_tab.h",
+        "kaffeine_next/native_unified_recorder.h",
+        "tests/test_recording_export.py",
+        "tv_center/__main__.py",
+        "tv_center/recording_export.py"
+      ],
+      "warning": "PR diff bases differ; counts must not be treated as additive or as test coverage"
+    },
+    "twenty_commit_ledger": [
+      {
+        "ordinal": 1,
+        "sha": "7f264b33ebdf9dcc3cb3abdcebe4321b9f5c0042",
+        "parent_sha": "20379152be2751e5d89a8bdbac85fb15fc6b3c4e",
+        "subject": "feat: add shared opt-in timecoded text, subtitle, MKV and MP4 export engine",
+        "authored_at": "2026-11-11T15:20:30Z",
+        "path": "tv_center/recording_export.py",
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/commit/7f264b33ebdf9dcc3cb3abdcebe4321b9f5c0042"
+      },
+      {
+        "ordinal": 2,
+        "sha": "24cde0ca44b7ca7c4c5d49155b02e2bccc7ad3d6",
+        "parent_sha": "7f264b33ebdf9dcc3cb3abdcebe4321b9f5c0042",
+        "subject": "test: validate common real-timed export formats, opt-in and no-overwrite safety",
+        "authored_at": "2026-11-11T15:20:56Z",
+        "path": "tests/test_recording_export.py",
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/commit/24cde0ca44b7ca7c4c5d49155b02e2bccc7ad3d6"
+      },
+      {
+        "ordinal": 3,
+        "sha": "61b123a64bd86f70e69df5d6004a446500614a5b",
+        "parent_sha": "24cde0ca44b7ca7c4c5d49155b02e2bccc7ad3d6",
+        "subject": "feat: expose shared recording-export CLI without changing existing commands",
+        "authored_at": "2026-11-11T15:21:03Z",
+        "path": "tv_center/__main__.py",
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/commit/61b123a64bd86f70e69df5d6004a446500614a5b"
+      },
+      {
+        "ordinal": 4,
+        "sha": "1844e30677e532b9b9c73d426c4a74e483de6f2f",
+        "parent_sha": "61b123a64bd86f70e69df5d6004a446500614a5b",
+        "subject": "feat: add opt-in timed transcript/combined media export dialog to local audio/video player",
+        "authored_at": "2026-11-11T15:21:34Z",
+        "path": "kaffeine_next/native_media_panel.h",
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/commit/1844e30677e532b9b9c73d426c4a74e483de6f2f"
+      },
+      {
+        "ordinal": 5,
+        "sha": "1586edfe09c852ec210a2207e7ed06692cab6fcb",
+        "parent_sha": "1844e30677e532b9b9c73d426c4a74e483de6f2f",
+        "subject": "fix: allow media-only export and never remove concurrently created user outputs",
+        "authored_at": "2026-11-11T15:22:20Z",
+        "path": "tv_center/recording_export.py",
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/commit/1586edfe09c852ec210a2207e7ed06692cab6fcb"
+      },
+      {
+        "ordinal": 6,
+        "sha": "0460c29f88f298513fda891c2a2482d2e38187af",
+        "parent_sha": "1586edfe09c852ec210a2207e7ed06692cab6fcb",
+        "subject": "feat: export real live TV SRT to optional TXT, VTT, ASS and JSON on Stop",
+        "authored_at": "2026-11-11T15:23:28Z",
+        "path": "kaffeine_next/captions_overlay.py",
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/commit/0460c29f88f298513fda891c2a2482d2e38187af"
+      },
+      {
+        "ordinal": 7,
+        "sha": "73b0755e40f57d48e2a8f5b28fbe50d0079b211b",
+        "parent_sha": "0460c29f88f298513fda891c2a2482d2e38187af",
+        "subject": "feat: add shared multi-format and selectable-media export to Recordings library",
+        "authored_at": "2026-11-11T15:24:05Z",
+        "path": "kaffeine_next/native_unified_recorder.h",
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/commit/73b0755e40f57d48e2a8f5b28fbe50d0079b211b"
+      },
+      {
+        "ordinal": 8,
+        "sha": "5198b1ccb30d7b94409dfd3b6ef1560356d223f2",
+        "parent_sha": "73b0755e40f57d48e2a8f5b28fbe50d0079b211b",
+        "subject": "feat: add independent opt-in live radio SRT capture from real displayed Whisper cues",
+        "authored_at": "2026-11-11T15:25:11Z",
+        "path": "kaffeine_next/native_radio_tab.h",
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/commit/5198b1ccb30d7b94409dfd3b6ef1560356d223f2"
+      },
+      {
+        "ordinal": 9,
+        "sha": "5f1d6ab0a15caf60482f0fd9a45074ceda312c49",
+        "parent_sha": "5198b1ccb30d7b94409dfd3b6ef1560356d223f2",
+        "subject": "feat: separate original and actual language translation tracks in subtitle/media exports",
+        "authored_at": "2026-11-11T15:26:39Z",
+        "path": "tv_center/recording_export.py",
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/commit/5f1d6ab0a15caf60482f0fd9a45074ceda312c49"
+      },
+      {
+        "ordinal": 10,
+        "sha": "140e16f9b5ed5b648212907691c574f5def4a8e8",
+        "parent_sha": "5f1d6ab0a15caf60482f0fd9a45074ceda312c49",
+        "subject": "fix: correctly parse translation language markers and retain newline-separated phrases",
+        "authored_at": "2026-11-11T15:27:07Z",
+        "path": "tv_center/recording_export.py",
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/commit/140e16f9b5ed5b648212907691c574f5def4a8e8"
+      },
+      {
+        "ordinal": 11,
+        "sha": "f5f78b85fa7de4f296e850d5542bc08a4827c7f6",
+        "parent_sha": "140e16f9b5ed5b648212907691c574f5def4a8e8",
+        "subject": "test: verify language-split SRT exports preserve sound and speaker labels",
+        "authored_at": "2026-11-11T15:27:28Z",
+        "path": "tests/test_recording_export.py",
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/commit/f5f78b85fa7de4f296e850d5542bc08a4827c7f6"
+      },
+      {
+        "ordinal": 12,
+        "sha": "6d77cf1c85c0c5e76d8c5564d9a3ed27a59911a8",
+        "parent_sha": "f5f78b85fa7de4f296e850d5542bc08a4827c7f6",
+        "subject": "feat: export separate original/translated language tracks from local file SRT",
+        "authored_at": "2026-11-11T15:27:44Z",
+        "path": "kaffeine_next/native_media_panel.h",
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/commit/6d77cf1c85c0c5e76d8c5564d9a3ed27a59911a8"
+      },
+      {
+        "ordinal": 13,
+        "sha": "d553998f928e389c791ab0393a46261e1517d92c",
+        "parent_sha": "6d77cf1c85c0c5e76d8c5564d9a3ed27a59911a8",
+        "subject": "feat: split translation-language tracks in live recording export workflow",
+        "authored_at": "2026-11-11T15:27:54Z",
+        "path": "kaffeine_next/native_unified_recorder.h",
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/commit/d553998f928e389c791ab0393a46261e1517d92c"
+      },
+      {
+        "ordinal": 14,
+        "sha": "ecb87e63266e76a167aed88a51fcf4a6bb7823c1",
+        "parent_sha": "d553998f928e389c791ab0393a46261e1517d92c",
+        "subject": "fix: include the first real Whisper radio chunk in independent live SRT",
+        "authored_at": "2026-11-11T15:28:02Z",
+        "path": "kaffeine_next/native_radio_tab.h",
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/commit/ecb87e63266e76a167aed88a51fcf4a6bb7823c1"
+      },
+      {
+        "ordinal": 15,
+        "sha": "98ce95b230d222fdf9a760bf806dd25ee8ccb2ac",
+        "parent_sha": "ecb87e63266e76a167aed88a51fcf4a6bb7823c1",
+        "subject": "test: use actual multiline SRT/newline fixtures rather than backslash literals",
+        "authored_at": "2026-11-11T15:28:38Z",
+        "path": "tests/test_recording_export.py",
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/commit/98ce95b230d222fdf9a760bf806dd25ee8ccb2ac"
+      },
+      {
+        "ordinal": 16,
+        "sha": "a249afdec783bd3646f42543930433996ab36ee5",
+        "parent_sha": "98ce95b230d222fdf9a760bf806dd25ee8ccb2ac",
+        "subject": "test: validate real FFmpeg audio+SRT Matroska export and unchanged source bytes",
+        "authored_at": "2026-11-11T15:30:24Z",
+        "path": "tests/test_recording_export.py",
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/commit/a249afdec783bd3646f42543930433996ab36ee5"
+      },
+      {
+        "ordinal": 17,
+        "sha": "ef73975874626fa5576e95aa4ce153a6b1a11e22",
+        "parent_sha": "a249afdec783bd3646f42543930433996ab36ee5",
+        "subject": "docs: record exact live/complete export boundaries and honest remaining validation",
+        "authored_at": "2026-11-11T15:32:22Z",
+        "path": "kaffeine_next/RECORDING_EXPORT_V2_DRAFT.md",
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/commit/ef73975874626fa5576e95aa4ce153a6b1a11e22"
+      },
+      {
+        "ordinal": 18,
+        "sha": "f236399757d71be84ef2cdd24360a87e95e24d5f",
+        "parent_sha": "ef73975874626fa5576e95aa4ce153a6b1a11e22",
+        "subject": "feat: offer independent opt-in TXT/VTT/ASS/JSON for live DAB Whisper session after Stop",
+        "authored_at": "2026-11-11T15:35:49Z",
+        "path": "kaffeine_next/native_radio_tab.h",
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/commit/f236399757d71be84ef2cdd24360a87e95e24d5f"
+      },
+      {
+        "ordinal": 19,
+        "sha": "d8ad4fddf88304d01d09f7f4303a5741899ed503",
+        "parent_sha": "f236399757d71be84ef2cdd24360a87e95e24d5f",
+        "subject": "fix: identify exported cue timestamps without claiming measured DAC synchronization",
+        "authored_at": "2026-11-11T15:37:16Z",
+        "path": "tv_center/recording_export.py",
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/commit/d8ad4fddf88304d01d09f7f4303a5741899ed503"
+      },
+      {
+        "ordinal": 20,
+        "sha": "4e62e21cd5252df8a04f9ceadc429f4b116412ce",
+        "parent_sha": "d8ad4fddf88304d01d09f7f4303a5741899ed503",
+        "subject": "fix: identify exported cue timestamps without claiming measured DAC synchronization",
+        "authored_at": "2026-11-11T15:37:19Z",
+        "path": "tests/test_recording_export.py",
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/commit/4e62e21cd5252df8a04f9ceadc429f4b116412ce"
+      }
+    ],
+    "feature_source_anchors": [
+      {
+        "path": "tv_center/recording_export.py",
+        "line": 43,
+        "behavior": "strict existing UTF-8 SRT parser and timestamp checks, max 30MiB and 100000 cue budget",
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/4e62e21cd5252df8a04f9ceadc429f4b116412ce/tv_center/recording_export.py#L43",
+        "head_sha": "4e62e21cd5252df8a04f9ceadc429f4b116412ce"
+      },
+      {
+        "path": "tv_center/recording_export.py",
+        "line": 90,
+        "behavior": "time-coded TXT/SRT/VTT/ASS/JSON with optional verified-source LRC",
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/4e62e21cd5252df8a04f9ceadc429f4b116412ce/tv_center/recording_export.py#L90",
+        "head_sha": "4e62e21cd5252df8a04f9ceadc429f4b116412ce"
+      },
+      {
+        "path": "tv_center/recording_export.py",
+        "line": 113,
+        "behavior": "JSON clock provenance srt_cue_seconds, physical DAC sync unverified",
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/4e62e21cd5252df8a04f9ceadc429f4b116412ce/tv_center/recording_export.py#L113",
+        "head_sha": "4e62e21cd5252df8a04f9ceadc429f4b116412ce"
+      },
+      {
+        "path": "tv_center/recording_export.py",
+        "line": 150,
+        "behavior": "translation tag splitting with original speech/music/speaker labels retained",
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/4e62e21cd5252df8a04f9ceadc429f4b116412ce/tv_center/recording_export.py#L150",
+        "head_sha": "4e62e21cd5252df8a04f9ceadc429f4b116412ce"
+      },
+      {
+        "path": "tv_center/recording_export.py",
+        "line": 191,
+        "behavior": "exclusive O_EXCL text file create; no overwrite of originals",
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/4e62e21cd5252df8a04f9ceadc429f4b116412ce/tv_center/recording_export.py#L191",
+        "head_sha": "4e62e21cd5252df8a04f9ceadc429f4b116412ce"
+      },
+      {
+        "path": "tv_center/recording_export.py",
+        "line": 243,
+        "behavior": "FFmpeg argv -n non-overwrite, 21600 second timeout",
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/4e62e21cd5252df8a04f9ceadc429f4b116412ce/tv_center/recording_export.py#L243",
+        "head_sha": "4e62e21cd5252df8a04f9ceadc429f4b116412ce"
+      },
+      {
+        "path": "tv_center/recording_export.py",
+        "line": 251,
+        "behavior": "copy original audio/video to new Matroska with selectable SRT streams",
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/4e62e21cd5252df8a04f9ceadc429f4b116412ce/tv_center/recording_export.py#L251",
+        "head_sha": "4e62e21cd5252df8a04f9ceadc429f4b116412ce"
+      },
+      {
+        "path": "tv_center/recording_export.py",
+        "line": 285,
+        "behavior": "video burn re-encode to MP4 using ffprobe/libx264/AAC/subtitles filter",
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/4e62e21cd5252df8a04f9ceadc429f4b116412ce/tv_center/recording_export.py#L285",
+        "head_sha": "4e62e21cd5252df8a04f9ceadc429f4b116412ce"
+      },
+      {
+        "path": "tv_center/recording_export.py",
+        "line": 304,
+        "behavior": "live/complete mode checks and temporary mux tracks",
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/4e62e21cd5252df8a04f9ceadc429f4b116412ce/tv_center/recording_export.py#L304",
+        "head_sha": "4e62e21cd5252df8a04f9ceadc429f4b116412ce"
+      },
+      {
+        "path": "tv_center/__main__.py",
+        "line": 82,
+        "behavior": "recording-export CLI route",
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/4e62e21cd5252df8a04f9ceadc429f4b116412ce/tv_center/__main__.py#L82",
+        "head_sha": "4e62e21cd5252df8a04f9ceadc429f4b116412ce"
+      },
+      {
+        "path": "kaffeine_next/captions_overlay.py",
+        "line": 2631,
+        "behavior": "live TV SRT post-Stop TXT/VTT/ASS/JSON conversion",
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/4e62e21cd5252df8a04f9ceadc429f4b116412ce/kaffeine_next/captions_overlay.py#L2631",
+        "head_sha": "4e62e21cd5252df8a04f9ceadc429f4b116412ce"
+      },
+      {
+        "path": "kaffeine_next/native_media_panel.h",
+        "line": 346,
+        "behavior": "local-file Qt export dialog and opt-in subprocess",
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/4e62e21cd5252df8a04f9ceadc429f4b116412ce/kaffeine_next/native_media_panel.h#L346",
+        "head_sha": "4e62e21cd5252df8a04f9ceadc429f4b116412ce"
+      },
+      {
+        "path": "kaffeine_next/native_unified_recorder.h",
+        "line": 417,
+        "behavior": "native Recordings Library completed-media export",
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/4e62e21cd5252df8a04f9ceadc429f4b116412ce/kaffeine_next/native_unified_recorder.h#L417",
+        "head_sha": "4e62e21cd5252df8a04f9ceadc429f4b116412ce"
+      },
+      {
+        "path": "kaffeine_next/native_radio_tab.h",
+        "line": 5889,
+        "behavior": "DAB live Whisper SRT separate from audio recording",
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/4e62e21cd5252df8a04f9ceadc429f4b116412ce/kaffeine_next/native_radio_tab.h#L5889",
+        "head_sha": "4e62e21cd5252df8a04f9ceadc429f4b116412ce"
+      },
+      {
+        "path": "kaffeine_next/native_radio_tab.h",
+        "line": 5961,
+        "behavior": "estimated live radio cue durations",
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/4e62e21cd5252df8a04f9ceadc429f4b116412ce/kaffeine_next/native_radio_tab.h#L5961",
+        "head_sha": "4e62e21cd5252df8a04f9ceadc429f4b116412ce"
+      },
+      {
+        "path": "kaffeine_next/RECORDING_EXPORT_V2_DRAFT.md",
+        "line": 16,
+        "behavior": "progressive local-file Whisper captions explicitly incomplete",
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/4e62e21cd5252df8a04f9ceadc429f4b116412ce/kaffeine_next/RECORDING_EXPORT_V2_DRAFT.md#L16",
+        "head_sha": "4e62e21cd5252df8a04f9ceadc429f4b116412ce"
+      }
+    ],
+    "export_test_source": {
+      "path": "tests/test_recording_export.py",
+      "head_sha": "4e62e21cd5252df8a04f9ceadc429f4b116412ce",
+      "blob_sha": "1b8039aa5f78449ebd7c5ef19eb0f9470bfb0cf8",
+      "actual_executions_by_worker": 0,
+      "ci_python311_test_module_present": true,
+      "ci_ffmpeg_case": "skipped (FFmpeg tools unavailable)"
+    },
+    "open_gaps": [
+      {
+        "id": "P67-GAP-01",
+        "severity": "P0",
+        "source": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/4e62e21cd5252df8a04f9ceadc429f4b116412ce/tests/test_recording_export.py#L148",
+        "claim": "Conditional real-FFmpeg test constructs SRT with literal backslash-n sequences (source char codes 92,92,110), unlike properly escaped multiline fixture; resulting SRT is not properly line-separated. CI skipped this case (FFmpeg unavailable). Confirmed source-test fixture issue, NOT executed test failure."
+      },
+      {
+        "id": "P67-GAP-02",
+        "severity": "P1",
+        "source": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/4e62e21cd5252df8a04f9ceadc429f4b116412ce/tests/test_recording_export.py#L88",
+        "claim": "Mock test checks assertIn('-n',['-n']) constant, not actual FFmpeg argv; production wrapper does use -n but assertion is ineffective."
+      },
+      {
+        "id": "P67-GAP-03",
+        "severity": "P0",
+        "source": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/4e62e21cd5252df8a04f9ceadc429f4b116412ce/kaffeine_next/RECORDING_EXPORT_V2_DRAFT.md#L16",
+        "claim": "Progressive local-file Whisper caption chunks during playback are explicitly not streamed; async completed sidecar is not equivalent."
+      },
+      {
+        "id": "P67-GAP-04",
+        "severity": "P0",
+        "source": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/4e62e21cd5252df8a04f9ceadc429f4b116412ce/kaffeine_next/native_radio_tab.h#L5961",
+        "claim": "Live DAB Whisper SRT timestamps are estimated display-clock times and char-duration; not DAC/MP3/audio source clock, do not claim synchronized exported media."
+      },
+      {
+        "id": "P67-GAP-05",
+        "severity": "P1",
+        "source": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/4e62e21cd5252df8a04f9ceadc429f4b116412ce/kaffeine_next/native_unified_recorder.h#L476",
+        "claim": "Completed-recording export dialog passes --mode live; local-file dialog omits mode (default live), while UI calls this complete; validate semantics and labels."
+      },
+      {
+        "id": "P67-GAP-06",
+        "severity": "P1",
+        "source": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/4e62e21cd5252df8a04f9ceadc429f4b116412ce/tv_center/recording_export.py#L94",
+        "claim": "LRC enabled through user-supplied --verified-lyrics boolean; exporter does not independently validate original timed lyric provenance."
+      },
+      {
+        "id": "P67-GAP-07",
+        "severity": "P1",
+        "source": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/4e62e21cd5252df8a04f9ceadc429f4b116412ce/tv_center/recording_export.py#L322",
+        "claim": "Text sidecars are written before later FFmpeg mux/burn; failure may leave partial new exports. No atomic multi-output promise verified."
+      },
+      {
+        "id": "P67-GAP-08",
+        "severity": "P1",
+        "source": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/4e62e21cd5252df8a04f9ceadc429f4b116412ce/tv_center/recording_export.py#L285",
+        "claim": "MP4 burn requires ffprobe, FFmpeg subtitles filter/libass, libx264, AAC, filesystem/OS filter escaping; none covered by live cross-platform acceptance."
+      },
+      {
+        "id": "P67-GAP-09",
+        "severity": "P1",
+        "source": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/4e62e21cd5252df8a04f9ceadc429f4b116412ce/kaffeine_next/native_radio_tab.h#L5926",
+        "claim": "Live radio SRT creation requires active DAB and quick AI; code path does not establish equivalent Internet-radio SRT capture."
+      },
+      {
+        "id": "P67-GAP-10",
+        "severity": "P0",
+        "source": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/4e62e21cd5252df8a04f9ceadc429f4b116412ce/kaffeine_next/native_media_panel.h#L395",
+        "claim": "Native C++ and Kaffeine invoke the installed tihulu-tv-center recording-export Python CLI; exact binary/package version and Qt5 build not certified."
+      }
+    ],
+    "ci_at_pr67_head": {
+      "runs": [
+        {
+          "run_id": 43050201382,
+          "name": "Native TIHULU DVB / Radio build",
+          "result": "cancelled",
+          "job_id": 130624873771,
+          "details": "Cancelled during dependency installation; no native player compilation proven"
+        },
+        {
+          "run_id": 43050201148,
+          "name": "Pinned welle.io DAB+ loopback receiver build",
+          "result": "failure",
+          "job_id": 130624872900,
+          "details": "APT DNS resolving azure.archive.ubuntu.com failed; exit 100 during dependency fetch, not source compilation"
+        },
+        {
+          "run_id": 43050201857,
+          "name": "Text Center tests",
+          "result": "success",
+          "job_id": 130624875255,
+          "details": "Python 3.11: 672 tests, one skipped. test_recording_export methods ran; optional FFmpeg test skipped because FFmpeg tools unavailable"
+        },
+        {
+          "run_id": 43050201104,
+          "name": "Native TV Center checks and Debian preview package",
+          "result": "success",
+          "job_id": 130624873146,
+          "details": "Python 3.11: 440 tests; Python 3.12/3.13 and preview-deb jobs succeeded; no physical receiver test"
+        },
+        {
+          "run_id": 43050201365,
+          "name": "TIHULU Kaffeine DVB source build",
+          "result": "failure",
+          "job_id": 130624873741,
+          "details": "APT DNS resolving azure.archive.ubuntu.com failed; exit 100 during KDE dependencies, no actual Qt compilation proof"
+        }
+      ],
+      "failures_root_cause": "Ubuntu apt mirror DNS resolution during dependency install; source compilation not reached in affected native jobs",
+      "worker_executions": 0
+    },
+    "dependencies": {
+      "native": [
+        "Kaffeine Qt5 player and Qt app compiled against pinned source",
+        "tihulu-tv-center executable/TV Center Python package with new recording-export subcommand",
+        "matching process PATH and package version"
+      ],
+      "ffmpeg": [
+        "ffmpeg for MKV and burned video",
+        "ffprobe for video detection",
+        "libx264 AAC encoder libass/subtitles filter",
+        "cross-platform filesystem/filtergraph path validation"
+      ],
+      "text_center_snapshot_only": [
+        "archived textcenter.compute references tv_center.hardware_market/pi_hailo/whisper_engine/cuda_faster_whisper",
+        "archived textcenter.speech references tv_center.cuda_faster_whisper",
+        "archived textcenter.transcripts references tv_center.language_codes"
+      ],
+      "text_center_warning": "Active Text Center main has different blobs; do not overwrite it; require future approved with/without tv_center import tests."
+    },
+    "required_ui_locales": [
+      "en",
+      "tr",
+      "de"
+    ],
+    "open_coordination_gates": [
+      "REG-01",
+      "REG-03",
+      "REG-10",
+      "REG-11",
+      "REG-13",
+      "REG-14",
+      "REG-16",
+      "REG-17"
+    ],
+    "remaining_eta": "UNKNOWN",
+    "disclaimer": "No merge, rebase, migration, install, release, source edit, hardware test or runtime change."
+  },
+  "phase_4_pr90_review": {
+    "date_utc": "2026-11-12",
+    "type": "read-only documentation review",
+    "assignment_comment": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/76#issuecomment-6811690016",
+    "guidance": {
+      "path": "apps/_coordination/PHASE_4_PARALLEL_WORK_DIVISION.md",
+      "branch": "chore/master-requirements-zero-regression-coordination-2026-11-11",
+      "blob_sha": "fc29b87b0c4abdb7a3a2ff694a270a48cf05750f"
+    },
+    "original": {
+      "pr": 67,
+      "head_sha": "4e62e21cd5252df8a04f9ceadc429f4b116412ce",
+      "source_path": "tv_center/recording_export.py",
+      "source_blob_sha": "084ac92aa787b1e81f2a2dab861eb0af6041eade",
+      "test_path": "tests/test_recording_export.py",
+      "test_blob_sha": "1b8039aa5f78449ebd7c5ef19eb0f9470bfb0cf8",
+      "preserved_commit_count": 20,
+      "preserved_changed_paths": 8
+    },
+    "new_test_pr": {
+      "pr": 90,
+      "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/90",
+      "head_sha": "15d704f2624264d9bc346248d89373188d82d597",
+      "base_sha": "4e62e21cd5252df8a04f9ceadc429f4b116412ce",
+      "merge_base_sha": "4e62e21cd5252df8a04f9ceadc429f4b116412ce",
+      "ahead": 1,
+      "behind": 0,
+      "commit_count": 1,
+      "draft": true,
+      "merged": false,
+      "changed_files": [
+        {
+          "path": "tests/test_recording_export_stage3_isolated.py",
+          "status": "added",
+          "additions": 90,
+          "deletions": 0,
+          "blob_sha": "9d09059904f7022fc7f8206ab4a00149d669dad6"
+        }
+      ],
+      "production_source_changed": false,
+      "original_test_changed": false
+    },
+    "new_test_coverage": [
+      {
+        "id": "P4-COVER-01",
+        "test_line": 22,
+        "test_path": "tests/test_recording_export_stage3_isolated.py",
+        "test_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/15d704f2624264d9bc346248d89373188d82d597/tests/test_recording_export_stage3_isolated.py#L22",
+        "title": "FFmpeg subprocess argument list, -n and process options",
+        "maps_to": "P67-GAP-02",
+        "observation": "Mocks subprocess.run; checks true argv -n without spawning FFmpeg. Does not exercise returncode error, timeout or final media output.",
+        "source_path": "tv_center/recording_export.py",
+        "source_line": 243,
+        "source_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/4e62e21cd5252df8a04f9ceadc429f4b116412ce/tv_center/recording_export.py#L243",
+        "execution": "historical CI passed in Python 3.11/3.12/3.13; NOT run by WS01"
+      },
+      {
+        "id": "P4-COVER-02",
+        "test_line": 38,
+        "test_path": "tests/test_recording_export_stage3_isolated.py",
+        "test_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/15d704f2624264d9bc346248d89373188d82d597/tests/test_recording_export_stage3_isolated.py#L38",
+        "title": "Literal backslash-n SRT rejected",
+        "maps_to": "P67-GAP-01",
+        "observation": "Valid cue parses and backslash-n cue raises. Original conditional FFmpeg fixture still contains double-escaped newline and is unmodified.",
+        "source_path": "tv_center/recording_export.py",
+        "source_line": 43,
+        "source_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/4e62e21cd5252df8a04f9ceadc429f4b116412ce/tv_center/recording_export.py#L43",
+        "execution": "historical CI passed in Python 3.11/3.12/3.13; NOT run by WS01"
+      },
+      {
+        "id": "P4-COVER-03",
+        "test_line": 49,
+        "test_path": "tests/test_recording_export_stage3_isolated.py",
+        "test_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/15d704f2624264d9bc346248d89373188d82d597/tests/test_recording_export_stage3_isolated.py#L49",
+        "title": "Pre-existing output file preserved",
+        "maps_to": "P67-GAP-07",
+        "observation": "Preflight collision preserves existing bytes and creates no earlier TXT. Not an after-preflight concurrent race or mid-batch failure.",
+        "source_path": "tv_center/recording_export.py",
+        "source_line": 206,
+        "source_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/4e62e21cd5252df8a04f9ceadc429f4b116412ce/tv_center/recording_export.py#L206",
+        "execution": "historical CI passed in Python 3.11/3.12/3.13; NOT run by WS01"
+      },
+      {
+        "id": "P4-COVER-04",
+        "test_line": 59,
+        "test_path": "tests/test_recording_export_stage3_isolated.py",
+        "test_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/15d704f2624264d9bc346248d89373188d82d597/tests/test_recording_export_stage3_isolated.py#L59",
+        "title": "Mock mux maps translation-tr and preserves source bytes",
+        "maps_to": "P67-GAP-08",
+        "observation": "Checks language=tr and -c:s argv against mocked FFmpeg; mock intentionally creates no MKV. No actual FFmpeg or player metadata verified.",
+        "source_path": "tv_center/recording_export.py",
+        "source_line": 251,
+        "source_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/4e62e21cd5252df8a04f9ceadc429f4b116412ce/tv_center/recording_export.py#L251",
+        "execution": "historical CI passed in Python 3.11/3.12/3.13; NOT run by WS01"
+      },
+      {
+        "id": "P4-COVER-05",
+        "test_line": 79,
+        "test_path": "tests/test_recording_export_stage3_isolated.py",
+        "test_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/15d704f2624264d9bc346248d89373188d82d597/tests/test_recording_export_stage3_isolated.py#L79",
+        "title": "Complete mode requires provided --media argument",
+        "maps_to": "P67-GAP-05",
+        "observation": "Valid SRT without media arg raises, no output. Does not verify existence of provided path or native UI using --mode live.",
+        "source_path": "tv_center/recording_export.py",
+        "source_line": 304,
+        "source_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/4e62e21cd5252df8a04f9ceadc429f4b116412ce/tv_center/recording_export.py#L304",
+        "execution": "historical CI passed in Python 3.11/3.12/3.13; NOT run by WS01"
+      }
+    ],
+    "missing_cases": [
+      {
+        "id": "P4-MISS-01",
+        "priority": "P0",
+        "title": "Correct and exercise original conditional real-FFmpeg fixture",
+        "source_path": "tests/test_recording_export.py",
+        "source_line": 148,
+        "source_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/4e62e21cd5252df8a04f9ceadc429f4b116412ce/tests/test_recording_export.py#L148",
+        "related_ids": [
+          "P67-GAP-01",
+          "REG-01",
+          "REG-16"
+        ],
+        "missing_evidence": "PR67 test writes literal double-escaped newline; PR90 rejects bad SRT but does not correct original fixture. FFmpeg test skipped on all PR90 runners.",
+        "proposed_regression": "Future separate test-only branch: correct SRT fixture and run with ffmpeg/ffprobe installed; verify actual MKV audio+subtitle, cue boundaries, unchanged bytes and no network/receiver use.",
+        "expected_result": "UNVERIFIED—requires independent tests or owner-approved native/hardware acceptance",
+        "executed_by_ws01": false
+      },
+      {
+        "id": "P4-MISS-02",
+        "priority": "P0",
+        "title": "O_EXCL race between preflight and exclusive create",
+        "source_path": "tv_center/recording_export.py",
+        "source_line": 191,
+        "source_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/4e62e21cd5252df8a04f9ceadc429f4b116412ce/tv_center/recording_export.py#L191",
+        "related_ids": [
+          "P67-GAP-07",
+          "REG-01"
+        ],
+        "missing_evidence": "Pre-existing-file preflight covered; concurrent file created after exists check not tested.",
+        "proposed_regression": "Mock concurrent file creator on second export path, preserve raced-in bytes, clean only owned first artifact, fail closed without overwrites/deletions.",
+        "expected_result": "UNVERIFIED—requires independent tests or owner-approved native/hardware acceptance",
+        "executed_by_ws01": false
+      },
+      {
+        "id": "P4-MISS-03",
+        "priority": "P0",
+        "title": "Later output write failure and owned cleanup",
+        "source_path": "tv_center/recording_export.py",
+        "source_line": 206,
+        "source_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/4e62e21cd5252df8a04f9ceadc429f4b116412ce/tv_center/recording_export.py#L206",
+        "related_ids": [
+          "P67-GAP-07",
+          "REG-01"
+        ],
+        "missing_evidence": "No injected second or third write failure, partial artifacts or cleanup test.",
+        "proposed_regression": "Inject OSError for later _write_new, assert preexisting files preserved and only new owned artifacts removed.",
+        "expected_result": "UNVERIFIED—requires independent tests or owner-approved native/hardware acceptance",
+        "executed_by_ws01": false
+      },
+      {
+        "id": "P4-MISS-04",
+        "priority": "P0",
+        "title": "FFmpeg nonzero, timeout, missing binary and output collision",
+        "source_path": "tv_center/recording_export.py",
+        "source_line": 243,
+        "source_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/4e62e21cd5252df8a04f9ceadc429f4b116412ce/tv_center/recording_export.py#L243",
+        "related_ids": [
+          "P67-GAP-07",
+          "P67-GAP-08",
+          "REG-16"
+        ],
+        "missing_evidence": "PR90 mock returns only rc=0; no failure, stderr, timeout or ENOENT coverage.",
+        "proposed_regression": "Mock nonzero return, TimeoutExpired, FileNotFoundError and concurrent output creation; ensure explicit error, original file hash unchanged and no false success.",
+        "expected_result": "UNVERIFIED—requires independent tests or owner-approved native/hardware acceptance",
+        "executed_by_ws01": false
+      },
+      {
+        "id": "P4-MISS-05",
+        "priority": "P0",
+        "title": "Complete/live mode valid-path and Qt CLI consistency",
+        "source_path": "tv_center/recording_export.py",
+        "source_line": 304,
+        "source_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/4e62e21cd5252df8a04f9ceadc429f4b116412ce/tv_center/recording_export.py#L304",
+        "related_ids": [
+          "P67-GAP-05",
+          "REG-01"
+        ],
+        "missing_evidence": "Missing media argument rejected; nonexisting-but-nonempty complete path may be accepted when only text requested. Native Recordings UI explicitly supplies --mode live for a finished file.",
+        "proposed_regression": "Negative nonexistent-media text-only complete; success with completed valid file; static/native GUI argv parity from native_media_panel.h and native_unified_recorder.h.",
+        "expected_result": "UNVERIFIED—requires independent tests or owner-approved native/hardware acceptance",
+        "executed_by_ws01": false
+      },
+      {
+        "id": "P4-MISS-06",
+        "priority": "P0",
+        "title": "Real MKV language tracks, timings and playable output",
+        "source_path": "tv_center/recording_export.py",
+        "source_line": 251,
+        "source_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/4e62e21cd5252df8a04f9ceadc429f4b116412ce/tv_center/recording_export.py#L251",
+        "related_ids": [
+          "P67-GAP-08",
+          "REG-16"
+        ],
+        "missing_evidence": "Mock mux does not produce media file or verify player selectable tracks, speaker labels, stream languages and timestamps.",
+        "proposed_regression": "Isolated ffmpeg/ffprobe with synthetic WAV+original/DE/TR SRT; probe streams and actual playback; input file hash preserved.",
+        "expected_result": "UNVERIFIED—requires independent tests or owner-approved native/hardware acceptance",
+        "executed_by_ws01": false
+      },
+      {
+        "id": "P4-MISS-07",
+        "priority": "P0",
+        "title": "Native Qt5 build and packaged CLI resolution",
+        "source_path": "kaffeine_next/native_media_panel.h",
+        "source_line": 395,
+        "source_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/4e62e21cd5252df8a04f9ceadc429f4b116412ce/kaffeine_next/native_media_panel.h#L395",
+        "related_ids": [
+          "P67-GAP-10",
+          "REG-14",
+          "REG-17"
+        ],
+        "missing_evidence": "PR90 has no Qt5 compile or native tihulu-tv-center recording-export process integration.",
+        "proposed_regression": "Separately authorized native build/packaging tests for executable version, process errors, file picker, saved settings and failed export.",
+        "expected_result": "UNVERIFIED—requires independent tests or owner-approved native/hardware acceptance",
+        "executed_by_ws01": false
+      },
+      {
+        "id": "P4-MISS-08",
+        "priority": "P1",
+        "title": "Broad negative SRT parsing and bounds",
+        "source_path": "tv_center/recording_export.py",
+        "source_line": 33,
+        "source_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/4e62e21cd5252df8a04f9ceadc429f4b116412ce/tv_center/recording_export.py#L33",
+        "related_ids": [
+          "P67-GAP-01",
+          "REG-16"
+        ],
+        "missing_evidence": "Only single literal-backslash-n negative in PR90 and one malformed no-time case in original.",
+        "proposed_regression": "Synthetic invalid mm/ss, reversed/zero range, UTF-8, wrong suffix, >30MiB, >100000 cue count, no valid cues, invalid track keys.",
+        "expected_result": "UNVERIFIED—requires independent tests or owner-approved native/hardware acceptance",
+        "executed_by_ws01": false
+      },
+      {
+        "id": "P4-MISS-09",
+        "priority": "P1",
+        "title": "Mixed translation and metadata provenance",
+        "source_path": "tv_center/recording_export.py",
+        "source_line": 150,
+        "source_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/4e62e21cd5252df8a04f9ceadc429f4b116412ce/tv_center/recording_export.py#L150",
+        "related_ids": [
+          "P67-GAP-06",
+          "REG-13",
+          "REG-16"
+        ],
+        "missing_evidence": "PR90 checks only translation-tr mock argv; earlier original fixture covers [TR]/[DE] and sound/speaker but not many realistic mixed cases.",
+        "proposed_regression": "Mixed [EN]/[TR]/[DE], script codes, [Music], [Speaker], unknown tags, multiline translations with exact original text/time retention.",
+        "expected_result": "UNVERIFIED—requires independent tests or owner-approved native/hardware acceptance",
+        "executed_by_ws01": false
+      },
+      {
+        "id": "P4-MISS-10",
+        "priority": "P1",
+        "title": "Burn-in video, ffprobe and OS path quoting",
+        "source_path": "tv_center/recording_export.py",
+        "source_line": 285,
+        "source_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/4e62e21cd5252df8a04f9ceadc429f4b116412ce/tv_center/recording_export.py#L285",
+        "related_ids": [
+          "P67-GAP-08",
+          "REG-14"
+        ],
+        "missing_evidence": "No real or mocked MP4 burn path, libass/FFmpeg subtitles filter, audio-only rejection or Windows/macOS special path.",
+        "proposed_regression": "Isolated mock ffprobe negatives, safe filter argv and optional real media with spaces/colons/unicode and verified codecs without source writes.",
+        "expected_result": "UNVERIFIED—requires independent tests or owner-approved native/hardware acceptance",
+        "executed_by_ws01": false
+      },
+      {
+        "id": "P4-MISS-11",
+        "priority": "P1",
+        "title": "LRC provenance and fake word-timing prevention",
+        "source_path": "tv_center/recording_export.py",
+        "source_line": 94,
+        "source_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/4e62e21cd5252df8a04f9ceadc429f4b116412ce/tv_center/recording_export.py#L94",
+        "related_ids": [
+          "P67-GAP-06",
+          "REG-16"
+        ],
+        "missing_evidence": "--verified-lyrics is caller supplied; exporter does not authenticate acoustic lyric evidence.",
+        "proposed_regression": "Negative wrongly labeled speech as lyrics, explicit trust source test, no invented word timing from cue boundaries.",
+        "expected_result": "UNVERIFIED—requires independent tests or owner-approved native/hardware acceptance",
+        "executed_by_ws01": false
+      },
+      {
+        "id": "P4-MISS-12",
+        "priority": "P1",
+        "title": "Partial sidecars after FFmpeg mux/burn failure",
+        "source_path": "tv_center/recording_export.py",
+        "source_line": 322,
+        "source_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/4e62e21cd5252df8a04f9ceadc429f4b116412ce/tv_center/recording_export.py#L322",
+        "related_ids": [
+          "P67-GAP-07",
+          "REG-01"
+        ],
+        "missing_evidence": "run_export writes text sidecars first and may error during later mux/burn; PR90 never exercises partial-success semantics.",
+        "proposed_regression": "Mock mux error after sidecars and burn error after mux; inspect outputs and error status while safeguarding preexisting/original bytes.",
+        "expected_result": "UNVERIFIED—requires independent tests or owner-approved native/hardware acceptance",
+        "executed_by_ws01": false
+      },
+      {
+        "id": "P4-MISS-13",
+        "priority": "P1",
+        "title": "Live DAB/TV timing and station changes",
+        "source_path": "kaffeine_next/native_radio_tab.h",
+        "source_line": 5961,
+        "source_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/4e62e21cd5252df8a04f9ceadc429f4b116412ce/kaffeine_next/native_radio_tab.h#L5961",
+        "related_ids": [
+          "P67-GAP-04",
+          "P67-GAP-09",
+          "REG-16"
+        ],
+        "missing_evidence": "Live DAB cue clock estimated from caption display and character duration; no real DAC/MP3 sync, first-chunk, stop/switch or Internet radio parity.",
+        "proposed_regression": "Synthetic event traces on distinct DAB/Internet paths and later owner-approved physical audio/clock test; source labels and no external device takeover.",
+        "expected_result": "UNVERIFIED—requires independent tests or owner-approved native/hardware acceptance",
+        "executed_by_ws01": false
+      },
+      {
+        "id": "P4-MISS-14",
+        "priority": "P1",
+        "title": "Progressive local file captions under playback",
+        "source_path": "kaffeine_next/RECORDING_EXPORT_V2_DRAFT.md",
+        "source_line": 16,
+        "source_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/4e62e21cd5252df8a04f9ceadc429f4b116412ce/kaffeine_next/RECORDING_EXPORT_V2_DRAFT.md#L16",
+        "related_ids": [
+          "P67-GAP-03",
+          "REG-16"
+        ],
+        "missing_evidence": "PR67 draft states async sidecar generation does NOT stream caption chunks to playing local file; export tests cannot make this feature pass.",
+        "proposed_regression": "Future separately approved opt-in player feature tests while retaining complete-first and respecting model/no-background default.",
+        "expected_result": "UNVERIFIED—requires independent tests or owner-approved native/hardware acceptance",
+        "executed_by_ws01": false
+      },
+      {
+        "id": "P4-MISS-15",
+        "priority": "P1",
+        "title": "EN/TR/DE native UI, portable packages and rollback",
+        "source_path": "kaffeine_next/native_unified_recorder.h",
+        "source_line": 417,
+        "source_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/4e62e21cd5252df8a04f9ceadc429f4b116412ce/kaffeine_next/native_unified_recorder.h#L417",
+        "related_ids": [
+          "P67-GAP-10",
+          "REG-13",
+          "REG-14"
+        ],
+        "missing_evidence": "No visual translation coverage, native platform packages, preserved logos or settings/recordings rollback on PR90.",
+        "proposed_regression": "Owner-approved locale screenshots EN default/TR/DE, desktop installations, existing data snapshots and non-destructive rollback.",
+        "expected_result": "UNVERIFIED—requires independent tests or owner-approved native/hardware acceptance",
+        "executed_by_ws01": false
+      },
+      {
+        "id": "P4-MISS-16",
+        "priority": "P1",
+        "title": "Original twenty-commit history and eight-path tree preservation",
+        "source_path": "tests/test_recording_export.py",
+        "source_line": 1,
+        "source_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/4e62e21cd5252df8a04f9ceadc429f4b116412ce/tests/test_recording_export.py#L1",
+        "related_ids": [
+          "REG-01",
+          "REG-11"
+        ],
+        "missing_evidence": "PR90 adds only one file and leaves PR67 unchanged but does not validate future merge/migration choices or historical PR comments.",
+        "proposed_regression": "Future approval-gated immutable commit SHA/blob/tree comparison for #65/#66/#67, existing tests and comments; audit #83 is not a deployable Media source.",
+        "expected_result": "UNVERIFIED—requires independent tests or owner-approved native/hardware acceptance",
+        "executed_by_ws01": false
+      }
+    ],
+    "ci": {
+      "run": 43133737755,
+      "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/actions/runs/43133737755",
+      "head_sha": "15d704f2624264d9bc346248d89373188d82d597",
+      "python_jobs": [
+        {
+          "version": "3.11",
+          "job_id": 130903924236,
+          "ran": 677,
+          "passed": 676,
+          "skipped": 1,
+          "result": "success"
+        },
+        {
+          "version": "3.12",
+          "job_id": 130903923956,
+          "ran": 677,
+          "passed": 676,
+          "skipped": 1,
+          "result": "success"
+        },
+        {
+          "version": "3.13",
+          "job_id": 130903924342,
+          "ran": 677,
+          "passed": 676,
+          "skipped": 1,
+          "result": "success"
+        }
+      ],
+      "new_tests_all_ok": true,
+      "old_real_ffmpeg_test": "skipped because ffmpeg and ffprobe tools unavailable",
+      "direct_worker_execution": 0,
+      "physical_tests": 0,
+      "native_qt_builds": 0
+    },
+    "gates": [
+      "REG-01",
+      "REG-03",
+      "REG-10",
+      "REG-11",
+      "REG-13",
+      "REG-14",
+      "REG-16",
+      "REG-17"
+    ],
+    "pr67_gap_conclusions": {
+      "P67-GAP-01": "Partially detected via negative parser; old skipped fixture unchanged",
+      "P67-GAP-02": "New test directly checks -n argv; old weak assertion remains",
+      "P67-GAP-03": "Unimplemented local progressive captioning, no test coverage",
+      "P67-GAP-04": "Display-clock not measured DAC sync",
+      "P67-GAP-05": "Only absent --media tested, no provided-path/Qt parity",
+      "P67-GAP-06": "Lyrics provenance and richer translations not fully tested",
+      "P67-GAP-07": "Pre-existing file preflight yes; no race or partial failure",
+      "P67-GAP-08": "Mock mux language tag yes; no real FFmpeg or MP4 burn",
+      "P67-GAP-09": "DAB/Internet radio parity unverified",
+      "P67-GAP-10": "Native Qt/installed CLI not verified"
+    },
+    "counts": {
+      "five_new_tests": 5,
+      "proposed_missing_cases": 16,
+      "tests_run_by_ws01": 0,
+      "device_operations": 0,
+      "hardware_acceptance": 0,
+      "original_source_file_changes": 0,
+      "verified_full_gates": 0
+    },
+    "remaining_eta": "UNKNOWN",
+    "safety": "This update changed only WS01 EVIDENCE.json; no application or test source, other branch, service, install, rebase, merge, migration, release or model touched."
+  }
+}
