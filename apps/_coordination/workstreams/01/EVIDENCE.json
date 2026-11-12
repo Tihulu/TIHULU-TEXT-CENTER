@@ -2460,5 +2460,1582 @@
       ],
       "full_acceptance": "not_verified"
     }
-  ]
+  ],
+  "pr65_pr67_deep_audit": {
+    "audited_on": "2026-11-12",
+    "audit_kind": "read_only_GitHub_commit_and_source_review",
+    "tests_executed_by_worker": 0,
+    "physical_tests_executed": 0,
+    "chain": {
+      "pr65_head": "20b0417aa7edba2f86b297e7cabdd062e9b24291",
+      "pr66_head": "20379152be2751e5d89a8bdbac85fb15fc6b3c4e",
+      "pr67_head": "4e62e21cd5252df8a04f9ceadc429f4b116412ce",
+      "pr65_to_66": {
+        "ahead": 3,
+        "behind": 0,
+        "added_files": 150,
+        "paths": [
+          {
+            "path": "docs/INTEGRATION_BASELINE_2026-11-11.md",
+            "status": "added"
+          },
+          {
+            "path": "rf_geolocation_center/README.md",
+            "status": "added"
+          },
+          {
+            "path": "rf_geolocation_center/__init__.py",
+            "status": "added"
+          },
+          {
+            "path": "rf_geolocation_center/__main__.py",
+            "status": "added"
+          },
+          {
+            "path": "rf_geolocation_center/core/dvb_scan.mjs",
+            "status": "added"
+          },
+          {
+            "path": "rf_geolocation_center/core/evidence.mjs",
+            "status": "added"
+          },
+          {
+            "path": "rf_geolocation_center/core/gnss.mjs",
+            "status": "added"
+          },
+          {
+            "path": "rf_geolocation_center/core/location_layers.mjs",
+            "status": "added"
+          },
+          {
+            "path": "rf_geolocation_center/core/positioning.mjs",
+            "status": "added"
+          },
+          {
+            "path": "rf_geolocation_center/core/rf_ranging.mjs",
+            "status": "added"
+          },
+          {
+            "path": "rf_geolocation_center/core/scan_map.mjs",
+            "status": "added"
+          },
+          {
+            "path": "rf_geolocation_center/core/source_catalog.mjs",
+            "status": "added"
+          },
+          {
+            "path": "rf_geolocation_center/core/source_provenance.mjs",
+            "status": "added"
+          },
+          {
+            "path": "rf_geolocation_center/docs/ARCHITECTURE_AND_RELEASE_GATES.md",
+            "status": "added"
+          },
+          {
+            "path": "rf_geolocation_center/docs/CHECKPOINT_001_2026-11-06_INITIAL_SCIENCE_WEB_NATIVE_HANDOFF.md",
+            "status": "added"
+          },
+          {
+            "path": "rf_geolocation_center/docs/PLATFORM_TEST_MATRIX.md",
+            "status": "added"
+          },
+          {
+            "path": "rf_geolocation_center/dvb_bridge.py",
+            "status": "added"
+          },
+          {
+            "path": "rf_geolocation_center/index.html",
+            "status": "added"
+          },
+          {
+            "path": "rf_geolocation_center/manifest.webmanifest",
+            "status": "added"
+          },
+          {
+            "path": "rf_geolocation_center/native.py",
+            "status": "added"
+          },
+          {
+            "path": "rf_geolocation_center/radio_metadata.py",
+            "status": "added"
+          },
+          {
+            "path": "rf_geolocation_center/scripts/dvb_scan_linux.sh",
+            "status": "added"
+          },
+          {
+            "path": "rf_geolocation_center/scripts/usb_prepare_linux.sh",
+            "status": "added"
+          },
+          {
+            "path": "rf_geolocation_center/sw.js",
+            "status": "added"
+          },
+          {
+            "path": "rf_geolocation_center/tests/auto_explorer.test.mjs",
+            "status": "added"
+          },
+          {
+            "path": "rf_geolocation_center/tests/core.test.mjs",
+            "status": "added"
+          },
+          {
+            "path": "rf_geolocation_center/tests/evidence.test.mjs",
+            "status": "added"
+          },
+          {
+            "path": "rf_geolocation_center/tests/hardware_map.test.mjs",
+            "status": "added"
+          },
+          {
+            "path": "rf_geolocation_center/tests/location_layers.test.mjs",
+            "status": "added"
+          },
+          {
+            "path": "rf_geolocation_center/tests/map_interactivity.test.mjs",
+            "status": "added"
+          },
+          {
+            "path": "rf_geolocation_center/tests/map_provenance_interaction.test.mjs",
+            "status": "added"
+          },
+          {
+            "path": "rf_geolocation_center/tests/navic.test.mjs",
+            "status": "added"
+          },
+          {
+            "path": "rf_geolocation_center/tests/pairing_pan_recovery.test.mjs",
+            "status": "added"
+          },
+          {
+            "path": "rf_geolocation_center/tests/provenance.test.mjs",
+            "status": "added"
+          },
+          {
+            "path": "rf_geolocation_center/tests/receiver_ux.test.mjs",
+            "status": "added"
+          },
+          {
+            "path": "rf_geolocation_center/tests/rf_ranging.test.mjs",
+            "status": "added"
+          },
+          {
+            "path": "rf_geolocation_center/tests/rf_ui_contract.test.mjs",
+            "status": "added"
+          },
+          {
+            "path": "rf_geolocation_center/tests/scan_map.test.mjs",
+            "status": "added"
+          },
+          {
+            "path": "rf_geolocation_center/tests/simple_ui.test.mjs",
+            "status": "added"
+          },
+          {
+            "path": "rf_geolocation_center/tests/source_catalog.test.mjs",
+            "status": "added"
+          },
+          {
+            "path": "rf_geolocation_center/tests/source_provenance.test.mjs",
+            "status": "added"
+          },
+          {
+            "path": "rf_geolocation_center/tests/test_dvb_bridge.py",
+            "status": "added"
+          },
+          {
+            "path": "rf_geolocation_center/tests/test_native.py",
+            "status": "added"
+          },
+          {
+            "path": "rf_geolocation_center/tests/ui_contract.test.mjs",
+            "status": "added"
+          },
+          {
+            "path": "rf_geolocation_center/tests/usb_resampler_regression.test.mjs",
+            "status": "added"
+          },
+          {
+            "path": "rf_geolocation_center/web/app.mjs",
+            "status": "added"
+          },
+          {
+            "path": "rf_geolocation_center/web/auto_explorer.mjs",
+            "status": "added"
+          },
+          {
+            "path": "rf_geolocation_center/web/catalog_discovery.mjs",
+            "status": "added"
+          },
+          {
+            "path": "rf_geolocation_center/web/dvb_bridge_client.mjs",
+            "status": "added"
+          },
+          {
+            "path": "rf_geolocation_center/web/hardware_manager.mjs",
+            "status": "added"
+          },
+          {
+            "path": "rf_geolocation_center/web/icon.svg",
+            "status": "added"
+          },
+          {
+            "path": "rf_geolocation_center/web/maps.mjs",
+            "status": "added"
+          },
+          {
+            "path": "rf_geolocation_center/web/receivers.mjs",
+            "status": "added"
+          },
+          {
+            "path": "rf_geolocation_center/web/rf_survey.mjs",
+            "status": "added"
+          },
+          {
+            "path": "rf_geolocation_center/web/simple_ui.mjs",
+            "status": "added"
+          },
+          {
+            "path": "rf_geolocation_center/web/style.css",
+            "status": "added"
+          },
+          {
+            "path": "rf_geolocation_center/web/usb_sdr.mjs",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/FEATURE_PARITY.md",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/MAPS.md",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/NATIVE_WEB_PARITY.md",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/README.md",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/RECEPTION_UX_CONTRACT.md",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/SIGNAL_INTELLIGENCE.md",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/WEB_AND_INSTALL.md",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/__init__.py",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/__main__.py",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/assets/tihulu-satellite.png",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/assets/tihulu-satellite.svg",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/bridge.py",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/browser/CITY_DATA_LICENSE.md",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/browser/auto_mission.mjs",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/browser/auto_reception_ui.mjs",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/browser/browser.css",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/browser/browser.js",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/browser/capture_duration.mjs",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/browser/chained_capture.mjs",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/browser/cities-de-tr.json",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/browser/compute_backends.mjs",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/browser/compute_selector.mjs",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/browser/file_format_inspector.mjs",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/browser/fm_iq_demod.mjs",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/browser/fm_wav_record.mjs",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/browser/icon-192.png",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/browser/icon-512.png",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/browser/icon.svg",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/browser/index.html",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/browser/iq_analysis.mjs",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/browser/iq_analysis_ui.mjs",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/browser/iq_intelligence.mjs",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/browser/leaflet.LICENSE.txt",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/browser/leaflet.css",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/browser/leaflet.js",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/browser/location_search.mjs",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/browser/manifest.webmanifest",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/browser/natural-earth-land-110m.geojson",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/browser/orbit_clock.mjs",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/browser/pass_candidates.mjs",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/browser/pass_protocol_catalog.mjs",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/browser/pass_sort.mjs",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/browser/pass_window.mjs",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/browser/reception.css",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/browser/reception.html",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/browser/reception.mjs",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/browser/reception_catalog.mjs",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/browser/results_zip.mjs",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/browser/satellite_calendar.mjs",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/browser/satellite_imagery.mjs",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/browser/satellite_images_ui.mjs",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/browser/satellite_maps.mjs",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/browser/saved_satellite_protocols.mjs",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/browser/schedule_controller.mjs",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/browser/signal_discovery.mjs",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/browser/sstv_capture_diagnostics.mjs",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/browser/sstv_robot36.mjs",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/browser/usb_diagnostics.mjs",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/browser/usb_diagnostics.test.mjs",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/browser/usb_live_probe.mjs",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/browser/user_protocol_ui.mjs",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/capture_budget.py",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/capture_naming.py",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/compute_backends.py",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/desktop.py",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/desktop_shortcuts.py",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/index.html",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/install/install-deb.sh",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/install/install.ps1",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/install/install.sh",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/media_catalog.py",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/native_analysis.py",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/native_data_labels.py",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/native_desktop_bridge.js",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/native_geocoding.py",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/native_imagery.py",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/native_locations.py",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/native_map_parity.py",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/native_maps.py",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/native_orbit.py",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/native_osm_tiles.py",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/native_pass_filters.py",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/native_protocols.py",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/native_robot36_results.py",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/native_signal_tools.py",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/native_tracking.py",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/native_web_shell.py",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/npu_sstv.py",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/packaging/debian/build.sh",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/planning_store.py",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/sstv_series35.py",
+            "status": "added"
+          },
+          {
+            "path": "satellite_center/window_visibility.py",
+            "status": "added"
+          },
+          {
+            "path": "tests/test_integration_app_preservation.py",
+            "status": "added"
+          }
+        ],
+        "important": "56 RF + 92 Satellite + 1 integration doc + 1 integration tree-pin test; zero existing Media source file modifications"
+      },
+      "pr66_to_67": {
+        "ahead": 20,
+        "behind": 0,
+        "commits": 20,
+        "changed_paths": [
+          {
+            "filename": "kaffeine_next/RECORDING_EXPORT_V2_DRAFT.md",
+            "status": "added",
+            "additions": 84,
+            "deletions": 0,
+            "changes": 84,
+            "previous_filename": null,
+            "blob_sha_at_pr67": "3418010eb2448879d4b8cd582e2857e64fea285d"
+          },
+          {
+            "filename": "kaffeine_next/captions_overlay.py",
+            "status": "modified",
+            "additions": 33,
+            "deletions": 2,
+            "changes": 35,
+            "previous_filename": null,
+            "blob_sha_at_pr67": "3081be75998464e758427ea12c66071924b6e69d"
+          },
+          {
+            "filename": "kaffeine_next/native_media_panel.h",
+            "status": "modified",
+            "additions": 92,
+            "deletions": 2,
+            "changes": 94,
+            "previous_filename": null,
+            "blob_sha_at_pr67": "7b8f2f756025a8aec5169e86b52ec589dc769aca"
+          },
+          {
+            "filename": "kaffeine_next/native_radio_tab.h",
+            "status": "modified",
+            "additions": 154,
+            "deletions": 0,
+            "changes": 154,
+            "previous_filename": null,
+            "blob_sha_at_pr67": "1aaac1b9b2c08f2ae4981d17dbd1f6029a2ad831"
+          },
+          {
+            "filename": "kaffeine_next/native_unified_recorder.h",
+            "status": "modified",
+            "additions": 103,
+            "deletions": 3,
+            "changes": 106,
+            "previous_filename": null,
+            "blob_sha_at_pr67": "65ceedc5e99534a2f348b83f5c31467b55cd237f"
+          },
+          {
+            "filename": "tests/test_recording_export.py",
+            "status": "added",
+            "additions": 171,
+            "deletions": 0,
+            "changes": 171,
+            "previous_filename": null,
+            "blob_sha_at_pr67": "1b8039aa5f78449ebd7c5ef19eb0f9470bfb0cf8"
+          },
+          {
+            "filename": "tv_center/__main__.py",
+            "status": "modified",
+            "additions": 4,
+            "deletions": 1,
+            "changes": 5,
+            "previous_filename": null,
+            "blob_sha_at_pr67": "c5ea50700ef8d32eae4970ce9a962dc5795c4f00"
+          },
+          {
+            "filename": "tv_center/recording_export.py",
+            "status": "added",
+            "additions": 395,
+            "deletions": 0,
+            "changes": 395,
+            "previous_filename": null,
+            "blob_sha_at_pr67": "084ac92aa787b1e81f2a2dab861eb0af6041eade"
+          }
+        ]
+      }
+    },
+    "pr_diff_full_changed_paths": {
+      "pr65_vs_its_base": [
+        "kaffeine_next/caption_timing.py",
+        "kaffeine_next/captions_overlay.py",
+        "kaffeine_next/install.sh",
+        "kaffeine_next/native_hardware_tab.h",
+        "kaffeine_next/native_media_panel.h",
+        "kaffeine_next/native_radio_tab.h",
+        "kaffeine_next/patch_upstream.py",
+        "kaffeine_next/teletext_match.py",
+        "tests/test_media_center_launcher_without_tuner.py",
+        "tests/test_native_file_prepass_fullscreen.py",
+        "tests/test_radio_ai_caption_karaoke_playback.py",
+        "tests/test_radio_caption_recovery_lyrics_model_selection.py",
+        "tests/test_radio_dls_lyrics_refresh.py",
+        "tests/test_radio_est_caption_continuity.py",
+        "tests/test_radio_karaoke_baseline_policy.py",
+        "tests/test_radio_karaoke_independent_lipsync.py",
+        "tests/test_radio_lyrics_found_preview.py",
+        "tests/test_radio_lyrics_refresh_full_window.py",
+        "tests/test_radio_lyrics_refresh_output_contract.py",
+        "tests/test_radio_separate_lipsync_refresh.py",
+        "tests/test_radio_silent_audio_recovery.py",
+        "tests/test_radio_song_continuity_cache.py",
+        "tests/test_radio_song_metadata_sources.py",
+        "tests/test_radio_split_sync_and_model_pipeline.py",
+        "tests/test_radio_sync_refresh_karaoke_fast.py",
+        "tests/test_radio_tv_handoff_progress.py",
+        "tests/test_radio_whisper_karaoke_refresh.py",
+        "tests/test_tv_ai_profiles_remote_startup.py",
+        "tests/test_tv_lyrics_providers.py",
+        "tests/test_tv_market_guided_progress.py",
+        "tests/test_tv_radio_ai_ui_audio_drain.py",
+        "tests/test_tv_radio_caption_sync_readability.py",
+        "tests/test_tv_radio_fast_tune_presenter_buffer.py",
+        "tests/test_tv_radio_frequency_buffer_progress.py",
+        "tests/test_tv_radio_karaoke_tv_readability.py",
+        "tests/test_tv_radio_lyrics_match_status_auto_input.py",
+        "tests/test_tv_radio_responsive_sync.py",
+        "tests/test_tv_sound_labels_teletext_auto.py",
+        "tests/test_tv_standalone_radio_media.py",
+        "tests/test_tv_teletext_speech_recovery.py",
+        "tv_center/ai_profiles.py",
+        "tv_center/ai_provision.py",
+        "tv_center/ai_settings.py",
+        "tv_center/asr_quality.py",
+        "tv_center/captions.py",
+        "tv_center/direct_de_tr.py",
+        "tv_center/lyrics_sync.py",
+        "tv_center/media_ai.py",
+        "tv_center/qwen_forced_aligner.py",
+        "tv_center/radio_ai.py",
+        "tv_center/radio_dls_metadata.py",
+        "tv_center/radio_karaoke_router.py",
+        "tv_center/settings_ui.py",
+        "tv_center/sound_event_captions.py"
+      ],
+      "pr66_vs_main": [
+        ".github/workflows/kaffeine-tv-ci.yml",
+        ".github/workflows/kaffeine-welle-dab-build.yml",
+        ".github/workflows/native-tihulu.yml",
+        ".github/workflows/tv-center-ci.yml",
+        "README.md",
+        "docs/INTEGRATION_BASELINE_2026-11-11.md",
+        "docs/PAIRED_PHONE_GUIDE.md",
+        "kaffeine_next/AI_LIVE_PERFORMANCE_AND_LANGUAGES.md",
+        "kaffeine_next/HARDWARE_PANEL.md",
+        "kaffeine_next/RADIO_UX_SYNC_REVIEW.md",
+        "kaffeine_next/README.md",
+        "kaffeine_next/REMOTE_MEDIA_HUB.md",
+        "kaffeine_next/TROUBLESHOOTING_2026-11-08.md",
+        "kaffeine_next/TV_CAPTION_CHANNEL_TRANSITIONS.md",
+        "kaffeine_next/UNIFIED_RECORDING.md",
+        "kaffeine_next/__init__.py",
+        "kaffeine_next/assets/tihulu-media-center.svg",
+        "kaffeine_next/caption_control.py",
+        "kaffeine_next/caption_timing.py",
+        "kaffeine_next/captions_overlay.py",
+        "kaffeine_next/continuous_captions.py",
+        "kaffeine_next/diagnostics.py",
+        "kaffeine_next/dvb_diagnostics.sh",
+        "kaffeine_next/install.sh",
+        "kaffeine_next/install_welle.sh",
+        "kaffeine_next/live_srt.py",
+        "kaffeine_next/mobile.py",
+        "kaffeine_next/mpegts.py",
+        "kaffeine_next/native_hardware_tab.h",
+        "kaffeine_next/native_media_panel.h",
+        "kaffeine_next/native_radio_tab.h",
+        "kaffeine_next/native_unified_recorder.h",
+        "kaffeine_next/native_web_tv_dialog.h",
+        "kaffeine_next/patch_upstream.py",
+        "kaffeine_next/subtitle_tracks.py",
+        "kaffeine_next/teletext_match.py",
+        "kaffeine_next/track_preferences.py",
+        "kaffeine_next/transport_health.py",
+        "kaffeine_next/ts_capture_integrity.py",
+        "kaffeine_next/tv_tune_state.py",
+        "kaffeine_next/word_cues.py",
+        "rf_geolocation_center/README.md",
+        "rf_geolocation_center/__init__.py",
+        "rf_geolocation_center/__main__.py",
+        "rf_geolocation_center/core/dvb_scan.mjs",
+        "rf_geolocation_center/core/evidence.mjs",
+        "rf_geolocation_center/core/gnss.mjs",
+        "rf_geolocation_center/core/location_layers.mjs",
+        "rf_geolocation_center/core/positioning.mjs",
+        "rf_geolocation_center/core/rf_ranging.mjs",
+        "rf_geolocation_center/core/scan_map.mjs",
+        "rf_geolocation_center/core/source_catalog.mjs",
+        "rf_geolocation_center/core/source_provenance.mjs",
+        "rf_geolocation_center/docs/ARCHITECTURE_AND_RELEASE_GATES.md",
+        "rf_geolocation_center/docs/CHECKPOINT_001_2026-11-06_INITIAL_SCIENCE_WEB_NATIVE_HANDOFF.md",
+        "rf_geolocation_center/docs/PLATFORM_TEST_MATRIX.md",
+        "rf_geolocation_center/dvb_bridge.py",
+        "rf_geolocation_center/index.html",
+        "rf_geolocation_center/manifest.webmanifest",
+        "rf_geolocation_center/native.py",
+        "rf_geolocation_center/radio_metadata.py",
+        "rf_geolocation_center/scripts/dvb_scan_linux.sh",
+        "rf_geolocation_center/scripts/usb_prepare_linux.sh",
+        "rf_geolocation_center/sw.js",
+        "rf_geolocation_center/tests/auto_explorer.test.mjs",
+        "rf_geolocation_center/tests/core.test.mjs",
+        "rf_geolocation_center/tests/evidence.test.mjs",
+        "rf_geolocation_center/tests/hardware_map.test.mjs",
+        "rf_geolocation_center/tests/location_layers.test.mjs",
+        "rf_geolocation_center/tests/map_interactivity.test.mjs",
+        "rf_geolocation_center/tests/map_provenance_interaction.test.mjs",
+        "rf_geolocation_center/tests/navic.test.mjs",
+        "rf_geolocation_center/tests/pairing_pan_recovery.test.mjs",
+        "rf_geolocation_center/tests/provenance.test.mjs",
+        "rf_geolocation_center/tests/receiver_ux.test.mjs",
+        "rf_geolocation_center/tests/rf_ranging.test.mjs",
+        "rf_geolocation_center/tests/rf_ui_contract.test.mjs",
+        "rf_geolocation_center/tests/scan_map.test.mjs",
+        "rf_geolocation_center/tests/simple_ui.test.mjs",
+        "rf_geolocation_center/tests/source_catalog.test.mjs",
+        "rf_geolocation_center/tests/source_provenance.test.mjs",
+        "rf_geolocation_center/tests/test_dvb_bridge.py",
+        "rf_geolocation_center/tests/test_native.py",
+        "rf_geolocation_center/tests/ui_contract.test.mjs",
+        "rf_geolocation_center/tests/usb_resampler_regression.test.mjs",
+        "rf_geolocation_center/web/app.mjs",
+        "rf_geolocation_center/web/auto_explorer.mjs",
+        "rf_geolocation_center/web/catalog_discovery.mjs",
+        "rf_geolocation_center/web/dvb_bridge_client.mjs",
+        "rf_geolocation_center/web/hardware_manager.mjs",
+        "rf_geolocation_center/web/icon.svg",
+        "rf_geolocation_center/web/maps.mjs",
+        "rf_geolocation_center/web/receivers.mjs",
+        "rf_geolocation_center/web/rf_survey.mjs",
+        "rf_geolocation_center/web/simple_ui.mjs",
+        "rf_geolocation_center/web/style.css",
+        "rf_geolocation_center/web/usb_sdr.mjs",
+        "satellite_center/FEATURE_PARITY.md",
+        "satellite_center/MAPS.md",
+        "satellite_center/NATIVE_WEB_PARITY.md",
+        "satellite_center/README.md",
+        "satellite_center/RECEPTION_UX_CONTRACT.md",
+        "satellite_center/SIGNAL_INTELLIGENCE.md",
+        "satellite_center/WEB_AND_INSTALL.md",
+        "satellite_center/__init__.py",
+        "satellite_center/__main__.py",
+        "satellite_center/assets/tihulu-satellite.png",
+        "satellite_center/assets/tihulu-satellite.svg",
+        "satellite_center/bridge.py",
+        "satellite_center/browser/CITY_DATA_LICENSE.md",
+        "satellite_center/browser/auto_mission.mjs",
+        "satellite_center/browser/auto_reception_ui.mjs",
+        "satellite_center/browser/browser.css",
+        "satellite_center/browser/browser.js",
+        "satellite_center/browser/capture_duration.mjs",
+        "satellite_center/browser/chained_capture.mjs",
+        "satellite_center/browser/cities-de-tr.json",
+        "satellite_center/browser/compute_backends.mjs",
+        "satellite_center/browser/compute_selector.mjs",
+        "satellite_center/browser/file_format_inspector.mjs",
+        "satellite_center/browser/fm_iq_demod.mjs",
+        "satellite_center/browser/fm_wav_record.mjs",
+        "satellite_center/browser/icon-192.png",
+        "satellite_center/browser/icon-512.png",
+        "satellite_center/browser/icon.svg",
+        "satellite_center/browser/index.html",
+        "satellite_center/browser/iq_analysis.mjs",
+        "satellite_center/browser/iq_analysis_ui.mjs",
+        "satellite_center/browser/iq_intelligence.mjs",
+        "satellite_center/browser/leaflet.LICENSE.txt",
+        "satellite_center/browser/leaflet.css",
+        "satellite_center/browser/leaflet.js",
+        "satellite_center/browser/location_search.mjs",
+        "satellite_center/browser/manifest.webmanifest",
+        "satellite_center/browser/natural-earth-land-110m.geojson",
+        "satellite_center/browser/orbit_clock.mjs",
+        "satellite_center/browser/pass_candidates.mjs",
+        "satellite_center/browser/pass_protocol_catalog.mjs",
+        "satellite_center/browser/pass_sort.mjs",
+        "satellite_center/browser/pass_window.mjs",
+        "satellite_center/browser/reception.css",
+        "satellite_center/browser/reception.html",
+        "satellite_center/browser/reception.mjs",
+        "satellite_center/browser/reception_catalog.mjs",
+        "satellite_center/browser/results_zip.mjs",
+        "satellite_center/browser/satellite_calendar.mjs",
+        "satellite_center/browser/satellite_imagery.mjs",
+        "satellite_center/browser/satellite_images_ui.mjs",
+        "satellite_center/browser/satellite_maps.mjs",
+        "satellite_center/browser/saved_satellite_protocols.mjs",
+        "satellite_center/browser/schedule_controller.mjs",
+        "satellite_center/browser/signal_discovery.mjs",
+        "satellite_center/browser/sstv_capture_diagnostics.mjs",
+        "satellite_center/browser/sstv_robot36.mjs",
+        "satellite_center/browser/usb_diagnostics.mjs",
+        "satellite_center/browser/usb_diagnostics.test.mjs",
+        "satellite_center/browser/usb_live_probe.mjs",
+        "satellite_center/browser/user_protocol_ui.mjs",
+        "satellite_center/capture_budget.py",
+        "satellite_center/capture_naming.py",
+        "satellite_center/compute_backends.py",
+        "satellite_center/desktop.py",
+        "satellite_center/desktop_shortcuts.py",
+        "satellite_center/index.html",
+        "satellite_center/install/install-deb.sh",
+        "satellite_center/install/install.ps1",
+        "satellite_center/install/install.sh",
+        "satellite_center/media_catalog.py",
+        "satellite_center/native_analysis.py",
+        "satellite_center/native_data_labels.py",
+        "satellite_center/native_desktop_bridge.js",
+        "satellite_center/native_geocoding.py",
+        "satellite_center/native_imagery.py",
+        "satellite_center/native_locations.py",
+        "satellite_center/native_map_parity.py",
+        "satellite_center/native_maps.py",
+        "satellite_center/native_orbit.py",
+        "satellite_center/native_osm_tiles.py",
+        "satellite_center/native_pass_filters.py",
+        "satellite_center/native_protocols.py",
+        "satellite_center/native_robot36_results.py",
+        "satellite_center/native_signal_tools.py",
+        "satellite_center/native_tracking.py",
+        "satellite_center/native_web_shell.py",
+        "satellite_center/npu_sstv.py",
+        "satellite_center/packaging/debian/build.sh",
+        "satellite_center/planning_store.py",
+        "satellite_center/sstv_series35.py",
+        "satellite_center/window_visibility.py",
+        "tests/test_compute.py",
+        "tests/test_http_app.py",
+        "tests/test_integration_app_preservation.py",
+        "tests/test_kaffeine_buffer_language.py",
+        "tests/test_kaffeine_dvb_scan_import_crash.py",
+        "tests/test_kaffeine_native_srt_controls.py",
+        "tests/test_media_center_launcher_without_tuner.py",
+        "tests/test_native_file_prepass_fullscreen.py",
+        "tests/test_radio_ai_caption_karaoke_playback.py",
+        "tests/test_radio_caption_recovery_lyrics_model_selection.py",
+        "tests/test_radio_dls_lyrics_refresh.py",
+        "tests/test_radio_est_caption_continuity.py",
+        "tests/test_radio_karaoke_baseline_policy.py",
+        "tests/test_radio_karaoke_independent_lipsync.py",
+        "tests/test_radio_lyrics_found_preview.py",
+        "tests/test_radio_lyrics_refresh_full_window.py",
+        "tests/test_radio_lyrics_refresh_output_contract.py",
+        "tests/test_radio_separate_lipsync_refresh.py",
+        "tests/test_radio_silent_audio_recovery.py",
+        "tests/test_radio_song_continuity_cache.py",
+        "tests/test_radio_song_metadata_sources.py",
+        "tests/test_radio_split_sync_and_model_pipeline.py",
+        "tests/test_radio_sync_refresh_karaoke_fast.py",
+        "tests/test_radio_tv_handoff_progress.py",
+        "tests/test_radio_verified_word_karaoke.py",
+        "tests/test_radio_whisper_karaoke_refresh.py",
+        "tests/test_transcripts.py",
+        "tests/test_tv_acoustic_sound_voice_models.py",
+        "tests/test_tv_ai_bundle.py",
+        "tests/test_tv_ai_hardware_market.py",
+        "tests/test_tv_ai_performance_lab.py",
+        "tests/test_tv_ai_profiles_remote_startup.py",
+        "tests/test_tv_auto_track_languages.py",
+        "tests/test_tv_background_scan.py",
+        "tests/test_tv_caption_live_offset.py",
+        "tests/test_tv_caption_readability_clock.py",
+        "tests/test_tv_center.py",
+        "tests/test_tv_channel_epoch.py",
+        "tests/test_tv_cuda_faster_whisper.py",
+        "tests/test_tv_dual_voice_separation.py",
+        "tests/test_tv_fast_output_languages.py",
+        "tests/test_tv_free_speakers_ui.py",
+        "tests/test_tv_hardware_status.py",
+        "tests/test_tv_kaffeine.py",
+        "tests/test_tv_kaffeine_ai_diagnostics.py",
+        "tests/test_tv_kaffeine_asr_metrics.py",
+        "tests/test_tv_kaffeine_caption_modes.py",
+        "tests/test_tv_kaffeine_caption_service.py",
+        "tests/test_tv_kaffeine_continuous.py",
+        "tests/test_tv_kaffeine_dab_api_recovery.py",
+        "tests/test_tv_kaffeine_mobile.py",
+        "tests/test_tv_kaffeine_subtitle_tracks.py",
+        "tests/test_tv_kaffeine_timing.py",
+        "tests/test_tv_kaffeine_transport_health.py",
+        "tests/test_tv_live_asr_quality.py",
+        "tests/test_tv_live_word_pipeline.py",
+        "tests/test_tv_lyrics_providers.py",
+        "tests/test_tv_market_guided_progress.py",
+        "tests/test_tv_mobile_native_scan_bridge.py",
+        "tests/test_tv_multilingual_caption_fallback.py",
+        "tests/test_tv_native_mobile_player_controls.py",
+        "tests/test_tv_natural_caption_sync.py",
+        "tests/test_tv_nllb_failover.py",
+        "tests/test_tv_no_tuner_playback.py",
+        "tests/test_tv_pairing_mobile_sync.py",
+        "tests/test_tv_pi5_hailo_profiles.py",
+        "tests/test_tv_plain_lyrics.py",
+        "tests/test_tv_quality_translation.py",
+        "tests/test_tv_radio_ai_ui_audio_drain.py",
+        "tests/test_tv_radio_caption_sync_readability.py",
+        "tests/test_tv_radio_channel_lists_translation_reading.py",
+        "tests/test_tv_radio_fast_tune_presenter_buffer.py",
+        "tests/test_tv_radio_frequency_buffer_progress.py",
+        "tests/test_tv_radio_karaoke_tv_readability.py",
+        "tests/test_tv_radio_live_caption_timing_languages.py",
+        "tests/test_tv_radio_lyrics_match_status_auto_input.py",
+        "tests/test_tv_radio_media_lyrics.py",
+        "tests/test_tv_radio_receiver_release_lifecycle.py",
+        "tests/test_tv_radio_responsive_sync.py",
+        "tests/test_tv_radio_translation_continuity.py",
+        "tests/test_tv_remote_hub.py",
+        "tests/test_tv_satellite_ai.py",
+        "tests/test_tv_scan.py",
+        "tests/test_tv_sentence_joiner.py",
+        "tests/test_tv_sound_labels_teletext_auto.py",
+        "tests/test_tv_speech_focus.py",
+        "tests/test_tv_standalone_radio_media.py",
+        "tests/test_tv_subtitle_repetition.py",
+        "tests/test_tv_teletext_speech_recovery.py",
+        "tests/test_tv_translation_managed_packs.py",
+        "tests/test_tv_translation_persistent.py",
+        "tests/test_tv_unified_recorder.py",
+        "tests/test_tv_web.py",
+        "tests/test_tv_word_speaker_cues.py",
+        "textcenter/compute.py",
+        "textcenter/speech.py",
+        "textcenter/transcripts.py",
+        "tv_center/README.md",
+        "tv_center/__init__.py",
+        "tv_center/__main__.py",
+        "tv_center/ai_diagnostics.py",
+        "tv_center/ai_profiles.py",
+        "tv_center/ai_provision.py",
+        "tv_center/ai_settings.py",
+        "tv_center/argos_generation.py",
+        "tv_center/argos_market_bridge.py",
+        "tv_center/asr_quality.py",
+        "tv_center/audio_classifiers.py",
+        "tv_center/bridge.py",
+        "tv_center/captions.py",
+        "tv_center/channel_prefs.py",
+        "tv_center/channels_ui.py",
+        "tv_center/core.py",
+        "tv_center/cuda_faster_whisper.py",
+        "tv_center/deepl_api.py",
+        "tv_center/desktop.py",
+        "tv_center/direct_de_tr.py",
+        "tv_center/docs/AI_MODES_REMOTE_GPU.md",
+        "tv_center/docs/OVERLAPPING_SPEAKERS_SOUND_LABELS.md",
+        "tv_center/docs/SATELLITE_PI5_DISH.md",
+        "tv_center/free_speakers.py",
+        "tv_center/hardware_market.py",
+        "tv_center/hardware_status.py",
+        "tv_center/install.sh",
+        "tv_center/installed_languages.py",
+        "tv_center/lan.py",
+        "tv_center/language_codes.py",
+        "tv_center/lyrics_sync.py",
+        "tv_center/media_ai.py",
+        "tv_center/media_ui.py",
+        "tv_center/model_market.py",
+        "tv_center/online_models.py",
+        "tv_center/overlap_separation.py",
+        "tv_center/packaging/build-deb.sh",
+        "tv_center/performance_lab.py",
+        "tv_center/pi_hailo.py",
+        "tv_center/qwen_forced_aligner.py",
+        "tv_center/radio_ai.py",
+        "tv_center/radio_capture.py",
+        "tv_center/radio_dls_metadata.py",
+        "tv_center/radio_karaoke_router.py",
+        "tv_center/radio_language.py",
+        "tv_center/radio_translation_status.py",
+        "tv_center/remote_controls.py",
+        "tv_center/remote_gpu.py",
+        "tv_center/remote_gpu_server.py",
+        "tv_center/remote_hub.py",
+        "tv_center/runtime.py",
+        "tv_center/satellite.py",
+        "tv_center/scan_ui.py",
+        "tv_center/scanner.py",
+        "tv_center/sentence_joiner.py",
+        "tv_center/settings_ui.py",
+        "tv_center/sound_event_captions.py",
+        "tv_center/speaker_market.py",
+        "tv_center/speech_focus.py",
+        "tv_center/streaming.py",
+        "tv_center/translation_failover.py",
+        "tv_center/translation_madlad.py",
+        "tv_center/translation_market.py",
+        "tv_center/translation_service.py",
+        "tv_center/translation_worker.py",
+        "tv_center/ts.py",
+        "tv_center/web/app.js",
+        "tv_center/web/browser-ai-ui.js",
+        "tv_center/web/browser-ai-worker.js",
+        "tv_center/web/hub.html",
+        "tv_center/web/hub.js",
+        "tv_center/web/index.html",
+        "tv_center/web/mobile.html",
+        "tv_center/web/mobile.js",
+        "tv_center/web/style.css",
+        "tv_center/web/web-controls.js",
+        "tv_center/web_control.py",
+        "tv_center/web_desktop.py",
+        "tv_center/whisper_engine.py"
+      ],
+      "pr67_vs_pr66": [
+        "kaffeine_next/RECORDING_EXPORT_V2_DRAFT.md",
+        "kaffeine_next/captions_overlay.py",
+        "kaffeine_next/native_media_panel.h",
+        "kaffeine_next/native_radio_tab.h",
+        "kaffeine_next/native_unified_recorder.h",
+        "tests/test_recording_export.py",
+        "tv_center/__main__.py",
+        "tv_center/recording_export.py"
+      ],
+      "warning": "PR diff bases differ; counts must not be treated as additive or as test coverage"
+    },
+    "twenty_commit_ledger": [
+      {
+        "ordinal": 1,
+        "sha": "7f264b33ebdf9dcc3cb3abdcebe4321b9f5c0042",
+        "parent_sha": "20379152be2751e5d89a8bdbac85fb15fc6b3c4e",
+        "subject": "feat: add shared opt-in timecoded text, subtitle, MKV and MP4 export engine",
+        "authored_at": "2026-11-11T15:20:30Z",
+        "path": "tv_center/recording_export.py",
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/commit/7f264b33ebdf9dcc3cb3abdcebe4321b9f5c0042"
+      },
+      {
+        "ordinal": 2,
+        "sha": "24cde0ca44b7ca7c4c5d49155b02e2bccc7ad3d6",
+        "parent_sha": "7f264b33ebdf9dcc3cb3abdcebe4321b9f5c0042",
+        "subject": "test: validate common real-timed export formats, opt-in and no-overwrite safety",
+        "authored_at": "2026-11-11T15:20:56Z",
+        "path": "tests/test_recording_export.py",
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/commit/24cde0ca44b7ca7c4c5d49155b02e2bccc7ad3d6"
+      },
+      {
+        "ordinal": 3,
+        "sha": "61b123a64bd86f70e69df5d6004a446500614a5b",
+        "parent_sha": "24cde0ca44b7ca7c4c5d49155b02e2bccc7ad3d6",
+        "subject": "feat: expose shared recording-export CLI without changing existing commands",
+        "authored_at": "2026-11-11T15:21:03Z",
+        "path": "tv_center/__main__.py",
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/commit/61b123a64bd86f70e69df5d6004a446500614a5b"
+      },
+      {
+        "ordinal": 4,
+        "sha": "1844e30677e532b9b9c73d426c4a74e483de6f2f",
+        "parent_sha": "61b123a64bd86f70e69df5d6004a446500614a5b",
+        "subject": "feat: add opt-in timed transcript/combined media export dialog to local audio/video player",
+        "authored_at": "2026-11-11T15:21:34Z",
+        "path": "kaffeine_next/native_media_panel.h",
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/commit/1844e30677e532b9b9c73d426c4a74e483de6f2f"
+      },
+      {
+        "ordinal": 5,
+        "sha": "1586edfe09c852ec210a2207e7ed06692cab6fcb",
+        "parent_sha": "1844e30677e532b9b9c73d426c4a74e483de6f2f",
+        "subject": "fix: allow media-only export and never remove concurrently created user outputs",
+        "authored_at": "2026-11-11T15:22:20Z",
+        "path": "tv_center/recording_export.py",
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/commit/1586edfe09c852ec210a2207e7ed06692cab6fcb"
+      },
+      {
+        "ordinal": 6,
+        "sha": "0460c29f88f298513fda891c2a2482d2e38187af",
+        "parent_sha": "1586edfe09c852ec210a2207e7ed06692cab6fcb",
+        "subject": "feat: export real live TV SRT to optional TXT, VTT, ASS and JSON on Stop",
+        "authored_at": "2026-11-11T15:23:28Z",
+        "path": "kaffeine_next/captions_overlay.py",
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/commit/0460c29f88f298513fda891c2a2482d2e38187af"
+      },
+      {
+        "ordinal": 7,
+        "sha": "73b0755e40f57d48e2a8f5b28fbe50d0079b211b",
+        "parent_sha": "0460c29f88f298513fda891c2a2482d2e38187af",
+        "subject": "feat: add shared multi-format and selectable-media export to Recordings library",
+        "authored_at": "2026-11-11T15:24:05Z",
+        "path": "kaffeine_next/native_unified_recorder.h",
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/commit/73b0755e40f57d48e2a8f5b28fbe50d0079b211b"
+      },
+      {
+        "ordinal": 8,
+        "sha": "5198b1ccb30d7b94409dfd3b6ef1560356d223f2",
+        "parent_sha": "73b0755e40f57d48e2a8f5b28fbe50d0079b211b",
+        "subject": "feat: add independent opt-in live radio SRT capture from real displayed Whisper cues",
+        "authored_at": "2026-11-11T15:25:11Z",
+        "path": "kaffeine_next/native_radio_tab.h",
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/commit/5198b1ccb30d7b94409dfd3b6ef1560356d223f2"
+      },
+      {
+        "ordinal": 9,
+        "sha": "5f1d6ab0a15caf60482f0fd9a45074ceda312c49",
+        "parent_sha": "5198b1ccb30d7b94409dfd3b6ef1560356d223f2",
+        "subject": "feat: separate original and actual language translation tracks in subtitle/media exports",
+        "authored_at": "2026-11-11T15:26:39Z",
+        "path": "tv_center/recording_export.py",
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/commit/5f1d6ab0a15caf60482f0fd9a45074ceda312c49"
+      },
+      {
+        "ordinal": 10,
+        "sha": "140e16f9b5ed5b648212907691c574f5def4a8e8",
+        "parent_sha": "5f1d6ab0a15caf60482f0fd9a45074ceda312c49",
+        "subject": "fix: correctly parse translation language markers and retain newline-separated phrases",
+        "authored_at": "2026-11-11T15:27:07Z",
+        "path": "tv_center/recording_export.py",
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/commit/140e16f9b5ed5b648212907691c574f5def4a8e8"
+      },
+      {
+        "ordinal": 11,
+        "sha": "f5f78b85fa7de4f296e850d5542bc08a4827c7f6",
+        "parent_sha": "140e16f9b5ed5b648212907691c574f5def4a8e8",
+        "subject": "test: verify language-split SRT exports preserve sound and speaker labels",
+        "authored_at": "2026-11-11T15:27:28Z",
+        "path": "tests/test_recording_export.py",
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/commit/f5f78b85fa7de4f296e850d5542bc08a4827c7f6"
+      },
+      {
+        "ordinal": 12,
+        "sha": "6d77cf1c85c0c5e76d8c5564d9a3ed27a59911a8",
+        "parent_sha": "f5f78b85fa7de4f296e850d5542bc08a4827c7f6",
+        "subject": "feat: export separate original/translated language tracks from local file SRT",
+        "authored_at": "2026-11-11T15:27:44Z",
+        "path": "kaffeine_next/native_media_panel.h",
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/commit/6d77cf1c85c0c5e76d8c5564d9a3ed27a59911a8"
+      },
+      {
+        "ordinal": 13,
+        "sha": "d553998f928e389c791ab0393a46261e1517d92c",
+        "parent_sha": "6d77cf1c85c0c5e76d8c5564d9a3ed27a59911a8",
+        "subject": "feat: split translation-language tracks in live recording export workflow",
+        "authored_at": "2026-11-11T15:27:54Z",
+        "path": "kaffeine_next/native_unified_recorder.h",
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/commit/d553998f928e389c791ab0393a46261e1517d92c"
+      },
+      {
+        "ordinal": 14,
+        "sha": "ecb87e63266e76a167aed88a51fcf4a6bb7823c1",
+        "parent_sha": "d553998f928e389c791ab0393a46261e1517d92c",
+        "subject": "fix: include the first real Whisper radio chunk in independent live SRT",
+        "authored_at": "2026-11-11T15:28:02Z",
+        "path": "kaffeine_next/native_radio_tab.h",
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/commit/ecb87e63266e76a167aed88a51fcf4a6bb7823c1"
+      },
+      {
+        "ordinal": 15,
+        "sha": "98ce95b230d222fdf9a760bf806dd25ee8ccb2ac",
+        "parent_sha": "ecb87e63266e76a167aed88a51fcf4a6bb7823c1",
+        "subject": "test: use actual multiline SRT/newline fixtures rather than backslash literals",
+        "authored_at": "2026-11-11T15:28:38Z",
+        "path": "tests/test_recording_export.py",
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/commit/98ce95b230d222fdf9a760bf806dd25ee8ccb2ac"
+      },
+      {
+        "ordinal": 16,
+        "sha": "a249afdec783bd3646f42543930433996ab36ee5",
+        "parent_sha": "98ce95b230d222fdf9a760bf806dd25ee8ccb2ac",
+        "subject": "test: validate real FFmpeg audio+SRT Matroska export and unchanged source bytes",
+        "authored_at": "2026-11-11T15:30:24Z",
+        "path": "tests/test_recording_export.py",
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/commit/a249afdec783bd3646f42543930433996ab36ee5"
+      },
+      {
+        "ordinal": 17,
+        "sha": "ef73975874626fa5576e95aa4ce153a6b1a11e22",
+        "parent_sha": "a249afdec783bd3646f42543930433996ab36ee5",
+        "subject": "docs: record exact live/complete export boundaries and honest remaining validation",
+        "authored_at": "2026-11-11T15:32:22Z",
+        "path": "kaffeine_next/RECORDING_EXPORT_V2_DRAFT.md",
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/commit/ef73975874626fa5576e95aa4ce153a6b1a11e22"
+      },
+      {
+        "ordinal": 18,
+        "sha": "f236399757d71be84ef2cdd24360a87e95e24d5f",
+        "parent_sha": "ef73975874626fa5576e95aa4ce153a6b1a11e22",
+        "subject": "feat: offer independent opt-in TXT/VTT/ASS/JSON for live DAB Whisper session after Stop",
+        "authored_at": "2026-11-11T15:35:49Z",
+        "path": "kaffeine_next/native_radio_tab.h",
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/commit/f236399757d71be84ef2cdd24360a87e95e24d5f"
+      },
+      {
+        "ordinal": 19,
+        "sha": "d8ad4fddf88304d01d09f7f4303a5741899ed503",
+        "parent_sha": "f236399757d71be84ef2cdd24360a87e95e24d5f",
+        "subject": "fix: identify exported cue timestamps without claiming measured DAC synchronization",
+        "authored_at": "2026-11-11T15:37:16Z",
+        "path": "tv_center/recording_export.py",
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/commit/d8ad4fddf88304d01d09f7f4303a5741899ed503"
+      },
+      {
+        "ordinal": 20,
+        "sha": "4e62e21cd5252df8a04f9ceadc429f4b116412ce",
+        "parent_sha": "d8ad4fddf88304d01d09f7f4303a5741899ed503",
+        "subject": "fix: identify exported cue timestamps without claiming measured DAC synchronization",
+        "authored_at": "2026-11-11T15:37:19Z",
+        "path": "tests/test_recording_export.py",
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/commit/4e62e21cd5252df8a04f9ceadc429f4b116412ce"
+      }
+    ],
+    "feature_source_anchors": [
+      {
+        "path": "tv_center/recording_export.py",
+        "line": 43,
+        "behavior": "strict existing UTF-8 SRT parser and timestamp checks, max 30MiB and 100000 cue budget",
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/4e62e21cd5252df8a04f9ceadc429f4b116412ce/tv_center/recording_export.py#L43",
+        "head_sha": "4e62e21cd5252df8a04f9ceadc429f4b116412ce"
+      },
+      {
+        "path": "tv_center/recording_export.py",
+        "line": 90,
+        "behavior": "time-coded TXT/SRT/VTT/ASS/JSON with optional verified-source LRC",
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/4e62e21cd5252df8a04f9ceadc429f4b116412ce/tv_center/recording_export.py#L90",
+        "head_sha": "4e62e21cd5252df8a04f9ceadc429f4b116412ce"
+      },
+      {
+        "path": "tv_center/recording_export.py",
+        "line": 113,
+        "behavior": "JSON clock provenance srt_cue_seconds, physical DAC sync unverified",
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/4e62e21cd5252df8a04f9ceadc429f4b116412ce/tv_center/recording_export.py#L113",
+        "head_sha": "4e62e21cd5252df8a04f9ceadc429f4b116412ce"
+      },
+      {
+        "path": "tv_center/recording_export.py",
+        "line": 150,
+        "behavior": "translation tag splitting with original speech/music/speaker labels retained",
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/4e62e21cd5252df8a04f9ceadc429f4b116412ce/tv_center/recording_export.py#L150",
+        "head_sha": "4e62e21cd5252df8a04f9ceadc429f4b116412ce"
+      },
+      {
+        "path": "tv_center/recording_export.py",
+        "line": 191,
+        "behavior": "exclusive O_EXCL text file create; no overwrite of originals",
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/4e62e21cd5252df8a04f9ceadc429f4b116412ce/tv_center/recording_export.py#L191",
+        "head_sha": "4e62e21cd5252df8a04f9ceadc429f4b116412ce"
+      },
+      {
+        "path": "tv_center/recording_export.py",
+        "line": 243,
+        "behavior": "FFmpeg argv -n non-overwrite, 21600 second timeout",
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/4e62e21cd5252df8a04f9ceadc429f4b116412ce/tv_center/recording_export.py#L243",
+        "head_sha": "4e62e21cd5252df8a04f9ceadc429f4b116412ce"
+      },
+      {
+        "path": "tv_center/recording_export.py",
+        "line": 251,
+        "behavior": "copy original audio/video to new Matroska with selectable SRT streams",
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/4e62e21cd5252df8a04f9ceadc429f4b116412ce/tv_center/recording_export.py#L251",
+        "head_sha": "4e62e21cd5252df8a04f9ceadc429f4b116412ce"
+      },
+      {
+        "path": "tv_center/recording_export.py",
+        "line": 285,
+        "behavior": "video burn re-encode to MP4 using ffprobe/libx264/AAC/subtitles filter",
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/4e62e21cd5252df8a04f9ceadc429f4b116412ce/tv_center/recording_export.py#L285",
+        "head_sha": "4e62e21cd5252df8a04f9ceadc429f4b116412ce"
+      },
+      {
+        "path": "tv_center/recording_export.py",
+        "line": 304,
+        "behavior": "live/complete mode checks and temporary mux tracks",
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/4e62e21cd5252df8a04f9ceadc429f4b116412ce/tv_center/recording_export.py#L304",
+        "head_sha": "4e62e21cd5252df8a04f9ceadc429f4b116412ce"
+      },
+      {
+        "path": "tv_center/__main__.py",
+        "line": 82,
+        "behavior": "recording-export CLI route",
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/4e62e21cd5252df8a04f9ceadc429f4b116412ce/tv_center/__main__.py#L82",
+        "head_sha": "4e62e21cd5252df8a04f9ceadc429f4b116412ce"
+      },
+      {
+        "path": "kaffeine_next/captions_overlay.py",
+        "line": 2631,
+        "behavior": "live TV SRT post-Stop TXT/VTT/ASS/JSON conversion",
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/4e62e21cd5252df8a04f9ceadc429f4b116412ce/kaffeine_next/captions_overlay.py#L2631",
+        "head_sha": "4e62e21cd5252df8a04f9ceadc429f4b116412ce"
+      },
+      {
+        "path": "kaffeine_next/native_media_panel.h",
+        "line": 346,
+        "behavior": "local-file Qt export dialog and opt-in subprocess",
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/4e62e21cd5252df8a04f9ceadc429f4b116412ce/kaffeine_next/native_media_panel.h#L346",
+        "head_sha": "4e62e21cd5252df8a04f9ceadc429f4b116412ce"
+      },
+      {
+        "path": "kaffeine_next/native_unified_recorder.h",
+        "line": 417,
+        "behavior": "native Recordings Library completed-media export",
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/4e62e21cd5252df8a04f9ceadc429f4b116412ce/kaffeine_next/native_unified_recorder.h#L417",
+        "head_sha": "4e62e21cd5252df8a04f9ceadc429f4b116412ce"
+      },
+      {
+        "path": "kaffeine_next/native_radio_tab.h",
+        "line": 5889,
+        "behavior": "DAB live Whisper SRT separate from audio recording",
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/4e62e21cd5252df8a04f9ceadc429f4b116412ce/kaffeine_next/native_radio_tab.h#L5889",
+        "head_sha": "4e62e21cd5252df8a04f9ceadc429f4b116412ce"
+      },
+      {
+        "path": "kaffeine_next/native_radio_tab.h",
+        "line": 5961,
+        "behavior": "estimated live radio cue durations",
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/4e62e21cd5252df8a04f9ceadc429f4b116412ce/kaffeine_next/native_radio_tab.h#L5961",
+        "head_sha": "4e62e21cd5252df8a04f9ceadc429f4b116412ce"
+      },
+      {
+        "path": "kaffeine_next/RECORDING_EXPORT_V2_DRAFT.md",
+        "line": 16,
+        "behavior": "progressive local-file Whisper captions explicitly incomplete",
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/4e62e21cd5252df8a04f9ceadc429f4b116412ce/kaffeine_next/RECORDING_EXPORT_V2_DRAFT.md#L16",
+        "head_sha": "4e62e21cd5252df8a04f9ceadc429f4b116412ce"
+      }
+    ],
+    "export_test_source": {
+      "path": "tests/test_recording_export.py",
+      "head_sha": "4e62e21cd5252df8a04f9ceadc429f4b116412ce",
+      "blob_sha": "1b8039aa5f78449ebd7c5ef19eb0f9470bfb0cf8",
+      "actual_executions_by_worker": 0,
+      "ci_python311_test_module_present": true,
+      "ci_ffmpeg_case": "skipped (FFmpeg tools unavailable)"
+    },
+    "open_gaps": [
+      {
+        "id": "P67-GAP-01",
+        "severity": "P0",
+        "source": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/4e62e21cd5252df8a04f9ceadc429f4b116412ce/tests/test_recording_export.py#L148",
+        "claim": "Conditional real-FFmpeg test constructs SRT with literal backslash-n sequences (source char codes 92,92,110), unlike properly escaped multiline fixture; resulting SRT is not properly line-separated. CI skipped this case (FFmpeg unavailable). Confirmed source-test fixture issue, NOT executed test failure."
+      },
+      {
+        "id": "P67-GAP-02",
+        "severity": "P1",
+        "source": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/4e62e21cd5252df8a04f9ceadc429f4b116412ce/tests/test_recording_export.py#L88",
+        "claim": "Mock test checks assertIn('-n',['-n']) constant, not actual FFmpeg argv; production wrapper does use -n but assertion is ineffective."
+      },
+      {
+        "id": "P67-GAP-03",
+        "severity": "P0",
+        "source": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/4e62e21cd5252df8a04f9ceadc429f4b116412ce/kaffeine_next/RECORDING_EXPORT_V2_DRAFT.md#L16",
+        "claim": "Progressive local-file Whisper caption chunks during playback are explicitly not streamed; async completed sidecar is not equivalent."
+      },
+      {
+        "id": "P67-GAP-04",
+        "severity": "P0",
+        "source": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/4e62e21cd5252df8a04f9ceadc429f4b116412ce/kaffeine_next/native_radio_tab.h#L5961",
+        "claim": "Live DAB Whisper SRT timestamps are estimated display-clock times and char-duration; not DAC/MP3/audio source clock, do not claim synchronized exported media."
+      },
+      {
+        "id": "P67-GAP-05",
+        "severity": "P1",
+        "source": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/4e62e21cd5252df8a04f9ceadc429f4b116412ce/kaffeine_next/native_unified_recorder.h#L476",
+        "claim": "Completed-recording export dialog passes --mode live; local-file dialog omits mode (default live), while UI calls this complete; validate semantics and labels."
+      },
+      {
+        "id": "P67-GAP-06",
+        "severity": "P1",
+        "source": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/4e62e21cd5252df8a04f9ceadc429f4b116412ce/tv_center/recording_export.py#L94",
+        "claim": "LRC enabled through user-supplied --verified-lyrics boolean; exporter does not independently validate original timed lyric provenance."
+      },
+      {
+        "id": "P67-GAP-07",
+        "severity": "P1",
+        "source": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/4e62e21cd5252df8a04f9ceadc429f4b116412ce/tv_center/recording_export.py#L322",
+        "claim": "Text sidecars are written before later FFmpeg mux/burn; failure may leave partial new exports. No atomic multi-output promise verified."
+      },
+      {
+        "id": "P67-GAP-08",
+        "severity": "P1",
+        "source": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/4e62e21cd5252df8a04f9ceadc429f4b116412ce/tv_center/recording_export.py#L285",
+        "claim": "MP4 burn requires ffprobe, FFmpeg subtitles filter/libass, libx264, AAC, filesystem/OS filter escaping; none covered by live cross-platform acceptance."
+      },
+      {
+        "id": "P67-GAP-09",
+        "severity": "P1",
+        "source": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/4e62e21cd5252df8a04f9ceadc429f4b116412ce/kaffeine_next/native_radio_tab.h#L5926",
+        "claim": "Live radio SRT creation requires active DAB and quick AI; code path does not establish equivalent Internet-radio SRT capture."
+      },
+      {
+        "id": "P67-GAP-10",
+        "severity": "P0",
+        "source": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/4e62e21cd5252df8a04f9ceadc429f4b116412ce/kaffeine_next/native_media_panel.h#L395",
+        "claim": "Native C++ and Kaffeine invoke the installed tihulu-tv-center recording-export Python CLI; exact binary/package version and Qt5 build not certified."
+      }
+    ],
+    "ci_at_pr67_head": {
+      "runs": [
+        {
+          "run_id": 43050201382,
+          "name": "Native TIHULU DVB / Radio build",
+          "result": "cancelled",
+          "job_id": 130624873771,
+          "details": "Cancelled during dependency installation; no native player compilation proven"
+        },
+        {
+          "run_id": 43050201148,
+          "name": "Pinned welle.io DAB+ loopback receiver build",
+          "result": "failure",
+          "job_id": 130624872900,
+          "details": "APT DNS resolving azure.archive.ubuntu.com failed; exit 100 during dependency fetch, not source compilation"
+        },
+        {
+          "run_id": 43050201857,
+          "name": "Text Center tests",
+          "result": "success",
+          "job_id": 130624875255,
+          "details": "Python 3.11: 672 tests, one skipped. test_recording_export methods ran; optional FFmpeg test skipped because FFmpeg tools unavailable"
+        },
+        {
+          "run_id": 43050201104,
+          "name": "Native TV Center checks and Debian preview package",
+          "result": "success",
+          "job_id": 130624873146,
+          "details": "Python 3.11: 440 tests; Python 3.12/3.13 and preview-deb jobs succeeded; no physical receiver test"
+        },
+        {
+          "run_id": 43050201365,
+          "name": "TIHULU Kaffeine DVB source build",
+          "result": "failure",
+          "job_id": 130624873741,
+          "details": "APT DNS resolving azure.archive.ubuntu.com failed; exit 100 during KDE dependencies, no actual Qt compilation proof"
+        }
+      ],
+      "failures_root_cause": "Ubuntu apt mirror DNS resolution during dependency install; source compilation not reached in affected native jobs",
+      "worker_executions": 0
+    },
+    "dependencies": {
+      "native": [
+        "Kaffeine Qt5 player and Qt app compiled against pinned source",
+        "tihulu-tv-center executable/TV Center Python package with new recording-export subcommand",
+        "matching process PATH and package version"
+      ],
+      "ffmpeg": [
+        "ffmpeg for MKV and burned video",
+        "ffprobe for video detection",
+        "libx264 AAC encoder libass/subtitles filter",
+        "cross-platform filesystem/filtergraph path validation"
+      ],
+      "text_center_snapshot_only": [
+        "archived textcenter.compute references tv_center.hardware_market/pi_hailo/whisper_engine/cuda_faster_whisper",
+        "archived textcenter.speech references tv_center.cuda_faster_whisper",
+        "archived textcenter.transcripts references tv_center.language_codes"
+      ],
+      "text_center_warning": "Active Text Center main has different blobs; do not overwrite it; require future approved with/without tv_center import tests."
+    },
+    "required_ui_locales": [
+      "en",
+      "tr",
+      "de"
+    ],
+    "open_coordination_gates": [
+      "REG-01",
+      "REG-03",
+      "REG-10",
+      "REG-11",
+      "REG-13",
+      "REG-14",
+      "REG-16",
+      "REG-17"
+    ],
+    "remaining_eta": "UNKNOWN",
+    "disclaimer": "No merge, rebase, migration, install, release, source edit, hardware test or runtime change."
+  }
 }
