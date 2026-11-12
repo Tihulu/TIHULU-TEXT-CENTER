@@ -54,6 +54,31 @@ for existing in "$HOME/.local/bin/tihulu-kaffeine" \
     fi
   fi
 done
+# Verify both previously installed byte hashes before any replacement.
+# A customized/foreign launcher or desktop is never overwritten.
+OWNED_DESKTOP="$HOME/.local/share/applications/tihulu-media-center.desktop"
+OWNED_DESKTOP_MARKER="$HOME/.local/share/tihulu-media-center/native/.tihulu-owned-desktop"
+if [[ -L "$OWNED_LAUNCHER_MARKER" || -L "$OWNED_DESKTOP_MARKER" ]]; then
+  echo "Symlinked ownership marker; refusing." >&2; exit 1
+fi
+if [[ -e "$HOME/.local/bin/tihulu-kaffeine" ]]; then
+  KNOWN_HASH="$(cat "$OWNED_LAUNCHER_MARKER" 2>/dev/null || true)"
+  CURRENT_HASH="$(sha256sum "$HOME/.local/bin/tihulu-kaffeine" | awk '{print $1}')"
+  if [[ ! "$KNOWN_HASH" =~ ^[0-9a-f]{64}$ || "$KNOWN_HASH" != "$CURRENT_HASH" ]]; then
+    echo "Media launcher modified or unowned; preserve and review manually." >&2; exit 1
+  fi
+fi
+if [[ -e "$OWNED_DESKTOP" ]]; then
+  KNOWN_DESKTOP="$(cat "$OWNED_DESKTOP_MARKER" 2>/dev/null || true)"
+  CURRENT_DESKTOP="$(sha256sum "$OWNED_DESKTOP" | awk '{print $1}')"
+  if [[ ! "$KNOWN_DESKTOP" =~ ^[0-9a-f]{64}$ || "$KNOWN_DESKTOP" != "$CURRENT_DESKTOP" ]]; then
+    echo "Media desktop entry modified or unowned; preserving." >&2; exit 1
+  fi
+fi
+if [[ -L "$HOME/.local/bin/tihulu-media-center" &&
+      "$(readlink "$HOME/.local/bin/tihulu-media-center")" != tihulu-kaffeine ]]; then
+  echo "Media launcher symlink has another owner; preserve." >&2; exit 1
+fi
 echo "Building a separate GPL-compatible Kaffeine v2.0.19 fork."
 echo "This preserves system Kaffeine, channel lists, other SDR programs and AI models."
 sudo apt-get update
@@ -307,6 +332,7 @@ DESKTOP
 # Store the exact bytes of launcher created by this installer for future
 # collision/upgrade review; do not migrate another application's launcher.
 sha256sum "$HOME/.local/bin/tihulu-kaffeine" | awk '{print $1}' > "$OWNED_LAUNCHER_MARKER"
+sha256sum "$OWNED_DESKTOP" | awk '{print $1}' > "$OWNED_DESKTOP_MARKER"
 
 if [[ "$MODE" != --no-ai ]]; then
   echo "Installing baseline offline models for the device: Whisper Tiny,"
