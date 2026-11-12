@@ -3978,7 +3978,8 @@ class SatelliteWindow(QMainWindow):
             j.get("state")=="pending" for j in self._calendar_jobs):
             reply=QMessageBox.question(self,"Exit native receiver",
                 "Closing Satellite Center stops only its owned RF capture and scheduler. "
-                "Pending jobs remain on disk but will not run until the app opens again. Quit?",
+                "Pending jobs will be cancelled (not automatically restarted); "
+                "existing IQ/WAV/images remain saved. Quit?",
                 QMessageBox.Yes|QMessageBox.No)
             if reply!=QMessageBox.Yes:
                 event.ignore();return
@@ -3987,7 +3988,17 @@ class SatelliteWindow(QMainWindow):
         self.map_timer.stop()
         self.level_timer.stop()
         self.stop_audio()
-        self.station.close()
+        outcome=self.station.close()
+        self.pool.clear()  # cancel queued tasks, never re-admit RF work
+        drained=self.pool.waitForDone(3500)
+        if not outcome["app_released"] or not drained:
+            QMessageBox.warning(
+                self,"Satellite shutdown incomplete",
+                "Owned satellite workers or SDR lease are still stopping. "
+                "Quit is blocked for a safe retry; original RF recordings and "
+                "external SDR software have not been removed.")
+            event.ignore()
+            return
         event.accept()
 
 
