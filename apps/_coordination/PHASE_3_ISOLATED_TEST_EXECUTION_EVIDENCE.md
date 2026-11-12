@@ -30,7 +30,8 @@ All three new branches were created from the exact pinned original source SHA, n
 
 ### Flight Radar
 
-- [Cross-platform CI run 43133741667](https://github.com/Tihulu/tihulu-flight-radar/actions/runs/43133741667) was **in progress at first verification**, with **Run unit tests** step already successful on Debian 12 x64, Ubuntu 24.04 x64, Windows 2025 x64 and macOS 15 Apple Silicon. Final packaging run conclusion must be checked again before treating the entire run as successful.
+- [Cross-platform CI run 43133741667](https://github.com/Tihulu/tihulu-flight-radar/actions/runs/43133741667) **completed SUCCESS**. All four jobs (Debian 12 x64, Ubuntu 24.04 x64, Windows 2025 x64, macOS 15 Apple Silicon) completed successfully, including their offline unit-test steps and CI preview builds. These are hosted CI preview artifacts, not installed user-app releases or real RF hardware acceptance.
+- Inspected Ubuntu 24.04 x64 job `130903937110` log: **79 passed, 1 xfailed in 6.24s**. The strict XFAIL intentionally preserves evidence that the canonical main exit-release branch still stops externally owned receiver services; the green workflow does not close that functionality gate.
 - [Raspberry Pi ARM64 bridge preview run 43133741622](https://github.com/Tihulu/tihulu-flight-radar/actions/runs/43133741622) **completed SUCCESS**.
 - Eight new synthetic pytest cases cover external service preserved when exit-release disabled, direct ownership flags for already-active versus app-started readsb, explicit Stop, failed Start, Remote JSON, restricted `sudo -n systemctl stop readsb.service tar1090.service` argv, and a **strict expected failure (XFAIL)** for **pre-existing external readsb being stopped by main when exit-release is enabled**. No systemctl/sudo/readsb/tar1090 subprocess was invoked by these tests.
 - **A successful overall CI does not repair that XFAIL** or the main-versus-PR #7 Qt/sudoers/settings mismatch; no RF localization accuracy, receiver ownership release on real Pop!_OS, or signed installer acceptance is claimed.
@@ -41,7 +42,7 @@ This is a **test-only milestone**, not any application feature implementation, d
 
 ## Separate next steps (not authorized by this evidence)
 
-- Confirm Flight cross-platform final workflow status; inspect pytest output including the strict XFAIL to distinguish expected observed defect from genuine pass.
+- Flight cross-platform workflow and pytest result have now been pinned (all four platform jobs successful; Ubuntu: 79 passed, 1 xfailed). Keep external-service ownership REG-03 OPEN, and require separate approved app source patch and field verification to resolve the XFAIL.
 - For future isolated Test-only approval, add temporary archived Text snapshot negative controls and clean Media CUDA inverse control, still with no physical equipment.
 - Any actual corrections for external `readsb` ownership, Text import decoupling, FFmpeg fixture or subtitle timing require **separately reviewed app/test scope**; do not cherry-pick old PR #7 or #13 into current Flight without compatibility tests.
 - Distinguish software CI from physical receiver, native QT and cross-OS installed app/rollback verification. No credible remaining-hours estimate yet.
