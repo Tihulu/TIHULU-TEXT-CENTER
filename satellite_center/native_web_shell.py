@@ -138,6 +138,8 @@ class RFWork(QRunnable):
 
     def run(self):
         try:
+            if self.bridge.station.closed.is_set():
+                raise RuntimeError("Satellite Center has quit; queued native action cancelled")
             result=self.bridge.execute(self.command,self.args)
             message={"ok":True,"result":result}
         except Exception as exc:
@@ -161,6 +163,10 @@ class NativeReceiver(QObject):
     @pyqtSlot(str,str,str)
     def request(self,request_id,method,payload):
         if not re.fullmatch(r"[A-Za-z0-9_-]{1,80}",request_id):
+            return
+        if self.station.closed.is_set():
+            self.reply.emit(request_id,json.dumps({
+                "ok":False,"error":"Satellite Center is quitting; native requests are closed"}))
             return
         if method not in {
             "status","connect","usb_open","sample","disconnect","stop",
@@ -209,6 +215,12 @@ class NativeReceiver(QObject):
                 self.reply.emit(request_id,json.dumps({
                     "ok":False,"error":"Native RF action canceled by operator"}))
                 return
+        # Qt confirmation can run a nested event loop; Quit may occur during
+        # the dialog, so re-check before enqueueing a new receiver action.
+        if self.station.closed.is_set():
+            self.reply.emit(request_id,json.dumps({
+                "ok":False,"error":"Satellite Center is quitting; request cancelled"}))
+            return
         self.in_flight.add(request_id)
         if method in radio_methods:
             self.radio_request=request_id
@@ -521,10 +533,20 @@ class ExactWebWindow(QMainWindow):
         self.page.runJavaScript(js)
 
     def closeEvent(self,event):
-        try:
-            self.station.close()
-        finally:
-            super().closeEvent(event)
+        # Full native Quit, not browser pagehide or hide-to-tray.
+        outcome=self.station.close()
+        self.receiver.pool.clear()  # queued QRunnables never run after Quit
+        drained=self.receiver.pool.waitForDone(3500)
+        if not outcome["app_released"] or not drained:
+            QMessageBox.warning(
+                self,"Satellite shutdown incomplete",
+                "Owned satellite capture/decoder or native request workers remain. "
+                "Quit is blocked for a safe retry; original recordings and "
+                "other SDR applications were preserved. Check the receiver status.")
+            event.ignore()
+            return
+        self.web.stop()
+        super().closeEvent(event)
 
 def main(argv=None):
     register_scheme()
@@ -534,6 +556,7 @@ def main(argv=None):
     opts=parser.parse_args(argv)
     app=QApplication.instance() or QApplication(sys.argv[:1])
     window=ExactWebWindow()
+    app.aboutToQuit.connect(window.station.close)
     window.show()
     if not opts.smoke:return app.exec_()
     outcome={"ok":False}
