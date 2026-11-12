@@ -285,7 +285,8 @@ class LiveTV:
     def stop(self, *, wait=True):
         with self.mutex:
             unfinished_process=(self.process is not None and self.process.poll() is None)
-            if self.state["active"] or unfinished_process or self.audio_read is not None or self.record_file is not None:
+            if (self.state["active"] or self.process is not None or
+                    self.audio_read is not None or self.record_file is not None):
                 self._shutdown()
             elif self.speech is not None:
                 result=self.speech.stop(wait=True)
