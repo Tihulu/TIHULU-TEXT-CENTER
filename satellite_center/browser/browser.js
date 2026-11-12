@@ -526,6 +526,15 @@ function rmsLevel(bytes) {
   }
   return samples ? Math.round(100 * 10 * Math.log10(Math.max(energy/samples, 1e-12))) / 100 : null;
 }
+function updateCaptureProgress({startedAt,seconds,observedBytes=0,rate,phase="Receiving WebUSB"}){
+ const bar=$('web-capture-progress'),label=$('web-capture-progress-label');
+ if(!bar||!label)return;
+ const data=captureProgress({startedAt,now:Date.now(),seconds,observedBytes,rate});
+ bar.value=data.percentage;
+ label.textContent=phase+" · "+data.percentage+"% estimated time · "+
+  (data.observedBytes/1048576).toFixed(2)+" MiB actual USB bytes · "+
+  data.elapsedSeconds.toFixed(1)+"/"+seconds+" s";
+}
 function renderSignal() {
   const canvas = $('level-chart'), ctx = canvas.getContext('2d');
   const w=canvas.width, h=canvas.height;
@@ -609,6 +618,7 @@ async function startCapture(job=null,prepared=null) {
     }
     const measurements=[],startedAt=Date.now();
     const deadline=startedAt+limit*1000;
+    updateCaptureProgress({startedAt,seconds:limit,rate,phase:"Tuning WebUSB"});
     try {
       if(job){
         job.state='running';
@@ -626,6 +636,7 @@ async function startCapture(job=null,prepared=null) {
         (rate/1e6)+' MS/s. Sample levels are uncalibrated. No satellite is identified.');
       while(!stopRequested && Date.now()<deadline){
         const raw=await device.readSamples(65536);
+        if(stopRequested||receiverGate.closed)break; // no post-Stop bytes consumed
         // @jtarrio/webrtlsdr v3 returns SampleBlock {frequency,data,...}.
         // The previous ArrayBuffer-only code discarded every valid RF block.
         const data=sampleBytes(raw);
@@ -661,6 +672,7 @@ async function startCapture(job=null,prepared=null) {
         status('sample-state','Measured USB bytes: '+(bytesReceived/1048576).toFixed(2)+
           ' MiB · relative sample level '+measured+
           ' dBFS-like · '+(freq/1e6).toFixed(3)+' MHz');
+        updateCaptureProgress({startedAt,seconds:limit,observedBytes:bytesReceived,rate});
       }
       if(!bytesReceived)throw Error('Zero actual USB sample bytes received; no successful scan.');
       const report=captureLevelSummary(measurements,bytesReceived,Date.now()-startedAt);
@@ -719,6 +731,8 @@ async function startCapture(job=null,prepared=null) {
           ' dBFS-like; variation '+report.levelVariationDb+' dB.'+
           '\nThis is NOT a decoded satellite message/image or proof of which spacecraft transmitted.');
       }
+      updateCaptureProgress({startedAt,seconds:limit,observedBytes:bytesReceived,rate,
+       phase:stopRequested?"Stopped · partial bytes preserved":"Capture ended · measured bytes"});
       log('Session '+session+' captured '+bytesReceived+' real raw USB bytes; receiver released.');
     }catch(e){
       if(stopRequested&&fmWav?.pcmBytes>0&&!wavWritten){
@@ -791,6 +805,7 @@ $('stop').addEventListener('click',()=>{void stopCapture();});
 $('start').addEventListener('click',()=>{
  void (async()=>{
    let prepared=null;
+   const manualEpoch=receiverGate.epoch;
    try{
      const totalSeconds=secondsFromEntry($('duration').value,$('duration-unit').value);
      const rate=Number($('rate').value),raw=$('record').checked,wav=$('wav-record').checked;
@@ -827,6 +842,8 @@ $('start').addEventListener('click',()=>{
      }else{
        prepared=await selectRecordingFiles(totalSeconds,rate,raw,wav,
          {at:new Date(),freq:frequency});
+       if(manualEpoch!==receiverGate.epoch||receiverGate.closed)
+         throw Error("Capture preflight cancelled by Stop or Disconnect");
        await startCapture(null,prepared);
      }
    }catch(error){
@@ -2000,6 +2017,7 @@ async function runAutoMission({mode=$('auto-mode').value,goal=$('auto-coverage')
   if(button.disabled)return;
   button.disabled=true;
   $('auto-mode').value=mode;
+  const missionEpoch=schedulerCancellationEpoch;
   try {
     if(!hardwareSupported||!driver)throw Error('Direct WebUSB requires a supported Chromium browser and ready RTL2832U driver. Use the native companion for Firefox/Safari or unattended capture.');
     if(usbTestRunning||capturePromise)throw Error('Receiver is already sampling; stop your owned capture before arming new passes.');
@@ -2015,6 +2033,8 @@ async function runAutoMission({mode=$('auto-mode').value,goal=$('auto-coverage')
     if(!tleEntries.length)await refreshOrbitalCatalog();
     if(!tleEntries.length)throw Error('Could not load TLEs. Import a TLE text file, then retry.');
     if(!passes.length)await calculateOrbitalPasses();
+    if(missionEpoch!==schedulerCancellationEpoch||receiverGate.closed)
+      throw Error("Automatic mission cancelled during asynchronous preflight");
     const totalSeconds=secondsFromEntry($('auto-browser-seconds').value,$('auto-browser-unit').value);
     if(totalSeconds<8)throw Error('Automatic RF recording must be at least 8 seconds.');
     const durationSeconds=Math.min(60,totalSeconds);
