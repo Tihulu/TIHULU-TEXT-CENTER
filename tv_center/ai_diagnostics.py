@@ -14,7 +14,7 @@ def inspect():
     from tv_center.runtime import AIRuntime
     from tv_center.translation_market import TranslationModelMarket
     from tv_center.whisper_engine import WhisperRuntime
-    from textcenter.compute import detect_devices, choose_backend
+    from tv_center.media_backend.compute import detect_devices, choose_backend
 
     settings = AISettings()
     settings.configure_environment()
