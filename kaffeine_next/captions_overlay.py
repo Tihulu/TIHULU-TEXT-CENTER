@@ -13,6 +13,7 @@ import queue
 from collections import deque
 import re
 import socket
+import stat
 import sys
 import threading
 import time
@@ -26,6 +27,57 @@ CHUNK_SECONDS = 6
 OVERLAP_SECONDS = 1.0
 MAX_TS_BYTES = 24 * 1024 * 1024
 LANGS = ("de", "en", "tr", "fr")
+
+
+def stop_owned_benchmark_process(process):
+    """Bounded Qt-owned QProcess teardown; never touch an external PID."""
+    if process.state() == process.NotRunning:
+        return
+    process.terminate()
+    if not process.waitForFinished(3000) and process.state() != process.NotRunning:
+        process.kill()
+        if (not process.waitForFinished(2000) and
+                process.state() != process.NotRunning):
+            raise RuntimeError("App-owned AI benchmark still running after kill")
+
+
+def shutdown_owned_caption_resources(tap, srt_recorder, mobile, ipc,
+                                     control, *, cuda_shutdown=None,
+                                     benchmark_process=None):
+    """Full Exit, not window hide or module pause.
+
+    Stop fresh capture first, flush user SRT data, then interrupt the local
+    app-owned CUDA child *before* joining the decoding thread. Never kill
+    unknown processes, another application's GPU jobs or remote model hosts.
+    A failed close must not prevent subsequent owned resources from closing.
+    """
+    if cuda_shutdown is None:
+        from tv_center.cuda_faster_whisper import shutdown_cuda_worker
+        cuda_shutdown = shutdown_cuda_worker
+
+    errors = []
+    operations = [
+        ("stop caption intake", tap.request_stop),
+        ("flush original SRT", lambda: (
+            srt_recorder.stop() if srt_recorder.active else None)),
+    ]
+    if benchmark_process is not None:
+        operations.append(("stop owned AI benchmark", lambda:
+                           stop_owned_benchmark_process(benchmark_process)))
+    operations.extend([
+        ("release owned CUDA worker", cuda_shutdown),
+        ("join caption threads", tap.close),
+        ("close mobile bridge", mobile.close),
+        ("close caption IPC", ipc.close),
+        ("close caption control", control.close),
+    ])
+    for label, action in operations:
+        try:
+            action()
+        except Exception as exc:
+            errors.append(label + ": " + str(exc)[:180])
+    return errors
+
 
 def validate_socket(path: str) -> Path:
     location = Path(os.environ.get("XDG_RUNTIME_DIR", ""))
@@ -74,6 +126,7 @@ class CaptionTap:
         self.sentence_captured_start = None
         self.program_id = None
         self.sock = None
+        self._owned_socket_identity = None
         self.packet_count = 0
         self.bad_packets = 0
         self._last_ts_at = None
@@ -109,6 +162,8 @@ class CaptionTap:
         self.sock = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
         self.sock.bind(str(self.path))
         os.chmod(self.path, 0o600)
+        bound = self.path.lstat()
+        self._owned_socket_identity = (bound.st_dev, bound.st_ino)
         # No sysctl changes: Linux clamps SO_RCVBUF to a safe local maximum.
         try:
             self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 4*1024*1024)
@@ -130,6 +185,8 @@ class CaptionTap:
             clip = self.work_queue.get(timeout=0.3)
             if clip is None:
                 continue
+            if self.stop.is_set():
+                break  # Never start inference from an already queued clip.
             began = time.monotonic()
             with self._performance_lock:
                 self._active_clip_at=began
@@ -440,7 +497,15 @@ class CaptionTap:
                         f"{health['missed_seconds']:.1f} s of captions could not "
                         "be retained. Select CUDA GPU/smaller model or fewer translations.")
 
+    def _stopping(self):
+        # Historical source-level unit tests construct CaptionTap without
+        # __init__ to inject synthetic timing state; no worker exists there.
+        stop = getattr(self, "stop", None)
+        return stop is not None and stop.is_set()
+
     def _decode(self, capture, options, captured_start, captured_end):
+        if self._stopping():
+            return
         decode_clock=time.perf_counter()
         try:
             from tv_center.ai_settings import AISettings
@@ -479,6 +544,8 @@ class CaptionTap:
             previous = (self.previous_original
                         if self.previous_revision == options.get("revision", 0)
                         else "")
+            if self._stopping():
+                return  # Quit must reject new ASR/translation dispatch.
             result = decode_segment(capture, mode=selected, page=options["page"],
                 source=source, target=primary,
                 targets=(() if selected=="asr" and not options.get(
@@ -513,6 +580,8 @@ class CaptionTap:
                     probe_due),
                 auto_teletext_recovery=bool(
                     recovery_probe and ai.values["asr_enabled"]))
+            if self._stopping():
+                return  # Do not publish a result completed during Quit.
             probe=result.pop("teletext_probe",None)
             shadow=result.pop("teletext_shadow",None)
             if (probe and selected=="auto" and
@@ -804,7 +873,7 @@ class CaptionTap:
                 result=decorate_result(result,enabled=True)
             # Recheck before publishing. Decoder/translator can take
             # seconds; no result from a previous tune may be displayed.
-            if options.get("program_epoch") != self.program_epoch:
+            if self._stopping() or options.get("program_epoch") != self.program_epoch:
                 return
             try:
                 # Captions, unlike status notices, are irreplaceable ASR
@@ -822,20 +891,52 @@ class CaptionTap:
         except (OSError, RuntimeError, ImportError, ValueError) as error:
             self._note_warning(str(error)[:180])
 
-    def close(self):
+    def request_stop(self):
+        """Stop owned packet intake/queued clips without waiting on inference."""
         self.stop.set()
-        if self.sock:
-            self.sock.close()
         self.work_queue.close()
-        if self.thread and self.thread.is_alive():
-            self.thread.join(timeout=2)
-        if self.worker and self.worker.is_alive():
-            self.worker.join(timeout=2)
-        # Only unlink our own previously bound socket.
-        try:
-            self.path.unlink(missing_ok=True)
-        except OSError:
-            pass
+        if self.sock:
+            try:
+                self.sock.close()
+            except OSError:
+                pass
+
+    def close(self):
+        self.request_stop()
+        threads = (("TS reader", self.thread), ("caption worker", self.worker))
+        for name, thread in threads:
+            if thread and thread.is_alive():
+                thread.join(timeout=2)
+        still_running = [name for name, thread in threads
+                         if thread and thread.is_alive()]
+        if not still_running:
+            # The queue was closed in request_stop(); release remaining
+            # per-session text/metric buffers only after owned threads exit.
+            self.previous_original = ""
+            self.previous_revision = -1
+            self.sentence_session = None
+            self.sentence_captured_start = None
+            if hasattr(self, "sentence_joiner"):
+                self.sentence_joiner.reset()
+            if hasattr(self, "_performance_lock"):
+                with self._performance_lock:
+                    self._performance_samples.clear()
+            self.sock = None
+        identity = getattr(self, "_owned_socket_identity", None)
+        if identity is not None:
+            try:
+                meta = self.path.lstat()
+                if ((meta.st_dev, meta.st_ino) == identity and
+                        meta.st_uid == os.getuid() and
+                        stat.S_ISSOCK(meta.st_mode)):
+                    self.path.unlink()
+            except FileNotFoundError:
+                pass
+            finally:
+                self._owned_socket_identity = None
+        if still_running:
+            raise RuntimeError("Caption shutdown incomplete; owned threads still "
+                               "running: " + ", ".join(still_running))
 
 def main(argv=None):
     argv = list(sys.argv[1:] if argv is None else argv)
@@ -2234,6 +2335,8 @@ def main(argv=None):
 
     def run_benchmark_clicked():
         nonlocal benchmark_cancelled
+        if window.terminating:
+            return  # No late owned QProcess launch after STOPPING.
         benchmark_cancelled=False
         if benchmark_process.state()!=QProcess.NotRunning:
             return
@@ -2289,6 +2392,8 @@ def main(argv=None):
             cancel_benchmark_button.setEnabled(False)
 
     def benchmark_finished(*_):
+        if window.terminating:
+            return  # No post-Quit dialogs or worker restart.
         benchmark_button.setEnabled(True)
         cancel_benchmark_button.setEnabled(False)
         if benchmark_cancelled:
@@ -3586,14 +3691,28 @@ def main(argv=None):
     exit_subtitles.clicked.connect(stop_caption_service)
 
     def cleanup():
+        nonlocal service_running, benchmark_cancelled
+        # Qt's aboutToQuit signal fires before QWidget teardown, including
+        # tray Quit and the explicit Exit caption service button.
+        service_running = False
+        benchmark_cancelled = True
+        window.terminating = True
+        timer.stop()
         if tray:
             tray.hide()
-        if srt_recorder.active:
-            srt_recorder.stop()
-        mobile.close()
-        tap.close()
-        ipc.close()
-        control.close()
+        errors = shutdown_owned_caption_resources(
+            tap, srt_recorder, mobile, ipc, control,
+            benchmark_process=benchmark_process)
+        # This local queue is exclusively used by the closing caption window.
+        # Discard stale transcript/status events after owned workers stop.
+        while True:
+            try:
+                events.get_nowait()
+            except queue.Empty:
+                break
+        deferred_captions.clear()
+        for error in errors:
+            print("TIHULU caption Quit cleanup: " + error, file=sys.stderr)
     app.aboutToQuit.connect(cleanup)
     window.show()
     return app.exec_()
